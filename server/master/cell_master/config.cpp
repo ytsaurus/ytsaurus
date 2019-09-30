@@ -106,6 +106,8 @@ TDynamicClusterConfig::TDynamicClusterConfig()
         .DefaultNew();
     RegisterParameter("transaction_manager", TransactionManager)
         .DefaultNew();
+    RegisterParameter("cell_master", CellMaster)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

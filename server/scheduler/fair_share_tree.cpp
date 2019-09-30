@@ -41,6 +41,15 @@ static const auto& Profiler = SchedulerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TJobWithPreemptionInfo
+{
+    TJobPtr Job;
+    bool IsPreemptable;
+    TOperationElementPtr OperationElement;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TFairShareStrategyOperationState::TFairShareStrategyOperationState(IOperationStrategyHost* host)
     : Host_(host)
     , Controller_(New<TFairShareStrategyOperationController>(host))
@@ -101,10 +110,10 @@ TTagId GetUserNameProfilingTag(const TString& userName)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashMap<TString, TPoolName> GetOperationPools(const TOperationRuntimeParametersPtr& runtimeParams)
+THashMap<TString, TPoolName> GetOperationPools(const TOperationRuntimeParametersPtr& runtimeParameters)
 {
     THashMap<TString, TPoolName> pools;
-    for (const auto& [treeId, options] : runtimeParams->SchedulingOptionsPerPoolTree) {
+    for (const auto& [treeId, options] : runtimeParameters->SchedulingOptionsPerPoolTree) {
         pools.emplace(treeId, options->Pool);
     }
     return pools;
@@ -161,6 +170,11 @@ TFuture<void> TFairShareTree::TFairShareTreeSnapshot::ScheduleJobs(const ISchedu
         .Run();
 }
 
+void TFairShareTree::TFairShareTreeSnapshot::PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext)
+{
+    Tree_->DoPreemptJobsGracefully(schedulingContext, RootElementSnapshot_);
+}
+
 void TFairShareTree::TFairShareTreeSnapshot::ProcessUpdatedJob(
     TOperationId operationId,
     TJobId jobId,
@@ -192,6 +206,11 @@ void TFairShareTree::TFairShareTreeSnapshot::ApplyJobMetricsDelta(
     if (operationElement) {
         operationElement->ApplyJobMetricsDelta(jobMetricsDelta);
     }
+}
+
+void TFairShareTree::TFairShareTreeSnapshot::ProfileFairShare() const
+{
+    Tree_->DoProfileFairShare(RootElementSnapshot_);
 }
 
 bool TFairShareTree::TFairShareTreeSnapshot::HasOperation(TOperationId operationId) const
@@ -299,7 +318,7 @@ void TFairShareTree::ValidateAllOperationsCountsOnPoolChange(TOperationId operat
 bool TFairShareTree::RegisterOperation(
     const TFairShareStrategyOperationStatePtr& state,
     const TStrategyOperationSpecPtr& spec,
-    const TOperationFairShareTreeRuntimeParametersPtr& runtimeParams)
+    const TOperationFairShareTreeRuntimeParametersPtr& runtimeParameters)
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -314,7 +333,7 @@ bool TFairShareTree::RegisterOperation(
     auto operationElement = New<TOperationElement>(
         Config_,
         clonedSpec,
-        runtimeParams,
+        runtimeParameters,
         state->GetController(),
         ControllerConfig_,
         Host_,
@@ -606,7 +625,7 @@ void TFairShareTree::UpdateOperationRuntimeParameters(
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
     if (const auto& element = FindOperationElement(operationId)) {
-        element->SetRuntimeParams(newParams);
+        element->SetRuntimeParameters(newParams);
     }
 }
 
@@ -640,7 +659,7 @@ void TFairShareTree::BuildOperationAttributes(TOperationId operationId, TFluentM
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
     const auto& element = GetOperationElement(operationId);
-    auto serializedParams = ConvertToAttributes(element->GetRuntimeParams());
+    auto serializedParams = ConvertToAttributes(element->GetRuntimeParameters());
     fluent
         .Items(*serializedParams)
         .Item("pool").Value(element->GetParent()->GetId());
@@ -658,12 +677,13 @@ void TFairShareTree::BuildOperationProgress(TOperationId operationId, TFluentMap
     auto* parent = element->GetParent();
     fluent
         .Item("pool").Value(parent->GetId())
-        .Item("slot_index").Value(element->GetSlotIndex())
+        .Item("slot_index").Value(element->GetMaybeSlotIndex())
         .Item("start_time").Value(element->GetStartTime())
         .Item("preemptable_job_count").Value(element->GetPreemptableJobCount())
         .Item("aggressively_preemptable_job_count").Value(element->GetAggressivelyPreemptableJobCount())
         .Item("fifo_index").Value(element->Attributes().FifoIndex)
         .Item("deactivation_reasons").Value(element->GetDeactivationReasons())
+        .Item("tentative").Value(element->GetRuntimeParameters()->Tentative)
         .Do(std::bind(&TFairShareTree::BuildElementYson, this, element, std::placeholders::_1));
 }
 
@@ -703,35 +723,22 @@ TFuture<std::pair<IFairShareTreeSnapshotPtr, TError>> TFairShareTree::OnFairShar
         .Run();
 }
 
-void TFairShareTree::ProfileFairShare(TMetricsAccumulator& accumulator) const
-{
-    VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
-
-    for (const auto& [poolName, pool] : Pools_) {
-        ProfileCompositeSchedulerElement(accumulator, FindRecentPoolSnapshot(poolName));
-    }
-    ProfileCompositeSchedulerElement(accumulator, GetRecentRootSnapshot());
-    if (Config_->EnableOperationsProfiling) {
-        for (const auto& [operationId, element] : OperationIdToElement_) {
-            ProfileOperationElement(accumulator, FindRecentOperationElementSnapshot(operationId));
-        }
-    }
-}
-
 void TFairShareTree::LogOperationsInfo()
 {
     for (const auto& [operationId, element] : OperationIdToElement_) {
+        auto* recentOperationElement = FindRecentOperationElementSnapshot(operationId);
         YT_LOG_DEBUG("FairShareInfo: %v (OperationId: %v)",
-            element->GetLoggingString(GetGlobalDynamicAttributes(FindRecentOperationElementSnapshot(operationId))),
+            recentOperationElement->GetLoggingString(GetGlobalDynamicAttributes(recentOperationElement)),
             operationId);
     }
 }
 
 void TFairShareTree::LogPoolsInfo()
 {
-    for (const auto& [poolName, pool] : Pools_) {
+    for (const auto& [poolName, element] : Pools_) {
+        auto recentPoolElement = FindRecentPoolSnapshot(poolName);
         YT_LOG_DEBUG("FairShareInfo: %v (Pool: %v)",
-            pool->GetLoggingString(GetGlobalDynamicAttributes(FindRecentPoolSnapshot(poolName))),
+            recentPoolElement->GetLoggingString(GetGlobalDynamicAttributes(recentPoolElement)),
             poolName);
     }
 }
@@ -950,6 +957,8 @@ std::pair<IFairShareTreeSnapshotPtr, TError> TFairShareTree::DoFairShareUpdateAt
     TUpdateFairShareContext updateContext;
     TDynamicAttributesList dynamicAttributes;
 
+    updateContext.Now = now;
+
     auto rootElement = RootElement_->Clone();
     auto asyncUpdate = BIND([&]
         {
@@ -990,7 +999,7 @@ std::pair<IFairShareTreeSnapshotPtr, TError> TFairShareTree::DoFairShareUpdateAt
         }
     }
 
-    // Copy persistant attributes back to the original tree.
+    // Copy persistent attributes back to the original tree.
     for (const auto& [operationId, element] : rootElementSnapshot->OperationIdToElement) {
         if (auto originalElement = FindOperationElement(operationId)) {
             originalElement->PersistentAttributes() = element->PersistentAttributes();
@@ -1240,7 +1249,7 @@ void TFairShareTree::DoScheduleJobsWithPreemption(
         } else {
             job->SetPreemptionReason(Format("Node resource limits violated"));
         }
-        PreemptJob(job, operationElement, context);
+        PreemptJob(job, operationElement, context->SchedulingContext);
     }
 
     for (; currentJobIndex < preemptableJobs.size(); ++currentJobIndex) {
@@ -1254,7 +1263,7 @@ void TFairShareTree::DoScheduleJobsWithPreemption(
         if (!Dominates(operationElement->ResourceLimits(), operationElement->GetLocalResourceUsage())) {
             job->SetPreemptionReason(Format("Preempted due to violation of resource limits of operation %v",
                 operationElement->GetId()));
-            PreemptJob(job, operationElement, context);
+            PreemptJob(job, operationElement, context->SchedulingContext);
             continue;
         }
 
@@ -1262,7 +1271,7 @@ void TFairShareTree::DoScheduleJobsWithPreemption(
         if (violatedPool) {
             job->SetPreemptionReason(Format("Preempted due to violation of limits on pool %v",
                 violatedPool->GetId()));
-            PreemptJob(job, operationElement, context);
+            PreemptJob(job, operationElement, context->SchedulingContext);
         }
     }
 
@@ -1333,19 +1342,108 @@ void TFairShareTree::DoScheduleJobs(
         context.FinishStage();
     }
 
+    // Interrupt some jobs if usage is greater that limit.
+    if (schedulingContext->ShouldAbortJobsSinceResourcesOvercommit()) {
+        YT_LOG_DEBUG("Interrupting jobs on node since resources are overcommitted (NodeId: %v, Address: %v)",
+            schedulingContext->GetNodeDescriptor().Id,
+            schedulingContext->GetNodeDescriptor().Address);
+
+        std::vector<TJobWithPreemptionInfo> jobInfos;
+        for (const auto& job : schedulingContext->RunningJobs()) {
+            auto* operationElement = rootElementSnapshot->FindOperationElement(job->GetOperationId());
+            if (!operationElement || !operationElement->IsJobKnown(job->GetId())) {
+                YT_LOG_DEBUG("Dangling running job found (JobId: %v, OperationId: %v)",
+                    job->GetId(),
+                    job->GetOperationId());
+                continue;
+            }
+            jobInfos.push_back(TJobWithPreemptionInfo{
+                .Job = job,
+                .IsPreemptable = operationElement->IsJobPreemptable(job->GetId(), /* aggressivePreemptionEnabled */ false),
+                .OperationElement = operationElement,
+            });
+        }
+
+        std::sort(
+            jobInfos.begin(),
+            jobInfos.end(),
+            [&] (const TJobWithPreemptionInfo& lhs, const TJobWithPreemptionInfo& rhs) {
+                if (lhs.IsPreemptable != rhs.IsPreemptable) {
+                    return lhs.IsPreemptable < rhs.IsPreemptable;
+                }
+                return lhs.Job->GetStartTime() < rhs.Job->GetStartTime();
+            }
+        );
+
+        auto currentResources = TJobResources();
+        for (const auto& jobInfo : jobInfos) {
+            if (!Dominates(schedulingContext->ResourceLimits(), currentResources + jobInfo.Job->ResourceUsage())) {
+                YT_LOG_DEBUG("Interrupt job since node resources are overcommitted (JobId: %v, OperationId: %v)",
+                    jobInfo.Job->GetId(),
+                    jobInfo.OperationElement->GetId());
+                PreemptJob(jobInfo.Job, jobInfo.OperationElement, schedulingContext);
+            } else {
+                currentResources += jobInfo.Job->ResourceUsage();
+            }
+        }
+    }
+
     schedulingContext->SetSchedulingStatistics(context.SchedulingStatistics);
 }
+
+void TFairShareTree::DoPreemptJobsGracefully(
+    const ISchedulingContextPtr& schedulingContext,
+    const TRootElementSnapshotPtr& rootElementSnapshot)
+{
+    YT_LOG_TRACE("Looking for gracefully preemptable jobs");
+    for (const auto& job : schedulingContext->RunningJobs()) {
+        if (job->GetPreemptionMode() != EPreemptionMode::Graceful || job->GetGracefullyPreempted()) {
+            continue;
+        }
+
+        auto* operationElement = rootElementSnapshot->FindOperationElement(job->GetOperationId());
+
+        if (!operationElement || !operationElement->IsJobKnown(job->GetId())) {
+            YT_LOG_DEBUG("Dangling running job found (JobId: %v, OperationId: %v)",
+                job->GetId(),
+                job->GetOperationId());
+            continue;
+        }
+
+        if (operationElement->IsJobPreemptable(job->GetId(), /* aggressivePreemptionEnabled */ false)) {
+            schedulingContext->PreemptJobGracefully(job);
+        }
+    }
+}
+
+void TFairShareTree::DoProfileFairShare(const TRootElementSnapshotPtr& rootElementSnapshotPtr) const
+{
+    TMetricsAccumulator accumulator;
+
+    for (const auto& [poolName, pool] : rootElementSnapshotPtr->PoolNameToElement) {
+        ProfileCompositeSchedulerElement(accumulator, pool);
+    }
+    ProfileCompositeSchedulerElement(accumulator, rootElementSnapshotPtr->RootElement.Get());
+    if (Config_->EnableOperationsProfiling) {
+        for (const auto& [operationId, element] : rootElementSnapshotPtr->OperationIdToElement) {
+            ProfileOperationElement(accumulator, element);
+        }
+    }
+
+    accumulator.Publish(&Profiler);
+}
+
 
 void TFairShareTree::PreemptJob(
     const TJobPtr& job,
     const TOperationElementPtr& operationElement,
-    TFairShareContext* context) const
+    const ISchedulingContextPtr& schedulingContext) const
 {
-    context->SchedulingContext->ResourceUsage() -= job->ResourceUsage();
+    schedulingContext->ResourceUsage() -= job->ResourceUsage();
     operationElement->IncreaseJobResourceUsage(job->GetId(), -job->ResourceUsage());
     job->ResourceUsage() = {};
 
-    context->SchedulingContext->PreemptJob(job);
+    schedulingContext->PreemptJob(job);
 }
 
 const TCompositeSchedulerElement* TFairShareTree::FindPoolViolatingMaxRunningOperationCount(const TCompositeSchedulerElement* pool)
@@ -1864,9 +1962,9 @@ void TFairShareTree::DoValidateOperationPoolsCanBeUsed(const IOperationStrategyH
 
 void TFairShareTree::ProfileOperationElement(TMetricsAccumulator& accumulator, TOperationElementPtr element) const
 {
-    {
+    if (auto slotIndex = element->GetMaybeSlotIndex()) {
         auto poolTag = element->GetParent()->GetProfilingTag();
-        auto slotIndexTag = GetSlotIndexProfilingTag(element->GetSlotIndex());
+        auto slotIndexTag = GetSlotIndexProfilingTag(*slotIndex);
 
         ProfileSchedulerElement(accumulator, element, "/operations_by_slot", {poolTag, slotIndexTag, TreeIdProfilingTag_});
     }
@@ -1928,6 +2026,8 @@ void TFairShareTree::ProfileCompositeSchedulerElement(TMetricsAccumulator& accum
         minShareResources.GetUserSlots(),
         EMetricType::Gauge,
         {tag, TreeIdProfilingTag_});
+
+    // TODO(eshcherbin): Add historic usage profiling.
 }
 
 void TFairShareTree::ProfileSchedulerElement(

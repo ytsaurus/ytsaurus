@@ -39,10 +39,7 @@ public:
 
     virtual ETypeFlags GetFlags() const override
     {
-        return
-            TBase::GetFlags() |
-            ETypeFlags::ForbidInheritAclChange; // |
-            //ETypeFlags::ForbidLocking; XXX(babenko)
+        return TBase::GetFlags() | ETypeFlags::ForbidAnnotationRemoval;
     }
 
 private:
@@ -61,17 +58,18 @@ private:
         const TVersionedNodeId& id,
         const TCreateNodeContext& context) override
     {
-        if (context.Transaction) {
-            THROW_ERROR_EXCEPTION("Portals cannot be created in a transaction");
-        }
-
         auto exitCellTag  = context.ExplicitAttributes->GetAndRemove<TCellTag>("exit_cell_tag");
+        if (exitCellTag == Bootstrap_->GetPrimaryCellTag()) {
+            THROW_ERROR_EXCEPTION("Portal exit cannot be placed on the primary cell");
+        }
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (!multicellManager->IsRegisteredMasterCell(exitCellTag)) {
             THROW_ERROR_EXCEPTION("Unknown cell tag %v", exitCellTag);
         }
-        // XXX(babenko): validate cell role
+        if (None(multicellManager->GetMasterCellRoles(exitCellTag) & EMasterCellRoles::CypressNodeHost)) {
+            THROW_ERROR_EXCEPTION("Cell with tag %v cannot host Cypress nodes", exitCellTag);
+        }
 
         auto nodeHolder = TBase::DoCreate(id, context);
         auto* node = nodeHolder.get();
@@ -92,23 +90,18 @@ private:
     }
 
     virtual void DoBranch(
-        const TPortalEntranceNode* /*originatingNode*/,
-        TPortalEntranceNode* /*branchedNode*/,
-        const TLockRequest& /*lockRequest*/) override
+        const TPortalEntranceNode* originatingNode,
+        TPortalEntranceNode* branchedNode,
+        const TLockRequest& lockRequest) override
     {
-        YT_ABORT();
-    }
+        TBase::DoBranch(originatingNode, branchedNode, lockRequest);
 
-    virtual void DoMerge(
-        TPortalEntranceNode* /*originatingNode*/,
-        TPortalEntranceNode* /*branched*/Node) override
-    {
-        YT_ABORT();
+        branchedNode->SetExitCellTag(originatingNode->GetExitCellTag());
     }
 
     virtual void DoClone(
         TPortalEntranceNode* /*sourceNode*/,
-        TPortalEntranceNode* /*clonedNode*/,
+        TPortalEntranceNode* /*clonedTrunkNode*/,
         ICypressNodeFactory* /*factory*/,
         ENodeCloneMode /*mode*/,
         TAccount* /*account*/) override
@@ -122,6 +115,29 @@ private:
     {
         // Cannot be branched.
         return false;
+    }
+
+    virtual void DoBeginCopy(
+        TPortalEntranceNode* node,
+        TBeginCopyContext* context) override
+    {
+        TBase::DoBeginCopy(node, context);
+
+        using NYT::Save;
+        auto exitId = MakePortalExitNodeId(node->GetId(), node->GetExitCellTag());
+        Save(*context, exitId);
+        context->RegisterOpaqueRootId(exitId);
+    }
+
+    virtual void DoEndCopy(
+        TPortalEntranceNode* trunkNode,
+        TEndCopyContext* context,
+        ICypressNodeFactory* factory) override
+    {
+        TBase::DoEndCopy(trunkNode, context, factory);
+
+        // TODO(babenko): cross-cell copying of portals
+        THROW_ERROR_EXCEPTION("Cross-cell copying of portals is not supported");
     }
 };
 

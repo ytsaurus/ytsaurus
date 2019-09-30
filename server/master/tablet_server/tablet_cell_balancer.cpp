@@ -13,6 +13,7 @@
 namespace NYT::NTabletServer {
 
 using namespace NNodeTrackerServer;
+using namespace NNodeTrackerClient;
 using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -180,8 +181,9 @@ public:
         }
 
         if (Provider_->IsVerboseLoggingEnabled()) {
-            YT_LOG_DEBUG("Tablet cells distribution before balancing: %v",
-                StateToString());
+            auto dumpId = TGuid::Create();
+            YT_LOG_DEBUG("Tablet cells distribution before balancing (DumpId: %v)", dumpId);
+            DumpState(dumpId);
         }
 
         for (const auto& pair : Provider_->TabletCellBundles()) {
@@ -191,8 +193,9 @@ public:
         }
 
         if (Provider_->IsVerboseLoggingEnabled()) {
-            YT_LOG_DEBUG("Tablet cells distribution after balancing: %v",
-                StateToString());
+            auto dumpId = TGuid::Create();
+            YT_LOG_DEBUG("Tablet cells distribution after balancing (DumpId: %v)", dumpId);
+            DumpState(dumpId);
         }
 
         if (Provider_->IsVerboseLoggingEnabled()) {
@@ -201,8 +204,8 @@ public:
                     builder->AppendFormat("<%v,%v,%v,%v>",
                         action.Cell->GetId(),
                         action.PeerId,
-                        action.Source ? action.Source->GetDefaultAddress() : "nullptr",
-                        action.Target ? action.Target->GetDefaultAddress() : "nullptr");
+                        action.Source ? action.Source->GetDefaultAddress() : NullNodeAddress(),
+                        action.Target ? action.Target->GetDefaultAddress() : NullNodeAddress());
                 }));
         }
 
@@ -214,8 +217,8 @@ public:
                     builder->AppendFormat("<%v,%v,%v,%v>",
                         action.Cell->GetId(),
                         action.PeerId,
-                        action.Source ? action.Source->GetDefaultAddress() : "nullptr",
-                        action.Target ? action.Target->GetDefaultAddress() : "nullptr");
+                        action.Source ? action.Source->GetDefaultAddress() : NullNodeAddress(),
+                        action.Target ? action.Target->GetDefaultAddress() : NullNodeAddress());
                 }));
         }
 
@@ -312,17 +315,18 @@ private:
 
     std::vector<TTabletCellMoveDescriptor> TabletCellMoveDescriptors_;
 
-    TString StateToString()
+    void DumpState(TGuid dumpId)
     {
-        return Format("%v", MakeFormattableView(Nodes_, [] (TStringBuilderBase* builder, const TNodeHolder& node) {
-            builder->AppendFormat("<%v: %v>",
+        for (const auto& node : Nodes_) {
+            YT_LOG_DEBUG("Tablet cell distribution %v %v (DumpId: %v)",
                 node.GetNode()->GetDefaultAddress(),
                 MakeFormattableView(node.GetSlots(), [] (TStringBuilderBase* builder, const std::pair<const TTabletCell*, int>& pair) {
                     const auto* cell = pair.first;
                     int peerId = pair.second;
                     builder->AppendFormat("<%v,%v,%v>", cell->GetCellBundle()->GetName(), cell->GetId(), peerId);
-                }));
-            }));
+                }),
+                dumpId);
+        }
     }
 
     void LazyInitNodes()

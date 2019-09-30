@@ -1,4 +1,4 @@
-from yt_env_setup import require_ytserver_root_privileges, wait
+from yt_env_setup import wait
 from yt_commands import *
 
 from quota_mixin import QuotaMixin
@@ -6,7 +6,6 @@ from quota_mixin import QuotaMixin
 import pytest
 
 
-@require_ytserver_root_privileges
 class TestDiskUsage(QuotaMixin):
     NUM_SCHEDULERS = 1
     NUM_MASTERS = 1
@@ -44,6 +43,8 @@ class TestDiskUsage(QuotaMixin):
             "safe_scheduler_online_time": 500,
         }
     }
+
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     def _init_tables(self):
         tables = ["//tmp/t1", "//tmp/t2", "//tmp/t3"]

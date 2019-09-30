@@ -2364,7 +2364,7 @@ TChunkRequisition TChunkReplicator::ComputeChunkRequisition(const TChunk* chunk)
     };
 
     // Put seeds into the queue.
-    for (auto* parent : chunk->Parents()) {
+    for (auto [parent, cardinality] : chunk->Parents()) {
         switch (parent->GetType()) {
             case EObjectType::ChunkList:
                 enqueueAdjustedParent(parent->AsChunkList());

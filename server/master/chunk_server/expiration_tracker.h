@@ -21,8 +21,8 @@ public:
 
     void Clear();
 
-    void OnChunkStaged(TChunk* chunk);
-    void OnChunkUnstaged(TChunk* chunk);
+    void ScheduleExpiration(TChunk* chunk);
+    void CancelExpiration(TChunk* chunk);
 
 private:
     NCellMaster::TBootstrap* const Bootstrap_;

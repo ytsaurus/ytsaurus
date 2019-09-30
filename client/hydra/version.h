@@ -25,8 +25,8 @@ struct TVersion
     bool operator <= (TVersion other) const;
     bool operator >= (TVersion other) const;
 
-    ui64 ToRevision() const;
-    static TVersion FromRevision(ui64 revision);
+    TRevision ToRevision() const;
+    static TVersion FromRevision(TRevision revision);
 
     TVersion Advance(int delta = 1) const;
     TVersion Rotate() const;

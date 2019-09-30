@@ -457,6 +457,12 @@ private:
             switch (underlying->GetState()) {
                 case ETransactionParticipantState::Valid: {
                     auto error = WaitFor(underlying->CheckAvailability());
+
+                    // COMPAT(savrus) Compatibility with pre 19.6 participants.
+                    if (error.GetCode() == NRpc::EErrorCode::NoSuchMethod) {
+                        error = WaitFor(underlying->CheckAvailabilityPre196());
+                    }
+
                     if (error.IsOK()) {
                         SetUp();
                     } else {
@@ -1424,7 +1430,7 @@ private:
                 commit->GetPersistentState(),
                 commit->GetUserName());
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR_UNLESS(IsRecovery(), ex, "Unexpected error: coordinator failure; ignored (TransactionId: %v, State: %v, User: %v)",
+            YT_LOG_ALERT_UNLESS(IsRecovery(), ex, "Coordinator failure; ignored (TransactionId: %v, State: %v, User: %v)",
                 transactionId,
                 commit->GetPersistentState(),
                 commit->GetUserName());

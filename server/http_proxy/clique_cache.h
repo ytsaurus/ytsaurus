@@ -15,8 +15,12 @@ class TCachedDiscovery
     , public virtual TAsyncCacheValueBase<TString, TCachedDiscovery>
 {
 public:
+    DEFINE_BYVAL_RW_PROPERTY(TString, CliqueId);
+
+public:
     TCachedDiscovery(
         TString key,
+        TString cliqueId,
         TDiscoveryConfigPtr config,
         NApi::IClientPtr client,
         IInvokerPtr invoker,

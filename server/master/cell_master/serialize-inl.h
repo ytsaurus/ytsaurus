@@ -17,14 +17,18 @@
 
 #include <yt/server/master/chunk_server/chunk.h>
 
+#include <yt/server/master/cypress_server/serialize.h>
+
 namespace NYT::NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TNonversionedObjectRefSerializer
 {
-    template <class T, class C>
-    static void Save(C& context, T object)
+    static inline const TEntitySerializationKey DestroyedKey = TEntitySerializationKey(-2);
+
+    template <class T>
+    static void Save(NCellMaster::TSaveContext& context, T object)
     {
         if (object) {
             // Zombies are serialized as usual, but ghosts need special treatment.
@@ -32,28 +36,38 @@ struct TNonversionedObjectRefSerializer
                 // Ephemeral ghosts aren't supposed to be a part of the
                 // persistent state. Weak ghosts are.
                 YT_VERIFY(object->GetObjectWeakRefCounter() > 0);
-                auto key = NHydra::TEntitySerializationKey::Destroyed;
-                NYT::Save(context, key);
+                NYT::Save(context, DestroyedKey);
                 NYT::Save(context, object->GetId());
             } else {
                 auto key = object->GetDynamicData()->SerializationKey;
-                YT_ASSERT(key != NHydra::TEntitySerializationKey::Null);
+                YT_ASSERT(key);
                 NYT::Save(context, key);
             }
         } else {
-            NYT::Save(context, NHydra::TEntitySerializationKey::Null);
+            NYT::Save(context, TEntitySerializationKey());
         }
     }
 
-    template <class T, class C>
-    static void Load(C& context, T& object)
+    template <class T>
+    static void Save(NCypressServer::TBeginCopyContext& context, T object)
     {
-        typedef typename std::remove_pointer<T>::type TObject;
-        auto key = LoadSuspended<NHydra::TEntitySerializationKey>(context);
-        if (key == NHydra::TEntitySerializationKey::Null) {
+        using NYT::Save;
+        if (object && !NObjectServer::IsObjectAlive(object)) {
+            THROW_ERROR_EXCEPTION("Object %v is not alive",
+                object->GetId());
+        }
+        Save(context, GetObjectId(object));
+    }
+
+    template <class T>
+    static void Load(NCellMaster::TLoadContext& context, T& object)
+    {
+        using TObject = typename std::remove_pointer<T>::type;
+        auto key = LoadSuspended<TEntitySerializationKey>(context);
+        if (!key) {
             object = nullptr;
             SERIALIZATION_DUMP_WRITE(context, "objref <null>");
-        } else if (key == NHydra::TEntitySerializationKey::Destroyed) {
+        } else if (key == DestroyedKey) {
             auto objectId = LoadSuspended<NObjectServer::TObjectId>(context);
             object = context.GetWeakGhostObject(objectId)->template As<TObject>();
             SERIALIZATION_DUMP_WRITE(context, "objref %v <destroyed>", objectId);
@@ -61,6 +75,17 @@ struct TNonversionedObjectRefSerializer
             object = context.template GetEntity<TObject>(key);
             SERIALIZATION_DUMP_WRITE(context, "objref %v aka %v", object->GetId(), key.Index);
         }
+    }
+
+    template <class T>
+    static void Load(NCypressServer::TEndCopyContext& context, T& object)
+    {
+        using NYT::Load;
+        using TObject = typename std::remove_pointer<T>::type;
+        auto id = Load<NObjectServer::TObjectId>(context);
+        object = id
+            ? context.template GetObject<TObject>(id)
+            : nullptr;
     }
 };
 
@@ -73,7 +98,7 @@ struct TVersionedObjectRefSerializer
     {
         auto key = object
             ? object->GetDynamicData()->SerializationKey
-            : NHydra::TEntitySerializationKey::Null;
+            : TEntitySerializationKey();
         NYT::Save(context, key);
     }
 
@@ -81,54 +106,13 @@ struct TVersionedObjectRefSerializer
     static void Load(C& context, T& object)
     {
         typedef typename std::remove_pointer<T>::type TObject;
-        auto key = NYT::Load<NHydra::TEntitySerializationKey>(context);
-        if (key == NHydra::TEntitySerializationKey::Null) {
-            object = nullptr;
-            SERIALIZATION_DUMP_WRITE(context, "objref <null>");
-        } else {
+        auto key = NYT::Load<TEntitySerializationKey>(context);
+        if (key) {
             object = context.template GetEntity<TObject>(key);
             SERIALIZATION_DUMP_WRITE(context, "objref %v aka %v", object->GetVersionedId(), key.Index);
-        }
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TInternedObjectSerializer
-{
-    template <class T, class C>
-    static void Save(C& context, const TInternedObject<T>& object)
-    {
-        using NYT::Save;
-
-        auto it = context.SavedInternedObjects().find(object.ToRaw());
-        if (it == context.SavedInternedObjects().end()) {
-            Save(context, NHydra::TEntitySerializationKey::Inline);
-            Save(context, *object);
-            YT_VERIFY(context.SavedInternedObjects().emplace(object.ToRaw(), context.GenerateSerializationKey()).second);
         } else {
-            Save(context, it->second);
-        }
-    }
-
-    template <class T, class C>
-    static void Load(C& context, TInternedObject<T>& object)
-    {
-        using NYT::Load;
-
-        auto key = NYT::LoadSuspended<NHydra::TEntitySerializationKey>(context);
-        if (key == NHydra::TEntitySerializationKey::Inline) {
-            T value;
-            SERIALIZATION_DUMP_INDENT(context) {
-                Load(context, value);
-                const auto& registry = context.template GetInternRegistry<T>();
-                object = registry->Intern(std::move(value));
-                auto key = context.RegisterEntity(object.ToRaw());
-                SERIALIZATION_DUMP_WRITE(context, "objref %v", key.Index);
-            }
-        } else {
-            object = TInternedObject<T>::FromRaw(context.template GetEntity<void*>(key));
-            SERIALIZATION_DUMP_WRITE(context, "objref %v", key.Index);
+            object = nullptr;
+            SERIALIZATION_DUMP_WRITE(context, "objref <null>");
         }
     }
 };
@@ -136,7 +120,6 @@ struct TInternedObjectSerializer
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCellMaster
-
 
 namespace NYT {
 
@@ -171,16 +154,6 @@ struct TSerializerTraits<
 {
     using TSerializer = NCellMaster::TVersionedObjectRefSerializer;
     using TComparer = NCypressServer::TCypressNodeRefComparer;
-};
-
-template <class T, class C>
-struct TSerializerTraits<
-    TInternedObject<T>,
-    C,
-    void
->
-{
-    using TSerializer = NCellMaster::TInternedObjectSerializer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

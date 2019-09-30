@@ -3,9 +3,14 @@
 #include "chunk_service_proxy.h"
 
 #include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
+#include <yt/ytlib/api/native/config.h>
 
 #include <yt/ytlib/object_client/object_ypath_proxy.h>
 #include <yt/ytlib/object_client/object_service_proxy.h>
+
+#include <yt/ytlib/cypress_client/rpc_helpers.h>
+
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/core/concurrency/scheduler.h>
@@ -18,6 +23,7 @@ namespace NYT::NChunkClient {
 
 using namespace NApi;
 using namespace NObjectClient;
+using namespace NCypressClient;
 using namespace NTransactionClient;
 using namespace NConcurrency;
 using namespace NRpc;
@@ -32,9 +38,9 @@ TChunkTeleporter::TChunkTeleporter(
     IInvokerPtr invoker,
     TTransactionId transactionId,
     const NLogging::TLogger& logger)
-    : Config_(config)
-    , Client_(client)
-    , Invoker_(invoker)
+    : Config_(std::move(config))
+    , Client_(std::move(client))
+    , Invoker_(std::move(invoker))
     , TransactionId_(transactionId)
     , Logger(logger)
 { }
@@ -70,6 +76,9 @@ int TChunkTeleporter::GetExportedObjectCount(TCellTag cellTag)
     TObjectServiceProxy proxy(channel);
 
     auto req = TObjectYPathProxy::Get(FromObjectId(TransactionId_) + "/@exported_object_count");
+    // NB: This transaction is only needed to force cell sync.
+    SetTransactionId(req, TransactionId_);
+
     auto rspOrError = WaitFor(proxy.Execute(req));
     THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting exported object count for transaction %v in cell %v",
         TransactionId_,
@@ -83,13 +92,11 @@ void TChunkTeleporter::Export()
 {
     THashMap<TCellTag, std::vector<TChunkEntry*>> exportMap;
     for (auto& chunk : Chunks_) {
-        exportMap[CellTagFromId(chunk.ChunkId)].push_back(&chunk);
+        auto cellTag = CellTagFromId(chunk.ChunkId);
+        exportMap[cellTag].push_back(&chunk);
     }
 
-    for (const auto& pair : exportMap) {
-        auto cellTag = pair.first;
-        const auto& chunks = pair.second;
-
+    for (const auto& [cellTag, chunks] : exportMap) {
         int oldExportedCount = GetExportedObjectCount(cellTag);
 
         auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
@@ -144,6 +151,9 @@ int TChunkTeleporter::GetImportedObjectCount(TCellTag cellTag)
     TObjectServiceProxy proxy(channel);
 
     auto req = TObjectYPathProxy::Get(FromObjectId(TransactionId_) + "/@imported_object_count");
+    // NB: This transaction is only needed to force cell sync.
+    SetTransactionId(req, TransactionId_);
+
     auto rspOrError = WaitFor(proxy.Execute(req));
     THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting imported object count for transaction %v in cell %v",
         TransactionId_,
@@ -160,10 +170,7 @@ void TChunkTeleporter::Import()
         importMap[chunk.DestinationCellTag].push_back(&chunk);
     }
 
-    for (const auto& pair : importMap) {
-        auto cellTag = pair.first;
-        const auto& chunks = pair.second;
-
+    for (const auto& [cellTag, chunks] : importMap) {
         int oldImportedCount = GetImportedObjectCount(cellTag);
 
         auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);

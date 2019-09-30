@@ -20,6 +20,7 @@ namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// XXX(babenko): move to cpp
 template <class TObject>
 TFuture<NYson::TYsonString> TNonversionedObjectProxyBase<TObject>::FetchFromShepherd(const NYPath::TYPath& path)
 {
@@ -37,7 +38,7 @@ TFuture<NYson::TYsonString> TNonversionedObjectProxyBase<TObject>::FetchFromShep
     batchReq->SetUser(user->GetName());
 
     auto req = NYTree::TYPathProxy::Get(path);
-    batchReq->AddRequest(req, "get");
+    batchReq->AddRequest(req);
 
     return batchReq->Invoke()
         .Apply(BIND([=, this_ = MakeStrong(this)] (const NObjectClient::TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {

@@ -754,6 +754,9 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
         }
     }
 
+    THashMap<TTabletId, int> tabletErrorCount;
+    THashMap<TTableReplicaId, int> replicationErrorCount;
+
     auto tabletSnapshots = slotManager->GetTabletSnapshots();
     for (const auto& tabletSnapshot : tabletSnapshots) {
         if (CellTagFromId(tabletSnapshot->TabletId) == cellTag) {
@@ -778,7 +781,18 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
             protoTabletStatistics->set_modification_time(ToProto<ui64>(tabletSnapshot->TabletRuntimeData->ModificationTime));
             protoTabletStatistics->set_access_time(ToProto<ui64>(tabletSnapshot->TabletRuntimeData->AccessTime));
 
-            ToProto(protoTabletInfo->mutable_errors(), tabletSnapshot->TabletRuntimeData->Errors);
+            TEnumIndexedVector<NTabletClient::ETabletBackgroundActivity, TError> errors;
+            for (auto key : TEnumTraits<ETabletBackgroundActivity>::GetDomainValues()) {
+                if (tabletErrorCount[tabletSnapshot->TableId] >= Config_->MaxTabletErrorsInHeartbeat) {
+                    break;
+                }
+                auto error = tabletSnapshot->TabletRuntimeData->Errors[key].Load();
+                if (!error.IsOK()) {
+                    errors[key] = error;
+                    ++tabletErrorCount[tabletSnapshot->TableId];
+                }
+            }
+            ToProto(protoTabletInfo->mutable_errors(), errors);
 
             for (const auto& pair : tabletSnapshot->Replicas) {
                 auto replicaId = pair.first;
@@ -786,7 +800,14 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
                 auto* protoReplicaInfo = protoTabletInfo->add_replicas();
                 ToProto(protoReplicaInfo->mutable_replica_id(), replicaId);
                 replicaSnapshot->RuntimeData->Populate(protoReplicaInfo->mutable_statistics());
-                ToProto(protoReplicaInfo->mutable_error(), replicaSnapshot->RuntimeData->Error.Load());
+
+                auto error = replicationErrorCount[replicaId] < Config_->MaxReplicationErrorsInHeartbeat
+                    ? replicaSnapshot->RuntimeData->Error.Load()
+                    : TError();
+                if (!error.IsOK()) {
+                    ++replicationErrorCount[replicaId];
+                }
+                ToProto(protoReplicaInfo->mutable_error(), error);
             }
 
             auto* protoPerformanceCounters = protoTabletInfo->mutable_performance_counters();

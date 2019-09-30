@@ -225,6 +225,15 @@ public:
     //! Controls incoming location bandwidth used by tablet store flush.
     NConcurrency::TThroughputThrottlerConfigPtr TabletStoreFlushInThrottler;
 
+    //! Per-location multiplexed changelog configuration.
+    NYTree::INodePtr MultiplexedChangelog;
+
+    //! Per-location  configuration of per-chunk changelog that backs the multiplexed changelog.
+    NYTree::INodePtr HighLatencySplitChangelog;
+
+    //! Per-location configuration of per-chunk changelog that is being written directly (w/o multiplexing).
+    NYTree::INodePtr LowLatencySplitChangelog;
+
 
     TStoreLocationConfig()
     {
@@ -258,6 +267,13 @@ public:
             .DefaultNew();
         RegisterParameter("tablet_store_flush_in_throttler", TabletStoreFlushInThrottler)
             .DefaultNew();
+
+        RegisterParameter("multiplexed_changelog", MultiplexedChangelog)
+            .Default();
+        RegisterParameter("high_latency_split_changelog", HighLatencySplitChangelog)
+            .Default();
+        RegisterParameter("low_latency_split_changelog", LowLatencySplitChangelog)
+            .Default();
 
         // NB: base class's field.
         RegisterParameter("medium_name", MediumName)
@@ -682,6 +698,12 @@ public:
     //! The number of threads in StorageLight thread pool (used for reading chunk blocks).
     int StorageLightThreadCount;
 
+    //! Number of replication errors sent in heartbeat.
+    int MaxReplicationErrorsInHeartbeat;
+
+    //! Number of tablet errors sent in heartbeat.
+    int MaxTabletErrorsInHeartbeat;
+
     TDataNodeConfig()
     {
         RegisterParameter("lease_transaction_timeout", LeaseTransactionTimeout)
@@ -861,6 +883,13 @@ public:
         RegisterParameter("storage_light_thread_count", StorageLightThreadCount)
             .GreaterThan(0)
             .Default(2);
+
+        RegisterParameter("max_replication_errors_in_heartbeat", MaxReplicationErrorsInHeartbeat)
+            .GreaterThan(0)
+            .Default(3);
+        RegisterParameter("max_tablet_errors_in_heartbeat", MaxTabletErrorsInHeartbeat)
+            .GreaterThan(0)
+            .Default(10);
 
         RegisterPreprocessor([&] () {
             ChunkMetaCache->Capacity = 1_GB;

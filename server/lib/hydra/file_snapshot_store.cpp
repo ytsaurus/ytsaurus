@@ -43,14 +43,21 @@ public:
         const TString& fileName,
         int snapshotId,
         bool raw,
-        i64 offset)
+        std::optional<i64> offset,
+        bool skipHeader)
         : FileName_(fileName)
         , SnapshotId_(snapshotId)
         , Raw_(raw)
         , Offset_(offset)
+        , SkipHeader_(skipHeader)
         , Logger(NLogging::TLogger(HydraLogger)
             .AddTag("Path: %v", FileName_))
     { }
+
+    int GetSnapshotId() const
+    {
+        return SnapshotId_;
+    }
 
     virtual TFuture<void> Open() override
     {
@@ -80,7 +87,8 @@ private:
     const TString FileName_;
     const int SnapshotId_;
     const bool Raw_;
-    const i64 Offset_;
+    const std::optional<i64> Offset_;
+    bool SkipHeader_;
 
     const NLogging::TLogger Logger;
 
@@ -102,6 +110,13 @@ private:
         try {
             File_.reset(new TFile(FileName_, OpenExisting | CloseOnExec));
             TUnbufferedFileInput input(*File_);
+
+            if (SkipHeader_) {
+                FileInput_.reset(new TUnbufferedFileInput(*File_));
+                FacadeInput_ = FileInput_.get();
+                YT_LOG_DEBUG("Local snapshot reader opened, assumed headerless snapshot");
+                return;
+            }
 
             ui64 signature;
             ReadPod(input, signature);
@@ -131,7 +146,8 @@ private:
                 DeserializeProto(&Meta_, serializedMeta);
 
                 if (Raw_) {
-                    File_->Seek(Offset_, sSet);
+                    YT_VERIFY(Offset_);
+                    File_->Seek(*Offset_, sSet);
                 }
 
                 FileInput_.reset(new TUnbufferedFileInput(*File_));
@@ -181,13 +197,15 @@ ISnapshotReaderPtr CreateFileSnapshotReader(
     const TString& fileName,
     int snapshotId,
     bool raw,
-    i64 offset)
+    std::optional<i64> offset,
+    bool skipHeader)
 {
     return New<TFileSnapshotReader>(
         fileName,
         snapshotId,
         raw,
-        offset);
+        offset,
+        skipHeader);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

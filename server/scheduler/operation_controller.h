@@ -39,6 +39,9 @@ struct IOperationControllerStrategyHost
 
     //! Returns the number of jobs the controller is able to start right away.
     virtual int GetPendingJobCount() const = 0;
+
+    //! Returns the mode which says how to preempt jobs of this operation.
+    virtual EPreemptionMode GetPreemptionMode() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationControllerStrategyHost)
@@ -87,8 +90,8 @@ struct IOperationController
     //! Revokes the agent; safe to call multiple times.
     virtual void RevokeAgent() = 0;
 
-    //! Returns the agent is operation runs at.
-    //! May return null is the agent is no longer available.
+    //! Returns the agent the operation runs at.
+    //! May return null if the agent is no longer available.
     /*!
      *  \note Thread affinity: any
      */

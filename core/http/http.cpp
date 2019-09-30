@@ -13,9 +13,9 @@ TStringBuf ToHttpString(EMethod method)
 {
     switch(method) {
 #define XX(num, name, string) case EMethod::name: return AsStringBuf(#string);
-    YT_HTTP_METHOD_MAP(XX)
+        YT_HTTP_METHOD_MAP(XX)
 #undef XX
-    default: THROW_ERROR_EXCEPTION("Invalid method %v", method);
+        default: THROW_ERROR_EXCEPTION("Invalid method %v", method);
     }
 }
 
@@ -23,9 +23,10 @@ TStringBuf ToHttpString(EStatusCode code)
 {
     switch(code) {
 #define XX(num, name, string) case EStatusCode::name: return AsStringBuf(#string);
-    YT_HTTP_STATUS_MAP(XX)
+        YT_HTTP_STATUS_MAP(XX)
 #undef XX
-    default: THROW_ERROR_EXCEPTION("Invalid status code %d", code);
+        default:
+            THROW_ERROR_EXCEPTION("Invalid status code %v", code);
     }
 }
 
@@ -68,7 +69,7 @@ TUrlRef ParseUrl(TStringBuf url)
 
 void THeaders::Add(const TString& header, TString value)
 {
-    ValidateValue(header, value);
+    ValidateHeaderValue(header, value);
 
     auto& entry = NameToEntry_[header];
     entry.OriginalHeaderName = header;
@@ -82,7 +83,7 @@ void THeaders::Remove(const TString& header)
 
 void THeaders::Set(const TString& header, TString value)
 {
-    ValidateValue(header, value);
+    ValidateHeaderValue(header, value);
 
     NameToEntry_[header] = {header, {std::move(value)}};
 }
@@ -167,7 +168,23 @@ void THeaders::MergeFrom(const THeadersPtr& headers)
     }
 }
 
-void THeaders::ValidateValue(TStringBuf header, TStringBuf value)
+////////////////////////////////////////////////////////////////////////////////
+
+TString EscapeHeaderValue(TStringBuf value)
+{
+    TString result;
+    result.reserve(value.length());
+    for (auto ch : value) {
+        if (ch == '\n') {
+            result.append("\\n");
+        } else {
+            result.append(ch);
+        }
+    }
+    return result;
+}
+
+void ValidateHeaderValue(TStringBuf header, TStringBuf value)
 {
     if (value.find('\n') != TString::npos) {
         THROW_ERROR_EXCEPTION("Header value should not contain newline symbol")

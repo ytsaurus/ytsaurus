@@ -101,7 +101,7 @@ public:
 
     virtual bool isModified() const override
     {
-        YT_LOG_DEBUG("Checking dictionary revision (OldRevision: %v)", RevisionTracker_.GetRevision());
+        YT_LOG_DEBUG("Checking dictionary revision (OldRevision: %llx)", RevisionTracker_.GetRevision());
         return RevisionTracker_.HasRevisionChanged();
     }
 

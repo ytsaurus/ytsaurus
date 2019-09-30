@@ -163,6 +163,13 @@ void TStoreManagerBase::AddStore(IStorePtr store, bool onMount)
     }
 }
 
+void TStoreManagerBase::BulkAddStores(TRange<IStorePtr> stores, bool onMount)
+{
+    for (auto store : stores) {
+        AddStore(std::move(store), onMount);
+    }
+}
+
 void TStoreManagerBase::RemoveStore(IStorePtr store)
 {
     YT_ASSERT(store->GetStoreState() != EStoreState::ActiveDynamic);

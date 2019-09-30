@@ -201,11 +201,14 @@ private:
     };
 
     THashMap<TString, TEntry, TCaseInsensitiveStringHasher, TCaseInsensitiveStringEqualityComparer> NameToEntry_;
-
-    void ValidateValue(TStringBuf header, TStringBuf value);
 };
 
 DEFINE_REFCOUNTED_TYPE(THeaders)
+
+////////////////////////////////////////////////////////////////////////////////
+
+TString EscapeHeaderValue(TStringBuf value);
+void ValidateHeaderValue(TStringBuf header, TStringBuf value);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -73,9 +73,9 @@ protected:
         auto configNode = GetConfigNode();
 
         if (dumpSnapshot) {
-            config->Logging = NLogging::TLogConfig::CreateSilent();
+            config->Logging = NLogging::TLogManagerConfig::CreateSilent();
         } else if (validateSnapshot) {
-            config->Logging = NLogging::TLogConfig::CreateQuiet();
+            config->Logging = NLogging::TLogManagerConfig::CreateQuiet();
         }
 
         ConfigureSingletons(config);

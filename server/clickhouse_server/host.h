@@ -32,6 +32,8 @@ public:
 
     void Start();
 
+    void HandleIncomingGossip(const TString& instanceId, EInstanceState state);
+
     TFuture<void> StopDiscovery();
     void StopTcpServers();
 

@@ -2,11 +2,15 @@
 
 #include "public.h"
 
-#include <yt/server/lib/controller_agent/public.h>
+#include "scheduling_tag.h"
+
+#include <yt/ytlib/controller_agent/proto/controller_agent_service.pb.h>
 
 #include <yt/ytlib/scheduler/job_resources.h>
 
 #include <yt/ytlib/job_tracker_client/proto/job.pb.h>
+
+#include <yt/server/lib/controller_agent/public.h>
 
 namespace NYT::NScheduler {
 
@@ -52,6 +56,24 @@ struct TOperationControllerInitializeAttributes
     NYson::TYsonString FullSpec;
     NYson::TYsonString UnrecognizedSpec;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TPoolTreeControllerSettings
+{
+    TSchedulingTagFilter SchedulingTagFilter;
+    bool Tentative;
+};
+
+using TPoolTreeControllerSettingsMap = THashMap<TString, TPoolTreeControllerSettings>;
+
+void ToProto(
+    NControllerAgent::NProto::TPoolTreeControllerSettingsMap* protoPoolTreeControllerSettingsMap,
+    const TPoolTreeControllerSettingsMap& poolTreeControllerSettingsMap);
+
+void FromProto(
+    TPoolTreeControllerSettingsMap* poolTreeControllerSettingsMap,
+    const NControllerAgent::NProto::TPoolTreeControllerSettingsMap& protoPoolTreeControllerSettingsMap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

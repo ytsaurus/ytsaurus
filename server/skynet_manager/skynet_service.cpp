@@ -48,10 +48,9 @@ TShareOperation::TShareOperation(
     : Request_(request)
     , Cluster_(cluster)
     , Announcer_(announcer)
-    , Logger(SkynetManagerLogger)
-{
-    Logger.AddTag("Request: %v", request);
-}
+    , Logger(NLogging::TLogger(SkynetManagerLogger)
+        .AddTag("RequestKey: %v", request))
+{ }
 
 void TShareOperation::Start(const IInvokerPtr& invoker)
 {
@@ -66,8 +65,10 @@ void TShareOperation::Run()
         std::vector<TResourceId> resources;
         try {
             YT_LOG_INFO("Share operation started");
+
             auto lastUpdate = TInstant::Now();
             i64 lastRowIndex = 0;
+
             auto updateProgress = [&] (i64 rowIndex) {
                 if (rowIndex < lastRowIndex + 1024 || TInstant::Now() < lastUpdate + TDuration::Seconds(10) ) {
                     return;
@@ -98,7 +99,8 @@ void TShareOperation::Run()
             throw;
         }
 
-        auto announceStart = TInstant::Now();
+        NProfiling::TWallTimer timer;
+
         std::vector<TFuture<void>> announces;
         for (auto resource : resources) {
             announces.push_back(Announcer_->AddOutOfOrderAnnounce(Cluster_->GetName(), resource));
@@ -106,7 +108,9 @@ void TShareOperation::Run()
 
         WaitFor(Combine(announces))
             .ThrowOnError();
-        YT_LOG_INFO("Finished announcing (Duration: %v)", (TInstant::Now() - announceStart));
+
+        YT_LOG_INFO("Finished announcing (Duration: %v)",
+            timer.GetElapsedTime());
     } catch (const std::exception& ex) {
         YT_LOG_ERROR(ex, "Share operation crashed");
     }
@@ -169,7 +173,7 @@ std::vector<TRowRangeLocation> TClusterConnection::FetchSkynetPartsLocations(
         path);
 }
 
-TErrorOr<i64> TClusterConnection::CheckTableAttributes(const NYPath::TRichYPath& path)
+TErrorOr<NHydra::TRevision> TClusterConnection::CheckTableAttributes(const NYPath::TRichYPath& path)
 {
     TGetNodeOptions options;
     options.Attributes = {
@@ -209,7 +213,7 @@ TErrorOr<i64> TClusterConnection::CheckTableAttributes(const NYPath::TRichYPath&
         // TODO(prime): keep per-account usage statistics
         auto account = attributes.Get<TString>("account");
 
-        return attributes.Get<ui64>("revision");
+        return attributes.Get<NHydra::TRevision>("revision");
     } catch (const TErrorException& ex) {
         if (ex.Error().GetCode() == NYTree::EErrorCode::ResolveError) {
             return ex.Error();
@@ -252,7 +256,7 @@ void TSkynetService::Start()
         .Via(Invoker_)
         .Run();
 
-    for (auto&& cluster : Clusters_) {
+    for (const auto& cluster : Clusters_) {
         BIND(&TSkynetService::SyncResourcesLoop, MakeStrong(this), cluster)
             .Via(Invoker_)
             .Run();
@@ -278,14 +282,18 @@ void TSkynetService::AcceptPeers()
 
 void TSkynetService::SyncResourcesLoop(TClusterConnectionPtr cluster)
 {
+    auto Logger = NLogging::TLogger(SkynetManagerLogger)
+        .AddTag("Cluster: %v", cluster->GetName());
+
     while (true) {
         try {
+            YT_LOG_INFO("Started synchronizing resources");
             auto resources = cluster->GetTables()->ListResources();
-            YT_LOG_INFO("Found %d resources (Cluster: %s)", resources.size(), cluster->GetName());
+            YT_LOG_INFO("Resources listed (Count: %v)", resources.size());
             Announcer_->SyncResourceList(cluster->GetName(), std::move(resources));
-            YT_LOG_INFO("Finished syncing resources (Cluster: %s)", cluster->GetName());
+            YT_LOG_INFO("Resource synchornized");
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Error loading resource list (Cluster: %s)", cluster->GetName());
+            YT_LOG_ERROR(ex, "Error synchronizing resources");
         }
 
         TDelayedExecutor::WaitForDuration(Config_->SyncIterationInterval);
@@ -294,14 +302,20 @@ void TSkynetService::SyncResourcesLoop(TClusterConnectionPtr cluster)
 
 void TSkynetService::ReapRemovedTablesLoop(TClusterConnectionPtr cluster)
 {
+    auto Logger = NLogging::TLogger(SkynetManagerLogger)
+        .AddTag("Cluster: %v", cluster->GetName());
+
     auto throttler = cluster->GetBackgroundThrottler();
     auto tables = cluster->GetTables();
 
     while (true) {
         try {
+            YT_LOG_INFO("Started reaping requests");
+
             auto requests = tables->ListActiveRequests();
-            YT_LOG_INFO("Found %d active requests (Cluster: %s)", requests.size(), cluster->GetName());
-            for (auto&& request : requests) {
+            YT_LOG_INFO("Active requests listed (Count: %v)", requests.size());
+
+            for (const auto& request : requests) {
                 WaitFor(throttler->Throttle(1))
                     .ThrowOnError();
 
@@ -316,8 +330,10 @@ void TSkynetService::ReapRemovedTablesLoop(TClusterConnectionPtr cluster)
                     tables->EraseRequest(request);
                 }
             }
+
+            YT_LOG_INFO("Requests reaped");
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Removed tables reaper crashed (Cluster: %s)", cluster->GetName());
+            YT_LOG_ERROR(ex, "Error reaping requests");
         }
 
         TDelayedExecutor::WaitForDuration(Config_->RemovedTablesScanInterval);
@@ -363,13 +379,16 @@ void TSkynetService::HandleShare(const IRequestPtr& req, const IResponseWriterPt
         return;
     }
 
-    YT_LOG_INFO("Start creating share (Cluster: %v, Path: %v)", params.Cluster, params.Path);
-    auto cluster = GetCluster(params.Cluster);
+    YT_LOG_INFO("Start creating share (Cluster: %v, Path: %v)",
+        params.Cluster,
+        params.Path);
+
+    auto cluster = GetClusterOrThrow(params.Cluster);
     auto tableRevision = cluster->CheckTableAttributes(params.Path).ValueOrThrow();
 
     TRequestKey request{
         ToString(params.Path),
-        static_cast<ui64>(tableRevision),
+        tableRevision,
         params.KeyColumns
     };
 
@@ -436,7 +455,7 @@ void TSkynetService::WriteShareReply(
 void TSkynetService::HandleHealthCheck(const IRequestPtr& req, const IResponseWriterPtr& rsp)
 {
     bool ok = Announcer_->IsHealthy();
-    for (auto&& cluster : Clusters_) {
+    for (const auto& cluster : Clusters_) {
         ok = ok && cluster->IsHealthy();
     }
 
@@ -448,7 +467,7 @@ void TSkynetService::HandleHealthCheck(const IRequestPtr& req, const IResponseWr
 void TSkynetService::HandleDebugLinks(const IRequestPtr& req, const IResponseWriterPtr& rsp)
 {
     TResourceId resourceId{req->GetUrl().Path.substr(DebugLinksEndpoint.size())};
-    YT_LOG_DEBUG("Debug links (ResourceId: %s)", resourceId);
+    YT_LOG_DEBUG("Debug links (ResourceId: %v)", resourceId);
 
     TString clusterName;
     try {
@@ -460,7 +479,7 @@ void TSkynetService::HandleDebugLinks(const IRequestPtr& req, const IResponseWri
         return;
     }
 
-    auto clusterConnection = GetCluster(clusterName);
+    auto clusterConnection = GetClusterOrThrow(clusterName);
 
     TYPath tableRange;
     NProto::TResource resource;
@@ -475,15 +494,16 @@ void TSkynetService::HandleDebugLinks(const IRequestPtr& req, const IResponseWri
     });
 }
 
-TClusterConnectionPtr TSkynetService::GetCluster(const TString& clusterName) const
+TClusterConnectionPtr TSkynetService::GetClusterOrThrow(const TString& clusterName) const
 {
-    for (auto&& cluster : Clusters_) {
+    for (const auto& cluster : Clusters_) {
         if (cluster->GetName() == clusterName) {
             return cluster;
         }
     }
 
-    THROW_ERROR_EXCEPTION("Cluster not found")
+    THROW_ERROR_EXCEPTION("Cluster %Qv is not found",
+        clusterName)
         << TErrorAttribute("cluster_name", clusterName);
 }
 
@@ -494,8 +514,8 @@ void TSkynetService::HandlePeerConnection(TPeerConnectionPtr peer)
         auto handshake = peer->ReceiveHandshake();
         auto resourceId = handshake.ResourceId;
         auto Logger = TLogger(SkynetManagerLogger)
-            .AddTag("PeerName: %s", handshake.PeerName)
-            .AddTag("ResourceId: %s", resourceId);
+            .AddTag("PeerName: %v", handshake.PeerName)
+            .AddTag("ResourceId: %v", resourceId);
 
         YT_LOG_INFO("Started handshake");
 
@@ -507,14 +527,15 @@ void TSkynetService::HandlePeerConnection(TPeerConnectionPtr peer)
         peer->SendPing();
 
         YT_LOG_INFO("Handshake completed");
+
         auto clusterName = Announcer_->FindResourceCluster(resourceId);
-        auto clusterConnection = GetCluster(clusterName);
+        auto clusterConnection = GetClusterOrThrow(clusterName);
 
         TResourceLock resourceLock(Announcer_.Get(), resourceId);
 
         auto cachedResource = WaitFor(Get({clusterName, resourceId}))
             .ValueOrThrow();
-        YT_LOG_DEBUG("Found resource (Cluster: %s, TableRange: %v)",
+        YT_LOG_DEBUG("Found resource (Cluster: %v, TableRange: %v)",
             clusterName,
             cachedResource->TableRange);
 
@@ -560,7 +581,7 @@ void TSkynetService::HandlePeerConnection(TPeerConnectionPtr peer)
 TFuture<TCachedResourcePtr> TSkynetService::DoGet(const TCacheKey& key)
 {
     return BIND([this, this_ = MakeStrong(this), key] () {
-        auto clusterConnection = GetCluster(key.first);
+        auto clusterConnection = GetClusterOrThrow(key.first);
         auto entry = New<TCachedResource>();
         clusterConnection->GetTables()->GetResource(
             key.second,

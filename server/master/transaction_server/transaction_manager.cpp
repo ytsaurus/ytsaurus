@@ -35,6 +35,7 @@
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/transaction_client/transaction_service.pb.h>
+#include <yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
 
@@ -89,7 +90,7 @@ private:
 
     virtual TCellTagList DoGetReplicationCellTags(const TTransaction* transaction) override
     {
-        return transaction->SecondaryCellTags();
+        return transaction->ReplicatedToCellTags();
     }
 
     virtual TString DoGetName(const TTransaction* transaction) override
@@ -145,8 +146,6 @@ public:
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraPrepareTransactionCommit, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCommitTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraAbortTransaction, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraRegisterExternalNestedTransaction, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraUnregisterExternalNestedTransaction, Unretained(this)));
 
         RegisterLoader(
             "TransactionManager.Keys",
@@ -170,6 +169,8 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(New<TTransactionTypeHandler>(this, EObjectType::Transaction));
         objectManager->RegisterHandler(New<TTransactionTypeHandler>(this, EObjectType::NestedTransaction));
+        objectManager->RegisterHandler(New<TTransactionTypeHandler>(this, EObjectType::ExternalizedTransaction));
+        objectManager->RegisterHandler(New<TTransactionTypeHandler>(this, EObjectType::ExternalizedNestedTransaction));
 
         if (Bootstrap_->IsPrimaryMaster()) {
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
@@ -181,8 +182,8 @@ public:
     TTransaction* StartTransaction(
         TTransaction* parent,
         std::vector<TTransaction*> prerequisiteTransactions,
-        const TCellTagList& secondaryCellTags,
-        const TCellTagList& replicateToCellTags,
+        const TCellTagList& replicatedToCellTags,
+        const TCellTagList& replicateStartToCellTags,
         std::optional<TDuration> timeout,
         std::optional<TInstant> deadline,
         const std::optional<TString>& title,
@@ -220,14 +221,14 @@ public:
         if (parent) {
             transaction->SetParent(parent);
             transaction->SetDepth(parent->GetDepth() + 1);
-            YT_VERIFY(parent->NestedNativeTransactions().insert(transaction).second);
+            YT_VERIFY(parent->NestedTransactions().insert(transaction).second);
             objectManager->RefObject(transaction);
         } else {
             YT_VERIFY(TopmostTransactions_.insert(transaction).second);
         }
 
         transaction->SetState(ETransactionState::Active);
-        transaction->SecondaryCellTags() = secondaryCellTags;
+        transaction->ReplicatedToCellTags() = replicatedToCellTags;
 
         transaction->PrerequisiteTransactions() = std::move(prerequisiteTransactions);
         for (auto* prerequisiteTransaction : transaction->PrerequisiteTransactions()) {
@@ -244,7 +245,9 @@ public:
             transaction->SetTimeout(std::min(*timeout, dynamicConfig->MaxTransactionTimeout));
         }
 
-        transaction->SetDeadline(deadline);
+        if (!foreign) {
+            transaction->SetDeadline(deadline);
+        }
 
         if (IsLeader()) {
             CreateLease(transaction);
@@ -264,33 +267,31 @@ public:
 
         TransactionStarted_.Fire(transaction);
 
-        if (!replicateToCellTags.empty()) {
+        if (!replicateStartToCellTags.empty()) {
             NTransactionServer::NProto::TReqStartTransaction startRequest;
+            startRequest.set_dont_replicate(true);
             ToProto(startRequest.mutable_attributes(), attributes);
             ToProto(startRequest.mutable_hint_id(), transactionId);
             if (parent) {
                 ToProto(startRequest.mutable_parent_id(), parent->GetId());
             }
-            if (timeout) {
-                startRequest.set_timeout(ToProto<i64>(*timeout));
-            }
-            startRequest.set_user_name(user->GetName());
             if (title) {
                 startRequest.set_title(*title);
             }
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            multicellManager->PostToMasters(startRequest, replicateToCellTags);
+            multicellManager->PostToMasters(startRequest, replicateStartToCellTags);
         }
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, ParentId: %v, PrerequisiteTransactionIds: %v, "
-            "SecondaryCellTags: %v, Timeout: %v, Deadline: %v, Title: %v)",
+            "ReplicateStartToCellTags: %v, ReplicatedToCellTags: %v, Timeout: %v, Deadline: %v, Title: %v)",
             transactionId,
             GetObjectId(parent),
             MakeFormattableView(transaction->PrerequisiteTransactions(), [] (auto* builder, const auto* prerequisiteTransaction) {
                 FormatValue(builder, prerequisiteTransaction->GetId(), TStringBuf());
             }),
-            transaction->SecondaryCellTags(),
+            replicateStartToCellTags,
+            replicatedToCellTags,
             transaction->GetTimeout(),
             transaction->GetDeadline(),
             title);
@@ -321,27 +322,33 @@ public:
 
         SetTimestampHolderTimestamp(transaction->GetId(), commitTimestamp);
 
-        if (!transaction->SecondaryCellTags().empty()) {
-            NProto::TReqCommitTransaction request;
-            ToProto(request.mutable_transaction_id(), transactionId);
-            request.set_commit_timestamp(commitTimestamp);
-
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            multicellManager->PostToMasters(request, transaction->SecondaryCellTags());
-        }
-
-        SmallVector<TTransaction*, 16> nestedNativeTransactions(
-            transaction->NestedNativeTransactions().begin(),
-            transaction->NestedNativeTransactions().end());
-        std::sort(nestedNativeTransactions.begin(), nestedNativeTransactions.end(), TObjectRefComparer::Compare);
-        for (auto* nestedTransaction : nestedNativeTransactions) {
+        SmallVector<TTransaction*, 16> nestedTransactions(
+            transaction->NestedTransactions().begin(),
+            transaction->NestedTransactions().end());
+        std::sort(nestedTransactions.begin(), nestedTransactions.end(), TObjectRefComparer::Compare);
+        for (auto* nestedTransaction : nestedTransactions) {
             YT_LOG_DEBUG_UNLESS(IsRecovery(), "Aborting nested native transaction on parent commit (TransactionId: %v, ParentId: %v)",
                 nestedTransaction->GetId(),
                 transactionId);
             AbortTransaction(nestedTransaction, true);
         }
-        YT_VERIFY(transaction->NestedNativeTransactions().empty());
-        YT_VERIFY(transaction->NestedExternalTransactionIds().empty());
+        YT_VERIFY(transaction->NestedTransactions().empty());
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+
+        if (!transaction->ReplicatedToCellTags().empty()) {
+            NProto::TReqCommitTransaction request;
+            ToProto(request.mutable_transaction_id(), transactionId);
+            request.set_commit_timestamp(commitTimestamp);
+            multicellManager->PostToMasters(request, transaction->ReplicatedToCellTags());
+        }
+
+        if (!transaction->ExternalizedToCellTags().empty()) {
+            NProto::TReqCommitTransaction request;
+            ToProto(request.mutable_transaction_id(), MakeExternalizedTransactionId(transactionId, Bootstrap_->GetCellTag()));
+            request.set_commit_timestamp(commitTimestamp);
+            multicellManager->PostToMasters(request, transaction->ExternalizedToCellTags());
+        }
 
         if (IsLeader()) {
             CloseLease(transaction);
@@ -353,8 +360,7 @@ public:
 
         RunCommitTransactionActions(transaction);
 
-        auto* parent = transaction->GetParent();
-        if (parent) {
+        if (auto* parent = transaction->GetParent()) {
             parent->ExportedObjects().insert(
                 parent->ExportedObjects().end(),
                 transaction->ExportedObjects().begin(),
@@ -364,7 +370,8 @@ public:
                 transaction->ImportedObjects().begin(),
                 transaction->ImportedObjects().end());
 
-            parent->RecomputeResourceUsage();
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            securityManager->RecomputeTransactionAccountResourceUsage(parent);
         } else {
             const auto& objectManager = Bootstrap_->GetObjectManager();
             for (auto* object : transaction->ImportedObjects()) {
@@ -373,19 +380,6 @@ public:
         }
         transaction->ExportedObjects().clear();
         transaction->ImportedObjects().clear();
-
-        if (parent && transaction->GetUnregisterFromParentOnCommit()) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(),
-                "Unregistering transaction from parent on commit "
-                "(TransactionId: %v, ParentTransactionId: %v)",
-                transactionId,
-                parent->GetId());
-            NProto::TReqUnregisterExternalNestedTransaction request;
-            ToProto(request.mutable_transaction_id(), parent->GetId());
-            ToProto(request.mutable_nested_transaction_id(), transactionId);
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            multicellManager->PostToMaster(request, CellTagFromId(parent->GetId()));
-        }
 
         FinishTransaction(transaction);
 
@@ -401,6 +395,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        auto transactionId = transaction->GetId();
         auto state = transaction->GetPersistentState();
         if (state == ETransactionState::Aborted) {
             return;
@@ -417,49 +412,29 @@ public:
             securityManager->ValidatePermission(transaction, EPermission::Write);
         }
 
-        auto transactionId = transaction->GetId();
+        SmallVector<TTransaction*, 16> nestedTransactions(
+            transaction->NestedTransactions().begin(),
+            transaction->NestedTransactions().end());
+        std::sort(nestedTransactions.begin(), nestedTransactions.end(), TObjectRefComparer::Compare);
+        for (auto* nestedTransaction : nestedTransactions) {
+            AbortTransaction(nestedTransaction, true, false);
+        }
+        YT_VERIFY(transaction->NestedTransactions().empty());
+
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
-        if (!transaction->SecondaryCellTags().empty()) {
+        if (!transaction->ReplicatedToCellTags().empty()) {
             NProto::TReqAbortTransaction request;
             ToProto(request.mutable_transaction_id(), transactionId);
-            request.set_force(force);
-            multicellManager->PostToMasters(request, transaction->SecondaryCellTags());
+            request.set_force(true);
+            multicellManager->PostToMasters(request, transaction->ReplicatedToCellTags());
         }
 
-        SmallVector<TTransaction*, 16> nestedNativeTransactions(
-            transaction->NestedNativeTransactions().begin(),
-            transaction->NestedNativeTransactions().end());
-        std::sort(nestedNativeTransactions.begin(), nestedNativeTransactions.end(), TObjectRefComparer::Compare);
-        for (auto* nestedTransaction : nestedNativeTransactions) {
-            AbortTransaction(nestedTransaction, force, false);
-        }
-        YT_VERIFY(transaction->NestedNativeTransactions().empty());
-
-        SmallVector<TTransactionId, 16> nestedExternalTransactionIds(
-            transaction->NestedExternalTransactionIds().begin(),
-            transaction->NestedExternalTransactionIds().end());
-        std::sort(nestedExternalTransactionIds.begin(), nestedExternalTransactionIds.end());
-        for (auto nestedTransactionId : nestedExternalTransactionIds) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Aborting nested external transaction (TransactionId: %v)",
-                nestedTransactionId);
+        if (!transaction->ExternalizedToCellTags().empty()) {
             NProto::TReqAbortTransaction request;
-            ToProto(request.mutable_transaction_id(), nestedTransactionId);
-            multicellManager->PostToMaster(request, CellTagFromId(nestedTransactionId));
-        }
-        transaction->NestedExternalTransactionIds().clear();
-
-        auto* parent = transaction->GetParent();
-        if (parent && transaction->GetUnregisterFromParentOnAbort()) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(),
-                "Unregistering transaction from parent on abort "
-                "(TransactionId: %v, ParentTransactionId: %v)",
-                transactionId,
-                parent->GetId());
-            NProto::TReqUnregisterExternalNestedTransaction request;
-            ToProto(request.mutable_transaction_id(), parent->GetId());
-            ToProto(request.mutable_nested_transaction_id(), transactionId);
-            multicellManager->PostToMaster(request, CellTagFromId(parent->GetId()));
+            ToProto(request.mutable_transaction_id(), MakeExternalizedTransactionId(transactionId, Bootstrap_->GetCellTag()));
+            request.set_force(true);
+            multicellManager->PostToMasters(request, transaction->ExternalizedToCellTags());
         }
 
         if (IsLeader()) {
@@ -493,20 +468,76 @@ public:
             force);
     }
 
-    void RegisterTransactionAtParent(TTransaction* transaction)
+    TTransactionId ExternalizeTransaction(TTransaction* transaction, TCellTag dstCellTag)
     {
-        auto* parent = transaction->GetParent();
-        YT_ASSERT(parent && parent->IsForeign());
+        if (!transaction) {
+            return {};
+        }
+        if (!transaction->IsForeign()) {
+            return transaction->GetId();
+        }
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Registering transaction at parent (TransactionId: %v, ParentTransactionId: %v)",
-            transaction->GetId(),
-            parent->GetId());
+        SmallVector<TTransaction*, 32> transactionsToExternalize;
+        {
+            auto* currentTransaction = transaction;
+            while (currentTransaction) {
+                auto& externalizedToCellTags = currentTransaction->ExternalizedToCellTags();
+                if (std::find(externalizedToCellTags.begin(), externalizedToCellTags.end(), dstCellTag) != externalizedToCellTags.end()) {
+                    break;
+                }
+                externalizedToCellTags.push_back(dstCellTag);
+                transactionsToExternalize.push_back(currentTransaction);
+                currentTransaction = currentTransaction->GetParent();
+            }
+        }
 
-        NTransactionServer::NProto::TReqRegisterExternalNestedTransaction request;
-        ToProto(request.mutable_transaction_id(), parent->GetId());
-        ToProto(request.mutable_nested_transaction_id(), transaction->GetId());
+        std::reverse(transactionsToExternalize.begin(), transactionsToExternalize.end());
+
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        multicellManager->PostToMaster(request, CellTagFromId(parent->GetId()));
+        for (auto* currentTransaction : transactionsToExternalize) {
+            auto transactionId = currentTransaction->GetId();
+            auto externalizedTransactionId = MakeExternalizedTransactionId(transactionId, Bootstrap_->GetCellTag());
+            auto externalizedParentTransactionId = MakeExternalizedTransactionId(GetObjectId(currentTransaction->GetParent()), Bootstrap_->GetCellTag());
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Externalizing transaction (TransactionId: %v, DstCellTag: %v, ExternalizedTransactionId: %v)",
+                transactionId,
+                dstCellTag,
+                externalizedTransactionId);
+
+            NTransactionServer::NProto::TReqStartTransaction startRequest;
+            startRequest.set_dont_replicate(true);
+            ToProto(startRequest.mutable_hint_id(), externalizedTransactionId);
+            if (externalizedParentTransactionId) {
+                ToProto(startRequest.mutable_parent_id(), externalizedParentTransactionId);
+            }
+            if (currentTransaction->GetTitle()) {
+                startRequest.set_title(*currentTransaction->GetTitle());
+            }
+            multicellManager->PostToMaster(startRequest, dstCellTag);
+        }
+
+        return MakeExternalizedTransactionId(transaction->GetId(), Bootstrap_->GetCellTag());
+    }
+
+    TTransactionId GetNearestExternalizedTransactionAncestor(
+        TTransaction* transaction,
+        TCellTag dstCellTag)
+    {
+        if (!transaction) {
+            return {};
+        }
+        if (!transaction->IsForeign()) {
+            return transaction->GetId();
+        }
+
+        auto* currentTransaction = transaction;
+        while (currentTransaction) {
+            const auto& externalizedToCellTags = currentTransaction->ExternalizedToCellTags();
+            if (std::find(externalizedToCellTags.begin(), externalizedToCellTags.end(), dstCellTag) != externalizedToCellTags.end()) {
+                return MakeExternalizedTransactionId(currentTransaction->GetId(), Bootstrap_->GetCellTag());
+            }
+            currentTransaction = currentTransaction->GetParent();
+        }
+        return {};
     }
 
     TTransaction* GetTransactionOrThrow(TTransactionId transactionId)
@@ -632,14 +663,6 @@ public:
 
         auto* transaction = GetTransactionOrThrow(transactionId);
 
-        if (!transaction->NestedExternalTransactionIds().empty()) {
-            THROW_ERROR_EXCEPTION(
-                NTransactionClient::EErrorCode::NestedExternalTransactionExists,
-                "Cannot commit transaction %v since it has nested external transaction(s) %v",
-                transactionId,
-                transaction->NestedExternalTransactionIds());
-        }
-
         // Allow preparing transactions in Active and TransientCommitPrepared (for persistent mode) states.
         // This check applies not only to #transaction itself but also to all of its ancestors.
         {
@@ -670,14 +693,20 @@ public:
                 prepareTimestamp);
         }
 
-        if (persistent && !transaction->SecondaryCellTags().empty()) {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+
+        if (persistent && !transaction->ReplicatedToCellTags().empty()) {
             NProto::TReqPrepareTransactionCommit request;
             ToProto(request.mutable_transaction_id(), transactionId);
             request.set_prepare_timestamp(prepareTimestamp);
-            request.set_user_name(*securityManager->GetAuthenticatedUserName());
+            multicellManager->PostToMasters(request, transaction->ReplicatedToCellTags());
+        }
 
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            multicellManager->PostToMasters(request, transaction->SecondaryCellTags());
+        if (!transaction->ExternalizedToCellTags().empty()) {
+            NProto::TReqPrepareTransactionCommit request;
+            ToProto(request.mutable_transaction_id(), MakeExternalizedTransactionId(transactionId, Bootstrap_->GetCellTag()));
+            request.set_prepare_timestamp(prepareTimestamp);
+            multicellManager->PostToMasters(request, transaction->ExternalizedToCellTags());
         }
     }
 
@@ -783,6 +812,9 @@ private:
 
     THashMap<TTransactionId, TTimestampHolder> TimestampHolderMap_;
 
+    // COMPAT(babenko)
+    bool AddRefsFromTransactionToUsageAccounts_ = false;
+
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
     DECLARE_THREAD_AFFINITY_SLOT(TrackerThread);
 
@@ -793,7 +825,11 @@ private:
         NTransactionServer::NProto::TRspStartTransaction* response)
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* user = securityManager->GetUserByNameOrThrow(request->user_name());
+
+        auto* user = request->has_user_name()
+            ? securityManager->GetUserByNameOrThrow(request->user_name())
+            : nullptr;
+
         TAuthenticatedUserGuard userGuard(securityManager, user);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -807,7 +843,7 @@ private:
 
         auto prerequisiteTransactionIds = FromProto<std::vector<TTransactionId>>(request->prerequisite_transaction_ids());
         std::vector<TTransaction*> prerequisiteTransactions;
-        for (const auto& id : prerequisiteTransactionIds) {
+        for (auto id : prerequisiteTransactionIds) {
             auto* prerequisiteTransaction = FindTransaction(id);
             if (!IsObjectAlive(prerequisiteTransaction)) {
                 THROW_ERROR_EXCEPTION(NObjectClient::EErrorCode::PrerequisiteCheckFailed,
@@ -830,33 +866,33 @@ private:
         auto title = request->has_title() ? std::make_optional(request->title()) : std::nullopt;
 
         auto timeout = FromProto<TDuration>(request->timeout());
+
         std::optional<TInstant> deadline;
         if (request->has_deadline()) {
             deadline = FromProto<TInstant>(request->deadline());
         }
 
-        TCellTagList secondaryCellTags;
-        auto replicateToCellTags = FromProto<TCellTagList>(request->replicate_to_cell_tags());
-
-        if (replicateToCellTags.empty()) {
-            if (Bootstrap_->IsPrimaryMaster()) {
+        TCellTagList replicateToCellTags;
+        if (!request->dont_replicate())  {
+            replicateToCellTags = FromProto<TCellTagList>(request->replicate_to_cell_tags());
+            if (replicateToCellTags.empty() && Bootstrap_->IsPrimaryMaster()) {
                 const auto& multicellManager = Bootstrap_->GetMulticellManager();
-                secondaryCellTags = multicellManager->GetRegisteredMasterCellTags();
-                replicateToCellTags = secondaryCellTags;
+                replicateToCellTags = multicellManager->GetRegisteredMasterCellTags();
             }
         }
 
         auto* transaction = StartTransaction(
             parent,
             prerequisiteTransactions,
-            secondaryCellTags,
+            replicateToCellTags,
             replicateToCellTags,
             timeout,
             deadline,
             title,
             *attributes,
             hintId);
-        const auto& id = transaction->GetId();
+
+        auto id = transaction->GetId();
 
         if (response) {
             ToProto(response->mutable_id(), id);
@@ -895,10 +931,13 @@ private:
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto prepareTimestamp = request->prepare_timestamp();
-        auto userName = request->user_name();
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* user = securityManager->GetUserByNameOrThrow(userName);
+
+        auto* user = request->has_user_name()
+            ? securityManager->GetUserByNameOrThrow(request->user_name())
+            : nullptr;
+
         TAuthenticatedUserGuard(securityManager, user);
 
         PrepareTransactionCommit(transactionId, true, prepareTimestamp);
@@ -918,74 +957,6 @@ private:
         AbortTransaction(transactionId, force);
     }
 
-    void HydraRegisterExternalNestedTransaction(NProto::TReqRegisterExternalNestedTransaction* request)
-    {
-        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        auto nestedTransactionId = FromProto<TTransactionId>(request->nested_transaction_id());
-        auto* transaction = FindTransaction(transactionId);
-        if (!IsObjectAlive(transaction)) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(),
-                "Requested to register an external nested transaction for a non-existing parent transaction; ignored "
-                "(TransactionId: %v, NestedTransactionId: %v)",
-                transactionId,
-                nestedTransactionId);
-            return;
-        }
-
-        auto* currentTransaction = transaction;
-        while (currentTransaction) {
-            if (currentTransaction->GetPersistentState() != ETransactionState::Active) {
-                YT_LOG_DEBUG_UNLESS(IsRecovery(),
-                    "Requested to register an external nested transaction for a non-active transaction; ignored "
-                    "(TransactionId: %v, State: %v, NestedTransactionId: %v)",
-                    currentTransaction->GetId(),
-                    currentTransaction->GetPersistentState(),
-                    nestedTransactionId);
-                return;
-            }
-            currentTransaction = currentTransaction->GetParent();
-        }
-
-        if (transaction->NestedExternalTransactionIds().insert(nestedTransactionId).second) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(),
-                "External nested transaction registered (TransactionId: %v, NestedTransactionId: %v)",
-                transactionId,
-                nestedTransactionId);
-        } else {
-            YT_LOG_ERROR_UNLESS(IsRecovery(),
-                "Unexpected error: external nested transaction re-registered (TransactionId: %v, NestedTransactionId: %v)",
-                transaction,
-                nestedTransactionId);
-        }
-    }
-
-    void HydraUnregisterExternalNestedTransaction(NProto::TReqUnregisterExternalNestedTransaction* request)
-    {
-        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        auto nestedTransactionId = FromProto<TTransactionId>(request->nested_transaction_id());
-        auto* transaction = FindTransaction(transactionId);
-        if (!IsObjectAlive(transaction)) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(),
-                "Requested to unregister an external nested transaction for a non-existing parent transaction; ignored "
-                "(TransactionId: %v, NestedTransactionId: %v)",
-                transactionId,
-                nestedTransactionId);
-            return;
-        }
-
-        if (transaction->NestedExternalTransactionIds().erase(nestedTransactionId)) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(),
-                "External nested transaction unregistered (TransactionId: %v, NestedTransactionId: %v)",
-                transactionId,
-                nestedTransactionId);
-        } else {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(),
-                "Requested to unregister a non-existing external nested transaction; ignored "
-                "(TransactionId: %v, NestedTransactionId: %v)",
-                transactionId,
-                nestedTransactionId);
-        }
-    }
 
 // COMPAT(shakurov)
 public:
@@ -1009,7 +980,7 @@ public:
 
         auto* parent = transaction->GetParent();
         if (parent) {
-            YT_VERIFY(parent->NestedNativeTransactions().erase(transaction) == 1);
+            YT_VERIFY(parent->NestedTransactions().erase(transaction) == 1);
             objectManager->UnrefObject(transaction);
             transaction->SetParent(nullptr);
         } else {
@@ -1041,6 +1012,9 @@ public:
         transaction->DependentTransactions().clear();
 
         transaction->SetDeadline(std::nullopt);
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->ResetTransactionAccountResourceUsage(transaction);
 
         // Kill the fake reference thus destroying the object.
         objectManager->UnrefObject(transaction);
@@ -1075,6 +1049,11 @@ private:
         if (context.GetVersion() >= EMasterReign::BulkInsert) {
             Load(context, TimestampHolderMap_);
         }
+
+        // COMPAT(babenko)
+        if (context.GetVersion() < EMasterReign::AddRefsFromTransactionToUsageAccounts) {
+            AddRefsFromTransactionToUsageAccounts_ = true;
+        }
     }
 
 
@@ -1084,10 +1063,23 @@ private:
 
         // Reconstruct TopmostTransactions.
         TopmostTransactions_.clear();
-        for (const auto& pair : TransactionMap_) {
-            auto* transaction = pair.second;
+        for (auto [id, transaction] : TransactionMap_) {
             if (IsObjectAlive(transaction) && !transaction->GetParent()) {
                 YT_VERIFY(TopmostTransactions_.insert(transaction).second);
+            }
+        }
+
+        // COMPAT(babenko)
+        if (AddRefsFromTransactionToUsageAccounts_) {
+            for (auto [id, transaction] : TransactionMap_) {
+                if (transaction->GetState() == ETransactionState::Committed ||
+                    transaction->GetState() == ETransactionState::Aborted)
+                {
+                    continue;
+                }
+                for (const auto& [account, usage] : transaction->AccountResourceUsage()) {
+                    account->RefObject();
+                }
             }
         }
     }
@@ -1100,6 +1092,7 @@ private:
 
         TransactionMap_.Clear();
         TopmostTransactions_.clear();
+        AddRefsFromTransactionToUsageAccounts_ = false;
     }
 
 
@@ -1177,7 +1170,7 @@ private:
     void OnValidateSecondaryMasterRegistration(TCellTag cellTag)
     {
         if (TransactionMap_.GetSize() > 0) {
-            THROW_ERROR_EXCEPTION("Cannot register a new secondary master %v while %d transaction(s) are present",
+            THROW_ERROR_EXCEPTION("Cannot register a new secondary master %v while %v transaction(s) are present",
                 cellTag,
                 TransactionMap_.GetSize());
         }
@@ -1215,8 +1208,8 @@ void TTransactionManager::Initialize()
 TTransaction* TTransactionManager::StartTransaction(
     TTransaction* parent,
     std::vector<TTransaction*> prerequisiteTransactions,
-    const TCellTagList& secondaryCellTags,
-    const TCellTagList& replicateToCellTags,
+    const TCellTagList& replicatedToCellTags,
+    const TCellTagList& replicateStartToCellTags,
     std::optional<TDuration> timeout,
     std::optional<TInstant> deadline,
     const std::optional<TString>& title,
@@ -1226,8 +1219,8 @@ TTransaction* TTransactionManager::StartTransaction(
     return Impl_->StartTransaction(
         parent,
         std::move(prerequisiteTransactions),
-        secondaryCellTags,
-        replicateToCellTags,
+        replicatedToCellTags,
+        replicateStartToCellTags,
         timeout,
         deadline,
         title,
@@ -1249,9 +1242,16 @@ void TTransactionManager::AbortTransaction(
     Impl_->AbortTransaction(transaction, force);
 }
 
-void TTransactionManager::RegisterTransactionAtParent(TTransaction* transaction)
+TTransactionId TTransactionManager::ExternalizeTransaction(TTransaction* transaction, TCellTag dstCellTag)
 {
-    Impl_->RegisterTransactionAtParent(transaction);
+    return Impl_->ExternalizeTransaction(transaction, dstCellTag);
+}
+
+TTransactionId TTransactionManager::GetNearestExternalizedTransactionAncestor(
+    TTransaction* transaction,
+    TCellTag dstCellTag)
+{
+    return Impl_->GetNearestExternalizedTransactionAncestor(transaction, dstCellTag);
 }
 
 // COMPAT(shakurov)

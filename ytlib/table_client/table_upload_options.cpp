@@ -15,6 +15,20 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTableSchema TTableUploadOptions::GetUploadSchema() const
+{
+    switch (SchemaModification) {
+        case ETableSchemaModification::None:
+            return TableSchema;
+
+        case ETableSchemaModification::UnversionedUpdate:
+            return TableSchema.ToUnversionedUpdate(/*sorted*/ true);
+
+        default:
+            YT_ABORT();
+    }
+}
+
 void TTableUploadOptions::Persist(NPhoenix::TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -22,14 +36,13 @@ void TTableUploadOptions::Persist(NPhoenix::TPersistenceContext& context)
     Persist(context, UpdateMode);
     Persist(context, LockMode);
     Persist(context, TableSchema);
+    Persist(context, SchemaModification);
     Persist(context, SchemaMode);
     Persist(context, OptimizeFor);
     Persist(context, CompressionCodec);
     Persist(context, ErasureCodec);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 300100) {
-        Persist(context, SecurityTags);
-    }
+    Persist(context, SecurityTags);
+    Persist(context, PartiallySorted);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -195,12 +208,22 @@ TTableUploadOptions GetTableUploadOptions(
         result.ErasureCodec = erasureCodec;
     }
 
-    if (!dynamic && path.GetOutputChunkFormat() != EOutputChunkFormat::Unversioned) {
-        THROW_ERROR_EXCEPTION("YPath attribute \"output_chunk_format\" cah have value %Qlv only for dynamic tables",
-            path.GetOutputChunkFormat())
+    if (path.GetSchemaModification() == ETableSchemaModification::UnversionedUpdateUnsorted) {
+        THROW_ERROR_EXCEPTION("YPath attribute \"schema_modification\" cannot have value %Qlv for output tables",
+            path.GetSchemaModification())
+            << TErrorAttribute("path", path);
+    } else if (!dynamic && path.GetSchemaModification() != ETableSchemaModification::None) {
+        THROW_ERROR_EXCEPTION("YPath attribute \"schema_modification\" can have value %Qlv only for dynamic tables",
+            path.GetSchemaModification())
             << TErrorAttribute("path", path);
     }
-    result.OutputChunkFormat = path.GetOutputChunkFormat();
+    result.SchemaModification = path.GetSchemaModification();
+
+    if (!dynamic && path.GetPartiallySorted()) {
+        THROW_ERROR_EXCEPTION("YPath attribute \"partially_sorted\" can be set only for dynamic tables")
+            << TErrorAttribute("path", path);
+    }
+    result.PartiallySorted = path.GetPartiallySorted();
 
     result.SecurityTags = path.GetSecurityTags();
 
@@ -210,4 +233,3 @@ TTableUploadOptions GetTableUploadOptions(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient
-

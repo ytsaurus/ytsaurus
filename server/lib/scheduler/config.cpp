@@ -267,6 +267,9 @@ TControllerAgentTrackerConfig::TControllerAgentTrackerConfig()
     RegisterParameter("heartbeat_timeout", HeartbeatTimeout)
         .Default(TDuration::Seconds(15));
 
+    RegisterParameter("incarnation_transaction_timeout", IncarnationTransactionTimeout)
+        .Default(TDuration::Seconds(30));
+
     RegisterParameter("agent_pick_strategy", AgentPickStrategy)
         .Default(EControllerAgentPickStrategy::Random);
 
@@ -316,7 +319,7 @@ TSchedulerConfig::TSchedulerConfig()
 
     // NB: This setting is NOT synchronized with the Cypress while scheduler is connected to master.
     RegisterParameter("lock_transaction_timeout", LockTransactionTimeout)
-        .Default(TDuration::Seconds(15));
+        .Default(TDuration::Seconds(30));
     RegisterParameter("job_prober_rpc_timeout", JobProberRpcTimeout)
         .Default(TDuration::Seconds(300));
 
@@ -374,6 +377,9 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("job_interrupt_timeout", JobInterruptTimeout)
         .Default(TDuration::Seconds(10));
 
+    RegisterParameter("graceful_preemption_job_interrupt_timeout", GracefulPreemptionJobInterruptTimeout)
+        .Default(TDuration::Seconds(60));
+
     RegisterParameter("enable_unrecognized_alert", EnableUnrecognizedAlert)
         .Default(true);
 
@@ -429,7 +435,7 @@ TSchedulerConfig::TSchedulerConfig()
 
     RegisterParameter("skip_operations_with_malformed_spec_during_revival", SkipOperationsWithMalformedSpecDuringRevival)
         .Default(false);
-    
+
     RegisterParameter("max_offline_node_age", MaxOfflineNodeAge)
         .Default(TDuration::Hours(12));
 
@@ -439,6 +445,21 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("orchid_worker_thread_count", OrchidWorkerThreadCount)
         .Default(4)
         .GreaterThan(0);
+
+    RegisterParameter("handle_node_id_changes_strictly", HandleNodeIdChangesStrictly)
+        .Default(true);
+
+    RegisterParameter("allowed_node_resources_overcommit_duration", AllowedNodeResourcesOvercommitDuration)
+        .Default(TDuration::Seconds(15));
+
+    RegisterParameter("pool_trees_root", PoolTreesRoot)
+        .Default("//sys/pool_trees");
+
+    RegisterParameter("validate_node_tags_period", ValidateNodeTagsPeriod)
+        .Default(TDuration::Seconds(30));
+
+    RegisterParameter("enable_job_abort_on_zero_user_slots", EnableJobAbortOnZeroUserSlots)
+        .Default(true);
 
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;

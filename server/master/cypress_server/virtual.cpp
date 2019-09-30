@@ -50,6 +50,7 @@ using namespace NCellMaster;
 using namespace NTransactionServer;
 using namespace NObjectClient;
 using namespace NObjectServer;
+using namespace NSecurityServer;
 using namespace NCypressClient;
 using namespace NConcurrency;
 
@@ -90,6 +91,8 @@ IYPathService::TResolveResult TVirtualMulticellMapBase::ResolveRecursive(
 
     const auto& objectManager = Bootstrap_->GetObjectManager();
     IYPathServicePtr proxy;
+
+    // Cf. TObjectResolver::ResolveRoot.
     if (Bootstrap_->IsPrimaryMaster() && CellTagFromId(objectId) != Bootstrap_->GetCellTag()) {
         proxy = objectManager->CreateRemoteProxy(objectId);
     } else {

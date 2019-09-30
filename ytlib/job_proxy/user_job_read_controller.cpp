@@ -280,7 +280,7 @@ public:
 
     TFuture<std::vector<TBlob>> GetInputContext() const override
     {
-        return MakeFuture(std::vector<TBlob>{});
+        THROW_ERROR_EXCEPTION("Input context is not supported for vanilla jobs");
     }
 
     std::vector<TChunkId> GetFailedChunkIds() const override

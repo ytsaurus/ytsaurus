@@ -60,7 +60,8 @@ protected:
         explicit TCustomAttributeDictionary(TNontemplateCypressNodeProxyBase* proxy);
 
         // IAttributeDictionary members
-        virtual std::vector<TString> List() const override;
+        virtual std::vector<TString> ListKeys() const override;
+        virtual std::vector<TKeyValuePair> ListPairs() const override;
         virtual NYson::TYsonString FindYson(const TString& key) const override;
         virtual void SetYson(const TString& key, const NYson::TYsonString& value) override;
         virtual bool Remove(const TString& key) override;
@@ -72,13 +73,13 @@ protected:
 
     class TResourceUsageVisitor;
 
-    NTransactionServer::TTransaction* const Transaction;
-    TCypressNode* const TrunkNode;
+    NTransactionServer::TTransaction* const Transaction_;
+    TCypressNode* const TrunkNode_;
 
-    mutable TCypressNode* CachedNode = nullptr;
+    mutable TCypressNode* CachedNode_ = nullptr;
 
-    bool AccessTrackingSuppressed = false;
-    bool ModificationTrackingSuppressed = false;
+    bool AccessTrackingSuppressed_ = false;
+    bool ModificationTrackingSuppressed_ = false;
 
 
     virtual NObjectServer::TVersionedObjectId GetVersionedId() const override;
@@ -90,6 +91,8 @@ protected:
     TFuture<NYson::TYsonString> GetExternalBuiltinAttributeAsync(NYTree::TInternedAttributeKey key);
     virtual bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
     virtual bool RemoveBuiltinAttribute(NYTree::TInternedAttributeKey key) override;
+
+    virtual TCypressNode* FindClosestAncestorWithAnnotation(TCypressNode* node);
 
     virtual void BeforeInvoke(const NRpc::IServiceContextPtr& context) override;
     virtual void AfterInvoke(const NRpc::IServiceContextPtr& context) override;
@@ -211,6 +214,8 @@ protected:
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Unlock);
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Create);
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Copy);
+    DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, BeginCopy);
+    DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, EndCopy);
 
 private:
     TCypressNode* DoGetThisImpl();
@@ -218,7 +223,17 @@ private:
         const TLockRequest& request = ELockMode::Exclusive,
         bool recursive = false);
 
-    void GatherInheritableAttributes(TCypressNode* parent, TCompositeNodeBase::TAttributes* attributes);
+    void GatherInheritableAttributes(
+        TCypressNode* parent,
+        TCompositeNodeBase::TAttributes* attributes);
+
+    template <class TContextPtr, class TClonedTreeBuilder>
+    void CopyCore(
+        const TContextPtr& context,
+        bool inplace,
+        const TClonedTreeBuilder& clonedTreeBuilder);
+
+    void ValidateAccessTransaction();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -240,7 +255,6 @@ protected:
     virtual bool RemoveBuiltinAttribute(NYTree::TInternedAttributeKey key) override;
 
     virtual bool CanHaveChildren() const override;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -253,7 +267,8 @@ class TInheritedAttributeDictionary
 public:
     explicit TInheritedAttributeDictionary(NCellMaster::TBootstrap* bootstrap);
 
-    virtual std::vector<TString> List() const override;
+    virtual std::vector<TString> ListKeys() const override;
+    virtual std::vector<TKeyValuePair> ListPairs() const override;
     virtual NYson::TYsonString FindYson(const TString& key) const override;
     virtual void SetYson(const TString& key, const NYson::TYsonString& value) override;
     virtual bool Remove(const TString& key) override;
@@ -329,18 +344,11 @@ template <class TValue, class IBase, class TImpl>
 class TScalarNodeProxy
     : public TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, IBase, TImpl>
 {
+private:
+    using TBase =  TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, IBase, TImpl>;
+
 public:
-    TScalarNodeProxy(
-        NCellMaster::TBootstrap* bootstrap,
-        NObjectServer::TObjectTypeMetadata* metadata,
-        NTransactionServer::TTransaction* transaction,
-        TScalarNode<TValue>* trunkNode)
-        : TBase(
-            bootstrap,
-            metadata,
-            transaction,
-            trunkNode)
-    { }
+    using TBase::TBase;
 
     virtual NYTree::ENodeType GetType() const override
     {
@@ -360,8 +368,6 @@ public:
     }
 
 private:
-    typedef TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, IBase, TImpl> TBase;
-
     virtual void ValidateValue(typename NMpl::TCallTraits<TValue>::TType /*value*/)
     { }
 };
@@ -450,8 +456,10 @@ class TMapNodeProxy
     : public TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IMapNode, TMapNode>
     , public NYTree::TMapNodeMixin
 {
+private:
     using TBase = TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IMapNode, TMapNode>;
 
+public:
     YTREE_NODE_TYPE_OVERRIDES_WITH_CHECK(Map)
 
 public:
@@ -508,8 +516,10 @@ class TListNodeProxy
     : public TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IListNode, TListNode>
     , public NYTree::TListNodeMixin
 {
+private:
     using TBase = TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IListNode, TListNode>;
 
+public:
     YTREE_NODE_TYPE_OVERRIDES_WITH_CHECK(List)
 
 public:

@@ -33,9 +33,12 @@ TBlockFetcher::TBlockFetcher(
     , BlockInfos_(std::move(blockInfos))
     , ChunkReader_(std::move(chunkReader))
     , BlockCache_(std::move(blockCache))
-    , CompressionInvoker_(CreateFixedPriorityInvoker(
-        NRpc::TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
-        blockReadOptions.WorkloadDescriptor.GetPriority()))
+    , CompressionInvoker_(
+        codecId == NCompression::ECodec::None
+        ? nullptr
+        : CreateFixedPriorityInvoker(
+            NRpc::TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
+            blockReadOptions.WorkloadDescriptor.GetPriority()))
     , CompressionRatio_(compressionRatio)
     , AsyncSemaphore_(std::move(asyncSemaphore))
     , Codec_(NCompression::GetCodec(codecId))
@@ -112,7 +115,7 @@ TBlockFetcher::TBlockFetcher(
     AsyncSemaphore_->AsyncAcquire(
         BIND(&TBlockFetcher::FetchNextGroup, MakeWeak(this)),
         TDispatcher::Get()->GetReaderInvoker(),
-        std::min(static_cast<i64>(TotalRemainingSize_), Config_->GroupSize));
+        std::min(TotalRemainingSize_.load(), Config_->GroupSize));
 }
 
 bool TBlockFetcher::HasMoreBlocks() const
@@ -175,24 +178,36 @@ void TBlockFetcher::DecompressBlocks(
     const std::vector<TBlock>& compressedBlocks)
 {
     YT_VERIFY(windowIndexes.size() == compressedBlocks.size());
-    for (int i = 0; i < compressedBlocks.size(); ++i) {
+    for (int i = 0; i < static_cast<int>(compressedBlocks.size()); ++i) {
         const auto& compressedBlock = compressedBlocks[i];
         int windowIndex = windowIndexes[i];
         const auto& blockInfo = BlockInfos_[windowIndex];
         int blockIndex = blockInfo.Index;
         TBlockId blockId(ChunkReader_->GetChunkId(), blockInfo.Index);
 
-        YT_LOG_DEBUG("Started decompressing block (BlockIndex: %v, WindowIndex: %v, Codec: %v)",
-            blockIndex,
-            windowIndex,
-            Codec_->GetId());
-
         TSharedRef uncompressedBlock;
-        {
-            TValueIncrementingTimingGuard<TFiberWallTimer> guard(&DecompressionTime);
-            uncompressedBlock = Codec_->Decompress(compressedBlock.Data);
+        if (Codec_->GetId() == NCompression::ECodec::None) {
+            uncompressedBlock = compressedBlock.Data;
+        } else {
+            YT_LOG_DEBUG("Started decompressing block (BlockIndex: %v, WindowIndex: %v, Codec: %v)",
+                blockIndex,
+                windowIndex,
+                Codec_->GetId());
+
+            {
+                TWallTimer timer;
+                uncompressedBlock = Codec_->Decompress(compressedBlock.Data);
+                DecompressionTime_ += timer.GetElapsedValue();
+                YT_VERIFY(uncompressedBlock.Size() == blockInfo.UncompressedDataSize);
+            }
+
+            YT_LOG_DEBUG("Finished decompressing block (BlockIndex: %v, WindowIndex: %v, CompressedSize: %v, UncompressedSize: %v, Codec: %v)",
+                blockIndex,
+                windowIndex,
+                compressedBlock.Size(),
+                uncompressedBlock.Size(),
+                Codec_->GetId());
         }
-        YT_VERIFY(uncompressedBlock.Size() == blockInfo.UncompressedDataSize);
 
         auto& windowSlot = Window_[windowIndex];
         GetBlockPromise(windowSlot).Set(TBlock(uncompressedBlock));
@@ -205,13 +220,6 @@ void TBlockFetcher::DecompressBlocks(
 
         UncompressedDataSize_ += uncompressedBlock.Size();
         CompressedDataSize_ += compressedBlock.Size();
-
-        YT_LOG_DEBUG("Finished decompressing block (BlockIndex: %v, WindowIndex: %v, CompressedSize: %v, UncompressedSize: %v, Codec: %v)",
-            blockIndex,
-            windowIndex,
-            compressedBlock.Size(),
-            uncompressedBlock.Size(),
-            Codec_->GetId());
 
         if (Codec_->GetId() != NCompression::ECodec::None) {
             BlockCache_->Put(blockId, EBlockType::UncompressedData, TBlock(uncompressedBlock), std::nullopt);
@@ -270,7 +278,7 @@ void TBlockFetcher::FetchNextGroup(TAsyncSemaphoreGuard asyncSemaphoreGuard)
         AsyncSemaphore_->AsyncAcquire(
             BIND(&TBlockFetcher::FetchNextGroup, MakeWeak(this)),
             TDispatcher::Get()->GetReaderInvoker(),
-            std::min(static_cast<i64>(TotalRemainingSize_), Config_->GroupSize));
+            std::min(TotalRemainingSize_.load(), Config_->GroupSize));
     }
 
     RequestBlocks(windowIndexes, blockIndexes, uncompressedSize);
@@ -326,11 +334,16 @@ void TBlockFetcher::RequestBlocks(
     YT_LOG_DEBUG("Got block group (Blocks: %v)",
         MakeShrunkFormattableView(blockIndexes, TDefaultFormatter(), 3));
 
-    CompressionInvoker_->Invoke(BIND(
-        &TBlockFetcher::DecompressBlocks,
-        MakeWeak(this),
-        windowIndexes,
-        blocksOrError.Value()));
+    const auto& blocks = blocksOrError.Value();
+    if (Codec_->GetId() == NCompression::ECodec::None) {
+        DecompressBlocks(windowIndexes, blocks);
+    } else {
+        CompressionInvoker_->Invoke(BIND(
+            &TBlockFetcher::DecompressBlocks,
+            MakeWeak(this),
+            windowIndexes,
+            blocks));
+    }
 }
 
 bool TBlockFetcher::IsFetchingCompleted()
@@ -350,7 +363,10 @@ i64 TBlockFetcher::GetCompressedDataSize() const
 
 TCodecDuration TBlockFetcher::GetDecompressionTime() const
 {
-    return TCodecDuration{Codec_->GetId(), DecompressionTime};
+    return TCodecDuration{
+        Codec_->GetId(),
+        NProfiling::ValueToDuration(DecompressionTime_)
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////

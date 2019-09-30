@@ -1,6 +1,5 @@
 #pragma once
 
-#include "execution_context.h"
 #include "execution_stack.h"
 
 #include <yt/core/actions/future.h>
@@ -13,6 +12,8 @@
 #include <yt/core/profiling/public.h>
 
 #include <yt/core/tracing/public.h>
+
+#include <util/system/context.h>
 
 #include <atomic>
 #include <forward_list>
@@ -98,7 +99,7 @@ public:
     /*!
      *  Thread affinity: OwnerThread
      */
-    TExecutionContext* GetContext();
+    TExceptionSafeContext* GetContext();
 
     //! Returns a cached callback that schedules fiber cancelation.
     /*!
@@ -162,18 +163,6 @@ public:
      */
     void InvokeContextInHandlers();
 
-    //! Returns memory tag currently used in this fiber.
-    NYTAlloc::TMemoryTag GetMemoryTag() const;
-
-    //! Sets the memory tag used in this fiber.
-    void SetMemoryTag(NYTAlloc::TMemoryTag tag);
-
-    //! Returns memory zone currently used in this fiber.
-    NYTAlloc::EMemoryZone GetMemoryZone() const;
-
-    //! Sets the memory zone used in this fiber.
-    void SetMemoryZone(NYTAlloc::EMemoryZone zone);
-
     //! Returns |true| if there is enough remaining stack space.
     /*!
      *  Thread affinity: OwnerThread
@@ -206,7 +195,7 @@ private:
 
     TClosure Callee_;
     std::shared_ptr<TExecutionStack> Stack_;
-    TExecutionContext Context_;
+    TExceptionSafeContext Context_;
 
     std::atomic<bool> Canceled_ = {false};
     TClosure Canceler_;
@@ -228,14 +217,6 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TFiber)
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Returns the current global limit for the number of pooled fiber stacks of a given size.
-int GetFiberStackPoolSize(EExecutionStackKind stackKind);
-
-//! Sets the global limit for the number of pooled fiber stacks of a given size.
-void SetFiberStackPoolSize(EExecutionStackKind stackKind, int poolSize);
 
 ////////////////////////////////////////////////////////////////////////////////
 

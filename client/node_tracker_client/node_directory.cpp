@@ -33,13 +33,15 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TString NullAddress("<null>");
-
-////////////////////////////////////////////////////////////////////////////////
+const TString& NullNodeAddress()
+{
+    static const TString Result("<null>");
+    return Result;
+}
 
 const TNodeDescriptor& NullNodeDescriptor()
 {
-    static const TNodeDescriptor Result(NullAddress);
+    static const TNodeDescriptor Result(NullNodeAddress());
     return Result;
 }
 
@@ -66,7 +68,7 @@ SmallVector<TStringBuf, TypicalTagCount> GetSortedTags(const std::vector<TString
 ////////////////////////////////////////////////////////////////////////////////
 
 TNodeDescriptor::TNodeDescriptor()
-    : DefaultAddress_(NullAddress)
+    : DefaultAddress_(NullNodeAddress())
 { }
 
 TNodeDescriptor::TNodeDescriptor(const TString& defaultAddress)
@@ -152,7 +154,7 @@ void TNodeDescriptor::Persist(const TStreamPersistenceContext& context)
 void FormatValue(TStringBuilderBase* builder, const TNodeDescriptor& descriptor, TStringBuf /*spec*/)
 {
     if (descriptor.IsNull()) {
-        builder->AppendString(NullAddress);
+        builder->AppendString(NullNodeAddress());
         return;
     }
 
@@ -176,7 +178,7 @@ TString ToString(const TNodeDescriptor& descriptor)
 const TString& GetDefaultAddress(const TAddressMap& addresses)
 {
     if (addresses.empty()) {
-        return NullAddress;
+        return NullNodeAddress();
     }
     auto it = addresses.find(DefaultNetworkName);
     YT_VERIFY(it != addresses.end());
@@ -186,7 +188,7 @@ const TString& GetDefaultAddress(const TAddressMap& addresses)
 const TString& GetDefaultAddress(const NProto::TAddressMap& addresses)
 {
     if (addresses.entries_size() == 0) {
-        return NullAddress;
+        return NullNodeAddress();
     }
     for (const auto& entry : addresses.entries()) {
         if (entry.network() == DefaultNetworkName) {

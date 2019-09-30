@@ -1,6 +1,7 @@
 from yt_env_setup import (
     YTEnvSetup,
     SANDBOX_ROOTDIR,
+    arcadia_interop
 )
 from yt_commands import *
 
@@ -23,6 +24,9 @@ class QuotaMixin(YTEnvSetup):
 
     @classmethod
     def setup_class(cls):
+        if arcadia_interop.yatest_common is not None:
+            pytest.skip("Quota tests are not supported inside distbuild")
+
         path_to_test = os.path.join(SANDBOX_ROOTDIR, cls.__name__)
         run_id = "run_" + uuid.uuid4().hex[:8]
         cls.path_to_run = os.path.join(path_to_test, run_id)

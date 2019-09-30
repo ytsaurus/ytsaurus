@@ -25,6 +25,9 @@ extern const TString SchedulerUserName;
 extern const TString FileCacheUserName;
 extern const TString OperationsCleanerUserName;
 extern const TString OperationsClientUserName;
+extern const TString TabletCellChangeloggerUserName;
+extern const TString TabletCellSnapshotterUserName;
+extern const TString TableMountInformerUserName;
 
 extern const TString EveryoneGroupName;
 extern const TString UsersGroupName;
@@ -55,6 +58,7 @@ DEFINE_ENUM(EErrorCode,
     ((UserBanned)                   (903))
     ((RequestQueueSizeLimitExceeded)(904))
     ((NoSuchAccount)                (905))
+    ((NoSuchSubject)                (907))
     ((SafeModeEnabled)              (906))
 );
 

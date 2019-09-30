@@ -509,12 +509,12 @@ void TTablet::CopyFrom(const TTablet& other)
     TrimmedRowCount_ = other.TrimmedRowCount_;
 }
 
-void TTablet::ValidateMountRevision(i64 mountRevision)
+void TTablet::ValidateMountRevision(NHydra::TRevision mountRevision)
 {
     if (MountRevision_ != mountRevision) {
         THROW_ERROR_EXCEPTION(
             NRpc::EErrorCode::Unavailable,
-            "Invalid mount revision of tablet %v: expected %x, received %x",
+            "Invalid mount revision of tablet %v: expected %llx, received %llx",
             Id_,
             MountRevision_,
             mountRevision);

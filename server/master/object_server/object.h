@@ -23,20 +23,21 @@ struct TObjectDynamicData
 // former cell sending a chunk requisition update to the latter will cause
 // trouble.
 //
-// Removal also needs two-phase locking since otherwise a primary master
+// Removal also needs two-phase (and even more!) locking since otherwise a primary master
 // is unable to command the destruction of an object to its secondaries without risking
 // that some secondary still holds a reference to the object.
 DEFINE_ENUM_WITH_UNDERLYING_TYPE(EObjectLifeStage, ui8,
+     // Creation workflow
      ((CreationStarted)         (0))
      ((CreationPreCommitted)    (1))
      ((CreationCommitted)       (2))
+
+     // Removal workflow
      ((RemovalStarted)          (3))
      ((RemovalPreCommitted)     (4))
-     ((RemovalCommitted)        (5))
+     ((RemovalAwaitingCellsSync)(5))
+     ((RemovalCommitted)        (6))
 );
-
-EObjectLifeStage GetNextLifeStage(EObjectLifeStage lifeStage);
-bool IsStableLifeStage(EObjectLifeStage lifeStage);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,6 +59,9 @@ public:
 
     //! Returns the object id.
     TObjectId GetId() const;
+
+    //! Returns the cell tag extracted from id.
+    TCellTag GetNativeCellTag() const;
 
     //! Returns the object type.
     EObjectType GetType() const;
@@ -164,6 +168,9 @@ public:
     //! Returns |true| if the object was replicated here from another cell.
     bool IsForeign() const;
 
+    //! Returns |true| if the objects is not foreign.
+    bool IsNative() const;
+
 
     //! Returns an immutable collection of attributes associated with the object or |nullptr| is there are none.
     const TAttributeSet* GetAttributes() const;
@@ -246,7 +253,7 @@ public:
     virtual TString GetObjectName() const;
 
     //! Throws if the current life stage is not #EObjectLifeStage::CreationCommitted.
-    void ValidateCreationCommitted() const;
+    void ValidateActiveLifeStage() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

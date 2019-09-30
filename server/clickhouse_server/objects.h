@@ -3,6 +3,8 @@
 #include <util/datetime/base.h>
 #include <util/system/types.h>
 
+#include <yt/client/hydra/public.h>
+
 namespace NYT::NClickHouseServer {
 
 // Objects in storage
@@ -19,7 +21,7 @@ enum class EObjectType
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TRevision = ui64;
+using NHydra::TRevision;
 
 ////////////////////////////////////////////////////////////////////////////////
 

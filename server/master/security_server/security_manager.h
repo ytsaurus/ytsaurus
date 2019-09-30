@@ -111,10 +111,13 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS(User, TUser);
     DECLARE_ENTITY_MAP_ACCESSORS(Group, TGroup);
 
+    //! Returns account with a id (throws if none).
+    TAccount* GetAccountOrThrow(TAccountId id);
+
     //! Returns account with a given name (|nullptr| if none).
     TAccount* FindAccountByName(const TString& name);
 
-    //! Returns user with a given name (throws if none).
+    //! Returns account with a given name (throws if none).
     TAccount* GetAccountByNameOrThrow(const TString& name);
 
     //! Returns "root" built-in account.
@@ -136,19 +139,32 @@ public:
     TAccount* GetChunkWiseAccountingMigrationAccount();
 
     //! Adds the #chunk to the resource usage of accounts mentioned in #requisition.
-    void UpdateResourceUsage(const NChunkServer::TChunk* chunk, const NChunkServer::TChunkRequisition& requisition, i64 delta);
+    void UpdateResourceUsage(
+        const NChunkServer::TChunk* chunk,
+        const NChunkServer::TChunkRequisition& requisition,
+        i64 delta);
 
     //! Updates tablet-related resource usage. Only table count and static
     //! memory are used; everything else in #resourceUsageDelta must be zero.
-    void UpdateTabletResourceUsage(NCypressServer::TCypressNode* node, const TClusterResources& resourceUsageDelta);
+    void UpdateTabletResourceUsage(
+        NCypressServer::TCypressNode* node,
+        const TClusterResources& resourceUsageDelta);
 
     //! Adds the #chunk to the resource usage of its staging transaction.
-    void UpdateTransactionResourceUsage(const NChunkServer::TChunk* chunk, const NChunkServer::TChunkRequisition& requisition, i64 delta);
+    void UpdateTransactionResourceUsage(
+        const NChunkServer::TChunk* chunk,
+        const NChunkServer::TChunkRequisition& requisition,
+        i64 delta);
+
+    //! Clears the transaction per-account usage statistics releasing the references to accounts.
+    void ResetTransactionAccountResourceUsage(NTransactionServer::TTransaction* transaction);
+
+    //! Recomputes the transaction per-account usage statistics from scratch.
+    void RecomputeTransactionAccountResourceUsage(NTransactionServer::TTransaction* transaction);
 
     //! Assigns node to a given account, updates the total resource usage.
     void SetAccount(
         NCypressServer::TCypressNode* node,
-        TAccount* oldAccount,
         TAccount* newAccount,
         NTransactionServer::TTransaction* transaction);
 
@@ -157,6 +173,7 @@ public:
 
     //! Updates the name of the account.
     void RenameAccount(TAccount* account, const TString& newName);
+
 
     //! Returns user with a given name (|nullptr| if none).
     TUser* FindUserByName(const TString& name);
@@ -190,6 +207,12 @@ public:
     TGroup* GetSuperusersGroup();
 
 
+    //! Returns subject with a given id (|nullptr| if none).
+    TSubject* FindSubject(TSubjectId id);
+
+    //! Finds subject by id, throws if nothing is found.
+    TSubject* GetSubjectOrThrow(TSubjectId id);
+
     //! Returns subject (a user or a group) with a given name (|nullptr| if none).
     TSubject* FindSubjectByName(const TString& name);
 
@@ -216,6 +239,9 @@ public:
     //! Returns the ACL obtained by combining ACLs of the object and its parents.
     //! The returned ACL is a fake one, i.e. does not exist explicitly anywhere.
     TAccessControlList GetEffectiveAcl(NObjectServer::TObject* object);
+
+    //! Returns annotation or std::nullopt if there are no annotations available.
+    std::optional<TString> GetEffectiveAnnotation(NCypressServer::TCypressNode* node);
 
 
     //! Sets the authenticated user.
@@ -311,6 +337,9 @@ public:
 
     //! Updates the user request queue size limit.
     void SetUserRequestQueueSizeLimit(TUser* user, int limit);
+
+    //! Updates the user request limit options.
+    void SetUserRequestLimits(TUser* user, TUserRequestLimitsConfigPtr config);
 
     //! Attempts to increase the queue size for a given #user and validates the limit.
     //! Returns |true| on success.

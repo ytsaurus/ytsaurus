@@ -19,6 +19,8 @@
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/tree_visitor.h>
 
+#include <util/stream/null.h>
+
 namespace NYT {
 namespace {
 
@@ -340,6 +342,7 @@ void TestAllWireTypes(bool useSchema)
         CreateSimpleTypeSchema(EWireType::Double)->SetName("double"),
         CreateSimpleTypeSchema(EWireType::Boolean)->SetName("boolean"),
         CreateSimpleTypeSchema(EWireType::String32)->SetName("string32"),
+        CreateSimpleTypeSchema(EWireType::Nothing)->SetName("null"),
 
         CreateVariant8Schema({
             CreateSimpleTypeSchema(EWireType::Nothing),
@@ -370,6 +373,7 @@ void TestAllWireTypes(bool useSchema)
             TColumnSchema("double", EValueType::Double),
             TColumnSchema("boolean", EValueType::Boolean),
             TColumnSchema("string32", EValueType::String),
+            TColumnSchema("null", EValueType::Null),
             TColumnSchema("opt_int64", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))),
             TColumnSchema("opt_uint64", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Uint64))),
             TColumnSchema("opt_double", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Double))),
@@ -391,6 +395,7 @@ void TestAllWireTypes(bool useSchema)
                 MakeUnversionedDoubleValue(3.0, nameTable->GetIdOrRegisterName("double")),
                 MakeUnversionedBooleanValue(true, nameTable->GetIdOrRegisterName("boolean")),
                 MakeUnversionedStringValue("four", nameTable->GetIdOrRegisterName("string32")),
+                MakeUnversionedNullValue(nameTable->GetIdOrRegisterName("null")),
 
                 MakeUnversionedInt64Value(-5, nameTable->GetIdOrRegisterName("opt_int64")),
                 MakeUnversionedUint64Value(6, nameTable->GetIdOrRegisterName("opt_uint64")),
@@ -407,6 +412,7 @@ void TestAllWireTypes(bool useSchema)
                 MakeUnversionedDoubleValue(11.0, nameTable->GetIdOrRegisterName("double")),
                 MakeUnversionedBooleanValue(false, nameTable->GetIdOrRegisterName("boolean")),
                 MakeUnversionedStringValue("twelve", nameTable->GetIdOrRegisterName("string32")),
+                MakeUnversionedNullValue(nameTable->GetIdOrRegisterName("null")),
 
                 MakeUnversionedSentinelValue(EValueType::Null, nameTable->GetIdOrRegisterName("opt_int64")),
                 MakeUnversionedSentinelValue(EValueType::Null, nameTable->GetIdOrRegisterName("opt_uint64")),
@@ -465,7 +471,6 @@ void TestAllWireTypes(bool useSchema)
     ASSERT_EQ(checkedSkiffParser.HasMoreData(), false);
     checkedSkiffParser.ValidateFinished();
 }
-
 
 TEST(TSkiffWriter, TestAllWireTypesNoSchema)
 {
@@ -638,6 +643,70 @@ TEST(TSkiffWriter, TestYsonWireType)
     ASSERT_EQ(checkedSkiffParser.ParseVariant8Tag(), 0);
 
     // end
+    ASSERT_EQ(checkedSkiffParser.HasMoreData(), false);
+    checkedSkiffParser.ValidateFinished();
+}
+
+TEST(TSkiffWriter, TestOptionalNull)
+{
+    auto skiffSchema = CreateTupleSchema({
+        CreateVariant8Schema({
+            CreateSimpleTypeSchema(EWireType::Nothing),
+            CreateSimpleTypeSchema(EWireType::Nothing),
+        })->SetName("opt_null"),
+    });
+    auto nameTable = New<TNameTable>();
+
+    {
+        const std::vector<TTableSchema> tableSchemas = {
+            TTableSchema(),
+        };
+        EXPECT_THROW_WITH_SUBSTRING(
+            CreateSkiffWriter(skiffSchema, nameTable, &Cnull, 0, tableSchemas),
+            "cannot be represented with skiff schema");
+    }
+    const std::vector<TTableSchema> tableSchemas = {
+        TTableSchema({
+            TColumnSchema("opt_null", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Null))),
+        }),
+    };
+
+    TString result;
+    {
+        TStringOutput resultStream(result);
+        auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, 0, tableSchemas);
+        // Row 0
+        writer->Write(
+            {
+                MakeRow(
+                    {
+                        MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
+                        MakeUnversionedNullValue(nameTable->GetIdOrRegisterName("opt_null")),
+                    }).Get(),
+            });
+        // Row 1
+        writer->Write(
+            {
+                MakeRow(
+                    {
+                        MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
+                        MakeUnversionedAnyValue("[#]", nameTable->GetIdOrRegisterName("opt_null")),
+                    }).Get(),
+            });
+        writer->Close()
+            .Get()
+            .ThrowOnError();
+    }
+
+    TStringInput resultInput(result);
+    TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
+
+    ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
+    ASSERT_EQ(checkedSkiffParser.ParseVariant8Tag(), 0);
+
+    ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
+    ASSERT_EQ(checkedSkiffParser.ParseVariant8Tag(), 1);
+
     ASSERT_EQ(checkedSkiffParser.HasMoreData(), false);
     checkedSkiffParser.ValidateFinished();
 }
@@ -1351,6 +1420,24 @@ TEST(TSkiffWriter, TestSparseComplexTypeWithExtraOptional)
     checkedSkiffParser.ValidateFinished();
 }
 
+TEST(TSkiffWriter, TestBadWireTypeForSimpleColumn)
+{
+    auto skiffSchema = CreateTupleSchema({
+        CreateVariant8Schema({
+            CreateVariant8Schema({
+                CreateSimpleTypeSchema(EWireType::Nothing),
+                CreateSimpleTypeSchema(EWireType::Yson32),
+            })
+        })->SetName("opt_yson32"),
+    });
+    auto nameTable = New<TNameTable>();
+    TStringStream resultStream;
+    EXPECT_THROW_WITH_SUBSTRING(
+        CreateSkiffWriter(skiffSchema, nameTable, &resultStream),
+        "cannot be represented with skiff schema"
+    );
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TSkiffParser, Simple)
@@ -1361,6 +1448,7 @@ TEST(TSkiffParser, Simple)
         CreateSimpleTypeSchema(EWireType::Double)->SetName("double"),
         CreateSimpleTypeSchema(EWireType::Boolean)->SetName("boolean"),
         CreateSimpleTypeSchema(EWireType::String32)->SetName("string32"),
+        CreateSimpleTypeSchema(EWireType::Nothing)->SetName("null"),
 
         CreateVariant8Schema({
             CreateSimpleTypeSchema(EWireType::Nothing),
@@ -1415,12 +1503,56 @@ TEST(TSkiffParser, Simple)
     ASSERT_EQ(GetDouble(collectedRows.GetRowValue(0, "double")), 3.0);
     ASSERT_EQ(GetBoolean(collectedRows.GetRowValue(0, "boolean")), true);
     ASSERT_EQ(GetString(collectedRows.GetRowValue(0, "string32")), "foo");
+    ASSERT_EQ(IsNull(collectedRows.GetRowValue(0, "null")), true);
 
     ASSERT_EQ(IsNull(collectedRows.GetRowValue(0, "opt_int64")), true);
     ASSERT_EQ(IsNull(collectedRows.GetRowValue(0, "opt_uint64")), true);
     ASSERT_EQ(IsNull(collectedRows.GetRowValue(0, "opt_double")), true);
     ASSERT_EQ(IsNull(collectedRows.GetRowValue(0, "opt_boolean")), true);
     ASSERT_EQ(IsNull(collectedRows.GetRowValue(0, "opt_string32")), true);
+}
+
+TEST(TSkiffParser, TestOptionalNull)
+{
+    auto skiffSchema = CreateTupleSchema({
+        CreateVariant8Schema({
+            CreateSimpleTypeSchema(EWireType::Nothing),
+            CreateSimpleTypeSchema(EWireType::Nothing),
+        })->SetName("opt_null"),
+    });
+    auto nameTable = New<TNameTable>();
+
+    {
+        TCollectingValueConsumer collectedRows;
+        EXPECT_THROW_WITH_SUBSTRING(
+            CreateParserForSkiff(skiffSchema, &collectedRows),
+            "cannot be represented with skiff schema");
+    }
+
+    const TTableSchema tableSchema( {
+        TColumnSchema("opt_null", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Null))),
+    });
+
+    TCollectingValueConsumer collectedRows(tableSchema);
+    auto parser = CreateParserForSkiff(skiffSchema, &collectedRows);
+
+    TStringStream dataStream;
+    TCheckedSkiffWriter checkedSkiffWriter(CreateVariant16Schema({skiffSchema}), &dataStream);
+
+    checkedSkiffWriter.WriteVariant16Tag(0);
+    checkedSkiffWriter.WriteVariant8Tag(0);
+
+    checkedSkiffWriter.WriteVariant16Tag(0);
+    checkedSkiffWriter.WriteVariant8Tag(1);
+
+    checkedSkiffWriter.Finish();
+
+    parser->Read(dataStream.Str());
+    parser->Finish();
+
+    ASSERT_EQ(collectedRows.Size(), 2);
+
+    ASSERT_EQ(collectedRows.GetRowValue(0, "opt_null").Type, EValueType::Null);
 }
 
 TEST(TSkiffParser, TestSparse)
@@ -1812,6 +1944,25 @@ TEST(TSkiffParser, TestSparseComplexTypeWithExtraOptional)
     ASSERT_EQ(collectedRows.Size(), 2);
     ASSERT_EQ(ConvertToYsonTextStringStable(GetAny(collectedRows.GetRowValue(0, "column"))), "[\"row_0\";42;]");
     ASSERT_FALSE(collectedRows.FindRowValue(1, "column"));
+}
+
+
+TEST(TSkiffParser, TestBadWireTypeForSimpleColumn)
+{
+    auto skiffSchema = CreateTupleSchema({
+        CreateVariant8Schema({
+            CreateVariant8Schema({
+                CreateSimpleTypeSchema(EWireType::Nothing),
+                CreateSimpleTypeSchema(EWireType::Yson32),
+            })
+        })->SetName("opt_yson32"),
+    });
+
+    TCollectingValueConsumer collectedRows;
+    EXPECT_THROW_WITH_SUBSTRING(
+        CreateParserForSkiff(skiffSchema, &collectedRows),
+        "cannot be represented with skiff schema"
+    );
 }
 
 ////////////////////////////////////////////////////////////////////////////////

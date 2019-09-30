@@ -1,10 +1,11 @@
 from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, wait,\
-    require_ytserver_root_privileges, is_asan_build, Restarter, SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE, NODES_SERVICE
+    is_asan_build, Restarter, SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE, NODES_SERVICE
 from yt_commands import *
+from yt_helpers import *
 
 from yt.yson import *
 from yt.wrapper import JsonFormat
-from yt.common import date_string_to_datetime, date_string_to_timestamp, update
+from yt.common import date_string_to_timestamp, update
 
 import yt.environment.init_operation_archive as init_operation_archive
 
@@ -19,6 +20,7 @@ import sys
 import time
 import subprocess
 import __builtin__
+from datetime import datetime
 
 from distutils.spawn import find_executable
 
@@ -55,16 +57,6 @@ porto_delta_node_config = {
 }
 
 ##################################################################
-
-def get_pool_metrics(metric_key, start_time):
-    result = {}
-    for entry in reversed(get("//sys/scheduler/orchid/profiling/scheduler/pools/metrics/" + metric_key,
-                              options={"from_time": int(start_time) * 1000000}, verbose=False)):
-        pool = entry["tags"]["pool"]
-        if pool not in result:
-            result[pool] = entry["value"]
-    print_debug("Pool metrics: ", result)
-    return result
 
 def get_cypress_metrics(operation_id, key, aggr="sum"):
     statistics = get(get_operation_cypress_path(operation_id) + "/@progress/job_statistics")
@@ -561,7 +553,8 @@ class TestUserFiles(YTEnvSetup):
             verbose=True)
 
         with pytest.raises(YtError):
-            # Cannot infer file name error.
+            # TODO(levysotsky): Error is wrong.
+            # Instead of '#' + file it must be '#' + file_id.
             map(in_="//tmp/t_input",
                 out=["//tmp/t_output"],
                 command="cat my_file; cat",
@@ -775,12 +768,12 @@ class TestSchedulerOperationNodeFlush(YTEnvSetup):
 
 ##################################################################
 
-@require_ytserver_root_privileges
 class TestSchedulerCommon(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 16
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
@@ -1394,7 +1387,7 @@ class TestSchedulerCommon(YTEnvSetup):
 
     @authors("ignat")
     def test_input_with_custom_transaction(self):
-        custom_tx = start_transaction()
+        custom_tx = start_transaction(timeout=30000)
         create("table", "//tmp/in", tx=custom_tx)
         write_table("//tmp/in", {"foo": "bar"}, tx=custom_tx)
 
@@ -1409,7 +1402,7 @@ class TestSchedulerCommon(YTEnvSetup):
 
     @authors("ignat")
     def test_nested_input_transactions(self):
-        custom_tx = start_transaction()
+        custom_tx = start_transaction(timeout=30000)
         create("table", "//tmp/in", tx=custom_tx)
         write_table("//tmp/in", {"foo": "bar"}, tx=custom_tx)
 
@@ -1433,7 +1426,7 @@ class TestSchedulerCommon(YTEnvSetup):
         assert list(read_table("//tmp/in", tx=nested_tx)) == [{"foo": "bar"}]
         assert get("#{}/@parent_id".format(nested_tx)) == custom_tx
 
-        wait(lambda: exists(op.get_path() + "/snapshot"))
+        op.wait_fresh_snapshot()
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             pass
@@ -1626,7 +1619,7 @@ class TestPreserveSlotIndexAfterRevive(YTEnvSetup, PrepareTables):
 
         def get_slot_index(op_id):
             path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/slot_index".format(op_id)
-            wait(lambda: exists(path))
+            wait(lambda: exists(path) and get(path) != YsonEntity())
             return get(path)
 
         for i in xrange(3):
@@ -1868,8 +1861,7 @@ class TestSchedulerRevive(YTEnvSetup):
 
         wait_breakpoint()
 
-        snapshot_index_path = op.get_path() + "/controller_orchid/progress/snapshot_index"
-        wait(lambda: get(snapshot_index_path) > 1)
+        op.wait_fresh_snapshot()
 
         brief_spec = get(op.get_path() + "/@brief_spec")
 
@@ -2236,8 +2228,7 @@ class TestMultipleSchedulers(YTEnvSetup, PrepareTables):
 
         op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 5")
 
-        # Wait till snapshot is written
-        time.sleep(1)
+        op.wait_fresh_snapshot()
 
         transaction_id = self._get_scheduler_transation()
 
@@ -2513,9 +2504,7 @@ class TestSchedulingTags(YTEnvSetup):
 
         wait(lambda: len(op.get_running_jobs()) > 0)
 
-        now = datetime.utcnow()
-        snapshot_path = op.get_path() + "/snapshot"
-        wait(lambda: exists(snapshot_path) and date_string_to_datetime(get(snapshot_path + "/@creation_time")) > now)
+        op.wait_fresh_snapshot()
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             set("//sys/cluster_nodes/{0}/@user_tags".format(custom_node), [])
@@ -2525,8 +2514,12 @@ class TestSchedulingTags(YTEnvSetup):
 
         running_jobs = list(op.get_running_jobs())
         if running_jobs:
-            abort_job(running_jobs[0])
+            assert(len(running_jobs) == 1)
+            job_id = running_jobs[0]
+            abort_job(job_id)
+            wait(lambda: job_id not in op.get_running_jobs())
 
+        # Just wait some time to be sure that scheduler have not run any other jobs.
         time.sleep(5)
         assert len(op.get_running_jobs()) == 0
         assert op.get_state() == "running"
@@ -2877,7 +2870,7 @@ class TestSchedulerGpu(YTEnvSetup):
         cls.node_counter += 1
         if cls.node_counter == 1:
             config["exec_agent"]["job_controller"]["resource_limits"]["gpu"] = 1
-            config["exec_agent"]["job_controller"]["test_gpu"] = True
+            config["exec_agent"]["job_controller"]["test_gpu_resource"] = True
 
     @authors("renadeen")
     def test_job_count(self):
@@ -3277,6 +3270,7 @@ class TestPoolMetrics(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
+            "running_jobs_update_period": 10,
             "fair_share_update_period": 100,
             "profiling_update_period": 100,
             "fair_share_profiling_period": 100,
@@ -3285,6 +3279,7 @@ class TestPoolMetrics(YTEnvSetup):
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
+            "snapshot_period": 2000,
             "job_metrics_report_period": 100,
             "custom_job_metrics": [
                 {
@@ -3348,12 +3343,23 @@ class TestPoolMetrics(YTEnvSetup):
         # - writes something to stderr because we want to find our jobs in //sys/operations later
         map_cmd = """for i in $(seq 10) ; do python -c "import os; os.write(5, '{value=$i};')"; echo 5 > /tmp/foo$i ; sync ; sleep 0.5 ; done ; cat ; sleep 10; echo done > /dev/stderr"""
 
-        start_time = time.time()
-
         metric_name = "user_job_bytes_written"
         statistics_name = "user_job.block_io.bytes_written"
 
-        start_pool_metrics = get_pool_metrics(metric_name, start_time)
+        usual_metric_delta = Metric.at_scheduler(
+            "scheduler/pools/metrics/" + metric_name,
+            grouped_by_tags=["pool"])
+        custom_metric_delta = Metric.at_scheduler(
+            "scheduler/pools/metrics/my_metric",
+            grouped_by_tags=["pool"])
+        custom_metric_max_last = Metric.at_scheduler(
+            "scheduler/pools/metrics/my_custom_metric_max",
+            with_tags={"pool": "child2"},
+            aggr_method="last")
+        custom_metric_sum_last = Metric.at_scheduler(
+            "scheduler/pools/metrics/my_custom_metric_sum",
+            with_tags={"pool": "child2"},
+            aggr_method="last")
 
         op11 = map(
             in_="//t_input",
@@ -3375,23 +3381,21 @@ class TestPoolMetrics(YTEnvSetup):
             spec={"job_count": 2, "pool": "child2"},
         )
 
-        for current_metric_name in (metric_name, "my_metric"):
-            wait(lambda: get_pool_metrics(current_metric_name, start_time)["parent"] - start_pool_metrics["parent"] > 0)
-
-            pool_metrics = get_pool_metrics(current_metric_name, start_time)
+        for metric_delta in (usual_metric_delta, custom_metric_delta):
+            wait(lambda: metric_delta.update().get("parent", verbose=True) > 0)
 
             op11_writes = get_cypress_metrics(op11.id, statistics_name)
             op12_writes = get_cypress_metrics(op12.id, statistics_name)
             op2_writes = get_cypress_metrics(op2.id, statistics_name)
 
-            assert pool_metrics["child1"] - start_pool_metrics["child1"] == op11_writes + op12_writes > 0
-            assert pool_metrics["child2"] - start_pool_metrics["child2"] == op2_writes > 0
-            assert pool_metrics["parent"] - start_pool_metrics["parent"] == op11_writes + op12_writes + op2_writes > 0
+            wait(lambda: metric_delta.update().get("child1", verbose=True) == op11_writes + op12_writes > 0)
+            wait(lambda: metric_delta.update().get("child2", verbose=True) == op2_writes > 0)
+            wait(lambda: metric_delta.update().get("parent", verbose=True) == op11_writes + op12_writes + op2_writes > 0)
 
-        assert get_pool_metrics("my_metric", start_time)["child2"] == get_cypress_metrics(op2.id, statistics_name)
+        wait(lambda: custom_metric_delta.update().get("child2", verbose=True) == get_cypress_metrics(op2.id, statistics_name))
 
-        assert get_pool_metrics("my_custom_metric_max", start_time)["child2"] == 20
-        assert get_pool_metrics("my_custom_metric_sum", start_time)["child2"] == 110
+        wait(lambda: custom_metric_max_last.update().get(verbose=True) == 20)
+        wait(lambda: custom_metric_sum_last.update().get(verbose=True) == 110)
 
         jobs_11 = ls(op11.get_path() + "/jobs")
         assert len(jobs_11) >= 2
@@ -3409,10 +3413,12 @@ class TestPoolMetrics(YTEnvSetup):
 
         write_table("<append=%true>//tmp/t_input", [{"key": i} for i in xrange(2)])
 
-        start_time = time.time()
-
-        start_completed_metrics =  get_pool_metrics("total_time_completed", start_time)
-        start_aborted_metrics =  get_pool_metrics("total_time_aborted", start_time)
+        total_time_completed_delta = Metric.at_scheduler(
+            "scheduler/pools/metrics/total_time_completed",
+            grouped_by_tags=["pool"])
+        total_time_aborted_delta = Metric.at_scheduler(
+            "scheduler/pools/metrics/total_time_aborted",
+            grouped_by_tags=["pool"])
 
         op = map(
             command=with_breakpoint("cat; BREAKPOINT"),
@@ -3433,19 +3439,16 @@ class TestPoolMetrics(YTEnvSetup):
         assert len(running_jobs) == 1
         abort_job(running_jobs[0])
 
-        # Wait for metrics update.
-        wait(lambda: get_pool_metrics("total_time_completed", start_time)["child"] > 0)
-
-        def check_metrics(get_metrics, start_metrics):
-            metrics = get_metrics()
+        def check_metrics(metric_delta):
+            metric_delta.update()
             for p in ("parent", "child"):
-                if metrics[p] == 0:
+                if metric_delta[p] == 0:
                     return False
-            return metrics["parent"] - start_metrics["parent"] == metrics["child"] - start_metrics["child"]
+            return metric_delta.get("parent", verbose=True) == metric_delta.get("child", verbose=True)
 
         # NB: profiling is built asynchronously in separate thread and can contain non-consistent information.
-        wait(lambda: check_metrics(lambda: get_pool_metrics("total_time_completed", start_time), start_completed_metrics))
-        wait(lambda: check_metrics(lambda: get_pool_metrics("total_time_aborted", start_time), start_aborted_metrics))
+        wait(lambda: check_metrics(total_time_completed_delta))
+        wait(lambda: check_metrics(total_time_aborted_delta))
 
     @authors("eshcherbin")
     def test_total_time_operation_by_state(self):
@@ -3462,51 +3465,46 @@ class TestPoolMetrics(YTEnvSetup):
 
         write_table("//tmp/t_input", {"foo": "bar"})
 
-        start_time = time.time()
-
-        start_total_time_metrics = get_pool_metrics("total_time", start_time)
-        start_operation_completed_metrics = get_pool_metrics("total_time_operation_completed", start_time)
-        start_operation_failed_metrics = get_pool_metrics("total_time_operation_failed", start_time)
-        start_operation_aborted_metrics = get_pool_metrics("total_time_operation_aborted", start_time)
+        total_time_delta = Metric.at_scheduler(
+            "scheduler/pools/metrics/total_time",
+            grouped_by_tags=["pool"])
+        total_time_operation_completed_delta = Metric.at_scheduler(
+            "scheduler/pools/metrics/total_time_operation_completed",
+            grouped_by_tags=["pool"])
+        total_time_operation_failed_delta = Metric.at_scheduler(
+            "scheduler/pools/metrics/total_time_operation_failed",
+            grouped_by_tags=["pool"])
+        total_time_operation_aborted_delta = Metric.at_scheduler(
+            "scheduler/pools/metrics/total_time_operation_aborted",
+            grouped_by_tags=["pool"])
 
         op1 = map(command=("sleep 5; cat"), in_="//tmp/t_input", out="//tmp/t_output_1", spec={"pool": "child1"}, dont_track=True)
         op2 = map(command=("sleep 5; cat; exit 1"), in_="//tmp/t_input", out="//tmp/t_output_2", spec={"pool": "child2", "max_failed_job_count": 1}, dont_track=True)
         op3 = map(command=("sleep 100; cat"), in_="//tmp/t_input", out="//tmp/t_output_3", spec={"pool": "child3"}, dont_track=True)
 
         # Wait until at least some metrics are reported for op3
-        wait(lambda: get_pool_metrics("total_time", start_time)["child3"] - start_total_time_metrics["child3"] > 0)
-        op3.abort()
+        wait(lambda: total_time_delta.update().get("child3", verbose=True) > 0)
+        op3.abort(wait_until_completed=True)
 
         op1.track()
         op2.track(raise_on_failed=False)
-        op3.track(raise_on_aborted=False)
 
-        # Wait for metrics update.
-        wait(lambda: get_pool_metrics("total_time_operation_completed", start_time)["child1"] > 0)
-        wait(lambda: get_pool_metrics("total_time_operation_failed", start_time)["child2"] > 0)
-        wait(lambda: get_pool_metrics("total_time_operation_aborted", start_time)["child3"] > 0)
-
-        def check_metrics(get_metrics, child, start_metrics):
-            metrics = get_metrics()
+        def check_metrics(metric_delta, child):
+            metric_delta.update()
             for p in ("parent", child):
-                if metrics[p] - start_metrics[p] == 0:
+                if metric_delta[p] == 0:
                     return False
-            return metrics["parent"] - start_metrics["parent"] == metrics[child] - start_metrics[child]
+            return metric_delta.get("parent", verbose=True) == metric_delta.get(child, verbose=True)
 
         # NB: profiling is built asynchronously in separate thread and can contain non-consistent information.
-        wait(lambda: check_metrics(lambda: get_pool_metrics("total_time_operation_completed", start_time),
-                                   "child1",
-                                   start_operation_completed_metrics))
-        wait(lambda: check_metrics(lambda: get_pool_metrics("total_time_operation_failed", start_time),
-                                   "child2",
-                                   start_operation_failed_metrics))
-        wait(lambda: check_metrics(lambda: get_pool_metrics("total_time_operation_aborted", start_time),
-                                   "child3",
-                                   start_operation_aborted_metrics))
-        assert get_pool_metrics("total_time", start_time)["parent"] - start_total_time_metrics["parent"] == \
-            get_pool_metrics("total_time_operation_completed", start_time)["parent"] - start_operation_completed_metrics["parent"] + \
-            get_pool_metrics("total_time_operation_failed", start_time)["parent"] - start_operation_failed_metrics["parent"] + \
-            get_pool_metrics("total_time_operation_aborted", start_time)["parent"] - start_operation_aborted_metrics["parent"]
+        wait(lambda: check_metrics(total_time_operation_completed_delta, "child1"))
+        wait(lambda: check_metrics(total_time_operation_failed_delta, "child2"))
+        wait(lambda: check_metrics(total_time_operation_aborted_delta, "child3"))
+        wait(lambda: total_time_delta.update().get("parent", verbose=True)
+             == total_time_operation_completed_delta.update().get("parent", verbose=True)
+             + total_time_operation_failed_delta.update().get("parent", verbose=True)
+             + total_time_operation_aborted_delta.update().get("parent", verbose=True)
+             > 0)
 
     @authors("eshcherbin")
     def test_total_time_operation_completed_several_jobs(self):
@@ -3520,13 +3518,21 @@ class TestPoolMetrics(YTEnvSetup):
 
         write_table("<append=%true>//tmp/t_input", [{"key": i} for i in xrange(2)])
 
-        start_time = time.time()
-
-        start_completed_metrics = get_pool_metrics("total_time_completed", start_time)
-        start_aborted_metrics = get_pool_metrics("total_time_aborted", start_time)
-        start_operation_completed_metrics = get_pool_metrics("total_time_operation_completed", start_time)
-        start_operation_failed_metrics = get_pool_metrics("total_time_operation_failed", start_time)
-        start_operation_aborted_metrics = get_pool_metrics("total_time_operation_aborted", start_time)
+        total_time_completed_delta = Metric.at_scheduler(
+            "scheduler/pools/metrics/total_time_completed",
+            with_tags={"pool": "unique_pool"})
+        total_time_aborted_delta = Metric.at_scheduler(
+            "scheduler/pools/metrics/total_time_aborted",
+            with_tags={"pool": "unique_pool"})
+        total_time_operation_completed_delta = Metric.at_scheduler(
+            "scheduler/pools/metrics/total_time_operation_completed",
+            with_tags={"pool": "unique_pool"})
+        total_time_operation_failed_delta = Metric.at_scheduler(
+            "scheduler/pools/metrics/total_time_operation_failed",
+            with_tags={"pool": "unique_pool"})
+        total_time_operation_aborted_delta = Metric.at_scheduler(
+            "scheduler/pools/metrics/total_time_operation_aborted",
+            with_tags={"pool": "unique_pool"})
 
         op = map(
             command=with_breakpoint("cat; BREAKPOINT; sleep 3"),
@@ -3557,11 +3563,12 @@ class TestPoolMetrics(YTEnvSetup):
 
         op.track()
 
-        wait(lambda: get_pool_metrics("total_time_operation_completed", start_time)["unique_pool"] - start_operation_completed_metrics["unique_pool"] ==
-             get_pool_metrics("total_time_completed", start_time)["unique_pool"] - start_completed_metrics["unique_pool"] +
-             get_pool_metrics("total_time_aborted", start_time)["unique_pool"] - start_aborted_metrics["unique_pool"] > 0)
-        assert get_pool_metrics("total_time_operation_failed", start_time)["unique_pool"] - start_operation_failed_metrics["unique_pool"] == 0
-        assert get_pool_metrics("total_time_operation_aborted", start_time)["unique_pool"] - start_operation_aborted_metrics["unique_pool"] == 0
+        wait(lambda: total_time_operation_completed_delta.update().get(verbose=True)
+             == total_time_completed_delta.update().get(verbose=True)
+             + total_time_aborted_delta.update().get(verbose=True)
+             > 0)
+        assert total_time_operation_failed_delta.update().get(verbose=True) == 0
+        assert total_time_operation_aborted_delta.update().get(verbose=True) == 0
 
     @authors("eshcherbin")
     def test_total_time_operation_failed_several_jobs(self):
@@ -3578,14 +3585,20 @@ class TestPoolMetrics(YTEnvSetup):
                      {"sleep": 5, "exit": 1}],
                     output_format="json")
 
-        start_time = time.time()
-
-        start_total_time_metrics = get_pool_metrics("total_time", start_time)
-        start_operation_completed_metrics = get_pool_metrics("total_time_operation_completed", start_time)
-        start_operation_failed_metrics = get_pool_metrics("total_time_operation_failed", start_time)
-        start_operation_aborted_metrics = get_pool_metrics("total_time_operation_aborted", start_time)
-
         map_cmd = """python -c 'import sys; import time; import json; row=json.loads(raw_input()); time.sleep(row["sleep"]); sys.exit(row["exit"])'"""
+
+        total_time_delta = Metric.at_scheduler(
+            "scheduler/pools/metrics/total_time",
+            with_tags={"pool": "unique_pool"})
+        total_time_operation_completed_delta = Metric.at_scheduler(
+            "scheduler/pools/metrics/total_time_operation_completed",
+            with_tags={"pool": "unique_pool"})
+        total_time_operation_failed_delta = Metric.at_scheduler(
+            "scheduler/pools/metrics/total_time_operation_failed",
+            with_tags={"pool": "unique_pool"})
+        total_time_operation_aborted_delta = Metric.at_scheduler(
+            "scheduler/pools/metrics/total_time_operation_aborted",
+            with_tags={"pool": "unique_pool"})
 
         op = map(
             command=map_cmd,
@@ -3599,10 +3612,11 @@ class TestPoolMetrics(YTEnvSetup):
             dont_track=True)
         op.track(raise_on_failed=False)
 
-        wait(lambda: get_pool_metrics("total_time", start_time)["unique_pool"] - start_total_time_metrics["unique_pool"] ==
-             get_pool_metrics("total_time_operation_failed", start_time)["unique_pool"] - start_operation_failed_metrics["unique_pool"] > 0)
-        assert get_pool_metrics("total_time_operation_completed", start_time)["unique_pool"] - start_operation_completed_metrics["unique_pool"] == 0
-        assert get_pool_metrics("total_time_operation_aborted", start_time)["unique_pool"] - start_operation_aborted_metrics["unique_pool"] == 0
+        wait(lambda: total_time_delta.update().get(verbose=True)
+             == total_time_operation_failed_delta.update().get(verbose=True)
+             > 0)
+        assert total_time_operation_completed_delta.update().get(verbose=True) == 0
+        assert total_time_operation_aborted_delta.update().get(verbose=True) == 0
 
     @authors("eshcherbin")
     def test_total_time_operation_completed_per_tree(self):
@@ -3619,42 +3633,81 @@ class TestPoolMetrics(YTEnvSetup):
 
         time.sleep(1.0)
 
-        def get_pool_metric_per_tree_root_(metric_key, start_time):
-            result = {}
-            for entry in reversed(get("//sys/scheduler/orchid/profiling/scheduler/pools/metrics/" + metric_key,
-                                      options={"from_time": int(start_time) * 1000000}, verbose=False)):
-                if entry["tags"]["pool"] != "<Root>":
-                    continue
-                tree = entry["tags"]["tree"]
-                if tree not in result:
-                    result[tree] = entry["value"]
-            print >>sys.stderr, "Root metrics per tree: ", result
-            return result
-
-        start_time = time.time()
-        start_total_time_metrics = get_pool_metric_per_tree_root_("total_time", start_time)
-        start_total_time_operation_completed_metrics = get_pool_metric_per_tree_root_("total_time_operation_completed", start_time)
+        total_time_delta = Metric.at_scheduler(
+            "scheduler/pools/metrics/total_time",
+            with_tags={"pool": "<Root>"},
+            grouped_by_tags=["tree"])
+        total_time_operation_completed_delta = Metric.at_scheduler(
+            "scheduler/pools/metrics/total_time_operation_completed",
+            with_tags={"pool": "<Root>"},
+            grouped_by_tags=["tree"])
 
         map(command="cat",
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={"data_size_per_job": 1, "pool_trees": ["default", "other"]})
 
-        time.sleep(2)
-
-        wait(lambda: all([value > 0 for _, value in get_pool_metric_per_tree_root_("total_time", start_time).iteritems()]))
-        total_time_metrics = get_pool_metric_per_tree_root_("total_time", start_time)
-        total_time_operation_completed_metrics = get_pool_metric_per_tree_root_("total_time_operation_completed", start_time)
-
-        for tree in ("default", "other"):
-            assert total_time_metrics[tree] - start_total_time_metrics[tree] == \
-                total_time_operation_completed_metrics[tree] - start_total_time_operation_completed_metrics[tree]
+        wait(lambda: total_time_delta.update().get("default", verbose=True)
+             == total_time_operation_completed_delta.update().get("default", verbose=True)
+             > 0)
+        wait(lambda: total_time_delta.update().get("other", verbose=True)
+             == total_time_operation_completed_delta.update().get("other", verbose=True)
+             > 0)
 
         # Go back to one default tree
         remove("//sys/pool_trees/*")
         create("map_node", "//sys/pool_trees/default")
         set("//sys/pool_trees/@default_tree", "default")
         time.sleep(0.5)  # Give scheduler some time to reload trees
+
+    @authors("eshcherbin")
+    def test_revive(self):
+        create("map_node", "//sys/pools/unique_pool")
+        wait(lambda: "unique_pool" in get(scheduler_orchid_default_pool_tree_path() + "/pools"))
+
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("<append=%true>//tmp/t_input", {"foo": "bar"})
+
+        before_breakpoint = """for i in $(seq 10) ; do python -c "import os; os.write(5, '{value=$i};')" ; sleep 0.5 ; done ; sleep 5 ; """
+        after_breakpoint = """for i in $(seq 11 15) ; do python -c "import os; os.write(5, '{value=$i};')" ; sleep 0.5 ; done ; cat ; sleep 5 ; echo done > /dev/stderr ; """
+
+        total_time_delta = Metric.at_scheduler(
+            "scheduler/pools/metrics/total_time",
+            with_tags={"pool": "unique_pool"})
+        custom_metric_delta = Metric.at_scheduler(
+            "scheduler/pools/metrics/my_custom_metric_sum",
+            with_tags={"pool": "unique_pool"})
+
+        op = map(
+            command=with_breakpoint(before_breakpoint + "BREAKPOINT ; " + after_breakpoint),
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={"pool": "unique_pool"},
+            dont_track=True)
+
+        jobs = wait_breakpoint()
+        assert len(jobs) == 1
+
+        total_time_before_restart = total_time_delta.update().get(verbose=True)
+        wait(lambda: custom_metric_delta.update().get(verbose=True) == 55)
+
+        # We need to have the job in the snapshot, so that it is not restarted after operation revival.
+        op.wait_fresh_snapshot()
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
+
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/operations/{}/state".format(op.id)) == "running")
+        wait(lambda: op.get_state() == "running")
+
+        release_breakpoint()
+
+        op.track()
+
+        wait(lambda: total_time_delta.update().get(verbose=True) > total_time_before_restart)
+        wait(lambda: custom_metric_delta.update().get(verbose=True) == 120)
+
 
 @patch_porto_env_only(TestPoolMetrics)
 class TestPoolMetricsPorto(YTEnvSetup):
@@ -3814,11 +3867,9 @@ fi
         for op in ops:
             wait(lambda: op.get_job_count("failed") == 1)
 
-            # Wait till snapshot index is incremented (snapshot is built)
-            snapshot_index_path = op.get_path() + "/controller_orchid/progress/snapshot_index"
-            snapshot_index = get(snapshot_index_path)
-            # '+1' since snapshot building can be started before job has failed.
-            wait(lambda: get(snapshot_index_path) > snapshot_index + 1)
+        timepoint = datetime.utcnow()
+        for op in ops:
+            op.wait_fresh_snapshot(timepoint)
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             pass
@@ -4167,6 +4218,7 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
 
     @authors("ignat")
     @flaky(max_runs=5)
+    @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
     def test_strategy(self):
         create("table", "//tmp/t_in", attributes={"replication_factor": 1})
         write_table("<append=%true>//tmp/t_in", [{"a": 0}])
@@ -4527,7 +4579,7 @@ class TestOperationAliases(YTEnvSetup):
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "operations_cleaner": {
-                "enable": True,
+                "enable": False,
                 # Analyze all operations each 100ms
                 "analysis_period": 100,
                 # Wait each batch to remove not more than 100ms
@@ -4603,8 +4655,6 @@ class TestOperationAliases(YTEnvSetup):
     def test_get_operation_latest_archive_version(self):
         init_operation_archive.create_tables_latest_version(self.Env.create_native_client(), override_tablet_cell_bundle="default")
 
-        set("//sys/scheduler/config", {"operations_cleaner": {"enable": False}})
-
         # When no operation is assigned to an alias, get_operation should return an error.
         with pytest.raises(YtError):
             get_operation("*my_op", include_runtime=True)
@@ -4632,9 +4682,7 @@ class TestOperationAliases(YTEnvSetup):
 
         assert exists(op.get_path())
 
-        # Let us enable operation archiver and wait until operation becomes archived.
-        set("//sys/scheduler/config", {"operations_cleaner": {"enable": True}})
-        wait(lambda: not exists(op.get_path()))
+        clean_operations()
 
         # Alias should become removed from the Orchid (but it may happen with some visible delay, so we wait for it).
         wait(lambda: not exists("//sys/scheduler/orchid/scheduler/operations/\\*my_op"))
@@ -4669,3 +4717,85 @@ class TestContainerCpuLimit(YTEnvSetup):
         cpu_usage = get_statistics(statistics, "user_job.cpu.user.$.completed.vanilla.max")
         assert cpu_usage < 2500
 
+class TestNodeDoubleRegistration(YTEnvSetup):
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "node_heartbeat_timeout": 10000
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "lease_transaction_timeout": 10000,
+            "lease_transaction_ping_period": 10000,
+            "register_timeout": 10000,
+            "incremental_heartbeat_timeout": 10000,
+            "full_heartbeat_timeout": 10000,
+            "job_heartbeat_timeout": 10000,
+        }
+    }
+
+    @authors("ignat")
+    def test_remove(self):
+        nodes = ls("//sys/nodes")
+        assert len(nodes) == 1
+        node = nodes[0]
+
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "online")
+
+        with Restarter(self.Env, NODES_SERVICE):
+            wait(lambda: get("//sys/nodes/{}/@state".format(node)) == "offline")
+            wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)) == "offline")
+            wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "offline")
+            remove("//sys/nodes/" + node)
+
+        wait(lambda: exists("//sys/scheduler/orchid/scheduler/nodes/{}".format(node)))
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)) == "online")
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "online")
+
+    # It is disabled since Restarter await node to become online, this wait fails for banned node.
+    @authors("ignat")
+    def disabled_test_remove_banned(self):
+        nodes = ls("//sys/nodes")
+        assert len(nodes) == 1
+        node = nodes[0]
+
+        set_banned_flag(True, [node])
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)) == "offline")
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "online")
+
+        with Restarter(self.Env, NODES_SERVICE):
+            wait(lambda: get("//sys/nodes/{}/@state".format(node)) == "offline")
+            wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)) == "offline")
+            wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "offline")
+
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)) == "offline")
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "online")
+
+@authors("renadeen")
+class TestConfigurablePoolTreeRoot(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 0
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "pool_trees_root": "//sys/test_root"
+        }
+    }
+
+    def test_scheduler_reads_pool_config_from_different_path(self):
+        set("//sys/test_root", {
+            "tree": {
+                "parent": {"pool": {}}
+            }
+        })
+        set("//sys/test_root/tree/parent/pool/@max_operation_count", 10)
+
+        pools_path = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/tree/fair_share_info/pools"
+        wait(lambda: exists(pools_path + "/pool"))
+        wait(lambda: get(pools_path + "/pool/parent") == "parent")
+        wait(lambda: get(pools_path + "/pool/max_operation_count") == 10)

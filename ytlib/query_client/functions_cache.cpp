@@ -227,7 +227,7 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
 
         for (auto [objectId, index] : infos) {
             auto fetchReq = TFileYPathProxy::Fetch(FromObjectId(objectId));
-            AddCellTagToSyncWith(fetchReq, CellTagFromId(objectId));
+            AddCellTagToSyncWith(fetchReq, objectId);
             fetchReq->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
             ToProto(fetchReq->mutable_ranges(), std::vector<TReadRange>({TReadRange()}));
             fetchBatchReq->AddRequest(fetchReq);

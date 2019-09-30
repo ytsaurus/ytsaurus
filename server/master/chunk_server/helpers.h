@@ -27,7 +27,7 @@ void VisitAncestors(TChunkList* chunkList, F functor);
 
 TChunkList* GetUniqueParent(const TChunkTree* chunkTree);
 int GetParentCount(const TChunkTree* chunkTree);
-TChunkTree* GetParent(const TChunkTree* chunkTree, int index);
+bool HasParent(const TChunkTree* chunkTree, TChunkList* potentialParent);
 
 void AttachToChunkList(
     TChunkList* chunkList,

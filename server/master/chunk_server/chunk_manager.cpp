@@ -741,15 +741,18 @@ public:
             case EObjectType::ErasureChunk: {
                 auto* underlyingChunk = underlyingTree->As<TChunk>();
                 auto* chunkView = DoCreateChunkView(underlyingChunk, std::move(readRange), transactionId);
-                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk view created (Id: %v, ChunkId: %v)",
+                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk view created (Id: %v, ChunkId: %v, TransactionId: %v)",
                     chunkView->GetId(),
-                    underlyingChunk->GetId());
+                    underlyingChunk->GetId(),
+                    transactionId);
                 return chunkView;
             }
 
             case EObjectType::ChunkView: {
+                YT_VERIFY(!transactionId);
+
                 auto* underlyingChunkView = underlyingTree->As<TChunkView>();
-                auto* chunkView = DoCreateChunkView(underlyingChunkView, std::move(readRange), transactionId);
+                auto* chunkView = DoCreateChunkView(underlyingChunkView, std::move(readRange));
                 YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk view created (Id: %v, ChunkId: %v, BaseChunkViewId: %v)",
                     chunkView->GetId(),
                     underlyingChunkView->GetUnderlyingChunk()->GetId(),
@@ -764,7 +767,7 @@ public:
 
     TChunkView* CloneChunkView(TChunkView* chunkView, NChunkClient::TReadRange readRange)
     {
-        return CreateChunkView(chunkView->GetUnderlyingChunk(), readRange);
+        return CreateChunkView(chunkView->GetUnderlyingChunk(), readRange, chunkView->GetTransactionId());
     }
 
     TChunkList* CreateChunkList(EChunkListKind kind)
@@ -917,8 +920,6 @@ public:
         if (chunk->IsDiskSizeFinal()) {
             UpdateTransactionResourceUsage(chunk, +1);
         }
-
-        ScheduleChunkExpiration(chunk);
     }
 
     void StageChunkTree(TChunkTree* chunkTree, TTransaction* transaction, TAccount* account)
@@ -974,16 +975,17 @@ public:
     {
         YT_VERIFY(HasMutationContext());
         YT_VERIFY(chunk->IsStaged());
+        YT_VERIFY(!chunk->IsConfirmed());
 
         auto now = GetCurrentMutationContext()->GetTimestamp();
         chunk->SetExpirationTime(now + GetDynamicConfig()->StagedChunkExpirationTimeout);
-        ExpirationTracker_->OnChunkStaged(chunk);
+        ExpirationTracker_->ScheduleExpiration(chunk);
     }
 
     void CancelChunkExpiration(TChunk* chunk)
     {
         if (chunk->IsStaged()) {
-            ExpirationTracker_->OnChunkUnstaged(chunk);
+            ExpirationTracker_->CancelExpiration(chunk);
             chunk->SetExpirationTime(TInstant::Zero());
         }
     }
@@ -1029,7 +1031,7 @@ public:
         auto cellIndex = multicellManager->GetRegisteredMasterCellIndex(destinationCellTag);
 
         if (!chunk->IsExportedToCell(cellIndex)) {
-            YT_LOG_ERROR("Unexpected error: chunk is not exported and cannot be unexported "
+            YT_LOG_ALERT("Chunk is not exported and cannot be unexported "
                 "(ChunkId: %v, CellTag: %v, CellIndex: %v, ImportRefCounter: %v)",
                 chunk->GetId(),
                 destinationCellTag,
@@ -1356,6 +1358,18 @@ public:
         return medium;
     }
 
+    TMedium* GetMediumOrThrow(TMediumId id) const
+    {
+        auto* medium = FindMedium(id);
+        if (!IsObjectAlive(medium)) {
+            THROW_ERROR_EXCEPTION(
+                NChunkClient::EErrorCode::NoSuchMedium,
+                "No such medium %v",
+                id);
+        }
+        return medium;
+    }
+
     TMedium* FindMediumByIndex(int index) const
     {
         return index >= 0 && index < MaxMediumCount
@@ -1567,7 +1581,7 @@ private:
             ChunkSealer_->OnChunkDestroyed(chunk);
         }
 
-        if (!chunk->IsForeign() && chunk->IsDiskSizeFinal()) {
+        if (chunk->IsNative() && chunk->IsDiskSizeFinal()) {
             UpdateAccountResourceUsage(chunk, -1);
         }
 
@@ -1673,10 +1687,11 @@ private:
         return chunkView;
     }
 
-    TChunkView* DoCreateChunkView(TChunkView* underlyingChunkView, NChunkClient::TReadRange readRange, TTransactionId transactionId)
+    TChunkView* DoCreateChunkView(TChunkView* underlyingChunkView, NChunkClient::TReadRange readRange)
     {
         readRange.LowerLimit() = underlyingChunkView->GetAdjustedLowerReadLimit(readRange.LowerLimit());
         readRange.UpperLimit() = underlyingChunkView->GetAdjustedUpperReadLimit(readRange.UpperLimit());
+        auto transactionId = underlyingChunkView->GetTransactionId();
         return DoCreateChunkView(underlyingChunkView->GetUnderlyingChunk(), readRange, transactionId);
     }
 
@@ -1945,14 +1960,14 @@ private:
         for (auto chunkListId : chunkListIds) {
             auto* chunkList = FindChunkList(chunkListId);
             if (!chunkList) {
-                YT_LOG_ERROR_UNLESS(IsRecovery(), "Unexpected error: chunk list is missing during requisition traverse finish confirmation (ChunkListId: %v)",
+                YT_LOG_ALERT_UNLESS(IsRecovery(), "Chunk list is missing during requisition traverse finish confirmation (ChunkListId: %v)",
                     chunkListId);
                 continue;
             }
 
             auto it = ChunkListsAwaitingRequisitionTraverse_.find(chunkList);
             if (it == ChunkListsAwaitingRequisitionTraverse_.end()) {
-                YT_LOG_ERROR_UNLESS(IsRecovery(), "Unexpected error: chunk list does not hold an additional strong ref during requisition traverse finish confirmation (ChunkListId: %v)",
+                YT_LOG_ALERT_UNLESS(IsRecovery(), "Chunk list does not hold an additional strong ref during requisition traverse finish confirmation (ChunkListId: %v)",
                     chunkListId);
                 continue;
             }
@@ -1967,7 +1982,7 @@ private:
         // NB: Ordered map is a must to make the behavior deterministic.
         std::map<TCellTag, NProto::TReqUpdateChunkRequisition> crossCellRequestMap;
         auto getCrossCellRequest = [&] (const TChunk* chunk) -> NProto::TReqUpdateChunkRequisition& {
-            auto cellTag = CellTagFromId(chunk->GetId());
+            auto cellTag = chunk->GetNativeCellTag();
             auto it = crossCellRequestMap.find(cellTag);
             if (it == crossCellRequestMap.end()) {
                 it = crossCellRequestMap.emplace(cellTag, NProto::TReqUpdateChunkRequisition()).first;
@@ -2298,7 +2313,7 @@ private:
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* account = securityManager->GetAccountByNameOrThrow(subrequest->account());
-        account->ValidateCreationCommitted();
+        account->ValidateActiveLifeStage();
 
         if (subrequest->validate_resource_usage_increase()) {
             auto resourceUsageIncrease = TClusterResources()
@@ -2607,9 +2622,8 @@ private:
             }
 
             // COMPAT(shakurov)
-            // The second check is only needed for old (pre-migration) staged chunks.
-            if (chunk->IsStaged() && chunk->GetExpirationTime()) {
-                ExpirationTracker_->OnChunkStaged(chunk);
+            if (chunk->GetExpirationTime()) {
+                ExpirationTracker_->ScheduleExpiration(chunk);
             }
         }
 
@@ -3064,6 +3078,8 @@ private:
 
     void UnregisterChunk(TChunk* chunk)
     {
+        CancelChunkExpiration(chunk);
+
         AllChunks_.Remove(chunk);
         if (chunk->IsJournal()) {
             JournalChunks_.Remove(chunk);
@@ -3111,6 +3127,10 @@ private:
 
         if (reason == EAddReplicaReason::IncrementalHeartbeat || reason == EAddReplicaReason::Confirmation) {
             ++ChunkReplicasAdded_;
+        }
+
+        if (chunk->IsStaged() && !chunk->IsConfirmed()) {
+            ScheduleChunkExpiration(chunk);
         }
     }
 
@@ -3298,11 +3318,11 @@ private:
     {
         YT_ASSERT(chunk->IsSealed());
 
-        if (chunk->Parents().empty())
+        if (!chunk->HasParents())
             return;
 
         // Go upwards and apply delta.
-        YT_VERIFY(chunk->Parents().size() == 1);
+        YT_VERIFY(chunk->GetParentCount() == 1);
         auto statisticsDelta = chunk->GetStatistics();
         AccumulateUniqueAncestorsStatistics(chunk, statisticsDelta);
 
@@ -3942,6 +3962,11 @@ TMediumMap<EChunkStatus> TChunkManager::ComputeChunkStatuses(TChunk* chunk)
 TFuture<TMiscExt> TChunkManager::GetChunkQuorumInfo(TChunk* chunk)
 {
     return Impl_->GetChunkQuorumInfo(chunk);
+}
+
+TMedium* TChunkManager::GetMediumOrThrow(TMediumId id) const
+{
+    return Impl_->GetMediumOrThrow(id);
 }
 
 TMedium* TChunkManager::FindMediumByIndex(int index) const

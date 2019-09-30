@@ -169,6 +169,7 @@ public:
     TStreamSaveContext();
     explicit TStreamSaveContext(IOutputStream* output);
 
+    virtual ~TStreamSaveContext() = default;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -184,6 +185,7 @@ public:
     TStreamLoadContext();
     explicit TStreamLoadContext(IInputStream* input);
 
+    virtual ~TStreamLoadContext() = default;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -238,6 +240,57 @@ public:
 private:
     TSaveContext* const SaveContext_;
     TLoadContext* const LoadContext_;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TEntitySerializationKey
+{
+    constexpr TEntitySerializationKey();
+    constexpr explicit TEntitySerializationKey(int index);
+
+    constexpr bool operator == (TEntitySerializationKey rhs);
+    constexpr bool operator != (TEntitySerializationKey rhs);
+
+    constexpr explicit operator bool() const;
+
+    void Save(TEntityStreamSaveContext& context) const;
+    void Load(TEntityStreamLoadContext& context);
+
+    int Index;
+};
+
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TEntityStreamSaveContext
+    : public TStreamSaveContext
+{
+public:
+    TEntitySerializationKey GenerateSerializationKey();
+
+    using TSavedInternedObjectsMap = THashMap<const void*, TEntitySerializationKey>;
+    DEFINE_BYREF_RW_PROPERTY(TSavedInternedObjectsMap, SavedInternedObjects);
+
+private:
+    int SerializationKeyIndex_ = 0;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TEntityStreamLoadContext
+    : public TStreamLoadContext
+{
+public:
+    TEntitySerializationKey RegisterEntity(void* entity);
+
+    template <class T>
+    T* GetEntity(TEntitySerializationKey key) const;
+
+private:
+    std::vector<void*> Entities_;
 
 };
 
@@ -305,14 +358,8 @@ void Persist(const C& context, T& value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_MPL_MEMBER_DETECTOR(Persist);
-
-template <class T, class = void>
-struct TPersistMemberTraits
-{ };
-
 template <class T>
-struct TPersistMemberTraits<T, typename NMpl::TEnableIfC<THasPersistMember<T>::Value>::TType>
+struct TPersistMemberTraits
 {
     template <class S>
     struct TSignatureCracker
@@ -321,14 +368,28 @@ struct TPersistMemberTraits<T, typename NMpl::TEnableIfC<THasPersistMember<T>::V
     template <class U, class C>
     struct TSignatureCracker<void (U::*)(C&)>
     {
-        typedef C TContext;
+        using TContext = C;
     };
 
-    typedef typename TSignatureCracker<decltype(&T::Persist)>::TContext TContext;
+    using TContext = typename TSignatureCracker<decltype(&T::Persist)>::TContext;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 // Simple types
+
+template <class P, class T, class C>
+void SaveViaPersist(C& context, const T& value)
+{
+    P wrappedContext(context);
+    const_cast<T&>(value).Persist(wrappedContext);
+}
+
+template <class P, class T, class C>
+void LoadViaPersist(C& context, T& value)
+{
+    P wrappedContext(context);
+    value.Persist(wrappedContext);
+}
 
 struct TValueBoundSerializer
 {
@@ -351,22 +412,20 @@ struct TValueBoundSerializer
     };
 
     template <class T, class C>
-    struct TSaver<T, C, typename NMpl::TEnableIfC<THasPersistMember<T>::Value>::TType>
+    struct TSaver<T, C, decltype(&T::Persist, void())>
     {
         static void Do(C& context, const T& value)
         {
-            typename TPersistMemberTraits<T>::TContext wrappedContext(context);
-            const_cast<T&>(value).Persist(wrappedContext);
+            SaveViaPersist<typename TPersistMemberTraits<T>::TContext>(context, value);
         }
     };
 
     template <class T, class C>
-    struct TLoader<T, C, typename NMpl::TEnableIfC<THasPersistMember<T>::Value>::TType>
+    struct TLoader<T, C, decltype(&T::Persist, void())>
     {
         static void Do(C& context, T& value)
         {
-            typename TPersistMemberTraits<T>::TContext wrappedContext(context);
-            value.Persist(wrappedContext);
+            LoadViaPersist<typename TPersistMemberTraits<T>::TContext>(context, value);
         }
     };
 

@@ -19,6 +19,9 @@ class TestTables(YTEnvSetup):
     def _wait_until_unlocked(self, path):
         wait(lambda: get(path + "/@lock_count") == 0)
 
+    def _wait_until_no_nested_tx(self, tx_id):
+        wait(lambda: get("#{}/@nested_transaction_ids".format(tx_id)) == [])
+
     
     @authors("ignat")
     def test_invalid_type(self):
@@ -110,8 +113,12 @@ class TestTables(YTEnvSetup):
         write_table("<append=true>//tmp/table", [{"a": 1}, {"a": 2}], sorted_by=["a"])
 
         tx_b3 = start_transaction(tx=tx_b1)
+        
         with pytest.raises(YtError):
             write_table("<append=true>//tmp/table", [{"a": 1}, {"a": 2}], sorted_by=["a"], tx=tx_b3)
+        self._wait_until_unlocked("//tmp/table")
+        self._wait_until_no_nested_tx(tx_b3)
+        
         commit_transaction(tx_b3)
         commit_transaction(tx_b1)
 
@@ -135,6 +142,7 @@ class TestTables(YTEnvSetup):
         write_table("//tmp/table", [{"a": 1}, {"a": 2}], sorted_by=["a"])
         with pytest.raises(YtError):
             write_table("<append=true>//tmp/table", [{"a": 0}], sorted_by=["a"])
+        self._wait_until_unlocked("//tmp/table")
 
     @authors("ignat", "monster")
     def test_append_sorted_to_unsorted(self):
@@ -695,7 +703,7 @@ class TestTables(YTEnvSetup):
         assert read_table("//tmp/t") == [{"a" : "b"}]
 
         copy("//tmp/t", "//tmp/t2")
-        assert sorted(get("#%s/@owning_nodes" % chunk_id)) == sorted(["//tmp/t", "//tmp/t2"])
+        wait(lambda: sorted(get("#%s/@owning_nodes" % chunk_id)) == sorted(["//tmp/t", "//tmp/t2"]))
         assert read_table("//tmp/t2") == [{"a" : "b"}]
 
         assert get("//tmp/t2/@resource_usage") == get("//tmp/t/@resource_usage")
@@ -728,8 +736,7 @@ class TestTables(YTEnvSetup):
         tx = start_transaction()
         assert read_table("//tmp/t", tx=tx) == [{"a" : "b"}]
         t2_id = copy("//tmp/t", "//tmp/t2", tx=tx)
-        print(t2_id)
-        assert sorted(get("#%s/@owning_nodes" % chunk_id)) == sorted(["#%s" % t2_id, "//tmp/t", to_yson_type("//tmp/t2", attributes = {"transaction_id" : tx})])
+        wait(lambda: sorted(get("#%s/@owning_nodes" % chunk_id)) == sorted(["#" + t2_id, "//tmp/t", to_yson_type("//tmp/t2", attributes = {"transaction_id" : tx})]))
         assert read_table("//tmp/t2", tx=tx) == [{"a" : "b"}]
 
         commit_transaction(tx)
@@ -738,7 +745,7 @@ class TestTables(YTEnvSetup):
 
         remove("//tmp/t")
         assert read_table("//tmp/t2") == [{"a" : "b"}]
-        assert get("#%s/@owning_nodes" % chunk_id) == ["//tmp/t2"]
+        assert get("#{}/@owning_nodes".format(chunk_id)) == ["//tmp/t2"]
 
         remove("//tmp/t2")
 
@@ -1133,8 +1140,7 @@ class TestTables(YTEnvSetup):
             init_table("//tmp/t", schema)
             with pytest.raises(YtError):
                 write_table("<append=%true>//tmp/t", rows)
-            # XXX(babenko): workaround for YT-5604
-            wait(lambda: get("//tmp/t/@lock_count") == 0)
+            self._wait_until_unlocked("//tmp/t")
 
         schema = make_schema([
             {"name": "key", "type": "int64", "required": False}],
@@ -1530,6 +1536,9 @@ class TestTablesMulticell(TestTables):
         self._wait_until_unlocked("//tmp/input")
 
 ##################################################################
+
+class TestTablesPortal(TestTablesMulticell):
+    ENABLE_TMP_PORTAL = True
 
 class TestTablesRpcProxy(TestTables):
     DRIVER_BACKEND = "rpc"

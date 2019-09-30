@@ -34,6 +34,8 @@
 #include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/ytlib/transaction_client/transaction_listener.h>
 
+#include <yt/ytlib/object_client/helpers.h>
+
 #include <yt/client/table_client/name_table.h>
 
 #include <yt/client/ypath/rich.h>
@@ -321,16 +323,18 @@ TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReade
 
         // NB: objectId is null for virtual tables.
         auto req = TYPathProxy::Get(userObject->GetObjectIdPathIfAvailable() + "/@");
-        SetTransactionId(req, options.TransactionId);
+        if (userObject->ObjectId) {
+            AddCellTagToSyncWith(req, userObject->ObjectId);
+        }
+        SetTransactionId(req, userObject->ExternalTransactionId);
         SetSuppressAccessTracking(req, config->SuppressAccessTracking);
-        std::vector<TString> attributeKeys{
+        ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
             "chunk_count",
             "dynamic",
             "retained_timestamp",
             "schema",
             "unflushed_timestamp"
-        };
-        ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+        });
 
         auto rspOrError = WaitFor(proxy.Execute(req));
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting extended attributes of table %v",
@@ -365,7 +369,8 @@ TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReade
                 req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
                 req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
                 req->set_fetch_parity_replicas(config->EnableAutoRepair);
-                SetTransactionId(req, options.TransactionId);
+                AddCellTagToSyncWith(req, userObject->ObjectId);
+                SetTransactionId(req, userObject->ExternalTransactionId);
                 SetSuppressAccessTracking(req, config->SuppressAccessTracking);
             },
             Logger,

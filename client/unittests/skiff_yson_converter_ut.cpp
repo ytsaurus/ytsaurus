@@ -397,6 +397,64 @@ TEST(TYsonSkiffConverterTest, TestTuple)
         "02000000" "00000000" "01" "2a000000" "00000000");
 }
 
+TEST(TYsonSkiffConverterTest, TestDict)
+{
+    const auto logicalType = DictLogicalType(
+        SimpleLogicalType(ESimpleLogicalValueType::String),
+        SimpleLogicalType(ESimpleLogicalValueType::Int64)
+    );
+    const auto skiffSchema = CreateRepeatedVariant8Schema({
+        CreateTupleSchema({
+            CreateSimpleTypeSchema(EWireType::String32),
+            CreateSimpleTypeSchema(EWireType::Int64)
+        })
+    });
+
+    CHECK_BIDIRECTIONAL_CONVERSION(
+        logicalType,
+        skiffSchema,
+        "[[\"one\";1;];[\"two\";2;];]",
+        "00" "03000000" "6f6e65" "01000000" "00000000"
+        "00" "03000000" "74776f" "02000000" "00000000"
+        "ff"
+    );
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        ConvertHexToTextYson(logicalType, skiffSchema, "01" "01000000" "6f" "01000000" "00000000" "ff"),
+        "Unexpected repeated_variant8 tag"
+    );
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        ConvertHexToTextYson(logicalType, skiffSchema, "00" "01000000" "6f" "01000000" "00000000"),
+        "Premature end of stream"
+    );
+}
+
+TEST(TYsonSkiffConverterTest, TestTagged)
+{
+    const auto logicalType = TaggedLogicalType(
+        "tag",
+        DictLogicalType(
+            TaggedLogicalType("tag", SimpleLogicalType(ESimpleLogicalValueType::String)),
+            SimpleLogicalType(ESimpleLogicalValueType::Int64)
+        )
+    );
+    const auto skiffSchema = CreateRepeatedVariant8Schema({
+        CreateTupleSchema({
+            CreateSimpleTypeSchema(EWireType::String32),
+            CreateSimpleTypeSchema(EWireType::Int64)
+        })
+    });
+    CHECK_BIDIRECTIONAL_CONVERSION(
+        logicalType,
+        skiffSchema,
+        "[[\"one\";1;];[\"two\";2;];]",
+        "00" "03000000" "6f6e65" "01000000" "00000000"
+        "00" "03000000" "74776f" "02000000" "00000000"
+        "ff"
+    );
+}
+
 TEST(TYsonSkiffConverterTest, TestOptionalVariantSimilarity)
 {
     auto logicalType = OptionalLogicalType(

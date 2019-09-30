@@ -326,7 +326,10 @@ private:
 
     bool ScanPartitionForCompaction(TTabletSlot* slot, TPartition* partition)
     {
-        if (!ScanForCompactions_ || partition->GetState() != EPartitionState::Normal) {
+        if (!ScanForCompactions_ ||
+            partition->GetState() != EPartitionState::Normal ||
+            partition->IsImmediateSplitRequested())
+        {
             return false;
         }
 
@@ -442,6 +445,14 @@ private:
         const auto& storeManager = tablet->GetStoreManager();
         const auto& config = tablet->GetConfig();
 
+        auto Logger = TabletNodeLogger;
+        Logger.AddTag("%v, PartitionId: %v",
+            tablet->GetLoggingId(),
+            partition->GetId());
+
+        YT_LOG_DEBUG_IF(config->EnableLsmVerboseLogging,
+            "Picking stores for compaction");
+
         // XXX(savrus) Disabled. Hotfix for YT-5828
 #if 0
         // Don't compact partitions (excluding Eden) whose data size exceeds the limit.
@@ -471,6 +482,20 @@ private:
                 IsStoreOutOfTabletRange(candidate, tablet))
             {
                 finalists.push_back(candidate->GetId());
+
+                if (config->EnableLsmVerboseLogging) {
+                    TString reason;
+                    if (IsCompactionForced(candidate)) {
+                        reason = "forced compaction";
+                    } else if (IsPeriodicCompactionNeeded(candidate)) {
+                        reason = "periodic compaction";
+                    } else {
+                        reason = "store is out of tablet range";
+                    }
+                    YT_LOG_DEBUG("Finalist store picked out of order (StoreId: %v, Reason: %v)",
+                        candidate->GetId(),
+                        reason);
+                }
             }
 
             if (finalists.size() >= config->MaxCompactionStoreCount) {
@@ -500,6 +525,11 @@ private:
         // Partition is critical if it contributes towards the OSC, and MOSC is reached.
         bool criticalPartition = overlappingStoreCount >= GetOverlappingStoreLimit(config);
 
+        if (criticalPartition) {
+            YT_LOG_DEBUG_IF(config->EnableLsmVerboseLogging,
+                "Partition is critical, picking as many stores as possible");
+        }
+
         for (int i = 0; i < candidates.size(); ++i) {
             i64 dataSizeSum = 0;
             int j = i;
@@ -525,6 +555,12 @@ private:
                     finalists.push_back(candidates[i]->GetId());
                     ++i;
                 }
+                YT_LOG_DEBUG_IF(config->EnableLsmVerboseLogging,
+                    "Picked stores for compaction (DataSize: %v, StoreId: %v)",
+                    dataSizeSum,
+                    MakeFormattableView(
+                        MakeRange(finalists.begin(), finalists.end()),
+                        TDefaultFormatter{}));
                 break;
             }
         }
@@ -826,18 +862,19 @@ private:
             {
                 YT_LOG_INFO("Creating Eden partitioning transaction");
 
-                TTransactionStartOptions options;
-                options.CellTag = CellTagFromId(tabletSnapshot->TabletId);
-                options.AutoAbort = false;
-                auto attributes = CreateEphemeralAttributes();
-                attributes->Set("title", Format("Eden partitioning: table %v, tablet %v",
+
+                auto transactionAttributes = CreateEphemeralAttributes();
+                transactionAttributes->Set("title", Format("Eden partitioning: table %v, tablet %v",
                     tabletSnapshot->TablePath,
                     tabletSnapshot->TabletId));
-                options.Attributes = std::move(attributes);
-
                 auto asyncTransaction = Bootstrap_->GetMasterClient()->StartNativeTransaction(
                     NTransactionClient::ETransactionType::Master,
-                    options);
+                    TTransactionStartOptions{
+                        .AutoAbort = false,
+                        .Attributes =  std::move(transactionAttributes),
+                        .CoordinatorMasterCellTag = CellTagFromId(tabletSnapshot->TabletId),
+                        .ReplicateToMasterCellTags = TCellTagList()
+                    });
                 transaction = WaitFor(asyncTransaction)
                     .ValueOrThrow();
 
@@ -1263,18 +1300,18 @@ private:
             {
                 YT_LOG_INFO("Creating partition compaction transaction");
 
-                TTransactionStartOptions options;
-                options.CellTag = CellTagFromId(tabletSnapshot->TabletId);
-                options.AutoAbort = false;
-                auto attributes = CreateEphemeralAttributes();
-                attributes->Set("title", Format("Partition compaction: table %v, tablet %v",
+                auto transactionAttributes = CreateEphemeralAttributes();
+                transactionAttributes->Set("title", Format("Partition compaction: table %v, tablet %v",
                     tabletSnapshot->TablePath,
                     tabletSnapshot->TabletId));
-                options.Attributes = std::move(attributes);
-
                 auto asyncTransaction = Bootstrap_->GetMasterClient()->StartNativeTransaction(
                     NTransactionClient::ETransactionType::Master,
-                    options);
+                    TTransactionStartOptions{
+                        .AutoAbort = false,
+                        .Attributes = std::move(transactionAttributes),
+                        .CoordinatorMasterCellTag = CellTagFromId(tabletSnapshot->TabletId),
+                        .ReplicateToMasterCellTags = TCellTagList()
+                    });
                 transaction = WaitFor(asyncTransaction)
                     .ValueOrThrow();
 
@@ -1482,7 +1519,7 @@ private:
             return false;
         }
 
-        ui64 revision = CounterFromId(store->GetId());
+        auto revision = CounterFromId(store->GetId());
         if (revision > *config->ForcedCompactionRevision) {
             return false;
         }

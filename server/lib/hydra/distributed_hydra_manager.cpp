@@ -260,6 +260,14 @@ public:
         return DecoratedAutomaton_->GetState();
     }
 
+    virtual EPeerState GetTentativeState() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        // NB: This call is actually thread-safe.
+        return DecoratedAutomaton_->GetState();
+    }
+
     virtual TVersion GetAutomatonVersion() const override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -302,7 +310,7 @@ public:
         return AutomatonEpochContext_ ? AutomatonEpochContext_->CancelableContext : nullptr;
     }
 
-    virtual TFuture<int> BuildSnapshot(bool setReadOnly) override
+    virtual TFuture<int> BuildSnapshot(bool setReadOnly, bool waitForSnapshotCompletion) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -322,10 +330,16 @@ public:
 
         SetReadOnly(setReadOnly);
 
-        return BuildSnapshotAndWatch(setReadOnly).Apply(
-            BIND([] (const TRemoteSnapshotParams& params) {
-                return params.SnapshotId;
-            }));
+        if (waitForSnapshotCompletion) {
+            return BuildSnapshotAndWatch(setReadOnly);
+        } else {
+            return MakeFuture(BuildSnapshotAndDetach(setReadOnly));
+        }
+    }
+
+    void ValidateSnapshot(IAsyncZeroCopyInputStreamPtr reader) override
+    {
+        DecoratedAutomaton_->ValidateSnapshot(reader);
     }
 
     virtual TYsonProducer GetMonitoringProducer() override
@@ -334,6 +348,7 @@ public:
 
         return BIND([=, this_ = MakeStrong(this)] (IYsonConsumer* consumer) {
             VERIFY_THREAD_AFFINITY_ANY();
+
             BuildYsonFluently(consumer)
                 .BeginMap()
                     .Item("state").Value(ControlState_)
@@ -345,6 +360,8 @@ public:
                     .Item("active_follower").Value(IsActiveFollower())
                     .Item("read_only").Value(GetReadOnly())
                     .Item("warming_up").Value(Options_.ResponseKeeper ? Options_.ResponseKeeper->IsWarmingUp() : false)
+                    .Item("building_snapshot").Value(DecoratedAutomaton_->IsBuildingSnapshotNow())
+                    .Item("last_snapshot_id").Value(DecoratedAutomaton_->GetLastSuccessfulSnapshotId())
                 .EndMap();
         });
     }
@@ -731,11 +748,13 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         bool setReadOnly = request->set_read_only();
+        bool waitForSnapshotCompletion = request->wait_for_snapshot_completion();
 
-        context->SetRequestInfo("SetReadOnly: %v",
-            setReadOnly);
+        context->SetRequestInfo("SetReadOnly: %v, WaitForSnapshotCompletion: %v",
+            setReadOnly,
+            waitForSnapshotCompletion);
 
-        int snapshotId = WaitFor(BuildSnapshot(setReadOnly))
+        int snapshotId = WaitFor(BuildSnapshot(setReadOnly, waitForSnapshotCompletion))
             .ValueOrThrow();
 
         context->SetResponseInfo("SnapshotId: %v",
@@ -1081,7 +1100,8 @@ private:
 
         auto checkpointer = AutomatonEpochContext_->Checkpointer;
         if (checkpointer->CanBuildSnapshot()) {
-            BuildSnapshotAndWatch(false);
+            bool setReadOnly = false;
+            BuildSnapshotAndWatch(setReadOnly);
         } else if (checkpointer->CanRotateChangelogs() && !snapshotIsMandatory) {
             YT_LOG_WARNING("Cannot build a snapshot, just rotating changelogs");
             RotateChangelogAndWatch();
@@ -1124,15 +1144,27 @@ private:
         WatchChangelogRotation(changelogResult);
     }
 
-    TFuture<TRemoteSnapshotParams> BuildSnapshotAndWatch(bool setReadOnly)
+    int BuildSnapshotAndDetach(bool setReadOnly)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        TFuture<void> changelogResult;
-        TFuture<TRemoteSnapshotParams> snapshotResult;
-        std::tie(changelogResult, snapshotResult) = AutomatonEpochContext_->Checkpointer->BuildSnapshot(setReadOnly);
-        WatchChangelogRotation(changelogResult);
-        return snapshotResult;
+        auto result = AutomatonEpochContext_->Checkpointer->BuildSnapshot(setReadOnly);
+        WatchChangelogRotation(result.RotateChangelogResult);
+
+        return result.SnapshotId;
+    }
+
+    TFuture<int> BuildSnapshotAndWatch(bool setReadOnly)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto result = AutomatonEpochContext_->Checkpointer->BuildSnapshot(setReadOnly);
+        WatchChangelogRotation(result.RotateChangelogResult);
+
+        return result.SnapshotConstructionResult.Apply(
+            BIND([] (const TRemoteSnapshotParams& params) {
+                return params.SnapshotId;
+            }));
     }
 
     void WatchChangelogRotation(TFuture<void> result)

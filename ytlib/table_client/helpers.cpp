@@ -15,6 +15,7 @@
 #include <yt/ytlib/chunk_client/input_chunk.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -60,6 +61,7 @@ using NChunkClient::NProto::TChunkSpec;
 
 using NYPath::TRichYPath;
 using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -348,15 +350,17 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
 
     int chunkCount;
     {
-        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
+        auto channel = client->GetMasterChannelOrThrow(
+            EMasterChannelKind::Follower,
+            userObject.ExternalCellTag);
         TObjectServiceProxy proxy(channel);
 
         auto req = TYPathProxy::Get(userObject.GetObjectIdPath() + "/@");
-        SetTransactionId(req, transactionId);
-        std::vector<TString> attributeKeys{
+        AddCellTagToSyncWith(req, userObject.ObjectId);
+        SetTransactionId(req, userObject.ExternalTransactionId);
+        ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
             "chunk_count"
-        };
-        NYT::ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+        });
 
         auto rspOrError = WaitFor(proxy.Execute(req));
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting chunk count of %v",

@@ -4,6 +4,8 @@
 
 #include <yt/client/api/config.h>
 
+#include <yt/ytlib/cell_master_client/config.h>
+
 #include <yt/ytlib/hive/config.h>
 
 #include <yt/ytlib/hydra/config.h>
@@ -52,16 +54,17 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnectionConfig)
 class TConnectionConfig
     : public NApi::TConnectionConfig
     , public NChunkClient::TChunkTeleporterConfig
+    , public NCellMasterClient::TCellDirectoryConfig
 {
 public:
     std::optional<NNodeTrackerClient::TNetworkPreferenceList> Networks;
-    TMasterConnectionConfigPtr PrimaryMaster;
-    std::vector<TMasterConnectionConfigPtr> SecondaryMasters;
-    TMasterConnectionConfigPtr MasterCache;
-    bool EnableReadFromFollowers;
+
     NTransactionClient::TRemoteTimestampProviderConfigPtr TimestampProvider;
     NHiveClient::TCellDirectoryConfigPtr CellDirectory;
     NHiveClient::TCellDirectorySynchronizerConfigPtr CellDirectorySynchronizer;
+
+    NCellMasterClient::TCellDirectorySynchronizerConfigPtr MasterCellDirectorySynchronizer;
+
     NScheduler::TSchedulerConnectionConfigPtr Scheduler;
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
     NChunkClient::TBlockCacheConfigPtr BlockCache;
@@ -106,6 +109,7 @@ public:
     TDuration DefaultListOperationsTimeout;
 
     bool UseTabletService;
+    bool EnableBuiltinTabletSystemUsers;
 
     TDuration IdleChannelTtl;
 

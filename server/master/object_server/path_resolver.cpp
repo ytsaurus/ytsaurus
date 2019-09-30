@@ -162,11 +162,9 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
                 return makeCurrentLocalObjectResult();
             }
 
-            auto token = Tokenizer_.GetToken();
+            const auto& key = Tokenizer_.GetLiteralValue();
 
-            if (currentNode->GetNodeType() == ENodeType::List &&
-                IsSpecialListKey(token))
-            {
+            if (currentNode->GetNodeType() == ENodeType::List && IsSpecialListKey(key)) {
                 if (!options.EnablePartialResolve) {
                     Tokenizer_.ThrowUnexpected();
                 }
@@ -177,17 +175,17 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
             TResolveCacheNodePtr childCacheNode;
             if (options.EnablePartialResolve) {
                 childNode = currentNode->GetNodeType() == ENodeType::Map
-                    ? FindMapNodeChild(cypressManager, currentNode->As<TMapNode>(), GetTransaction(), token)
-                    : FindListNodeChild(cypressManager, currentNode->As<TListNode>(), GetTransaction(), token);
+                    ? FindMapNodeChild(cypressManager, currentNode->As<TMapNode>(), GetTransaction(), key)
+                    : FindListNodeChild(cypressManager, currentNode->As<TListNode>(), GetTransaction(), key);
             } else {
                 childNode = currentNode->GetNodeType() == ENodeType::Map
-                    ? GetMapNodeChildOrThrow(cypressManager, currentNode->As<TMapNode>(), GetTransaction(), token)
-                    : GetListNodeChildOrThrow(cypressManager, currentNode->As<TListNode>(), GetTransaction(), token);
+                    ? GetMapNodeChildOrThrow(cypressManager, currentNode->As<TMapNode>(), GetTransaction(), key)
+                    : GetListNodeChildOrThrow(cypressManager, currentNode->As<TListNode>(), GetTransaction(), key);
             }
 
             if (options.PopulateResolveCache && currentNode->GetNodeType() == ENodeType::Map) {
                 parentCacheNode = currentCacheNode;
-                parentChildKey = token;
+                parentChildKey = key;
             }
 
             if (!IsObjectAlive(childNode)) {
@@ -204,7 +202,11 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
 
             if (!slashSkipped &&
                 (Tokenizer_.GetType() != NYPath::ETokenType::EndOfStream ||
-                 Method_ == "Remove" || Method_ == "Create" || Method_ == "Copy"))
+                 Method_ == "Remove" ||
+                 Method_ == "Set" ||
+                 Method_ == "Create" ||
+                 Method_ == "Copy" ||
+                 Method_ == "EndCopy"))
             {
                 return makeCurrentLocalObjectResult();
             }

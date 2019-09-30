@@ -85,9 +85,9 @@ TBootstrap::TBootstrap(
     ui16 tcpPort,
     ui16 httpPort)
     : Config_(std::move(config))
+    , CliqueId_(std::move(cliqueId))
     , ConfigNode_(std::move(configNode))
     , InstanceId_(std::move(instanceId))
-    , CliqueId_(std::move(cliqueId))
     , RpcPort_(rpcPort)
     , MonitoringPort_(monitoringPort)
     , TcpPort_(tcpPort)

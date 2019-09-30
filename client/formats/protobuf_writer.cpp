@@ -16,8 +16,6 @@
 #include <util/stream/buffer.h>
 #include <util/stream/mem.h>
 
-#include <mapreduce/yt/interface/protos/extension.pb.h>
-
 #include <contrib/libs/protobuf/wire_format_lite_inl.h>
 
 namespace NYT::NFormats {
@@ -42,7 +40,7 @@ public:
     TOtherColumnsWriter(
         const TNameTablePtr& nameTable,
         const TProtobufFormatDescriptionPtr& description)
-        : NameTable_(nameTable)
+        : NameTableReader_(nameTable)
         , Writer_(
             &OutputStream_,
             EYsonFormat::Binary,
@@ -58,6 +56,15 @@ public:
                     break;
                 }
             }
+        }
+
+        try {
+            RowIndexColumnId_ = nameTable->GetIdOrRegisterName(RowIndexColumnName);
+            RangeIndexColumnId_ = nameTable->GetIdOrRegisterName(RangeIndexColumnName);
+            TableIndexColumnId_ = nameTable->GetIdOrRegisterName(TableIndexColumnName);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Failed to add system columns to name table for protobuf writer")
+                << ex;
         }
     }
 
@@ -90,8 +97,12 @@ public:
             return;
         }
 
+        if (IsSystemColumnId(value.Id)) {
+            return;
+        }
+
         YT_VERIFY(InsideRow_);
-        Writer_.OnKeyedItem(NameTable_->GetName(value.Id));
+        Writer_.OnKeyedItem(NameTableReader_.GetName(value.Id));
         Serialize(value, &Writer_, /* anyAsRaw */ true);
     }
 
@@ -136,8 +147,16 @@ private:
         return OutputStream_.Blob().ToStringBuf();
     }
 
+    bool IsSystemColumnId(int id) const
+    {
+        return
+            TableIndexColumnId_ == id ||
+            RangeIndexColumnId_ == id ||
+            RowIndexColumnId_ == id;
+    }
+
 private:
-    const TNameTablePtr NameTable_;
+    const TNameTableReader NameTableReader_;
 
     std::vector<const TProtobufFieldDescription*> TableIndexToOtherColumnsField_;
     const TProtobufFieldDescription* FieldDescription_ = nullptr;
@@ -146,6 +165,10 @@ private:
     TYsonWriter Writer_;
 
     bool InsideRow_ = false;
+
+    int RowIndexColumnId_ = -1;
+    int RangeIndexColumnId_ = -1;
+    int TableIndexColumnId_ = -1;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

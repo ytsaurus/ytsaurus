@@ -54,7 +54,7 @@ public:
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         auto* cellBundle = tabletManager->GetTabletCellBundleByNameOrThrow(cellBundleName);
-        cellBundle->ValidateCreationCommitted();
+        cellBundle->ValidateActiveLifeStage();
 
         return tabletManager->CreateTabletCell(cellBundle, hintId);
     }

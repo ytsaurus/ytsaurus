@@ -260,10 +260,15 @@ class TestFiles(YTEnvSetup):
 class TestFilesMulticell(TestFiles):
     NUM_SECONDARY_MASTER_CELLS = 2
 
+class TestFilesPortal(TestFilesMulticell):
+    ENABLE_TMP_PORTAL = True
+
 class TestFilesRpcProxy(TestFiles):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True
+
+##################################################################
 
 class TestFileErrorsRpcProxy(YTEnvSetup):
     NUM_MASTERS = 1
@@ -327,6 +332,8 @@ class TestFileErrorsRpcProxy(YTEnvSetup):
         set_node_banned(nodes[0], False)
         set_node_banned(nodes[1], False)
         assert retry(lambda: read_file("//tmp/file")) == "abacaba"
+
+##################################################################
 
 class TestBigFilesRpcProxy(YTEnvSetup):
     NUM_MASTERS = 1

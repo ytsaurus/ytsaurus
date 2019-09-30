@@ -4,8 +4,8 @@ from yt.environment.yt_env import set_environment_driver_logging_config
 from yt.environment import arcadia_interop
 
 import yt.yson as yson
-from yt_driver_bindings import Driver, Request
-from yt.common import YtError, YtResponseError, flatten, update_inplace
+from yt_driver_bindings import Driver, Request, reopen_logs
+from yt.common import YtError, YtResponseError, flatten, update_inplace, update, date_string_to_datetime
 
 from yt.test_helpers import wait, WaitFailed
 from yt.test_helpers.job_events import JobEvents, TimeoutError
@@ -45,6 +45,7 @@ SchemaViolation = 307
 AuthorizationErrorCode = 901
 NoSuchOperation = 1915
 NoSuchAttribute = 1920
+TabletNotMounted = 1702
 
 # See transaction_client/public.h
 SyncLastCommittedTimestamp   = 0x3fffffffffffff01
@@ -56,14 +57,37 @@ def authors(*the_authors):
 
 @contextlib.contextmanager
 def raises_yt_error(code):
+    """
+    Context manager that helps to check that code raises YTError.
+    When description is int we check that raised error contains this error code.
+    When description is string we check that raised error contains description as substring.
+
+    Examples:
+        with raises_yt_error(SortOrderViolation):
+            ...
+
+        with raises_yt_error("Name of struct field #0 is empty"):
+            ...
+    """
+    if not isinstance(code, (str, int)):
+        raise TypeError("code must be str or int, actual type: {}".format(code.__class__))
     try:
         yield
+        raise AssertionError("Expected exception to be raised.")
     except YtError as e:
-        if not e.contains_code(code):
-            raise AssertionError("Raised error {} doesn't contain error code {}".format(
-                e,
-                code,
-            ))
+        if isinstance(code, int):
+            if not e.contains_code(code):
+                raise AssertionError("Raised error doesn't contain error code {}:\n{}".format(
+                    code,
+                    e,
+                ))
+        else:
+            assert isinstance(code, str)
+            if code not in str(e):
+                raise AssertionError("Raised error doesn't contain {}:\n{}".format(
+                    code,
+                    e,
+                ))
 
 def print_debug(*args):
     if arcadia_interop.yatest_common is None:
@@ -497,6 +521,11 @@ def concatenate(source_paths, destination_path, **kwargs):
     kwargs["destination_path"] = destination_path
     execute_command("concatenate", kwargs)
 
+def externalize(path, cell_tag, **kwargs):
+    kwargs["path"] = path
+    kwargs["cell_tag"] = cell_tag
+    execute_command("externalize", kwargs)
+
 def ls(path, **kwargs):
     kwargs["path"] = path
     return execute_command("list", kwargs, parse_yson=True)
@@ -803,9 +832,14 @@ class Operation(object):
         if state != "running":
             raise TimeoutError("Operation didn't become running within timeout")
 
-    def get_job_count(self, state):
+    def get_job_count(self, state, from_orchid=True):
+        if from_orchid:
+            base_path = self.get_path() + "/controller_orchid/progress/jobs/"
+        else:
+            base_path = self.get_path() + "/@progress/jobs/"
+
         try:
-            path = self.get_path() + "/controller_orchid/progress/jobs/" + str(state)
+            path = base_path + str(state)
             if state == "aborted" or state == "completed":
                 path += "/total"
             return get(path, verbose=False)
@@ -829,6 +863,12 @@ class Operation(object):
 
     def wait_for_state(self, state, **kwargs):
         wait(lambda: self.get_state(**kwargs) == state)
+
+    def wait_fresh_snapshot(self, timepoint=None):
+        if timepoint is None:
+            timepoint = datetime.utcnow()
+        snapshot_path = self.get_path() + "/snapshot"
+        wait(lambda: exists(snapshot_path) and date_string_to_datetime(get(snapshot_path + "/@creation_time")) > timepoint)
 
     def get_alerts(self):
         try:
@@ -906,11 +946,15 @@ class Operation(object):
             counter += 1
             time.sleep(self._poll_frequency)
 
-    def abort(self, **kwargs):
+    def abort(self, wait_until_finished=False, **kwargs):
         abort_op(self.id, **kwargs)
+        if wait_until_finished:
+            self.wait_for_state("aborted")
 
-    def complete(self, **kwargs):
+    def complete(self, wait_until_finished=False, **kwargs):
         complete_op(self.id, **kwargs)
+        if wait_until_finished:
+            self.wait_for_state("completed")
 
     def suspend(self, **kwargs):
         suspend_op(self.id, **kwargs)
@@ -1092,18 +1136,22 @@ def clear_metadata_caches(driver=None):
     _get_driver(driver=driver).clear_metadata_caches()
 
 def create_account(name, **kwargs):
-    atomic = kwargs.pop('atomic_creation', True)
+    sync = kwargs.pop('sync_creation', True)
     kwargs["type"] = "account"
     if "attributes" not in kwargs:
         kwargs["attributes"] = dict()
     kwargs["attributes"]["name"] = name
     execute_command("create", kwargs)
-    if atomic:
+    if sync:
         wait(lambda: get("//sys/accounts/{0}/@life_stage".format(name)) == 'creation_committed')
 
 def remove_account(name, **kwargs):
     gc_collect(kwargs.get("driver"))
-    remove("//sys/accounts/" + name, **kwargs)
+    sync = kwargs.pop('sync_deletion', True)
+    account_path = "//sys/accounts/" + name
+    remove(account_path, **kwargs)
+    if sync:
+        wait(lambda: not exists(account_path))
 
 def create_user(name, **kwargs):
     kwargs["type"] = "user"
@@ -1121,13 +1169,10 @@ def create_test_tables(row_count=1, **kwargs):
     write_table("//tmp/t_in", [{"x": str(i)} for i in xrange(row_count)])
     create("table", "//tmp/t_out", **kwargs)
 
-def run_test_vanilla(command, spec=None, job_count=1, dont_track=True, **kwargs):
+def run_test_vanilla(command, spec=None, job_count=1, dont_track=True, task_patch=None, **kwargs):
     spec = spec or {}
     spec["tasks"] = {
-        "task": {
-            "job_count": job_count,
-            "command": command
-        },
+        "task": update({"job_count": job_count, "command": command}, task_patch)
     }
     return vanilla(spec=spec, dont_track=dont_track, **kwargs)
 
@@ -1323,6 +1368,18 @@ def make_ace(action, subjects, permissions, inheritance_mode="object_and_descend
 
 #########################################
 
+def make_column(name, type_v2, **attributes):
+    result = {
+        "name": name,
+        "type_v2": type_v2,
+    }
+    for k in attributes:
+        result[k] = attributes[k]
+    return result
+
+def make_sorted_column(name, type_v2, **attributes):
+    return make_column(name, type_v2, sort_order="ascending", **attributes)
+
 def make_schema(columns, **attributes):
     schema = yson.YsonList()
     for column_schema in columns:
@@ -1400,6 +1457,20 @@ def variant_tuple_type(elements):
         "elements": elements,
     }
 
+def dict_type(key_type, value_type):
+    return {
+        "metatype": "dict",
+        "key": key_type,
+        "value": value_type,
+    }
+
+def tagged_type(tag, element_type):
+    return {
+        "metatype": "tagged",
+        "tag": tag,
+        "element": element_type,
+    }
+
 ##################################################################
 
 def get_guid_from_parts(lo, hi):
@@ -1411,6 +1482,11 @@ def get_guid_from_parts(lo, hi):
     ints[2] = lo & 0xFFFFFFFF
     ints[3] = lo >> 32
     return "{3:x}-{2:x}-{1:x}-{0:x}".format(*ints)
+
+def generate_uuid(generator=None):
+    def get_int():
+        return hex(random.randint(0, 2**32 - 1))[2:].rstrip("L")
+    return "-".join([get_int() for _ in xrange(4)])
 
 ##################################################################
 

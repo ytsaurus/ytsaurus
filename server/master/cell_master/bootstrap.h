@@ -82,6 +82,7 @@ public:
     const NCypressServer::TCypressManagerPtr& GetCypressManager() const;
     const NCypressServer::TPortalManagerPtr& GetPortalManager() const;
     const THydraFacadePtr& GetHydraFacade() const;
+    const TEpochHistoryManagerPtr& GetEpochHistoryManager() const;
     const TWorldInitializerPtr& GetWorldInitializer() const;
     const NObjectServer::TObjectManagerPtr& GetObjectManager() const;
     const NChunkServer::TChunkManagerPtr& GetChunkManager() const;
@@ -128,6 +129,7 @@ private:
     NCypressServer::TCypressManagerPtr CypressManager_;
     NCypressServer::TPortalManagerPtr PortalManager_;
     THydraFacadePtr HydraFacade_;
+    TEpochHistoryManagerPtr EpochHistoryManager_;
     TWorldInitializerPtr WorldInitializer_;
     NObjectServer::TObjectManagerPtr ObjectManager_;
     NChunkServer::TChunkManagerPtr ChunkManager_;

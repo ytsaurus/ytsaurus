@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/server/master/transaction_server/public.h>
+
 #include <yt/core/ytree/attribute_owner.h>
 #include <yt/core/ytree/system_attribute_provider.h>
 #include <yt/core/ytree/ypath_service.h>
@@ -21,6 +23,9 @@ struct IObjectProxy
 
     //! Returns the corresponding object.
     virtual TObject* GetObject() const = 0;
+
+    //! Returns the transaction for which the proxy is created.
+    virtual NTransactionServer::TTransaction* GetTransaction() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IObjectProxy)

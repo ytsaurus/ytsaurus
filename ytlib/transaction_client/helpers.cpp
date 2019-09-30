@@ -73,6 +73,48 @@ TTransactionId MakeTabletTransactionId(
         hash);
 }
 
+TTransactionId MakeExternalizedTransactionId(
+    TTransactionId originalId,
+    TCellTag externalizingCellTag)
+{
+    if (!originalId) {
+        return {};
+    }
+
+    auto originalType = TypeFromId(originalId);
+    YT_VERIFY(originalType == EObjectType::Transaction || originalType == EObjectType::NestedTransaction);
+    auto externalizedType = (originalType == EObjectType::Transaction)
+        ? EObjectType::ExternalizedTransaction
+        : EObjectType::ExternalizedNestedTransaction;
+
+    auto nativeCellTag = CellTagFromId(originalId);
+    return TTransactionId(
+        (originalId.Parts32[0] &  0xffff) | (nativeCellTag << 16),          // keep the original cell tag
+        (externalizingCellTag << 16) | static_cast<ui32>(externalizedType), // replace type and native cell tag
+        originalId.Parts32[2],
+        originalId.Parts32[3]);
+}
+
+TTransactionId OriginalFromExternalizedTransactionId(TTransactionId externalizedId)
+{
+    if (!externalizedId) {
+        return {};
+    }
+
+    auto externalizedType = TypeFromId(externalizedId);
+    YT_VERIFY(externalizedType == EObjectType::ExternalizedTransaction || externalizedType == EObjectType::ExternalizedNestedTransaction);
+    auto originalType = (externalizedType == EObjectType::ExternalizedTransaction)
+        ? EObjectType::Transaction
+        : EObjectType::NestedTransaction;
+
+    auto originalCellTag = (externalizedId.Parts32[0] >> 16);
+    return TTransactionId(
+        (externalizedId.Parts32[0] &  0xffff),                     // erase the original cell tag
+        (originalCellTag << 16) | static_cast<ui32>(originalType), // replace type and restore the original cell tag
+        externalizedId.Parts32[2],
+        externalizedId.Parts32[3]);
+}
+
 TTimestamp TimestampFromTransactionId(TTransactionId id)
 {
     return TTimestamp(CounterFromId(id));
@@ -90,29 +132,6 @@ EAtomicity AtomicityFromTransactionId(TTransactionId id)
 
         default:
             YT_ABORT();
-    }
-}
-
-void ValidateTabletTransactionId(TTransactionId id)
-{
-    auto type = TypeFromId(id);
-    if (type != EObjectType::Transaction &&
-        type != EObjectType::AtomicTabletTransaction &&
-        type != EObjectType::NonAtomicTabletTransaction)
-    {
-        THROW_ERROR_EXCEPTION("%v is not a valid tablet transaction id",
-            id);
-    }
-}
-
-void ValidateMasterTransactionId(TTransactionId id)
-{
-    auto type = TypeFromId(id);
-    if (type != EObjectType::Transaction &&
-        type != EObjectType::NestedTransaction)
-    {
-        THROW_ERROR_EXCEPTION("%v is not a valid master transaction id",
-            id);
     }
 }
 

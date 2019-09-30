@@ -10,6 +10,7 @@ namespace NYT::NSchedulerSimulator {
 using namespace NScheduler;
 using namespace NControllerAgent;
 using namespace NConcurrency;
+using namespace NYTree;
 
 using NJobTrackerClient::EJobType;
 
@@ -183,6 +184,9 @@ public:
     //! Returns the number of jobs the controller still needs to start right away.
     virtual int GetPendingJobCount() const override;
 
+    //! Returns the mode which says how to preempt jobs of this operation.
+    virtual EPreemptionMode GetPreemptionMode() const override;
+
     //! Returns the total resources that are additionally needed.
     virtual TJobResources GetNeededResources() const override;
 
@@ -344,6 +348,11 @@ int TSimulatorOperationController::GetPendingJobCount() const
 {
     auto guard = Guard(Lock_);
     return PendingJobCount_;
+}
+
+EPreemptionMode TSimulatorOperationController::GetPreemptionMode() const
+{
+    return ConvertTo<TOperationSpecBasePtr>(OperationDescription_->Spec)->PreemptionMode;
 }
 
 TJobResources TSimulatorOperationController::GetNeededResources() const

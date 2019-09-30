@@ -38,7 +38,10 @@ private:
 
     TJobProxy* JobProxy_;
 
+    bool Started = false;
+    std::optional<TInstant> StartInstant;
     std::optional<TDuration> CheckedTimeInterval_;
+
     double AggregatedSmoothedCpuUsage_ = 0;
     double AggregatedMaxCpuUsage_ = 0;
     double AggregatedPreemptableCpu_ = 0;
@@ -59,6 +62,7 @@ private:
     void UpdateVotes();
     std::optional<double> TryMakeDecision();
     void UpdateAggregates();
+    bool CheckStarted();
 
     void DoCheck();
 };

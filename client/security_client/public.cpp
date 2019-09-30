@@ -17,6 +17,9 @@ const TString OwnerUserName("owner");
 const TString FileCacheUserName("file_cache");
 const TString OperationsCleanerUserName("operations_cleaner");
 const TString OperationsClientUserName("operations_client");
+const TString TabletCellChangeloggerUserName("tablet_cell_changelogger");
+const TString TabletCellSnapshotterUserName("tablet_cell_snapshotter");
+const TString TableMountInformerUserName("table_mount_informer");
 
 const TString EveryoneGroupName("everyone");
 const TString UsersGroupName("users");

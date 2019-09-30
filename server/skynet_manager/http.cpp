@@ -275,7 +275,7 @@ std::vector<TTableShard> ReadSkynetMetaFromTable(
     if (shards.size() == 0) {
         THROW_ERROR_EXCEPTION("Can't share empty table");
     }
-    YT_LOG_INFO("Finished reading share meta (Path: %v, ShardsCount: %d, StartRow: %d, EndRow: %d)",
+    YT_LOG_INFO("Finished reading share meta (Path: %v, ShardsCount: %v, StartRow: %v, EndRow: %v)",
         path,
         shards.size(),
         startRowIndex,

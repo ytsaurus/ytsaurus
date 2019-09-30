@@ -32,7 +32,7 @@ public:
     TFuture<void> Leave();
 
     //! Return the list of participants stored in data structure.
-    THashMap<TString, TAttributeDictionary> List() const;
+    THashMap<TString, TAttributeDictionary> List(bool includeBanned = false) const;
     //! Temporary exclude |name| from the list of available participants.
     void Ban(TString name);
 
@@ -64,11 +64,16 @@ private:
     std::optional<std::pair<TString, TAttributeDictionary>> SelfAttributes_;
     TFuture<void> ScheduledForceUpdate_;
     TInstant LastUpdate_;
+    TCallback<void(void)> TransactionRestorer_;
+    int Epoch_;
     
     void DoEnter(TString name, TAttributeDictionary attributes);
     void DoLeave();
     
     void DoUpdateList();
+
+    void DoLockNode(int epoch);
+    void OnTransactionAborted(int epoch);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDiscovery)

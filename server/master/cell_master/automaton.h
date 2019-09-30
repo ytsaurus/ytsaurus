@@ -28,9 +28,6 @@ public:
     using TSavedSchemaMap = THashMap<NTableServer::TSharedTableSchema*, NObjectClient::TVersionedObjectId>;
     DEFINE_BYREF_RW_PROPERTY(TSavedSchemaMap, SavedSchemas);
 
-    using TSavedInternedObjectsMap = THashMap<const void*, NHydra::TEntitySerializationKey>;
-    DEFINE_BYREF_RW_PROPERTY(TSavedInternedObjectsMap, SavedInternedObjects);
-
 public:
     EMasterReign GetVersion();
 };
@@ -56,11 +53,9 @@ public:
     template <class T>
     const TInternRegistryPtr<T>& GetInternRegistry() const;
 
+
     EMasterReign GetVersion();
 };
-
-template <>
-const NSecurityServer::TSecurityTagsRegistryPtr& TLoadContext::GetInternRegistry<NSecurityServer::TSecurityTags>() const;
 
 ////////////////////////////////////////////////////////////////////////////////
 

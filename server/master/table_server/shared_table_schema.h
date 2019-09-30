@@ -18,6 +18,7 @@ class TSharedTableSchemaRegistry
 
 public:
     TSharedTableSchemaPtr GetSchema(NTableClient::TTableSchema&& tableSchema);
+    TSharedTableSchemaPtr GetSchema(const NTableClient::TTableSchema& tableSchema);
     size_t GetSize() const;
     void Clear();
 

@@ -29,8 +29,7 @@ void IAttributeDictionary::MergeFrom(const IMapNodePtr other)
 
 void IAttributeDictionary::MergeFrom(const IAttributeDictionary& other)
 {
-    for (const auto& key : other.List()) {
-        auto value = other.GetYson(key);
+    for (const auto& [key, value] : other.ListPairs()) {
         SetYson(key, value);
     }
 }
@@ -44,8 +43,7 @@ std::unique_ptr<IAttributeDictionary> IAttributeDictionary::Clone() const
 
 void IAttributeDictionary::Clear()
 {
-    auto keys = List();
-    for (const auto& key : keys) {
+    for (const auto& key : ListKeys()) {
         Remove(key);
     }
 }
@@ -55,12 +53,12 @@ bool IAttributeDictionary::Contains(const TString& key) const
     return FindYson(key).operator bool();
 }
 
-std::unique_ptr<IAttributeDictionary> IAttributeDictionary::FromMap(IMapNodePtr node)
+std::unique_ptr<IAttributeDictionary> IAttributeDictionary::FromMap(const IMapNodePtr& node)
 {
     auto attributes = CreateEphemeralAttributes();
     auto children = node->GetChildren();
-    for (int i = 0; i < children.size(); ++i) {
-        attributes->SetYson(children[i].first, ConvertToYsonString(children[i].second));
+    for (int index = 0; index < children.size(); ++index) {
+        attributes->SetYson(children[index].first, ConvertToYsonString(children[index].second));
     }
     return attributes;
 }
@@ -68,9 +66,8 @@ std::unique_ptr<IAttributeDictionary> IAttributeDictionary::FromMap(IMapNodePtr 
 IMapNodePtr IAttributeDictionary::ToMap() const
 {
     auto map = GetEphemeralNodeFactory()->CreateMap();
-    auto keys = List();
-    for (const auto& key : keys) {
-        map->AddChild(key, ConvertToNode(GetYson(key)));
+    for (const auto& [key, value] : ListPairs()) {
+        map->AddChild(key, ConvertToNode(value));
     }
     return map;
 }

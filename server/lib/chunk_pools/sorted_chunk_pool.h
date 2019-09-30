@@ -27,6 +27,16 @@ struct TSortedChunkPoolOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct ISortedChunkPool
+    : public IChunkPool
+{
+    //! Return keys (limits) that define range corresponding to cookie `cookie`.
+    virtual std::pair<NTableClient::TUnversionedRow, NTableClient::TUnversionedRow>
+        GetLimits(IChunkPoolOutput::TCookie cookie) const = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IChunkSliceFetcherFactory
     : public IPersistent
     , public virtual TRefCounted
@@ -43,7 +53,7 @@ DEFINE_REFCOUNTED_TYPE(IChunkSliceFetcherFactory);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IChunkPool> CreateSortedChunkPool(
+std::unique_ptr<ISortedChunkPool> CreateSortedChunkPool(
     const TSortedChunkPoolOptions& options,
     IChunkSliceFetcherFactoryPtr chunkSliceFetcherFactory,
     TInputStreamDirectory dataSourceDirectory);

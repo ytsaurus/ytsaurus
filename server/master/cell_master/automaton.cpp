@@ -89,8 +89,8 @@ TObject* TLoadContext::GetWeakGhostObject(TObjectId id) const
     return objectManager->GetWeakGhostObject(id);
 }
 
-template<>
-const TSecurityTagsRegistryPtr& TLoadContext::GetInternRegistry<TSecurityTags>() const
+template <>
+const TSecurityTagsRegistryPtr& TLoadContext::GetInternRegistry() const
 {
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     return securityManager->GetSecurityTagsRegistry();

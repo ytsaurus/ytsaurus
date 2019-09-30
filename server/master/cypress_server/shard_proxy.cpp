@@ -42,6 +42,8 @@ private:
         attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::RootNodeId)
             .SetPresent(shard->GetRoot() != nullptr));
         attributes->push_back(EInternedAttributeKey::AccountStatistics);
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::Name)
+            .SetWritable(true));
 
         TBase::ListSystemAttributes(attributes);
     }
@@ -68,13 +70,34 @@ private:
                         });
                 return true;
 
+            case EInternedAttributeKey::Name:
+                BuildYsonFluently(consumer)
+                    .Value(shard->GetName());
+                return true;
+
             default:
                 break;
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);
     }
+
+    virtual bool SetBuiltinAttribute(
+        TInternedAttributeKey key,
+        const TYsonString& value) override
+    {
+        auto* shard = GetThisImpl();
+
+        switch (key) {
+            case EInternedAttributeKey::Name:
+                shard->SetName(ConvertTo<TString>(value));
+                return true;
+        }
+
+        return false;
+    }
 };
+
 
 IObjectProxyPtr CreateCypressShardProxy(
     NCellMaster::TBootstrap* bootstrap,

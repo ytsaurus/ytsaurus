@@ -125,7 +125,7 @@ TClusterResources TCypressNode::GetTotalResourceUsage() const
     return result;
 }
 
-ui64 TCypressNode::GetRevision() const
+NHydra::TRevision TCypressNode::GetRevision() const
 {
     return Max(AttributesRevision_, ContentRevision_);
 }
@@ -177,6 +177,7 @@ void TCypressNode::Save(TSaveContext& context) const
     Save(context, AccessTime_);
     Save(context, AccessCounter_);
     Save(context, Shard_);
+    Save(context, Annotation_);
 }
 
 void TCypressNode::Load(TLoadContext& context)
@@ -206,7 +207,7 @@ void TCypressNode::Load(TLoadContext& context)
     Load(context, ModificationTime_);
     // COMPAT(aozeritsky)
     if (context.GetVersion() < EMasterReign::AddAttributesRevisionContentRevision) {
-        ui64 revision = Load<ui64>(context);
+        auto revision = Load<NHydra::TRevision>(context);
         AttributesRevision_ = revision;
         ContentRevision_ = revision;
     } else {
@@ -221,6 +222,10 @@ void TCypressNode::Load(TLoadContext& context)
     // COMPAT(babenko)
     if (context.GetVersion() >= EMasterReign::CypressShards) {
         Load(context, Shard_);
+    }
+    // COMPAT(avmatrosov)
+    if (context.GetVersion() >= EMasterReign::YT_10745_Annotation) {
+        Load(context, Annotation_);
     }
 }
 

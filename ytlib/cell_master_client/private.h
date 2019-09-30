@@ -1,12 +1,15 @@
 #pragma once
+
 #include "public.h"
 
-namespace NYT::NTabletClient {
+#include <yt/core/logging/log.h>
+
+namespace NYT::NCellMasterClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateTabletTransaction(NObjectClient::TTransactionId transactionId);
+extern const NLogging::TLogger CellMasterClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTabletClient
+} // namespace NYT::NCellMasterClient

@@ -82,34 +82,31 @@ TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::ReadMeta(
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto session = New<TReadMetaSession>();
-    session->Options = options;
-
-    const auto& chunkMetaManager = Bootstrap_->GetChunkMetaManager();
-    auto cookie = chunkMetaManager->BeginInsertCachedMeta(Id_);
-    auto result = cookie.GetValue();
-
     try {
-        if (cookie.IsActive()) {
-            auto readGuard = TChunkReadGuard::AcquireOrThrow(this);
-
-            auto callback = BIND(
-                &TBlobChunkBase::DoReadMeta,
-                MakeStrong(this),
-                Passed(std::move(readGuard)),
-                Passed(std::move(cookie)),
-                options);
-
-            Bootstrap_
-                ->GetStorageHeavyInvoker()
-                ->Invoke(callback, options.WorkloadDescriptor.GetPriority());
-        }
+        session->ReadGuard = TChunkReadGuard::TryAcquire(this);
+        session->Options = options;
     } catch (const std::exception& ex) {
-        cookie.Cancel(ex);
         return MakeFuture<TRefCountedChunkMetaPtr>(ex);
     }
 
+    const auto& chunkMetaManager = Bootstrap_->GetChunkMetaManager();
+    auto cookie = chunkMetaManager->BeginInsertCachedMeta(Id_);
+    auto asyncMeta = cookie.GetValue();
+
+    if (cookie.IsActive()) {
+        auto callback = BIND(
+            &TBlobChunkBase::DoReadMeta,
+            MakeStrong(this),
+            session,
+            Passed(std::move(cookie)));
+
+        Bootstrap_
+            ->GetStorageHeavyInvoker()
+            ->Invoke(callback, options.WorkloadDescriptor.GetPriority());
+    }
+
     return
-        result.Apply(BIND([=, this_ = MakeStrong(this), session = std::move(session)] (const TCachedChunkMetaPtr& cachedMeta) {
+        asyncMeta.Apply(BIND([=, this_ = MakeStrong(this), session = std::move(session)] (const TCachedChunkMetaPtr& cachedMeta) {
             ProfileReadMetaLatency(session);
             return FilterMeta(cachedMeta->GetMeta(), extensionTags);
         })
@@ -179,24 +176,27 @@ void TBlobChunkBase::FailSession(const TReadBlockSetSessionPtr& session, const T
     }
 
     session->SessionPromise.TrySet(error);
+
+    if (session->DiskFetchPromise) {
+        session->DiskFetchPromise.TrySet(error);
+    }
 }
 
 void TBlobChunkBase::DoReadMeta(
-    TChunkReadGuard /*readGuard*/,
-    TCachedChunkMetaCookie cookie,
-    const TBlockReadOptions& options)
+    const TReadMetaSessionPtr& session,
+    TCachedChunkMetaCookie cookie)
 {
     YT_LOG_DEBUG("Started reading chunk meta (ChunkId: %v, LocationId: %v, WorkloadDescriptor: %v, ReadSessionId: %v)",
         Id_,
         Location_->GetId(),
-        options.WorkloadDescriptor,
-        options.ReadSessionId);
+        session->Options.WorkloadDescriptor,
+        session->Options.ReadSessionId);
 
     TRefCountedChunkMetaPtr meta;
     TWallTimer readTimer;
     try {
         auto reader = GetReader();
-        meta = WaitFor(reader->GetMeta(options))
+        meta = WaitFor(reader->GetMeta(session->Options))
             .ValueOrThrow();
     } catch (const std::exception& ex) {
         cookie.Cancel(ex);
@@ -212,7 +212,7 @@ void TBlobChunkBase::DoReadMeta(
     YT_LOG_DEBUG("Finished reading chunk meta (ChunkId: %v, LocationId: %v, ReadSessionId: %v, ReadTime: %v)",
         Id_,
         Location_->GetId(),
-        options.ReadSessionId,
+        session->Options.ReadSessionId,
         readTime);
 
     const auto& chunkMetaManager = Bootstrap_->GetChunkMetaManager();
@@ -316,7 +316,7 @@ void TBlobChunkBase::DoReadBlockSet(
 {
     while (true) {
         if (currentEntryIndex >= session->EntryCount) {
-            session->DiskFetchPromise.Set();
+            session->DiskFetchPromise.TrySet();
             return;
         }
 
@@ -472,17 +472,22 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    // Initialize session.
     auto session = New<TReadBlockSetSession>();
-    session->Invoker = CreateFixedPriorityInvoker(
-        Bootstrap_->GetStorageHeavyInvoker(),
-        options.WorkloadDescriptor.GetPriority());
-    session->Options = options;
-    session->EntryCount = static_cast<int>(blockIndexes.size());
-    session->Entries.reset(new TReadBlockSetSession::TBlockEntry[session->EntryCount]);
-    for (int entryIndex = 0; entryIndex < session->EntryCount; ++entryIndex) {
-        auto& entry = session->Entries[entryIndex];
-        entry.BlockIndex = blockIndexes[entryIndex];
+    try {
+        // Initialize session.
+        session->ReadGuard = TChunkReadGuard::TryAcquire(this);
+        session->Invoker = CreateFixedPriorityInvoker(
+            Bootstrap_->GetStorageHeavyInvoker(),
+            options.WorkloadDescriptor.GetPriority());
+        session->Options = options;
+        session->EntryCount = static_cast<int>(blockIndexes.size());
+        session->Entries.reset(new TReadBlockSetSession::TBlockEntry[session->EntryCount]);
+        for (int entryIndex = 0; entryIndex < session->EntryCount; ++entryIndex) {
+            auto& entry = session->Entries[entryIndex];
+            entry.BlockIndex = blockIndexes[entryIndex];
+        }
+    } catch (const std::exception& ex) {
+        return MakeFuture<std::vector<TBlock>>(ex);
     }
 
     // Run sync cache lookup.
@@ -602,19 +607,31 @@ TCachedBlobChunk::TCachedBlobChunk(
     const TChunkDescriptor& descriptor,
     TRefCountedChunkMetaPtr meta,
     const TArtifactKey& key,
-    TClosure destroyed)
+    TCallback<TFuture<void>()> destroyed,
+    bool requiresValidation)
     : TBlobChunkBase(
         bootstrap,
         std::move(location),
         descriptor,
         std::move(meta))
     , TAsyncCacheValueBase<TArtifactKey, TCachedBlobChunk>(key)
-    , Destroyed_(destroyed)
-{ }
+    , Destroyed_(std::move(destroyed))
+{
+    if (!requiresValidation) {
+        // If chunk was just downloaded, it doesn't require validation.
+        YT_VERIFY(!ValidationLaunched_.test_and_set());
+        ValidationResult_.Set();
+    }
+}
 
 TCachedBlobChunk::~TCachedBlobChunk()
 {
-    Destroyed_.Run();
+    DestroyPromise_.TrySetFrom(Destroyed_.Run());
+}
+
+TFuture<void> TCachedBlobChunk::GetAsyncDestroyResult()
+{
+    return DestroyPromise_.ToFuture();
 }
 
 TFuture<void> TCachedBlobChunk::Validate()
@@ -666,7 +683,7 @@ void TCachedBlobChunk::DoValidate()
     auto miscExt = GetProtoExtension<TMiscExt>(meta.extensions());
 
     try {
-        TFile dataFile(dataFileName, OpenExisting);
+        TFile dataFile(dataFileName, OpenExisting|RdOnly|CloseOnExec);
         if (dataFile.GetLength() != miscExt.compressed_data_size()) {
             THROW_ERROR_EXCEPTION("Chunk length mismatch")
                 << TErrorAttribute("chunk_id", chunkId)

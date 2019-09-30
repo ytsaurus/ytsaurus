@@ -40,8 +40,8 @@ Py::Bytes EncodeStringObject(const Py::Object& obj, const std::optional<TString>
             if (!bytesString) {
                 throw CreateYsonError(
                     Format(
-                        "Cannot encode unicode object %s to bytes "
-                        "since 'encoding' parameter is None",
+                        "Cannot encode unicode object %v to bytes "
+                        "since \"encoding\" parameter is None",
                         Py::Repr(obj)
                     ),
                     context);

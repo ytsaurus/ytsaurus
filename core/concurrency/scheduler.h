@@ -31,19 +31,6 @@ struct IScheduler
     //! fiber via the specified invoker.
     virtual void SwitchTo(IInvokerPtr invoker) = 0;
 
-    //! Installs a new context switch handlers.
-    /*!
-     *  Specified handlers are invoked during context switching inside the fiber.
-     *  #out handler is invoked on context switch from current fiber.
-     *  #in handler is invoked on context switch to current fiber.
-     *
-     *  Those handlers are always invoked in specified cases until #PopInterceptHandlers is invoked.
-     */
-    virtual void PushContextSwitchHandler(std::function<void()> out, std::function<void()> in) = 0;
-
-    //! Removes the top switch handlers.
-    virtual void PopContextSwitchHandler() = 0;
-
     //! Transfers control back to the scheduler and puts currently executing fiber
     //! into sleep until occurrence of an external event.
     virtual void WaitFor(TFuture<void> future, IInvokerPtr invoker) = 0;
@@ -56,6 +43,11 @@ struct IScheduler
 
 //! Returns the current scheduler. Fails if there's none.
 IScheduler* GetCurrentScheduler();
+
+//! Returns the duration the fiber is running.
+//! This counts CPU wall time but excludes periods the fiber was sleeping.
+//! The call only makes sense if the fiber is currently runnning.
+NProfiling::TCpuDuration GetCurrentRunCpuTime();
 
 //! Returns the current scheduler or |nullptr| if there's none.
 IScheduler* TryGetCurrentScheduler();
@@ -72,11 +64,19 @@ TFiberId GetCurrentFiberId();
 //! Sets the current fiber id.
 void SetCurrentFiberId(TFiberId id);
 
-//! Returns the current fiber id. Fails if there's none.
+//! Returns the current fiber. Fails if there's none.
 const TFiber* GetCurrentFiber();
+
+//! Returns the current fiber or |nullptr| if there's none.
+const TFiber* TryGetCurrentFiber();
 
 //! Sets the current fiber id.
 void SetCurrentFiber(const TFiber* fiber);
+
+/////////////////////////////////////////////////////////////////////////////
+
+//! Returns |true| if there is enough remaining stack space.
+bool CheckFreeStackSpace(size_t space);
 
 ////////////////////////////////////////////////////////////////////////////////
 // Shortcuts.

@@ -151,10 +151,7 @@ public:
         Persist(context, InputStripes);
         Persist(context, ElementaryStripes);
         Persist(context, ChunkSliceThreshold);
-
-        if (context.GetVersion() >= 300103) {
-            Persist(context, TotalJobCount);
-        }
+        Persist(context, TotalJobCount);
     }
 
     virtual i64 GetTotalDataSliceCount() const override

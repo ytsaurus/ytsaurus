@@ -13,7 +13,8 @@ int GetCurrentSnapshotVersion()
 
 bool ValidateSnapshotVersion(int version)
 {
-    return version >= ToUnderlying(ESnapshotVersion::OutputToDynamicTables) && version <= GetCurrentSnapshotVersion();
+    return version >= ToUnderlying(ESnapshotVersion::ExternalizedTransactions) &&
+           version <= GetCurrentSnapshotVersion();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

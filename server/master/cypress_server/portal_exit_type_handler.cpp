@@ -27,7 +27,9 @@ public:
 
     virtual ETypeFlags GetFlags() const override
     {
-        return ETypeFlags::ForbidInheritAclChange;
+        return
+            ETypeFlags::ForbidInheritAclChange |
+            ETypeFlags::ForbidAnnotationRemoval;
     }
 
 private:

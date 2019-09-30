@@ -434,7 +434,8 @@ protected:
             for (const auto& inputTable : InputTables_) {
                 if (!inputTable->Dynamic &&
                     !inputTable->Path.GetColumns() &&
-                    inputTable->ColumnRenameDescriptors.empty())
+                    inputTable->ColumnRenameDescriptors.empty() &&
+                    OutputTables_[*tableIndex]->TableUploadOptions.SchemaModification == ETableSchemaModification::None)
                 {
                     inputTable->Teleportable = ValidateTableSchemaCompatibility(
                         inputTable->Schema,

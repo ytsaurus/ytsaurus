@@ -56,7 +56,7 @@ message TReqEndUpload
 {
     optional TDataStatistics statistics = 1;
     optional NYT.NTableClient.NProto.TTableSchemaExt table_schema = 6;
-    optional int32 schema_mode = 7; // ESchemaMode
+    optional int32 schema_mode = 7; // ETableSchemaMode
     optional int32 optimize_for = 8; // EOptimizeFor
     optional int32 compression_codec = 9; // NCompression::ECodec
     optional int32 erasure_codec = 10; // NErasure::ECodec

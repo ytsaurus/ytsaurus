@@ -1829,7 +1829,7 @@ private:
                     case WireFormatLite::WIRETYPE_FIXED32: {
                         ui32 unsignedValue;
                         if (!CodedStream_.ReadLittleEndian32(&unsignedValue)) {
-                            THROW_ERROR_EXCEPTION("Error reading \"fixed32\" value for field %v",
+                            THROW_ERROR_EXCEPTION("Error reading \"fixed32\" value for unknown field %v",
                                 fieldNumber)
                                 << TErrorAttribute("ypath", YPathStack_.GetPath());
                         }

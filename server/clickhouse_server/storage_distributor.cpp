@@ -223,18 +223,20 @@ public:
         SpecTemplate_.InitialQueryId = queryContext->QueryId;
 
         auto cliqueNodes = queryContext->Bootstrap->GetHost()->GetNodes();
-        Prepare(cliqueNodes.size(), queryInfo, context);
+        if (cliqueNodes.empty()) {
+            THROW_ERROR_EXCEPTION("There are no instances available through discovery");
+        }
 
-        YT_LOG_INFO("Starting distribution (ColumnNames: %v, TableName: %v, NodeCount: %v, MaxThreads: %v, StripeListCount: %v)",
+        if (!Prepared_) {
+            Prepare(cliqueNodes.size(), queryInfo, context);
+        }
+
+        YT_LOG_INFO("Starting distribution (ColumnNames: %v, TableName: %v, NodeCount: %v, MaxThreads: %v, SubqueryCount: %v)",
             columnNames,
             getTableName(),
             cliqueNodes.size(),
             static_cast<ui64>(context.getSettings().max_threads),
-            StripeLists_.size());
-
-        if (cliqueNodes.empty()) {
-            THROW_ERROR_EXCEPTION("There are no instances available through discovery");
-        }
+            Subqueries_.size());
 
         const auto& settings = context.getSettingsRef();
 
@@ -254,24 +256,39 @@ public:
         // TODO(max42): CHYT-154.
         SpecTemplate_.MembershipHint = DumpMembershipHint(*queryInfo.query, Logger);
 
-        for (int index = 0; index < static_cast<int>(cliqueNodes.size()); ++index) {
-            int firstStripeListIndex = index * StripeLists_.size() / cliqueNodes.size();
-            int lastStripeListIndex = (index + 1) * StripeLists_.size() / cliqueNodes.size();
+        std::sort(Subqueries_.begin(), Subqueries_.end(), [] (const TSubquery& lhs, const TSubquery& rhs) {
+            return lhs.Cookie < rhs.Cookie;
+        });
 
-            if (firstStripeListIndex == lastStripeListIndex) {
-                continue;
+        int subqueryCount = std::min(Subqueries_.size(), cliqueNodes.size());
+        for (int index = 0; index < subqueryCount; ++index) {
+            int firstSubqueryIndex = index * Subqueries_.size() / subqueryCount;
+            int lastSubqueryIndex = (index + 1) * Subqueries_.size() / subqueryCount;
+
+            auto threadSubqueries = MakeRange(Subqueries_.begin() + firstSubqueryIndex, Subqueries_.begin() + lastSubqueryIndex);
+
+            YT_LOG_DEBUG("Preparing subquery (SubqueryIndex: %v, ThreadSubqueryCount: %v)",
+                index,
+                subqueryCount);
+            for (const auto& threadSubquery : threadSubqueries) {
+                YT_LOG_DEBUG("Thread subquery (Cookie: %v, LowerLimit: %v, UpperLimit: %v)",
+                    threadSubquery.Cookie,
+                    threadSubquery.Limits.first,
+                    threadSubquery.Limits.second);
             }
 
             const auto& cliqueNode = cliqueNodes[index];
             auto subqueryAst = QueryAnalyzer_->RewriteQuery(
-                MakeRange(StripeLists_.begin() + firstStripeListIndex, StripeLists_.begin() + lastStripeListIndex),
+                threadSubqueries,
                 SpecTemplate_,
-                index);
+                index,
+                index + 1 == subqueryCount /* isLastSubquery */);
 
-            YT_LOG_DEBUG("Prepared subquery to node (Node: %v, StripeListCount: %v, SubqueryIndex: %v)",
+            YT_LOG_DEBUG("Subquery prepared (Node: %v, ThreadSubqueryCount: %v, SubqueryIndex: %v, TotalSubqueryCount: %v)",
                 cliqueNode->GetName().ToString(),
-                lastStripeListIndex - firstStripeListIndex,
-                index);
+                lastSubqueryIndex - firstSubqueryIndex,
+                index,
+                subqueryCount);
 
             bool isLocal = cliqueNode->IsLocal();
             // XXX(max42): weird workaround.
@@ -346,9 +363,10 @@ private:
     TClickHouseTableSchema ClickHouseSchema_;
     NTableClient::TTableSchema Schema_;
     TSubquerySpec SpecTemplate_;
-    std::vector<NChunkPools::TChunkStripeListPtr> StripeLists_;
+    std::vector<TSubquery> Subqueries_;
     std::vector<TRichYPath> TablePaths_;
     std::optional<TQueryAnalyzer> QueryAnalyzer_;
+    bool Prepared_ = false;
 
     void Prepare(
         int subqueryCount,
@@ -382,13 +400,15 @@ private:
             samplingRate = rate;
         }
 
-        StripeLists_ = BuildSubqueries(
+        Subqueries_ = BuildSubqueries(
             inputStripeList,
             analyzerResult.KeyColumnCount,
             analyzerResult.PoolKind,
             subqueryCount * context.getSettings().max_threads,
             samplingRate,
             context);
+
+        Prepared_ = true;
     }
 };
 

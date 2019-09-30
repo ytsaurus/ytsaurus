@@ -66,6 +66,9 @@
 #include <yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/ytlib/object_client/helpers.h>
 
+#include <yt/ytlib/cell_master_client/cell_directory.h>
+#include <yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
+
 #include <yt/client/chunk_client/data_statistics.h>
 
 #include <yt/client/object_client/helpers.h>
@@ -227,7 +230,7 @@ TOperationControllerBase::TOperationControllerBase(
         BIND(&TCancelableContext::CreateInvoker, CancelableContext)))
     , RowBuffer(New<TRowBuffer>(TRowBufferTag(), Config->ControllerRowBufferChunkSize))
     , MemoryTag_(operation->GetMemoryTag())
-    , PoolTreeToSchedulingTagFilter_(operation->PoolTreeToSchedulingTagFilter())
+    , PoolTreeControllerSettingsMap_(operation->PoolTreeControllerSettingsMap())
     , Spec_(std::move(spec))
     , Options(std::move(options))
     , SuspiciousJobsYsonUpdater_(New<TPeriodicExecutor>(
@@ -553,15 +556,7 @@ std::vector<TTransactionId> TOperationControllerBase::GetNonTrivialInputTransact
             }
         }
 
-        auto layerPaths = userJobSpec->LayerPaths;
-        if (Config->DefaultLayerPath && layerPaths.empty()) {
-            // If no layers were specified, we insert the default one.
-            layerPaths.insert(layerPaths.begin(), *Config->DefaultLayerPath);
-        }
-        if (Config->SystemLayerPath && !layerPaths.empty()) {
-            // This must be the top layer, so insert in the beginning.
-            layerPaths.insert(layerPaths.begin(), *Config->SystemLayerPath);
-        }
+        auto layerPaths = GetLayerPaths(userJobSpec);
         for (const auto& path : layerPaths) {
             if (path.GetTransactionId()) {
                 inputTransactionIds.push_back(*path.GetTransactionId());
@@ -619,15 +614,7 @@ void TOperationControllerBase::InitializeStructures()
         }
 
         // Add layer files.
-        auto layerPaths = userJobSpec->LayerPaths;
-        if (Config->DefaultLayerPath && layerPaths.empty()) {
-            // If no layers were specified, we insert the default one.
-            layerPaths.insert(layerPaths.begin(), *Config->DefaultLayerPath);
-        }
-        if (Config->SystemLayerPath && !layerPaths.empty()) {
-            // This must be the top layer, so insert in the beginning.
-            layerPaths.insert(layerPaths.begin(), *Config->SystemLayerPath);
-        }
+        auto layerPaths = GetLayerPaths(userJobSpec);
         for (const auto& path : layerPaths) {
             files.push_back(TUserFile(
                 path,
@@ -861,6 +848,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
         PickIntermediateDataCell();
         InitChunkListPools();
 
+        SuppressLivePreviewIfNeeded();
         CreateLivePreviewTables();
 
         CollectTotals();
@@ -1000,6 +988,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
 
     InitChunkListPools();
 
+    SuppressLivePreviewIfNeeded();
     CreateLivePreviewTables();
 
     if (IsCompleted()) {
@@ -1236,11 +1225,25 @@ TFuture<ITransactionPtr> TOperationControllerBase::StartTransaction(
 
 void TOperationControllerBase::PickIntermediateDataCell()
 {
-    auto connection = OutputClient->GetNativeConnection();
-    const auto& secondaryCellTags = connection->GetSecondaryMasterCellTags();
-    IntermediateOutputCellTag = secondaryCellTags.empty()
-        ? connection->GetPrimaryMasterCellTag()
-        : secondaryCellTags[rand() % secondaryCellTags.size()];
+    const auto& connection = OutputClient->GetNativeConnection();
+
+    YT_LOG_DEBUG("Started synchronizing master cell directory");
+    const auto& cellDirectorySynchronizer = connection->GetMasterCellDirectorySynchronizer();
+    WaitFor(cellDirectorySynchronizer->RecentSync())
+        .ThrowOnError();
+    YT_LOG_DEBUG("Master cell directory synchronized successfully");
+
+    const auto& cellDirectory = connection->GetMasterCellDirectory();
+    auto cellId = cellDirectory->PickRandomMasterCellWithRole(NCellMasterClient::EMasterCellRoles::ChunkHost);
+
+    if (!cellId) {
+        THROW_ERROR_EXCEPTION("No master cells capable of hosting chunks are known");
+    }
+
+    IntermediateOutputCellTag = CellTagFromId(cellId);
+
+    YT_LOG_DEBUG("Intermediate data cell picked (CellTag: %v)",
+        IntermediateOutputCellTag);
 }
 
 void TOperationControllerBase::InitChunkListPools()
@@ -1253,12 +1256,12 @@ void TOperationControllerBase::InitChunkListPools()
             OperationId,
             OutputTransaction->GetId());
 
-        CellTagToRequiredOutputChunkLists_.clear();
+        CellTagToRequiredOutputChunkListCount_.clear();
         for (const auto& table : UpdatingTables_) {
-            ++CellTagToRequiredOutputChunkLists_[table->ExternalCellTag];
+            ++CellTagToRequiredOutputChunkListCount_[table->ExternalCellTag];
         }
 
-        ++CellTagToRequiredOutputChunkLists_[IntermediateOutputCellTag];
+        ++CellTagToRequiredOutputChunkListCount_[IntermediateOutputCellTag];
     }
 
     DebugChunkListPool_ = New<TChunkListPool>(
@@ -1268,12 +1271,12 @@ void TOperationControllerBase::InitChunkListPools()
         OperationId,
         DebugTransaction->GetId());
 
-    CellTagToRequiredDebugChunkLists_.clear();
+    CellTagToRequiredDebugChunkListCount_.clear();
     if (StderrTable_) {
-        ++CellTagToRequiredDebugChunkLists_[StderrTable_->ExternalCellTag];
+        ++CellTagToRequiredDebugChunkListCount_[StderrTable_->ExternalCellTag];
     }
     if (CoreTable_) {
-        ++CellTagToRequiredDebugChunkLists_[CoreTable_->ExternalCellTag];
+        ++CellTagToRequiredDebugChunkListCount_[CoreTable_->ExternalCellTag];
     }
 }
 
@@ -1357,7 +1360,8 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate, do
             YT_ABORT();
     }
     i64 desiredChunkSize = autoMergeSpec->JobIO->TableWriter->DesiredChunkSize;
-    i64 desiredChunkDataWeight = std::max<i64>(1, desiredChunkSize / InputCompressionRatio);
+    auto upperWeightLimit = std::min<i64>(autoMergeSpec->JobIO->TableWriter->DesiredChunkWeight, Spec_->MaxDataWeightPerJob / 2);
+    i64 desiredChunkDataWeight = std::clamp<i64>(desiredChunkSize / InputCompressionRatio, 1, upperWeightLimit);
     i64 dataWeightPerJob = desiredChunkDataWeight;
 
     // NB: if row count limit is set on any output table, we do not
@@ -1640,7 +1644,7 @@ void TOperationControllerBase::SafeCommit()
 
     CustomCommit();
 
-    LockDynamicTables();
+    LockOutputDynamicTables();
     CommitOutputCompletionTransaction();
     CommitDebugCompletionTransaction();
     SleepInCommitStage(EDelayInsideOperationCommitStage::Stage6);
@@ -1651,55 +1655,53 @@ void TOperationControllerBase::SafeCommit()
     YT_LOG_INFO("Results committed");
 }
 
-void TOperationControllerBase::LockDynamicTables()
+void TOperationControllerBase::LockOutputDynamicTables()
 {
-    THashMap<TCellTag, std::vector<TOutputTablePtr>> cellTagToTables;
-    for (auto& table : UpdatingTables_) {
+    THashMap<TCellTag, std::vector<TOutputTablePtr>> externalCellTagToTables;
+    for (const auto& table : UpdatingTables_) {
         if (table->Dynamic) {
-            cellTagToTables[table->ExternalCellTag].push_back(table);
+            externalCellTagToTables[table->ExternalCellTag].push_back(table);
         }
     }
 
-    if (cellTagToTables.empty()) {
+    if (externalCellTagToTables.empty()) {
         return;
     }
 
-    YT_LOG_INFO("Locking dynamic tables");
-
-    std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
-    std::vector<TCellTag> cellTags;
+    YT_LOG_INFO("Locking output dynamic tables");
 
     const auto& timestampProvider = OutputClient->GetNativeConnection()->GetTimestampProvider();
-    auto currentTimestamp = WaitFor(timestampProvider->GenerateTimestamps())
-        .ValueOrThrow();
+    auto currentTimestampOrError = WaitFor(timestampProvider->GenerateTimestamps());
+    THROW_ERROR_EXCEPTION_IF_FAILED(currentTimestampOrError, "Error generating timestamp to lock output dynamic tables");
+    auto currentTimestamp = currentTimestampOrError.Value();
 
-    for (const auto& [cellTag, tables] : cellTagToTables) {
+    std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
+    std::vector<TCellTag> externalCellTags;
+    for (const auto& [externalCellTag, tables] : externalCellTagToTables) {
         auto channel = OutputClient->GetMasterChannelOrThrow(
             EMasterChannelKind::Leader,
-            cellTag);
+            externalCellTag);
         TObjectServiceProxy proxy(channel);
         auto batchReq = proxy.ExecuteBatch();
 
         for (const auto& table : tables) {
-            auto objectIdPath = FromObjectId(table->ObjectId);
-            auto req = TTableYPathProxy::LockDynamicTable(objectIdPath);
+            auto req = TTableYPathProxy::LockDynamicTable(table->GetObjectIdPath());
             req->set_timestamp(currentTimestamp);
-            SetTransactionId(req, OutputTransaction->GetId());
+            AddCellTagToSyncWith(req, table->ObjectId);
+            SetTransactionId(req, table->ExternalTransactionId);
             GenerateMutationId(req);
-
-            batchReq->AddRequest(req, "lock_dynamic_table");
+            batchReq->AddRequest(req);
         }
 
         asyncResults.push_back(batchReq->Invoke());
-        cellTags.push_back(cellTag);
+        externalCellTags.push_back(externalCellTag);
     }
 
     auto combinedResultOrError = WaitFor(CombineAll(asyncResults));
     THROW_ERROR_EXCEPTION_IF_FAILED(combinedResultOrError, "Error locking output dynamic tables");
     auto& combinedResult = combinedResultOrError.Value();
 
-    for (int cellIndex = 0; cellIndex < cellTags.size(); ++cellIndex) {
-        auto& batchRspOrError = combinedResult[cellIndex];
+    for (const auto& batchRspOrError : combinedResult) {
         THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error locking output dynamic tables");
     }
 
@@ -1709,28 +1711,26 @@ void TOperationControllerBase::LockDynamicTables()
     auto sleepDuration = Config->DynamicTableLockCheckingIntervalDurationMin;
     for (int attempt = 0; attempt < Config->DynamicTableLockCheckingAttemptCountLimit; ++attempt) {
         asyncResults.clear();
-        cellTags.clear();
+        externalCellTags.clear();
         innerErrors.clear();
 
-        for (const auto& pair : cellTagToTables) {
-            auto cellTag = pair.first;
-            const auto& tables = pair.second;
-
+        for (const auto& [externalCellTag, tables]  : externalCellTagToTables) {
             auto channel = OutputClient->GetMasterChannelOrThrow(
                 EMasterChannelKind::Follower,
-                cellTag);
+                externalCellTag);
             TObjectServiceProxy proxy(channel);
             auto batchReq = proxy.ExecuteBatch();
 
             for (const auto& table : tables) {
                 auto objectIdPath = FromObjectId(table->ObjectId);
                 auto req = TTableYPathProxy::CheckDynamicTableLock(objectIdPath);
-                SetTransactionId(req, OutputTransaction->GetId());
-                batchReq->AddRequest(req, "check_lock");
+                AddCellTagToSyncWith(req, table->ObjectId);
+                SetTransactionId(req, table->ExternalTransactionId);
+                batchReq->AddRequest(req);
             }
 
             asyncResults.push_back(batchReq->Invoke());
-            cellTags.push_back(cellTag);
+            externalCellTags.push_back(externalCellTag);
         }
 
         auto combinedResultOrError = WaitFor(CombineAll(asyncResults));
@@ -1740,7 +1740,7 @@ void TOperationControllerBase::LockDynamicTables()
         }
         auto& combinedResult = combinedResultOrError.Value();
 
-        for (int cellIndex = 0; cellIndex < cellTags.size(); ++cellIndex) {
+        for (size_t cellIndex = 0; cellIndex < externalCellTags.size(); ++cellIndex) {
             auto& batchRspOrError = combinedResult[cellIndex];
             auto cumulativeError = GetCumulativeError(batchRspOrError);
             if (!cumulativeError.IsOK()) {
@@ -1753,13 +1753,14 @@ void TOperationControllerBase::LockDynamicTables()
             }
 
             const auto& batchRsp = batchRspOrError.Value();
-            auto checkLockRspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspCheckDynamicTableLock>("check_lock");
+            auto checkLockRspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspCheckDynamicTableLock>();
 
-            auto& tables = cellTagToTables[cellTags[cellIndex]];
+            auto& tables = externalCellTagToTables[externalCellTags[cellIndex]];
             std::vector<TOutputTablePtr> pendingTables;
 
-            for (int index = 0; index < tables.size(); ++index) {
+            for (size_t index = 0; index < tables.size(); ++index) {
                 const auto& rspOrError = checkLockRspsOrError[index];
+                const auto& table = tables[index];
 
                 if (!rspOrError.IsOK()) {
                     if (rspOrError.FindMatching(NTransactionClient::EErrorCode::NoSuchTransaction)) {
@@ -1770,17 +1771,17 @@ void TOperationControllerBase::LockDynamicTables()
                 }
 
                 if (!rspOrError.IsOK() || !rspOrError.Value()->confirmed()) {
-                    pendingTables.push_back(tables[index]);
+                    pendingTables.push_back(table);
                 }
             }
 
             tables = std::move(pendingTables);
             if (tables.empty()) {
-                cellTagToTables.erase(cellTags[cellIndex]);
+                externalCellTagToTables.erase(externalCellTags[cellIndex]);
             }
         }
 
-        if (cellTagToTables.empty()) {
+        if (externalCellTagToTables.empty()) {
             break;
         }
 
@@ -1791,10 +1792,9 @@ void TOperationControllerBase::LockDynamicTables()
             Config->DynamicTableLockCheckingIntervalDurationMax);
     }
 
-    if (!cellTagToTables.empty()) {
-        auto error = TError("Could not lock output dynamic tables");
-        error.InnerErrors() = std::move(innerErrors);
-        error.ThrowOnError();
+    if (!innerErrors.empty()) {
+        THROW_ERROR_EXCEPTION("Could not lock output dynamic tables")
+            << std::move(innerErrors);
     }
 
     YT_LOG_INFO("Dynamic tables locking completed");
@@ -1984,7 +1984,11 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
         if (table->TableUploadOptions.TableSchema.IsSorted() && ShouldVerifySortedOutput()) {
             // Sorted output generated by user operation requires rearranging.
 
-            VerifySortedOutput(table);
+            if (!table->TableUploadOptions.PartiallySorted) {
+                VerifySortedOutput(table);
+            } else {
+                YT_VERIFY(table->Dynamic);
+            }
 
             if (!table->Dynamic) {
                 for (auto& pair : table->OutputChunkTreeIds) {
@@ -1999,8 +2003,11 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                     auto& maxKey = chunk->BoundaryKeys()->MaxKey;
 
                     auto start = LowerBound(0, tabletChunks.size() - 1, [&] (size_t index) {
-                        return CompareRows(minKey, table->PivotKeys[index]) < 0;
+                        return CompareRows(table->PivotKeys[index], minKey) <= 0;
                     });
+                    if (start > 0) {
+                        --start;
+                    }
 
                     auto end = LowerBound(0, tabletChunks.size() - 1, [&] (size_t index) {
                         return CompareRows(table->PivotKeys[index], maxKey) <= 0;
@@ -2078,8 +2085,8 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
 
     {
         std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
-        for (const auto& [cellTag, tables] : nativeCellTagToTables) {
-            auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
+        for (const auto& [nativeCellTag, tables] : nativeCellTagToTables) {
+            auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader, nativeCellTag);
             TObjectServiceProxy proxy(channel);
 
             auto batchReq = proxy.ExecuteBatch();
@@ -2671,7 +2678,7 @@ void TOperationControllerBase::BuildJobAttributes(
 
         // We use Int64 for `stderr_size' to be consistent with
         // compressed_data_size / uncompressed_data_size attributes.
-        .Item("stderr_size").Value(i64(job->StderrSize))
+        .Item("stderr_size").Value(static_cast<i64>(job->StderrSize))
         .Item("brief_statistics")
             .Value(job->BriefStatistics)
         .DoIf(outputStatistics, [&] (TFluentMap fluent) {
@@ -2992,24 +2999,12 @@ bool TOperationControllerBase::AreForeignTablesSupported() const
 
 bool TOperationControllerBase::IsOutputLivePreviewSupported() const
 {
-    for (const auto& table : OutputTables_) {
-        if (table->Dynamic) {
-            return false;
-        }
-    }
-
-    return DoCheckOutputLivePreviewSupported();
+    return !IsLivePreviewSuppressed && DoCheckOutputLivePreviewSupported();
 }
 
 bool TOperationControllerBase::IsIntermediateLivePreviewSupported() const
 {
-    for (const auto& table : OutputTables_) {
-        if (table->Dynamic) {
-            return false;
-        }
-    }
-
-    return DoCheckIntermediateLivePreviewSupported();
+    return !IsLivePreviewSuppressed && DoCheckIntermediateLivePreviewSupported();
 }
 
 bool TOperationControllerBase::DoCheckOutputLivePreviewSupported() const
@@ -3184,9 +3179,8 @@ void TOperationControllerBase::CheckAvailableExecNodes()
         const auto& descriptor = nodePair.second;
 
         bool hasSuitableTree = false;
-        for (const auto& treePair : PoolTreeToSchedulingTagFilter_) {
-            const auto& filter = treePair.second;
-            if (descriptor.CanSchedule(filter)) {
+        for (const auto& [treeName, settings] : PoolTreeControllerSettingsMap_) {
+            if (descriptor.CanSchedule(settings.SchedulingTagFilter)) {
                 hasSuitableTree = true;
                 break;
             }
@@ -3234,7 +3228,7 @@ void TOperationControllerBase::CheckAvailableExecNodes()
             "No online nodes that match operation scheduling tag filter %Qv "
             "and have sufficient resources to schedule a job found in trees %v",
             Spec_->SchedulingTagFilter.GetFormula(),
-            GetKeys(PoolTreeToSchedulingTagFilter_))
+            GetKeys(PoolTreeControllerSettingsMap_))
             << TErrorAttribute("non_matching_filter_node_count", nonMatchingFilterNodeCount)
             << TErrorAttribute("matching_but_insufficient_resources_node_count", matchingButInsufficientResourcesNodeCount));
         return;
@@ -3245,7 +3239,7 @@ void TOperationControllerBase::CheckAvailableExecNodes()
         errorMessageBuilder.AppendFormat(
             "All online nodes that match operation scheduling tag filter %Qv were banned in trees %v",
             Spec_->SchedulingTagFilter.GetFormula(),
-            GetKeys(PoolTreeToSchedulingTagFilter_));
+            GetKeys(PoolTreeControllerSettingsMap_));
         // NB(eshcherbin): This should happen always, currently this option could be the only reason to ban a node.
         if (Spec_->BanNodesWithFailedJobs) {
             errorMessageBuilder.AppendString(
@@ -4161,7 +4155,9 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
 
 bool TOperationControllerBase::IsTreeTentative(const TString& treeId) const
 {
-    return Spec_->TentativePoolTrees && Spec_->TentativePoolTrees->contains(treeId);
+    auto it = PoolTreeControllerSettingsMap_.find(treeId);
+    YT_VERIFY(it != PoolTreeControllerSettingsMap_.end());
+    return it->second.Tentative;
 }
 
 void TOperationControllerBase::MaybeBanInTentativeTree(const TString& treeId)
@@ -4600,6 +4596,27 @@ bool TOperationControllerBase::IsFinished() const
         State == EControllerState::Aborted;
 }
 
+void TOperationControllerBase::SuppressLivePreviewIfNeeded()
+{
+    IsLivePreviewSuppressed = false;
+
+    const auto& connection = Host->GetClient()->GetNativeConnection();
+    for (const auto& table : OutputTables_) {
+        if (table->Dynamic ||
+            table->ExternalCellTag == connection->GetPrimaryMasterCellTag() && !connection->GetSecondaryMasterCellTags().empty()) {
+            IsLivePreviewSuppressed = true;
+            return;
+        }
+    }
+
+    for (const auto& table : InputTables_) {
+        if (table->Schema.HasNontrivialSchemaModification()) {
+            IsLivePreviewSuppressed = true;
+            return;
+        }
+    }
+}
+
 void TOperationControllerBase::CreateLivePreviewTables()
 {
     const auto& client = Host->GetClient();
@@ -4825,7 +4842,8 @@ void TOperationControllerBase::FetchInputTables()
                 // NB: we always fetch parity replicas since
                 // erasure reader can repair data on flight.
                 req->set_fetch_parity_replicas(true);
-                SetTransactionId(req, *table->TransactionId);
+                AddCellTagToSyncWith(req, table->ObjectId);
+                SetTransactionId(req, table->ExternalTransactionId);
             },
             Logger);
 
@@ -4909,7 +4927,10 @@ void TOperationControllerBase::LockInputTables()
         auto table = std::any_cast<TInputTablePtr>(rsp->Tag());
         table->ObjectId = FromProto<TObjectId>(rsp->node_id());
         table->Revision = rsp->revision();
-        table->ExternalCellTag = FromProto<TCellTag>(rsp->cell_tag());
+        table->ExternalCellTag = rsp->external_cell_tag();
+        table->ExternalTransactionId = rsp->has_external_transaction_id()
+            ? FromProto<TTransactionId>(rsp->external_transaction_id())
+            : *table->TransactionId;
         PathToInputTables_[table->GetPath()].push_back(table);
     }
 }
@@ -4976,7 +4997,8 @@ void TOperationControllerBase::GetInputTablesAttributes()
                 "unflushed_timestamp",
                 "content_revision"
             });
-            SetTransactionId(req, *table->TransactionId);
+            AddCellTagToSyncWith(req, table->ObjectId);
+            SetTransactionId(req, table->ExternalTransactionId);
             req->Tag() = table;
             batchReq->AddRequest(req);
         }
@@ -5002,7 +5024,7 @@ void TOperationControllerBase::GetInputTablesAttributes()
             table->Schema = attributes->Get<TTableSchema>("schema");
             table->SchemaMode = attributes->Get<ETableSchemaMode>("schema_mode");
             table->ChunkCount = attributes->Get<int>("chunk_count");
-            table->ContentRevision = attributes->Get<ui64>("content_revision");
+            table->ContentRevision = attributes->Get<NHydra::TRevision>("content_revision");
 
             // Validate that timestamp is correct.
             ValidateDynamicTableTimestamp(table->Path, table->Dynamic, table->Schema, *attributes);
@@ -5120,7 +5142,7 @@ void TOperationControllerBase::GetOutputTablesSchema()
         // NB(psushin): This option must be set before PrepareOutputTables call.
         table->TableWriterOptions->EvaluateComputedColumns = table->TableUploadOptions.TableSchema.HasComputedColumns();
 
-        table->TableWriterOptions->OutputChunkFormat = table->TableUploadOptions.OutputChunkFormat;
+        table->TableWriterOptions->SchemaModification = table->TableUploadOptions.SchemaModification;
 
         YT_LOG_DEBUG("Received output table schema (Path: %v, Schema: %v, SchemaMode: %v, LockMode: %v)",
             path,
@@ -5172,28 +5194,39 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
         {
             auto batchReq = proxy.ExecuteBatch();
             for (const auto& table : UpdatingTables_) {
-                auto req = TCypressYPathProxy::Lock(table->GetObjectIdPath());
+                auto req = TTableYPathProxy::Lock(table->GetObjectIdPath());
                 SetTransactionId(req, GetTransactionForOutputTable(table)->GetId());
                 GenerateMutationId(req);
                 req->set_mode(static_cast<int>(table->TableUploadOptions.LockMode));
-                batchReq->AddRequest(req, "lock");
+                req->Tag() = table;
+                batchReq->AddRequest(req);
             }
             auto batchRspOrError = WaitFor(batchReq->Invoke());
             THROW_ERROR_EXCEPTION_IF_FAILED(
                 GetCumulativeError(batchRspOrError),
                 "Error locking output tables");
 
-            const auto& batchRsp = batchRspOrError.Value()->GetResponses<TCypressYPathProxy::TRspLock>();
-            for (int index = 0; index < UpdatingTables_.size(); ++index) {
-                const auto& table = UpdatingTables_[index];
-                const auto& rsp = batchRsp[index].Value();
-                auto objectId = FromProto<TObjectId>(rsp->node_id());
-                ui64 revision = rsp->revision();
+            const auto& batchRsp = batchRspOrError.Value();
+            for (const auto& rspOrError : batchRsp->GetResponses<TCypressYPathProxy::TRspLock>()) {
+                const auto& rsp = rspOrError.Value();
+                const auto& table = std::any_cast<TOutputTablePtr>(rsp->Tag());;
 
-                auto it = PathToInputTables_.find(table->GetPath());
-                if (it != PathToInputTables_.end()) {
+                auto objectId = FromProto<TObjectId>(rsp->node_id());
+                auto revision = rsp->revision();
+
+                table->ExternalTransactionId = rsp->has_external_transaction_id()
+                    ? FromProto<TTransactionId>(rsp->external_transaction_id())
+                    : GetTransactionForOutputTable(table)->GetId();
+
+                YT_LOG_INFO("Output table locked (Path: %v, ObjectId: %v, ExternalTransactionId: %v, Revision: %llx)",
+                    table->GetPath(),
+                    objectId,
+                    table->ExternalTransactionId,
+                    revision);
+
+                if (auto it = PathToInputTables_.find(table->GetPath())) {
                     for (const auto& inputTable : it->second) {
-                        // Check case of remote copy operation.
+                        // NB: remote copy is a special case.
                         if (CellTagFromId(inputTable->ObjectId) != CellTagFromId(objectId)) {
                             continue;
                         }
@@ -5312,8 +5345,8 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
         YT_LOG_INFO("Starting upload for output tables");
 
         std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
-        for (const auto& [cellTag, tables] : nativeCellTagToTables) {
-            auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
+        for (const auto& [nativeCellTag, tables] : nativeCellTagToTables) {
+            auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader, nativeCellTag);
             TObjectServiceProxy proxy(channel);
 
             auto batchReq = proxy.ExecuteBatch();
@@ -5344,6 +5377,7 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
             checkError(GetCumulativeError(batchRsp));
             for (const auto& rspOrError : batchRsp->GetResponses<TTableYPathProxy::TRspBeginUpload>()) {
                 const auto& rsp = rspOrError.Value();
+
                 auto table = std::any_cast<TOutputTablePtr>(rsp->Tag());
                 table->UploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
             }
@@ -5354,8 +5388,8 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
         YT_LOG_INFO("Getting output tables upload parameters");
 
         std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
-        for (const auto& [cellTag, tables] : externalCellTagToTables) {
-            auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Follower, cellTag);
+        for (const auto& [externalCellTag, tables] : externalCellTagToTables) {
+            auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Follower, externalCellTag);
             TObjectServiceProxy proxy(channel);
 
             auto batchReq = proxy.ExecuteBatch();
@@ -5435,7 +5469,8 @@ void TOperationControllerBase::DoFetchUserFiles(const TUserJobSpecPtr& userJobSp
                         // NB: we always fetch parity replicas since
                         // erasure reader can repair data on flight.
                         req->set_fetch_parity_replicas(true);
-                        SetTransactionId(req, *file.TransactionId);
+                        AddCellTagToSyncWith(req, file.ObjectId);
+                        SetTransactionId(req, file.ExternalTransactionId);
                     },
                     Logger);
 
@@ -5450,19 +5485,20 @@ void TOperationControllerBase::DoFetchUserFiles(const TUserJobSpecPtr& userJobSp
 
                 auto batchReq = proxy.ExecuteBatch();
 
-                auto req = TChunkOwnerYPathProxy::Fetch(file.GetObjectIdPath());
-                AddCellTagToSyncWith(req, CellTagFromId(file.ObjectId));
+                auto req = TFileYPathProxy::Fetch(file.GetObjectIdPath());
+                AddCellTagToSyncWith(req, file.ObjectId);
                 ToProto(req->mutable_ranges(), std::vector<TReadRange>({TReadRange()}));
                 req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-                SetTransactionId(req, *file.TransactionId);
-                batchReq->AddRequest(req, "fetch");
+                AddCellTagToSyncWith(req, file.ObjectId);
+                SetTransactionId(req, file.ExternalTransactionId);
+                batchReq->AddRequest(req);
 
                 auto batchRspOrError = WaitFor(batchReq->Invoke());
                 THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error fetching user file %v",
                      file.GetPath());
                 const auto& batchRsp = batchRspOrError.Value();
 
-                auto rsp = batchRsp->GetResponse<TChunkOwnerYPathProxy::TRspFetch>("fetch").Value();
+                auto rsp = batchRsp->GetResponse<TFileYPathProxy::TRspFetch>(0).Value();
                 ProcessFetchResponse(
                     InputClient,
                     rsp,
@@ -5487,9 +5523,7 @@ void TOperationControllerBase::DoFetchUserFiles(const TUserJobSpecPtr& userJobSp
 
 void TOperationControllerBase::FetchUserFiles()
 {
-    for (auto& pair : UserJobFiles_) {
-        const auto& userJobSpec = pair.first;
-        auto& files = pair.second;
+    for (auto& [userJobSpec, files] : UserJobFiles_) {
         try {
             DoFetchUserFiles(userJobSpec, files);
         } catch (const std::exception& ex) {
@@ -5589,37 +5623,30 @@ void TOperationControllerBase::LockUserFiles()
     TObjectServiceProxy proxy(channel);
     auto batchReq = proxy.ExecuteBatch();
 
-    for (const auto& files : GetValues(UserJobFiles_)) {
-        for (const auto& file : files) {
-            auto req = TCypressYPathProxy::Lock(file.Path.GetPath());
+    for (auto& [userJobSpec, files] : UserJobFiles_) {
+        for (auto& file : files) {
+            auto req = TFileYPathProxy::Lock(file.Path.GetPath());
             req->set_mode(static_cast<int>(ELockMode::Snapshot));
             GenerateMutationId(req);
             SetTransactionId(req, *file.TransactionId);
+            req->Tag() = &file;
             batchReq->AddRequest(req);
         }
     }
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error locking user files");
+    THROW_ERROR_EXCEPTION_IF_FAILED(
+        GetCumulativeError(batchRspOrError),
+        "Error locking user files");
 
-    const auto& batchRsp = batchRspOrError.Value()->GetResponses<TCypressYPathProxy::TRspLock>();
-    int index = 0;
-    for (auto& pair : UserJobFiles_) {
-        const auto& userJobSpec = pair.first;
-        auto& files = pair.second;
-        try {
-            for (auto& file : files) {
-                const auto& path = file.Path.GetPath();
-                const auto& rspOrError = batchRsp[index++];
-                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to lock user file %v", path);
-                const auto& rsp = rspOrError.Value();
-                file.ObjectId = FromProto<TObjectId>(rsp->node_id());
-            }
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error locking user files")
-                 << TErrorAttribute("task_title", userJobSpec->TaskTitle)
-                 << ex;
-        }
+    const auto& batchRsp = batchRspOrError.Value();
+    for (const auto& rspOrError : batchRsp->GetResponses<TCypressYPathProxy::TRspLock>()) {
+        const auto& rsp = rspOrError.Value();
+        auto* file = std::any_cast<TUserFile*>(rsp->Tag());
+        file->ObjectId = FromProto<TObjectId>(rsp->node_id());
+        file->ExternalTransactionId = rsp->has_external_transaction_id()
+            ? FromProto<TTransactionId>(rsp->external_transaction_id())
+            : *file->TransactionId;
     }
 }
 
@@ -5797,7 +5824,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
                             Config->MaxUserFileChunkCount);
                     }
                     file.ChunkCount = chunkCount;
-                    file.ContentRevision = attributes.Get<ui64>("content_revision");
+                    file.ContentRevision = attributes.Get<NHydra::TRevision>("content_revision");
 
                     YT_LOG_INFO("User file locked (Path: %v, TaskTitle: %v, FileName: %v, SecurityTags: %v, ContentRevision: %v)",
                         path,
@@ -6725,6 +6752,11 @@ void TOperationControllerBase::Dispose()
                     YT_ABORT();
             }
         }
+
+        YT_LOG_DEBUG(
+            "Adding total time per tree to residual job metrics on controller disposal (FinalState: %Qlv, TotalTimePerTree: %v)",
+            State.load(),
+            TotalTimePerTree_);
     }
 
     auto headCookie = CompletedJobIdsReleaseQueue_.Checkpoint();
@@ -6813,23 +6845,19 @@ bool TOperationControllerBase::HasEnoughChunkLists(bool isWritingStderrTable, bo
     // We use this "result" variable to make sure that we have enough chunk lists
     // for every cell tag and start allocating them all in advance and simultaneously.
     bool result = true;
-    for (const auto& pair : CellTagToRequiredOutputChunkLists_) {
-        const auto cellTag = pair.first;
-        auto requiredChunkList = pair.second;
-        if (requiredChunkList && !OutputChunkListPool_->HasEnough(cellTag, requiredChunkList)) {
+    for (auto [cellTag, count] : CellTagToRequiredOutputChunkListCount_) {
+        if (count > 0 && !OutputChunkListPool_->HasEnough(cellTag, count)) {
             result = false;
         }
     }
-    for (const auto& pair : CellTagToRequiredDebugChunkLists_) {
-        const auto cellTag = pair.first;
-        auto requiredChunkList = pair.second;
+    for (auto [cellTag, count] : CellTagToRequiredDebugChunkListCount_) {
         if (StderrTable_ && !isWritingStderrTable && StderrTable_->ExternalCellTag == cellTag) {
-            --requiredChunkList;
+            --count;
         }
         if (CoreTable_ && !isWritingCoreTable && CoreTable_->ExternalCellTag == cellTag) {
-            --requiredChunkList;
+            --count;
         }
-        if (requiredChunkList && !DebugChunkListPool_->HasEnough(cellTag, requiredChunkList)) {
+        if (count > 0 && !DebugChunkListPool_->HasEnough(cellTag, count)) {
             result = false;
         }
     }
@@ -7560,6 +7588,13 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         jobSpec->set_output_format(ConvertToYsonString(outputFormat).GetData());
     }
 
+    jobSpec->set_enable_setup_commands(config->EnableSetupCommands);
+    jobSpec->set_enable_gpu_layers(config->EnableGpuLayers);
+
+    if (config->CudaToolkitVersion) {
+        jobSpec->set_cuda_toolkit_version(*config->CudaToolkitVersion);
+    }
+
     auto fillEnvironment = [&] (THashMap<TString, TString>& env) {
         for (const auto& pair : env) {
             jobSpec->add_environment(Format("%v=%v", pair.first, pair.second));
@@ -7821,6 +7856,11 @@ void TOperationControllerBase::InferSchemaFromInput(const TKeyColumns& keyColumn
             .ToSorted(keyColumns)
             .ToSortedStrippedColumnAttributes()
             .ToCanonical();
+
+        if (InputTables_[0]->Schema.HasNontrivialSchemaModification()) {
+            OutputTables_[0]->TableUploadOptions.TableSchema.SetSchemaModification(
+                InputTables_[0]->Schema.GetSchemaModification());
+        }
     }
 
     FilterOutputSchemaByInputColumnSelectors();
@@ -7885,7 +7925,7 @@ void TOperationControllerBase::ValidateOutputSchemaCompatibility(bool ignoreSort
             // check is performed during operation.
             ValidateTableSchemaCompatibility(
                 inputTable->Schema.Filter(inputTable->Path.GetColumns()),
-                OutputTables_[0]->TableUploadOptions.TableSchema,
+                OutputTables_[0]->TableUploadOptions.GetUploadSchema(),
                 ignoreSortOrder,
                 /*allowSimpleTypeDeoptionalize*/ true)
                 .ThrowOnError();
@@ -7927,8 +7967,8 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, TaskGroups);
     Persist(context, InputChunkMap);
     Persist(context, IntermediateOutputCellTag);
-    Persist(context, CellTagToRequiredOutputChunkLists_);
-    Persist(context, CellTagToRequiredDebugChunkLists_);
+    Persist(context, CellTagToRequiredOutputChunkListCount_);
+    Persist(context, CellTagToRequiredDebugChunkListCount_);
     Persist(context, CachedPendingJobCount);
     Persist(context, CachedNeededResources);
     Persist(context, ChunkOriginMap);
@@ -7955,6 +7995,10 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, BannedNodeIds_);
     Persist(context, PathToOutputTable_);
     Persist(context, Acl);
+    Persist(context, BannedTreeIds_);
+    Persist(context, PathToInputTables_);
+    Persist(context, JobMetricsDeltaPerTree_);
+    Persist(context, TotalTimePerTree_);
 
     // NB: Keep this at the end of persist as it requires some of the previous
     // fields to be already initialized.
@@ -7964,17 +8008,6 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
         }
         InitUpdatingTables();
         InitializeOrchid();
-    }
-
-    Persist(context, BannedTreeIds_);
-
-    if (context.GetVersion() >= ToUnderlying(ESnapshotVersion::InputOutputTableLock)) {
-        Persist(context, PathToInputTables_);
-    }
-
-    if (context.GetVersion() >= ToUnderlying(ESnapshotVersion::JobMetricsByOperationState)) {
-        Persist(context, JobMetricsDeltaPerTree_);
-        Persist(context, TotalTimePerTree_);
     }
 }
 
@@ -8244,6 +8277,30 @@ void TOperationControllerBase::RegisterTestingSpeculativeJobIfNeeded(const TTask
             task->TryRegisterSpeculativeJob(joblet);
         }
     }
+}
+
+std::vector<NYPath::TRichYPath> TOperationControllerBase::GetLayerPaths(
+    const NYT::NScheduler::TUserJobSpecPtr& userJobSpec)
+{
+    auto layerPaths = userJobSpec->LayerPaths;
+    if (Config->DefaultLayerPath && layerPaths.empty()) {
+        // If no layers were specified, we insert the default one.
+        layerPaths.insert(layerPaths.begin(), *Config->DefaultLayerPath);
+    }
+    if (Config->CudaToolkitLayerDirectoryPath &&
+        !layerPaths.empty() &&
+        userJobSpec->CudaToolkitVersion &&
+        userJobSpec->EnableGpuLayers)
+    {
+        // If cuda toolkit is requested, add the layer as the topmost user layer.
+        auto path = *Config->CudaToolkitLayerDirectoryPath + "/" + *userJobSpec->CudaToolkitVersion;
+        layerPaths.insert(layerPaths.begin(), path);
+    }
+    if (Config->SystemLayerPath && !layerPaths.empty()) {
+        // This must be the top layer, so insert in the beginning.
+        layerPaths.insert(layerPaths.begin(), *Config->SystemLayerPath);
+    }
+    return layerPaths;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

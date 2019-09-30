@@ -83,7 +83,7 @@ DEFINE_REFCOUNTED_TYPE(TRuleConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLogConfig
+class TLogManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
@@ -105,7 +105,9 @@ public:
 
     TDuration TraceSuppressionTimeout;
 
-    TLogConfig()
+    bool AbortOnAlert;
+
+    TLogManagerConfig()
     {
         RegisterParameter("flush_period", FlushPeriod)
             .Default();
@@ -135,6 +137,9 @@ public:
         RegisterParameter("trace_suppression_timeout", TraceSuppressionTimeout)
             .Default(TDuration::Zero());
 
+        RegisterParameter("abort_on_alert", AbortOnAlert)
+            .Default(false);
+
         RegisterPostprocessor([&] () {
             for (const auto& rule : Rules) {
                 for (const TString& writer : rule->Writers) {
@@ -152,16 +157,16 @@ public:
         });
     }
 
-    static TLogConfigPtr CreateStderrLogger(ELogLevel logLevel);
-    static TLogConfigPtr CreateLogFile(const TString& path);
-    static TLogConfigPtr CreateDefault();
-    static TLogConfigPtr CreateQuiet();
-    static TLogConfigPtr CreateSilent();
-    static TLogConfigPtr CreateFromFile(const TString& file, const NYPath::TYPath& path = "");
-    static TLogConfigPtr CreateFromNode(NYTree::INodePtr node, const NYPath::TYPath& path = "");
+    static TLogManagerConfigPtr CreateStderrLogger(ELogLevel logLevel);
+    static TLogManagerConfigPtr CreateLogFile(const TString& path);
+    static TLogManagerConfigPtr CreateDefault();
+    static TLogManagerConfigPtr CreateQuiet();
+    static TLogManagerConfigPtr CreateSilent();
+    static TLogManagerConfigPtr CreateFromFile(const TString& file, const NYPath::TYPath& path = "");
+    static TLogManagerConfigPtr CreateFromNode(NYTree::INodePtr node, const NYPath::TYPath& path = "");
 };
 
-DEFINE_REFCOUNTED_TYPE(TLogConfig)
+DEFINE_REFCOUNTED_TYPE(TLogManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

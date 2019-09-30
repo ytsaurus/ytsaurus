@@ -276,6 +276,25 @@ struct TValueFormatter<TFormattableView<TRange, TFormatter>>
     }
 };
 
+template <class TFormatter>
+TFormatterWrapper<TFormatter> MakeFormatterWrapper(
+    TFormatter&& formatter)
+{
+    return TFormatterWrapper<TFormatter>{
+        .Formatter = std::move(formatter)
+    };
+}
+
+// TFormatterWrapper
+template <class TFormatter>
+struct TValueFormatter<TFormatterWrapper<TFormatter>>
+{
+    static void Do(TStringBuilderBase* builder, const TFormatterWrapper<TFormatter>& wrapper, TStringBuf /*format*/)
+    {
+        wrapper.Formatter(builder);
+    }
+};
+
 // std::vector
 template <class T>
 struct TValueFormatter<std::vector<T>>

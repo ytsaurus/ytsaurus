@@ -59,6 +59,14 @@ TJoblet::TJoblet(TTask* task, int jobIndex, int taskJobIndex, const TString& tre
 
 TJobMetrics TJoblet::UpdateJobMetrics(const TJobSummary& jobSummary)
 {
+    // Statistics is always presented in job summary.
+    // Therefore looking at StatisticsYson is the only way to check that
+    // job has actual non-zero statistics received from node.
+    if (!jobSummary.StatisticsYson) {
+        // Return empty delta if job has no statistics.
+        return TJobMetrics();
+    }
+
     const auto jobMetrics = TJobMetrics::FromJobTrackerStatistics(
         *jobSummary.Statistics,
         jobSummary.State,
@@ -91,9 +99,7 @@ void TJoblet::Persist(const TPersistenceContext& context)
     Persist(context, JobMetrics);
     Persist(context, TreeId);
     Persist(context, TreeIsTentative);
-    if (context.GetVersion() >= 300102) {
-        Persist(context, Speculative);
-    }
+    Persist(context, Speculative);
 
     if (context.IsLoad()) {
         Revived = true;
@@ -127,9 +133,7 @@ void TJobInfoBase::Persist(const TPersistenceContext& context)
     Persist(context, StderrSize);
     // NB(max42): JobStatistics is not persisted intentionally since
     // it can increase the size of snapshot significantly.
-    if (context.GetVersion() >= static_cast<int>(ESnapshotVersion::SaveJobPhase)) {
-        Persist(context, Phase);
-    }
+    Persist(context, Phase);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -151,7 +151,7 @@ public:
         }
     }
 
-    void ValidateAssingment(const std::vector<TTabletCellMoveDescriptor>& moveDescriptors)
+    void ValidateAssignment(const std::vector<TTabletCellMoveDescriptor>& moveDescriptors)
     {
         ApplyMoveDescriptors(moveDescriptors);
 
@@ -460,7 +460,7 @@ public:
             balancer->AssignPeer(unassigned.first, unassigned.second);
         }
 
-        setting->ValidateAssingment(balancer->GetTabletCellMoveDescriptors());
+        setting->ValidateAssignment(balancer->GetTabletCellMoveDescriptors());
     }
 
 protected:
@@ -588,7 +588,7 @@ TEST_P(TTabletCellBalancerRevokeTest, TestBalancer)
         balancer->AssignPeer(unassigned.first, unassigned.second);
     }
 
-    setting->ValidateAssingment(balancer->GetTabletCellMoveDescriptors());
+    setting->ValidateAssignment(balancer->GetTabletCellMoveDescriptors());
 
     for (auto& assigned : setting->GetUnassignedPeers()) {
         balancer->RevokePeer(assigned.first, assigned.second);
@@ -600,7 +600,7 @@ TEST_P(TTabletCellBalancerRevokeTest, TestBalancer)
         balancer->AssignPeer(unassigned.first, unassigned.second);
     }
 
-    setting->ValidateAssingment(balancer->GetTabletCellMoveDescriptors());
+    setting->ValidateAssignment(balancer->GetTabletCellMoveDescriptors());
 }
 
 TEST_P(TTabletCellBalancerTest, TestBalancer)
@@ -612,7 +612,7 @@ TEST_P(TTabletCellBalancerTest, TestBalancer)
         balancer->AssignPeer(unassigned.first, unassigned.second);
     }
 
-    setting->ValidateAssingment(balancer->GetTabletCellMoveDescriptors());
+    setting->ValidateAssignment(balancer->GetTabletCellMoveDescriptors());
 }
 
 /*

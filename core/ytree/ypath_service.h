@@ -89,11 +89,18 @@ struct IYPathService
      */
     static IYPathServicePtr FromProducer(NYson::TYsonProducer producer, TDuration cachePeriod = TDuration());
 
-    //! Creates a YPath service from a class method.
+    //! Creates a YPath service from a class method returning serializable value.
     template <class T, class R>
     static IYPathServicePtr FromMethod(
         R (T::*method) () const,
         const TWeakPtr<T>& weak);
+
+    //! Creates a YPath service from a class producer method.
+    template <class T>
+    static IYPathServicePtr FromMethod(
+        void (T::*producer) (NYson::IYsonConsumer*) const,
+        const TWeakPtr<T>& weak);
+
 
     //! Creates a wrapper that handles all requests via the given invoker.
     IYPathServicePtr Via(IInvokerPtr invoker);

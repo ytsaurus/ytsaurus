@@ -44,8 +44,8 @@ public:
     TTransaction* StartTransaction(
         TTransaction* parent,
         std::vector<TTransaction*> prerequisiteTransactions,
-        const NObjectClient::TCellTagList& secondaryCellTags,
-        const NObjectClient::TCellTagList& replicateToCellTags,
+        const NObjectClient::TCellTagList& replicatedToCellTags,
+        const NObjectClient::TCellTagList& replicateStartToCellTags,
         std::optional<TDuration> timeout,
         std::optional<TInstant> deadline,
         const std::optional<TString>& title,
@@ -57,7 +57,12 @@ public:
     void AbortTransaction(
         TTransaction* transaction,
         bool force);
-    void RegisterTransactionAtParent(TTransaction* transaction);
+    TTransactionId ExternalizeTransaction(
+        TTransaction* transaction,
+        NObjectClient::TCellTag dstCellTag);
+    TTransactionId GetNearestExternalizedTransactionAncestor(
+        TTransaction* transaction,
+        NObjectClient::TCellTag dstCellTag);
 
     // COMPAT(shakurov). Hide this to the impl once YT-10852 is resolved.
     void FinishTransaction(TTransaction* transaction);

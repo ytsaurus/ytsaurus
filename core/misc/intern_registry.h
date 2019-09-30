@@ -16,6 +16,7 @@ class TInternRegistry
 {
 public:
     TInternedObject<T> Intern(T&& data);
+    TInternedObject<T> Intern(const T& data);
     int GetSize() const;
     void Clear();
 
@@ -23,6 +24,9 @@ private:
     friend class TInternedObjectData<T>;
 
     void OnInternedDataDestroyed(TInternedObjectData<T>* data);
+
+    template <class F>
+    TInternedObject<T> DoIntern(const T& data, const F& internedDataBuilder);
 
     struct THash
     {
@@ -65,6 +69,7 @@ private:
     const TInternRegistryPtr<T> Registry_;
     typename TInternRegistry<T>::TRegistrySet::iterator Iterator_;
 
+    TInternedObjectData(const T& data, TInternRegistryPtr<T> registry);
     TInternedObjectData(T&& data, TInternRegistryPtr<T> registry);
 };
 

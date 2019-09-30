@@ -4,7 +4,7 @@ namespace NYT::NEventLog {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEventLogConfig::TEventLogConfig()
+TEvenTLogManagerConfig::TEvenTLogManagerConfig()
 {
     RegisterParameter("path", Path)
         .Default();

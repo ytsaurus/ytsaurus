@@ -360,47 +360,44 @@ class TestSchedulerAcls(YTEnvSetup):
     @pytest.mark.parametrize("allow_access", [False, True])
     def test_allow_users_group_access_to_intermediate_data(self, allow_access):
         flag_path = "//sys/controller_agents/config/allow_users_group_read_intermediate_data"
-        try:
-            set(flag_path, allow_access, recursive=True)
-            # Wait for controller agent config update.
-            time.sleep(0.5)
 
-            input_path, output_path = self._create_tables()
-            breakpoint_name = "breakpoint_" + self._random_string(10)
-            op = map_reduce(
-                dont_track=True,
-                mapper_command="cat",
-                reducer_command=with_breakpoint("cat; BREAKPOINT", breakpoint_name=breakpoint_name),
-                in_=input_path,
-                out=output_path,
-                sort_by=["key"],
-                spec={
-                    "acl": [make_ace("allow", self.manage_and_read_user, ["read", "manage"])],
-                },
-            )
+        set(flag_path, allow_access, recursive=True)
+        # Wait for controller agent config update.
+        time.sleep(0.5)
 
-            wait_breakpoint(breakpoint_name=breakpoint_name)
+        input_path, output_path = self._create_tables()
+        breakpoint_name = "breakpoint_" + self._random_string(10)
+        op = map_reduce(
+            dont_track=True,
+            mapper_command="cat",
+            reducer_command=with_breakpoint("cat; BREAKPOINT", breakpoint_name=breakpoint_name),
+            in_=input_path,
+            out=output_path,
+            sort_by=["key"],
+            spec={
+                "acl": [make_ace("allow", self.manage_and_read_user, ["read", "manage"])],
+            },
+        )
 
-            def transaction_and_intermediate_exist():
-                if not exists(op.get_path() + "/@async_scheduler_transaction_id"):
-                    return False
-                scheduler_transaction_id = get(op.get_path() + "/@async_scheduler_transaction_id")
-                return exists(op.get_path() + "/intermediate", tx=scheduler_transaction_id)
+        wait_breakpoint(breakpoint_name=breakpoint_name)
 
-            wait(transaction_and_intermediate_exist)
-
+        def transaction_and_intermediate_exist():
+            if not exists(op.get_path() + "/@async_scheduler_transaction_id"):
+                return False
             scheduler_transaction_id = get(op.get_path() + "/@async_scheduler_transaction_id")
-            if allow_access:
-                read_table(op.get_path() + "/intermediate", tx=scheduler_transaction_id, authenticated_user=self.no_rights_user)
-            else:
-                with raises_yt_error(AuthorizationErrorCode):
-                    read_table(op.get_path() + "/intermediate", tx=scheduler_transaction_id, authenticated_user=self.no_rights_user)
+            return exists(op.get_path() + "/intermediate", tx=scheduler_transaction_id)
 
-            release_breakpoint(breakpoint_name=breakpoint_name)
-            op.track()
-        finally:
-            set(flag_path, False)
-            time.sleep(0.5)
+        wait(transaction_and_intermediate_exist)
+
+        scheduler_transaction_id = get(op.get_path() + "/@async_scheduler_transaction_id")
+        if allow_access:
+            read_table(op.get_path() + "/intermediate", tx=scheduler_transaction_id, authenticated_user=self.no_rights_user)
+        else:
+            with raises_yt_error(AuthorizationErrorCode):
+                read_table(op.get_path() + "/intermediate", tx=scheduler_transaction_id, authenticated_user=self.no_rights_user)
+
+        release_breakpoint(breakpoint_name=breakpoint_name)
+        op.track()
 
     @authors("levysotsky")
     @pytest.mark.parametrize("add_authenticated_user", [False, True])

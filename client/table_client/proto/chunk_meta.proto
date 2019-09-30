@@ -32,6 +32,18 @@ message TLogicalType
         repeated TStructField fields = 1;
     }
 
+    message TDictLogicalType
+    {
+        optional TLogicalType key = 1;
+        optional TLogicalType value = 2;
+    }
+
+    message TTaggedLogicalType
+    {
+        optional string tag = 1;
+        optional TLogicalType element = 2;
+    }
+
     oneof type {
         int32 simple = 1;
         TLogicalType optional = 2;
@@ -40,6 +52,8 @@ message TLogicalType
         TTupleLogicalType tuple = 5;
         TVariantTupleLogicalType variant_tuple = 6;
         TVariantStructLogicalType variant_struct = 7;
+        TDictLogicalType dict = 8;
+        TTaggedLogicalType tagged = 9;
     }
 }
 
@@ -74,6 +88,7 @@ message TTableSchemaExt
     repeated TColumnSchema columns = 1;
     optional bool strict = 2 [default = true];
     optional bool unique_keys = 3 [default = false];
+    optional int32 schema_modification = 4 [default = 0]; // ETableSchemaModification
 }
 
 message TSchemaDictionary

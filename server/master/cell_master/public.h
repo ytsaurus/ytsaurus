@@ -3,6 +3,8 @@
 #include <yt/core/misc/enum.h>
 #include <yt/core/misc/public.h>
 
+#include <yt/client/cell_master_client/public.h>
+
 namespace NYT::NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -20,6 +22,7 @@ DECLARE_REFCOUNTED_CLASS(TMasterConnectionConfig)
 DECLARE_REFCOUNTED_CLASS(TMulticellManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicMulticellManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TCellMasterConfig)
+DECLARE_REFCOUNTED_CLASS(TDynamicCellMasterConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicClusterConfig)
 
 DECLARE_REFCOUNTED_CLASS(TMasterAutomaton)
@@ -30,6 +33,7 @@ DECLARE_REFCOUNTED_CLASS(TIdentityManager)
 DECLARE_REFCOUNTED_CLASS(TMulticellManager)
 DECLARE_REFCOUNTED_CLASS(TConfigManager)
 DECLARE_REFCOUNTED_CLASS(TAnnotationSetter)
+DECLARE_REFCOUNTED_CLASS(TEpochHistoryManager)
 
 class TBootstrap;
 
@@ -74,6 +78,8 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (JobTrackerService)
     (ReplicatedTableTracker)
 );
+
+using NCellMasterClient::EMasterCellRoles;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -353,16 +353,16 @@ TEST_F(TOrderedChunkPoolTest, OrderedMergeSimple)
     InitJobConstraints();
 
     auto chunkA1 = CreateChunk(0);
+    auto chunkA2 = CreateChunk(0);
     auto chunkB = CreateChunk(1);
     auto chunkC = CreateChunk(2);
-    auto chunkA2 = CreateChunk(0);
 
     CreateChunkPool();
 
     AddChunk(chunkA1);
+    AddChunk(chunkA2);
     AddChunk(chunkB);
     AddChunk(chunkC);
-    AddChunk(chunkA2);
 
     ChunkPool_->Finish();
 

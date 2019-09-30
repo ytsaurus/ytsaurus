@@ -57,7 +57,7 @@ void SerializeLazyMapFragment(
         const auto& value = item.second;
 
         if (!PyBytes_Check(key.ptr()) && !PyUnicode_Check(key.ptr())) {
-            throw Py::RuntimeError(Format("Map key should be string, found '%s'", Py::Repr(key)));
+            throw Py::RuntimeError(Format("Map key should be string, found %Qv", Py::Repr(key)));
         }
 
         auto encodedKey = EncodeStringObject(key, encoding, context);
@@ -91,7 +91,7 @@ void SerializeMapFragment(
 
     auto validateKeyType = [&] (const Py::Object& key) {
         if (!PyBytes_Check(key.ptr()) && !PyUnicode_Check(key.ptr())) {
-            throw CreateYsonError(Format("Map key should be string, found '%s'", Py::Repr(key)), context);
+            throw CreateYsonError(Format("Map key should be string, found %Qv", Py::Repr(key)), context);
         }
     };
 
@@ -156,7 +156,7 @@ void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer, TCon
     {
         throw CreateYsonError(
             Format(
-                "Integer %s cannot be serialized to YSON since it is out of range [-2^63, 2^64 - 1]",
+                "Integer %v cannot be serialized to YSON since it is out of range [-2^63, 2^64 - 1]",
                 Py::Repr(obj)
             ),
             context);
@@ -291,7 +291,7 @@ void Serialize(
     } else {
         throw CreateYsonError(
             Format(
-                "Value %s cannot be serialized to YSON since it has unsupported type: %s",
+                "Value %v cannot be serialized to YSON since it has unsupported type %Qv",
                 Py::Repr(obj),
                 Py::Repr(obj.type())
             ),
@@ -304,7 +304,7 @@ void Serialize(
 void Deserialize(Py::Object& obj, INodePtr node, const std::optional<TString>& encoding)
 {
     Py::Object attributes = Py::Dict();
-    if (!node->Attributes().List().empty()) {
+    if (!node->Attributes().ListKeys().empty()) {
         Deserialize(attributes, node->Attributes().ToMap(), encoding);
     }
 
@@ -347,7 +347,7 @@ void Deserialize(Py::Object& obj, INodePtr node, const std::optional<TString>& e
         }
         obj = NPython::CreateYsonObject("YsonList", list, attributes);
     } else {
-        THROW_ERROR_EXCEPTION("Unsupported node type %s", ToString(type).data());
+        THROW_ERROR_EXCEPTION("Unsupported node type %Qlv", type);
     }
 }
 

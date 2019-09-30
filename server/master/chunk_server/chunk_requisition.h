@@ -60,8 +60,8 @@ public:
     //! 'data parts only' flags.
     TReplicationPolicy& operator|=(const TReplicationPolicy& rhs);
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
+    void Save(TStreamSaveContext& context) const;
+    void Load(TStreamLoadContext& context);
 
 protected:
     ui8 ReplicationFactor_ : 7;
@@ -96,6 +96,7 @@ class TChunkReplication
 {
 private:
     struct TEntryComparator;
+
 public:
     class TEntry
     {
@@ -108,8 +109,7 @@ public:
         TEntry() = default;
         TEntry(int mediumIndex, TReplicationPolicy policy);
 
-        void Save(NCellMaster::TSaveContext& context) const;
-        void Load(NCellMaster::TLoadContext& context);
+        void Persist(TStreamPersistenceContext& context);
 
         bool operator==(const TEntry& rhs) const;
 
@@ -141,6 +141,9 @@ public:
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
+
+    void Save(NCypressServer::TBeginCopyContext& context) const;
+    void Load(NCypressServer::TEndCopyContext& context);
 
     iterator begin();
     iterator end();
@@ -199,7 +202,7 @@ public:
     bool IsValid() const;
 
 private:
-    static constexpr const TReplicationPolicy EmptyReplicationPolicy = TReplicationPolicy(0, true);
+    static constexpr const auto EmptyReplicationPolicy = TReplicationPolicy(0, true);
 
     TEntries Entries_;
     bool Vital_ = false;

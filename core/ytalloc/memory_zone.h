@@ -17,7 +17,6 @@ public:
     TMemoryZoneGuard(TMemoryZoneGuard&& other);
 
 private:
-    bool Active_ = false;
     NYTAlloc::EMemoryZone PreviousZone_ = NYTAlloc::EMemoryZone::Normal;
 };
 

@@ -28,6 +28,7 @@
 #include <yt/ytlib/chunk_client/chunk_spec_fetcher.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -218,12 +219,12 @@ private:
 
         for (const auto& table : InputTables_) {
             auto req = TTableYPathProxy::Get(table.GetObjectIdPath() + "/@");
+            AddCellTagToSyncWith(req, table.ObjectId);
             ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
                 "dynamic",
                 "chunk_count",
                 "schema",
             });
-            SetTransactionId(req, NullTransactionId);
             batchReq->AddRequest(req, "get_attributes");
         }
 
@@ -390,7 +391,7 @@ TChunkStripeListPtr FetchInput(
     return std::move(dataSliceFetcher->ResultStripeList());
 }
 
-std::vector<NChunkPools::TChunkStripeListPtr> BuildSubqueries(
+std::vector<TSubquery> BuildSubqueries(
     const TChunkStripeListPtr& inputStripeList,
     std::optional<int> keyColumnCount,
     EPoolKind poolKind,
@@ -404,7 +405,7 @@ std::vector<NChunkPools::TChunkStripeListPtr> BuildSubqueries(
 
     auto* queryContext = GetQueryContext(context);
 
-    std::vector<TChunkStripeListPtr> result;
+    std::vector<TSubquery> result;
 
     auto dataWeightPerJob = inputStripeList->TotalDataWeight / jobCount;
 
@@ -493,7 +494,14 @@ std::vector<NChunkPools::TChunkStripeListPtr> BuildSubqueries(
             flattenedStripeList->Stripes.emplace_back(std::move(flattenedStripe));
             stripeList.Swap(flattenedStripeList);
         }
-        result.emplace_back(stripeList);
+        auto& subquery = result.emplace_back();
+        subquery.StripeList = std::move(stripeList);
+        subquery.Cookie = cookie;
+        if (poolKind == EPoolKind::Sorted) {
+            auto limits = static_cast<ISortedChunkPool*>(chunkPool.get())->GetLimits(cookie);
+            subquery.Limits.first = TUnversionedOwningRow(limits.first);
+            subquery.Limits.second = TUnversionedOwningRow(limits.second);
+        }
     }
 
     if (originalJobCount != jobCount) {

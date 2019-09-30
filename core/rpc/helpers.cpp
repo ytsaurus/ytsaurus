@@ -24,6 +24,8 @@ using namespace NRpc::NProto;
 using namespace NTracing;
 using namespace NYT::NBus;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 bool operator==(const TAddressWithNetwork& lhs, const TAddressWithNetwork& rhs)
@@ -461,9 +463,26 @@ TMutationId GenerateMutationId()
     }
 }
 
+TMutationId GenerateNextBatchMutationId(TMutationId id)
+{
+    ++id.Parts32[0];
+    return id;
+}
+
+TMutationId GenerateNextForwardedMutationId(TMutationId id)
+{
+    ++id.Parts32[1];
+    return id;
+}
+
 void GenerateMutationId(const IClientRequestPtr& request)
 {
     SetMutationId(request, GenerateMutationId(), false);
+}
+
+TMutationId GetMutationId(const TRequestHeader& header)
+{
+    return FromProto<TMutationId>(header.mutation_id());
 }
 
 void SetMutationId(TRequestHeader* header, TMutationId id, bool retry)

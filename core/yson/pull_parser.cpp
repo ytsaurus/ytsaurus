@@ -11,7 +11,7 @@ namespace NDetail {
 static void TransferMapOrAttributesImpl(TYsonPullParserCursor* cursor, IYsonConsumer* consumer);
 static void TransferListImpl(TYsonPullParserCursor* cursor, IYsonConsumer* consumer);
 
-Y_FORCE_INLINE static void TransferComplexValueImpl(TYsonPullParserCursor* cursor, IYsonConsumer* consumer)
+static void TransferComplexValueImpl(TYsonPullParserCursor* cursor, IYsonConsumer* consumer)
 {
     while (true) {
         switch (cursor->GetCurrent().GetType()) {
@@ -209,6 +209,24 @@ TYsonPullParser::TYsonPullParser(IZeroCopyInput* input, EYsonType ysonType)
 ui64 TYsonPullParser::GetTotalReadSize() const
 {
     return Lexer_.GetTotalReadSize();
+}
+
+TYsonItem TYsonPullParser::Next()
+{
+    try {
+        Lexer_.CheckpointContext();
+        return NextImpl();
+    } catch (const std::exception& ex) {
+        auto [context, contextPosition] = Lexer_.GetContextFromCheckpoint();
+        TStringStream markedContext;
+        markedContext << EscapeC(context.substr(0, contextPosition)) << "  ERROR>>>  " << EscapeC(context.substr(contextPosition));
+        THROW_ERROR_EXCEPTION("Error occurred while parsing YSON")
+            << Lexer_
+            << TErrorAttribute("context", EscapeC(context))
+            << TErrorAttribute("context_pos", contextPosition)
+            << TErrorAttribute("marked_context", markedContext.Str())
+            << ex;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

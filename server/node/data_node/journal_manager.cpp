@@ -835,7 +835,9 @@ public:
         TDataNodeConfigPtr config,
         TStoreLocation* location,
         NCellNode::TBootstrap* bootstrap)
-        : Config_(config)
+        : MultiplexedChangelogConfig_(UpdateYsonSerializable(config->MultiplexedChangelog, location->GetConfig()->MultiplexedChangelog))
+        , HighLatencySplitChangelogConfig_(UpdateYsonSerializable(config->HighLatencySplitChangelog, location->GetConfig()->HighLatencySplitChangelog))
+        , LowLatencySplitChangelogConfig_(UpdateYsonSerializable(config->LowLatencySplitChangelog, location->GetConfig()->LowLatencySplitChangelog))
         , Location_(location)
         , Bootstrap_(bootstrap)
         , Logger(NLogging::TLogger(DataNodeLogger)
@@ -843,18 +845,18 @@ public:
     {
         MultiplexedChangelogDispatcher_ = New<TFileChangelogDispatcher>(
             Location_->GetIOEngine(),
-            Config_->MultiplexedChangelog,
+            MultiplexedChangelogConfig_,
             "MFlush:" + Location_->GetId(),
             DataNodeProfiler.AppendPath("/multiplexed_changelogs"));
 
         SplitChangelogDispatcher_ = New<TFileChangelogDispatcher>(
             Location_->GetIOEngine(),
-            Config_->MultiplexedChangelog,
+            MultiplexedChangelogConfig_,
             "SFlush:" + Location_->GetId(),
             DataNodeProfiler.AppendPath("/split_changelogs"));
 
         MultiplexedWriter_ = New<TMultiplexedWriter>(
-            Config_->MultiplexedChangelog,
+            MultiplexedChangelogConfig_,
             MultiplexedChangelogDispatcher_,
             NFS::CombinePaths(Location_->GetPath(), MultiplexedDirectory),
             Logger);
@@ -867,7 +869,7 @@ public:
         // Initialize and replay multiplexed changelogs.
         TMultiplexedReplayCallbacks replayCallbacks(this);
         auto replayer = New<TMultiplexedReplayer>(
-            Config_->MultiplexedChangelog,
+            MultiplexedChangelogConfig_,
             &replayCallbacks,
             Logger);
         int newId = replayer->ReplayChangelogs();
@@ -971,7 +973,9 @@ public:
     }
 
 private:
-    const TDataNodeConfigPtr Config_;
+    const TMultiplexedChangelogConfigPtr MultiplexedChangelogConfig_;
+    const TFileChangelogConfigPtr HighLatencySplitChangelogConfig_;
+    const TFileChangelogConfigPtr LowLatencySplitChangelogConfig_;
     TStoreLocation* const Location_;
     NCellNode::TBootstrap* const Bootstrap_;
 
@@ -986,8 +990,8 @@ private:
     TFileChangelogConfigPtr GetSplitChangelogConfig(bool enableMultiplexing)
     {
         return enableMultiplexing
-            ? Config_->HighLatencySplitChangelog
-            : Config_->LowLatencySplitChangelog;
+            ? HighLatencySplitChangelogConfig_
+            : LowLatencySplitChangelogConfig_;
     }
 
     IChangelogPtr DoCreateChangelog(
@@ -1027,7 +1031,7 @@ private:
             auto fileName = Location_->GetChunkPath(chunkId);
             changelog = SplitChangelogDispatcher_->OpenChangelog(
                 fileName,
-                Config_->HighLatencySplitChangelog);
+                HighLatencySplitChangelogConfig_);
         }
 
         YT_LOG_TRACE("Finished opening journal chunk (ChunkId: %v)",

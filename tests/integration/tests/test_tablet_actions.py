@@ -14,12 +14,13 @@ from datetime import datetime, timedelta
 ##################################################################
 
 class TabletActionsBase(DynamicTablesBase):
+    ENABLE_TABLET_BALANCER = True
+
     DELTA_MASTER_CONFIG = {
         "tablet_manager": {
-            "leader_reassignment_timeout" : 1000,
+            "leader_reassignment_timeout" : 2000,
             "peer_revocation_timeout" : 3000,
             "tablet_balancer": {
-                "enable_tablet_balancer": True,
                 "config_check_period": 100,
                 "balance_period": 100,
             },

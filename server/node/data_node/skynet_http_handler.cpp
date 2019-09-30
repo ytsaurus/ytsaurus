@@ -94,8 +94,7 @@ public:
         i64 startPartIndex;
         ParseRequest(req->GetUrl().RawQuery, &chunkId, &readRange, &startPartIndex);
 
-        auto chunkPtr = Bootstrap_->GetChunkStore()->GetChunkOrThrow(chunkId, AllMediaIndex);
-        auto chunkGuard = TChunkReadGuard::AcquireOrThrow(chunkPtr);
+        auto chunk = Bootstrap_->GetChunkStore()->GetChunkOrThrow(chunkId, AllMediaIndex);
 
         TWorkloadDescriptor skynetWorkload(EWorkloadCategory::UserBatch);
         skynetWorkload.Annotations = {"skynet"};
@@ -109,7 +108,7 @@ public:
         blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
         blockReadOptions.ReadSessionId = TReadSessionId::Create();
 
-        auto chunkMeta = WaitFor(chunkPtr->ReadMeta(blockReadOptions))
+        auto chunkMeta = WaitFor(chunk->ReadMeta(blockReadOptions))
             .ValueOrThrow();
 
         auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta->extensions());
@@ -129,7 +128,7 @@ public:
         auto readerConfig = New<TReplicationReaderConfig>();
         auto chunkReader = CreateLocalChunkReader(
             readerConfig,
-            chunkPtr,
+            chunk,
             Bootstrap_->GetChunkBlockManager(),
             Bootstrap_->GetBlockCache(),
             Bootstrap_->GetBlockMetaCache());

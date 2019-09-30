@@ -39,7 +39,7 @@ struct TSchedulerStrategyHostMock
         YT_UNIMPLEMENTED();
     }
 
-    virtual IInvokerPtr GetProfilingInvoker() const override
+    virtual IInvokerPtr GetFairShareProfilingInvoker() const override
     {
         YT_UNIMPLEMENTED();
     }
@@ -181,6 +181,13 @@ public:
     virtual int GetPendingJobCount() const override
     {
         return JobResourcesList.size();
+    }
+
+    EPreemptionMode PreemptionMode = EPreemptionMode::Normal;
+
+    virtual EPreemptionMode GetPreemptionMode() const override
+    {
+        return PreemptionMode;
     }
 
 private:

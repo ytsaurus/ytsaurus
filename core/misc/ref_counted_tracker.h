@@ -91,23 +91,30 @@ private:
     };
 
     struct TLocalSlot;
-    struct TGlobalSlot;
-    class TNamedSlot;
+    using TLocalSlots = std::vector<TLocalSlot>;
 
+    struct TGlobalSlot;
+    using TGlobalSlots = std::vector<TGlobalSlot>;
+
+    class TNamedSlot;
     using TNamedStatistics = std::vector<TNamedSlot>;
 
     // nullptr if not initialized or already destroyed
-    static PER_THREAD TLocalSlot* LocalSlotsBegin;
+    static thread_local TLocalSlots* LocalSlots_;
+
+    // nullptr if not initialized or already destroyed
+    static thread_local TLocalSlot* LocalSlotsBegin_;
+
     //  0 if not initialized
     // -1 if already destroyed
-    static PER_THREAD int LocalSlotsSize;
+    static thread_local int LocalSlotsSize_;
 
     mutable NConcurrency::TForkAwareSpinLock SpinLock_;
     std::map<TKey, TRefCountedTypeCookie> KeyToCookie_;
     std::map<TRefCountedTypeKey, size_t> TypeKeyToObjectSize_;
     std::vector<TKey> CookieToKey_;
     std::vector<TGlobalSlot> GlobalSlots_;
-    THashSet<TLocalSlotsHolder*> LocalSlotHolders_;
+    THashSet<TLocalSlots*> AllLocalSlots_;
 
     TNamedStatistics GetSnapshot() const;
     static void SortSnapshot(TNamedStatistics* snapshot, int sortByColumn);
@@ -127,8 +134,6 @@ private:
 
     TLocalSlot* GetLocalSlot(TRefCountedTypeCookie cookie);
     TGlobalSlot* GetGlobalSlot(TRefCountedTypeCookie cookie);
-
-    void OnLocalSlotsDestroyed(TLocalSlotsHolder* holder);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

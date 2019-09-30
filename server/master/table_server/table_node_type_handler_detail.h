@@ -14,18 +14,17 @@ template <class TImpl>
 class TTableNodeTypeHandlerBase
     : public NChunkServer::TChunkOwnerTypeHandler<TImpl>
 {
-public:
-    explicit TTableNodeTypeHandlerBase(NCellMaster::TBootstrap* bootstrap);
+private:
+    using TBase = NChunkServer::TChunkOwnerTypeHandler<TImpl>;
 
-    virtual NObjectServer::ETypeFlags GetFlags() const override;
+public:
+    using TBase::TBase;
 
     virtual bool IsSupportedInheritableAttribute(const TString& key) const override;
 
     virtual bool HasBranchedChangesImpl(TImpl* originatingNode, TImpl* branchedNode) override;
 
 protected:
-    using TBase = NChunkServer::TChunkOwnerTypeHandler<TImpl>;
-
     virtual std::unique_ptr<TImpl> DoCreate(
         const NCypressServer::TVersionedNodeId& id,
         const NCypressServer::TCreateNodeContext& context) override;
@@ -39,12 +38,20 @@ protected:
     virtual void DoMerge(
         TImpl* originatingNode,
         TImpl* branchedNode) override;
+
     virtual void DoClone(
         TImpl* sourceNode,
-        TImpl* clonedNode,
+        TImpl* clonedTrunkNode,
         NCypressServer::ICypressNodeFactory* factory,
         NCypressServer::ENodeCloneMode mode,
         NSecurityServer::TAccount* account) override;
+    virtual void DoBeginCopy(
+        TImpl* node,
+        NCypressServer::TBeginCopyContext* context) override;
+    virtual void DoEndCopy(
+        TImpl* node,
+        NCypressServer::TEndCopyContext* context,
+        NCypressServer::ICypressNodeFactory* factory) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -52,10 +59,11 @@ protected:
 class TTableNodeTypeHandler
     : public TTableNodeTypeHandlerBase<TTableNode>
 {
-public:
-    typedef TTableNodeTypeHandlerBase<TTableNode> TBase;
+private:
+    using TBase = TTableNodeTypeHandlerBase<TTableNode>;
 
-    explicit TTableNodeTypeHandler(NCellMaster::TBootstrap* bootstrap);
+public:
+    using TBase::TBase;
 
     virtual NObjectClient::EObjectType GetObjectType() const override;
 
@@ -70,10 +78,11 @@ protected:
 class TReplicatedTableNodeTypeHandler
     : public TTableNodeTypeHandlerBase<TReplicatedTableNode>
 {
-public:
-    typedef TTableNodeTypeHandlerBase<TReplicatedTableNode> TBase;
+private:
+    using TBase = TTableNodeTypeHandlerBase<TReplicatedTableNode>;
 
-    explicit TReplicatedTableNodeTypeHandler(NCellMaster::TBootstrap* bootstrap);
+public:
+    using TBase::TBase;
 
     virtual NObjectClient::EObjectType GetObjectType() const override;
 
@@ -85,6 +94,14 @@ protected:
     virtual NCypressServer::ICypressNodeProxyPtr DoGetProxy(
         TReplicatedTableNode* trunkNode,
         NTransactionServer::TTransaction* transaction) override;
+
+    virtual void DoBeginCopy(
+        TReplicatedTableNode* node,
+        NCypressServer::TBeginCopyContext* context) override;
+    virtual void DoEndCopy(
+        TReplicatedTableNode* node,
+        NCypressServer::TEndCopyContext* context,
+        NCypressServer::ICypressNodeFactory* factory) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

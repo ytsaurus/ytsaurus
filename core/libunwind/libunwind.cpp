@@ -1,6 +1,6 @@
 #include "libunwind.h"
 
-#include <util/system/tls.h>
+#include <stdlib.h>
 
 #include <cstdio>
 
@@ -25,7 +25,7 @@ int GetStackTrace(void** result, int maxFrames, int skipFrames)
 
     int frames = 0;
 
-    Y_POD_STATIC_THREAD(bool) AlreadyUnwinding;
+    static thread_local bool AlreadyUnwinding;
     if (AlreadyUnwinding) {
         return 0;
     }
@@ -35,7 +35,7 @@ int GetStackTrace(void** result, int maxFrames, int skipFrames)
         fprintf(stderr, "unw_getcontext failed; terminating\n");
         abort();
     }
-    
+
     if (unw_init_local(&cursor, &context) != 0) {
         fprintf(stderr, "unw_init_local failed; terminating\n");
         abort();

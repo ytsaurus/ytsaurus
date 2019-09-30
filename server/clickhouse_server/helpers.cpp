@@ -11,6 +11,7 @@
 #include <yt/ytlib/api/native/client.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/client/table_client/unversioned_row.h>
 
@@ -163,6 +164,7 @@ std::unique_ptr<TTableObject> GetTableAttributes(
         TObjectServiceProxy proxy(channel);
 
         auto req = TYPathProxy::Get(userObject->GetObjectIdPath() + "/@");
+        AddCellTagToSyncWith(req, userObject->ObjectId);
         SetSuppressAccessTracking(req, true);
         ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
             "chunk_count",
@@ -298,3 +300,16 @@ void Serialize(const QueryStatusInfo& query, NYT::NYson::IYsonConsumer* consumer
 /////////////////////////////////////////////////////////////////////////////
 
 } // namespace DB
+
+namespace std {
+
+/////////////////////////////////////////////////////////////////////////////
+
+TString ToString(const std::shared_ptr<DB::IAST>& astPtr)
+{
+    return astPtr ? ToString(*astPtr) : "#";
+}
+
+/////////////////////////////////////////////////////////////////////////////
+
+} // namespace std

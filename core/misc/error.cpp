@@ -327,8 +327,7 @@ void AppendError(TStringBuilderBase* builder, const TError& error, int indent)
             indent);
     }
 
-    auto keys = error.Attributes().List();
-    for (const auto& key : keys) {
+    for (const auto& [key, value] : error.Attributes().ListPairs()) {
         if (key == "host" ||
             key == "datetime" ||
             key == "pid" ||
@@ -336,7 +335,6 @@ void AppendError(TStringBuilderBase* builder, const TError& error, int indent)
             key == "fid")
             continue;
 
-        auto value = error.Attributes().GetYson(key);
         TTokenizer tokenizer(value.GetData());
         YT_VERIFY(tokenizer.ParseNext());
         switch (tokenizer.GetCurrentType()) {
@@ -437,21 +435,21 @@ void Serialize(
         .BeginMap()
             .Item("code").Value(error.GetCode())
             .Item("message").Value(error.GetMessage())
-            .Item("attributes").DoMapFor(error.Attributes().List(), [&] (TFluentMap fluent, const TString& key) {
+            .Item("attributes").DoMapFor(error.Attributes().ListPairs(), [&] (auto fluent, const auto& pair) {
                 fluent
-                    .Item(key).Value(error.Attributes().GetYson(key));
+                    .Item(pair.first).Value(pair.second);
             })
-            .DoIf(!error.InnerErrors().empty(), [&] (TFluentMap fluent) {
+            .DoIf(!error.InnerErrors().empty(), [&] (auto fluent) {
                 fluent
-                    .Item("inner_errors").DoListFor(error.InnerErrors(), [=] (TFluentList fluent, const TError& innerError) {
+                    .Item("inner_errors").DoListFor(error.InnerErrors(), [=] (auto fluent, const auto& innerError) {
                         fluent
                             .Item().Value(innerError);
                     });
             })
-            .DoIf(valueProducer != nullptr, [=] (TFluentMap fluent) {
+            .DoIf(valueProducer != nullptr, [=] (auto fluent) {
                 fluent
                     .Item("value");
-                // NB: we are obligated to deal with a bare consumer here because
+                // NB: we are forced to deal with a bare consumer here because
                 // we can't use void(TFluentMap) in a function signature as it
                 // will lead to the inclusion of fluent.h in error.h and a cyclic
                 // inclusion error.h -> fluent.h -> callback.h -> error.h
@@ -527,9 +525,7 @@ TError operator << (TError error, std::vector<TError>&& innerErrors)
 
 TError operator << (TError error, const NYTree::IAttributeDictionary& attributes)
 {
-    for (const auto& key : attributes.List()) {
-        error.Attributes().SetYson(key, attributes.GetYson(key));
-    }
+    error.Attributes().MergeFrom(attributes);
     return error;
 }
 

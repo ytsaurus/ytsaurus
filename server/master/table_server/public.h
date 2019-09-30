@@ -2,13 +2,19 @@
 
 #include <yt/core/misc/public.h>
 
+#include <yt/client/table_client/public.h>
+
 namespace NYT::NTableServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const int MaxTabletCount = 10000;
+constexpr int MaxTabletCount = 10000;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+using TInternedTableSchema = TInternedObject<NTableClient::TTableSchema>;
+using TTableSchemaRegistry = TInternRegistry<NTableClient::TTableSchema>;
+using TTableSchemaRegistryPtr = TInternRegistryPtr<NTableClient::TTableSchema>;
 
 class TTableNode;
 class TReplicatedTableNode;

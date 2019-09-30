@@ -33,6 +33,21 @@ TSharedTableSchemaPtr TSharedTableSchemaRegistry::GetSchema(TTableSchema&& table
     return result;
 }
 
+TSharedTableSchemaPtr TSharedTableSchemaRegistry::GetSchema(const TTableSchema& tableSchema)
+{
+    if (tableSchema == EmptyTableSchema) {
+        return nullptr;
+    }
+
+    auto it = Registry_.find(tableSchema);
+    if (it != Registry_.end()) {
+        return *it;
+    }
+    auto result = New<TSharedTableSchema>(tableSchema, this);
+    Registry_.insert(result.Get());
+    return result;
+}
+
 void TSharedTableSchemaRegistry::DropSchema(TSharedTableSchema *sharedTableSchema)
 {
     Registry_.erase(sharedTableSchema);

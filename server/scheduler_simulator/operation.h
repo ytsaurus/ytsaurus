@@ -54,7 +54,7 @@ private:
     const NYson::TYsonString SpecString_;
     const TString AuthenticatedUser_;
     const TInstant StartTime_;
-    const NScheduler::TOperationRuntimeParametersPtr RuntimeParams_;
+    const NScheduler::TOperationRuntimeParametersPtr RuntimeParameters_;
     THashMap<TString, int> TreeIdToSlotIndex_;
 
     std::vector<TString> ErasedTrees_;

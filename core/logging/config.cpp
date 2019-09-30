@@ -23,7 +23,7 @@ bool TRuleConfig::IsApplicable(const TString& category, ELogLevel level, ELogMes
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLogConfigPtr TLogConfig::CreateLogFile(const TString& path)
+TLogManagerConfigPtr TLogManagerConfig::CreateLogFile(const TString& path)
 {
     auto rule = New<TRuleConfig>();
     rule->MinLevel = ELogLevel::Trace;
@@ -33,7 +33,7 @@ TLogConfigPtr TLogConfig::CreateLogFile(const TString& path)
     fileWriterConfig->Type = EWriterType::File;
     fileWriterConfig->FileName = path;
 
-    auto config = New<TLogConfig>();
+    auto config = New<TLogManagerConfig>();
     config->Rules.push_back(rule);
     config->WriterConfigs.insert(std::make_pair("FileWriter", fileWriterConfig));
 
@@ -44,7 +44,7 @@ TLogConfigPtr TLogConfig::CreateLogFile(const TString& path)
     return config;
 }
 
-TLogConfigPtr TLogConfig::CreateStderrLogger(ELogLevel logLevel)
+TLogManagerConfigPtr TLogManagerConfig::CreateStderrLogger(ELogLevel logLevel)
 {
     auto rule = New<TRuleConfig>();
     rule->MinLevel = logLevel;
@@ -53,7 +53,7 @@ TLogConfigPtr TLogConfig::CreateStderrLogger(ELogLevel logLevel)
     auto stderrWriterConfig = New<TWriterConfig>();
     stderrWriterConfig->Type = EWriterType::Stderr;
 
-    auto config = New<TLogConfig>();
+    auto config = New<TLogManagerConfig>();
     config->Rules.push_back(rule);
     config->WriterConfigs.insert(std::make_pair(DefaultStderrWriterName, stderrWriterConfig));
 
@@ -64,19 +64,19 @@ TLogConfigPtr TLogConfig::CreateStderrLogger(ELogLevel logLevel)
     return config;
 }
 
-TLogConfigPtr TLogConfig::CreateDefault()
+TLogManagerConfigPtr TLogManagerConfig::CreateDefault()
 {
     return CreateStderrLogger(DefaultStderrMinLevel);
 }
 
-TLogConfigPtr TLogConfig::CreateQuiet()
+TLogManagerConfigPtr TLogManagerConfig::CreateQuiet()
 {
     return CreateStderrLogger(DefaultStderrQuietLevel);
 }
 
-TLogConfigPtr TLogConfig::CreateSilent()
+TLogManagerConfigPtr TLogManagerConfig::CreateSilent()
 {
-    auto config = New<TLogConfig>();
+    auto config = New<TLogManagerConfig>();
 
     config->MinDiskSpace = 0;
     config->HighBacklogWatermark = 0;
@@ -85,7 +85,7 @@ TLogConfigPtr TLogConfig::CreateSilent()
     return config;
 }
 
-TLogConfigPtr TLogConfig::CreateFromFile(const TString& file, const NYPath::TYPath& path)
+TLogManagerConfigPtr TLogManagerConfig::CreateFromFile(const TString& file, const NYPath::TYPath& path)
 {
     NYTree::INodePtr node;
     {
@@ -95,9 +95,9 @@ TLogConfigPtr TLogConfig::CreateFromFile(const TString& file, const NYPath::TYPa
     return CreateFromNode(std::move(node), path);
 }
 
-TLogConfigPtr TLogConfig::CreateFromNode(NYTree::INodePtr node, const NYPath::TYPath& path)
+TLogManagerConfigPtr TLogManagerConfig::CreateFromNode(NYTree::INodePtr node, const NYPath::TYPath& path)
 {
-    auto config = New<TLogConfig>();
+    auto config = New<TLogManagerConfig>();
     config->Load(node, true, true, path);
     return config;
 }

@@ -109,7 +109,7 @@ struct TTabletSnapshot
     NHydra::IHydraManagerPtr HydraManager;
     TTabletId TabletId;
     TString LoggingId;
-    i64 MountRevision = 0;
+    NHydra::TRevision MountRevision = NHydra::NullRevision;
     NYPath::TYPath TablePath;
     NObjectClient::TObjectId TableId;
     TTableMountConfigPtr Config;
@@ -182,7 +182,7 @@ struct TTabletSnapshot
     TTableReplicaSnapshotPtr FindReplicaSnapshot(TTableReplicaId replicaId);
 
     void ValidateCellId(NElection::TCellId cellId);
-    void ValidateMountRevision(i64 mountRevision);
+    void ValidateMountRevision(NHydra::TRevision mountRevision);
     bool IsProfilingEnabled() const;
     void WaitOnLocks(TTimestamp timestamp) const;
 };
@@ -222,6 +222,7 @@ struct TTabletCounters
     TTabletCounters(const NProfiling::TTagIdList& list);
 
     NProfiling::TAggregateGauge OverlappingStoreCount;
+    NProfiling::TAggregateGauge EdenStoreCount;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -287,6 +288,9 @@ public:
     i64 GetPreparedReplicationRowIndex() const;
     void SetPreparedReplicationRowIndex(i64 value);
 
+    TError GetError() const;
+    void SetError(TError error);
+
     TTableReplicaSnapshotPtr BuildSnapshot() const;
 
     void PopulateStatistics(NTabletClient::NProto::TTableReplicaStatistics* statistics) const;
@@ -304,7 +308,7 @@ class TTablet
     , public TRefTracked<TTablet>
 {
 public:
-    DEFINE_BYVAL_RO_PROPERTY(i64, MountRevision);
+    DEFINE_BYVAL_RO_PROPERTY(NHydra::TRevision, MountRevision);
     DEFINE_BYVAL_RO_PROPERTY(NObjectClient::TObjectId, TableId);
     DEFINE_BYVAL_RO_PROPERTY(NYPath::TYPath, TablePath);
 
@@ -362,7 +366,7 @@ public:
         TTabletChunkWriterConfigPtr writerConfig,
         TTabletWriterOptionsPtr writerOptions,
         TTabletId tabletId,
-        i64 mountRevision,
+        NHydra::TRevision mountRevision,
         NObjectClient::TObjectId tableId,
         const NYPath::TYPath& path,
         ITabletContext* context,
@@ -455,7 +459,7 @@ public:
 
     const TSortedDynamicRowKeyComparer& GetRowKeyComparer() const;
 
-    void ValidateMountRevision(i64 mountRevision);
+    void ValidateMountRevision(NHydra::TRevision mountRevision);
 
     void UpdateUnflushedTimestamp() const;
 
@@ -470,6 +474,8 @@ public:
     void ReconfigureThrottlers();
 
     const TString& GetLoggingId() const;
+
+    int GetEdenStoreCount() const;
 
 private:
     TTableMountConfigPtr Config_;

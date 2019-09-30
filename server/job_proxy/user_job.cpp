@@ -337,6 +337,8 @@ public:
                         << TErrorAttribute("core_infos", coreResult.CoreInfos));
             }
 
+            CoreInfos_ = coreResult.CoreInfos;
+
             ToProto(schedulerResultExt->mutable_core_infos(), coreResult.CoreInfos);
             YT_VERIFY(coreResult.BoundaryKeys.empty() || coreResult.BoundaryKeys.sorted());
             ToProto(schedulerResultExt->mutable_core_table_boundary_keys(), coreResult.BoundaryKeys);
@@ -433,6 +435,9 @@ private:
     // Writes stderr data to Cypress file.
     std::unique_ptr<TStderrWriter> ErrorOutput_;
     std::unique_ptr<TProfileWriter> ProfileOutput_;
+
+    // Core infos.
+    TCoreInfos CoreInfos_;
 
     // StderrCombined_ is set only if stderr table is specified.
     // It redirects data to both ErrorOutput_ and stderr table writer.
@@ -693,6 +698,11 @@ private:
         return result.Value();
     }
 
+    virtual const TCoreInfos& GetCoreInfos() const override
+    {
+        return CoreInfos_;
+    }
+
     virtual std::optional<TJobProfile> GetProfile() override
     {
         ValidatePrepared();
@@ -733,6 +743,8 @@ private:
         ValidatePrepared();
 
         if (!InterruptionSignalSent_.exchange(true) && UserJobSpec_.has_interruption_signal()) {
+            YT_LOG_DEBUG("Sending interruption signal to user job (SignalName: %v)",
+                UserJobSpec_.interruption_signal());
             SignalJob(UserJobSpec_.interruption_signal());
         }
 

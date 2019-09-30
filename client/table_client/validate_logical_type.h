@@ -8,19 +8,19 @@ namespace NYT::NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <ESimpleLogicalValueType type>
-void ValidateSimpleLogicalType(i64 value);
+Y_FORCE_INLINE void ValidateSimpleLogicalType(i64 value);
 
 template <ESimpleLogicalValueType type>
-void ValidateSimpleLogicalType(ui64 value);
+Y_FORCE_INLINE void ValidateSimpleLogicalType(ui64 value);
 
 template <ESimpleLogicalValueType type>
-void ValidateSimpleLogicalType(double value);
+Y_FORCE_INLINE void ValidateSimpleLogicalType(double value);
 
 template <ESimpleLogicalValueType type>
-void ValidateSimpleLogicalType(bool value);
+Y_FORCE_INLINE void ValidateSimpleLogicalType(bool value);
 
 template <ESimpleLogicalValueType type>
-void ValidateSimpleLogicalType(TStringBuf value);
+Y_FORCE_INLINE void ValidateSimpleLogicalType(TStringBuf value);
 
 // Validates complex logical type yson representation.
 void ValidateComplexLogicalType(TStringBuf ysonData, const TLogicalTypePtr& type);

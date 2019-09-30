@@ -19,6 +19,8 @@
 
 #include <yt/ytlib/hive/cell_directory.h>
 
+#include <yt/ytlib/cypress_client/rpc_helpers.h>
+
 #include <yt/server/lib/hive/hive_manager.h>
 #include <yt/server/lib/hive/mailbox.h>
 #include <yt/server/lib/hive/helpers.h>
@@ -40,6 +42,7 @@ using namespace NRpc;
 using namespace NYTree;
 using namespace NConcurrency;
 using namespace NObjectClient;
+using namespace NCypressClient;
 using namespace NObjectServer;
 using namespace NHiveServer;
 using namespace NHiveClient;
@@ -154,6 +157,12 @@ public:
         return FindMasterEntry(cellTag) != nullptr;
     }
 
+    EMasterCellRoles GetMasterCellRoles(TCellTag cellTag)
+    {
+        auto it = MasterCellRolesMap_.find(cellTag);
+        return it == MasterCellRolesMap_.end() ? EMasterCellRoles::None : it->second;
+    }
+
     const TCellTagList& GetRegisteredMasterCellTags()
     {
         return RegisteredMasterCellTags_;
@@ -165,18 +174,27 @@ public:
     }
 
 
-    TCellTag PickSecondaryMasterCell(double bias)
+    TCellTag PickSecondaryChunkHostCell(double bias)
     {
         // List candidates.
         SmallVector<std::pair<TCellTag, i64>, MaxSecondaryMasterCells> candidates;
-        if (Bootstrap_->IsSecondaryMaster()) {
-            candidates.emplace_back(
+        auto maybeAddCandidate = [&] (TCellTag cellTag, i64 chunkCount) {
+            if (cellTag == Bootstrap_->GetPrimaryCellTag()) {
+                return;
+            }
+            if (None(GetMasterCellRoles(cellTag) & EMasterCellRoles::ChunkHost)) {
+                return;
+            }
+            candidates.emplace_back(cellTag, chunkCount);
+        };
+
+        if (Bootstrap_->IsSecondaryMaster() && !Bootstrap_->IsMulticell()) {
+            maybeAddCandidate(
                 Bootstrap_->GetCellTag(),
                 Bootstrap_->GetChunkManager()->Chunks().size());
-        }
-        for (const auto& [cellTag, entry] : RegisteredMasterMap_) {
-            if (cellTag != Bootstrap_->GetPrimaryCellTag()) {
-                candidates.emplace_back(cellTag, entry.Statistics.chunk_count());
+        } else {
+            for (const auto& [cellTag, entry] : RegisteredMasterMap_) {
+                maybeAddCandidate(cellTag, entry.Statistics.chunk_count());
             }
         }
 
@@ -222,8 +240,7 @@ public:
     NProto::TCellStatistics ComputeClusterStatistics()
     {
         auto result = GetLocalCellStatistics();
-        for (const auto& pair : RegisteredMasterMap_) {
-            const auto& entry = pair.second;
+        for (const auto& [cellTag, entry] : RegisteredMasterMap_) {
             result += entry.Statistics;
         }
         return result;
@@ -265,12 +282,7 @@ public:
         }
 
         // XXX(babenko): is this needed during forwarding?
-        auto isRetryableError = BIND([] (const TError& error) {
-            return
-                error.GetCode() == NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded ||
-                IsRetriableError(error);
-        });
-        channel = CreateRetryingChannel(Config_->MasterConnection, channel, isRetryableError);
+        channel = CreateRetryingChannel(Config_->MasterConnection, channel);
         channel = CreateDefaultTimeoutChannel(channel, Config_->MasterConnection->RpcTimeout);
 
         {
@@ -330,6 +342,7 @@ private:
     NConcurrency::TReaderWriterSpinLock MasterChannelCacheLock_;
     THashMap<std::tuple<TCellTag, EPeerKind>, IChannelPtr> MasterChannelCache_;
 
+    THashMap<TCellTag, EMasterCellRoles> MasterCellRolesMap_;
 
     virtual void OnAfterSnapshotLoaded()
     {
@@ -354,6 +367,8 @@ private:
                 cellTag,
                 entry.Index);
         }
+
+        RecomputeMasterCellRoles();
     }
 
     virtual void Clear() override
@@ -403,6 +418,13 @@ private:
         OnDynamicConfigChanged();
     }
 
+    virtual void OnStartLeading() override
+    {
+        TMasterAutomatonPart::OnStartLeading();
+
+        OnStartEpoch();
+    }
+
     virtual void OnStopLeading() override
     {
         TMasterAutomatonPart::OnStopLeading();
@@ -417,13 +439,29 @@ private:
             CellStatisticsGossipExecutor_.Reset();
         }
 
-        ClearCaches();
+        OnStopEpoch();
+    }
+
+    virtual void OnStartFollowing() override
+    {
+        TMasterAutomatonPart::OnStartFollowing();
+
+        OnStartEpoch();
     }
 
     virtual void OnStopFollowing() override
     {
         TMasterAutomatonPart::OnStopFollowing();
 
+        OnStopEpoch();
+    }
+
+
+    void OnStartEpoch()
+    { }
+
+    void OnStopEpoch()
+    {
         ClearCaches();
     }
 
@@ -576,10 +614,10 @@ private:
         int index = static_cast<int>(RegisteredMasterMap_.size());
         RegisteredMasterCellTags_.push_back(cellTag);
 
-        auto pair = RegisteredMasterMap_.insert(std::make_pair(cellTag, TMasterEntry()));
-        YT_VERIFY(pair.second);
+        auto [it, inserted] = RegisteredMasterMap_.insert(std::make_pair(cellTag, TMasterEntry()));
+        YT_VERIFY(inserted);
 
-        auto& entry = pair.first->second;
+        auto& entry = it->second;
         entry.Index = index;
 
         auto cellId = Bootstrap_->GetCellId(cellTag);
@@ -589,6 +627,8 @@ private:
         if (cellTag == Bootstrap_->GetPrimaryCellTag()) {
             PrimaryMasterMailbox_ = entry.Mailbox;
         }
+
+        RecomputeMasterCellRoles();
 
         YT_LOG_INFO_UNLESS(IsRecovery(), "Master cell registered (CellTag: %v, CellIndex: %v)",
             cellTag,
@@ -707,6 +747,7 @@ private:
             auto requestHeader = servicePtr->Context->RequestHeader();
             auto updatedYPath = FromObjectId(servicePtr->ObjectId) + GetRequestTargetYPath(requestHeader);
             SetRequestTargetYPath(&requestHeader, updatedYPath);
+            SetTransactionId(&requestHeader, servicePtr->TransactionId);
             parts = SetRequestHeader(requestMessage, requestHeader);
         } else {
             YT_ABORT();
@@ -754,6 +795,35 @@ private:
         if (CellStatisticsGossipExecutor_) {
             CellStatisticsGossipExecutor_->SetPeriod(GetDynamicConfig()->CellStatisticsGossipPeriod);
         }
+        RecomputeMasterCellRoles();
+    }
+
+
+    void RecomputeMasterCellRoles()
+    {
+        MasterCellRolesMap_.clear();
+        auto populateCellRoles = [&] (TCellTag cellTag) {
+            MasterCellRolesMap_[cellTag] = ComputeMasterCellRolesFromConfig(cellTag);
+        };
+        populateCellRoles(Bootstrap_->GetCellTag());
+        for (auto& [cellTag, entry] : RegisteredMasterMap_) {
+            populateCellRoles(cellTag);
+        }
+    }
+
+    EMasterCellRoles GetDefaultMasterCellRoles(TCellTag cellTag)
+    {
+        return (cellTag == Bootstrap_->GetPrimaryCellTag())
+            ? (EMasterCellRoles::CypressNodeHost |
+               EMasterCellRoles::TransactionCoordinator |
+               (Bootstrap_->IsMulticell() ? EMasterCellRoles::None : EMasterCellRoles::ChunkHost))
+            : (EMasterCellRoles::CypressNodeHost | EMasterCellRoles::ChunkHost);
+    }
+
+    EMasterCellRoles ComputeMasterCellRolesFromConfig(TCellTag cellTag)
+    {
+        auto defaultRoles = GetDefaultMasterCellRoles(cellTag);
+        return GetDynamicConfig()->CellRoles.Value(cellTag, defaultRoles);
     }
 };
 
@@ -764,8 +834,6 @@ TMulticellManager::TMulticellManager(
     TBootstrap* bootstrap)
     : Impl_(New<TImpl>(config, bootstrap))
 { }
-
-TMulticellManager::~TMulticellManager() = default;
 
 void TMulticellManager::Initialize()
 {
@@ -805,6 +873,11 @@ bool TMulticellManager::IsRegisteredMasterCell(TCellTag cellTag)
     return Impl_->IsRegisteredSecondaryMaster(cellTag);
 }
 
+EMasterCellRoles TMulticellManager::GetMasterCellRoles(NObjectClient::TCellTag cellTag)
+{
+    return Impl_->GetMasterCellRoles(cellTag);
+}
+
 const TCellTagList& TMulticellManager::GetRegisteredMasterCellTags()
 {
     return Impl_->GetRegisteredMasterCellTags();
@@ -815,9 +888,9 @@ int TMulticellManager::GetRegisteredMasterCellIndex(TCellTag cellTag)
     return Impl_->GetRegisteredMasterCellIndex(cellTag);
 }
 
-TCellTag TMulticellManager::PickSecondaryMasterCell(double bias)
+TCellTag TMulticellManager::PickSecondaryChunkHostCell(double bias)
 {
-    return Impl_->PickSecondaryMasterCell(bias);
+    return Impl_->PickSecondaryChunkHostCell(bias);
 }
 
 NProto::TCellStatistics TMulticellManager::ComputeClusterStatistics()

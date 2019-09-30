@@ -87,13 +87,23 @@ TFormattableView<TRange, TFormatter> MakeFormattableView(
     const TRange& range,
     TFormatter&& formatter);
 
-////////////////////////////////////////////////////////////////////////////////
-
 template <class TRange, class TFormatter>
 TFormattableView<TRange, TFormatter> MakeShrunkFormattableView(
     const TRange& range,
     TFormatter&& formatter,
     size_t limit);
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TFormatter>
+struct TFormatterWrapper
+{
+    TFormatter Formatter;
+};
+
+template <class TFormatter>
+TFormatterWrapper<TFormatter> MakeFormatterWrapper(
+    TFormatter&& formatter);
 
 ////////////////////////////////////////////////////////////////////////////////
 

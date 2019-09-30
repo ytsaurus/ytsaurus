@@ -98,7 +98,8 @@ public:
     {
         return
             ETypeFlags::ReplicateDestroy |
-            ETypeFlags::ReplicateAttributes;
+            ETypeFlags::ReplicateAttributes |
+            ETypeFlags::Removable;
     }
 
     virtual EObjectType GetType() const override
@@ -1143,6 +1144,11 @@ private:
                     if (auto* dc = rack->GetDataCenter()) {
                         response->set_data_center(dc->GetName());
                     }
+                }
+
+                auto rspTags = response->mutable_tags();
+                for (auto tag : node->Tags()) {
+                    rspTags->Add(std::move(tag));
                 }
 
                 *response->mutable_resource_limits_overrides() = node->ResourceLimitsOverrides();

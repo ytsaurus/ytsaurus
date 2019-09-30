@@ -6,6 +6,8 @@
 
 #include <yt/server/master/object_server/public.h>
 
+#include <yt/server/master/cypress_server/public.h>
+
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/small_vector.h>
 
@@ -37,6 +39,13 @@ struct TAccessControlEntry
     std::optional<std::vector<TString>> Columns;
 
     void Persist(NCellMaster::TPersistenceContext& context);
+    void Persist(NCypressServer::TCopyPersistenceContext& context);
+
+    void Save(NCellMaster::TSaveContext& context) const;
+    void Load(NCellMaster::TLoadContext& context);
+
+    void Save(NCypressServer::TBeginCopyContext& context) const;
+    void Load(NCypressServer::TEndCopyContext& context);
 };
 
 void Serialize(const TAccessControlEntry& ace, NYson::IYsonConsumer* consumer);
@@ -46,16 +55,22 @@ void Serialize(const TAccessControlEntry& ace, NYson::IYsonConsumer* consumer);
 struct TAccessControlList
 {
     std::vector<TAccessControlEntry> Entries;
-};
 
-void Load(NCellMaster::TLoadContext& context, TAccessControlList& acl);
-void Save(NCellMaster::TSaveContext& context, const TAccessControlList& acl);
+    void Persist(NCellMaster::TPersistenceContext& context);
+    void Persist(NCypressServer::TCopyPersistenceContext& context);
+
+    void Save(NCellMaster::TSaveContext& context) const;
+    void Load(NCellMaster::TLoadContext& context);
+
+    void Save(NCypressServer::TBeginCopyContext& context) const;
+    void Load(NCypressServer::TEndCopyContext& context);
+};
 
 void Serialize(const TAccessControlList& acl, NYson::IYsonConsumer* consumer);
 void Deserialize(
     TAccessControlList& acl,
-    NYTree::INodePtr node,
-    TSecurityManagerPtr securityManager,
+    const NYTree::INodePtr& node,
+    const TSecurityManagerPtr& securityManager,
     // Puts missing subjects in this array. Throws an error on missing subjects if nullptr.
     std::vector<TString>* missingSubjects = nullptr);
 
@@ -84,9 +99,14 @@ public:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
+    void Save(NCypressServer::TBeginCopyContext& context) const;
+    void Load(NCypressServer::TEndCopyContext& context);
+
+    void Persist(NCellMaster::TPersistenceContext& context);
+    void Persist(NCypressServer::TCopyPersistenceContext& context);
+
 private:
     TSubject* Owner_ = nullptr;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

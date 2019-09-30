@@ -35,30 +35,46 @@ void TOverlaidAttributeDictionary<T>::PushBottom(
 }
 
 template <class T>
-std::vector<TString> TOverlaidAttributeDictionary<T>::List() const
+std::vector<TString> TOverlaidAttributeDictionary<T>::ListKeys() const
 {
     std::vector<TString> result;
     for (const auto& dict : UnderlyingDictionaries_) {
         if (!dict) {
             continue;
         }
-        auto dictKeys = dict->List();
+        auto dictKeys = dict->ListKeys();
         result.insert(result.end(), dictKeys.begin(), dictKeys.end());
     }
-
-    std::sort(result.begin(), result.end());
-    result.erase(std::unique(result.begin(), result.end()), result.end());
-
+    SortUnique(result);
     return result;
+}
+
+template <class T>
+std::vector<NYTree::IAttributeDictionary::TKeyValuePair> TOverlaidAttributeDictionary<T>::ListPairs() const
+{
+    THashMap<TString, NYson::TYsonString> result;
+    for (int index  = static_cast<int>(UnderlyingDictionaries_.size()) - 1; index >= 0; --index) {
+        const auto& dict = UnderlyingDictionaries_[index];
+        if (!dict) {
+            continue;
+        }
+        for (const auto& [key, value]: dict->ListPairs()) {
+            result[key] = value;
+        }
+    }
+    return std::vector<TKeyValuePair>(result.begin(), result.end());
 }
 
 template <class T>
 NYson::TYsonString TOverlaidAttributeDictionary<T>::FindYson(const TString& key) const
 {
     for (const auto& dict : UnderlyingDictionaries_) {
-        auto optionalResult = dict ? dict->FindYson(key) : NYson::TYsonString();
-        if (optionalResult) {
-            return optionalResult;
+        if (!dict) {
+            continue;
+        }
+        auto value = dict->FindYson(key);
+        if (value) {
+            return value;
         }
     }
 

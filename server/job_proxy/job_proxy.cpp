@@ -580,21 +580,31 @@ void TJobProxy::ReportResult(
     req->set_start_time(ToProto<i64>(startTime));
     req->set_finish_time(ToProto<i64>(finishTime));
     if (Job_ && GetJobSpecHelper()->GetSchedulerJobSpecExt().has_user_job_spec()) {
+        ToProto(req->mutable_core_infos(), Job_->GetCoreInfos());
+
         try {
-            req->set_job_stderr(GetStderr());
             auto failContext = Job_->GetFailContext();
             if (failContext) {
                 req->set_fail_context(*failContext);
             }
+        } catch (const std::exception& ex) {
+            YT_LOG_WARNING(ex, "Failed to get job fail context on teardown");
+        }
 
+        try {
+            req->set_job_stderr(GetStderr());
+        } catch (const std::exception& ex) {
+            YT_LOG_WARNING(ex, "Failed to get job stderr on teardown");
+        }
+
+        try{
             auto profile = Job_->GetProfile();
             if (profile) {
                 req->set_profile_type(profile->Type);
                 req->set_profile_blob(profile->Blob);
             }
         } catch (const std::exception& ex) {
-            // NB(psushin): this could happen if job was not fully prepared.
-            YT_LOG_WARNING(ex, "Failed to get job stderr and fail context on teardown");
+            YT_LOG_WARNING(ex, "Failed to get job profile on teardown");
         }
     }
 
@@ -743,7 +753,14 @@ const NNodeTrackerClient::TNodeDescriptor& TJobProxy::LocalDescriptor() const
 
 void TJobProxy::CheckMemoryUsage()
 {
-    i64 jobProxyMemoryUsage = GetProcessMemoryUsage().Rss;
+    i64 jobProxyMemoryUsage = 0;
+    try {
+        jobProxyMemoryUsage = GetProcessMemoryUsage().Rss;
+    } catch (const std::exception& ex) {
+        YT_LOG_WARNING(ex, "Failed to get process memory usage");
+        return;
+    }
+
     JobProxyMaxMemoryUsage_ = std::max(JobProxyMaxMemoryUsage_.load(), jobProxyMemoryUsage);
 
     YT_LOG_DEBUG("Job proxy memory check (JobProxyMemoryUsage: %v, JobProxyMaxMemoryUsage: %v, JobProxyMemoryReserve: %v, UserJobCurrentMemoryUsage: %v)",
@@ -754,14 +771,20 @@ void TJobProxy::CheckMemoryUsage()
 
     YT_LOG_DEBUG("YTAlloc counters (%v)", NYTAlloc::FormatAllocationCounters());
 
-    if (JobProxyMaxMemoryUsage_.load() > JobProxyMemoryReserve_) {
+    constexpr double JobProxyMaxMemoryUsageLoggingExponentialFactor = 1.2;
+
+    auto usage = JobProxyMaxMemoryUsage_.load();
+    if (usage > JobProxyMemoryReserve_ &&
+        usage > LastLoggedJobProxyMaxMemoryUsage_ * JobProxyMaxMemoryUsageLoggingExponentialFactor)
+    {
         if (TInstant::Now() - LastRefCountedTrackerLogTime_ > RefCountedTrackerLogPeriod_) {
             YT_LOG_WARNING("Job proxy used more memory than estimated "
                 "(JobProxyMaxMemoryUsage: %v, JobProxyMemoryReserve: %v, RefCountedTracker: %v)",
-                JobProxyMaxMemoryUsage_.load(),
+                usage,
                 JobProxyMemoryReserve_,
                 TRefCountedTracker::Get()->GetDebugInfo(2 /* sortByColumn */));
             LastRefCountedTrackerLogTime_ = TInstant::Now();
+            LastLoggedJobProxyMaxMemoryUsage_ = usage;
         }
     }
 

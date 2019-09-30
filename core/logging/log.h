@@ -64,6 +64,7 @@ public:
 
     const TLoggingCategory* GetCategory() const;
     bool IsLevelEnabled(ELogLevel level) const;
+    bool GetAbortOnAlert() const;
 
     bool IsPositionUpToDate(const TLoggingPosition& position) const;
     void UpdatePosition(TLoggingPosition* position, TStringBuf message) const;
@@ -129,6 +130,14 @@ void LogStructuredEvent(const TLogger& logger,
 #define YT_LOG_ERROR(...)                      YT_LOG_EVENT(Logger, ::NYT::NLogging::ELogLevel::Error, __VA_ARGS__)
 #define YT_LOG_ERROR_IF(condition, ...)        if (condition)    YT_LOG_ERROR(__VA_ARGS__)
 #define YT_LOG_ERROR_UNLESS(condition, ...)    if (!(condition)) YT_LOG_ERROR(__VA_ARGS__)
+
+#define YT_LOG_ALERT(...) \
+    do { \
+        YT_LOG_EVENT(Logger, ::NYT::NLogging::ELogLevel::Alert, __VA_ARGS__); \
+        YT_VERIFY(!Logger.GetAbortOnAlert()); \
+    } while(false)
+#define YT_LOG_ALERT_IF(condition, ...)        if (condition)    YT_LOG_ALERT(__VA_ARGS__)
+#define YT_LOG_ALERT_UNLESS(condition, ...)    if (!(condition)) YT_LOG_ALERT(__VA_ARGS__)
 
 #define YT_LOG_FATAL(...) \
     do { \

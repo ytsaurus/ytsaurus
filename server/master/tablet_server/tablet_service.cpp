@@ -94,6 +94,14 @@ public:
 private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
+
+    static void ValidateNoParentTransaction(TTransaction* transaction)
+    {
+        if (transaction->GetParent()) {
+            THROW_ERROR_EXCEPTION("Operation cannot be performed in transaction");
+        }
+    }
+
     static TTableNode* AsTableNodeSafe(TCypressNode* node)
     {
         if (!node) {
@@ -105,6 +113,7 @@ private:
         return node->As<TTableNode>();
     }
 
+
     void HydraPrepareMountTable(TTransaction* transaction, NTabletClient::NProto::TReqMount* request, bool persist)
     {
         int firstTabletIndex = request->first_tablet_index();
@@ -113,7 +122,7 @@ private:
         bool freeze = request->freeze();
         auto mountTimestamp = static_cast<TTimestamp>(request->mount_timestamp());
         auto tableId = FromProto<TTableId>(request->table_id());
-        auto path = request->path();
+        const auto& path = request->path();
         auto targetCellIds = FromProto<std::vector<TTabletCellId>>(request->target_cell_ids());
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Preparing table mount (TableId: %v, TransactionId: %v, User: %v, "
@@ -133,7 +142,7 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = AsTableNodeSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
 
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (table->IsNative()) {
             auto currentPath = cypressManager->GetNodePath(table, nullptr);
             if (path != currentPath) {
                 THROW_ERROR_EXCEPTION("Table path mismatch")
@@ -148,7 +157,7 @@ private:
             // CurrentMountTransactionId is used to prevent primary master to copy/move node when
             // secondary master has already committed mount (this causes an unexpected error in CloneTable).
             // Primary master is lazy coordinator of 2pc, thus clone command and participant commit command are
-            // serialied. Moreover secondary master (participant) commit happens strictly before primary commit.
+            // serialized. Moreover secondary master (participant) commit happens strictly before primary commit.
             // CurrentMountTransactionId mechanism ensures that clone command can be sent only before
             // primary master has been started participating in 2pc. Thus clone command cannot appear
             // on the secondary master after commit. It can however arrive between prepare and commit
@@ -179,7 +188,7 @@ private:
         bool freeze = request->freeze();
         auto mountTimestamp = static_cast<TTimestamp>(request->mount_timestamp());
         auto tableId = FromProto<TTableId>(request->table_id());
-        auto path = request->path();
+        const auto& path = request->path();
         auto targetCellIds = FromProto<std::vector<TTabletCellId>>(request->target_cell_ids());
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Committing table mount (TableId: %v, TransactionId: %v, User: %v, "
@@ -201,7 +210,7 @@ private:
             return;
         }
 
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (table->IsNative()) {
             table->SetCurrentMountTransactionId(TTransactionId());
         }
 
@@ -228,7 +237,6 @@ private:
         bool freeze = request->freeze();
         auto mountTimestamp = static_cast<TTimestamp>(request->mount_timestamp());
         auto tableId = FromProto<TTableId>(request->table_id());
-        auto path = request->path();
         auto targetCellIds = FromProto<std::vector<TTabletCellId>>(request->target_cell_ids());
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Aborting table mount (TableId: %v, TransactionId: %v, User: %v, "
@@ -250,7 +258,7 @@ private:
             return;
         }
 
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (table->IsNative()) {
             table->SetCurrentMountTransactionId(TTransactionId());
         }
     }
@@ -276,7 +284,7 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = AsTableNodeSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
 
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (table->IsNative()) {
             table->ValidateNoCurrentMountTransaction("Cannot unmount table");
             table->SetCurrentMountTransactionId(transaction->GetId());
         }
@@ -314,7 +322,7 @@ private:
             return;
         }
 
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (table->IsNative()) {
             table->SetCurrentMountTransactionId(TTransactionId());
         }
 
@@ -351,7 +359,7 @@ private:
             return;
         }
 
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (table->IsNative()) {
             table->SetCurrentMountTransactionId(TTransactionId());
         }
     }
@@ -375,7 +383,7 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = AsTableNodeSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
 
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (table->IsNative()) {
             table->ValidateNoCurrentMountTransaction("Cannot freeze table");
             table->SetCurrentMountTransactionId(transaction->GetId());
         }
@@ -410,7 +418,7 @@ private:
             return;
         }
 
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (table->IsNative()) {
             table->SetCurrentMountTransactionId(TTransactionId());
         }
 
@@ -444,7 +452,7 @@ private:
             return;
         }
 
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (table->IsNative()) {
             table->SetCurrentMountTransactionId(TTransactionId());
         }
     }
@@ -468,7 +476,7 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = AsTableNodeSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
 
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (table->IsNative()) {
             table->ValidateNoCurrentMountTransaction("Cannot unfreeze table");
             table->SetCurrentMountTransactionId(transaction->GetId());
         }
@@ -503,7 +511,7 @@ private:
             return;
         }
 
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (table->IsNative()) {
             table->SetCurrentMountTransactionId(TTransactionId());
         }
 
@@ -538,7 +546,7 @@ private:
             return;
         }
 
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (table->IsNative()) {
             table->SetCurrentMountTransactionId(TTransactionId());
         }
     }
@@ -562,7 +570,7 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = AsTableNodeSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
 
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (table->IsNative()) {
             table->ValidateNoCurrentMountTransaction("Cannot remount table");
             table->SetCurrentMountTransactionId(transaction->GetId());
         }
@@ -597,7 +605,7 @@ private:
             return;
         }
 
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (table->IsNative()) {
             table->SetCurrentMountTransactionId(TTransactionId());
         }
 
@@ -629,7 +637,7 @@ private:
             return;
         }
 
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (table->IsNative()) {
             table->SetCurrentMountTransactionId(TTransactionId());
         }
     }
@@ -657,7 +665,7 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = AsTableNodeSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
 
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (table->IsNative()) {
             table->ValidateNoCurrentMountTransaction("Cannot reshard table");
             table->SetCurrentMountTransactionId(transaction->GetId());
         }
@@ -702,7 +710,7 @@ private:
             return;
         }
 
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (table->IsNative()) {
             table->SetCurrentMountTransactionId(TTransactionId());
         }
 
@@ -742,15 +750,8 @@ private:
             return;
         }
 
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (table->IsNative()) {
             table->SetCurrentMountTransactionId(TTransactionId());
-        }
-    }
-
-    void ValidateNoParentTransaction(TTransaction* transaction)
-    {
-        if (transaction->GetParent()) {
-            THROW_ERROR_EXCEPTION("Operation cannot be performed in transaction");
         }
     }
 };

@@ -3,14 +3,15 @@
 #include "public.h"
 
 #include <yt/server/lib/scheduler/scheduling_tag.h>
-
-#include <yt/client/api/public.h>
+#include <yt/server/lib/scheduler/structs.h>
 
 #include <yt/ytlib/controller_agent/proto/controller_agent_service.pb.h>
 
 #include <yt/ytlib/security_client/acl.h>
 
 #include <yt/ytlib/transaction_client/public.h>
+
+#include <yt/client/api/public.h>
 
 #include <yt/core/ytree/public.h>
 
@@ -32,7 +33,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNodePtr, SecureVault);
     DEFINE_BYVAL_RW_PROPERTY(NSecurityClient::TSerializableAccessControlList, Acl);
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::TTransactionId, UserTransactionId);
-    DEFINE_BYREF_RO_PROPERTY(NScheduler::TPoolTreeToSchedulingTagFilter, PoolTreeToSchedulingTagFilter);
+    DEFINE_BYREF_RO_PROPERTY(NScheduler::TPoolTreeControllerSettingsMap, PoolTreeControllerSettingsMap);
     DEFINE_BYVAL_RW_PROPERTY(NYTAlloc::TMemoryTag, MemoryTag);
     DEFINE_BYVAL_RW_PROPERTY(std::vector<NTransactionClient::TTransactionId>, WatchTransactionIds);
     DEFINE_BYVAL_RW_PROPERTY(IOperationControllerPtr, Controller);

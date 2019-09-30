@@ -45,7 +45,7 @@ class DynamicTablesBase(YTEnvSetup):
 
     DELTA_MASTER_CONFIG = {
         "tablet_manager": {
-            "leader_reassignment_timeout" : 1000,
+            "leader_reassignment_timeout" : 2000,
             "peer_revocation_timeout" : 3000,
         },
         "chunk_manager": {
@@ -187,20 +187,14 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
             insert_rows("//tmp/t", rows)
             assert lookup_rows("//tmp/t", keys) == rows
 
-    def _wait_for_cells_good_after_peer_decommission(self, cell_id):
+    def _wait_for_cells_good_after_peer_decommission(self, cell_id, decommissioned_addresses):
         def check():
-            if get("#{0}/@health".format(cell_id)) != "good":
-                return False
-
             peers = get("#{0}/@peers".format(cell_id))
             expected_config_version = get("#{0}/@config_version".format(cell_id))
 
             for peer in peers:
-                if "address" not in peer:
-                    return False
-
-                address = peer["address"]
-                if get("//sys/cluster_nodes/{0}/@decommissioned".format(address)):
+                address = peer.get("address", decommissioned_addresses[0])
+                if address in decommissioned_addresses:
                     return False
 
                 try:
@@ -212,6 +206,9 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
                         return False
                 except:
                     return False
+
+            if get("#{0}/@health".format(cell_id)) != "good":
+                return False
 
             return True
 
@@ -229,7 +226,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         follower_address = list(x["address"] for x in peers if x["state"] == "following")[0]
 
         set_node_decommissioned(follower_address, True)
-        self._wait_for_cells_good_after_peer_decommission(cell_id)
+        self._wait_for_cells_good_after_peer_decommission(cell_id, [follower_address])
 
         for i in xrange(0, 100):
             rows = [{"key": i, "value": "test"}]
@@ -254,7 +251,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         follower_address = list(x["address"] for x in peers if x["state"] == "following")[0]
 
         set_node_decommissioned(leader_address, True)
-        self._wait_for_cells_good_after_peer_decommission(cell_id)
+        self._wait_for_cells_good_after_peer_decommission(cell_id, [leader_address])
 
         assert get("#" + cell_id + "/@health") == "good"
         peers = get("#" + cell_id + "/@peers")
@@ -277,8 +274,8 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
 
         cell_id = ls("//sys/tablet_cells")[0]
 
-        self._decommission_all_peers(cell_id)
-        self._wait_for_cells_good_after_peer_decommission(cell_id)
+        addresses = self._decommission_all_peers(cell_id)
+        self._wait_for_cells_good_after_peer_decommission(cell_id, addresses)
 
         assert lookup_rows("//tmp/t", keys) == rows
 
@@ -635,13 +632,12 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
     @authors("babenko")
     def test_table_with_custom_cell_bundle(self):
         create_tablet_cell_bundle("b")
-        assert get("//sys/tablet_cell_bundles/@ref_counter") == 1
         create("table", "//tmp/t", attributes={"tablet_cell_bundle": "b"})
         assert get("//tmp/t/@tablet_cell_bundle") == "b"
-        assert get("//sys/tablet_cell_bundles/b/@ref_counter") == 2
+        remove("//sys/tablet_cell_bundles/b")
+        assert get("//sys/tablet_cell_bundles/b/@life_stage") in ["removal_started", "removal_pre_committed"]
         remove("//tmp/t")
-        gc_collect()
-        assert get("//sys/tablet_cell_bundles/b/@ref_counter") == 1
+        wait(lambda: not exists("//sys/tablet_cell_bundles/b"))
 
     @authors("babenko")
     def test_table_with_custom_cell_bundle_name_validation(self):
@@ -1076,13 +1072,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
     def test_mount_with_target_cell_ids(self, external):
         cells = sync_create_cells(4)
 
-        decommissioner_config = {
-            "enable_tablet_cell_decommission": False,
-            "decommission_check_period": 100,
-            "orphans_check_period": 100,
-        }
-
-        set("//sys/@config/tablet_manager/tablet_cell_decommissioner", decommissioner_config)
+        set("//sys/@config/tablet_manager/tablet_cell_decommissioner/enable_tablet_cell_decommission", False)
         remove("#{0}".format(cells[3]))
         assert get("#{0}/@tablet_cell_life_stage".format(cells[3])) != "running"
 
@@ -1174,13 +1164,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         insert_rows("//tmp/t", rows1)
 
-        decommissioner_config = {
-            "enable_tablet_cell_removal": False,
-            "decommission_check_period": 100,
-            "orphans_check_period": 100,
-        }
-
-        set("//sys/@config/tablet_manager/tablet_cell_decommissioner", decommissioner_config)
+        set("//sys/@config/tablet_manager/tablet_cell_decommissioner/enable_tablet_cell_removal", False)
         set("//sys/tablet_cell_bundles/b/@dynamic_options/suppress_tablet_cell_decommission", True)
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
@@ -1203,7 +1187,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         set("//sys/tablet_cell_bundles/b/@dynamic_options/suppress_tablet_cell_decommission", False)
         wait(lambda: get("//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}/life_stage".format(address, cell)) == "decommissioned")
 
-        remove("//sys/@config/tablet_manager/tablet_cell_decommissioner")
+        set("//sys/@config/tablet_manager/tablet_cell_decommissioner/enable_tablet_cell_removal", True)
         wait(lambda: not exists("#{0}".format(cell)))
 
     @authors("savrus")
@@ -1257,7 +1241,6 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
     @authors("ifsmirnov")
     def test_chunk_view_attributes(self):
-        set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False)
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
         set("//tmp/t/@enable_compaction_and_partitioning", False)
@@ -1452,7 +1435,12 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
 
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t", account="test_account")
+        wait(lambda: get("//tmp/t/@resource_usage/tablet_count") == 1)
+
+        # Wait for usage propagation to primary.
         wait(lambda: get("//sys/accounts/test_account/@resource_usage/tablet_count") == 1)
+        # Wait for usage propagation from primary.
+        wait(lambda: get("//sys/accounts/test_account/@resource_usage/tablet_count", driver=get_driver(get("//tmp/t/@native_cell_tag"))) == 1)
 
         with pytest.raises(YtError):
             copy("//tmp/t", "//tmp/t_copy", preserve_account=True)
@@ -1472,6 +1460,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         self._create_sorted_table("//tmp/t", account="test_account1")
 
         self._verify_resource_usage("test_account1", "tablet_count", 1)
+        wait(lambda: get("//tmp/t/@resource_usage/tablet_count") == 1)
 
         create("map_node", "//tmp/dir", attributes={"account": "test_account2"})
 
@@ -1680,7 +1669,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
 class TestDynamicTableStateTransitions(DynamicTablesBase):
     DELTA_MASTER_CONFIG = {
         "tablet_manager": {
-            "leader_reassignment_timeout" : 1000,
+            "leader_reassignment_timeout" : 2000,
             "peer_revocation_timeout" : 600000,
         }
     }
@@ -1759,8 +1748,9 @@ class TestDynamicTableStateTransitions(DynamicTablesBase):
                     self._get_callback(second_command)("//tmp/t")
         else:
             self._get_callback(first_command)("//tmp/t")
+            wait(lambda: get("//tmp/t/@tablet_state") in ["mounted", "unmounted", "frozen"])
             self._get_callback(second_command)("//tmp/t")
-            wait_for_tablet_state("//tmp/t", expected)
+            wait(lambda: get("//tmp/t/@tablet_state") == expected)
         wait(lambda: get("//tmp/t/@tablet_state") != "transient")
 
     @authors("savrus", "levysotsky")
@@ -1816,31 +1806,26 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
     @authors("savrus")
     def test_external_dynamic(self):
         cells = sync_create_cells(1)
-        self._create_sorted_table("//tmp/t", external_cell_tag=1)
-        assert get("//tmp/t/@external") == True
+        self._create_sorted_table("//tmp/t", external=True, external_cell_tag=2)
+        assert get("//tmp/t/@external")
         cell_tag = get("//tmp/t/@external_cell_tag")
         table_id = get("//tmp/t/@id")
 
-        driver = get_driver(1)
+        driver = get_driver(2)
         assert get("#{0}/@dynamic".format(table_id), driver=driver)
         assert get("#{0}/@dynamic".format(table_id))
 
         sync_mount_table("//tmp/t")
 
-        assert get("//sys/tablet_cells/{0}/@tablet_count".format(cells[0]), driver=driver) == 1
-        assert get("//sys/tablet_cells/{0}/@tablet_count".format(cells[0])) == 1
+        wait(lambda: get("//sys/tablet_cells/{0}/@tablet_count".format(cells[0]), driver=driver) == 1)
+        wait(lambda: get("//sys/tablet_cells/{0}/@tablet_count".format(cells[0])) == 1)
 
         tablet = get("//tmp/t/@tablets/0")
         assert get("//sys/tablet_cells/{0}/@tablet_ids".format(cells[0]), driver=driver) == [tablet["tablet_id"]]
         assert get("//sys/tablet_cells/{0}/@tablet_ids".format(cells[0])) == [tablet["tablet_id"]]
 
-        multicell_sleep()
-
-        multicell_statistics = get("//sys/tablet_cells/{0}/@multicell_statistics".format(cells[0]))
-        statistics = get("//sys/tablet_cells/{0}/@total_statistics".format(cells[0]))
-
-        assert multicell_statistics[str(cell_tag)]["tablet_count"] == 1
-        assert statistics["tablet_count"] == 1
+        wait(lambda:  get("//sys/tablet_cells/{0}/@multicell_statistics".format(cells[0]))[str(cell_tag)]["tablet_count"] ==  1)
+        wait(lambda: get("//sys/tablet_cells/{0}/@total_statistics".format(cells[0]))["tablet_count"] == 1)
 
         rows = [{"key": 0, "value": "0"}]
         keys = [{"key": r["key"]} for r in rows]
@@ -1849,20 +1834,12 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
 
         sync_freeze_table("//tmp/t")
 
-        multicell_sleep()
-
-        primary_data_size = get("//tmp/t/@uncompressed_data_size")
-        secondary_data_size = get("#" + table_id + "/@uncompressed_data_size", driver=driver)
-        assert primary_data_size == secondary_data_size
+        wait(lambda: get("//tmp/t/@uncompressed_data_size") == get("#{}/@uncompressed_data_size".format(table_id), driver=driver))
 
         sync_compact_table("//tmp/t")
         sync_unmount_table("//tmp/t")
 
-        multicell_sleep()
-
-        primary_data_size = get("//tmp/t/@uncompressed_data_size")
-        secondary_data_size = get("#" + table_id + "/@uncompressed_data_size", driver=driver)
-        assert primary_data_size == secondary_data_size
+        wait(lambda: get("//tmp/t/@uncompressed_data_size") == get("#{}/@uncompressed_data_size".format(table_id), driver=driver))
 
     @authors("savrus")
     def test_peer_change_on_prerequisite_transaction_abort(self):
@@ -1913,11 +1890,20 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
         wait_for_tablet_state("//tmp/t", expected_state)
         assert get("//tmp/t/@tablets/0/state") == expected_state
 
+class TestDynamicTablesPortal(TestDynamicTablesMulticell):
+    ENABLE_TMP_PORTAL = True
+
 class TestDynamicTablesResourceLimitsMulticell(TestDynamicTablesResourceLimits):
     NUM_SECONDARY_MASTER_CELLS = 2
 
+class TestDynamicTablesResourceLimitsPortal(TestDynamicTablesResourceLimitsMulticell):
+    ENABLE_TMP_PORTAL = True
+
 class TestDynamicTableStateTransitionsMulticell(TestDynamicTableStateTransitions):
     NUM_SECONDARY_MASTER_CELLS = 2
+
+class TestDynamicTableStateTransitionsPoral(TestDynamicTableStateTransitionsMulticell):
+    ENABLE_TMP_PORTAL = True
 
 ##################################################################
 
@@ -1947,10 +1933,3 @@ class TestDynamicTablesWithModernCompressionRpcProxy(DynamicTablesSingleCellBase
         "enable_legacy_rpc_codecs": False
     }
 
-class TestDynamicTablesResourceLimitsRpcProxy(TestDynamicTablesResourceLimits):
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-
-class TestDynamicTableStateTransitionsRpcProxy(TestDynamicTableStateTransitions):
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True

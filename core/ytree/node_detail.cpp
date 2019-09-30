@@ -131,7 +131,7 @@ void TNodeBase::DoRemoveSelf()
 {
     auto parent = GetParent();
     if (!parent) {
-        ThrowCannotRemoveRoot();
+        ThrowCannotRemoveNode(this);
     }
     parent->AsComposite()->RemoveChild(this);
 }
@@ -277,10 +277,11 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
             auto child = FindChild(key);
             if (!child) {
                 if (method == "Exists" ||
+                    method == "Remove" ||
+                    method == "Set" ||
                     method == "Create" ||
                     method == "Copy" ||
-                    method == "Remove" ||
-                    method == "Set")
+                    method == "EndCopy")
                 {
                     return IYPathService::TResolveResultHere{"/" + path};
                 } else {

@@ -68,11 +68,22 @@ bool TSchedulingContextBase::CanSchedule(const TSchedulingTagFilter& filter) con
     return filter.IsEmpty() || filter.CanSchedule(NodeTags_);
 }
 
+bool TSchedulingContextBase::ShouldAbortJobsSinceResourcesOvercommit() const
+{
+    bool resourcesOvercommitted = !Dominates(ResourceLimits(), ResourceUsage());
+    auto now = NProfiling::CpuInstantToInstant(GetNow());
+    bool allowedOvercommitTimePassed = Node_->GetResourcesOvercommitStartTime()
+        ? Node_->GetResourcesOvercommitStartTime() + Config_->AllowedNodeResourcesOvercommitDuration < now
+        : false;
+    return resourcesOvercommitted && allowedOvercommitTimePassed;
+}
+
 void TSchedulingContextBase::StartJob(
     const TString& treeId,
     TOperationId operationId,
     TIncarnationId incarnationId,
-    const TJobStartDescriptor& startDescriptor)
+    const TJobStartDescriptor& startDescriptor,
+    EPreemptionMode preemptionMode)
 {
     ResourceUsage_ += startDescriptor.ResourceLimits.ToJobResources();
     if (startDescriptor.ResourceLimits.GetDiskQuota() > 0) {
@@ -88,6 +99,7 @@ void TSchedulingContextBase::StartJob(
         startTime,
         startDescriptor.ResourceLimits.ToJobResources(),
         startDescriptor.Interruptible,
+        preemptionMode,
         treeId);
     StartedJobs_.push_back(job);
 }
@@ -96,6 +108,12 @@ void TSchedulingContextBase::PreemptJob(const TJobPtr& job)
 {
     YT_VERIFY(job->GetNode() == Node_);
     PreemptedJobs_.push_back(job);
+}
+
+void TSchedulingContextBase::PreemptJobGracefully(const TJobPtr& job)
+{
+    YT_VERIFY(job->GetNode() == Node_);
+    GracefullyPreemptedJobs_.push_back(job);
 }
 
 TJobResources TSchedulingContextBase::GetNodeFreeResourcesWithoutDiscount()

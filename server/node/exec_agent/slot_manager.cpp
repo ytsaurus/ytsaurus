@@ -223,7 +223,7 @@ std::optional<i64> TSlotManager::GetMemoryLimit() const
         : std::nullopt;
 }
 
-std::optional<i64> TSlotManager::GetCpuLimit() const
+std::optional<double> TSlotManager::GetCpuLimit() const
 {
     return JobEnvironment_ && JobEnvironment_->IsEnabled()
        ? JobEnvironment_->GetCpuLimit()

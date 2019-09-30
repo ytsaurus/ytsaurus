@@ -352,7 +352,7 @@ private:
         void InvokeNext()
         {
             if (CurrentIndex_ >= Owner_->Authenticators_.size()) {
-                Promise_.Set(TError("Authentication failed")
+                Promise_.Set(TError(NSecurityClient::EErrorCode::AuthenticationError, "Authentication failed")
                     << Errors_);
                 return;
             }

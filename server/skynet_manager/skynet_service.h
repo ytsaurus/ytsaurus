@@ -27,10 +27,10 @@ public:
 
 private:
     const TRequestKey Request_;
-    TClusterConnectionPtr Cluster_;
-    TAnnouncerPtr Announcer_;
+    const TClusterConnectionPtr Cluster_;
+    const TAnnouncerPtr Announcer_;
 
-    NLogging::TLogger Logger;
+    const NLogging::TLogger Logger;
 
     void Run();
 };
@@ -62,7 +62,7 @@ public:
     std::vector<TRowRangeLocation> FetchSkynetPartsLocations(
         const NYPath::TYPath& path);
 
-    TErrorOr<i64> CheckTableAttributes(
+    TErrorOr<NHydra::TRevision> CheckTableAttributes(
         const NYPath::TRichYPath& path);
 
 private:
@@ -122,7 +122,7 @@ private:
     void SyncResourcesLoop(TClusterConnectionPtr cluster);
     void ReapRemovedTablesLoop(TClusterConnectionPtr cluster);
 
-    TClusterConnectionPtr GetCluster(const TString& clusterName) const;
+    TClusterConnectionPtr GetClusterOrThrow(const TString& clusterName) const;
 
     void WriteShareReply(
         const NHttp::IResponseWriterPtr& rsp,

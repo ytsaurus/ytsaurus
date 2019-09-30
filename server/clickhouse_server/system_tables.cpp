@@ -51,15 +51,15 @@ void AttachRelevantClickHouseSystemTables(IDatabase& system)
     AttachSystemTablesServer(system);
 }
 
-void AttachCliqueSystemTable(IDatabase& system, TDiscoveryPtr cliqueTracker)
+void AttachCliqueSystemTable(IDatabase& system, TDiscoveryPtr discovery, const TString& instanceId)
 {
-    system.attachTable("clique", CreateStorageSystemClique(cliqueTracker, "clique"));
+    system.attachTable("clique", CreateStorageSystemClique(discovery, "clique", instanceId));
 }
 
-void AttachSystemTables(IDatabase& system, TDiscoveryPtr cliqueTracker)
+void AttachSystemTables(IDatabase& system, TDiscoveryPtr discovery, const TString& instanceId)
 {
     AttachRelevantClickHouseSystemTables(system);
-    AttachCliqueSystemTable(system, cliqueTracker);
+    AttachCliqueSystemTable(system, discovery, instanceId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

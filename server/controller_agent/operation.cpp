@@ -28,7 +28,7 @@ TOperation::TOperation(const NProto::TOperationDescriptor& descriptor)
         : NYTree::IMapNodePtr())
     , Acl_(ConvertTo<TSerializableAccessControlList>(TYsonString(descriptor.acl())))
     , UserTransactionId_(FromProto<NTransactionClient::TTransactionId>(descriptor.user_transaction_id()))
-    , PoolTreeToSchedulingTagFilter_(FromProto<TPoolTreeToSchedulingTagFilter>(descriptor.pool_tree_scheduling_tag_filters()))
+    , PoolTreeControllerSettingsMap_(FromProto<TPoolTreeControllerSettingsMap>(descriptor.pool_tree_controller_settings_map()))
 { }
 
 const IOperationControllerPtr& TOperation::GetControllerOrThrow() const

@@ -83,6 +83,8 @@ protected:
         ICommandContextPtr context,
         const std::function<void(NYson::IYsonConsumer*)>& producer);
 
+    bool ValidateSuperuserPermissions(const ICommandContextPtr& context) const;
+
     std::optional<bool> RewriteOperationPathOption;
     bool RewriteOperationPath = true;
 

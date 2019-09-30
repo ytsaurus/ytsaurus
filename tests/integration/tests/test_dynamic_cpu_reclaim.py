@@ -1,8 +1,8 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, wait, require_ytserver_root_privileges
+from yt_env_setup import YTEnvSetup, wait
 from yt_commands import *
-from yt_helpers import ProfileMetric
+from yt_helpers import *
 
 import time
 import copy
@@ -19,7 +19,6 @@ SPEC_WITH_CPU_MONITOR = {
 }
 
 
-@require_ytserver_root_privileges
 class TestAggregatedCpuMetrics(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
@@ -54,21 +53,25 @@ class TestAggregatedCpuMetrics(YTEnvSetup):
         }
     }
 
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
+
     @authors("renadeen")
     def test_sleeping(self):
-        with ProfileMetric.at_scheduler("scheduler/pools/metrics/aggregated_smoothed_cpu_usage_x100").with_tag("pool", "root") as smoothed_cpu, \
-                ProfileMetric.at_scheduler("scheduler/pools/metrics/aggregated_max_cpu_usage_x100").with_tag("pool", "root") as max_cpu, \
-                ProfileMetric.at_scheduler("scheduler/pools/metrics/aggregated_preemptable_cpu_x100").with_tag("pool", "root") as preemptable_cpu:
-            run_sleeping_vanilla(spec=SPEC_WITH_CPU_MONITOR)
+        smoothed_cpu_delta = Metric.at_scheduler(
+            "scheduler/pools/metrics/aggregated_smoothed_cpu_usage_x100",
+            with_tags={"pool": "root"})
+        max_cpu_delta = Metric.at_scheduler(
+            "scheduler/pools/metrics/aggregated_max_cpu_usage_x100",
+            with_tags={"pool": "root"})
+        preemptable_cpu_delta = Metric.at_scheduler(
+            "scheduler/pools/metrics/aggregated_preemptable_cpu_x100",
+            with_tags={"pool": "root"})
 
-        wait(lambda: preemptable_cpu.update_profile().differentiate() > 0)
-        smoothed_cpu_diff = smoothed_cpu.update_profile().differentiate()
-        assert smoothed_cpu_diff > 0
-        assert smoothed_cpu_diff < max_cpu.update_profile().differentiate()
+        run_sleeping_vanilla(spec=SPEC_WITH_CPU_MONITOR)
 
-        print_debug(preemptable_cpu.differentiate())
-        print_debug(smoothed_cpu.differentiate())
-        print_debug(max_cpu.differentiate())
+        wait(lambda: preemptable_cpu_delta.update().get(verbose=True) > 0)
+        wait(lambda: smoothed_cpu_delta.update().get(verbose=True) > 0)
+        wait(lambda: smoothed_cpu_delta.update().get(verbose=True) < max_cpu_delta.update().get(verbose=True))
 
     @authors("renadeen")
     @pytest.mark.xfail(run=True, reason="Works fine locally but fails at tc. Need to observe it a bit.")
@@ -76,29 +79,37 @@ class TestAggregatedCpuMetrics(YTEnvSetup):
         spec = copy.deepcopy(SPEC_WITH_CPU_MONITOR)
         spec["job_cpu_monitor"]["min_cpu_limit"] = 1
 
-        with ProfileMetric.at_scheduler("scheduler/pools/metrics/aggregated_smoothed_cpu_usage_x100").with_tag("pool", "root") as smoothed_cpu, \
-                ProfileMetric.at_scheduler("scheduler/pools/metrics/aggregated_max_cpu_usage_x100").with_tag("pool", "root") as max_cpu, \
-                ProfileMetric.at_scheduler("scheduler/pools/metrics/aggregated_preemptable_cpu_x100").with_tag("pool", "root") as preemptable_cpu:
-            op = run_test_vanilla(with_breakpoint("BREAKPOINT; while true; do : ; done"), spec)
-            wait_breakpoint()
-            release_breakpoint()
-            time.sleep(0.2)
-            op.abort()
+        smoothed_cpu_delta = Metric.at_scheduler(
+            "scheduler/pools/metrics/aggregated_smoothed_cpu_usage_x100",
+            with_tags={"pool": "root"})
+        max_cpu_delta = Metric.at_scheduler(
+            "scheduler/pools/metrics/aggregated_max_cpu_usage_x100",
+            with_tags={"pool": "root"})
+        preemptable_cpu_delta = Metric.at_scheduler(
+            "scheduler/pools/metrics/aggregated_preemptable_cpu_x100",
+            with_tags={"pool": "root"})
 
-        print_debug(smoothed_cpu.differentiate())
-        print_debug(max_cpu.differentiate())
-        print_debug(preemptable_cpu.differentiate())
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT; while true; do : ; done"), spec)
+        wait_breakpoint()
+        release_breakpoint()
+        time.sleep(0.2)
+        op.abort()
 
-        assert smoothed_cpu.differentiate() > 0
-        assert smoothed_cpu.differentiate() < max_cpu.differentiate()
-        assert preemptable_cpu.differentiate() == 0
+        wait(lambda: smoothed_cpu_delta.update().get(verbose=True) > 0)
+        wait(lambda: smoothed_cpu_delta.update().get(verbose=True) < max_cpu_delta.update().get(verbose=True))
+        wait(lambda: preemptable_cpu_delta.update().get(verbose=True) == 0)
 
 
-@require_ytserver_root_privileges
 class TestDynamicCpuReclaim(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "allowed_node_resources_overcommit_duration": 600 * 1000,
+        }
+    }
 
     DELTA_NODE_CONFIG = {
         "exec_agent": {
@@ -118,6 +129,8 @@ class TestDynamicCpuReclaim(YTEnvSetup):
             }
         }
     }
+
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     @authors("renadeen")
     def test_dynamic_cpu_statistics(self):
@@ -157,7 +170,7 @@ class TestDynamicCpuReclaim(YTEnvSetup):
         release_breakpoint("Op1")
         wait(lambda: len(op2.get_running_jobs()) == 0)
         wait(lambda: get(op2.get_path() + "/@progress/jobs/aborted/scheduled/resource_overdraft") == 1)
-        assert len(op1.get_running_jobs()) == 1
+        wait(lambda: len(op1.get_running_jobs()) == 1)
 
     def wait_and_get_stats_path(self, job_id):
         node = ls("//sys/cluster_nodes")[0]
@@ -166,7 +179,6 @@ class TestDynamicCpuReclaim(YTEnvSetup):
         return result
 
 
-@require_ytserver_root_privileges
 class TestSchedulerAbortsJobOnLackOfCpu(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
@@ -195,6 +207,8 @@ class TestSchedulerAbortsJobOnLackOfCpu(YTEnvSetup):
         }
     }
 
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
+
     @authors("renadeen")
     def test_scheduler_aborts_job_on_lack_of_cpu(self):
         set("//sys/pool_trees/default/@max_unpreemptable_running_job_count", 0)
@@ -213,10 +227,9 @@ class TestSchedulerAbortsJobOnLackOfCpu(YTEnvSetup):
 
         wait(lambda: len(op2.get_running_jobs()) == 1)
         wait(lambda: get(op2.get_path() + "/@progress/jobs/aborted/scheduled/preemption") == 1)
-        assert len(op1.get_running_jobs()) == 1
+        wait(lambda: len(op1.get_running_jobs()) == 1)
 
 
-@require_ytserver_root_privileges
 class TestNodeAbortsJobOnLackOfMemory(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
@@ -232,6 +245,8 @@ class TestNodeAbortsJobOnLackOfMemory(YTEnvSetup):
             }
         }
     }
+
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     @authors("renadeen")
     @pytest.mark.xfail(run = False, reason = "Currently broken")

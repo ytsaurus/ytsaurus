@@ -46,6 +46,9 @@ public:
     void UnregisterZombie(TObject* object);
     void DestroyZombie(TObject* object);
 
+    void RegisterRemovalAwaitingCellsSyncObject(TObject* object);
+    void UnregisterRemovalAwaitingCellsSyncObject(TObject* object);
+
     TObject* GetWeakGhostObject(TObjectId id);
 
     void Reset();
@@ -63,6 +66,7 @@ private:
     const TClosure DynamicConfigChangedCallback_ = BIND(&TGarbageCollector::OnDynamicConfigChanged, MakeWeak(this));
 
     NConcurrency::TPeriodicExecutorPtr SweepExecutor_;
+    NConcurrency::TPeriodicExecutorPtr ObjectRemovalCellsSyncExecutor_;
 
     //! Contains objects with zero ref counter.
     //! These are ready for IObjectTypeHandler::Destroy call.
@@ -85,6 +89,9 @@ private:
     //! The total number of locked objects, including ghosts.
     int LockedObjectCount_ = 0;
 
+    //! Objects in |RemovalAwaitingCellsSync| life stage.
+    THashSet<TObject*> RemovalAwaitingCellsSyncObjects_;
+
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
@@ -92,6 +99,7 @@ private:
     void ClearEphemeralGhosts();
 
     void OnSweep();
+    void OnObjectRemovalCellsSync();
     bool IsRecovery();
 
     const TDynamicObjectManagerConfigPtr& GetDynamicConfig();

@@ -38,9 +38,6 @@
 #include <TableFunctions/TableFunctionFactory.h>
 
 #include <Poco/Glob.h>
-#include <Poco/Logger.h>
-
-#include <common/logger_useful.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -233,12 +230,8 @@ private:
 class TListFilterAndConcatenateTables
     : public ITableFunction
 {
-private:
-    Poco::Logger* Logger;
-
 public:
-    TListFilterAndConcatenateTables(Poco::Logger* logger)
-        : Logger(logger)
+    TListFilterAndConcatenateTables()
     { }
 
     virtual StoragePtr executeImpl(const ASTPtr& functionAst, const Context& context) const override
@@ -284,11 +277,6 @@ public:
     }
 
 protected:
-    Poco::Logger* GetLogger() const
-    {
-        return Logger;
-    }
-
     virtual std::vector<TRichYPath> FilterTables(
         const std::vector<TRichYPath>& tablePaths,
         TArguments& arguments,
@@ -327,7 +315,7 @@ class TConcatenateTablesRange
 {
 public:
     TConcatenateTablesRange()
-        : TListFilterAndConcatenateTables(&Poco::Logger::get("ConcatYtTablesRange"))
+        : TListFilterAndConcatenateTables()
     { }
 
     static std::string GetName()
@@ -388,8 +376,7 @@ class TConcatenateTablesRegexp
 {
 public:
     TConcatenateTablesRegexp()
-        : TListFilterAndConcatenateTables(
-            &Poco::Logger::get("ConcatYtTablesRegexp"))
+        : TListFilterAndConcatenateTables()
     {}
 
     static std::string GetName()
@@ -432,7 +419,7 @@ class TConcatenateTablesLike
 {
 public:
     TConcatenateTablesLike()
-        : TListFilterAndConcatenateTables(&Poco::Logger::get("ConcatYtTablesLike"))
+        : TListFilterAndConcatenateTables()
     {}
 
     static std::string GetName()

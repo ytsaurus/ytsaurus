@@ -32,7 +32,7 @@ def get_profile_from_table(operation_id, job_id):
 def checked_list_jobs(*args, **kwargs):
     res = list_jobs(*args, **kwargs)
     if res["errors"]:
-        raise YtError(message="list_jobs failed", inner_erros=res["errors"])
+        raise YtError(message="list_jobs failed", inner_errors=res["errors"])
     return res
 
 
@@ -257,7 +257,9 @@ class TestListJobs(YTEnvSetup):
                     group_start_idx += len(correct_group)
 
     @staticmethod
-    def _check_during_map(op, job_ids, data_source):
+    def _check_during_map(op, job_ids, data_source, enable_cypress_job_nodes):
+        assert not(data_source == "runtime" and not enable_cypress_job_nodes), "Cannot check incomplete responses"
+
         res = checked_list_jobs(op.id, data_source=data_source)
         assert __builtin__.set(job["id"] for job in res["jobs"]) == __builtin__.set(job_ids["map"])
         assert res["type_counts"] == {"partition_map": 5}
@@ -268,6 +270,13 @@ class TestListJobs(YTEnvSetup):
         if data_source == "runtime":
             assert res["cypress_job_count"] == 2
             assert res["archive_job_count"] == yson.YsonEntity()
+        elif data_source == "auto":
+            if enable_cypress_job_nodes:
+                assert res["cypress_job_count"] == 2
+                assert res["archive_job_count"] == yson.YsonEntity()
+            else:
+                assert res["cypress_job_count"] == 0
+                assert res["archive_job_count"] == 5
         else:
             assert data_source == "archive"
             assert res["cypress_job_count"] == yson.YsonEntity()
@@ -280,7 +289,9 @@ class TestListJobs(YTEnvSetup):
         TestListJobs._validate_sorting(op, answers_for_sorting, data_source=data_source)
 
     @staticmethod
-    def _check_during_reduce(op, job_ids, data_source):
+    def _check_during_reduce(op, job_ids, data_source, enable_cypress_job_nodes):
+        assert not(data_source == "runtime" and not enable_cypress_job_nodes), "Cannot check incomplete responses"
+
         res = checked_list_jobs(op.id, data_source=data_source)
         assert __builtin__.set(job["id"] for job in res["jobs"]) == __builtin__.set(job_ids["reduce"] + job_ids["map"])
         assert res["type_counts"] == {"partition_reduce": 1, "partition_map": 5}
@@ -291,6 +302,13 @@ class TestListJobs(YTEnvSetup):
         if data_source == "runtime":
             assert res["cypress_job_count"] == 5
             assert res["archive_job_count"] == yson.YsonEntity()
+        elif data_source == "auto":
+            if enable_cypress_job_nodes:
+                assert res["cypress_job_count"] == 5
+                assert res["archive_job_count"] == yson.YsonEntity()
+            else:
+                assert res["cypress_job_count"] == 0
+                assert res["archive_job_count"] == 6
         else:
             assert data_source == "archive"
             assert res["cypress_job_count"] == yson.YsonEntity()
@@ -303,7 +321,10 @@ class TestListJobs(YTEnvSetup):
         TestListJobs._validate_sorting(op, answers_for_sorting, data_source=data_source)
 
     @staticmethod
-    def _check_after_finish(op, job_ids, data_source):
+    def _check_after_finish(op, job_ids, data_source, enable_cypress_job_nodes, operation_cleaned):
+        if data_source == "runtime":
+            assert enable_cypress_job_nodes and not operation_cleaned, "Cannot check incomplete responses"
+
         res = checked_list_jobs(op.id, data_source=data_source)
         assert __builtin__.set(job["id"] for job in res["jobs"]) == __builtin__.set(job_ids["reduce"] + job_ids["map"])
         assert res["type_counts"] == {"partition_reduce": 1, "partition_map": 5}
@@ -314,8 +335,14 @@ class TestListJobs(YTEnvSetup):
         if data_source == "runtime":
             assert res["cypress_job_count"] == 6
             assert res["archive_job_count"] == yson.YsonEntity()
+        elif data_source == "auto" and not operation_cleaned:
+            if enable_cypress_job_nodes:
+                assert res["cypress_job_count"] == 6
+                assert res["archive_job_count"] == yson.YsonEntity()
+            else:
+                assert res["cypress_job_count"] == 0
+                assert res["archive_job_count"] == 6
         else:
-            assert data_source == "archive"
             assert res["cypress_job_count"] == yson.YsonEntity()
             assert res["archive_job_count"] == 6
 
@@ -390,28 +417,69 @@ class TestListJobs(YTEnvSetup):
 
     @authors("levysotsky")
     @add_failed_operation_stderrs_to_error_message
-    @pytest.mark.parametrize("data_source", ["runtime", "archive"])
-    def test_list_jobs(self, data_source):
-        op, job_ids = self._run_op_and_wait_mapper_breakpoint()
-
-        wait_assert(self._check_during_map, op, job_ids, data_source=data_source)
-
-        release_breakpoint(breakpoint_name="mapper")
-        job_ids["reduce"] = wait_breakpoint(breakpoint_name="reducer", job_count=1)
-
-        wait_assert(self._check_during_reduce, op, job_ids, data_source=data_source)
-
-        release_breakpoint(breakpoint_name="reducer")
-        op.track()
-
-        wait_assert(self._check_after_finish, op, job_ids, data_source=data_source)
-
-        if data_source == "runtime":
+    @pytest.mark.parametrize("data_source", ["runtime", "archive", "auto"])
+    @pytest.mark.parametrize("enable_cypress_job_nodes", [True, False])
+    def test_list_jobs(self, data_source, enable_cypress_job_nodes):
+        # This test does not check incomplete responses.
+        if data_source == "runtime" and not enable_cypress_job_nodes:
             return
 
-        clean_operations()
+        original_enable_cypress_job_nodes = None
+        instances = ls("//sys/controller_agents/instances")
+        orchid_path = \
+            "//sys/controller_agents/instances/{}/orchid/controller_agent/config/enable_cypress_job_nodes".format(instances[0])
+        try:
+            original_enable_cypress_job_nodes = get(orchid_path)
+            set("//sys/controller_agents/config/enable_cypress_job_nodes", enable_cypress_job_nodes, recursive=True)
+            wait(lambda: get(orchid_path) == enable_cypress_job_nodes)
 
-        wait_assert(self._check_after_finish, op, job_ids, data_source=data_source)
+            op, job_ids = self._run_op_and_wait_mapper_breakpoint()
+
+            wait_assert(
+                self._check_during_map,
+                op,
+                job_ids,
+                data_source=data_source,
+                enable_cypress_job_nodes=enable_cypress_job_nodes)
+
+            release_breakpoint(breakpoint_name="mapper")
+            job_ids["reduce"] = wait_breakpoint(breakpoint_name="reducer", job_count=1)
+
+            wait_assert(
+                self._check_during_reduce,
+                op,
+                job_ids,
+                data_source=data_source,
+                enable_cypress_job_nodes=enable_cypress_job_nodes)
+
+            release_breakpoint(breakpoint_name="reducer")
+            op.track()
+
+            wait_assert(
+                self._check_after_finish,
+                op,
+                job_ids,
+                data_source=data_source,
+                enable_cypress_job_nodes=enable_cypress_job_nodes,
+                operation_cleaned=False)
+
+            if data_source == "runtime":
+                return
+
+            clean_operations()
+
+            wait_assert(
+                self._check_after_finish,
+                op,
+                job_ids,
+                data_source=data_source,
+                enable_cypress_job_nodes=enable_cypress_job_nodes,
+                operation_cleaned=True)
+        finally:
+            # TODO(ignat): move it to teardown.
+            if original_enable_cypress_job_nodes is not None:
+                set("//sys/controller_agents/config/enable_cypress_job_nodes", original_enable_cypress_job_nodes, recursive=True)
+                wait(lambda: get(orchid_path) == original_enable_cypress_job_nodes)
 
     @authors("ermolovd", "levysotsky")
     @pytest.mark.parametrize("data_source", ["runtime", "archive"])
@@ -512,7 +580,7 @@ class TestListJobs(YTEnvSetup):
             return len(jobs) == 1
         wait(check)
 
-    @authors("asaitgalin", "levysotsky")
+    @authors("levysotsky")
     def test_stderrs_and_hash_buckets_storage(self):
         input_table, output_table = self._create_tables()
         op = map(
@@ -531,7 +599,7 @@ class TestListJobs(YTEnvSetup):
         assert len(jobs) == 1
         assert jobs[0]["stderr_size"] > 0
 
-    @authors("asaitgalin", "levysotsky")
+    @authors("levysotsky")
     def test_list_jobs_of_vanilla_operation(self):
         spec = {
             "tasks": {

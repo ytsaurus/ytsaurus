@@ -229,7 +229,7 @@ TEST_F(TLoggingTest, LogManager)
 
     auto configNode = ConvertToNode(TYsonString(configText));
 
-    auto config = ConvertTo<TLogConfigPtr>(configNode);
+    auto config = ConvertTo<TLogManagerConfigPtr>(configNode);
 
     TLogManager::Get()->Configure(config);
 
@@ -362,7 +362,7 @@ TEST_F(TLoggingTest, DISABLED_LogFatal)
 
     auto configNode = ConvertToNode(TYsonString(configText));
 
-    auto config = ConvertTo<TLogConfigPtr>(configNode);
+    auto config = ConvertTo<TLogManagerConfigPtr>(configNode);
 
     TLogManager::Get()->Configure(config);
 
@@ -399,7 +399,7 @@ TEST_F(TLoggingTest, TraceSuppression)
 
     auto configNode = ConvertToNode(TYsonString(configText));
 
-    auto config = ConvertTo<TLogConfigPtr>(configNode);
+    auto config = ConvertTo<TLogManagerConfigPtr>(configNode);
 
     TLogManager::Get()->Configure(config);
 
@@ -462,7 +462,7 @@ protected:
         })";
 
         auto configNode = ConvertToNode(TYsonString(configText));
-        auto config = ConvertTo<TLogConfigPtr>(configNode);
+        auto config = ConvertTo<TLogManagerConfigPtr>(configNode);
         TLogManager::Get()->Configure(config);
     }
 

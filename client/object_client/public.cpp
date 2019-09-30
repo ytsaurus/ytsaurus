@@ -8,14 +8,6 @@ namespace NYT::NObjectClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TObjectId NullObjectId;
-const TTransactionId NullTransactionId;
-
-////////////////////////////////////////////////////////////////////////////////
-
-TVersionedObjectId::TVersionedObjectId()
-{ }
-
 TVersionedObjectId::TVersionedObjectId(TObjectId objectId)
     : ObjectId(objectId)
 { }

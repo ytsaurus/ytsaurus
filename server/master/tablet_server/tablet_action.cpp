@@ -73,7 +73,8 @@ bool TTabletAction::IsFinished() const
 
 TString ToString(const TTabletAction& action)
 {
-    return Format("ActionId: %v, State: %v, Kind: %v, SkipFreezing: %v, Freeze: %v, TabletCount: %v, Tablets: %v, Cells: %v, PivotKeys: %v, TabletBalancerCorrelationid: %v, ExpirationTime: %v",
+    return Format("ActionId: %v, State: %v, Kind: %v, SkipFreezing: %v, Freeze: %v, TabletCount: %v, Tablets: %v, "
+        "Cells: %v, PivotKeys: %v, TabletBalancerCorrelationId: %v, ExpirationTime: %v",
         action.GetId(),
         action.GetState(),
         action.GetKind(),

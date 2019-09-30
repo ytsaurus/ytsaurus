@@ -248,9 +248,7 @@ void TLockCommand::DoExecute(ICommandContextPtr context)
                     .BeginMap()
                         .Item("lock_id").Value(lockResult.LockId)
                         .Item("node_id").Value(lockResult.NodeId)
-                        .DoIf(static_cast<bool>(lockResult.Revision), [&] (TFluentMap fluent) {
-                            fluent.Item("revision").Value(*lockResult.Revision);
-                        })
+                        .Item("revision").Value(lockResult.Revision)
                     .EndMap();
             });
             break;
@@ -289,9 +287,11 @@ TCopyCommand::TCopyCommand()
         .Optional();
     RegisterParameter("preserve_account", Options.PreserveAccount)
         .Optional();
-    RegisterParameter("preserve_expiration_time", Options.PreserveExpirationTime)
-        .Optional();
     RegisterParameter("preserve_creation_time", Options.PreserveCreationTime)
+        .Optional();
+    RegisterParameter("preserve_modifcation_time", Options.PreserveModificationTime)
+        .Optional();
+    RegisterParameter("preserve_expiration_time", Options.PreserveExpirationTime)
         .Optional();
     RegisterParameter("pessimistic_quota_check", Options.PessimisticQuotaCheck)
         .Optional();
@@ -320,6 +320,10 @@ TMoveCommand::TMoveCommand()
     RegisterParameter("force", Options.Force)
         .Optional();
     RegisterParameter("preserve_account", Options.PreserveAccount)
+        .Optional();
+    RegisterParameter("preserve_creation_time", Options.PreserveCreationTime)
+        .Optional();
+    RegisterParameter("preserve_modifcation_time", Options.PreserveModificationTime)
         .Optional();
     RegisterParameter("preserve_expiration_time", Options.PreserveExpirationTime)
         .Optional();
@@ -415,6 +419,25 @@ void TConcatenateCommand::DoExecute(ICommandContextPtr context)
         .ThrowOnError();
 
     ProduceEmptyOutput(context);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TExternalizeCommand::TExternalizeCommand()
+{
+    RegisterParameter("path", Path);
+    RegisterParameter("cell_tag", CellTag);
+}
+
+void TExternalizeCommand::DoExecute(ICommandContextPtr context)
+{
+    auto asyncResult = context->GetClient()->ExternalizeNode(
+        Path,
+        CellTag,
+        Options);
+
+    WaitFor(asyncResult)
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -16,8 +16,6 @@
 #include <yt/core/misc/collection_helpers.h>
 #include <yt/core/misc/finally.h>
 
-#include <yt/core/concurrency/fiber.h>
-
 #include <unordered_set>
 
 namespace NYT::NQueryClient {
@@ -44,8 +42,7 @@ namespace {
 
 void CheckStackDepth()
 {
-    auto* scheduler = TryGetCurrentScheduler();
-    if (scheduler && !scheduler->GetCurrentFiber()->CheckFreeStackSpace(MinimumStackFreeSpace)) {
+    if (!CheckFreeStackSpace(MinimumStackFreeSpace)) {
         THROW_ERROR_EXCEPTION("Expression depth causes stack overflow");
     }
 }
@@ -2754,6 +2751,10 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
 
     if (ast.Limit) {
         query->Limit = *ast.Limit;
+
+        if (!query->OrderClause && query->HavingClause) {
+            THROW_ERROR_EXCEPTION("HAVING with LIMIT is not allowed");
+        }
     } else if (query->OrderClause) {
         THROW_ERROR_EXCEPTION("ORDER BY used without LIMIT");
     }

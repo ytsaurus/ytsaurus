@@ -470,7 +470,25 @@ DEFINE_REFCOUNTED_TYPE(TProtobufFormatConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchemalessWebJsonFormatConfig
+DEFINE_ENUM(EWebJsonValueFormat,
+    // Values are stringified and (de-)serialized together with their types in form
+    // |"column_name": {"$type": "double", "$value": "3.141592"}|.
+    // Strings with length exceeding |FieldWeightLimit| are truncated and meta-attribute
+    // "$incomplete" with value |true| is added to the representation, i.e.
+    // |"column_name": {"$type": "string", "$incomplete": true, "$value": "Some very long st"}|
+    (Schemaless)
+
+    // Values are stringified and (de-)serialized in form
+    // |<column_name>: [ <value>,  <stringified-type-index>]|, i.e. |"column_name": ["3.141592", "3"]|.
+    // Type indices point to type registry stored under "yql_type_registry" key.
+    // Non-UTF-8 strings are Base64-encoded and enclosed in an additional single-item list:
+    //    | "column_name": [["aqw=="], "4"] |.
+    //
+    // |FieldWeightLimit| is currently ignored.
+    (Yql)
+);
+
+class TWebJsonFormatConfig
     : public NYTree::TYsonSerializable
 {
 public:
@@ -478,11 +496,12 @@ public:
     int FieldWeightLimit;
     int MaxAllColumnNamesCount;
     std::optional<std::vector<TString>> ColumnNames;
+    EWebJsonValueFormat ValueFormat;
 
     // Intentionally do not reveal following options to user.
     bool SkipSystemColumns = true;
 
-    TSchemalessWebJsonFormatConfig()
+    TWebJsonFormatConfig()
     {
         RegisterParameter("max_selected_column_count", MaxSelectedColumnCount)
             .Default(50)
@@ -495,10 +514,12 @@ public:
             .GreaterThanOrEqual(0);
         RegisterParameter("column_names", ColumnNames)
             .Default();
+        RegisterParameter("value_format", ValueFormat)
+            .Default(EWebJsonValueFormat::Schemaless);
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TSchemalessWebJsonFormatConfig)
+DEFINE_REFCOUNTED_TYPE(TWebJsonFormatConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

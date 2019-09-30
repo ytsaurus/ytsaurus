@@ -225,10 +225,10 @@ public:
 
         auto req = TYPathProxy::Multiset(GetOperationPath(operationId) + "/@");
         GenerateMutationId(req);
-        for (const auto& key : attributes->List()) {
+        for (const auto& [key, value] : attributes->ListPairs()) {
             auto* subrequest = req->add_subrequests();
             subrequest->set_key(key);
-            subrequest->set_value(attributes->GetYson(key).GetData());
+            subrequest->set_value(value.GetData());
         }
         batchReq->AddRequest(req);
 
@@ -916,15 +916,15 @@ private:
             auto user = attributes.Get<TString>("authenticated_user");
 
             YT_VERIFY(attributes.Contains("runtime_parameters"));
-            TOperationRuntimeParametersPtr runtimeParams = attributes.Get<TOperationRuntimeParametersPtr>("runtime_parameters");
+            auto runtimeParameters = attributes.Get<TOperationRuntimeParametersPtr>("runtime_parameters");
             if (spec->AddAuthenticatedUserToAcl) {
                 TSerializableAccessControlEntry ace(
                     ESecurityAction::Allow,
                     std::vector<TString>{user},
                     EPermissionSet(EPermission::Read | EPermission::Manage));
-                auto it = std::find(runtimeParams->Acl.Entries.begin(), runtimeParams->Acl.Entries.end(), ace);
-                if (it == runtimeParams->Acl.Entries.end()) {
-                    runtimeParams->Acl.Entries.push_back(std::move(ace));
+                auto it = std::find(runtimeParameters->Acl.Entries.begin(), runtimeParameters->Acl.Entries.end(), ace);
+                if (it == runtimeParameters->Acl.Entries.end()) {
+                    runtimeParameters->Acl.Entries.push_back(std::move(ace));
                 }
             }
 
@@ -937,7 +937,7 @@ private:
                 specString,
                 attributes.Find<IMapNodePtr>("annotations"),
                 secureVault,
-                runtimeParams,
+                runtimeParameters,
                 Owner_->Bootstrap_->GetScheduler()->GetOperationBaseAcl(),
                 user,
                 attributes.Get<TInstant>("start_time"),

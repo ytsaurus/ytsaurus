@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <yt/server/lib/core_dump/core_processor_service_proxy.h>
+#include <yt/server/lib/core_dump/helpers.h>
 #include <yt/server/lib/core_dump/public.h>
 
 #include <yt/ytlib/chunk_client/public.h>
@@ -21,7 +22,7 @@ namespace NYT::NJobProxy {
 
 struct TCoreResult
 {
-    std::vector<NCoreDump::NProto::TCoreInfo> CoreInfos;
+    NCoreDump::TCoreInfos CoreInfos;
     NScheduler::NProto::TOutputResult BoundaryKeys;
 };
 

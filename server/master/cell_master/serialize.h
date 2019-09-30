@@ -79,13 +79,23 @@ DEFINE_ENUM(EMasterReign,
     ((YT_10952_DelayedMembershipClosureRecomputation)                (836))  // babenko
     ((YT_10726_StagedChunkExpiration)                                (837))  // shakurov
     ((ChunkViewToParentsArray)                                       (838))  // ifsmirnov
-    ((YT_10639_CumulativeStatisticsInDynamicTables)                  (839))  // ifsmirnov
+    ((FixTableStatistics)                                            (839))  // savrus
+    ((YT_10639_CumulativeStatisticsInDynamicTables)                  (899))  // ifsmirnov
     ((PortalsInitial)                                                (900))  // babenko
     ((CypressShards)                                                 (901))  // babenko
     ((BulkInsert)                                                    (902))  // savrus
-    ((ShardedUploads)                                                (903))  // babenko
     ((TransactionDepth)                                              (904))  // babenko
     ((MorePortalAttributes)                                          (905))  // babenko
+    ((CypressShardName)                                              (906))  // babenko
+    ((YT_10855_EpochHistoryManager)                                  (907))  // ifsmirnov
+    ((AddReplicatedTableCopy)                                        (908))  // avmatrosov
+    ((YT_11349_FixCypressMoveWithEscapedSymbols)                     (910))  // kiselyovp
+    ((AddRefsFromTransactionToUsageAccounts)                         (911))  // babenko
+    ((ExternalizedTransactions)                                      (912))  // babenko
+    ((SyncCellsBeforeRemoval)                                        (913))  // babenko
+    ((RequestLimits)                                                 (914))  // aozeritsky
+    ((TwoSidedPortalRemoval)                                         (915))  // babenko
+    ((YT_10745_Annotation)                                           (916))  // avmatrosov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

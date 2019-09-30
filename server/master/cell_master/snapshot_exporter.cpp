@@ -2,15 +2,19 @@
 #include "hydra_facade.h"
 
 #include <yt/server/master/cypress_server/cypress_manager.h>
+#include <yt/server/master/cypress_server/node.h>
 
 #include <yt/core/misc/numeric_helpers.h>
 
 #include <yt/core/ytree/fluent.h>
+#include <yt/core/ytree/public.h>
+
 
 namespace NYT::NCellMaster {
 
 using namespace NYTree;
 using namespace NYson;
+using namespace NCypressServer;
 using namespace NObjectClient;
 using namespace NObjectServer;
 
@@ -110,7 +114,6 @@ DEFINE_REFCOUNTED_TYPE(TExportArgumentsConfig)
     "tablet_cell_bundle", \
     "in_memory_mode", \
     "optimize_for", \
-    "path", \
 
 static const std::vector<TString> preset_keys_small = {
     BASIC_KEYS
@@ -136,26 +139,31 @@ void DoExportSnapshot(
     const auto& objectManager = bootstrap->GetObjectManager();
     const auto& cypressManager = bootstrap->GetCypressManager();
 
-    auto sortedValues = GetValuesSortedByKey(cypressManager->Nodes());
+    std::vector<TCypressNode*> sortedNodes;
+    sortedNodes.reserve(cypressManager->Nodes().size());
+    for (const auto& [nodeId, node] : cypressManager->Nodes()) {
+        // Nodes under transaction have zero RefCounter and are not considered alive.
+        if (IsObjectAlive(node) || node->GetTrunkNode() != node) {
+            sortedNodes.emplace_back(node);
+        }
+    }
+    std::sort(sortedNodes.begin(), sortedNodes.end(), TObjectRefComparer::Compare);
 
     if (!lowerIndex.has_value()) {
         lowerIndex = 0;
     }
     if (!upperIndex.has_value()) {
-        upperIndex = sortedValues.size();
+        upperIndex = sortedNodes.size();
     }
     if (jobIndex.has_value()) {
-        int nodesPerJob = DivCeil(static_cast<int>(sortedValues.size()), *jobCount);
+        int nodesPerJob = DivCeil(static_cast<int>(sortedNodes.size()), *jobCount);
         lowerIndex = *jobIndex * nodesPerJob;
         upperIndex = *lowerIndex + nodesPerJob;
     }
-    upperIndex = std::min(*upperIndex, static_cast<int>(sortedValues.size()));
+    upperIndex = std::min(*upperIndex, static_cast<int>(sortedNodes.size()));
 
     for (int nodeIdx = *lowerIndex; nodeIdx < *upperIndex; ++nodeIdx) {
-        auto node = sortedValues[nodeIdx];
-        if (!IsObjectAlive(node)) {
-            continue;
-        }
+        auto node = sortedNodes[nodeIdx];
 
         auto nodeType = node->GetType();
         // Skip sys_node. Such node has attributes that cannot be exported
@@ -167,9 +175,6 @@ void DoExportSnapshot(
             continue;
         }
 
-        auto nodeProxy = objectManager->GetProxy(node, nullptr);
-        const auto& nodeAttributes = nodeProxy->Attributes();
-        std::vector<TString> keys = searchedKeys.empty() ? nodeAttributes.List() : searchedKeys;
         auto writer = CreateYsonWriter(
             &Cout,
             EYsonFormat::Text,
@@ -177,25 +182,48 @@ void DoExportSnapshot(
             /* enableRaw */ false,
             /* booleanAsString */ false);
 
+        auto transaction = node->GetTransaction();
         BuildYsonFluently(writer.get())
-            .DoMapFor(keys, [&] (TFluentMap fluent, const TString& key) {
+            .BeginMap()
+            .DoIf(transaction, [&] (TFluentMap fluent) {
                 fluent
-                    .DoIf(key == "path", [&] (TFluentMap fluent) {
+                    .Item("cypress_transaction_id")
+                    .Value(transaction->GetId());
+            })
+            .Do([&] (TFluentMap fluent) {
+                auto nodeProxy = objectManager->GetProxy(node->GetTrunkNode(), node->GetTransaction());
+                const auto& nodeAttributes = nodeProxy->Attributes();
+                auto keys = searchedKeys.empty() ? nodeAttributes.ListKeys() : searchedKeys;
+
+                fluent
+                    .Item("path")
+                    .Value(cypressManager->GetNodePath(node->GetTrunkNode(), node->GetTransaction()));
+
+                fluent
+                    .DoFor(keys, [&] (TFluentMap fluent, const TString &key) {
                         fluent
-                            .Item(key)
-                            .Value(cypressManager->GetNodePath(node, nullptr));
-                    })
-                    .DoIf(key != "path", [&] (TFluentMap fluent) {
-                        // Safely using FindYson because primary master doesn't store some attributes of dynamic tables.
-                        auto result = nodeAttributes.FindYson(key);
-                        fluent
-                            .DoIf(static_cast<bool>(result), [&] (TFluentMap fluent) {
-                                  fluent
-                                      .Item(key)
-                                      .Value(result);
+                            .Do([&] (TFluentMap fluent) {
+                                // Safely using FindYson because primary master doesn't store some attributes of dynamic tables.
+                                auto result = nodeAttributes.FindYson(key);
+                                fluent
+                                    .DoIf(static_cast<bool>(result), [&] (TFluentMap fluent) {
+                                        auto node = ConvertToNode(result);
+                                        // Attributes are forbidden on zero depth,
+                                        // but we still want to have them (e.g. for schema).
+                                        if (!node->Attributes().ListKeys().empty()) {
+                                            fluent
+                                                .Item(key + "_attributes")
+                                                .Value(node->Attributes());
+                                            node->MutableAttributes()->Clear();
+                                        }
+                                        fluent
+                                            .Item(key)
+                                            .Value(node);
+                                    });
                             });
                     });
-            });
+            })
+            .EndMap();
 
         writer->Flush();
         Cout << ";" << Endl;

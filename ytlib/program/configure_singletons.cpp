@@ -9,7 +9,7 @@
 
 #include <yt/core/logging/log_manager.h>
 
-#include <yt/core/concurrency/fiber.h>
+#include <yt/core/concurrency/execution_stack.h>
 
 #include <yt/core/net/local_address.h>
 

@@ -46,6 +46,9 @@ class TBootstrap;
 // TODO(mrkastep) Move to private.h
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategyOperationState)
 
+struct THistoricUsageAggregationParameters;
+class THistoricUsageAggregator;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler

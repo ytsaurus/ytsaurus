@@ -908,7 +908,8 @@ std::pair<TTableSchema, INodePtr> CreateSchemaAndConfigWithStructuredMessage()
             {"field_missing_from_proto1", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
             {"enum_field", SimpleLogicalType(ESimpleLogicalValueType::String)},
             {"int64_field", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-            {"int64_list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"repeated_int64_field", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"another_repeated_int64_field", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
             {"message_field", StructLogicalType({
                 {"key", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
                 {"value", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
@@ -923,6 +924,7 @@ std::pair<TTableSchema, INodePtr> CreateSchemaAndConfigWithStructuredMessage()
             {"field_missing_from_proto2", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
         })},
         {"repeated_int64_field", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+        {"another_repeated_int64_field", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
         {"repeated_message_field", ListLogicalType(StructLogicalType({
             {"key", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
             {"value", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
@@ -1001,8 +1003,14 @@ std::pair<TTableSchema, INodePtr> CreateSchemaAndConfigWithStructuredMessage()
                                     .EndList()
                                 .EndMap()
                                 .Item().BeginMap()
-                                    .Item("name").Value("int64_list")
+                                    .Item("name").Value("repeated_int64_field")
                                     .Item("field_number").Value(3)
+                                    .Item("proto_type").Value("int64")
+                                    .Item("repeated").Value(true)
+                                .EndMap()
+                                .Item().BeginMap()
+                                    .Item("name").Value("another_repeated_int64_field")
+                                    .Item("field_number").Value(9)
                                     .Item("proto_type").Value("int64")
                                     .Item("repeated").Value(true)
                                 .EndMap()
@@ -1098,6 +1106,13 @@ std::pair<TTableSchema, INodePtr> CreateSchemaAndConfigWithStructuredMessage()
                         .EndMap()
                         .Item()
                         .BeginMap()
+                            .Item("name").Value("another_repeated_int64_field")
+                            .Item("field_number").Value(13)
+                            .Item("proto_type").Value("int64")
+                            .Item("repeated").Value(true)
+                        .EndMap()
+                        .Item()
+                        .BeginMap()
                             // In schema it is of type "any".
                             .Item("name").Value("any_field")
                             .Item("field_number").Value(5)
@@ -1170,6 +1185,7 @@ TEST(TProtobufFormat, WriteStructuredMessage)
     auto secondId = nameTable->RegisterName("second");
     auto repeatedMessageId = nameTable->RegisterName("repeated_message_field");
     auto repeatedInt64Id = nameTable->RegisterName("repeated_int64_field");
+    auto anotherRepeatedInt64Id = nameTable->RegisterName("another_repeated_int64_field");
     auto anyFieldId = nameTable->RegisterName("any_field");
     auto int64FieldId = nameTable->RegisterName("int64_field");
     auto uint64FieldId = nameTable->RegisterName("uint64_field");
@@ -1202,6 +1218,9 @@ TEST(TProtobufFormat, WriteStructuredMessage)
                 .Item().Value(55)
                 .Item().Value(56)
                 .Item().Value(57)
+            .EndList()
+            .Item()
+            .BeginList()
             .EndList()
             .Item()
             .BeginList()
@@ -1257,11 +1276,16 @@ TEST(TProtobufFormat, WriteStructuredMessage)
             .Item().Value(33)
         .EndList();
 
+    auto anotherRepeatedInt64Yson = BuildYsonStringFluently()
+        .BeginList()
+        .EndList();
+
     TUnversionedRowBuilder builder;
     builder.AddValue(MakeUnversionedAnyValue(firstYson.GetData(), firstId));
     builder.AddValue(MakeUnversionedAnyValue(secondYson.GetData(), secondId));
     builder.AddValue(MakeUnversionedAnyValue(repeatedMessageYson.GetData(), repeatedMessageId));
     builder.AddValue(MakeUnversionedAnyValue(repeatedInt64Yson.GetData(), repeatedInt64Id));
+    builder.AddValue(MakeUnversionedAnyValue(anotherRepeatedInt64Yson.GetData(), anotherRepeatedInt64Id));
     builder.AddValue(MakeUnversionedInt64Value(4321, anyFieldId));
 
     builder.AddValue(MakeUnversionedInt64Value(-64, int64FieldId));
@@ -1295,6 +1319,10 @@ TEST(TProtobufFormat, WriteStructuredMessage)
         first.repeated_int64_field().begin(),
         first.repeated_int64_field().end());
     EXPECT_EQ(firstRepeatedInt64Field, (std::vector<i64>{55, 56, 57}));
+    std::vector<i64> firstAnotherRepeatedInt64Field(
+        first.another_repeated_int64_field().begin(),
+        first.another_repeated_int64_field().end());
+    EXPECT_EQ(firstAnotherRepeatedInt64Field, (std::vector<i64>{}));
     EXPECT_EQ(first.message_field().key(), "key");
     EXPECT_EQ(first.message_field().value(), "value");
     ASSERT_EQ(first.repeated_message_field_size(), 2);
@@ -1330,6 +1358,11 @@ TEST(TProtobufFormat, WriteStructuredMessage)
         message.repeated_int64_field().begin(),
         message.repeated_int64_field().end());
     EXPECT_EQ(repeatedInt64Field, (std::vector<i64>{31, 32, 33}));
+
+    std::vector<i64> anotherRepeatedInt64Field(
+        message.another_repeated_int64_field().begin(),
+        message.another_repeated_int64_field().end());
+    EXPECT_EQ(anotherRepeatedInt64Field, (std::vector<i64>{}));
 
     EXPECT_EQ(message.int64_any_field(), 4321);
 
@@ -1367,6 +1400,8 @@ TEST(TProtobufFormat, ParseStructuredMessage)
     first->add_repeated_int64_field(56);
     first->add_repeated_int64_field(57);
 
+    // another_repeated_int64_field is intentionally empty.
+
     first->mutable_message_field()->set_key("key");
     first->mutable_message_field()->set_value("value");
     auto* firstSubfield1 = first->add_repeated_message_field();
@@ -1392,6 +1427,8 @@ TEST(TProtobufFormat, ParseStructuredMessage)
     message.add_repeated_int64_field(31);
     message.add_repeated_int64_field(32);
     message.add_repeated_int64_field(33);
+
+    // another_repeated_int64_field is intentionally empty.
 
     auto* subfield1 = message.add_repeated_message_field();
     subfield1->set_key("key11");
@@ -1428,7 +1465,7 @@ TEST(TProtobufFormat, ParseStructuredMessage)
     auto firstNode = GetAny(rowCollector.GetRowValue(0, "first"));
     ASSERT_EQ(firstNode->GetType(), ENodeType::List);
     const auto& firstList = firstNode->AsList();
-    ASSERT_EQ(firstList->GetChildCount(), 10);
+    ASSERT_EQ(firstList->GetChildCount(), 11);
 
     EXPECT_EQ(firstList->GetChild(0)->GetType(), ENodeType::Entity);
     EXPECT_EQ(firstList->GetChild(1)->GetValue<TString>(), "Two");
@@ -1438,38 +1475,41 @@ TEST(TProtobufFormat, ParseStructuredMessage)
     EXPECT_EQ(ConvertTo<std::vector<i64>>(firstList->GetChild(3)), (std::vector<i64>{55, 56, 57}));
 
     ASSERT_EQ(firstList->GetChild(4)->GetType(), ENodeType::List);
-    EXPECT_EQ(firstList->GetChild(4)->AsList()->GetChild(0)->GetValue<TString>(), "key");
-    EXPECT_EQ(firstList->GetChild(4)->AsList()->GetChild(1)->GetValue<TString>(), "value");
+    EXPECT_EQ(ConvertTo<std::vector<i64>>(firstList->GetChild(4)), (std::vector<i64>{}));
 
     ASSERT_EQ(firstList->GetChild(5)->GetType(), ENodeType::List);
-    ASSERT_EQ(firstList->GetChild(5)->AsList()->GetChildCount(), 2);
+    EXPECT_EQ(firstList->GetChild(5)->AsList()->GetChild(0)->GetValue<TString>(), "key");
+    EXPECT_EQ(firstList->GetChild(5)->AsList()->GetChild(1)->GetValue<TString>(), "value");
 
-    const auto& firstSubNode1 = firstList->GetChild(5)->AsList()->GetChild(0);
+    ASSERT_EQ(firstList->GetChild(6)->GetType(), ENodeType::List);
+    ASSERT_EQ(firstList->GetChild(6)->AsList()->GetChildCount(), 2);
+
+    const auto& firstSubNode1 = firstList->GetChild(6)->AsList()->GetChild(0);
     ASSERT_EQ(firstSubNode1->GetType(), ENodeType::List);
     ASSERT_EQ(firstSubNode1->AsList()->GetChildCount(), 2);
     EXPECT_EQ(firstSubNode1->AsList()->GetChild(0)->GetValue<TString>(), "key1");
     EXPECT_EQ(firstSubNode1->AsList()->GetChild(1)->GetValue<TString>(), "value1");
 
-    const auto& firstSubNode2 = firstList->GetChild(5)->AsList()->GetChild(1);
+    const auto& firstSubNode2 = firstList->GetChild(6)->AsList()->GetChild(1);
     ASSERT_EQ(firstSubNode2->GetType(), ENodeType::List);
     ASSERT_EQ(firstSubNode2->AsList()->GetChildCount(), 2);
     EXPECT_EQ(firstSubNode2->AsList()->GetChild(0)->GetValue<TString>(), "key2");
     EXPECT_EQ(firstSubNode2->AsList()->GetChild(1)->GetValue<TString>(), "value2");
 
-    ASSERT_EQ(firstList->GetChild(6)->GetType(), ENodeType::Int64);
-    EXPECT_EQ(firstList->GetChild(6)->GetValue<i64>(), 4422);
+    ASSERT_EQ(firstList->GetChild(7)->GetType(), ENodeType::Int64);
+    EXPECT_EQ(firstList->GetChild(7)->GetValue<i64>(), 4422);
 
-    ASSERT_EQ(firstList->GetChild(7)->GetType(), ENodeType::Map);
+    ASSERT_EQ(firstList->GetChild(8)->GetType(), ENodeType::Map);
     EXPECT_TRUE(AreNodesEqual(
-        firstList->GetChild(7),
+        firstList->GetChild(8),
         BuildYsonNodeFluently()
         .BeginMap()
             .Item("key").Value("value")
         .EndMap()));
 
-    ASSERT_EQ(firstList->GetChild(8)->GetType(), ENodeType::Entity);
-
     ASSERT_EQ(firstList->GetChild(9)->GetType(), ENodeType::Entity);
+
+    ASSERT_EQ(firstList->GetChild(10)->GetType(), ENodeType::Entity);
 
     auto secondNode = GetAny(rowCollector.GetRowValue(0, "second"));
     ASSERT_EQ(secondNode->GetType(), ENodeType::List);
@@ -1490,6 +1530,12 @@ TEST(TProtobufFormat, ParseStructuredMessage)
     ASSERT_EQ(subNode2->AsList()->GetChildCount(), 2);
     EXPECT_EQ(subNode2->AsList()->GetChild(0)->GetValue<TString>(), "key21");
     EXPECT_EQ(subNode2->AsList()->GetChild(1)->GetValue<TString>(), "value21");
+
+    auto repeatedInt64Node = GetAny(rowCollector.GetRowValue(0, "repeated_int64_field"));
+    EXPECT_EQ(ConvertTo<std::vector<i64>>(repeatedInt64Node), (std::vector<i64>{31, 32, 33}));
+
+    auto anotherRepeatedInt64Node = GetAny(rowCollector.GetRowValue(0, "another_repeated_int64_field"));
+    EXPECT_EQ(ConvertTo<std::vector<i64>>(anotherRepeatedInt64Node), (std::vector<i64>{}));
 
     auto anyValue = rowCollector.GetRowValue(0, "any_field");
     ASSERT_EQ(anyValue.Type, EValueType::Int64);
@@ -2216,6 +2262,10 @@ TEST_P(TProtobufFormatAllFields, Writer)
     auto otherBooleanColumnId = nameTable->RegisterName("OtherBooleanColumn");
     auto otherAnyColumnId = nameTable->RegisterName("OtherAnyColumn");
 
+    auto tableIndexColumnId = nameTable->RegisterName(TableIndexColumnName);
+    auto rowIndexColumnId = nameTable->RegisterName(RowIndexColumnName);
+    auto rangeIndexColumnId = nameTable->RegisterName(RangeIndexColumnName);
+
     auto missintInt64Id = nameTable->RegisterName("MissingInt64");
 
     TString result;
@@ -2272,6 +2322,10 @@ TEST_P(TProtobufFormatAllFields, Writer)
         MakeUnversionedStringValue(embeddedMessageBytes, messageId),
 
         MakeUnversionedNullValue(missintInt64Id),
+
+        MakeUnversionedInt64Value(12, tableIndexColumnId),
+        MakeUnversionedInt64Value(42, rowIndexColumnId),
+        MakeUnversionedInt64Value(333, rangeIndexColumnId),
     }) {
         builder.AddValue(value);
     }

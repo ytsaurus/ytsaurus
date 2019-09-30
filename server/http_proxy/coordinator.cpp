@@ -3,6 +3,7 @@
 #include "bootstrap.h"
 #include "config.h"
 #include "private.h"
+#include "api.h"
 
 #include <yt/ytlib/api/native/connection.h>
 
@@ -17,6 +18,9 @@
 #include <yt/core/concurrency/periodic_executor.h>
 
 #include <yt/core/net/local_address.h>
+
+#include <yt/core/profiling/profile_manager.h>
+#include <yt/core/profiling/resource_tracker.h>
 
 #include <yt/core/ytree/ypath_proxy.h>
 
@@ -57,6 +61,14 @@ TLiveness::TLiveness()
     RegisterParameter("load_average", LoadAverage)
         .Default();
     RegisterParameter("network_coef", NetworkCoef)
+        .Default();
+    RegisterParameter("user_cpu", UserCpu)
+        .Default();
+    RegisterParameter("system_cpu", SystemCpu)
+        .Default();
+    RegisterParameter("cpu_wait", CpuWait)
+        .Default();
+    RegisterParameter("concurrent_requests", ConcurrentRequests)
         .Default();
 }
 
@@ -109,6 +121,16 @@ TDynamicConfig::TDynamicConfig()
 {
     RegisterParameter("tracing", Tracing)
         .DefaultNew();
+
+    RegisterParameter("fitness_function", FitnessFunction)
+        .Default();
+
+    RegisterParameter("cpu_weight", CpuWeight)
+        .Default(1);
+    RegisterParameter("cpu_wait_weight", CpuWaitWeight)
+        .Default(10);
+    RegisterParameter("concurrent_requests_weight", ConcurrentRequestsWeight)
+        .Default(10);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -187,13 +209,25 @@ std::vector<TProxyEntryPtr> TCoordinator::ListProxies(std::optional<TString> rol
         }
     }
 
+    auto dynamicConfig = GetDynamicConfig();
+    TString fitnessFunction = dynamicConfig->FitnessFunction;
+
     std::vector<std::pair<double, TProxyEntryPtr>> ordered;
     for (const auto& proxy : filtered) {
-        auto adjustedNetworkLoad = std::pow(1.5, proxy->Liveness->NetworkCoef);
-        auto fitness = proxy->Liveness->LoadAverage * Config_->LoadAverageWeight
-            + adjustedNetworkLoad * Config_->NetworkLoadWeight
-            + proxy->Liveness->Dampening * Config_->DampeningWeight
-            + RandomNumber<double>() * Config_->RandomnessWeight;
+        auto liveness = proxy->Liveness;
+
+        double fitness = 0.0;
+        if (fitnessFunction == "cpu") {
+            fitness = (liveness->UserCpu + liveness->SystemCpu) * dynamicConfig->CpuWeight
+                + liveness->CpuWait * dynamicConfig->CpuWaitWeight
+                + liveness->ConcurrentRequests * dynamicConfig->ConcurrentRequestsWeight;
+        } else {
+            auto adjustedNetworkLoad = std::pow(1.5, liveness->NetworkCoef);
+            fitness = liveness->LoadAverage * Config_->LoadAverageWeight
+                + adjustedNetworkLoad * Config_->NetworkLoadWeight
+                + liveness->Dampening * Config_->DampeningWeight
+                + RandomNumber<double>() * Config_->RandomnessWeight;
+        }
 
         ordered.emplace_back(fitness, proxy);
     }
@@ -405,6 +439,13 @@ TLivenessPtr TCoordinator::GetSelfLiveness()
     double loadAverage;
     NSystemInfo::LoadAverage(&loadAverage, 1);
     liveness->LoadAverage = loadAverage;
+
+    auto resourceTracker = NProfiling::TProfileManager::Get()->GetResourceTracker();
+    liveness->UserCpu = resourceTracker->GetUserCpu();
+    liveness->SystemCpu = resourceTracker->GetSystemCpu();
+    liveness->CpuWait = resourceTracker->GetCpuWait();
+
+    liveness->ConcurrentRequests = Bootstrap_->GetApi()->GetNumberOfConcurrentRequests();
 
     auto networkStatistics = GetNetworkStatistics();
 

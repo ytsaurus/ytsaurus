@@ -14,7 +14,7 @@ TOperation::TOperation(
     , SpecString_(description.Spec)
     , AuthenticatedUser_(description.AuthenticatedUser)
     , StartTime_(description.StartTime)
-    , RuntimeParams_(runtimeParameters)
+    , RuntimeParameters_(runtimeParameters)
 { }
 
 NScheduler::TOperationId TOperation::GetId() const
@@ -72,7 +72,7 @@ const NYson::TYsonString& TOperation::GetSpecString() const
 
 NScheduler::TOperationRuntimeParametersPtr TOperation::GetRuntimeParameters() const
 {
-    return RuntimeParams_;
+    return RuntimeParameters_;
 }
 
 bool TOperation::SetCompleting()

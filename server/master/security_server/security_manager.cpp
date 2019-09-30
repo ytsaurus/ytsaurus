@@ -35,6 +35,8 @@
 
 #include <yt/server/master/transaction_server/transaction.h>
 
+#include <yt/server/master/object_server/object_manager.h>
+
 #include <yt/server/lib/hive/hive_manager.h>
 
 #include <yt/client/object_client/helpers.h>
@@ -296,6 +298,9 @@ public:
         FileCacheUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffef);
         OperationsCleanerUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffee);
         OperationsClientUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffed);
+        TabletCellChangeloggerUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffec);
+        TabletCellSnapshotterUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffeb);
+        TableMountInformerUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffea);
 
         EveryoneGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xffffffffffffffff);
         UsersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffe);
@@ -353,6 +358,18 @@ public:
         YT_VERIFY(AccountNameMap_.erase(account->GetName()) == 1);
     }
 
+    TAccount* GetAccountOrThrow(TAccountId id)
+    {
+        auto* account = FindAccount(id);
+        if (!IsObjectAlive(account)) {
+            THROW_ERROR_EXCEPTION(
+                NSecurityClient::EErrorCode::NoSuchAccount,
+                "No such account %v",
+                id);
+        }
+        return account;
+    }
+
     TAccount* FindAccountByName(const TString& name)
     {
         auto it = AccountNameMap_.find(name);
@@ -394,7 +411,7 @@ public:
 
     void UpdateResourceUsage(const TChunk* chunk, const TChunkRequisition& requisition, i64 delta)
     {
-        YT_VERIFY(!chunk->IsForeign());
+        YT_VERIFY(chunk->IsNative());
 
         auto doCharge = [] (TClusterResources* usage, int mediumIndex, i64 chunkCount, i64 diskSpace) {
             usage->DiskSpace[mediumIndex] += diskSpace;
@@ -442,15 +459,46 @@ public:
         ComputeChunkResourceDelta(chunk, requisition, delta, chargeTransaction);
     }
 
+    void ResetTransactionAccountResourceUsage(TTransaction* transaction)
+    {
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        for (const auto& [account, usage] : transaction->AccountResourceUsage()) {
+            objectManager->UnrefObject(account);
+        }
+        transaction->AccountResourceUsage().clear();
+    }
+
+    void RecomputeTransactionResourceUsage(TTransaction* transaction)
+    {
+        ResetTransactionAccountResourceUsage(transaction);
+
+        auto addNodeResourceUsage = [&] (const TCypressNode* node) {
+            if (node->IsExternal()) {
+                return;
+            }
+            auto* account = node->GetAccount();
+            auto* transactionUsage = GetTransactionAccountUsage(transaction, account);
+            *transactionUsage += node->GetDeltaResourceUsage();
+        };
+
+        for (auto* node : transaction->BranchedNodes()) {
+            addNodeResourceUsage(node);
+        }
+        for (auto* node : transaction->StagedNodes()) {
+            addNodeResourceUsage(node);
+        }
+    }
+
     void SetAccount(
         TCypressNode* node,
-        TAccount* oldAccount,
         TAccount* newAccount,
         TTransaction* transaction)
     {
         YT_VERIFY(node);
         YT_VERIFY(newAccount);
         YT_VERIFY(node->IsTrunk() == !transaction);
+
+        auto* oldAccount = node->GetAccount();
         YT_VERIFY(!oldAccount || !transaction);
 
         if (oldAccount == newAccount) {
@@ -500,7 +548,8 @@ public:
             return;
         }
 
-        auto resources = TClusterResources().SetNodeCount(node->GetDeltaResourceUsage().NodeCount) * delta;
+        auto resources = TClusterResources()
+            .SetNodeCount(node->GetDeltaResourceUsage().NodeCount) * delta;
 
         account->ClusterStatistics().ResourceUsage += resources;
         account->LocalStatistics().ResourceUsage += resources;
@@ -751,18 +800,41 @@ public:
     }
 
 
+    TSubject* FindSubject(TSubjectId id)
+    {
+        auto* user = FindUser(id);
+        if (IsObjectAlive(user)) {
+            return user;
+        }
+        auto* group = FindGroup(id);
+        if (IsObjectAlive(group)) {
+            return group;
+        }
+        return nullptr;
+    }
+
+    TSubject* GetSubjectOrThrow(TSubjectId id)
+    {
+        auto* subject = FindSubject(id);
+        if (!IsObjectAlive(subject)) {
+            THROW_ERROR_EXCEPTION(
+                NSecurityClient::EErrorCode::NoSuchSubject,
+                "No such subject %v",
+                id);
+        }
+        return subject;
+    }
+
     TSubject* FindSubjectByName(const TString& name)
     {
         auto* user = FindUserByName(name);
         if (IsObjectAlive(user)) {
             return user;
         }
-
         auto* group = FindGroupByName(name);
         if (IsObjectAlive(group)) {
             return group;
         }
-
         return nullptr;
     }
 
@@ -887,6 +959,14 @@ public:
         auto* acd = FindAcd(object);
         YT_VERIFY(acd);
         return acd;
+    }
+
+    std::optional<TString> GetEffectiveAnnotation(TCypressNode* node)
+    {
+        while (node && !node->GetAnnotation()) {
+            node = node->GetParent();
+        }
+        return node? node->GetAnnotation() : std::nullopt;
     }
 
     TAccessControlList GetEffectiveAcl(NObjectServer::TObject* object)
@@ -1170,7 +1250,7 @@ public:
             return;
         }
 
-        account->ValidateCreationCommitted();
+        account->ValidateActiveLifeStage();
 
         const auto& usage = account->ClusterStatistics().ResourceUsage;
         const auto& committedUsage = account->ClusterStatistics().CommittedResourceUsage;
@@ -1285,6 +1365,11 @@ public:
         RequestTracker_->SetUserRequestRateLimit(user, limit, type);
     }
 
+    void SetUserRequestLimits(TUser* user, TUserRequestLimitsConfigPtr config)
+    {
+        RequestTracker_->SetUserRequestLimits(user, std::move(config));
+    }
+
     void SetUserRequestQueueSizeLimit(TUser* user, int limit)
     {
         RequestTracker_->SetUserRequestQueueSizeLimit(user, limit);
@@ -1370,6 +1455,15 @@ private:
     TUserId OperationsClientUserId_;
     TUser* OperationsClientUser_ = nullptr;
 
+    TUserId TabletCellChangeloggerUserId_;
+    TUser* TabletCellChangeloggerUser_ = nullptr;
+
+    TUserId TabletCellSnapshotterUserId_;
+    TUser* TabletCellSnapshotterUser_ = nullptr;
+
+    TUserId TableMountInformerUserId_;
+    TUser* TableMountInformerUser_ = nullptr;
+
     NHydra::TEntityMap<TGroup> GroupMap_;
     THashMap<TString, TGroup*> GroupNameMap_;
 
@@ -1411,16 +1505,15 @@ private:
         return result;
     }
 
-    static TClusterResources* GetTransactionAccountUsage(TTransaction* transaction, TAccount* account)
+    TClusterResources* GetTransactionAccountUsage(TTransaction* transaction, TAccount* account)
     {
         auto it = transaction->AccountResourceUsage().find(account);
         if (it == transaction->AccountResourceUsage().end()) {
-            auto pair = transaction->AccountResourceUsage().insert(std::make_pair(account, TClusterResources()));
-            YT_VERIFY(pair.second);
-            return &pair.first->second;
-        } else {
-            return &it->second;
+            it = transaction->AccountResourceUsage().emplace(account, TClusterResources()).first;
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            objectManager->RefObject(account);
         }
+        return &it->second;
     }
 
     template <class T>
@@ -1494,9 +1587,10 @@ private:
 
     TGroup* GetBuiltinGroupForUser(TUser* user)
     {
-        // "guest" is a member of "everyone" group
-        // "root", "job", "scheduler", and "replicator" are members of "superusers" group
-        // others are members of "users" group
+        // "guest" is a member of "everyone" group.
+        // "root", "job", "scheduler", "replicator", "file_cache", "operations_cleaner", "operations_client",
+        // "tablet_cell_changelogger", "tablet_cell_snapshotter" and "tablet_mount_informer" are members of "superusers" group.
+        // others are members of "users" group.
         const auto& id = user->GetId();
         if (id == GuestUserId_) {
             return EveryoneGroup_;
@@ -1507,7 +1601,10 @@ private:
             id == ReplicatorUserId_ ||
             id == FileCacheUserId_ ||
             id == OperationsCleanerUserId_ ||
-            id == OperationsClientUserId_)
+            id == OperationsClientUserId_ ||
+            id == TabletCellChangeloggerUserId_ ||
+            id == TabletCellSnapshotterUserId_ ||
+            id == TableMountInformerUserId_)
         {
             return SuperusersGroup_;
         } else {
@@ -1923,6 +2020,9 @@ private:
         SchedulerUser_ = nullptr;
         OperationsCleanerUser_ = nullptr;
         OperationsClientUser_ = nullptr;
+        TabletCellChangeloggerUser_ = nullptr;
+        TabletCellSnapshotterUser_ = nullptr;
+        TableMountInformerUser_ = nullptr;
         ReplicatorUser_ = nullptr;
         OwnerUser_ = nullptr;
         FileCacheUser_ = nullptr;
@@ -2063,6 +2163,27 @@ private:
             OperationsClientUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Read);
             OperationsClientUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Write);
             OperationsClientUser_->SetRequestQueueSizeLimit(1000000);
+        }
+
+        // tablet cell changelogger
+        if (EnsureBuiltinUserInitialized(TabletCellChangeloggerUser_, TabletCellChangeloggerUserId_, TabletCellChangeloggerUserName)) {
+            TabletCellChangeloggerUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Read);
+            TabletCellChangeloggerUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Write);
+            TabletCellChangeloggerUser_->SetRequestQueueSizeLimit(1000000);
+        }
+
+        // tablet cell snapshotter
+        if (EnsureBuiltinUserInitialized(TabletCellSnapshotterUser_, TabletCellSnapshotterUserId_, TabletCellSnapshotterUserName)) {
+            TabletCellSnapshotterUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Read);
+            TabletCellSnapshotterUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Write);
+            TabletCellSnapshotterUser_->SetRequestQueueSizeLimit(1000000);
+        }
+
+        // table mount informer
+        if (EnsureBuiltinUserInitialized(TableMountInformerUser_, TableMountInformerUserId_, TableMountInformerUserName)) {
+            TableMountInformerUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Read);
+            TableMountInformerUser_->SetRequestRateLimit(1000000, EUserWorkloadType::Write);
+            TableMountInformerUser_->SetRequestQueueSizeLimit(1000000);
         }
 
         // Accounts
@@ -2913,6 +3034,11 @@ void TSecurityManager::Initialize()
     return Impl_->Initialize();
 }
 
+TAccount* TSecurityManager::GetAccountOrThrow(TAccountId id)
+{
+    return Impl_->GetAccountOrThrow(id);
+}
+
 TAccount* TSecurityManager::FindAccountByName(const TString& name)
 {
     return Impl_->FindAccountByName(name);
@@ -2958,9 +3084,19 @@ void TSecurityManager::UpdateTransactionResourceUsage(const TChunk* chunk, const
     Impl_->UpdateTransactionResourceUsage(chunk, requisition, delta);
 }
 
-void TSecurityManager::SetAccount(TCypressNode* node, TAccount* oldAccount, TAccount* newAccount, TTransaction* transaction)
+void TSecurityManager::ResetTransactionAccountResourceUsage(TTransaction* transaction)
 {
-    Impl_->SetAccount(node, oldAccount, newAccount, transaction);
+    Impl_->ResetTransactionAccountResourceUsage(transaction);
+}
+
+void TSecurityManager::RecomputeTransactionAccountResourceUsage(TTransaction* transaction)
+{
+    Impl_->RecomputeTransactionResourceUsage(transaction);
+}
+
+void TSecurityManager::SetAccount(TCypressNode* node, TAccount* newAccount, TTransaction* transaction)
+{
+    Impl_->SetAccount(node, newAccount, transaction);
 }
 
 void TSecurityManager::ResetAccount(TCypressNode* node)
@@ -3023,6 +3159,16 @@ TGroup* TSecurityManager::GetSuperusersGroup()
     return Impl_->GetSuperusersGroup();
 }
 
+TSubject* TSecurityManager::FindSubject(TSubjectId id)
+{
+    return Impl_->FindSubject(id);
+}
+
+TSubject* TSecurityManager::GetSubjectOrThrow(TSubjectId id)
+{
+    return Impl_->GetSubjectOrThrow(id);
+}
+
 TSubject* TSecurityManager::FindSubjectByName(const TString& name)
 {
     return Impl_->FindSubjectByName(name);
@@ -3061,6 +3207,11 @@ TAccessControlDescriptor* TSecurityManager::GetAcd(TObject* object)
 TAccessControlList TSecurityManager::GetEffectiveAcl(TObject* object)
 {
     return Impl_->GetEffectiveAcl(object);
+}
+
+std::optional<TString> TSecurityManager::GetEffectiveAnnotation(TCypressNode* node)
+{
+    return Impl_->GetEffectiveAnnotation(node);
 }
 
 void TSecurityManager::SetAuthenticatedUser(TUser* user)
@@ -3183,6 +3334,11 @@ TFuture<void> TSecurityManager::ThrottleUser(TUser* user, int requestCount, EUse
 void TSecurityManager::SetUserRequestRateLimit(TUser* user, int limit, EUserWorkloadType type)
 {
     Impl_->SetUserRequestRateLimit(user, limit, type);
+}
+
+void TSecurityManager::SetUserRequestLimits(TUser* user, TUserRequestLimitsConfigPtr config)
+{
+    Impl_->SetUserRequestLimits(user, std::move(config));
 }
 
 void TSecurityManager::SetUserRequestQueueSizeLimit(TUser* user, int limit)

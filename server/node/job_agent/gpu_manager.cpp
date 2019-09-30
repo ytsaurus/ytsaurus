@@ -2,15 +2,34 @@
 #include "private.h"
 
 #include <yt/server/node/cell_node/bootstrap.h>
+#include <yt/server/node/cell_node/config.h>
+
 #include <yt/server/node/data_node/master_connector.h>
 
 #include <yt/server/lib/job_agent/gpu_helpers.h>
+
+#include <yt/server/lib/exec_agent/config.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
 
 #include <yt/core/misc/finally.h>
 #include <yt/core/misc/proc.h>
 #include <yt/core/misc/subprocess.h>
+
+#include <yt/ytlib/api/native/client.h>
+
+#include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/ytlib/chunk_client/data_source.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+
+#include <yt/ytlib/cypress_client/rpc_helpers.h>
+
+#include <yt/ytlib/file_client/file_ypath_proxy.h>
+
+#include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/ytlib/object_client/helpers.h>
+
+#include <yt/client/object_client/helpers.h>
 
 #include <util/folder/iterator.h>
 
@@ -20,10 +39,19 @@ namespace NYT::NJobAgent {
 
 using namespace NConcurrency;
 using namespace NCellNode;
+using namespace NApi;
+using namespace NObjectClient;
+using namespace NFileClient;
+using namespace NChunkClient;
+using namespace NYTree;
+using namespace NCypressClient;
+using namespace NDataNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = JobAgentServerLogger;
+
+static constexpr int MaxChunksPerLocateRequest = 10000;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,6 +76,33 @@ TGpuManager::TGpuManager(TBootstrap* bootstrap, TGpuManagerConfigPtr config)
     , Config_(std::move(config))
 {
     auto descriptors = NJobAgent::ListGpuDevices();
+    bool testGpu = Bootstrap_->GetConfig()->ExecAgent->JobController->TestGpuLayers;
+    if (!descriptors.empty() || testGpu) {
+        try {
+            DriverVersionString_ = Config_->DriverVersion ? *Config_->DriverVersion : GetGpuDriverVersionString();
+        } catch (const std::exception& ex) {
+            YT_LOG_FATAL(ex, "Cannot determine driver version");
+        }
+
+        if (Config_->DriverLayerDirectoryPath) {
+            DriverLayerPath_ = *Config_->DriverLayerDirectoryPath + "/" + DriverVersionString_;
+
+            YT_LOG_INFO("GPU driver layer specified (Path: %v, Version: %v)",
+                DriverLayerPath_,
+                DriverVersionString_);
+
+            FetchDriverLayerExecutor_ = New<TPeriodicExecutor>(
+                Bootstrap_->GetControlInvoker(),
+                BIND(&TGpuManager::FetchDriverLayerInfo, MakeWeak(this)),
+                Config_->DriverLayerFetchPeriod,
+                EPeriodicExecutorMode::Automatic /*mode*/,
+                Config_->DriverLayerFetchPeriod /*splay*/);
+            FetchDriverLayerExecutor_->Start();
+        } else {
+            YT_LOG_INFO("No GPU driver layer directory specified");
+        }
+    }
+
     if (descriptors.empty()) {
         return;
     }
@@ -135,6 +190,110 @@ void TGpuManager::OnHealthCheck()
     }
 }
 
+void TGpuManager::FetchDriverLayerInfo()
+{
+    try {
+        DoFetchDriverLayerInfo();
+    } catch (const std::exception& ex) {
+        YT_LOG_ERROR(ex, "Failed to fetch GPU layer");
+    }
+}
+
+void TGpuManager::DoFetchDriverLayerInfo()
+{
+    TUserObject userObject(DriverLayerPath_);
+
+    {
+        YT_LOG_INFO("Fetching GPU layer basic attributes");
+
+        GetUserObjectBasicAttributes(
+            Bootstrap_->GetMasterClient(),
+            {&userObject},
+            NullTransactionId,
+            Logger,
+            EPermission::Read,
+            TGetUserObjectBasicAttributesOptions{
+                .SuppressAccessTracking = true,
+                .ChannelKind = EMasterChannelKind::Cache,
+            }
+        );
+
+        if (userObject.Type != EObjectType::File) {
+            THROW_ERROR_EXCEPTION("Invalid type of GPU layer object %v: expected %Qlv, actual %Qlv",
+                DriverLayerPath_,
+                EObjectType::File,
+                userObject.Type)
+                << TErrorAttribute("path", DriverLayerPath_)
+                << TErrorAttribute("expected", EObjectType::File)
+                << TErrorAttribute("actual", userObject.Type);
+        }
+    }
+
+    {
+        YT_LOG_INFO("Requesting GPU layer revision");
+
+        auto channel = Bootstrap_->GetMasterClient()->GetMasterChannelOrThrow(
+            EMasterChannelKind::Cache,
+            userObject.ExternalCellTag);
+        TObjectServiceProxy proxy(channel);
+
+        auto req = TYPathProxy::Get(userObject.GetObjectIdPath() + "/@");
+        ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
+            "revision"
+        });
+        SetSuppressAccessTracking(req, true);
+
+        auto rspOrError = WaitFor(proxy.Execute(req));
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting GPU layer revision");
+        const auto& rsp = rspOrError.Value();
+
+        auto attributes = ConvertToAttributes(NYson::TYsonString(rsp->value()));
+        auto revision = attributes->Get<NHydra::TRevision>("revision", NHydra::NullRevision);
+        if (revision == DriverLayerRevision_) {
+            YT_LOG_INFO("GPU layer revision not changed, using cached");
+            return;
+        }
+    }
+
+    YT_LOG_INFO("Fetching GPU layer chunk specs");
+
+    auto channel = Bootstrap_->GetMasterClient()->GetMasterChannelOrThrow(
+        EMasterChannelKind::Cache,
+        userObject.ExternalCellTag);
+    TObjectServiceProxy proxy(channel);
+
+    auto req = TFileYPathProxy::Fetch(userObject.GetObjectIdPath());
+    AddCellTagToSyncWith(req, userObject.ObjectId);
+    ToProto(req->mutable_ranges(), std::vector<TReadRange>{ {} });
+    SetSuppressAccessTracking(req, true);
+    req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+
+    auto rspOrError = WaitFor(proxy.Execute(req));
+    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching chunks for GPU layer %v", DriverLayerPath_);
+    const auto& rsp = rspOrError.Value();
+
+    std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs;
+    ProcessFetchResponse(
+        Bootstrap_->GetMasterClient(),
+        rsp,
+        userObject.ExternalCellTag,
+        Bootstrap_->GetNodeDirectory(),
+        MaxChunksPerLocateRequest,
+        std::nullopt,
+        Logger,
+        &chunkSpecs);
+
+    TArtifactKey layerKey;
+    ToProto(layerKey.mutable_chunk_specs(), chunkSpecs);
+    layerKey.mutable_data_source()->set_type(static_cast<int>(EDataSourceType::File));
+    layerKey.mutable_data_source()->set_path(DriverLayerPath_);
+
+    {
+        auto guard = Guard(SpinLock_);
+        DriverLayerKey_ = std::move(layerKey);
+    }
+}
+
 int TGpuManager::GetTotalGpuCount() const
 {
     auto guard = Guard(SpinLock_);
@@ -187,6 +346,39 @@ TGpuManager::TGpuSlotPtr TGpuManager::AcquireGpuSlot()
     YT_LOG_DEBUG("Acquired GPU slot (DeviceName: %v)",
         slot->GetDeviceName());
     return slot;
+}
+
+std::vector<TArtifactKey> TGpuManager::GetToppingLayers()
+{
+    auto guard = Guard(SpinLock_);
+    if (DriverLayerKey_) {
+        return {
+            *DriverLayerKey_
+        };
+    } else if (DriverLayerPath_) {
+        THROW_ERROR_EXCEPTION(NExecAgent::EErrorCode::GpuLayerNotFetched, "GPU layer is not fetched yet");
+    } else {
+        return {};
+    }
+}
+
+void TGpuManager::VerifyToolkitDriverVersion(const TString& toolkitVersion)
+{
+    if (!Config_->ToolkitMinDriverVersion.contains(toolkitVersion)) {
+        THROW_ERROR_EXCEPTION("Unknown toolkit version %v", toolkitVersion);
+    }
+
+    auto minVersionString = Config_->ToolkitMinDriverVersion[toolkitVersion];
+    auto minVersion = TGpuDriverVersion::FromString(minVersionString);
+
+    auto actualVersion = TGpuDriverVersion::FromString(DriverVersionString_);
+
+    if (actualVersion < minVersion) {
+        THROW_ERROR_EXCEPTION("Unsupported driver version for CUDA toolkit %v, required %v, actual %v",
+            toolkitVersion,
+            minVersionString,
+            DriverVersionString_);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

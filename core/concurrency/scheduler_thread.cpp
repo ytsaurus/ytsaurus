@@ -404,16 +404,6 @@ void TSchedulerThread::Return()
     YT_ABORT();
 }
 
-void TSchedulerThread::PushContextSwitchHandler(std::function<void()> out, std::function<void()> in)
-{
-    CurrentFiber_->PushContextHandler(std::move(out), std::move(in));
-}
-
-void TSchedulerThread::PopContextSwitchHandler()
-{
-    CurrentFiber_->PopContextHandler();
-}
-
 void TSchedulerThread::YieldTo(TFiberPtr&& other)
 {
     VERIFY_THREAD_AFFINITY(HomeThread);
@@ -450,23 +440,7 @@ void TSchedulerThread::YieldTo(TFiberPtr&& other)
 
 void TSchedulerThread::SwitchTo(IInvokerPtr invoker)
 {
-    VERIFY_THREAD_AFFINITY(HomeThread);
-
-    auto fiber = CurrentFiber_.Get();
-    YT_VERIFY(fiber);
-
-    fiber->UnwindIfCanceled();
-
-    // Update scheduling state.
-    YT_VERIFY(!SwitchToInvoker_);
-    SwitchToInvoker_ = std::move(invoker);
-
-    fiber->SetSleeping();
-
-    SwitchContextFrom(fiber);
-
-    // Cannot access |this| from this point as the fiber might be resumed
-    // in other scheduler.
+    WaitFor(TFuture<void>(), std::move(invoker));
 }
 
 void TSchedulerThread::WaitFor(TFuture<void> future, IInvokerPtr invoker)
@@ -481,10 +455,10 @@ void TSchedulerThread::WaitFor(TFuture<void> future, IInvokerPtr invoker)
     fiber->SetSleeping(future);
 
     // Update scheduling state.
-    YT_VERIFY(!WaitForFuture_);
-    WaitForFuture_ = std::move(future);
     YT_VERIFY(!SwitchToInvoker_);
     SwitchToInvoker_ = std::move(invoker);
+    YT_VERIFY(!WaitForFuture_);
+    WaitForFuture_ = std::move(future);
 
     SwitchContextFrom(fiber);
 
@@ -529,8 +503,6 @@ void TSchedulerThread::SwitchContextFrom(TFiber* currentFiber)
 void TSchedulerThread::SetCurrentFiber(TFiberPtr fiber)
 {
     CurrentFiber_ = std::move(fiber);
-    SetCurrentMemoryTag(CurrentFiber_->GetMemoryTag());
-    SetCurrentMemoryZone(CurrentFiber_->GetMemoryZone());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

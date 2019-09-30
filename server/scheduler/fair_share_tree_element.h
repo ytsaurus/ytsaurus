@@ -8,6 +8,7 @@
 #include "scheduling_context.h"
 #include "fair_share_strategy_operation_controller.h"
 #include "packing.h"
+#include "historic_usage_aggregator.h"
 
 #include <yt/server/lib/scheduler/config.h>
 #include <yt/server/lib/scheduler/scheduling_tag.h>
@@ -42,7 +43,8 @@ struct TSchedulableAttributes
 //! Attributes that persistent between fair share updates.
 struct TPersistentAttributes
 {
-    std::optional<TInstant> BelowFairShareSince_;
+    std::optional<TInstant> BelowFairShareSince;
+    THistoricUsageAggregator HistoricUsageAggregator;
 };
 
 struct TDynamicAttributes
@@ -71,6 +73,7 @@ struct TUpdateFairShareContext
 {
     std::vector<TError> Errors;
     THashMap<TString, int> ElementIndexes;
+    TInstant Now;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -245,7 +248,7 @@ public:
 
     //! Updates attributes that need to be computed from leafs up to root.
     //! For example: |parent->ResourceDemand = Sum(child->ResourceDemand)|.
-    virtual void UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList);
+    virtual void UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context);
 
     //! Updates attributes that are propagated from root down to leafs.
     //! For example: |child->FairShareRatio = fraction(parent->FairShareRatio)|.
@@ -367,6 +370,7 @@ private:
     void UpdateAttributes();
     double ComputeResourceUsageRatio(const TJobResources& jobResources) const;
 
+    friend class TCompositeSchedulerElement;
     friend class TOperationElement;
     friend class TPool;
 };
@@ -416,7 +420,7 @@ public:
 
     virtual void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config) override;
 
-    virtual void UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList) override;
+    virtual void UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
     virtual void UpdateTopDown(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
 
     virtual TJobResources ComputePossibleResourceUsage(TJobResources limit) const override;
@@ -440,10 +444,11 @@ public:
 
     virtual bool IsAggressiveStarvationPreemptionAllowed() const override;
 
-    void AddChild(const TSchedulerElementPtr& child, bool enabled = true);
+    void AddChild(TSchedulerElement* child, bool enabled = true);
     void EnableChild(const TSchedulerElementPtr& child);
     void DisableChild(const TSchedulerElementPtr& child);
-    void RemoveChild(const TSchedulerElementPtr& child);
+    void RemoveChild(TSchedulerElement* child);
+    bool IsEnabledChild(TSchedulerElement* child);
 
     bool IsEmpty() const;
 
@@ -451,6 +456,9 @@ public:
     void SetMode(ESchedulingMode);
 
     NProfiling::TTagId GetProfilingTag() const;
+
+    virtual TJobResources GetSpecifiedResourceLimits() const = 0;
+    virtual TJobResources ComputeResourceLimits() const = 0;
 
     virtual int GetMaxOperationCount() const = 0;
     virtual int GetMaxRunningOperationCount() const = 0;
@@ -464,6 +472,9 @@ public:
     void IncreaseRunningOperationCount(int delta);
 
     virtual THashSet<TString> GetAllowedProfilingTags() const = 0;
+
+    virtual bool IsInferringChildrenWeightsFromHistoricUsageEnabled() const = 0;
+    virtual THistoricUsageAggregationParameters GetHistoricUsageAggregationParameters() const = 0;
 
 protected:
     const NProfiling::TTagId ProfilingTag_;
@@ -564,12 +575,15 @@ public:
     virtual TDuration GetMinSharePreemptionTimeoutLimit() const override;
     virtual TDuration GetFairSharePreemptionTimeoutLimit() const override;
 
+    virtual TJobResources GetSpecifiedResourceLimits() const override;
+    virtual TJobResources ComputeResourceLimits() const override;
+
     virtual void SetStarving(bool starving) override;
     virtual void CheckForStarvation(TInstant now) override;
 
     virtual const TSchedulingTagFilter& GetSchedulingTagFilter() const override;
 
-    virtual void UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList) override;
+    virtual void UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
 
     virtual int GetMaxRunningOperationCount() const override;
     virtual int GetMaxOperationCount() const override;
@@ -585,14 +599,15 @@ public:
 
     virtual THashSet<TString> GetAllowedProfilingTags() const override;
 
+    virtual bool IsInferringChildrenWeightsFromHistoricUsageEnabled() const override;
+    virtual THistoricUsageAggregationParameters GetHistoricUsageAggregationParameters() const override;
+
     virtual void BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap) override;
 private:
     TPoolConfigPtr Config_;
     TSchedulingTagFilter SchedulingTagFilter_;
 
     void DoSetConfig(TPoolConfigPtr newConfig);
-
-    TJobResources ComputeResourceLimits() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TPool)
@@ -608,6 +623,8 @@ protected:
 
     const TOperationId OperationId_;
     bool Schedulable_;
+    std::optional<int> SlotIndex_;
+    TString UserName_;
     IOperationStrategyHost* const Operation_;
     TFairShareStrategyOperationControllerConfigPtr ControllerConfig_;
 };
@@ -752,7 +769,7 @@ public:
     TOperationElement(
         TFairShareStrategyTreeConfigPtr treeConfig,
         TStrategyOperationSpecPtr spec,
-        TOperationFairShareTreeRuntimeParametersPtr runtimeParams,
+        TOperationFairShareTreeRuntimeParametersPtr runtimeParameters,
         TFairShareStrategyOperationControllerPtr controller,
         TFairShareStrategyOperationControllerConfigPtr controllerConfig,
         ISchedulerStrategyHost* host,
@@ -770,7 +787,7 @@ public:
     virtual TDuration GetMinSharePreemptionTimeout() const override;
     virtual TDuration GetFairSharePreemptionTimeout() const override;
 
-    virtual void UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList) override;
+    virtual void UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
     virtual void UpdateTopDown(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
 
     virtual bool IsOperation() const override;
@@ -824,7 +841,7 @@ public:
     TInstant GetLastNonStarvingTime() const;
     TInstant GetLastScheduleJobSuccessTime() const;
 
-    int GetSlotIndex() const;
+    std::optional<int> GetMaybeSlotIndex() const;
 
     TString GetUserName() const;
 
@@ -862,7 +879,7 @@ public:
 
     void UpdateAncestorsAttributes(TFairShareContext* context);
 
-    DEFINE_BYVAL_RW_PROPERTY(TOperationFairShareTreeRuntimeParametersPtr, RuntimeParams);
+    DEFINE_BYVAL_RW_PROPERTY(TOperationFairShareTreeRuntimeParametersPtr, RuntimeParameters);
 
     DEFINE_BYVAL_RO_PROPERTY(TStrategyOperationSpecPtr, Spec);
 
@@ -900,8 +917,9 @@ private:
         const TJobResources& availableResources,
         TJobResources* precommittedResources);
 
-    TJobResources ComputeResourceDemand() const;
+    TJobResources GetSpecifiedResourceLimits() const;
     TJobResources ComputeResourceLimits() const;
+    TJobResources ComputeResourceDemand() const;
     TJobResources ComputeMaxPossibleResourceUsage() const;
     int ComputePendingJobCount() const;
 
@@ -953,6 +971,9 @@ public:
     virtual TDuration GetMinSharePreemptionTimeout() const override;
     virtual TDuration GetFairSharePreemptionTimeout() const override;
 
+    virtual TJobResources GetSpecifiedResourceLimits() const override;
+    virtual TJobResources ComputeResourceLimits() const override;
+
     virtual bool IsAggressiveStarvationEnabled() const override;
 
     virtual void CheckForStarvation(TInstant now) override;
@@ -964,6 +985,9 @@ public:
     virtual bool AreImmediateOperationsForbidden() const override;
 
     virtual THashSet<TString> GetAllowedProfilingTags() const override;
+
+    virtual bool IsInferringChildrenWeightsFromHistoricUsageEnabled() const override;
+    virtual THistoricUsageAggregationParameters GetHistoricUsageAggregationParameters() const override;
 
     virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
     TRootElementPtr Clone();

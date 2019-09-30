@@ -10,26 +10,24 @@ void TMetricsAccumulator::Add(
     EMetricType metricType,
     const TTagIdList& tagIds)
 {
-    Metrics_.emplace_back(std::make_pair(path, tagIds), std::make_pair(value, metricType));
+    auto key = std::make_pair(path, tagIds);
+    auto it = Metrics_.find(key);
+    if (it == Metrics_.end()) {
+        Metrics_.emplace(key, std::make_pair(value, metricType));
+    } else {
+        auto storedType = it->second.second;
+        YT_VERIFY(storedType == metricType);
+        it->second.first += value;
+    }
 }
 
-void TMetricsAccumulator::BuildAndPublish(const TProfiler* profiler)
+void TMetricsAccumulator::Publish(const TProfiler* profiler)
 {
-    THashMap<TKey, TValue> aggregatedMetrics;
-    for (const auto& [key, value] : Metrics_) {
-        auto it = aggregatedMetrics.find(key);
-        if (it == aggregatedMetrics.end()) {
-            aggregatedMetrics.emplace(key, value);
-        } else {
-            auto storedType = it->second.second;
-            YT_VERIFY(storedType == value.second);
-            it->second.first += value.first;
-        }
-    }
-
-    for (const auto& [key, aggregatedValue] : aggregatedMetrics) {
-        const auto& [path, tags] = key;
-        const auto& [value, type] = aggregatedValue;
+    for (const auto& metricPair : Metrics_) {
+        const auto& path = metricPair.first.first;
+        const auto& tags = metricPair.first.second;
+        auto value = metricPair.second.first;
+        auto type = metricPair.second.second;
         profiler->Enqueue(path, value, type, tags);
     }
     Metrics_.clear();

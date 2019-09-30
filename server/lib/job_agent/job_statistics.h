@@ -2,9 +2,13 @@
 
 #include "public.h"
 
+#include <yt/server/lib/core_dump/helpers.h>
+
 #include <yt/ytlib/job_tracker_client/public.h>
 
 #include <yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
+
+#include <yt/ytlib/core_dump/proto/core_info.pb.h>
 
 #include <yt/core/yson/string.h>
 
@@ -64,6 +68,7 @@ struct TJobStatistics
     void SetStderr(const TString& stderr);
     void SetFailContext(const TString& failContext);
     void SetProfile(const TJobProfile& profile);
+    void SetCoreInfos(NCoreDump::TCoreInfos coreInfos);
 
     DEFINE_FORWARD_RW_PROPERTY(NJobTrackerClient::TOperationId, OperationId)
     DEFINE_FORWARD_RW_PROPERTY(NJobTrackerClient::TJobId, JobId)
@@ -80,6 +85,7 @@ struct TJobStatistics
     DEFINE_FORWARD_RW_PROPERTY(std::optional<TString>, Stderr)
     DEFINE_FORWARD_RW_PROPERTY(std::optional<TString>, FailContext)
     DEFINE_FORWARD_RW_PROPERTY(std::optional<TJobProfile>, Profile)
+    DEFINE_FORWARD_RW_PROPERTY(std::optional<NCoreDump::TCoreInfos>, CoreInfos)
 };
 
 ////////////////////////////////////////////////////////////////////////////////

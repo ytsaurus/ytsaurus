@@ -20,12 +20,18 @@ class TAsyncExpiringCache
 {
 public:
     using TCombinedValue = typename TFutureCombineTraits<TValue>::TCombinedVector;
+    struct TExtendedGetResult
+    {
+        TFuture<TValue> Future;
+        bool RequestInitialized;
+    };
 
     explicit TAsyncExpiringCache(
         TAsyncExpiringCacheConfigPtr config,
         NProfiling::TProfiler profiler = {});
 
     TFuture<TValue> Get(const TKey& key);
+    TExtendedGetResult GetExtended(const TKey& key);
     TFuture<TCombinedValue> Get(const std::vector<TKey>& keys);
 
     void Invalidate(const TKey& key);

@@ -463,7 +463,7 @@ public:
     //! Limits the rate (measured in chunks) of location requests issued by all active chunk scrapers.
     NConcurrency::TThroughputThrottlerConfigPtr ChunkLocationThrottler;
 
-    NEventLog::TEventLogConfigPtr EventLog;
+    NEventLog::TEvenTLogManagerConfigPtr EventLog;
 
     //! Controller agent-to-scheduler heartbeat timeout.
     TDuration SchedulerHandshakeRpcTimeout;
@@ -672,6 +672,11 @@ public:
 
     // Cypress path to a default layer for user jobs, if no layers were specified explicitly.
     std::optional<TString> DefaultLayerPath;
+
+    // Cypress path to the directory with CUDA toolkit layers which are required for some
+    // GPU jobs. The layer is applied as an additional user layer on top of the others if they are
+    // present.
+    std::optional<TString> CudaToolkitLayerDirectoryPath;
 
     // Running jobs cached YSON string update period.
     TDuration CachedRunningJobsUpdatePeriod;

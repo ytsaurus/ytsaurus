@@ -580,6 +580,7 @@ protected:
     void DoFetchUserFiles(const TUserJobSpecPtr& userJobSpec, std::vector<TUserFile>& files);
     void LockUserFiles();
     void GetUserFilesAttributes();
+    void SuppressLivePreviewIfNeeded();
     void CreateLivePreviewTables();
     void CollectTotals();
     virtual void CustomPrepare();
@@ -610,7 +611,7 @@ protected:
     void BeginUploadOutputTables(const std::vector<TOutputTablePtr>& tables);
     void AttachOutputChunks(const std::vector<TOutputTablePtr>& tableList);
     void EndUploadOutputTables(const std::vector<TOutputTablePtr>& tables);
-    void LockDynamicTables();
+    void LockOutputDynamicTables();
     void CommitTransactions();
     virtual void CustomCommit();
     void VerifySortedOutput(TOutputTablePtr table);
@@ -803,6 +804,7 @@ protected:
         NTransactionClient::TTransactionId transactionId,
         const NApi::NNative::IClientPtr& client,
         bool ping = false);
+
     const NApi::ITransactionPtr& GetTransactionForOutputTable(const TOutputTablePtr& table) const;
 
     virtual void AttachToIntermediateLivePreview(NChunkClient::TChunkId chunkId) override;
@@ -911,7 +913,7 @@ private:
 
     const NYTAlloc::TMemoryTag MemoryTag_;
 
-    NScheduler::TPoolTreeToSchedulingTagFilter PoolTreeToSchedulingTagFilter_;
+    NScheduler::TPoolTreeControllerSettingsMap PoolTreeControllerSettingsMap_;
 
     THashSet<TString> BannedTreeIds_;
 
@@ -924,8 +926,8 @@ private:
     NObjectClient::TCellTag IntermediateOutputCellTag = NObjectClient::InvalidCellTag;
     TChunkListPoolPtr OutputChunkListPool_;
     TChunkListPoolPtr DebugChunkListPool_;
-    THashMap<NObjectClient::TCellTag, int> CellTagToRequiredOutputChunkLists_;
-    THashMap<NObjectClient::TCellTag, int> CellTagToRequiredDebugChunkLists_;
+    THashMap<NObjectClient::TCellTag, int> CellTagToRequiredOutputChunkListCount_;
+    THashMap<NObjectClient::TCellTag, int> CellTagToRequiredDebugChunkListCount_;
 
     std::atomic<int> CachedPendingJobCount = {0};
     int CachedTotalJobCount = 0;
@@ -1077,6 +1079,8 @@ private:
 
     std::unique_ptr<IJobSplitter> JobSplitter_;
 
+    bool IsLivePreviewSuppressed = false;
+
     //! Error that lead to operation failure.
     TError Error_;
 
@@ -1182,6 +1186,8 @@ private:
     void MaybeBanInTentativeTree(const TString& treeId);
 
     void RegisterTestingSpeculativeJobIfNeeded(const TTaskPtr& task, TJobId jobId);
+
+    std::vector<NYPath::TRichYPath> GetLayerPaths(const TUserJobSpecPtr& userJobSpec);
 
     //! Helper class that implements IChunkPoolInput interface for output tables.
     class TSink

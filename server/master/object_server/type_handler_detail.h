@@ -19,7 +19,8 @@ namespace NYT::NObjectServer {
 
 struct TObjectTypeMetadata
 {
-    NYTree::TBuiltinAttributeKeysCache BuiltinAttributeKeysCache;
+    NYTree::TSystemBuiltinAttributeKeysCache SystemBuiltinAttributeKeysCache;
+    NYTree::TSystemCustomAttributeKeysCache SystemCustomAttributeKeysCache;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

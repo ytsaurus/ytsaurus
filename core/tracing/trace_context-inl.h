@@ -5,8 +5,6 @@
 #include "trace_context.h"
 #endif
 
-#include <util/system/tls.h>
-
 namespace NYT::NTracing {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -126,8 +124,8 @@ Y_FORCE_INLINE void TNullTraceContextGuard::Release()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern Y_POD_THREAD(TTraceContext*) CurrentTraceContext;
-extern Y_POD_THREAD(TTraceId) CurrentTraceId;
+extern thread_local TTraceContext* CurrentTraceContext;
+extern thread_local TTraceId CurrentTraceId;
 
 Y_FORCE_INLINE TTraceContext* GetCurrentTraceContext()
 {

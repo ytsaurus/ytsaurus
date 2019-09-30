@@ -374,6 +374,33 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         with pytest.raises(YtError):
             vanilla(spec={"tasks": {"main": {"job_count": 100 * 1000 + 1, "command": "true"}}})
 
+    @authors("dakovalkov")
+    def test_restart_completed_jobs(self):
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), task_patch={"restart_completed_jobs": True})
+        wait_breakpoint()
+        release_breakpoint()
+        wait(lambda: op.get_job_count("completed") == 1)
+        wait(lambda: op.get_job_count("running") == 1)
+
+    @authors("ignat")
+    def test_get_job_context(self):
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
+        wait_breakpoint()
+
+        jobs = list(op.get_running_jobs())
+        assert len(jobs) == 1
+        job_id = jobs[0]
+
+        with pytest.raises(YtError):
+            dump_job_context(job_id, "//tmp/input_context")
+
+        release_breakpoint()
+
+        wait(lambda: op.get_job_count("completed", from_orchid=False) == 1)
+        assert op.get_job_count("aborted", from_orchid=False) == 0
+        assert op.get_job_count("failed", from_orchid=False) == 0
+
+
 ##################################################################
 
 class TestSchedulerVanillaCommandsMulticell(TestSchedulerVanillaCommands):

@@ -1,6 +1,7 @@
 #include "helpers.h"
 #include "node_detail.h"
 #include "portal_exit_node.h"
+#include "shard.h"
 
 #include <yt/server/master/cell_master/bootstrap.h>
 
@@ -87,21 +88,6 @@ const std::vector<TCypressNode*>& GetListNodeChildList(
     auto* node = cypressManager->GetVersionedNode(trunkNode, transaction);
     auto* listNode = node->As<TListNode>();
     return listNode->IndexToChild();
-}
-
-std::vector<std::pair<TString, TCypressNode*>> SortKeyToChild(
-    const THashMap<TString, TCypressNode*>& keyToChildMap)
-{
-    std::vector<std::pair<TString, TCypressNode*>> keyToChildList;
-    keyToChildList.reserve(keyToChildMap.size());
-    for (const auto& pair : keyToChildMap) {
-        keyToChildList.emplace_back(pair.first, pair.second);
-    }
-    std::sort(keyToChildList.begin(), keyToChildList.end(),
-        [] (const std::pair<TString, TCypressNode*>& lhs, const std::pair<TString, TCypressNode*>& rhs) {
-            return lhs.first < rhs.first;
-        });
-    return keyToChildList;
 }
 
 TCypressNode* FindMapNodeChild(
@@ -430,6 +416,21 @@ TCypressShardId MakeCypressShardId(
     TNodeId rootNodeId)
 {
     return ReplaceTypeInId(rootNodeId, EObjectType::CypressShard);
+}
+
+TString SuggestCypressShardName(TCypressShard* shard)
+{
+    const auto* root = shard->GetRoot();
+    switch (root->GetType()) {
+        case EObjectType::MapNode:
+            return Format("root:%v", root->GetNativeCellTag());
+
+        case EObjectType::PortalExit:
+            return Format("portal:%v", root->As<TPortalExitNode>()->GetPath());
+
+        default:
+            return "<invalid root type>";
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

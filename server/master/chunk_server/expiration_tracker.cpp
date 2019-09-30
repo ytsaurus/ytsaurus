@@ -64,7 +64,7 @@ void TExpirationTracker::Clear()
     ExpiredChunks_.clear();
 }
 
-void TExpirationTracker::OnChunkStaged(TChunk* chunk)
+void TExpirationTracker::ScheduleExpiration(TChunk* chunk)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -87,7 +87,7 @@ void TExpirationTracker::OnChunkStaged(TChunk* chunk)
 //   - or the staging transaction was finished.
 // Thus, the method must be safe to call multiple times - even when the chunk is
 // no longer registered for expiration.
-void TExpirationTracker::OnChunkUnstaged(TChunk* chunk)
+void TExpirationTracker::CancelExpiration(TChunk* chunk)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 

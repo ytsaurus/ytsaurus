@@ -42,7 +42,7 @@ public:
 
     std::optional<i64> GetMemoryLimit() const;
 
-    std::optional<i64> GetCpuLimit() const;
+    std::optional<double> GetCpuLimit() const;
 
     bool ExternalJobMemory() const;
 

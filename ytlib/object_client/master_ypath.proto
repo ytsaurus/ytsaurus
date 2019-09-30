@@ -2,6 +2,7 @@ package NYT.NObjectClient.NProto;
 
 import "yt/core/misc/proto/guid.proto";
 import "yt/core/ytree/proto/attributes.proto";
+import "yt/client/cell_master_client/proto/cell_directory.proto";
 import "yt/client/node_tracker_client/proto/node_directory.proto";
 import "yt/client/hive/proto/cluster_directory.proto";
 import "yt/ytlib/chunk_client/medium_directory.proto";
@@ -26,6 +27,7 @@ message TReqGetClusterMeta
     optional bool populate_node_directory = 1;
     optional bool populate_cluster_directory = 2;
     optional bool populate_medium_directory = 3;
+    optional bool populate_cell_directory = 4;
 }
 
 message TRspGetClusterMeta
@@ -33,6 +35,7 @@ message TRspGetClusterMeta
     optional NNodeTrackerClient.NProto.TNodeDirectory node_directory = 1;
     optional NHiveClient.NProto.TClusterDirectory cluster_directory = 2;
     optional NChunkClient.NProto.TMediumDirectory medium_directory = 3;
+    optional NCellMasterClient.NProto.TCellDirectory cell_directory = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

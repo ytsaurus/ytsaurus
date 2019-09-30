@@ -176,6 +176,10 @@ public:
             builder.AppendString(" ; ");
         }
 
+        if (NFS::Exists("/dev/kvm")) {
+            builder.AppendString("/dev/kvm rw");
+        }
+
         SetProperty("devices", builder.Flush());
     }
 
@@ -263,7 +267,7 @@ public:
         auto cpuLimitValue = TStringBuf(cpuLimitRsp.Value().begin(), cpuLimitRsp.Value().size() - 1);
         if (!TryFromString<double>(cpuLimitValue, cpuLimit)) {
             THROW_ERROR_EXCEPTION("Failed to parse cpu limit value from porto")
-                    << TErrorAttribute("cpu_limit", cpuLimitRsp.Value());
+                << TErrorAttribute("cpu_limit", cpuLimitRsp.Value());
         }
 
         return TResourceLimits{cpuLimit, memoryLimit};
@@ -344,6 +348,11 @@ public:
         SetProperty("io_ops_limit", ToString(operations));
     }
 
+    virtual void SetUser(const TString& user) override
+    {
+        User_ = user;
+    }
+
     virtual TString GetName() const override
     {
         return Name_;
@@ -370,9 +379,13 @@ public:
 
         YT_LOG_DEBUG("Executing porto container (Command: %v)", command);
 
-        // NB(psushin): Make sure subcontainer starts with the same user.
-        // For unknown reason in the cloud we've seen user_job containers with user=loadbase.
-        SetProperty("user", ToString(::getuid()));
+        if (!User_) {
+            // NB(psushin): Make sure subcontainer starts with the same user.
+            // For unknown reason in the cloud we've seen user_job containers with user=loadbase.
+            SetProperty("user", ToString(::getuid()));
+        } else {
+            SetProperty("user", User_);
+        }
 
         // Enable core dumps for all container instances.
         SetProperty("ulimit", "core: unlimited");
@@ -420,6 +433,7 @@ private:
     bool HasRoot_ = false;
     bool Isolate_ = false;
     bool RequireMemoryController_ = false;
+    TString User_;
 
     TPortoInstance(
         const TString& name,

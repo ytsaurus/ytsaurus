@@ -82,18 +82,32 @@ public:
 
     virtual ~TOperationControllerWrapper()
     {
+        auto Logger = NLogging::TLogger(ControllerLogger)
+            .AddTag("OperationId: %v", Id_);
+        YT_LOG_INFO("Controller wrapper destructed, controller destruction scheduled (MemoryUsage: %v)",
+            GetMemoryUsageForTag(MemoryTag_));
         DtorInvoker_->Invoke(BIND([
                 underlying = std::move(Underlying_),
-                id = Id_,
                 memoryTagQueue = MemoryTagQueue_,
-                memoryTag = MemoryTag_] () mutable {
-            auto Logger = NLogging::TLogger(ControllerLogger)
-                .AddTag("OperationId: %v", id);
+                memoryTag = MemoryTag_,
+                Logger] () mutable
+        {
             NProfiling::TWallTimer timer;
-            YT_LOG_INFO("Started destroying operation controller");
+            auto memoryUsageBefore = GetMemoryUsageForTag(memoryTag);
+            auto controllerRefCount = underlying->GetRefCount();
+            YT_LOG_INFO("Started destructing operation controller (MemoryUsageBefore: %v, ControllerRefCount: %v)",
+                memoryUsageBefore,
+                controllerRefCount);
+            if (controllerRefCount != 1) {
+                YT_LOG_WARNING("Controller refcount is different from 1 right before the moment of expected destruction (ControllerRefCount: %v)",
+                    controllerRefCount);
+            }
             underlying.Reset();
-            YT_LOG_INFO("Finished destroying operation controller (Elapsed: %v)",
-                timer.GetElapsedTime());
+            auto memoryUsageAfter = GetMemoryUsageForTag(memoryTag);
+            YT_LOG_INFO("Finished destructing operation controller (Elapsed: %v, MemoryUsageAfter: %v, MemoryUsageDecrease: %v)",
+                timer.GetElapsedTime(),
+                memoryUsageAfter,
+                memoryUsageBefore - memoryUsageAfter);
             memoryTagQueue->ReclaimTag(memoryTag);
         }));
     }

@@ -29,7 +29,7 @@ public:
     NRpc::TDispatcherConfigPtr RpcDispatcher;
     NChunkClient::TDispatcherConfigPtr ChunkClientDispatcher;
     NProfiling::TProfileManagerConfigPtr ProfileManager;
-    NLogging::TLogConfigPtr Logging;
+    NLogging::TLogManagerConfigPtr Logging;
     NTracing::TTraceManagerConfigPtr Tracing;
 
     TSingletonsConfig()
@@ -45,7 +45,7 @@ public:
         RegisterParameter("profile_manager", ProfileManager)
             .DefaultNew();
         RegisterParameter("logging", Logging)
-            .Default(NLogging::TLogConfig::CreateDefault());
+            .Default(NLogging::TLogManagerConfig::CreateDefault());
         RegisterParameter("tracing", Tracing)
             .DefaultNew();
     }

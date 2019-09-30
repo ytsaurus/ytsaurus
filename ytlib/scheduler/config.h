@@ -156,6 +156,30 @@ DEFINE_REFCOUNTED_TYPE(TEphemeralSubpoolConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EHistoricUsageAggregationMode,
+    ((None)                     (0))
+    ((ExponentialMovingAverage) (1))
+);
+
+class THistoricUsageConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    EHistoricUsageAggregationMode AggregationMode;
+
+    //! Parameter of exponential moving average (EMA) of the aggregated usage.
+    //! Roughly speaking, it means that current usage ratio is twice as relevant for the
+    //! historic usage as the usage ratio alpha seconds ago.
+    //! EMA for unevenly spaced time series was adapted from here: https://clck.ru/HaGZs
+    double EmaAlpha;
+
+    THistoricUsageConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(THistoricUsageConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TPoolConfig
     : public TSchedulableConfig
 {
@@ -174,6 +198,9 @@ public:
     bool CreateEphemeralSubpools;
 
     TEphemeralSubpoolConfigPtr EphemeralSubpoolConfig;
+
+    bool InferChildrenWeightsFromHistoricUsage;
+    THistoricUsageConfigPtr HistoricUsageConfig;
 
     THashSet<TString> AllowedProfilingTags;
 
@@ -271,7 +298,7 @@ public:
     std::optional<TString> Pool;
 
     //! This options have higher priority than Pool and other options
-    //! defined in this class besides SchedulingTagFilter.
+    //! defined in this class.
     THashMap<TString, TExtendedSchedulableConfigPtr> SchedulingOptionsPerPoolTree;
 
     //! Pool trees to schedule operation in.
@@ -302,6 +329,8 @@ public:
     std::optional<int> MaxUnpreemptableRunningJobCount;
 
     int MaxSpeculativeJobCountPerTask;
+
+    EPreemptionMode PreemptionMode;
 
     TStrategyOperationSpec();
 
@@ -650,6 +679,11 @@ public:
 
     std::optional<TString> InterruptionSignal;
 
+    bool EnableSetupCommands;
+    bool EnableGpuLayers;
+
+    std::optional<TString> CudaToolkitVersion;
+
     TUserJobSpec();
 
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig);
@@ -693,6 +727,8 @@ public:
     TJobIOConfigPtr JobIO;
 
     std::vector<NYPath::TRichYPath> OutputTablePaths;
+
+    bool RestartCompletedJobs;
 
     TVanillaTaskSpec();
 };
@@ -1135,8 +1171,12 @@ public:
     std::optional<double> Weight;
     TPoolName Pool;
     TResourceLimitsConfigPtr ResourceLimits;
+
     // Can only be enabled by an administrator.
     bool EnableDetailedLogs;
+
+    // Cannot be specified by user.
+    bool Tentative;
 
     TOperationFairShareTreeRuntimeParameters();
 };
@@ -1230,6 +1270,7 @@ class TJobCpuMonitorConfig
 public:
     bool EnableCpuReclaim;
 
+    TDuration StartDelay;
     TDuration CheckPeriod;
 
     double SmoothingFactor;

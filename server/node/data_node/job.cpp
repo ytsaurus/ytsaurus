@@ -58,6 +58,7 @@ using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NConcurrency;
 using namespace NYson;
+using namespace NCoreDump;
 
 using NNodeTrackerClient::TNodeDescriptor;
 using NChunkClient::TChunkReaderStatistics;
@@ -219,6 +220,11 @@ public:
     }
 
     virtual void SetProfile(const TJobProfile& value) override
+    {
+        YT_ABORT();
+    }
+
+    virtual void SetCoreInfos(TCoreInfos value) override
     {
         YT_ABORT();
     }

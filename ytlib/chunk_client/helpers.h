@@ -20,6 +20,8 @@
 
 #include <yt/client/ypath/rich.h>
 
+#include <yt/client/hydra/public.h>
+
 #include <yt/core/actions/public.h>
 
 #include <yt/core/erasure/public.h>
@@ -144,9 +146,10 @@ struct TUserObject
 
     // Output
     NObjectClient::TCellTag ExternalCellTag = NObjectClient::InvalidCellTag;
+    NTransactionClient::TTransactionId ExternalTransactionId;
     NObjectClient::EObjectType Type = NObjectClient::EObjectType::Null;
-    ui64 Revision = 0;
-    ui64 ContentRevision = 0;
+    NHydra::TRevision Revision = NHydra::NullRevision;
+    NHydra::TRevision ContentRevision = NHydra::NullRevision;
     std::vector<TString> OmittedInaccessibleColumns;
     std::vector<NSecurityClient::TSecurityTag> SecurityTags;
 
@@ -189,30 +192,6 @@ template <class T>
 std::vector<TUserObject*> MakeUserObjectList(std::vector<T>& vector);
 template <class T>
 std::vector<TUserObject*> MakeUserObjectList(std::vector<TIntrusivePtr<T>>& vector);
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TChunkUploadSynchronizer
-{
-public:
-    TChunkUploadSynchronizer(
-        NApi::NNative::IConnectionPtr connection,
-        NTransactionClient::TTransactionId transactionId);
-
-    void AfterBeginUpload(
-        NObjectClient::TObjectId objectId,
-        NObjectClient::TCellTag externalCellTag);
-    void BeforeEndUpload();
-    void AfterEndUpload();
-
-private:
-    const NApi::NNative::IConnectionPtr Connection_;
-    const NTransactionClient::TTransactionId TransactionId_;
-
-    std::vector<TFuture<void>> BeginUploadSyncs_;
-    THashMap<NObjectClient::TCellId, std::vector<NObjectClient::TCellId>> DstCellIdToSrcCellIdsPhaseOne_;
-    THashMap<NObjectClient::TCellId, std::vector<NObjectClient::TCellId>> DstCellIdToSrcCellIdsPhaseTwo_;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
