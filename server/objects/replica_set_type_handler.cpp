@@ -42,7 +42,8 @@ public:
                     ->SetAttribute(TReplicaSet::TSpec::EtcSchema)
                     ->SetUpdatable()
             })
-            ->SetExtensible();
+            ->SetExtensible()
+            ->SetHistoryEnabled();
 
         StatusAttributeSchema_
             ->SetAttribute(TReplicaSet::StatusSchema)

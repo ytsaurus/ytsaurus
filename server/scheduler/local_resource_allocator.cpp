@@ -149,7 +149,7 @@ bool TLocalResourceAllocator::TryAllocate(
             }
 
             if (!Dominates(resource->Capacities, statistics.Capacities + request.Capacities)) {
-                if (IsHomogeneous(request.Kind)) {
+                if (IsSingletonResource(request.Kind)) {
                     if (errors) {
                         errors->push_back(TError(
                             "%Qlv capacity limit exceeded at node: allocated %v, requested %v, total %v",

@@ -13,6 +13,7 @@ struct IObjectTypeHandler
     virtual ~IObjectTypeHandler() = default;
 
     virtual void Initialize() = 0;
+    virtual void PostInitialize() = 0;
 
     virtual const NYson::TProtobufMessageType* GetRootProtobufType() = 0;
     virtual const TDBTable* GetTable() = 0;
@@ -30,6 +31,10 @@ struct IObjectTypeHandler
     virtual TAttributeSchema* GetRootAttributeSchema() = 0;
     virtual TAttributeSchema* GetIdAttributeSchema() = 0;
     virtual TAttributeSchema* GetParentIdAttributeSchema() = 0;
+
+    virtual bool HasHistoryEnabledAttributes() = 0;
+    virtual const NYT::NYson::TYsonString& GetHistoryEnabledAttributePaths() = 0;
+    virtual bool HasStoreScheduledHistoryEnabledAttributes(TObject* object) = 0;
 
     virtual std::unique_ptr<TObject> InstantiateObject(
         const TObjectId& id,

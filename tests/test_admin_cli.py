@@ -144,6 +144,24 @@ class TestAdminCli(object):
         yp_client = yp_env_configurable.yp_client
         yp_client.select_objects("account", selectors=["/meta/id"])
 
+    def test_trim_table(self, yp_env_configurable):
+        cli = YpAdminCli()
+        yt_client = yp_env_configurable.yp_instance.create_yt_client()
+        yp_client = yp_env_configurable.yp_client
+
+        yp_client.create_object("pod_set")
+        assert len(list(yt_client.select_rows("[object_id] from [//yp/db/pod_sets_watch_log]"))) > 0
+
+        output = cli.check_output([
+            "trim-table",
+            "--yt-proxy", get_yt_proxy_address(yp_env_configurable),
+            "--yp-path", "//yp",
+            "pod_sets_watch_log",
+        ])
+        assert output == ""
+
+        assert len(list(yt_client.select_rows("[object_id] from [//yp/db/pod_sets_watch_log]"))) == 0
+
 
 @pytest.mark.usefixtures("yp_env_unfreezenable")
 class TestAdminCliFreezeUnfreeze(object):

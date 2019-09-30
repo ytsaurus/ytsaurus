@@ -8,4 +8,16 @@ message TGetUserAccessAllowedToContinuationToken
     optional string object_id = 1;
 }
 
+message TSelectObjectHistoryContinuationToken
+{
+    // Number of earlier returned history events.
+    optional int32 offset = 1;
+}
+
+message TWatchQueryContinuationToken
+{
+    // Offset for each tablet.
+    repeated int64 row_offsets = 1;
+}
+
 ////////////////////////////////////////////////////////////////////////////////

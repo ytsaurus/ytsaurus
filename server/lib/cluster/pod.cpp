@@ -36,7 +36,14 @@ TPod::TPod(
 
 TAccount* TPod::GetEffectiveAccount() const
 {
+    YT_VERIFY(PodSet_);
     return Account_ ? Account_ : PodSet_->GetAccount();
+}
+
+const TString& TPod::GetEffectiveNodeFilter() const
+{
+    YT_VERIFY(PodSet_);
+    return !NodeFilter_.Empty() ? NodeFilter_ : PodSet_->NodeFilter();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

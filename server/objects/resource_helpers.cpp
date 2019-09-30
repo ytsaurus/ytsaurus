@@ -4,7 +4,7 @@ namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsHomogeneous(EResourceKind kind)
+bool IsSingletonResource(EResourceKind kind)
 {
     return
         kind == EResourceKind::Cpu ||

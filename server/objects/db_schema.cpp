@@ -41,6 +41,9 @@ const TMultiClusterReplicaSetsTable MultiClusterReplicaSetsTable;
 const TStagesTable StagesTable;
 const TPodDisruptionBudgetsTable PodDisruptionBudgetsTable;
 const TPodDisruptionBudgetToPodSetsTable PodDisruptionBudgetToPodSetsTable;
+const THistoryEventsTable HistoryEventsTable;
+
+const TWatchLogSchema WatchLogSchema;
 
 const std::vector<const TDBTable*> Tables = {
     &SchemasTable,
@@ -78,7 +81,8 @@ const std::vector<const TDBTable*> Tables = {
     &MultiClusterReplicaSetsTable,
     &StagesTable,
     &PodDisruptionBudgetsTable,
-    &PodDisruptionBudgetToPodSetsTable
+    &PodDisruptionBudgetToPodSetsTable,
+    &HistoryEventsTable
 };
 
 ////////////////////////////////////////////////////////////////////////////////

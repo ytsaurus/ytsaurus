@@ -115,6 +115,12 @@ def is_pod_assigned(yp_client, pod_id):
 def are_pods_assigned(yp_client, pod_ids):
     return are_assigned_pod_scheduling_statuses(get_pod_scheduling_statuses(yp_client, pod_ids))
 
+def wait_pod_is_assigned(yp_client, pod_id):
+    try:
+        wait(lambda: is_pod_assigned(yp_client, pod_id))
+    except WaitFailed:
+        scheduling_error = yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/error"])[0]
+        raise WaitFailed("Error scheduling pod: {}".format(scheduling_error))
 
 def wait_pod_is_assigned_to(yp_client, pod_id, node_id):
     try:

@@ -355,6 +355,7 @@ public:
                         }
                         if (podEntry.status().has_pod_agent_payload()) {
                             pod->Status().Agent().PodAgentPayload() = podEntry.status().pod_agent_payload();
+                            pod->Status().Agent().PodAgentPayload()->DiscardUnknownFields();
                         }
 
                         if (podEntry.status().execution_error().code() != NYT::EErrorCode::OK) {
@@ -545,6 +546,17 @@ public:
             protoSpec->mutable_disk_volume_allocations()->CopyFrom(statusEtc.disk_volume_allocations());
             protoSpec->mutable_gpu_allocations()->CopyFrom(statusEtc.gpu_allocations());
             protoSpec->mutable_host_infra()->CopyFrom(specEtc.host_infra());
+
+            if (specEtc.resource_requests().has_network_bandwidth_guarantee()) {
+                protoSpec->mutable_network_allocation()->set_tx_bandwidth_guarantee(
+                    specEtc.resource_requests().network_bandwidth_guarantee());
+            }
+            if (specEtc.resource_requests().has_network_bandwidth_limit()) {
+                protoSpec->mutable_network_allocation()->set_tx_bandwidth_limit(
+                    specEtc.resource_requests().network_bandwidth_limit());
+                protoSpec->mutable_network_allocation()->set_rx_bandwidth_limit(
+                    specEtc.resource_requests().network_bandwidth_limit());
+            }
         }
 
         void PopulateDynamicAttributes(

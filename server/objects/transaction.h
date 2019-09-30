@@ -139,6 +139,42 @@ struct TSelectQueryResult
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTimeInterval
+{
+    std::optional<TInstant> Begin;
+    std::optional<TInstant> End;
+};
+
+void FromProto(
+    TTimeInterval* timeInterval,
+    const NClient::NApi::NProto::TTimeInterval& protoTimeInterval);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TSelectObjectHistoryOptions
+{
+    std::optional<TString> Uuid;
+    TTimeInterval TimeInterval;
+    std::optional<int> Limit;
+    std::optional<int> Offset;
+};
+
+struct THistoryEvent
+{
+    TInstant Time;
+    EEventType EventType;
+    TString User;
+    TAttributeValueList Attributes;
+    std::vector<TString> HistoryEnabledAttributes;
+};
+
+struct TSelectObjectHistoryResult
+{
+    std::vector<THistoryEvent> Events;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTransaction
     : public NYT::TRefCounted
 {
@@ -191,6 +227,11 @@ public:
         const std::optional<TObjectFilter>& filter,
         const TAttributeSelector& selector,
         const TSelectQueryOptions& options);
+    TSelectObjectHistoryResult ExecuteSelectObjectHistoryQuery(
+        EObjectType objectType,
+        const TObjectId& objectId,
+        const TAttributeSelector& attributeSelector,
+        const TSelectObjectHistoryOptions& options);
 
     NYT::NApi::IUnversionedRowsetPtr SelectFields(
         EObjectType objectType,

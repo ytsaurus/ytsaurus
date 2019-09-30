@@ -86,9 +86,9 @@ TResourceCapacities MakeDiskCapacities(ui64 capacity, ui64 volumeSlots, ui64 ban
     return {{capacity, volumeSlots, bandwidth}};
 }
 
-TResourceCapacities MakeGpuCapacities()
+TResourceCapacities MakeGpuCapacities(ui64 capacity)
 {
-    return {{1, 0, 0}};
+    return {{capacity, 0, 0}};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -203,7 +203,7 @@ NClient::NApi::NProto::EDiskVolumePolicy GetDiskVolumeRequestPolicy(
 TResourceCapacities GetGpuRequestCapacities(
     const NClient::NApi::NProto::TPodSpec_TGpuRequest& /*request*/)
 {
-    return MakeGpuCapacities();
+    return MakeGpuCapacities(1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -224,7 +224,7 @@ TResourceCapacities GetResourceCapacities(const NClient::NApi::NProto::TResource
             spec.disk().total_volume_slots(),
             spec.disk().total_bandwidth());
     } else if (spec.has_gpu()) {
-        return MakeGpuCapacities();
+        return MakeGpuCapacities(1);
     } else {
         THROW_ERROR_EXCEPTION("Malformed resource spec");
     }
@@ -246,7 +246,7 @@ TResourceCapacities GetAllocationCapacities(const NClient::NApi::NProto::TResour
             /*volumeSlots*/ 1,
             allocation.disk().bandwidth());
     } else if (allocation.has_gpu()) {
-        return MakeGpuCapacities();
+        return MakeGpuCapacities(allocation.gpu().capacity());
     } else {
         THROW_ERROR_EXCEPTION("Malformed resource allocation");
     }

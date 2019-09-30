@@ -50,20 +50,6 @@ extend google.protobuf.MessageOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
-enum EEventType
-{
-    ET_OBJECT_CREATED = 0
-    [(NYT.NYson.NProto.enum_value_name) = "object_created"];
-
-    ET_OBJECT_REMOVED = 1
-    [(NYT.NYson.NProto.enum_value_name) = "object_removed"];
-
-    ET_OBJECT_UPDATED = 2
-    [(NYT.NYson.NProto.enum_value_name) = "object_updated"];
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 enum EAccessControlAction
 {
     ACA_ALLOW = 1
@@ -545,7 +531,7 @@ message TResourceStatus
 
     message TGpuAllocation
     {
-        // Copied from /pod/status/scheduled_allocations/*/id
+        // Copied from /pod/status/gpu_allocations/*/id
         required string allocation_id = 1;
         required uint64 capacity = 2;
     }

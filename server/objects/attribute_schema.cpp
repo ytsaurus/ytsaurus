@@ -10,6 +10,8 @@
 
 #include <yt/core/ytree/fluent.h>
 
+#include <util/string/join.h>
+
 namespace NYP::NServer::NObjects {
 
 using namespace NAccessControl;
@@ -419,6 +421,26 @@ void TAttributeSchema::RunValueSetter(
     ValueSetter_(transaction, object, path, value, recursive);
 }
 
+bool TAttributeSchema::HasValueGetter() const
+{
+    return ValueGetter_.operator bool();
+}
+
+INodePtr TAttributeSchema::RunValueGetter(TObject* object) const
+{
+    return ValueGetter_(object);
+}
+
+bool TAttributeSchema::HasStoreScheduledGetter() const
+{
+    return StoreScheduledGetter_.operator bool();
+}
+
+bool TAttributeSchema::RunStoreScheduledGetter(TObject* object) const
+{
+    return StoreScheduledGetter_(object);
+}
+
 bool TAttributeSchema::HasInitializer() const
 {
     return Initializer_.operator bool();
@@ -588,6 +610,109 @@ TAttributeSchema* TAttributeSchema::SetEtc()
 bool TAttributeSchema::IsEtc() const
 {
     return Etc_;
+}
+
+TAttributeSchema* TAttributeSchema::SetHistoryEnabled()
+{
+    HistoryEnabled_ = true;
+    return this;
+}
+
+bool TAttributeSchema::IsHistoryEnabled() const
+{
+    return HistoryEnabled_;
+}
+
+std::vector<TYPath> TAttributeSchema::GetHistoryEnabledAttributePaths() const
+{
+    std::vector<TYPath> result;
+    GetHistoryEnabledAttributePathsImpl(&result);
+    return result;
+}
+
+IMapNodePtr TAttributeSchema::GetHistoryEnabledAttributes(TObject* object) const
+{
+    auto result = GetEphemeralNodeFactory()->CreateMap();
+    std::vector<TYPath> pathTokens;
+    GetHistoryEnabledAttributesImpl(result, &pathTokens, object, false);
+    return result;
+}
+
+bool TAttributeSchema::HasStoreScheduledHistoryEnabledAttributes(TObject* object) const
+{
+    return HasStoreScheduledHistoryEnabledAttributesImpl(object, false);
+}
+
+void TAttributeSchema::GetHistoryEnabledAttributePathsImpl(std::vector<TYPath>* result) const
+{
+    if (IsHistoryEnabled()) {
+        result->push_back(GetPath());
+    }
+
+    if (IsComposite()) {
+        if (EtcChild_) {
+            EtcChild_->GetHistoryEnabledAttributePathsImpl(result);
+        }
+        for (const auto& [key, child] : KeyToChild_) {
+            child->GetHistoryEnabledAttributePathsImpl(result);
+        }
+    }
+}
+
+void TAttributeSchema::GetHistoryEnabledAttributesImpl(
+    IMapNodePtr result,
+    std::vector<TYPath>* pathTokens,
+    TObject* object,
+    bool hasParentHistoryEnabledAttribute) const
+{
+    if (hasParentHistoryEnabledAttribute) {
+        YT_VERIFY(!IsHistoryEnabled());
+    }
+
+    hasParentHistoryEnabledAttribute |= IsHistoryEnabled();
+
+    if (IsComposite()) {
+        if (EtcChild_) {
+            EtcChild_->GetHistoryEnabledAttributesImpl(
+                result,
+                pathTokens,
+                object,
+                hasParentHistoryEnabledAttribute);
+        }
+        for (const auto& [key, child] : KeyToChild_) {
+            pathTokens->emplace_back(key);
+            child->GetHistoryEnabledAttributesImpl(
+                result,
+                pathTokens,
+                object,
+                hasParentHistoryEnabledAttribute);
+            pathTokens->pop_back();
+        }
+    } else if (hasParentHistoryEnabledAttribute && HasValueGetter()) {
+        SetNodeByYPath(result, GetPath(), RunValueGetter(object));
+    }
+}
+
+bool TAttributeSchema::HasStoreScheduledHistoryEnabledAttributesImpl(
+    TObject* object,
+    bool hasParentHistoryEnabledAttribute) const
+{
+    hasParentHistoryEnabledAttribute |= IsHistoryEnabled();
+
+    if (hasParentHistoryEnabledAttribute && HasStoreScheduledGetter() && RunStoreScheduledGetter(object)) {
+        return true;
+    } else if (IsComposite()) {
+        if (EtcChild_ && EtcChild_->HasStoreScheduledHistoryEnabledAttributesImpl(object, hasParentHistoryEnabledAttribute)) {
+            return true;
+        }
+        for (const auto& [key, child] : KeyToChild_) {
+            if (child->HasStoreScheduledHistoryEnabledAttributesImpl(object, hasParentHistoryEnabledAttribute)) {
+                return true;
+            }
+        }
+    }
+
+    return false;
 }
 
 TAttributeSchema* TAttributeSchema::SetReadPermission(EAccessControlPermission permission)

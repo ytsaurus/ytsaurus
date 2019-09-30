@@ -67,6 +67,9 @@ public:
     void ScheduleTombstoneCheck();
     bool IsTombstone() const;
 
+    void ScheduleStore();
+    bool IsStoreScheduled() const;
+
     bool IsRemoving() const;
 
     virtual bool IsBuiltin() const;
@@ -78,12 +81,16 @@ public:
     template <class T>
     T* As();
 
+    bool HasHistoryEnabledAttributes() const;
+    NYT::NYson::TYsonString GetHistoryEnabledAttributes();
+
 private:
     friend class TAttributeBase;
 
     const TObjectId Id_;
     IObjectTypeHandler* const TypeHandler_;
     ISession* const Session_;
+    bool StoreScheduled_ = false;
 
     TObjectExistenceChecker ExistenceChecker_;
     TObjectTombstoneChecker TombstoneChecker_;

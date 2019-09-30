@@ -26,6 +26,7 @@ SET(YP_TEST_SRCS
     test_endpoints.py
     test_eviction.py
     test_grpc_stubs.py
+    test_history_api.py
     test_http_api.py
     test_ids.py
     test_internet_address.py
@@ -59,6 +60,7 @@ SET(YP_TEST_SRCS
     test_update_objects.py
     test_users.py
     test_virtual_services.py
+    test_watches.py
     test_yson_proto.py
     test_yt_environment.py
 )

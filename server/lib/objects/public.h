@@ -19,6 +19,9 @@ using TPodDiskVolumeRequests = ::google::protobuf::RepeatedPtrField<
 using TPodGpuRequests = ::google::protobuf::RepeatedPtrField<
     NClient::NApi::NProto::TPodSpec_TGpuRequest>;
 
+using TPodGpuAllocations = ::google::protobuf::RepeatedPtrField<
+    NClient::NApi::NProto::TPodStatus_TGpuAllocation>;
+
 using TPodIP6AddressRequests = ::google::protobuf::RepeatedPtrField<
     NClient::NApi::NProto::TPodSpec_TIP6AddressRequest>;
 

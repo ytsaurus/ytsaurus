@@ -9,21 +9,20 @@ namespace NYP::NServer::NNet {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TInternetAddressManager::ReconcileState(
-    TIP4AddressPoolIdToFreeIP4Addresses ip4AddressPoolIdToFreeAddresses)
+void TInternetAddressManager::ReconcileState(TIP4AddressesPerPoolAndNetworkModule freeAddresses)
 {
-    IP4AddressPoolIdToFreeAddresses_ = std::move(ip4AddressPoolIdToFreeAddresses);
+    FreeAddresses_ = std::move(freeAddresses);
 }
 
-std::optional<TString> TInternetAddressManager::TakeInternetAddress(
+std::optional<NObjects::TObjectId> TInternetAddressManager::TakeInternetAddress(
     const NObjects::TObjectId& ip4AddressPoolId,
-    const TNetworkModuleId& networkModuleId)
+    const NObjects::TObjectId& networkModuleId)
 {
-    if (!IP4AddressPoolIdToFreeAddresses_.contains({ip4AddressPoolId, networkModuleId})) {
+    if (!FreeAddresses_.contains({ip4AddressPoolId, networkModuleId})) {
         return std::nullopt;
     }
 
-    auto& queue = IP4AddressPoolIdToFreeAddresses_[std::make_pair(ip4AddressPoolId, networkModuleId)];
+    auto& queue = FreeAddresses_[std::make_pair(ip4AddressPoolId, networkModuleId)];
     if (queue.empty()) {
         return std::nullopt;
     }
@@ -88,12 +87,13 @@ void TInternetAddressManager::RevokeInternetAddressesFromPod(
             const auto& addressSpec = internetAddress->Spec().Load();
             const auto& addressId = internetAddress->GetId();
             const auto& ip4AddressPool = internetAddress->GetParentId();
-            IP4AddressPoolIdToFreeAddresses_[std::make_pair(ip4AddressPool, addressSpec.network_module_id())].push(addressId);
+            FreeAddresses_[std::make_pair(ip4AddressPool, addressSpec.network_module_id())].push(addressId);
         }
     }
 }
 
-TString TInternetAddressManager::GetDefaultIP4AddressPoolId() {
+NObjects::TObjectId TInternetAddressManager::GetDefaultIP4AddressPoolId()
+{
     return "default_ip4_address_pool";
 }
 

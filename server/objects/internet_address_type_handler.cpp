@@ -1,3 +1,5 @@
+#include "internet_address_type_handler.h"
+
 #include "db_schema.h"
 #include "internet_address.h"
 #include "ip4_address_pool.h"

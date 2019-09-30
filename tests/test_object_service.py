@@ -1,3 +1,7 @@
+import yp_proto.yp.client.api.proto.object_service_pb2 as object_service_pb2
+
+import yp.data_model as data_model
+
 from yp.common import YtResponseError
 
 from yt.yson import YsonEntity
@@ -53,3 +57,30 @@ class TestObjectService(object):
         assert objects[1] is None
 
         assert yp_client.get_object("pod_set", nonexistent_id, selectors=["/meta/id"], options={"ignore_nonexistent": True}) is None
+
+    def test_create_object_null_attributes_payload(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        object_stub = yp_client.create_grpc_object_stub()
+
+        req = object_service_pb2.TReqCreateObject()
+        req.object_type = data_model.OT_POD_SET
+        req.attributes_payload.null = True
+
+        rsp = object_stub.CreateObject(req)
+
+        assert len(rsp.object_id) > 0
+
+    def test_create_objects_null_attributes_payload(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        object_stub = yp_client.create_grpc_object_stub()
+
+        req = object_service_pb2.TReqCreateObjects()
+        subreq = req.subrequests.add()
+        subreq.object_type = data_model.OT_POD_SET
+        subreq.attributes_payload.null = True
+
+        rsp = object_stub.CreateObjects(req)
+
+        assert len(rsp.subresponses[0].object_id) > 0

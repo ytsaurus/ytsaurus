@@ -121,9 +121,9 @@ class TestAccounts(object):
         yp_client.create_object("user", attributes={"meta": {"id": "u"}})
         yp_env.sync_access_control()
 
-        with yp_env.yp_instance.create_client(config={"user": "u"}) as yp_client1:
-            pod_set_id = yp_client1.create_object("pod_set")
-            yp_client1.create_object("pod", attributes={
+        with yp_env.yp_instance.create_client(config={"user": "u"}) as yp_client_with_user:
+            pod_set_id = yp_client_with_user.create_object("pod_set")
+            yp_client_with_user.create_object("pod", attributes={
                 "meta": {"pod_set_id": pod_set_id},
                 "spec": {
                     "resource_requests": ZERO_RESOURCE_REQUESTS,

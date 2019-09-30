@@ -23,6 +23,7 @@ public:
         EObjectType type);
 
     virtual void Initialize() override;
+    virtual void PostInitialize() override;
 
     virtual EObjectType GetType() override;
 
@@ -37,6 +38,10 @@ public:
     virtual TAttributeSchema* GetRootAttributeSchema() override;
     virtual TAttributeSchema* GetIdAttributeSchema() override;
     virtual TAttributeSchema* GetParentIdAttributeSchema() override;
+
+    virtual bool HasHistoryEnabledAttributes() override;
+    virtual const NYT::NYson::TYsonString& GetHistoryEnabledAttributePaths() override;
+    virtual bool HasStoreScheduledHistoryEnabledAttributes(TObject* object) override;
 
     virtual void BeforeObjectCreated(
         TTransaction* transaction,
@@ -79,9 +84,14 @@ protected:
     virtual bool IsObjectNameSupported() const;
 
 private:
+    bool HasHistoryEnabledAttributes_;
+    NYT::NYson::TYsonString SerializedHistoryEnabledAttributePaths_;
+
+private:
     void ValidateMetaEtc(TTransaction* transaction, TObject* object);
     void ValidateAcl(TTransaction* transaction, TObject* object);
 
+    void EvaluateHistoryEnabledAttributePaths();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

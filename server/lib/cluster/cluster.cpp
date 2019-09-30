@@ -312,8 +312,21 @@ private:
             auto nodesOrError = allNodeFilterCache->Get(nodeSegmentFilter);
             auto schedulableNodesOrError = allSchedulableNodeFilterCache->Get(nodeSegmentFilter);
 
-            if (!nodesOrError.IsOK() || !schedulableNodesOrError.IsOK()) {
-                YT_LOG_ERROR("Invalid node segment node filter; scheduling for this segment is disabled (NodeSegmentId: %v)",
+            bool isInvalidNodeSegment = false;
+            if (!nodesOrError.IsOK()) {
+                YT_LOG_ERROR(nodesOrError, "Error filtering nodes (NodeSegmentId: %v, NodeSegmentFilter: %v)",
+                    nodeSegmentId,
+                    nodeSegmentFilter);
+                isInvalidNodeSegment = true;
+            }
+            if (!schedulableNodesOrError.IsOK()) {
+                YT_LOG_ERROR(schedulableNodesOrError, "Error filtering schedulable nodes (NodeSegmentId: %v, NodeSegmentFilter: %v)",
+                    nodeSegmentId,
+                    nodeSegmentFilter);
+                isInvalidNodeSegment = true;
+            }
+            if (isInvalidNodeSegment) {
+                YT_LOG_ERROR("Invalid node segment; scheduling for this segment is disabled (NodeSegmentId: %v)",
                     nodeSegmentId);
                 invalidNodeSegmentIds.push_back(nodeSegmentId);
                 continue;

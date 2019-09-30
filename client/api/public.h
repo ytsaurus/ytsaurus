@@ -14,6 +14,8 @@ class TPodSpec_TGpuRequest;
 class TPodSpec_TIP6AddressRequest;
 class TPodSpec_TIP6SubnetRequest;
 
+class TPodStatus_TGpuAllocation;
+
 class TPodSpec_THostDevice;
 class TPodSpec_TSysctlProperty;
 
@@ -45,7 +47,8 @@ DEFINE_ENUM(EErrorCode,
     ((PodSchedulingFailure)        (100013))
     ((PrerequisiteCheckFailure)    (100014))
     ((InvalidContinuationToken)    (100015))
-    ((InvalidObjectSpec)           (100016))
+    ((RowsAlreadyTrimmed)          (100016))
+    ((InvalidObjectSpec)           (100017))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

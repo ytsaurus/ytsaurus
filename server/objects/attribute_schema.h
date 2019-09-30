@@ -62,6 +62,12 @@ public:
     TAttributeSchema* SetEtc();
     bool IsEtc() const;
 
+    TAttributeSchema* SetHistoryEnabled();
+    bool IsHistoryEnabled() const;
+    std::vector<NYT::NYPath::TYPath> GetHistoryEnabledAttributePaths() const;
+    NYT::NYTree::IMapNodePtr GetHistoryEnabledAttributes(TObject* object) const;
+    bool HasStoreScheduledHistoryEnabledAttributes(TObject* object) const;
+
     TAttributeSchema* SetReadPermission(NAccessControl::EAccessControlPermission permission);
     NAccessControl::EAccessControlPermission GetReadPermission() const;
 
@@ -110,6 +116,12 @@ public:
         const NYT::NYPath::TYPath& path,
         const NYT::NYTree::INodePtr& value,
         bool recursive);
+
+    bool HasValueGetter() const;
+    NYT::NYTree::INodePtr RunValueGetter(TObject* object) const;
+
+    bool HasStoreScheduledGetter() const;
+    bool RunStoreScheduledGetter(TObject* object) const;
 
     bool HasInitializer() const;
     void RunInitializer(
@@ -201,6 +213,8 @@ private:
     TAttributeSchema* Parent_ = nullptr;
 
     std::function<void(TTransaction*, TObject*, const NYT::NYPath::TYPath&, const NYT::NYTree::INodePtr&, bool)> ValueSetter_;
+    std::function<NYT::NYTree::INodePtr(TObject*)> ValueGetter_;
+    std::function<bool(TObject*)> StoreScheduledGetter_;
     std::function<void(TTransaction*, TObject*)> Initializer_;
     std::vector<std::function<void(TTransaction*, TObject*)>> UpdatePrehandlers_;
     std::vector<std::function<void(TTransaction*, TObject*)>> UpdateHandlers_;
@@ -221,6 +235,7 @@ private:
     bool Opaque_ = false;
     bool Control_ = false;
     bool Etc_ = false;
+    bool HistoryEnabled_ = false;
     NAccessControl::EAccessControlPermission ReadPermission_ = NAccessControl::EAccessControlPermission::None;
 
     using TPathValidator = std::function<void(
@@ -230,6 +245,10 @@ private:
 
     template <class TTypedObject, class TTypedValue, class TSchema>
     void InitValueSetter(const TSchema& schema);
+    template <class TTypedObject, class TTypedValue, class TSchema>
+    void InitValueGetter(const TSchema& schema);
+    template <class TTypedObject, class TTypedValue, class TSchema>
+    void InitStoreScheduledGetter(const TSchema& schema);
     template <class TTypedObject, class TSchema>
     void InitTimestampGetter(const TSchema& schema);
     template <class TTypedObject, class TTypedValue, class TSchema>
@@ -238,6 +257,18 @@ private:
     void InitRemover(const TSchema& schema);
     template <class TTypedObject, class TSchema>
     void InitPreupdater(const TSchema& schema);
+
+    void GetHistoryEnabledAttributePathsImpl(std::vector<NYT::NYPath::TYPath>* result) const;
+
+    void GetHistoryEnabledAttributesImpl(
+        NYT::NYTree::IMapNodePtr result,
+        std::vector<NYT::NYPath::TYPath>* pathToRoot,
+        TObject* object,
+        bool hasParentHistoryEnabledAttribute) const;
+
+    bool HasStoreScheduledHistoryEnabledAttributesImpl(
+        TObject* object,
+        bool hasParentHistoryEnabledAttribute) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

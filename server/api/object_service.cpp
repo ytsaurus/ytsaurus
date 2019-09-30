@@ -3,18 +3,20 @@
 #include "helpers.h"
 #include "private.h"
 
+#include <yp/server/api/proto/continuation_token.pb.h>
+
 #include <yp/server/master/bootstrap.h>
 #include <yp/server/master/yt_connector.h>
 #include <yp/server/master/service_detail.h>
 
 #include <yp/server/objects/transaction_manager.h>
 #include <yp/server/objects/transaction.h>
+#include <yp/server/objects/db_schema.h>
 #include <yp/server/objects/object.h>
 #include <yp/server/objects/object_manager.h>
 #include <yp/server/objects/type_handler.h>
+#include <yp/server/objects/watch_query_executor.h>
 #include <yp/server/objects/helpers.h>
-
-#include <yp/server/api/proto/continuation_token.pb.h>
 
 #include <yp/server/access_control/access_control_manager.h>
 
@@ -72,9 +74,11 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetObject));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetObjects));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SelectObjects));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(WatchObjects));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CheckObjectPermissions));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetObjectAccessAllowedFor));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetUserAccessAllowedTo));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(SelectObjectHistory));
     }
 
 private:
@@ -150,7 +154,6 @@ private:
         }
         return CheckedEnumCast<EObjectType>(type);
     }
-
 
 
     template <class TContextPtr>
@@ -294,6 +297,35 @@ private:
         };
     }
 
+    template <class TContextPtr, class TRequestPtr>
+    IMapNodePtr ParseObjectAttributes(
+        const TContextPtr& context,
+        const TRequestPtr& request,
+        EObjectType objectType,
+        bool* deprecatedPayloadFormatLogged)
+    {
+        TYsonString attributesString;
+        if (request->has_attributes()) {
+            if (!*deprecatedPayloadFormatLogged) {
+                LogDeprecatedPayloadFormat(context);
+                *deprecatedPayloadFormatLogged = true;
+            }
+            attributesString = TYsonString(request->attributes());
+        } else if (request->has_attributes_payload()) {
+            attributesString = PayloadToYsonString(
+                request->attributes_payload(),
+                objectType,
+                TYPath());
+        }
+        IMapNodePtr attributes;
+        if (attributesString) {
+            attributes = ConvertTo<IMapNodePtr>(attributesString);
+        } else {
+            attributes = GetEphemeralNodeFactory()->CreateMap();
+        }
+        return attributes;
+    }
+
 
     DECLARE_RPC_SERVICE_METHOD(NClient::NApi::NProto, GenerateTimestamp)
     {
@@ -369,18 +401,12 @@ private:
             transactionId,
             objectType);
 
-        IMapNodePtr attributes;
-        if (request->has_attributes()) {
-            LogDeprecatedPayloadFormat(context);
-            attributes = ConvertTo<IMapNodePtr>(TYsonString(request->attributes()));
-        } else if (request->has_attributes_payload()) {
-            attributes = ConvertTo<IMapNodePtr>(PayloadToYsonString(
-                request->attributes_payload(),
-                objectType,
-                TYPath()));
-        } else {
-            attributes = GetEphemeralNodeFactory()->CreateMap();
-        }
+        bool deprecatedPayloadFormatLogged = false;
+        auto attributes = ParseObjectAttributes(
+            context,
+            request,
+            objectType,
+            &deprecatedPayloadFormatLogged);
 
         auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context);
 
@@ -418,20 +444,11 @@ private:
         for (const auto& protoSubrequest : request->subrequests()) {
             TSubrequest subrequest;
             subrequest.Type = CheckedEnumCastToObjectType(protoSubrequest.object_type());
-            if (protoSubrequest.has_attributes()) {
-                if (!deprecatedPayloadFormatLogged) {
-                    LogDeprecatedPayloadFormat(context);
-                    deprecatedPayloadFormatLogged = true;
-                }
-                subrequest.Attributes = ConvertTo<IMapNodePtr>(TYsonString(protoSubrequest.attributes()));
-            } else if (protoSubrequest.has_attributes_payload()) {
-                subrequest.Attributes = ConvertTo<IMapNodePtr>(PayloadToYsonString(
-                    protoSubrequest.attributes_payload(),
-                    subrequest.Type,
-                    TYPath()));
-            } else {
-                subrequest.Attributes = GetEphemeralNodeFactory()->CreateMap();
-            }
+            subrequest.Attributes = ParseObjectAttributes(
+                context,
+                &protoSubrequest,
+                subrequest.Type,
+                &deprecatedPayloadFormatLogged);
             subrequests.push_back(std::move(subrequest));
         }
 
@@ -787,6 +804,66 @@ private:
         context->Reply();
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NClient::NApi::NProto, WatchObjects)
+    {
+        auto objectType = CheckedEnumCastToObjectType(request->object_type());
+        auto startTimestamp = request->start_timestamp();
+        auto timestamp = request->timestamp();
+        auto continuationToken = request->continuation_token();
+
+        context->SetRequestInfo("ObjectType: %v, Timestamp: %llx, StartTimestamp: %llx, ContinuationToken: %v",
+            objectType,
+            timestamp,
+            startTimestamp,
+            continuationToken);
+
+        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context);
+
+        TWatchQueryOptions options;
+        if (request->has_start_timestamp()) {
+            options.StartTimestamp = request->start_timestamp();
+        }
+        if (request->has_timestamp()) {
+            options.Timestamp = request->timestamp();
+        }
+        if (request->has_event_count_limit()) {
+            options.EventCountLimit = request->event_count_limit();
+        }
+        if (request->has_time_limit()) {
+            const auto& timeLimit = request->time_limit();
+            // TODO(avitella): Add TDuration::NanoSeconds to util.
+            options.TimeLimit = TDuration::Seconds(timeLimit.seconds()) + TDuration::MicroSeconds(timeLimit.nanos() / 1000);
+        }
+        if (request->has_continuation_token()) {
+            DeserializeContinuationToken(request->continuation_token(), &(options.ContinuationToken.emplace()));
+        }
+        
+        // TODO(avitella): Only session object required. Drop dependency from full transaction.
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto transaction = WaitFor(transactionManager->StartReadOnlyTransaction(timestamp))
+            .ValueOrThrow();
+
+        const auto executor = New<TWatchQueryExecutor>(Bootstrap_, transaction->GetSession());
+        const auto result = executor->ExecuteWatchQuery(objectType, options);
+
+        response->set_timestamp(result.Timestamp);
+        response->set_continuation_token(SerializeContinuationToken(result.ContinuationToken));
+
+        response->mutable_events()->Reserve(result.Events.size());
+        for (const auto& event : result.Events) {
+            auto* protoEvent = response->add_events();
+            protoEvent->set_timestamp(event.Timestamp);
+            protoEvent->set_object_id(event.ObjectId);
+            protoEvent->set_event_type(static_cast<NClient::NApi::NProto::EEventType>(event.Type));
+        }
+
+        context->SetResponseInfo("Count: %v, Timestamp: %llx, ContinuationToken: %v",
+            result.Events.size(),
+            result.Timestamp,
+            result.ContinuationToken);
+        context->Reply();
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NClient::NApi::NProto, SelectObjects)
     {
         auto objectType = CheckedEnumCastToObjectType(request->object_type());
@@ -958,6 +1035,78 @@ private:
             ToProto(subresponse->mutable_object_ids(), objectIds);
         }
 
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NClient::NApi::NProto, SelectObjectHistory)
+    {
+        auto objectType = CheckedEnumCastToObjectType(request->object_type());
+        const auto& objectId = request->object_id();
+
+        TSelectObjectHistoryOptions options;
+
+        TAttributeSelector attributeSelector{
+            FromProto<std::vector<TString>>(request->selector().paths())
+        };
+
+        if (request->has_options()) {
+            const auto& requestOptions = request->options();
+
+            if (requestOptions.has_uuid()) {
+                options.Uuid = requestOptions.uuid();
+            }
+
+            if (requestOptions.has_limit()) {
+                options.Limit = requestOptions.limit();
+            }
+
+            if (requestOptions.has_continuation_token()) {
+                NProto::TSelectObjectHistoryContinuationToken token;
+                DeserializeContinuationToken(requestOptions.continuation_token(), &token);
+                options.Offset = token.offset();
+            }
+
+            if (requestOptions.has_interval()) {
+                FromProto(&options.TimeInterval, requestOptions.interval());
+            }
+        }
+
+       context->SetRequestInfo("ObjectType: %v, ObjectId: %v, Selector: %v, Offset: %v, Limit: %v",
+            objectType,
+            objectId,
+            attributeSelector,
+            options.Offset,
+            options.Limit);
+
+        auto format = request->format();
+        if (format == NClient::NApi::NProto::PF_NONE) {
+            LogDeprecatedPayloadFormat(context);
+        }
+
+        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context);
+
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto transaction = WaitFor(transactionManager->StartReadOnlyTransaction())
+            .ValueOrThrow();
+
+        auto result = transaction->ExecuteSelectObjectHistoryQuery(objectType, objectId, attributeSelector, options);
+
+        for (auto& resultEvent : result.Events) {
+            auto* event = response->add_events();
+            event->mutable_time()->set_seconds(resultEvent.Time.Seconds());
+            event->mutable_time()->set_nanos(resultEvent.Time.NanoSecondsOfSecond());
+            event->set_event_type(static_cast<::NYP::NClient::NApi::NProto::EEventType>(resultEvent.EventType));
+            event->set_user(resultEvent.User);
+            MoveObjectResultToProto(format, objectType, attributeSelector, &resultEvent.Attributes, event->mutable_results());
+            ToProto(event->mutable_history_enabled_attributes(), resultEvent.HistoryEnabledAttributes);
+        }
+
+        NProto::TSelectObjectHistoryContinuationToken continuationToken;
+        continuationToken.set_offset(options.Offset.value_or(0) + result.Events.size());
+        response->set_continuation_token(SerializeContinuationToken(continuationToken));
+
+        context->SetResponseInfo("Timestamp: %llx",
+            transaction->GetStartTimestamp());
         context->Reply();
     }
 };

@@ -1,14 +1,16 @@
 #include "helpers.h"
-#include "transaction.h"
-#include "type_handler.h"
+
 #include "attribute_schema.h"
 #include "db_schema.h"
-#include "pod.h"
-#include "node.h"
-#include "user.h"
 #include "group.h"
+#include "node.h"
+#include "pod.h"
+#include "transaction.h"
+#include "type_handler.h"
+#include "user.h"
 
 #include <yp/server/lib/objects/object_filter.h>
+#include <yp/server/lib/query_helpers/query_rewriter.h>
 
 #include <yt/ytlib/query_client/ast.h>
 #include <yt/ytlib/query_client/query_preparer.h>
@@ -20,6 +22,8 @@
 #include <yt/core/yson/forwarding_consumer.h>
 
 #include <yt/core/ytree/ypath_client.h>
+
+#include <util/string/hex.h>
 
 namespace NYP::NServer::NObjects {
 
@@ -439,75 +443,17 @@ TExpressionPtr BuildFilterExpression(
     IQueryContext* context,
     const TObjectFilter& filter)
 {
-    class TQueryRewriter
-    {
-    public:
-        explicit TQueryRewriter(IQueryContext* context)
-            : Context_(context)
-        { }
-
-        TExpressionPtr Run(const TExpressionPtr& expr)
-        {
-            TExpressionPtr expr_(expr);
-            Visit(&expr_);
-            return expr_;
-        }
-
-    private:
-        IQueryContext* const Context_;
-
-        void Visit(TExpressionPtr* expr)
-        {
-            if ((*expr)->As<TLiteralExpression>()) {
-                // Do nothing.
-            } else if (auto* typedExpr = (*expr)->As<TReferenceExpression>()) {
-                RewriteReference(expr, typedExpr->Reference);
-            } else if (auto* typedExpr = (*expr)->As<TAliasExpression>()) {
-                Visit(&typedExpr->Expression);
-            } else if (auto* typedExpr = (*expr)->As<TFunctionExpression>()) {
-                Visit(typedExpr->Arguments);
-            } else if (auto* typedExpr = (*expr)->As<TUnaryOpExpression>()) {
-                Visit(typedExpr->Operand);
-            } else if (auto* typedExpr = (*expr)->As<TBinaryOpExpression>()) {
-                Visit(typedExpr->Lhs);
-                Visit(typedExpr->Rhs);
-            } else if (auto* typedExpr = (*expr)->As<TInExpression>()) {
-                Visit(typedExpr->Expr);
-            } else if (auto* typedExpr = (*expr)->As<TBetweenExpression>()) {
-                Visit(typedExpr->Expr);
-            } else if (auto* typedExpr = (*expr)->As<TTransformExpression>()) {
-                Visit(typedExpr->Expr);
-                Visit(typedExpr->DefaultExpr);
-            } else {
-                YT_ABORT();
-            }
-        }
-
-        void Visit(TNullableExpressionList& list)
-        {
-            if (list) {
-                Visit(*list);
-            }
-        }
-
-        void Visit(TExpressionList& list)
-        {
-            for (auto& expr : list) {
-                Visit(&expr);
-            }
-        }
-
-        void RewriteReference(TExpressionPtr* expr, const TReference& ref)
-        {
-            if (ref.TableName) {
-                THROW_ERROR_EXCEPTION("Table references are not supported");
-            }
-            *expr = BuildAttributeSelector(Context_, ref.ColumnName);
-        }
-    } rewriter(context);
-
     auto parsedQuery = NQueryClient::ParseSource(filter.Query, NQueryClient::EParseMode::Expression);
     const auto& queryExpr = std::get<TExpressionPtr>(parsedQuery->AstHead.Ast);
+
+    auto referenceMapping = [context] (const TReference& ref) {
+        if (ref.TableName) {
+            THROW_ERROR_EXCEPTION("Table references are not supported");
+        }
+        return BuildAttributeSelector(context, ref.ColumnName);
+    };
+    NQueryHelpers::TQueryRewriter rewriter(std::move(referenceMapping));
+
     return rewriter.Run(queryExpr);
 }
 
@@ -568,5 +514,16 @@ void ValidateSubjectExists(TTransaction* transaction, const TObjectId& subjectId
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYP::NServer::NObjects
+TTimestamp GetBarrierTimestamp(const std::vector<NYT::NApi::TTabletInfo>& tabletInfos)
+{
+    YT_VERIFY(!tabletInfos.empty());
+    auto result = tabletInfos[0].BarrierTimestamp;
+    for (size_t i = 1; i < tabletInfos.size(); ++i) {
+        result = std::min(result, tabletInfos[i].BarrierTimestamp);
+    }
+    return result;
+}
 
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYP::NServer::NObjects

@@ -1,9 +1,14 @@
 package NYP.NClient.NApi.NProto;
 
+import "google/protobuf/timestamp.proto";
+
 import "yt/core/yson/proto/protobuf_interop.proto";
 
 import "yp/client/api/proto/data_model.proto";
 import "yp/client/api/proto/autogen.proto";
+import "yp/client/api/proto/enums.proto";
+
+import "google/protobuf/duration.proto";
 
 option python_package = "yp_proto.yp.client.api.proto";
 
@@ -83,8 +88,8 @@ message TEvent
     // Event type.
     required EEventType event_type = 2;
 
-    // Event attributes (cf. TReqWatchObjects.selector).
-    required TAttributeList attributes = 3;
+    // Object id.
+    required string object_id = 3;
 }
 
 message TSetUpdate
@@ -646,31 +651,25 @@ message TRspGetUserAccessAllowedTo
 
 message TReqWatchObjects
 {
+    // Only fetches events with timestamp <= given timestamp.
+    optional uint64 timestamp = 1;
+
     // Only fetches events with timestamp > start_timestamp.
-    required uint64 start_timestamp = 1;
+    optional uint64 start_timestamp = 2;
+
+    // Token to continue object selection. Fetches events after previous replied events.
+    // Either start_timestamp or continuation_token should be specified in request.
+    optional string continuation_token = 3;
 
     // Type of objects to watch.
-    required EObjectType object_type = 2;
+    required EObjectType object_type = 4;
 
-    // Maximum number of events to wait for.
-    // If omitted then no limit is imposed.
-    optional int32 event_count_limit = 3;
+    // Enables limiting the number of results.
+    optional int64 event_count_limit = 5;
 
     // If some events are already available, WatchObjects call just returns them.
-    // Otherwise it waits up to time_limit ms (if given).
-    // If no events (matching the filter) occurred then it returns zero events.
-    // TRspWatchObjects.end_timestamp is always filled properly to enable another
-    // call to WatchObjects with TReqWatchObjects.start_timestamp == TRspWatchObjects.end_timestamp
-    // to proceed along the event queue.
-    // If omitted then no limit is imposed.
-    optional int32 time_limit = 4;
-
-    // Provides means for filtering certain events.
-    optional TObjectFilter filter = 5;
-
-    // Describes which attributes are to be fetched.
-    // TRspWatchObjects.events.attributes will contain exactly this number of attributes.
-    optional TAttributeSelector selector = 6;
+    // Otherwise it waits up to time_limit if given.
+    optional google.protobuf.Duration time_limit = 6;
 }
 
 message TRspWatchObjects
@@ -678,11 +677,90 @@ message TRspWatchObjects
     // Events read so far.
     repeated TEvent events = 1;
 
-    // If events is not empty then this is the timestamp of the last one.
-    // If no events are returned then this is a properly chosen timestamp (which is typically close to the current one).
-    // In the latter case it is guaranteed that no event in (start_timestamp, end_timestamp] range
-    // conforms to the filter.
-    required uint64 end_timestamp = 2;
+    // If TReqWatchObjects.timestamp is missing, then this contains the actual timestamp
+    // used for reading the DB; otherwise this is just the copy of TRspWatchObjects.timestamp.
+    required uint64 timestamp = 2;
+
+    // Token to continue object selection. Selection is finished, if token is empty.
+    required string continuation_token = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TTimeInterval
+{
+    // Time selector of form "begin <= time < end".
+    // If some of the fields are not set the corresponding inequality is vacuous.
+
+    // Left endpoint of the time interval. Endpoint is included.
+    optional google.protobuf.Timestamp begin = 1;
+
+    // Right endpoint of the time interval. Endpoint is not included.
+    optional google.protobuf.Timestamp end = 2;
+}
+
+message TSelectObjectHistoryOptions
+{
+    // Uuid of the object. If set history will be selected for
+    // object with given object_id and given uuid.
+    optional string uuid = 1;
+
+    // Maximum number of results to fetch.
+    optional int32 limit = 2;
+
+    // Continuation token - should be sent in subsequent requests to fetch the next batch
+    // of history events. Opaque for the client.
+    optional string continuation_token = 3;
+
+    // Time interval to select.
+    optional TTimeInterval interval = 4;
+}
+
+message TReqSelectObjectHistory
+{
+    // Type of the object to fetch the history for.
+    required EObjectType object_type = 1;
+
+    // Id of the object to fetch the history for.
+    required string object_id = 2;
+
+    // Describes which attributes are to be fetched.
+    // TRspSelectObjectHistory.events.results will contain exactly this number of attributes.
+    required TAttributeSelector selector = 3;
+
+    // Format to use in response.
+    // Format must be supported in the moment of the query.
+    optional EPayloadFormat format = 4;
+
+    // Object history selection query options.
+    optional TSelectObjectHistoryOptions options = 5;
+}
+
+message TRspSelectObjectHistory
+{
+    message TEvent
+    {
+        // Time of the event.
+        required google.protobuf.Timestamp time = 1;
+
+        // Type of the event.
+        required EEventType event_type = 2;
+
+        // User that has performed the change.
+        required string user = 3;
+
+        // Event attributes (cf. TReqSelectObjectHistory.selector).
+        optional TAttributeList results = 4;
+
+        // List of attributes that were stored for this event.
+        repeated string history_enabled_attributes = 5;
+    }
+
+    // Selected events.
+    repeated TEvent events = 1;
+
+    // Continuation token.
+    optional string continuation_token = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -742,6 +820,9 @@ service ObjectService
 
     // Reads updates from event queue.
     rpc WatchObjects (TReqWatchObjects) returns (TRspWatchObjects);
+
+    // Executes a query and fetches attributes for relevant objects.
+    rpc SelectObjectHistory (TReqSelectObjectHistory) returns (TRspSelectObjectHistory);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

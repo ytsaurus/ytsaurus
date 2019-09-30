@@ -57,6 +57,8 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TAccount*, Account);
 
     TAccount* GetEffectiveAccount() const;
+
+    const TString& GetEffectiveNodeFilter() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -23,6 +23,7 @@
 #include "type_handler.h"
 #include "user.h"
 #include "virtual_service.h"
+#include "watch_manager.h"
 
 #include <yp/server/master/bootstrap.h>
 #include <yp/server/master/yt_connector.h>
@@ -52,6 +53,7 @@
 #include <yt/ytlib/query_client/query_preparer.h>
 
 #include <yt/core/ytree/node.h>
+#include <yt/core/ytree/ypath_resolver.h>
 
 #include <yt/core/ypath/tokenizer.h>
 
@@ -70,6 +72,7 @@ using namespace NYT::NTableClient;
 using namespace NYT::NConcurrency;
 using namespace NYT::NQueryClient::NAst;
 using namespace NYT::NNet;
+using namespace NYT::NYson;
 
 using NYT::NQueryClient::TSourceLocation;
 using NYT::NQueryClient::EBinaryOp;
@@ -117,6 +120,23 @@ void FromProto(
     }
     options->FetchValues = protoOptions.fetch_values();
     options->FetchTimestamps = protoOptions.fetch_timestamps();
+}
+
+void FromProto(
+    TTimeInterval* timeInterval,
+    const NClient::NApi::NProto::TTimeInterval& protoTimeInterval)
+{
+    // TODO(gritukan): Remove it after YP-1254.
+    auto protoTimestampToInstant = [] (const google::protobuf::Timestamp& timestamp) {
+        return TInstant::Seconds(timestamp.seconds()) + TDuration::MicroSeconds(timestamp.nanos() / 1000);
+    };
+
+    if (protoTimeInterval.has_begin()) {
+        timeInterval->Begin = protoTimestampToInstant(protoTimeInterval.begin());
+    }
+    if (protoTimeInterval.has_end()) {
+        timeInterval->End = protoTimestampToInstant(protoTimeInterval.end());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -588,6 +608,63 @@ public:
 
             if (options.FetchTimestamps) {
                 FillAttributeTimestamps(&valueList, rowObjects[rowIndex], resolveResults);
+            }
+        }
+
+        return result;
+    }
+
+
+    TSelectObjectHistoryResult ExecuteSelectObjectHistoryQuery(
+        EObjectType objectType,
+        const TObjectId& objectId,
+        const TAttributeSelector& attributeSelector,
+        TSelectObjectHistoryOptions options)
+    {
+        constexpr i64 MaximumEventsLimit = 100'000;
+
+        if (options.Limit && *options.Limit > MaximumEventsLimit) {
+            THROW_ERROR_EXCEPTION("The number of requested events exceeds the limit: %v > %v",
+                *options.Limit,
+                MaximumEventsLimit);
+        }
+        if (!options.Limit) {
+            options.Limit = MaximumEventsLimit + 1;
+        }
+
+        auto query = GetObjectHistorySelectionQuery(objectType, objectId, options);
+        YT_LOG_DEBUG("Selecting object history (Query: %v)",
+            query);
+
+        auto rowset = RunSelect(query);
+        auto rows = rowset->GetRows();
+
+        if (rows.size() > MaximumEventsLimit) {
+            THROW_ERROR_EXCEPTION("Too many events selected, limit: %v", MaximumEventsLimit);
+        }
+
+        TSelectObjectHistoryResult result;
+        for (auto row : rows) {
+            auto& event = result.Events.emplace_back();
+            TYsonString objectValue, historyEnabledAttributePaths;
+
+            FromUnversionedRow(
+                row,
+                &event.Time,
+                &event.EventType,
+                &event.User,
+                &objectValue,
+                &historyEnabledAttributePaths);
+
+            event.HistoryEnabledAttributes = ConvertTo<TVector<TYPath>>(historyEnabledAttributePaths);
+
+            for (const auto& attributePath : attributeSelector.Paths) {
+                auto attributeValue = TryGetAny(objectValue.GetData(), attributePath);
+                if (attributeValue) {
+                    event.Attributes.Values.emplace_back(*attributeValue);
+                } else {
+                    event.Attributes.Values.emplace_back(ConvertToYsonString(GetEphemeralNodeFactory()->CreateEntity()));
+                }
             }
         }
 
@@ -1117,7 +1194,6 @@ private:
 
         THashMap<const TDBTable*, std::vector<TLookupRequest>> LookupRequestsPerTable_;
 
-
         class TTableLookupSession
         {
         public:
@@ -1542,6 +1618,10 @@ private:
             FlushObjectsDeletion();
             ValidateCreatedObjects();
             FlushObjectsCreation();
+            if (Owner_->Bootstrap_->GetObjectManager()->IsHistoryEnabled()) {
+                FlushHistoryEvents();
+            }
+            FlushWatchLogObjectsUpdates();
             std::vector<TError> errors;
             while (HasPendingLoads() || HasPendingStores()) {
                 FlushLoadsOnce(&errors);
@@ -1779,7 +1859,6 @@ private:
         std::array<std::vector<TLoadCallback>, LoadPriorityCount> ScheduledLoads_;
         std::vector<TStoreCallback> ScheduledStores_;
 
-
         static TObjectId GenerateId(const TObjectId& id)
         {
             if (id) {
@@ -1875,6 +1954,8 @@ private:
             YT_LOG_DEBUG("Started preparing objects creation");
             TStoreContext context(Owner_);
 
+            const auto& watchManager = Owner_->Bootstrap_->GetWatchManager();
+
             for (const auto& item : CreatedObjects_) {
                 const auto* object = item.second;
 
@@ -1888,6 +1969,14 @@ private:
                 context.DeleteRow(
                     typeHandler->GetTable(),
                     CaptureCompositeObjectKey(object, context.GetRowBuffer()));
+
+                if (watchManager->Enabled()) {
+                    context.WriteRow(
+                        watchManager->GetWatchLogTable(object->GetType()),
+                        {},
+                        MakeArray(&WatchLogSchema.Fields.ObjectId, &WatchLogSchema.Fields.EventType),
+                        ToUnversionedValues(context.GetRowBuffer(), object->GetId(), EEventType::ObjectCreated));
+                }
 
                 if (typeHandler->GetParentType() != EObjectType::Null) {
                     auto parentId = object->GetParentId();
@@ -1910,6 +1999,31 @@ private:
             YT_LOG_DEBUG("Finished preparing objects creation");
         }
 
+        void FlushWatchLogObjectsUpdates()
+        {
+            YT_LOG_DEBUG("Started watch log objects updation");
+            TStoreContext context(Owner_);
+
+            const auto& watchManager = Owner_->Bootstrap_->GetWatchManager();
+
+            if (watchManager->Enabled()) {
+                for (const auto& [key, object] : InstantiatedObjects_) {
+                    if (!object->IsStoreScheduled() || object->GetState() != EObjectState::Instantiated) {
+                        continue;
+                    }
+
+                    context.WriteRow(
+                        watchManager->GetWatchLogTable(object->GetType()),
+                        {},
+                        MakeArray(&WatchLogSchema.Fields.ObjectId, &WatchLogSchema.Fields.EventType),
+                        ToUnversionedValues(context.GetRowBuffer(), object->GetId(), EEventType::ObjectUpdated));
+                }
+            }
+
+            context.FillTransaction(Owner_->UnderlyingTransaction_);
+            YT_LOG_DEBUG("Finished watch log objects updation");
+        }
+
         void FlushObjectsDeletion()
         {
             auto now = TInstant::Now();
@@ -1918,6 +2032,8 @@ private:
             TStoreContext context(Owner_);
 
             const auto& objectManager = Owner_->Bootstrap_->GetObjectManager();
+            const auto& watchManager = Owner_->Bootstrap_->GetWatchManager();
+
             for (auto type : TEnumTraits<EObjectType>::GetDomainValues()) {
                 auto* typeHandler = objectManager->FindTypeHandler(type);
                 if (!typeHandler) {
@@ -1930,6 +2046,14 @@ private:
                 const auto& objects = RemovedObjects_[type];
                 for (const auto& item : objects) {
                     const auto* object = item.second;
+
+                    if (watchManager->Enabled()) {
+                        context.WriteRow(
+                            watchManager->GetWatchLogTable(object->GetType()),
+                            {},
+                            MakeArray(&WatchLogSchema.Fields.ObjectId, &WatchLogSchema.Fields.EventType),
+                            ToUnversionedValues(context.GetRowBuffer(), object->GetId(), EEventType::ObjectRemoved));
+                    }
 
                     context.WriteRow(
                         table,
@@ -1961,6 +2085,83 @@ private:
 
             context.FillTransaction(Owner_->UnderlyingTransaction_);
             YT_LOG_DEBUG("Finished preparing objects deletion");
+        }
+
+        void WriteHistoryEvent(
+            TStoreContext& storeContext,
+            TObject* object,
+            EEventType eventType,
+            TInstant time)
+        {
+            TYsonString historyEnabledAttributes;
+            if (eventType == EEventType::ObjectRemoved) {
+                // TODO (gritukan@): simpler?
+                historyEnabledAttributes = TYsonString("{}");
+            } else {
+                historyEnabledAttributes = object->GetHistoryEnabledAttributes();
+            }
+            storeContext.WriteRow(
+                &HistoryEventsTable,
+                ToUnversionedValues(
+                    storeContext.GetRowBuffer(),
+                    object->GetType(),
+                    object->GetId(),
+                    object->MetaEtc().Load().uuid(),
+                    time,
+                    ToString(Owner_->GetId())),
+                MakeArray(
+                    &HistoryEventsTable.Fields.EventType,
+                    &HistoryEventsTable.Fields.User,
+                    &HistoryEventsTable.Fields.Value,
+                    &HistoryEventsTable.Fields.HistoryEnabledAttributes),
+                ToUnversionedValues(
+                    storeContext.GetRowBuffer(),
+                    eventType,
+                    Owner_->Bootstrap_->GetAccessControlManager()->GetAuthenticatedUser(),
+                    historyEnabledAttributes,
+                    object->GetTypeHandler()->GetHistoryEnabledAttributePaths())
+            );
+        }
+
+        void FlushHistoryEvents()
+        {
+            YT_LOG_DEBUG("Started writing history events");
+
+            const auto time = TInstant::Now();
+
+            TStoreContext storeContext(Owner_);
+            const auto& objectManager = Owner_->Bootstrap_->GetObjectManager();
+            for (auto type : TEnumTraits<EObjectType>::GetDomainValues()) {
+                auto* typeHandler = objectManager->FindTypeHandler(type);
+                if (!typeHandler || !typeHandler->HasHistoryEnabledAttributes()) {
+                    continue;
+                }
+
+                for (const auto& [objectType, object] : RemovedObjects_[type]) {
+                    WriteHistoryEvent(storeContext, object, EEventType::ObjectRemoved, time);
+                }
+            }
+
+            for (const auto& [objectType, object] : InstantiatedObjects_) {
+                if (!object->IsStoreScheduled() || object->GetState() != EObjectState::Instantiated) {
+                    continue;
+                }
+
+                auto* typeHandler = object->GetTypeHandler();
+                if (typeHandler->HasStoreScheduledHistoryEnabledAttributes(object.get())) {
+                    WriteHistoryEvent(storeContext, object.get(), EEventType::ObjectUpdated, time);
+                }
+            }
+
+            for (const auto& [objectType, object] : CreatedObjects_) {
+                auto* typeHandler = object->GetTypeHandler();
+                if (typeHandler->HasHistoryEnabledAttributes()) {
+                    WriteHistoryEvent(storeContext, object, EEventType::ObjectCreated, time);
+                }
+            }
+
+            storeContext.FillTransaction(Owner_->UnderlyingTransaction_);
+            YT_LOG_DEBUG("Finished writing history events");
         }
 
         void FlushLoadsOnce(std::vector<TError>* errors)
@@ -2756,6 +2957,61 @@ private:
         Session_.FlushLoads();
         return rowset;
     }
+
+    TString GetObjectHistorySelectionQuery(
+        EObjectType objectType,
+        const TObjectId& objectId,
+        const TSelectObjectHistoryOptions& options)
+    {
+        TStringBuilder queryBuilder;
+        queryBuilder.AppendFormat("[%v], [%v], [%v], [%v], [%v]",
+            HistoryEventsTable.Fields.Time.Name,
+            HistoryEventsTable.Fields.EventType.Name,
+            HistoryEventsTable.Fields.User.Name,
+            HistoryEventsTable.Fields.Value.Name,
+            HistoryEventsTable.Fields.HistoryEnabledAttributes.Name);
+
+        queryBuilder.AppendFormat(" from [%v]", Bootstrap_->GetYTConnector()->GetTablePath(&HistoryEventsTable));
+        queryBuilder.AppendFormat(" where [%v] = %v and [%v] = %Qv",
+            HistoryEventsTable.Fields.ObjectType.Name,
+            static_cast<i64>(objectType),
+            HistoryEventsTable.Fields.ObjectId.Name,
+            objectId);
+
+        if (options.Uuid) {
+            queryBuilder.AppendFormat(" and [%v] = %Qv",
+                HistoryEventsTable.Fields.Uuid.Name,
+                *options.Uuid);
+        }
+        if (options.TimeInterval.Begin) {
+            queryBuilder.AppendFormat(" and [%v] >= %v",
+                HistoryEventsTable.Fields.Time.Name,
+                options.TimeInterval.Begin->MicroSeconds());
+        }
+        if (options.TimeInterval.End) {
+            queryBuilder.AppendFormat(" and [%v] < %v",
+                HistoryEventsTable.Fields.Time.Name,
+                options.TimeInterval.End->MicroSeconds());
+        }
+
+        queryBuilder.AppendFormat(" order by [%v]",
+            HistoryEventsTable.Fields.Time.Name);
+
+        if (options.Offset) {
+            queryBuilder.AppendFormat(" offset %v",
+                *options.Offset);
+        }
+
+        // YT requires limit for queries with ORDER BY
+        // so options.Limit equals to default value if user didn't set it.
+        YT_VERIFY(options.Limit);
+        ui64 eventsLimit = *options.Limit;
+
+        queryBuilder.AppendFormat(" limit %v",
+            eventsLimit);
+
+        return queryBuilder.Flush();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2879,6 +3135,19 @@ TSelectQueryResult TTransaction::ExecuteSelectQuery(
         type,
         filter,
         selector,
+        options);
+}
+
+TSelectObjectHistoryResult TTransaction::ExecuteSelectObjectHistoryQuery(
+    EObjectType objectType,
+    const TObjectId& objectId,
+    const TAttributeSelector& attributeSelector,
+    const TSelectObjectHistoryOptions& options)
+{
+    return Impl_->ExecuteSelectObjectHistoryQuery(
+        objectType,
+        objectId,
+        attributeSelector,
         options);
 }
 

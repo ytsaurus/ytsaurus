@@ -46,7 +46,9 @@ public:
                 NObjects::EObjectType::EndpointSet,
                 NObjects::EObjectType::MultiClusterReplicaSet,
                 NObjects::EObjectType::ReplicaSet,
-                NObjects::EObjectType::PodSet});
+                NObjects::EObjectType::PodSet,
+                NObjects::EObjectType::Stage,
+                NObjects::EObjectType::DynamicResource});
     }
 };
 

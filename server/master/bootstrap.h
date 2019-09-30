@@ -37,6 +37,7 @@ public:
     const NObjects::TObjectManagerPtr& GetObjectManager();
     const NNet::TNetManagerPtr& GetNetManager();
     const NObjects::TTransactionManagerPtr& GetTransactionManager();
+    const NObjects::TWatchManagerPtr& GetWatchManager();
     const NNodes::TNodeTrackerPtr& GetNodeTracker();
     const NScheduler::TSchedulerPtr& GetScheduler();
     const NScheduler::TResourceManagerPtr& GetResourceManager();

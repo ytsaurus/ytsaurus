@@ -44,7 +44,8 @@ public:
                     ->SetUpdatable()
                     ->SetValidator<TStage>(ValidateSpecEtc)
             })
-            ->SetExtensible();
+            ->SetExtensible()
+            ->SetHistoryEnabled();
 
         StatusAttributeSchema_
             ->SetAttribute(TStage::StatusSchema)

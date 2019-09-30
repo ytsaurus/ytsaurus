@@ -6,6 +6,7 @@
 #include <yt/client/table_client/unversioned_row.h>
 
 #include <yt/client/api/public.h>
+#include <yt/client/api/client.h>
 
 #include <yt/core/misc/optional.h>
 #include <yt/core/misc/range.h>
@@ -152,6 +153,8 @@ public:
     explicit TAttributeBase(TObject* owner);
 
     TObject* GetOwner() const;
+
+    bool IsStoreScheduled() const;
 
 protected:
     TObject* const Owner_;

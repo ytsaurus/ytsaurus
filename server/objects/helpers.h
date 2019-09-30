@@ -4,6 +4,8 @@
 
 #include <yp/server/access_control/public.h>
 
+#include <yt/client/api/client.h>
+
 #include <yt/ytlib/query_client/ast.h>
 
 #include <yt/core/ypath/public.h>
@@ -125,6 +127,10 @@ TObjectId GenerateUuid();
 ////////////////////////////////////////////////////////////////////////////////
 
 void ValidateSubjectExists(TTransaction* transaction, const TObjectId& subjectId);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTimestamp GetBarrierTimestamp(const std::vector<NYT::NApi::TTabletInfo>& tabletInfos);
 
 ////////////////////////////////////////////////////////////////////////////////
 

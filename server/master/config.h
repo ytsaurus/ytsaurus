@@ -101,6 +101,7 @@ public:
     NObjects::TObjectManagerConfigPtr ObjectManager;
     NNet::TNetManagerConfigPtr NetManager;
     NObjects::TTransactionManagerConfigPtr TransactionManager;
+    NObjects::TWatchManagerConfigPtr WatchManager;
     NNodes::TNodeTrackerConfigPtr NodeTracker;
     NScheduler::TSchedulerConfigPtr Scheduler;
     NAccessControl::TAccessControlManagerConfigPtr AccessControlManager;
@@ -136,6 +137,8 @@ public:
         RegisterParameter("net_manager", NetManager)
             .DefaultNew();
         RegisterParameter("transaction_manager", TransactionManager)
+            .DefaultNew();
+        RegisterParameter("watch_manager", WatchManager)
             .DefaultNew();
         RegisterParameter("node_tracker", NodeTracker)
             .DefaultNew();

@@ -96,6 +96,14 @@ message TPodSpec
 
     repeated NYP.NClient.NApi.NProto.TPodStatus.TGpuAllocation gpu_allocations = 16;
 
+    message TNetworkAllocation
+    {
+        optional uint64 tx_bandwidth_guarantee = 1;
+        optional uint64 tx_bandwidth_limit = 2;
+        optional uint64 rx_bandwidth_limit = 3;
+    }
+    optional TNetworkAllocation network_allocation = 17;
+
     // Contains (raw, unencrypted) secrets to be injected into the pod.
     // These are obtained via TVM magic from secret descriptors provided in /pod/spec/secrets.
     repeated NYP.NClient.NApi.NProto.TSecret secrets = 11;

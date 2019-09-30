@@ -25,6 +25,27 @@ extern const struct TObjectTableBase
 
 ////////////////////////////////////////////////////////////////////////////////
 
+extern const struct TWatchLogSchema
+{
+    TWatchLogSchema()
+    { }
+
+    const struct TKey
+    {
+        TDBField TabletIndex{"$tablet_index", NTableClient::EValueType::Int64};
+        TDBField RowIndex{"$row_index", NTableClient::EValueType::Int64};
+    } Key;
+
+    const struct TFields
+    {
+        TDBField Timestamp{"$timestamp", NTableClient::EValueType::Uint64};
+        TDBField ObjectId{"object_id", NTableClient::EValueType::String};
+        TDBField EventType{"event_type", NTableClient::EValueType::Int64};
+    } Fields;
+} WatchLogSchema;
+
+////////////////////////////////////////////////////////////////////////////////
+
 extern const struct TSchemasTable
     : public TDBTable
     , public TObjectTableBase
@@ -751,6 +772,31 @@ extern const struct TPodDisruptionBudgetToPodSetsTable
         TDBField PodSetId{"pod_set_id", NTableClient::EValueType::String};
     } Fields;
 } PodDisruptionBudgetToPodSetsTable;
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const struct THistoryEventsTable
+    : public TDBTable
+{
+    THistoryEventsTable()
+        : TDBTable("history_events")
+    {
+        Key = {&Fields.ObjectType, &Fields.ObjectId, &Fields.Uuid, &Fields.Time, &Fields.TransactionId};
+    }
+
+    struct TFields
+    {
+        TDBField ObjectType{"object_type", NTableClient::EValueType::Int64};
+        TDBField ObjectId{"object_id", NTableClient::EValueType::String};
+        TDBField Uuid{"uuid", NTableClient::EValueType::String};
+        TDBField Time{"time", NTableClient::EValueType::Uint64};
+        TDBField TransactionId{"transaction_id", NTableClient::EValueType::String};
+        TDBField EventType{"event_type", NTableClient::EValueType::Int64};
+        TDBField User{"user", NTableClient::EValueType::String};
+        TDBField Value{"value", NTableClient::EValueType::Any};
+        TDBField HistoryEnabledAttributes{"history_enabled_attributes", NTableClient::EValueType::Any};
+    } Fields;
+} HistoryEventsTable;
 
 ////////////////////////////////////////////////////////////////////////////////
 

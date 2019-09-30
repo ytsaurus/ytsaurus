@@ -42,6 +42,7 @@ public:
     int RemovedObjectsDropBatchSize;
     TPodTypeHandlerConfigPtr PodTypeHandler;
     bool EnableExtensibleAttributes;
+    bool EnableHistory;
 
     TObjectManagerConfig()
     {
@@ -56,6 +57,8 @@ public:
             .DefaultNew();
         RegisterParameter("enable_extensible_attributes", EnableExtensibleAttributes)
             .Default(false);
+        RegisterParameter("enable_history", EnableHistory)
+            .Default(true);
     }
 };
 
@@ -84,6 +87,29 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TTransactionManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TWatchManagerConfig
+    : public NYT::NYTree::TYsonSerializable
+{
+public:
+    bool Enabled;
+    TDuration TabletInfosPollInterval;
+    TDuration MaxWaitForTabletInfosTimeLimit;
+
+    TWatchManagerConfig()
+    {
+        RegisterParameter("enabled", Enabled)
+            .Default(true);
+        RegisterParameter("tablet_infos_poll_interval", TabletInfosPollInterval)
+            .Default(TDuration::MilliSeconds(50));
+        RegisterParameter("max_wait_for_tablet_infos_time_limit", MaxWaitForTabletInfosTimeLimit)
+            .Default(TDuration::Seconds(30));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TWatchManagerConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 

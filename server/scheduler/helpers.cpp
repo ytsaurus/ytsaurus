@@ -423,13 +423,13 @@ void UpdatePodDiskVolumeAllocations(
 }
 
 void UpdatePodGpuAllocations(
-    google::protobuf::RepeatedPtrField<NClient::NApi::NProto::TPodStatus_TGpuAllocation>* allocations,
+    TPodGpuAllocations* allocations,
     const std::vector<TLocalResourceAllocator::TRequest>& allocatorRequests,
     const std::vector<TLocalResourceAllocator::TResponse>& allocatorResponses)
 {
     auto requestIdToAllocation = GetGpuRequestIdToAllocationMapping(*allocations);
 
-    google::protobuf::RepeatedPtrField<NClient::NApi::NProto::TPodStatus_TGpuAllocation> newAllocations;
+    TPodGpuAllocations newAllocations;
     for (size_t index = 0; index < allocatorRequests.size(); ++index) {
         const auto& request = allocatorRequests[index];
         const auto& response = allocatorResponses[index];

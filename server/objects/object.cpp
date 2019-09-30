@@ -1,7 +1,10 @@
 #include "object.h"
 
+#include "attribute_schema.h"
 #include "db_schema.h"
 #include "helpers.h"
+
+#include "type_handler.h"
 
 #include <yp/server/lib/objects/type_info.h>
 
@@ -160,6 +163,26 @@ bool TObject::IsBuiltin() const
 void TObject::RegisterAttribute(IPersistentAttribute* attribute)
 {
     Attributes_.push_back(attribute);
+}
+
+void TObject::ScheduleStore()
+{
+    StoreScheduled_ = true;
+}
+
+bool TObject::IsStoreScheduled() const
+{
+    return StoreScheduled_;
+}
+
+bool TObject::HasHistoryEnabledAttributes() const
+{
+    return TypeHandler_->HasHistoryEnabledAttributes();
+}
+
+NYT::NYson::TYsonString TObject::GetHistoryEnabledAttributes()
+{
+    return NYT::NYTree::ConvertToYsonString(TypeHandler_->GetRootAttributeSchema()->GetHistoryEnabledAttributes(this));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

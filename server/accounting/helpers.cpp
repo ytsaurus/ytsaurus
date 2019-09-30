@@ -139,14 +139,14 @@ void Aggregate(
     lhs.mutable_memory()->set_capacity(lhs.memory().capacity() + rhs.memory().capacity() * multiplier);
     lhs.mutable_network()->set_bandwidth(lhs.network().bandwidth() + rhs.network().bandwidth() * multiplier);
     lhs.mutable_internet_address()->set_capacity(lhs.internet_address().capacity() + rhs.internet_address().capacity() * multiplier);
-    for (const auto& pair : rhs.disk_per_storage_class()) {
-        auto& diskTotals = (*lhs.mutable_disk_per_storage_class())[pair.first];
-        diskTotals.set_capacity(diskTotals.capacity() + pair.second.capacity() * multiplier);
-        diskTotals.set_bandwidth(diskTotals.bandwidth() + pair.second.bandwidth() * multiplier);
+    for (const auto& [storageClass, rhsDiskTotals] : rhs.disk_per_storage_class()) {
+        auto& lhsDiskTotals = (*lhs.mutable_disk_per_storage_class())[storageClass];
+        lhsDiskTotals.set_capacity(lhsDiskTotals.capacity() + rhsDiskTotals.capacity() * multiplier);
+        lhsDiskTotals.set_bandwidth(lhsDiskTotals.bandwidth() + rhsDiskTotals.bandwidth() * multiplier);
     }
-    for (const auto& pair : rhs.gpu_per_model()) {
-        auto& gpuTotals = (*lhs.mutable_gpu_per_model())[pair.first];
-        gpuTotals.set_capacity(gpuTotals.capacity() + pair.second.capacity() * multiplier);
+    for (const auto& [gpuModel, rhsGpuTotals] : rhs.gpu_per_model()) {
+        auto& lhsGpuTotals = (*lhs.mutable_gpu_per_model())[gpuModel];
+        lhsGpuTotals.set_capacity(lhsGpuTotals.capacity() + rhsGpuTotals.capacity() * multiplier);
     }
 }
 
@@ -254,11 +254,11 @@ void FormatValue(TStringBuilderBase* builder, const TPerSegmentResourceTotals& t
     {
         globalDelimitedBuilder->AppendString("DiskPerStorageClass = {");
         TDelimitedStringBuilderWrapper diskDelimitedBuilder(builder);
-        for (const auto& pair : totals.disk_per_storage_class()) {
+        for (const auto& [storageClass, diskTotals] : totals.disk_per_storage_class()) {
             diskDelimitedBuilder->AppendFormat("%v=>{Capacity: %v, Bandwidth: %v}",
-                pair.first,
-                pair.second.capacity(),
-                pair.second.bandwidth());
+                storageClass,
+                diskTotals.capacity(),
+                diskTotals.bandwidth());
         }
         builder->AppendString("}");
     }
@@ -266,10 +266,10 @@ void FormatValue(TStringBuilderBase* builder, const TPerSegmentResourceTotals& t
     {
         globalDelimitedBuilder->AppendString("GpuPerModel = {");
         TDelimitedStringBuilderWrapper gpuDelimitedBuilder(builder);
-        for (const auto& pair : totals.gpu_per_model()) {
+        for (const auto& [gpuModel, gpuTotals] : totals.gpu_per_model()) {
             gpuDelimitedBuilder->AppendFormat("%v=>{Capacity: %v}",
-                pair.first,
-                pair.second.capacity());
+                gpuModel,
+                gpuTotals.capacity());
         }
         builder->AppendString("}");
     }

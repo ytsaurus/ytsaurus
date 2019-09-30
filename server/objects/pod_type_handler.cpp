@@ -513,7 +513,8 @@ private:
     }
 
     template <class T>
-    static void ValidateNoDuplicateResourceRequestIds(const T& items, TStringBuf resourceName) {
+    static void ValidateNoDuplicateResourceRequestIds(const T& items, TStringBuf resourceName)
+    {
         THashSet<TString> ids;
         for (const auto& item : items) {
             if (!ids.insert(item.id()).second) {

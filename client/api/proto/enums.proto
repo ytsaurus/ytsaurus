@@ -58,4 +58,19 @@ enum EPodOutOfMemoryPolicy
     [(NYT.NYson.NProto.enum_value_name) = "kill-process"];
 }
 
+enum EEventType
+{
+    ET_OBJECT_NONE = 0
+    [(NYT.NYson.NProto.enum_value_name) = "none"];
+
+    ET_OBJECT_CREATED = 1
+    [(NYT.NYson.NProto.enum_value_name) = "object_created"];
+
+    ET_OBJECT_REMOVED = 2
+    [(NYT.NYson.NProto.enum_value_name) = "object_removed"];
+
+    ET_OBJECT_UPDATED = 3
+    [(NYT.NYson.NProto.enum_value_name) = "object_updated"];
+}
+
 ////////////////////////////////////////////////////////////////////////////////

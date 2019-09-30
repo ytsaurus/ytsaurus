@@ -26,7 +26,8 @@ public:
     IObjectTypeHandler* GetTypeHandlerOrThrow(EObjectType type);
     IObjectTypeHandler* FindTypeHandler(EObjectType type);
 
-    bool AreExtensibleAttributesEnabled();
+    bool AreExtensibleAttributesEnabled() const;
+    bool IsHistoryEnabled() const;
 
 private:
     class TImpl;

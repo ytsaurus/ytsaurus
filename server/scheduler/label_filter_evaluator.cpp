@@ -15,8 +15,9 @@
 
 #include <yp/server/lib/objects/object_filter.h>
 
-#include <yt/ytlib/query_client/query_preparer.h>
-#include <yt/ytlib/query_client/folding_profiler.h>
+#include <yp/server/lib/query_helpers/query_evaluator.h>
+
+#include <yt/ytlib/query_client/ast.h>
 
 #include <yt/client/table_client/row_buffer.h>
 
@@ -24,11 +25,10 @@ namespace NYP::NServer::NScheduler {
 
 using namespace NObjects;
 
-using namespace NYT::NTableClient;
-using namespace NYT::NQueryClient;
-using namespace NYT::NQueryClient::NAst;
+using namespace NQueryClient;
+using namespace NTableClient;
 
-using NYT::NQueryClient::TSourceLocation;
+using NQueryClient::TSourceLocation;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,11 +60,13 @@ public:
         if (field->Name != ObjectsTable.Fields.Labels.Name) {
             ThrowNotSupported();
         }
-        static const auto expression = New<NAst::TReferenceExpression>(TSourceLocation(), ObjectsTable.Fields.Labels.Name);
-        return expression;
+        static const auto Expression = New<NAst::TReferenceExpression>(
+            TSourceLocation(),
+            ObjectsTable.Fields.Labels.Name);
+        return Expression;
     }
 
-    virtual NYT::NQueryClient::NAst::TExpressionPtr GetAnnotationExpression(const TString& /*name*/) override
+    virtual NAst::TExpressionPtr GetAnnotationExpression(const TString& /*name*/) override
     {
         ThrowNotSupported();
         YT_ABORT();
@@ -112,29 +114,9 @@ public:
             TQueryContext context(typeHandler);
             auto astExpression = BuildFilterExpression(&context, filter);
 
-            auto expressionSource = FormatExpression(*astExpression);
-
-            auto astHead = TAstHead::MakeExpression();
-            astHead.Ast = std::move(astExpression);
-
-            TParsedSource parsedSource(std::move(expressionSource), std::move(astHead));
-
-            const auto& schema = GetLabelsSchema();
-
-            auto expression = PrepareExpression(
-                parsedSource,
-                schema,
-                BuiltinTypeInferrersMap,
-                nullptr);
-
-            TCGVariables variables;
-
-            auto evaluator = Profile(
-                expression,
-                schema,
-                nullptr,
-                &variables,
-                BuiltinFunctionProfilers)();
+            auto evaluationContext = NQueryHelpers::CreateQueryEvaluationContext(
+                astExpression,
+                GetLabelsSchema());
 
             struct TRowBufferTag { };
             auto rowBuffer = New<TRowBuffer>(TRowBufferTag());
@@ -142,13 +124,9 @@ public:
             std::vector<NCluster::TObject*> matchingObjects;
             for (auto* object : objects) {
                 auto labelsValue = MakeUnversionedAnyValue(object->GetLabels().GetData());
-                // Pre-zero value to avoid garbage after evaluator.
-                auto resultValue = MakeUnversionedSentinelValue(EValueType::Null);
 
-                evaluator(
-                    variables.GetLiteralValues(),
-                    variables.GetOpaqueData(),
-                    &resultValue,
+                auto resultValue = NQueryHelpers::EvaluateQuery(
+                    evaluationContext,
                     &labelsValue,
                     rowBuffer.Get());
 

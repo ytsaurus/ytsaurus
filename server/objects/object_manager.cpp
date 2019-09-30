@@ -24,14 +24,18 @@
 #include "resource_type_handler.h"
 #include "schema_type_handler.h"
 #include "stage_type_handler.h"
+#include "table_version_checker.h"
 #include "transaction.h"
 #include "transaction_manager.h"
 #include "type_handler.h"
 #include "user_type_handler.h"
 #include "virtual_service_type_handler.h"
+#include "watch_manager.h"
 
 #include <yp/server/master/bootstrap.h>
 #include <yp/server/master/yt_connector.h>
+
+#include <yp/server/lib/objects/type_info.h>
 
 #include <yt/client/api/client.h>
 #include <yt/client/api/transaction.h>
@@ -39,7 +43,9 @@
 
 #include <yt/client/table_client/helpers.h>
 
+#include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/query_client/ast.h>
+#include <yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/periodic_executor.h>
@@ -101,6 +107,7 @@ public:
         for (auto type : TEnumTraits<EObjectType>::GetDomainValues()) {
             if (auto typeHandler = FindTypeHandler(type)) {
                 typeHandler->Initialize();
+                typeHandler->PostInitialize();
             }
         }
 
@@ -137,9 +144,14 @@ public:
     }
 
 
-    bool AreExtensibleAttributesEnabled()
+    bool AreExtensibleAttributesEnabled() const
     {
         return Config_->EnableExtensibleAttributes;
+    }
+
+    bool IsHistoryEnabled() const
+    {
+        return Config_->EnableHistory;
     }
 
 private:
@@ -156,6 +168,7 @@ private:
     {
         auto type = handler->GetType();
         YT_VERIFY(!TypeHandlers_[type]);
+        Bootstrap_->GetWatchManager()->RegisterWatchableObjectType(type, handler->GetTable()->Name);
         TypeHandlers_[type] = std::move(handler);
     }
 
@@ -173,35 +186,11 @@ private:
                 .ThrowOnError();
         }
 
-        {
-            std::vector<TFuture<void>> asyncResults;
-            for (const auto* table : Tables) {
-                auto path = ytConnector->GetTablePath(table);
-
-                YT_LOG_INFO("Checking DB table version (Path: %v)",
-                    path);
-
-                asyncResults.push_back(transaction->GetNode(path + "/@version")
-                    .Apply(BIND([=] (const TErrorOr<TYsonString>& ysonVersionOrError) {
-                        if (ysonVersionOrError.IsOK()) {
-                            auto version = ConvertTo<int>(ysonVersionOrError.Value());
-                            if (version != DBVersion) {
-                                THROW_ERROR_EXCEPTION("Table %v version mismatch: expected %v, found %v",
-                                    path,
-                                    DBVersion,
-                                    version);
-                            }
-                        } else {
-                            THROW_ERROR_EXCEPTION("Error getting version of table %v",
-                                path)
-                                << ysonVersionOrError;
-                        }
-                    })));
-            }
-
-            WaitFor(Combine(asyncResults))
-                .ThrowOnError();
+        TTableVersionChecker tableVersionChecker(Bootstrap_->GetYTConnector());
+        for (const auto* table : Tables) {
+            tableVersionChecker.ScheduleCheck(table);
         }
+        tableVersionChecker.Check();
     }
 
 
@@ -363,9 +352,14 @@ IObjectTypeHandler* TObjectManager::FindTypeHandler(EObjectType type)
     return Impl_->FindTypeHandler(type);
 }
 
-bool TObjectManager::AreExtensibleAttributesEnabled()
+bool TObjectManager::AreExtensibleAttributesEnabled() const
 {
     return Impl_->AreExtensibleAttributesEnabled();
+}
+
+bool TObjectManager::IsHistoryEnabled() const
+{
+    return Impl_->IsHistoryEnabled();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

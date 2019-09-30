@@ -228,6 +228,8 @@ template <class TTypedObject, class TTypedValue>
 TAttributeSchema* TAttributeSchema::SetAttribute(const TScalarAttributeSchema<TTypedObject, TTypedValue>& schema)
 {
     InitValueSetter<TTypedObject, TTypedValue>(schema);
+    InitValueGetter<TTypedObject, TTypedValue>(schema);
+    InitStoreScheduledGetter<TTypedObject, TTypedValue>(schema);
     InitTimestampGetter<TTypedObject>(schema);
     InitInitializer<TTypedObject, TTypedValue>(schema);
     InitRemover<TTypedObject, TTypedValue>(schema);
@@ -328,6 +330,25 @@ TAttributeSchema* TAttributeSchema::SetAttribute(const TManyToOneAttributeSchema
             auto* typedMany = many->As<TMany>();
             auto* forwardAttribute = schema.ForwardAttributeGetter(typedMany);
             return forwardAttribute->LoadTimestamp();
+        };
+
+    ValueGetter_ =
+        [=] (TObject* many) {
+            auto* typedMany = many->template As<TMany>();
+            auto* forwardAttribute = schema.ForwardAttributeGetter(typedMany);
+            auto* attributeValue = forwardAttribute->Load();
+            if (attributeValue) {
+                return NYT::NYTree::ConvertToNode(attributeValue->GetId());
+            } else {
+                return static_cast<NYT::NYTree::INodePtr>(NYT::NYTree::GetEphemeralNodeFactory()->CreateEntity());
+            }
+        };
+
+    StoreScheduledGetter_  =
+        [=] (TObject* many) {
+            auto* typedMany = many->template As<TMany>();
+            auto* forwardAttribute = schema.ForwardAttributeGetter(typedMany);
+            return forwardAttribute->IsChanged();
         };
 
     InitExpressionBuilder(
@@ -493,6 +514,29 @@ void TAttributeSchema::InitValueSetter(const TSchema& schema)
             }
             TAttributeValidatorTraits<TSchema>::Run(transaction, typedObject, schema, attribute, &typedValue);
             attribute->Store(typedValue);
+        };
+}
+
+template <class TTypedObject, class TTypedValue, class TSchema>
+void TAttributeSchema::InitValueGetter(const TSchema& schema)
+{
+    ValueGetter_ =
+        [=] (TObject* object) {
+            auto* typedObject = object->template As<TTypedObject>();
+            auto* attribute = schema.AttributeGetter(typedObject);
+            return NYT::NYTree::ConvertToNode(attribute->Load());
+        };
+}
+
+
+template <class TTypedObject, class TTypedValue, class TSchema>
+void TAttributeSchema::InitStoreScheduledGetter(const TSchema& schema)
+{
+    StoreScheduledGetter_ =
+        [=] (TObject* object) {
+            auto* typedObject = object->template As<TTypedObject>();
+            auto* attribute = schema.AttributeGetter(typedObject);
+            return attribute->IsStoreScheduled();
         };
 }
 

@@ -8,9 +8,10 @@ from .conftest import (
     get_pod_scheduling_status,
     is_assigned_pod_scheduling_status,
     is_error_pod_scheduling_status,
-    are_pods_assigned,
-    wait_pod_is_assigned_to,
     is_pod_assigned,
+    are_pods_assigned,
+    wait_pod_is_assigned,
+    wait_pod_is_assigned_to,
 )
 
 from yp.local import set_account_infinite_resource_limits
@@ -863,6 +864,70 @@ class TestScheduler(object):
         assert get_pod_scheduling_status(yp_client, big_pod)["node_id"] == v100_nodes[-1]
         assert get_pod_scheduling_status(yp_client, k100_pod)["node_id"] == k100_node
 
+    def test_allocations_clearance(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        node_id = create_nodes(yp_client, 1, cpu_total_capacity=1000, network_bandwidth=500,
+                     disk_specs=[dict(total_capacity=300, total_volume_slots=10, storage_class="hdd",
+                                      supported_policies=["quota"])],
+                     gpu_specs=[dict(model="v100", total_memory=2 ** 10)])[0]
+
+        pod_set_id = create_pod_set_with_quota(
+            yp_client,
+            bandwidth_quota=500,
+            gpu_quota=dict(v100=1),
+            disk_quota=dict(hdd=dict(capacity=300)))[0]
+
+        pod_id = yp_client.create_object("pod", attributes={
+            "meta": {
+                "pod_set_id": pod_set_id
+            },
+            "spec": {
+                "enable_scheduling": True,
+                "disk_volume_requests": [
+                    {
+                        "id": "disk0",
+                        "storage_class": "hdd",
+                        "quota_policy": {
+                            "capacity": 300,
+                        },
+                    }
+                ],
+                "gpu_requests": [
+                    {
+                        "id": "gpu0",
+                        "model": "v100",
+                        "min_memory": 2 ** 10,
+                    }
+                ]
+            }
+        })
+
+        get_allocations = lambda: yp_client.get_object("pod", pod_id, selectors=[
+            "/status/scheduled_resource_allocations",
+            "/status/disk_volume_allocations",
+            "/status/gpu_allocations"
+        ])
+
+
+        wait_pod_is_assigned(yp_client, pod_id)
+        scheduled_allocations, disk_allocations, gpu_allocations = get_allocations()
+        assert len(scheduled_allocations) > 0
+        assert len(disk_allocations) == 1
+        assert len(gpu_allocations) == 1
+        assert disk_allocations[0]["id"] == "disk0"
+        assert gpu_allocations[0]["request_id"] == "gpu0"
+
+        yp_client.update_hfsm_state(node_id, "prepare_maintenance", "test")
+        wait(lambda: yp_client.get_object("pod", pod_id, selectors=["/status/eviction/state"])[0] == "requested")
+        yp_client.acknowledge_pod_eviction(pod_id, "test")
+        wait(lambda: yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/node_id"])[0] == YsonEntity())
+
+        scheduled_allocations, disk_allocations, gpu_allocations = get_allocations()
+        assert scheduled_allocations == YsonEntity()
+        assert disk_allocations == YsonEntity()
+        assert gpu_allocations == YsonEntity()
+
     def _test_schedule_pod_with_exclusive_disk_usage(self, yp_env, exclusive_first):
         yp_client = yp_env.yp_client
 
@@ -1279,7 +1344,7 @@ class TestSchedulerEveryNodeSelectionStrategy(object):
         wait(preallocated_status_check)
 
         pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, pod_spec)
-        wait(lambda: self._error_status_check("AntiaffinityVacancy", get_pod_scheduling_status(yp_client, pod_id)))
+        wait(lambda: self._error_status_check("Antiaffinity", get_pod_scheduling_status(yp_client, pod_id)))
 
     def test_cpu_scheduling_error(self, yp_env_configurable):
         cpu_total_capacity = self._get_default_node_configuration()["cpu_total_capacity"]
@@ -1387,6 +1452,27 @@ class TestSchedulerEveryNodeSelectionStrategy(object):
             is_assigned_pod_scheduling_status(get_pod_scheduling_status(yp_client, pod_id))
             for pod_id in pod_ids
         ))
+
+    def test_scheduling_errors_brevity(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        create_nodes(yp_client, node_count=1, **self._get_default_node_configuration())
+        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": DEFAULT_POD_SET_SPEC})
+
+        cpu_total_capacity = self._get_default_node_configuration()["cpu_total_capacity"]
+        pod_spec = dict(
+            enable_scheduling=True,
+            resource_requests=dict(vcpu_guarantee=cpu_total_capacity + 1),
+        )
+        pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, pod_spec)
+
+        wait(lambda: is_error_pod_scheduling_status(get_pod_scheduling_status(yp_client, pod_id)))
+
+        error = get_pod_scheduling_status(yp_client, pod_id)["error"]["inner_errors"][0]["message"]
+        resources = [pair.split(": ") for pair in error[error.find("{")+1 : error.find("}")].split(", ")]
+        assert len(resources) == 1
+        assert resources[0] == ["Cpu", "1"]
+
 
 def _stress_test_scheduler(yp_client, create_pods_in_one_transaction=False):
     NODE_COUNT = 10

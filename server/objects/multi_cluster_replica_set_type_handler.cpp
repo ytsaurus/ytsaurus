@@ -41,7 +41,8 @@ public:
                     ->SetAttribute(TMultiClusterReplicaSet::TSpec::EtcSchema)
                     ->SetUpdatable()
             })
-            ->SetExtensible();
+            ->SetExtensible()
+            ->SetHistoryEnabled();
 
         StatusAttributeSchema_
             ->SetAttribute(TMultiClusterReplicaSet::StatusSchema)

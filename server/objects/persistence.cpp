@@ -22,6 +22,7 @@ using namespace NYT::NTableClient;
 using namespace NYT::NApi;
 using namespace NYT::NQueryClient::NAst;
 using namespace NYT::NYson;
+using namespace NYT::NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -204,6 +205,11 @@ TObject* TAttributeBase::GetOwner() const
     return Owner_;
 }
 
+bool TAttributeBase::IsStoreScheduled() const
+{
+    return StoreScheduled_;
+}
+
 void TAttributeBase::DoScheduleLoad(int priority) const
 {
     auto this_ = const_cast<TAttributeBase*>(this);
@@ -226,6 +232,7 @@ void TAttributeBase::DoScheduleStore() const
         return;
     }
     this_->StoreScheduled_ = true;
+    Owner_->ScheduleStore();
     Owner_->GetSession()->ScheduleStore(
         [=] (IStoreContext* context) {
             this_->StoreScheduled_ = false;
@@ -904,4 +911,3 @@ void TAnnotationsAttribute::OnObjectRemoved()
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYP::NServer::NObjects
-

@@ -10,6 +10,7 @@
 #include <yp/server/api/discovery_service.h>
 
 #include <yp/server/objects/object_manager.h>
+#include <yp/server/objects/watch_manager.h>
 #include <yp/server/objects/transaction_manager.h>
 
 #include <yp/server/net/net_manager.h>
@@ -130,6 +131,11 @@ public:
         return TransactionManager_;
     }
 
+    const TWatchManagerPtr& GetWatchManager()
+    {
+        return WatchManager_;
+    }
+
     const TNodeTrackerPtr& GetNodeTracker()
     {
         return NodeTracker_;
@@ -226,6 +232,7 @@ private:
     TObjectManagerPtr ObjectManager_;
     TNetManagerPtr NetManager_;
     TTransactionManagerPtr TransactionManager_;
+    TWatchManagerPtr WatchManager_;
     TNodeTrackerPtr NodeTracker_;
     TResourceManagerPtr ResourceManager_;
     TAccessControlManagerPtr AccessControlManager_;
@@ -319,6 +326,7 @@ private:
         ObjectManager_ = New<TObjectManager>(Bootstrap_, InitialConfig_->ObjectManager);
         NetManager_ = New<TNetManager>(Bootstrap_, InitialConfig_->NetManager);
         TransactionManager_ = New<TTransactionManager>(Bootstrap_, InitialConfig_->TransactionManager);
+        WatchManager_ = New<TWatchManager>(Bootstrap_, InitialConfig_->WatchManager);
         NodeTracker_ = New<TNodeTracker>(Bootstrap_, InitialConfig_->NodeTracker);
         ResourceManager_ = New<TResourceManager>(Bootstrap_);
         AccessControlManager_ = New<TAccessControlManager>(Bootstrap_, InitialConfig_->AccessControlManager);
@@ -347,6 +355,7 @@ private:
 
         YTConnector_->Initialize();
         ObjectManager_->Initialize();
+        WatchManager_->Initialize();
         AccessControlManager_->Initialize();
         AccountingManager_->Initialize();
         Scheduler_->Initialize();
@@ -638,6 +647,11 @@ const TTransactionManagerPtr& TBootstrap::GetTransactionManager()
 const TNodeTrackerPtr& TBootstrap::GetNodeTracker()
 {
     return Impl_->GetNodeTracker();
+}
+
+const TWatchManagerPtr& TBootstrap::GetWatchManager()
+{
+    return Impl_->GetWatchManager();
 }
 
 const TSchedulerPtr& TBootstrap::GetScheduler()

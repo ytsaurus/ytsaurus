@@ -26,6 +26,7 @@ const TString& TTopologyZone::GetValue() const
 
 bool TTopologyZone::CanAcquireAntiaffinityVacancy(const TPod* pod) const
 {
+    // NB! Do not add elements to the map to prevent quadratic (pod set) x (topology zone) memory consumption.
     auto it = PodSetToAntiaffinityVacancies_.find(pod->GetPodSet());
     return it == PodSetToAntiaffinityVacancies_.end() || it->second > 0;
 }

@@ -4,19 +4,18 @@
 #include "node_score.h"
 #include "pod_node_score.h"
 
+#include <yp/server/lib/cluster/allocator.h>
 #include <yp/server/lib/cluster/cluster.h>
-#include <yp/server/lib/cluster/internet_address.h>
-#include <yp/server/lib/cluster/network_module.h>
 #include <yp/server/lib/cluster/node.h>
 #include <yp/server/lib/cluster/node_segment.h>
 #include <yp/server/lib/cluster/object_filter_cache.h>
 #include <yp/server/lib/cluster/pod.h>
 #include <yp/server/lib/cluster/pod_set.h>
-#include <yp/server/lib/cluster/resource_capacities.h>
 
 #include <yp/server/lib/objects/object_filter.h>
 
 #include <yt/core/misc/random.h>
+#include <yt/core/misc/string_builder.h>
 
 namespace NYP::NServer::NScheduler {
 
@@ -24,194 +23,32 @@ using namespace NCluster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EAllocatorResourceType,
-    (AntiaffinityVacancy)
-    (Cpu)
-    (Memory)
-    (Network)
-    (Disk)
-    (IP6AddressVlan)
-    (IP6AddressIP4Tunnel)
-    (IP6Subnet)
-    (Slot)
-    (Gpu)
-);
+namespace {
 
-////////////////////////////////////////////////////////////////////////////////
-
-class TGlobalResourceAllocatorStatistics
+TString GetHumanReadableDescription(const TAllocatorDiagnostics& diagnostics)
 {
-public:
-    void RegisterUnsatisfiedResource(EAllocatorResourceType resourceType)
-    {
-        ++UnsatisfiedResourceCounts_[resourceType];
+    TStringBuilder builder;
+
+    const auto& unsatisfiedConstraintCounters = diagnostics.GetUnsatisfiedConstraintCounters();
+
+    builder.AppendString("Number of nodes with unsatisfied constraints: {");
+
+    TDelimitedStringBuilderWrapper delimitedBuilder(&builder);
+    for (auto kind : TEnumTraits<EAllocatorConstraintKind>::GetDomainValues()) {
+        auto count = unsatisfiedConstraintCounters[kind];
+        if (count > 0) {
+            delimitedBuilder->AppendFormat("%v: %v", kind, count);
+        }
     }
 
-    const TEnumIndexedVector<EAllocatorResourceType, int>& GetUnsatisfiedResourceCounts() const
-    {
-        return UnsatisfiedResourceCounts_;
-    }
+    builder.AppendString("}");
 
-private:
-    TEnumIndexedVector<EAllocatorResourceType, int> UnsatisfiedResourceCounts_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-void FormatValue(
-    TStringBuilderBase* builder,
-    const TGlobalResourceAllocatorStatistics& statistics,
-    TStringBuf /*format*/)
-{
-    builder->AppendFormat("UnsatisfiedResourceCounts: %v",
-        statistics.GetUnsatisfiedResourceCounts());
+    return builder.Flush();
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-class TInternetAddressAllocationContext
-{
-public:
-    explicit TInternetAddressAllocationContext(TNetworkModule* networkModule)
-        : NetworkModule_(networkModule)
-    { }
-
-    bool TryAllocate(int allocationSize)
-    {
-        ReleaseAddresses();
-        return TryAcquireAddresses(allocationSize);
-    }
-
-    void Commit()
-    {
-        AllocationSize_ = 0;
-    }
-
-    ~TInternetAddressAllocationContext()
-    {
-        ReleaseAddresses();
-    }
-
-private:
-    TNetworkModule* const NetworkModule_;
-
-    int AllocationSize_ = 0;
-
-private:
-    void ReleaseAddresses()
-    {
-        if (AllocationSize_ > 0) {
-            YT_VERIFY(NetworkModule_);
-            YT_VERIFY(NetworkModule_->AllocatedInternetAddressCount() >= AllocationSize_);
-            NetworkModule_->AllocatedInternetAddressCount() -= AllocationSize_;
-            AllocationSize_ = 0;
-        }
-    }
-
-    bool TryAcquireAddresses(int allocationSize)
-    {
-        YT_VERIFY(allocationSize >= 0);
-
-        if (allocationSize == 0) {
-            return true;
-        }
-
-        if (!NetworkModule_) {
-            return false;
-        }
-
-        if (NetworkModule_->AllocatedInternetAddressCount() + allocationSize > NetworkModule_->InternetAddressCount()) {
-            return false;
-        }
-
-        NetworkModule_->AllocatedInternetAddressCount() += allocationSize;
-        AllocationSize_ = allocationSize;
-
-        return true;
-    }
-};
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
-
-class TNodeAllocationContext
-{
-public:
-    TNodeAllocationContext(TNode* node, TPod* pod, const TClusterPtr& cluster)
-        : CpuResource_(node->CpuResource())
-        , MemoryResource_(node->MemoryResource())
-        , NetworkResource_(node->NetworkResource())
-        , SlotResource_(node->SlotResource())
-        , DiskResources_(node->DiskResources())
-        , GpuResources_(node->GpuResources())
-        , Node_(node)
-        , Pod_(pod)
-        , InternetAddressAllocationContext_(cluster->FindNetworkModule(node->Spec().network_module_id()))
-    { }
-
-    bool TryAcquireIP6Addresses(TGlobalResourceAllocatorStatistics* statistics)
-    {
-        bool result = true;
-        int internetAddressCount = 0;
-        for (const auto& addressRequest : Pod_->IP6AddressRequests()) {
-            if (!Node_->HasIP6SubnetInVlan(addressRequest.vlan_id()) && result) {
-                statistics->RegisterUnsatisfiedResource(EAllocatorResourceType::IP6AddressVlan);
-                result = false;
-            }
-            if (addressRequest.enable_internet() || !addressRequest.ip4_address_pool_id().empty()) {
-                ++internetAddressCount;
-            }
-        }
-        if (!InternetAddressAllocationContext_.TryAllocate(internetAddressCount)) {
-            statistics->RegisterUnsatisfiedResource(EAllocatorResourceType::IP6AddressIP4Tunnel);
-            result = false;
-        }
-        return result;
-    }
-
-    bool TryAcquireIP6Subnets()
-    {
-        // NB! Assumming this resource has infinite capacity we do not need to acquire anything.
-        for (const auto& subnetRequest : Pod_->IP6SubnetRequests()) {
-            if (!Node_->HasIP6SubnetInVlan(subnetRequest.vlan_id())) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    bool TryAcquireAntiaffinityVacancies()
-    {
-        // NB! Just checking: actual acquisition is deferred to the commit stage.
-        return Node_->CanAcquireAntiaffinityVacancies(Pod_);
-    }
-
-    void Commit()
-    {
-        Node_->AcquireAntiaffinityVacancies(Pod_);
-
-        Node_->CpuResource() = CpuResource_;
-        Node_->MemoryResource() = MemoryResource_;
-        Node_->NetworkResource() = NetworkResource_;
-        Node_->SlotResource() = SlotResource_;
-        Node_->DiskResources() = DiskResources_;
-        Node_->GpuResources() = GpuResources_;
-
-        InternetAddressAllocationContext_.Commit();
-    }
-
-    DEFINE_BYREF_RW_PROPERTY(THomogeneousResource, CpuResource);
-    DEFINE_BYREF_RW_PROPERTY(THomogeneousResource, MemoryResource);
-    DEFINE_BYREF_RW_PROPERTY(THomogeneousResource, NetworkResource);
-    DEFINE_BYREF_RW_PROPERTY(THomogeneousResource, SlotResource);
-    DEFINE_BYREF_RW_PROPERTY(TNode::TDiskResources, DiskResources);
-    DEFINE_BYREF_RW_PROPERTY(TNode::TGpuResources, GpuResources);
-
-private:
-    TNode* const Node_;
-    TPod* const Pod_;
-
-    TInternetAddressAllocationContext InternetAddressAllocationContext_;
-};
 
 DEFINE_ENUM(EAllocatorNodeSelectionStrategy,
     (Every)
@@ -354,11 +191,7 @@ public:
                 nodeSegment->GetId());
         }
 
-        auto* podSet = pod->GetPodSet();
-        // FIXME(YP-803): pod set could be abscent due to race condition.
-        const auto& nodeFilter = pod->NodeFilter().Empty() && podSet
-            ? podSet->NodeFilter()
-            : pod->NodeFilter();
+        const auto& nodeFilter = pod->GetEffectiveNodeFilter();
 
         const auto& nodesOrError = cache->Get(NObjects::TObjectFilter{nodeFilter});
         if (!nodesOrError.IsOK()) {
@@ -375,7 +208,7 @@ public:
                 << TError(nodesOrError);
         }
 
-        TGlobalResourceAllocatorStatistics statistics;
+        TAllocator allocator(SharedState_.GetCluster());
         switch (NodeSelectionStrategy_) {
             case EAllocatorNodeSelectionStrategy::Random: {
                 const int SampleSize = 10;
@@ -389,24 +222,24 @@ public:
                     SampleSize,
                     [] (size_t max) { return RandomNumber(max); });
 
-                auto* resultNode = AllocateMinimumScoreNode(pod, sampledNodes, &statistics);
+                auto* resultNode = AllocateMinimumScoreNode(pod, sampledNodes, &allocator);
                 if (resultNode) {
                     return resultNode;
                 }
 
-                return TError("No matching node from a random sample of size %v could be allocated for pod (%v)",
+                return TError("No matching node from a random sample of size %v could be allocated for pod. %v",
                     sampledNodes.size(),
-                    statistics);
+                    GetHumanReadableDescription(allocator.GetDiagnostics()));
             }
             case EAllocatorNodeSelectionStrategy::Every: {
-                auto* resultNode = AllocateMinimumScoreNode(pod, nodes, &statistics);
+                auto* resultNode = AllocateMinimumScoreNode(pod, nodes, &allocator);
                 if (resultNode) {
                     return resultNode;
                 }
 
-                return TError("No matching alive node (from %v in total after filtering) could be allocated for pod (%v)",
+                return TError("No matching alive node (from %v in total after filtering) could be allocated for pod. %v",
                     nodes.size(),
-                    statistics);
+                    GetHumanReadableDescription(allocator.GetDiagnostics()));
             }
             default:
                 YT_UNIMPLEMENTED();
@@ -429,12 +262,12 @@ private:
     TNode* AllocateMinimumScoreNode(
         TPod* pod,
         const std::vector<TNode*>& nodes,
-        TGlobalResourceAllocatorStatistics* statistics)
+        TAllocator* allocator)
     {
         TNode* resultNode = nullptr;
         TScoreValue resultScore;
         for (auto* node : nodes) {
-            if (TryAllocation(node, pod, statistics)) {
+            if (allocator->CanAllocate(node, pod)) {
                 auto score = ComputeScore(node, pod);
                 if (!resultNode || score < resultScore) {
                     resultNode = node;
@@ -447,143 +280,9 @@ private:
                 resultScore,
                 pod->GetId(),
                 resultNode->GetId());
-            Allocate(resultNode, pod);
+            allocator->Allocate(resultNode, pod);
         }
         return resultNode;
-    }
-
-    void Allocate(TNode* node, TPod* pod)
-    {
-        TGlobalResourceAllocatorStatistics statistics;
-        TNodeAllocationContext allocationContext(node, pod, SharedState_.GetCluster());
-        if (!TryAllocation(&allocationContext, pod, &statistics)) {
-            THROW_ERROR_EXCEPTION("Could not allocate resources for pod %Qv on node %Qv",
-                pod->GetId(),
-                node->GetId());
-        }
-        allocationContext.Commit();
-    }
-
-    bool TryAllocation(
-        TNode* node,
-        TPod* pod,
-        TGlobalResourceAllocatorStatistics* statistics)
-    {
-        TNodeAllocationContext allocationContext(node, pod, SharedState_.GetCluster());
-        return TryAllocation(&allocationContext, pod, statistics);
-    }
-
-    bool TryAllocation(
-        TNodeAllocationContext* nodeAllocationContext,
-        TPod* pod,
-        TGlobalResourceAllocatorStatistics* statistics)
-    {
-        bool result = true;
-
-        if (!nodeAllocationContext->TryAcquireIP6Addresses(statistics)) {
-            result = false;
-        }
-
-        if (!nodeAllocationContext->TryAcquireIP6Subnets()) {
-            result = false;
-            statistics->RegisterUnsatisfiedResource(EAllocatorResourceType::IP6Subnet);
-        }
-
-        if (!nodeAllocationContext->TryAcquireAntiaffinityVacancies()) {
-            result = false;
-            statistics->RegisterUnsatisfiedResource(EAllocatorResourceType::AntiaffinityVacancy);
-        }
-
-        const auto& resourceRequests = pod->ResourceRequests();
-
-        if (resourceRequests.vcpu_guarantee() > 0) {
-            if (!nodeAllocationContext->CpuResource().TryAllocate(MakeCpuCapacities(resourceRequests.vcpu_guarantee()))) {
-                result = false;
-                statistics->RegisterUnsatisfiedResource(EAllocatorResourceType::Cpu);
-            }
-        }
-
-        if (resourceRequests.memory_limit() > 0) {
-            if (!nodeAllocationContext->MemoryResource().TryAllocate(MakeMemoryCapacities(resourceRequests.memory_limit()))) {
-                result = false;
-                statistics->RegisterUnsatisfiedResource(EAllocatorResourceType::Memory);
-            }
-        }
-
-        if (resourceRequests.network_bandwidth_guarantee() > 0) {
-            if (!nodeAllocationContext->NetworkResource().TryAllocate(MakeNetworkCapacities(resourceRequests.network_bandwidth_guarantee()))) {
-                result = false;
-                statistics->RegisterUnsatisfiedResource(EAllocatorResourceType::Network);
-            }
-        }
-
-        if (resourceRequests.slot() > 0) {
-            if (!nodeAllocationContext->SlotResource().TryAllocate(MakeSlotCapacities(resourceRequests.slot()))) {
-                result = false;
-                statistics->RegisterUnsatisfiedResource(EAllocatorResourceType::Slot);
-            }
-        }
-
-        bool allDiskVolumeRequestsSatisfied = true;
-        for (const auto& volumeRequest : pod->DiskVolumeRequests()) {
-            const auto& storageClass = volumeRequest.storage_class();
-            auto policy = GetDiskVolumeRequestPolicy(volumeRequest);
-            auto capacities = GetDiskVolumeRequestCapacities(volumeRequest);
-            bool exclusive = GetDiskVolumeRequestExclusive(volumeRequest);
-            bool satisfied = false;
-            for (auto& diskResource : nodeAllocationContext->DiskResources()) {
-                if (diskResource.TryAllocate(exclusive, storageClass, policy, capacities)) {
-                    satisfied = true;
-                    break;
-                }
-            }
-            if (!satisfied) {
-                allDiskVolumeRequestsSatisfied = false;
-                break;
-            }
-        }
-
-        if (!allDiskVolumeRequestsSatisfied) {
-            result = false;
-            statistics->RegisterUnsatisfiedResource(EAllocatorResourceType::Disk);
-        }
-
-        bool allGpuRequestsSatisfied = true;
-        const auto& gpuRequests = pod->GpuRequests();
-        for (const auto& gpuRequest : gpuRequests) {
-            const auto capacities = GetGpuRequestCapacities(gpuRequest);
-            bool satisfied = false;
-            for (auto& gpuResource : nodeAllocationContext->GpuResources()) {
-                if (gpuResource.GetModel() != gpuRequest.model()) {
-                    continue;
-                }
-                if (gpuRequest.has_min_memory()
-                    && gpuResource.GetTotalMemory() < gpuRequest.min_memory())
-                {
-                    continue;
-                }
-                if (gpuRequest.has_max_memory()
-                    && gpuResource.GetTotalMemory() > gpuRequest.max_memory())
-                {
-                    continue;
-                }
-                if (gpuResource.TryAllocate(capacities)) {
-                    satisfied = true;
-                    break;
-                }
-            }
-            if (!satisfied) {
-                allGpuRequestsSatisfied = false;
-                break;
-            }
-        }
-
-        if (!allGpuRequestsSatisfied) {
-            result = false;
-            statistics->RegisterUnsatisfiedResource(EAllocatorResourceType::Gpu);
-        }
-
-        return result;
     }
 };
 

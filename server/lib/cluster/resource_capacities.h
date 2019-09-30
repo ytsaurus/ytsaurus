@@ -35,7 +35,7 @@ TResourceCapacities MakeMemoryCapacities(ui64 capacity);
 TResourceCapacities MakeNetworkCapacities(ui64 bandwidth);
 TResourceCapacities MakeSlotCapacities(ui64 capacity);
 TResourceCapacities MakeDiskCapacities(ui64 capacity, ui64 volumeSlots, ui64 bandwidth);
-TResourceCapacities MakeGpuCapacities();
+TResourceCapacities MakeGpuCapacities(ui64 capacity);
 
 ////////////////////////////////////////////////////////////////////////////////
 

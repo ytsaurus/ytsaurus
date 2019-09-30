@@ -10,14 +10,15 @@ namespace NYP::NServer::NNet {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TNetworkModuleId = TString;
-using TIP4AddressPoolIdToFreeIP4Addresses = THashMap<std::pair<NObjects::TObjectId, TNetworkModuleId>, TQueue<NObjects::TObjectId>>;
+using TIP4AddressesPerPoolAndNetworkModule = THashMap<
+    std::pair<NObjects::TObjectId, NObjects::TObjectId>,
+    TQueue<NObjects::TObjectId>
+>;
 
 class TInternetAddressManager
 {
 public:
-    void ReconcileState(
-        TIP4AddressPoolIdToFreeIP4Addresses moduleIdToAddressIds);
+    void ReconcileState(TIP4AddressesPerPoolAndNetworkModule freeAddresses);
 
     void AssignInternetAddressesToPod(
         const NObjects::TTransactionPtr& transaction,
@@ -28,14 +29,14 @@ public:
         const NObjects::TTransactionPtr& transaction,
         NObjects::TPod* pod);
 
-    static TString GetDefaultIP4AddressPoolId();
+    static NObjects::TObjectId GetDefaultIP4AddressPoolId();
 
 private:
-    std::optional<TString> TakeInternetAddress(
+    std::optional<NObjects::TObjectId> TakeInternetAddress(
         const NObjects::TObjectId& ip4AddressPoolId,
-        const TNetworkModuleId& networkModuleId);
+        const NObjects::TObjectId& networkModuleId);
 
-    TIP4AddressPoolIdToFreeIP4Addresses IP4AddressPoolIdToFreeAddresses_;
+    TIP4AddressesPerPoolAndNetworkModule FreeAddresses_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

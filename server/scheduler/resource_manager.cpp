@@ -121,7 +121,7 @@ public:
         }
 
         for (auto kind : TEnumTraits<EResourceKind>::GetDomainValues()) {
-            if (IsHomogeneous(kind) && counts[kind] > 1) {
+            if (IsSingletonResource(kind) && counts[kind] > 1) {
                 THROW_ERROR_EXCEPTION("More than one %Qlv resources assigned to node %Qv",
                     kind,
                     node->GetId());
@@ -292,6 +292,7 @@ private:
     {
         pod->Status().Etc()->mutable_scheduled_resource_allocations()->Clear();
         pod->Status().Etc()->mutable_disk_volume_allocations()->Clear();
+        pod->Status().Etc()->mutable_gpu_allocations()->Clear();
     }
 };
 

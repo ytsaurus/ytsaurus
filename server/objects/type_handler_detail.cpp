@@ -14,6 +14,7 @@ namespace NYP::NServer::NObjects {
 
 using namespace NAccessControl;
 
+using namespace NYT::NYson;
 using namespace NYT::NYTree;
 using namespace NYT::NQueryClient;
 using namespace NYT::NQueryClient::NAst;
@@ -83,6 +84,11 @@ void TObjectTypeHandlerBase::Initialize()
                 ->SetAttribute(TObject::InheritAclSchema)
                 ->SetUpdatable());
     }
+}
+
+void TObjectTypeHandlerBase::PostInitialize()
+{
+    EvaluateHistoryEnabledAttributePaths();
 }
 
 EObjectType TObjectTypeHandlerBase::GetType()
@@ -168,6 +174,21 @@ void TObjectTypeHandlerBase::BeforeObjectCreated(
         }
         object->Acl()->push_back(std::move(ace));
     }
+}
+
+bool TObjectTypeHandlerBase::HasHistoryEnabledAttributes()
+{
+    return HasHistoryEnabledAttributes_;
+}
+
+const TYsonString& TObjectTypeHandlerBase::GetHistoryEnabledAttributePaths()
+{
+    return SerializedHistoryEnabledAttributePaths_;
+}
+
+bool TObjectTypeHandlerBase::HasStoreScheduledHistoryEnabledAttributes(TObject* object)
+{
+    return RootAttributeSchema_->HasStoreScheduledHistoryEnabledAttributes(object);
 }
 
 void TObjectTypeHandlerBase::AfterObjectCreated(
@@ -257,6 +278,14 @@ void TObjectTypeHandlerBase::ValidateAcl(TTransaction* transaction, TObject* obj
             ValidateSubjectExists(transaction, subjectId);
         }
     });
+}
+
+void TObjectTypeHandlerBase::EvaluateHistoryEnabledAttributePaths()
+{
+    const auto historyEnabledAttributePaths = RootAttributeSchema_->GetHistoryEnabledAttributePaths();
+
+    HasHistoryEnabledAttributes_ = !historyEnabledAttributePaths.empty();
+    SerializedHistoryEnabledAttributePaths_ = ConvertToYsonString(historyEnabledAttributePaths);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

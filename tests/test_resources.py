@@ -185,10 +185,9 @@ class TestResources(object):
         wait(lambda: _check("schedulable_resources", 5))
 
     def test_gpu_allocation_optimality(self, yp_env):
-        '''
-            This test checks that GPUs requests are satisfied in an optimal way
-            (each request is satisfied with a GPU with the smallest possible memory capacity).
-        '''
+        # This test checks that GPUs requests are satisfied in an optimal way
+        # (each request is satisfied with a GPU with the smallest possible memory capacity).
+
         yp_client = yp_env.yp_client
 
         memory_capacities = [2 ** i for i in range(10)]

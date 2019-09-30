@@ -30,6 +30,13 @@ DECLARE_REFCOUNTED_CLASS(TObjectManager)
 DECLARE_REFCOUNTED_CLASS(TTransactionManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TTransactionManager)
 
+DECLARE_REFCOUNTED_CLASS(TWatchManagerConfig)
+DECLARE_REFCOUNTED_CLASS(TWatchManager)
+
+DECLARE_REFCOUNTED_CLASS(TTabletReader)
+DECLARE_REFCOUNTED_CLASS(TWatchLogReader)
+DECLARE_REFCOUNTED_CLASS(TWatchQueryExecutor)
+
 struct IUpdateContext;
 DECLARE_REFCOUNTED_CLASS(TTransaction)
 
@@ -152,8 +159,16 @@ DEFINE_ENUM(ESchedulingState,
     ((Assigned)       (300))
 );
 
+DEFINE_ENUM(EEventType,
+    ((None)           (0))
+    ((ObjectCreated)  (1))
+    ((ObjectRemoved)  (2))
+    ((ObjectUpdated)  (3))
+);
+
 constexpr int TypicalColumnCountPerDBTable = 16;
 
+using NClient::NApi::TObjectId;
 using NClient::NApi::TTransactionId;
 
 using NMaster::TClusterTag;
