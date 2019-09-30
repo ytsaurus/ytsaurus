@@ -416,7 +416,13 @@ class TestSpecBuilders(object):
                     }
                 }
             })
-            result_spec = spec_builder.build()
+            result_spec1 = spec_builder.build()
+            
+        result_spec2 = VanillaSpecBuilder().spec({}).task("script", {
+            "environment": {"YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB": "1"},
+            "command": "cat",
+            "job_count": 1,
+        }).build()
 
         correct_spec = {
             "tasks": {
@@ -430,7 +436,8 @@ class TestSpecBuilders(object):
             }
         }
 
-        assert update(result_spec, correct_spec) == result_spec
+        assert update(result_spec1, correct_spec) == result_spec1
+        assert update(result_spec2, correct_spec) == result_spec2
 
     def test_local_file_attributes(self):
         def command(row):
