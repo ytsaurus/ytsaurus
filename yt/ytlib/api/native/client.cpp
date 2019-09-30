@@ -786,8 +786,14 @@ TFuture<T> TClient::Execute(
             commandName,
             promise,
             callback = std::move(callback),
-            Logger = Logger
+            this,
+            this_ = MakeWeak(this)
         ] (TAsyncSemaphoreGuard /*guard*/) mutable {
+            auto client = this_.Lock();
+            if (!client) {
+                return;
+            }
+            
             if (promise.IsCanceled()) {
                 return;
             }
@@ -796,6 +802,7 @@ TFuture<T> TClient::Execute(
             if (canceler) {
                 promise.OnCanceled(std::move(canceler));
             }
+
 
             try {
                 YT_LOG_DEBUG("Command started (Command: %v)", commandName);
