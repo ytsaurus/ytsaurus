@@ -891,10 +891,7 @@ class SpecBuilder(object):
         patch = dict(
             YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB=str(int(config["allow_http_requests_to_yt_from_job"]))
         )
-        if "environment" in task_spec:
-            task_spec["environment"].update(patch)
-        else:
-            task_spec["environment"] = patch
+        task_spec["environment"] = update(patch, task_spec.get("environment", {}))
 
     def _prepare_spec(self, spec, client=None):
         spec = self._prepare_stderr_table(spec, client=client)
