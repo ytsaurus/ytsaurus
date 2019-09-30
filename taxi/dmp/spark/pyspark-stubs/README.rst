@@ -71,7 +71,7 @@ or `Pytype <https://github.com/google/pytype/>`__.
 
 - `Atom <https://atom.io/>`__ - Requires `atom-mypy <https://atom.io/packages/atom-mypy>`__ or equivalent.
 - `Jupyter Notebooks <https://jupyter.org/>`__ - `It is possible <https://web.archive.org/web/20190126155957/http://journalpanic.com/post/spice-up-thy-jupyter-notebooks-with-mypy/>`__ to use magics to type check directly in the notebook.
-- `PyCharm <https://www.jetbrains.com/pycharm/>`__ - Works out-of-the-box, though as of today (PyCharm 2018.2.4) built-in type checker is somewhat limited compared to MyPy.
+- `PyCharm <https://www.jetbrains.com/pycharm/>`__ - Works out-of-the-box, with excellent code completion, though as of today (PyCharm 2018.2.4) built-in type checker is somewhat limited compared to MyPy.
 - `PyDev <http://www.pydev.org/index.html>`__ - Works out-of-the-box via built-in MyPy code analyzer (7.0.3+).
 - `VIM <https://www.vim.org/>`__ / `Neovim <https://neovim.io/>`__ - Using `vim-mypy <https://github.com/Integralist/vim-mypy>`__, `syntastic <https://github.com/vim-syntastic/syntastic>`__ or `Neomake <https://github.com/neomake/neomake>`__.
 - `Visual Studio Code <https://code.visualstudio.com/>`__ - With `Mypy linter <https://code.visualstudio.com/docs/python/linting#_specific-linters>`__.
