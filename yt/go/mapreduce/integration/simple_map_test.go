@@ -43,6 +43,14 @@ func init() {
 
 type CatJob struct{}
 
+func (*CatJob) InputTypes() []interface{} {
+	return []interface{}{&TestRow{}}
+}
+
+func (*CatJob) OutputTypes() []interface{} {
+	return []interface{}{&TestRow{}}
+}
+
 func (*CatJob) Do(ctx mapreduce.JobContext, in mapreduce.Reader, out []mapreduce.Writer) (err error) {
 	if len(out) != 1 {
 		DumpFDs()

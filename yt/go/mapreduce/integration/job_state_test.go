@@ -33,18 +33,38 @@ func (m *MapJob) Do(ctx mapreduce.JobContext, in mapreduce.Reader, out []mapredu
 	return nil
 }
 
+func (m *MapJob) InputTypes() []interface{} {
+	return []interface{}{&TestRow{}}
+}
+
+func (m *MapJob) OutputTypes() []interface{} {
+	return []interface{}{&TestRow{}}
+}
+
 type ReduceJob struct {
 	Field string
 }
 
+type ErrorRow struct {
+	Error string
+}
+
+func (r *ReduceJob) InputTypes() []interface{} {
+	return []interface{}{&ErrorRow{}}
+}
+
+func (r *ReduceJob) OutputTypes() []interface{} {
+	return []interface{}{&ErrorRow{}}
+}
+
 func (r *ReduceJob) Do(ctx mapreduce.JobContext, in mapreduce.Reader, out []mapreduce.Writer) error {
 	if r.Field != "test-reduce" {
-		out[0].MustWrite(struct{ Error string }{"job field is not set"})
+		out[0].MustWrite(ErrorRow{"job field is not set"})
 	}
 
 	value, ok := ctx.LookupVault("TEST")
 	if !ok || value != "FOO" {
-		out[0].MustWrite(struct{ Error string }{"secure vault variable is missing"})
+		out[0].MustWrite(ErrorRow{"secure vault variable is missing"})
 	}
 
 	return nil
@@ -115,10 +135,14 @@ func TestMapReduceJobState(t *testing.T) {
 
 type (
 	TestFieldJob struct {
+		mapreduce.Untyped
+
 		Field string
 	}
 
 	TestSecondFieldJob struct {
+		mapreduce.Untyped
+
 		SecondField string
 	}
 )
