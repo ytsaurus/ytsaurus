@@ -29,6 +29,14 @@ type CountRow struct {
 	Count int    `yson:"count"`
 }
 
+func (*CountNames) InputTypes() []interface{} {
+	return []interface{}{&LoginRow{}}
+}
+
+func (*CountNames) OutputTypes() []interface{} {
+	return []interface{}{&CountRow{}}
+}
+
 func (*CountNames) Do(ctx mapreduce.JobContext, in mapreduce.Reader, out []mapreduce.Writer) error {
 	return mapreduce.GroupKeys(in, func(in mapreduce.Reader) error {
 		var result CountRow
