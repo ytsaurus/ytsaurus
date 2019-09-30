@@ -459,8 +459,6 @@ void TSchedulerThread::WaitFor(TFuture<void> future, IInvokerPtr invoker)
     auto fiber = CurrentFiber_.Get();
     YT_VERIFY(fiber);
 
-    SetCurrentInvoker(invoker);
-
     // NB: This may throw TFiberCanceledException;
     // therefore this call must come first and succeed before we update our internal state.
     fiber->SetSleeping(future);

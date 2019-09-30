@@ -2,6 +2,52 @@
 #include "fiber.h"
 #include "fls.h"
 
+namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+thread_local IInvokerPtr CurrentInvoker;
+
+IInvokerPtr GetCurrentInvoker()
+{
+    return CurrentInvoker ? CurrentInvoker : GetSyncInvoker();
+}
+
+void SetCurrentInvoker(IInvokerPtr invoker)
+{
+    CurrentInvoker = std::move(invoker);
+}
+
+TCurrentInvokerGuard::TCurrentInvokerGuard(IInvokerPtr invoker)
+    : NConcurrency::TContextSwitchGuard(
+        [this] () noexcept {
+            Restore();
+        },
+        [] () noexcept { })
+    , Active_(true)
+    , SavedInvoker_(std::move(invoker))
+{
+    CurrentInvoker.Swap(SavedInvoker_);
+}
+
+void TCurrentInvokerGuard::Restore()
+{
+    if (!Active_) {
+        return;
+    }
+    Active_ = false;
+    CurrentInvoker.Swap(SavedInvoker_);
+}
+
+TCurrentInvokerGuard::~TCurrentInvokerGuard()
+{
+    Restore();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} //namespace NYT
+
 namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////

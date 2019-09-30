@@ -145,39 +145,4 @@ void GuardedInvoke(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static TFls<IInvokerPtr>& CurrentInvoker()
-{
-    static TFls<IInvokerPtr> invoker;
-    return invoker;
-}
-
-IInvokerPtr GetCurrentInvoker()
-{
-    auto invoker = *CurrentInvoker();
-    if (!invoker) {
-        invoker = GetSyncInvoker();
-    }
-    return invoker;
-}
-
-void SetCurrentInvoker(IInvokerPtr invoker)
-{
-    *CurrentInvoker().Get() = std::move(invoker);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TCurrentInvokerGuard::TCurrentInvokerGuard(IInvokerPtr invoker)
-    : SavedInvoker_(std::move(invoker))
-{
-    CurrentInvoker()->Swap(SavedInvoker_);
-}
-
-TCurrentInvokerGuard::~TCurrentInvokerGuard()
-{
-    CurrentInvoker()->Swap(SavedInvoker_);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT
