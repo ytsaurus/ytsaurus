@@ -38,7 +38,7 @@ public:
     {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster()) {
-            multicellManager->SubscribeReplicateValuesToSecondaryMaster(
+            multicellManager->SubscribeReplicateKeysToSecondaryMaster(
                 BIND(&TImpl::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
         }
     }
