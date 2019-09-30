@@ -50,6 +50,15 @@ static const auto& Logger = SchedulerLogger;
 
 namespace {
 
+bool IsAgentFailureError(const TError& error)
+{
+    if (IsChannelFailureError(error)) {
+        return true;
+    }
+    auto code = error.GetCode();
+    return code == NYT::EErrorCode::Timeout;
+}
+
 template <class TResponse, class TRequest>
 TFuture<TIntrusivePtr<TResponse>> InvokeAgent(
     TBootstrap* bootstrap,
@@ -71,7 +80,7 @@ TFuture<TIntrusivePtr<TResponse>> InvokeAgent(
         if (rspOrError.GetCode() == NControllerAgent::EErrorCode::AgentCallFailed) {
             YT_VERIFY(rspOrError.InnerErrors().size() == 1);
             THROW_ERROR rspOrError.InnerErrors()[0];
-        } else if (IsChannelFailureError(rspOrError)) {
+        } else if (IsAgentFailureError(rspOrError)) {
             const auto& agentTracker = bootstrap->GetControllerAgentTracker();
             agentTracker->HandleAgentFailure(agent, rspOrError);
         }
