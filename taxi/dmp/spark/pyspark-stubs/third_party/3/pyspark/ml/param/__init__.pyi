@@ -4,7 +4,7 @@
 
 import abc
 from typing import overload
-from typing import Any, Callable, Dict, List, Optional, Type, TypeVar
+from typing import Any, Callable, Dict, Generic, List, Optional, Type, TypeVar
 
 import pyspark.ml.util
 from pyspark.ml.linalg import DenseVector, Matrix
@@ -12,12 +12,12 @@ from pyspark.ml.linalg import DenseVector, Matrix
 U = TypeVar('U')
 ParamMap = Dict[Param, Any]
 
-class Param:
+class Param(Generic[U]):
     parent: str
     name: str
     doc: str
-    typeConverter: Any
-    def __init__(self, parent: pyspark.ml.util.Identifiable, name: str, doc: str, typeConverter: Optional[Callable[[Any], Any]] = ...) -> None: ...
+    typeConverter: Callable[[Any], U]
+    def __init__(self, parent: pyspark.ml.util.Identifiable, name: str, doc: str, typeConverter: Optional[Callable[[Any], U]] = ...) -> None: ...
     def __hash__(self) -> int: ...
     def __eq__(self, other: Any) -> bool: ...
 
@@ -69,7 +69,7 @@ class Params(pyspark.ml.util.Identifiable):
     @overload
     def getOrDefault(self, param: str) -> Any: ...
     @overload
-    def getOrDefault(self, param: Param) -> Any: ...
+    def getOrDefault(self, param: Param[U]) -> U: ...
     def extractParamMap(self, extra: Optional[ParamMap] = ...) -> ParamMap: ...
     def copy(self, extra: Optional[ParamMap] = ...) -> Params: ...
     def set(self, param: Param, value: Any) -> None: ...

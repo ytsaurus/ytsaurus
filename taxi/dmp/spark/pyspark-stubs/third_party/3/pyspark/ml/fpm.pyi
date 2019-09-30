@@ -7,22 +7,22 @@ from pyspark.sql.dataframe import DataFrame
 P = TypeVar("P")
 
 class HasMinSupport(Params):
-    minSupport: Param
+    minSupport: Param[float]
     def setMinSupport(self: P, value: float) -> P: ...
     def getMinSupport(self) -> float: ...
 
 class HasNumPartitions(Params):
-    numPartitions: Param
+    numPartitions: Param[int]
     def setNumPartitions(self: P, value: int) -> P: ...
     def getNumPartitions(self) -> int: ...
 
 class HasMinConfidence(Params):
-    minConfidence: Param
+    minConfidence: Param[float]
     def setMinConfidence(self: P, value: float) -> P: ...
     def getMinConfidence(self) -> float: ...
 
 class HasItemsCol(Params):
-    itemsCol: Param
+    itemsCol: Param[str]
     def setItemsCol(self: P, value: str) -> P: ...
     def getItemsCol(self) -> str: ...
 
@@ -37,10 +37,10 @@ class FPGrowth(JavaEstimator[FPGrowthModel], HasItemsCol, HasPredictionCol, HasM
     def setParams(self, *, minSupport: float = ..., minConfidence: float = ..., itemsCol: str = ..., predictionCol: str = ..., numPartitions: Optional[int] = ...) -> FPGrowth: ...
 
 class PrefixSpan(JavaParams):
-    minSupport: Param
-    maxPatternLength: Param
-    maxLocalProjDBSize: Param
-    sequenceCol: Param
+    minSupport: Param[float]
+    maxPatternLength: Param[int]
+    maxLocalProjDBSize: Param[int]
+    sequenceCol: Param[str]
     def __init__(self, *, minSupport: float = ..., maxPatternLength: int = ..., maxLocalProjDBSize: int = ..., sequenceCol: str = ...) -> None: ...
     def setParams(self, *, minSupport: float = ..., maxPatternLength: int = ..., maxLocalProjDBSize: int = ..., sequenceCol: str = ...) -> PrefixSpan: ...
     def findFrequentSequentialPatterns(self, dataset: DataFrame) -> DataFrame: ...

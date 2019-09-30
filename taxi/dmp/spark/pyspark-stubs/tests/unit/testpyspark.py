@@ -7,6 +7,7 @@ class PySparkCoreSuite(TypeCheckSuite):
         "context.test",
         "ml-classification.test",
         "ml-feature.test",
+        "ml-param.test",
         "ml-readable.test",
         "resultiterable.test",
         "udf.test",

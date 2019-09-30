@@ -31,12 +31,12 @@ class LinearSVCModel(JavaModel, JavaClassificationModel, JavaMLWritable, JavaMLR
     def intercept(self) -> float: ...
 
 class LogisticRegression(JavaEstimator[LogisticRegressionModel], HasFeaturesCol, HasLabelCol, HasPredictionCol, HasMaxIter, HasRegParam, HasTol, HasProbabilityCol, HasRawPredictionCol, HasElasticNetParam, HasFitIntercept, HasStandardization, HasThresholds, HasWeightCol, HasAggregationDepth, JavaMLWritable, JavaMLReadable[LogisticRegression]):
-    threshold: Param
-    family: Param
-    lowerBoundsOnCoefficients: Param
-    upperBoundsOnCoefficients: Param
-    lowerBoundsOnIntercepts: Param
-    upperBoundsOnIntercepts: Param
+    threshold: Param[float]
+    family: Param[str]
+    lowerBoundsOnCoefficients: Param[Matrix]
+    upperBoundsOnCoefficients: Param[Matrix]
+    lowerBoundsOnIntercepts: Param[Vector]
+    upperBoundsOnIntercepts: Param[Vector]
     def __init__(self, *, featuresCol: str = ..., labelCol: str = ..., predictionCol: str = ..., maxIter: int = ..., regParam: float = ..., elasticNetParam: float = ..., tol: float = ..., fitIntercept: bool = ..., threshold: float = ..., thresholds: Optional[List[float]] = ..., probabilityCol: str = ..., rawPredictionCol: str = ..., standardization: bool = ..., weightCol: Optional[str] = ..., aggregationDepth: int = ..., family: str = ..., lowerBoundsOnCoefficients: Optional[Matrix] = ..., upperBoundsOnCoefficients: Optional[Matrix] = ..., lowerBoundsOnIntercepts: Optional[Vector] = ..., upperBoundsOnIntercepts: Optional[Vector] = ...) -> None: ...
     def setParams(self, *, featuresCol: str = ..., labelCol: str = ..., predictionCol: str = ..., maxIter: int = ..., regParam: float = ..., elasticNetParam: float = ..., tol: float = ..., fitIntercept: bool = ..., threshold: float = ..., thresholds: Optional[List[float]] = ..., probabilityCol: str = ..., rawPredictionCol: str = ..., standardization: bool = ..., weightCol: Optional[str] = ..., aggregationDepth: int = ..., family: str = ..., lowerBoundsOnCoefficients: Optional[Matrix] = ..., upperBoundsOnCoefficients: Optional[Matrix] = ..., lowerBoundsOnIntercepts: Optional[Vector] = ..., upperBoundsOnIntercepts: Optional[Vector] = ...) -> LogisticRegression: ...
     def setThreshold(self, value: float) -> LogisticRegression: ...
@@ -127,7 +127,7 @@ class BinaryLogisticRegressionTrainingSummary(BinaryLogisticRegressionSummary, L
 
 class TreeClassifierParams:
     supportedImpurities: List[str]
-    impurity: Param
+    impurity: Param[str]
     def __init__(self) -> None: ...
     def getImpurity(self)  -> str: ...
 
@@ -168,7 +168,7 @@ class RandomForestClassificationModel(TreeEnsembleModel, JavaClassificationModel
 
 class GBTClassifierParams(GBTParams, HasVarianceImpurity):
     supportedLossTypes: List[str]
-    lossType: Param
+    lossType: Param[str]
     def getLossType(self) -> str: ...
 
 class GBTClassifier(JavaEstimator, HasFeaturesCol, HasLabelCol, HasPredictionCol, GBTClassifierParams, HasCheckpointInterval, HasSeed, JavaMLWritable, JavaMLReadable[GBTClassifier]):
@@ -194,8 +194,8 @@ class GBTClassificationModel(TreeEnsembleModel, JavaClassificationModel, JavaMLW
     def evaluateEachIteration(self, dataset: DataFrame) -> List[float]: ...
 
 class NaiveBayes(JavaEstimator[NaiveBayesModel], HasFeaturesCol, HasLabelCol, HasPredictionCol, HasProbabilityCol, HasRawPredictionCol, HasThresholds, HasWeightCol, JavaMLWritable, JavaMLReadable[NaiveBayes]):
-    smoothing: Param
-    modelType: Param
+    smoothing: Param[float]
+    modelType: Param[str]
     def __init__(self, *, featuresCol: str = ..., labelCol: str = ..., predictionCol: str = ..., probabilityCol: str = ..., rawPredictionCol: str = ..., smoothing: float = ..., modelType: str = ..., thresholds: Optional[List[float]] = ..., weightCol: Optional[str] = ...) -> None: ...
     def setParams(self, *, featuresCol: str = ..., labelCol: str = ..., predictionCol: str = ..., probabilityCol: str = ..., rawPredictionCol: str = ..., smoothing: float = ..., modelType: str = ..., thresholds: Optional[List[float]] = ..., weightCol: Optional[str] = ...) -> NaiveBayes: ...
     def setSmoothing(self, value: float) -> NaiveBayes: ...
@@ -210,10 +210,10 @@ class NaiveBayesModel(JavaModel, JavaClassificationModel, JavaMLWritable, JavaML
     def theta(self) -> Matrix: ...
 
 class MultilayerPerceptronClassifier(JavaEstimator[MultilayerPerceptronClassificationModel], HasFeaturesCol, HasLabelCol, HasPredictionCol, HasMaxIter, HasTol, HasSeed, HasStepSize, HasSolver, JavaMLWritable, JavaMLReadable[MultilayerPerceptronClassifier], HasProbabilityCol, HasRawPredictionCol):
-    layers: Param
-    blockSize: Param
-    solver: Param
-    initialWeights: Param
+    layers: Param[List[int]]
+    blockSize: Param[int]
+    solver: Param[str]
+    initialWeights: Param[Vector]
     def __init__(self, *, featuresCol: str = ..., labelCol: str = ..., predictionCol: str = ..., maxIter: int = ..., tol: float = ..., seed: Optional[int] = ..., layers: Optional[List[int]] = ..., blockSize: int = ..., stepSize: float = ..., solver: str = ..., initialWeights: Optional[Vector] = ..., probabilityCol: str = ..., rawPredictionCol: str = ...) -> None: ...
     def setParams(self, *, featuresCol: str = ..., labelCol: str = ..., predictionCol: str = ..., maxIter: int = ..., tol: float = ..., seed: Optional[int] = ..., layers: Optional[List[int]] = ..., blockSize: int = ..., stepSize: float = ..., solver: str = ..., initialWeights: Optional[Vector] = ..., probabilityCol: str = ..., rawPredictionCol: str = ...) -> MultilayerPerceptronClassifier: ...
     def setLayers(self, value: List[int]) -> MultilayerPerceptronClassifier: ...
@@ -232,7 +232,7 @@ class MultilayerPerceptronClassificationModel(JavaModel, JavaClassificationModel
     def weights(self) -> Vector: ...
 
 class OneVsRestParams(HasFeaturesCol, HasLabelCol, HasWeightCol, HasPredictionCol, HasRawPredictionCol):
-    classifier: Param
+    classifier: Param[Estimator]
     def getClassifier(self) -> Estimator[M]: ...
 
 class OneVsRest(Estimator[OneVsRestModel], OneVsRestParams, HasParallelism, JavaMLReadable[OneVsRest], JavaMLWritable):

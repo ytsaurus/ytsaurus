@@ -1,0 +1,13 @@
+[case paramGenric]
+from pyspark.ml.param import Param, Params, TypeConverters
+
+class Foo(Params):
+    foo = Param(Params(), "foo", "foo", TypeConverters.toInt)
+    def getFoo(self) -> int:
+        return self.getOrDefault(self.foo)
+
+class Bar(Params):
+    bar = Param(Params(), "bar", "bar", TypeConverters.toInt)
+    def getFoo(self) -> str:
+        return self.getOrDefault(self.bar)  # E: Incompatible return value type (got "int", expected "str")
+[out]

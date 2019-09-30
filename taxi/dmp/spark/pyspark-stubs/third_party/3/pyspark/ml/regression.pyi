@@ -66,8 +66,8 @@ class LinearRegressionTrainingSummary(LinearRegressionSummary):
     def totalIterations(self) -> int: ...
 
 class IsotonicRegression(JavaEstimator[IsotonicRegressionModel], HasFeaturesCol, HasLabelCol, HasPredictionCol, HasWeightCol, JavaMLWritable, JavaMLReadable[IsotonicRegression]):
-    isotonic: Param
-    featureIndex: Param
+    isotonic: Param[bool]
+    featureIndex: Param[int]
     def __init__(self, *, featuresCol: str = ..., labelCol: str = ..., predictionCol: str = ..., weightCol: Optional[str] = ..., isotonic: bool = ..., featureIndex: int = ...) -> None: ...
     def setParams(self, *, featuresCol: str = ..., labelCol: str = ..., predictionCol: str = ..., weightCol: Optional[str] = ..., isotonic: bool = ..., featureIndex: int = ...) -> IsotonicRegression: ...
     def setIsotonic(self, value: bool) -> IsotonicRegression: ...
@@ -82,13 +82,13 @@ class IsotonicRegressionModel(JavaModel, JavaMLWritable, JavaMLReadable[Isotonic
     def predictions(self) -> Vector: ...
 
 class DecisionTreeParams(Params):
-    leafCol: Param
-    maxDepth: Param
-    maxBins: Param
-    minInstancesPerNode: Param
-    minInfoGain: Param
-    maxMemoryInMB: Param
-    cacheNodeIds: Param
+    leafCol: Param[str]
+    maxDepth: Param[int]
+    maxBins: Param[int]
+    minInstancesPerNode: Param[int]
+    minInfoGain: Param[float]
+    maxMemoryInMB: Param[int]
+    cacheNodeIds: Param[bool]
     def __init__(self) -> None: ...
     def setLeafCol(self: P, value: str) -> P: ...
     def getLeafCol(self) -> str: ...
@@ -107,33 +107,33 @@ class DecisionTreeParams(Params):
 
 class TreeEnsembleParams(DecisionTreeParams):
     supportedFeatureSubsetStrategies: List[str]
-    subsamplingRate: Param
-    featureSubsetStrategy: Param
+    subsamplingRate: Param[float]
+    featureSubsetStrategy: Param[str]
     def __init__(self) -> None: ...
     def getSubsamplingRate(self) -> float: ...
     def getFeatureSubsetStrategy(self) -> str: ...
 
 class HasVarianceImpurity(Params):
     supportedImpurities: List[str]
-    impurity: Param
+    impurity: Param[str]
     def __init__(self) -> None: ...
     def getImpurity(self) -> str: ...
 
 class TreeRegressorParams(HasVarianceImpurity): ...
 
 class RandomForestParams(TreeEnsembleParams):
-    numTrees: Param
+    numTrees: Param[int]
     def __init__(self) -> None: ...
     def getNumTrees(self) -> int: ...
 
 class GBTParams(TreeEnsembleParams, HasMaxIter, HasStepSize, HasValidationIndicatorCol):
-    stepSize: Param
-    validationTol: Param
+    stepSize: Param[float]
+    validationTol: Param[float]
     def getValidationTol(self) -> float: ...
 
 class GBTRegressorParams(GBTParams, TreeRegressorParams):
     supportedLossTypes: List[str]
-    lossType: Param
+    lossType: Param[str]
     def getLossType(self) -> str: ...
 
 class DecisionTreeRegressor(JavaEstimator[DecisionTreeRegressionModel], HasFeaturesCol, HasLabelCol, HasWeightCol, HasPredictionCol, DecisionTreeParams, TreeRegressorParams, HasCheckpointInterval, HasSeed, JavaMLWritable, JavaMLReadable[DecisionTreeRegressor], HasVarianceCol):
@@ -205,9 +205,9 @@ class GBTRegressionModel(TreeEnsembleModel, JavaPredictionModel, JavaMLWritable,
     def evaluateEachIteration(self, dataset: DataFrame, loss: str) -> List[float]: ...
 
 class AFTSurvivalRegression(JavaEstimator[AFTSurvivalRegressionModel], HasFeaturesCol, HasLabelCol, HasPredictionCol, HasFitIntercept, HasMaxIter, HasTol, HasAggregationDepth, JavaMLWritable, JavaMLReadable[AFTSurvivalRegression]):
-    censorCol: Param
-    quantileProbabilities: Param
-    quantilesCol: Param
+    censorCol: Param[str]
+    quantileProbabilities: Param[List[float]]
+    quantilesCol: Param[str]
     def __init__(self, *, featuresCol: str = ..., labelCol: str = ..., predictionCol: str = ..., fitIntercept: bool = ..., maxIter: int = ..., tol: float = ..., censorCol: str = ..., quantileProbabilities: List[float] = ..., quantilesCol: Optional[str] = ..., aggregationDepth: int = ...) -> None: ...
     def setParams(self, *, featuresCol: str = ..., labelCol: str = ..., predictionCol: str = ..., fitIntercept: bool = ..., maxIter: int = ..., tol: float = ..., censorCol: str = ..., quantileProbabilities: List[float] = ..., quantilesCol: Optional[str] = ..., aggregationDepth: int = ...) -> AFTSurvivalRegression: ...
     def setCensorCol(self, value: str) -> AFTSurvivalRegression: ...
@@ -228,13 +228,13 @@ class AFTSurvivalRegressionModel(JavaModel, JavaMLWritable, JavaMLReadable[AFTSu
     def predict(self, features: Vector) -> float: ...
 
 class GeneralizedLinearRegression(JavaEstimator[GeneralizedLinearRegressionModel], HasLabelCol, HasFeaturesCol, HasPredictionCol, HasFitIntercept, HasMaxIter, HasTol, HasRegParam, HasWeightCol, HasSolver, JavaMLWritable, JavaMLReadable[GeneralizedLinearRegression]):
-    family: Param
-    link: Param
-    linkPredictionCol: Param
-    variancePower: Param
-    linkPower: Param
-    solver: Param
-    offsetCol: Param
+    family: Param[str]
+    link: Param[str]
+    linkPredictionCol: Param[str]
+    variancePower: Param[float]
+    linkPower: Param[float]
+    solver: Param[str]
+    offsetCol: Param[str]
     def __init__(self, *, labelCol: str = ..., featuresCol: str = ..., predictionCol: str = ..., family: str = ..., link: Optional[str] = ..., fitIntercept: bool = ..., maxIter: int = ..., tol: float = ..., regParam: float = ..., weightCol: Optional[str] = ..., solver: str = ..., linkPredictionCol: Optional[str] = ...,  variancePower: float = ..., linkPower: Optional[float] = ..., offsetCol: Optional[str] = ...) -> None: ...
     def setParams(self, *, labelCol: str = ..., featuresCol: str = ..., predictionCol: str = ..., family: str = ..., link: Optional[str] = ..., fitIntercept: bool = ..., maxIter: int = ..., tol: float = ..., regParam: float = ..., weightCol: Optional[str] = ..., solver: str = ..., linkPredictionCol: Optional[str] = ..., variancePower: float = ..., linkPower: Optional[float] = ..., offsetCol: Optional[str] = ...) -> GeneralizedLinearRegression: ...
     def setFamily(self, value: str) -> GeneralizedLinearRegression: ...
