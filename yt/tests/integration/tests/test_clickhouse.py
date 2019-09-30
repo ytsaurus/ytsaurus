@@ -1565,8 +1565,16 @@ class TestHttpProxy(ClickHouseTestBase):
 
     @authors("dakovalkov")
     def test_ban_dead_instance_in_proxy(self):
-        with Clique(2) as clique:
+        patch = {
+            "discovery": {
+                # Set big value to prevent unlocking node.
+                "transaction_timeout": 1000000,
+            }
+        }
+        with Clique(2, config_patch=patch) as clique:
             url = self._get_proxy_address() + "/query?database={}".format(clique.op.id)
+
+            wait(lambda: clique.get_active_instance_count() == 2)
 
             jobs = list(clique.op.get_running_jobs())
             assert len(jobs) == 2
