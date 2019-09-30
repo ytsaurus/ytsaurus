@@ -77,7 +77,9 @@ or `Pytype <https://github.com/google/pytype/>`__.
 - `Visual Studio Code <https://code.visualstudio.com/>`__ - With `Mypy linter <https://code.visualstudio.com/docs/python/linting#_specific-linters>`__.
 - Environment independent - Just use your favorite checker directly, optionally combined with tool like `entr <http://eradman.com/entrproject/>`__.
 
-Version Compatibility
+This package is tested against MyPy development branch and in rare cases (primarily important upstrean bugfixes), is not compatible with the preceding MyPy release.
+
+PySpark Version Compatibility
 ---------------------
 
 Package versions follow PySpark versions with exception to maintenance releases - i.e. `pyspark-stubs==2.3.0` should be compatible with `pyspark>=2.3.0,<2.4.0`.
