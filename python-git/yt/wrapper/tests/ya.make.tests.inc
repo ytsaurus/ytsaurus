@@ -79,25 +79,33 @@ RESOURCE_FILES(
     ../../bin/mapreduce-yt
 )
 
-# DATA(
-#     arcadia/${YT_PYTHON_ROOT}/python/yt
-# )
+DATA(
+    arcadia/${YT_PYTHON_ROOT}/python/yt
+)
 
-# REQUIREMENTS(
-#     ram_disk:56
-#     cpu:4
-# )
+REQUIREMENTS(
+    ram_disk:56
+    cpu:4
+)
 
 SIZE(LARGE)
 
 TAG(
     ya:fat
-    # ya:force_sandbox
+    ya:force_sandbox
 )
 
 FORK_TEST_FILES()
-FORK_TESTS()
 
-SPLIT_FACTOR(6)
+# Attempt to run tests in dist.
+# > Comment REQUIREMENTS and DATA.
+# > Remove old tags
+#
+# FORK_TESTS()
+# SPLIT_FACTOR(6)
+#
+# TAG(
+#     ya:fat
+# )
 
 NO_LINT()
