@@ -3,6 +3,7 @@
 #include <yt/core/actions/future.h>
 
 #include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/fiber.h>
 #include <yt/core/concurrency/scheduler.h>
 
@@ -25,6 +26,22 @@ TString GenerateRandomFileName(const char* prefix)
         prefix,
         MicroSeconds(),
         RandomNumber<ui64>());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void WaitForPredicate(
+    std::function<bool()> predicate,
+    int iterationCount,
+    TDuration period)
+{
+    for (int iteration = 0; iteration < iterationCount; ++iteration) {
+        if (predicate()) {
+            return;
+        }
+        NConcurrency::TDelayedExecutor::WaitForDuration(period);
+    }
+    THROW_ERROR_EXCEPTION("Wait failed");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
