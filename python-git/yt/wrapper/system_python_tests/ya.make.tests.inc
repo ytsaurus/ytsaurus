@@ -25,10 +25,11 @@ DEPENDS(
     tools/fix_elf
 )
 
-DATA(
-    arcadia/ya
-    arcadia/${YT_ROOT}/yt/python
-)
+# Prepare for dist run.
+# DATA(
+#     arcadia/ya
+#     arcadia/${YT_ROOT}/yt/python
+# )
 
 NO_LINT()
 
