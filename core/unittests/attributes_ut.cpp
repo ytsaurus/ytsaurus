@@ -30,13 +30,23 @@ TEST(TAttributesTest, CheckAccessors)
     attributes->Set<int>("age", 30);
     attributes->Set<double>("weight", 70.5);
 
-    auto keys_ = attributes->List();
+    auto keys_ = attributes->ListKeys();
     THashSet<TString> keys(keys_.begin(), keys_.end());
-    THashSet<TString> expectedKeys;
-    expectedKeys.insert("name");
-    expectedKeys.insert("age");
-    expectedKeys.insert("weight");
-    EXPECT_EQ(keys , expectedKeys);
+    THashSet<TString> expectedKeys{
+        "name",
+        "age",
+        "weight",
+    };
+    EXPECT_EQ(keys, expectedKeys);
+
+    auto pairs_ = attributes->ListPairs();
+    THashSet<IAttributeDictionary::TKeyValuePair> pairs(pairs_.begin(), pairs_.end());
+    THashSet<IAttributeDictionary::TKeyValuePair> expectedPairs{
+        {"name", ConvertToYsonString("Petr")},
+        {"age", ConvertToYsonString(30)},
+        {"weight", ConvertToYsonString(70.5)},
+    };
+    EXPECT_EQ(pairs, expectedPairs);
 
     EXPECT_EQ("Petr", attributes->Get<TString>("name"));
     EXPECT_THROW(attributes->Get<int>("name"), std::exception);

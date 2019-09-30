@@ -14,10 +14,12 @@ struct IFairShareTreeSnapshot
     : public TIntrinsicRefCounted
 {
     virtual TFuture<void> ScheduleJobs(const ISchedulingContextPtr& schedulingContext) = 0;
+    virtual void PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext) = 0;
     virtual void ProcessUpdatedJob(TOperationId operationId, TJobId jobId, const TJobResources& delta) = 0;
     virtual void ProcessFinishedJob(TOperationId operationId, TJobId jobId) = 0;
     virtual bool HasOperation(TOperationId operationId) const = 0;
     virtual void ApplyJobMetricsDelta(TOperationId operationId, const TJobMetrics& jobMetricsDelta) = 0;
+    virtual void ProfileFairShare() const = 0;
     virtual const TSchedulingTagFilter& GetNodesFilter() const = 0;
 };
 
@@ -45,7 +47,7 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TFairShareStrategyOperationState)
 
-THashMap<TString, TPoolName> GetOperationPools(const TOperationRuntimeParametersPtr& runtimeParams);
+THashMap<TString, TPoolName> GetOperationPools(const TOperationRuntimeParametersPtr& runtimeParameters);
 
 TFairShareStrategyOperationStatePtr
 CreateFairShareStrategyOperationState(IOperationStrategyHost* host);
@@ -101,7 +103,7 @@ public:
     bool RegisterOperation(
         const TFairShareStrategyOperationStatePtr& state,
         const TStrategyOperationSpecPtr& spec,
-        const TOperationFairShareTreeRuntimeParametersPtr& runtimeParams);
+        const TOperationFairShareTreeRuntimeParametersPtr& runtimeParameters);
 
     void UnregisterOperation(const TFairShareStrategyOperationStatePtr& state);
 
@@ -133,7 +135,7 @@ public:
 
     void UpdateOperationRuntimeParameters(
         TOperationId operationId,
-        const TOperationFairShareTreeRuntimeParametersPtr& runtimeParams);
+        const TOperationFairShareTreeRuntimeParametersPtr& runtimeParameters);
 
     void UpdateConfig(const TFairShareStrategyTreeConfigPtr& config);
 
@@ -146,8 +148,6 @@ public:
     void BuildBriefOperationProgress(TOperationId operationId, NYTree::TFluentMap fluent);
 
     void BuildUserToEphemeralPoolsInDefaultPool(NYTree::TFluentAny fluent);
-
-    void ProfileFairShare(NProfiling::TMetricsAccumulator& accumulator) const;
 
     void LogOperationsInfo();
 
@@ -261,11 +261,15 @@ private:
 
         virtual TFuture<void> ScheduleJobs(const ISchedulingContextPtr& schedulingContext) override;
 
+        virtual void PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext) override;
+
         virtual void ProcessUpdatedJob(TOperationId operationId, TJobId jobId, const TJobResources& delta) override;
 
         virtual void ProcessFinishedJob(TOperationId operationId, TJobId jobId) override;
 
         virtual void ApplyJobMetricsDelta(TOperationId operationId, const TJobMetrics& jobMetricsDelta) override;
+
+        virtual void ProfileFairShare() const override;
 
         virtual bool HasOperation(TOperationId operationId) const override;
 
@@ -323,10 +327,16 @@ private:
         const ISchedulingContextPtr& schedulingContext,
         const TRootElementSnapshotPtr& rootElementSnapshot);
 
+    void DoPreemptJobsGracefully(
+        const ISchedulingContextPtr& schedulingContext,
+        const TRootElementSnapshotPtr& rootElementSnapshot);
+
+    void DoProfileFairShare(const TRootElementSnapshotPtr& rootElementSnapshot) const;
+
     void PreemptJob(
         const TJobPtr& job,
         const TOperationElementPtr& operationElement,
-        TFairShareContext* context) const;
+        const ISchedulingContextPtr& schedulingContext) const;
 
     const TCompositeSchedulerElement* FindPoolViolatingMaxRunningOperationCount(const TCompositeSchedulerElement* pool);
     const TCompositeSchedulerElement* FindPoolWithViolatedOperationCountLimit(const TCompositeSchedulerElementPtr& element);

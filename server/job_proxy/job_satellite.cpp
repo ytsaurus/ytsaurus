@@ -312,6 +312,11 @@ void TJobProbeTools::SignalJob(const TString& signalName)
     auto arg = New<TSignalerArg>();
     arg->Pids = PidsHolder_->GetPids();
 
+    YT_LOG_DEBUG("Processing \"SignalJob\" (Signal: %v, Pids: %v, RootPid: %v)",
+        signalName,
+        arg->Pids,
+        RootPid_);
+
     auto it = std::find(arg->Pids.begin(), arg->Pids.end(), RootPid_);
     if (it != arg->Pids.end()) {
         arg->Pids.erase(it);
@@ -527,7 +532,14 @@ void TJobSatellite::Run()
     StopCalback_ = BIND(&TJobSatelliteWorker::GracefulShutdown,
         MakeWeak(jobSatelliteService));
 
-    JobProxyControl_->NotifyJobSatellitePrepared(GetProcessMemoryUsage(-1).Rss);
+    i64 rss = 0;
+    try {
+        rss = GetProcessMemoryUsage(-1).Rss;
+    } catch (const std::exception& ex) {
+        YT_LOG_WARNING(ex, "Failed to get process memory usage");
+    }
+
+    JobProxyControl_->NotifyJobSatellitePrepared(rss);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -546,7 +558,7 @@ void RunJobSatellite(
         return;
     } else {
 
-        NLogging::TLogManager::Get()->Configure(NLogging::TLogConfig::CreateLogFile("../job_satellite.log"));
+        NLogging::TLogManager::Get()->Configure(NLogging::TLogManagerConfig::CreateLogFile("../job_satellite.log"));
         try {
             SafeCreateStderrFile("../satellite_stderr");
         } catch (const std::exception& ex) {

@@ -481,6 +481,37 @@ bool operator != (const TNetworkAddress& lhs, const TNetworkAddress& rhs)
 
 namespace {
 
+//! Parse project id notation as described here:
+//! https://wiki.yandex-team.ru/noc/newnetwork/hbf/projectid/#faervolnajazapissetevogoprefiksasprojectidirabotasnim
+bool ParseProjectId(TStringBuf* str, std::optional<ui32>* projectId)
+{
+    auto pos = str->find('@');
+    if (pos == TStringBuf::npos) {
+        // Project id not specified.
+        return true;
+    }
+
+    if (pos == 0 || pos > 8) {
+        // Project id occupies 32 bits of address, so it must be between 1 and 8 hex digits.
+        return false;
+    }
+
+    ui32 value = 0;
+    for (int i = 0; i < pos; ++i) {
+        int digit = Char2DigitTable[static_cast<unsigned char>((*str)[i])];
+        if (digit == '\xff') {
+            return false;
+        }
+
+        value <<= 4;
+        value += digit;
+    }
+
+    *projectId = value;
+    str->Skip(pos + 1);
+    return true;
+}
+
 bool ParseIP6Address(TStringBuf* str, TIP6Address* address)
 {
     auto tokenizeWord = [&] (ui16* word) -> bool {
@@ -816,6 +847,11 @@ TIP6Network TIP6Network::FromString(TStringBuf str)
 bool TIP6Network::FromString(TStringBuf str, TIP6Network* network)
 {
     auto buf = str;
+    std::optional<ui32> projectId = std::nullopt;
+    if (!ParseProjectId(&buf, &projectId)) {
+        return false;
+    }
+
     if (!ParseIP6Address(&buf, &network->Network_)) {
         return false;
     }
@@ -823,6 +859,11 @@ bool TIP6Network::FromString(TStringBuf str, TIP6Network* network)
     int maskSize = 0;
     if (!ParseMask(buf, &maskSize)) {
         return false;
+    }
+
+    if (projectId) {
+        network->Network_.GetRawWords()[2] = *projectId;
+        network->Network_.GetRawWords()[3] = *projectId >> 16;
     }
 
     network->Mask_ = TIP6Address();
@@ -833,6 +874,11 @@ bool TIP6Network::FromString(TStringBuf str, TIP6Network* network)
         } else {
             *(bytes + i / 8) &= ~(1 << (i % 8));
         }
+    }
+
+    if (projectId) {
+        static_assert(TIP6Address::ByteSize == 16);
+        network->Mask_.GetRawDWords()[1] = 0xffffffff;
     }
 
     return true;

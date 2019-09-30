@@ -84,7 +84,7 @@ class TestMasterCellsSync(YTEnvSetup):
 
     @authors("asaitgalin")
     def test_accounts_sync(self):
-        create_account("tst", atomic_creation=False)
+        create_account("tst", sync_creation=False)
 
         for i in xrange(10):
             set("//sys/accounts/tst/@attr{0}".format(i), "value")
@@ -119,7 +119,7 @@ class TestMasterCellsSync(YTEnvSetup):
     @authors("babenko")
     def test_acl_sync(self):
         create_group("jupiter")
-        create_account("jupiter", atomic_creation=False)
+        create_account("jupiter", sync_creation=False)
         set("//sys/accounts/jupiter/@acl", [make_ace("allow", "jupiter", "use")])
 
         def check(driver):

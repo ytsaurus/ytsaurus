@@ -35,11 +35,9 @@ class TTransaction
 public:
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TDuration>, Timeout);
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, Title);
-    DEFINE_BYREF_RW_PROPERTY(NObjectClient::TCellTagList, SecondaryCellTags);
-    DEFINE_BYREF_RW_PROPERTY(THashSet<TTransaction*>, NestedNativeTransactions);
-    DEFINE_BYREF_RW_PROPERTY(THashSet<TTransactionId>, NestedExternalTransactionIds);
-    DEFINE_BYVAL_RW_PROPERTY(bool, UnregisterFromParentOnCommit);
-    DEFINE_BYVAL_RW_PROPERTY(bool, UnregisterFromParentOnAbort);
+    DEFINE_BYREF_RW_PROPERTY(NObjectClient::TCellTagList, ReplicatedToCellTags);
+    DEFINE_BYREF_RW_PROPERTY(NObjectClient::TCellTagList, ExternalizedToCellTags);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<TTransaction*>, NestedTransactions);
     DEFINE_BYVAL_RW_PROPERTY(TTransaction*, Parent);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, StartTime);
     DEFINE_BYREF_RW_PROPERTY(THashSet<NObjectServer::TObject*>, StagedObjects);
@@ -72,7 +70,6 @@ public:
 
     // Security Manager stuff
     typedef THashMap<NSecurityServer::TAccount*, NSecurityServer::TClusterResources> TAccountResourcesMap;
-    // XXX(babenko): weak ref to TAccount?
     DEFINE_BYREF_RW_PROPERTY(TAccountResourcesMap, AccountResourceUsage);
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
 
@@ -81,8 +78,6 @@ public:
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
-
-    void RecomputeResourceUsage();
 
     NYson::TYsonString GetErrorDescription() const;
 
@@ -93,8 +88,11 @@ public:
      */
     bool IsDescendantOf(TTransaction* transaction) const;
 
-private:
-    void AddNodeResourceUsage(const NCypressServer::TCypressNode* node, bool staged);
+    //! Returns |true| if this a (topmost or nested) externalized transaction.
+    bool IsExternalized() const;
+
+    //! For externalized transactions only; returns the original transaction id.
+    TTransactionId GetOriginalTransactionId() const;
 
 };
 

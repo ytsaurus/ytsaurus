@@ -16,6 +16,10 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TWalkContext;
+
+////////////////////////////////////////////////////////////////////////////////
+
 DEFINE_ENUM(ELogicalMetatype,
     (Simple)
     (Optional)
@@ -23,32 +27,51 @@ DEFINE_ENUM(ELogicalMetatype,
     (Struct)
     (Tuple)
 
+    // Variant with named elements.
     (VariantStruct)
+
+    // Variant with unnamed elements.
     (VariantTuple)
-    // In the future there will be VariantTuple, Map, etc
-);
+
+    // Dict is effectively list of pairs. We have restrictions on the key type.
+    // YT doesn't check uniqueness of the keys.
+    (Dict)
+
+    (Tagged)
+)
 
 class TLogicalType
     : public virtual TIntrinsicRefCounted
 {
 public:
     explicit TLogicalType(ELogicalMetatype type);
-    ELogicalMetatype GetMetatype() const;
+    Y_FORCE_INLINE ELogicalMetatype GetMetatype() const;
 
     const TSimpleLogicalType& AsSimpleTypeRef() const;
+    Y_FORCE_INLINE const TSimpleLogicalType& UncheckedAsSimpleTypeRef() const;
     const TOptionalLogicalType& AsOptionalTypeRef() const;
+    Y_FORCE_INLINE const TOptionalLogicalType& UncheckedAsOptionalTypeRef() const;
     const TListLogicalType& AsListTypeRef() const;
+    Y_FORCE_INLINE const TListLogicalType& UncheckedAsListTypeRef() const;
     const TStructLogicalType& AsStructTypeRef() const;
+    Y_FORCE_INLINE const TStructLogicalType& UncheckedAsStructTypeRef() const;
     const TTupleLogicalType& AsTupleTypeRef() const;
+    Y_FORCE_INLINE const TTupleLogicalType& UncheckedAsTupleTypeRef() const;
     const TVariantTupleLogicalType& AsVariantTupleTypeRef() const;
+    Y_FORCE_INLINE const TVariantTupleLogicalType& UncheckedAsVariantTupleTypeRef() const;
     const TVariantStructLogicalType& AsVariantStructTypeRef() const;
+    Y_FORCE_INLINE const TVariantStructLogicalType& UncheckedAsVariantStructTypeRef() const;
+    const TDictLogicalType& AsDictTypeRef() const;
+    Y_FORCE_INLINE const TDictLogicalType& UncheckedAsDictTypeRef() const;
+    const TTaggedLogicalType& AsTaggedTypeRef() const;
+    Y_FORCE_INLINE const TTaggedLogicalType& UncheckedAsTaggedTypeRef() const;
 
     virtual size_t GetMemoryUsage() const = 0;
     virtual int GetTypeComplexity() const = 0;
 
     // This function doesn't validate children of current node.
     // Users should use ValidateLogicalType function.
-    virtual void ValidateNode() const = 0;
+    virtual void ValidateNode(const TWalkContext& context) const = 0;
 
     // Whether or not element might be null.
     virtual bool IsNullable() const = 0;
@@ -77,8 +100,11 @@ bool IsSubtypeOf(const TLogicalTypePtr& lhs, const TLogicalTypePtr& rhs);
 // Function converts new type to old typesystem if possible.
 // The first element of result is ESimpleLogicalValue type corresponding to logicalType
 // if logicalType is either T or optional<T> and T is simple. Otherwise the first element of result is nullopt.
-// The second element of resut is false if logicalType is Null or it is optional<A> where A is any type otherwise it's true.
+// The second element of result is false if logicalType is Null or it is optional<A> where A is any type otherwise it's true.
 std::pair<std::optional<ESimpleLogicalValueType>, bool> SimplifyLogicalType(const TLogicalTypePtr& logicalType);
+
+// Returns copy of the logical type with all tagged types replaces with its elements.
+TLogicalTypePtr DetagLogicalType(const TLogicalTypePtr& type);
 
 void ToProto(NProto::TLogicalType* protoLogicalType, const TLogicalTypePtr& logicalType);
 void FromProto(TLogicalTypePtr* logicalType, const NProto::TLogicalType& protoLogicalType);
@@ -94,16 +120,16 @@ class TOptionalLogicalType
 public:
     explicit TOptionalLogicalType(TLogicalTypePtr element);
 
-    const TLogicalTypePtr& GetElement() const;
+    Y_FORCE_INLINE const TLogicalTypePtr& GetElement() const;
 
     std::optional<ESimpleLogicalValueType> Simplify() const;
 
     // Cached value of GetElement()->IsNullable(), useful for performance reasons.
-    bool IsElementNullable() const;
+    Y_FORCE_INLINE bool IsElementNullable() const;
 
     virtual size_t GetMemoryUsage() const override;
     virtual int GetTypeComplexity() const override;
-    virtual void ValidateNode() const override;
+    virtual void ValidateNode(const TWalkContext& context) const override;
     virtual bool IsNullable() const override;
 
 private:
@@ -119,11 +145,11 @@ class TSimpleLogicalType
 public:
     explicit TSimpleLogicalType(ESimpleLogicalValueType element);
 
-    ESimpleLogicalValueType GetElement() const;
+    Y_FORCE_INLINE ESimpleLogicalValueType GetElement() const;
 
     virtual size_t GetMemoryUsage() const override;
     virtual int GetTypeComplexity() const override;
-    virtual void ValidateNode() const override;
+    virtual void ValidateNode(const TWalkContext& context) const override;
     virtual bool IsNullable() const override;
 
 private:
@@ -138,11 +164,11 @@ class TListLogicalType
 public:
     explicit TListLogicalType(TLogicalTypePtr element);
 
-    const TLogicalTypePtr& GetElement() const;
+    Y_FORCE_INLINE const TLogicalTypePtr& GetElement() const;
 
     virtual size_t GetMemoryUsage() const override;
     virtual int GetTypeComplexity() const override;
-    virtual void ValidateNode() const override;
+    virtual void ValidateNode(const TWalkContext& context) const override;
     virtual bool IsNullable() const override;
 
 private:
@@ -165,11 +191,14 @@ public:
     TComplexTypeFieldDescriptor TupleElement(size_t i) const;
     TComplexTypeFieldDescriptor VariantTupleElement(size_t i) const;
     TComplexTypeFieldDescriptor VariantStructField(size_t i) const;
+    TComplexTypeFieldDescriptor DictKey() const;
+    TComplexTypeFieldDescriptor DictValue() const;
+    TComplexTypeFieldDescriptor TaggedElement() const;
+
+    TComplexTypeFieldDescriptor Detag() const;
 
     const TString& GetDescription() const;
     const TLogicalTypePtr& GetType() const;
-
-    void Walk(std::function<void(const TComplexTypeFieldDescriptor&)> onElement) const;
 
 private:
     TString Descriptor_;
@@ -194,11 +223,11 @@ public:
 
 public:
     TStructLogicalTypeBase(ELogicalMetatype metatype, std::vector<TStructField> fields);
-    const std::vector<TStructField>& GetFields() const;
+    Y_FORCE_INLINE const std::vector<TStructField>& GetFields() const;
 
     virtual size_t GetMemoryUsage() const override;
     virtual int GetTypeComplexity() const override;
-    virtual void ValidateNode() const override;
+    virtual void ValidateNode(const TWalkContext& context) const override;
     virtual bool IsNullable() const override;
 
 private:
@@ -213,11 +242,11 @@ class TTupleLogicalTypeBase
 public:
     explicit TTupleLogicalTypeBase(ELogicalMetatype metatype, std::vector<TLogicalTypePtr> elements);
 
-    const std::vector<TLogicalTypePtr>& GetElements() const;
+    Y_FORCE_INLINE const std::vector<TLogicalTypePtr>& GetElements() const;
 
     virtual size_t GetMemoryUsage() const override;
     virtual int GetTypeComplexity() const override;
-    virtual void ValidateNode() const override;
+    virtual void ValidateNode(const TWalkContext& context) const override;
     virtual bool IsNullable() const override;
 
 private:
@@ -262,7 +291,49 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern TLogicalTypePtr NullLogicalType;
+class TDictLogicalType
+    : public TLogicalType
+{
+public:
+    TDictLogicalType(TLogicalTypePtr key, TLogicalTypePtr value);
+
+    Y_FORCE_INLINE const TLogicalTypePtr& GetKey() const;
+    Y_FORCE_INLINE const TLogicalTypePtr& GetValue() const;
+
+    virtual size_t GetMemoryUsage() const override;
+    virtual int GetTypeComplexity() const override;
+    virtual void ValidateNode(const TWalkContext& context) const override;
+    virtual bool IsNullable() const override;
+
+private:
+    TLogicalTypePtr Key_;
+    TLogicalTypePtr Value_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTaggedLogicalType
+    : public TLogicalType
+{
+public:
+    TTaggedLogicalType(TString tag, TLogicalTypePtr element);
+
+    Y_FORCE_INLINE const TString& GetTag() const;
+    Y_FORCE_INLINE const TLogicalTypePtr& GetElement() const;
+
+    virtual size_t GetMemoryUsage() const override;
+    virtual int GetTypeComplexity() const override;
+    virtual void ValidateNode(const TWalkContext& context) const override;
+    virtual bool IsNullable() const override;
+
+private:
+    const TString Tag_;
+    const TLogicalTypePtr Element_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const TLogicalTypePtr NullLogicalType;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -273,12 +344,15 @@ TLogicalTypePtr StructLogicalType(std::vector<TStructField> fields);
 TLogicalTypePtr TupleLogicalType(std::vector<TLogicalTypePtr> elements);
 TLogicalTypePtr VariantStructLogicalType(std::vector<TStructField> fields);
 TLogicalTypePtr VariantTupleLogicalType(std::vector<TLogicalTypePtr> elements);
-
-// Creates logical type from legacy schema fields.
-TLogicalTypePtr MakeLogicalType(ESimpleLogicalValueType type, bool required);
+TLogicalTypePtr DictLogicalType(TLogicalTypePtr key, TLogicalTypePtr value);
+TLogicalTypePtr TaggedLogicalType(TString tag, TLogicalTypePtr element);
 
 TLogicalTypePtr MakeOptionalIfNot(TLogicalTypePtr element);
 
+// Creates logical type from legacy schema fields.
+// IMPORTANT: Only used for compatibility reasons.
+// In modern code, one should use OptionalLogicalType + SimpleLogicalType instead.
+TLogicalTypePtr MakeLogicalType(ESimpleLogicalValueType type, bool required);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -289,3 +363,7 @@ struct THash<NYT::NTableClient::TLogicalType>
 {
     size_t operator() (const NYT::NTableClient::TLogicalType& logicalType) const;
 };
+
+#define LOGICAL_TYPE_INL_H_
+#include "logical_type-inl.h"
+#undef LOGICAL_TYPE_INL_H_

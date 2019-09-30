@@ -182,6 +182,9 @@ public:
     //! by querying a quorum of replicas (if the chunk is not sealed).
     TFuture<NChunkClient::NProto::TMiscExt> GetChunkQuorumInfo(NChunkServer::TChunk* chunk);
 
+    //! Returns the medium with a given id (throws if none).
+    TMedium* GetMediumOrThrow(TMediumId id) const;
+
     //! Returns the medium with a given index (|nullptr| if none).
     TMedium* FindMediumByIndex(int index) const;
 

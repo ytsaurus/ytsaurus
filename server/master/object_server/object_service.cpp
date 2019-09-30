@@ -22,7 +22,7 @@
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/ytlib/security_client/public.h>
+#include <yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/client/object_client/helpers.h>
 
@@ -43,6 +43,8 @@
 #include <yt/core/actions/cancelable_context.h>
 
 #include <yt/core/concurrency/rw_spinlock.h>
+
+#include <yt/core/profiling/profile_manager.h>
 
 #include <atomic>
 #include <queue>
@@ -67,10 +69,68 @@ using namespace NProfiling;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Profiler = ObjectServerProfiler;
-static TMonotonicCounter CumulativeReadRequestTimeCounter("/cumulative_read_request_time");
-static TMonotonicCounter CumulativeMutationScheduleTimeCounter("/cumulative_mutation_schedule_time");
-static TMonotonicCounter ReadRequestCounter("/read_request_count");
-static TMonotonicCounter WriteRequestCounter("/write_request_count");
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TRequestProfilngCounters
+    : public TIntrinsicRefCounted
+{
+    explicit TRequestProfilngCounters(const NProfiling::TTagIdList& tagIds)
+        : TotalReadRequestCounter("/total_read_request_count", tagIds)
+        , TotalWriteRequestCounter("/total_write_request_count", tagIds)
+        , LocalReadRequestCounter("/local_read_request_count", tagIds)
+        , LocalWriteRequestCounter("/local_write_request_count", tagIds)
+        , LeaderFallbackRequestCounter("/leader_fallback_request_count", tagIds)
+        , IntraCellForwardingRequestCounter("/intra_cell_forwarding_request_count", tagIds)
+        , CrossCellForwardingRequestCounter("/cross_cell_forwarding_request_count", tagIds)
+        , LocalMutationScheduleTimeCounter("/local_mutation_schedule_time", tagIds)
+    { }
+
+    TMonotonicCounter TotalReadRequestCounter;
+    TMonotonicCounter TotalWriteRequestCounter;
+    TMonotonicCounter LocalReadRequestCounter;
+    TMonotonicCounter LocalWriteRequestCounter;
+    TMonotonicCounter LeaderFallbackRequestCounter;
+    TMonotonicCounter IntraCellForwardingRequestCounter;
+    TMonotonicCounter CrossCellForwardingRequestCounter;
+    TMonotonicCounter LocalMutationScheduleTimeCounter;
+};
+
+using TRequestProfilngCountersPtr = TIntrusivePtr<TRequestProfilngCounters>;
+
+class TRequestProfilingManager
+{
+public:
+    TRequestProfilngCountersPtr GetCounters(const TString& user, const TString& method)
+    {
+        auto key = std::make_tuple(user, method);
+
+        {
+            NConcurrency::TReaderGuard guard(Lock_);
+            if (auto it = KeyToCounters_.find(key)) {
+                return it->second;
+            }
+        }
+
+        TTagIdList tagIds{
+            TProfileManager::Get()->RegisterTag("user", user),
+            TProfileManager::Get()->RegisterTag("method", method)
+        };
+        auto counters = New<TRequestProfilngCounters>(tagIds);
+
+        {
+            NConcurrency::TWriterGuard guard(Lock_);
+            auto [it, inserted] = KeyToCounters_.emplace(key, std::move(counters));
+            return it->second;
+        }
+    }
+
+private:
+    // (user, method)
+    using TKey = std::tuple<TString, TString>;
+    NConcurrency::TReaderWriterSpinLock Lock_;
+    THashMap<TKey, TRequestProfilngCountersPtr> KeyToCounters_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -200,6 +260,7 @@ private:
     std::atomic<bool> ProcessSessionsCallbackEnqueued_ = {false};
 
     TStickyUserErrorCache StickyUserErrorCache_;
+    TRequestProfilingManager ProfilingStatisticsManager_;
 
 
     static IInvokerPtr GetRpcInvoker()
@@ -258,13 +319,14 @@ public:
         , CodicilData_(Format("RequestId: %v, User: %v",
             RequestId_,
             UserName_))
+        , TentativePeerState_(Bootstrap_->GetHydraFacade()->GetHydraManager()->GetTentativeState())
     { }
 
     ~TExecuteSession()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        YT_LOG_DEBUG_IF(User_ && !Finished_, "User reference eleaked due to unfinished request (RequestId: %v)",
+        YT_LOG_DEBUG_IF(User_ && !Finished_, "User reference leaked due to unfinished request (RequestId: %v)",
             RequestId_);
         YT_LOG_DEBUG_IF(RequestQueueSizeIncreased_ && !Finished_, "Request queue size increment leaked due to unfinished request (RequestId: %v)",
             RequestId_);
@@ -346,6 +408,7 @@ private:
     const TString& UserName_;
     const TRequestId RequestId_;
     const TString CodicilData_;
+    const EPeerState TentativePeerState_;
 
     TDelayedExecutorCookie BackoffAlarmCookie_;
 
@@ -359,16 +422,20 @@ private:
         TFuture<TMutationResponse> AsyncCommitResult;
         NRpc::NProto::TRequestHeader RequestHeader;
         const NYTree::NProto::TYPathHeaderExt* YPathExt = nullptr;
+        const NObjectClient::NProto::TPrerequisitesExt* PrerequisitesExt = nullptr;
+        const NObjectClient::NProto::TMulticellSyncExt* MulticellSyncExt = nullptr;
         TSharedRefArray RequestMessage;
         TCellTag ForwardedCellTag = InvalidCellTag;
-        TYPathRewrite TargetPathRewrite;
-        SmallVector<TYPathRewrite, 4> AdditionalPathRewrites;
+        std::optional<TYPathRewrite> TargetPathRewrite;
+        std::optional<SmallVector<TYPathRewrite, TypicalAdditionalPathCount>> AdditionalPathRewrites;
+        std::optional<SmallVector<TYPathRewrite, 4>> PrerequisiteRevisionPathRewrites;
         TSharedRefArray RemoteRequestMessage;
         TSharedRefArray ResponseMessage;
         NTracing::TTraceContextPtr TraceContext;
-        ui64 Revision = 0;
+        NHydra::TRevision Revision = NHydra::NullRevision;
         bool Uncertain = false;
         std::atomic<bool> Completed = {false};
+        TRequestProfilngCountersPtr ProfilingCounters;
     };
 
     std::unique_ptr<TSubrequest[]> Subrequests_;
@@ -417,19 +484,28 @@ private:
         auto codicilGuard = MakeCodicilGuard();
 
         const auto& request = RpcContext_->Request();
-        RpcContext_->SetRequestInfo("SubrequestCount: %v, SupportsPortals: %v, SuppressUpstreamSync: %v",
+
+        auto originalRequestId = FromProto<TRequestId>(request.original_request_id());
+
+        RpcContext_->SetRequestInfo("SubrequestCount: %v, SupportsPortals: %v, SuppressUpstreamSync: %v, "
+            "OriginalRequestId: %v",
             TotalSubrequestCount_,
             request.supports_portals(),
-            request.suppress_upstream_sync());
+            request.suppress_upstream_sync(),
+            originalRequestId);
 
         if (TotalSubrequestCount_ == 0) {
             Reply();
             return;
         }
 
+        if (TentativePeerState_ != EPeerState::Leading && TentativePeerState_ != EPeerState::Following) {
+            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Hydra peer is not active");
+        }
+
         ScheduleBackoffAlarm();
         ParseSubrequests();
-        MarkTentativelyRemoveSubrequests();
+        MarkTentativelyRemoteSubrequests();
         RunSyncPhaseOne();
     }
 
@@ -463,6 +539,10 @@ private:
                     "Error parsing subrequest header");
             }
 
+            subrequest.ProfilingCounters = Owner_->ProfilingStatisticsManager_.GetCounters(
+                UserName_,
+                requestHeader.method());
+
             // Propagate various parameters to the subrequest.
             if (!requestHeader.has_request_id()) {
                 ToProto(requestHeader.mutable_request_id(), RequestId_);
@@ -483,9 +563,13 @@ private:
             auto* ypathExt = requestHeader.MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
             subrequest.YPathExt = ypathExt;
 
+            subrequest.PrerequisitesExt = &requestHeader.GetExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
+
+            subrequest.MulticellSyncExt = &requestHeader.GetExtension(NObjectClient::NProto::TMulticellSyncExt::multicell_sync_ext);
+
             // Store original path.
             ypathExt->set_original_target_path(ypathExt->target_path());
-            *ypathExt->mutable_original_additional_paths() = ypathExt->original_additional_paths();
+            *ypathExt->mutable_original_additional_paths() = ypathExt->additional_paths();
 
             // COMPAT(savrus) Support old mount/unmount/etc interface.
             if (ypathExt->mutating() && (requestHeader.method() == "Mount" ||
@@ -503,6 +587,10 @@ private:
             subrequest.TraceContext = NRpc::CreateCallTraceContext(
                 requestHeader.service(),
                 requestHeader.method());
+
+            Profiler.Increment(subrequest.YPathExt->mutating()
+                ? subrequest.ProfilingCounters->TotalWriteRequestCounter
+                : subrequest.ProfilingCounters->TotalReadRequestCounter);
         }
     }
 
@@ -510,8 +598,13 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        const auto& request = RpcContext_->Request();
-        auto cellTags = FromProto<TCellTagList>(request.cell_tags_to_sync_with());
+        TCellTagList cellTags;
+
+        auto registerTransaction = [&] (TTransactionId transactionId) {
+            if (transactionId) {
+                cellTags.push_back(CellTagFromId(transactionId));
+            }
+        };
 
         for (int subrequestIndex = 0; subrequestIndex < TotalSubrequestCount_; ++subrequestIndex) {
             const auto& subrequest = Subrequests_[subrequestIndex];
@@ -523,27 +616,49 @@ private:
                 // Phase two.
                 continue;
             }
-            auto transactionId = GetTransactionId(subrequest.RequestHeader);
-            if (!transactionId) {
-                continue;
+
+            registerTransaction(GetTransactionId(subrequest.RequestHeader));
+
+            for (const auto& prerequisite : subrequest.PrerequisitesExt->transactions()) {
+                registerTransaction(FromProto<TTransactionId>(prerequisite.transaction_id()));
             }
-            cellTags.push_back(CellTagFromId(transactionId));
+
+            for (const auto& prerequisite : subrequest.PrerequisitesExt->revisions()) {
+                registerTransaction(FromProto<TTransactionId>(prerequisite.transaction_id()));
+            }
+
+            for (auto cellTag : subrequest.MulticellSyncExt->cell_tags_to_sync_with()) {
+                cellTags.push_back(cellTag);
+            }
         }
 
         SortUnique(cellTags);
         return cellTags;
     }
 
-    void MarkTentativelyRemoveSubrequests()
+    bool IsTentativelyRemoteSubrequest(const TSubrequest& subrequest)
+    {
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        const auto& resolveCache = cypressManager->GetResolveCache();
+        auto resolveResult = resolveCache->TryResolve(subrequest.YPathExt->target_path());
+        if (resolveResult) {
+            return true;
+        }
+
+        if (subrequest.YPathExt->mutating() && TentativePeerState_ != EPeerState::Leading) {
+            return true;
+        }
+
+        return false;
+    }
+
+    void MarkTentativelyRemoteSubrequests()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         for (int subrequestIndex = 0; subrequestIndex < TotalSubrequestCount_; ++subrequestIndex) {
             auto& subrequest = Subrequests_[subrequestIndex];
-            const auto& cypressManager = Bootstrap_->GetCypressManager();
-            const auto& resolveCache = cypressManager->GetResolveCache();
-            auto resolveResult = resolveCache->TryResolve(subrequest.YPathExt->target_path());
-            subrequest.TentativelyRemote = resolveResult.has_value();
+            subrequest.TentativelyRemote = IsTentativelyRemoteSubrequest(subrequest);
         }
     }
 
@@ -645,35 +760,68 @@ private:
 
     void MarkSubrequestLocal(TSubrequest* subrequest)
     {
+        if (subrequest->YPathExt->mutating() && TentativePeerState_ != EPeerState::Leading) {
+            MarkSubrequestRemoteIntraCell(subrequest);
+            return;
+        }
+
         subrequest->RpcContext = CreateYPathContext(
             subrequest->RequestMessage,
             ObjectServerLogger,
             NLogging::ELogLevel::Debug);
+
         if (subrequest->YPathExt->mutating()) {
             const auto& objectManager = Bootstrap_->GetObjectManager();
             subrequest->Mutation = objectManager->CreateExecuteMutation(UserName_, subrequest->RpcContext);
             subrequest->Mutation->SetMutationId(subrequest->RpcContext->GetMutationId(), subrequest->RpcContext->IsRetry());
             subrequest->Type = EExecutionSessionSubrequestType::LocalWrite;
+            Profiler.Increment(subrequest->ProfilingCounters->LocalWriteRequestCounter);
         } else {
             subrequest->Type = EExecutionSessionSubrequestType::LocalRead;
+            Profiler.Increment(subrequest->ProfilingCounters->LocalReadRequestCounter);
         }
     }
 
-    void MarkSubrequestRemote(TSubrequest* subrequest, TCellTag forwardedCellTag)
+    void MarkSubrequestRemoteIntraCell(TSubrequest* subrequest)
     {
-        // XXX(babenko): profiling
+        subrequest->ForwardedCellTag = Bootstrap_->GetCellTag();
+        subrequest->RemoteRequestMessage = subrequest->RequestMessage;
+        subrequest->Type = EExecutionSessionSubrequestType::Remote;
+        Profiler.Increment(subrequest->ProfilingCounters->IntraCellForwardingRequestCounter);
+    }
+
+    void MarkSubrequestRemoteCrossCell(TSubrequest* subrequest, TCellTag forwardedCellTag)
+    {
         auto remoteRequestHeader = subrequest->RequestHeader;
         auto* remoteYPathExt = remoteRequestHeader.MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
-        remoteYPathExt->set_target_path(subrequest->TargetPathRewrite.Rewritten);
+        auto* remotePrerequisitesExt = remoteRequestHeader.MutableExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
 
-        remoteYPathExt->clear_additional_paths();
-        for (const auto& rewrite : subrequest->AdditionalPathRewrites) {
-            remoteYPathExt->add_additional_paths(rewrite.Rewritten);
+        if (subrequest->TargetPathRewrite) {
+            remoteYPathExt->set_target_path(subrequest->TargetPathRewrite->Rewritten);
+        }
+
+        if (subrequest->AdditionalPathRewrites) {
+            remoteYPathExt->clear_additional_paths();
+            for (const auto& rewrite : *subrequest->AdditionalPathRewrites) {
+                remoteYPathExt->add_additional_paths(rewrite.Rewritten);
+            }
+        }
+
+        if (subrequest->PrerequisiteRevisionPathRewrites) {
+            YT_VERIFY(static_cast<int>(subrequest->PrerequisiteRevisionPathRewrites->size()) == remotePrerequisitesExt->revisions_size());
+            for (int index = 0; index < remotePrerequisitesExt->revisions_size(); ++index) {
+                remotePrerequisitesExt->mutable_revisions(index)->set_path((*subrequest->PrerequisiteRevisionPathRewrites)[index].Rewritten);
+            }
+        }
+
+        if (auto mutationId = NRpc::GetMutationId(remoteRequestHeader)) {
+            SetMutationId(&remoteRequestHeader, GenerateNextForwardedMutationId(mutationId), remoteRequestHeader.retry());
         }
 
         subrequest->ForwardedCellTag = forwardedCellTag;
         subrequest->RemoteRequestMessage = SetRequestHeader(subrequest->RequestMessage, remoteRequestHeader);
         subrequest->Type = EExecutionSessionSubrequestType::Remote;
+        Profiler.Increment(subrequest->ProfilingCounters->CrossCellForwardingRequestCounter);
     }
 
     void DecideSubrequestType(TSubrequest* subrequest)
@@ -686,29 +834,53 @@ private:
             MarkSubrequestLocal(subrequest);
             return;
         }
+
         subrequest->TargetPathRewrite = MakeYPathRewrite(
             subrequest->YPathExt->target_path(),
             targetResolveResult->PortalExitId,
             targetResolveResult->UnresolvedPathSuffix);
 
-        subrequest->AdditionalPathRewrites.reserve(subrequest->YPathExt->additional_paths_size());
+        subrequest->AdditionalPathRewrites.emplace();
+        subrequest->AdditionalPathRewrites->reserve(subrequest->YPathExt->additional_paths_size());
         for (const auto& additionalPath : subrequest->YPathExt->additional_paths()) {
             auto additionalResolveResult = resolveCache->TryResolve(additionalPath);
             if (!additionalResolveResult) {
                 MarkSubrequestLocal(subrequest);
                 return;
             }
+
             if (CellTagFromId(additionalResolveResult->PortalExitId) != CellTagFromId(targetResolveResult->PortalExitId)) {
                 MarkSubrequestLocal(subrequest);
                 return;
             }
-            subrequest->AdditionalPathRewrites.push_back(MakeYPathRewrite(
+
+            subrequest->AdditionalPathRewrites->push_back(MakeYPathRewrite(
                 additionalPath,
                 additionalResolveResult->PortalExitId,
                 additionalResolveResult->UnresolvedPathSuffix));
         }
 
-        MarkSubrequestRemote(subrequest, CellTagFromId(targetResolveResult->PortalExitId));
+        subrequest->PrerequisiteRevisionPathRewrites.emplace();
+        for (const auto& prerequisite : subrequest->PrerequisitesExt->revisions()) {
+            const auto& prerequisitePath = prerequisite.path();
+            auto prerequisiteResolveResult = resolveCache->TryResolve(prerequisitePath);
+            if (!prerequisiteResolveResult) {
+                MarkSubrequestLocal(subrequest);
+                return;
+            }
+
+            if (CellTagFromId(prerequisiteResolveResult->PortalExitId) != CellTagFromId(targetResolveResult->PortalExitId)) {
+                MarkSubrequestLocal(subrequest);
+                return;
+            }
+
+            subrequest->PrerequisiteRevisionPathRewrites->push_back(MakeYPathRewrite(
+                prerequisitePath,
+                prerequisiteResolveResult->PortalExitId,
+                prerequisiteResolveResult->UnresolvedPathSuffix));
+        }
+
+        MarkSubrequestRemoteCrossCell(subrequest, CellTagFromId(targetResolveResult->PortalExitId));
     }
 
     void DecideSubrequestTypes()
@@ -725,7 +897,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto future = StartSync(true);
+        auto future = StartSync(false);
         if (future) {
             future.Subscribe(BIND(&TExecuteSession::OnSyncPhaseTwoCompleted, MakeStrong(this)));
         } else {
@@ -785,6 +957,7 @@ private:
                 auto channel = multicellManager->GetMasterChannelOrThrow(cellTag, peerKind);
                 TObjectServiceProxy proxy(std::move(channel));
                 auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
+                batchReq->SetOriginalRequestId(RequestId_);
                 batchReq->SetTimeout(ComputeForwardingTimeout(RpcContext_, Owner_->Config_));
                 batchReq->SetUser(RpcContext_->GetUser());
                 it = batchMap.emplace(key, TBatchValue{
@@ -810,14 +983,27 @@ private:
 
             AcquireReplyLock();
 
-            YT_LOG_DEBUG("Forwarding request to another cell (RequestId: %v -> %v, Method: %v:%v, TargetPath: %v, "
-                "AdditionalPaths: %v, User: %v, Mutating: %v, CellTag: %v, PeerKind: %v)",
+            YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v:%v, "
+                "%v%v%vUser: %v, Mutating: %v, CellTag: %v, PeerKind: %v)",
                 RequestId_,
                 batch->BatchReq->GetRequestId(),
                 requestHeader.service(),
                 requestHeader.method(),
-                subrequest.TargetPathRewrite,
-                subrequest.AdditionalPathRewrites,
+                MakeFormatterWrapper([&] (auto* builder) {
+                   if (subrequest.TargetPathRewrite) {
+                       builder->AppendFormat("TargetPath: %v, ", subrequest.TargetPathRewrite);
+                   }
+                }),
+                MakeFormatterWrapper([&] (auto* builder) {
+                   if (subrequest.AdditionalPathRewrites && !subrequest.AdditionalPathRewrites->empty()) {
+                       builder->AppendFormat("AdditionalPaths: %v, ", *subrequest.AdditionalPathRewrites);
+                   }
+                }),
+                MakeFormatterWrapper([&] (auto* builder) {
+                   if (subrequest.PrerequisiteRevisionPathRewrites && !subrequest.PrerequisiteRevisionPathRewrites->empty()) {
+                       builder->AppendFormat("PrerequisiteRevisionPaths: %v, ", *subrequest.PrerequisiteRevisionPathRewrites);
+                   }
+                }),
                 UserName_,
                 ypathExt.mutating(),
                 subrequest.ForwardedCellTag,
@@ -847,9 +1033,22 @@ private:
                             MarkSubrequestAsUncertain(batch.Indexes[index]);
                         }
                     } else {
-                        YT_LOG_DEBUG(batchRspOrError, "Forwarded request failed (RequestId: %v -> %v, SubrequestIndexes: %v)",
+                        const auto& forwardingError = batchRspOrError;
+
+                        YT_LOG_DEBUG(forwardingError, "Forwarded request failed (RequestId: %v -> %v, SubrequestIndexes: %v)",
                             RequestId_,
                             batch.BatchReq->GetRequestId(),
+                            batch.Indexes);
+
+                        if (!IsRetriableError(forwardingError)) {
+                            YT_LOG_DEBUG(forwardingError, "Failing request due to non-retryable forwarding error (SubrequestIndexes: %v)",
+                                batch.Indexes);
+                            Reply(TError(NObjectClient::EErrorCode::ForwardedRequestFailed, "Forwarded request failed")
+                                << forwardingError);
+                            return;
+                        }
+
+                        YT_LOG_DEBUG(forwardingError, "Omitting subresponses due to retryable forwarding error (SubrequestIndexes: %v)",
                             batch.Indexes);
 
                         for (auto index : batch.Indexes) {
@@ -944,7 +1143,8 @@ private:
                     NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded,
                     "User %Qv has exceeded its request queue size limit",
                     User_->GetName())
-                    << TErrorAttribute("limit", User_->GetRequestQueueSizeLimit());
+                    << TErrorAttribute("limit", User_->GetRequestQueueSizeLimit(Bootstrap_->GetCellTag()))
+                    << TErrorAttribute("cell_tag", Bootstrap_->GetCellTag());
                 Owner_->SetStickyUserError(UserName_, error);
                 THROW_ERROR error;
             }
@@ -1064,8 +1264,7 @@ private:
 
         AcquireReplyLock();
 
-        Profiler.Increment(WriteRequestCounter);
-        TCounterIncrementingTimingGuard<TWallTimer> timingGuard(Profiler, &CumulativeMutationScheduleTimeCounter);
+        TCounterIncrementingTimingGuard<TWallTimer> timingGuard(Profiler, &subrequest->ProfilingCounters->LocalMutationScheduleTimeCounter);
 
         subrequest->AsyncCommitResult = subrequest->Mutation->Commit();
         subrequest->AsyncCommitResult.Subscribe(
@@ -1076,6 +1275,8 @@ private:
     {
         YT_LOG_DEBUG("Performing leader fallback (RequestId: %v)",
             RequestId_);
+
+        Profiler.Increment(subrequest->ProfilingCounters->LeaderFallbackRequestCounter);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto asyncSubresponse = objectManager->ForwardObjectRequest(
@@ -1093,15 +1294,12 @@ private:
 
         AcquireReplyLock();
 
-        Profiler.Increment(ReadRequestCounter);
-        TCounterIncrementingTimingGuard<TWallTimer> timingGuard(Profiler, &CumulativeReadRequestTimeCounter);
+        TWallTimer timer;
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager, User_);
 
         NTracing::TTraceContextGuard traceContextGuard(subrequest->TraceContext);
-
-        TWallTimer timer;
 
         const auto& context = subrequest->RpcContext;
         try {
@@ -1220,62 +1418,94 @@ private:
             return;
         }
 
-        if (error.IsOK()) {
-            auto& request = RpcContext_->Request();
-            auto& response = RpcContext_->Response();
-            auto& attachments = response.Attachments();
-
-            // COMPAT(babenko)
-            int effectiveSubrequestCount = TotalSubrequestCount_;
-            if (!request.supports_portals()) {
-                effectiveSubrequestCount = 0;
-                for (auto index = 0; index < TotalSubrequestCount_; ++index) {
-                    const auto& subrequest = Subrequests_[index];
-                    if (!subrequest.Completed) {
-                        break;
-                    }
-                    effectiveSubrequestCount = index + 1;
-                }
-            }
-
-            for (auto index = 0; index < effectiveSubrequestCount; ++index) {
-                const auto& subrequest = Subrequests_[index];
-                if (!subrequest.Completed) {
-                    YT_ASSERT(request.supports_portals());
-                    continue;
-                }
-
-                const auto& subresponseMessage = subrequest.ResponseMessage;
-                attachments.insert(attachments.end(), subresponseMessage.Begin(), subresponseMessage.End());
-
-                // COMPAT(babenko)
-                response.add_part_counts(subresponseMessage.Size());
-                response.add_revisions(subrequest.Revision);
-
-                auto* subresponse = response.add_subresponses();
-                subresponse->set_index(index);
-                subresponse->set_part_count(subresponseMessage.Size());
-                subresponse->set_revision(subrequest.Revision);
-            }
-
-            for (int index = 0; index < TotalSubrequestCount_; ++index) {
-                if (Subrequests_[index].Uncertain) {
-                    response.add_uncertain_subrequest_indexes(index);
-                }
-            }
-
-            if (response.subresponses_size() == 0) {
-                YT_LOG_DEBUG("Dropping request since no subresponses are available (RequestId: %v)",
-                    RequestId_);
-                return;
-            }
-
-            RpcContext_->SetResponseInfo("SubresponseCount: %v, UncertainSubrequestIndexes : %v",
-                response.subresponses_size(),
-                response.uncertain_subrequest_indexes());
+        if (!error.IsOK()) {
+            RpcContext_->Reply(error);
+            return;
         }
 
-        RpcContext_->Reply(error);
+        auto& request = RpcContext_->Request();
+        auto& response = RpcContext_->Response();
+        auto& attachments = response.Attachments();
+
+        // Will take a snapshot.
+        SmallVector<int, 16> completedIndexes;
+        SmallVector<int, 16> uncertainIndexes;
+
+        // Check for forwarding errors.
+        for (auto index = 0; index < TotalSubrequestCount_; ++index) {
+            auto& subrequest = Subrequests_[index];
+            if (!subrequest.Completed) {
+                continue;
+            }
+
+            if (subrequest.Uncertain) {
+                uncertainIndexes.push_back(index);
+                continue;
+            }
+            
+            const auto& subresponseMessage = subrequest.ResponseMessage;
+            NRpc::NProto::TResponseHeader subresponseHeader;
+            YT_VERIFY(ParseResponseHeader(subresponseMessage, &subresponseHeader));
+
+            if (subresponseHeader.error().code() == NObjectClient::EErrorCode::ForwardedRequestFailed) {
+                auto wrapperError = FromProto<TError>(subresponseHeader.error());
+                YT_VERIFY(wrapperError.InnerErrors().size() == 1);
+
+                const auto& forwardingError = wrapperError.InnerErrors()[0];
+                if (!IsRetriableError(forwardingError)) {
+                    YT_LOG_DEBUG(forwardingError, "Failing request due to non-retryable forwarding error (SubrequestIndex: %v)",
+                        index);
+                    RpcContext_->Reply(wrapperError);
+                    return;
+                }
+
+                YT_LOG_DEBUG(forwardingError, "Omitting subresponse due to retryable forwarding error (SubrequestIndex: %v)",
+                    index);
+
+                uncertainIndexes.push_back(index);
+            } else {
+                completedIndexes.push_back(index);
+            }
+        }
+
+        // COMPAT(babenko)
+        if (!request.supports_portals()) {
+            for (int index = 0; index < static_cast<int>(completedIndexes.size()); ++index) {
+                if (completedIndexes[index] != index) {
+                    completedIndexes.erase(completedIndexes.begin() + index, completedIndexes.end());
+                    break;
+                }
+            }
+        }
+
+        for (int index : completedIndexes) {
+            const auto& subrequest = Subrequests_[index];
+            const auto& subresponseMessage = subrequest.ResponseMessage;
+            attachments.insert(attachments.end(), subresponseMessage.Begin(), subresponseMessage.End());
+
+            // COMPAT(babenko)
+            response.add_part_counts(subresponseMessage.Size());
+            response.add_revisions(subrequest.Revision);
+
+            auto* subresponse = response.add_subresponses();
+            subresponse->set_index(index);
+            subresponse->set_part_count(subresponseMessage.Size());
+            subresponse->set_revision(subrequest.Revision);
+        }
+
+        ToProto(response.mutable_uncertain_subrequest_indexes(), uncertainIndexes);
+
+        if (response.subresponses_size() == 0) {
+            YT_LOG_DEBUG("Dropping request since no subresponses are available (RequestId: %v)",
+                RequestId_);
+            return;
+        }
+
+        RpcContext_->SetResponseInfo("SubresponseCount: %v, UncertainSubrequestIndexes : %v",
+            response.subresponses_size(),
+            response.uncertain_subrequest_indexes());
+
+        RpcContext_->Reply();
     }
 
 
@@ -1382,6 +1612,11 @@ private:
             return false;
         }
 
+        if (ReplyLockCount_.load() == 0) {
+            Reply();
+            return true;
+        }
+
         if (BackoffAlarmTriggered_ && LocalExecutionStarted_ && SomeSubrequestCompleted_) {
             YT_LOG_DEBUG("Local execution interrupted due to backoff alarm (RequestId: %v)",
                 RequestId_);
@@ -1389,12 +1624,7 @@ private:
             return ReleaseUltimateReplyLock();
         }
 
-        if (ReplyLockCount_.load() > 0) {
-            return false;
-        }
-
-        Reply();
-        return true;
+        return false;
     }
 
 

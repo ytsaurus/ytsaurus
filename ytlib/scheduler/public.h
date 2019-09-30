@@ -42,6 +42,10 @@ DEFINE_ENUM(ESchedulingDelayType,
     (Sync)
     (Async)
 );
+DEFINE_ENUM(EPreemptionMode,
+    (Normal)
+    (Graceful)
+);
 
 DECLARE_REFCOUNTED_CLASS(TJobIOConfig)
 DECLARE_REFCOUNTED_CLASS(TTestingOperationOptions)
@@ -72,6 +76,7 @@ DECLARE_REFCOUNTED_CLASS(TRemoteCopyOperationSpec)
 DECLARE_REFCOUNTED_CLASS(TVanillaOperationSpec)
 DECLARE_REFCOUNTED_CLASS(TPoolConfig)
 DECLARE_REFCOUNTED_CLASS(TEphemeralSubpoolConfig)
+DECLARE_REFCOUNTED_CLASS(THistoricUsageConfig)
 DECLARE_REFCOUNTED_CLASS(TExtendedSchedulableConfig)
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategyPackingConfig)
 DECLARE_REFCOUNTED_CLASS(TStrategyOperationSpec)

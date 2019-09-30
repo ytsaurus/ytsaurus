@@ -148,8 +148,7 @@ public:
             .ThrowOnError();
 
         Automaton_->SetSerializationDumpEnabled(dump);
-        Automaton_->Clear();
-        Automaton_->LoadSnapshot(reader);
+        HydraManager_->ValidateSnapshot(reader);
     }
 
     const TMasterAutomatonPtr& GetAutomaton() const

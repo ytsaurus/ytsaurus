@@ -58,11 +58,9 @@
 #include <Dictionaries/Embedded/GeoDictionariesLoader.h>
 
 #include <common/DateLUT.h>
-#include <common/logger_useful.h>
 
 #include <Poco/DirectoryIterator.h>
 #include <Poco/File.h>
-#include <Poco/Logger.h>
 #include <Poco/Net/HTTPServer.h>
 #include <Poco/Net/NetException.h>
 #include <Poco/Net/TCPServer.h>
@@ -144,6 +142,9 @@ private:
 
     NRpc::IChannelFactoryPtr ChannelFactory_;
 
+    THashSet<TString> KnownInstances_;
+    THashMap<TString, int> UnknownInstancePingCounter_;
+
 public:
     TImpl(
         TBootstrap* bootstrap,
@@ -219,8 +220,16 @@ public:
         GossipExecutor_->Start();
     }
 
+    void HandleIncomingGossip(const TString& instanceId, EInstanceState state)
+    {
+        BIND(&TImpl::DoHandleIncomingGossip, MakeWeak(this), instanceId, state)
+            .Via(ControlInvoker_)
+            .Run();
+    }
+
     TFuture<void> StopDiscovery()
     {
+        GossipExecutor_->ScheduleOutOfBand();
         return Discovery_->Leave();
     }
 
@@ -394,7 +403,7 @@ private:
         {
             auto systemDatabase = std::make_shared<DatabaseMemory>("system");
 
-            AttachSystemTables(*systemDatabase, Discovery_);
+            AttachSystemTables(*systemDatabase, Discovery_, InstanceId_);
 
             if (AsynchronousMetrics) {
                 attachSystemTablesAsync(*systemDatabase, *AsynchronousMetrics);
@@ -540,6 +549,8 @@ private:
                 attributes["host"]->GetValue<TString>() + ":" + ToString(attributes["rpc_port"]->GetValue<ui64>()));
             TClickHouseServiceProxy proxy(channel);
             auto req = proxy.ProcessGossip();
+            req->set_instance_id(InstanceId_);
+            req->set_instance_state(static_cast<int>(Bootstrap_->GetState()));
             futures.push_back(req->Invoke());
         }
         auto responses = WaitFor(CombineAll(futures))
@@ -566,6 +577,45 @@ private:
         }
 
         YT_LOG_INFO("Gossip completed (Alive: %v, Banned: %v)", nodes.size() - bannedCount, bannedCount);
+    }
+
+    void DoHandleIncomingGossip(const TString& instanceId, EInstanceState state)
+    {
+        if (state != EInstanceState::Active) {
+            YT_LOG_DEBUG("Banning instance (InstanceId: %v, State: %v)",
+                instanceId,
+                state);
+            Discovery_->Ban(instanceId);
+            return;
+        }
+
+        if (KnownInstances_.contains(instanceId)) {
+            return;
+        }
+
+        auto& counter = UnknownInstancePingCounter_[instanceId];
+        ++counter;
+
+        YT_LOG_DEBUG("Received gossip from unknown instance (InstanceId: %v, State: %v, Counter: %v)",
+            instanceId,
+            state,
+            counter);
+
+        if (counter >= Config_->UnknownInstancePingLimit) {
+            return;
+        }
+
+        for (const auto& [name, _] : Discovery_->List(/* eraseBanned */ false)) {
+            if (KnownInstances_.insert(name).second) {
+                UnknownInstancePingCounter_.erase(name);
+            }
+        }
+
+        if (KnownInstances_.contains(instanceId))  {
+            return;
+        }
+
+        Discovery_->UpdateList(Config_->UnknownInstanceAgeThreshold);
     }
 };
 
@@ -594,6 +644,11 @@ TClickHouseHost::TClickHouseHost(
 void TClickHouseHost::Start()
 {
     Impl_->Start();
+}
+
+void TClickHouseHost::HandleIncomingGossip(const TString& instanceId, EInstanceState state)
+{
+    Impl_->HandleIncomingGossip(instanceId, state);
 }
 
 TFuture<void> TClickHouseHost::StopDiscovery()

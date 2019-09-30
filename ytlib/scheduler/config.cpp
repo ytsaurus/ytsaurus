@@ -293,7 +293,7 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("intermediate_compression_codec", IntermediateCompressionCodec)
         .Default(NCompression::ECodec::Lz4);
     RegisterParameter("intermediate_data_replication_factor", IntermediateDataReplicationFactor)
-        .Default(1);
+        .Default(2);
     RegisterParameter("intermediate_data_medium", IntermediateDataMediumName)
         .Default(NChunkClient::DefaultStoreMediumName);
 
@@ -558,6 +558,12 @@ TUserJobSpec::TUserJobSpec()
         .Default(false);
     RegisterParameter("interruption_signal", InterruptionSignal)
         .Default();
+    RegisterParameter("enable_setup_commands", EnableSetupCommands)
+        .Default(false);
+    RegisterParameter("enable_gpu_layers", EnableGpuLayers)
+        .Default(false);
+    RegisterParameter("cuda_toolkit_version", CudaToolkitVersion)
+        .Default();
 
     RegisterPostprocessor([&] () {
         if ((TmpfsSize || TmpfsPath) && !TmpfsVolumes.empty()) {
@@ -674,6 +680,8 @@ TVanillaTaskSpec::TVanillaTaskSpec()
         .DefaultNew();
     RegisterParameter("output_table_paths", OutputTablePaths)
         .Default();
+    RegisterParameter("restart_completed_jobs", RestartCompletedJobs)
+        .Default(false);
 
     RegisterPostprocessor([&] {
         OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
@@ -1318,6 +1326,19 @@ TEphemeralSubpoolConfig::TEphemeralSubpoolConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+THistoricUsageConfig::THistoricUsageConfig()
+{
+    RegisterParameter("aggregation_mode", AggregationMode)
+        .Default(EHistoricUsageAggregationMode::None);
+
+    RegisterParameter("ema_alpha", EmaAlpha)
+        // TODO(eshcherbin): Adjust.
+        .Default(1.0 / (24.0 * 60.0 * 60.0))
+        .GreaterThanOrEqual(0.0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TPoolConfig::TPoolConfig()
 {
     RegisterParameter("mode", Mode)
@@ -1346,6 +1367,11 @@ TPoolConfig::TPoolConfig()
         .Default(false);
 
     RegisterParameter("ephemeral_subpool_config", EphemeralSubpoolConfig)
+        .DefaultNew();
+
+    RegisterParameter("infer_children_weights_from_historic_usage", InferChildrenWeightsFromHistoricUsage)
+        .Default(false);
+    RegisterParameter("historic_usage_config", HistoricUsageConfig)
         .DefaultNew();
 
     RegisterParameter("allowed_profiling_tags", AllowedProfilingTags)
@@ -1423,6 +1449,8 @@ TStrategyOperationSpec::TStrategyOperationSpec()
         .Default();
     RegisterParameter("max_speculative_job_count_per_task", MaxSpeculativeJobCountPerTask)
         .Default(10);
+    RegisterParameter("preemption_mode", PreemptionMode)
+        .Default(EPreemptionMode::Normal);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1436,6 +1464,8 @@ TOperationFairShareTreeRuntimeParameters::TOperationFairShareTreeRuntimeParamete
     RegisterParameter("resource_limits", ResourceLimits)
         .DefaultNew();
     RegisterParameter("enable_detailed_logs", EnableDetailedLogs)
+        .Default(false);
+    RegisterParameter("tentative", Tentative)
         .Default(false);
 }
 
@@ -1573,6 +1603,9 @@ TJobCpuMonitorConfig::TJobCpuMonitorConfig()
 
     RegisterParameter("check_period", CheckPeriod)
         .Default(TDuration::Seconds(1));
+
+    RegisterParameter("start_delay", StartDelay)
+        .Default(TDuration::Zero());
 
     RegisterParameter("smoothing_factor", SmoothingFactor)
         .InRange(0, 1)

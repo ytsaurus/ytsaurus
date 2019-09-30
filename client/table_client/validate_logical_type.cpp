@@ -58,28 +58,50 @@ private:
     {
         switch (type->GetMetatype()) {
             case ELogicalMetatype::Simple:
-                ValidateSimpleType(type->AsSimpleTypeRef().GetElement(), fieldId);
+                ValidateSimpleType(type->UncheckedAsSimpleTypeRef().GetElement(), fieldId);
                 return;
             case ELogicalMetatype::Optional:
-                ValidateOptionalType(type->AsOptionalTypeRef(), fieldId.OptionalElement());
+                ValidateOptionalType(type->UncheckedAsOptionalTypeRef(), fieldId);
                 return;
             case ELogicalMetatype::List:
-                ValidateListType(type->AsListTypeRef(), fieldId);
+                ValidateListType(type->UncheckedAsListTypeRef(), fieldId);
                 return;
             case ELogicalMetatype::Struct:
-                ValidateStructType(type->AsStructTypeRef(), fieldId);
+                ValidateStructType(type->UncheckedAsStructTypeRef(), fieldId);
                 return;
             case ELogicalMetatype::Tuple:
-                ValidateTupleType(type->AsTupleTypeRef(), fieldId);
+                ValidateTupleType(type->UncheckedAsTupleTypeRef(), fieldId);
                 return;
             case ELogicalMetatype::VariantStruct:
-                ValidateVariantStructType(type->AsVariantStructTypeRef(), fieldId);
+                ValidateVariantStructType(type->UncheckedAsVariantStructTypeRef(), fieldId);
                 return;
             case ELogicalMetatype::VariantTuple:
-                ValidateVariantTupleType(type->AsVariantTupleTypeRef(), fieldId);
+                ValidateVariantTupleType(type->UncheckedAsVariantTupleTypeRef(), fieldId);
+                return;
+            case ELogicalMetatype::Dict:
+                ValidateDictType(type->UncheckedAsDictTypeRef(), fieldId);
+                return;
+            case ELogicalMetatype::Tagged:
+                ValidateTaggedType(type->UncheckedAsTaggedTypeRef(), fieldId);
                 return;
         }
         YT_ABORT();
+    }
+
+    void ThrowUnexpectedYsonToken(EYsonItemType type, const TFieldId& fieldId)
+    {
+        THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation,
+            "Cannot parse %Qv; expected: %Qv found: %Qv",
+            GetDescription(fieldId),
+            type,
+            Cursor_.GetCurrent().GetType());
+    }
+
+    Y_FORCE_INLINE void ValidateYsonTokenType(EYsonItemType type, const TFieldId& fieldId)
+    {
+        if (Cursor_.GetCurrent().GetType() != type) {
+            ThrowUnexpectedYsonToken(type, fieldId);
+        }
     }
 
     template <ESimpleLogicalValueType type>
@@ -163,6 +185,10 @@ private:
             CASE(ESimpleLogicalValueType::Int32)
             CASE(ESimpleLogicalValueType::Uint32)
             CASE(ESimpleLogicalValueType::Utf8)
+            CASE(ESimpleLogicalValueType::Date)
+            CASE(ESimpleLogicalValueType::Datetime)
+            CASE(ESimpleLogicalValueType::Timestamp)
+            CASE(ESimpleLogicalValueType::Interval)
 #undef CASE
         }
         YT_ABORT();
@@ -367,6 +393,28 @@ private:
         ValidateVariantTypeImpl(type, fieldId);
     }
 
+    void ValidateDictType(const TDictLogicalType& type, const TFieldId& fieldId)
+    {
+        ValidateYsonTokenType(EYsonItemType::BeginList, fieldId);
+        Cursor_.Next();
+        while (Cursor_.GetCurrent().GetType() != EYsonItemType::EndList) {
+            ValidateYsonTokenType(EYsonItemType::BeginList, fieldId);
+            Cursor_.Next();
+
+            ValidateLogicalType(type.GetKey(), fieldId.DictKey());
+            ValidateLogicalType(type.GetValue(), fieldId.DictValue());
+
+            ValidateYsonTokenType(EYsonItemType::EndList, fieldId);
+            Cursor_.Next();
+        }
+        Cursor_.Next();
+    }
+
+    Y_FORCE_INLINE void ValidateTaggedType(const TTaggedLogicalType& type, const TFieldId& fieldId)
+    {
+        ValidateLogicalType(type.GetElement(), fieldId.TaggedElement());
+    }
+
     TString GetDescription(const TFieldId& fieldId) const
     {
         return fieldId.GetDescriptor(RootDescriptor_).GetDescription();
@@ -409,6 +457,21 @@ private:
             return {this, i};
         }
 
+        TFieldId DictKey() const
+        {
+            return {this, 0};
+        }
+
+        TFieldId DictValue() const
+        {
+            return {this, 1};
+        }
+
+        TFieldId TaggedElement() const
+        {
+            return {this, 0};
+        }
+
         TComplexTypeFieldDescriptor GetDescriptor(const TComplexTypeFieldDescriptor& root) const
         {
             std::vector<int> path;
@@ -441,6 +504,19 @@ private:
                         continue;
                     case ELogicalMetatype::VariantTuple:
                         descriptor = descriptor.VariantTupleElement(childIndex);
+                        continue;
+                    case ELogicalMetatype::Dict:
+                        switch (childIndex) {
+                            case 0:
+                                descriptor = descriptor.DictKey();
+                                continue;
+                            case 1:
+                                descriptor = descriptor.DictValue();
+                                continue;
+                        }
+                        break;
+                    case ELogicalMetatype::Tagged:
+                        descriptor = descriptor.TaggedElement();
                         continue;
                 }
                 YT_ABORT();

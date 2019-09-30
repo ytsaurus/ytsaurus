@@ -38,8 +38,9 @@ namespace NYT::NCypressServer {
 struct TNodeFactoryOptions
 {
     bool PreserveAccount = false;
-    bool PreserveExpirationTime = false;
     bool PreserveCreationTime = false;
+    bool PreserveModificationTime = false;
+    bool PreserveExpirationTime = false;
     bool PessimisticQuotaCheck = true;
 };
 
@@ -91,6 +92,19 @@ public:
         TCypressNode* sourceNode,
         ICypressNodeFactory* factory,
         ENodeCloneMode mode);
+
+    //! Deserializes a node from a tree snapshot and registers its clone.
+    TCypressNode* EndCopyNode(
+        TEndCopyContext* context,
+        ICypressNodeFactory* factory,
+        TNodeId sourceNodeId);
+
+    //! Deserializes an existing #trunkNode node from a tree snapshot.
+    void EndCopyNodeInplace(
+        TCypressNode* trunkNode,
+        TEndCopyContext* context,
+        ICypressNodeFactory* factory,
+        TNodeId sourceNodeId);
 
     //! Returns the root node.
     TMapNode* GetRootNode() const;
@@ -148,8 +162,7 @@ public:
         NTransactionServer::TTransaction* transaction);
 
     void SetModified(
-        TCypressNode* trunkNode,
-        NTransactionServer::TTransaction* transaction,
+        TCypressNode* node,
         EModificationType modificationType);
 
     void SetAccessed(TCypressNode* trunkNode);

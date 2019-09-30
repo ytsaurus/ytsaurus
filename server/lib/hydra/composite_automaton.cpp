@@ -23,12 +23,6 @@ using namespace NHydra::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TEntitySerializationKey TEntitySerializationKey::Null;
-const TEntitySerializationKey TEntitySerializationKey::Destroyed(-2);
-const TEntitySerializationKey TEntitySerializationKey::Inline(-3);
-
-////////////////////////////////////////////////////////////////////////////////
-
 static const size_t SnapshotLoadBufferSize = 64_KB;
 static const size_t SnapshotSaveBufferSize = 64_KB;
 static const size_t SnapshotPrefetchWindowSize = 64_MB;
@@ -389,6 +383,21 @@ void TCompositeAutomaton::LoadSnapshot(IAsyncZeroCopyInputStreamPtr reader)
         });
 }
 
+void TCompositeAutomaton::RememberReign(TReign reign)
+{
+    auto recoveryAction = GetActionToRecoverFromReign(reign);
+
+    YT_VERIFY(IsRecovery() || recoveryAction == EFinalRecoveryAction::None);
+
+    if (recoveryAction != FinalRecoveryAction_) {
+        YT_LOG_DEBUG("Updating final recovery action (MutationReign: %v, CurrentFinalRecoveryAction: %v, MutationFinalRecoveryAction: %v)",
+            reign,
+            FinalRecoveryAction_,
+            recoveryAction);
+        FinalRecoveryAction_ = std::max(FinalRecoveryAction_, recoveryAction);
+    }
+}
+
 void TCompositeAutomaton::ApplyMutation(TMutationContext* context)
 {
     const auto& request = context->Request();
@@ -398,20 +407,9 @@ void TCompositeAutomaton::ApplyMutation(TMutationContext* context)
     auto isRecovery = IsRecovery();
     auto waitTime = GetInstant() - context->GetTimestamp();
 
-    auto recoveryAction = EFinalRecoveryAction::None;
-
     // COMPAT(savrus) Skip unreigned heartbeat mutations which are already in changelog.
-    if (mutationType == HeartbeatMutationType) {
-        recoveryAction = GetActionToRecoverFromReign(request.Reign);
-    }
-    YT_VERIFY(isRecovery || recoveryAction == EFinalRecoveryAction::None);
-
-    if (recoveryAction != FinalRecoveryAction_) {
-        YT_LOG_DEBUG("Updating final recovery action (MutationReign: %v, CurrentFinalRecoveryAction: %v, MutationFinalRecoveryAction: %v)",
-            request.Reign,
-            FinalRecoveryAction_,
-            recoveryAction);
-        FinalRecoveryAction_ = std::max(FinalRecoveryAction_, recoveryAction);
+    if (mutationType != HeartbeatMutationType) {
+        RememberReign(request.Reign);
     }
 
     if (!isRecovery) {

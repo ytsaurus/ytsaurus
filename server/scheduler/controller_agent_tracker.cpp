@@ -95,6 +95,7 @@ public:
         , Config_(std::move(config))
         , OperationId_(operation->GetId())
         , RuntimeData_(operation->GetRuntimeData())
+        , PreemptionMode_(operation->Spec()->PreemptionMode)
     { }
 
 
@@ -229,7 +230,8 @@ public:
         return InvokeAgent<TControllerAgentServiceProxy::TRspReviveOperation>(req).Apply(
             BIND([
                 operationId = OperationId_,
-                incarnationId = agent->GetIncarnationId()
+                incarnationId = agent->GetIncarnationId(),
+                preemptionMode = PreemptionMode_
             ] (const TControllerAgentServiceProxy::TRspReviveOperationPtr& rsp)
             {
                 TOperationControllerReviveResult result;
@@ -245,6 +247,7 @@ public:
                         FromProto<TInstant>(protoJob.start_time()),
                         FromProto<TJobResources>(protoJob.resource_limits()),
                         protoJob.interruptible(),
+                        preemptionMode,
                         protoJob.tree_id(),
                         protoJob.node_id(),
                         protoJob.node_address());
@@ -426,7 +429,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto event = BuildEvent(ESchedulerToAgentJobEventType::Running, job, true, status);
-        auto result = EnqueueJobEvent(std::move(event), false);
+        auto result = EnqueueJobEvent(std::move(event), /* postponeIfNoAgent */ false);
         YT_LOG_DEBUG_IF(shouldLogJob,
             "Job run notification %v (OperationId: %v, JobId: %v)",
             result ? "enqueued" : "dropped",
@@ -518,11 +521,17 @@ public:
         return RuntimeData_->GetPendingJobCount();
     }
 
+    virtual EPreemptionMode GetPreemptionMode() const override
+    {
+        return PreemptionMode_;
+    }
+
 private:
     TBootstrap* const Bootstrap_;
     TSchedulerConfigPtr Config_;
     const TOperationId OperationId_;
     const TOperationRuntimeDataPtr RuntimeData_;
+    const EPreemptionMode PreemptionMode_;
 
     TSpinLock SpinLock_;
 
@@ -709,9 +718,10 @@ public:
                     }
 
                     i64 freeMemory = std::max(static_cast<i64>(0), memoryStatistics->Limit - memoryStatistics->Usage);
-                    double score = static_cast<double>(freeMemory) / memoryStatistics->Limit;
+                    double rawScore = static_cast<double>(freeMemory) / memoryStatistics->Limit;
+                    double score = std::pow(rawScore, Config_->MemoryBalancedPickStrategyScorePower);
 
-                    scoreSum += std::pow(score, Config_->MemoryBalancedPickStrategyScorePower);
+                    scoreSum += score;
                     if (RandomNumber<float>() <= static_cast<float>(score) / scoreSum) {
                         pickedAgent = agent;
                     }
@@ -761,8 +771,8 @@ public:
             descriptor->set_secure_vault(ConvertToYsonString(operation->GetSecureVault()).GetData());
         }
         descriptor->set_acl(ConvertToYsonString(operation->GetRuntimeParameters()->Acl).GetData());
+        ToProto(descriptor->mutable_pool_tree_controller_settings_map(), operation->PoolTreeControllerSettingsMap());
         ToProto(descriptor->mutable_user_transaction_id(), operation->GetUserTransactionId());
-        ToProto(descriptor->mutable_pool_tree_scheduling_tag_filters(), operation->PoolTreeToSchedulingTagFilter());
 
         return InvokeAgent<TControllerAgentServiceProxy::TRspRegisterOperation>(
             Bootstrap_,
@@ -871,6 +881,7 @@ public:
             agentId);
 
         NApi::TTransactionStartOptions options;
+        options.Timeout = Config_->IncarnationTransactionTimeout;
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("title", Format("Controller agent incarnation for %v", agentId));
         options.Attributes = std::move(attributes);

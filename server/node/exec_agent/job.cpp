@@ -76,6 +76,7 @@ using namespace NScheduler;
 using namespace NScheduler::NProto;
 using namespace NConcurrency;
 using namespace NApi;
+using namespace NCoreDump;
 
 using NNodeTrackerClient::TNodeDirectory;
 using NChunkClient::TDataSliceDescriptor;
@@ -160,16 +161,22 @@ public:
                             .Via(Invoker_),
                         prepareTimeLimit);
                 }
-
             }
 
-            if (!Config_->JobController->TestGpu) {
+            if (!Config_->JobController->TestGpuResource) {
                 for (int i = 0; i < GetResourceUsage().gpu(); ++i) {
                     GpuSlots_.emplace_back(Bootstrap_->GetGpuManager()->AcquireGpuSlot());
 
                     TGpuStatistics statistics;
                     statistics.LastUpdateTime = now;
                     GpuStatistics_.emplace_back(std::move(statistics));
+                }
+
+                if (schedulerJobSpecExt.has_user_job_spec()) {
+                    const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
+                    if (userJobSpec.has_cuda_toolkit_version()) {
+                        Bootstrap_->GetGpuManager()->VerifyToolkitDriverVersion(userJobSpec.cuda_toolkit_version());
+                    }
                 }
             }
 
@@ -454,6 +461,12 @@ public:
         Profile_ = value;
     }
 
+    virtual void SetCoreInfos(TCoreInfos value) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        CoreInfos_ = std::move(value);
+    }
+
     virtual TYsonString GetStatistics() const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -497,7 +510,7 @@ public:
         ValidateJobRunning();
 
         try {
-            return Slot_->GetJobProberClient()->DumpInputContext();
+            return GetJobProbeOrThrow()->DumpInputContext();
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error requesting input contexts dump from job proxy")
                 << ex;
@@ -515,7 +528,7 @@ public:
         ValidateJobRunning();
 
         try {
-            return Slot_->GetJobProberClient()->GetStderr();
+            return GetJobProbeOrThrow()->GetStderr();
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error requesting stderr from job proxy")
                 << ex;
@@ -536,13 +549,19 @@ public:
         return Profile_;
     }
 
+    const TCoreInfos& GetCoreInfos()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return CoreInfos_;
+    }
+
     virtual TYsonString StraceJob() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        ValidateJobRunning();
 
         try {
-            return Slot_->GetJobProberClient()->StraceJob();
+            return GetJobProbeOrThrow()->StraceJob();
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error requesting strace dump from job proxy")
                 << ex;
@@ -557,7 +576,7 @@ public:
         Signaled_ = true;
 
         try {
-            Slot_->GetJobProberClient()->SignalJob(signalName);
+            GetJobProbeOrThrow()->SignalJob(signalName);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error sending signal to job proxy")
                 << ex;
@@ -566,14 +585,13 @@ public:
 
     virtual TYsonString PollJobShell(const TYsonString& parameters) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        ValidateJobRunning();
+        VERIFY_THREAD_AFFINITY_ANY();
 
         try {
-            return Slot_->GetJobProberClient()->PollJobShell(parameters);
+            return GetJobProbeOrThrow()->PollJobShell(parameters);
         } catch (const TErrorException& ex) {
             // The following code changes error code for more user-friendly
-            // diagnostics in interactive shell
+            // diagnostics in interactive shell.
             if (ex.Error().FindMatching(NRpc::EErrorCode::TransportError)) {
                 THROW_ERROR_EXCEPTION(NExecAgent::EErrorCode::JobProxyConnectionFailed,
                     "No connection to job proxy")
@@ -582,20 +600,6 @@ public:
             THROW_ERROR_EXCEPTION("Error polling job shell")
                 << ex;
         }
-    }
-
-    TJobStatistics MakeDefaultJobStatistics()
-    {
-        auto statistics = TJobStatistics()
-            .Type(GetType())
-            .State(GetState())
-            .StartTime(GetStartTime())
-            .SpecVersion(0) // TODO: fill correct spec version.
-            .Events(JobEvents_);
-        if (FinishTime_) {
-            statistics.SetFinishTime(*FinishTime_);
-        }
-        return statistics;
     }
 
     virtual void ReportStatistics(TJobStatistics&& statistics) override
@@ -647,7 +651,7 @@ public:
         }
 
         try {
-            Slot_->GetJobProberClient()->Interrupt();
+            GetJobProbeOrThrow()->Interrupt();
         } catch (const std::exception& ex) {
             auto error = TError("Error interrupting job on job proxy")
                 << ex;
@@ -666,7 +670,7 @@ public:
         ValidateJobRunning();
 
         try {
-            Slot_->GetJobProberClient()->Fail();
+            GetJobProbeOrThrow()->Fail();
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error failing job on job proxy")
                     << ex;
@@ -706,6 +710,7 @@ private:
     std::optional<TString> Stderr_;
     std::optional<TString> FailContext_;
     std::optional<TJobProfile> Profile_;
+    TCoreInfos CoreInfos_;
 
     TYsonString Statistics_ = TYsonString("{}");
     TInstant StatisticsLastSendTime_ = TInstant::Now();
@@ -755,6 +760,9 @@ private:
 
     //! True if scheduler asked to store this job.
     bool Stored_ = false;
+
+    TSpinLock JobProbeLock_;
+    IJobProbePtr JobProbe_;
 
     // Helpers.
 
@@ -952,17 +960,28 @@ private:
 
             RootVolume_ = volumeOrError.Value();
 
-            SetJobPhase(EJobPhase::RunningSetupCommands);
+            const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+            if (schedulerJobSpecExt.has_user_job_spec()) {
+                const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
+                if (userJobSpec.enable_setup_commands()) {
+                    SetJobPhase(EJobPhase::RunningSetupCommands);
+                    YT_LOG_INFO("Running setup commands");
 
-            // Even though #RunSetupCommands returns future, we still need to pass it through invoker
-            // since Porto API is used and can cause context switch.
-            BIND(&TJob::RunSetupCommands, MakeStrong(this))
-                .AsyncVia(Invoker_)
-                .Run()
-                .Subscribe(BIND(
-                    &TJob::OnSetupCommandsFinished,
-                    MakeWeak(this))
-                .Via(Invoker_));
+                    // Even though #RunSetupCommands returns future, we still need to pass it through invoker
+                    // since Porto API is used and can cause context switch.
+                    BIND(&TJob::RunSetupCommands, MakeStrong(this))
+                        .AsyncVia(Invoker_)
+                        .Run()
+                        .Subscribe(BIND(
+                            &TJob::OnSetupCommandsFinished,
+                            MakeWeak(this))
+                            .Via(Invoker_));
+                    return;
+                } else {
+                    YT_LOG_INFO("Setup commands disabled, running job proxy");
+                }
+            }
+            RunJobProxy();
         });
     }
 
@@ -985,6 +1004,7 @@ private:
     {
         ExecTime_ = TInstant::Now();
         SetJobPhase(EJobPhase::PreparingProxy);
+        InitializeJobProbe();
 
         BIND(
             &ISlot::RunJobProxy,
@@ -1045,6 +1065,8 @@ private:
     void OnJobProxyFinished(const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        ResetJobProbe();
 
         if (HandleFinishingPhase()) {
             return;
@@ -1121,7 +1143,7 @@ private:
         auto error = FromProto<TError>(JobResult_->error());
 
         if (!error.IsOK()) {
-            // NB: it is required to report error that occured in some place different
+            // NB: it is required to report error that occurred in some place different
             // from OnJobFinished method.
             ReportStatistics(TJobStatistics().Error(error));
         }
@@ -1334,6 +1356,19 @@ private:
                     nullptr});
             }
 
+            bool needGpu = GetResourceUsage().gpu() > 0 || Config_->JobController->TestGpuLayers;
+
+            if (needGpu && userJobSpec.enable_gpu_layers()) {
+                if (userJobSpec.layers().empty()) {
+                    THROW_ERROR_EXCEPTION(EErrorCode::GpuJobWithoutLayers,
+                        "No layers specified for GPU job; at least a base layer is required to use GPU");
+                }
+
+                for (auto&& layerKey : Bootstrap_->GetGpuManager()->GetToppingLayers()) {
+                    LayerArtifactKeys_.push_back(std::move(layerKey));
+                }
+            }
+
             for (const auto& descriptor : userJobSpec.layers()) {
                 LayerArtifactKeys_.push_back(TArtifactKey(descriptor));
             }
@@ -1489,7 +1524,7 @@ private:
         }
 
         YT_LOG_INFO("Running setup commands");
-        return Slot_->RunSetupCommands(Id_, commands, MakeWritableRootFS());
+        return Slot_->RunSetupCommands(Id_, commands, MakeWritableRootFS(), Config_->JobController->SetupCommandUser);
     }
 
     // Analyse results.
@@ -1563,6 +1598,7 @@ private:
             resultError.FindMatching(NChunkClient::EErrorCode::BandwidthThrottlingFailed) ||
             resultError.FindMatching(NChunkClient::EErrorCode::MasterCommunicationFailed) ||
             resultError.FindMatching(NChunkClient::EErrorCode::MasterNotConnected) ||
+            resultError.FindMatching(NChunkClient::EErrorCode::ReaderTimeout) ||
             resultError.FindMatching(NExecAgent::EErrorCode::ConfigCreationFailed) ||
             resultError.FindMatching(NExecAgent::EErrorCode::SlotNotFound) ||
             resultError.FindMatching(NExecAgent::EErrorCode::JobEnvironmentDisabled) ||
@@ -1576,7 +1612,9 @@ private:
             resultError.FindMatching(NContainers::EErrorCode::FailedToStartContainer) ||
             resultError.FindMatching(EProcessErrorCode::CannotResolveBinary) ||
             resultError.FindMatching(NNet::EErrorCode::ResolveTimedOut) ||
-            resultError.FindMatching(NExecAgent::EErrorCode::JobProxyPreparationTimeout))
+            resultError.FindMatching(NExecAgent::EErrorCode::JobProxyPreparationTimeout) ||
+            resultError.FindMatching(NExecAgent::EErrorCode::JobPreparationTimeout) ||
+            resultError.FindMatching(NExecAgent::EErrorCode::GpuLayerNotFetched))
         {
             return EAbortReason::Other;
         }
@@ -1625,7 +1663,9 @@ private:
             error.FindMatching(NTableClient::EErrorCode::CorruptedNameTable) ||
             error.FindMatching(NTableClient::EErrorCode::RowWeightLimitExceeded) ||
             error.FindMatching(NTableClient::EErrorCode::InvalidColumnFilter) ||
-            error.FindMatching(NTableClient::EErrorCode::InvalidColumnRenaming);
+            error.FindMatching(NTableClient::EErrorCode::InvalidColumnRenaming) ||
+            error.FindMatching(EErrorCode::SetupCommandFailed) ||
+            error.FindMatching(EErrorCode::GpuJobWithoutLayers);
     }
 
     TYsonString EnrichStatisticsWithGpuInfo(const TYsonString& statisticsYson)
@@ -1708,6 +1748,55 @@ private:
 
         return rootFS;
     }
+
+    TJobStatistics MakeDefaultJobStatistics()
+    {
+        auto statistics = TJobStatistics()
+            .Type(GetType())
+            .State(GetState())
+            .StartTime(GetStartTime())
+            .SpecVersion(0) // TODO: fill correct spec version.
+            .Events(JobEvents_)
+            .CoreInfos(CoreInfos_);
+        if (FinishTime_) {
+            statistics.SetFinishTime(*FinishTime_);
+        }
+        return statistics;
+    }
+
+
+    void InitializeJobProbe()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto probe = CreateJobProbe(Slot_->GetBusClientConfig(), Id_);
+        {
+            auto guard = Guard(JobProbeLock_);
+            std::swap(JobProbe_, probe);
+        }
+    }
+
+    void ResetJobProbe()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        IJobProbePtr probe;
+        {
+            auto guard = Guard(JobProbeLock_);
+            std::swap(JobProbe_, probe);
+        }
+    }
+
+    IJobProbePtr GetJobProbeOrThrow()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto guard = Guard(JobProbeLock_);
+        if (!JobProbe_) {
+            THROW_ERROR_EXCEPTION("Job probe is not available");
+        }
+        return JobProbe_;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1730,6 +1819,3 @@ NJobAgent::IJobPtr CreateUserJob(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NExecAgent
-
-
-

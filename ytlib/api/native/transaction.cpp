@@ -6,14 +6,16 @@
 
 #include <yt/client/object_client/helpers.h>
 
-#include <yt/client/tablet_client/helpers.h>
-#include <yt/ytlib/table_client/helpers.h>
 #include <yt/client/tablet_client/table_mount_cache.h>
 #include <yt/client/table_client/wire_protocol.h>
 #include <yt/client/table_client/proto/wire_protocol.pb.h>
 
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/row_buffer.h>
+
+#include <yt/client/transaction_client/helpers.h>
+
+#include <yt/ytlib/table_client/helpers.h>
 
 #include <yt/ytlib/api/native/tablet_helpers.h>
 
@@ -300,7 +302,7 @@ public:
     {
         auto guard = Guard(SpinLock_);
 
-        ValidateTabletTransaction(GetId());
+        ValidateTabletTransactionId(GetId());
 
         if (State_ != ETransactionState::Active) {
             THROW_ERROR_EXCEPTION("Cannot modify rows since transaction %v is already in %Qlv state",
@@ -420,6 +422,11 @@ public:
         const TRichYPath& dstPath,
         const TConcatenateNodesOptions& options),
         (srcPaths, dstPath, options))
+    DELEGATE_TRANSACTIONAL_METHOD(TFuture<void>, ExternalizeNode, (
+        const TYPath& path,
+        TCellTag cellTag,
+        const TExternalizeNodeOptions& options),
+        (path, cellTag, options))
     DELEGATE_TRANSACTIONAL_METHOD(TFuture<bool>, NodeExists, (
         const TYPath& path,
         const TNodeExistsOptions& options),

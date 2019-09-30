@@ -68,8 +68,10 @@ TChunkList* GetUniqueParent(const TChunkTree* chunkTree)
                 return nullptr;
             }
             YT_VERIFY(parents.size() == 1);
-            YT_VERIFY(parents[0]->GetType() == EObjectType::ChunkList);
-            return parents[0]->AsChunkList();
+            auto [parent, cardinality] = *parents.begin();
+            YT_VERIFY(cardinality == 1);
+            YT_VERIFY(parent->GetType() == EObjectType::ChunkList);
+            return parent->AsChunkList();
         }
 
         case EObjectType::ChunkView: {
@@ -101,7 +103,7 @@ int GetParentCount(const TChunkTree* chunkTree)
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk:
         case EObjectType::JournalChunk:
-            return chunkTree->AsChunk()->Parents().size();
+            return chunkTree->AsChunk()->GetParentCount();
 
         case EObjectType::ChunkView:
             return chunkTree->AsChunkView()->Parents().size();
@@ -114,19 +116,29 @@ int GetParentCount(const TChunkTree* chunkTree)
     }
 }
 
-TChunkTree* GetParent(const TChunkTree* chunkTree, int index)
+bool HasParent(const TChunkTree* chunkTree, TChunkList* potentialParent)
 {
     switch (chunkTree->GetType()) {
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk:
         case EObjectType::JournalChunk:
-            return chunkTree->AsChunk()->Parents()[index];
+            return chunkTree->AsChunk()->Parents().contains(potentialParent);
 
         case EObjectType::ChunkView:
-            return chunkTree->AsChunkView()->Parents()[index];
+            for (auto* parent : chunkTree->AsChunkView()->Parents()) {
+                if (parent == potentialParent) {
+                    return true;
+                }
+            }
+            return false;
 
         case EObjectType::ChunkList:
-            return chunkTree->AsChunkList()->Parents()[index];
+            for (auto* parent : chunkTree->AsChunkList()->Parents()) {
+                if (parent == potentialParent) {
+                    return true;
+                }
+            }
+            return false;
 
         default:
             YT_ABORT();
@@ -431,7 +443,7 @@ std::vector<TChunkOwnerBase*> GetOwningNodes(TChunkTree* chunkTree)
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk:
             case EObjectType::JournalChunk: {
-                for (auto* parent : chunkTree->AsChunk()->Parents()) {
+                for (auto [parent, cardinality] : chunkTree->AsChunk()->Parents()) {
                     visit(parent);
                 }
                 break;
@@ -468,11 +480,16 @@ TYsonString DoGetMulticellOwningNodes(
     std::vector<TVersionedObjectId> nodeIds;
 
     const auto& chunkManager = bootstrap->GetChunkManager();
-    auto* chunkTree = chunkManager->FindChunkTree(chunkTreeId);
-    if (IsObjectAlive(chunkTree)) {
+    if (auto* chunkTree = chunkManager->FindChunkTree(chunkTreeId); IsObjectAlive(chunkTree)) {
         auto nodes = GetOwningNodes(chunkTree);
         for (const auto* node : nodes) {
-            nodeIds.push_back(node->GetVersionedId());
+            TTransactionId transactionId;
+            if (auto* transaction = node->GetTransaction()) {
+                transactionId = transaction->IsExternalized()
+                    ? transaction->GetOriginalTransactionId()
+                    : transaction->GetId();
+            }
+            nodeIds.emplace_back(node->GetId(), transactionId);
         }
     }
 
@@ -480,14 +497,17 @@ TYsonString DoGetMulticellOwningNodes(
 
     // Request owning nodes from all cells.
     auto requestIdsFromCell = [&] (TCellTag cellTag) {
-        if (cellTag == bootstrap->GetCellTag())
+        if (cellTag == bootstrap->GetCellTag()) {
             return;
+        }
 
         auto type = TypeFromId(chunkTreeId);
         if (type != EObjectType::Chunk &&
             type != EObjectType::ErasureChunk &&
             type != EObjectType::JournalChunk)
+        {
             return;
+        }
 
         auto channel = multicellManager->GetMasterChannelOrThrow(
             cellTag,
@@ -498,8 +518,9 @@ TYsonString DoGetMulticellOwningNodes(
         ToProto(req->mutable_chunk_id(), chunkTreeId);
 
         auto rspOrError = WaitFor(req->Invoke());
-        if (rspOrError.GetCode() == NChunkClient::EErrorCode::NoSuchChunk)
+        if (rspOrError.GetCode() == NChunkClient::EErrorCode::NoSuchChunk) {
             return;
+        }
 
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting owning nodes for chunk %v from cell %v",
             chunkTreeId,

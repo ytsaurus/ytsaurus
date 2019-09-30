@@ -1,6 +1,7 @@
 import pytest
 import time
 import datetime
+from string import printable
 from copy import deepcopy
 from cStringIO import StringIO
 from datetime import timedelta
@@ -475,6 +476,40 @@ class TestCypress(YTEnvSetup):
         with pytest.raises(YtError): copy("//tmp/b", "//tmp/new", ignore_existing=True, force=True)
 
     @authors("babenko")
+    def test_copy_removed_account(self):
+        create_account("a")
+        create("map_node", "//tmp/p1")
+        create("map_node", "//tmp/p2")
+
+        create("file", "//tmp/p1/f", attributes={"account": "a"})
+
+        remove("//sys/accounts/a")
+        wait(lambda: get("//sys/accounts/a/@life_stage") in ["removal_started", "removal_pre_committed"])
+
+        with pytest.raises(YtError):
+            copy("//tmp/p1/f", "//tmp/p2/f", preserve_account=True)
+
+        remove("//tmp/p1/f")
+        wait(lambda: not exists("//sys/accounts/a"))
+
+    @authors("babenko")
+    def test_copy_removed_bundle(self):
+        create_tablet_cell_bundle("b")
+        create("map_node", "//tmp/p1")
+        create("map_node", "//tmp/p2")
+
+        create("table", "//tmp/p1/t", attributes={"tablet_cell_bundle": "b"})
+
+        remove("//sys/tablet_cell_bundles/b")
+        wait(lambda: get("//sys/tablet_cell_bundles/b/@life_stage") in ["removal_started", "removal_pre_committed"])
+
+        with pytest.raises(YtError):
+            copy("//tmp/p1/t", "//tmp/p2/t")
+
+        remove("//tmp/p1/t")
+        wait(lambda: not exists("//sys/tablet_cell_bundles/b"))
+
+    @authors("babenko")
     def test_compression_codec_in_tx(self):
         create("table", "//tmp/t", attributes={"compression_codec": "none"})
         assert get("//tmp/t/@compression_codec") == "none"
@@ -750,13 +785,13 @@ class TestCypress(YTEnvSetup):
 
     @authors("babenko")
     def test_get_with_attributes(self):
-        set("//tmp/a", {})
-        assert get("//tmp", attributes=["type"]) == to_yson_type({"a": to_yson_type({}, {"type": "map_node"})}, {"type": "map_node"})
+        set("//tmp/a/b", {}, recursive=True, force=True)
+        assert get("//tmp/a", attributes=["type"]) == to_yson_type({"b": to_yson_type({}, {"type": "map_node"})}, {"type": "map_node"})
 
     @authors("babenko")
     def test_list_with_attributes(self):
-        set("//tmp/a", {})
-        assert ls("//tmp", attributes=["type"]) == [to_yson_type("a", attributes={"type": "map_node"})]
+        set("//tmp/a/b", {}, recursive=True, force=True)
+        assert ls("//tmp/a", attributes=["type"]) == [to_yson_type("b", attributes={"type": "map_node"})]
 
     @authors("kiselyovp")
     def test_get_with_attributes_objects(self):
@@ -766,7 +801,7 @@ class TestCypress(YTEnvSetup):
     @authors("babenko")
     def test_get_with_attributes_virtual_maps(self):
         tx = start_transaction()
-        assert get("//sys/transactions", attributes=["type"]) == to_yson_type(\
+        assert get("//sys/transactions", attributes=["type"]) == to_yson_type( \
             {tx: to_yson_type(None, attributes={"type": "transaction"})},
             attributes={"type": "transaction_map"})
 
@@ -1059,6 +1094,23 @@ class TestCypress(YTEnvSetup):
         assert get("#{0}/@type".format(id)) == "map_node"
         assert get("#{0}&/@type".format(id)) == "link"
 
+    @authors("kiselyovp")
+    def test_escaped_symbols(self):
+        with pytest.raises(YtError):
+            create("map_node", "//tmp/special@&*[{symbols")
+        path = r"//tmp/special\\\/\@\&\*\[\{symbols"
+        create("string_node", path)
+        set(path, "abacaba")
+        assert exists(path)
+        assert r"special\/@&*[{symbols" in ls("//tmp")
+        assert get(path) == "abacaba"
+        set(path + "/@attr", 42)
+        assert get(path + "/@attr") == 42
+
+        move(path, "//tmp/string_node")
+        assert not exists(path)
+        assert exists("//tmp/string_node")
+
     @authors("babenko")
     def test_access_stat1(self):
         time.sleep(1)
@@ -1193,12 +1245,15 @@ class TestCypress(YTEnvSetup):
         create("map_node", "//tmp/map", attributes={"user_attr1": 10})
         set("//tmp/map/@user_attr2", "abc")
         assert sorted(get("//tmp/map/@user_attribute_keys")) == sorted(["user_attr1", "user_attr2"])
+        assert get("//tmp/map/@user_attributes") == {"user_attr1": 10, "user_attr2": "abc"}
 
         create("table", "//tmp/table")
         assert get("//tmp/table/@user_attribute_keys") == []
+        assert get("//tmp/table/@user_attributes") == {}
 
         create("file", "//tmp/file")
         assert get("//tmp/file/@user_attribute_keys") == []
+        assert get("//tmp/file/@user_attributes") == {}
 
     @authors("ignat")
     def test_boolean(self):
@@ -1509,7 +1564,7 @@ class TestCypress(YTEnvSetup):
         assert exists("//tmp/t2")
 
     @authors("babenko")
-    def test_copy_preserve_expiration_time_in_tx(self):
+    def test_copy_preserve_expiration_time_in_tx1(self):
         create("table", "//tmp/t1", attributes={"expiration_time": str(self._now() + timedelta(seconds=1))})
         tx = start_transaction()
         copy("//tmp/t1", "//tmp/t2", preserve_expiration_time=True, tx=tx)
@@ -1518,8 +1573,23 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t1")
         assert exists("//tmp/t2", tx=tx)
         commit_transaction(tx)
-        time.sleep(1)
-        assert not exists("//tmp/t2")
+        wait(lambda: not exists("//tmp/t2"))
+
+    @authors("babenko")
+    def test_copy_preserve_expiration_time_in_tx2(self):
+        create("table", "//tmp/t1")
+        tx = start_transaction()
+        set("//tmp/t1/@expiration_time", str(self._now() + timedelta(seconds=1)), tx=tx)
+        copy("//tmp/t1", "//tmp/t2", preserve_expiration_time=True, tx=tx)
+        assert exists("//tmp/t1/@expiration_time", tx=tx)
+        assert exists("//tmp/t2/@expiration_time", tx=tx)
+        assert get("//tmp/t1/@expiration_time", tx=tx) == get("//tmp/t2/@expiration_time", tx=tx)
+        time.sleep(2)
+        assert exists("//tmp/t1")
+        assert exists("//tmp/t1", tx=tx)
+        assert exists("//tmp/t2", tx=tx)
+        commit_transaction(tx)
+        wait(lambda: not exists("//tmp/t1") and not exists("//tmp/t2"))
 
     @authors("babenko")
     def test_expire_orphaned_node_yt_8064(self):
@@ -1551,15 +1621,15 @@ class TestCypress(YTEnvSetup):
     @authors("babenko")
     def test_ignore_ampersand1(self):
         set("//tmp/map", {})
-        set("//tmp&/map&/a", "b")
-        assert get("//tmp&/map&/a") == "b"
+        set("//tmp/map&/a", "b")
+        assert get("//tmp/map&/a") == "b"
         assert get("//tmp/map&/@type") == "map_node"
 
     @authors("babenko")
     def test_ignore_ampersand2(self):
         set("//tmp/list", [])
-        set("//tmp&/list&/end", "x")
-        assert get("//tmp&/list&/0") == "x"
+        set("//tmp/list&/end", "x")
+        assert get("//tmp/list&/0") == "x"
         assert get("//tmp/list&/@type") == "list_node"
 
     @authors("babenko", "ignat")
@@ -1941,19 +2011,15 @@ class TestCypress(YTEnvSetup):
             set("//tmp/dir1/@tablet_cell_bundle", "non_existent")
 
         create_tablet_cell_bundle("b1")
-        assert get("//sys/tablet_cell_bundles/b1/@ref_counter") == 1
 
         set("//tmp/dir1/@tablet_cell_bundle", "b1")
         assert get("//tmp/dir1/@tablet_cell_bundle") == "b1"
-        assert get("//sys/tablet_cell_bundles/b1/@ref_counter") == 2
 
         set("//tmp/dir2/@tablet_cell_bundle", "b1")
         assert get("//tmp/dir2/@tablet_cell_bundle") == "b1"
-        assert get("//sys/tablet_cell_bundles/b1/@ref_counter") == 3
 
         set("//tmp/dir3/@tablet_cell_bundle", "b1")
         assert get("//tmp/dir3/@tablet_cell_bundle") == "b1"
-        assert get("//sys/tablet_cell_bundles/b1/@ref_counter") == 4
 
         create_tablet_cell_bundle("b2")
 
@@ -1962,38 +2028,34 @@ class TestCypress(YTEnvSetup):
 
         assert get("//tmp/dir3_copy/@tablet_cell_bundle", tx=tx) == "b1"
 
-        assert get("//sys/tablet_cell_bundles/b1/@ref_counter") == 6 # +1 for cloned trunk, +1 for it branch
         with pytest.raises(YtError):
             set("//tmp/dir3_copy/@tablet_cell_bundle", "b2", tx=tx)
         with pytest.raises(YtError):
             remove("//tmp/dir3_copy/@tablet_cell_bundle", tx=tx)
 
         set("//tmp/dir1/@tablet_cell_bundle", "b2")
-        assert get("//sys/tablet_cell_bundles/b1/@ref_counter") == 5
 
         remove("//tmp/dir2/@tablet_cell_bundle")
-        assert get("//sys/tablet_cell_bundles/b1/@ref_counter") == 4
 
         abort_transaction(tx)
-        gc_collect()
-        assert get("//sys/tablet_cell_bundles/b1/@ref_counter") == 2
 
         move("//tmp/dir3", "//tmp/dir3_move")
-        gc_collect()
-        assert get("//sys/tablet_cell_bundles/b1/@ref_counter") == 2
 
         tx = start_transaction()
         move("//tmp/dir3_move", "//tmp/dir3", tx=tx)
-        gc_collect()
-        assert get("//sys/tablet_cell_bundles/b1/@ref_counter") == 5
 
         abort_transaction(tx)
-        gc_collect()
-        assert get("//sys/tablet_cell_bundles/b1/@ref_counter") == 2
 
         remove("//tmp/dir3_move")
-        gc_collect()
-        assert get("//sys/tablet_cell_bundles/b1/@ref_counter") == 1
+
+        remove("//sys/tablet_cell_bundles/b1")
+        wait(lambda: not exists("//sys/tablet_cell_bundles/b1"))
+
+        remove("//sys/tablet_cell_bundles/b2")
+        wait(lambda: get("//sys/tablet_cell_bundles/b2/@life_stage") in ["removal_started", "removal_pre_committed"])
+
+        remove("//tmp/dir1")
+        wait(lambda: not exists("//sys/tablet_cell_bundles/b1"))
 
     @authors("shakurov")
     def test_inheritable_attributes_no_extraneous_inheritance(self):
@@ -2238,6 +2300,70 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t1/@compression_codec") == "lz4"
         assert get("//tmp/t1/@erasure_codec") == "lrc_12_2_2"
 
+    @authors("avmatrosov")
+    def test_annotation_attribute(self):
+        create("map_node", "//tmp/test_node")
+        create("map_node", "//tmp/test_node/child")
+        set("//tmp/test_node/@annotation", "test_node")
+        assert get("//tmp/test_node/@annotation") == "test_node"
+        assert get("//tmp/test_node/child/@annotation") == "test_node"
+        assert get("//tmp/test_node/child/@annotation_path") == "//tmp/test_node"
+
+        create("map_node", "//tmp/empty_node")
+        set("//tmp/@annotation", "tmp")
+
+        assert get("//tmp/test_node/@annotation") == get("//tmp/test_node/child/@annotation") == "test_node"
+        assert get("//tmp/empty_node/@annotation") == "tmp"
+        assert get("//tmp/empty_node/@annotation_path") == "//tmp"
+
+        remove("//tmp/@annotation")
+        assert get("//tmp/empty_node/@annotation") == None
+
+        set("//tmp/@annotation", "test")
+        set("//tmp/@annotation", None)
+        assert get("//tmp/@annotation") == None
+
+    @authors("avmatrosov")
+    def test_annotation_errors(self):
+        create("map_node", "//tmp/test_node")
+        assert get("//tmp/test_node/@annotation") == None
+        assert get("//tmp/test_node/@annotation_path") == None
+        with pytest.raises(YtError): set("//tmp/test_node/@annotation", "a" * 1025)
+        with pytest.raises(YtError): set("//tmp/test_node/@annotation", unichr(255))
+        set("//tmp/test_node/@annotation", printable)
+
+    @authors("avmatrosov")
+    def test_annotation_transaction(self):
+        create("map_node", "//tmp/test_node")
+        create("map_node", "//tmp/test_node/child")
+
+        def exists(path_to_attribute):
+            return get(path_to_attribute) not in [None, ""]
+
+        tx = start_transaction()
+        set("//tmp/test_node/@annotation", "test", tx=tx)
+        assert not exists("//tmp/test_node/@annotation")
+        assert not exists("//tmp/test_node/child/@annotation")
+        commit_transaction(tx)
+        assert exists("//tmp/test_node/@annotation")
+        assert exists("//tmp/test_node/child/@annotation")
+
+        tx = start_transaction()
+        remove("//tmp/test_node/@annotation", tx=tx)
+        assert exists("//tmp/test_node/@annotation")
+        assert exists("//tmp/test_node/child/@annotation")
+        commit_transaction(tx)
+        assert not exists("//tmp/test_node/@annotation")
+        assert not exists("//tmp/test_node/child/@annotation")
+
+    @authors("avmatrosov")
+    def test_annotation_clone(self):
+        create("map_node", "//tmp/test_node")
+        create("map_node", "//tmp/test_node/child")
+        set("//tmp/test_node/@annotation", "test")
+        move("//tmp/test_node", "//test")
+        assert get("//test/@annotation") == get("//test/child/@annotation") == "test"
+
 ##################################################################
 
 class TestCypressMulticell(TestCypress):
@@ -2251,11 +2377,44 @@ class TestCypressMulticell(TestCypress):
 
 ##################################################################
 
+class TestCypressPortal(TestCypressMulticell):
+    ENABLE_TMP_PORTAL = True
+
+    def setup(self):
+        set("//tmp/@annotation", "")
+
+    @authors("avmatrosov")
+    def test_annotation_portal(self):
+        set("//@annotation", "test")
+        assert get("//tmp/@annotation") == ""
+
+        create("portal_entrance", "//p1", attributes={"exit_cell_tag": 1})
+        create("map_node", "//p1/test")
+
+        assert get("//@annotation") == "test"
+        assert get("//p1/test/@annotation") == "test"
+
+        remove("//@annotation")
+        assert get("//p1/test/@annotation") == "test"
+
+        with pytest.raises(YtError):
+            remove("//tmp/@annotation")
+
+        remove("//p1")
+
+    @authors("avmatrosov")
+    def test_annotation_attribute(self):
+        pass
+
+    @authors("avmatrosov")
+    def test_annotation_errors(self):
+        pass
+
+##################################################################
+
 class TestCypressRpcProxy(TestCypress):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
-
-##################################################################
 
 class TestCypressMulticellRpcProxy(TestCypressMulticell, TestCypressRpcProxy):
     pass

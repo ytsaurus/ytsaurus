@@ -4,6 +4,7 @@
 
 #include <yt/server/lib/scheduler/event_log.h>
 #include <yt/server/lib/scheduler/job_metrics.h>
+#include <yt/server/lib/scheduler/structs.h>
 
 #include <yt/client/node_tracker_client/proto/node.pb.h>
 
@@ -27,7 +28,7 @@ struct ISchedulerStrategyHost
     virtual ~ISchedulerStrategyHost() = default;
 
     virtual IInvokerPtr GetControlInvoker(EControlQueue queue) const = 0;
-    virtual IInvokerPtr GetProfilingInvoker() const = 0;
+    virtual IInvokerPtr GetFairShareProfilingInvoker() const = 0;
     virtual IInvokerPtr GetFairShareUpdateInvoker() const = 0;
 
     virtual void Disconnect(const TError& error) = 0;
@@ -83,6 +84,8 @@ struct ISchedulerStrategy
     : public virtual TRefCounted
 {
     virtual TFuture<void> ScheduleJobs(const ISchedulingContextPtr& schedulingContext) = 0;
+
+    virtual void PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext) = 0;
 
     //! Starts periodic updates and logging.
     virtual void OnMasterConnected() = 0;
@@ -160,7 +163,7 @@ struct ISchedulerStrategy
 
     virtual void UpdatePoolTrees(const NYTree::INodePtr& poolTreesNode) = 0;
 
-    virtual void ValidateNodeTags(const THashSet<TString>& tags) = 0;
+    virtual void ValidateNodeTags(const THashSet<TString>& tags, int* treeCount) = 0;
 
     virtual void ApplyOperationRuntimeParameters(IOperationStrategyHost* operation) = 0;
 
@@ -205,7 +208,7 @@ struct ISchedulerStrategy
     //! Builds a YSON structure reflecting the state of the scheduler to be displayed in Orchid.
     virtual void BuildOrchid(NYTree::TFluentMap fluent) = 0;
 
-    virtual TPoolTreeToSchedulingTagFilter GetOperationPoolTreeToSchedulingTagFilter(TOperationId operationId) = 0;
+    virtual TPoolTreeControllerSettingsMap GetOperationPoolTreeControllerSettingsMap(TOperationId operationId) = 0;
 
     virtual std::vector<std::pair<TOperationId, TError>> GetUnschedulableOperations() = 0;
 };

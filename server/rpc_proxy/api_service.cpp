@@ -1065,11 +1065,14 @@ private:
         if (request->has_preserve_account()) {
             options.PreserveAccount = request->preserve_account();
         }
-        if (request->has_preserve_expiration_time()) {
-            options.PreserveExpirationTime = request->preserve_expiration_time();
-        }
         if (request->has_preserve_creation_time()) {
             options.PreserveCreationTime = request->preserve_creation_time();
+        }
+        if (request->has_preserve_modification_time()) {
+            options.PreserveModificationTime = request->preserve_modification_time();
+        }
+        if (request->has_preserve_expiration_time()) {
+            options.PreserveExpirationTime = request->preserve_expiration_time();
         }
         if (request->has_pessimistic_quota_check()) {
             options.PessimisticQuotaCheck = request->pessimistic_quota_check();
@@ -1117,6 +1120,12 @@ private:
         }
         if (request->has_preserve_account()) {
             options.PreserveAccount = request->preserve_account();
+        }
+        if (request->has_preserve_creation_time()) {
+            options.PreserveCreationTime = request->preserve_creation_time();
+        }
+        if (request->has_preserve_modification_time()) {
+            options.PreserveModificationTime = request->preserve_modification_time();
         }
         if (request->has_preserve_expiration_time()) {
             options.PreserveExpirationTime = request->preserve_expiration_time();
@@ -1220,6 +1229,28 @@ private:
         CompleteCallWith(
             context,
             client->ConcatenateNodes(srcPaths, dstPath, options));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ExternalizeNode)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        const auto& path = request->path();
+        auto cellTag = request->cell_tag();
+
+        TExternalizeNodeOptions options;
+        SetTimeoutOptions(&options, context.Get());
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
+
+        context->SetRequestInfo("Path: %v, CellTag: %v",
+            path,
+            cellTag);
+
+        CompleteCallWith(
+            context,
+            client->ExternalizeNode(path, cellTag, options));
     }
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -1471,6 +1502,9 @@ private:
         }
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
+        }
+        if (request->has_schema_modification()) {
+            options.SchemaModification = CheckedEnumCast<ETableSchemaModification>(request->schema_modification());
         }
 
         context->SetRequestInfo("Path: %v",
@@ -2523,13 +2557,14 @@ private:
         if (request->has_cell_id()) {
             FromProto(&options.CellId, request->cell_id());
         }
-        if (request->has_set_read_only()) {
-            options.SetReadOnly = request->set_read_only();
-        }
 
-        context->SetRequestInfo("CellId: %v, SetReadOnly: %v",
+        options.SetReadOnly = request->set_read_only();
+        options.WaitForSnapshotCompletion = request->wait_for_snapshot_completion();
+
+        context->SetRequestInfo("CellId: %v, SetReadOnly: %v, WaitForSnapshotCompletion: %v",
             options.CellId,
-            options.SetReadOnly);
+            options.SetReadOnly,
+            options.WaitForSnapshotCompletion);
 
         CompleteCallWith(
             context,
@@ -2737,9 +2772,10 @@ private:
             .ValueOrThrow();
 
         auto outputStream = context->GetResponseAttachmentsStream();
-        ui64 revision = fileReader->GetRevision();
+
         NApi::NRpcProxy::NProto::TReadFileMeta meta;
-        meta.set_revision(revision);
+        meta.set_revision(fileReader->GetRevision());
+
         auto metaRef = SerializeProtoToRef(meta);
         WaitFor(outputStream->Write(metaRef))
             .ThrowOnError();

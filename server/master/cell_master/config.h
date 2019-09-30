@@ -102,10 +102,23 @@ class TDynamicMulticellManagerConfig
 public:
     TDuration CellStatisticsGossipPeriod;
 
+    THashMap<NObjectServer::TCellTag, EMasterCellRoles> CellRoles;
+
     TDynamicMulticellManagerConfig()
     {
         RegisterParameter("cell_statistics_gossip_period", CellStatisticsGossipPeriod)
             .Default(TDuration::Seconds(1));
+        RegisterParameter("cell_roles", CellRoles)
+            .Default();
+
+        RegisterPostprocessor([&] () {
+            for (const auto& [cellTag, cellRoles] : CellRoles) {
+                if (None(cellRoles)) {
+                    THROW_ERROR_EXCEPTION("Cell %v has no roles",
+                        cellTag);
+                }
+            }
+        });
     }
 };
 
@@ -159,10 +172,28 @@ public:
 
     TDuration AnnotationSetterPeriod;
     NYTree::IMapNodePtr CypressAnnotations;
+
     TCellMasterConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TCellMasterConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDynamicCellMasterConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TDuration MutationTimeCommitPeriod;
+
+    TDynamicCellMasterConfig()
+    {
+        RegisterParameter("mutation_time_commit_period", MutationTimeCommitPeriod)
+            .Default(TDuration::Minutes(10));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicCellMasterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -179,6 +210,7 @@ public:
     NCypressServer::TDynamicCypressManagerConfigPtr CypressManager;
     TDynamicMulticellManagerConfigPtr MulticellManager;
     NTransactionServer::TDynamicTransactionManagerConfigPtr TransactionManager;
+    TDynamicCellMasterConfigPtr CellMaster;
 
 
     TDynamicClusterConfig();

@@ -90,8 +90,9 @@ public:
     NTabletClient::EInMemoryMode InMemoryMode;
 
     int MaxStoresPerTablet;
+    int MaxEdenStoresPerTablet;
 
-    std::optional<ui64> ForcedCompactionRevision;
+    std::optional<NHydra::TRevision> ForcedCompactionRevision;
 
     std::optional<TDuration> DynamicStoreAutoFlushPeriod;
     TDuration DynamicStoreFlushPeriodSplay;
@@ -112,6 +113,7 @@ public:
 
     bool EnableCompactionAndPartitioning;
     bool EnableStoreRotation;
+    bool EnableLsmVerboseLogging;
 
     bool MergeRowsOnFlush;
 
@@ -227,6 +229,9 @@ public:
         RegisterParameter("max_stores_per_tablet", MaxStoresPerTablet)
             .Default(10000)
             .GreaterThan(0);
+        RegisterParameter("max_eden_stores_per_tablet", MaxEdenStoresPerTablet)
+            .Default(100)
+            .GreaterThan(0);
 
         RegisterParameter("forced_compaction_revision", ForcedCompactionRevision)
             .Default();
@@ -268,6 +273,9 @@ public:
             .Default(true);
 
         RegisterParameter("merge_rows_on_flush", MergeRowsOnFlush)
+            .Default(false);
+
+        RegisterParameter("enable_lsm_verbose_logging", EnableLsmVerboseLogging)
             .Default(false);
 
         RegisterParameter("max_unversioned_block_size", MaxUnversionedBlockSize)

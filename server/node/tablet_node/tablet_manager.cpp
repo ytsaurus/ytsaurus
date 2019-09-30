@@ -7,11 +7,9 @@
 #include "ordered_dynamic_store.h"
 #include "replicated_store_manager.h"
 #include "in_memory_manager.h"
-#include "lookup.h"
 #include "partition.h"
 #include "security_manager.h"
 #include "slot_manager.h"
-#include "store_flusher.h"
 #include "sorted_store_manager.h"
 #include "ordered_store_manager.h"
 #include "tablet.h"
@@ -31,9 +29,7 @@
 #include <yt/server/lib/hive/hive_manager.h>
 #include <yt/server/lib/hive/transaction_supervisor.h>
 #include <yt/server/lib/hive/helpers.h>
-#include <yt/server/lib/hive/proto/transaction_supervisor.pb.h>
 
-#include <yt/server/lib/hydra/hydra_manager.h>
 #include <yt/server/lib/hydra/mutation.h>
 #include <yt/server/lib/hydra/mutation_context.h>
 
@@ -671,6 +667,11 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        // COMPAT(savrus)
+        if (context.GetVersion() < ETabletReign::SafeReplicatedLogSchema) {
+            Automaton_->RememberReign(static_cast<int>(context.GetVersion()));
+        }
+
         TabletMap_.LoadKeys(context);
     }
 
@@ -1175,14 +1176,17 @@ private:
         const auto& storeManager = tablet->GetStoreManager();
 
         std::vector<TStoreId> addedStoreIds;
+        std::vector<IStorePtr> storesToAdd;
         for (const auto& descriptor : request->stores_to_add()) {
             auto storeType = EStoreType(descriptor.store_type());
             auto storeId = FromProto<TChunkId>(descriptor.store_id());
             addedStoreIds.push_back(storeId);
 
             auto store = CreateStore(tablet, storeType, storeId, &descriptor)->AsChunk();
-            storeManager->AddStore(store, false);
+            storesToAdd.push_back(std::move(store));
         }
+
+        storeManager->BulkAddStores(MakeRange(storesToAdd.begin(), storesToAdd.end()), /*onMount*/ false);
 
         const auto& lockManager = tablet->GetLockManager();
 
@@ -1304,7 +1308,7 @@ private:
 
     void HydraLeaderExecuteWrite(
         TTransactionId transactionId,
-        i64 mountRevision,
+        NHydra::TRevision mountRevision,
         TTransactionSignature signature,
         bool lockless,
         const TTransactionWriteRecord& writeRecord,
@@ -1316,10 +1320,8 @@ private:
         auto* tablet = PrelockedTablets_.front();
         PrelockedTablets_.pop();
         YT_VERIFY(tablet->GetId() == writeRecord.TabletId);
-
-        auto finally = Finally([&]() {
+        auto finallyGuard = Finally([&]() {
             UnlockTablet(tablet);
-            CheckIfTabletFullyUnlocked(tablet);
         });
 
         if (mountRevision != tablet->GetMountRevision()) {
@@ -2193,7 +2195,7 @@ private:
             ->CommitAndLog(Logger);
     }
 
-    void HydraOnTabetCellDecommissioned(TReqOnTabletCellDecommissioned* request)
+    void HydraOnTabetCellDecommissioned(TReqOnTabletCellDecommissioned* /*request*/)
     {
         if (CellLifeStage_ != ETabletCellLifeStage::DecommissioningOnNode) {
             return;
@@ -3152,6 +3154,18 @@ private:
                 << TErrorAttribute("overlapping_store_limit", overlappingStoreLimit);
         }
 
+        auto edenStoreCount = tablet->GetEdenStoreCount();
+        auto edenStoreCountLimit = tablet->GetConfig()->MaxEdenStoresPerTablet;
+        if (edenStoreCount >= edenStoreCountLimit) {
+            THROW_ERROR_EXCEPTION(
+                NTabletClient::EErrorCode::AllWritesDisabled,
+                "Too many eden stores in tablet, all writes disabled")
+                    << TErrorAttribute("tablet_id", tablet->GetId())
+                    << TErrorAttribute("table_path", tablet->GetTablePath())
+                    << TErrorAttribute("eden_store_count", edenStoreCount)
+                    << TErrorAttribute("eden_store_limit", edenStoreCountLimit);
+        }
+
         auto overflow = tablet->GetStoreManager()->CheckOverflow();
         if (!overflow.IsOK()) {
             THROW_ERROR_EXCEPTION(
@@ -3464,6 +3478,7 @@ private:
             replicaInfo->GetCurrentReplicationTimestamp());
 
         replicaInfo->SetState(ETableReplicaState::Disabled);
+        replicaInfo->SetError(TError());
 
         if (IsLeader()) {
             replicaInfo->GetReplicator()->Disable();

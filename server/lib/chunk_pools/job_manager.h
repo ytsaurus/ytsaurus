@@ -132,6 +132,9 @@ public:
     //! adjacent jobs that are still smaller than `dataWeightPerJob` in total.
     void Enlarge(i64 dataWeightPerJob, i64 primaryDataWeightPerJob);
 
+    std::pair<NTableClient::TUnversionedRow, NTableClient::TUnversionedRow>
+        GetLimits(IChunkPoolOutput::TCookie cookie) const;
+
 private:
     class TStripeListComparator
     {
@@ -166,6 +169,8 @@ private:
         DEFINE_BYVAL_RO_PROPERTY(bool, IsBarrier);
         DEFINE_BYVAL_RO_PROPERTY(i64, DataWeight);
         DEFINE_BYVAL_RO_PROPERTY(i64, RowCount);
+        DEFINE_BYVAL_RO_PROPERTY(NTableClient::TUnversionedRow, LowerLimit);
+        DEFINE_BYVAL_RO_PROPERTY(NTableClient::TUnversionedRow, UpperLimit);
         DEFINE_BYREF_RO_PROPERTY(TChunkStripeListPtr, StripeList);
 
         //! All the input cookies that provided data that forms this job.

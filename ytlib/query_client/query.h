@@ -472,7 +472,7 @@ struct TBaseQuery
     bool IsOrdered() const
     {
         if (Limit < std::numeric_limits<i64>::max()) {
-            return !OrderClause && !GroupClause;
+            return !OrderClause;
         } else {
             YT_VERIFY(!OrderClause);
             return false;

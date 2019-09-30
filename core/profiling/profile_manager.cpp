@@ -6,6 +6,7 @@
 #include <yt/core/concurrency/fork_aware_spinlock.h>
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/scheduler_thread.h>
+#include <yt/core/concurrency/invoker_queue.h>
 
 #include <yt/core/logging/log.h>
 
@@ -57,9 +58,7 @@ public:
         , DequeuedCounter_("/dequeued")
         , DroppedCounter_("/dropped")
     {
-#ifdef _linux_
-        ResourceTracker = New<TResourceTracker>(GetInvoker());
-#endif
+        ResourceTracker_ = New<TResourceTracker>(GetInvoker());
     }
 
     void Start()
@@ -79,7 +78,7 @@ public:
         DequeueExecutor_->Start();
 
 #ifdef _linux_
-        ResourceTracker->Start();
+        ResourceTracker_->Start();
 #endif
     }
 
@@ -161,6 +160,11 @@ public:
         auto result = BIND(&TSampleStorage::GetProtoSamples, &Storage_, count)
             .AsyncVia(GetInvoker()).Run();
         return WaitFor(result).ValueOrThrow();
+    }
+
+    TResourceTrackerPtr GetResourceTracker() const
+    {
+        return ResourceTracker_;
     }
 
 private:
@@ -459,9 +463,7 @@ private:
     //! One deque instead of buckets with deques.
     TSampleStorage Storage_;
 
-#ifdef _linux_
-    TIntrusivePtr<TResourceTracker> ResourceTracker;
-#endif
+    TIntrusivePtr<TResourceTracker> ResourceTracker_;
 
     THashMap<TString, TString> GlobalTags_;
 
@@ -610,6 +612,11 @@ TTagId TProfileManager::RegisterTag(const TTag& tag)
 std::pair<i64, NProto::TPointBatch> TProfileManager::GetSamples(std::optional<i64> count)
 {
     return Impl_->GetSamples(count);
+}
+
+TResourceTrackerPtr TProfileManager::GetResourceTracker() const
+{
+    return Impl_->GetResourceTracker();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

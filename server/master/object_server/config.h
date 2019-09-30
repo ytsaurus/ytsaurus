@@ -30,12 +30,18 @@ public:
     //! Period between subsequent GC queue checks.
     TDuration GCSweepPeriod;
 
+    //! Period between pairwise secondary cells sync, which enables
+    //! advancing from |RemovalAwaitingCellsSync| to |RemovalCommitted| life stage.
+    TDuration ObjectRemovalCellsSyncPeriod;
+
     TDynamicObjectManagerConfig()
     {
         RegisterParameter("max_weight_per_gc_sweep", MaxWeightPerGCSweep)
             .Default(100000);
         RegisterParameter("gc_sweep_period", GCSweepPeriod)
             .Default(TDuration::MilliSeconds(1000));
+        RegisterParameter("object_removal_cells_sync_period", ObjectRemovalCellsSyncPeriod)
+            .Default(TDuration::MilliSeconds(100));
     }
 };
 
@@ -81,7 +87,7 @@ public:
             .Default(TDuration::MilliSeconds(10));
 
         RegisterParameter("timeout_backoff_lead_time", TimeoutBackoffLeadTime)
-            .Default(TDuration::Seconds(5));
+            .Default(TDuration::Seconds(3));
         RegisterParameter("default_execute_timeout", DefaultExecuteTimeout)
             .Default(TDuration::Seconds(30));
         RegisterParameter("forwarded_request_timeout_reserve", ForwardedRequestTimeoutReserve)

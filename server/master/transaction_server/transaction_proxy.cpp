@@ -53,7 +53,8 @@ private:
         const auto* transaction = GetThisImpl();
 
         descriptors->push_back(EInternedAttributeKey::State);
-        descriptors->push_back(EInternedAttributeKey::SecondaryCellTags);
+        descriptors->push_back(EInternedAttributeKey::ReplicatedToCellTags);
+        descriptors->push_back(EInternedAttributeKey::ExternalizedToCellTags);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Timeout)
             .SetPresent(transaction->GetTimeout().operator bool())
             .SetWritable(true));
@@ -101,9 +102,14 @@ private:
                     .Value(transaction->GetState());
                 return true;
 
-            case EInternedAttributeKey::SecondaryCellTags:
+            case EInternedAttributeKey::ReplicatedToCellTags:
                 BuildYsonFluently(consumer)
-                    .Value(transaction->SecondaryCellTags());
+                    .Value(transaction->ReplicatedToCellTags());
+                return true;
+
+            case EInternedAttributeKey::ExternalizedToCellTags:
+                BuildYsonFluently(consumer)
+                    .Value(transaction->ExternalizedToCellTags());
                 return true;
 
             case EInternedAttributeKey::Timeout:
@@ -134,26 +140,9 @@ private:
 
             case EInternedAttributeKey::NestedTransactionIds:
                 BuildYsonFluently(consumer)
-                    .BeginList()
-                        .DoFor(transaction->NestedNativeTransactions(), [=] (TFluentList fluent, TTransaction* nestedTransaction) {
-                            fluent.Item().Value(nestedTransaction->GetId());
-                        })
-                        .DoFor(transaction->NestedExternalTransactionIds(), [=] (TFluentList fluent, TTransactionId id) {
-                            fluent.Item().Value(id);
-                        })
-                    .EndList();
-                return true;
-
-            case EInternedAttributeKey::NestedNativeTransactionIds:
-                BuildYsonFluently(consumer)
-                    .DoListFor(transaction->NestedNativeTransactions(), [=] (TFluentList fluent, TTransaction* nestedTransaction) {
+                    .DoListFor(transaction->NestedTransactions(), [=] (TFluentList fluent, TTransaction* nestedTransaction) {
                         fluent.Item().Value(nestedTransaction->GetId());
                     });
-                return true;
-
-            case EInternedAttributeKey::NestedExternalTransactionIds:
-                BuildYsonFluently(consumer)
-                    .Value(transaction->NestedExternalTransactionIds());
                 return true;
 
             case EInternedAttributeKey::StagedNodeIds:

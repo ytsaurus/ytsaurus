@@ -102,6 +102,7 @@ TReplicaCounters NullReplicaCounters;
 
 TTabletCounters::TTabletCounters(const NProfiling::TTagIdList& list)
     : OverlappingStoreCount("/tablet/overlapping_store_count", list)
+    , EdenStoreCount("/tablet/eden_store_count", list)
 { }
 
 using TTabletInternalProfilerTrait = TTagListProfilerTrait<TTabletCounters>;
@@ -177,7 +178,7 @@ void TTabletSnapshot::ValidateCellId(TCellId cellId)
     }
 }
 
-void TTabletSnapshot::ValidateMountRevision(i64 mountRevision)
+void TTabletSnapshot::ValidateMountRevision(NHydra::TRevision mountRevision)
 {
     if (MountRevision != mountRevision) {
         THROW_ERROR_EXCEPTION(
@@ -299,6 +300,16 @@ void TTableReplicaInfo::SetPreparedReplicationRowIndex(i64 value)
     RuntimeData_->PreparedReplicationRowIndex = value;
 }
 
+TError TTableReplicaInfo::GetError() const
+{
+    return RuntimeData_->Error.Load();
+}
+
+void TTableReplicaInfo::SetError(TError error)
+{
+    RuntimeData_->Error.Store(error);
+}
+
 TTableReplicaSnapshotPtr TTableReplicaInfo::BuildSnapshot() const
 {
     auto snapshot = New<TTableReplicaSnapshot>();
@@ -340,7 +351,7 @@ TTablet::TTablet(
     TTabletChunkWriterConfigPtr writerConfig,
     TTabletWriterOptionsPtr writerOptions,
     TTabletId tabletId,
-    i64 mountRevision,
+    NHydra::TRevision mountRevision,
     TObjectId tableId,
     const TYPath& path,
     ITabletContext* context,
@@ -777,9 +788,10 @@ void TTablet::SplitPartition(int index, const std::vector<TOwningKey>& pivotKeys
 {
     YT_VERIFY(IsPhysicallySorted());
 
-    YT_LOG_DEBUG("Splitting parition (PartitionId: %v, Index: %v)",
+    YT_LOG_DEBUG("Splitting parition (PartitionId: %v, Index: %v, SplitFactor: %v)",
         PartitionList_[index]->GetId(),
-        index);
+        index,
+        pivotKeys.size());
 
     auto existingPartition = std::move(PartitionList_[index]);
     YT_VERIFY(existingPartition->GetPivotKey() == pivotKeys[0]);
@@ -1307,7 +1319,7 @@ const TSortedDynamicRowKeyComparer& TTablet::GetRowKeyComparer() const
     return RowKeyComparer_;
 }
 
-void TTablet::ValidateMountRevision(i64 mountRevision)
+void TTablet::ValidateMountRevision(NHydra::TRevision mountRevision)
 {
     if (MountRevision_ != mountRevision) {
         THROW_ERROR_EXCEPTION(
@@ -1367,6 +1379,7 @@ void TTablet::UpdateOverlappingStoreCount()
 
     if (ProfilerCounters_) {
         TabletNodeProfiler.Update(ProfilerCounters_->OverlappingStoreCount, OverlappingStoreCount_);
+        TabletNodeProfiler.Update(ProfilerCounters_->EdenStoreCount, GetEdenStoreCount());
     }
 }
 
@@ -1411,6 +1424,10 @@ i64 TTablet::Unlock()
 i64 TTablet::GetTabletLockCount() const
 {
     return TabletLockCount_;
+}
+
+int TTablet::GetEdenStoreCount() const {
+    return Eden_->Stores().size();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

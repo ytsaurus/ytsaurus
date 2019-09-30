@@ -60,6 +60,9 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::RequestQueueSizeLimit)
             .SetWritable(true)
             .SetReplicated(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::RequestLimits)
+            .SetWritable(true)
+            .SetReplicated(true));
         descriptors->push_back(EInternedAttributeKey::AccessTime);
         descriptors->push_back(EInternedAttributeKey::RequestCount);
         descriptors->push_back(EInternedAttributeKey::ReadRequestTime);
@@ -82,17 +85,22 @@ private:
 
             case EInternedAttributeKey::ReadRequestRateLimit:
                 BuildYsonFluently(consumer)
-                    .Value(user->GetRequestRateLimit(EUserWorkloadType::Read));
+                    .Value(user->GetRequestRateLimit(EUserWorkloadType::Read, NObjectClient::InvalidCellTag));
                 return true;
 
             case EInternedAttributeKey::WriteRequestRateLimit:
                 BuildYsonFluently(consumer)
-                    .Value(user->GetRequestRateLimit(EUserWorkloadType::Write));
+                    .Value(user->GetRequestRateLimit(EUserWorkloadType::Write, NObjectClient::InvalidCellTag));
                 return true;
 
             case EInternedAttributeKey::RequestQueueSizeLimit:
                 BuildYsonFluently(consumer)
-                    .Value(user->GetRequestQueueSizeLimit());
+                    .Value(user->GetRequestQueueSizeLimit(NObjectClient::InvalidCellTag));
+                return true;
+
+            case EInternedAttributeKey::RequestLimits:
+                BuildYsonFluently(consumer)
+                    .Value(user->GetRequestLimits());
                 return true;
 
             case EInternedAttributeKey::AccessTime:
@@ -183,6 +191,12 @@ private:
                     THROW_ERROR_EXCEPTION("\"request_queue_size_limit\" cannot be negative");
                 }
                 securityManager->SetUserRequestQueueSizeLimit(user, limit);
+                return true;
+            }
+
+            case EInternedAttributeKey::RequestLimits: {
+                auto config = ConvertTo<TUserRequestLimitsConfigPtr>(value);
+                securityManager->SetUserRequestLimits(user, config);
                 return true;
             }
 

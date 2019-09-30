@@ -2,8 +2,9 @@
 
 #include "public.h"
 
-#include <yt/client/node_tracker_client/proto/node.pb.h>
 #include <yt/ytlib/node_tracker_client/helpers.h>
+
+#include <yt/client/node_tracker_client/proto/node.pb.h>
 
 #include <yt/core/misc/fixed_point_number.h>
 #include <yt/core/misc/small_vector.h>

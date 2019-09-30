@@ -3,6 +3,7 @@
 #include "annotation_setter.h"
 #include "config.h"
 #include "config_manager.h"
+#include "epoch_history_manager.h"
 #include "hydra_facade.h"
 #include "world_initializer.h"
 #include "multicell_manager.h"
@@ -16,12 +17,13 @@
 #include <yt/server/master/cypress_server/cypress_manager.h>
 #include <yt/server/master/cypress_server/portal_manager.h>
 
-#include <yt/server/master/file_server/file_node.h>
+#include <yt/server/master/file_server/file_node_type_handler.h>
 
 #include <yt/server/lib/hive/hive_manager.h>
 #include <yt/server/lib/hive/transaction_manager.h>
 #include <yt/server/lib/hive/transaction_supervisor.h>
 #include <yt/server/lib/hive/transaction_participant_provider.h>
+
 #include <yt/server/master/hive/cell_directory_synchronizer.h>
 
 #include <yt/server/lib/hydra/changelog.h>
@@ -31,13 +33,14 @@
 #include <yt/server/lib/hydra/local_snapshot_store.h>
 #include <yt/server/lib/hydra/snapshot.h>
 
-#include <yt/server/master/journal_server/journal_node.h>
+#include <yt/server/master/journal_server/journal_node_type_handler.h>
 #include <yt/server/master/journal_server/journal_manager.h>
 
 #include <yt/server/master/node_tracker_server/cypress_integration.h>
 #include <yt/server/master/node_tracker_server/node_tracker.h>
 #include <yt/server/master/node_tracker_server/node_tracker_service.h>
 
+#include <yt/server/master/object_server/cypress_integration.h>
 #include <yt/server/master/object_server/object_manager.h>
 #include <yt/server/master/object_server/object_service.h>
 #include <yt/server/master/object_server/sys_node_type_handler.h>
@@ -294,6 +297,11 @@ const THydraFacadePtr& TBootstrap::GetHydraFacade() const
     return HydraFacade_;
 }
 
+const TEpochHistoryManagerPtr& TBootstrap::GetEpochHistoryManager() const
+{
+    return EpochHistoryManager_;
+}
+
 const TWorldInitializerPtr& TBootstrap::GetWorldInitializer() const
 {
     return WorldInitializer_;
@@ -389,13 +397,10 @@ TPeerId TBootstrap::ComputePeerId(TCellConfigPtr config, const TString& localAdd
 
 TCellTagList TBootstrap::GetKnownParticipantCellTags() const
 {
-    TCellTagList participnatCellTags{PrimaryCellTag_};
-    if (IsPrimaryMaster()) {
-        participnatCellTags.insert(participnatCellTags.end(), SecondaryCellTags_.begin(), SecondaryCellTags_.end());
-    } else {
-        participnatCellTags.push_back(CellTag_);
-    }
-    return participnatCellTags;
+    TCellTagList participantCellTags;
+    participantCellTags.push_back(PrimaryCellTag_);
+    participantCellTags.insert(participantCellTags.end(), SecondaryCellTags_.begin(), SecondaryCellTags_.end());
+    return participantCellTags;
 }
 
 NNative::IConnectionPtr TBootstrap::CreateClusterConnection() const
@@ -542,6 +547,8 @@ void TBootstrap::DoInitialize()
 
     ConfigManager_ = New<TConfigManager>(this);
 
+    EpochHistoryManager_ = New<TEpochHistoryManager>(this);
+
     MulticellManager_ = New<TMulticellManager>(Config_->MulticellManager, this);
 
     WorldInitializer_ = New<TWorldInitializer>(Config_, this);
@@ -675,6 +682,8 @@ void TBootstrap::DoInitialize()
     CypressManager_->RegisterHandler(CreateTabletMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateTabletCellBundleMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateTabletActionMapTypeHandler(this));
+
+    CypressManager_->RegisterHandler(CreateEstimatedCreationTimeMapTypeHandler(this));
 
     RpcServer_->Configure(Config_->RpcServer);
 

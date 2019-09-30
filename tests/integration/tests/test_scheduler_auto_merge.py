@@ -528,7 +528,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
 
         op = map(
             in_="//tmp/t_in",
-            out="<append=%true;output_chunk_format=unversioned_update>//tmp/t_out",
+            out="<append=%true;schema_modification=unversioned_update>//tmp/t_out",
             command="cat",
             spec={
                 "auto_merge": {

@@ -16,7 +16,7 @@ message TPrerequisiteRevision
 {
     required string path = 1;
     required NYT.NProto.TGuid transaction_id = 2;
-    required int64 revision = 3;
+    required uint64 revision = 3;
 }
 
 message TPrerequisitesExt
@@ -69,6 +69,7 @@ message TRspGetBasicAttributes
 
     required NYT.NProto.TGuid object_id = 1;
     optional int32 external_cell_tag = 2;
+    optional NYT.NProto.TGuid external_transaction_id = 5;
     optional TColumns omitted_inaccessible_columns = 3;
     optional TSecurityTags security_tags = 4;
 }

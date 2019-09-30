@@ -224,7 +224,7 @@ void TClientRequest::SetRetry(bool value)
 
 TMutationId TClientRequest::GetMutationId() const
 {
-    return FromProto<TMutationId>(Header_.mutation_id());
+    return NRpc::GetMutationId(Header_);
 }
 
 void TClientRequest::SetMutationId(TMutationId id)

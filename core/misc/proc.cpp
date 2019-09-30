@@ -17,6 +17,7 @@
 #include <util/stream/file.h>
 
 #include <util/string/split.h>
+#include <util/string/strip.h>
 #include <util/string/vector.h>
 
 #include <util/system/info.h>
@@ -184,6 +185,28 @@ TMemoryUsage GetProcessMemoryUsage(int pid)
     };
 #else
     return TMemoryUsage{0, 0};
+#endif
+}
+
+THashMap<TString, i64> GetVmstat()
+{
+#ifdef _linux_
+    THashMap<TString, i64> result;
+    TString path = "/proc/vmstat";
+    TFileInput vmstatFile(path);
+    auto data = vmstatFile.ReadAll();
+    auto lines = SplitString(data, "\n");
+    for (const auto& line : lines) {
+        auto strippedLine = Strip(line);
+        if (strippedLine.empty()) {
+            continue;
+        }
+        auto fields = SplitString(line, " ");
+        result[fields[0]] = NSystemInfo::GetPageSize() * FromString<i64>(fields[1]);
+    }
+    return result;
+#else
+    return {};
 #endif
 }
 

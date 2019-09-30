@@ -14,19 +14,21 @@ message TReqStartTransaction
     optional NYT.NProto.TGuid parent_id = 3;
     repeated NYT.NProto.TGuid prerequisite_transaction_ids = 8;
 
-    required int64 timeout = 4;
-    required string user_name = 5;
-
-    repeated int32 replicate_to_cell_tags = 9;
-
+    optional int64 timeout = 4;
     optional uint64 deadline = 10;
+
+    optional string user_name = 5;
+
+    // See NYT.NTransactionClient.NProto.TReqStartTransaction.
+    repeated int32 replicate_to_cell_tags = 9;
+    optional bool dont_replicate = 11;
 }
 
 message TReqPrepareTransactionCommit
 {
     required NYT.NProto.TGuid transaction_id = 1;
     required uint64 prepare_timestamp = 2;
-    optional string user_name = 3 [default = "root"];
+    optional string user_name = 3;
 }
 
 message TReqCommitTransaction
@@ -39,18 +41,6 @@ message TReqAbortTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
     required bool force = 2;
-}
-
-message TReqRegisterExternalNestedTransaction
-{
-    required NYT.NProto.TGuid transaction_id = 1;
-    required NYT.NProto.TGuid nested_transaction_id = 2;
-}
-
-message TReqUnregisterExternalNestedTransaction
-{
-    required NYT.NProto.TGuid transaction_id = 1;
-    required NYT.NProto.TGuid nested_transaction_id = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

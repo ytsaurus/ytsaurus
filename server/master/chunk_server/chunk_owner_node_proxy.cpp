@@ -30,9 +30,11 @@
 
 #include <yt/ytlib/file_client/file_chunk_writer.h>
 
-#include <yt/client/object_client/helpers.h>
-
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
+
+#include <yt/ytlib/transaction_client/helpers.h>
+
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
@@ -634,7 +636,7 @@ TFuture<TYsonString> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(TInternedAtt
             return ComputeChunkStatistics(
                 Bootstrap_,
                 chunkList,
-                [] (const TChunk* chunk) { return CellTagFromId(chunk->GetId()); });
+                [] (const TChunk* chunk) { return chunk->GetNativeCellTag(); });
 
         default:
             break;
@@ -877,11 +879,20 @@ void TChunkOwnerNodeProxy::GetBasicAttributes(TGetBasicAttributesContext* contex
     TObjectProxyBase::GetBasicAttributes(context);
 
     const auto* node = GetThisImpl<TChunkOwnerBase>();
-    if (node->GetExternalCellTag() != NotReplicatedCellTag) {
+    if (node->IsExternal()) {
         context->ExternalCellTag = node->GetExternalCellTag();
     }
+
     if (context->PopulateSecurityTags) {
         context->SecurityTags = node->GetSecurityTags();
+    }
+
+    auto* transaction = GetTransaction();
+    if (node->IsExternal()) {
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        context->ExternalTransactionId = transactionManager->GetNearestExternalizedTransactionAncestor(
+            transaction,
+            node->GetExternalCellTag());
     }
 }
 
@@ -938,31 +949,32 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
 
     auto uploadTransactionIdHint = FromProto<TTransactionId>(request->upload_transaction_id());
 
-    auto uploadTransactionSecondaryCellTags = FromProto<TCellTagList>(request->upload_transaction_secondary_cell_tags());
+    auto replicatedToCellTags = FromProto<TCellTagList>(request->upload_transaction_secondary_cell_tags());
 
     auto* node = GetThisImpl<TChunkOwnerBase>();
+    auto nativeCellTag = node->GetNativeCellTag();
     auto externalCellTag = node->GetExternalCellTag();
 
-    // Make sure |uploadTransactionSecondaryCellTags| contains the external cell tag,
-    // does not contain the primary cell tag, is sorted, and contains no duplicates.
-    InsertCellTag(&uploadTransactionSecondaryCellTags, externalCellTag);
-    CanonizeCellTags(&uploadTransactionSecondaryCellTags);
-    RemoveCellTag(&uploadTransactionSecondaryCellTags, Bootstrap_->GetPrimaryCellTag());
+    // Make sure |replicatedToCellTags| contains the external cell tag,
+    // does not contain the native cell tag, is sorted, and contains no duplicates.
+    InsertCellTag(&replicatedToCellTags, externalCellTag);
+    CanonizeCellTags(&replicatedToCellTags);
+    RemoveCellTag(&replicatedToCellTags, nativeCellTag);
 
-    // Construct |uploadTransactionReplicationCellTags| containing the tags of cells
-    // the upload transaction must be replicated to. This list never contains
+    // Construct |replicateStartToCellTags| containing the tags of cells
+    // the upload transaction will be ultimately replicated to. This list never contains
     // the external cell tag.
-    auto uploadTransactionReplicationCellTags = uploadTransactionSecondaryCellTags;
-    RemoveCellTag(&uploadTransactionReplicationCellTags, externalCellTag);
+    auto replicateStartToCellTags = replicatedToCellTags;
+    RemoveCellTag(&replicateStartToCellTags, externalCellTag);
 
     context->SetRequestInfo(
         "UpdateMode: %v, LockMode: %v, "
-        "Title: %v, Timeout: %v, SecondaryCellTags: %v",
+        "Title: %v, Timeout: %v, ReplicatedToCellTags: %v",
         uploadContext.Mode,
         lockMode,
         uploadTransactionTitle,
         uploadTransactionTimeout,
-        uploadTransactionSecondaryCellTags);
+        replicatedToCellTags);
 
     // NB: No need for a permission check;
     // the client must have invoked GetBasicAttributes.
@@ -975,10 +987,10 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
     const auto& transactionManager = Bootstrap_->GetTransactionManager();
 
     auto* uploadTransaction = transactionManager->StartTransaction(
-        /* parent */ Transaction,
+        /* parent */ Transaction_,
         /* prerequisiteTransactions */ {},
-        uploadTransactionSecondaryCellTags,
-        uploadTransactionReplicationCellTags,
+        replicatedToCellTags,
+        replicateStartToCellTags,
         uploadTransactionTimeout,
         /* deadline */ std::nullopt,
         uploadTransactionTitle,
@@ -986,7 +998,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         uploadTransactionIdHint);
 
     auto* lockedNode = cypressManager
-        ->LockNode(TrunkNode, uploadTransaction, lockMode, false, true)
+        ->LockNode(TrunkNode_, uploadTransaction, lockMode, false, true)
         ->As<TChunkOwnerBase>();
 
     switch (uploadContext.Mode) {
@@ -1080,10 +1092,14 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
 
     response->set_cell_tag(externalCellTag == NotReplicatedCellTag ? Bootstrap_->GetCellTag() : externalCellTag);
 
-    const auto& multicellManager = Bootstrap_->GetMulticellManager();
-
     if (node->IsExternal()) {
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto externalizedTransactionId = Transaction_ && Transaction_->IsForeign()
+            ? transactionManager->ExternalizeTransaction(Transaction_, externalCellTag)
+            : GetObjectId(Transaction_);
+
         auto replicationRequest = TChunkOwnerYPathProxy::BeginUpload(FromObjectId(GetId()));
+        SetTransactionId(replicationRequest, externalizedTransactionId);
         replicationRequest->set_update_mode(static_cast<int>(uploadContext.Mode));
         replicationRequest->set_lock_mode(static_cast<int>(lockMode));
         ToProto(replicationRequest->mutable_upload_transaction_id(), uploadTransactionId);
@@ -1092,17 +1108,9 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         }
         // NB: upload_transaction_timeout must be null
         // NB: upload_transaction_secondary_cell_tags must be empty
-        SetTransactionId(replicationRequest, GetObjectId(GetTransaction()));
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToMaster(replicationRequest, externalCellTag);
-
-        if (Transaction && Transaction->IsForeign()) {
-            transactionManager->RegisterTransactionAtParent(uploadTransaction);
-            uploadTransaction->SetUnregisterFromParentOnAbort(true);
-        }
-    }
-
-    if (Transaction && CellTagFromId(TrunkNode->GetId()) != CellTagFromId(Transaction->GetId())) {
-        uploadTransaction->SetUnregisterFromParentOnCommit(true);
     }
 
     context->SetResponseInfo("UploadTransactionId: %v", uploadTransactionId);
@@ -1222,19 +1230,19 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
     ValidateInUpdate();
 
     auto* node = GetThisImpl<TChunkOwnerBase>();
-    YT_VERIFY(node->GetTransaction() == Transaction);
+    YT_VERIFY(node->GetTransaction() == Transaction_);
 
     if (node->IsExternal()) {
-        PostToMaster(context, node->GetExternalCellTag());
+        ExternalizeToMaster(context, node->GetExternalCellTag());
     }
 
     node->EndUpload(uploadContext);
 
     SetModified();
 
-    if (!node->IsForeign()) {
+    if (node->IsNative()) {
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        transactionManager->CommitTransaction(Transaction, NullTimestamp);
+        transactionManager->CommitTransaction(Transaction_, NullTimestamp);
     }
 
     context->Reply();

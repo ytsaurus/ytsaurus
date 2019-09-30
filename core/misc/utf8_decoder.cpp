@@ -6,8 +6,8 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUtf8Transcoder::TUtf8Transcoder(bool enableEscaping)
-    : EnableEncoding_(enableEscaping)
+TUtf8Transcoder::TUtf8Transcoder(bool enableEncoding)
+    : EnableEncoding_(enableEncoding)
 { }
 
 TStringBuf TUtf8Transcoder::Encode(TStringBuf str)

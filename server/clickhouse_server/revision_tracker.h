@@ -4,6 +4,8 @@
 
 #include <yt/client/api/public.h>
 
+#include <yt/client/hydra/public.h>
+
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -18,14 +20,15 @@ public:
 
     void FixCurrentRevision();
 
-    std::optional<ui64> GetRevision() const;
+    NHydra::TRevision GetRevision() const;
 
 private:
-    NYPath::TYPath Path_;
-    mutable NApi::IClientPtr Client_;
-    std::optional<ui64> Revision_;
+    const NYPath::TYPath Path_;
+    const NApi::IClientPtr Client_;
 
-    std::optional<ui64> GetCurrentRevision() const;
+    NHydra::TRevision Revision_;
+
+    NHydra::TRevision GetCurrentRevision() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

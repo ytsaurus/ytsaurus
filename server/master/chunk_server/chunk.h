@@ -18,6 +18,7 @@
 #include <yt/core/misc/format.h>
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref_tracked.h>
+#include <yt/core/misc/small_flat_map.h>
 #include <yt/core/misc/small_vector.h>
 #include <yt/core/misc/intrusive_linked_list.h>
 
@@ -38,6 +39,8 @@ static_assert(sizeof(TChunkExportData) == 8, "sizeof(TChunkExportData) != 8");
 struct TChunkDynamicData
     : public NObjectServer::TObjectDynamicData
 {
+    using TMediumToRepairQueueIterator = TSmallFlatMap<int, TChunkRepairQueueIterator, 2>;
+
     //! Indicates that certain background scans were scheduled for this chunk.
     EChunkScanKind ScanFlags = EChunkScanKind::None;
 
@@ -46,8 +49,8 @@ struct TChunkDynamicData
 
     //! For each medium, contains a valid iterator for those chunks belonging to the repair queue
     //! and null (default iterator value) for others.
-    std::array<TChunkRepairQueueIterator, MaxMediumCount> MissingPartRepairQueueIterators;
-    std::array<TChunkRepairQueueIterator, MaxMediumCount> DecommissionedPartRepairQueueIterators;
+    TMediumToRepairQueueIterator MissingPartRepairQueueIterators;
+    TMediumToRepairQueueIterator DecommissionedPartRepairQueueIterators;
 
     //! The job that is currently scheduled for this chunk (at most one).
     TJobPtr Job;
@@ -77,10 +80,8 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TChunkInfo, ChunkInfo);
     DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TMiscExt, MiscExt);
 
-    // This list is typically small, e.g. has the length of 1.
-    // It may contain duplicates, i.e. when a chunk is added into the same
-    // table multiple times during merge.
-    using TParents = SmallVector<TChunkTree*, TypicalChunkParentCount>;
+    // This map is typically small, e.g. has the size of 1.
+    using TParents = TSmallFlatMap<TChunkTree*, int, TypicalChunkParentCount>;
     DEFINE_BYREF_RO_PROPERTY(TParents, Parents);
 
     // Limits the lifetime of staged chunks. Useful for cleaning up abandoned staged chunks.
@@ -110,6 +111,8 @@ public:
 
     void AddParent(TChunkTree* parent);
     void RemoveParent(TChunkTree* parent);
+    int GetParentCount() const;
+    bool HasParents() const;
 
     using TCachedReplicas = THashSet<TNodePtrWithIndexes>;
     const TCachedReplicas& CachedReplicas() const;
@@ -269,6 +272,8 @@ public:
 
 private:
     TChunkRequisition ComputeAggregatedRequisition(const TChunkRequisitionRegistry* registry);
+
+    TChunkDynamicData::TMediumToRepairQueueIterator* SelectRepairQueueIteratorMap(EChunkRepairQueue queue) const;
 
     ui8 ReadQuorum_ = 0;
     ui8 WriteQuorum_ = 0;

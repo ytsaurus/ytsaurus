@@ -17,7 +17,6 @@ public:
     TMemoryTagGuard(TMemoryTagGuard&& other);
 
 private:
-    bool Active_ = false;
     NYTAlloc::TMemoryTag PreviousTag_ = NYTAlloc::NullMemoryTag;
 };
 

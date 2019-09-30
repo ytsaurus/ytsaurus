@@ -12,6 +12,8 @@
 
 #include <yt/server/master/object_server/proto/object_manager.pb.h>
 
+#include <yt/ytlib/api/native/connection.h>
+
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/core/misc/collection_helpers.h>
@@ -43,6 +45,12 @@ void TGarbageCollector::Start()
         BIND(&TGarbageCollector::OnSweep, MakeWeak(this)));
     SweepExecutor_->Start();
 
+    YT_VERIFY(!ObjectRemovalCellsSyncExecutor_);
+    ObjectRemovalCellsSyncExecutor_ = New<TPeriodicExecutor>(
+        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::GarbageCollector),
+        BIND(&TGarbageCollector::OnObjectRemovalCellsSync, MakeWeak(this)));
+    ObjectRemovalCellsSyncExecutor_->Start();
+
     CollectPromise_ = NewPromise<void>();
     if (Zombies_.empty()) {
         CollectPromise_.Set();
@@ -58,6 +66,11 @@ void TGarbageCollector::Stop()
     if (SweepExecutor_) {
         SweepExecutor_->Stop();
         SweepExecutor_.Reset();
+    }
+
+    if (ObjectRemovalCellsSyncExecutor_) {
+        ObjectRemovalCellsSyncExecutor_->Stop();
+        ObjectRemovalCellsSyncExecutor_.Reset();
     }
 
     CollectPromise_.Reset();
@@ -86,6 +99,7 @@ void TGarbageCollector::SaveKeys(NCellMaster::TSaveContext& context) const
 void TGarbageCollector::SaveValues(NCellMaster::TSaveContext& context) const
 {
     Save(context, Zombies_);
+    Save(context, RemovalAwaitingCellsSyncObjects_);
 }
 
 void TGarbageCollector::LoadKeys(NCellMaster::TLoadContext& context)
@@ -132,6 +146,11 @@ void TGarbageCollector::LoadValues(NCellMaster::TLoadContext& context)
 
     Load(context, Zombies_);
 
+    // COMPAT(babenko)
+    if (context.GetVersion() >= EMasterReign::SyncCellsBeforeRemoval) {
+        Load(context, RemovalAwaitingCellsSyncObjects_);
+    }
+
     // COMPAT(shakurov)
     if (context.GetVersion() < EMasterReign::WeakGhostsSaveLoad ||
         (EMasterReign::MulticellForDynamicTables <= context.GetVersion() && context.GetVersion() < EMasterReign::SameAsVer718ButIn19_4))
@@ -151,6 +170,7 @@ void TGarbageCollector::Clear()
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     Zombies_.clear();
+    RemovalAwaitingCellsSyncObjects_.clear();
 
     ClearWeakGhosts();
 
@@ -310,8 +330,33 @@ void TGarbageCollector::DestroyZombie(TObject* object)
     }
 }
 
+void TGarbageCollector::RegisterRemovalAwaitingCellsSyncObject(TObject* object)
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    YT_VERIFY(RemovalAwaitingCellsSyncObjects_.insert(object).second);
+
+    YT_LOG_DEBUG_UNLESS(IsRecovery(), "Removal awaiting cells sync object registered (ObjectId: %v)",
+        object->GetId());
+}
+
+void TGarbageCollector::UnregisterRemovalAwaitingCellsSyncObject(TObject* object)
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    if (RemovalAwaitingCellsSyncObjects_.erase(object) == 1) {
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Removal awaiting cells sync object unregistered (ObjectId: %v)",
+            object->GetId());
+    } else {
+        YT_LOG_ALERT_UNLESS(IsRecovery(), "Attempt to unregister an unknown removal awaiting cells sync object (ObjectId: %v)",
+            object->GetId());
+    }
+}
+
 TObject* TGarbageCollector::GetWeakGhostObject(TObjectId id)
 {
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
     auto it = WeakGhosts_.find(id);
     YT_VERIFY(it != WeakGhosts_.end());
     return it->second;
@@ -328,6 +373,7 @@ void TGarbageCollector::ClearEphemeralGhosts()
 {
     YT_LOG_INFO("Started deleting ephemeral ghost objects (Count: %v)",
         EphemeralGhosts_.size());
+
     for (auto* object : EphemeralGhosts_) {
         YT_ASSERT(object->IsDestroyed());
         delete object;
@@ -341,7 +387,9 @@ void TGarbageCollector::ClearEphemeralGhosts()
 
 void TGarbageCollector::ClearWeakGhosts()
 {
-    YT_LOG_INFO("Started deleting weak ghost objects (Count: %v)", WeakGhosts_.size());
+    YT_LOG_INFO("Started deleting weak ghost objects (Count: %v)",
+        WeakGhosts_.size());
+
     for (const auto& pair : WeakGhosts_) {
         auto* object = pair.second;
         YT_VERIFY(object->IsDestroyed());
@@ -400,6 +448,50 @@ void TGarbageCollector::OnSweep()
     Y_UNUSED(WaitFor(asyncResult));
 }
 
+void TGarbageCollector::OnObjectRemovalCellsSync()
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    const auto& hydraFacade = Bootstrap_->GetHydraFacade();
+    const auto& hydraManager = hydraFacade->GetHydraManager();
+    if (RemovalAwaitingCellsSyncObjects_.empty() || !hydraManager->IsActiveLeader()) {
+        return;
+    }
+
+    std::vector<TObjectId> objectIds;
+    objectIds.reserve(RemovalAwaitingCellsSyncObjects_.size());
+    for (auto* object : RemovalAwaitingCellsSyncObjects_) {
+        objectIds.push_back(object->GetId());
+    }
+
+    std::vector<TCellId> secondaryCellIds;
+    const auto& connection = Bootstrap_->GetClusterConnection();
+    for (auto cellTag : Bootstrap_->GetSecondaryCellTags()) {
+        secondaryCellIds.push_back(connection->GetMasterCellId(cellTag));
+    }
+
+    std::vector<TFuture<void>> futures;
+    for (auto cellId : secondaryCellIds) {
+        futures.push_back(connection->SyncHiveCellWithOthers(secondaryCellIds, cellId));
+    }
+
+    auto result = WaitFor(Combine(futures));
+    if (!result.IsOK()) {
+        YT_LOG_WARNING(result, "Error synchronizing secondary cells");
+        return;
+    }
+
+    NProto::TReqConfirmRemovalAwaitingCellsSyncObjects request;
+    ToProto(request.mutable_object_ids(), objectIds);
+
+    YT_LOG_DEBUG("Confirming removal awaiting cells sync objects (ObjectIds: %v)",
+        objectIds);
+
+    auto asyncResult = CreateMutation(hydraManager, request)
+        ->CommitAndLog(Logger);
+    Y_UNUSED(WaitFor(asyncResult));
+}
+
 int TGarbageCollector::GetZombieCount() const
 {
     return static_cast<int>(Zombies_.size());
@@ -433,6 +525,7 @@ const TDynamicObjectManagerConfigPtr& TGarbageCollector::GetDynamicConfig()
 void TGarbageCollector::OnDynamicConfigChanged()
 {
     SweepExecutor_->SetPeriod(GetDynamicConfig()->GCSweepPeriod);
+    ObjectRemovalCellsSyncExecutor_->SetPeriod(GetDynamicConfig()->ObjectRemovalCellsSyncPeriod);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

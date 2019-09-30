@@ -70,6 +70,8 @@ public:
 
     void IncrementHttpCode(NHttp::EStatusCode httpStatusCode);
 
+    int GetNumberOfConcurrentRequests();
+
 private:
     const TApiConfigPtr Config_;
 

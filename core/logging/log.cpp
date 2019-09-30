@@ -62,7 +62,7 @@ TMessageStringBuilder::TPerThreadCache* TMessageStringBuilder::GetCache()
     if (CacheDestroyed_) {
         return nullptr;
     }
-    Y_STATIC_THREAD(TPerThreadCache) Cache;
+    static thread_local TPerThreadCache Cache;
     Cache_ = &Cache;
     return Cache_;
 #else
@@ -76,8 +76,8 @@ TMessageStringBuilder::TPerThreadCache::~TPerThreadCache()
 }
 
 #ifndef __APPLE__
-Y_POD_THREAD(TMessageStringBuilder::TPerThreadCache*) TMessageStringBuilder::Cache_;
-Y_POD_THREAD(bool) TMessageStringBuilder::CacheDestroyed_;
+thread_local TMessageStringBuilder::TPerThreadCache* TMessageStringBuilder::Cache_;
+thread_local bool TMessageStringBuilder::CacheDestroyed_;
 #endif
 
 } // namespace NDetail
@@ -115,6 +115,11 @@ bool TLogger::IsLevelEnabled(ELogLevel level) const
     }
 
     return level >= Category_->MinLevel;
+}
+
+bool TLogger::GetAbortOnAlert() const
+{
+    return LogManager_->GetAbortOnAlert();
 }
 
 bool TLogger::IsPositionUpToDate(const TLoggingPosition& position) const

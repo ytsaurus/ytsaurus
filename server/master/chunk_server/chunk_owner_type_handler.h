@@ -1,17 +1,12 @@
 #pragma once
 
 #include "private.h"
-#include "chunk_list.h"
-#include "medium.h"
 
-#include <yt/server/master/cypress_server/type_handler.h>
+#include <yt/server/master/cypress_server/node_detail.h>
 
 #include <yt/server/master/transaction_server/public.h>
 
-#include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
-
 #include <yt/core/ytree/public.h>
-#include <yt/core/ytree/overlaid_attribute_dictionaries.h>
 
 namespace NYT::NChunkServer {
 
@@ -21,10 +16,13 @@ template <class TChunkOwner>
 class TChunkOwnerTypeHandler
     : public NCypressServer::TCypressNodeTypeHandlerBase<TChunkOwner>
 {
-public:
-    typedef NCypressServer::TCypressNodeTypeHandlerBase<TChunkOwner> TBase;
+private:
+    using TBase = NCypressServer::TCypressNodeTypeHandlerBase<TChunkOwner>;
 
+public:
     explicit TChunkOwnerTypeHandler(NCellMaster::TBootstrap* bootstrap);
+
+    virtual NObjectServer::ETypeFlags GetFlags() const override;
 
     virtual NYTree::ENodeType GetNodeType() const override;
 
@@ -64,16 +62,20 @@ protected:
 
     virtual void DoClone(
         TChunkOwner* sourceNode,
-        TChunkOwner* clonedNode,
+        TChunkOwner* clonedTrunkNode,
         NCypressServer::ICypressNodeFactory* factory,
         NCypressServer::ENodeCloneMode mode,
         NSecurityServer::TAccount* account) override;
+
+    virtual void DoBeginCopy(
+        TChunkOwner* node,
+        NCypressServer::TBeginCopyContext* context) override;
+    virtual void DoEndCopy(
+        TChunkOwner* trunkNode,
+        NCypressServer::TEndCopyContext* context,
+        NCypressServer::ICypressNodeFactory* factory) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer
-
-#define CHUNK_OWNER_TYPE_HANDLER_INL_H_
-#include "chunk_owner_type_handler-inl.h"
-#undef CHUNK_OWNER_TYPE_HANDLER_INL_H_

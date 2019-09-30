@@ -117,6 +117,11 @@ public:
         const NYPath::TRichYPath& dstPath,
         const NApi::TConcatenateNodesOptions& options) override;
 
+    virtual TFuture<void> ExternalizeNode(
+        const NYPath::TYPath& path,
+        NObjectClient::TCellTag cellTag,
+        const TExternalizeNodeOptions& options = {}) override;
+
     // Objects
     virtual TFuture<NObjectClient::TObjectId> CreateObject(
         NObjectClient::EObjectType type,

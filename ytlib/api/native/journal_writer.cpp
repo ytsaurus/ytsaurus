@@ -23,7 +23,9 @@
 #include <yt/ytlib/node_tracker_client/channel.h>
 
 #include <yt/client/object_client/helpers.h>
+
 #include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/transaction_client/transaction_listener.h>
 #include <yt/ytlib/transaction_client/helpers.h>
@@ -36,10 +38,6 @@
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/scheduler.h>
 #include <yt/core/concurrency/thread_affinity.h>
-
-#include <yt/core/logging/log.h>
-
-#include <yt/core/misc/variant.h>
 
 #include <yt/core/rpc/helpers.h>
 #include <yt/core/rpc/retrying_channel.h>
@@ -237,8 +235,6 @@ private:
         TCellTag NativeCellTag_ = InvalidCellTag;
         TCellTag ExternalCellTag_ = InvalidCellTag;
 
-        std::optional<TChunkUploadSynchronizer> UploadSynchronizer_;
-
         TChunkListId ChunkListId_;
         IChannelPtr UploadMasterChannel_;
 
@@ -387,10 +383,6 @@ private:
             NativeCellTag_ = CellTagFromId(ObjectId_);
             ExternalCellTag_ = userObject.ExternalCellTag;
 
-            UploadSynchronizer_.emplace(
-                Client_->GetNativeConnection(),
-                Options_.TransactionId);
-
             auto objectIdPath = FromObjectId(ObjectId_);
 
             if (userObject.Type != EObjectType::Journal) {
@@ -411,6 +403,7 @@ private:
                 TObjectServiceProxy proxy(channel);
 
                 auto req = TYPathProxy::Get(objectIdPath + "/@");
+                AddCellTagToSyncWith(req, ObjectId_);
                 SetTransactionId(req, Transaction_);
                 std::vector<TString> attributeKeys{
                     "type",
@@ -480,8 +473,6 @@ private:
                     Path_);
                 const auto& batchRsp = batchRspOrError.Value();
 
-                UploadSynchronizer_->AfterBeginUpload(ObjectId_, ExternalCellTag_);
-
                 {
                     auto rsp = batchRsp->GetResponse<TJournalYPathProxy::TRspBeginUpload>("begin_upload").Value();
                     auto uploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
@@ -549,8 +540,6 @@ private:
 
             StopListenTransaction(UploadTransaction_);
 
-            UploadSynchronizer_->BeforeEndUpload();
-
             {
                 auto req = TJournalYPathProxy::EndUpload(objectIdPath);
                 SetTransactionId(req, UploadTransaction_);
@@ -563,8 +552,6 @@ private:
                 GetCumulativeError(batchRspOrError),
                 "Error finishing upload to journal %v",
                 Path_);
-
-            UploadSynchronizer_->AfterEndUpload();
 
             UploadTransaction_->Detach();
 

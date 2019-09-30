@@ -3,8 +3,6 @@
 
 #include <yt/core/concurrency/thread_affinity.h>
 
-#include <util/system/tls.h>
-
 #include <algorithm>
 
 namespace NYT {
@@ -24,18 +22,6 @@ TRefCountedTrackerStatistics::TStatistics& TRefCountedTrackerStatistics::TStatis
     BytesAlive += rhs.BytesAlive;
     return *this;
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TRefCountedTracker::TLocalSlotsHolder
-{
-    std::vector<TLocalSlot> Slots;
-
-    ~TLocalSlotsHolder()
-    {
-        TRefCountedTracker::Get()->OnLocalSlotsDestroyed(this);
-    }
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -152,13 +138,20 @@ size_t TRefCountedTracker::TNamedSlot::ClampNonnegative(size_t allocated, size_t
 
 ////////////////////////////////////////////////////////////////////////////////
 
-PER_THREAD TRefCountedTracker::TLocalSlot* TRefCountedTracker::LocalSlotsBegin; // = nullptr
-PER_THREAD int TRefCountedTracker::LocalSlotsSize; // = 0
+// nullptr if not initialized or already destroyed
+thread_local TRefCountedTracker::TLocalSlots* TRefCountedTracker::LocalSlots_;
+
+// nullptr if not initialized or already destroyed
+thread_local TRefCountedTracker::TLocalSlot* TRefCountedTracker::LocalSlotsBegin_;
+
+//  0 if not initialized
+// -1 if already destroyed
+thread_local int TRefCountedTracker::LocalSlotsSize_;
 
 int TRefCountedTracker::GetTrackedThreadCount() const
 {
     TGuard<TForkAwareSpinLock> guard(SpinLock_);
-    return static_cast<int>(LocalSlotHolders_.size());
+    return static_cast<int>(AllLocalSlots_.size());
 }
 
 TRefCountedTypeCookie TRefCountedTracker::GetCookie(
@@ -199,8 +192,8 @@ TRefCountedTracker::TNamedStatistics TRefCountedTracker::GetSnapshot() const
     };
 
     accumulateResult(GlobalSlots_);
-    for (const auto* holder : LocalSlotHolders_) {
-        accumulateResult(holder->Slots);
+    for (const auto* slots : AllLocalSlots_) {
+        accumulateResult(*slots);
     }
 
     return result;
@@ -353,8 +346,8 @@ TRefCountedTracker::TNamedSlot TRefCountedTracker::GetSlot(TRefCountedTypeKey ty
     while (it != KeyToCookie_.end() && it->first.TypeKey == typeKey) {
         auto cookie = it->second;
         accumulateResult(GlobalSlots_, cookie);
-        for (auto* holder : LocalSlotHolders_) {
-            accumulateResult(holder->Slots, cookie);
+        for (auto* slots : AllLocalSlots_) {
+            accumulateResult(*slots, cookie);
         }
         ++it;
     }
@@ -363,7 +356,7 @@ TRefCountedTracker::TNamedSlot TRefCountedTracker::GetSlot(TRefCountedTypeKey ty
 }
 
 #define INCREMENT_COUNTER_SLOW(name, delta) \
-    if (LocalSlotsSize < 0) { \
+    if (LocalSlotsSize_ < 0) { \
         TGuard<TForkAwareSpinLock> guard(SpinLock_); \
         GetGlobalSlot(cookie)->name += delta; \
     } else { \
@@ -404,52 +397,59 @@ void TRefCountedTracker::FreeSpaceSlow(TRefCountedTypeCookie cookie, size_t spac
 
 TRefCountedTracker::TLocalSlot* TRefCountedTracker::GetLocalSlot(TRefCountedTypeCookie cookie)
 {
-    Y_STATIC_THREAD(TLocalSlotsHolder) Holder;
-    auto& slots = Holder.Get().Slots;
-    if (cookie >= static_cast<int>(slots.size())) {
-        TGuard<TForkAwareSpinLock> guard(SpinLock_);
-        slots.resize(std::max(static_cast<size_t>(cookie + 1), slots.size() * 2));
+    struct TReclaimer
+    {
+        ~TReclaimer()
+        {
+            auto* this_ = TRefCountedTracker::Get();
+
+            TGuard<TForkAwareSpinLock> guard(this_->SpinLock_);
+
+            if (this_->GlobalSlots_.size() < LocalSlots_->size()) {
+                this_->GlobalSlots_.resize(std::max(LocalSlots_->size(), this_->GlobalSlots_.size()));
+            }
+
+            for (auto index = 0; index < LocalSlots_->size(); ++index) {
+                this_->GlobalSlots_[index] += (*LocalSlots_)[index];
+            }
+
+            YT_VERIFY(this_->AllLocalSlots_.erase(LocalSlots_) == 1);
+
+            delete LocalSlots_;
+            LocalSlots_ = nullptr;
+            LocalSlotsBegin_ = nullptr;
+            LocalSlotsSize_ = -1;
+        }
+    };
+
+    static thread_local TReclaimer Reclaimer;
+
+    YT_VERIFY(LocalSlotsSize_ >= 0);
+
+    TGuard<TForkAwareSpinLock> guard(SpinLock_);
+
+    if (!LocalSlots_) {
+        LocalSlots_ = new TLocalSlots();
+        YT_VERIFY(AllLocalSlots_.insert(LocalSlots_).second);
     }
 
-    YT_VERIFY(LocalSlotsSize >= 0);
-    if (!LocalSlotsBegin) {
-        TGuard<TForkAwareSpinLock> guard(SpinLock_);
-        YT_VERIFY(LocalSlotHolders_.insert(Holder.GetPtr()).second);
+    if (cookie >= LocalSlots_->size()) {
+        LocalSlots_->resize(static_cast<size_t>(cookie) + 1);
     }
 
-    LocalSlotsBegin = slots.data();
-    LocalSlotsSize = static_cast<int>(slots.size());
+    LocalSlotsBegin_ = LocalSlots_->data();
+    LocalSlotsSize_ = static_cast<int>(LocalSlots_->size());
 
-    return &slots[cookie];
+    return LocalSlotsBegin_ + cookie;
 }
 
 TRefCountedTracker::TGlobalSlot* TRefCountedTracker::GetGlobalSlot(TRefCountedTypeCookie cookie)
 {
     VERIFY_SPINLOCK_AFFINITY(SpinLock_);
     if (cookie >= static_cast<int>(GlobalSlots_.size())) {
-        GlobalSlots_.resize(std::max(static_cast<size_t>(cookie) + 1, GlobalSlots_.size() * 2));
+        GlobalSlots_.resize(static_cast<size_t>(cookie) + 1);
     }
     return &GlobalSlots_[cookie];
-}
-
-void TRefCountedTracker::OnLocalSlotsDestroyed(TLocalSlotsHolder* holder)
-{
-    LocalSlotsBegin = nullptr;
-    LocalSlotsSize = -1;
-
-    const auto& localSlots = holder->Slots;
-
-    TGuard<TForkAwareSpinLock> guard(SpinLock_);
-
-    if (GlobalSlots_.size() < localSlots.size()) {
-        GlobalSlots_.resize(std::max(localSlots.size(), GlobalSlots_.size() * 2));
-    }
-
-    for (auto index = 0; index < localSlots.size(); ++index) {
-        GlobalSlots_[index] += localSlots[index];
-    }
-
-    YT_VERIFY(LocalSlotHolders_.erase(holder) == 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

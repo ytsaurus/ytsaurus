@@ -1,17 +1,11 @@
-#pragma once
-#ifndef CHUNK_OWNER_TYPE_HANDLER_INL_H_
-#error "Direct inclusion of this file is not allowed, include chunk_owner_type_handler.h"
-// For the sake of sane code completion.
 #include "chunk_owner_type_handler.h"
-#endif
-
 #include "chunk_manager.h"
+#include "medium.h"
 #include "helpers.h"
 
 #include <yt/server/master/cypress_server/node_detail.h>
 
 #include <yt/server/master/cypress_server/node.h>
-#include <yt/server/master/cypress_server/node_detail.h>
 #include <yt/server/master/cypress_server/cypress_manager.h>
 
 #include <yt/server/master/chunk_server/chunk_manager.h>
@@ -25,6 +19,13 @@
 
 #include <yt/server/master/cell_master/hydra_facade.h>
 
+#include <yt/server/master/file_server/file_node.h>
+
+#include <yt/server/master/table_server/table_node.h>
+#include <yt/server/master/table_server/replicated_table_node.h>
+
+#include <yt/server/master/journal_server/journal_node.h>
+
 #include <yt/client/chunk_client/data_statistics.h>
 
 #include <yt/ytlib/chunk_client/helpers.h>
@@ -32,6 +33,14 @@
 #include <yt/core/ytree/interned_attributes.h>
 
 namespace NYT::NChunkServer {
+
+using namespace NYTree;
+using namespace NFileServer;
+using namespace NTableServer;
+using namespace NJournalServer;
+using namespace NCypressServer;
+using namespace NSecurityServer;
+using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,9 +51,15 @@ TChunkOwnerTypeHandler<TChunkOwner>::TChunkOwnerTypeHandler(NCellMaster::TBootst
 { }
 
 template <class TChunkOwner>
-NYTree::ENodeType TChunkOwnerTypeHandler<TChunkOwner>::GetNodeType() const
+ETypeFlags TChunkOwnerTypeHandler<TChunkOwner>::GetFlags() const
 {
-    return NYTree::ENodeType::Entity;
+    return TBase::GetFlags() | ETypeFlags::Externalizable;
+}
+
+template <class TChunkOwner>
+ENodeType TChunkOwnerTypeHandler<TChunkOwner>::GetNodeType() const
+{
+    return ENodeType::Entity;
 }
 
 template <class TChunkOwner>
@@ -76,28 +91,28 @@ bool TChunkOwnerTypeHandler<TChunkOwner>::HasBranchedChangesImpl(TChunkOwner* or
         branchedNode->GetCompressionCodec() != originatingNode->GetCompressionCodec() ||
         branchedNode->GetErasureCodec() != originatingNode->GetErasureCodec() ||
         !branchedNode->DeltaSecurityTags()->IsEmpty() ||
-        !NSecurityServer::TInternedSecurityTags::RefEqual(branchedNode->SnapshotSecurityTags(), originatingNode->SnapshotSecurityTags());
+        !TInternedSecurityTags::RefEqual(branchedNode->SnapshotSecurityTags(), originatingNode->SnapshotSecurityTags());
 }
 
 template <class TChunkOwner>
 std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
-    const NCypressServer::TVersionedNodeId& id,
-    const NCypressServer::TCreateNodeContext& context,
+    const TVersionedNodeId& id,
+    const TCreateNodeContext& context,
     int replicationFactor,
     NCompression::ECodec compressionCodec,
     NErasure::ECodec erasureCodec)
 {
     const auto& chunkManager = this->Bootstrap_->GetChunkManager();
 
-    auto combinedAttributes = NYTree::OverlayAttributeDictionaries(context.ExplicitAttributes, context.InheritedAttributes);
+    auto combinedAttributes = OverlayAttributeDictionaries(context.ExplicitAttributes, context.InheritedAttributes);
 
     auto primaryMediumName = combinedAttributes.GetAndRemove<TString>("primary_medium", NChunkClient::DefaultStoreMediumName);
     auto* primaryMedium = chunkManager->GetMediumByNameOrThrow(primaryMediumName);
 
-    std::optional<NSecurityServer::TSecurityTags> securityTags;
-    auto securityTagItems = combinedAttributes.FindAndRemove<NSecurityServer::TSecurityTagsItems>("security_tags");
+    std::optional<TSecurityTags> securityTags;
+    auto securityTagItems = combinedAttributes.FindAndRemove<TSecurityTagsItems>("security_tags");
     if (securityTagItems) {
-        securityTags = NSecurityServer::TSecurityTags{std::move(*securityTagItems)};
+        securityTags = TSecurityTags{std::move(*securityTagItems)};
         securityTags->Validate();
     }
 
@@ -158,7 +173,7 @@ template <class TChunkOwner>
 void TChunkOwnerTypeHandler<TChunkOwner>::DoBranch(
     const TChunkOwner* originatingNode,
     TChunkOwner* branchedNode,
-    const NCypressServer::TLockRequest& lockRequest)
+    const TLockRequest& lockRequest)
 {
     TBase::DoBranch(originatingNode, branchedNode, lockRequest);
 
@@ -191,7 +206,7 @@ template <class TChunkOwner>
 void TChunkOwnerTypeHandler<TChunkOwner>::DoLogBranch(
     const TChunkOwner* originatingNode,
     TChunkOwner* branchedNode,
-    const NCypressServer::TLockRequest& lockRequest)
+    const TLockRequest& lockRequest)
 {
     const auto& chunkManager = TBase::Bootstrap_->GetChunkManager();
     const auto* primaryMedium = chunkManager->GetMediumByIndex(originatingNode->GetPrimaryMediumIndex());
@@ -302,7 +317,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
                 if (originatingNode->IsTrunk()) {
                     if (branchedChunkList != originatingChunkList) {
                         const auto& tabletManager = TBase::Bootstrap_->GetTabletManager();
-                        tabletManager->MergeTableNodes(originatingNode, branchedNode);
+                        tabletManager->MergeTable(originatingNode->template As<TTableNode>(), branchedNode->template As<TTableNode>());
                     }
 
                     objectManager->UnrefObject(branchedChunkList);
@@ -420,35 +435,93 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoLogMerge(
 template <class TChunkOwner>
 void TChunkOwnerTypeHandler<TChunkOwner>::DoClone(
     TChunkOwner* sourceNode,
-    TChunkOwner* clonedNode,
-    NCypressServer::ICypressNodeFactory* factory,
-    NCypressServer::ENodeCloneMode mode,
-    NSecurityServer::TAccount* account)
+    TChunkOwner* clonedTrunkNode,
+    ICypressNodeFactory* factory,
+    ENodeCloneMode mode,
+    TAccount* account)
 {
-    TBase::DoClone(sourceNode, clonedNode, factory, mode, account);
+    TBase::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
 
-    clonedNode->SetPrimaryMediumIndex(sourceNode->GetPrimaryMediumIndex());
-    clonedNode->Replication() = sourceNode->Replication();
-    clonedNode->SnapshotStatistics() = sourceNode->SnapshotStatistics();
-    clonedNode->DeltaStatistics() = sourceNode->DeltaStatistics();
-    clonedNode->SnapshotSecurityTags() = sourceNode->SnapshotSecurityTags();
-    clonedNode->DeltaSecurityTags() = sourceNode->DeltaSecurityTags();
-    clonedNode->SetCompressionCodec(sourceNode->GetCompressionCodec());
-    clonedNode->SetErasureCodec(sourceNode->GetErasureCodec());
+    clonedTrunkNode->SetPrimaryMediumIndex(sourceNode->GetPrimaryMediumIndex());
+    clonedTrunkNode->Replication() = sourceNode->Replication();
+    clonedTrunkNode->SnapshotStatistics() = sourceNode->SnapshotStatistics();
+    clonedTrunkNode->DeltaStatistics() = sourceNode->DeltaStatistics();
+    clonedTrunkNode->SnapshotSecurityTags() = sourceNode->SnapshotSecurityTags();
+    clonedTrunkNode->DeltaSecurityTags() = sourceNode->DeltaSecurityTags();
+    clonedTrunkNode->SetCompressionCodec(sourceNode->GetCompressionCodec());
+    clonedTrunkNode->SetErasureCodec(sourceNode->GetErasureCodec());
 
     if (!sourceNode->IsExternal()) {
         const auto& objectManager = TBase::Bootstrap_->GetObjectManager();
         auto* chunkList = sourceNode->GetChunkList();
-        YT_VERIFY(!clonedNode->GetChunkList());
-        clonedNode->SetChunkList(chunkList);
+        YT_VERIFY(!clonedTrunkNode->GetChunkList());
+        clonedTrunkNode->SetChunkList(chunkList);
         objectManager->RefObject(chunkList);
-        chunkList->AddOwningNode(clonedNode);
-        if (clonedNode->IsTrunk() && sourceNode->GetAccount() != clonedNode->GetAccount()) {
+        chunkList->AddOwningNode(clonedTrunkNode);
+        if (clonedTrunkNode->IsTrunk() && sourceNode->GetAccount() != clonedTrunkNode->GetAccount()) {
             const auto& chunkManager = TBase::Bootstrap_->GetChunkManager();
             chunkManager->ScheduleChunkRequisitionUpdate(chunkList);
         }
     }
 }
+
+template <class TChunkOwner>
+void TChunkOwnerTypeHandler<TChunkOwner>::DoBeginCopy(
+    TChunkOwner* node,
+    TBeginCopyContext* context)
+{
+    if (!node->IsExternal()) {
+        // TODO(babenko): support cross-cell copying for non-external nodes
+        const auto& cypressManager = TBase::Bootstrap_->GetCypressManager();
+        THROW_ERROR_EXCEPTION("Node %v must be external to support cross-cell copying",
+            cypressManager->GetNodePath(node->GetTrunkNode(), context->GetTransaction()));
+    }
+
+    TBase::DoBeginCopy(node, context);
+
+    using NYT::Save;
+
+    const auto& chunkManager = this->Bootstrap_->GetChunkManager();
+    auto* medium = chunkManager->GetMediumByIndexOrThrow(node->GetPrimaryMediumIndex());
+    Save(*context, medium);
+
+    Save(*context, node->Replication());
+    Save(*context, node->SnapshotStatistics());
+    Save(*context, node->DeltaStatistics());
+    Save(*context, node->SnapshotSecurityTags());
+    Save(*context, node->DeltaSecurityTags());
+    Save(*context, node->GetCompressionCodec());
+    Save(*context, node->GetErasureCodec());
+
+    context->RegisterExternalCellTag(node->GetExternalCellTag());
+}
+
+template <class TChunkOwner>
+void TChunkOwnerTypeHandler<TChunkOwner>::DoEndCopy(
+    TChunkOwner* trunkNode,
+    TEndCopyContext* context,
+    ICypressNodeFactory* factory)
+{
+    TBase::DoEndCopy(trunkNode, context, factory);
+
+    using NYT::Load;
+
+    auto* medium = Load<TMedium*>(*context);
+    trunkNode->SetPrimaryMediumIndex(medium->GetIndex());
+
+    Load(*context, trunkNode->Replication());
+    Load(*context, trunkNode->SnapshotStatistics());
+    Load(*context, trunkNode->DeltaStatistics());
+    Load(*context, trunkNode->SnapshotSecurityTags());
+    Load(*context, trunkNode->DeltaSecurityTags());
+    trunkNode->SetCompressionCodec(Load<NCompression::ECodec>(*context));
+    trunkNode->SetErasureCodec(Load<NErasure::ECodec>(*context));
+}
+
+template class TChunkOwnerTypeHandler<TFileNode>;
+template class TChunkOwnerTypeHandler<TTableNode>;
+template class TChunkOwnerTypeHandler<TReplicatedTableNode>;
+template class TChunkOwnerTypeHandler<TJournalNode>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

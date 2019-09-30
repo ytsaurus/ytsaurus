@@ -44,7 +44,7 @@ protected:
 private:
     const INodePtr OwningNode_;
 
-    TBuiltinAttributeKeysCache BuiltinAttributeKeysCache_;
+    TSystemBuiltinAttributeKeysCache BuiltinAttributeKeysCache_;
 
 };
 
@@ -104,7 +104,7 @@ protected:
     virtual bool RemoveBuiltinAttribute(TInternedAttributeKey key) override;
 
 private:
-    TBuiltinAttributeKeysCache BuiltinAttributeKeysCache_;
+    TSystemBuiltinAttributeKeysCache BuiltinAttributeKeysCache_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

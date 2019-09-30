@@ -2,10 +2,6 @@
 #include "private.h"
 #include "trace_manager.h"
 
-#include <yt/core/concurrency/fls.h>
-#include <yt/core/concurrency/fiber.h>
-#include <yt/core/concurrency/scheduler.h>
-
 #include <yt/core/profiling/timing.h>
 
 namespace NYT::NTracing {
@@ -178,10 +174,10 @@ struct TCurrentTraceContextReclaimer
     }
 };
 
-Y_POD_THREAD(TTraceContext*) CurrentTraceContext;
-Y_POD_THREAD(TTraceId) CurrentTraceId;
-Y_POD_THREAD(TCpuInstant) TraceContextTimingCheckpoint;
-Y_STATIC_THREAD(TCurrentTraceContextReclaimer) CurrentTraceContextReclaimer;
+thread_local TTraceContext* CurrentTraceContext;
+thread_local TTraceId CurrentTraceId;
+thread_local TCpuInstant TraceContextTimingCheckpoint;
+static thread_local TCurrentTraceContextReclaimer CurrentTraceContextReclaimer;
 
 TString ToString(const TTraceContextPtr& context)
 {

@@ -105,7 +105,7 @@ void WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TValue* valu
 
     auto* statistics = context->Statistics;
 
-    if (context->IsOrdered && statistics->RowsWritten >= context->Limit) {
+    if (closure->ConsiderLimit && statistics->RowsWritten >= context->Limit) {
         throw TInterruptedCompleteException();
     }
 
@@ -1142,6 +1142,16 @@ const TValue* InsertGroupRow(
         closure->ProcessSegment();
     }
 
+    if (context->IsOrdered && closure->Lookup.size() >= context->Limit) {
+        if (closure->ValuesCount == 0) {
+            throw TInterruptedCompleteException();
+        }
+
+        YT_VERIFY(closure->Lookup.size() == context->Limit);
+        auto found = closure->Lookup.find(row);
+        return found != closure->Lookup.end() ? *found : nullptr;
+    }
+
     auto inserted = closure->Lookup.insert(row);
 
     if (inserted.second) {
@@ -1174,6 +1184,7 @@ void GroupOpHelper(
     THasherFunction* groupHasher,
     TComparerFunction* groupComparer,
     int keySize,
+    int valuesCount,
     bool checkNulls,
     void** collectRowsClosure,
     void (*collectRows)(
@@ -1203,6 +1214,7 @@ void GroupOpHelper(
         groupHasher,
         groupComparer,
         keySize,
+        valuesCount,
         checkNulls);
 
     TYielder yielder;
@@ -1256,6 +1268,8 @@ void GroupOpHelper(
     } catch (const TInterruptedIncompleteException&) {
         // Set incomplete and continue
         context->Statistics->IncompleteOutput = true;
+    } catch (const TInterruptedCompleteException&) {
+        // Continue
     }
 
     isBoundarySegment = true;
@@ -1316,11 +1330,13 @@ void OrderOpHelper(
 void WriteOpHelper(
     TExecutionContext* context,
     size_t rowSize,
+    bool considerLimit,
     void** collectRowsClosure,
     void (*collectRows)(void** closure, TWriteOpClosure* writeOpClosure))
 {
     TWriteOpClosure closure;
     closure.RowSize = rowSize;
+    closure.ConsiderLimit = considerLimit;
 
     try {
         collectRows(collectRowsClosure, &closure);

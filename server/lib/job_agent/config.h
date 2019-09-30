@@ -81,7 +81,14 @@ class TGpuManagerConfig
 public:
     TDuration HealthCheckTimeout;
     TDuration HealthCheckPeriod;
+
     std::optional<TShellCommandConfigPtr> JobSetupCommand;
+
+    std::optional<NYPath::TYPath> DriverLayerDirectoryPath;
+    std::optional<TString> DriverVersion;
+    TDuration DriverLayerFetchPeriod;
+
+    THashMap<TString, TString> ToolkitMinDriverVersion;
 
     TGpuManagerConfig()
     {
@@ -89,7 +96,17 @@ public:
             .Default(TDuration::Minutes(5));
         RegisterParameter("health_check_period", HealthCheckPeriod)
             .Default(TDuration::Seconds(10));
+
         RegisterParameter("job_setup_command", JobSetupCommand)
+            .Default();
+
+        RegisterParameter("driver_layer_directory_path", DriverLayerDirectoryPath)
+            .Default();
+        RegisterParameter("driver_version", DriverVersion)
+            .Default();
+        RegisterParameter("driver_layer_fetch_period", DriverLayerFetchPeriod)
+            .Default(TDuration::Minutes(5));
+        RegisterParameter("toolkit_min_driver_version", ToolkitMinDriverVersion)
             .Default();
     }
 };
@@ -115,6 +132,26 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TShellCommandConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMappedMemoryControllerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TDuration CheckPeriod;
+    i64 ReservedMemory;
+
+    TMappedMemoryControllerConfig()
+    {
+        RegisterParameter("check_period", CheckPeriod)
+            .Default(TDuration::Seconds(30));
+        RegisterParameter("reserved_memory", ReservedMemory)
+            .Default(10_GB);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TMappedMemoryControllerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -147,11 +184,16 @@ public:
 
     //! This is a special testing option.
     //! Instead of normal gpu discovery, it forces the node to believe the number of GPUs passed in the config.
-    bool TestGpu;
+    bool TestGpuResource;
+
+    bool TestGpuLayers;
 
     TGpuManagerConfigPtr GpuManager;
 
+    TMappedMemoryControllerConfigPtr MappedMemoryController;
+
     std::optional<TShellCommandConfigPtr> JobSetupCommand;
+    TString SetupCommandUser;
 
     TJobControllerConfig()
     {
@@ -194,11 +236,17 @@ public:
         RegisterParameter("port_set", PortSet)
             .Default();
 
-        RegisterParameter("test_gpu", TestGpu)
+        RegisterParameter("test_gpu_resource", TestGpuResource)
+            .Default(false);
+
+        RegisterParameter("test_gpu_layers", TestGpuLayers)
             .Default(false);
 
         RegisterParameter("gpu_manager", GpuManager)
             .DefaultNew();
+
+        RegisterParameter("mapped_memory_controller", MappedMemoryController)
+            .Default(nullptr);
 
         RegisterParameter("free_memory_watermark", FreeMemoryWatermark)
             .Default(0)
@@ -206,6 +254,9 @@ public:
 
         RegisterParameter("job_setup_command", JobSetupCommand)
             .Default();
+
+        RegisterParameter("setup_command_user", SetupCommandUser)
+            .Default("root");
 
         RegisterPreprocessor([&] () {
             // 100 kB/sec * 1000 [nodes] = 100 MB/sec that corresponds to

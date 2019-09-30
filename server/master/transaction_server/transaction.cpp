@@ -10,6 +10,8 @@
 
 #include <yt/server/master/table_server/table_node.h>
 
+#include <yt/ytlib/transaction_client/helpers.h>
+
 #include <yt/core/misc/string.h>
 
 #include <yt/core/ytree/fluent.h>
@@ -20,6 +22,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NCellMaster;
 using namespace NChunkClient;
+using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,11 +52,9 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, GetPersistentState());
     Save(context, Timeout_);
     Save(context, Title_);
-    Save(context, SecondaryCellTags_);
-    Save(context, NestedNativeTransactions_);
-    Save(context, NestedExternalTransactionIds_);
-    Save(context, UnregisterFromParentOnCommit_);
-    Save(context, UnregisterFromParentOnAbort_);
+    Save(context, ReplicatedToCellTags_);
+    Save(context, ExternalizedToCellTags_);
+    Save(context, NestedTransactions_);
     Save(context, Parent_);
     Save(context, StartTime_);
     Save(context, StagedObjects_);
@@ -81,14 +82,12 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, State_);
     Load(context, Timeout_);
     Load(context, Title_);
-    Load(context, SecondaryCellTags_);
-    Load(context, NestedNativeTransactions_);
+    Load(context, ReplicatedToCellTags_);
     // COMPAT(babenko)
-    if (context.GetVersion() >= EMasterReign::ShardedUploads) {
-        Load(context, NestedExternalTransactionIds_);
-        Load(context, UnregisterFromParentOnCommit_);
-        Load(context, UnregisterFromParentOnAbort_);
+    if (context.GetVersion() >= EMasterReign::ExternalizedTransactions) {
+        Load(context, ExternalizedToCellTags_);
     }
+    Load(context, NestedTransactions_);
     Load(context, Parent_);
     Load(context, StartTime_);
     Load(context, StagedObjects_);
@@ -120,28 +119,6 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     }
 }
 
-void TTransaction::RecomputeResourceUsage()
-{
-    AccountResourceUsage_.clear();
-
-    for (auto* node : BranchedNodes_) {
-        AddNodeResourceUsage(node, false);
-    }
-    for (auto* node : StagedNodes_) {
-        AddNodeResourceUsage(node, true);
-    }
-}
-
-void TTransaction::AddNodeResourceUsage(const NCypressServer::TCypressNode* node, bool staged)
-{
-    if (node->IsExternal()) {
-        return;
-    }
-
-    auto* account = node->GetAccount();
-    AccountResourceUsage_[account] += node->GetDeltaResourceUsage();
-}
-
 bool TTransaction::IsDescendantOf(TTransaction* transaction) const
 {
     YT_VERIFY(transaction);
@@ -151,6 +128,18 @@ bool TTransaction::IsDescendantOf(TTransaction* transaction) const
         }
     }
     return false;
+}
+
+bool TTransaction::IsExternalized() const
+{
+    return GetType() == EObjectType::ExternalizedTransaction ||
+           GetType() == EObjectType::ExternalizedNestedTransaction;
+}
+
+TTransactionId TTransaction::GetOriginalTransactionId() const
+{
+    YT_VERIFY(IsExternalized());
+    return NTransactionClient::OriginalFromExternalizedTransactionId(Id_);
 }
 
 namespace {

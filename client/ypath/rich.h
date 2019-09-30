@@ -117,8 +117,11 @@ public:
     // "bypass_artifact_cache"
     bool GetBypassArtifactCache() const;
 
-    // "output_chunk_format"
-    NTableClient::EOutputChunkFormat GetOutputChunkFormat() const;
+    // "schema_modification"
+    NTableClient::ETableSchemaModification GetSchemaModification() const;
+
+    // "partially_sorted"
+    bool GetPartiallySorted() const;
 
 private:
     TYPath Path_;

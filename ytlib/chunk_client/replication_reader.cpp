@@ -1405,6 +1405,7 @@ private:
 
         const auto& rsp = rspOrError.Value();
 
+        SessionOptions_.ChunkReaderStatistics->DataBytesTransmitted += rsp->GetTotalSize();
         reader->AccountTraffic(
             rsp->GetTotalSize(),
             optionalPeer->NodeDescriptor);
@@ -1666,7 +1667,9 @@ private:
         req->set_block_count(BlockCount_);
         ToProto(req->mutable_workload_descriptor(), WorkloadDescriptor_);
 
+        NProfiling::TWallTimer dataWaitTimer;
         auto rspOrError = WaitFor(req->Invoke());
+        SessionOptions_.ChunkReaderStatistics->DataWaitTime += dataWaitTimer.GetElapsedValue();
 
         if (!rspOrError.IsOK()) {
             ProcessError(
@@ -1680,6 +1683,7 @@ private:
 
         const auto& rsp = rspOrError.Value();
 
+        SessionOptions_.ChunkReaderStatistics->DataBytesTransmitted += rsp->GetTotalSize();
         if (rsp->has_chunk_reader_statistics()) {
             UpdateFromProto(&SessionOptions_.ChunkReaderStatistics, rsp->chunk_reader_statistics());
         }
@@ -1894,7 +1898,9 @@ private:
         }
         ToProto(req->mutable_workload_descriptor(), WorkloadDescriptor_);
 
+        NProfiling::TWallTimer dataWaitTimer;
         auto rspOrError = WaitFor(req->Invoke());
+        SessionOptions_.ChunkReaderStatistics->DataWaitTime += dataWaitTimer.GetElapsedValue();
 
         if (!rspOrError.IsOK()) {
             ProcessError(
@@ -1907,6 +1913,8 @@ private:
         }
 
         const auto& rsp = rspOrError.Value();
+        SessionOptions_.ChunkReaderStatistics->DataBytesTransmitted += rsp->GetTotalSize();
+
         if (rsp->net_throttling()) {
             YT_LOG_DEBUG("Peer is throttling (Address: %v)", peerAddressWithNetwork);
             RequestMeta();

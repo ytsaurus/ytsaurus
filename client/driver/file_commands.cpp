@@ -45,7 +45,7 @@ void TReadFileCommand::DoExecute(ICommandContextPtr context)
     });
 
     if (EtagRevision) {
-        i64 etagRevision;
+        NHydra::TRevision etagRevision;
         if (TryFromString(EtagRevision, etagRevision) && etagRevision == reader->GetRevision()) {
             return;
         }

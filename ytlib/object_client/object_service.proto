@@ -1,9 +1,14 @@
 package NYT.NObjectClient.NProto;
 
+import "yt/core/misc/proto/guid.proto";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqExecute
 {
+    // For forwarded and redirected requests, contains the original request id.
+    optional NYT.NProto.TGuid original_request_id = 6;
+
     // Each Execute call carries a number of YPath requests.
     // Each of these requests is represented by a message.
     // Each message, in turn, is a sequence of parts.
@@ -17,9 +22,6 @@ message TReqExecute
 
     // If |true|, the master is allowed to send a partial response to this request.
     optional bool allow_backoff = 3 [default = false];
-
-    // The master will sync with these master cells before processing the request.
-    repeated int32 cell_tags_to_sync_with = 4;
 
     // If |true|, the client supports TRspExecute.subresponses and TRspExecute.uncertain_subrequest_indexes.
     optional bool supports_portals = 5;

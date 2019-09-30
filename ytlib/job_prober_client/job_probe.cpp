@@ -31,61 +31,65 @@ public:
 
     virtual std::vector<TChunkId> DumpInputContext() override
     {
-        EnsureJobProberProxy();
-        auto req = JobProberProxy_->DumpInputContext();
+        auto* proxy = GetOrCreateJobProberProxy();
 
+        auto req = proxy->DumpInputContext();
         ToProto(req->mutable_job_id(), JobId_);
+
         auto rspOrError = WaitFor(req->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
-        const auto& rsp = rspOrError.Value();
 
+        const auto& rsp = rspOrError.Value();
         return FromProto<std::vector<TChunkId>>(rsp->chunk_ids());
     }
 
     virtual TYsonString StraceJob() override
     {
-        EnsureJobProberProxy();
-        auto req = JobProberProxy_->Strace();
+        auto* proxy = GetOrCreateJobProberProxy();
 
+        auto req = proxy->Strace();
         ToProto(req->mutable_job_id(), JobId_);
+
         auto rspOrError = WaitFor(req->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
-        const auto& rsp = rspOrError.Value();
 
+        const auto& rsp = rspOrError.Value();
         return TYsonString(rsp->trace());
     }
 
     virtual void SignalJob(const TString& signalName) override
     {
-        EnsureJobProberProxy();
-        auto req = JobProberProxy_->SignalJob();
+        auto* proxy = GetOrCreateJobProberProxy();
 
+        auto req = proxy->SignalJob();
         ToProto(req->mutable_job_id(), JobId_);
         ToProto(req->mutable_signal_name(), signalName);
+
         auto rspOrError = WaitFor(req->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
     }
 
     virtual TYsonString PollJobShell(const TYsonString& parameters) override
     {
-        EnsureJobProberProxy();
-        auto req = JobProberProxy_->PollJobShell();
-
+        auto* proxy = GetOrCreateJobProberProxy();
+        auto req = proxy->PollJobShell();
         ToProto(req->mutable_job_id(), JobId_);
         ToProto(req->mutable_parameters(), parameters.GetData());
+
         auto rspOrError = WaitFor(req->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
-        const auto& rsp = rspOrError.Value();
 
+        const auto& rsp = rspOrError.Value();
         return TYsonString(rsp->result());
     }
 
     virtual TString GetStderr() override
     {
-        EnsureJobProberProxy();
-        auto req = JobProberProxy_->GetStderr();
+        auto* proxy = GetOrCreateJobProberProxy();
 
+        auto req = proxy->GetStderr();
         ToProto(req->mutable_job_id(), JobId_);
+
         auto rspOrError = WaitFor(req->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
         const auto& rsp = rspOrError.Value();
@@ -95,20 +99,22 @@ public:
 
     virtual void Interrupt() override
     {
-        EnsureJobProberProxy();
-        auto req = JobProberProxy_->Interrupt();
+        auto* proxy = GetOrCreateJobProberProxy();
 
+        auto req = proxy->Interrupt();
         ToProto(req->mutable_job_id(), JobId_);
+
         auto rspOrError = WaitFor(req->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
     }
 
     virtual void Fail() override
     {
-        EnsureJobProberProxy();
-        auto req = JobProberProxy_->Fail();
+        auto* proxy = GetOrCreateJobProberProxy();
 
+        auto req = proxy->Fail();
         ToProto(req->mutable_job_id(), JobId_);
+
         auto rspOrError = WaitFor(req->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
     }
@@ -116,15 +122,20 @@ public:
 private:
     const TTcpBusClientConfigPtr TcpBusClientConfig_;
     const TJobId JobId_;
-    std::optional<TJobProberServiceProxy> JobProberProxy_;
 
-    void EnsureJobProberProxy()
+    TSpinLock SpinLock_;
+    std::unique_ptr<TJobProberServiceProxy> JobProberProxy_;
+
+
+    TJobProberServiceProxy* GetOrCreateJobProberProxy()
     {
+        auto guard = Guard(SpinLock_);
         if (!JobProberProxy_) {
             auto client = CreateTcpBusClient(TcpBusClientConfig_);
             auto channel = NRpc::NBus::CreateBusChannel(std::move(client));
-            JobProberProxy_.emplace(std::move(channel));
+            JobProberProxy_ = std::make_unique<TJobProberServiceProxy>(std::move(channel));
         }
+        return JobProberProxy_.get();
     }
 };
 

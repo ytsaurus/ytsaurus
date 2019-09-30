@@ -23,8 +23,8 @@ constexpr T EndOfSequenceTag()
 class TUncheckedSkiffParser
 {
 public:
-    explicit TUncheckedSkiffParser(IInputStream* stream);
-    TUncheckedSkiffParser(const TSkiffSchemaPtr& schema, IInputStream* stream);
+    explicit TUncheckedSkiffParser(IZeroCopyInput* stream);
+    TUncheckedSkiffParser(const TSkiffSchemaPtr& schema, IZeroCopyInput* stream);
 
     i64 ParseInt64();
     ui64 ParseUint64();
@@ -45,20 +45,23 @@ public:
     ui64 GetReadBytesCount();
 
 private:
-    void RefillBuffer(size_t minSize);
-    void Advance(ssize_t size);
+    const void* GetData(size_t size);
+    const void* GetDataViaBuffer(size_t size);
+
+    size_t RemainingBytes() const;
+    void Advance(size_t size);
+    void RefillBuffer();
 
     template <typename T>
     T ParseSimple();
 
 private:
-    IInputStream* const Underlying_;
+    IZeroCopyInput* const Underlying_;
 
     TBuffer Buffer_;
-    TString Tmp_;
-    size_t RemainingBytes_ = 0;
     ui64 ReadBytesCount_ = 0;
-    char* Position_ = Buffer_.Data();
+    char* Position_ = nullptr;
+    char* End_ = nullptr;
     bool Exhausted_ = false;
 };
 
@@ -67,7 +70,7 @@ private:
 class TCheckedSkiffParser
 {
 public:
-    TCheckedSkiffParser(const TSkiffSchemaPtr& schema, IInputStream* stream);
+    TCheckedSkiffParser(const TSkiffSchemaPtr& schema, IZeroCopyInput* stream);
     ~TCheckedSkiffParser();
 
     i64 ParseInt64();

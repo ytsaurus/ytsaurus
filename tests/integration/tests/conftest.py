@@ -24,7 +24,7 @@ def _get_first_marker(item, name):
 
 def pytest_runtest_makereport(item, call, __multicall__):
     rep = __multicall__.execute()
-    if hasattr(item, "cls") and hasattr(item.cls, "Env"):
+    if hasattr(item, "cls") and hasattr(item.cls, "Env") and item.cls.Env is not None:
         rep.environment_path = item.cls.Env.path
     authors = _get_first_marker(item, name="authors")
     if authors is not None:

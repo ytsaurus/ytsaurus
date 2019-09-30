@@ -18,13 +18,13 @@
 #include <yt/ytlib/file_client/file_ypath_proxy.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
-#include <yt/client/object_client/helpers.h>
+#include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/ytlib/transaction_client/transaction_listener.h>
 #include <yt/ytlib/transaction_client/config.h>
 
-#include <yt/ytlib/hive/helpers.h>
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/client/api/transaction.h>
 
@@ -71,7 +71,6 @@ public:
         , Path_(path)
         , Options_(options)
         , Config_(options.Config ? options.Config : New<TFileWriterConfig>())
-        , UploadSynchronizer_()
         , Logger(NLogging::TLogger(ApiLogger)
             .AddTag("Path: %v, TransactionId: %v",
                 Path_.GetPath(),
@@ -116,8 +115,6 @@ private:
     const TRichYPath Path_;
     const TFileWriterOptions Options_;
     const TFileWriterConfigPtr Config_;
-
-    std::optional<TChunkUploadSynchronizer> UploadSynchronizer_;
 
     NApi::ITransactionPtr Transaction_;
     NApi::ITransactionPtr UploadTransaction_;
@@ -165,10 +162,6 @@ private:
         NativeCellTag_ = CellTagFromId(ObjectId_);
         ExternalCellTag_ = userObject.ExternalCellTag;
 
-        UploadSynchronizer_.emplace(
-            Client_->GetNativeConnection(),
-            Options_.TransactionId);
-
         if (userObject.Type != EObjectType::File) {
             THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
                 Path_.GetPath(),
@@ -185,15 +178,15 @@ private:
             TObjectServiceProxy proxy(channel);
 
             auto req = TCypressYPathProxy::Get(objectIdPath + "/@");
+            AddCellTagToSyncWith(req, ObjectId_);
             SetTransactionId(req, Transaction_);
-            std::vector<TString> attributeKeys{
+            ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
                 "account",
                 "compression_codec",
                 "erasure_codec",
                 "primary_medium",
                 "replication_factor"
-            };
-            ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+            });
 
             auto rspOrError = WaitFor(proxy.Execute(req));
             THROW_ERROR_EXCEPTION_IF_FAILED(
@@ -262,8 +255,6 @@ private:
                     .PingAncestors = Options_.PingAncestors
                 });
                 StartListenTransaction(UploadTransaction_);
-
-                UploadSynchronizer_->AfterBeginUpload(ObjectId_, ExternalCellTag_);
 
                 YT_LOG_INFO("File upload started (UploadTransactionId: %v)",
                     uploadTransactionId);
@@ -347,8 +338,6 @@ private:
 
         StopListenTransaction(UploadTransaction_);
 
-        UploadSynchronizer_->BeforeEndUpload();
-
         {
             auto req = TFileYPathProxy::EndUpload(objectIdPath);
             *req->mutable_statistics() = Writer_->GetDataStatistics();
@@ -378,8 +367,6 @@ private:
             Path_.GetPath());
 
         UploadTransaction_->Detach();
-
-        UploadSynchronizer_->AfterEndUpload();
 
         YT_LOG_INFO("File closed");
     }

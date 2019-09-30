@@ -32,6 +32,15 @@ static const auto& Logger = AuthLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ESecretVaultResponseStatus,
+    ((Unknown)  (0))
+    ((OK)       (1))
+    ((Warning)  (2))
+    ((Error)    (3))
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDefaultSecretVaultService
     : public ISecretVaultService
 {
@@ -44,7 +53,7 @@ public:
         : Config_(std::move(config))
         , TvmService_(std::move(tvmService))
         , Profiler_(std::move(profiler))
-        , HttpClient_(NHttps::CreateClient(Config_->HttpClient, std::move(poller)))
+        , HttpClient_(CreateHttpClient(std::move(poller)))
     { }
 
     virtual TFuture<std::vector<TErrorOrSecretSubresponse>> GetSecrets(const std::vector<TSecretSubrequest>& subrequests) override
@@ -70,9 +79,18 @@ private:
     NProfiling::TMonotonicCounter SuccessfulCallCountCounter_{"/successful_call_count"};
     NProfiling::TMonotonicCounter FailedCallCountCounter_{"/failed_call_count"};
     NProfiling::TMonotonicCounter SuccessfulSubrequestCountCounter_{"/successful_subrequest_count"};
+    NProfiling::TMonotonicCounter WarningSubrequestCountCounter_{"/warning_subrequest_count"};
     NProfiling::TMonotonicCounter FailedSubrequestCountCounter_{"/failed_subrequest_count"};
 
 private:
+    NHttp::IClientPtr CreateHttpClient(IPollerPtr poller) const
+    {
+        if (Config_->Secure) {
+            return NHttps::CreateClient(Config_->HttpClient, std::move(poller));
+        }
+        return NHttp::CreateClient(Config_->HttpClient, std::move(poller));
+    }
+
     TFuture<std::vector<TErrorOrSecretSubresponse>> OnTvmCallResult(const std::vector<TSecretSubrequest>& subrequests, const TString& vaultTicket)
     {
         auto callId = TGuid::Create();
@@ -85,7 +103,8 @@ private:
         Profiler_.Increment(SubrequestCountCounter_, subrequests.size());
         Profiler_.Update(SubrequestsPerCallGauge_, subrequests.size());
 
-        auto url = Format("https://%v:%v/1/tokens/",
+        auto url = Format("%v://%v:%v/1/tokens/",
+            Config_->Secure ? "https" : "http",
             Config_->Host,
             Config_->Port);
         auto body = MakeRequestBody(vaultTicket, subrequests);
@@ -147,9 +166,14 @@ private:
                 << ex);
         }
 
-        auto responseError = GetErrorFromResponse(rootNode);
-        if (!responseError.IsOK()) {
-            onError(responseError);
+        auto responseStatusString = GetStatusStringFromResponse(rootNode);
+        auto responseStatus = ParseStatus(responseStatusString);
+        if (responseStatus == ESecretVaultResponseStatus::Error) {
+            onError(GetErrorFromResponse(rootNode, responseStatusString));
+        }
+        if (responseStatus != ESecretVaultResponseStatus::OK) {
+            // NB! Vault API is not supposed to return other statuses (e.g. warning) at the top-level.
+            onError(MakeUnexpectedStatusError(responseStatusString));
         }
 
         std::vector<TErrorOrSecretSubresponse> subresponses;
@@ -158,12 +182,33 @@ private:
             auto secretsNode = rootNode->GetChild(SecretsKey)->AsList();
 
             int successCount = 0;
+            int warningCount = 0;
             int errorCount = 0;
-            for (const auto& secretNode : secretsNode->GetChildren()) {
-                auto secretMapNode = secretNode->AsMap();
-                auto subresponseError = GetErrorFromResponse(secretMapNode);
-                if (!subresponseError.IsOK()) {
-                    subresponses.push_back(subresponseError);
+            auto secretNodes = secretsNode->GetChildren();
+            for (size_t subresponseIndex = 0; subresponseIndex < secretNodes.size(); ++subresponseIndex) {
+                auto secretMapNode = secretNodes[subresponseIndex]->AsMap();
+
+                auto subresponseStatusString = GetStatusStringFromResponse(secretMapNode);
+                auto subresponseStatus = ParseStatus(subresponseStatusString);
+                if (subresponseStatus == ESecretVaultResponseStatus::OK) {
+                    ++successCount;
+                } else if (subresponseStatus == ESecretVaultResponseStatus::Warning) {
+                    // NB! Warning status is supposed to contain valid data so we proceed parsing the response.
+                    ++warningCount;
+                    auto warningMessage = GetWarningMessageFromResponse(secretMapNode);
+                    YT_LOG_DEBUG("Received warning status in subresponse from Vault (CallId: %v, SubresponseIndex: %v, WarningMessage: %Qv)",
+                        callId,
+                        subresponseIndex,
+                        warningMessage);
+                } else if (subresponseStatus == ESecretVaultResponseStatus::Error) {
+                    subresponses.push_back(GetErrorFromResponse(
+                        secretMapNode,
+                        subresponseStatusString));
+                    ++errorCount;
+                    continue;
+                } else {
+                    subresponses.push_back(MakeUnexpectedStatusError(
+                        subresponseStatusString));
                     ++errorCount;
                     continue;
                 }
@@ -180,17 +225,18 @@ private:
                         fieldMapNode->GetChild(SecretsValueKey)->GetValue<TString>());
                 }
 
-                ++successCount;
                 subresponses.push_back(subresponse);
             }
 
             Profiler_.Increment(SuccessfulCallCountCounter_);
             Profiler_.Increment(SuccessfulSubrequestCountCounter_, successCount);
+            Profiler_.Increment(WarningSubrequestCountCounter_, warningCount);
             Profiler_.Increment(FailedSubrequestCountCounter_, errorCount);
 
-            YT_LOG_DEBUG("Secrets retrieved from Vault (CallId: %v, SuccessCount: %v, ErrorCount: %v)",
+            YT_LOG_DEBUG("Secrets retrieved from Vault (CallId: %v, SuccessCount: %v, WarningCount: %v, ErrorCount: %v)",
                 callId,
                 successCount,
+                warningCount,
                 errorCount);
         } catch (const std::exception& ex) {
             onError(TError(
@@ -215,15 +261,42 @@ private:
         }
     }
 
-    static TError GetErrorFromResponse(const IMapNodePtr& node)
+    static TString GetStatusStringFromResponse(const IMapNodePtr& node)
     {
         static const TString StatusKey("status");
-        static const TString OKValue("ok");
-        auto statusString = node->GetChild(StatusKey)->GetValue<TString>();
-        if (statusString == OKValue) {
-            return {};
-        }
+        return node->GetChild(StatusKey)->GetValue<TString>();
+    }
 
+    static TError MakeUnexpectedStatusError(const TString& statusString)
+    {
+        return TError(
+            ESecretVaultErrorCode::UnexpectedStatus,
+            "Received unexpected status from Vault")
+            << TErrorAttribute("status", statusString);
+    }
+
+    static ESecretVaultResponseStatus ParseStatus(const TString& statusString)
+    {
+        if (statusString == "ok") {
+            return ESecretVaultResponseStatus::OK;
+        } else if (statusString == "warning") {
+            return ESecretVaultResponseStatus::Warning;
+        } else if (statusString == "error") {
+            return ESecretVaultResponseStatus::Error;
+        } else {
+            return ESecretVaultResponseStatus::Unknown;
+        }
+    }
+
+    static TString GetWarningMessageFromResponse(const IMapNodePtr& node)
+    {
+        static const TString WarningMessageKey("warning_message");
+        auto warningMessageNode = node->FindChild(WarningMessageKey);
+        return warningMessageNode ? warningMessageNode->GetValue<TString>() : "Vault warning";
+    }
+
+    static TError GetErrorFromResponse(const IMapNodePtr& node, const TString& statusString)
+    {
         static const TString CodeKey("code");
         auto codeString = node->GetChild(CodeKey)->GetValue<TString>();
         auto code = ParseErrorCode(codeString);

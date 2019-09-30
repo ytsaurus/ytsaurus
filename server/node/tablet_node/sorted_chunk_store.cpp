@@ -205,14 +205,23 @@ TSortedChunkStore::~TSortedChunkStore()
     YT_LOG_DEBUG("Sorted chunk store destroyed");
 }
 
+EStoreType TSortedChunkStore::GetType() const
+{
+    return EStoreType::SortedChunk;
+}
+
 TSortedChunkStorePtr TSortedChunkStore::AsSortedChunk()
 {
     return this;
 }
 
-EStoreType TSortedChunkStore::GetType() const
+void TSortedChunkStore::BuildOrchidYson(TFluentMap fluent)
 {
-    return EStoreType::SortedChunk;
+    TChunkStoreBase::BuildOrchidYson(fluent);
+
+    fluent
+        .Item("min_key").Value(GetMinKey())
+        .Item("upper_bound_key").Value(GetUpperBoundKey());
 }
 
 TOwningKey TSortedChunkStore::GetMinKey() const

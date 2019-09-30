@@ -55,6 +55,7 @@ public:
     const NAuth::ITokenAuthenticatorPtr& GetTokenAuthenticator() const;
     const NConcurrency::IPollerPtr& GetPoller() const;
     const NApi::IClientPtr& GetClickHouseClient() const;
+    const TApiPtr& GetApi() const;
 
     virtual void HandleRequest(
         const NHttp::IRequestPtr& req,

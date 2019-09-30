@@ -961,56 +961,33 @@ void ValidateValueType(
     ValidateValueType(value, schema.Columns()[schemaId], typeAnyAcceptsAllValues);
 }
 
-template <typename T>
-static inline void ValidateIntegerRange(const TUnversionedValue& value, const TString& columnName)
+[[noreturn]] static void ThrowInvalidColumnType(EValueType expected, EValueType actual)
 {
-    static_assert(std::is_integral<T>::value, "type must be integral");
-
-    if (std::is_signed<T>::value) {
-        YT_ASSERT(value.Type == EValueType::Int64);
-        const auto intValue = value.Data.Int64;
-        if (intValue < Min<T>() || intValue > Max<T>()) {
-            THROW_ERROR_EXCEPTION(
-                EErrorCode::SchemaViolation,
-                "Value %v of column %Qv is out of allowed range [%v, %v]",
-                intValue,
-                columnName,
-                Min<T>(),
-                Max<T>());
-        }
-    } else {
-        YT_ASSERT(value.Type == EValueType::Uint64);
-        if (value.Data.Uint64 > Max<T>()) {
-            THROW_ERROR_EXCEPTION(
-                EErrorCode::SchemaViolation,
-                "Value %v of column %Qv is out of allowed range [%v, %v]",
-                value.Data.Uint64,
-                columnName,
-                Min<T>(),
-                Max<T>());
-        }
-    }
+    THROW_ERROR_EXCEPTION(
+        EErrorCode::SchemaViolation,
+        "Invalid type, expected type %Qlv but got %Qlv",
+        expected,
+        actual);
 }
 
-static inline TString GetStringPrefix(const char* data, size_t size, size_t maxSize)
+template <ESimpleLogicalValueType logicalType>
+Y_FORCE_INLINE auto GetValue(const TUnversionedValue& value)
 {
-    YT_VERIFY(maxSize > 3);
-    if (size > maxSize) {
-        return TString(data, maxSize - 3) + "...";
-    } else {
-        return TString(data, size);
+    constexpr auto physicalType = GetPhysicalType(logicalType);
+    if (value.Type != physicalType) {
+        ThrowInvalidColumnType(physicalType, value.Type);
     }
-}
-
-static inline void ValidateUtf8(const TUnversionedValue& value, const TString& columnName)
-{
-    if (!IsUtf(value.Data.String, value.Length)) {
-        auto prefix = GetStringPrefix(value.Data.String, value.Length, 50);
-        TErrorAttribute attr("value", prefix);
-        THROW_ERROR_EXCEPTION(
-            EErrorCode::SchemaViolation,
-            "Value of column %Qv is not valid utf8 string",
-            columnName) << attr;
+    if constexpr (physicalType == EValueType::Int64) {
+        return value.Data.Int64;
+    } else if constexpr (physicalType == EValueType::Uint64) {
+        return value.Data.Uint64;
+    } else if constexpr (physicalType == EValueType::Double) {
+        return value.Data.Double;
+    } else if constexpr (physicalType == EValueType::Boolean) {
+        return value.Data.Boolean;
+    } else {
+        static_assert(physicalType == EValueType::String || physicalType == EValueType::Any);
+        return TStringBuf(value.Data.String, value.Length);
     }
 }
 
@@ -1048,42 +1025,52 @@ void ValidateValueType(const TUnversionedValue& value, const TColumnSchema& colu
         return;
     }
 
-    if (columnSchema.GetPhysicalType() != value.Type) {
-        if (*columnSchema.SimplifiedLogicalType() == ESimpleLogicalValueType::Any && typeAnyAcceptsAllValues) {
-            return;
-        }
-        THROW_ERROR_EXCEPTION(
-            EErrorCode::SchemaViolation,
-            "Invalid type of column %Qv: expected type %Qlv or %Qlv but got %Qlv",
-            columnSchema.Name(),
-            *columnSchema.LogicalType(),
-            EValueType::Null,
-            value.Type);
-    }
+    try {
+        switch (*columnSchema.SimplifiedLogicalType()) {
+            case ESimpleLogicalValueType::Null:
+                // this case should be handled before
+                if (value.Type != EValueType::Null) {
+                    ThrowInvalidColumnType(EValueType::Null, value.Type);
+                }
+                return;
+            case ESimpleLogicalValueType::Any:
+                if (!typeAnyAcceptsAllValues && value.Type != EValueType::Any) {
+                    ThrowInvalidColumnType(EValueType::Any, value.Type);
+                }
+                return;
 
-    switch (*columnSchema.SimplifiedLogicalType()) {
-        case ESimpleLogicalValueType::Int8:
-            ValidateIntegerRange<i8>(value, columnSchema.Name());
-            break;
-        case ESimpleLogicalValueType::Int16:
-            ValidateIntegerRange<i16>(value, columnSchema.Name());
-            break;
-        case ESimpleLogicalValueType::Int32:
-            ValidateIntegerRange<i32>(value, columnSchema.Name());
-            break;
-        case ESimpleLogicalValueType::Uint8:
-            ValidateIntegerRange<ui8>(value, columnSchema.Name());
-            break;
-        case ESimpleLogicalValueType::Uint16:
-            ValidateIntegerRange<ui16>(value, columnSchema.Name());
-            break;
-        case ESimpleLogicalValueType::Uint32:
-            ValidateIntegerRange<ui32>(value, columnSchema.Name());
-            break;
-        case ESimpleLogicalValueType::Utf8:
-            ValidateUtf8(value, columnSchema.Name());
-        default:
-            break;
+#define CASE(x) \
+        case x: \
+            ValidateSimpleLogicalType<x>(GetValue<x>(value)); \
+            return;
+
+            CASE(ESimpleLogicalValueType::Int64)
+            CASE(ESimpleLogicalValueType::Uint64)
+            CASE(ESimpleLogicalValueType::Double)
+            CASE(ESimpleLogicalValueType::Boolean)
+            CASE(ESimpleLogicalValueType::String)
+
+            CASE(ESimpleLogicalValueType::Int8)
+            CASE(ESimpleLogicalValueType::Int16)
+            CASE(ESimpleLogicalValueType::Int32)
+
+            CASE(ESimpleLogicalValueType::Uint8)
+            CASE(ESimpleLogicalValueType::Uint16)
+            CASE(ESimpleLogicalValueType::Uint32)
+
+            CASE(ESimpleLogicalValueType::Utf8)
+            CASE(ESimpleLogicalValueType::Date)
+            CASE(ESimpleLogicalValueType::Datetime)
+            CASE(ESimpleLogicalValueType::Timestamp)
+            CASE(ESimpleLogicalValueType::Interval)
+#undef CASE
+        }
+        YT_ABORT();
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation,
+            "Error validating column %Qv",
+            columnSchema.Name())
+            << ex;
     }
 }
 

@@ -4,6 +4,7 @@ from yt_commands import *
 import yt.environment.init_operation_archive as init_operation_archive
 
 import pytest
+from flaky import flaky
 
 import time
 
@@ -75,34 +76,28 @@ class TestGetJobStderr(YTEnvSetup):
             })
 
         job_id = wait_breakpoint()[0]
-        res = get_job_stderr(op.id, job_id)
-        assert res == "STDERR-OUTPUT\n"
+        wait(lambda: get_job_stderr(op.id, job_id) == "STDERR-OUTPUT\n")
         release_breakpoint()
         op.track()
         res = get_job_stderr(op.id, job_id)
         assert res == "STDERR-OUTPUT\n"
 
         clean_operations()
-        time.sleep(1)
 
-        res = get_job_stderr(op.id, job_id)
-        assert res == "STDERR-OUTPUT\n"
+        wait(lambda: get_job_stderr(op.id, job_id) == "STDERR-OUTPUT\n")
 
     @authors("ignat")
     def test_get_job_stderr(self):
         self.do_test_get_job_stderr()
 
+    # Remove flaky after YT-11074.
     @authors("ignat")
+    @flaky(max_runs=3)
     def test_get_job_stderr_without_cypress(self):
-        old_value = None
-        try:
-            instances = ls("//sys/controller_agents/instances")
-            old_value = get("//sys/controller_agents/instances/{}/orchid/controller_agent/config/enable_cypress_job_nodes".format(instances[0]))
-            set("//sys/controller_agents/config/enable_cypress_job_nodes", False, recursive=True)
-            self.do_test_get_job_stderr()
-        finally:
-            if old_value is not None:
-                set("//sys/controller_agents/config/enable_cypress_job_nodes", old_value, recursive=True)
+        instances = ls("//sys/controller_agents/instances")
+        old_value = get("//sys/controller_agents/instances/{}/orchid/controller_agent/config/enable_cypress_job_nodes".format(instances[0]))
+        set("//sys/controller_agents/config/enable_cypress_job_nodes", False, recursive=True)
+        self.do_test_get_job_stderr()
 
     @authors("ignat")
     def test_get_job_stderr_acl(self):
@@ -134,8 +129,8 @@ class TestGetJobStderr(YTEnvSetup):
             job_ids = wait_breakpoint(job_count=3)
             job_id = job_ids[0]
 
-            res = get_job_stderr(op.id, job_id, authenticated_user="u")
-            assert res == "STDERR-OUTPUT\n"
+            # We should use 'wait' since job can be still in prepare phase by the opinion of the node.
+            wait(lambda: get_job_stderr(op.id, job_id, authenticated_user="u") == "STDERR-OUTPUT\n")
             with pytest.raises(YtError):
                 get_job_stderr(op.id, job_id, authenticated_user="other")
 
@@ -144,11 +139,11 @@ class TestGetJobStderr(YTEnvSetup):
             release_breakpoint()
             op.track()
 
-            time.sleep(1)
+            def get_other_job_ids():
+                return __builtin__.set(ls(op.get_path() + "/jobs")) - __builtin__.set(job_ids)
 
-            other_job_ids = __builtin__.set(ls(op.get_path() + "/jobs")) - __builtin__.set(job_ids)
-            assert len(other_job_ids) == 1
-            other_job_id = list(other_job_ids)[0]
+            wait(lambda: len(get_other_job_ids()) == 1)
+            other_job_id = list(get_other_job_ids())[0]
 
             res = get_job_stderr(op.id, job_id, authenticated_user="u")
             assert res == "STDERR-OUTPUT\n"
@@ -158,10 +153,8 @@ class TestGetJobStderr(YTEnvSetup):
             get_job_stderr(op.id, job_id, authenticated_user="other")
 
             clean_operations()
-            time.sleep(1)
 
-            res = get_job_stderr(op.id, job_id, authenticated_user="u")
-            assert res == "STDERR-OUTPUT\n"
+            wait(lambda: get_job_stderr(op.id, job_id, authenticated_user="u") == "STDERR-OUTPUT\n")
             with pytest.raises(YtError):
                 get_job_stderr(op.id, job_id, authenticated_user="other")
 

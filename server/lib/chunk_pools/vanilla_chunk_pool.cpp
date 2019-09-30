@@ -2,9 +2,12 @@
 
 #include "job_manager.h"
 
+#include <yt/server/lib/controller_agent/serialize.h>
 #include <yt/server/lib/controller_agent/structs.h>
 
 #include <yt/core/misc/ref_tracked.h>
+
+#include <util/generic/cast.h>
 
 namespace NYT::NChunkPools {
 
@@ -20,11 +23,12 @@ class TVanillaChunkPool
     , public TRefTracked<TVanillaChunkPool>
 {
 public:
-    explicit TVanillaChunkPool(int jobCount)
+    explicit TVanillaChunkPool(const TVanillaChunkPoolOptions& options)
+        : RestartCompletedJobs_(options.RestartCompletedJobs)
     {
         // We use very small portion of job manager functionality. We fill it with dummy
         // jobs and make manager deal with extracting/completing/failing/aborting jobs for us.
-        for (int index = 0; index < jobCount; ++index) {
+        for (int index = 0; index < options.JobCount; ++index) {
             JobManager_->AddJob(std::make_unique<TJobStub>());
         }
     }
@@ -34,9 +38,10 @@ public:
 
     virtual void Persist(const TPersistenceContext& context) override
     {
-        using NYT::Persist;
-
         TChunkPoolOutputWithJobManagerBase::Persist(context);
+
+        using NYT::Persist;
+        Persist(context, RestartCompletedJobs_);
     }
 
     virtual bool IsCompleted() const override
@@ -50,6 +55,9 @@ public:
     {
         YT_VERIFY(jobSummary.InterruptReason == EInterruptReason::None);
         JobManager_->Completed(cookie, jobSummary.InterruptReason);
+        if (RestartCompletedJobs_) {
+            JobManager_->AddJob(std::make_unique<TJobStub>());
+        }
     }
 
     virtual TChunkStripeListPtr GetStripeList(IChunkPoolOutput::TCookie cookie) override
@@ -64,15 +72,16 @@ public:
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TVanillaChunkPool, 0x42439a0a);
+    bool RestartCompletedJobs_;
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TVanillaChunkPool);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IChunkPoolOutput> CreateVanillaChunkPool(int jobCount)
+std::unique_ptr<IChunkPoolOutput> CreateVanillaChunkPool(const TVanillaChunkPoolOptions& options)
 {
-    return std::make_unique<TVanillaChunkPool>(jobCount);
+    return std::make_unique<TVanillaChunkPool>(options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

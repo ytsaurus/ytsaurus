@@ -14,6 +14,7 @@ import pytest
 import gc
 import os
 import sys
+import glob
 import logging
 import resource
 import shutil
@@ -332,36 +333,26 @@ def is_gcc_build():
     svnrevision = subprocess.check_output([binary, "--svnrevision"])
     return "GCC" in svnrevision
 
+def check_root_privileges():
+    if arcadia_interop.yatest_common is not None:
+        pytest.skip("root is not available inside distbuild")
+
+    for binary in ["ytserver-exec", "ytserver-job-proxy", "ytserver-node",
+                   "ytserver-tools"]:
+        binary_path = find_executable(binary)
+        binary_stat = os.stat(binary_path)
+        if (binary_stat.st_mode & stat.S_ISUID) == 0:
+            pytest.fail('This test requires a suid bit set for "{}"'.format(binary))
+        if binary_stat.st_uid != 0:
+            pytest.fail('This test requires "{}" being owned by root'.format(binary))
 
 # doesn't work with @patch_porto_env_only on the same class, wrap each method
-def require_ytserver_root_privileges(func_or_class):
-    def check_root_privileges():
-        if arcadia_interop.yatest_common is not None:
-            pytest.skip("root is not available inside distbuild")
+def require_ytserver_root_privileges(func):
+    def wrap_func(self, *args, **kwargs):
+        check_root_privileges()
+        func(self, *args, **kwargs)
 
-        for binary in ["ytserver-exec", "ytserver-job-proxy", "ytserver-node",
-                       "ytserver-tools"]:
-            binary_path = find_executable(binary)
-            binary_stat = os.stat(binary_path)
-            if (binary_stat.st_mode & stat.S_ISUID) == 0:
-                pytest.fail('This test requires a suid bit set for "{}"'.format(binary))
-            if binary_stat.st_uid != 0:
-                pytest.fail('This test requires "{}" being owned by root'.format(binary))
-
-    if inspect.isclass(func_or_class):
-        class Wrap(func_or_class):
-            @classmethod
-            def setup_class(cls):
-                check_root_privileges()
-                func_or_class.setup_class()
-
-        return Wrap
-    else:
-        def wrap_func(self, *args, **kwargs):
-            check_root_privileges()
-            func_or_class(self, *args, **kwargs)
-
-        return wrap_func
+    return wrap_func
 
 
 def skip_if_rpc_driver_backend(func):
@@ -503,6 +494,10 @@ class YTEnvSetup(object):
     USE_DYNAMIC_TABLES = False
     USE_MASTER_CACHE = False
     ENABLE_BULK_INSERT = False
+    ENABLE_TMP_PORTAL = False
+    ENABLE_TABLET_BALANCER = False
+
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = False
 
     NUM_REMOTE_CLUSTERS = 0
 
@@ -555,6 +550,11 @@ class YTEnvSetup(object):
             cls.apply_config_patches,
             cluster_index=index)
 
+        if arcadia_interop.yatest_common is None:
+            capture_stderr_to_file = bool(int(os.environ.get("YT_CAPTURE_STDERR_TO_FILE", "0")))
+        else:
+            capture_stderr_to_file = True
+
         instance = YTInstance(
             path,
             master_count=cls.get_param("NUM_MASTERS", index),
@@ -578,7 +578,8 @@ class YTEnvSetup(object):
             modify_configs_func=modify_configs_func,
             cell_tag=index * 10,
             driver_backend=cls.get_param("DRIVER_BACKEND", index),
-            enable_structured_master_logging=True)
+            enable_structured_master_logging=True,
+            capture_stderr_to_file=capture_stderr_to_file)
 
         instance._cluster_name = cls.get_cluster_name(index)
 
@@ -595,36 +596,55 @@ class YTEnvSetup(object):
     def setup_class(cls, test_name=None, run_id=None):
         logging.basicConfig(level=logging.INFO)
 
-        prepare_yatest_environment()
+        if cls.get_param("REQUIRE_YTSERVER_ROOT_PRIVILEGES", False):
+            check_root_privileges()
+
+        # Initialize `cls` fields before actual setup to make teardown correct.
+
+        # TODO(ignat): Rename Env to env
+        cls.Env = None
+        cls.remote_envs = []
 
         if test_name is None:
             test_name = cls.__name__
         cls.test_name = test_name
-        path_to_test = os.path.join(SANDBOX_ROOTDIR, test_name)
 
-        # Should be set before env start for correct behaviour of teardown
         cls.liveness_checkers = []
 
-        cls.path_to_test = path_to_test
+        log_rotator = Checker(yt_commands.reopen_logs)
+        log_rotator.daemon = True
+        log_rotator.start()
+        cls.liveness_checkers.append(log_rotator)
+
+        prepare_yatest_environment() # It initializes SANDBOX_ROOTDIR
+        cls.path_to_test = os.path.join(SANDBOX_ROOTDIR, test_name)
+
         # For running in parallel
         if arcadia_interop.yatest_common is None:
             cls.run_id = "run_" + uuid.uuid4().hex[:8] if not run_id else run_id
-            cls.path_to_run = os.path.join(path_to_test, cls.run_id)
+            cls.path_to_run = os.path.join(cls.path_to_test, cls.run_id)
         else:
             cls.run_id = None
-            cls.path_to_run = path_to_test
+            cls.path_to_run = cls.path_to_test
 
-        primary_cluster_path = cls.path_to_run
+        cls.primary_cluster_path = cls.path_to_run
         if cls.NUM_REMOTE_CLUSTERS > 0:
-            primary_cluster_path = os.path.join(cls.path_to_run, "primary")
+            cls.primary_cluster_path = os.path.join(cls.path_to_run, "primary")
 
-        cls.Env = cls.create_yt_cluster_instance(0, primary_cluster_path)
-        cls.remote_envs = []  # TODO: Rename env
+        try:
+            cls.start_envs()
+        except:
+            cls.teardown_class()
+            raise
+
+    @classmethod
+    def start_envs(cls):
+        cls.Env = cls.create_yt_cluster_instance(0, cls.primary_cluster_path)
         for cluster_index in xrange(1, cls.NUM_REMOTE_CLUSTERS + 1):
             cluster_path = os.path.join(cls.path_to_run, cls.get_cluster_name(cluster_index))
             cls.remote_envs.append(cls.create_yt_cluster_instance(cluster_index, cluster_path))
 
-        latest_run_path = os.path.join(path_to_test, "run_latest")
+        latest_run_path = os.path.join(cls.path_to_test, "run_latest")
         if os.path.exists(latest_run_path):
             os.remove(latest_run_path)
         os.symlink(cls.path_to_run, latest_run_path)
@@ -669,7 +689,6 @@ class YTEnvSetup(object):
 
             sleep(1.0)
 
-        # XXX(babenko): portals
         if yt_commands.is_multicell:
             yt_commands.remove("//sys/operations")
             yt_commands.create("portal_entrance", "//sys/operations", attributes={"exit_cell_tag": 1})
@@ -726,6 +745,8 @@ class YTEnvSetup(object):
             map(lambda c: c.stop(), cls.liveness_checkers)
 
         for env in [cls.Env] + cls.remote_envs:
+            if env is None:
+                continue
             env.stop()
             env.kill_cgroups()
 
@@ -774,6 +795,10 @@ class YTEnvSetup(object):
             if os.path.exists(destination_path):
                 shutil.rmtree(destination_path)
 
+            runtime_data = [os.path.join(cls.path_to_run, "runtime_data")] + glob.glob(cls.path_to_run + "/*/runtime_data")
+            for dir in runtime_data:
+                if os.path.exists(dir):
+                    shutil.rmtree(dir)
             shutil.move(cls.path_to_run, destination_path)
 
 
@@ -787,12 +812,40 @@ class YTEnvSetup(object):
             if cls.USE_DYNAMIC_TABLES:
                 yt_commands.set("//sys/@config/tablet_manager/tablet_balancer/tablet_balancer_schedule", "1", driver=driver)
                 yt_commands.set("//sys/@config/tablet_manager/tablet_cell_balancer/enable_verbose_logging", True, driver=driver)
+                yt_commands.set(
+                    "//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer",
+                    cls.ENABLE_TABLET_BALANCER,
+                    driver=driver)
+
 
             if cls.ENABLE_BULK_INSERT:
                 yt_commands.set("//sys/@config/tablet_manager/enable_bulk_insert", True, driver=driver)
 
             yt_commands.wait_for_nodes(driver=driver)
             yt_commands.wait_for_chunk_replicator(driver=driver)
+
+            if cls.get_param("NUM_SCHEDULERS", cluster_index) > 0:
+                yt_commands.create("document", "//sys/controller_agents/config", attributes={"value": {}}, force=True, driver=driver)
+                yt_commands.create("document", "//sys/scheduler/config", attributes={"value": {}}, force=True, driver=driver)
+
+            if cls.ENABLE_TMP_PORTAL and cluster_index == 0:
+                yt_commands.create("portal_entrance", "//tmp",
+                    attributes={
+                        "account": "tmp",
+                        "exit_cell_tag": 1,
+                        "acl": [{"action": "allow", "permissions": ["read", "write", "remove"], "subjects": ["users"]}],
+                    },
+                    force=True,
+                    driver=driver)
+            else:
+                yt_commands.create("map_node", "//tmp",
+                    attributes={
+                        "account": "tmp",
+                        "acl": [{"action": "allow", "permissions": ["read", "write", "remove"], "subjects": ["users"]}],
+                        "opaque": True
+                    },
+                    force=True,
+                    driver=driver)
 
     @classmethod
     def _teardown_method(cls):
@@ -811,17 +864,16 @@ class YTEnvSetup(object):
             if cls.get_param("NUM_SCHEDULERS", cluster_index) > 0:
                 _remove_operations(driver=driver)
                 _wait_for_jobs_to_vanish(driver=driver)
+                # TODO(ignat): wait that empty configs are really loaded by tests.
+                yt_commands.remove("//sys/scheduler/config", force=True, driver=driver)
+                yt_commands.remove("//sys/controller_agents/config", force=True, driver=driver)
 
             _abort_transactions(driver=driver)
 
-            yt_commands.create("map_node", "//tmp",
-                attributes={
-                    "account": "tmp",
-                    "acl": [{"action": "allow", "permissions": ["read", "write", "remove"], "subjects": ["users"]}],
-                    "opaque": True
-                },
-                force=True,
-                driver=driver)
+            yt_commands.remove("//tmp", driver=driver)
+            if cls.ENABLE_TMP_PORTAL:
+                # XXX(babenko): portals
+                wait(lambda: not yt_commands.exists("//tmp&", driver=driver))
 
             yt_commands.gc_collect(driver=driver)
 

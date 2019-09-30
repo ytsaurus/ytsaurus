@@ -40,6 +40,7 @@ public:
     // IObjectProxy members
     virtual TObjectId GetId() const override;
     virtual TObject* GetObject() const override;
+    virtual NTransactionServer::TTransaction* GetTransaction() const override;
     virtual const NYTree::IAttributeDictionary& Attributes() const override;
     virtual NYTree::IAttributeDictionary* MutableAttributes() override;
     virtual void Invoke(const NRpc::IServiceContextPtr& context) override;
@@ -59,6 +60,7 @@ protected:
     {
         std::optional<NYTree::EPermission> Permission;
         TCellTag ExternalCellTag = NObjectClient::InvalidCellTag;
+        NTransactionClient::TTransactionId ExternalTransactionId;
         std::optional<std::vector<TString>> Columns;
         bool OmitInaccessibleColumns = false;
         std::optional<std::vector<TString>> OmittedInaccessibleColumns;
@@ -93,7 +95,7 @@ protected:
         TRspRemove* response,
         const TCtxRemovePtr& context) override;
 
-    void ReplicateAttributeUpdate(NRpc::IServiceContextPtr context);
+    void ReplicateAttributeUpdate(const NRpc::IServiceContextPtr& context);
 
     virtual NYTree::IAttributeDictionary* GetCustomAttributes() override;
     virtual NYTree::ISystemAttributeProvider* GetBuiltinAttributeProvider() override;
@@ -136,6 +138,8 @@ protected:
         TObject* object,
         NYTree::EPermission permission);
 
+    void ValidateAnnotation(const TString& annotation);
+
     bool IsRecovery() const;
     bool IsLeader() const;
     bool IsFollower() const;
@@ -147,11 +151,11 @@ protected:
     //! Posts the request to all secondary masters.
     void PostToSecondaryMasters(NRpc::IServiceContextPtr context);
 
-    //! Posts the request to given masters.
-    void PostToMasters(NRpc::IServiceContextPtr context, const TCellTagList& cellTags);
+    //! Posts the request to given masters externalizing the transaction if needed.
+    void ExternalizeToMasters(NRpc::IServiceContextPtr context, const TCellTagList& cellTags);
 
-    //! Posts the request to a given master, either primary or secondary.
-    void PostToMaster(NRpc::IServiceContextPtr context, TCellTag cellTag);
+    //! Posts the request to a given master externalizing the transaction if needed.
+    void ExternalizeToMaster(NRpc::IServiceContextPtr context, TCellTag cellTag);
 
     const NCypressServer::TDynamicCypressManagerConfigPtr& GetDynamicCypressManagerConfig() const;
 };
@@ -175,7 +179,8 @@ protected:
         explicit TCustomAttributeDictionary(TNontemplateNonversionedObjectProxyBase* proxy);
 
         // IAttributeDictionary members
-        virtual std::vector<TString> List() const override;
+        virtual std::vector<TString> ListKeys() const override;
+        virtual std::vector<TKeyValuePair> ListPairs() const override;
         virtual NYson::TYsonString FindYson(const TString& key) const override;
         virtual void SetYson(const TString& key, const NYson::TYsonString& value) override;
         virtual bool Remove(const TString& key) override;

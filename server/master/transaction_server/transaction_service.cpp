@@ -7,14 +7,20 @@
 
 #include <yt/server/master/transaction_server/proto/transaction_manager.pb.h>
 
+#include <yt/server/lib/hive/hive_manager.h>
+
 #include <yt/ytlib/transaction_client/transaction_service_proxy.h>
+
+#include <yt/client/object_client/helpers.h>
 
 namespace NYT::NTransactionServer {
 
 using namespace NRpc;
 using namespace NTransactionClient;
+using namespace NObjectClient;
 using namespace NHydra;
 using namespace NCellMaster;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,7 +68,7 @@ private:
         hydraRequest.set_user_name(context->GetUser());
         hydraRequest.mutable_hint_id()->Swap(request->mutable_hint_id());
         hydraRequest.mutable_replicate_to_cell_tags()->Swap(request->mutable_replicate_to_cell_tags());
-
+        hydraRequest.set_dont_replicate(request->dont_replicate());
         if (title) {
             hydraRequest.set_title(*title);
         }
@@ -77,14 +83,18 @@ private:
     {
         ValidatePeer(EPeerKind::Leader);
 
-        // Wait for transaction to appear on secondary master.
-        SyncWithUpstream();
-
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
         context->SetRequestInfo("TransactionId: %v, ActionCount: %v",
             transactionId,
             request->actions_size());
+
+        auto cellTag = CellTagFromId(transactionId);
+        auto cellId = Bootstrap_->GetCellId(cellTag);
+
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
+        WaitFor(hiveManager->SyncWith(cellId, true))
+            .ThrowOnError();
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager

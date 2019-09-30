@@ -2792,50 +2792,53 @@ std::pair<size_t, size_t> MakeCodegenGroupOp(
                     groupValues,
                     newValuesRef);
 
-                CodegenIf<TCGContext>(
-                    builder,
-                    inserted,
-                    [&] (TCGContext& builder) {
-                        for (int index = 0; index < codegenAggregates.size(); index++) {
-                            codegenAggregates[index].Initialize(builder, bufferRef)
-                                .StoreToValues(builder, groupValues, keySize + index);
-                        }
+                CodegenIf<TCGContext>(builder, inserted, [&] (TCGContext& builder) {
+                    for (int index = 0; index < codegenAggregates.size(); index++) {
+                        codegenAggregates[index].Initialize(builder, bufferRef)
+                            .StoreToValues(builder, groupValues, keySize + index);
+                    }
 
-                        builder->CreateCall(
-                            builder.Module->GetRoutine("AllocatePermanentRow"),
-                            {
-                                builder.GetExecutionContext(),
-                                bufferRef,
-                                builder->getInt32(groupRowSize),
-                                newValuesPtrRef
-                            });
-                    });
+                    builder->CreateCall(
+                        builder.Module->GetRoutine("AllocatePermanentRow"),
+                        {
+                            builder.GetExecutionContext(),
+                            bufferRef,
+                            builder->getInt32(groupRowSize),
+                            newValuesPtrRef
+                        });
+                });
 
                 // Here *newRowPtrRef != groupRow.
-                for (int index = 0; index < codegenAggregates.size(); index++) {
-                    auto aggState = TCGValue::CreateFromRowValues(
-                        builder,
-                        groupValues,
-                        keySize + index,
-                        stateTypes[index]);
 
-                    auto newValue = !isMerge
-                        ? CodegenFragment(innerBuilder, aggregateExprIds[index])
-                        : TCGValue::CreateFromRowValues(
+                // Rows over limit are skipped
+                auto notSkip = builder->CreateIsNotNull(groupValues);
+
+                CodegenIf<TCGContext>(builder, notSkip, [&] (TCGContext& builder) {
+                    for (int index = 0; index < codegenAggregates.size(); index++) {
+                        auto aggState = TCGValue::CreateFromRowValues(
                             builder,
-                            innerBuilder.RowValues,
+                            groupValues,
                             keySize + index,
                             stateTypes[index]);
 
-                    TCodegenAggregateUpdate updateFunction;
-                    if (isMerge) {
-                        updateFunction = codegenAggregates[index].Merge;
-                    } else {
-                        updateFunction = codegenAggregates[index].Update;
+                        auto newValue = !isMerge
+                            ? CodegenFragment(innerBuilder, aggregateExprIds[index])
+                            : TCGValue::CreateFromRowValues(
+                                builder,
+                                innerBuilder.RowValues,
+                                keySize + index,
+                                stateTypes[index]);
+
+                        TCodegenAggregateUpdate updateFunction;
+                        if (isMerge) {
+                            updateFunction = codegenAggregates[index].Merge;
+                        } else {
+                            updateFunction = codegenAggregates[index].Update;
+                        }
+                        updateFunction(builder, bufferRef, aggState, newValue)
+                            .StoreToValues(builder, groupValues, keySize + index);
                     }
-                    updateFunction(builder, bufferRef, aggState, newValue)
-                        .StoreToValues(builder, groupValues, keySize + index);
-                }
+                });
             };
 
             codegenSource(builder);
@@ -2886,6 +2889,7 @@ std::pair<size_t, size_t> MakeCodegenGroupOp(
                 comparerManager->GetHasher(keyTypes, builder.Module, commonPrefixWithPrimaryKey, keyTypes.size()),
                 comparerManager->GetEqComparer(keyTypes, builder.Module, commonPrefixWithPrimaryKey, keyTypes.size()),
                 builder->getInt32(keyTypes.size()),
+                builder->getInt32(stateTypes.size()),
                 builder->getInt8(checkNulls),
 
                 collect.ClosurePtr,
@@ -3064,11 +3068,13 @@ size_t MakeCodegenOrderOp(
 void MakeCodegenWriteOp(
     TCodegenSource* codegenSource,
     size_t producerSlot,
-    size_t rowSize)
+    size_t rowSize,
+    bool considerLimit)
 {
     *codegenSource = [
         producerSlot,
         rowSize,
+        considerLimit,
         codegenSource = std::move(*codegenSource)
     ] (TCGOperatorContext& builder) {
         auto collect = MakeClosure<void(TWriteOpClosure*)>(builder, "WriteOpInner", [&] (
@@ -3092,6 +3098,7 @@ void MakeCodegenWriteOp(
             {
                 builder.GetExecutionContext(),
                 builder->getInt64(rowSize),
+                builder->getInt8(considerLimit),
                 collect.ClosurePtr,
                 collect.Function
             });

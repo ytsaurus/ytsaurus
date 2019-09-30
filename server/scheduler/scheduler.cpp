@@ -185,6 +185,8 @@ public:
             CancelableNodeShardInvokers_.push_back(GetNullInvoker());
         }
 
+        HandleNodeIdChangesStrictly_ = Config_->HandleNodeIdChangesStrictly;
+
         OperationsCleaner_ = New<TOperationsCleaner>(Config_->OperationsCleaner, this, Bootstrap_);
 
         OperationsCleaner_->SubscribeOperationsArchived(BIND(&TImpl::OnOperationsArchived, MakeWeak(this)));
@@ -254,7 +256,7 @@ public:
         MasterConnector_->Start();
 
         ProfilingExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetControlInvoker(EControlQueue::CollectProfiling),
+            Bootstrap_->GetControlInvoker(EControlQueue::SchedulerProfiling),
             BIND(&TImpl::OnProfiling, MakeWeak(this)),
             Config_->ProfilingUpdatePeriod);
         ProfilingExecutor_->Start();
@@ -279,6 +281,12 @@ public:
             BIND(&TImpl::OnNodesInfoLogging, MakeWeak(this)),
             Config_->NodesInfoLoggingPeriod);
         NodesInfoLoggingExecutor_->Start();
+
+        ValidateNodeTagsExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
+            BIND(&TImpl::ValidateNodeTags, MakeWeak(this)),
+            Config_->ValidateNodeTagsPeriod);
+        ValidateNodeTagsExecutor_->Start();
 
         UpdateExecNodeDescriptorsExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
@@ -490,7 +498,7 @@ public:
             path);
 
         const auto& client = GetMasterClient();
-        auto result = WaitFor(client->CheckPermission(user, GetPoolTreesPath() + path, permission))
+        auto result = WaitFor(client->CheckPermission(user, Config_->PoolTreesRoot + path, permission))
             .ValueOrThrow();
         if (result.Action == ESecurityAction::Deny) {
             THROW_ERROR_EXCEPTION(
@@ -567,8 +575,8 @@ public:
             EObjectType::Operation,
             GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellTag());
 
-        auto runtimeParams = New<TOperationRuntimeParameters>();
-        Strategy_->InitOperationRuntimeParameters(runtimeParams, spec, baseAcl, user, type);
+        auto runtimeParameters = New<TOperationRuntimeParameters>();
+        Strategy_->InitOperationRuntimeParameters(runtimeParameters, spec, baseAcl, user, type);
 
         auto annotations = parseSpecResult.SpecNode->FindChild("annotations");
 
@@ -581,7 +589,7 @@ public:
             std::move(parseSpecResult.SpecString),
             annotations ? annotations->AsMap() : nullptr,
             secureVault,
-            runtimeParams,
+            runtimeParameters,
             std::move(baseAcl),
             user,
             TInstant::Now(),
@@ -965,7 +973,32 @@ public:
         auto* request = &context->Request();
         auto nodeId = request->node_id();
 
-        // We extract operation states here as they may be accessed only from
+        TFuture<void> unregisterFuture;
+
+        if (HandleNodeIdChangesStrictly_)
+        {
+            auto guard = Guard(NodeAddressToNodeShardIdLock_);
+
+            auto descriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
+            const auto& address = descriptor.GetDefaultAddress();
+            auto it = NodeAddressToNodeShardId_.find(address);
+            if (it != NodeAddressToNodeShardId_.end()) {
+                int oldNodeId = it->second;
+                if (nodeId != oldNodeId) {
+                    auto nodeShard = GetNodeShard(oldNodeId);
+                    unregisterFuture =
+                        BIND(&TNodeShard::UnregisterAndRemoveNodeById, GetNodeShard(oldNodeId), oldNodeId)
+                            .AsyncVia(nodeShard->GetInvoker())
+                            .Run();
+                }
+            }
+            NodeAddressToNodeShardId_[address] = nodeId;
+        }
+
+        if (unregisterFuture) {
+            WaitFor(unregisterFuture)
+                .ThrowOnError();
+        }
 
         const auto& nodeShard = GetNodeShard(nodeId);
         nodeShard->GetInvoker()->Invoke(BIND(&TNodeShard::ProcessHeartbeat, nodeShard, context));
@@ -1099,14 +1132,14 @@ public:
         return it->second.Address;
     }
 
-    virtual IInvokerPtr GetControlInvoker(EControlQueue queue) const
+    virtual IInvokerPtr GetControlInvoker(EControlQueue queue) const override
     {
         return Bootstrap_->GetControlInvoker(queue);
     }
 
-    virtual IInvokerPtr GetProfilingInvoker() const override
+    virtual IInvokerPtr GetFairShareProfilingInvoker() const override
     {
-        return ProfilingActionQueue_->GetInvoker();
+        return FairShareProfilingActionQueue_->GetInvoker();
     }
 
     virtual IInvokerPtr GetFairShareUpdateInvoker() const override
@@ -1158,7 +1191,48 @@ public:
                     NodeIdToInfo_.erase(it);
                     YT_LOG_INFO("Node unregistered from scheduler (Address: %v)", nodeAddress);
                 }
+                NodeIdsWithoutTree_.erase(nodeId);
             }));
+    }
+
+    void DoValidateNode(TNodeId nodeId, const TString& address, const THashSet<TString>& tags)
+    {
+        int treeCount;
+        Strategy_->ValidateNodeTags(tags, &treeCount);
+
+        if (treeCount == 1) {
+            NodeIdsWithoutTree_.erase(nodeId);
+        } else if (treeCount == 0) {
+            NodeIdsWithoutTree_.insert(nodeId);
+        }
+    }
+
+    void ProcessNodesWithoutPoolTreeAlert()
+    {
+        if (NodeIdsWithoutTree_.empty()) {
+            SetSchedulerAlert(ESchedulerAlertType::NodesWithoutPoolTree, TError());
+        } else {
+            std::vector<TString> nodeAddresses;
+            int nodeCount = 0;
+            bool truncated = false;
+            for (auto nodeId : NodeIdsWithoutTree_) {
+                nodeCount++;
+                if (nodeCount > MaxNodesWithoutPoolTreeToAlert) {
+                    truncated = true;
+                    break;
+                }
+                auto nodeIt = NodeIdToInfo_.find(nodeId);
+                YT_VERIFY(nodeIt != NodeIdToInfo_.end());
+                nodeAddresses.push_back(nodeIt->second.Address);
+            }
+
+            SetSchedulerAlert(
+                ESchedulerAlertType::NodesWithoutPoolTree,
+                TError("Found nodes that do not match any pool tree")
+                    << TErrorAttribute("node_addresses", nodeAddresses)
+                    << TErrorAttribute("truncated", truncated)
+                    << TErrorAttribute("node_count", NodeIdsWithoutTree_.size()));
+        }
     }
 
     void DoRegisterOrUpdateNode(
@@ -1168,7 +1242,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        Strategy_->ValidateNodeTags(tags);
+        DoValidateNode(nodeId, nodeAddress, tags);
 
         auto it = NodeIdToInfo_.find(nodeId);
         if (it == NodeIdToInfo_.end()) {
@@ -1182,6 +1256,21 @@ public:
                 nodeAddress,
                 tags);
         }
+
+        ProcessNodesWithoutPoolTreeAlert();
+    }
+
+    void ValidateNodeTags()
+    {
+        for (const auto& [nodeId, nodeInfo] : NodeIdToInfo_) {
+            try {
+                DoValidateNode(nodeId, nodeInfo.Address, nodeInfo.Tags);
+            } catch (const std::exception& ex) {
+                YT_LOG_FATAL(ex, "Found invalid node that belongs to multiple pool trees");
+                YT_ABORT();
+            }
+        }
+        ProcessNodesWithoutPoolTreeAlert();
     }
 
     virtual const ISchedulerStrategyPtr& GetStrategy() const override
@@ -1250,8 +1339,8 @@ private:
     TOperationsCleanerPtr OperationsCleaner_;
 
     const TThreadPoolPtr OrchidWorkerPool_;
-    const TActionQueuePtr ProfilingActionQueue_ = New<TActionQueue>("ProfilingWorker");
-    const TActionQueuePtr FairShareUpdateActionQueue_ = New<TActionQueue>("FairShareUpdate");
+    const TActionQueuePtr FairShareProfilingActionQueue_ = New<TActionQueue>("FSProfiling");
+    const TActionQueuePtr FairShareUpdateActionQueue_ = New<TActionQueue>("FSUpdate");
 
     ISchedulerStrategyPtr Strategy_;
 
@@ -1283,6 +1372,7 @@ private:
     TPeriodicExecutorPtr ProfilingExecutor_;
     TPeriodicExecutorPtr ClusterInfoLoggingExecutor_;
     TPeriodicExecutorPtr NodesInfoLoggingExecutor_;
+    TPeriodicExecutorPtr ValidateNodeTagsExecutor_;
     TPeriodicExecutorPtr UpdateExecNodeDescriptorsExecutor_;
     TPeriodicExecutorPtr JobReporterWriteFailuresChecker_;
     TPeriodicExecutorPtr StrategyUnschedulableOperationsChecker_;
@@ -1306,6 +1396,12 @@ private:
     };
 
     THashMap<TNodeId, TExecNodeInfo> NodeIdToInfo_;
+    THashSet<TNodeId> NodeIdsWithoutTree_;
+
+    // Special map to support node consistency between node shards YT-11381.
+    std::atomic<bool> HandleNodeIdChangesStrictly_;
+    TSpinLock NodeAddressToNodeShardIdLock_;
+    THashMap<TString, int> NodeAddressToNodeShardId_;
 
     THashMap<TSchedulingTagFilter, std::pair<TCpuInstant, TJobResources>> CachedResourceLimitsByTags_;
 
@@ -1766,7 +1862,7 @@ private:
 
         YT_LOG_INFO("Requesting pool trees");
 
-        auto req = TYPathProxy::Get(GetPoolTreesPath());
+        auto req = TYPathProxy::Get(Config_->PoolTreesRoot);
         ToProto(req->mutable_attributes()->mutable_keys(), PoolTreeKeysHolder.Keys);
         batchReq->AddRequest(req, "get_pool_trees");
     }
@@ -1821,27 +1917,41 @@ private:
             const auto& rsp = rspOrError.Value();
             auto nodesList = ConvertToNode(TYsonString(rsp->value()))->AsList();
             std::vector<std::vector<std::pair<TString, INodePtr>>> nodesForShard(NodeShards_.size());
-            std::vector<TFuture<std::vector<TError>>> shardFutures;
+            std::vector<std::vector<TString>> nodeAddressesForShard(NodeShards_.size());
+
             for (const auto& child : nodesList->GetChildren()) {
                 auto address = child->GetValue<TString>();
                 auto objectId = child->Attributes().Get<TObjectId>("id");
                 auto nodeId = NodeIdFromObjectId(objectId);
                 auto nodeShardId = GetNodeShardId(nodeId);
+                nodeAddressesForShard[nodeShardId].push_back(address);
                 nodesForShard[nodeShardId].emplace_back(address, child);
             }
 
+            std::vector<TFuture<void>> removeFutures;
             for (int i = 0 ; i < NodeShards_.size(); ++i) {
                 auto& nodeShard = NodeShards_[i];
-                shardFutures.push_back(
+                removeFutures.push_back(
+                    BIND(&TNodeShard::RemoveMissingNodes, nodeShard)
+                        .AsyncVia(nodeShard->GetInvoker())
+                        .Run(std::move(nodeAddressesForShard[i])));
+            }
+            WaitFor(Combine(removeFutures))
+                .ThrowOnError();
+
+            std::vector<TFuture<std::vector<TError>>> handleFutures;
+            for (int i = 0 ; i < NodeShards_.size(); ++i) {
+                auto& nodeShard = NodeShards_[i];
+                handleFutures.push_back(
                     BIND(&TNodeShard::HandleNodesAttributes, nodeShard)
                         .AsyncVia(nodeShard->GetInvoker())
                         .Run(std::move(nodesForShard[i])));
             }
-            auto shardsErrors = WaitFor(Combine(shardFutures))
+            auto handleErrors = WaitFor(Combine(handleFutures))
                 .ValueOrThrow();
 
             std::vector<TError> allErrors;
-            for (auto& errors : shardsErrors) {
+            for (auto& errors : handleErrors) {
                 for (auto& error : errors) {
                     allErrors.emplace_back(std::move(error));
                 }
@@ -1948,6 +2058,8 @@ private:
             Config_ = newConfig;
             ValidateConfig();
 
+            HandleNodeIdChangesStrictly_ = Config_->HandleNodeIdChangesStrictly;
+
             SpecTemplate_ = CloneNode(Config_->SpecTemplate);
 
             for (const auto& nodeShard : NodeShards_) {
@@ -1963,6 +2075,7 @@ private:
             ProfilingExecutor_->SetPeriod(Config_->ProfilingUpdatePeriod);
             ClusterInfoLoggingExecutor_->SetPeriod(Config_->ClusterInfoLoggingPeriod);
             NodesInfoLoggingExecutor_->SetPeriod(Config_->NodesInfoLoggingPeriod);
+            ValidateNodeTagsExecutor_->SetPeriod(Config_->ValidateNodeTagsPeriod);
             UpdateExecNodeDescriptorsExecutor_->SetPeriod(Config_->ExecNodeDescriptorsUpdatePeriod);
             JobReporterWriteFailuresChecker_->SetPeriod(Config_->JobReporterIssuesCheckPeriod);
             StrategyUnschedulableOperationsChecker_->SetPeriod(Config_->OperationUnschedulableCheckPeriod);
@@ -2145,13 +2258,12 @@ private:
 
             auto poolLimitViolations = Strategy_->GetPoolLimitViolations(operation.Get(), operation->GetRuntimeParameters());
 
-            const auto& spec = operation->Spec();
             std::vector<TString> erasedTrees;
             for (const auto& [treeId, error] : poolLimitViolations) {
-                if (spec->TentativePoolTrees && spec->TentativePoolTrees->contains(treeId)) {
+                if (GetSchedulingOptionsPerPoolTree(operation.Get(), treeId)->Tentative) {
                     YT_LOG_INFO(
                         error,
-                        "Tree is erased for operation since pool limits violations (OperationId: %v)",
+                        "Tree is erased for operation since pool limits are violated (OperationId: %v)",
                         operation->GetId());
                     erasedTrees.push_back(treeId);
                     // No need to throw now.
@@ -2451,7 +2563,7 @@ private:
         operation->SetController(controller);
 
         Strategy_->RegisterOperation(operation.Get());
-        operation->PoolTreeToSchedulingTagFilter() = Strategy_->GetOperationPoolTreeToSchedulingTagFilter(operation->GetId());
+        operation->PoolTreeControllerSettingsMap() = Strategy_->GetOperationPoolTreeControllerSettingsMap(operation->GetId());
 
         for (const auto& nodeShard : NodeShards_) {
             nodeShard->GetInvoker()->Invoke(BIND(

@@ -38,6 +38,7 @@ DEFINE_ENUM(ESchedulerAlertType,
     ((OperationsArchivation)                        (6))
     ((JobsArchivation)                              (7))
     ((UpdateNodesFailed)                            (8))
+    ((NodesWithoutPoolTree)                         (9))
 );
 
 DEFINE_ENUM(EOperationAlertType,
@@ -94,7 +95,7 @@ DEFINE_ENUM(EControlQueue,
     (MasterConnector)
     (Orchid)
     (PeriodicActivity)
-    (CollectProfiling)
+    (SchedulerProfiling)
     (Operation)
     (AgentTracker)
     (NodeTracker)
@@ -136,8 +137,6 @@ DECLARE_REFCOUNTED_STRUCT(TControllerScheduleJobResult)
 
 struct TJobStartDescriptor;
 struct TOperationControllerInitializeAttributes;
-
-using TPoolTreeToSchedulingTagFilter = THashMap<TString, TSchedulingTagFilter>;
 
 using TIncarnationId = TGuid;
 using TAgentId = TString;

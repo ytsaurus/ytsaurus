@@ -93,7 +93,17 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
     Save(context, WriteQuorum_);
     Save(context, GetErasureCodec());
     Save(context, GetMovable());
-    Save(context, Parents_);
+    {
+        // COMPAT(shakurov)
+        SmallVector<TChunkTree*, TypicalChunkParentCount> parents;
+        for (const auto& [chunkTree, refCount] : Parents_) {
+            for (auto i = 0; i < refCount; ++i) {
+                parents.push_back(chunkTree);
+            }
+        }
+        std::sort(parents.begin(), parents.end(), TObjectRefComparer::Compare);
+        Save(context, parents);
+    }
     Save(context, ExpirationTime_);
     if (ReplicasData_) {
         Save(context, true);
@@ -131,9 +141,15 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
 
     if (context.GetVersion() < EMasterReign::ChunkViewToParentsArray) {
         auto parents = Load<std::vector<TChunkList*>>(context);
-        Parents_.insert(Parents_.end(), parents.begin(), parents.end());
+        for (auto* parent : parents) {
+            ++Parents_[parent];
+        }
     } else {
-        Load(context, Parents_);
+        // COMPAT(shakurov)
+        auto parents = Load<SmallVector<TChunkTree*, TypicalChunkParentCount>>(context);
+        for (auto* parent : parents) {
+            ++Parents_[parent];
+        }
     }
 
     // COMPAT(shakurov)
@@ -168,14 +184,30 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
 
 void TChunk::AddParent(TChunkTree* parent)
 {
-    Parents_.push_back(parent);
+    ++Parents_[parent];
 }
 
 void TChunk::RemoveParent(TChunkTree* parent)
 {
-    auto it = std::find(Parents_.begin(), Parents_.end(), parent);
+    auto it = Parents_.find(parent);
     YT_VERIFY(it != Parents_.end());
-    Parents_.erase(it);
+    if (--it->second == 0) {
+        Parents_.erase(it);
+    }
+}
+
+int TChunk::GetParentCount() const
+{
+    auto result = 0;
+    for (auto [parent, cardinality] : Parents_) {
+        result += cardinality;
+    }
+    return result;
+}
+
+bool TChunk::HasParents() const
+{
+    return !Parents_.empty();
 }
 
 void TChunk::AddReplica(TNodePtrWithIndexes replica, const TMedium* medium)

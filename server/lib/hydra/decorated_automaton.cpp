@@ -35,6 +35,8 @@
 
 #include <util/system/file.h>
 
+#include <algorithm> // for std::max
+
 namespace NYT::NHydra {
 
 using namespace NConcurrency;
@@ -204,10 +206,12 @@ class TDecoratedAutomaton::TSnapshotBuilderBase
 public:
     TSnapshotBuilderBase(
         TDecoratedAutomatonPtr owner,
-        TVersion snapshotVersion)
+        TVersion snapshotVersion,
+        TDuration buildSnapshotDelay)
         : Owner_(owner)
         , SnapshotVersion_(snapshotVersion)
         , SnapshotId_(SnapshotVersion_.SegmentId + 1)
+        , BuildSnapshotDelay_(buildSnapshotDelay)
     {
         Logger = Owner_->Logger;
     }
@@ -231,6 +235,12 @@ public:
 
             SnapshotWriter_ = Owner_->SnapshotStore_->CreateWriter(SnapshotId_, meta);
 
+            if (BuildSnapshotDelay_ != TDuration::Zero()) {
+                YT_LOG_DEBUG("Working in testing mode, sleeping (BuildSnapshotDelay: %v)", BuildSnapshotDelay_);
+                // NB: Sleep, not TDelayedExecutor::WaitForDuration since context switch could be forbidden.
+                Sleep(BuildSnapshotDelay_);
+            }
+
             return DoRun().Apply(
                 BIND(&TSnapshotBuilderBase::OnFinished, MakeStrong(this))
                     .AsyncVia(GetHydraIOInvoker()));
@@ -240,10 +250,18 @@ public:
         }
     }
 
+    int GetSnapshotId() const
+    {
+        return SnapshotId_;
+    }
+
 protected:
     const TDecoratedAutomatonPtr Owner_;
     const TVersion SnapshotVersion_;
     const int SnapshotId_;
+
+    // For testing.
+    const TDuration BuildSnapshotDelay_;
 
     ISnapshotWriterPtr SnapshotWriter_;
 
@@ -252,7 +270,8 @@ protected:
 
     void TryAcquireLock()
     {
-        if (Owner_->BuildingSnapshot_.test_and_set()) {
+        bool expected = false;
+        if (!Owner_->BuildingSnapshot_.compare_exchange_strong(expected, true)) {
             THROW_ERROR_EXCEPTION("Cannot start building snapshot %v since another snapshot is still being constructed",
                 SnapshotId_);
         }
@@ -264,7 +283,7 @@ protected:
     void ReleaseLock()
     {
         if (LockAcquired_) {
-            Owner_->BuildingSnapshot_.clear();
+            Owner_->BuildingSnapshot_.store(false);
             LockAcquired_ = false;
 
             YT_LOG_INFO("Snapshot builder lock released");
@@ -300,8 +319,9 @@ class TDecoratedAutomaton::TForkSnapshotBuilder
 public:
     TForkSnapshotBuilder(
         TDecoratedAutomatonPtr owner,
-        TVersion snapshotVersion)
-        : TDecoratedAutomaton::TSnapshotBuilderBase(owner, snapshotVersion)
+        TVersion snapshotVersion,
+        TDuration buildSnapshotDelay)
+        : TDecoratedAutomaton::TSnapshotBuilderBase(owner, snapshotVersion, buildSnapshotDelay)
     { }
 
 private:
@@ -519,8 +539,9 @@ class TDecoratedAutomaton::TNoForkSnapshotBuilder
 public:
     TNoForkSnapshotBuilder(
         TDecoratedAutomatonPtr owner,
-        TVersion snapshotVersion)
-        : TDecoratedAutomaton::TSnapshotBuilderBase(owner, snapshotVersion)
+        TVersion snapshotVersion,
+        TDuration buildSnapshotDelay)
+        : TDecoratedAutomaton::TSnapshotBuilderBase(owner, snapshotVersion, buildSnapshotDelay)
     { }
 
     ~TNoForkSnapshotBuilder()
@@ -727,6 +748,19 @@ void TDecoratedAutomaton::LoadSnapshot(
     AutomatonVersion_ = CommittedVersion_ = TVersion(snapshotId, 0);
 }
 
+void TDecoratedAutomaton::ValidateSnapshot(IAsyncZeroCopyInputStreamPtr reader)
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    YT_VERIFY(State_ == EPeerState::Stopped);
+    State_ = EPeerState::LeaderRecovery;
+
+    LoadSnapshot(0, TVersion{}, reader);
+
+    YT_VERIFY(State_ == EPeerState::LeaderRecovery);
+    State_ = EPeerState::Stopped;
+}
+
 void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordData)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -743,9 +777,7 @@ void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordDa
 
     auto request = TMutationRequest(header.reign());
     request.Type = header.mutation_type();
-    if (header.has_mutation_id()) {
-        request.MutationId = FromProto<TMutationId>(header.mutation_id());
-    }
+    request.MutationId = FromProto<TMutationId>(header.mutation_id());
     request.Data = std::move(requestData);
 
     TMutationContext context(
@@ -838,9 +870,7 @@ void TDecoratedAutomaton::LogFollowerMutation(
     auto request = TMutationRequest(MutationHeader_.reign());
     request.Type = std::move(*MutationHeader_.mutable_mutation_type());
     request.Data = std::move(mutationData);
-    request.MutationId = MutationHeader_.has_mutation_id()
-        ? FromProto<TMutationId>(MutationHeader_.mutation_id())
-        : TMutationId();
+    request.MutationId = FromProto<TMutationId>(MutationHeader_.mutation_id());
 
     PendingMutations_.emplace(
         version,
@@ -1229,17 +1259,34 @@ void TDecoratedAutomaton::StopEpoch()
     RecoveryDataSize_ = 0;
 }
 
+void TDecoratedAutomaton::UpdateLastSuccessfulSnapshotInfo(const TErrorOr<TRemoteSnapshotParams>& snapshotInfoOrError)
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    if (!snapshotInfoOrError.IsOK()) {
+        return;
+    }
+
+    auto snapshotId = snapshotInfoOrError.Value().SnapshotId;
+    LastSuccessfulSnapshotId_ = std::max(LastSuccessfulSnapshotId_.load(), snapshotId);
+}
+
 void TDecoratedAutomaton::MaybeStartSnapshotBuilder()
 {
-    auto Logger = HydraLogger;
-
-    if (GetAutomatonVersion() != SnapshotVersion_)
+    if (GetAutomatonVersion() != SnapshotVersion_) {
         return;
+    }
 
     auto builder = Options_.UseFork
-       ? TIntrusivePtr<TSnapshotBuilderBase>(New<TForkSnapshotBuilder>(this, SnapshotVersion_))
-       : TIntrusivePtr<TSnapshotBuilderBase>(New<TNoForkSnapshotBuilder>(this, SnapshotVersion_));
-    SnapshotParamsPromise_.SetFrom(builder->Run());
+       ? TIntrusivePtr<TSnapshotBuilderBase>(New<TForkSnapshotBuilder>(this, SnapshotVersion_, Config_->BuildSnapshotDelay))
+       : TIntrusivePtr<TSnapshotBuilderBase>(New<TNoForkSnapshotBuilder>(this, SnapshotVersion_, Config_->BuildSnapshotDelay));
+
+    auto buildResult = builder->Run();
+    buildResult.Subscribe(
+        BIND(&TDecoratedAutomaton::UpdateLastSuccessfulSnapshotInfo, MakeWeak(this))
+        .Via(AutomatonInvoker_));
+
+    SnapshotParamsPromise_.SetFrom(buildResult);
 }
 
 bool TDecoratedAutomaton::IsRecovery()
@@ -1247,6 +1294,16 @@ bool TDecoratedAutomaton::IsRecovery()
     return
         State_ == EPeerState::LeaderRecovery ||
         State_ == EPeerState::FollowerRecovery;
+}
+
+bool TDecoratedAutomaton::IsBuildingSnapshotNow() const
+{
+    return BuildingSnapshot_.load();
+}
+
+int TDecoratedAutomaton::GetLastSuccessfulSnapshotId() const
+{
+    return LastSuccessfulSnapshotId_.load();
 }
 
 TReign TDecoratedAutomaton::GetCurrentReign() const

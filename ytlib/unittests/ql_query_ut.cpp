@@ -2201,6 +2201,147 @@ TEST_F(TQueryEvaluateTest, ComplexWithNull)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, GroupWithLimit)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    size_t limit = 20;
+    std::vector<i64> orderedKeys;
+    std::unordered_map<i64, i64> groupedValues;
+    i64 totalSum = 0;
+
+    auto groupRow = [&] (i64 key, i64 value) {
+        i64 x = key % 127;
+
+        if (!groupedValues.count(x)) {
+            if (groupedValues.size() >= limit) {
+                return;
+            } else {
+                orderedKeys.push_back(x);
+            }
+        }
+
+        groupedValues[x] += value;
+        totalSum += value;
+    };
+
+    std::vector<TString> source;
+    for (int i = 0; i < 1000; ++i) {
+        auto key = std::rand() % 10000 + 1000;
+        auto value = key * 10;
+
+        source.push_back(Format("a=%v;b=%v", key, value));
+        groupRow(key, value);
+    }
+
+    for (int i = 0; i < 1000; ++i) {
+        auto key = 1000 - i;
+        auto value = key * 10;
+
+        source.push_back(Format("a=%v;b=%v", key, value));
+        groupRow(key, value);
+    }
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64},
+        {"y", EValueType::Int64}
+    });
+
+    std::vector<TOwningRow> result;
+    for (auto key : orderedKeys) {
+        TString resultRow = Format("x=%v;y=%v", key, groupedValues[key]);
+        result.push_back(YsonToRow(resultRow, resultSplit, false));
+    }
+    // TODO(lukyan): Try to make stable order of totals row
+    result.push_back(YsonToRow("y=" + ToString(totalSum), resultSplit, true));
+
+    Evaluate("x, sum(b) as y FROM [//t] group by a % 127 as x with totals limit 20",
+        split, source, ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, JoinGroupWithLimit)
+{
+    std::map<TString, TDataSplit> splits;
+    std::vector<std::vector<TString>> sources(2);
+
+    splits["//left"] = MakeSplit({
+        {"a", EValueType::Int64}
+    }, 0);
+
+    splits["//right"] = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    }, 1);
+
+    size_t limit = 20;
+    std::vector<i64> orderedKeys;
+    std::unordered_map<i64, i64> groupedValues;
+    i64 totalSum = 0;
+
+    auto groupRow = [&] (i64 key, i64 value) {
+        i64 x = key % 31;
+
+        if (!groupedValues.count(x)) {
+            if (groupedValues.size() >= limit) {
+                return;
+            } else {
+                orderedKeys.push_back(x);
+            }
+        }
+
+        groupedValues[x] += value;
+        totalSum += value;
+    };
+
+    for (int i = 0; i < 1000; ++i) {
+        auto key = i;
+        auto value = key * 10;
+
+        bool joined = true;
+
+        if (std::rand() % 2) {
+            sources[0].push_back(Format("a=%v", key));
+        } else {
+            joined = false;
+        }
+
+        if (std::rand() % 2) {
+            sources[1].push_back(Format("a=%v;b=%v", key, value));
+        } else {
+            joined = false;
+        }
+
+        if (joined) {
+            groupRow(key, value);
+        }
+    }
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64},
+        {"y", EValueType::Int64}
+    });
+
+    std::vector<TOwningRow> result;
+    for (auto key : orderedKeys) {
+        TString resultRow = Format("x=%v;y=%v", key, groupedValues[key]);
+        result.push_back(YsonToRow(resultRow, resultSplit, false));
+    }
+    result.push_back(YsonToRow("y=" + ToString(totalSum), resultSplit, true));
+
+    Evaluate(
+        "x, sum(b) as y FROM [//left] join [//right] using a group by a % 31 as x with totals limit 20",
+        splits,
+        sources,
+        ResultMatcher(result));
+
+    SUCCEED();
+}
+
 TEST_F(TQueryEvaluateTest, HavingClause1)
 {
     auto split = MakeSplit({
@@ -2413,7 +2554,7 @@ TEST_F(TQueryEvaluateTest, ComplexStringsLower)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestIf)
+TEST_F(TQueryEvaluateTest, If)
 {
     auto split = MakeSplit({
         {"a", EValueType::Int64},
@@ -2448,7 +2589,7 @@ TEST_F(TQueryEvaluateTest, TestIf)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestInputRowLimit)
+TEST_F(TQueryEvaluateTest, InputRowLimit)
 {
     auto split = MakeSplit({
         {"a", EValueType::Int64},
@@ -2477,7 +2618,7 @@ TEST_F(TQueryEvaluateTest, TestInputRowLimit)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestOutputRowLimit)
+TEST_F(TQueryEvaluateTest, OutputRowLimit)
 {
     auto split = MakeSplit({
         {"a", EValueType::Int64},
@@ -2507,7 +2648,7 @@ TEST_F(TQueryEvaluateTest, TestOutputRowLimit)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestOutputRowLimit2)
+TEST_F(TQueryEvaluateTest, OutputRowLimit2)
 {
     auto split = MakeSplit({});
 
@@ -2529,7 +2670,7 @@ TEST_F(TQueryEvaluateTest, TestOutputRowLimit2)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestTypeInference)
+TEST_F(TQueryEvaluateTest, TypeInference)
 {
     auto split = MakeSplit({
         {"a", EValueType::Int64},
@@ -2564,7 +2705,7 @@ TEST_F(TQueryEvaluateTest, TestTypeInference)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestJoinEmpty)
+TEST_F(TQueryEvaluateTest, JoinEmpty)
 {
     std::map<TString, TDataSplit> splits;
     std::vector<std::vector<TString>> sources;
@@ -2609,7 +2750,7 @@ TEST_F(TQueryEvaluateTest, TestJoinEmpty)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestJoinSimple2)
+TEST_F(TQueryEvaluateTest, JoinSimple2)
 {
     std::map<TString, TDataSplit> splits;
     std::vector<std::vector<TString>> sources;
@@ -2649,7 +2790,7 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple2)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestJoinSimple3)
+TEST_F(TQueryEvaluateTest, JoinSimple3)
 {
     std::map<TString, TDataSplit> splits;
     std::vector<std::vector<TString>> sources;
@@ -2688,7 +2829,7 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple3)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestJoinSimple4)
+TEST_F(TQueryEvaluateTest, JoinSimple4)
 {
     std::map<TString, TDataSplit> splits;
     std::vector<std::vector<TString>> sources;
@@ -2727,7 +2868,7 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple4)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestJoinSimple5)
+TEST_F(TQueryEvaluateTest, JoinSimple5)
 {
     std::map<TString, TDataSplit> splits;
     std::vector<std::vector<TString>> sources;
@@ -2775,7 +2916,7 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple5)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestJoinRowLimit)
+TEST_F(TQueryEvaluateTest, JoinRowLimit)
 {
     std::map<TString, TDataSplit> splits;
     std::vector<std::vector<TString>> sources;
@@ -2826,7 +2967,7 @@ TEST_F(TQueryEvaluateTest, TestJoinRowLimit)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestJoinRowLimit2)
+TEST_F(TQueryEvaluateTest, JoinRowLimit2)
 {
     std::map<TString, TDataSplit> splits;
     std::vector<std::vector<TString>> sources;
@@ -2874,7 +3015,7 @@ TEST_F(TQueryEvaluateTest, TestJoinRowLimit2)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestJoinWithLimit)
+TEST_F(TQueryEvaluateTest, JoinWithLimit)
 {
     std::map<TString, TDataSplit> splits;
     std::vector<std::vector<TString>> sources;
@@ -2938,7 +3079,7 @@ TEST_F(TQueryEvaluateTest, TestJoinWithLimit)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestJoinWithLimit2)
+TEST_F(TQueryEvaluateTest, JoinWithLimit2)
 {
     std::map<TString, TDataSplit> splits;
     std::vector<std::vector<TString>> sources;
@@ -3001,7 +3142,7 @@ TEST_F(TQueryEvaluateTest, TestJoinWithLimit2)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestJoinWithLimit3)
+TEST_F(TQueryEvaluateTest, JoinWithLimit3)
 {
     std::map<TString, TDataSplit> splits;
     std::vector<std::vector<TString>> sources;
@@ -3073,7 +3214,7 @@ TEST_F(TQueryEvaluateTest, TestJoinWithLimit3)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestJoinNonPrefixColumns)
+TEST_F(TQueryEvaluateTest, JoinNonPrefixColumns)
 {
     std::map<TString, TDataSplit> splits;
     std::vector<std::vector<TString>> sources;
@@ -3120,7 +3261,7 @@ TEST_F(TQueryEvaluateTest, TestJoinNonPrefixColumns)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestJoinManySimple)
+TEST_F(TQueryEvaluateTest, JoinManySimple)
 {
     std::map<TString, TDataSplit> splits;
     std::vector<std::vector<TString>> sources;
@@ -3185,7 +3326,7 @@ TEST_F(TQueryEvaluateTest, TestJoinManySimple)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestMultijoin)
+TEST_F(TQueryEvaluateTest, Multijoin)
 {
     std::map<TString, TDataSplit> splits;
     std::vector<std::vector<TString>> sources;
@@ -3246,7 +3387,7 @@ TEST_F(TQueryEvaluateTest, TestMultijoin)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestSortMergeJoin)
+TEST_F(TQueryEvaluateTest, SortMergeJoin)
 {
     std::map<TString, TDataSplit> splits;
     std::vector<std::vector<TString>> sources;
@@ -3303,7 +3444,7 @@ TEST_F(TQueryEvaluateTest, TestSortMergeJoin)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestPartialSortMergeJoin)
+TEST_F(TQueryEvaluateTest, PartialSortMergeJoin)
 {
     std::map<TString, TDataSplit> splits;
     std::vector<std::vector<TString>> sources;
@@ -3435,7 +3576,7 @@ TEST_F(TQueryEvaluateTest, TestPartialSortMergeJoin)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestJoin)
+TEST_F(TQueryEvaluateTest, Join)
 {
     std::map<TString, TDataSplit> splits;
     std::vector<std::vector<TString>> sources;
@@ -3493,7 +3634,7 @@ TEST_F(TQueryEvaluateTest, TestJoin)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestLeftJoin)
+TEST_F(TQueryEvaluateTest, LeftJoin)
 {
     std::map<TString, TDataSplit> splits;
     std::vector<std::vector<TString>> sources;
@@ -3557,7 +3698,7 @@ TEST_F(TQueryEvaluateTest, TestLeftJoin)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestLeftJoinWithCondition)
+TEST_F(TQueryEvaluateTest, LeftJoinWithCondition)
 {
     std::map<TString, TDataSplit> splits;
     std::vector<std::vector<TString>> sources;
@@ -3661,7 +3802,7 @@ TEST_F(TQueryEvaluateTest, ComplexAlias)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestJoinMany)
+TEST_F(TQueryEvaluateTest, JoinMany)
 {
     std::map<TString, TDataSplit> splits;
     std::vector<std::vector<TString>> sources;
@@ -3735,7 +3876,7 @@ TEST_F(TQueryEvaluateTest, TestJoinMany)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestOrderBy)
+TEST_F(TQueryEvaluateTest, OrderBy)
 {
     auto split = MakeSplit({
         {"a", EValueType::Int64},
@@ -3791,7 +3932,7 @@ TEST_F(TQueryEvaluateTest, TestOrderBy)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestGroupByTotalsOrderBy)
+TEST_F(TQueryEvaluateTest, GroupByTotalsOrderBy)
 {
     auto split = MakeSplit({
         {"a", EValueType::Int64},
@@ -3850,7 +3991,7 @@ TEST_F(TQueryEvaluateTest, TestGroupByTotalsOrderBy)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestUdf)
+TEST_F(TQueryEvaluateTest, Udf)
 {
     auto split = MakeSplit({
         {"a", EValueType::Int64},
@@ -3880,7 +4021,7 @@ TEST_F(TQueryEvaluateTest, TestUdf)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestZeroArgumentUdf)
+TEST_F(TQueryEvaluateTest, ZeroArgumentUdf)
 {
     auto split = MakeSplit({
         {"a", EValueType::Uint64},
@@ -3909,7 +4050,7 @@ TEST_F(TQueryEvaluateTest, TestZeroArgumentUdf)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestShortInvalidUdfImpl)
+TEST_F(TQueryEvaluateTest, ShortInvalidUdfImpl)
 {
     auto split = MakeSplit({
         {"a", EValueType::Int64},
@@ -3923,7 +4064,7 @@ TEST_F(TQueryEvaluateTest, TestShortInvalidUdfImpl)
     EvaluateExpectingError("short_invalid_ir(a) as x FROM [//t]", split, source, EFailureLocation::Codegen);
 }
 
-TEST_F(TQueryEvaluateTest, TestLongInvalidUdfImpl)
+TEST_F(TQueryEvaluateTest, LongInvalidUdfImpl)
 {
     auto split = MakeSplit({
         {"a", EValueType::Int64},
@@ -3937,7 +4078,7 @@ TEST_F(TQueryEvaluateTest, TestLongInvalidUdfImpl)
     EvaluateExpectingError("long_invalid_ir(a) as x FROM [//t]", split, source, EFailureLocation::Codegen);
 }
 
-TEST_F(TQueryEvaluateTest, TestInvalidUdfArity)
+TEST_F(TQueryEvaluateTest, InvalidUdfArity)
 {
     auto split = MakeSplit({
         {"a", EValueType::Int64},
@@ -3951,7 +4092,7 @@ TEST_F(TQueryEvaluateTest, TestInvalidUdfArity)
     EvaluateExpectingError("abs_udf_arity(a, b) as x FROM [//t]", split, source, EFailureLocation::Codegen);
 }
 
-TEST_F(TQueryEvaluateTest, TestInvalidUdfType)
+TEST_F(TQueryEvaluateTest, InvalidUdfType)
 {
     auto split = MakeSplit({
         {"a", EValueType::Int64},
@@ -3966,7 +4107,7 @@ TEST_F(TQueryEvaluateTest, TestInvalidUdfType)
     std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
 }
 
-TEST_F(TQueryEvaluateTest, TestUdfNullPropagation)
+TEST_F(TQueryEvaluateTest, UdfNullPropagation)
 {
     auto split = MakeSplit({
         {"a", EValueType::Int64},
@@ -3996,7 +4137,7 @@ TEST_F(TQueryEvaluateTest, TestUdfNullPropagation)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestUdfNullPropagation2)
+TEST_F(TQueryEvaluateTest, UdfNullPropagation2)
 {
     auto split = MakeSplit({
         {"a", EValueType::Int64},
@@ -4026,7 +4167,7 @@ TEST_F(TQueryEvaluateTest, TestUdfNullPropagation2)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestUdfStringArgument)
+TEST_F(TQueryEvaluateTest, UdfStringArgument)
 {
     auto split = MakeSplit({
         {"a", EValueType::String}
@@ -4055,7 +4196,7 @@ TEST_F(TQueryEvaluateTest, TestUdfStringArgument)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestUdfStringResult)
+TEST_F(TQueryEvaluateTest, UdfStringResult)
 {
     auto split = MakeSplit({
         {"a", EValueType::String}
@@ -4084,7 +4225,7 @@ TEST_F(TQueryEvaluateTest, TestUdfStringResult)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestUnversionedValueUdf)
+TEST_F(TQueryEvaluateTest, UnversionedValueUdf)
 {
     auto split = MakeSplit({
         {"a", EValueType::String}
@@ -4752,7 +4893,7 @@ TEST_F(TQueryEvaluateTest, ToAnyAndCompare)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestVarargUdf)
+TEST_F(TQueryEvaluateTest, VarargUdf)
 {
     auto split = MakeSplit({
         {"a", EValueType::Int64}
@@ -4777,7 +4918,7 @@ TEST_F(TQueryEvaluateTest, TestVarargUdf)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestFarmHash)
+TEST_F(TQueryEvaluateTest, FarmHash)
 {
     auto split = MakeSplit({
         {"a", EValueType::Int64},
@@ -4804,7 +4945,7 @@ TEST_F(TQueryEvaluateTest, TestFarmHash)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestBigbHash)
+TEST_F(TQueryEvaluateTest, BigbHash)
 {
     auto split = MakeSplit({
         {"A", EValueType::String},
@@ -4841,7 +4982,7 @@ TEST_F(TQueryEvaluateTest, TestBigbHash)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestRegexParseError)
+TEST_F(TQueryEvaluateTest, RegexParseError)
 {
     auto split = MakeSplit({
         {"a", EValueType::String},
@@ -4866,7 +5007,7 @@ TEST_F(TQueryEvaluateTest, TestRegexParseError)
     EvaluateExpectingError("regex_full_match(\"hel[a-z)\", a) as x FROM [//t]", split, source, EFailureLocation::Execution);
 }
 
-TEST_F(TQueryEvaluateTest, TestRegexFullMatch)
+TEST_F(TQueryEvaluateTest, RegexFullMatch)
 {
     auto split = MakeSplit({
         {"a", EValueType::String},
@@ -4893,7 +5034,7 @@ TEST_F(TQueryEvaluateTest, TestRegexFullMatch)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestRegexPartialMatch)
+TEST_F(TQueryEvaluateTest, RegexPartialMatch)
 {
     auto split = MakeSplit({
         {"a", EValueType::String},
@@ -4920,7 +5061,7 @@ TEST_F(TQueryEvaluateTest, TestRegexPartialMatch)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestRegexReplaceFirst)
+TEST_F(TQueryEvaluateTest, RegexReplaceFirst)
 {
     auto split = MakeSplit({
         {"a", EValueType::String},
@@ -4945,7 +5086,7 @@ TEST_F(TQueryEvaluateTest, TestRegexReplaceFirst)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestRegexReplaceAll)
+TEST_F(TQueryEvaluateTest, RegexReplaceAll)
 {
     auto split = MakeSplit({
         {"a", EValueType::String},
@@ -4970,7 +5111,7 @@ TEST_F(TQueryEvaluateTest, TestRegexReplaceAll)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestRegexExtract)
+TEST_F(TQueryEvaluateTest, RegexExtract)
 {
     auto split = MakeSplit({
         {"a", EValueType::String},
@@ -4995,7 +5136,7 @@ TEST_F(TQueryEvaluateTest, TestRegexExtract)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestRegexEscape)
+TEST_F(TQueryEvaluateTest, RegexEscape)
 {
     auto split = MakeSplit({
         {"a", EValueType::String},
@@ -5020,7 +5161,7 @@ TEST_F(TQueryEvaluateTest, TestRegexEscape)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestAverageAgg)
+TEST_F(TQueryEvaluateTest, AverageAgg)
 {
     auto split = MakeSplit({
         {"a", EValueType::Int64}
@@ -5045,7 +5186,7 @@ TEST_F(TQueryEvaluateTest, TestAverageAgg)
     Evaluate("avg(a) as x from [//t] group by 1", split, source, ResultMatcher(result));
 }
 
-TEST_F(TQueryEvaluateTest, TestAverageAgg2)
+TEST_F(TQueryEvaluateTest, AverageAgg2)
 {
     auto split = MakeSplit({
         {"a", EValueType::Int64},
@@ -5080,7 +5221,7 @@ TEST_F(TQueryEvaluateTest, TestAverageAgg2)
     Evaluate("avg(a) as r1, x, max(c) as r2, avg(c) as r3, min(a) as r4 from [//t] group by b % 2 as x", split, source, ResultMatcher(result));
 }
 
-TEST_F(TQueryEvaluateTest, TestAverageAgg3)
+TEST_F(TQueryEvaluateTest, AverageAgg3)
 {
     auto split = MakeSplit({
         {"a", EValueType::Int64},
@@ -5107,7 +5248,7 @@ TEST_F(TQueryEvaluateTest, TestAverageAgg3)
     Evaluate("b, avg(a) as x from [//t] group by b", split, source, ResultMatcher(result));
 }
 
-TEST_F(TQueryEvaluateTest, TestStringAgg)
+TEST_F(TQueryEvaluateTest, StringAgg)
 {
     auto split = MakeSplit({
         {"a", EValueType::String},
@@ -5271,7 +5412,7 @@ TEST_F(TQueryEvaluateTest, CardinalityAggregateTotals3)
 
 }
 
-TEST_F(TQueryEvaluateTest, TestCasts)
+TEST_F(TQueryEvaluateTest, Casts)
 {
     auto split = MakeSplit({
         {"a", EValueType::Uint64},
@@ -5304,7 +5445,7 @@ TEST_F(TQueryEvaluateTest, TestCasts)
     Evaluate("int64(a) as r1, double(b) as r2, uint64(c) as r3 from [//t]", split, source, ResultMatcher(result));
 }
 
-TEST_F(TQueryEvaluateTest, TestUdfException)
+TEST_F(TQueryEvaluateTest, UdfException)
 {
     auto split = MakeSplit({
         {"a", EValueType::Int64},
@@ -5324,7 +5465,7 @@ TEST_F(TQueryEvaluateTest, TestUdfException)
     EvaluateExpectingError("throw_if_negative_udf(a) from [//t]", split, source, EFailureLocation::Execution);
 }
 
-TEST_F(TQueryEvaluateTest, TestMakeMapSuccess)
+TEST_F(TQueryEvaluateTest, MakeMapSuccess)
 {
     auto split = MakeSplit({
         {"v_any", EValueType::Any},
@@ -5361,7 +5502,7 @@ TEST_F(TQueryEvaluateTest, TestMakeMapSuccess)
         ") as x FROM [//t]", split, source, ResultMatcher(result));
 }
 
-TEST_F(TQueryEvaluateTest, TestMakeMapFailure)
+TEST_F(TQueryEvaluateTest, MakeMapFailure)
 {
     auto split = MakeSplit({
         {"a", EValueType::Any}

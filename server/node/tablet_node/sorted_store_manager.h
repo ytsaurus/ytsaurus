@@ -53,6 +53,7 @@ public:
 
     virtual void Mount(
         const std::vector<NTabletNode::NProto::TAddStoreDescriptor>& storeDescriptors) override;
+
     virtual void Remount(
         TTableMountConfigPtr mountConfig,
         TTabletChunkReaderConfigPtr readerConfig,
@@ -60,6 +61,7 @@ public:
         TTabletWriterOptionsPtr writerOptions) override;
 
     virtual void AddStore(IStorePtr store, bool onMount) override;
+    virtual void BulkAddStores(TRange<IStorePtr> stores, bool onMount) override;
     virtual void RemoveStore(IStorePtr store) override;
 
     virtual bool IsFlushNeeded() const override;
@@ -82,6 +84,14 @@ public:
     virtual TError CheckOverflow() const override;
 
 private:
+    struct TBoundaryDescriptor
+    {
+        TOwningKey Key;
+        int Type;
+        int DescriptorIndex;
+        i64 DataSize;
+    };
+
     const int KeyColumnCount_;
 
     TSortedDynamicStorePtr ActiveStore_;
@@ -106,6 +116,9 @@ private:
     void SchedulePartitionSampling(TPartition* partition);
     void SchedulePartitionsSampling(int beginPartitionIndex, int endPartitionIndex);
 
+    void TrySplitPartitionByAddedStores(
+        TPartition* partition,
+        std::vector<ISortedStorePtr> addedStores);
     void DoSplitPartition(
         int partitionIndex,
         const std::vector<TOwningKey>& pivotKeys);
@@ -124,6 +137,14 @@ private:
         IStorePtr store,
         TSortedDynamicRow row,
         int lockIndex);
+
+    // COMPAT(akozhikhov)
+    void BuildPivotKeysBeforeGiantTabletProblem(
+        std::vector<TOwningKey>* pivotKeys,
+        const std::vector<TBoundaryDescriptor>& chunkBoundaries);
+    void BuildPivotKeys(
+        std::vector<TOwningKey>* pivotKeys,
+        const std::vector<TBoundaryDescriptor>& chunkBoundaries);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSortedStoreManager)

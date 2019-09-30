@@ -9,6 +9,7 @@ namespace NYT::NChunkPools {
 using namespace NControllerAgent;
 using namespace NChunkClient;
 using namespace NLogging;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -190,6 +191,8 @@ TJobManager::TJob::TJob(TJobManager* owner, std::unique_ptr<TJobStub> jobStub, I
     : IsBarrier_(jobStub->GetIsBarrier())
     , DataWeight_(jobStub->GetDataWeight())
     , RowCount_(jobStub->GetRowCount())
+    , LowerLimit_(jobStub->LowerPrimaryKey())
+    , UpperLimit_(jobStub->UpperPrimaryKey())
     , StripeList_(std::move(jobStub->StripeList_))
     , InputCookies_(std::move(jobStub->InputCookies_))
     , Owner_(owner)
@@ -630,6 +633,14 @@ void TJobManager::Enlarge(i64 dataWeightPerJob, i64 primaryDataWeightPerJob)
     }
 
     AddJobs(std::move(newJobs));
+}
+
+std::pair<TUnversionedRow, TUnversionedRow> TJobManager::GetLimits(IChunkPoolOutput::TCookie cookie) const
+{
+    YT_VERIFY(cookie >= 0);
+    YT_VERIFY(cookie < static_cast<int>(Jobs_.size()));
+    const auto& job = Jobs_[cookie];
+    return {job.GetLowerLimit(), job.GetUpperLimit()};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

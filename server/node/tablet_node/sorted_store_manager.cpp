@@ -6,6 +6,7 @@
 #include "tablet_profiling.h"
 #include "tablet_slot.h"
 #include "transaction_manager.h"
+#include "automaton.h"
 
 #include <yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
@@ -39,6 +40,8 @@
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/core/ytalloc/memory_zone.h>
+
+#include <util/generic/cast.h>
 
 namespace NYT::NTabletNode {
 
@@ -288,14 +291,50 @@ bool TSortedStoreManager::CheckInactiveStoresLocks(
     return true;
 }
 
+void TSortedStoreManager::BuildPivotKeysBeforeGiantTabletProblem(
+    std::vector<TOwningKey>* pivotKeys,
+    const std::vector<TBoundaryDescriptor>& chunkBoundaries)
+{
+    int depth = 0;
+    for (const auto& boundary : chunkBoundaries) {
+        if (boundary.Type == -1 && depth == 0 && boundary.Key > Tablet_->GetPivotKey()) {
+            pivotKeys->push_back(boundary.Key);
+        }
+        depth -= boundary.Type;
+    }
+}
+
+void TSortedStoreManager::BuildPivotKeys(
+    std::vector<TOwningKey>* pivotKeys,
+    const std::vector<TBoundaryDescriptor>& chunkBoundaries)
+{
+    int depth = 0;
+    i64 cumulativeDataSize = 0;
+    for (const auto& boundary : chunkBoundaries) {
+        if (boundary.Type == -1 &&
+            depth == 0 &&
+            boundary.Key > Tablet_->GetPivotKey() &&
+            cumulativeDataSize >= Tablet_->GetConfig()->MinPartitionDataSize)
+        {
+            pivotKeys->push_back(boundary.Key);
+            cumulativeDataSize = 0;
+        }
+        if (boundary.Type == -1) {
+            cumulativeDataSize += boundary.DataSize;
+        }
+        depth -= boundary.Type;
+    }
+}
+
 void TSortedStoreManager::Mount(const std::vector<TAddStoreDescriptor>& storeDescriptors)
 {
     Tablet_->CreateInitialPartition();
 
     // TODO(ifsmirnov): consider ReadRange of ChunkView here to make more precise partition borders.
-    std::vector<std::tuple<TOwningKey, int, int>> chunkBoundaries;
+    std::vector<TBoundaryDescriptor> chunkBoundaries;
     int descriptorIndex = 0;
     const auto& schema = Tablet_->PhysicalSchema();
+    chunkBoundaries.reserve(storeDescriptors.size());
     for (const auto& descriptor : storeDescriptors) {
         const auto& extensions = descriptor.chunk_meta().extensions();
         auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(extensions);
@@ -303,21 +342,25 @@ void TSortedStoreManager::Mount(const std::vector<TAddStoreDescriptor>& storeDes
             auto boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(extensions);
             auto minKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), schema.GetKeyColumnCount());
             auto maxKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), schema.GetKeyColumnCount());
-            chunkBoundaries.push_back(std::make_tuple(minKey, -1, descriptorIndex));
-            chunkBoundaries.push_back(std::make_tuple(maxKey, 1, descriptorIndex));
+            chunkBoundaries.push_back({minKey, -1, descriptorIndex, miscExt.compressed_data_size()});
+            chunkBoundaries.push_back({maxKey, 1, descriptorIndex, miscExt.compressed_data_size()});
         }
         ++descriptorIndex;
     }
 
     if (!chunkBoundaries.empty()) {
-        std::sort(chunkBoundaries.begin(), chunkBoundaries.end());
+        std::sort(chunkBoundaries.begin(), chunkBoundaries.end(),
+            [] (const TBoundaryDescriptor& lhs, const TBoundaryDescriptor& rhs) -> bool {
+                return std::tie(lhs.Key, lhs.Type, lhs.DescriptorIndex, lhs.DataSize) <
+                       std::tie(rhs.Key, rhs.Type, rhs.DescriptorIndex, rhs.DataSize);
+        });
         std::vector<TOwningKey> pivotKeys{Tablet_->GetPivotKey()};
-        int depth = 0;
-        for (const auto& boundary : chunkBoundaries) {
-            if (std::get<1>(boundary) == -1 && depth == 0 && std::get<0>(boundary) > Tablet_->GetPivotKey()) {
-                pivotKeys.push_back(std::get<0>(boundary));
-            }
-            depth -= std::get<1>(boundary);
+
+        // COMPAT(akozhikhov)
+        if (GetCurrentMutationContext()->Request().Reign < ToUnderlying(ETabletReign::GiantTabletProblem)) {
+            BuildPivotKeysBeforeGiantTabletProblem(&pivotKeys, chunkBoundaries);
+        } else {
+            BuildPivotKeys(&pivotKeys, chunkBoundaries);
         }
 
         YT_VERIFY(Tablet_->PartitionList().size() == 1);
@@ -355,6 +398,41 @@ void TSortedStoreManager::AddStore(IStorePtr store, bool onMount)
     MaxTimestampToStore_.insert(std::make_pair(sortedStore->GetMaxTimestamp(), sortedStore));
 
     SchedulePartitionSampling(sortedStore->GetPartition());
+}
+
+void TSortedStoreManager::BulkAddStores(TRange<IStorePtr> stores, bool onMount)
+{
+    THashMap<TPartitionId, std::vector<ISortedStorePtr>> addedStoresByPartition;
+    for (const auto& store : stores) {
+        AddStore(store, onMount);
+        auto sortedStore = store->AsSorted();
+        addedStoresByPartition[sortedStore->GetPartition()->GetId()].push_back(sortedStore);
+    }
+
+    auto Logger = this->Logger;
+    Logger.AddTag("%v", Tablet_->GetLoggingId());
+
+    for (auto& [partitionId, addedStores] : addedStoresByPartition) {
+        if (partitionId == Tablet_->GetEden()->GetId()) {
+            continue;
+        }
+
+        auto* partition = Tablet_->GetPartition(partitionId);
+        YT_LOG_DEBUG_IF(Tablet_->GetConfig()->EnableLsmVerboseLogging,
+            "Added %v stores to partition (PartitionId: %v)",
+            partition->GetId(),
+            addedStores.size());
+
+        if (partition->GetState() == EPartitionState::Splitting || partition->GetState() == EPartitionState::Merging) {
+            YT_LOG_DEBUG_IF(Tablet_->GetConfig()->EnableLsmVerboseLogging,
+                "Will not request partition split due to improper partition state (PartitionId: %v, PartitionState: %v)",
+                partition->GetId(),
+                partition->GetState());
+            continue;
+        }
+
+        TrySplitPartitionByAddedStores(partition, std::move(addedStores));
+    }
 }
 
 void TSortedStoreManager::RemoveStore(IStorePtr store)
@@ -661,6 +739,61 @@ void TSortedStoreManager::SchedulePartitionsSampling(int beginPartitionIndex, in
     const auto* mutationContext = GetCurrentMutationContext();
     for (int index = beginPartitionIndex; index < endPartitionIndex; ++index) {
         Tablet_->PartitionList()[index]->SetSamplingRequestTime(mutationContext->GetTimestamp());
+    }
+}
+
+void TSortedStoreManager::TrySplitPartitionByAddedStores(
+    TPartition* partition,
+    std::vector<ISortedStorePtr> addedStores)
+{
+    std::sort(
+        addedStores.begin(),
+        addedStores.end(),
+        [] (ISortedStorePtr lhs, ISortedStorePtr rhs) {
+            auto cmp = CompareRows(lhs->GetMinKey(), rhs->GetMinKey());
+            if (cmp != 0) {
+                return cmp < 0;
+            }
+            return lhs->GetId() < rhs->GetId();
+        });
+
+    const auto& config = partition->GetTablet()->GetConfig();
+
+    std::vector<TOwningKey> proposedPivots{partition->GetPivotKey()};
+    i64 cumulativeDataSize = 0;
+    int cumulativeStoreCount = 0;
+    TOwningKey lastKey = partition->GetPivotKey();
+
+    for (int storeIndex = 0; storeIndex < addedStores.size(); ++storeIndex) {
+        const auto& store = addedStores[storeIndex];
+
+        if (store->GetMinKey() < lastKey) {
+            return;
+        }
+
+        i64 dataSize = store->GetCompressedDataSize();
+
+        if (cumulativeDataSize >= config->DesiredPartitionDataSize ||
+            (cumulativeDataSize + dataSize > config->MaxPartitionDataSize &&
+                cumulativeDataSize >= config->MinPartitionDataSize) ||
+            cumulativeStoreCount >= config->MaxOverlappingStoreCount)
+        {
+            proposedPivots.push_back(store->GetMinKey());
+            cumulativeDataSize = 0;
+            cumulativeStoreCount = 0;
+        }
+
+        cumulativeDataSize += dataSize;
+        ++cumulativeStoreCount;
+        lastKey = store->GetUpperBoundKey();
+    }
+
+    if (proposedPivots.size() > 1) {
+        YT_LOG_DEBUG("Requesting partition split while adding stores (PartitionId: %v, SplitFactor: %v)",
+            partition->GetId(),
+            proposedPivots.size());
+
+        partition->RequestImmediateSplit(std::move(proposedPivots));
     }
 }
 

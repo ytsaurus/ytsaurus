@@ -40,7 +40,7 @@ public:
     struct IParameter
         : public TIntrinsicRefCounted
     {
-        virtual void Load(NYTree::INodePtr node, const NYPath::TYPath& path) = 0;
+        virtual void Load(NYTree::INodePtr node, const NYPath::TYPath& path, std::optional<EMergeStrategy> mergeStrategy = std::nullopt) = 0;
         virtual void Postprocess(const NYPath::TYPath& path) const = 0;
         virtual void SetDefaults() = 0;
         virtual void Save(NYson::IYsonConsumer* consumer) const = 0;
@@ -62,7 +62,7 @@ public:
 
         explicit TParameter(T& parameter);
 
-        virtual void Load(NYTree::INodePtr node, const NYPath::TYPath& path) override;
+        virtual void Load(NYTree::INodePtr node, const NYPath::TYPath& path, std::optional<EMergeStrategy> mergeStrategy) override;
         virtual void Postprocess(const NYPath::TYPath& path) const override;
         virtual void SetDefaults() override;
         virtual void Save(NYson::IYsonConsumer* consumer) const override;
@@ -119,6 +119,11 @@ public:
     void SetUnrecognizedStrategy(EUnrecognizedStrategy strategy);
 
     THashSet<TString> GetRegisteredKeys() const;
+    int GetParameterCount() const;
+
+    void SaveParameter(const TString& key, NYson::IYsonConsumer* consumer) const;
+    void LoadParameter(const TString& key, const NYTree::INodePtr& node, EMergeStrategy mergeStrategy) const;
+    void ResetParameter(const TString& key) const;
 
 protected:
     template <class T>
@@ -140,6 +145,8 @@ private:
 
     std::vector<TPreprocessor> Preprocessors;
     std::vector<TPostprocessor> Postprocessors;
+
+    IParameterPtr GetParameter(const TString& keyOrAlias) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

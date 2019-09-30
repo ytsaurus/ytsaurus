@@ -2,23 +2,19 @@
 
 #include "private.h"
 #include "event_count.h"
-#include "execution_context.h"
-#include "invoker_queue.h"
 #include "scheduler.h"
 #include "thread_affinity.h"
 
 #include <yt/core/actions/callback.h>
 #include <yt/core/actions/future.h>
 #include <yt/core/actions/invoker.h>
-#include <yt/core/actions/signal.h>
 
 #include <yt/core/misc/shutdownable.h>
 
 #include <yt/core/profiling/profiler.h>
 
 #include <util/system/thread.h>
-
-#include <util/thread/lfqueue.h>
+#include <util/system/context.h>
 
 namespace NYT::NConcurrency {
 
@@ -43,8 +39,6 @@ public:
     virtual void Return() override;
     virtual void YieldTo(TFiberPtr&& other) override;
     virtual void SwitchTo(IInvokerPtr invoker) override;
-    virtual void PushContextSwitchHandler(std::function<void()> out, std::function<void()> in) override;
-    virtual void PopContextSwitchHandler() override;
     virtual void WaitFor(TFuture<void> future, IInvokerPtr invoker) override;
 
 protected:
@@ -95,7 +89,7 @@ protected:
     TThreadId ThreadId_ = InvalidThreadId;
     TThread Thread_;
 
-    TExecutionContext SchedulerContext_;
+    TExceptionSafeContext SchedulerContext_;
 
     std::list<TFiberPtr> RunQueue_;
     NProfiling::TMonotonicCounter CreatedFibersCounter_;

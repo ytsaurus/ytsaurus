@@ -1048,3 +1048,5 @@ class TestCheckPermissionRpcProxy(CheckPermissionBase):
     ENABLE_HTTP_PROXY = True
     ENABLE_RPC_PROXY = True
 
+class TestCypressAclsPortal(TestCypressAclsMulticell):
+    ENABLE_TMP_PORTAL = True

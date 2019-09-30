@@ -108,7 +108,6 @@ TPathResolver::TResolveResult ResolvePath(
         GetTransactionId(context));
     auto result = resolver.Resolve();
     if (result.CanCacheResolve) {
-        // XXX(babenko): profiling
         auto populateResult = resolver.Resolve(TPathResolverOptions{
             .PopulateResolveCache = true
         });
@@ -299,11 +298,13 @@ private:
     void HydraUnrefExportedObjects(NProto::TReqUnrefExportedObjects* request) noexcept;
     void HydraConfirmObjectLifeStage(NProto::TReqConfirmObjectLifeStage* request) noexcept;
     void HydraAdvanceObjectLifeStage(NProto::TReqAdvanceObjectLifeStage* request) noexcept;
+    void HydraConfirmRemovalAwaitingCellsSyncObjects(NProto::TReqConfirmRemovalAwaitingCellsSyncObjects* request) noexcept;
 
     void DoRemoveObject(TObject* object);
     void CheckRemovingObjectRefCounter(TObject* object);
     void CheckObjectLifeStageVoteCount(TObject* object);
     void ConfirmObjectLifeStageToPrimaryMaster(TObject* object);
+    void AdvanceObjectLifeStageAtSecondaryMasters(TObject* object);
 
     void OnProfiling();
 
@@ -359,15 +360,17 @@ public:
 
         auto forwardedCellTag = CellTagFromId(ObjectId_);
 
-        SmallVector<TYPathRewrite, 4> additionalPathRewrites;
+        SmallVector<TYPathRewrite, TypicalAdditionalPathCount> additionalPathRewrites;
         for (int index = 0; index < forwardedYPathExt->additional_paths_size(); ++index) {
-            const auto& additionalPath =forwardedYPathExt->additional_paths(index);
+            const auto& additionalPath = forwardedYPathExt->additional_paths(index);
             auto additionalResolveResult = ResolvePath(Bootstrap_, additionalPath, context);
             const auto* additionalPayload = std::get_if<TPathResolver::TRemoteObjectPayload>(&additionalResolveResult.Payload);
             if (!additionalPayload || CellTagFromId(additionalPayload->ObjectId) != forwardedCellTag) {
-                THROW_ERROR_EXCEPTION("Request is cross-cell since it involves paths %v and %v",
+                THROW_ERROR_EXCEPTION(
+                    NObjectClient::EErrorCode::CrossCellAdditionalPath,
+                    "Request is cross-cell since it involves target path %v and additional path %v",
                     forwardedYPathExt->original_target_path(),
-                    forwardedYPathExt->additional_paths(index));
+                    additionalPath);
             }
             auto additionalPathRewrite = MakeYPathRewrite(
                 additionalPath,
@@ -376,6 +379,35 @@ public:
             forwardedYPathExt->set_additional_paths(index, additionalPathRewrite.Rewritten);
             additionalPathRewrites.push_back(std::move(additionalPathRewrite));
         }
+
+        SmallVector<TYPathRewrite, 4> prerequisiteRevisionPathRewrites;
+        if (forwardedRequestHeader.HasExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext)) {
+            auto* prerequisitesExt = forwardedRequestHeader.MutableExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
+            for (int index = 0; index < prerequisitesExt->revisions_size(); ++index) {
+                auto* prerequisite = prerequisitesExt->mutable_revisions(index);
+                const auto& prerequisitePath = prerequisite->path();
+                auto prerequisiteResolveResult = ResolvePath(Bootstrap_, prerequisitePath, context);
+                const auto* prerequisitePayload = std::get_if<TPathResolver::TRemoteObjectPayload>(&prerequisiteResolveResult.Payload);
+                if (!prerequisitePayload || CellTagFromId(prerequisitePayload->ObjectId) != forwardedCellTag) {
+                    THROW_ERROR_EXCEPTION(
+                        NObjectClient::EErrorCode::CrossCellRevisionPrerequisitePath,
+                        "Request is cross-cell since it involves target path %v and prerequisite reivision path %v",
+                        forwardedYPathExt->original_target_path(),
+                        prerequisitePath);
+                }
+                auto prerequisitePathRewrite = MakeYPathRewrite(
+                    prerequisitePath,
+                    prerequisitePayload->ObjectId,
+                    prerequisiteResolveResult.UnresolvedPathSuffix);
+                prerequisite->set_path(prerequisitePathRewrite.Rewritten);
+                prerequisiteRevisionPathRewrites.push_back(std::move(prerequisitePathRewrite));
+            }
+        }
+
+        if (auto mutationId = NRpc::GetMutationId(forwardedRequestHeader)) {
+            SetMutationId(&forwardedRequestHeader, GenerateNextForwardedMutationId(mutationId), forwardedRequestHeader.retry());
+        }
+
         auto forwardedMessage = SetRequestHeader(requestMessage, forwardedRequestHeader);
 
         auto peerKind = isMutating ? EPeerKind::Leader : EPeerKind::Follower;
@@ -384,21 +416,32 @@ public:
         auto channel = multicellManager->GetMasterChannelOrThrow(forwardedCellTag, peerKind);
 
         TObjectServiceProxy proxy(std::move(channel));
-        auto batchReq = proxy.ExecuteBatch();
+        auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
+        batchReq->SetOriginalRequestId(context->GetRequestId());
         batchReq->SetTimeout(ComputeForwardingTimeout(context, Bootstrap_->GetConfig()->ObjectService));
         batchReq->SetUser(context->GetUser());
         batchReq->AddRequestMessage(std::move(forwardedMessage));
 
         auto forwardedRequestId = batchReq->GetRequestId();
 
-        YT_LOG_DEBUG("Forwarding request to another cell (RequestId: %v -> %v, Method: %v:%v, TargetPath: %v, "
-            "AdditionalPaths: %v, User: %v, Mutating: %v, CellTag: %v, PeerKind: %v)",
+        // XXX(babenko): profiling
+        YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v:%v, "
+            "TargetPath: %v, %v%vUser: %v, Mutating: %v, CellTag: %v, PeerKind: %v)",
             context->GetRequestId(),
             forwardedRequestId,
             context->GetService(),
             context->GetMethod(),
             targetPathRewrite,
-            additionalPathRewrites,
+            MakeFormatterWrapper([&] (auto* builder) {
+               if (!additionalPathRewrites.empty()) {
+                   builder->AppendFormat("AdditionalPaths: %v, ", additionalPathRewrites);
+               }
+            }),
+            MakeFormatterWrapper([&] (auto* builder) {
+               if (!additionalPathRewrites.empty()) {
+                   builder->AppendFormat("PrerequisiteRevisionPaths: %v, ", prerequisiteRevisionPathRewrites);
+               }
+            }),
             context->GetUser(),
             isMutating,
             forwardedCellTag,
@@ -417,7 +460,7 @@ public:
                     YT_LOG_DEBUG(batchRspOrError, "Forwarded request failed (RequestId: %v -> %v)",
                         context->GetRequestId(),
                         forwardedRequestId);
-                    auto error = TError(NRpc::EErrorCode::Unavailable, "Forwarded request failed")
+                    auto error = TError(NObjectClient::EErrorCode::ForwardedRequestFailed, "Forwarded request failed")
                         << batchRspOrError;
                     context->Reply(error);
                     if (mutationId) {
@@ -570,6 +613,7 @@ TObjectManager::TImpl::TImpl(TBootstrap* bootstrap)
     RegisterMethod(BIND(&TImpl::HydraUnrefExportedObjects, Unretained(this)));
     RegisterMethod(BIND(&TImpl::HydraConfirmObjectLifeStage, Unretained(this)));
     RegisterMethod(BIND(&TImpl::HydraAdvanceObjectLifeStage, Unretained(this)));
+    RegisterMethod(BIND(&TImpl::HydraConfirmRemovalAwaitingCellsSyncObjects, Unretained(this)));
 
     MasterObjectId_ = MakeWellKnownId(EObjectType::Master, Bootstrap_->GetPrimaryCellTag());
 }
@@ -701,20 +745,24 @@ TObjectId TObjectManager::TImpl::GenerateId(EObjectType type, TObjectId hintId)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    ++CreatedObjects_;
+
+    if (hintId) {
+        return hintId;
+    }
+
     auto* mutationContext = GetCurrentMutationContext();
     auto version = mutationContext->GetVersion();
     auto hash = mutationContext->RandomGenerator().Generate<ui32>();
-
     auto cellTag = Bootstrap_->GetCellTag();
 
-    auto id = hintId
-        ? hintId
-        : MakeRegularId(type, cellTag, version, hash);
-    YT_ASSERT(TypeFromId(id) == type);
+    // NB: The higest 16 bits of hash are used for externalizing cell tag in
+    // externalized transaction ids.
+    if (type == EObjectType::Transaction || type == EObjectType::NestedTransaction) {
+        hash &= 0xffff;
+    }
 
-    ++CreatedObjects_;
-
-    return id;
+    return MakeRegularId(type, cellTag, version, hash);
 }
 
 int TObjectManager::TImpl::RefObject(TObject* object)
@@ -731,16 +779,14 @@ int TObjectManager::TImpl::RefObject(TObject* object)
         GetObjectEphemeralRefCounter(object),
         GetObjectWeakRefCounter(object));
 
+    if (object->GetLifeStage() >= EObjectLifeStage::RemovalPreCommitted) {
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Object referenced after its removal has been pre-committed (ObjectId: %v, LifeStage: %v)",
+            object->GetId(),
+            object->GetLifeStage());
+    }
+
     if (refCounter == 1) {
         GarbageCollector_->UnregisterZombie(object);
-        if (object->GetLifeStage() == EObjectLifeStage::RemovalPreCommitted ||
-            object->GetLifeStage() == EObjectLifeStage::RemovalCommitted)
-        {
-            YT_LOG_ERROR_UNLESS(IsRecovery(), "Unexpected error: references to object reappeared after removal "
-                "has been pre-committed (ObjectId: %v, LifeStage: %v)",
-                object->GetId(),
-                object->GetLifeStage());
-        }
     }
 
     return refCounter;
@@ -767,10 +813,11 @@ int TObjectManager::TImpl::UnrefObject(TObject* object, int count)
         GarbageCollector_->RegisterZombie(object);
 
         auto flags = handler->GetFlags();
-        if (Any(flags & ETypeFlags::ReplicateDestroy) &&
+        if (object->IsNative() &&
+            Any(flags & ETypeFlags::ReplicateDestroy) &&
             None(flags & ETypeFlags::TwoPhaseRemoval))
         {
-            NProto::    TReqRemoveForeignObject request;
+            NProto::TReqRemoveForeignObject request;
             ToProto(request.mutable_object_id(), object->GetId());
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
@@ -986,7 +1033,9 @@ void TObjectManager::TImpl::RemoveObject(TObject* object)
         THROW_ERROR_EXCEPTION("Object is foreign");
     }
 
-    if (Any(handler->GetFlags() & ETypeFlags::TwoPhaseRemoval) && Bootstrap_->IsPrimaryMaster()) {
+    if (Bootstrap_->IsPrimaryMaster() &&
+        Any(handler->GetFlags() & ETypeFlags::TwoPhaseRemoval))
+    {
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Two-phase object removal started (ObjectId: %v, RefCounter: %v)",
             object->GetId(),
             object->GetObjectRefCounter());
@@ -1029,8 +1078,7 @@ IObjectProxyPtr TObjectManager::TImpl::GetProxy(
     }
 
     // Slow path.
-    auto id = object->GetId();
-    const auto& handler = FindHandler(TypeFromId(id));
+    const auto& handler = FindHandler(object->GetType());
     if (!handler) {
         return nullptr;
     }
@@ -1076,15 +1124,16 @@ void TObjectManager::TImpl::FillAttributes(
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    auto keys = attributes.List();
-    if (keys.empty()) {
+    auto pairs = attributes.ListPairs();
+    if (pairs.empty()) {
         return;
     }
 
     auto proxy = GetProxy(object, nullptr);
-    std::sort(keys.begin(), keys.end());
-    for (const auto& key : keys) {
-        auto value = attributes.GetYson(key);
+    std::sort(pairs.begin(), pairs.end(), [] (const auto& lhs, const auto& rhs) {
+        return lhs.first < rhs.first;
+    });
+    for (const auto& [key, value] : pairs) {
         proxy->MutableAttributes()->Set(key, value);
     }
 }
@@ -1193,7 +1242,7 @@ TObject* TObjectManager::TImpl::CreateObject(
 
     YT_VERIFY(object->GetObjectRefCounter() == 1);
 
-    if (CellTagFromId(object->GetId()) != Bootstrap_->GetCellTag()) {
+    if (object->GetNativeCellTag() != Bootstrap_->GetCellTag()) {
         object->SetForeign();
     }
 
@@ -1227,13 +1276,19 @@ TObject* TObjectManager::TImpl::CreateObject(
 
 void TObjectManager::TImpl::ConfirmObjectLifeStageToPrimaryMaster(TObject* object)
 {
-    if (!Bootstrap_->IsSecondaryMaster() || IsStableLifeStage(object->GetLifeStage())) {
+    if (!Bootstrap_->IsSecondaryMaster()) {
+        return;
+    }
+
+    auto lifeStage = object->GetLifeStage();
+    if (lifeStage == EObjectLifeStage::CreationCommitted ||
+        lifeStage == EObjectLifeStage::RemovalCommitted) {
         return;
     }
 
     YT_LOG_DEBUG_UNLESS(IsRecovery(), "Confirming object life stage to primary master (ObjectId: %v, LifeStage: %v)",
         object->GetId(),
-        object->GetLifeStage());
+        lifeStage);
 
     NProto::TReqConfirmObjectLifeStage request;
     ToProto(request.mutable_object_id(), object->GetId());
@@ -1241,6 +1296,22 @@ void TObjectManager::TImpl::ConfirmObjectLifeStageToPrimaryMaster(TObject* objec
 
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     multicellManager->PostToMaster(request, PrimaryMasterCellTag);
+}
+
+void TObjectManager::TImpl::AdvanceObjectLifeStageAtSecondaryMasters(NYT::NObjectServer::TObject* object)
+{
+    YT_VERIFY(Bootstrap_->IsPrimaryMaster());
+
+    YT_LOG_DEBUG_UNLESS(IsRecovery(), "Advancing object life stage at secondary masters (ObjectId: %v, LifeStage: %v)",
+        object->GetId(),
+        object->GetLifeStage());
+
+    NProto::TReqAdvanceObjectLifeStage advanceRequest;
+    ToProto(advanceRequest.mutable_object_id(), object->GetId());
+    advanceRequest.set_new_life_stage(static_cast<int>(object->GetLifeStage()));
+
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    multicellManager->PostToSecondaryMasters(advanceRequest);
 }
 
 TObject* TObjectManager::TImpl::ResolvePathToObject(const TYPath& path, TTransaction* transaction)
@@ -1296,7 +1367,7 @@ void TObjectManager::TImpl::ValidatePrerequisites(const NObjectClient::NProto::T
     for (const auto& prerequisite : prerequisites.revisions()) {
         auto transactionId = FromProto<TTransactionId>(prerequisite.transaction_id());
         const auto& path = prerequisite.path();
-        ui64 revision = prerequisite.revision();
+        auto revision = prerequisite.revision();
 
         auto* transaction = transactionId
             ? getPrerequisiteTransaction(transactionId)
@@ -1316,7 +1387,7 @@ void TObjectManager::TImpl::ValidatePrerequisites(const NObjectClient::NProto::T
         if (trunkNode->GetRevision() != revision) {
             THROW_ERROR_EXCEPTION(
                 NObjectClient::EErrorCode::PrerequisiteCheckFailed,
-                "Prerequisite check failed: node %v revision mismatch: expected %v, found %v",
+                "Prerequisite check failed: node %v revision mismatch: expected %llx, found %llx",
                 path,
                 revision,
                 trunkNode->GetRevision());
@@ -1338,11 +1409,16 @@ TFuture<TSharedRefArray> TObjectManager::TImpl::ForwardObjectRequest(
     auto requestId = FromProto<TRequestId>(header.request_id());
     const auto& ypathExt = header.GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
 
+    if (auto mutationId = NRpc::GetMutationId(header)) {
+        SetMutationId(&header, GenerateNextForwardedMutationId(mutationId), header.retry());
+    }
+
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     auto channel = multicellManager->GetMasterChannelOrThrow(cellTag, peerKind);
 
     TObjectServiceProxy proxy(std::move(channel));
-    auto batchReq = proxy.ExecuteBatch();
+    auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
+    batchReq->SetOriginalRequestId(requestId);
     batchReq->SetTimeout(timeout);
     batchReq->SetUser(header.user());
     batchReq->AddRequestMessage(std::move(requestMessage));
@@ -1360,7 +1436,14 @@ TFuture<TSharedRefArray> TObjectManager::TImpl::ForwardObjectRequest(
         peerKind);
 
     return batchReq->Invoke().Apply(BIND([=] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
-        THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Object request forwarding failed");
+        if (!batchRspOrError.IsOK()) {
+            YT_LOG_DEBUG(batchRspOrError, "Forwarded request failed (RequestId: %v -> %v)",
+                requestId,
+                batchReq->GetRequestId());
+            auto error = TError(NObjectClient::EErrorCode::ForwardedRequestFailed, "Forwarded request failed")
+                << batchRspOrError;
+            return NRpc::CreateErrorResponseMessage(requestId, batchRspOrError);
+        }
 
         YT_LOG_DEBUG("Object request forwarding succeeded (RequestId: %v)",
             requestId);
@@ -1554,8 +1637,8 @@ void TObjectManager::TImpl::HydraRemoveForeignObject(NProto::TReqRemoveForeignOb
     }
 
     if (object->GetLifeStage() != EObjectLifeStage::CreationCommitted) {
-        YT_LOG_ERROR_UNLESS(IsRecovery(),
-            "Unexpected error: requested to remove a foreign object with inappropriate life stage (ObjectId: %v, LifeStage: %v)",
+        YT_LOG_ALERT_UNLESS(IsRecovery(),
+            "Requested to remove a foreign object with inappropriate life stage (ObjectId: %v, LifeStage: %v)",
             objectId,
             object->GetLifeStage());
         return;
@@ -1630,7 +1713,7 @@ void TObjectManager::TImpl::HydraAdvanceObjectLifeStage(NProto::TReqAdvanceObjec
         return;
     }
 
-    if (!object->IsForeign()) {
+    if (object->IsNative()) {
         YT_LOG_DEBUG_UNLESS(IsRecovery(),
             "Life stage advancement for a non-foreign object requested by primary cell (ObjectId: %v)",
             objectId);
@@ -1638,7 +1721,7 @@ void TObjectManager::TImpl::HydraAdvanceObjectLifeStage(NProto::TReqAdvanceObjec
     }
 
     auto oldLifeStage = object->GetLifeStage();
-    auto newLifeStage = GetNextLifeStage(oldLifeStage);
+    auto newLifeStage = CheckedEnumCast<EObjectLifeStage>(request->new_life_stage());
     object->SetLifeStage(newLifeStage);
 
     YT_LOG_DEBUG_UNLESS(IsRecovery(),
@@ -1654,13 +1737,51 @@ void TObjectManager::TImpl::HydraAdvanceObjectLifeStage(NProto::TReqAdvanceObjec
     }
 }
 
+void TObjectManager::TImpl::HydraConfirmRemovalAwaitingCellsSyncObjects(NProto::TReqConfirmRemovalAwaitingCellsSyncObjects* request) noexcept
+{
+    YT_VERIFY(Bootstrap_->IsPrimaryMaster());
+
+    auto objectIds = FromProto<std::vector<TObjectId>>(request->object_ids());
+    for (auto objectId : objectIds) {
+        auto* object = FindObject(objectId);
+        if (!object) {
+            YT_LOG_ALERT_UNLESS(IsRecovery(),
+                "Cells sync confirmed for a non-existing object (ObjectId: %v)",
+                objectId);
+            continue;
+        }
+
+        auto oldLifeStage = object->GetLifeStage();
+        if (oldLifeStage != EObjectLifeStage::RemovalAwaitingCellsSync) {
+            YT_LOG_ALERT_UNLESS(IsRecovery(),
+                "Cells sync confirmed for an object with invalid life stage (ObjectId: %v, LifeStage: %v)",
+                objectId,
+                oldLifeStage);
+            continue;
+        }
+
+        auto newLifeStage = EObjectLifeStage::RemovalCommitted;
+        object->SetLifeStage(newLifeStage);
+
+        YT_LOG_DEBUG_UNLESS(IsRecovery(),
+            "Object life stage advanced after cells sync (ObjectId: %v, LifeStage: %v -> %v)",
+            objectId,
+            oldLifeStage,
+            newLifeStage);
+
+        AdvanceObjectLifeStageAtSecondaryMasters(object);
+        GarbageCollector_->UnregisterRemovalAwaitingCellsSyncObject(object);
+        DoRemoveObject(object);
+    }
+}
+
 void TObjectManager::TImpl::DoRemoveObject(TObject* object)
 {
     YT_LOG_DEBUG_UNLESS(IsRecovery(), "Object removed (ObjectId: %v)",
         object->GetId());
     if (UnrefObject(object) != 0) {
-        YT_LOG_ERROR_UNLESS(IsRecovery(),
-            "Unexpected error: non-zero reference counter for after object removal (ObjectId: %v, RefCounter: %v)",
+        YT_LOG_ALERT_UNLESS(IsRecovery(),
+            "Non-zero reference counter after object removal (ObjectId: %v, RefCounter: %v)",
             object->GetId(),
             object->GetObjectRefCounter());
     }
@@ -1673,9 +1794,9 @@ void TObjectManager::TImpl::CheckRemovingObjectRefCounter(TObject* object)
     }
 
     auto oldLifeStage = object->GetLifeStage();
-    auto newLifeStage = GetNextLifeStage(oldLifeStage);
-
     YT_VERIFY(oldLifeStage == EObjectLifeStage::RemovalStarted);
+    auto newLifeStage = EObjectLifeStage::RemovalPreCommitted;
+
     object->SetLifeStage(newLifeStage);
 
     YT_LOG_DEBUG_UNLESS(IsRecovery(), "Object references released (ObjectId: %v, LifeStage: %v -> %v)",
@@ -1701,7 +1822,27 @@ void TObjectManager::TImpl::CheckObjectLifeStageVoteCount(NYT::NObjectServer::TO
         }
 
         auto oldLifeStage = object->GetLifeStage();
-        auto newLifeStage = GetNextLifeStage(oldLifeStage);
+        EObjectLifeStage newLifeStage;
+        switch (oldLifeStage) {
+            case EObjectLifeStage::CreationStarted:
+                newLifeStage = EObjectLifeStage::CreationPreCommitted;
+                break;
+            case EObjectLifeStage::CreationPreCommitted:
+                newLifeStage = EObjectLifeStage::CreationCommitted;
+                break;
+            case EObjectLifeStage::RemovalStarted:
+                newLifeStage = EObjectLifeStage::RemovalPreCommitted;
+                break;
+            case EObjectLifeStage::RemovalPreCommitted:
+                newLifeStage = EObjectLifeStage::RemovalAwaitingCellsSync;
+                break;
+            default:
+                YT_LOG_ALERT_UNLESS(IsRecovery(), "Unexpected object life stage (ObjectId: %v, LifeStage: %v)",
+                    object->GetId(),
+                    oldLifeStage);
+                return;
+        }
+
         object->SetLifeStage(newLifeStage);
         object->ResetLifeStageVoteCount();
 
@@ -1710,22 +1851,13 @@ void TObjectManager::TImpl::CheckObjectLifeStageVoteCount(NYT::NObjectServer::TO
             oldLifeStage,
             newLifeStage);
 
-        NProto::TReqAdvanceObjectLifeStage advanceRequest;
-        ToProto(advanceRequest.mutable_object_id(), object->GetId());
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        multicellManager->PostToSecondaryMasters(advanceRequest);
-
-        switch (newLifeStage) {
-            case EObjectLifeStage::CreationPreCommitted:
+        if (newLifeStage == EObjectLifeStage::RemovalAwaitingCellsSync) {
+            GarbageCollector_->RegisterRemovalAwaitingCellsSyncObject(object);
+        } else {
+            AdvanceObjectLifeStageAtSecondaryMasters(object);
+            if (newLifeStage == EObjectLifeStage::CreationPreCommitted) {
                 object->IncrementLifeStageVoteCount();
-                break;
-
-            case EObjectLifeStage::RemovalCommitted:
-                DoRemoveObject(object);
-                break;
-
-            default:
-                break;
+            }
         }
     }
 }

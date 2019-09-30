@@ -6,6 +6,8 @@
 
 #include <yt/server/master/chunk_server/public.h>
 
+#include <yt/server/master/cypress_server/public.h>
+
 #include <yt/core/yson/public.h>
 
 #include <yt/core/ytree/yson_serializable.h>
@@ -58,6 +60,9 @@ struct TClusterResources
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
+
+    void Save(NCypressServer::TBeginCopyContext& context) const;
+    void Load(NCypressServer::TEndCopyContext& context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

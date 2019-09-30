@@ -60,22 +60,14 @@ void TAccessTracker::Stop()
 }
 
 void TAccessTracker::SetModified(
-    TCypressNode* trunkNode,
-    TTransaction* transaction,
+    TCypressNode* node,
     EModificationType modificationType)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YT_VERIFY(trunkNode->IsTrunk());
-    YT_VERIFY(trunkNode->IsAlive());
-
-    // Failure here means that the node wasn't indeed locked,
-    // which is strange given that we're about to mark it as modified.
-    TVersionedNodeId versionedId(trunkNode->GetId(), GetObjectId(transaction));
-    const auto& cypressManager = Bootstrap_->GetCypressManager();
-    auto* node = cypressManager->GetNode(versionedId);
 
     const auto* mutationContext = GetCurrentMutationContext();
     node->SetModificationTime(mutationContext->GetTimestamp());
+
     switch (modificationType) {
         case EModificationType::Attributes:
             node->SetAttributesRevision(mutationContext->GetVersion().ToRevision());

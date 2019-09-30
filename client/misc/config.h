@@ -35,6 +35,7 @@ public:
     TDuration UpdatePeriod;
     TDuration BanTimeout;
     TDuration TransactionTimeout;
+    TDuration TransactionPingPeriod;
     bool SkipUnlockedParticipants;
 
     NApi::EMasterChannelKind ReadFrom;
@@ -50,6 +51,8 @@ public:
             .Default(TDuration::Seconds(60));
         RegisterParameter("transaction_timeout", TransactionTimeout)
             .Default(TDuration::Seconds(15));
+        RegisterParameter("transaction_ping_period", TransactionPingPeriod)
+            .Default(TDuration::Seconds(5));
         RegisterParameter("skip_unlocked_participants", SkipUnlockedParticipants)
             .Default(true);
         RegisterParameter("read_from", ReadFrom)

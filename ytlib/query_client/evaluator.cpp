@@ -71,16 +71,15 @@ public:
 
     virtual std::unique_ptr<TAllocationHolder> Allocate(size_t size, TRefCountedTypeCookie cookie) override
     {
-        size_t allocated;
+        size_t allocated = Allocated_.load();
         do {
-            allocated = Allocated_.load();
             if (allocated + size > Limit_) {
                 THROW_ERROR_EXCEPTION("Not enough memory to allocate %v (Allocated: %v, Limit: %v)",
                     size,
                     allocated,
                     Limit_);
             }
-        } while (!Allocated_.compare_exchange_strong(allocated, allocated + size));
+        } while (!Allocated_.compare_exchange_weak(allocated, allocated + size));
 
         std::unique_ptr<THolder> result(TAllocationHolder::Allocate<THolder>(size, cookie));
         result->Owner = this;
@@ -96,7 +95,7 @@ public:
         YT_VERIFY(result->GetRef().Size() != 0);
 
         auto delta = result->GetRef().Size() - size;
-        allocated = Allocated_.fetch_add(delta);
+        allocated = Allocated_.fetch_add(delta) + delta;
 
         auto maxAllocated = MaxAllocated_.load();
         while (maxAllocated < allocated && !MaxAllocated_.compare_exchange_weak(maxAllocated, allocated));

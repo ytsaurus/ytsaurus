@@ -20,6 +20,7 @@ DEFINE_ENUM(EFoldingObjectType,
     (HavingOp)
     (OrderOp)
     (ProjectOp)
+    (WriteOp)
 
     (LiteralExpr)
     (ReferenceExpr)
@@ -974,7 +975,11 @@ void TQueryProfiler::Profile(
     size_t resultSlot = MakeCodegenMergeOp(codegenSource, slotCount, finalSlot, totalsSlot);
     resultSlot = MakeCodegenMergeOp(codegenSource, slotCount, resultSlot, intermediateSlot);
 
-    MakeCodegenWriteOp(codegenSource, resultSlot, resultRowSize);
+    bool considerLimit = query->IsOrdered() && !query->GroupClause;
+    Fold(static_cast<int>(EFoldingObjectType::WriteOp));
+    Fold(static_cast<int>(considerLimit));
+
+    MakeCodegenWriteOp(codegenSource, resultSlot, resultRowSize, considerLimit);
 }
 
 struct TExtraColumnsChecker

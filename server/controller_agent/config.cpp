@@ -577,6 +577,9 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("default_layer_path", DefaultLayerPath)
         .Default();
 
+    RegisterParameter("cuda_toolkit_layer_directory_path", CudaToolkitLayerDirectoryPath)
+        .Default();
+
     RegisterParameter("schedule_job_statistics_log_backoff", ScheduleJobStatisticsLogBackoff)
         .Default(TDuration::Seconds(1));
 

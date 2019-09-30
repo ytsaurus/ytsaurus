@@ -79,8 +79,13 @@ void SetTraceContext(
 
 //! Generates a random mutation id.
 TMutationId GenerateMutationId();
+//! Enables generating a series of mutation ids within a batch.
+TMutationId GenerateNextBatchMutationId(TMutationId id);
+//! Enables generating a series of mutation ids within a forwarding chain.
+TMutationId GenerateNextForwardedMutationId(TMutationId id);
 
 void GenerateMutationId(const IClientRequestPtr& request);
+TMutationId GetMutationId(const NProto::TRequestHeader& header);
 void SetMutationId(NProto::TRequestHeader* header, TMutationId id, bool retry);
 void SetMutationId(const IClientRequestPtr& request, TMutationId id, bool retry);
 void SetOrGenerateMutationId(const IClientRequestPtr& request, TMutationId id, bool retry);

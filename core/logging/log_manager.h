@@ -36,7 +36,7 @@ public:
 
     static void StaticShutdown();
 
-    void Configure(TLogConfigPtr config);
+    void Configure(TLogManagerConfigPtr config);
     void ConfigureFromEnv();
 
     virtual void Shutdown() override;
@@ -46,6 +46,7 @@ public:
     void UpdatePosition(TLoggingPosition* position, TStringBuf message);
 
     int GetVersion() const;
+    bool GetAbortOnAlert() const;
 
     void Enqueue(TLogEvent&& event);
 

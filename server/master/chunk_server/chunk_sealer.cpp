@@ -154,12 +154,12 @@ private:
 
     static bool IsAttached(TChunk* chunk)
     {
-        return !chunk->Parents().empty();
+        return chunk->HasParents();
     }
 
     static bool IsLocked(TChunk* chunk)
     {
-        for (auto* parent : chunk->Parents()) {
+        for (auto [parent, cardinality] : chunk->Parents()) {
             auto nodes = GetOwningNodes(parent);
             for (auto* node : nodes) {
                 if (node->GetUpdateMode() != EUpdateMode::None) {

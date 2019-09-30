@@ -400,6 +400,63 @@ TEST(TYsonSerializableTest, PostprocessSubconfigMap)
     EXPECT_THROW(config->Postprocess(), std::exception);
 }
 
+TEST(TYsonSerializableTest, SaveSingleParameter)
+{
+    auto config = New<TTestConfig>();
+    config->MyString = "test";
+    config->NullableInt = 10;
+
+    auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+    builder->BeginTree();
+    config->SaveParameter("my_string", builder.get());
+    auto actual = ConvertTo<TString>(builder->EndTree());
+    EXPECT_EQ("test", actual);
+}
+
+TEST(TYsonSerializableTest, LoadSingleParameter)
+{
+    auto config = New<TTestConfig>();
+    config->NullableInt = 10;
+
+    config->LoadParameter("my_string", ConvertToNode("test"), EMergeStrategy::Default);
+    EXPECT_EQ("test", config->MyString);
+    EXPECT_EQ(10, config->NullableInt);
+}
+
+TEST(TYsonSerializableTest, LoadSingleParameterWithMergeStrategy)
+{
+    auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+    builder->BeginTree();
+    BuildYsonFluently(builder.get())
+        .BeginMap()
+        .Item("my_int").Value(10)
+        .EndMap();
+    auto subConfig = builder->EndTree();
+
+    auto config1 = New<TTestConfig>();
+    config1->Subconfig->MyBool = true;
+    config1->LoadParameter("sub", subConfig, EMergeStrategy::Default);
+    EXPECT_EQ(10, config1->Subconfig->MyInt);
+    EXPECT_TRUE(config1->Subconfig->MyBool);  // Subconfig merged by default.
+
+    auto config2 = New<TTestConfig>();
+    config2->Subconfig->MyBool = true;
+    config2->LoadParameter("sub", subConfig, EMergeStrategy::Overwrite);
+    EXPECT_EQ(10, config2->Subconfig->MyInt);
+    EXPECT_FALSE(config2->Subconfig->MyBool);  // Overwrite destroyed previous values.
+}
+
+TEST(TYsonSerializableTest, ResetSingleParameter)
+{
+    auto config = New<TTestSubconfig>();
+    config->MyInt = 10;
+    config->MyUint = 10;
+
+    config->ResetParameter("my_int");
+    EXPECT_EQ(100, config->MyInt);  // Default value.
+    EXPECT_EQ(10, config->MyUint);
+}
+
 TEST(TYsonSerializableTest, Save)
 {
     auto config = New<TTestConfig>();

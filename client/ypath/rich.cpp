@@ -608,12 +608,17 @@ bool TRichYPath::GetBypassArtifactCache() const
     return GetAttribute<bool>(*this, "bypass_artifact_cache", false);
 }
 
-EOutputChunkFormat TRichYPath::GetOutputChunkFormat() const
+ETableSchemaModification TRichYPath::GetSchemaModification() const
 {
-    return GetAttribute<EOutputChunkFormat>(
+    return GetAttribute<ETableSchemaModification>(
         *this,
-        "output_chunk_format",
-        EOutputChunkFormat::Unversioned);
+        "schema_modification",
+        ETableSchemaModification::None);
+}
+
+bool TRichYPath::GetPartiallySorted() const
+{
+    return GetAttribute<bool>(*this, "partially_sorted", false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

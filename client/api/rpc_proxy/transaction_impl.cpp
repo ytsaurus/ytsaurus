@@ -4,7 +4,8 @@
 #include "config.h"
 #include "private.h"
 
-#include <yt/client/tablet_client/helpers.h>
+#include <yt/client/transaction_client/helpers.h>
+
 #include <yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/client/api/transaction.h>
@@ -285,7 +286,7 @@ void TTransaction::ModifyRows(
     const TModifyRowsOptions& options)
 {
     ValidateActive();
-    ValidateTabletTransaction(GetId());
+    ValidateTabletTransactionId(GetId());
 
     for (const auto& modification : modifications) {
         // TODO(sandello): handle versioned rows
@@ -574,6 +575,18 @@ TFuture<void> TTransaction::ConcatenateNodes(
     return Client_->ConcatenateNodes(
         srcPaths,
         dstPath,
+        PatchTransactionId(options));
+}
+
+TFuture<void> TTransaction::ExternalizeNode(
+    const TYPath& path,
+    TCellTag cellTag,
+    const TExternalizeNodeOptions& options)
+{
+    ValidateActive();
+    return Client_->ExternalizeNode(
+        path,
+        cellTag,
         PatchTransactionId(options));
 }
 

@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, require_ytserver_root_privileges, unix_only, wait
+from yt_env_setup import YTEnvSetup, unix_only, wait
 from yt_commands import *
 
 from yt.wrapper import JsonFormat
@@ -213,8 +213,9 @@ class TestOperationsRpcProxy(TestRpcProxyBase):
 
 ##################################################################
 
-@require_ytserver_root_privileges
 class TestDumpJobContextRpcProxy(TestRpcProxyBase):
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
+
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "statistics_reporter": {

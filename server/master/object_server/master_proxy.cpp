@@ -4,6 +4,7 @@
 #include "object.h"
 
 #include <yt/server/master/cell_master/bootstrap.h>
+#include <yt/server/master/cell_master/config.h>
 
 #include <yt/server/master/security_server/security_manager.h>
 #include <yt/server/master/security_server/subject.h>
@@ -19,6 +20,8 @@
 
 #include <yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/server/master/chunk_server/medium.h>
+
+#include <yt/ytlib/election/config.h>
 
 #include <yt/ytlib/object_client/master_ypath.pb.h>
 
@@ -139,13 +142,16 @@ private:
         auto populateNodeDirectory = request->populate_node_directory();
         auto populateClusterDirectory = request->populate_cluster_directory();
         auto populateMediumDirectory = request->populate_medium_directory();
+        auto populateCellDirectory = request->populate_cell_directory();
         context->SetRequestInfo(
             "PopulateNodeDirectory: %v, "
             "PopulateClusterDirectory: %v, "
             "PopulateMediumDirectory: %v",
+            "PopulateCellDirectory: %v",
             populateNodeDirectory,
             populateClusterDirectory,
-            populateMediumDirectory);
+            populateMediumDirectory,
+            populateCellDirectory);
 
         if (populateNodeDirectory) {
             TNodeDirectoryBuilder builder(response->mutable_node_directory());
@@ -180,6 +186,35 @@ private:
                 protoItem->set_index(medium->GetIndex());
                 protoItem->set_name(medium->GetName());
                 protoItem->set_priority(medium->GetPriority());
+            }
+        }
+
+        if (populateCellDirectory) {
+            const auto& cellMasterConfig = Bootstrap_->GetConfig();
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            auto* protoCellDirectory = response->mutable_cell_directory();
+
+            auto addCell = [&] (const NElection::TCellConfigPtr& cellConfig) {
+                auto* cellItem = protoCellDirectory->add_items();
+                ToProto(cellItem->mutable_cell_id(), cellConfig->CellId);
+
+                for (const auto& peerConfig : cellConfig->Peers) {
+                    if (peerConfig.Address) {
+                        cellItem->add_addresses(*peerConfig.Address);
+                    }
+                }
+
+                auto roles = multicellManager->GetMasterCellRoles(CellTagFromId(cellConfig->CellId));
+                for (auto role : TEnumTraits<EMasterCellRoles>::GetDomainValues()) {
+                    if (Any(roles & role)) {
+                        cellItem->add_roles(static_cast<i32>(role));
+                    }
+                }
+            };
+
+            addCell(cellMasterConfig->PrimaryMaster);
+            for (const auto& secondaryMasterConfig : cellMasterConfig->SecondaryMasters) {
+                addCell(secondaryMasterConfig);
             }
         }
 

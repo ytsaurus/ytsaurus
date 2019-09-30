@@ -41,7 +41,7 @@ public:
         , Spec_(std::move(spec))
         , Name_(std::move(name))
         , TaskGroup_(taskGroup.Get())
-        , VanillaChunkPool_(CreateVanillaChunkPool(Spec_->JobCount))
+        , VanillaChunkPool_(CreateVanillaChunkPool({Spec_->JobCount, Spec_->RestartCompletedJobs}))
     { }
 
     //! Used only for persistence.
@@ -132,6 +132,13 @@ public:
         return result;
     }
 
+    virtual bool IsJobInterruptible() const override
+    {
+        // We do not allow to interrupt job without interruption_signal
+        // because there are no more ways to notify vanilla job about it.
+        return Spec_->InterruptionSignal.has_value();
+    }
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TVanillaTask, 0x55e9aacd);
 
@@ -206,9 +213,7 @@ public:
 
         TaskGroup_ = New<TTaskGroup>();
         RegisterTaskGroup(TaskGroup_);
-        for (const auto& pair : Spec_->Tasks) {
-            const auto& taskName = pair.first;
-            const auto& taskSpec = pair.second;
+        for (const auto& [taskName, taskSpec] : Spec_->Tasks) {
             std::vector<TEdgeDescriptor> edgeDescriptors;
             int taskIndex = Tasks.size();
             for (int index = 0; index < TaskOutputTables_[taskIndex].size(); ++index) {
@@ -320,7 +325,8 @@ public:
 
     virtual bool IsJobInterruptible() const override
     {
-        return false;
+        // Every task has its own IsJobInterruptible. We will never be here.
+        YT_ABORT();
     }
 
     virtual void ValidateRevivalAllowed() const override

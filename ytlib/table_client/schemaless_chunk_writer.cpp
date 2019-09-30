@@ -19,6 +19,7 @@
 #include <yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
@@ -29,6 +30,8 @@
 #include <yt/ytlib/table_client/table_upload_options.h>
 
 #include <yt/ytlib/query_client/column_evaluator.h>
+
+#include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/api/native/connection.h>
 #include <yt/ytlib/api/native/client.h>
@@ -952,7 +955,7 @@ protected:
                 }
 
                 if (IdMapping_[valueIt->Id] == -1) {
-                    IdMapping_[valueIt->Id] = GetChunkNameTable()->GetIdOrRegisterName(NameTable_->GetName(valueIt->Id));
+                    IdMapping_[valueIt->Id] = GetChunkNameTable()->GetIdOrRegisterName(NameTable_->GetNameOrThrow(valueIt->Id));
                 }
 
                 int id = IdMapping_[valueIt->Id];
@@ -1149,7 +1152,7 @@ public:
         , Partitioner_(partitioner)
         , BlockReserveSize_(std::max(config->MaxBufferSize / partitioner->GetPartitionCount() / 2, i64(1)))
     {
-        Logger.AddTag("PartitionMultiChunkWriter: %s", TGuid::Create());
+        Logger.AddTag("PartitionMultiChunkWriterId: %v", TGuid::Create());
 
         int partitionCount = Partitioner_->GetPartitionCount();
         BlockWriters_.reserve(partitionCount);
@@ -1472,6 +1475,7 @@ public:
             blockCache)
         , CreateChunkWriter_(createChunkWriter)
         , OriginalSchema_(schema)
+        , ChunkNameTable_(TNameTable::FromSchema(Schema_))
     { }
 
     virtual bool Write(TRange<TUnversionedRow> rows) override
@@ -1503,12 +1507,13 @@ private:
     const std::function<IVersionedChunkWriterPtr(IChunkWriterPtr)> CreateChunkWriter_;
     TTableSchema OriginalSchema_;
     TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TUnversionedUpdateMultiChunkWriterTag());
+    TNameTablePtr ChunkNameTable_;
 
     IVersionedChunkWriterPtr CurrentWriter_;
 
     virtual TNameTablePtr GetChunkNameTable() override
     {
-        return GetNameTable();
+        return ChunkNameTable_;
     }
 
     virtual IChunkWriterBasePtr CreateTemplateWriter(IChunkWriterPtr underlyingWriter) override
@@ -1699,8 +1704,8 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
 {
-    switch (options->OutputChunkFormat) {
-        case EOutputChunkFormat::Unversioned: {
+    switch (options->SchemaModification) {
+        case ETableSchemaModification::None: {
             auto createChunkWriter = [=] (IChunkWriterPtr underlyingWriter) {
                 return CreateSchemalessChunkWriter(
                     config,
@@ -1731,7 +1736,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
             return writer;
         }
 
-        case EOutputChunkFormat::UnversionedUpdate: {
+        case ETableSchemaModification::UnversionedUpdate: {
             auto createChunkWriter = [=] (IChunkWriterPtr underlyingWriter) {
                 return CreateVersionedChunkWriter(
                     config,
@@ -1795,9 +1800,6 @@ public:
             .AddTag("Path: %v, TransactionId: %v",
                 richPath.GetPath(),
                 TransactionId_))
-        , UploadSynchronizer_(
-            Client_->GetNativeConnection(),
-            TransactionId_)
     {
         if (Transaction_) {
             StartListenTransaction(Transaction_);
@@ -1861,7 +1863,6 @@ private:
     TTableUploadOptions TableUploadOptions_;
     ITransactionPtr UploadTransaction_;
     ISchemalessMultiChunkWriterPtr UnderlyingWriter_;
-    TChunkUploadSynchronizer UploadSynchronizer_;
 
 
     void DoOpen()
@@ -1895,12 +1896,13 @@ private:
         {
             YT_LOG_DEBUG("Requesting extended table attributes");
 
-            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, nativeCellTag);
+            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, externalCellTag);
             TObjectServiceProxy proxy(channel);
 
             auto req = TCypressYPathProxy::Get(objectIdPath);
-            SetTransactionId(req, Transaction_);
-            std::vector<TString> attributeKeys{
+            AddCellTagToSyncWith(req, userObject.ObjectId);
+            NCypressClient::SetTransactionId(req, userObject.ExternalTransactionId);
+            ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
                 "account",
                 "chunk_writer",
                 "compression_codec",
@@ -1914,8 +1916,7 @@ private:
                 "schema_mode",
                 "vital",
                 "enable_skynet_sharing"
-            };
-            ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+            });
 
             auto rspOrError = WaitFor(proxy.Execute(req));
             THROW_ERROR_EXCEPTION_IF_FAILED(
@@ -2000,8 +2001,6 @@ private:
 
         StartListenTransaction(UploadTransaction_);
 
-        UploadSynchronizer_.AfterBeginUpload(userObject.ObjectId, userObject.ExternalCellTag);
-
         TOwningKey writerLastKey;
         TChunkListId chunkListId;
 
@@ -2014,7 +2013,6 @@ private:
             auto req =  TTableYPathProxy::GetUploadParams(objectIdPath);
             req->set_fetch_last_key(TableUploadOptions_.UpdateMode == EUpdateMode::Append &&
                 TableUploadOptions_.TableSchema.IsSorted());
-
             SetTransactionId(req, UploadTransaction_);
 
             auto rspOrError = WaitFor(proxy.Execute(req));
@@ -2073,8 +2071,6 @@ private:
 
         StopListenTransaction(UploadTransaction_);
 
-        UploadSynchronizer_.BeforeEndUpload();
-
         auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, nativeCellTag);
         TObjectServiceProxy proxy(channel);
 
@@ -2102,8 +2098,6 @@ private:
             GetCumulativeError(batchRspOrError),
             "Error finishing upload to table %v",
             path);
-
-        UploadSynchronizer_.AfterEndUpload();
 
         UploadTransaction_->Detach();
 

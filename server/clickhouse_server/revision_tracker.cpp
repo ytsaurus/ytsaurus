@@ -20,16 +20,16 @@ TRevisionTracker::TRevisionTracker(TYPath path, IClientPtr client)
 
 bool TRevisionTracker::HasRevisionChanged() const
 {
-    if (!Revision_) {
+    if (Revision_ == NHydra::NullRevision) {
         return true;
     }
     auto currentRevision = GetCurrentRevision();
-    if (!currentRevision) {
+    if (currentRevision == NHydra::NullRevision) {
         // We do not want to lose state of the dictionary for as long as possible.
         return false;
     }
-    YT_VERIFY(*currentRevision >= *Revision_);
-    return *currentRevision != *Revision_;
+    YT_VERIFY(currentRevision >= Revision_);
+    return currentRevision != Revision_;
 }
 
 void TRevisionTracker::FixCurrentRevision()
@@ -37,12 +37,12 @@ void TRevisionTracker::FixCurrentRevision()
     Revision_ = GetCurrentRevision();
 }
 
-std::optional<ui64> TRevisionTracker::GetRevision() const
+NHydra::TRevision TRevisionTracker::GetRevision() const
 {
     return Revision_;
 }
 
-std::optional<ui64> TRevisionTracker::GetCurrentRevision() const
+NHydra::TRevision TRevisionTracker::GetCurrentRevision() const
 {
     TGetNodeOptions options;
     options.ReadFrom = EMasterChannelKind::Cache;
@@ -50,11 +50,11 @@ std::optional<ui64> TRevisionTracker::GetCurrentRevision() const
     auto ysonOrError = WaitFor(asyncResult);
     if (!ysonOrError.IsOK()) {
         if (ysonOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-            return std::nullopt;
+            return NHydra::NullRevision;
         }
         ysonOrError.ThrowOnError();
     }
-    return ConvertTo<ui64>(ysonOrError.Value());
+    return ConvertTo<NHydra::TRevision>(ysonOrError.Value());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -99,7 +99,7 @@ public:
     bool IsEmpty() const;
 
     void Profile(
-        NProfiling::TMetricsAccumulator& collector,
+        NProfiling::TMetricsAccumulator& accumulator,
         const TString& prefix,
         const NProfiling::TTagIdList& tagIds) const;
 

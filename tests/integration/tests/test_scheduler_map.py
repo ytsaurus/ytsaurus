@@ -2,6 +2,7 @@ from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, wait, skip
 from yt_commands import *
 
 from yt.test_helpers import assert_items_equal, are_almost_equal
+from yt.yson import loads
 
 from flaky import flaky
 
@@ -9,6 +10,8 @@ import pytest
 import random
 import string
 import time
+import base64
+
 ##################################################################
 
 porto_delta_node_config = {
@@ -1264,6 +1267,20 @@ done
         assert len(get(op.get_path() + "/controller_orchid/job_splitter")) == 0
         op.track()
 
+    @authors("ifsmirnov")
+    def test_disallow_partially_sorted_output(self):
+        create(
+            "table",
+            "//tmp/t",
+            attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]})
+        write_table("//tmp/t", [{"key": 1}])
+
+        with pytest.raises(YtError):
+            map(
+                in_="//tmp/t",
+                out="<partially_sorted=%true>//tmp/t",
+                command="cat")
+
 ##################################################################
 
 @patch_porto_env_only(TestSchedulerMapCommands)
@@ -1294,6 +1311,11 @@ class TestSchedulerMapCommandsMulticell(TestSchedulerMapCommands):
             command="cat")
 
         assert_items_equal(read_table("//tmp/t_out"), [{"a": 1}, {"a": 2}])
+
+##################################################################
+
+class TestSchedulerMapCommandsPortal(TestSchedulerMapCommandsMulticell):
+    ENABLE_TMP_PORTAL = True
 
 ##################################################################
 
@@ -1970,6 +1992,62 @@ print '{hello=world}'
             out="//tmp/t_out",
             command="cat")
 
+    @authors("max42")
+    def test_ordered_several_ranges(self):
+        # YT-11322
+        create("table", "//tmp/t_in", attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]})
+        create("table", "//tmp/t_out")
+        in_content = [{"key": 0}, {"key": 1}, {"key": 2}]
+        write_table("//tmp/t_in", [{"key": 0}, {"key": 1}, {"key": 2}])
+
+        script='\n'.join(["#!/usr/bin/python",
+                          "import sys",
+                          "import base64",
+                          "print '{out=\"' + base64.standard_b64encode(sys.stdin.read()) + '\"}'"])
+
+        create("file", "//tmp/script.py", attributes={"executable": True})
+        write_file("//tmp/script.py", script)
+
+        expected_content = [{"key": 0, "table_index": 0, "row_index": 0, "range_index": 0},
+                            {"key": 1, "table_index": 0, "row_index": 1, "range_index": 1},
+                            {"key": 2, "table_index": 1, "row_index": 2, "range_index": 0}]
+
+        map(in_=["<ranges=[{exact={row_index=0}};{exact={row_index=1}}]>//tmp/t_in", "<ranges=[{exact={row_index=2}}]>//tmp/t_in"],
+            out="//tmp/t_out",
+            ordered=True,
+            spec={
+                "job_count": 1,
+                "mapper": {
+                    "file_paths": ["//tmp/script.py"],
+                    "format": loads("<format=text>yson"),
+                },
+                "max_failed_job_count": 1,
+                "job_io": {
+                    "control_attributes": {
+                        "enable_range_index": True,
+                        "enable_row_index": True,
+                        "enable_table_index": True,
+                    }
+                },
+            },
+            command="./script.py")
+
+        job_input = read_table("//tmp/t_out")[0]["out"]
+        job_input = base64.standard_b64decode(job_input)
+        rows = loads(job_input, yson_type='list_fragment')
+        actual_content = []
+        current_attrs = {}
+        for row in rows:
+            if type(row) == yson.yson_types.YsonEntity:
+                for key, value in row.attributes.iteritems():
+                    current_attrs[key] = value
+            else:
+                new_row = dict(row)
+                for key, value in current_attrs.iteritems():
+                    new_row[key] = value
+                actual_content.append(new_row)
+
+        assert actual_content == expected_content
 
 ##################################################################
 

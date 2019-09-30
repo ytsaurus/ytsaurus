@@ -85,6 +85,7 @@ DEFINE_ENUM(EAbortReason,
     ((SpeculativeRunWon)               ( 15))
     ((SpeculativeRunLost)              ( 16))
     ((ChunkMappingInvalidated)         ( 17))
+    ((NodeWithZeroUserSlots)           ( 18))
     ((SchedulingFirst)                 (100))
     ((SchedulingTimeout)               (101))
     ((SchedulingResourceOvercommit)    (102))
@@ -96,11 +97,12 @@ DEFINE_ENUM(EAbortReason,
 );
 
 DEFINE_ENUM(EInterruptReason,
-    ((None)        (0))
-    ((Preemption)  (1))
-    ((UserRequest) (2))
-    ((JobSplit)    (3))
-    ((Unknown)     (4))
+    ((None)               (0))
+    ((Preemption)         (1))
+    ((UserRequest)        (2))
+    ((JobSplit)           (3))
+    ((GracefulPreemption) (5))
+    ((Unknown)            (4))
 );
 
 DEFINE_ENUM(ESchedulingMode,

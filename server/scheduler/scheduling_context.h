@@ -49,6 +49,7 @@ struct ISchedulingContext
 
     virtual const std::vector<TJobPtr>& StartedJobs() const = 0;
     virtual const std::vector<TJobPtr>& PreemptedJobs() const = 0;
+    virtual const std::vector<TJobPtr>& GracefullyPreemptedJobs() const = 0;
     virtual const std::vector<TJobPtr>& RunningJobs() const = 0;
 
     //! Returns |true| if node has enough resources to start job with given limits.
@@ -58,13 +59,18 @@ struct ISchedulingContext
     //! Returns |true| if the node can handle jobs demanding a certain #tag.
     virtual bool CanSchedule(const TSchedulingTagFilter& filter) const = 0;
 
+    //! Returns |true| if strategy should abort jobs since resources overcommit.
+    virtual bool ShouldAbortJobsSinceResourcesOvercommit() const = 0;
+
     virtual void StartJob(
         const TString& treeId,
         TOperationId operationId,
         TIncarnationId incarnationId,
-        const TJobStartDescriptor& startDescriptor) = 0;
+        const TJobStartDescriptor& startDescriptor,
+        EPreemptionMode preemptionMode) = 0;
 
     virtual void PreemptJob(const TJobPtr& job) = 0;
+    virtual void PreemptJobGracefully(const TJobPtr& job) = 0;
 
     virtual NProfiling::TCpuInstant GetNow() const = 0;
 

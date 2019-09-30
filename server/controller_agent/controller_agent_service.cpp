@@ -355,6 +355,10 @@ private:
                 .ValueOrThrow();
             ToProto(response->mutable_residual_job_metrics(), result.ResidualJobMetrics);
 
+            context->SetResponseInfo("TreesWithResidualJobMetrics: %v",
+                MakeFormattableView(result.ResidualJobMetrics, [] (auto* builder, const auto& treeTaggedJobMetrics) {
+                    builder->AppendString(treeTaggedJobMetrics.TreeId);
+                }));
             context->Reply();
         });
     }

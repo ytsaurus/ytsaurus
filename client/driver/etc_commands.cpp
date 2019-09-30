@@ -1,6 +1,7 @@
 #include "etc_commands.h"
 
 #include <yt/client/api/client.h>
+#include <yt/client/api/admin.h>
 
 #include <yt/client/ypath/rich.h>
 
@@ -228,6 +229,9 @@ public:
             driverRequest.OutputStream = AsyncOutput_;
         }
         if (Descriptor_.Volatile) {
+            // XXX(babenko): investigate 'Duplicate request is not marked as "retry"'
+            const auto& Logger = DriverLogger;
+            YT_LOG_DEBUG("XXX %v", MutationId_);
             parameters->Set("mutation_id", MutationId_);
             parameters->Set("retry", Retry_);
         }
@@ -289,7 +293,7 @@ void TExecuteBatchCommand::DoExecute(ICommandContextPtr context)
             request,
             mutationId,
             Options.Retry);
-        ++mutationId.Parts32[0];
+        mutationId = NRpc::GenerateNextBatchMutationId(mutationId);
         callbacks.push_back(BIND(&TRequestExecutor::Run, executor));
     }
 
@@ -370,6 +374,31 @@ void TBalanceTabletCellsCommand::DoExecute(ICommandContextPtr context)
     auto tabletActions = WaitFor(asyncResult)
         .ValueOrThrow();
     context->ProduceOutputValue(BuildYsonStringFluently().List(tabletActions));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TBuildSnapshotCommand::TBuildSnapshotCommand()
+{
+    RegisterParameter("cell_id", CellId_);
+
+    RegisterParameter("set_read_only", SetReadOnly_)
+        .Default(false);
+}
+
+void TBuildSnapshotCommand::DoExecute(ICommandContextPtr context)
+{
+    if (!ValidateSuperuserPermissions(context)) {
+        THROW_ERROR_EXCEPTION("User not authorized");
+    }
+
+    auto admin = context->GetDriver()->GetConnection()->CreateAdmin(TAdminOptions{});
+    auto snapshotIdOrError = WaitFor(admin->BuildSnapshot(TBuildSnapshotOptions{CellId_, SetReadOnly_, false}));
+    auto snapshotId = snapshotIdOrError.ValueOrThrow();
+    context->ProduceOutputValue(BuildYsonStringFluently()
+        .BeginMap()
+            .Item("snapshot_id").Value(snapshotId)
+        .EndMap());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

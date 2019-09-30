@@ -905,10 +905,6 @@ private:
             return;
         }
 
-        TChunkUploadSynchronizer uploadSynchronizer(
-            Bootstrap_->GetMasterClient()->GetNativeConnection(),
-            transactionId);
-
         struct TTableInfo
         {
             TNodeId TableId;
@@ -961,7 +957,6 @@ private:
                 const auto& rsp = rsps[rspIndex++].Value();
                 tableInfo->ExternalCellTag = rsp->cell_tag();
                 tableInfo->UploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
-                uploadSynchronizer.AfterBeginUpload(tableInfo->TableId, tableInfo->ExternalCellTag);
             }
         }
 
@@ -1029,8 +1024,6 @@ private:
             }
         }
 
-        uploadSynchronizer.BeforeEndUpload();
-
         // EndUpload
         for (const auto& [cellTag, tableInfos] : nativeCellTagToTableInfos) {
             auto batchReq = StartObjectBatchRequestWithPrerequisites(EMasterChannelKind::Leader, cellTag);
@@ -1046,8 +1039,6 @@ private:
             auto batchRspOrError = WaitFor(batchReq->Invoke());
             THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
         }
-
-        uploadSynchronizer.AfterEndUpload();
     }
 
     void DoAttachToLivePreview(
@@ -1184,10 +1175,12 @@ private:
 
         TOperationIdToWeakControllerMap weakControllerMap;
 
-        const auto& controllerAgent = Bootstrap_->GetControllerAgent();
-        auto controllerMap = controllerAgent->GetOperations();
-        for (const auto& pair : controllerMap) {
-            weakControllerMap.insert({pair.first, pair.second->GetController()});
+        {
+            const auto& controllerAgent = Bootstrap_->GetControllerAgent();
+            auto controllerMap = controllerAgent->GetOperations();
+            for (const auto& pair : controllerMap) {
+                weakControllerMap.insert({pair.first, pair.second->GetController()});
+            }
         }
 
         auto builder = New<TSnapshotBuilder>(
@@ -1333,6 +1326,7 @@ private:
             auto rspOrError = WaitFor(proxy.Execute(req));
             if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
                 YT_LOG_INFO("No configuration found in Cypress");
+                SetControllerAgentAlert(EControllerAgentAlertType::UnrecognizedConfigOptions, TError());
                 SetControllerAgentAlert(EControllerAgentAlertType::UpdateConfig, TError());
                 return;
             }
@@ -1353,6 +1347,7 @@ private:
             auto oldConfigNode = ConvertToNode(Config_);
             auto newConfigNode = ConvertToNode(newConfig);
             if (AreNodesEqual(oldConfigNode, newConfigNode)) {
+                YT_LOG_INFO("Controller agent configuration is not changed");
                 return;
             }
 

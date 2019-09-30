@@ -61,8 +61,10 @@ public:
             case ETokenType::EndOfStream: {
                 // NB: Always handle mutating Cypress verbs locally.
                 if (method == "Remove" ||
+                    method == "Set" ||
                     method == "Create" ||
-                    method == "Copy")
+                    method == "Copy" ||
+                    method == "EndCopy")
                 {
                     return TResolveResultHere{path};
                 } else {
@@ -113,7 +115,7 @@ private:
         try {
             const auto* linkNode = GetThisImpl();
             const auto& objectManager = Bootstrap_->GetObjectManager();
-            objectManager->ResolvePathToObject(linkNode->ComputeEffectiveTargetPath(), Transaction);
+            objectManager->ResolvePathToObject(linkNode->ComputeEffectiveTargetPath(), Transaction_);
             return false;
         } catch (const std::exception&) {
             return true;

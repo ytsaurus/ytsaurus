@@ -5,7 +5,6 @@
 #include <yt/core/actions/invoker_util.h>
 
 #include <yt/core/concurrency/scheduler.h>
-#include <yt/core/concurrency/fiber.h>
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/thread_pool.h>
 #include <yt/core/concurrency/delayed_executor.h>
@@ -78,7 +77,7 @@ int RecursiveFunction(size_t maxDepth, size_t currentDepth)
         return 0;
     }
 
-    if (!GetCurrentScheduler()->GetCurrentFiber()->CheckFreeStackSpace(40 * 1024)) {
+    if (!CheckFreeStackSpace(40 * 1024)) {
         THROW_ERROR_EXCEPTION("Evaluation depth causes stack overflow");
     }
 
@@ -687,9 +686,7 @@ TEST_F(TSchedulerTest, SerializedDoubleWaitFor)
 
 void CheckCurrentFiberRunDuration(TDuration lo, TDuration hi)
 {
-    auto* scheduler = GetCurrentScheduler();
-    auto* fiber = scheduler->GetCurrentFiber();
-    auto actual = NProfiling::CpuDurationToDuration(fiber->GetRunCpuTime());
+    auto actual = NProfiling::CpuDurationToDuration(GetCurrentRunCpuTime());
     EXPECT_LE(actual, hi);
     EXPECT_GE(actual, lo);
 }

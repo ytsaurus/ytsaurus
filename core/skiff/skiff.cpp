@@ -8,14 +8,12 @@ namespace NYT::NSkiff {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUncheckedSkiffParser::TUncheckedSkiffParser(IInputStream* underlying)
+TUncheckedSkiffParser::TUncheckedSkiffParser(IZeroCopyInput* underlying)
     : Underlying_(underlying)
     , Buffer_(512_KB)
-    , RemainingBytes_(0)
-    , Position_(Buffer_.Data())
 { }
 
-TUncheckedSkiffParser::TUncheckedSkiffParser(const TSkiffSchemaPtr& /*schema*/, IInputStream* underlying)
+TUncheckedSkiffParser::TUncheckedSkiffParser(const TSkiffSchemaPtr& /*schema*/, IZeroCopyInput* underlying)
     : TUncheckedSkiffParser(underlying)
 { }
 
@@ -38,35 +36,16 @@ bool TUncheckedSkiffParser::ParseBoolean()
 {
     ui8 result = ParseSimple<ui8>();
     if (result > 1) {
-        THROW_ERROR_EXCEPTION("Invalid boolean value %Qv",
-            result);
+        THROW_ERROR_EXCEPTION("Invalid boolean value %Qv", result);
     }
     return result;
 }
 
 TStringBuf TUncheckedSkiffParser::ParseString32()
 {
-    ui32 toRead = ParseSimple<ui32>();
-    if (toRead < RemainingBytes_) {
-        auto result = TStringBuf(Position_, toRead);
-        Advance(toRead);
-        return result;
-    } else {
-        Tmp_.clear();
-        Tmp_.reserve(toRead);
-
-        while (true) {
-            ui32 curRead = Min<ui32>(toRead, RemainingBytes_);
-            Tmp_.append(Position_, curRead);
-            toRead -= curRead;
-            Advance(curRead);
-            if (toRead == 0) {
-                break;
-            }
-            RefillBuffer(1);
-        }
-        return Tmp_;
-    }
+    ui32 len = ParseSimple<ui32>();
+    const void* data = GetData(len);
+    return TStringBuf(static_cast<const char*>(data), len);
 }
 
 TStringBuf TUncheckedSkiffParser::ParseYson32()
@@ -87,49 +66,67 @@ ui16 TUncheckedSkiffParser::ParseVariant16Tag()
 template <typename T>
 T TUncheckedSkiffParser::ParseSimple()
 {
-    if (RemainingBytes_ < sizeof(T)) {
-        RefillBuffer(sizeof(T));
-    }
-    T result = *reinterpret_cast<T*>(Position_);
-    Advance(sizeof(T));
-    return result;
+    return *static_cast<const T*>(GetData(sizeof(T)));
 }
 
-void TUncheckedSkiffParser::RefillBuffer(size_t minSize)
+const void* TUncheckedSkiffParser::GetData(size_t size)
 {
-    memmove(Buffer_.Data(), Position_, RemainingBytes_);
-    Position_ = Buffer_.Data();
-    do {
-        size_t toRead = Buffer_.Capacity() - RemainingBytes_;
-        size_t read = Underlying_->Read(Position_ + RemainingBytes_, toRead);
-        if (read == 0) {
-            Exhausted_ = true;
-            if (RemainingBytes_ < minSize) {
+    if (RemainingBytes() >= size) {
+        const void* result = Position_;
+        Advance(size);
+        return result;
+    }
+
+    return GetDataViaBuffer(size);
+}
+
+const void* TUncheckedSkiffParser::GetDataViaBuffer(size_t size)
+{
+    Buffer_.Clear();
+    Buffer_.Reserve(size);
+    while (Buffer_.Size() < size) {
+        size_t toCopy = Min(size - Buffer_.Size(), RemainingBytes());
+        Buffer_.Append(Position_, toCopy);
+        Advance(toCopy);
+
+        if (RemainingBytes() == 0) {
+            RefillBuffer();
+            if (Exhausted_ && Buffer_.Size() < size) {
                 THROW_ERROR_EXCEPTION("Premature end of stream while parsing Skiff");
             }
         }
-        RemainingBytes_ += read;
-    } while (RemainingBytes_ < minSize);
+    }
+    return Buffer_.Data();
 }
 
-void TUncheckedSkiffParser::Advance(ssize_t size)
+size_t TUncheckedSkiffParser::RemainingBytes() const
 {
-    YT_ASSERT(size <= (ssize_t)RemainingBytes_);
+    YT_ASSERT(End_ >= Position_);
+    return End_ - Position_;
+}
+
+void TUncheckedSkiffParser::Advance(size_t size)
+{
+    YT_ASSERT(size <= RemainingBytes());
     Position_ += size;
-    RemainingBytes_ -= size;
     ReadBytesCount_ += size;
+}
+
+void TUncheckedSkiffParser::RefillBuffer()
+{
+    size_t bufferSize = Underlying_->Next(&Position_);
+    End_ = Position_ + bufferSize;
+    if (bufferSize == 0) {
+        Exhausted_ = true;
+    }
 }
 
 bool TUncheckedSkiffParser::HasMoreData()
 {
-    if (RemainingBytes_ > 0) {
-        return true;
+    if (RemainingBytes() == 0 && !Exhausted_) {
+        RefillBuffer();
     }
-    if (Exhausted_) {
-        return false;
-    }
-    RefillBuffer(0);
-    return RemainingBytes_ > 0;
+    return !(RemainingBytes() == 0 && Exhausted_);
 }
 
 void TUncheckedSkiffParser::ValidateFinished()
@@ -142,7 +139,7 @@ ui64 TUncheckedSkiffParser::GetReadBytesCount()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCheckedSkiffParser::TCheckedSkiffParser(const TSkiffSchemaPtr& schema, IInputStream* stream)
+TCheckedSkiffParser::TCheckedSkiffParser(const TSkiffSchemaPtr& schema, IZeroCopyInput* stream)
     : Parser_(stream)
     , Validator_(std::make_unique<TSkiffValidator>(schema))
 { }

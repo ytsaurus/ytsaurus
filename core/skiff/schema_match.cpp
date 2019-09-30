@@ -342,7 +342,7 @@ EWireType TFieldDescription::ValidatedSimplify() const
 {
     auto result = Simplify();
     if (!result) {
-        THROW_ERROR_EXCEPTION("Column %Qv cannot be encoded as %Qlv",
+        THROW_ERROR_EXCEPTION("Column %Qv cannot be represented with skiff schema %Qlv",
             Name_,
             GetShortDebugString(Schema_));
     }
@@ -356,7 +356,8 @@ bool TFieldDescription::IsRequired() const
 
 std::optional<EWireType> TFieldDescription::Simplify() const
 {
-    auto wireType = DeoptionalizeSchema(Schema_).first->GetWireType();
+    const auto& [deoptionalized, required] = DeoptionalizeSchema(Schema_);
+    auto wireType = deoptionalized->GetWireType();
     switch (wireType) {
         case EWireType::Yson32:
         case EWireType::Int64:
@@ -365,6 +366,12 @@ std::optional<EWireType> TFieldDescription::Simplify() const
         case EWireType::Boolean:
         case EWireType::String32:
             return wireType;
+        case EWireType::Nothing:
+            if (required) {
+                return wireType;
+            } else {
+                std::nullopt;
+            }
         default:
             return std::nullopt;
     }

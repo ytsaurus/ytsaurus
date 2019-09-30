@@ -16,6 +16,7 @@ void TPortalEntranceNode::Save(NCellMaster::TSaveContext& context) const
     TCypressNode::Save(context);
 
     using NYT::Save;
+    Save(context, RemovalStarted_);
     Save(context, ExitCellTag_);
 }
 
@@ -24,6 +25,10 @@ void TPortalEntranceNode::Load(NCellMaster::TLoadContext& context)
     TCypressNode::Load(context);
 
     using NYT::Load;
+    // COMPAT(babenko)
+    if (context.GetVersion() >= NCellMaster::EMasterReign::TwoSidedPortalRemoval) {
+        Load(context, RemovalStarted_);
+    }
     Load(context, ExitCellTag_);
 }
 

@@ -147,13 +147,14 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(i64, AccessCounter);
 
-    DEFINE_BYVAL_RW_PROPERTY(ui64, AttributesRevision);
-    DEFINE_BYVAL_RW_PROPERTY(ui64, ContentRevision);
+    DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, AttributesRevision);
+    DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, ContentRevision);
 
     DEFINE_BYVAL_RW_PROPERTY(NSecurityServer::TAccount*, Account);
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
 
     DEFINE_BYVAL_RW_PROPERTY(bool, Opaque);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, Annotation);
 
     //! The shard this node belongs to.
     //! Always null for foreign and non-trunk nodes.
@@ -166,7 +167,7 @@ public:
     explicit TCypressNode(const TVersionedNodeId& id);
     virtual ~TCypressNode();
 
-    ui64 GetRevision() const;
+    NHydra::TRevision GetRevision() const;
 
     TCypressNodeDynamicData* GetDynamicData() const;
 

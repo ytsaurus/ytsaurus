@@ -179,8 +179,8 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 #define DECLARE_ENTITY_MAP_ACCESSORS_IMPL(entityName, entityNamePlural, entityType) \
-    entityType* Find ## entityName(const ::NYT::NHydra::TEntityKey<entityType>& id); \
-    entityType* Get ## entityName(const ::NYT::NHydra::TEntityKey<entityType>& id); \
+    entityType* Find ## entityName(const ::NYT::NHydra::TEntityKey<entityType>& id) const; \
+    entityType* Get ## entityName(const ::NYT::NHydra::TEntityKey<entityType>& id) const; \
     const ::NYT::NHydra::TReadOnlyEntityMap<entityType>& entityNamePlural() const;
 
 #define DECLARE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(entityName, entityNamePlural, entityType) \
@@ -190,12 +190,12 @@ private:
     DECLARE_ENTITY_MAP_ACCESSORS_IMPL(entityName, entityName ## s, entityType)
 
 #define DEFINE_ENTITY_MAP_ACCESSORS_IMPL(declaringType, entityName, entityNamePlural, entityType, map) \
-    entityType* declaringType::Find ## entityName(const ::NYT::NHydra::TEntityKey<entityType>& id) \
+    entityType* declaringType::Find ## entityName(const ::NYT::NHydra::TEntityKey<entityType>& id) const \
     { \
         return (map).Find(id); \
     } \
     \
-    entityType* declaringType::Get ## entityName(const ::NYT::NHydra::TEntityKey<entityType>& id) \
+    entityType* declaringType::Get ## entityName(const ::NYT::NHydra::TEntityKey<entityType>& id) const \
     { \
         return (map).Get(id); \
     } \
@@ -212,12 +212,12 @@ private:
     DEFINE_ENTITY_MAP_ACCESSORS_IMPL(declaringType, entityName, entityNamePlural, entityType, map)
 
 #define DELEGATE_ENTITY_MAP_ACCESSORS_IMPL(declaringType, entityName, entityNamePlural, entityType, delegateTo) \
-    entityType* declaringType::Find ## entityName(const ::NYT::NHydra::TEntityKey<entityType>& id) \
+    entityType* declaringType::Find ## entityName(const ::NYT::NHydra::TEntityKey<entityType>& id) const \
     { \
         return (delegateTo).Find ## entityName(id); \
     } \
     \
-    entityType* declaringType::Get ## entityName(const ::NYT::NHydra::TEntityKey<entityType>& id) \
+    entityType* declaringType::Get ## entityName(const ::NYT::NHydra::TEntityKey<entityType>& id) const \
     { \
         return (delegateTo).Get ## entityName(id); \
     } \

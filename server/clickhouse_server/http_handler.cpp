@@ -7,9 +7,8 @@
 #include <server/PingRequestHandler.h>
 #include <server/RootRequestHandler.h>
 
-#include <common/logger_useful.h>
-
 #include <Poco/Net/HTTPServerRequest.h>
+#include <Poco/Net/HTTPServerResponse.h>
 #include <Poco/URI.h>
 
 namespace NYT::NClickHouseServer {
@@ -39,19 +38,35 @@ bool IsPost(const Poco::Net::HTTPServerRequest& request)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class MovedPermanentlyRequestHandler : public Poco::Net::HTTPRequestHandler
+{
+public:
+    void handleRequest(
+        Poco::Net::HTTPServerRequest & /* request */,
+        Poco::Net::HTTPServerResponse & response) override
+    {
+        try {
+            response.setStatusAndReason(Poco::Net::HTTPResponse::HTTP_MOVED_PERMANENTLY);
+            response.send() << "Instance moved or is moving from this address.\n";
+        } catch (...) {
+            tryLogCurrentException("MovedPermanentlyHandler");
+        }
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class THttpHandlerFactory
     : public Poco::Net::HTTPRequestHandlerFactory
 {
 private:
     TBootstrap* Bootstrap_;
     IServer& Server;
-    Poco::Logger* Log;
 
 public:
     THttpHandlerFactory(TBootstrap* bootstrap, IServer& server)
         : Bootstrap_(bootstrap)
         , Server(server)
-        , Log(&Logger::get("HTTPHandlerFactory"))
     {}
 
     Poco::Net::HTTPRequestHandler* createRequestHandler(
@@ -83,13 +98,14 @@ Poco::Net::HTTPRequestHandler* THttpHandlerFactory::createRequestHandler(
         const TQueryId QueryId_;
     };
 
-    const Poco::URI uri(request.getURI());
+    Poco::URI uri(request.getURI());
 
-    LOG_INFO(Log, "HTTP Request. "
-        << "Method: " << request.getMethod()
-        << ", URI: " << uri.toString()
-        << ", Address: " << request.clientAddress().toString()
-        << ", User-Agent: " << (request.has("User-Agent") ? request.get("User-Agent") : "none"));
+    const auto& Logger = ServerLogger;
+    YT_LOG_DEBUG("HTTP request received (Method: %v, URI: %v, Address: %v, User-Agent: %v)",
+        request.getMethod(),
+        uri.toString(),
+        request.clientAddress().toString(),
+        (request.has("User-Agent") ? request.get("User-Agent") : "none"));
 
     // Light health-checking requests
     if (IsHead(request) || IsGet(request)) {
@@ -99,6 +115,13 @@ Poco::Net::HTTPRequestHandler* THttpHandlerFactory::createRequestHandler(
         if (uri == "/ping") {
             return new PingRequestHandler(Server);
         }
+    }
+
+    auto cliqueId = request.find("X-Clique-Id");
+    if (Bootstrap_->GetState() == EInstanceState::Stopped ||
+        (cliqueId != request.end() && TString(cliqueId->second) != Bootstrap_->GetCliqueId()))
+    {
+        return new MovedPermanentlyRequestHandler();
     }
 
     auto ytRequestId = request.get("X-Yt-Request-Id", "");

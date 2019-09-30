@@ -193,6 +193,34 @@ TEST(TIP6AddressTest, NetworkMask)
     EXPECT_THROW(TIP6Network::FromString("::/1291"), TErrorException);
 }
 
+TEST(TIP6AddressTest, ProjectId)
+{
+    using TTestCase = std::tuple<const char*, const char*, std::array<ui16, 8>, std::array<ui16, 8>>;
+    for (const auto& testCase : {
+        TTestCase{
+            "10ec9bd@2a02:6b8:fc00::/40",
+            "2a02:6b8:fc17:3204:10e:c9bd:0:320f",
+            {0, 0, 0xc9bd, 0x10e, 0, 0xfc00, 0x6b8, 0x2a02},
+            {0, 0, 0xffff, 0xffff, 0, 0xff00, 0xffff, 0xffff}
+        },
+        TTestCase{
+            "102bcfb@2a02:6b8:c00::/40",
+            "2a02:6b8:c13:3120:102:bcfb:0:2334",
+            {0, 0, 0xbcfb, 0x102, 0, 0x0c00, 0x6b8, 0x2a02},
+            {0, 0, 0xffff, 0xffff, 0, 0xff00, 0xffff, 0xffff}
+        },
+    }) {
+        auto network = TIP6Network::FromString(std::get<0>(testCase));
+        auto testAddress = TIP6Address::FromString(std::get<1>(testCase));
+        EXPECT_EQ(AddressToWords(network.GetAddress()), std::get<2>(testCase));
+        EXPECT_EQ(AddressToWords(network.GetMask()), std::get<3>(testCase));
+        EXPECT_TRUE(network.Contains(testAddress) );
+    }
+
+    EXPECT_THROW(TIP6Network::FromString("@1::1"), TErrorException);
+    EXPECT_THROW(TIP6Network::FromString("123456789@1::1"), TErrorException);
+}
+
 TEST(TIP6AddressTest, InvalidInput)
 {
     for (const auto& testCase : std::vector<TString>{

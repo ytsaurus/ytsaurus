@@ -1,7 +1,7 @@
 import pytest
 from flaky import flaky
 
-from yt_env_setup import YTEnvSetup, unix_only, require_ytserver_root_privileges
+from yt_env_setup import YTEnvSetup, unix_only
 from yt_commands import *
 
 import string
@@ -22,6 +22,7 @@ class TestSchedulerAlerts(YTEnvSetup):
             # Unrecognized alert often interfers with the alerts that
             # are tested in this test suite.
             "enable_unrecognized_alert": False,
+            "validate_node_tags_period": 100,
         }
     }
 
@@ -78,14 +79,31 @@ class TestSchedulerAlerts(YTEnvSetup):
 
         wait(lambda: len(get("//sys/controller_agents/instances/{0}/@alerts".format(controller_agent))) == 0)
 
+    @authors("ignat")
+    def test_nodes_without_pool_tree_alert(self):
+        nodes = ls("//sys/nodes")
+        set("//sys/nodes/{}/@user_tags".format(nodes[0]), ["my_tag"])
+        set("//sys/pool_trees/default/@nodes_filter", "my_tag")
+
+        wait(lambda: len(get("//sys/scheduler/@alerts")) == 1)
+
+        alerts = get("//sys/scheduler/@alerts")
+        attributes = alerts[0]["attributes"]
+        assert attributes["alert_type"] == "nodes_without_pool_tree"
+        assert len(attributes["node_addresses"]) == 2
+        assert attributes["node_count"] == 2
+
+        set("//sys/pool_trees/default/@nodes_filter", "")
+        wait(lambda: len(get("//sys/scheduler/@alerts")) == 0)
+
 ##################################################################
 
 
-@require_ytserver_root_privileges
 class TestSchedulerOperationAlerts(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
     NUM_NODES = 3
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     DELTA_NODE_CONFIG = {
         "exec_agent": {
@@ -377,14 +395,13 @@ class TestSchedulerJobSpecThrottlerOperationAlert(YTEnvSetup):
 
         wait(lambda: "excessive_job_spec_throttling" in op.get_alerts())
 
-@require_ytserver_root_privileges
 class TestControllerAgentAlerts(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
-    def teardown(self):
-        remove("//sys/controller_agents/config")
-        set("//sys/controller_agents/config", {})
+    def teardown_method(self, method):
+        YTEnvSetup.teardown_method(self, method)
         agent = ls("//sys/controller_agents/instances")[0]
         agent_path = "//sys/controller_agents/instances/" + agent
         wait(lambda: len(get(agent_path + "/@alerts")) == 0)
@@ -395,7 +412,7 @@ class TestControllerAgentAlerts(YTEnvSetup):
         assert len(agents) == 1
 
         agent_path = "//sys/controller_agents/instances/" + agents[0]
-        get(agent_path + "/@")
+        wait(lambda: exists(agent_path + "/@alerts"))
         assert len(get(agent_path + "/@alerts")) == 0
 
         set("//sys/controller_agents/config", {"unknown_option": 10})
@@ -407,7 +424,7 @@ class TestControllerAgentAlerts(YTEnvSetup):
         assert len(agents) == 1
 
         agent_path = "//sys/controller_agents/instances/" + agents[0]
-        get(agent_path + "/@")
+        wait(lambda: exists(agent_path + "/@alerts"))
         assert len(get(agent_path + "/@alerts")) == 0
 
         remove("//sys/controller_agents/config")

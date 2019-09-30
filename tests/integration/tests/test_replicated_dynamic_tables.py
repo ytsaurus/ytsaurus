@@ -145,8 +145,6 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         with pytest.raises(YtError):
             move("//tmp/t", "//tmp/s")
-        with pytest.raises(YtError):
-            copy("//tmp/t", "//tmp/s")
 
     @authors("babenko", "aozeritsky")
     @pytest.mark.parametrize("schema", [SIMPLE_SCHEMA_SORTED, SIMPLE_SCHEMA_ORDERED])
@@ -750,7 +748,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         sync_enable_table_replica(replica_id1)
         sync_enable_table_replica(replica_id2)
 
-        set("//tmp/t/@replicated_table_options", {"enable_replicated_table_tracker": True})
+        set("//tmp/t/@replicated_table_options", {"enable_replicated_table_tracker": True, "tablet_cell_bundle_name_failure_interval": 1000})
 
         remove("//tmp/r1", driver=self.replica_driver)
 
@@ -768,7 +766,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         sync_enable_table_replica(replica_id1)
         sync_enable_table_replica(replica_id2)
 
-        set("//tmp/t/@replicated_table_options", {"enable_replicated_table_tracker": True})
+        set("//tmp/t/@replicated_table_options", {"enable_replicated_table_tracker": True, "tablet_cell_bundle_name_failure_interval": 1000})
 
         wait(lambda: get("//sys/tablet_cell_bundles/default/@health", driver=self.replica_driver) == "good")
 
@@ -778,13 +776,6 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         wait(lambda: get("//sys/tablet_cell_bundles/default/@health", driver=self.replica_driver) != "good")
 
-        for i in range(5):
-            try:
-                insert_rows("//tmp/t", [{"key": i, "value1": "test%d"%(i), "value2": i}])
-            except:
-                pass
-
-        get("#{0}/@errors".format(replica_id1))
         wait(lambda: get("#{0}/@mode".format(replica_id1)) == "async")
         wait(lambda: get("#{0}/@mode".format(replica_id2)) == "sync")
 
@@ -804,7 +795,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         sync_enable_table_replica(replica_id1)
         sync_enable_table_replica(replica_id2)
 
-        set("//tmp/t/@replicated_table_options", {"enable_replicated_table_tracker": True, "min_sync_replica_count": 2})
+        set("//tmp/t/@replicated_table_options", {"enable_replicated_table_tracker": True, "min_sync_replica_count": 2, "tablet_cell_bundle_name_failure_interval": 1000})
 
         wait(lambda: get("#{0}/@mode".format(replica_id1)) == "sync")
         wait(lambda: get("#{0}/@mode".format(replica_id2)) == "sync")
@@ -820,7 +811,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             self._create_replica_table(table_path, replica_id[i])
             sync_enable_table_replica(replica_id[i])
 
-        set("//tmp/t/@replicated_table_options", {"enable_replicated_table_tracker": True, "min_sync_replica_count": 2, "max_sync_replica_count": 4})
+        set("//tmp/t/@replicated_table_options", {"enable_replicated_table_tracker": True, "min_sync_replica_count": 2, "max_sync_replica_count": 4, "tablet_cell_bundle_name_failure_interval": 1000})
 
         def sync_replicas():
             result = 0
@@ -858,6 +849,12 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         broken_replicas = brake_sync_replicas(1)
         assert(len(broken_replicas) == 1)
         wait(lambda: sync_replicas() == 2)
+
+    @authors("aozeritsky")
+    def test_replicated_table_tracker_options(self):
+        self._create_cells()
+        set("//sys/@config/tablet_manager/replicated_table_tracker/async_expiring_cache", {"expire_after_access_time": 1337})
+        assert(get("//sys/@config/tablet_manager/replicated_table_tracker/async_expiring_cache/expire_after_access_time") == 1337)
 
     @authors("babenko")
     def test_cannot_sync_write_into_disabled_replica(self):
@@ -1469,7 +1466,80 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == []
 
-##################################################################
+    @authors("avmatrosov")
+    def test_copy(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t_original", schema=self.REQUIREDLESS_SCHEMA)
+        replica_id = create_table_replica("//tmp/t_original", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": "async"})
+        self._create_replica_table("//tmp/r", schema=self.REQUIRED_SCHEMA)
+        sync_enable_table_replica(replica_id)
+
+        sync_freeze_table("//tmp/t_original")
+        copy("//tmp/t_original", "//tmp/t_copy")
+        sync_unfreeze_table("//tmp/t_original")
+
+        original_replica_info = get("//tmp/t_original/@replicas").values()[0]
+        cloned_replica_info = get("//tmp/t_copy/@replicas").values()[0]
+
+        for key in original_replica_info.keys():
+            if key != "state":
+                assert original_replica_info[key] == cloned_replica_info[key]
+        assert cloned_replica_info["state"] == "disabled"
+
+    @authors("avmatrosov")
+    def test_replication_via_copied_table(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t_original", schema=self.SIMPLE_SCHEMA_SORTED)
+        replica_id = create_table_replica("//tmp/t_original", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": "async", "preserve_timestamps": "false"})
+        self._create_replica_table("//tmp/r", schema=self.SIMPLE_SCHEMA_SORTED)
+
+        sync_freeze_table("//tmp/t_original")
+        copy("//tmp/t_original", "//tmp/t_copy")
+        sync_unfreeze_table("//tmp/t_original")
+
+        sync_mount_table("//tmp/t_copy")
+
+        sync_enable_table_replica(replica_id)
+        sync_enable_table_replica(get("//tmp/t_copy/@replicas").keys()[0])
+
+        for table in ["t_original", "t_copy"]:
+            rows = [{"key": 1, "value1": table, "value2": 0}]
+            insert_rows("//tmp/{}".format(table), rows, update=True, require_sync_replica=False)
+            wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == rows)
+
+    @authors("savrus")
+    def test_replication_row_indexes(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t_original", schema=self.SIMPLE_SCHEMA_SORTED)
+        replica_id = create_table_replica("//tmp/t_original", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": "async", "preserve_timestamps": "false"})
+        self._create_replica_table("//tmp/r", schema=self.SIMPLE_SCHEMA_SORTED)
+        sync_enable_table_replica(replica_id)
+
+        rows = [{"key": 0, "value1": "0", "value2": 0}]
+        insert_rows("//tmp/t_original", rows, require_sync_replica=False)
+        wait(lambda: lookup_rows("//tmp/r", [{"key": 0}], driver=self.replica_driver) == rows)
+
+        sync_freeze_table("//tmp/t_original")
+        copy("//tmp/t_original", "//tmp/t_copy")
+        sync_unfreeze_table("//tmp/t_original")
+
+        copy_id = get("//tmp/t_copy/@replicas").keys()[0]
+        original_row_index = get("#{}/@tablets/0/current_replication_row_index".format(replica_id))
+        copy_row_index = get("#{}/@tablets/0/current_replication_row_index".format(copy_id))
+
+        sync_enable_table_replica(get("//tmp/t_copy/@replicas").keys()[0])
+
+        delete_rows("//tmp/t_original", [{"key": 0}], require_sync_replica=False)
+        wait(lambda: lookup_rows("//tmp/r", [{"key": 0}], driver=self.replica_driver) == [])
+
+        sync_mount_table("//tmp/t_copy")
+        rows = [{"key": 1, "value1": "1", "value2": 1}]
+        insert_rows("//tmp/t_copy", rows, require_sync_replica=False)
+        wait(lambda: lookup_rows("//tmp/r", [{"key": 1}], driver=self.replica_driver) == rows)
+
+        assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == rows
+
+    ##################################################################
 
 class TestReplicatedDynamicTablesSafeMode(TestReplicatedDynamicTablesBase):
     DELTA_NODE_CONFIG = {

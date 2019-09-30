@@ -32,6 +32,14 @@ TTransactionId MakeTabletTransactionId(
     TTimestamp startTimestamp,
     ui32 hash);
 
+//! Constructs the id of the transaction externalized by cell #externalizingCellTag.
+TTransactionId MakeExternalizedTransactionId(
+    TTransactionId originalId,
+    NObjectClient::TCellTag externalizingCellTag);
+
+//! Undones the effect of #MakeExternalizedTransactionId.
+TTransactionId OriginalFromExternalizedTransactionId(TTransactionId externalizedId);
+
 //! Extracts the (start) timestamp from transaction id.
 //! #id represent a well-formed tablet transaction id.
 TTimestamp TimestampFromTransactionId(TTransactionId id);

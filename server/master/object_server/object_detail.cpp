@@ -11,6 +11,7 @@
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/config.h>
 #include <yt/server/master/cell_master/config_manager.h>
+#include <yt/server/master/cell_master/epoch_history_manager.h>
 #include <yt/server/master/cell_master/hydra_facade.h>
 #include <yt/server/master/cell_master/multicell_manager.h>
 #include <yt/server/master/cell_master/serialize.h>
@@ -40,6 +41,8 @@
 
 #include <yt/ytlib/election/cell_manager.h>
 
+#include <yt/client/hydra/version.h>
+
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/core/misc/enum.h>
@@ -59,6 +62,8 @@
 #include <yt/core/yson/async_writer.h>
 #include <yt/core/yson/attribute_consumer.h>
 
+#include <util/string/ascii.h>
+
 namespace NYT::NObjectServer {
 
 using namespace NRpc;
@@ -71,6 +76,7 @@ using namespace NObjectClient;
 using namespace NSecurityClient;
 using namespace NSecurityServer;
 using namespace NTableServer;
+using namespace NTransactionServer;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -100,6 +106,11 @@ TObject* TObjectProxyBase::GetObject() const
     return Object_;
 }
 
+TTransaction* TObjectProxyBase::GetTransaction() const
+{
+    return nullptr;
+}
+
 const IAttributeDictionary& TObjectProxyBase::Attributes() const
 {
     return *const_cast<TObjectProxyBase*>(this)->GetCombinedAttributes();
@@ -126,6 +137,7 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
     getBasicAttributesContext.OmitInaccessibleColumns = request->omit_inaccessible_columns();
     getBasicAttributesContext.PopulateSecurityTags = request->populate_security_tags();
     getBasicAttributesContext.ExternalCellTag = CellTagFromId(GetId());
+    getBasicAttributesContext.ExternalTransactionId = GetObjectId(GetTransaction());
 
     GetBasicAttributes(&getBasicAttributesContext);
 
@@ -137,8 +149,11 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
     if (getBasicAttributesContext.SecurityTags) {
         ToProto(response->mutable_security_tags()->mutable_items(), getBasicAttributesContext.SecurityTags->Items);
     }
+    ToProto(response->mutable_external_transaction_id(), getBasicAttributesContext.ExternalTransactionId);
 
-    context->SetResponseInfo();
+    context->SetResponseInfo("ExternalCellTag: %v, ExternalTransactionId: %v",
+        getBasicAttributesContext.ExternalCellTag,
+        getBasicAttributesContext.ExternalTransactionId);
     context->Reply();
 }
 
@@ -221,10 +236,30 @@ void TObjectProxyBase::Invoke(const IServiceContextPtr& context)
             GetTransactionId(context));
         auto result = resolver.Resolve();
         if (std::holds_alternative<TPathResolver::TRemoteObjectPayload>(result.Payload)) {
-            THROW_ERROR_EXCEPTION("Request is cross-cell since it involves paths %v and %v",
-                // XXX(babenko)
+            THROW_ERROR_EXCEPTION(
+                NObjectClient::EErrorCode::CrossCellAdditionalPath,
+                "Request is cross-cell since it involves target path %v and additional path %v",
                 ypathExt.original_target_path(),
                 additionalPath);
+        }
+    }
+
+    const auto& prerequisitesExt = requestHeader.GetExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
+    for (const auto& prerequisite : prerequisitesExt.revisions()) {
+        const auto& prerequisitePath = prerequisite.path();
+        TPathResolver resolver(
+            Bootstrap_,
+            context->GetService(),
+            context->GetMethod(),
+            prerequisitePath,
+            GetTransactionId(context));
+        auto result = resolver.Resolve();
+        if (std::holds_alternative<TPathResolver::TRemoteObjectPayload>(result.Payload)) {
+            THROW_ERROR_EXCEPTION(
+                NObjectClient::EErrorCode::CrossCellRevisionPrerequisitePath,
+                "Request is cross-cell since it involves target path %v and revision prerequisite path %v",
+                ypathExt.original_target_path(),
+                prerequisitePath);
         }
     }
 
@@ -282,13 +317,15 @@ void TObjectProxyBase::DoWriteAttributesFragment(
         std::vector<ISystemAttributeProvider::TAttributeDescriptor> builtinAttributes;
         ListBuiltinAttributes(&builtinAttributes);
 
-        auto userKeys = customAttributes.List();
+        auto userPairs = customAttributes.ListPairs();
 
         if (stable) {
             std::sort(
-                userKeys.begin(),
-                userKeys.end());
-
+                userPairs.begin(),
+                userPairs.end(),
+                [] (const auto& lhs, const auto& rhs) {
+                    return lhs.first < rhs.first;
+                });
             std::sort(
                 builtinAttributes.begin(),
                 builtinAttributes.end(),
@@ -297,8 +334,7 @@ void TObjectProxyBase::DoWriteAttributesFragment(
                 });
         }
 
-        for (const auto& key : userKeys) {
-            auto value = customAttributes.GetYson(key);
+        for (const auto& [key, value] : userPairs) {
             consumer->OnKeyedItem(key);
             consumer->OnRaw(value);
         }
@@ -363,20 +399,22 @@ void TObjectProxyBase::RemoveAttribute(
     ReplicateAttributeUpdate(context);
 }
 
-void TObjectProxyBase::ReplicateAttributeUpdate(IServiceContextPtr context)
+void TObjectProxyBase::ReplicateAttributeUpdate(const IServiceContextPtr& context)
 {
-    if (!IsPrimaryMaster())
+    // XXX(babenko): make more objects foreign and replace with IsForeign
+    if (Object_->GetNativeCellTag() != Bootstrap_->GetCellTag()) {
         return;
+    }
 
     const auto& objectManager = Bootstrap_->GetObjectManager();
     const auto& handler = objectManager->GetHandler(Object_->GetType());
     auto flags = handler->GetFlags();
 
-    if (None(flags & ETypeFlags::ReplicateAttributes))
+    if (None(flags & ETypeFlags::ReplicateAttributes)) {
         return;
+    }
 
-    auto replicationCellTags = handler->GetReplicationCellTags(Object_);
-    PostToMasters(std::move(context), replicationCellTags);
+    ExternalizeToMasters(std::move(context), handler->GetReplicationCellTags(Object_));
 }
 
 IAttributeDictionary* TObjectProxyBase::GetCustomAttributes()
@@ -406,6 +444,7 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* d
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ImportRefCounter)
         .SetPresent(isForeign));
     descriptors->push_back(EInternedAttributeKey::Foreign);
+    descriptors->push_back(EInternedAttributeKey::NativeCellTag);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::InheritAcl)
         .SetPresent(hasAcd)
         .SetWritable(true)
@@ -422,14 +461,18 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* d
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EffectiveAcl)
         .SetOpaque(true));
     descriptors->push_back(EInternedAttributeKey::UserAttributeKeys);
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UserAttributes)
+        .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LifeStage)
         .SetReplicated(true)
         .SetMandatory(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EstimatedCreationTime)
+        .SetOpaque(true));
 }
 
 const THashSet<TInternedAttributeKey>& TObjectProxyBase::GetBuiltinAttributeKeys()
 {
-    return Metadata_->BuiltinAttributeKeysCache.GetBuiltinAttributeKeys(this);
+    return Metadata_->SystemBuiltinAttributeKeysCache.GetBuiltinAttributeKeys(this);
 }
 
 bool TObjectProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
@@ -484,6 +527,11 @@ bool TObjectProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
                 .Value(isForeign);
             return true;
 
+        case EInternedAttributeKey::NativeCellTag:
+            BuildYsonFluently(consumer)
+                .Value(Object_->GetNativeCellTag());
+            return true;
+
         case EInternedAttributeKey::InheritAcl:
             if (!acd) {
                 break;
@@ -514,20 +562,30 @@ bool TObjectProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
             return true;
 
         case EInternedAttributeKey::UserAttributeKeys: {
-            std::vector<TAttributeDescriptor> systemAttributes;
-            ReserveAndListSystemAttributes(&systemAttributes);
-
-            auto customAttributes = GetCustomAttributes()->List();
-            THashSet<TString> customAttributesSet(customAttributes.begin(), customAttributes.end());
-
-            for (const auto& attribute : systemAttributes) {
-                if (attribute.Custom) {
-                    customAttributesSet.erase(GetUninternedAttributeKey(attribute.InternedKey));
+            auto customKeys = GetCustomAttributes()->ListKeys();
+            const auto& systemCustomKeys = Metadata_->SystemCustomAttributeKeysCache.GetCustomAttributeKeys(this);
+            consumer->OnBeginList();
+            for (const auto& key : customKeys) {
+                if (!systemCustomKeys.contains(key)) {
+                    consumer->OnListItem();
+                    consumer->OnStringScalar(key);
                 }
             }
+            consumer->OnEndList();
+            return true;
+        }
 
-            BuildYsonFluently(consumer)
-                .Value(customAttributesSet);
+        case EInternedAttributeKey::UserAttributes: {
+            auto customPairs = GetCustomAttributes()->ListPairs();
+            const auto& systemCustomKeys = Metadata_->SystemCustomAttributeKeysCache.GetCustomAttributeKeys(this);
+            consumer->OnBeginMap();
+            for (const auto& [key, value] : customPairs) {
+                if (!systemCustomKeys.contains(key)) {
+                    consumer->OnKeyedItem(key);
+                    consumer->OnRaw(value);
+                }
+            }
+            consumer->OnEndMap();
             return true;
         }
 
@@ -535,6 +593,18 @@ bool TObjectProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
             BuildYsonFluently(consumer)
                 .Value(Object_->GetLifeStage());
             return true;
+
+        case EInternedAttributeKey::EstimatedCreationTime: {
+            const auto& epochHistoryManager = Bootstrap_->GetEpochHistoryManager();
+            auto version = NHydra::TVersion::FromRevision(CounterFromId(GetId()));
+            auto [minTime, maxTime] = epochHistoryManager->GetEstimatedMutationTime(version);
+            BuildYsonFluently(consumer)
+                .BeginMap()
+                    .Item("min").Value(minTime)
+                    .Item("max").Value(maxTime)
+                .EndMap();
+            return true;
+        }
 
         default:
             break;
@@ -690,6 +760,23 @@ void TObjectProxyBase::ValidatePermission(TObject* object, EPermission permissio
     securityManager->ValidatePermission(object, user, permission);
 }
 
+void TObjectProxyBase::ValidateAnnotation(const TString& annotation)
+{
+    if (annotation.size() > MaxAnnotationLength) {
+        THROW_ERROR_EXCEPTION("Annotation is too long")
+            << TErrorAttribute("annotation_length", annotation.size())
+            << TErrorAttribute("maximum_annotation_length", MaxAnnotationLength);
+    }
+
+    auto isAsciiText = [] (char c) {
+        return IsAsciiAlnum(c) || IsAsciiSpace(c) || IsAsciiPunct(c);
+    };
+
+    if (!AllOf(annotation.begin(), annotation.end(), isAsciiText)) {
+        THROW_ERROR_EXCEPTION("Only ASCII alphanumeric, white-space and punctuation characters are allowed in annotations");
+    }
+}
+
 bool TObjectProxyBase::IsRecovery() const
 {
     return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsRecovery();
@@ -722,24 +809,47 @@ void TObjectProxyBase::RequireLeader() const
 
 void TObjectProxyBase::PostToSecondaryMasters(IServiceContextPtr context)
 {
+    auto* object = GetObject();
+    YT_VERIFY(object->IsNative());
+
+    auto* transaction = GetTransaction();
+
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     multicellManager->PostToSecondaryMasters(
-        TCrossCellMessage(Object_->GetId(), std::move(context)));
+        TCrossCellMessage(object->GetId(), GetObjectId(transaction), std::move(context)));
 }
 
-void TObjectProxyBase::PostToMasters(IServiceContextPtr context, const TCellTagList& cellTags)
+void TObjectProxyBase::ExternalizeToMasters(IServiceContextPtr context, const TCellTagList& cellTags)
 {
-    const auto& multicellManager = Bootstrap_->GetMulticellManager();
-    multicellManager->PostToMasters(
-        TCrossCellMessage(Object_->GetId(), std::move(context)),
-        cellTags);
+    auto* object = GetObject();
+    YT_VERIFY(object->IsNative());
+
+    auto* transaction = GetTransaction();
+    if (!transaction || transaction->IsNative()) {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        multicellManager->PostToMasters(
+            TCrossCellMessage(object->GetId(), GetObjectId(transaction), std::move(context)),
+            cellTags);
+    } else {
+        for (auto cellTag : cellTags) {
+            ExternalizeToMaster(context, cellTag);
+        }
+    }
 }
 
-void TObjectProxyBase::PostToMaster(IServiceContextPtr context, TCellTag cellTag)
+void TObjectProxyBase::ExternalizeToMaster(IServiceContextPtr context, TCellTag cellTag)
 {
+    auto* object = GetObject();
+    YT_VERIFY(object->IsNative());
+
+    auto* transaction = GetTransaction();
+
+    const auto& transactionManager = Bootstrap_->GetTransactionManager();
+    auto externalizedTransactionId = transactionManager->ExternalizeTransaction(transaction, cellTag);
+
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     multicellManager->PostToMaster(
-        TCrossCellMessage(Object_->GetId(), std::move(context)),
+        TCrossCellMessage(object->GetId(), externalizedTransactionId, std::move(context)),
         cellTag);
 }
 
@@ -755,12 +865,13 @@ TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::TCustomAttr
     : Proxy_(proxy)
 { }
 
-std::vector<TString> TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::List() const
+std::vector<TString> TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::ListKeys() const
 {
     const auto* object = Proxy_->Object_;
     const auto* attributes = object->GetAttributes();
     std::vector<TString> keys;
     if (attributes) {
+        keys.reserve(attributes->Attributes().size());
         for (const auto& pair : attributes->Attributes()) {
             // Attribute cannot be empty (i.e. deleted) in null transaction.
             YT_ASSERT(pair.second);
@@ -770,17 +881,33 @@ std::vector<TString> TNontemplateNonversionedObjectProxyBase::TCustomAttributeDi
     return keys;
 }
 
+std::vector<IAttributeDictionary::TKeyValuePair> TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::ListPairs() const
+{
+    const auto* object = Proxy_->Object_;
+    const auto* attributes = object->GetAttributes();
+    std::vector<TKeyValuePair> pairs;
+    if (attributes) {
+        pairs.reserve(attributes->Attributes().size());
+        for (const auto& pair : attributes->Attributes()) {
+            // Attribute cannot be empty (i.e. deleted) in null transaction.
+            YT_ASSERT(pair.second);
+            pairs.push_back(pair);
+        }
+    }
+    return pairs;
+}
+
 TYsonString TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::FindYson(const TString& key) const
 {
     const auto* object = Proxy_->Object_;
     const auto* attributes = object->GetAttributes();
     if (!attributes) {
-        return TYsonString();
+        return {};
     }
 
     auto it = attributes->Attributes().find(key);
     if (it == attributes->Attributes().end()) {
-        return TYsonString();
+        return {};
     }
 
     // Attribute cannot be empty (i.e. deleted) in null transaction.

@@ -5,6 +5,8 @@
 
 #include <yt/server/master/cypress_server/node.h>
 
+#include <yt/server/lib/hive/hive_manager.h>
+
 #include <yt/client/object_client/helpers.h>
 
 namespace NYT::NObjectServer {
@@ -14,34 +16,10 @@ using namespace NCypressServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EObjectLifeStage GetNextLifeStage(EObjectLifeStage lifeStage)
+TCellTag TObject::GetNativeCellTag() const
 {
-    switch (lifeStage) {
-        case EObjectLifeStage::CreationStarted:
-            return EObjectLifeStage::CreationPreCommitted;
-        case EObjectLifeStage::CreationPreCommitted:
-            return EObjectLifeStage::CreationCommitted;
-        case EObjectLifeStage::RemovalStarted:
-            return EObjectLifeStage::RemovalPreCommitted;
-        case EObjectLifeStage::RemovalPreCommitted:
-            return EObjectLifeStage::RemovalCommitted;
-        default:
-            YT_ABORT();
-    }
+    return CellTagFromId(Id_);
 }
-
-bool IsStableLifeStage(EObjectLifeStage lifeStage)
-{
-    switch (lifeStage) {
-        case EObjectLifeStage::CreationCommitted:
-        case EObjectLifeStage::RemovalCommitted:
-            return true;
-        default:
-            return false;
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
 
 EObjectType TObject::GetType() const
 {
@@ -132,9 +110,9 @@ TString TNonversionedObjectBase::GetObjectName() const
     return Format("Object %v", Id_);
 }
 
-void TNonversionedObjectBase::ValidateCreationCommitted() const
+void TNonversionedObjectBase::ValidateActiveLifeStage() const
 {
-    if (LifeStage_ != EObjectLifeStage::CreationCommitted) {
+    if (LifeStage_ != EObjectLifeStage::CreationCommitted && !NHiveServer::IsHiveMutation()) {
         THROW_ERROR_EXCEPTION(
             NObjectClient::EErrorCode::InvalidObjectLifeStage,
             "%v cannot be used since it is in %Qlv life stage",

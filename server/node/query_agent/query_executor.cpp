@@ -221,8 +221,8 @@ public:
 
     void ValidateAndRegisterTabletSnapshot(
         TTabletId tabletId,
-        const i64 mountRevision,
-        const TTimestamp timestamp,
+        NHydra::TRevision mountRevision,
+        TTimestamp timestamp,
         bool suppressAccessTracking)
     {
         auto tabletSnapshot = SlotManager_->GetTabletSnapshotOrThrow(tabletId);

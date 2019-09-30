@@ -7,6 +7,7 @@
 #undef FUTURE_INL_H_
 
 #include "bind.h"
+#include "invoker_util.h"
 
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/event_count.h>
@@ -1161,9 +1162,25 @@ struct TAsyncViaHelper<R(TArgs...)>
         return promise;
     }
 
+    static TFuture<TUnderlying> OuterGuarded(const TSourceCallback& this_, const IInvokerPtr& invoker, const TError& cancellationError, TArgs... args)
+    {
+        auto promise = NewPromise<TUnderlying>();
+
+        GuardedInvoke(invoker, BIND(&Inner, this_, promise, args...), BIND([promise, cancellationError] () mutable {
+            promise.Set(cancellationError);
+        }));
+
+        return promise;
+    }
+
     static TTargetCallback Do(TSourceCallback this_, IInvokerPtr invoker)
     {
         return BIND(&Outer, std::move(this_), std::move(invoker));
+    }
+
+    static TTargetCallback DoGuarded(TSourceCallback this_, IInvokerPtr invoker, TError cancellationError)
+    {
+        return BIND(&OuterGuarded, std::move(this_), std::move(invoker), std::move(cancellationError));
     }
 };
 
@@ -1174,6 +1191,13 @@ TCallback<typename TFutureTraits<R>::TWrapped(TArgs...)>
 TCallback<R(TArgs...)>::AsyncVia(IInvokerPtr invoker) const
 {
     return NYT::NDetail::TAsyncViaHelper<R(TArgs...)>::Do(*this, std::move(invoker));
+}
+
+template <class R, class... TArgs>
+TCallback<typename TFutureTraits<R>::TWrapped(TArgs...)>
+TCallback<R(TArgs...)>::AsyncViaGuarded(IInvokerPtr invoker, TError cancellationError) const
+{
+    return NYT::NDetail::TAsyncViaHelper<R(TArgs...)>::DoGuarded(*this, std::move(invoker), std::move(cancellationError));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

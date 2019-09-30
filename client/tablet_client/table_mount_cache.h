@@ -30,7 +30,7 @@ struct TTabletInfo
     : public TRefCounted
 {
     TTabletId TabletId;
-    i64 MountRevision = 0;
+    NHydra::TRevision MountRevision = NHydra::NullRevision;
     ETabletState State;
     std::optional<EInMemoryMode> InMemoryMode;
     NTableClient::TOwningKey PivotKey;
@@ -99,8 +99,8 @@ struct TTableMountInfo
     NTableClient::TOwningKey UpperCapBound;
 
     // Master reply revision for master service cache invalidation.
-    std::optional<i64> PrimaryRevision;
-    std::optional<i64> SecondaryRevision;
+    NHydra::TRevision PrimaryRevision;
+    NHydra::TRevision SecondaryRevision;
 
     bool IsSorted() const;
     bool IsOrdered() const;

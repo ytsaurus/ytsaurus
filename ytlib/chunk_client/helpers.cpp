@@ -15,8 +15,6 @@
 
 #include <yt/ytlib/object_client/helpers.h>
 
-#include <yt/ytlib/hive/helpers.h>
-
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/client/node_tracker_client/node_directory.h>
@@ -113,13 +111,17 @@ void GetUserObjectBasicAttributes(
         if (rsp->has_security_tags()) {
             userObject->SecurityTags = FromProto<std::vector<TSecurityTag>>(rsp->security_tags().items());
         }
+        userObject->ExternalTransactionId = rsp->has_external_transaction_id()
+            ? FromProto<TTransactionId>(rsp->external_transaction_id())
+            : userObject->TransactionId.value_or(defaultTransactionId);
     }
 
     YT_LOG_DEBUG("Basic attributes received (Attributes: %v)",
         MakeFormattableView(objects, [] (auto* builder, const auto* object) {
-            builder->AppendFormat("{Id: %v, ExternalCellTag: %v}",
+            builder->AppendFormat("{Id: %v, ExternalCellTag: %v, ExternalTransactionId: %v}",
                 object->ObjectId,
-                object->ExternalCellTag);
+                object->ExternalCellTag,
+                object->ExternalTransactionId);
         }));
 }
 
@@ -216,8 +218,7 @@ void ProcessFetchResponse(
         skipUnavailableChunks);
 
     for (auto& chunkSpec : *fetchResponse->mutable_chunks()) {
-        chunkSpecs->push_back(NProto::TChunkSpec());
-        chunkSpecs->back().Swap(&chunkSpec);
+        chunkSpecs->push_back(std::move(chunkSpec));
     }
 }
 
@@ -627,88 +628,11 @@ void TUserObject::Persist(const TStreamPersistenceContext& context)
     Persist(context, Path);
     Persist(context, ObjectId);
     Persist(context, ExternalCellTag);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 300100) {
-        Persist(context, Type);
-        Persist(context, TransactionId);
-        Persist(context, OmittedInaccessibleColumns);
-        Persist(context, SecurityTags);
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TChunkUploadSynchronizer::TChunkUploadSynchronizer(
-    NApi::NNative::IConnectionPtr connection,
-    TTransactionId transactionId)
-    : Connection_(std::move(connection))
-    , TransactionId_(transactionId)
-{ }
-
-void TChunkUploadSynchronizer::AfterBeginUpload(
-    TObjectId objectId,
-    TCellTag externalCellTag)
-{
-    if (!TransactionId_) {
-        return;
-    }
-
-    if (CellTagFromId(objectId) == CellTagFromId(TransactionId_)) {
-        return;
-    }
-
-    if (CellTagFromId(objectId) == externalCellTag) {
-        return;
-    }
-
-    // Wait for external cell to receive BeginUpload.
-    DstCellIdToSrcCellIdsPhaseOne_[Connection_->GetMasterCellId(externalCellTag)].push_back(
-        Connection_->GetMasterCellId(CellTagFromId(objectId)));
-
-    // Wait for transaction cell to receive UnregisterExternalNestedTransaction.
-    DstCellIdToSrcCellIdsPhaseTwo_[Connection_->GetMasterCellId(CellTagFromId(TransactionId_))].push_back(
-        Connection_->GetMasterCellId(externalCellTag));
-
-    // Wait for transaction cell to receive RegisterExternalNestedTransaction.
-    BeginUploadSyncs_.push_back(SyncHiveCellWithOthers(
-        Connection_->GetCellDirectory(),
-        {Connection_->GetMasterCellId(CellTagFromId(objectId))},
-        Connection_->GetMasterCellId(CellTagFromId(TransactionId_)),
-        Connection_->GetConfig()->HiveSyncRpcTimeout));
-}
-
-void TChunkUploadSynchronizer::BeforeEndUpload()
-{
-    if (BeginUploadSyncs_.empty()) {
-        return;
-    }
-
-    WaitFor(Combine(BeginUploadSyncs_))
-        .ThrowOnError();
-}
-
-void TChunkUploadSynchronizer::AfterEndUpload()
-{
-    auto doSync = [&] (const auto& dstCellIdToSrcCellIds) {
-        if (dstCellIdToSrcCellIds.empty()) {
-            return;
-        }
-
-        std::vector<TFuture<void>> asyncResults;
-        for (const auto& [dstCellId, srcCellIds] : dstCellIdToSrcCellIds) {
-            asyncResults.push_back(SyncHiveCellWithOthers(
-                Connection_->GetCellDirectory(),
-                srcCellIds,
-                dstCellId,
-                Connection_->GetConfig()->HiveSyncRpcTimeout));
-        }
-
-        WaitFor(Combine(asyncResults))
-            .ThrowOnError();
-    };
-
-    doSync(DstCellIdToSrcCellIdsPhaseOne_);
-    doSync(DstCellIdToSrcCellIdsPhaseTwo_);
+    Persist(context, ExternalTransactionId);
+    Persist(context, Type);
+    Persist(context, TransactionId);
+    Persist(context, OmittedInaccessibleColumns);
+    Persist(context, SecurityTags);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

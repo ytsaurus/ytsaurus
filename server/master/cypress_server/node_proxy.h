@@ -26,16 +26,24 @@ struct ICypressNodeFactory
     : public NYTree::ITransactionalNodeFactory
 {
     virtual NTransactionServer::TTransaction* GetTransaction() const = 0;
-    virtual bool ShouldPreserveExpirationTime() const  = 0;
+
     virtual bool ShouldPreserveCreationTime() const  = 0;
+    virtual bool ShouldPreserveModificationTime() const  = 0;
+    virtual bool ShouldPreserveExpirationTime() const  = 0;
+
     virtual NSecurityServer::TAccount* GetNewNodeAccount() const = 0;
-    virtual NSecurityServer::TAccount* GetClonedNodeAccount(TCypressNode* sourceNode) const = 0;
+    virtual NSecurityServer::TAccount* GetClonedNodeAccount(
+        NSecurityServer::TAccount* sourceAccount) const = 0;
+    virtual void ValidateClonedAccount(
+        ENodeCloneMode mode,
+        NSecurityServer::TAccount* sourceAccount,
+        NSecurityServer::TClusterResources sourceResourceUsage,
+        NSecurityServer::TAccount* clonedAccount) = 0;
 
     virtual ICypressNodeProxyPtr CreateNode(
         NObjectClient::EObjectType type,
         NYTree::IAttributeDictionary* inheritedAttributes,
         NYTree::IAttributeDictionary* explicitAttributes) = 0;
-
     virtual TCypressNode* InstantiateNode(
         TNodeId id,
         NObjectClient::TCellTag externalCellTag) = 0;
@@ -43,6 +51,12 @@ struct ICypressNodeFactory
     virtual TCypressNode* CloneNode(
         TCypressNode* sourceNode,
         ENodeCloneMode mode) = 0;
+
+    virtual TCypressNode* EndCopyNode(
+        TEndCopyContext* context) = 0;
+    virtual void EndCopyNodeInplace(
+        TCypressNode* trunkNode,
+        TEndCopyContext* context) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -53,9 +67,6 @@ struct ICypressNodeProxy
     : public virtual NYTree::INode
     , public virtual NObjectServer::IObjectProxy
 {
-    //! Returns the transaction for which the proxy is created.
-    virtual NTransactionServer::TTransaction* GetTransaction() const = 0;
-
     //! Returns the trunk node for which the proxy is created.
     virtual TCypressNode* GetTrunkNode() const = 0;
 

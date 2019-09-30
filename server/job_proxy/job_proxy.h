@@ -117,6 +117,7 @@ private:
 
     TDuration RefCountedTrackerLogPeriod_;
     TInstant LastRefCountedTrackerLogTime_;
+    i64 LastLoggedJobProxyMaxMemoryUsage_ = 0;
 
     IJobPtr Job_;
 

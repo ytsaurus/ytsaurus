@@ -33,6 +33,7 @@ using namespace NScheduler;
 using namespace NQueryClient;
 using namespace NExecAgent;
 using namespace NJobAgent;
+using namespace NCoreDump;
 
 using NJobTrackerClient::TStatistics;
 using NChunkClient::TDataSliceDescriptor;
@@ -82,6 +83,13 @@ std::optional<TJobProfile> TJob::GetProfile()
     THROW_ERROR_EXCEPTION(
         EErrorCode::UnsupportedJobType,
         "Getting profile is not supported for built-in jobs");
+}
+
+const TCoreInfos& TJob::GetCoreInfos() const
+{
+    THROW_ERROR_EXCEPTION(
+        EErrorCode::UnsupportedJobType,
+        "Getting core infos is not supported for built-in jobs");
 }
 
 TYsonString TJob::StraceJob()

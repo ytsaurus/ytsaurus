@@ -152,6 +152,7 @@ public:
         REGISTER    (TConcatenateCommand,                 "concatenate",                   Null,       Structured, true,  false, ApiVersion4);
         REGISTER    (TRemoveCommand,                      "remove",                        Null,       Structured, true,  false, ApiVersion4);
         REGISTER    (TSetCommand,                         "set",                           Structured, Structured, true,  false, ApiVersion4);
+        REGISTER    (TExternalizeCommand,                 "externalize",                   Null,       Null,       true,  false, ApiVersion4);
 
         REGISTER    (TWriteFileCommand,                   "write_file",                    Binary,     Null,       true,  true,  ApiVersion3);
         REGISTER    (TWriteFileCommand,                   "write_file",                    Binary,     Structured, true,  true,  ApiVersion4);
@@ -275,6 +276,8 @@ public:
         REGISTER_ALL(TExecuteBatchCommand,                "execute_batch",                 Null,       Structured, true,  false);
 
         REGISTER    (TDiscoverProxiesCommand,             "discover_proxies",              Null,       Structured, false, false, ApiVersion4);
+
+        REGISTER_ALL(TBuildSnapshotCommand,               "build_snapshot",                Null,       Structured, true,  false);
 
 #undef REGISTER
 #undef REGISTER_ALL

@@ -30,6 +30,7 @@ using namespace NCellNode;
 using namespace NYson;
 using namespace NConcurrency;
 using namespace NJobProxy;
+using namespace NCoreDump;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -165,6 +166,7 @@ private:
         if (request->has_finish_time()) {
             statistics.SetFinishTime(FromProto<TInstant>(request->finish_time()));
         }
+        job->SetCoreInfos(FromProto<TCoreInfos>(request->core_infos()));
         job->ReportStatistics(std::move(statistics));
 
         if (request->has_job_stderr()) {

@@ -3,7 +3,10 @@ package NYT.NClickHouseServer.NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqProcessGossip
-{ }
+{
+    required string instance_id = 1;
+    required int32 instance_state = 2;
+}
 
 message TRspProcessGossip
 {

@@ -35,11 +35,12 @@ public:
     //! A changelog rotation result.
     typedef TFuture<void> TRotateChangelogResult;
 
-    //! A pair consisting of a changelog rotation result and a snapshot construction result.
-    typedef std::tuple<
-        TFuture<void>,
-        TFuture<TRemoteSnapshotParams>
-    > TBuildSnapshotResult;
+    struct TBuildSnapshotResult
+    {
+        TRotateChangelogResult RotateChangelogResult;
+        TFuture<TRemoteSnapshotParams> SnapshotConstructionResult;
+        int SnapshotId;
+    };
 
     //! Starts a distributed changelog rotation.
     /*!

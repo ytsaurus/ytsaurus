@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, patch_porto_env_only, require_ytserver_root_privileges, wait
+from yt_env_setup import YTEnvSetup, patch_porto_env_only, wait
 from yt_commands import *
 
 ##################################################################
@@ -20,6 +20,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     DELTA_NODE_CONFIG = {
         "exec_agent": {
@@ -36,7 +37,6 @@ class TestSchedulerUserStatistics(YTEnvSetup):
     }
 
     @authors("tramsmm")
-    @require_ytserver_root_privileges
     def test_job_statistics(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -53,7 +53,6 @@ class TestSchedulerUserStatistics(YTEnvSetup):
         assert get_statistics(statistics, "custom.k2.$.completed.map.max") == 1
 
     @authors("max42")
-    @require_ytserver_root_privileges
     def test_tricky_names(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -77,7 +76,6 @@ class TestSchedulerUserStatistics(YTEnvSetup):
                 command='cat; echo "{\\"\\"=42}">&5')
 
     @authors("tramsmm", "acid")
-    @require_ytserver_root_privileges
     def test_name_is_too_long(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -93,7 +91,6 @@ class TestSchedulerUserStatistics(YTEnvSetup):
                 command='cat; echo "{ ' + long_name + '=42};">&5')
 
     @authors("tramsmm")
-    @require_ytserver_root_privileges
     def test_too_many_custom_statistics(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -111,7 +108,6 @@ class TestSchedulerUserStatistics(YTEnvSetup):
                 command="cat; " + write_line)
 
     @authors("tramsmm")
-    @require_ytserver_root_privileges
     def test_multiple_job_statistics(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -122,7 +118,6 @@ class TestSchedulerUserStatistics(YTEnvSetup):
         assert get_statistics(statistics, "user_job.cpu.user.$.completed.map.count") == 2
 
     @authors("tramsmm", "acid", "babenko")
-    @require_ytserver_root_privileges
     def test_job_statistics_progress(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")

@@ -34,6 +34,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(IInvokerPtr, WorkerInvoker);
     DEFINE_BYVAL_RO_PROPERTY(IInvokerPtr, SerializedWorkerInvoker);
     DEFINE_BYVAL_RO_PROPERTY(TQueryRegistryPtr, QueryRegistry);
+    DEFINE_BYVAL_RO_PROPERTY(TString, CliqueId);
 
 public:
     TBootstrap(
@@ -55,7 +56,6 @@ public:
 private:
     const NYTree::INodePtr ConfigNode_;
     TString InstanceId_;
-    TString CliqueId_;
     ui16 RpcPort_;
     ui16 MonitoringPort_;
     ui16 TcpPort_;
@@ -73,7 +73,7 @@ private:
 
     std::atomic<int> SigintCounter_ = {0};
 
-    static constexpr int InterruptionExitCode = 43;
+    static constexpr int InterruptionExitCode = 0;
 
     void DoRun();
 

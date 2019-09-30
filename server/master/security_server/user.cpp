@@ -72,6 +72,7 @@ TUserStatistics operator + (const TUserStatistics& lhs, const TUserStatistics& r
 
 TUser::TUser(TUserId id)
     : TSubject(id)
+    , RequestLimits_(New<TUserRequestLimitsConfig>())
 { }
 
 TString TUser::GetObjectName() const
@@ -85,9 +86,7 @@ void TUser::Save(NCellMaster::TSaveContext& context) const
 
     using NYT::Save;
     Save(context, Banned_);
-    Save(context, ReadRequestRateLimit_);
-    Save(context, WriteRequestRateLimit_);
-    Save(context, RequestQueueSizeLimit_);
+    Save(context, *RequestLimits_);
     Save(context, MulticellStatistics_);
     Save(context, ClusterStatistics_);
 }
@@ -98,16 +97,33 @@ void TUser::Load(NCellMaster::TLoadContext& context)
 
     using NYT::Load;
     Load(context, Banned_);
+
+    int readRequestRateLimit = 100;
+    int writeRequestRateLimit = 100;
+    int requestQueueSizeLimit = 100;
+
     // COMPAT(aozeritsky)
     if (context.GetVersion() < NCellMaster::EMasterReign::AddReadRequestRateLimitAndWriteRequestRateLimit) {
         auto requestRateLimit = Load<int>(context);
-        ReadRequestRateLimit_ = requestRateLimit;
-        WriteRequestRateLimit_ = requestRateLimit;
-    } else {
-        Load(context, ReadRequestRateLimit_);
-        Load(context, WriteRequestRateLimit_);
+        readRequestRateLimit = requestRateLimit;
+        writeRequestRateLimit = requestRateLimit;
+    } else if (context.GetVersion() < NCellMaster::EMasterReign::RequestLimits) {
+        Load(context, readRequestRateLimit);
+        Load(context, writeRequestRateLimit);
     }
-    Load(context, RequestQueueSizeLimit_);
+
+    if (context.GetVersion() < NCellMaster::EMasterReign::RequestLimits) {
+        Load(context, requestQueueSizeLimit);
+    }
+
+    if (context.GetVersion() < NCellMaster::EMasterReign::RequestLimits) {
+        RequestLimits_->ReadRequestRateLimits->Default = readRequestRateLimit;
+        RequestLimits_->WriteRequestRateLimits->Default = writeRequestRateLimit;
+        RequestLimits_->RequestQueueSizeLimits->Default = requestQueueSizeLimit;
+    } else {
+        Load(context, *RequestLimits_);
+    }
+
     Load(context, MulticellStatistics_);
     Load(context, ClusterStatistics_);
 }
@@ -160,31 +176,42 @@ void TUser::SetRequestRateThrottler(
     }
 }
 
-int TUser::GetRequestRateLimit(EUserWorkloadType type)
+int TUser::GetRequestRateLimit(EUserWorkloadType type, NObjectServer::TCellTag cellTag) const
 {
     switch (type) {
         case EUserWorkloadType::Read:
-            return ReadRequestRateLimit_;
+            return RequestLimits_->ReadRequestRateLimits->GetValue(cellTag);
         case EUserWorkloadType::Write:
-            return WriteRequestRateLimit_;
+            return RequestLimits_->WriteRequestRateLimits->GetValue(cellTag);
         default:
             YT_ABORT();
     }
 }
 
-void TUser::SetRequestRateLimit(int limit, EUserWorkloadType type)
+void TUser::SetRequestRateLimit(int limit, EUserWorkloadType type, NObjectServer::TCellTag cellTag)
 {
     switch (type) {
         case EUserWorkloadType::Read:
-            ReadRequestRateLimit_ = limit;
+            RequestLimits_->ReadRequestRateLimits->SetValue(cellTag, limit);
             break;
         case EUserWorkloadType::Write:
-            WriteRequestRateLimit_ = limit;
+            RequestLimits_->WriteRequestRateLimits->SetValue(cellTag, limit);
             break;
         default:
             YT_ABORT();
     }
 }
+
+int TUser::GetRequestQueueSizeLimit(NObjectServer::TCellTag cellTag) const
+{
+    return RequestLimits_->RequestQueueSizeLimits->GetValue(cellTag);
+}
+
+void TUser::SetRequestQueueSizeLimit(int limit, NObjectServer::TCellTag cellTag)
+{
+    RequestLimits_->RequestQueueSizeLimits->SetValue(cellTag, limit);
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

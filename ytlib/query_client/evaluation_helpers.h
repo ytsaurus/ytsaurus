@@ -216,6 +216,7 @@ struct TGroupByClosure
     const TValue* LastKey = nullptr;
     std::vector<const TValue*> GroupedRows;
     int KeySize;
+    int ValuesCount;
     bool CheckNulls;
 
     TGroupByClosure(
@@ -224,6 +225,7 @@ struct TGroupByClosure
         THasherFunction* groupHasher,
         TComparerFunction* groupComparer,
         int keySize,
+        int valuesCount,
         bool checkNulls);
 
     std::function<void()> ProcessSegment;
@@ -236,6 +238,7 @@ struct TWriteOpClosure
     // Rows stored in OutputBuffer
     std::vector<TRow> OutputRowsBatch;
     size_t RowSize;
+    bool ConsiderLimit;
 
     TWriteOpClosure();
 

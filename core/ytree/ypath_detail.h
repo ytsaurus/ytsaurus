@@ -231,7 +231,8 @@ private:
     public:
         explicit TCombinedAttributeDictionary(TSupportsAttributes* owner);
 
-        virtual std::vector<TString> List() const override;
+        virtual std::vector<TString> ListKeys() const override;
+        virtual std::vector<TKeyValuePair> ListPairs() const override;
         virtual NYson::TYsonString FindYson(const TString& key) const override;
         virtual void SetYson(const TString& key, const NYson::TYsonString& value) override;
         virtual bool Remove(const TString& key) override;
@@ -277,7 +278,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBuiltinAttributeKeysCache
+class TSystemBuiltinAttributeKeysCache
 {
 public:
     const THashSet<TInternedAttributeKey>& GetBuiltinAttributeKeys(ISystemAttributeProvider* provider);
@@ -285,6 +286,19 @@ public:
 private:
     bool Initialized_ = false;
     THashSet<TInternedAttributeKey> BuiltinKeys_;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSystemCustomAttributeKeysCache
+{
+public:
+    const THashSet<TString>& GetCustomAttributeKeys(ISystemAttributeProvider* provider);
+
+private:
+    bool Initialized_ = false;
+    THashSet<TString> CustomKeys_;
 
 };
 

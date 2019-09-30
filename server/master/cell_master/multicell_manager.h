@@ -34,8 +34,8 @@ struct TCrossCellMessage
         : Payload(TProtoMessage{&message})
     { }
 
-    TCrossCellMessage(NObjectClient::TObjectId objectId, NRpc::IServiceContextPtr context)
-        : Payload(TServiceMessage{objectId, std::move(context)})
+    TCrossCellMessage(NObjectClient::TObjectId objectId, NTransactionClient::TTransactionId transactionId, NRpc::IServiceContextPtr context)
+        : Payload(TServiceMessage{objectId, transactionId, std::move(context)})
     { }
 
     struct TClientMessage
@@ -51,6 +51,7 @@ struct TCrossCellMessage
     struct TServiceMessage
     {
         NObjectClient::TObjectId ObjectId;
+        NTransactionClient::TTransactionId TransactionId;
         NRpc::IServiceContextPtr Context;
     };
 
@@ -70,7 +71,6 @@ public:
     TMulticellManager(
         TMulticellManagerConfigPtr config,
         TBootstrap* bootstrap);
-    ~TMulticellManager();
 
     void Initialize();
 
@@ -93,6 +93,9 @@ public:
     //! Returns |true| if there is a registered master cell with a given cell tag.
     bool IsRegisteredMasterCell(NObjectClient::TCellTag cellTag);
 
+    //! Returns the set of roles the cell is configured for.
+    EMasterCellRoles GetMasterCellRoles(NObjectClient::TCellTag cellTag);
+
     //! Returns the list of cell tags for all registered master cells (other than the local one),
     //! in a stable order.
     /*!`
@@ -103,9 +106,10 @@ public:
     //! Returns a stable index of a given (registered) master cell (other than the local one).
     int GetRegisteredMasterCellIndex(NObjectClient::TCellTag cellTag);
 
-    //! Picks a random (but deterministically chosen) secondary master cell for
-    //! a new chunk owner node.
+    //! Picks a random (but deterministically chosen) secondary master cell to
+    //! host an external chunk-owning node.
     /*!
+     *  Only cells with EMasterCellRoles::ChunkHost are considered.
      *  Cells with less-than-average number of chunks are typically preferred.
      *  The exact amount of skewness is controlled by #bias argument, 0 indicating no preference,
      *  and 1.0 indicating that cells with low number of chunks are picked twice as more often as those
@@ -113,7 +117,7 @@ public:
      *
      *  If no secondary cells are registered then #InvalidCellTag is returned.
      */
-    NObjectClient::TCellTag PickSecondaryMasterCell(double bias);
+    NObjectClient::TCellTag PickSecondaryChunkHostCell(double bias);
 
     //! Computes the total cluster statistics by summing counters for all cells (including primary).
     NProto::TCellStatistics ComputeClusterStatistics();

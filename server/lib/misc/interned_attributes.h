@@ -15,6 +15,8 @@
     XX(Addresses, addresses) \
     XX(AlertCount, alert_count) \
     XX(Alerts, alerts) \
+    XX(Annotation, annotation) \
+    XX(AnnotationPath, annotation_path) \
     XX(Annotations, annotations) \
     XX(Atomicity, atomicity) \
     XX(AttributeKey, attribute_key) \
@@ -92,6 +94,7 @@
     XX(Error, error) \
     XX(Errors, errors) \
     XX(ErrorsUntrimmed, errors_untrimmed) \
+    XX(EstimatedCreationTime, estimated_creation_time) \
     XX(Executable, executable) \
     XX(ExitCellTag, exit_cell_tag) \
     XX(ExitNodeId, exit_node_id) \
@@ -110,6 +113,7 @@
     XX(FlushedRowCount, flushed_row_count) \
     XX(ForcedCompactionRevision, forced_compaction_revision) \
     XX(Foreign, foreign) \
+    XX(NativeCellTag, native_cell_tag) \
     XX(Freeze, freeze) \
     XX(Full, full) \
     XX(FullNodeCount, full_node_count) \
@@ -170,8 +174,6 @@
     XX(MulticellStatistics, multicell_statistics) \
     XX(Name, name) \
     XX(NestedTransactionIds, nested_transaction_ids) \
-    XX(NestedNativeTransactionIds, nested_native_transaction_ids) \
-    XX(NestedExternalTransactionIds, nested_external_transaction_ids) \
     XX(NodeId, node_id) \
     XX(NodeTagFilter, node_tag_filter) \
     XX(Nodes, nodes) \
@@ -210,14 +212,17 @@
     XX(RegisterTime, register_time) \
     XX(Registered, registered) \
     XX(RegisteredMasterCellTags, registered_master_cell_tags) \
+    XX(RemovalStarted, removal_started) \
     XX(ReplicaPath, replica_path) \
     XX(Replicas, replicas) \
     XX(ReplicatedTableOptions, replicated_table_options) \
+    XX(ReplicationErrors, replication_errors) \
     XX(ReplicationFactor, replication_factor) \
     XX(ReplicationLagTime, replication_lag_time) \
     XX(ReplicationStatus, replication_status) \
     XX(RequestCount, request_count) \
     XX(RequestQueueSizeLimit, request_queue_size_limit) \
+    XX(RequestLimits, request_limits) \
     XX(Requisition, requisition) \
     XX(ResourceLimits, resource_limits) \
     XX(ResourceLimitsOverrides, resource_limits_overrides) \
@@ -230,7 +235,8 @@
     XX(SchemaDuplicateCount, schema_duplicate_count) \
     XX(SchemaMode, schema_mode) \
     XX(Sealed, sealed) \
-    XX(SecondaryCellTags, secondary_cell_tags) \
+    XX(ReplicatedToCellTags, replicated_to_cell_tags) \
+    XX(ExternalizedToCellTags, externalized_to_cell_tags) \
     XX(SkipFreezing, skip_freezing) \
     XX(Sorted, sorted) \
     XX(SortedBy, sorted_by) \
@@ -292,6 +298,7 @@
     XX(UsableAccounts, usable_accounts) \
     XX(UsedSpace, used_space) \
     XX(UsedSpacePerMedium, used_space_per_medium) \
+    XX(UserAttributes, user_attributes) \
     XX(UserAttributeKeys, user_attribute_keys) \
     XX(UserTags, user_tags) \
     XX(Value, value) \

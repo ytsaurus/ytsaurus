@@ -31,6 +31,7 @@ static const auto GpuUuidMessage = "GPU UUID";
 static const TString DevNvidiaPath("/dev/nvidia");
 static const TString DevPath("/dev");
 static const TString NvidiaDevicePrefix("nvidia");
+static const TString NvidiaModuleVersionPath("/sys/module/nvidia/version");
 static const THashSet<TString> MetaGpuDevices = {
     "/dev/nvidiactl",
     "/dev/nvidia-uvm"
@@ -258,6 +259,36 @@ void ProfileGpuInfo(NProfiling::TProfiler& profiler, const TGpuInfo& gpuInfo, co
     profiler.Enqueue("/utilization_gpu_rate_x1000", gpuInfo.UtilizationGpuRate, NProfiling::EMetricType::Gauge, tagIds);
     profiler.Enqueue("/utilization_memory_rate_x1000", gpuInfo.UtilizationMemoryRate, NProfiling::EMetricType::Gauge, tagIds);
     profiler.Enqueue("/memory_used", gpuInfo.MemoryUsed, NProfiling::EMetricType::Gauge, tagIds);
+}
+
+TGpuDriverVersion TGpuDriverVersion::FromString(TStringBuf driverVersionString)
+{
+    std::vector<int> result;
+    auto components = StringSplitter(driverVersionString).Split('.');
+
+    try {
+        for (const auto& component : components) {
+            result.push_back(::FromString<int>(component));
+        }
+        return {result};
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Unable to parse driver version %v", driverVersionString) << ex;
+    }
+}
+
+bool operator<(const TGpuDriverVersion& lhs, const TGpuDriverVersion& rhs)
+{
+    return lhs.Components < rhs.Components;
+}
+
+TString GetGpuDriverVersionString()
+{
+    try {
+        TFileInput moduleVersion(NvidiaModuleVersionPath);
+        return moduleVersion.ReadLine();
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Unable to read GPU module version from %v", NvidiaModuleVersionPath) << ex;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

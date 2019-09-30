@@ -217,5 +217,20 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TExternalizeCommand
+    : public TTypedCommand<NApi::TExternalizeNodeOptions>
+{
+public:
+    TExternalizeCommand();
+
+private:
+    NYPath::TYPath Path;
+    NObjectClient::TCellTag CellTag;
+
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NDriver
 

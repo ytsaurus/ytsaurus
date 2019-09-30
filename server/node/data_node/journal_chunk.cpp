@@ -152,6 +152,8 @@ void TJournalChunk::DoReadBlockRange(
     const auto& dispatcher = Bootstrap_->GetJournalDispatcher();
 
     try {
+        auto readGuard = TChunkReadGuard::TryAcquire(this);
+
         auto changelog = WaitFor(dispatcher->OpenChangelog(StoreLocation_, Id_))
             .ValueOrThrow();
 

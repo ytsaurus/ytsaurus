@@ -104,7 +104,7 @@ public:
             BIND(&TFileReader::Read, MakeStrong(this)));
     }
 
-    virtual ui64 GetRevision() const override
+    virtual NHydra::TRevision GetRevision() const override
     {
         return Revision_;
     }
@@ -119,7 +119,7 @@ private:
     const NLogging::TLogger Logger;
 
     NApi::ITransactionPtr Transaction_;
-    ui64 Revision_ = 0;
+    NHydra::TRevision Revision_ = NHydra::NullRevision;
     NFileClient::IFileReaderPtr Reader_;
 
 
@@ -156,7 +156,8 @@ private:
             ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
                 "revision"
             });
-            SetTransactionId(req, Transaction_);
+            AddCellTagToSyncWith(req, userObject.ObjectId);
+            SetTransactionId(req, userObject.ExternalTransactionId);
             SetSuppressAccessTracking(req, Options_.SuppressAccessTracking);
 
             auto rspOrError = WaitFor(proxy.Execute(req));
@@ -165,7 +166,7 @@ private:
             const auto& rsp = rspOrError.Value();
 
             auto attributes = ConvertToAttributes(NYson::TYsonString(rsp->value()));
-            Revision_ = attributes->Get<ui64>("revision", 0);
+            Revision_ = attributes->Get<NHydra::TRevision>("revision", NHydra::NullRevision);
         }
 
         auto nodeDirectory = New<TNodeDirectory>();
@@ -179,7 +180,7 @@ private:
             TObjectServiceProxy proxy(channel);
 
             auto req = TFileYPathProxy::Fetch(userObject.GetObjectIdPath());
-            AddCellTagToSyncWith(req, CellTagFromId(userObject.ObjectId));
+            AddCellTagToSyncWith(req, userObject.ObjectId);
 
             TReadLimit lowerLimit, upperLimit;
             i64 offset = Options_.Offset.value_or(0);
@@ -196,7 +197,7 @@ private:
 
             ToProto(req->mutable_ranges(), std::vector<TReadRange>({TReadRange(lowerLimit, upperLimit)}));
 
-            SetTransactionId(req, Transaction_);
+            SetTransactionId(req, userObject.ExternalTransactionId);
             SetSuppressAccessTracking(req, Options_.SuppressAccessTracking);
             req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
 

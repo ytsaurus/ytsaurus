@@ -3,6 +3,7 @@ import pytest
 from yt_env_setup import YTEnvSetup, wait, Restarter,\
     SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE, MASTER_CELL_SERVICE, require_ytserver_root_privileges, unix_only
 from yt_commands import *
+from yt_helpers import *
 
 import yt.environment.init_operation_archive as init_operation_archive
 
@@ -598,68 +599,9 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         }
     }
 
-    def _get_last_metric_value(self, metric_key, pool):
-        results = []
-        for value in reversed(get("//sys/scheduler/orchid/profiling/scheduler/pools/" + metric_key, verbose=False)):
-            if value["tags"]["pool"] != pool:
-                continue
-            results.append((value["value"], value["time"]))
-        last_metric = sorted(results, key=lambda x: x[1])[-1]
-        return last_metric[0]
-
-    def _get_metric_maximum_value(self, metric_key, pool):
-        result = 0.0
-        for value in reversed(get("//sys/scheduler/orchid/profiling/scheduler/pools/" + metric_key, verbose=False)):
-            if value["tags"]["pool"] != pool:
-                continue
-            result = max(result, value["value"])
-        return result
-
-    def _get_operation_by_slot_last_metric_value(self, metric_key, pool, slot_index):
-        results = []
-        for value in reversed(get("//sys/scheduler/orchid/profiling/scheduler/operations_by_slot/" + metric_key, verbose=False)):
-            if value["tags"]["pool"] != pool or value["tags"]["slot_index"] != str(slot_index):
-                continue
-            results.append((value["value"], value["time"]))
-        last_metric = sorted(results, key=lambda x: x[1])[-1]
-        return last_metric[0]
-
-    def _get_operation_by_user_last_metric_value(self, metric_key, pool, user):
-        now = datetime.now() - timedelta(seconds=2)
-        def get_value(series):
-            last_item = sorted(series, key=lambda x: x[1])[-1]
-            if datetime.fromtimestamp(last_item[1] / 1000000.0) < now:
-                return 0
-            return last_item[0]
-
-        results = defaultdict(list)
-        for value in reversed(get("//sys/scheduler/orchid/profiling/scheduler/operations_by_user/" + metric_key, verbose=False)):
-            if value["tags"]["pool"] != pool or value["tags"]["user_name"] != user:
-                continue
-            results[value["tags"].get("custom")].append((value["value"], value["time"]))
-        last_metric = sum(__builtin__.map(get_value, results.itervalues()))
-        print_debug("Last value of metric '{}' for pool '{}' and user '{}' is {}".format(metric_key, pool, user, last_metric))
-        return last_metric
-
-    def _get_operation_by_custom_tag_last_metric_value(self, metric_key, pool, custom_tag):
-        now = datetime.now() - timedelta(seconds=2)
-        def get_value(series):
-            last_item = sorted(series, key=lambda x: x[1])[-1]
-            if datetime.fromtimestamp(last_item[1] / 1000000.0) < now:
-                return 0
-            return last_item[0]
-
-        results = defaultdict(list)
-        for value in reversed(get("//sys/scheduler/orchid/profiling/scheduler/operations_by_user/" + metric_key, verbose=False)):
-            if value["tags"]["pool"] != pool or "custom" not in value["tags"] or value["tags"]["custom"] != custom_tag:
-                continue
-            results[value["tags"]["user_name"]].append((value["value"], value["time"]))
-        last_metric = sum(__builtin__.map(get_value, results.itervalues()))
-        print_debug("Last value of metric '{}' for pool '{}' with custom_tag '{}' is {}".format(metric_key, pool, custom_tag, last_metric))
-        return last_metric
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     @authors("ignat", "eshcherbin")
-    @require_ytserver_root_privileges
     def test_pool_profiling(self):
         self._prepare_tables()
         pool_path = "//sys/pools/unique_pool"
@@ -668,28 +610,90 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: get(pool_path + "/@max_operation_count") == 50)
         set(pool_path + "/@max_running_operation_count", 8)
         wait(lambda: get(pool_path + "/@max_running_operation_count") == 8)
+
+        metric_prefix = "scheduler/pools/"
+        fair_share_ratio_max = Metric.at_scheduler(
+            metric_prefix + "fair_share_ratio_x100000",
+            with_tags={"pool": "unique_pool"},
+            aggr_method="max")
+        usage_ratio_max = Metric.at_scheduler(
+            metric_prefix + "usage_ratio_x100000",
+            with_tags={"pool": "unique_pool"},
+            aggr_method="max")
+        demand_ratio_max = Metric.at_scheduler(
+            metric_prefix + "demand_ratio_x100000",
+            with_tags={"pool": "unique_pool"},
+            aggr_method="max")
+        guaranteed_resource_ratio_max = Metric.at_scheduler(
+            metric_prefix + "guaranteed_resource_ratio_x100000",
+            with_tags={"pool": "unique_pool"},
+            aggr_method="max")
+        cpu_usage_max = Metric.at_scheduler(
+            metric_prefix + "resource_usage/cpu",
+            with_tags={"pool": "unique_pool"},
+            aggr_method="max")
+        user_slots_usage_max = Metric.at_scheduler(
+            metric_prefix + "resource_usage/user_slots",
+            with_tags={"pool": "unique_pool"},
+            aggr_method="max")
+        cpu_demand_max = Metric.at_scheduler(
+            metric_prefix + "resource_demand/cpu",
+            with_tags={"pool": "unique_pool"},
+            aggr_method="max")
+        user_slots_demand_max = Metric.at_scheduler(
+            metric_prefix + "resource_demand/user_slots",
+            with_tags={"pool": "unique_pool"},
+            aggr_method="max")
+        running_operation_count_max = Metric.at_scheduler(
+            metric_prefix + "running_operation_count",
+            with_tags={"pool": "unique_pool"},
+            aggr_method="max")
+        total_operation_count_max = Metric.at_scheduler(
+            metric_prefix + "total_operation_count",
+            with_tags={"pool": "unique_pool"},
+            aggr_method="max")
+        max_operation_count_last = Metric.at_scheduler(
+            metric_prefix + "max_operation_count",
+            with_tags={"pool": "unique_pool"},
+            aggr_method="last")
+        max_running_operation_count_last = Metric.at_scheduler(
+            metric_prefix + "max_running_operation_count",
+            with_tags={"pool": "unique_pool"},
+            aggr_method="last")
+        min_share_resources_cpu_max = Metric.at_scheduler(
+            metric_prefix + "min_share_resources/cpu",
+            with_tags={"pool": "unique_pool"},
+            aggr_method="max")
+        min_share_resources_memory_max = Metric.at_scheduler(
+            metric_prefix + "min_share_resources/memory",
+            with_tags={"pool": "unique_pool"},
+            aggr_method="max")
+        min_share_resources_user_slots_max = Metric.at_scheduler(
+            metric_prefix + "min_share_resources/user_slots",
+            with_tags={"pool": "unique_pool"},
+            aggr_method="max")
+
         map(command="sleep 1; cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"pool": "unique_pool"})
 
-        assert self._get_metric_maximum_value("fair_share_ratio_x100000", "unique_pool") == 100000
-        assert self._get_metric_maximum_value("usage_ratio_x100000", "unique_pool") == 100000
-        assert self._get_metric_maximum_value("demand_ratio_x100000", "unique_pool") == 100000
-        assert self._get_metric_maximum_value("guaranteed_resource_ratio_x100000", "unique_pool") == 100000
-        assert self._get_metric_maximum_value("resource_usage/cpu", "unique_pool") == 1
-        assert self._get_metric_maximum_value("resource_usage/user_slots", "unique_pool") == 1
-        assert self._get_metric_maximum_value("resource_demand/cpu", "unique_pool") == 1
-        assert self._get_metric_maximum_value("resource_demand/user_slots", "unique_pool") == 1
-        assert self._get_metric_maximum_value("running_operation_count", "unique_pool") == 1
-        assert self._get_metric_maximum_value("total_operation_count", "unique_pool") == 1
+        wait(lambda: fair_share_ratio_max.update().get(verbose=True) == 100000)
+        wait(lambda: usage_ratio_max.update().get(verbose=True) == 100000)
+        wait(lambda: demand_ratio_max.update().get(verbose=True) == 100000)
+        wait(lambda: guaranteed_resource_ratio_max.update().get(verbose=True) == 100000)
+        wait(lambda: cpu_usage_max.update().get(verbose=True) == 1)
+        wait(lambda: user_slots_usage_max.update().get(verbose=True) == 1)
+        wait(lambda: cpu_demand_max.update().get(verbose=True) == 1)
+        wait(lambda: user_slots_demand_max.update().get(verbose=True) == 1)
+        wait(lambda: running_operation_count_max.update().get(verbose=True) == 1)
+        wait(lambda: total_operation_count_max.update().get(verbose=True) == 1)
 
         # pool guaranties metrics
-        assert self._get_last_metric_value("max_operation_count", "unique_pool") == 50
-        assert self._get_last_metric_value("max_running_operation_count", "unique_pool") == 8
-        assert self._get_metric_maximum_value("min_share_resources/cpu", "unique_pool") == 0
-        assert self._get_metric_maximum_value("min_share_resources/memory", "unique_pool") == 0
-        assert self._get_metric_maximum_value("min_share_resources/user_slots", "unique_pool") == 0
+        wait(lambda: max_operation_count_last.update().get(verbose=True) == 50)
+        wait(lambda: max_running_operation_count_last.update().get(verbose=True) == 8)
+        wait(lambda: min_share_resources_cpu_max.update().get(verbose=True) == 0)
+        wait(lambda: min_share_resources_memory_max.update().get(verbose=True) == 0)
+        wait(lambda: min_share_resources_user_slots_max.update().get(verbose=True) == 0)
 
-    @authors("ignat")
-    @require_ytserver_root_privileges
+    @authors("ignat", "eshcherbin")
     def test_operations_by_slot_profiling(self):
         self._create_table("//tmp/t_in")
         write_table("//tmp/t_in", [{"x": "y"}])
@@ -697,6 +701,49 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
             self._create_table("//tmp/t_out_" + str(i + 1))
 
         create("map_node", "//sys/pools/some_pool")
+
+        metric_prefix = "scheduler/operations_by_slot/"
+        fair_share_ratio_last = Metric.at_scheduler(
+            metric_prefix + "fair_share_ratio_x100000",
+            with_tags={"pool": "some_pool"},
+            grouped_by_tags=["slot_index"],
+            aggr_method="last")
+        usage_ratio_last = Metric.at_scheduler(
+            metric_prefix + "usage_ratio_x100000",
+            with_tags={"pool": "some_pool"},
+            grouped_by_tags=["slot_index"],
+            aggr_method="last")
+        demand_ratio_last = Metric.at_scheduler(
+            metric_prefix + "demand_ratio_x100000",
+            with_tags={"pool": "some_pool"},
+            grouped_by_tags=["slot_index"],
+            aggr_method="last")
+        guaranteed_resource_ratio_last = Metric.at_scheduler(
+            metric_prefix + "guaranteed_resource_ratio_x100000",
+            with_tags={"pool": "some_pool"},
+            grouped_by_tags=["slot_index"],
+            aggr_method="last")
+        cpu_usage_last = Metric.at_scheduler(
+            metric_prefix + "resource_usage/cpu",
+            with_tags={"pool": "some_pool"},
+            grouped_by_tags=["slot_index"],
+            aggr_method="last")
+        user_slots_usage_last = Metric.at_scheduler(
+            metric_prefix + "resource_usage/user_slots",
+            with_tags={"pool": "some_pool"},
+            grouped_by_tags=["slot_index"],
+            aggr_method="last")
+        cpu_demand_last = Metric.at_scheduler(
+            metric_prefix + "resource_demand/cpu",
+            with_tags={"pool": "some_pool"},
+            grouped_by_tags=["slot_index"],
+            aggr_method="last")
+        user_slots_demand_last = Metric.at_scheduler(
+            metric_prefix + "resource_demand/user_slots",
+            with_tags={"pool": "some_pool"},
+            grouped_by_tags=["slot_index"],
+            aggr_method="last")
+
         op1 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_1", spec={"pool": "some_pool"}, dont_track=True)
         wait(lambda: op1.get_job_count("running") == 1)
         op2 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_2", spec={"pool": "some_pool"}, dont_track=True)
@@ -710,113 +757,160 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
 
         range_ = (49999, 50000, 50001)
 
-        wait(lambda: self._get_operation_by_slot_last_metric_value("fair_share_ratio_x100000", "some_pool", 0) in range_)
-        wait(lambda: self._get_operation_by_slot_last_metric_value("usage_ratio_x100000", "some_pool", 0) == 100000)
-        wait(lambda: self._get_operation_by_slot_last_metric_value("demand_ratio_x100000", "some_pool", 0) == 100000)
-        wait(lambda: self._get_operation_by_slot_last_metric_value("guaranteed_resource_ratio_x100000", "some_pool", 0) in range_)
-        wait(lambda: self._get_operation_by_slot_last_metric_value("resource_usage/cpu", "some_pool", 0) == 1)
-        wait(lambda: self._get_operation_by_slot_last_metric_value("resource_usage/user_slots", "some_pool", 0) == 1)
-        wait(lambda: self._get_operation_by_slot_last_metric_value("resource_demand/cpu", "some_pool", 0) == 1)
-        wait(lambda: self._get_operation_by_slot_last_metric_value("resource_demand/user_slots", "some_pool", 0) == 1)
+        wait(lambda: fair_share_ratio_last.update().get("0", verbose=True) in range_)
+        wait(lambda: usage_ratio_last.update().get("0", verbose=True) == 100000)
+        wait(lambda: demand_ratio_last.update().get("0", verbose=True) == 100000)
+        wait(lambda: guaranteed_resource_ratio_last.update().get("0", verbose=True) in range_)
+        wait(lambda: cpu_usage_last.update().get("0", verbose=True) == 1)
+        wait(lambda: user_slots_usage_last.update().get("0", verbose=True) == 1)
+        wait(lambda: cpu_demand_last.update().get("0", verbose=True) == 1)
+        wait(lambda: user_slots_demand_last.update().get("0", verbose=True) == 1)
 
-        wait(lambda: self._get_operation_by_slot_last_metric_value("fair_share_ratio_x100000", "some_pool", 1) in range_)
-        wait(lambda: self._get_operation_by_slot_last_metric_value("usage_ratio_x100000", "some_pool", 1) == 0)
-        wait(lambda: self._get_operation_by_slot_last_metric_value("demand_ratio_x100000", "some_pool", 1) == 100000)
-        wait(lambda: self._get_operation_by_slot_last_metric_value("guaranteed_resource_ratio_x100000", "some_pool", 1) in range_)
-        wait(lambda: self._get_operation_by_slot_last_metric_value("resource_usage/cpu", "some_pool", 1) == 0)
-        wait(lambda: self._get_operation_by_slot_last_metric_value("resource_usage/user_slots", "some_pool", 1) == 0)
-        wait(lambda: self._get_operation_by_slot_last_metric_value("resource_demand/cpu", "some_pool", 1) == 1)
-        wait(lambda: self._get_operation_by_slot_last_metric_value("resource_demand/user_slots", "some_pool", 1) == 1)
+        wait(lambda: fair_share_ratio_last.update().get("1", verbose=True) in range_)
+        wait(lambda: usage_ratio_last.update().get("1", verbose=True) == 0)
+        wait(lambda: demand_ratio_last.update().get("1", verbose=True) == 100000)
+        wait(lambda: guaranteed_resource_ratio_last.update().get("1", verbose=True) in range_)
+        wait(lambda: cpu_usage_last.update().get("1", verbose=True) == 0)
+        wait(lambda: user_slots_usage_last.update().get("1", verbose=True) == 0)
+        wait(lambda: cpu_demand_last.update().get("1", verbose=True) == 1)
+        wait(lambda: user_slots_demand_last.update().get("1", verbose=True) == 1)
 
-        op1.abort()
+        op1.abort(wait_until_finished=True)
 
-        time.sleep(2.0)
+        wait(lambda: fair_share_ratio_last.update().get("1", verbose=True) == 100000)
+        wait(lambda: usage_ratio_last.update().get("1", verbose=True) == 100000)
+        wait(lambda: demand_ratio_last.update().get("1", verbose=True) == 100000)
+        wait(lambda: guaranteed_resource_ratio_last.update().get("1", verbose=True) == 100000)
 
-        wait(lambda: self._get_operation_by_slot_last_metric_value("fair_share_ratio_x100000", "some_pool", 1) == 100000)
-        wait(lambda: self._get_operation_by_slot_last_metric_value("usage_ratio_x100000", "some_pool", 1) == 100000)
-        wait(lambda: self._get_operation_by_slot_last_metric_value("demand_ratio_x100000", "some_pool", 1) == 100000)
-        wait(lambda: self._get_operation_by_slot_last_metric_value("guaranteed_resource_ratio_x100000", "some_pool", 1) == 100000)
-
-    @authors("ignat")
-    @require_ytserver_root_privileges
+    @authors("ignat", "eshcherbin")
     def test_operations_by_user_profiling(self):
-        create_user("vasya")
-        create_user("petya")
+        create_user("ignat")
+        create_user("egor")
 
         self._create_table("//tmp/t_in")
         write_table("//tmp/t_in", [{"x": "y"}])
         for i in xrange(4):
             self._create_table("//tmp/t_out_" + str(i + 1))
 
-        create("map_node", "//sys/pools/some_pool")
+        create("map_node", "//sys/pools/some_pool", attributes={"allowed_profiling_tags": ["hello"]})
         create("map_node", "//sys/pools/other_pool", attributes={"allowed_profiling_tags": ["hello", "world"]})
-        op1 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_1", spec={"pool": "some_pool", "custom_profiling_tag": "hello"}, dont_track=True, authenticated_user="vasya")
+
+        metric_prefix = "scheduler/operations_by_user/"
+        fair_share_ratio_last = Metric.at_scheduler(
+            metric_prefix + "fair_share_ratio_x100000",
+            grouped_by_tags=["pool", "user_name", "custom"],
+            aggr_method="last")
+        usage_ratio_last = Metric.at_scheduler(
+            metric_prefix + "usage_ratio_x100000",
+            grouped_by_tags=["pool", "user_name", "custom"],
+            aggr_method="last")
+        demand_ratio_last = Metric.at_scheduler(
+            metric_prefix + "demand_ratio_x100000",
+            grouped_by_tags=["pool", "user_name", "custom"],
+            aggr_method="last")
+        guaranteed_resource_ratio_last = Metric.at_scheduler(
+            metric_prefix + "guaranteed_resource_ratio_x100000",
+            grouped_by_tags=["pool", "user_name", "custom"],
+            aggr_method="last")
+        cpu_usage_last = Metric.at_scheduler(
+            metric_prefix + "resource_usage/cpu",
+            grouped_by_tags=["pool", "user_name", "custom"],
+            aggr_method="last")
+        user_slots_usage_last = Metric.at_scheduler(
+            metric_prefix + "resource_usage/user_slots",
+            grouped_by_tags=["pool", "user_name", "custom"],
+            aggr_method="last")
+        cpu_demand_last = Metric.at_scheduler(
+            metric_prefix + "resource_demand/cpu",
+            grouped_by_tags=["pool", "user_name", "custom"],
+            aggr_method="last")
+        user_slots_demand_last = Metric.at_scheduler(
+            metric_prefix + "resource_demand/user_slots",
+            grouped_by_tags=["pool", "user_name", "custom"],
+            aggr_method="last")
+
+        op1 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_1", spec={"pool": "some_pool", "custom_profiling_tag": "hello"}, dont_track=True, authenticated_user="ignat")
         wait(lambda: op1.get_job_count("running") == 1)
-        op2 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_2", spec={"pool": "other_pool", "custom_profiling_tag": "world"}, dont_track=True, authenticated_user="petya")
+        op2 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_2", spec={"pool": "other_pool", "custom_profiling_tag": "world"}, dont_track=True, authenticated_user="egor")
         wait(lambda: op2.get_state() == "running")
-        op3 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_3", spec={"pool": "other_pool", "custom_profiling_tag": "hello"}, dont_track=True, authenticated_user="petya")
+        op3 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_3", spec={"pool": "other_pool", "custom_profiling_tag": "hello"}, dont_track=True, authenticated_user="egor")
         wait(lambda: op3.get_state() == "running")
-        op4 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_4", spec={"pool": "other_pool", "custom_profiling_tag": "hello"}, dont_track=True, authenticated_user="petya")
+        op4 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_4", spec={"pool": "other_pool", "custom_profiling_tag": "hello"}, dont_track=True, authenticated_user="egor")
         wait(lambda: op4.get_state() == "running")
 
         range_1 = (49998, 49999, 50000, 50001)
         range_2 = (16665, 16666, 16667)
         range_3 = (33332, 33333, 33334)
 
-        for func, value in ((self._get_operation_by_user_last_metric_value, "vasya"),):
-            wait(lambda: func("fair_share_ratio_x100000", "some_pool", value) in range_1)
-            wait(lambda: func("usage_ratio_x100000", "some_pool", value) == 100000)
-            wait(lambda: func("demand_ratio_x100000", "some_pool", value) == 100000)
-            wait(lambda: func("guaranteed_resource_ratio_x100000", "some_pool", value) in range_1)
-            wait(lambda: func("resource_usage/cpu", "some_pool", value) == 1)
-            wait(lambda: func("resource_usage/user_slots", "some_pool", value) == 1)
-            wait(lambda: func("resource_demand/cpu", "some_pool", value) == 1)
-            wait(lambda: func("resource_demand/user_slots", "some_pool", value) == 1)
+        def get_operation_by_user_last_metric_value(metric, pool, user):
+            since_time = int((time.time() - 2) * 1000000)  # Filter out outdated samples.
+            result = sum(value for tags, value in metric.data.iteritems()
+                         if tags[0] == pool and tags[1] == user and metric.state[tags]["last_sample_time"] > since_time)
+            # TODO(eshcherbin): do it some other normal way.
+            metric_name = metric.path.split(metric_prefix)[-1]
+            print_debug("Last value of metric '{}' for pool '{}' and user '{}' is {}".format(metric_name, pool, user, result))
+            return result
 
-        for func, value in ((self._get_operation_by_custom_tag_last_metric_value, "hello"),):
-            wait(lambda: func("fair_share_ratio_x100000", "other_pool", value) in range_3)
-            wait(lambda: func("usage_ratio_x100000", "other_pool", value) == 0)
-            wait(lambda: func("demand_ratio_x100000", "other_pool", value) == 200000)
-            wait(lambda: func("guaranteed_resource_ratio_x100000", "other_pool", value) in range_3)
-            wait(lambda: func("resource_usage/cpu", "other_pool", value) == 0)
-            wait(lambda: func("resource_usage/user_slots", "other_pool", value) == 0)
-            wait(lambda: func("resource_demand/cpu", "other_pool", value) == 2)
-            wait(lambda: func("resource_demand/user_slots", "other_pool", value) == 2)
+        def get_operation_by_custom_tag_last_metric_value(metric, pool, custom_tag):
+            since_time = int((time.time() - 2) * 1000000)  # Filter out outdated samples.
+            result = sum(value for tags, value in metric.data.iteritems()
+                         if tags[0] == pool and tags[2] == custom_tag and metric.state[tags]["last_sample_time"] > since_time)
+            # TODO(eshcherbin): do it some other normal way.
+            metric_name = metric.path.split(metric_prefix)[-1]
+            print_debug("Last value of metric '{}' for pool '{}' with custom_tag '{}' is {}".format(metric_name, pool, custom_tag, result))
+            return result
 
-        for func, value in ((self._get_operation_by_custom_tag_last_metric_value, "world"),):
-            wait(lambda: func("fair_share_ratio_x100000", "other_pool", value) in range_2)
-            wait(lambda: func("usage_ratio_x100000", "other_pool", value) == 0)
-            wait(lambda: func("demand_ratio_x100000", "other_pool", value) == 100000)
-            wait(lambda: func("guaranteed_resource_ratio_x100000", "other_pool", value) in range_2)
-            wait(lambda: func("resource_usage/cpu", "other_pool", value) == 0)
-            wait(lambda: func("resource_usage/user_slots", "other_pool", value) == 0)
-            wait(lambda: func("resource_demand/cpu", "other_pool", value) == 1)
-            wait(lambda: func("resource_demand/user_slots", "other_pool", value) == 1)
+        for func, value in ((get_operation_by_user_last_metric_value, "ignat"),):
+            wait(lambda: func(fair_share_ratio_last.update(), "some_pool", value) in range_1)
+            wait(lambda: func(usage_ratio_last.update(), "some_pool", value) == 100000)
+            wait(lambda: func(demand_ratio_last.update(), "some_pool", value) == 100000)
+            wait(lambda: func(guaranteed_resource_ratio_last.update(), "some_pool", value) in range_1)
+            wait(lambda: func(cpu_usage_last.update(), "some_pool", value) == 1)
+            wait(lambda: func(user_slots_usage_last.update(), "some_pool", value) == 1)
+            wait(lambda: func(cpu_demand_last.update(), "some_pool", value) == 1)
+            wait(lambda: func(user_slots_demand_last.update(), "some_pool", value) == 1)
 
-        for func, value in ((self._get_operation_by_user_last_metric_value, "petya"),):
-            wait(lambda: func("fair_share_ratio_x100000", "other_pool", value) in range_1)
-            wait(lambda: func("usage_ratio_x100000", "other_pool", value) == 0)
-            wait(lambda: func("demand_ratio_x100000", "other_pool", value) == 300000)
-            wait(lambda: func("guaranteed_resource_ratio_x100000", "other_pool", value) in range_1)
-            wait(lambda: func("resource_usage/cpu", "other_pool", value) == 0)
-            wait(lambda: func("resource_usage/user_slots", "other_pool", value) == 0)
-            wait(lambda: func("resource_demand/cpu", "other_pool", value) == 3)
-            wait(lambda: func("resource_demand/user_slots", "other_pool", value) == 3)
+        for func, value in ((get_operation_by_custom_tag_last_metric_value, "hello"),):
+            wait(lambda: func(fair_share_ratio_last.update(), "other_pool", value) in range_3)
+            wait(lambda: func(usage_ratio_last.update(), "other_pool", value) == 0)
+            wait(lambda: func(demand_ratio_last.update(), "other_pool", value) == 200000)
+            wait(lambda: func(guaranteed_resource_ratio_last.update(), "other_pool", value) in range_3)
+            wait(lambda: func(cpu_usage_last.update(), "other_pool", value) == 0)
+            wait(lambda: func(user_slots_usage_last.update(), "other_pool", value) == 0)
+            wait(lambda: func(cpu_demand_last.update(), "other_pool", value) == 2)
+            wait(lambda: func(user_slots_demand_last.update(), "other_pool", value) == 2)
 
-        op4.abort()
-        op3.abort()
-        op1.abort()
+        for func, value in ((get_operation_by_custom_tag_last_metric_value, "world"),):
+            wait(lambda: func(fair_share_ratio_last.update(), "other_pool", value) in range_2)
+            wait(lambda: func(usage_ratio_last.update(), "other_pool", value) == 0)
+            wait(lambda: func(demand_ratio_last.update(), "other_pool", value) == 100000)
+            wait(lambda: func(guaranteed_resource_ratio_last.update(), "other_pool", value) in range_2)
+            wait(lambda: func(cpu_usage_last.update(), "other_pool", value) == 0)
+            wait(lambda: func(user_slots_usage_last.update(), "other_pool", value) == 0)
+            wait(lambda: func(cpu_demand_last.update(), "other_pool", value) == 1)
+            wait(lambda: func(user_slots_demand_last.update(), "other_pool", value) == 1)
 
-        time.sleep(2.0)
+        for func, value in ((get_operation_by_user_last_metric_value, "egor"),):
+            wait(lambda: func(fair_share_ratio_last.update(), "other_pool", value) in range_1)
+            wait(lambda: func(usage_ratio_last.update(), "other_pool", value) == 0)
+            wait(lambda: func(demand_ratio_last.update(), "other_pool", value) == 300000)
+            wait(lambda: func(guaranteed_resource_ratio_last.update(), "other_pool", value) in range_1)
+            wait(lambda: func(cpu_usage_last.update(), "other_pool", value) == 0)
+            wait(lambda: func(user_slots_usage_last.update(), "other_pool", value) == 0)
+            wait(lambda: func(cpu_demand_last.update(), "other_pool", value) == 3)
+            wait(lambda: func(user_slots_demand_last.update(), "other_pool", value) == 3)
 
-        for func, value in ((self._get_operation_by_user_last_metric_value, "petya"), (self._get_operation_by_custom_tag_last_metric_value, "world")):
-            wait(lambda: func("fair_share_ratio_x100000", "other_pool", value) == 100000)
-            wait(lambda: func("usage_ratio_x100000", "other_pool", value) == 100000)
-            wait(lambda: func("demand_ratio_x100000", "other_pool", value) == 100000)
-            wait(lambda: func("guaranteed_resource_ratio_x100000", "other_pool", value) in range_1)
+        op4.abort(wait_until_finished=True)
+        op3.abort(wait_until_finished=True)
+        op1.abort(wait_until_finished=True)
+
+        for func, value in ((get_operation_by_user_last_metric_value, "egor"), (get_operation_by_custom_tag_last_metric_value, "world")):
+            wait(lambda: func(fair_share_ratio_last.update(), "other_pool", value) == 100000)
+            wait(lambda: func(usage_ratio_last.update(), "other_pool", value) == 100000)
+            wait(lambda: func(demand_ratio_last.update(), "other_pool", value) == 100000)
+            wait(lambda: func(guaranteed_resource_ratio_last.update(), "other_pool", value) in range_1)
 
     @authors("ignat", "eshcherbin")
-    @require_ytserver_root_privileges
     def test_job_count_profiling(self):
         self._prepare_tables()
 
@@ -864,10 +958,22 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "job_metrics_report_period": 100,
             "operation_time_limit_check_period": 100,
             "operation_controller_fail_timeout": 3000,
             "operations_job_metrics_push_period": 1000000000,
+            "job_metrics_report_period": 100,
+            "custom_job_metrics": [
+                {
+                    "statistics_path": "/custom/value_completed",
+                    "profiling_name": "metric_completed",
+                    "aggregate_type": "sum",
+                },
+                {
+                    "statistics_path": "/custom/value_failed",
+                    "profiling_name": "metric_failed",
+                    "aggregate_type": "sum",
+                },
+            ]
         }
     }
 
@@ -879,7 +985,6 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
                     "memory_watchdog_period": 100,
                     "supported_cgroups": ["cpuacct", "blkio", "cpu"],
                 },
-
             },
             "scheduler_connector": {
                 "heartbeat_period": 100,  # 100 msec
@@ -887,15 +992,7 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
         }
     }
 
-    def _get_pool_metrics(self, metric_key, start_time):
-        result = {}
-        for entry in reversed(get("//sys/scheduler/orchid/profiling/scheduler/pools/metrics/" + metric_key,
-                                  options={"from_time": int(start_time) * 1000000}, verbose=False)):
-            pool = entry["tags"]["pool"]
-            if pool not in result:
-                result[pool] = entry["value"]
-        print_debug("Pool metrics: ", result)
-        return result
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     def _get_cypress_metrics(self, operation_id, key, job_state="completed", aggr="sum"):
         statistics = get(get_operation_cypress_path(operation_id) + "/@progress/job_statistics")
@@ -903,47 +1000,39 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
 
     @authors("eshcherbin")
     @unix_only
-    @require_ytserver_root_privileges
     def test_operation_completed(self):
         self._prepare_tables()
         create("map_node", "//sys/pools/unique_pool")
         time.sleep(1)
 
-        metric_name = "user_job_bytes_written"
-        statistics_name = "user_job.block_io.bytes_written"
+        map_cmd = """python -c "import os; os.write(5, '{value_completed=117};')"; sleep 0.5 ; cat ; sleep 5; echo done > /dev/stderr"""
 
-        start_time = time.time()
-        start_pool_metrics = self._get_pool_metrics(metric_name, start_time)
+        metric_completed_delta = Metric.at_scheduler(
+            "scheduler/pools/metrics/metric_completed",
+            with_tags={"pool": "unique_pool"})
 
-        map_cmd = """for i in $(seq 5) ; do python -c "import os; os.write(5, '{value=$i};')"; echo 5 > /tmp/foo$i ; sync ; sleep 0.5 ; done ; cat ; sleep 5; echo done > /dev/stderr"""
-        op = map(command=map_cmd, in_="//tmp/t_in", out="//tmp/t_out", spec={"pool": "unique_pool"})
+        map(command=map_cmd, in_="//tmp/t_in", out="//tmp/t_out", spec={"pool": "unique_pool"})
 
-        wait(lambda: self._get_pool_metrics(metric_name, start_time)["unique_pool"] - start_pool_metrics["unique_pool"] ==
-             self._get_cypress_metrics(op.id, statistics_name) > 0)
+        wait(lambda: metric_completed_delta.update().get(verbose=True) == 117)
 
     @authors("eshcherbin")
     @unix_only
-    @require_ytserver_root_privileges
     def test_operation_failed(self):
         self._prepare_tables()
         create("map_node", "//sys/pools/unique_pool")
         time.sleep(1)
 
-        metric_name = "user_job_bytes_written"
-        statistics_name = "user_job.block_io.bytes_written"
+        map_cmd = """python -c "import os; os.write(5, '{value_failed=225};')"; sleep 0.5 ; cat ; sleep 5; exit 1"""
 
-        start_time = time.time()
-        start_pool_metrics = self._get_pool_metrics(metric_name, start_time)
-
-        map_cmd = """for i in $(seq 5) ; do python -c "import os; os.write(5, '{value=$i};')"; echo 5 > /tmp/foo$i ; sync ; sleep 0.5 ; done ; cat ; sleep 5; exit 1"""
+        metric_failed_delta = Metric.at_scheduler(
+            "scheduler/pools/metrics/metric_failed",
+            with_tags={"pool": "unique_pool"})
 
         op = map(command=map_cmd, in_="//tmp/t_in", out="//tmp/t_out",
                  spec={"max_failed_job_count": 1, "pool": "unique_pool"}, dont_track=True)
-        with pytest.raises(YtError):
-            op.track()
+        op.track(raise_on_failed=False)
 
-        wait(lambda: self._get_pool_metrics(metric_name, start_time)["unique_pool"] - start_pool_metrics["unique_pool"] ==
-             self._get_cypress_metrics(op.id, statistics_name, job_state="failed") > 0)
+        wait(lambda: metric_failed_delta.update().get(verbose=True) == 225)
 
 
 ##################################################################
@@ -1071,8 +1160,7 @@ class SchedulerReviveBase(YTEnvSetup):
 
         wait(lambda: op.get_job_count("completed") == 1 and op.get_job_count("running") == 1)
 
-        # Wait for snapshot after job completion.
-        time.sleep(3)
+        op.wait_fresh_snapshot()
 
         # This request will be retried with the new incarnation of the scheduler.
         op.complete(ignore_result=True)
@@ -1143,8 +1231,7 @@ class SchedulerReviveBase(YTEnvSetup):
 
         self._wait_for_state(op, "running")
 
-        # Wait for snapshot and job completion.
-        time.sleep(3)
+        op.wait_fresh_snapshot()
 
         op.complete(ignore_result=True)
 
@@ -1194,8 +1281,7 @@ class SchedulerReviveBase(YTEnvSetup):
 
         suspend_op(op.id)
 
-        # Waiting until snapshot is built.
-        time.sleep(2.0)
+        op.wait_fresh_snapshot()
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             pass

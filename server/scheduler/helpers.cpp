@@ -235,5 +235,12 @@ TJobResources ComputeAvailableResources(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TOperationFairShareTreeRuntimeParametersPtr GetSchedulingOptionsPerPoolTree(IOperationStrategyHost* operation, const TString& treeId)
+{
+    auto treeIt = operation->GetRuntimeParameters()->SchedulingOptionsPerPoolTree.find(treeId);
+    YT_VERIFY(treeIt != operation->GetRuntimeParameters()->SchedulingOptionsPerPoolTree.end());
+    return treeIt->second;
+}
+
 } // namespace NYT::NScheduler
 

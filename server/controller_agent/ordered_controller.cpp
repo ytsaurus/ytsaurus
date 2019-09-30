@@ -380,7 +380,8 @@ protected:
             for (int index = 0; index < InputTables_.size(); ++index) {
                 if (!InputTables_[index]->Dynamic &&
                     !InputTables_[index]->Path.GetColumns() &&
-                    InputTables_[index]->ColumnRenameDescriptors.empty())
+                    InputTables_[index]->ColumnRenameDescriptors.empty() &&
+                    OutputTables_[0]->TableUploadOptions.SchemaModification == ETableSchemaModification::None)
                 {
                     InputTables_[index]->Teleportable = ValidateTableSchemaCompatibility(
                         InputTables_[index]->Schema,

@@ -89,7 +89,7 @@ struct TDataRanges
     //! Either a chunk id or tablet id.
     NObjectClient::TObjectId Id;
     //! Mount revision for a tablet.
-    i64 MountRevision;
+    NHydra::TRevision MountRevision;
     TSharedRange<TRowRange> Ranges;
 
     std::vector<EValueType> Schema;

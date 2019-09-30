@@ -60,9 +60,11 @@ public:
 
         const auto& attributes = Attributes();
 
-        auto keys = attributes.List();
+        auto pairs = attributes.ListPairs();
         if (stable) {
-            std::sort(keys.begin(), keys.end());
+            std::sort(pairs.begin(), pairs.end(), [] (const auto& lhs, const auto& rhs) {
+                return lhs.first < rhs.first;
+            });
         }
 
         THashSet<TString> matchingKeys;
@@ -70,11 +72,10 @@ public:
             matchingKeys = THashSet<TString>(attributeKeys->begin(), attributeKeys->end());
         }
 
-        for (const auto& key : keys) {
+        for (const auto& [key, value] : pairs) {
             if (!attributeKeys || matchingKeys.find(key) != matchingKeys.end()) {
-                auto yson = attributes.GetYson(key);
                 consumer->OnKeyedItem(key);
-                consumer->OnRaw(yson);
+                consumer->OnRaw(value);
             }
         }
     }

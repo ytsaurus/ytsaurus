@@ -14,61 +14,21 @@ namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TEntitySerializationKey
-{
-    TEntitySerializationKey();
-    explicit TEntitySerializationKey(int index);
-
-    bool operator == (TEntitySerializationKey rhs);
-    bool operator != (TEntitySerializationKey rhs);
-
-    void Save(TSaveContext& context) const;
-    void Load(TLoadContext& context);
-
-    // Well-known constants.
-    static const TEntitySerializationKey Null;
-    static const TEntitySerializationKey Destroyed;
-    static const TEntitySerializationKey Inline;
-
-    int Index;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TSaveContext
-    : public NYT::TStreamSaveContext
+    : public TEntityStreamSaveContext
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(ICheckpointableOutputStream*, CheckpointableOutput);
-
-public:
-    virtual ~TSaveContext() = default;
-
-    TEntitySerializationKey GenerateSerializationKey();
-
-private:
-    int SerializationKeyIndex_ = 0;
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLoadContext
-    : public NYT::TStreamLoadContext
+    : public TEntityStreamLoadContext
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(ICheckpointableInputStream*, CheckpointableInput);
-
-public:
-    virtual ~TLoadContext() = default;
-
-    TEntitySerializationKey RegisterEntity(void* entity);
-
-    template <class T>
-    T* GetEntity(TEntitySerializationKey key) const;
-
-private:
-    std::vector<void*> Entities_;
 
 };
 
@@ -195,6 +155,7 @@ public:
     virtual void Clear() override;
     virtual void SetZeroState() override;
 
+    void RememberReign(TReign reign);
     virtual EFinalRecoveryAction GetFinalRecoveryAction() override;
 
 protected:

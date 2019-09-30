@@ -1,11 +1,11 @@
+#include "http_server_mock.h"
+
 #include <yt/ytlib/auth/token_authenticator.h>
 #include <yt/ytlib/auth/cookie_authenticator.h>
 #include <yt/ytlib/auth/blackbox_service.h>
 #include <yt/ytlib/auth/default_blackbox_service.h>
 #include <yt/ytlib/auth/config.h>
 #include <yt/ytlib/auth/helpers.h>
-
-#include <library/http/server/http.h>
 
 #include <yt/core/concurrency/thread_pool_poller.h>
 
@@ -14,8 +14,9 @@
 namespace NYT::NAuth {
 namespace {
 
-using namespace NYTree;
 using namespace NConcurrency;
+using namespace NTests;
+using namespace NYTree;
 using namespace NYson;
 
 using ::testing::_;
@@ -25,70 +26,15 @@ using ::testing::AllOf;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString CollectMessages(const TError& error)
-{
-    TString result;
-    std::function<void(const TError&)> impl = [&] (const TError& e) {
-        result += e.GetMessage();
-        for (const auto& ie : e.InnerErrors()) {
-            result += "\n";
-            impl(ie);
-        }
-    };
-    impl(error);
-    return result;
-}
-
 class TDefaultBlackboxTest
     : public ::testing::Test
 {
-    class TMockClientRequest
-        : public TClientRequest
-    {
-        virtual bool Reply(void* opaque) override
-        {
-            TDefaultBlackboxTest* test = static_cast<TDefaultBlackboxTest*>(opaque);
-            if (!test || !test->OnCall_) {
-                Output() << "HTTP/1.0 501 Not Implemented\r\n\r\n";
-            } else {
-                test->OnCall_(this);
-            }
-            return true;
-        }
-    };
-
-    class TMockCallback
-        : public THttpServer::ICallBack
-    {
-    public:
-        explicit TMockCallback(TDefaultBlackboxTest* test)
-            : Test_(test)
-        { }
-
-        virtual TClientRequest* CreateClient() override
-        {
-            return new TMockClientRequest();
-        }
-
-        virtual void* CreateThreadSpecificResource() override
-        {
-            return Test_;
-        }
-
-        virtual void DestroyThreadSpecificResource(void*) override
-        {
-        }
-
-    private:
-        TDefaultBlackboxTest* const Test_;
-    };
-
 protected:
     TDefaultBlackboxServiceConfigPtr CreateDefaultBlackboxServiceConfig()
     {
         auto config = New<TDefaultBlackboxServiceConfig>();
-        config->Host = MockServer_ ? MockServer_->Options().Host : "localhost";
-        config->Port = MockServer_ ? MockServer_->Options().Port : static_cast<ui16>(0);
+        config->Host = ServerMock_.IsStarted() ? ServerMock_.GetHost() : "localhost";
+        config->Port = ServerMock_.IsStarted() ? ServerMock_.GetPort() : static_cast<ui16>(0);
         config->Secure = false;
         config->RequestTimeout = TDuration::MilliSeconds(10);
         config->AttemptTimeout = TDuration::MilliSeconds(10);
@@ -103,45 +49,25 @@ protected:
             CreateThreadPoolPoller(1, "HttpPoller"));
     }
 
-    TString HttpResponse(int code, TString body)
-    {
-        TString result;
-        result += "HTTP/1.1 " + ToString(code) + " ";
-        switch (code) {
-            case 200: result += "Found"; break;
-            case 404: result += "Not Found"; break;
-            case 500: result += "Internal Server Error"; break;
-            default: YT_ABORT();
-        }
-        result += "\r\n";
-        result += "Connection: close\r\n";
-        result += "Content-Length: " + ToString(body.length()) + "\r\n";
-        result += "\r\n";
-        result += body;
-        return result;
-    }
-
     virtual void SetUp() override
     {
-        MockCallback_ = std::make_unique<TMockCallback>(this);
-        MockServer_ = std::make_unique<THttpServer>(MockCallback_.get(), THttpServerOptions().SetHost("localhost"));
-        MockServer_->Start();
+        ServerMock_.Start();
     }
 
     virtual void TearDown() override
     {
-        if (MockServer_) {
-            MockServer_->Stop();
-            MockServer_.reset();
-        }
-        if (MockCallback_) {
-            MockCallback_.reset();
+        if (ServerMock_.IsStarted()) {
+            ServerMock_.Stop();
         }
     }
 
-    std::unique_ptr<TMockCallback> MockCallback_;
-    std::unique_ptr<THttpServer> MockServer_;
-    std::function<void(TClientRequest*)> OnCall_;
+    void SetCallback(THttpServerMock::TCallback callback)
+    {
+        ServerMock_.SetCallback(std::move(callback));
+    }
+
+private:
+    THttpServerMock ServerMock_;
 };
 
 TEST_F(TDefaultBlackboxTest, FailOnBadHost)
@@ -157,10 +83,10 @@ TEST_F(TDefaultBlackboxTest, FailOnBadHost)
 
 TEST_F(TDefaultBlackboxTest, FailOn5xxResponse)
 {
-    OnCall_ = [&] (TClientRequest* request) {
+    SetCallback([&] (TClientRequest* request) {
         EXPECT_THAT(request->Input().FirstLine(), HasSubstr("/blackbox?method=hello"));
         request->Output() << HttpResponse(500, "");
-    };
+    });
     auto service = CreateDefaultBlackboxService();
     auto result = service->Call("hello", {}).Get();
     ASSERT_TRUE(!result.IsOK());
@@ -169,10 +95,10 @@ TEST_F(TDefaultBlackboxTest, FailOn5xxResponse)
 
 TEST_F(TDefaultBlackboxTest, FailOn4xxResponse)
 {
-    OnCall_ = [&] (TClientRequest* request) {
+    SetCallback([&] (TClientRequest* request) {
         EXPECT_THAT(request->Input().FirstLine(), HasSubstr("/blackbox?method=hello"));
         request->Output() << HttpResponse(404, "");
-    };
+    });
     auto service = CreateDefaultBlackboxService();
     auto result = service->Call("hello", {}).Get();
     ASSERT_TRUE(!result.IsOK());
@@ -181,10 +107,10 @@ TEST_F(TDefaultBlackboxTest, FailOn4xxResponse)
 
 TEST_F(TDefaultBlackboxTest, FailOnEmptyResponse)
 {
-    OnCall_ = [&] (TClientRequest* request) {
+    SetCallback([&] (TClientRequest* request) {
         EXPECT_THAT(request->Input().FirstLine(), HasSubstr("/blackbox?method=hello"));
         request->Output() << HttpResponse(200, "");
-    };
+    });
     auto service = CreateDefaultBlackboxService();
     auto result = service->Call("hello", {}).Get();
     ASSERT_TRUE(!result.IsOK());
@@ -193,10 +119,10 @@ TEST_F(TDefaultBlackboxTest, FailOnEmptyResponse)
 
 TEST_F(TDefaultBlackboxTest, FailOnMalformedResponse)
 {
-    OnCall_ = [&] (TClientRequest* request) {
+    SetCallback([&] (TClientRequest* request) {
         EXPECT_THAT(request->Input().FirstLine(), HasSubstr("/blackbox?method=hello"));
         request->Output() << HttpResponse(200, "#$&(^$#@(^");
-    };
+    });
     auto service = CreateDefaultBlackboxService();
     auto result = service->Call("hello", {}).Get();
     ASSERT_TRUE(!result.IsOK());
@@ -205,10 +131,10 @@ TEST_F(TDefaultBlackboxTest, FailOnMalformedResponse)
 
 TEST_F(TDefaultBlackboxTest, FailOnBlackboxException)
 {
-    OnCall_ = [&] (TClientRequest* request) {
+    SetCallback([&] (TClientRequest* request) {
         EXPECT_THAT(request->Input().FirstLine(), HasSubstr("/blackbox?method=hello"));
         request->Output() << HttpResponse(200, R"jj({"exception":{"id": 666, "value": "bad stuff happened"}})jj");
-    };
+    });
     auto service = CreateDefaultBlackboxService();
     auto result = service->Call("hello", {}).Get();
     ASSERT_TRUE(!result.IsOK());
@@ -218,10 +144,10 @@ TEST_F(TDefaultBlackboxTest, FailOnBlackboxException)
 
 TEST_F(TDefaultBlackboxTest, Success)
 {
-    OnCall_ = [&] (TClientRequest* request) {
+    SetCallback([&] (TClientRequest* request) {
         EXPECT_THAT(request->Input().FirstLine(), HasSubstr("/blackbox?method=hello&foo=bar&spam=ham"));
         request->Output() << HttpResponse(200, R"jj({"status": "ok"})jj");
-    };
+    });
     auto service = CreateDefaultBlackboxService();
     auto result = service->Call("hello", {{"foo", "bar"}, {"spam", "ham"}}).Get();
     ASSERT_TRUE(result.IsOK());
@@ -231,7 +157,7 @@ TEST_F(TDefaultBlackboxTest, Success)
 TEST_F(TDefaultBlackboxTest, RetriesErrors)
 {
     std::atomic<int> counter = {0};
-    OnCall_ = [&] (TClientRequest* request) {
+    SetCallback([&] (TClientRequest* request) {
         switch (counter) {
             case 0:  request->Output() << HttpResponse(500, ""); break;
             case 1:  request->Output() << HttpResponse(404, ""); break;
@@ -242,7 +168,7 @@ TEST_F(TDefaultBlackboxTest, RetriesErrors)
             default: request->Output() << HttpResponse(200, R"jj({"exception":{"id": 0, "value": "OK"}})jj"); break;
         }
         ++counter;
-    };
+    });
 
     auto config = CreateDefaultBlackboxServiceConfig();
     config->BackoffTimeout = TDuration::MilliSeconds(0);
