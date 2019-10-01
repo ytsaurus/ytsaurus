@@ -659,7 +659,8 @@ void TNodeShard::UpdateExecNodeDescriptors()
     }
 
     for (const auto& node : nodesToRemove) {
-        YT_LOG_INFO("Node has not seen more that %v seconds, remove it (NodeId: %v, Address: %v)",
+        YT_LOG_INFO("Node has not seen more than %v seconds, remove it (NodeId: %v, Address: %v)",
+            Config_->MaxOfflineNodeAge,
             node->GetId(),
             node->GetDefaultAddress());
         RemoveNode(node);
@@ -1514,10 +1515,10 @@ void TNodeShard::DoUnregisterNode(const TExecNodePtr& node)
     AbortAllJobsAtNode(node);
 
     auto jobsToRemove = node->RecentlyFinishedJobs();
-    for (const auto& pair : jobsToRemove) {
-        auto jobId = pair.first;
+    for (const auto& [jobId, job] : jobsToRemove) {
         RemoveRecentlyFinishedJob(jobId);
     }
+    YT_VERIFY(node->RecentlyFinishedJobs().empty());
 
     if (node->GetJobReporterQueueIsTooLarge()) {
         --JobReporterQueueIsTooLargeNodeCount_;
@@ -1658,9 +1659,7 @@ void TNodeShard::ProcessHeartbeatJobs(
     {
         auto now = GetCpuInstant();
         std::vector<TJobId> recentlyFinishedJobsToRemove;
-        for (const auto& pair : node->RecentlyFinishedJobs()) {
-            auto jobId = pair.first;
-            const auto& jobInfo = pair.second;
+        for (const auto& [jobId, jobInfo] : node->RecentlyFinishedJobs()) {
             if (now > jobInfo.EvictionDeadline) {
                 YT_LOG_DEBUG("Removing job from recently completed due to timeout for release "
                     "(JobId: %v, NodeId: %v, NodeAddress: %v)",
