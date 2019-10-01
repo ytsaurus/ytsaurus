@@ -64,7 +64,7 @@ public class Allotment {
         }
     }
 
-    public void printStatus() {
+    public void printStatus(long now, long warningThreshold) {
         int totalAssigned = 0;
         for (Map.Entry<Node, List<Location>> entry : nodes.entrySet()) {
             totalAssigned += entry.getValue().size();
@@ -73,11 +73,27 @@ public class Allotment {
         int oversize = Math.max(0, totalAssigned - size);
         int missing = Math.max(0, size - totalAssigned);
 
-        String color = ConsoleColors.GREEN;
+        Status allotmentAggregatedStatus = Status.OK;
+
         if (oversize > 0) {
-            color = ConsoleColors.YELLOW;
+            allotmentAggregatedStatus = Status.WARN;
         }
         if (missing > 0) {
+            allotmentAggregatedStatus = Status.ERR;
+        }
+
+        for (Map.Entry<Node, List<Location>> entry : nodes.entrySet()) {
+            allotmentAggregatedStatus = allotmentAggregatedStatus.plus(entry.getKey().getStatus(now, warningThreshold));
+
+            for (Location location : entry.getValue()) {
+                allotmentAggregatedStatus = allotmentAggregatedStatus.plus(location.getStatus());
+            }
+        }
+
+        String color = ConsoleColors.GREEN;
+        if (allotmentAggregatedStatus == Status.WARN) {
+            color = ConsoleColors.YELLOW;
+        } else if (allotmentAggregatedStatus == Status.ERR) {
             color = ConsoleColors.RED;
         }
 
@@ -87,13 +103,15 @@ public class Allotment {
             Node node = entry.getKey();
             color = ConsoleColors.RESET;
 
-            long now = System.currentTimeMillis() / 1000;
-            long delta = now - node.lastSeenTime;
+            Status nodeAggregatedStatus = node.getStatus(now, warningThreshold);
+            for (Location location : entry.getValue()) {
+                nodeAggregatedStatus = nodeAggregatedStatus.plus(location.getStatus());
+            }
 
-            if (delta > 600) {
-                color = ConsoleColors.RED;
-            } else if (delta > 300) {
+            if (nodeAggregatedStatus == Status.WARN) {
                 color = ConsoleColors.YELLOW;
+            } else if (nodeAggregatedStatus == Status.ERR) {
+                color = ConsoleColors.RED;
             }
 
             // |-
