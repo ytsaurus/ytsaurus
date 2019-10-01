@@ -60,6 +60,7 @@ DEFINE_ENUM(EOperationAlertType,
     ((OperationBannedInTentativeTree)              (15))
     ((OwnersInSpecIgnored)                         (16))
     ((OmittedInaccesibleColumnsInInputTables)      (17))
+    ((LegacyLivePreviewSuppressed)                 (18))
 );
 
 DEFINE_ENUM(EAgentToSchedulerOperationEventType,

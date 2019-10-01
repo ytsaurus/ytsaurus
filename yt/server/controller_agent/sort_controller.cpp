@@ -3367,14 +3367,14 @@ private:
         }
     }
 
-    virtual bool DoCheckOutputLivePreviewSupported() const override
+    virtual ELegacyLivePreviewMode GetLegacyOutputLivePreviewMode() const override
     {
-        return Spec->EnableLegacyLivePreview;
+        return ToLegacyLivePreviewMode(Spec->EnableLegacyLivePreview);
     }
 
-    virtual bool DoCheckIntermediateLivePreviewSupported() const override
+    virtual ELegacyLivePreviewMode GetLegacyIntermediateLivePreviewMode() const override
     {
-        return Spec->EnableLegacyLivePreview;
+        return ToLegacyLivePreviewMode(Spec->EnableLegacyLivePreview);
     }
 
     virtual bool IsInputDataSizeHistogramSupported() const override

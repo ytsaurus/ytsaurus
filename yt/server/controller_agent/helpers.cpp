@@ -218,5 +218,18 @@ void SetDataSourceDirectory(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+ELegacyLivePreviewMode ToLegacyLivePreviewMode(std::optional<bool> enableLegacyLivePreview)
+{
+    if (enableLegacyLivePreview) {
+        return *enableLegacyLivePreview
+            ? ELegacyLivePreviewMode::ExplicitlyEnabled
+            : ELegacyLivePreviewMode::ExplicitlyDisabled;
+    } else {
+        return ELegacyLivePreviewMode::DoNotCare;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NControllerAgent
 
