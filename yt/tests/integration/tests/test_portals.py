@@ -602,6 +602,9 @@ class TestPortals(YTEnvSetup):
         acl1 = get("//tmp/m/acl1/@acl")
         acl2 = get("//tmp/m/acl2/@acl")
 
+        ORCHID_MANIFEST = {"address": "someaddress"}
+        create("orchid", "//tmp/m/orchid", attributes={"manifest": ORCHID_MANIFEST})
+
         externalize("//tmp/m", 1)
 
         assert not get("//tmp/m/@inherit_acl")
@@ -632,6 +635,9 @@ class TestPortals(YTEnvSetup):
         assert get("//tmp/m/m/@compression_codec") == "brotli_8"
 
         assert get("//tmp/m/et/@expiration_time") == "2100-01-01T00:00:00.000000Z"
+
+        assert get("//tmp/m/orchid/@type") == "orchid"
+        assert get("//tmp/m/orchid/@manifest") == ORCHID_MANIFEST
 
     @authors("babenko")
     def test_bulk_insert_yt_11194(self):
