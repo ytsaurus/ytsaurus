@@ -1259,6 +1259,12 @@ TObject* TObjectManager::TImpl::CreateObject(
         object->SetForeign();
     }
 
+    // XXX(babenko): fix passing life stage when adding new cells 
+    if (auto lifeStage = attributes->Find<EObjectLifeStage>("life_stage")) {
+        attributes->Remove("life_stage");
+        object->SetLifeStage(*lifeStage);
+    }
+
     try {
         FillAttributes(object, *attributes);
     } catch (const std::exception& ex) {
