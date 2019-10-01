@@ -146,6 +146,21 @@ message TResourceMeta {
     }
 }
 
+enum EMultiSecretFileContentFormat {
+    EMultiSecretFileContentFormat_JSON = 0 [(NYT.NYson.NProto.enum_value_name) = "json"];
+    EMultiSecretFileContentFormat_JAVA = 1 [(NYT.NYson.NProto.enum_value_name) = "java"];
+    EMultiSecretFileContentFormat_YAML = 2 [(NYT.NYson.NProto.enum_value_name) = "yaml"];
+}
+
+message TMultiSecretFileContent {
+    // Формат в котором будут записаны секреты
+    // Форматы аналогичны ya vault get version --format
+    EMultiSecretFileContentFormat format = 1;
+
+    // Alias секрета из которого будут выписаны все значения
+    string secret_alias = 2;
+}
+
 message TFile {
     // Имя файла
     // NOTE: Валидация - не содержит "/"
@@ -157,6 +172,10 @@ message TFile {
 
         // Cодержимое секрета будет скопировано в файл
         SecretSelector secret_data = 3;
+
+        // Файл со всеми полями из одного секрета
+        // Вывод похож на ya vault get version, только без дополнительной информации (Файл будет содержать только "value")
+        TMultiSecretFileContent multi_secret_data = 4;
     }
 }
 
