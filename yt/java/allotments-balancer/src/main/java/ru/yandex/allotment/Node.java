@@ -43,15 +43,17 @@ public class Node {
 
         this.locations = Cf.hashMap();
 
-        for (YTreeNode locationRow : attributes.get("statistics").asMap().get("locations").asList()) {
-            Map<String, YTreeNode> locationAttributes = locationRow.asMap();
-            if (!locationAttributes.containsKey("location_id")) {
-                continue;
+        if (isGood()) {
+            for (YTreeNode locationRow : attributes.get("statistics").asMap().get("locations").asList()) {
+                Map<String, YTreeNode> locationAttributes = locationRow.asMap();
+                if (!locationAttributes.containsKey("location_id")) {
+                    continue;
+                }
+
+                Location location = new Location(locationAttributes);
+
+                this.locations.put(location.id, location);
             }
-
-            Location location = new Location(locationAttributes);
-
-            this.locations.put(location.id, location);
         }
 
         String lastSeenTimeRow = attributes.get("last_seen_time").stringValue();
@@ -103,14 +105,22 @@ public class Node {
         }
     }
 
-    public void moveOut(Allotment allotment) {
-        System.out.println(String.format("Moving out allotment '%s' from node '%s'", allotment.name, addr));
+    public boolean moveOut(Allotment allotment) {
+        boolean flag = false;
 
         for (Map.Entry<String, Integer> entry : allotmentAssignment.entrySet()) {
             if (entry.getValue() == allotment.index) {
+                flag = true;
                 allotmentAssignment.remove(entry.getKey());
+                dirty = true;
             }
         }
+
+        if (flag) {
+            System.out.println(String.format("Moving out allotment '%s' from node '%s'", allotment.name, addr));
+        }
+
+        return dirty;
     }
 
     public void removeDeadLocations(Allotment allotment) {
