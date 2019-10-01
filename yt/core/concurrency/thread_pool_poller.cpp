@@ -243,6 +243,10 @@ private:
             , Poller_(poller)
             , Logger(NLogging::TLogger(Poller_->Logger)
                 .AddTag("ThreadIndex: %v", index))
+            , ExecuteCallback_(BIND([this] {
+                HandleEvents();
+                HandleUnregister();
+            }))
         { }
 
         void ScheduleUnregister(TPollableEntryPtr entry)
@@ -259,6 +263,8 @@ private:
         virtual TClosure BeginExecute() override
         {
             if (ExecutingCallbacks_) {
+                SetCurrentInvoker(Poller_->Invoker_);
+
                 auto result = Poller_->Invoker_->ExecuteCallbacks();
                 if (result) {
                     return result;
@@ -268,14 +274,13 @@ private:
                 Poller_->Invoker_->ArmPoller();
             }
 
-            return BIND([&] {
-                HandleEvents();
-                HandleUnregister();
-            });
+            return ExecuteCallback_;
         }
 
         virtual void EndExecute() override
-        { }
+        {
+            SetCurrentInvoker(nullptr);
+        }
 
         virtual void AfterShutdown() override
         {
@@ -289,6 +294,8 @@ private:
         bool ExecutingCallbacks_ = false;
 
         TMultipleProducerSingleConsumerLockFreeStack<TPollableEntryPtr> UnregisterEntries_;
+
+        TClosure ExecuteCallback_;
 
         void HandleEvents()
         {
@@ -403,10 +410,7 @@ private:
                 return BIND([] { });
             }
 
-            return BIND([&, callback = std::move(callback)] {
-                TCurrentInvokerGuard guard(this);
-                callback.Run();
-            });
+            return callback;
         }
 
         void DrainQueue()
