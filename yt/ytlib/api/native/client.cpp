@@ -2476,7 +2476,8 @@ TYsonString TClient::DoGetOperation(
     auto getOperationResponses = WaitFor(CombineAll<TYsonString>(getOperationFutures))
         .ValueOrThrow();
 
-    auto cypressResult = cypressFuture.Get().ValueOrThrow();
+    auto cypressResult = cypressFuture.Get()
+        .ValueOrThrow();
 
     auto archiveResultOrError = archiveFuture.Get();
     TYsonString archiveResult;
