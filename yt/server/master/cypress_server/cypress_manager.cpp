@@ -1403,11 +1403,10 @@ public:
         YT_VERIFY(!mustUnbranchAboveNodes || !mustUpdateAboveNodes);
         if (mustUnbranchAboveNodes || mustUpdateAboveNodes) {
             // Process nodes above until another lock is met.
-            // Make sure to get the originator of the current node *before* it's unbranched.
-            for (auto* aboveNode = newOriginator, nextOriginator = aboveNode->GetOriginator();
-                 aboveNode != trunkNode;
-                 aboveNode = nextOriginator)
-            {
+            for (auto* aboveNode = newOriginator; aboveNode != trunkNode; ) {
+                // Make sure to get the originator of the current node *before* it's unbranched.
+                auto* nextOriginator = aboveNode->GetOriginator();
+
                 auto* aboveNodeTransaction = aboveNode->GetTransaction();
                 if (aboveNodeTransaction->LockedNodes().contains(trunkNode)) {
                     break;
@@ -1436,6 +1435,8 @@ public:
                         mustUpdateAboveNodes = true;
                     }
                 }
+
+                aboveNode = nextOriginator;
             }
         }
 
