@@ -172,7 +172,7 @@ public:
             auto expectedPrimaryCellAddresses = Config_->PrimaryMaster->Addresses;
             std::sort(expectedPrimaryCellAddresses.begin(), expectedPrimaryCellAddresses.end());
             const auto& actualPrimaryCellAddresses = cellAddresses[PrimaryMasterCellTag_];
-            YT_LOG_WARN_UNLESS(
+            YT_LOG_WARNING_UNLESS(
                 expectedPrimaryCellAddresses == actualPrimaryCellAddresses,
                 "Synchronized primary master cell addresses do not match, connection config is probably incorrect (ConfigPrimaryMasterAddresses: %v, SynchronizedPrimaryMasterAddresses: %v)",
                 expectedPrimaryCellAddresses,
@@ -183,7 +183,7 @@ public:
                 std::sort(expectedCellAddresses.begin(), expectedCellAddresses.end());
                 const auto& actualCellAddresses = cellAddresses[CellTagFromId(cellConfig->CellId)];
 
-                YT_LOG_WARN_UNLESS(
+                YT_LOG_WARNING_UNLESS(
                     expectedCellAddresses == actualCellAddresses,
                     "Synchronized secondary master cell addresses do not match, connection config is probably incorrect (ConfigSecondaryMasterAddresses: %v, SynchronizedSecondaryMasterAddresses: %v)",
                     expectedCellAddresses,
