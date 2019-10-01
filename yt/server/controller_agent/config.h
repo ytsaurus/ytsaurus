@@ -25,6 +25,8 @@
 #include <yt/core/ytree/yson_serializable.h>
 #include <yt/core/ytree/fluent.h>
 
+#include <yt/core/re2/public.h>
+
 #include <yt/core/misc/phoenix.h>
 
 namespace NYT::NControllerAgent {
@@ -716,6 +718,9 @@ public:
 
     bool EnableOperationProgressArchivation;
     TDuration OperationProgressArchivationTimeout;
+
+    //! Regex for users having legacy live preview disabled by default.
+    NRe2::TRe2Ptr LegacyLivePreviewUserBlacklist;
 
     TControllerAgentConfig();
 

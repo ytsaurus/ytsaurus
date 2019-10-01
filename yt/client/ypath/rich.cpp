@@ -339,11 +339,11 @@ void ParseRowRanges(NYson::TTokenizer& tokenizer, IAttributeDictionary* attribut
     }
 }
 
-void AppendAttributes(TStringBuilderBase* builder, const IAttributeDictionary& attributes)
+void AppendAttributes(TStringBuilderBase* builder, const IAttributeDictionary& attributes, EYsonFormat ysonFormat)
 {
     TString attrString;
     TStringOutput output(attrString);
-    TYsonWriter writer(&output, EYsonFormat::Binary, EYsonType::MapFragment);
+    TYsonWriter writer(&output, ysonFormat, EYsonType::MapFragment);
 
     BuildYsonAttributesFluently(&writer)
         .Items(attributes);
@@ -623,7 +623,7 @@ bool TRichYPath::GetPartiallySorted() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ToString(const TRichYPath& path)
+TString ToString(const TRichYPath& path, EYsonFormat ysonFormat)
 {
     const IAttributeDictionary* attributes = nullptr;
     std::unique_ptr<IAttributeDictionary> attrHolder;
@@ -639,7 +639,7 @@ TString ToString(const TRichYPath& path)
 
     TStringBuilder builder;
 
-    AppendAttributes(&builder, *attributes);
+    AppendAttributes(&builder, *attributes, ysonFormat);
     builder.AppendString(path.GetPath());
     if (columns) {
         builder.AppendChar(TokenTypeToChar(BeginColumnSelectorToken));

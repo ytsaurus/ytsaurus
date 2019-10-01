@@ -4542,7 +4542,8 @@ class TestNewLivePreview(YTEnvSetup):
 
     @authors("max42")
     def test_disabled_live_preview(self):
-        create_user("u")
+        create_user("robot-root")
+        add_member("robot-root", "superusers")
 
         data = [{"foo": i} for i in range(3)]
 
@@ -4551,20 +4552,41 @@ class TestNewLivePreview(YTEnvSetup):
 
         create("table", "//tmp/t2")
 
-        op = map(
-            wait_for_jobs=True,
-            dont_track=True,
-            command=with_breakpoint("BREAKPOINT ; cat"),
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            spec={"data_size_per_job": 1,
-                  "enable_legacy_live_preview": False})
+        # Run operation with given params and return a tuple (live preview created, suppression alert set)
+        def check_live_preview(enable_legacy_live_preview=None, authenticated_user=None, index=None):
+            op = map(
+                wait_for_jobs=True,
+                dont_track=True,
+                command=with_breakpoint("BREAKPOINT ; cat", breakpoint_name=str(index)),
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                spec={"data_size_per_job": 1, "enable_legacy_live_preview": enable_legacy_live_preview},
+                authenticated_user=authenticated_user)
 
-        wait_breakpoint(job_count=2)
+            wait_breakpoint(job_count=2, breakpoint_name=str(index))
 
-        async_transaction_id = get(op.get_path() + "/@async_scheduler_transaction_id")
-        assert not exists(op.get_path() + "/output_0", tx=async_transaction_id)
+            async_transaction_id = get(op.get_path() + "/@async_scheduler_transaction_id")
+            live_preview_created = exists(op.get_path() + "/output_0", tx=async_transaction_id)
+            suppression_alert_set = "legacy_live_preview_suppressed" in op.get_alerts()
 
+            op.abort()
+
+            return (live_preview_created, suppression_alert_set)
+
+        combinations = [
+            (None, "root", True, False),
+            (True, "root", True, False),
+            (False, "root", False, False),
+            (None, "robot-root", False, True),
+            (True, "robot-root", True, False),
+            (False, "robot-root", False, False)
+        ]
+
+        for i, combination in enumerate(combinations):
+            enable_legacy_live_preview, authenticated_user, live_preview_created, suppression_alert_set = combination
+            assert check_live_preview(enable_legacy_live_preview=enable_legacy_live_preview,
+                                      authenticated_user=authenticated_user,
+                                      index=i) == (live_preview_created, suppression_alert_set)
 
 class TestConnectToMaster(YTEnvSetup):
     NUM_MASTERS = 1

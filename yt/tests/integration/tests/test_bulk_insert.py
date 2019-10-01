@@ -50,10 +50,13 @@ class TestBulkInsert(DynamicTablesBase):
 
         ts_before = generate_timestamp()
 
-        map(
+        op = map(
             in_="//tmp/t_input",
             out="<append=true>//tmp/t_output",
             command="cat")
+
+        assert "legacy_live_preview_suppressed" in op.get_alerts()
+        assert "dynamic" in str(op.get_alerts()["legacy_live_preview_suppressed"])
 
         assert read_table("//tmp/t_output") == rows
         assert_items_equal(select_rows("* from [//tmp/t_output]"), rows)
@@ -1240,6 +1243,7 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
             "schema": make_schema(schema, unique_keys=True)})
         alter_table("//tmp/t", schema_modification=modification)
         assert get("//tmp/t/@schema/@unique_keys") == (modification == "unversioned_update")
+
     @pytest.mark.parametrize("modification", ["unversioned_update", "unversioned_update_unsorted"])
     def test_unversioned_update_schema_inference(self, modification):
         schema = [
