@@ -5,10 +5,12 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
+import java.util.Optional;
 
 import ru.yandex.bolts.collection.Cf;
 import ru.yandex.bolts.collection.MapF;
 import ru.yandex.inside.yt.kosher.Yt;
+import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
@@ -92,7 +94,7 @@ public class Node {
         dirty = true;
     }
 
-    public void upload(Yt yt, boolean dryRun) {
+    public void upload(Yt yt, GUID tx, boolean dryRun) {
         if (!dirty) {
             return;
         }
@@ -100,7 +102,7 @@ public class Node {
         System.out.println(String.format("%s -> %s", addr, allotmentAssignment));
 
         if (!dryRun) {
-            yt.cypress().set(YPath.simple("//sys/nodes").child(addr).attribute("allotments_assignment"),
+            yt.cypress().set(Optional.of(tx), true, YPath.simple("//sys/nodes").child(addr).attribute("allotments_assignment"),
                     YTree.builder().value(allotmentAssignment).build());
         }
     }
