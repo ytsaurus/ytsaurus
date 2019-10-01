@@ -3,10 +3,10 @@ package ru.yandex.allotment;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.List;
 import java.util.Map;
 
 import ru.yandex.bolts.collection.Cf;
+import ru.yandex.bolts.collection.MapF;
 import ru.yandex.inside.yt.kosher.Yt;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
@@ -15,12 +15,13 @@ import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 public class Node {
     public final String addr;
 
-    public final List<Location> locations;
+    public final MapF<String, Location> locations;
 
     // location -> index
     public final Map<String, Integer> allotmentAssignment;
 
     private final DateTimeFormatter format = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSSSS'Z'").withZone(ZoneId.of("UTC"));
+    ZonedDateTime dateTime;
     public long lastSeenTime;
 
     public boolean dirty = false;
@@ -35,7 +36,7 @@ public class Node {
             this.allotmentAssignment.put(entity.getKey(), entity.getValue().intValue());
         }
 
-        this.locations = Cf.arrayList();
+        this.locations = Cf.hashMap();
 
         for (YTreeNode locationRow : attributes.get("statistics").asMap().get("locations").asList()) {
             Map<String, YTreeNode> locationAttributes = locationRow.asMap();
@@ -45,12 +46,17 @@ public class Node {
 
             Location location = new Location(locationAttributes);
 
-            this.locations.add(location);
+            this.locations.put(location.id, location);
         }
 
         String lastSeenTimeRow = attributes.get("last_seen_time").stringValue();
 
-        lastSeenTime = ZonedDateTime.parse(lastSeenTimeRow, format).toEpochSecond();
+        dateTime = ZonedDateTime.parse(lastSeenTimeRow, format);
+        lastSeenTime = dateTime.toEpochSecond();
+    }
+
+    public String formatLastSeenTime() {
+        return format.format(dateTime);
     }
 
     public Node(String addr, Yt yt) {

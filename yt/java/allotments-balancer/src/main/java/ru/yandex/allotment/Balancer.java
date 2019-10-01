@@ -74,7 +74,8 @@ public class Balancer {
         for (Node node : nodes) {
             List<String> freeSlots = Cf.arrayList();
 
-            for (Location location : node.locations) {
+            for (Map.Entry<String, Location> entry : node.locations.entrySet()) {
+                Location location = entry.getValue();
                 int currentAssignment = node.allotmentAssignment.getOrDefault(location.id, -1);
 
                 if (currentAssignment == allotment.index) {
@@ -100,6 +101,8 @@ public class Balancer {
                 byNode.add(new ByNodeTriplet(0, freeSlots, node));
             }
         }
+
+        // TODO: remove dead locations
 
         for (String rack : racks.keySet()) {
             byRack.add(new ByRackTuple(0, rack));
@@ -144,7 +147,7 @@ public class Balancer {
             }
 
             this.nodes = loadNodes();
-            allotment.recalculateNodes(nodes);
+            allotment.recalculateNodes(nodes, yt);
         }
     }
 
@@ -155,7 +158,7 @@ public class Balancer {
         for (YTreeStringNode node : allotments) {
             Allotment allotment = new Allotment(node.getValue(), yt);
             if (!allotment.isPrimary()) {
-                allotment.recalculateNodes(this.nodes);
+                allotment.recalculateNodes(this.nodes, yt);
                 result.put(allotment.name, allotment);
             }
         }
