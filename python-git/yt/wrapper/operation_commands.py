@@ -271,15 +271,19 @@ def get_operation_state(operation, client=None):
     finally:
         config["proxy"]["retries"]["count"] = retry_count
 
-def get_operation_progress(operation, client=None):
+def get_operation_progress(operation, with_build_time=False, client=None):
     def calculate_total(counter):
         if isinstance(counter, dict):
             return sum(imap(calculate_total, itervalues(counter)))
         return counter
 
+    build_time = None
     try:
         attributes = get_operation_attributes(operation, fields=["brief_progress"], client=client)
         progress = attributes.get("brief_progress", {}).get("jobs", {})
+        build_time = attributes.get("brief_progress", {}).get("build_time")
+        if build_time is not None:
+            build_time = date_string_to_datetime(build_time)
         for key in progress:
             # Show total for hierarchical count.
             if key in progress and isinstance(progress[key], dict):
@@ -293,7 +297,10 @@ def get_operation_progress(operation, client=None):
             progress = {}
         else:
             raise
-    return progress
+    if with_build_time:
+        return build_time, progress
+    else:
+        return progress
 
 def order_progress(progress):
     filter_out = ("completed_details")
@@ -315,6 +322,7 @@ class PrintOperationInfo(object):
         self.operation = operation
         self.state = None
         self.progress = None
+        self.progress_build_time = None
 
         creation_time_str = get_operation_attributes(operation, fields=["start_time"], client=client)["start_time"]
         creation_time = date_string_to_datetime(creation_time_str).replace(tzinfo=None)
@@ -331,13 +339,15 @@ class PrintOperationInfo(object):
             if unrecognized_spec and unrecognized_spec.get("unrecognized_spec"):
                 self.log("Unrecognized spec: %s", str(unrecognized_spec["unrecognized_spec"]))
         if state.is_running():
-            progress = get_operation_progress(self.operation, client=self.client)
-            if progress and progress != self.progress:
-                self.log(
-                    "operation %s: %s",
-                    self.operation,
-                    " ".join("{0}={1:<5}".format(k, v) for k, v in order_progress(progress)))
-            self.progress = progress
+            build_time, progress = get_operation_progress(self.operation, with_build_time=True, client=self.client)
+            if build_time is not None and (self.progress_build_time is None or build_time > self.progress_build_time):
+                if progress and progress != self.progress:
+                    self.log(
+                        "operation %s: %s",
+                        self.operation,
+                        " ".join("{0}={1:<5}".format(k, v) for k, v in order_progress(progress)))
+                self.progress = progress
+                self.progress_build_time = build_time
         elif state != self.state:
             self.log("operation %s %s", self.operation, state)
             if state.is_finished():
