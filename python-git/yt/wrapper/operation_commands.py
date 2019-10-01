@@ -600,7 +600,7 @@ class Operation(object):
         """Returns job statistics of operation."""
         try:
             attributes = get_operation_attributes(self.id, fields=["progress"], client=self.client)
-            return attributes["progress"]["job_statistics"]
+            return attributes.get("progress", {}).get("job_statistics", {})
         except YtResponseError as error:
             if error.is_resolve_error():
                 return {}
