@@ -452,11 +452,11 @@ private:
     template <class T>
     void CompleteCallWith(
         NNative::IClientPtr client,
-        const IServiceContextPtr& context,
+        IServiceContextPtr context,
         TFuture<T>&& future)
     {
         future.Subscribe(
-            BIND([client = std::move(client), context = context] (const TErrorOr<T>& valueOrError) {
+            BIND([client = std::move(client), context = std::move(context)] (const TErrorOr<T>& valueOrError) {
                 if (valueOrError.IsOK()) {
                     // XXX(sandello): This relies on the typed service context implementation.
                     context->Reply(TError());
@@ -1276,6 +1276,7 @@ private:
             cellTag);
 
         CompleteCallWith(
+            client,
             context,
             client->ExternalizeNode(path, cellTag, options));
     }
@@ -1439,7 +1440,7 @@ private:
                 tabletCount);
 
             CompleteCallWith(
-            client,
+                client,
                 context,
                 client->ReshardTable(path, tabletCount, options));
         } else {
@@ -1456,7 +1457,7 @@ private:
                 keys);
 
             CompleteCallWith(
-            client,
+                client,
                 context,
                 client->ReshardTable(path, keys, options));
         }
@@ -2664,7 +2665,7 @@ private:
         context->SetRequestInfo("CellId: %v", options.CellId);
 
         CompleteCallWith(
-            NNative::IClientPtr(),
+            nullptr,
             context,
             admin->GCCollect(options));
     }
