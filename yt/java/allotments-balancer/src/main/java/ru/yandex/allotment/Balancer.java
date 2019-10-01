@@ -8,6 +8,8 @@ import ru.yandex.bolts.collection.Cf;
 import ru.yandex.bolts.collection.MapF;
 import ru.yandex.inside.yt.kosher.Yt;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
+import ru.yandex.inside.yt.kosher.impl.YtUtils;
+import ru.yandex.inside.yt.kosher.impl.transactions.utils.YtTransactionsUtils;
 import ru.yandex.inside.yt.kosher.ytree.YTreeStringNode;
 
 class ByNodeTriplet implements Comparable<ByNodeTriplet> {
@@ -64,7 +66,7 @@ public class Balancer {
         reassignAllotment(allotment, dryRun);
     }
 
-    private void reassignAllotment(Allotment allotment, boolean dryRun)
+    private boolean reassignAllotment(Allotment allotment, boolean dryRun)
     {
         int targetSize = allotment.size;
         long now = System.currentTimeMillis() / 1000;
@@ -170,14 +172,9 @@ public class Balancer {
 
         if (dirty) {
             System.out.println(String.format("Reassigning: Allotment: '%s', TargetSize: '%d'", allotment.name, allotment.size));
-
-            for (Node node : nodes) {
-                node.upload(yt, dryRun);
-            }
-
-            this.nodes = loadNodes();
-            allotment.recalculateNodes(nodes, yt);
         }
+
+        return dirty;
     }
 
     private Map<String, Allotment> loadAllotments() {
@@ -221,8 +218,23 @@ public class Balancer {
     }
 
     public void balance(boolean dryRun) {
+        boolean dirty = false;
         for (Map.Entry<String, Allotment> entry : allotments.entrySet()) {
-            reassignAllotment(entry.getValue(), dryRun);
+            dirty |= reassignAllotment(entry.getValue(), dryRun);
+        }
+
+        if (dirty) {
+            YtTransactionsUtils.withTransaction(yt, (tx) -> {
+                for (Node node : nodes) {
+                    node.upload(yt, tx.getId(), dryRun);
+                }
+            });
+
+            this.nodes = loadNodes();
+
+            for (Map.Entry<String, Allotment> entry : allotments.entrySet()) {
+                entry.getValue().recalculateNodes(nodes, yt);
+            }
         }
     }
 }
