@@ -23,4 +23,12 @@ public class Location {
         this.primaryAllotmentIndex = primaryAllotmentIndex;
         this.isDead = true;
     }
+
+    Status getStatus() {
+        if (isDead) {
+            return Status.ERR;
+        } else {
+            return Status.OK;
+        }
+    }
 }

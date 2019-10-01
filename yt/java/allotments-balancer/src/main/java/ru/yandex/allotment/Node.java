@@ -1,5 +1,6 @@
 package ru.yandex.allotment;
 
+import java.time.Duration;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -26,9 +27,13 @@ public class Node {
 
     public boolean dirty = false;
 
+    private String state = "online";
+
     public Node(String addr, Map<String, YTreeNode> attributes) {
         this.addr = addr;
         this.allotmentAssignment = Cf.hashMap();
+
+        this.state = attributes.get("state").stringValue();
 
         Map<String, YTreeNode> allotmentAssignmentRow = attributes.get("allotments_assignment").asMap();
 
@@ -55,6 +60,22 @@ public class Node {
         lastSeenTime = dateTime.toEpochSecond();
     }
 
+    public Status getStatus(long now, long warnThreshold) {
+        if (!isGood()) {
+            if (now - lastSeenTime > warnThreshold) {
+                return Status.ERR;
+            } else {
+                return Status.WARN;
+            }
+        }
+
+        return Status.OK;
+    }
+
+    public boolean isGood() {
+        return state.equals("online");
+    }
+
     public String formatLastSeenTime() {
         return format.format(dateTime);
     }
@@ -79,6 +100,24 @@ public class Node {
         if (!dryRun) {
             yt.cypress().set(YPath.simple("//sys/nodes").child(addr).attribute("allotments_assignment"),
                     YTree.builder().value(allotmentAssignment).build());
+        }
+    }
+
+    public void moveOut(Allotment allotment) {
+        System.out.println(String.format("Moving out allotment '%s' from node '%s'", allotment.name, addr));
+
+        for (Map.Entry<String, Integer> entry : allotmentAssignment.entrySet()) {
+            if (entry.getValue() == allotment.index) {
+                allotmentAssignment.remove(entry.getKey());
+            }
+        }
+    }
+
+    public void removeDeadLocations(Allotment allotment) {
+        for (Map.Entry<String, Integer> entry : allotmentAssignment.entrySet()) {
+            if (entry.getValue() == allotment.index && !locations.containsKey(entry.getKey())) {
+                System.out.println(String.format("Removing dead location '%s' of allotment '%s' from node '%s'", entry.getKey(), allotment.name, addr));
+            }
         }
     }
 }

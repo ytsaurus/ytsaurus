@@ -47,6 +47,8 @@ public class Balancer {
     private List<Node> nodes;
     private Map<String, Allotment> allotments;
 
+    private final long warningThreshold = 300; // seconds
+
     public Balancer(Yt yt) {
         this.yt = yt;
         this.nodes = loadNodes();
@@ -65,6 +67,7 @@ public class Balancer {
     private void reassignAllotment(Allotment allotment, boolean dryRun)
     {
         int targetSize = allotment.size;
+        long now = System.currentTimeMillis();
 
         MapF<String, PriorityQueue<ByNodeTriplet>> racks = Cf.hashMap();
         PriorityQueue<ByRackTuple> byRack = new PriorityQueue<>();
@@ -74,8 +77,18 @@ public class Balancer {
         for (Node node : nodes) {
             List<String> freeSlots = Cf.arrayList();
 
+            if (node.getStatus(now, warningThreshold) == Status.ERR) {
+                node.moveOut(allotment);
+                continue;
+            }
+
+            if (node.isGood() && !node.locations.isEmpty()) {
+                node.removeDeadLocations(allotment);
+            }
+
             for (Map.Entry<String, Location> entry : node.locations.entrySet()) {
                 Location location = entry.getValue();
+
                 int currentAssignment = node.allotmentAssignment.getOrDefault(location.id, -1);
 
                 if (currentAssignment == allotment.index) {
@@ -101,8 +114,6 @@ public class Balancer {
                 byNode.add(new ByNodeTriplet(0, freeSlots, node));
             }
         }
-
-        // TODO: remove dead locations
 
         for (String rack : racks.keySet()) {
             byRack.add(new ByRackTuple(0, rack));
@@ -171,17 +182,23 @@ public class Balancer {
         List<Node> result = Cf.arrayList();
 
         for (YTreeStringNode node : nodes) {
-            String addr = node.getValue();
-            result.add(new Node(addr, yt));
+            try {
+                String addr = node.getValue();
+                result.add(new Node(addr, yt));
+            } catch (Exception ex) {
+                // TODO: Warn message
+            }
         }
 
         return result;
     }
 
     public void printStatus() {
+        long now = System.currentTimeMillis() / 1000;
+
         for (Map.Entry<String, Allotment> entry : allotments.entrySet()) {
             Allotment allotment = entry.getValue();
-            allotment.printStatus();
+            allotment.printStatus(now, warningThreshold);
         }
     }
 
