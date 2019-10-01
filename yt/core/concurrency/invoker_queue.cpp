@@ -322,14 +322,15 @@ TClosure TInvokerQueue::BeginExecute(TEnqueuedAction* action, int index)
         WaitTimeCounter,
         CpuDurationToValue(action->StartedAt - action->EnqueuedAt));
 
-    return BIND([&, callback = std::move(action->Callback)] {
-        TCurrentInvokerGuard guard(this);
-        callback.Run();
-    });
+    SetCurrentInvoker(this);
+
+    return std::move(action->Callback);
 }
 
 void TInvokerQueue::EndExecute(TEnqueuedAction* action)
 {
+    SetCurrentInvoker(nullptr);
+
     YT_ASSERT(action);
 
     if (action->Finished) {
