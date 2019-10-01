@@ -67,7 +67,7 @@ public class Balancer {
     private void reassignAllotment(Allotment allotment, boolean dryRun)
     {
         int targetSize = allotment.size;
-        long now = System.currentTimeMillis();
+        long now = System.currentTimeMillis() / 1000;
 
         MapF<String, PriorityQueue<ByNodeTriplet>> racks = Cf.hashMap();
         PriorityQueue<ByRackTuple> byRack = new PriorityQueue<>();
@@ -78,7 +78,6 @@ public class Balancer {
             List<String> freeSlots = Cf.arrayList();
 
             if (node.getStatus(now, warningThreshold) == Status.ERR) {
-                node.moveOut(allotment);
                 continue;
             }
 
@@ -86,26 +85,36 @@ public class Balancer {
                 node.removeDeadLocations(allotment);
             }
 
-            for (Map.Entry<String, Location> entry : node.locations.entrySet()) {
-                Location location = entry.getValue();
+            if (node.isGood()) {
+                for (Map.Entry<String, Location> entry : node.locations.entrySet()) {
+                    Location location = entry.getValue();
 
-                int currentAssignment = node.allotmentAssignment.getOrDefault(location.id, -1);
+                    int currentAssignment = node.allotmentAssignment.getOrDefault(location.id, -1);
 
-                if (currentAssignment == allotment.index) {
-                    targetSize -= 1;
-                    continue;
+                    if (currentAssignment == allotment.index) {
+                        targetSize -= 1;
+                        continue;
+                    }
+
+                    if (currentAssignment != -1) {
+                        continue;
+                    }
+
+                    // check medium index
+                    if (location.primaryAllotmentIndex != targetPrimaryAllotmentIndex) {
+                        continue;
+                    }
+
+                    freeSlots.add(location.id);
                 }
+            } else {
+                // skip locations on partialy dead node
 
-                if (currentAssignment != -1) {
-                    continue;
+                for (Map.Entry<String, Integer> entry : node.allotmentAssignment.entrySet()) {
+                    if (entry.getValue() == allotment.index) {
+                        targetSize -= 1;
+                    }
                 }
-
-                // check medium index
-                if (location.primaryAllotmentIndex != targetPrimaryAllotmentIndex) {
-                    continue;
-                }
-
-                freeSlots.add(location.id);
             }
 
             if (!freeSlots.isEmpty()) {
@@ -148,6 +157,15 @@ public class Balancer {
         boolean dirty = false;
         for (Node node : nodes) {
             dirty |= node.dirty;
+        }
+
+        if (!dirty && targetSize == 0) {
+            // safe remove dead nodes
+            for (Node node : nodes) {
+                if (node.getStatus(now, warningThreshold) == Status.ERR) {
+                    dirty |= node.moveOut(allotment);
+                }
+            }
         }
 
         if (dirty) {

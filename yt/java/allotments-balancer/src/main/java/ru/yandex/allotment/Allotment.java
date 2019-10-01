@@ -83,10 +83,14 @@ public class Allotment {
         }
 
         for (Map.Entry<Node, List<Location>> entry : nodes.entrySet()) {
-            allotmentAggregatedStatus = allotmentAggregatedStatus.plus(entry.getKey().getStatus(now, warningThreshold));
+            Node node = entry.getKey();
+            allotmentAggregatedStatus = allotmentAggregatedStatus.plus(node.getStatus(now, warningThreshold));
 
-            for (Location location : entry.getValue()) {
-                allotmentAggregatedStatus = allotmentAggregatedStatus.plus(location.getStatus());
+            if (node.isGood()) {
+                for (Location location : entry.getValue()) {
+                    allotmentAggregatedStatus = allotmentAggregatedStatus.plus(location.getStatus());
+                }
+                // dont check allotments of dead nodes
             }
         }
 
@@ -104,8 +108,10 @@ public class Allotment {
             color = ConsoleColors.RESET;
 
             Status nodeAggregatedStatus = node.getStatus(now, warningThreshold);
-            for (Location location : entry.getValue()) {
-                nodeAggregatedStatus = nodeAggregatedStatus.plus(location.getStatus());
+            if (node.isGood()) {
+                for (Location location : entry.getValue()) {
+                    nodeAggregatedStatus = nodeAggregatedStatus.plus(location.getStatus());
+                }
             }
 
             if (nodeAggregatedStatus == Status.WARN) {
@@ -119,7 +125,7 @@ public class Allotment {
 
             for (Location location : entry.getValue()) {
                 color = ConsoleColors.RESET;
-                if (location.isDead) {
+                if (node.isGood() && location.isDead) {
                     color = ConsoleColors.RED;
                 }
                 System.out.println(String.format("%s  |- %s%s", color, location.id, ConsoleColors.RESET));
