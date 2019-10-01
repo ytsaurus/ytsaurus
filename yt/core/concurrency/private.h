@@ -12,7 +12,6 @@ namespace NYT::NConcurrency {
 
 class TEventCount;
 
-DECLARE_REFCOUNTED_CLASS(TSchedulerThread)
 DECLARE_REFCOUNTED_CLASS(TSingleQueueSchedulerThread)
 DECLARE_REFCOUNTED_CLASS(TInvokerQueue)
 DECLARE_REFCOUNTED_CLASS(TFairShareInvokerQueue)
