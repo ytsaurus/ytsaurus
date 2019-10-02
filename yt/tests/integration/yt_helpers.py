@@ -1,6 +1,6 @@
 from yt_commands import get, YtError, print_debug
 
-import requests
+from yt.packages import requests
 import time
 import pytest
 import tarfile
