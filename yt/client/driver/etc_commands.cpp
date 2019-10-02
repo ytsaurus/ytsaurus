@@ -97,18 +97,10 @@ void TCheckPermissionCommand::DoExecute(ICommandContextPtr context)
     auto produceResult = [] (auto fluent, const auto& result) {
         fluent
             .Item("action").Value(result.Action)
-            .DoIf(result.ObjectId.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("object_id").Value(result.ObjectId);
-            })
-            .DoIf(result.ObjectName.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("object_name").Value(result.ObjectName);
-            })
-            .DoIf(result.SubjectId.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("subject_id").Value(result.SubjectId);
-            })
-            .DoIf(result.SubjectName.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("subject_name").Value(result.SubjectName);
-            });
+            .OptionalItem("object_id", result.ObjectId)
+            .OptionalItem("object_name", result.ObjectName)
+            .OptionalItem("subject_id", result.SubjectId)
+            .OptionalItem("subject_name", result.SubjectName);
     };
 
     context->ProduceOutputValue(BuildYsonStringFluently()
@@ -148,12 +140,8 @@ void TCheckPermissionByAclCommand::DoExecute(ICommandContextPtr context)
     context->ProduceOutputValue(BuildYsonStringFluently()
         .BeginMap()
             .Item("action").Value(result.Action)
-            .DoIf(result.SubjectId.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("subject_id").Value(result.SubjectId);
-            })
-            .DoIf(result.SubjectName.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("subject_name").Value(result.SubjectName);
-            })
+            .OptionalItem("subject_id", result.SubjectId)
+            .OptionalItem("subject_name", result.SubjectName)
         .EndMap());
 }
 
