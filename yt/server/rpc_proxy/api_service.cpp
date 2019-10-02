@@ -55,6 +55,8 @@
 #include <yt/core/rpc/service_detail.h>
 #include <yt/core/rpc/stream.h>
 
+#include <yt/core/tracing/sampler.h>
+
 namespace NYT::NRpcProxy {
 
 using namespace NApi;
@@ -392,13 +394,30 @@ private:
         return address;
     }
 
+    void SetupTracing(const TString& user)
+    {
+        if (auto trace = NTracing::GetCurrentTraceContext()) {
+            trace->AddTag("user", user);
+
+            if (Config_->ForceTracing) {
+                trace->SetSampled();
+            }
+
+            auto sampler = Coordinator_->GetTraceSampler();
+            if (sampler->IsTraceSampled(user)) {
+                trace->SetSampled();
+            }
+        }
+    }
+
     NNative::IClientPtr GetAuthenticatedClientOrThrow(
         const IServiceContextPtr& context,
         const google::protobuf::Message* request)
     {
-        Coordinator_->ValidateOperable();
-
         const auto& user = context->GetUser();
+        SetupTracing(user);
+
+        Coordinator_->ValidateOperable();
 
         // Pretty-printing Protobuf requires a bunch of effort, so we make it conditional.
         if (Config_->VerboseLogging) {

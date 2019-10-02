@@ -22,12 +22,30 @@ namespace NYT::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDynamicConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    NTracing::TSamplingConfigPtr Tracing;
+
+    TDynamicConfig()
+    {
+        RegisterParameter("tracing", Tracing)
+            .DefaultNew();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TApiServiceConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
     bool VerboseLogging;
     bool EnableModifyRowsRequestReordering;
+    bool ForceTracing;
 
     TSlruCacheConfigPtr ClientCache;
 
@@ -39,6 +57,8 @@ public:
             .Default(false);
         RegisterParameter("enable_modify_rows_request_reordering", EnableModifyRowsRequestReordering)
             .Default(true);
+        RegisterParameter("force_tracing", ForceTracing)
+            .Default(false);
         RegisterParameter("client_cache", ClientCache)
             .Default(New<TSlruCacheConfig>(1000));
         RegisterParameter("read_buffer_row_count", ReadBufferRowCount)
