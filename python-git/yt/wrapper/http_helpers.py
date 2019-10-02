@@ -347,7 +347,7 @@ def _request_api(version=None, client=None):
         client=client
     ).json()
 
-def get_api_version(client=None):
+def get_http_api_version(client=None):
     api_version_option = get_option("_api_version", client)
     if api_version_option:
         return api_version_option
@@ -357,32 +357,28 @@ def get_api_version(client=None):
         set_option("_api_version", api_version_from_config, client)
         return api_version_from_config
 
-
-    if get_backend_type(client) == "http":
-        default_api_version_for_http = get_config(client)["default_api_version_for_http"]
-        if default_api_version_for_http is not None:
-            api_version = default_api_version_for_http
-        else:
-            api_versions = _request_api(client=client)
-            # To deprecate using api/v2
-            if "v2" in api_versions:
-                api_versions.remove("v2")
-            api_version = "v3"
-            require(api_version in api_versions, lambda: YtError("API {0} is not supported".format(api_version)))
+    default_api_version_for_http = get_config(client)["default_api_version_for_http"]
+    if default_api_version_for_http is not None:
+        api_version = default_api_version_for_http
     else:
+        api_versions = _request_api(client=client)
+        # To deprecate using api/v2
+        if "v2" in api_versions:
+            api_versions.remove("v2")
         api_version = "v3"
+        require(api_version in api_versions, lambda: YtError("API {0} is not supported".format(api_version)))
 
     set_option("_api_version", api_version, client)
 
     return api_version
 
-def get_api_commands(client=None):
+def get_http_api_commands(client=None):
     if get_option("_commands", client):
         return get_option("_commands", client)
 
     commands = parse_commands(
         _request_api(
-            version=get_api_version(client),
+            version=get_http_api_version(client),
             client=client))
     set_option("_commands", commands, client)
 
@@ -479,7 +475,7 @@ def get_user_name(token=None, headers=None, client=None):
     if token is None and headers is None:
         token = get_token(client=client)
 
-    version = get_api_version(client=client)
+    version = get_http_api_version(client=client)
     proxy = get_proxy_url(client=client)
 
     if version in ("v3", "v4"):

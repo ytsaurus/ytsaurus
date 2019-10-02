@@ -145,6 +145,15 @@ def get_driver_instance(client):
         configure_tracing(tracing_config, client)
         configure_address_resolver(address_resolver_config, client)
 
+        specified_api_version = get_config(client)["api_version"]
+        if "api_version" in driver_config:
+            if specified_api_version is not None and "v" + str(driver_config["api_version"]) != specified_api_version:
+                raise YtError("Version specified in driver config and client config do not match (client_config: {}, driver_config: {})"
+                    .format(specified_api_version, driver_config["api_version"]))
+        else:
+            if specified_api_version is not None:
+                driver_config["api_version"] = int(specified_api_version[1:])
+
         set_option("_driver", driver_bindings.Driver(driver_config), client=client)
         driver = get_option("_driver", client=client)
 

@@ -1,7 +1,6 @@
 from .config import get_config, get_command_param
-from .driver import make_request, make_formatted_request
+from .driver import make_request, make_formatted_request, get_api_version
 from .common import update, get_value, get_started_by, set_param, datetime_to_string
-from .http_helpers import get_api_version
 from .batch_response import apply_function_to_result
 
 from datetime import datetime

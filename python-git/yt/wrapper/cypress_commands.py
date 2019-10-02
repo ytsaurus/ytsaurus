@@ -2,7 +2,7 @@ from . import yson
 from .config import get_config, get_option, get_command_param
 from .common import flatten, get_value, YtError, set_param
 from .errors import YtResponseError
-from .driver import set_read_from_params
+from .driver import set_read_from_params, get_api_version
 from .transaction_commands import (_make_transactional_request,
                                    _make_formatted_transactional_request)
 from .transaction import Transaction
@@ -10,7 +10,7 @@ from .ypath import YPath, escape_ypath_literal, ypath_join, ypath_dirname
 from .format import create_format
 from .batch_response import apply_function_to_result
 from .retries import Retrier, default_chaos_monkey
-from .http_helpers import get_retriable_errors, get_api_version
+from .http_helpers import get_retriable_errors
 
 import yt.logger as logger
 

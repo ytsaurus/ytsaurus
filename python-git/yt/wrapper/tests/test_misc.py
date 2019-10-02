@@ -7,7 +7,7 @@ from yt.wrapper.errors import YtRetriableError
 from yt.wrapper.exceptions_catcher import KeyboardInterruptsCatcher
 from yt.wrapper.mappings import VerifiedDict, FrozenDict
 from yt.wrapper.response_stream import ResponseStream, EmptyResponseStream
-from yt.wrapper.http_helpers import get_api_version
+from yt.wrapper.driver import get_api_version
 from yt.wrapper.retries import run_with_retries, Retrier
 from yt.wrapper.ypath import ypath_join, ypath_dirname, ypath_split
 from yt.wrapper.stream import _ChunkStream

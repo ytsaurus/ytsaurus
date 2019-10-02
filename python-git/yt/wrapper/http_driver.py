@@ -4,7 +4,7 @@ from .compression import get_compressor
 from .common import require, generate_uuid, get_version, total_seconds, forbidden_inside_job, get_started_by_short
 from .errors import (YtError, YtHttpResponseError, YtProxyUnavailable,
                      YtConcurrentOperationsLimitExceeded, YtRequestTimedOut)
-from .http_helpers import (make_request_with_retries, get_token, get_api_version, get_api_commands, get_proxy_url,
+from .http_helpers import (make_request_with_retries, get_token, get_http_api_version, get_http_api_commands, get_proxy_url,
                            get_error_from_headers, get_header_format, ProxyProvider)
 from .response_stream import ResponseStream
 
@@ -161,8 +161,8 @@ def make_request(command_name,
     if "master_cell_id" in params:
         raise YtError('Option "master_cell_id" is not supported for HTTP backend')
 
-    commands = get_api_commands(client)
-    api_path = "api/" + get_api_version(client)
+    commands = get_http_api_commands(client)
+    api_path = "api/" + get_http_api_version(client)
 
     # Get command description
     require(command_name in commands,

@@ -1,8 +1,8 @@
 from .common import ThreadPoolHelper, set_param, datetime_to_string, date_string_to_datetime
 from .config import get_config
 from .errors import YtOperationFailedError, YtResponseError
-from .driver import make_request, make_formatted_request
-from .http_helpers import get_proxy_url, get_retriable_errors, get_api_version
+from .driver import make_request, make_formatted_request, get_api_version
+from .http_helpers import get_proxy_url, get_retriable_errors
 from .exceptions_catcher import ExceptionCatcher
 from .cypress_commands import exists, get, list
 from .ypath import ypath_join

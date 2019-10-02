@@ -3,9 +3,9 @@ from . import http_driver
 from . import native_driver
 from .batch_response import apply_function_to_result
 from .common import YtError, update, simplify_structure, set_param
-from .config import get_option, get_config, get_backend_type
+from .config import get_option, set_option, get_config, get_backend_type
 from .format import create_format
-from .http_helpers import get_api_commands
+from .http_helpers import get_http_api_version, get_http_api_commands
 
 from yt.common import YT_NULL_TRANSACTION_ID
 
@@ -45,11 +45,34 @@ def get_command_list(client=None):
     if backend in ("native", "rpc"):
         return list(native_driver.get_command_descriptors(client))
     else:  # backend == "http"
-        return list(get_api_commands(client))
+        return list(get_http_api_commands(client))
 
 def set_read_from_params(params, read_from, cache_sticky_group_size):
     set_param(params, "read_from", read_from)
     set_param(params, "cache_sticky_group_size", cache_sticky_group_size)
+
+def get_api_version(client=None):
+    api_version_option = get_option("_api_version", client)
+    if api_version_option:
+        return api_version_option
+
+    api_version_from_config = get_config(client)["api_version"]
+    if api_version_from_config:
+        set_option("_api_version", api_version_from_config, client)
+        return api_version_from_config
+
+    if get_backend_type(client) == "http":
+        api_version = get_http_api_version(client=client)
+    else:
+        driver = native_driver.get_driver_instance(client=client)
+        if driver is None or "api_version" not in driver.get_config():
+            api_version = "v3"
+        else:
+            api_version = "v" + str(driver.get_config()["api_version"])
+
+    set_option("_api_version", api_version, client)
+
+    return api_version
 
 def make_request(command_name,
                  params,
