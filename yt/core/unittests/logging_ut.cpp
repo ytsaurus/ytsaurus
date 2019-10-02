@@ -262,7 +262,7 @@ TEST_F(TLoggingTest, StructuredJsonLogging)
         .Value("test_message")
         .Finish();
 
-    auto writer = New<TFileLogWriter>(std::make_unique<TJsonLogFormatter>(), "test_writer", "test.log");
+    auto writer = New<TFileLogWriter>(std::make_unique<TJsonLogFormatter>(THashMap<TString, INodePtr>{}), "test_writer", "test.log");
     WriteEvent(writer.Get(), event);
     TLogManager::Get()->Synchronize();
 
