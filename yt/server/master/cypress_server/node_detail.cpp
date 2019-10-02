@@ -702,6 +702,13 @@ void TMapNodeChildren::Load(NCellMaster::TLoadContext& context)
     delete children;
 }
 
+/*static*/ void TMapNodeChildren::Clear(TMapNodeChildren* children)
+{
+    YT_VERIFY(children->GetRefCount() == 0);
+    // NB: does not unref children! This is to be used during automaton clearing only!
+    delete children;
+}
+
 /*static*/ TMapNodeChildren* TMapNodeChildren::Copy(
     TMapNodeChildren* srcChildren,
     const TObjectManagerPtr& objectManager)
@@ -743,7 +750,12 @@ TMapNode::TMapNode(const TVersionedNodeId& id)
     : TCompositeNodeBase(id)
 { }
 
-TMapNode::~TMapNode() = default;
+TMapNode::~TMapNode()
+{
+    // Usually, Children_.Reset() has already been called by now, so Clear is a no-op.
+    // This is only relevant when the whole automaton is being cleared.
+    Children_.Clear();
+}
 
 const TMapNode::TKeyToChild& TMapNode::KeyToChild() const
 {

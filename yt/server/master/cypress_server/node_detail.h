@@ -749,6 +749,7 @@ struct TMapNodeChildren
     }
 
     static void Destroy(TMapNodeChildren* children, const NObjectServer::TObjectManagerPtr& objectManager);
+    static void Clear(TMapNodeChildren* children);
     static TMapNodeChildren* Copy(TMapNodeChildren* srcChildren, const NObjectServer::TObjectManagerPtr& objectManager);
 
 private:
