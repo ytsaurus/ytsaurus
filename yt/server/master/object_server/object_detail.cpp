@@ -631,6 +631,11 @@ bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
         case EInternedAttributeKey::InheritAcl: {
             ValidateNoTransaction();
 
+            auto inherit = ConvertTo<bool>(value);
+            if (inherit == acd->GetInherit()) {
+                return true;
+            }
+
             const auto& objectManager = Bootstrap_->GetObjectManager();
             const auto& handler = objectManager->GetHandler(Object_);
             if (Any(handler->GetFlags() & ETypeFlags::ForbidInheritAclChange)) {
@@ -639,7 +644,7 @@ bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
                     Object_->GetType());
             }
 
-            acd->SetInherit(ConvertTo<bool>(value));
+            acd->SetInherit(inherit);
             return true;
         }
 
