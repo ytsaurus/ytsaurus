@@ -66,6 +66,19 @@ void TObjectPartCoWPtr<TObjectPart>::Reset(const NObjectServer::TObjectManagerPt
 }
 
 template <class TObjectPart>
+void TObjectPartCoWPtr<TObjectPart>::Clear()
+{
+    if (ObjectPart_) {
+        ObjectPart_->Unref();
+        if (ObjectPart_->GetRefCount() == 0) {
+            TObjectPart::Clear(ObjectPart_);
+        }
+
+        ObjectPart_ = nullptr;
+    }
+}
+
+template <class TObjectPart>
 void TObjectPartCoWPtr<TObjectPart>::Save(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;
