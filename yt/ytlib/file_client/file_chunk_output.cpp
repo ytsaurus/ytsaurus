@@ -50,46 +50,18 @@ TFileChunkOutput::TFileChunkOutput(
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler,
     i64 sizeLimit)
-    : Logger(FileClientLogger)
-    , Config_(config)
-    , Options_(options)
-    , Client_(client)
+    : Logger(NLogging::TLogger(FileClientLogger)
+        .AddTag("TransactionId: %v", transactionId))
+    , Config_(std::move(config))
+    , Options_(std::move(options))
+    , Client_(std::move(client))
     , TransactionId_(transactionId)
+    , TrafficMeter_(std::move(trafficMeter))
+    , Throttler_(std::move(throttler))
     , SizeLimit_(sizeLimit)
 {
     YT_VERIFY(Config_);
     YT_VERIFY(Client_);
-
-    auto connection = Client_->GetNativeConnection();
-    const auto& secondaryCellTags = connection->GetSecondaryMasterCellTags();
-    auto cellTag = secondaryCellTags.empty()
-        ? connection->GetPrimaryMasterCellTag()
-        : secondaryCellTags[RandomNumber(secondaryCellTags.size())];
-
-    YT_LOG_INFO("File chunk output opened (TransactionId: %v, Account: %v, ReplicationFactor: %v, "
-        "MediumName: %v, CellTag: %v)",
-        TransactionId_,
-        Options_->Account,
-        Options_->ReplicationFactor,
-        Options_->MediumName,
-        cellTag);
-
-    ConfirmingChunkWriter_ = CreateConfirmingWriter(
-        Config_,
-        Options_,
-        cellTag,
-        TransactionId_,
-        NullChunkListId,
-        New<TNodeDirectory>(),
-        Client_,
-        GetNullBlockCache(),
-        trafficMeter,
-        throttler);
-
-    FileChunkWriter_ = CreateFileChunkWriter(
-        Config_,
-        New<TEncodingWriterOptions>(),
-        ConfirmingChunkWriter_);
 }
 
 void TFileChunkOutput::DoWrite(const void* buf, size_t len)
@@ -97,6 +69,8 @@ void TFileChunkOutput::DoWrite(const void* buf, size_t len)
     if (GetSize() > SizeLimit_) {
         return;
     }
+
+    EnsureOpen();
 
     if (!FileChunkWriter_->Write(TRef(const_cast<void*>(buf), len))) {
         WaitFor(FileChunkWriter_->GetReadyEvent())
@@ -121,8 +95,49 @@ TChunkId TFileChunkOutput::GetChunkId() const
     return ConfirmingChunkWriter_->GetChunkId();
 }
 
+void TFileChunkOutput::EnsureOpen()
+{
+    if (Open_) {
+        return;
+    }
+
+    YT_LOG_INFO("Opening file chunk output");
+
+    const auto& connection = Client_->GetNativeConnection();
+
+    auto cellTag = PickChunkHostingCell(connection, Logger);
+
+    ConfirmingChunkWriter_ = CreateConfirmingWriter(
+        Config_,
+        Options_,
+        cellTag,
+        TransactionId_,
+        NullChunkListId,
+        New<TNodeDirectory>(),
+        Client_,
+        GetNullBlockCache(),
+        TrafficMeter_,
+        Throttler_);
+
+    FileChunkWriter_ = CreateFileChunkWriter(
+        Config_,
+        New<TEncodingWriterOptions>(),
+        ConfirmingChunkWriter_);
+
+    YT_LOG_INFO("File chunk output opened (Account: %v, ReplicationFactor: %v, MediumName: %v, CellTag: %v)",
+        Options_->Account,
+        Options_->ReplicationFactor,
+        Options_->MediumName,
+        cellTag);
+
+    Open_ = true;
+}
+
 i64 TFileChunkOutput::GetSize() const
 {
+    if (!FileChunkWriter) {
+        return 0;
+    }
     return FileChunkWriter_->GetCompressedDataSize();
 }
 

@@ -66,9 +66,6 @@
 #include <yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/ytlib/object_client/helpers.h>
 
-#include <yt/ytlib/cell_master_client/cell_directory.h>
-#include <yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
-
 #include <yt/client/chunk_client/data_statistics.h>
 
 #include <yt/client/object_client/helpers.h>
@@ -1227,22 +1224,9 @@ TFuture<ITransactionPtr> TOperationControllerBase::StartTransaction(
 
 void TOperationControllerBase::PickIntermediateDataCell()
 {
-    const auto& connection = OutputClient->GetNativeConnection();
-
-    YT_LOG_DEBUG("Started synchronizing master cell directory");
-    const auto& cellDirectorySynchronizer = connection->GetMasterCellDirectorySynchronizer();
-    WaitFor(cellDirectorySynchronizer->RecentSync())
-        .ThrowOnError();
-    YT_LOG_DEBUG("Master cell directory synchronized successfully");
-
-    const auto& cellDirectory = connection->GetMasterCellDirectory();
-    auto cellId = cellDirectory->PickRandomMasterCellWithRole(NCellMasterClient::EMasterCellRoles::ChunkHost);
-
-    if (!cellId) {
-        THROW_ERROR_EXCEPTION("No master cells capable of hosting chunks are known");
-    }
-
-    IntermediateOutputCellTag = CellTagFromId(cellId);
+    IntermediateOutputCellTag = PickChunkHostingCell(
+        OutputClient->GetNativeConnection(),
+        Logger);
 
     YT_LOG_DEBUG("Intermediate data cell picked (CellTag: %v)",
         IntermediateOutputCellTag);
