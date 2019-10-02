@@ -661,10 +661,6 @@ class SpecBuilder(object):
 
         self._prepared_spec = None
 
-        for index in xrange(len(self._user_job_scripts)):
-            if not isinstance(self._user_job_scripts[index], (list, tuple)):
-                self._user_job_scripts[index] = [self._user_job_scripts[index]]
-
     @spec_option("The name of the pool in which the operation will work")
     def pool(self, pool_name):
         return _set_spec_value(self, "pool", pool_name)
@@ -926,8 +922,17 @@ class SpecBuilder(object):
 
     def build(self, client=None):
         spec = self._do_build(client)
-        for task_spec in spec.get("tasks", {}).values():
+        for user_job_script_path in self._user_job_scripts:
+            task_spec = spec
+            for part in user_job_script_path:
+                task_spec = task_spec[part]
             self._apply_environment_patch(task_spec, client)
+        # For vanilla operation we should also visit all tasks from spec, as
+        # they may be absent in _user_job_scripts in case of raw spec.
+        # But be careful not to process same user job spec twice!
+        for task_key, task_spec in spec.get("tasks", {}).items():
+            if ("tasks", task_key) not in self._user_job_scripts:
+                self._apply_environment_patch(task_spec, client)
         return spec
 
     def supports_user_job_spec(self):
@@ -947,7 +952,7 @@ class ReduceSpecBuilder(SpecBuilder):
     def __init__(self, spec=None):
         super(ReduceSpecBuilder, self).__init__(
             operation_type="reduce",
-            user_job_scripts=["reducer"],
+            user_job_scripts=[("reducer",)],
             job_io_types=["job_io"],
             spec=spec)
 
@@ -1056,7 +1061,7 @@ class JoinReduceSpecBuilder(SpecBuilder):
     def __init__(self):
         super(JoinReduceSpecBuilder, self).__init__(
             operation_type="join_reduce",
-            user_job_scripts=["reducer"],
+            user_job_scripts=[("reducer",)],
             job_io_types=["job_io"])
 
     @spec_option("The description of reducer script", nested_spec_builder=ReducerSpecBuilder)
@@ -1131,7 +1136,7 @@ class MapSpecBuilder(SpecBuilder):
     def __init__(self):
         super(MapSpecBuilder, self).__init__(
             operation_type="map",
-            user_job_scripts=["mapper"],
+            user_job_scripts=[("mapper",)],
             job_io_types=["job_io"])
 
     @spec_option("The description of mapper script", nested_spec_builder=MapperSpecBuilder)
@@ -1200,7 +1205,7 @@ class MapReduceSpecBuilder(SpecBuilder):
     def __init__(self):
         super(MapReduceSpecBuilder, self).__init__(
             operation_type="map_reduce",
-            user_job_scripts=["mapper", "reducer", "reduce_combiner"],
+            user_job_scripts=[("mapper",), ("reducer",), ("reduce_combiner",)],
             job_io_types=["map_job_io", "sort_job_io", "reduce_job_io"]
         )
 
