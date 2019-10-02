@@ -388,7 +388,7 @@ TOperationSpecBase::TOperationSpecBase()
         .Default(false);
 
     RegisterParameter("enable_legacy_live_preview", EnableLegacyLivePreview)
-        .Default(true);
+        .Default();
 
     RegisterParameter("started_by", StartedBy)
         .Default();
