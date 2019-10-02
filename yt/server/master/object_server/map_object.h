@@ -34,6 +34,7 @@ public:
     void SetParent(TSelf* parent);
     void ResetParent();
 
+    // YYY(kiselyovp) okay, does literally EVERYTHING have to be virtual? I don't think this method does...
     //! Attaches a child to the object, the child must not have a parent.
     //! Does not change the ref count.
     virtual void AttachChild(const TString& key, TSelf* child) noexcept;

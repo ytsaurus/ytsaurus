@@ -91,20 +91,12 @@ NObjectServer::TObject* TNonversionedMapObjectTypeHandlerBase<TObject>::CreateOb
     TObject* parent,
     NYTree::IAttributeDictionary* attributes)
 {
-    TObject* intendedParent;
-    TString path;
-
-    if (auto* child = parent->FindChild(name)) {
-        intendedParent = child;
-    } else {
-        intendedParent = parent;
-        path = "/" + name;
-    }
-
     auto ancestorProxy = TNonversionedMapObjectProxyBase<TObject>::GetProxy(
         TBase::Bootstrap_,
-        intendedParent);
-    auto objectProxy = ancestorProxy->Create(this->GetType(), path, attributes);
+        parent);
+    ancestorProxy->ValidateChildName(name);
+
+    auto objectProxy = ancestorProxy->Create(this->GetType(), "/" + name, attributes);
     return objectProxy->GetObject()->template As<TObject>();
 }
 

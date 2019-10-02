@@ -127,7 +127,7 @@ protected:
     virtual void ValidateAttachChildDepth(const TSelfPtr& child);
     virtual void ValidateRemoval() override;
 
-    virtual std::unique_ptr<TNonversionedMapObjectFactoryBase<TObject>> DoCreateFactory() const = 0;
+    virtual std::unique_ptr<TNonversionedMapObjectFactoryBase<TObject>> CreateObjectFactory() const = 0;
 
     void SetImmediateChild(
         TNonversionedMapObjectFactoryBase<TObject>* factory,
@@ -156,6 +156,7 @@ protected:
     virtual void DoRenameSelf(const TString& newName);
 
     friend class TNonversionedMapObjectFactoryBase<TObject>;
+    friend class TNonversionedMapObjectTypeHandlerBase<TObject>;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

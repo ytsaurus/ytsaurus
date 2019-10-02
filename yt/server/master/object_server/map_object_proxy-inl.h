@@ -19,6 +19,7 @@
 
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/exception_helpers.h>
+#include <yt/core/ytree/faulty_node_factory.h>
 #include <yt/core/ytree/helpers.h>
 
 #include <yt/server/lib/misc/interned_attributes.h>
@@ -277,8 +278,8 @@ void TNonversionedMapObjectProxyBase<TObject>::AttachChild(
     const TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>>& childProxy) noexcept
 {
     YT_VERIFY(childProxy);
-    auto *impl = TBase::GetThisImpl();
-    auto *childImpl = childProxy->GetThisImpl();
+    auto* impl = TBase::GetThisImpl();
+    auto* childImpl = childProxy->GetThisImpl();
 
     impl->AttachChild(key, childImpl);
     TBase::Bootstrap_->GetObjectManager()->RefObject(impl);
@@ -653,14 +654,11 @@ void TNonversionedMapObjectProxyBase<TObject>::SetImmediateChild(
     const NYPath::TYPath& path,
     const TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>>& child)
 {
-    NYPath::TTokenizer tokenizer(path);
-    tokenizer.Advance();
-    tokenizer.Expect(NYPath::ETokenType::Slash);
-    tokenizer.Advance();
-    tokenizer.Expect(NYPath::ETokenType::Literal);
-    auto key = tokenizer.GetLiteralValue();
-    tokenizer.Advance();
-    tokenizer.Expect(NYPath::ETokenType::EndOfStream); // YYY(kiselyovp) throw a more reasonable exception here!
+    const auto& [key, _] = PrepareSetChild(
+        NYTree::GetFaultyNodeFactory(),
+        path,
+        child,
+        false /* recursive */);
 
     factory->AttachChild(this, key, child);
 }
@@ -693,7 +691,7 @@ TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>> TNonversionedMapObjectPr
             NSecurityServer::EPermission::Administer);
     }
 
-    auto factory = DoCreateFactory();
+    auto factory = CreateObjectFactory();
     auto* object = factory->CreateObject(attributes);
     SetImmediateChild(factory.get(), path, GetProxy(object));
     factory->Commit();
@@ -755,11 +753,21 @@ DEFINE_YPATH_SERVICE_METHOD(TNonversionedMapObjectProxyBase<TObject>, Copy)
     auto targetPath = NYTree::GetRequestTargetYPath(context->RequestHeader());
     auto* impl = TBase::GetThisImpl();
 
+    auto* sourceObject = ResolvePathToNonversionedObject(sourcePath);
+    if (sourceObject->GetType() != TBase::GetObject()->GetType()) {
+        THROW_ERROR_EXCEPTION("Cannot copy or move an object of the type %Qv, expected type %Qv",
+            sourceObject->GetType(),
+            impl->GetType());
+    }
+
     if (recursive) {
         THROW_ERROR_EXCEPTION("\"recursive\" option is not supported for nonversioned map objects");
     }
     if (force) {
         THROW_ERROR_EXCEPTION("\"force\" option is not supported for nonversioned map objects");
+    }
+    if (ignoreExisting && removeSource) {
+        THROW_ERROR_EXCEPTION("Cannot specify both \"ignore_existing\" and \"remove_source\" options simultaneously");
     }
 
     context->SetRequestInfo("SourcePath: %v, RemoveSource: %v, Recursive: %v, IgnoreExisting: %v, Force: %v",
@@ -768,10 +776,6 @@ DEFINE_YPATH_SERVICE_METHOD(TNonversionedMapObjectProxyBase<TObject>, Copy)
         recursive,
         ignoreExisting,
         force);
-
-    if (ignoreExisting && removeSource) {
-        THROW_ERROR_EXCEPTION("Cannot specify both \"ignore_existing\" and \"remove_source\" options simultaneously");
-    }
 
     bool replace = targetPath.empty();
     if (replace) {
@@ -785,12 +789,6 @@ DEFINE_YPATH_SERVICE_METHOD(TNonversionedMapObjectProxyBase<TObject>, Copy)
         return;
     }
 
-    auto* sourceObject = ResolvePathToNonversionedObject(sourcePath);
-    if (sourceObject->GetType() != TBase::GetObject()->GetType()) {
-        THROW_ERROR_EXCEPTION("Cannot copy an object of the type %Qv, expected type %Qv",
-            sourceObject->GetType(),
-            impl->GetType());
-    }
     auto* sourceImpl = sourceObject->template As<TObject>();
     auto sourceProxy = GetProxy(sourceImpl);
 
@@ -824,7 +822,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNonversionedMapObjectProxyBase<TObject>, Copy)
             NSecurityServer::EPermission::Write | NSecurityServer::EPermission::ModifyChildren);
     }
 
-    auto factory = DoCreateFactory();
+    auto factory = CreateObjectFactory();
 
     TSelfPtr clonedProxy;
     if (removeSource) {
