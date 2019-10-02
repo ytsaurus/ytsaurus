@@ -848,7 +848,9 @@ EOperationBriefState CheckOperation(
         TGetOperationOptions().AttributeFilter(TOperationAttributeFilter()
             .Add(EOperationAttribute::State)
             .Add(EOperationAttribute::Result)));
-    Y_VERIFY(attributes.BriefState);
+    Y_VERIFY(attributes.BriefState,
+        "get_operation for operation %s has not returned \"state\" field",
+        GetGuidAsString(operationId).Data());
     if (*attributes.BriefState == EOperationBriefState::Completed) {
         return EOperationBriefState::Completed;
     } else if (*attributes.BriefState == EOperationBriefState::Aborted || *attributes.BriefState == EOperationBriefState::Failed) {
@@ -2273,7 +2275,9 @@ EOperationBriefState TOperation::TOperationImpl::GetBriefState()
 {
     EOperationBriefState result = EOperationBriefState::InProgress;
     UpdateAttributesAndCall(false, [&] (const TOperationAttributes& attributes) {
-        Y_VERIFY(attributes.BriefState);
+        Y_VERIFY(attributes.BriefState,
+            "get_operation for operation %s has not returned \"state\" field",
+            GetGuidAsString(Id_).Data());
         result = *attributes.BriefState;
     });
     return result;
@@ -2464,7 +2468,10 @@ void* TOperation::TOperationImpl::SyncFinishOperationProc(void* pArgs)
 
 void TOperation::TOperationImpl::SyncFinishOperationImpl(const TOperationAttributes& attributes)
 {
-    Y_VERIFY(attributes.BriefState && *attributes.BriefState != EOperationBriefState::InProgress);
+    Y_VERIFY(attributes.BriefState,
+        "get_operation for operation %s has not returned \"state\" field",
+        GetGuidAsString(Id_).Data());
+    Y_VERIFY(*attributes.BriefState != EOperationBriefState::InProgress);
 
     {
         try {
