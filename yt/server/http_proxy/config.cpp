@@ -84,9 +84,7 @@ INodePtr ConvertFromLegacyConfig(const INodePtr& legacyConfig)
             .Item("logging").Value(proxy->GetChild("logging"))
             .Item("driver").Value(proxy->GetChild("driver"))
             .Item("api").BeginMap().EndMap()
-            .DoIf(static_cast<bool>(redirect), [&] (auto fluent) {
-                fluent.Item("ui_redirect_url").Value(redirect);
-            })
+            .OptionalItem("ui_redirect_url", redirect)
         .EndMap();
 
     if (auto monitoringPort = legacyConfig->AsMap()->FindChild("monitoring_port")) {
