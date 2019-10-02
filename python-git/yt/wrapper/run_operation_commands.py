@@ -49,7 +49,7 @@ from .table_commands import create_temp_table, get_sorted_by
 from .table_helpers import _prepare_job_io, _prepare_operation_files
 from .transaction import Transaction
 from .ypath import TablePath
-from .http_helpers import get_api_version
+from .driver import get_api_version
 
 import yt.logger as logger
 from yt.common import YT_NULL_TRANSACTION_ID as null_transaction_id, _pretty_format_messages

@@ -2,8 +2,7 @@ from __future__ import with_statement
 
 from .helpers import TEST_DIR, set_config_option, get_tests_sandbox, wait
 
-from yt.wrapper.http_helpers import get_api_version
-from yt.wrapper.driver import get_command_list
+from yt.wrapper.driver import get_command_list, get_api_version
 
 from yt.packages.six.moves import xrange
 

@@ -1,6 +1,6 @@
 from .driver import make_formatted_request
 from .common import set_param
-from .http_helpers import get_api_version
+from .driver import get_api_version
 from .batch_response import apply_function_to_result
 
 # For backward compatibility.

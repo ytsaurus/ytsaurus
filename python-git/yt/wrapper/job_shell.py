@@ -4,7 +4,8 @@ from . import yson
 from .common import generate_uuid, get_version, YtError, get_binary_std_stream
 from .errors import YtResponseError
 from .config import get_backend_type
-from .http_helpers import get_proxy_url, get_api_version, get_token, get_api_version
+from .driver import get_api_version
+from .http_helpers import get_proxy_url, get_token
 
 from yt.packages.six import b
 # yt.packages is imported here just to set sys.path for further loading of local tornado module
