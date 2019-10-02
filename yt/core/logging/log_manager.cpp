@@ -861,7 +861,7 @@ private:
                     formatter = std::make_unique<TPlainTextLogFormatter>();
                     break;
                 case ELogMessageFormat::Structured:
-                    formatter = std::make_unique<TJsonLogFormatter>();
+                    formatter = std::make_unique<TJsonLogFormatter>(config->CommonFields);
                     break;
                 default:
                     YT_ABORT();

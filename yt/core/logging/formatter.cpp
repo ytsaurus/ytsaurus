@@ -171,8 +171,9 @@ void TPlainTextLogFormatter::WriteLogSkippedEvent(IOutputStream* outputStream, i
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJsonLogFormatter::TJsonLogFormatter()
+TJsonLogFormatter::TJsonLogFormatter(const THashMap<TString, NYTree::INodePtr>& commonFields)
     : CachingDateFormatter_(std::make_unique<TCachingDateFormatter>())
+    , CommonFields_(commonFields)
 { }
 
 size_t TJsonLogFormatter::WriteFormatted(IOutputStream* stream, const TLogEvent& event) const
@@ -186,6 +187,9 @@ size_t TJsonLogFormatter::WriteFormatted(IOutputStream* stream, const TLogEvent&
     auto jsonConsumer = NJson::CreateJsonConsumer(&counterStream);
     NYTree::BuildYsonFluently(jsonConsumer.get())
         .BeginMap()
+            .DoFor(CommonFields_, [] (auto fluent, auto item) {
+                fluent.Item(item.first).Value(item.second);
+            })
             .Items(event.StructuredMessage)
             .Item("instant").Value(ToString(CachingDateFormatter_->Format(event.Instant)))
             .Item("level").Value(FormatEnum(event.Level))
@@ -214,3 +218,4 @@ void TJsonLogFormatter::WriteLogSkippedEvent(IOutputStream* outputStream, i64 co
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NLogging
+

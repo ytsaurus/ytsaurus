@@ -572,7 +572,7 @@ void TContext::LogStructuredRequest() {
         .Item("path").Value(path)
         .Item("http_path").Value(Request_->GetUrl().Path)
         .Item("method").Value(Request_->GetMethod())
-        .Item("http_code").Value(Response_->GetStatus())
+        .Item("http_code").Value(static_cast<int>(Response_->GetStatus().value_or(EStatusCode::OK)))
         .Item("error_code").Value(static_cast<int>(Error_.GetCode()))
         .Item("error").Value(Error_)
         .Item("remote_address").Value(ToString(Request_->GetRemoteAddress()))
