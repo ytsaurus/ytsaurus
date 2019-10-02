@@ -4,6 +4,7 @@
 
 #include <yp/client/api/proto/data_model.pb.h>
 
+#include <yt/core/misc/error.h>
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref_tracked.h>
 
@@ -59,6 +60,24 @@ public:
     TAccount* GetEffectiveAccount() const;
 
     const TString& GetEffectiveNodeFilter() const;
+
+    //! It is assumed to be called exactly once during cluster snapshot creation.
+    void PostprocessAttributes();
+
+    TError GetSchedulingAttributesValidationError() const;
+
+    //! Returns a null object id if the attribute is missing.
+    //! Returns a validation error if any occurred.
+    TErrorOr<TString> GetAntiaffinityGroupId(const NYPath::TYPath& groupIdAttributePath) const;
+
+private:
+    using TAntiaffinityGroupIdByAttributePath = THashMap<NYPath::TYPath, TString>;
+
+    TErrorOr<TAntiaffinityGroupIdByAttributePath> AntiaffinityGroupIdsOrError_;
+
+
+    TErrorOr<TAntiaffinityGroupIdByAttributePath> PostprocessAntiaffinityGroupIds(
+        const NYTree::IMapNodePtr& labelsMap) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,6 +1,10 @@
 #include "object.h"
 
+#include <yt/core/ytree/convert.h>
+
 namespace NYP::NServer::NCluster {
+
+using namespace NYT::NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,6 +23,11 @@ const TObjectId& TObject::GetId() const
 const NYT::NYson::TYsonString& TObject::GetLabels() const
 {
     return Labels_;
+}
+
+IMapNodePtr TObject::ParseLabels() const
+{
+    return ConvertTo<IMapNodePtr>(Labels_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

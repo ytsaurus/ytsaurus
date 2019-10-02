@@ -271,8 +271,7 @@ private:
     void InitializeNodeTopologyZones()
     {
         for (const auto& [nodeId, node] : NodeMap_) {
-            auto labelMap = ConvertTo<IMapNodePtr>(node->GetLabels());
-            node->TopologyZones() = ParseTopologyZones(nodeId, labelMap);
+            node->TopologyZones() = ParseTopologyZones(nodeId, node->ParseLabels());
         }
     }
 
@@ -425,6 +424,8 @@ private:
             pod->SetPodSet(podSet);
             pod->SetNode(node);
             pod->SetAccount(account);
+
+            pod->PostprocessAttributes();
         }
         for (const auto& invalidPodId : invalidPodIds) {
             YT_VERIFY(PodMap_.erase(invalidPodId) > 0);
@@ -563,7 +564,8 @@ private:
         for (const auto& [podId, pod] : PodMap_) {
             auto* node = pod->GetNode();
             if (node) {
-                node->AcquireAntiaffinityVacancies(pod.get());
+                // NB! Allocates vacancies regardless of the pod validation errors or node overcommit.
+                node->AllocateAntiaffinityVacancies(pod.get());
             }
         }
     }

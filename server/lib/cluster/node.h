@@ -135,8 +135,8 @@ public:
     using TGpuResources = SmallVector<TGpuResource, NObjects::TypicalGpuResourceCountPerNode>;
     DEFINE_BYREF_RW_PROPERTY(TGpuResources, GpuResources);
 
-    bool CanAcquireAntiaffinityVacancies(const TPod* pod) const;
-    void AcquireAntiaffinityVacancies(const TPod* pod);
+    bool CanAllocateAntiaffinityVacancies(const TPod* pod) const;
+    void AllocateAntiaffinityVacancies(const TPod* pod);
 
     bool IsSchedulable() const;
     bool HasIP6SubnetInVlan(const TString& vlanId) const;

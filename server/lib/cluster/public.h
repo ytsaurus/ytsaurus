@@ -34,6 +34,8 @@ DECLARE_REFCOUNTED_STRUCT(IClusterReader)
 
 extern const TString TopologyLabel;
 
+class TAntiaffinityVacancyAllocator;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 constexpr size_t MaxResourceDimensions = 3;

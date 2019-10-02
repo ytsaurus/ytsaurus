@@ -124,15 +124,15 @@ public:
         return true;
     }
 
-    bool TryAcquireAntiaffinityVacancies()
+    bool TryAllocateAntiaffinityVacancies()
     {
-        // NB! Just checking: actual acquisition is deferred to the commit stage.
-        return Node_->CanAcquireAntiaffinityVacancies(Pod_);
+        // NB! Just checking: actual allocation is deferred to the commit stage.
+        return Node_->CanAllocateAntiaffinityVacancies(Pod_);
     }
 
     void Commit()
     {
-        Node_->AcquireAntiaffinityVacancies(Pod_);
+        Node_->AllocateAntiaffinityVacancies(Pod_);
 
         Node_->CpuResource() = CpuResource_;
         Node_->MemoryResource() = MemoryResource_;
@@ -176,7 +176,7 @@ bool TryAllocate(
         diagnostics->RegisterUnsatisfiedConstraint(EAllocatorConstraintKind::IP6Subnet);
     }
 
-    if (!nodeAllocationContext->TryAcquireAntiaffinityVacancies()) {
+    if (!nodeAllocationContext->TryAllocateAntiaffinityVacancies()) {
         result = false;
         diagnostics->RegisterUnsatisfiedConstraint(EAllocatorConstraintKind::Antiaffinity);
     }

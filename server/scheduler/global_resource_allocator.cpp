@@ -180,6 +180,10 @@ public:
             pod->GetId(),
             NodeSelectionStrategy_);
 
+        if (auto error = pod->GetSchedulingAttributesValidationError(); !error.IsOK()) {
+            return error;
+        }
+
         auto* nodeSegment = pod->GetPodSet()->GetNodeSegment();
         auto* cache = nodeSegment->GetSchedulableNodeFilterCache();
 

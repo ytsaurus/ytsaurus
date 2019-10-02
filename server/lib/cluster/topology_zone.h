@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include "antiaffinity_allocator.h"
+
 #include <yt/core/misc/ref_tracked.h>
 #include <yt/core/misc/property.h>
 
@@ -10,7 +12,7 @@ namespace NYP::NServer::NCluster {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTopologyZone
-    : public NYT::TRefTracked<TTopologyZone>
+    : public TRefTracked<TTopologyZone>
 {
 public:
     TTopologyZone(
@@ -20,18 +22,14 @@ public:
     const TString& GetKey() const;
     const TString& GetValue() const;
 
-    using TPodSetToAntiaffinityVacancies = THashMap<TPodSet*, int>;
-    DEFINE_BYREF_RW_PROPERTY(TPodSetToAntiaffinityVacancies, PodSetToAntiaffinityVacancies);
-
-    bool CanAcquireAntiaffinityVacancy(const TPod* pod) const;
-    void AcquireAntiaffinityVacancy(const TPod* pod);
-    void ReleaseAntiaffinityVacancy(const TPod* pod);
+    bool CanAllocateAntiaffinityVacancies(const TPod* pod) const;
+    void AllocateAntiaffinityVacancies(const TPod* pod);
 
 private:
     const TString Key_;
     const TString Value_;
 
-    int* GetAntiaffinityVacancies(const TPod* pod);
+    THashMap<const TPodSet*, TAntiaffinityVacancyAllocator> PodSetVacancyAllocators_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

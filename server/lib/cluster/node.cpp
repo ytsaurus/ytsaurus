@@ -152,20 +152,20 @@ TNode::TNode(
     , Spec_(std::move(spec))
 { }
 
-bool TNode::CanAcquireAntiaffinityVacancies(const TPod* pod) const
+bool TNode::CanAllocateAntiaffinityVacancies(const TPod* pod) const
 {
     for (auto* zone : TopologyZones_) {
-        if (!zone->CanAcquireAntiaffinityVacancy(pod)) {
+        if (!zone->CanAllocateAntiaffinityVacancies(pod)) {
             return false;
         }
     }
     return true;
 }
 
-void TNode::AcquireAntiaffinityVacancies(const TPod* pod)
+void TNode::AllocateAntiaffinityVacancies(const TPod* pod)
 {
     for (auto* zone : TopologyZones_) {
-        zone->AcquireAntiaffinityVacancy(pod);
+        zone->AllocateAntiaffinityVacancies(pod);
     }
 }
 

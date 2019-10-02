@@ -108,6 +108,10 @@ def is_error_pod_scheduling_status(scheduling_status):
         scheduling_status.get("node_id", None) is None
 
 
+def are_error_pod_scheduling_statuses(scheduling_statuses):
+    return all(map(is_error_pod_scheduling_status, scheduling_statuses))
+
+
 def is_pod_assigned(yp_client, pod_id):
     return is_assigned_pod_scheduling_status(get_pod_scheduling_status(yp_client, pod_id))
 
@@ -121,6 +125,14 @@ def wait_pod_is_assigned(yp_client, pod_id):
     except WaitFailed:
         scheduling_error = yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/error"])[0]
         raise WaitFailed("Error scheduling pod: {}".format(scheduling_error))
+
+def are_pods_touched_by_scheduler(yp_client, pod_ids):
+    return all(map(
+        lambda scheduling_status: is_error_pod_scheduling_status(scheduling_status) or \
+            is_assigned_pod_scheduling_status(scheduling_status),
+        get_pod_scheduling_statuses(yp_client, pod_ids)
+    ))
+
 
 def wait_pod_is_assigned_to(yp_client, pod_id, node_id):
     try:
@@ -141,22 +153,28 @@ def create_pod_set(yp_client):
     )
 
 
-def create_pod_with_boilerplate(yp_client, pod_set_id, spec=None, pod_id=None, transaction_id=None):
-    if spec is None:
-        spec = dict()
-    meta = {
-        "pod_set_id": pod_set_id
-    }
-    if pod_id is not None:
-        meta["id"] = pod_id
-    merged_spec = update(
+def create_pod_with_boilerplate(
+        yp_client,
+        pod_set_id,
+        spec=None,
+        pod_id=None,
+        transaction_id=None,
+        labels=None):
+    attributes = dict()
+
+    attributes["spec"] = update(
         dict(resource_requests=ZERO_RESOURCE_REQUESTS),
-        spec,
+        get_value(spec, dict()),
     )
-    return yp_client.create_object("pod", attributes={
-        "meta": meta,
-        "spec": merged_spec,
-    }, transaction_id=transaction_id)
+
+    attributes["meta"] = dict(pod_set_id=pod_set_id)
+    if pod_id is not None:
+        attributes["meta"]["id"] = pod_id
+
+    if labels is not None:
+        attributes["labels"] = labels
+
+    return yp_client.create_object("pod", attributes=attributes, transaction_id=transaction_id)
 
 
 def create_nodes(

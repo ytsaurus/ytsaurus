@@ -105,6 +105,9 @@ message TAccessControlEntry
 
 message TAntiaffinityConstraint
 {
+    reserved 3;
+    reserved "pod_filter";
+
     // Topology zone key.
     // Node zones are specified via /node/labels/topology/key=value labels.
     // and are filled on node's import.
@@ -114,9 +117,20 @@ message TAntiaffinityConstraint
     // Maximum number of pods that can be placed in the same zone.
     required int64 max_pods = 2;
 
-    // Describes the pods this constraint applies to.
-    // TODO(babenko): this is not currently implemented
-    optional string pod_filter = 3;
+    // If given, the constraint is independently applied to each group of pods with equal
+    // group id at which this path points.
+    //
+    // Path must be of the form /labels/<key>, where <key> represents a single path token.
+    // Otherwise scheduling will fail for the pod set with appropriate error.
+    //
+    // A pod is not required to have specified group id. If group id is missing,
+    // the pod will not be affected by the constraint.
+    //
+    // If pod group id is specified, it must be of the string type.
+    // Otherwise scheduling will fail for the pod with appropriate error.
+    //
+    // Example: pod_group_id_path = "/labels/antiaffinity_group_id" and /pod/labels/antiaffinity_group_id = "42".
+    optional string pod_group_id_path = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

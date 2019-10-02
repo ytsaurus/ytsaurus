@@ -24,37 +24,34 @@ const TString& TTopologyZone::GetValue() const
     return Value_;
 }
 
-bool TTopologyZone::CanAcquireAntiaffinityVacancy(const TPod* pod) const
+bool TTopologyZone::CanAllocateAntiaffinityVacancies(const TPod* pod) const
 {
-    // NB! Do not add elements to the map to prevent quadratic (pod set) x (topology zone) memory consumption.
-    auto it = PodSetToAntiaffinityVacancies_.find(pod->GetPodSet());
-    return it == PodSetToAntiaffinityVacancies_.end() || it->second > 0;
+    // NB! Do not add elements to the map to prevent excessive memory consumption
+    // due to wasteful allocations per every unsuccessful scheduling iteration.
+    auto it = PodSetVacancyAllocators_.find(pod->GetPodSet());
+
+    // NB! Vacancy limit is clamped to the range [1, \infty), so non-initialized allocator
+    // is supposed to always have at least one vacancy for the pod.
+    return it == PodSetVacancyAllocators_.end() || it->second.CanAllocate(pod);
 }
 
-void TTopologyZone::AcquireAntiaffinityVacancy(const TPod* pod)
+void TTopologyZone::AllocateAntiaffinityVacancies(const TPod* pod)
 {
-    --(*GetAntiaffinityVacancies(pod));
-}
-
-void TTopologyZone::ReleaseAntiaffinityVacancy(const TPod* pod)
-{
-    ++(*GetAntiaffinityVacancies(pod));
-}
-
-int* TTopologyZone::GetAntiaffinityVacancies(const TPod* pod)
-{
-    auto* podSet = pod->GetPodSet();
-    auto it = PodSetToAntiaffinityVacancies_.find(podSet);
-    if (it == PodSetToAntiaffinityVacancies_.end()) {
-        int vacancies = std::numeric_limits<int>::max();
+    const auto* podSet = pod->GetPodSet();
+    auto it = PodSetVacancyAllocators_.find(podSet);
+    if (it == PodSetVacancyAllocators_.end()) {
+        std::vector<NClient::NApi::NProto::TAntiaffinityConstraint> topologyZoneConstraints;
+        topologyZoneConstraints.reserve(podSet->AntiaffinityConstraints().size());
         for (const auto& constraint : podSet->AntiaffinityConstraints()) {
-            if (constraint.key() == Key_ && constraint.max_pods() < std::numeric_limits<int>::max()) {
-                vacancies = std::min(vacancies, static_cast<int>(constraint.max_pods()));
+            if (constraint.key() == Key_) {
+                topologyZoneConstraints.push_back(constraint);
             }
         }
-        it = PodSetToAntiaffinityVacancies_.emplace(podSet, vacancies).first;
+        it = PodSetVacancyAllocators_.emplace(
+            podSet,
+            TAntiaffinityVacancyAllocator(topologyZoneConstraints)).first;
     }
-    return &it->second;
+    it->second.Allocate(pod);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

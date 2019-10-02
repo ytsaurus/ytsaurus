@@ -2,7 +2,51 @@
 
 #include "pod_set.h"
 
+#include <yt/core/ypath/tokenizer.h>
+#include <yt/core/ytree/node.h>
+
 namespace NYP::NServer::NCluster {
+
+using namespace NYT::NYPath;
+using namespace NYT::NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+TErrorOr<TString> ParseAntiaffinityGroupIdPathLabelsKey(const NYPath::TYPath& groupIdPath)
+{
+    try {
+        TTokenizer tokenizer(groupIdPath);
+
+        auto advanceToLiteral = [&tokenizer] {
+            tokenizer.Advance();
+            tokenizer.Expect(ETokenType::Slash);
+            tokenizer.Advance();
+            tokenizer.Expect(ETokenType::Literal);
+        };
+
+        advanceToLiteral();
+        static const TString LabelsLiteral("labels");
+        if (tokenizer.GetLiteralValue() != LabelsLiteral) {
+            tokenizer.ThrowUnexpected();
+        }
+
+        advanceToLiteral();
+        TString key = tokenizer.GetLiteralValue();
+
+        tokenizer.Advance();
+        tokenizer.Expect(ETokenType::EndOfStream);
+
+        return key;
+    } catch (const std::exception& ex) {
+        return TError("Expected pod antiaffinity group id path of the form /labels/<key>, but got %v",
+            groupIdPath)
+            << TError(ex);
+    }
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,6 +76,7 @@ TPod::TPod(
     , IP6SubnetRequests_(ip6SubnetRequests)
     , NodeFilter_(std::move(nodeFilter))
     , Eviction_(std::move(eviction))
+    , AntiaffinityGroupIdsOrError_(TError("Uninitialized pod antiaffinity group ids"))
 { }
 
 TAccount* TPod::GetEffectiveAccount() const
@@ -44,6 +89,87 @@ const TString& TPod::GetEffectiveNodeFilter() const
 {
     YT_VERIFY(PodSet_);
     return !NodeFilter_.Empty() ? NodeFilter_ : PodSet_->NodeFilter();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TPod::PostprocessAttributes()
+{
+    auto labelsMap = ParseLabels();
+
+    AntiaffinityGroupIdsOrError_ = PostprocessAntiaffinityGroupIds(labelsMap);
+}
+
+TError TPod::GetSchedulingAttributesValidationError() const
+{
+    if (!AntiaffinityGroupIdsOrError_.IsOK()) {
+        return TError("Error validating pod scheduling attributes")
+            << AntiaffinityGroupIdsOrError_;
+    }
+    return TError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TErrorOr<TString> TPod::GetAntiaffinityGroupId(const NYPath::TYPath& groupIdAttributePath) const
+{
+    if (!AntiaffinityGroupIdsOrError_.IsOK()) {
+        return TError(AntiaffinityGroupIdsOrError_);
+    }
+
+    const auto& antiaffinityGroupIds = AntiaffinityGroupIdsOrError_.Value();
+
+    auto it = antiaffinityGroupIds.find(groupIdAttributePath);
+    if (it == antiaffinityGroupIds.end()) {
+        static const TString NullGroupId;
+        return NullGroupId;
+    }
+
+    const auto& groupId = it->second;
+    YT_VERIFY(groupId);
+
+    return groupId;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TErrorOr<TPod::TAntiaffinityGroupIdByAttributePath> TPod::PostprocessAntiaffinityGroupIds(
+    const IMapNodePtr& labelsMap) const
+{
+    TAntiaffinityGroupIdByAttributePath result;
+    for (const auto& antiaffinityConstraint : PodSet_->AntiaffinityConstraints()) {
+        const auto& groupIdPath = antiaffinityConstraint.pod_group_id_path();
+        if (!groupIdPath) {
+            continue;
+        }
+
+        auto labelsGroupIdKeyOrError = ParseAntiaffinityGroupIdPathLabelsKey(groupIdPath);
+        if (!labelsGroupIdKeyOrError.IsOK()) {
+            return TError(labelsGroupIdKeyOrError);
+        }
+        const auto& labelsGroupIdKey = labelsGroupIdKeyOrError
+            .Value();
+
+        if (auto groupIdNode = labelsMap->FindChild(labelsGroupIdKey)) {
+            if (groupIdNode->GetType() != ENodeType::String) {
+                return TError(
+                    "Unexpected type of the pod antiaffinity group id at path %v: expected %Qlv, but got %Qlv",
+                    groupIdPath,
+                    ENodeType::String,
+                    groupIdNode->GetType());
+            }
+
+            const auto& groupId = groupIdNode->GetValue<TString>();
+
+            if (!groupId) {
+                return TError("Null pod antiaffinity group id at path %v",
+                    groupIdPath);
+            }
+
+            result[groupIdPath] = groupId;
+        }
+    }
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

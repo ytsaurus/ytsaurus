@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <yt/core/yson/string.h>
+#include <yt/core/ytree/public.h>
 
 namespace NYP::NServer::NCluster {
 
@@ -18,6 +19,7 @@ public:
 
     const TObjectId& GetId() const;
     const NYT::NYson::TYsonString& GetLabels() const;
+    NYT::NYTree::IMapNodePtr ParseLabels() const;
 
     template <class T>
     const T* As() const;

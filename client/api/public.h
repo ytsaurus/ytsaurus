@@ -21,6 +21,8 @@ class TPodSpec_TSysctlProperty;
 
 class TTvmConfig;
 
+class TAntiaffinityConstraint;
+
 } // namespace NProto
 
 using TObjectId = TString;

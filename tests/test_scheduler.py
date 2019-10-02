@@ -461,53 +461,6 @@ class TestScheduler(object):
         wait(lambda: all(x[0] == "assigned"
                          for x in yp_client.select_objects("pod", selectors=["/status/scheduling/state"])))
 
-    def test_antiaffinity_per_node(self, yp_env):
-        yp_client = yp_env.yp_client
-
-        create_nodes(yp_client, 10)
-        pod_set_id = yp_client.create_object("pod_set", attributes={
-                "spec": dict(DEFAULT_POD_SET_SPEC, **{
-                    "antiaffinity_constraints": [
-                        {"key": "node", "max_pods": 1}
-                    ]
-                })
-            })
-        for i in xrange(10):
-            create_pod_with_boilerplate(yp_client, pod_set_id, {
-                "enable_scheduling": True,
-            })
-
-        self._wait_for_pod_assignment(yp_env)
-        node_ids = set(x[0] for x in yp_client.select_objects("pod", selectors=["/status/scheduling/node_id"]))
-        assert len(node_ids) == 10
-
-    def test_antiaffinity_per_node_and_rack(self, yp_env):
-        yp_client = yp_env.yp_client
-
-        create_nodes(yp_client, 10, 2)
-        pod_set_id = yp_client.create_object("pod_set", attributes={
-                "spec": dict(DEFAULT_POD_SET_SPEC, **{
-                    "antiaffinity_constraints": [
-                        {"key": "node", "max_pods": 1},
-                        {"key": "rack", "max_pods": 3}
-                    ],
-                })
-            })
-        for i in xrange(6):
-            create_pod_with_boilerplate(yp_client, pod_set_id, {
-                "enable_scheduling": True,
-            })
-
-        self._wait_for_pod_assignment(yp_env)
-        node_ids = set(x[0] for x in yp_client.select_objects("pod", selectors=["/status/scheduling/node_id"]))
-        assert len(node_ids) == 6
-
-        rack_to_counter = defaultdict(int)
-        for node_id in node_ids:
-            rack = yp_client.get_object("node", node_id, selectors=["/labels/topology/rack"])[0]
-            rack_to_counter[rack] += 1
-        assert all(rack_to_counter[rack] == 3 for rack in rack_to_counter)
-
     def test_assign_to_up_nodes_only(self, yp_env):
         yp_client = yp_env.yp_client
 

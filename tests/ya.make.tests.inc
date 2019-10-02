@@ -13,6 +13,7 @@ SET(YP_TEST_SRCS
     test_acls.py
     test_admin_cli.py
     test_annotations.py
+    test_antiaffinity.py
     test_auth.py
     test_batch_methods.py
     test_cli.py
