@@ -406,7 +406,7 @@ class TestSpecBuilders(object):
 
         assert update(result_spec, correct_spec) == result_spec
 
-    def test_vanilla_raw_spec_builder(self):
+    def test_allow_http_requets_to_yt_from_job_vanilla(self):
         with set_config_option("allow_http_requests_to_yt_from_job", True):
             spec_builder = VanillaSpecBuilder().spec({
                 "tasks": {
@@ -434,6 +434,40 @@ class TestSpecBuilders(object):
                     }
                 }
             }
+        }
+
+        assert update(result_spec1, correct_spec) == result_spec1
+        assert update(result_spec2, correct_spec) == result_spec2
+
+    def test_allow_http_requets_to_yt_from_job_map(self):
+        with set_config_option("allow_http_requests_to_yt_from_job", True):
+            spec_builder = MapSpecBuilder().spec({
+                "mapper": {
+                    "command": "cat",
+                },
+                "input_table_paths": ["//tmp/t_in"],
+                "output_table_paths": ["//tmp/t_out"],
+            })
+            result_spec1 = spec_builder.build()
+
+        result_spec2 = MapSpecBuilder() \
+            .begin_mapper() \
+                .command("cat") \
+                .environment({"YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB": "1"}) \
+            .end_mapper() \
+            .input_table_paths(["//tmp/t_in"]) \
+            .output_table_paths(["//tmp/t_out"]) \
+        .build()
+
+        correct_spec = {
+            "mapper": {
+                "command": "cat",
+                "environment": {
+                    "YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB": "1",
+                }
+            },
+            "input_table_paths": ["//tmp/t_in"],
+            "output_table_paths": ["//tmp/t_out"],
         }
 
         assert update(result_spec1, correct_spec) == result_spec1
