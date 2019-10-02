@@ -135,7 +135,7 @@ void TFileChunkOutput::EnsureOpen()
 
 i64 TFileChunkOutput::GetSize() const
 {
-    if (!FileChunkWriter) {
+    if (!FileChunkWriter_) {
         return 0;
     }
     return FileChunkWriter_->GetCompressedDataSize();
