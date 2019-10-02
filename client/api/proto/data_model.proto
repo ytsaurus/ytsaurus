@@ -1038,21 +1038,6 @@ enum EEvictionReason
     [(NYT.NYson.NProto.enum_value_name) = "client"];
 }
 
-enum ESchedulingState
-{
-    SS_NONE = 0
-    [(NYT.NYson.NProto.enum_value_name) = "none"];
-
-    SS_DISABLED = 100
-    [(NYT.NYson.NProto.enum_value_name) = "disabled"];
-
-    SS_PENDING = 200
-    [(NYT.NYson.NProto.enum_value_name) = "pending"];
-
-    SS_ASSIGNED = 300
-    [(NYT.NYson.NProto.enum_value_name) = "assigned"];
-}
-
 message TPodDynamicResourceStatus
 {
     // Resource identifier.
