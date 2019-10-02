@@ -638,8 +638,8 @@ void TContext::SetupTracing()
             trace->SetSampled();
         }
 
-        auto config = Api_->GetCoordinator()->GetDynamicConfig();
-        if (config->Tracing && IsTraceSampled(config->Tracing, DriverRequest_.AuthenticatedUser)) {
+        auto sampler = Api_->GetCoordinator()->GetTraceSampler();
+        if (sampler->IsTraceSampled(DriverRequest_.AuthenticatedUser)) {
             trace->SetSampled();
         }
     }
