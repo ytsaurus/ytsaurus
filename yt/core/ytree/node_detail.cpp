@@ -350,7 +350,7 @@ void TMapNodeMixin::ListSelf(
     }));
 }
 
-void TMapNodeMixin::SetChild(
+std::pair<TString, INodePtr> TMapNodeMixin::PrepareSetChild(
     INodeFactory* factory,
     const TYPath& path,
     INodePtr child,
@@ -411,7 +411,17 @@ void TMapNodeMixin::SetChild(
     }
 
     YT_VERIFY(rootKey);
-    rootNode->AddChild(rootKey, rootChild);
+    return {rootKey, rootChild};
+}
+
+void TMapNodeMixin::SetChild(
+    INodeFactory* factory,
+    const TYPath& path,
+    INodePtr child,
+    bool recursive)
+{
+    const auto& [rootKey, rootChild] = PrepareSetChild(factory, path, child, recursive);
+    AsMap()->AddChild(rootKey, rootChild);
 }
 
 int TMapNodeMixin::GetMaxKeyLength() const

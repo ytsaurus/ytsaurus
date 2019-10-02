@@ -269,7 +269,7 @@ protected:
             nodeHolder.get(),
             nullptr /* oldAccount */,
             context.Account,
-            nullptr /* transaction*/);
+            nullptr /* transaction */);
 
         return nodeHolder;
     }

@@ -387,13 +387,6 @@ DEFINE_REFCOUNTED_TYPE(IEntityNode)
 //! A factory for creating nodes.
 /*!
  *  All freshly created nodes are roots, i.e. have no parent.
- *
- *  The factory also acts as a "transaction context" that holds all created nodes.
- *
- *  One must call #Commit at the end if the operation was a success.
- *
- *  Releasing the instance without calling #Commit or calling #Rollback abandons all changes
- *  and invokes all handlers installed via #RegisterRollbackHandler.
  */
 struct INodeFactory
 {
