@@ -1,13 +1,12 @@
-# Stubs for pyspark.ml.pipeline (Python 3.5)
-#
+# Stubs for pyspark.ml.pipeline (Python 3)
 
 from typing import Any, Dict, List, Optional, Tuple, Type, Union
+
+from pyspark.ml._typing import PipelineStage
 from pyspark.context import SparkContext
 from pyspark.ml.base import Estimator, Model, Transformer
 from pyspark.ml.param import Param
 from pyspark.ml.util import *
-
-PipelineStage = Union[Estimator, Transformer]
 
 class Pipeline(Estimator[PipelineModel], MLReadable[Pipeline], MLWritable):
     stages: List[PipelineStage]

@@ -1,17 +1,14 @@
-# Stubs for pyspark.ml.tuning (Python 3.5)
-#
+# Stubs for pyspark.ml.tuning (Python 3)
 
 from typing import overload
-from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar
+from typing import Any, Dict, List, Optional, Tuple, Type
+from pyspark.ml._typing import P, ParamMap
 
-from pyspark.ml._typing import ParamMap
 from pyspark.ml import Estimator, Model
 from pyspark.ml.evaluation import Evaluator
 from pyspark.ml.param import Param
 from pyspark.ml.param.shared import *
 from pyspark.ml.util import *
-
-P = TypeVar("P")
 
 class ParamGridBuilder:
     def __init__(self) -> None: ...

@@ -1,5 +1,4 @@
-# Stubs for pyspark.ml.wrapper (Python 3.7)
-#
+# Stubs for pyspark.ml.wrapper (Python 3)
 
 import abc
 from typing import Any, Optional, Type, TypeVar

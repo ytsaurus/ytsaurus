@@ -1,5 +1,4 @@
 # Stubs for pyspark.ml.base (Python 3.5)
-#
 
 import abc
 from typing import overload
@@ -7,14 +6,12 @@ from typing import Any, Callable, Dict, Generic, Iterable, List, Optional, Tuple
 
 import _thread
 
+from pyspark.ml._typing import M, ParamMap
 from pyspark.ml.param import Params, Param
 from pyspark.ml.param.shared import HasInputCol, HasOutputCol
 from pyspark.sql.column import Column
 from pyspark.sql.dataframe import DataFrame
 from pyspark.sql.types import DataType, StructType
-
-M = TypeVar("M", bound=Transformer)
-ParamMap = Dict[Param, Any]
 
 class _FitMultipleIterator:
     fitSingleModel: Callable[[int], Transformer]

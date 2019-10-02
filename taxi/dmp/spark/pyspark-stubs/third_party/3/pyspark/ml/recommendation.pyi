@@ -1,7 +1,8 @@
-# Stubs for pyspark.ml.recommendation (Python 3.5)
+# Stubs for pyspark.ml.recommendation (Python 3)
 #
 
 from typing import Any, Optional
+
 from pyspark.ml.util import *
 from pyspark.ml.wrapper import JavaEstimator, JavaModel
 from pyspark.ml.param.shared import *

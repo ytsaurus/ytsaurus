@@ -1,14 +1,13 @@
-# Stubs for pyspark.ml.regression (Python 3.5)
-#
+# Stubs for pyspark.ml.regression (Python 3)
 
-from typing import Any, List, Optional, Sequence, TypeVar
+from typing import Any, List, Optional, Sequence
+from pyspark.ml._typing import P
+
 from pyspark.ml.param.shared import *
 from pyspark.ml.linalg import Vector
 from pyspark.ml.util import *
 from pyspark.ml.wrapper import JavaEstimator, JavaModel, JavaWrapper
 from pyspark.sql.dataframe import DataFrame
-
-P = TypeVar("P")
 
 class LinearRegression(JavaEstimator[LinearRegressionModel], HasFeaturesCol, HasLabelCol, HasPredictionCol, HasMaxIter, HasRegParam, HasTol, HasElasticNetParam, HasFitIntercept, HasStandardization, HasSolver, HasWeightCol, HasAggregationDepth, JavaMLWritable, JavaMLReadable[LinearRegression]):
     def __init__(self, *, featuresCol: str = ..., labelCol: str = ..., predictionCol: str = ..., maxIter: int = ..., regParam: float = ..., elasticNetParam: float = ..., tol: float = ..., fitIntercept: bool = ..., standardization: bool = ..., solver: str = ..., weightCol: Optional[str] = ..., aggregationDepth: int = ...) -> None: ...

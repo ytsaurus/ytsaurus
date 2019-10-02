@@ -1,10 +1,13 @@
-from typing import Any, Optional, Type, TypeVar
+# Stubs for pyspark.ml.base (Python 3)
+#
+
+from typing import Optional
+
+from pyspark.ml._typing import P
 from pyspark.ml.util import *
 from pyspark.ml.wrapper import JavaEstimator, JavaParams, JavaModel
 from pyspark.ml.param.shared import *
 from pyspark.sql.dataframe import DataFrame
-
-P = TypeVar("P")
 
 class HasMinSupport(Params):
     minSupport: Param[float]

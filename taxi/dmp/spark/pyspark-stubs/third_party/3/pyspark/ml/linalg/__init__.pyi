@@ -1,10 +1,11 @@
-# Stubs for pyspark.ml.linalg (Python 3.5)
-#
+# Stubs for pyspark.ml.linalg (Python 3)
 
 from typing import overload
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+
 from pyspark.ml import linalg as newlinalg
 from pyspark.sql.types import StructType, UserDefinedType
+
 from numpy import float64, ndarray  # type: ignore
 
 class VectorUDT(UserDefinedType):

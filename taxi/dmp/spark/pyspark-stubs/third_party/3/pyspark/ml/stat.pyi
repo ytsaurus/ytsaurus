@@ -1,7 +1,11 @@
+# Stubs for pyspark.ml.stat (Python 3)
+
 from typing import Any, Optional
+
 from pyspark.ml.wrapper import JavaWrapper
 from pyspark.sql.column import Column
 from pyspark.sql.dataframe import DataFrame
+
 from py4j.java_gateway import JavaObject  # type: ignore
 
 class ChiSquareTest:

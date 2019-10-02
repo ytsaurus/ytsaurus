@@ -1,5 +1,4 @@
-# Stubs for pyspark.ml.util (Python 3.5)
-#
+# Stubs for pyspark.ml.util (Python 3)
 
 from typing import Any, Dict, Generic, Optional, Type, TypeVar, Union
 
@@ -8,8 +7,9 @@ from pyspark.ml.param import Params
 from pyspark.sql.context import SQLContext
 from pyspark.sql.session import SparkSession
 
-R = TypeVar("R", bound=MLReadable)
+
 S = TypeVar("S")
+R = TypeVar("R", bound=MLReadable)
 
 basestring = Type[str]
 unicode = Type[str]

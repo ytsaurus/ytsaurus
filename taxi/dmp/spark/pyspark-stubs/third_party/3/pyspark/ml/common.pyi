@@ -1,5 +1,4 @@
-# Stubs for pyspark.ml.common (Python 3.5)
-#
+# Stubs for pyspark.ml.common (Python 3)
 
 from typing import Type
 

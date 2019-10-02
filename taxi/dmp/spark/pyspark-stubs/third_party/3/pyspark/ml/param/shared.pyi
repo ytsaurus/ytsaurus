@@ -1,10 +1,9 @@
-# Stubs for pyspark.ml.param.shared (Python 3.5)
-#
+# Stubs for pyspark.ml.param.shared (Python 3)
 
-from typing import Any, Generic, List, TypeVar
+from typing import Any, Generic, List
+from pyspark.ml._typing import T
+
 from pyspark.ml.param import *
-
-T = TypeVar("T")
 
 class HasMaxIter(Params):
     maxIter: Param[int]

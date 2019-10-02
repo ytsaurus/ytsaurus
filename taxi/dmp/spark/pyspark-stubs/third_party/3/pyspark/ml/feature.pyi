@@ -2,14 +2,14 @@
 #
 
 from typing import overload
-from typing import Any, Dict, List, Optional, overload, Tuple, TypeVar
+from typing import Any, Dict, List, Optional, Tuple
+from pyspark.ml._typing import P
+
 from pyspark.ml.param.shared import *
 from pyspark.ml.util import JavaMLReadable, JavaMLWritable
 from pyspark.ml.wrapper import JavaEstimator, JavaModel,  JavaParams, JavaTransformer
 from pyspark.ml.linalg import Vector, DenseVector, DenseMatrix
 from pyspark.sql.dataframe import DataFrame
-
-P = TypeVar("P")
 
 class Binarizer(JavaTransformer, HasInputCol, HasOutputCol, JavaMLReadable[Binarizer], JavaMLWritable):
     threshold: Param[float]
