@@ -552,7 +552,7 @@ public:
         : RootFS_(rootFS)
         , GpuDevices_(std::move(gpuDevices))
         , BlockIOWatchdogPeriod_(config->BlockIOWatchdogPeriod)
-        , PortoExecutor_(CreatePortoExecutor(config->PortoWaitTime, config->PortoPollPeriod))
+        , PortoExecutor_(CreatePortoExecutor("environ", config->PortoWaitTime, config->PortoPollPeriod))
         , Self_(GetSelfPortoInstance(PortoExecutor_))
         , ResourceTracker_(New<TPortoResourceTracker>(Self_, TDuration::MilliSeconds(100)))
     {
