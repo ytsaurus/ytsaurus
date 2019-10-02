@@ -154,6 +154,10 @@ private:
         }
 
         auto nextSyncPromise = NextSyncPromise_;
+        // Don't drop the very first recent sync promise.
+        if (!RecentSyncPromise_.IsSet()) {
+            RecentSyncPromise_.Set(error);
+        }
         RenewSyncPromises();
 
         nextSyncPromise.Set(error);
