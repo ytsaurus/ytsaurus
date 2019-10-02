@@ -8,7 +8,6 @@ import ru.yandex.bolts.collection.Cf;
 import ru.yandex.bolts.collection.MapF;
 import ru.yandex.inside.yt.kosher.Yt;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
-import ru.yandex.inside.yt.kosher.impl.YtUtils;
 import ru.yandex.inside.yt.kosher.impl.transactions.utils.YtTransactionsUtils;
 import ru.yandex.inside.yt.kosher.ytree.YTreeStringNode;
 
@@ -49,7 +48,7 @@ public class Balancer {
     private List<Node> nodes;
     private Map<String, Allotment> allotments;
 
-    private final long warningThreshold = 300; // seconds
+    private final long warningThreshold = 0; // 300; // seconds
 
     public Balancer(Yt yt) {
         this.yt = yt;
@@ -63,16 +62,19 @@ public class Balancer {
         }
 
         Allotment allotment = allotments.get(allotmentName);
-        reassignAllotment(allotment, dryRun);
+        reassignAllotment(allotment);
+
+        // TODO: execute
     }
 
-    private boolean reassignAllotment(Allotment allotment, boolean dryRun)
+    private boolean reassignAllotment(Allotment allotment)
     {
         int targetSize = allotment.size;
         long now = System.currentTimeMillis() / 1000;
 
         MapF<String, PriorityQueue<ByNodeTriplet>> racks = Cf.hashMap();
         PriorityQueue<ByRackTuple> byRack = new PriorityQueue<>();
+        Map<String, Integer> initialAssignmentsOfRacks = Cf.hashMap();
 
         int targetPrimaryAllotmentIndex = allotment.getPrimaryAllotmentIndex(yt);
 
@@ -120,14 +122,22 @@ public class Balancer {
             }
 
             if (!freeSlots.isEmpty()) {
-                PriorityQueue<ByNodeTriplet> byNode = racks.getOrElseUpdate("allRacks", () -> new PriorityQueue<>());
+                // TODO: allRacks -> realRack
+                String rackName = "allRacks";
 
-                byNode.add(new ByNodeTriplet(0, freeSlots, node));
+                PriorityQueue<ByNodeTriplet> byNode = racks.getOrElseUpdate(rackName, () -> new PriorityQueue<>());
+
+                int assignment = node.locationsOfAllotment(allotment);
+
+                int assignmentByRack = initialAssignmentsOfRacks.getOrDefault(rackName, 0);
+                initialAssignmentsOfRacks.put(rackName, assignmentByRack + assignment);
+
+                byNode.add(new ByNodeTriplet(assignment, freeSlots, node));
             }
         }
 
         for (String rack : racks.keySet()) {
-            byRack.add(new ByRackTuple(0, rack));
+            byRack.add(new ByRackTuple(initialAssignmentsOfRacks.get(rack), rack));
         }
 
         while (targetSize > 0 && !byRack.isEmpty()) {
@@ -138,8 +148,8 @@ public class Balancer {
             ByNodeTriplet nodeAssignment = byNode.poll();
 
             targetSize -= 1;
-            rackAssignment.assignment -= 1;
-            nodeAssignment.assignment -= 1;
+            rackAssignment.assignment += 1;
+            nodeAssignment.assignment += 1;
 
             String locationId = nodeAssignment.freeSlots.remove(0);
 
@@ -220,7 +230,7 @@ public class Balancer {
     public void balance(boolean dryRun) {
         boolean dirty = false;
         for (Map.Entry<String, Allotment> entry : allotments.entrySet()) {
-            dirty |= reassignAllotment(entry.getValue(), dryRun);
+            dirty |= reassignAllotment(entry.getValue());
         }
 
         if (dirty) {

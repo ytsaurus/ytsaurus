@@ -1,9 +1,9 @@
 package ru.yandex.allotment;
 
-import java.time.Duration;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -110,12 +110,18 @@ public class Node {
     public boolean moveOut(Allotment allotment) {
         boolean flag = false;
 
+        List<String> _remove = Cf.linkedList();
+
         for (Map.Entry<String, Integer> entry : allotmentAssignment.entrySet()) {
             if (entry.getValue() == allotment.index) {
                 flag = true;
-                allotmentAssignment.remove(entry.getKey());
+                _remove.add(entry.getKey());
                 dirty = true;
             }
+        }
+
+        for (String name : _remove) {
+            allotmentAssignment.remove(name);
         }
 
         if (flag) {
@@ -125,11 +131,31 @@ public class Node {
         return dirty;
     }
 
-    public void removeDeadLocations(Allotment allotment) {
+    public boolean removeDeadLocations(Allotment allotment) {
+        List<String> _remove = Cf.linkedList();
+
         for (Map.Entry<String, Integer> entry : allotmentAssignment.entrySet()) {
             if (entry.getValue() == allotment.index && !locations.containsKey(entry.getKey())) {
                 System.out.println(String.format("Removing dead location '%s' of allotment '%s' from node '%s'", entry.getKey(), allotment.name, addr));
+                _remove.add(entry.getKey());
+                dirty = true;
             }
         }
+
+        for (String name : _remove) {
+            allotmentAssignment.remove(name);
+        }
+
+        return dirty;
+    }
+
+    int locationsOfAllotment(Allotment allotment) {
+        int result = 0;
+        for (Map.Entry<String, Integer> entry : allotmentAssignment.entrySet()) {
+            if (entry.getValue() == allotment.index) {
+                result += 1;
+            }
+        }
+        return result;
     }
 }
