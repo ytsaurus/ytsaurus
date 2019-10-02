@@ -145,6 +145,10 @@ void TBootstrap::DoRun()
         orchidRoot,
         "/config",
         ConfigNode_);
+    SetNodeByYPath(
+        orchidRoot,
+        "/coordinator",
+        CreateVirtualNode(ProxyCoordinator_->CreateOrchidService()));
     SetBuildAttributes(orchidRoot, "proxy");
 
     RpcServer_->RegisterService(CreateOrchidService(
