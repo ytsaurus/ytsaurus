@@ -14,6 +14,8 @@ from yt.environment.helpers import assert_items_equal
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
+import __builtin__
+
 ##################################################################
 
 class TestCypress(YTEnvSetup):
@@ -1834,6 +1836,20 @@ class TestCypress(YTEnvSetup):
         lock("//tmp/a", tx=tx, mode="snapshot")
         remove("//tmp/a")
         assert get("#{}/@path".format(node_id), tx=tx) == "#{}".format(node_id)
+
+    @authors("ignat")
+    def test_node_path_with_slash(self):
+        set("//tmp/dir", {"my\\t": {}})
+        assert ls("//tmp/dir") == ["my\\t"]
+        # It is double quoted since ypath syntax additionally quote backslash.
+        assert get("//tmp/dir/my\\\\t") == {}
+        assert get("//tmp/dir/my\\\\t/@path") == "//tmp/dir/my\\\\t"
+
+        set("//tmp/dir", {"my\t": {}})
+        assert ls("//tmp/dir") == ["my\t"]
+        # Non-ascii symbols are expressed in hex format in ypath.
+        assert get("//tmp/dir/my\\x09") == {}
+        assert get("//tmp/dir/my\\x09/@path") == "//tmp/dir/my\\x09"
 
     @authors("babenko")
     def test_broken_node_path2(self):
