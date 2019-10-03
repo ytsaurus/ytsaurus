@@ -43,7 +43,7 @@ func (n *NodeType) UnmarshalYSON(data []byte) error {
 	return nil
 }
 
-var _ yson.StreamMarhsaler = NodeType("")
+var _ yson.StreamMarshaller = NodeType("")
 
 type OperationType string
 

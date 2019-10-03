@@ -15,7 +15,7 @@ import (
 
 type GUID uuid.UUID
 
-var _ yson.StreamMarhsaler = GUID{}
+var _ yson.StreamMarshaller = GUID{}
 
 var _ yson.Unmarshaler = &GUID{}
 
