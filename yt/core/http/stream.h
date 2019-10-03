@@ -120,6 +120,9 @@ public:
     // Returns false if connection was closed before receiving first byte.
     bool ReceiveHeaders();
 
+    virtual bool IsHttps() const override;
+    void SetHttps();
+
 private:
     const NNet::IConnectionPtr Connection_;
     const NNet::TNetworkAddress RemoteAddress_;
@@ -144,6 +147,7 @@ private:
     TInstant LastProgressLogTime_;
 
     bool SafeToReuse_ = false;
+    bool IsHttps_ = false;
 
     void FinishHeaders();
     void FinishMessage();
