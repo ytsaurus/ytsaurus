@@ -37,6 +37,7 @@ struct TInMemoryChunkData
     NTabletClient::EInMemoryMode InMemoryMode = NTabletClient::EInMemoryMode::None;
 
     std::vector<NChunkClient::TBlock> Blocks;
+    int StartBlockIndex;
     NTableClient::TCachedVersionedChunkMetaPtr ChunkMeta;
     NTableClient::IChunkLookupHashTablePtr LookupHashTable;
     NCellNode::TNodeMemoryTrackerGuard MemoryTrackerGuard;
