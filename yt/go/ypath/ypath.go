@@ -162,5 +162,5 @@ type YPath interface {
 	// If path is malformed, returns original path unmodified. Use Parse() if you need to check path for correctness.
 	YPath() Path
 
-	yson.StreamMarhsaler
+	yson.StreamMarshaller
 }

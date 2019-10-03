@@ -27,8 +27,8 @@ type Marshaler interface {
 	MarshalYSON() ([]byte, error)
 }
 
-// StreamMarhsaler is an interface implemented by types that can encode themselves to YSON.
-type StreamMarhsaler interface {
+// StreamMarshaller is an interface implemented by types that can encode themselves to YSON.
+type StreamMarshaller interface {
 	MarshalYSON(*Writer) error
 }
 
@@ -48,7 +48,7 @@ func (e *Encoder) Encode(value interface{}) (err error) {
 //
 // If value implements Marshaler interface, Marshal calls its MarshalYSON method to produce YSON.
 //
-// If value implements StreamMarhsaler interface, Marshal calls its MarshalYSON method to produce YSON.
+// If value implements StreamMarshaller interface, Marshal calls its MarshalYSON method to produce YSON.
 //
 // Otherwise, the following default encoding is used.
 //
@@ -267,7 +267,7 @@ func encodeAny(w *Writer, value interface{}) (err error) {
 		}
 		w.RawNode(raw)
 
-	case StreamMarhsaler:
+	case StreamMarshaller:
 		if err = vv.MarshalYSON(w); err != nil {
 			return err
 		}
