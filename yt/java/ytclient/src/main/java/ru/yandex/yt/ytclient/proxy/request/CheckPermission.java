@@ -11,6 +11,7 @@ public class CheckPermission extends MutateNode<CheckPermission> {
     private final String user;
     private final String path;
     private final int permissions;
+    private final Set<String> columns;
 
     public CheckPermission(String user, String path, int permissions) {
         this(user, path, permissions, Cf.set());
@@ -20,6 +21,7 @@ public class CheckPermission extends MutateNode<CheckPermission> {
         this.user = user;
         this.path = path;
         this.permissions = permissions;
+        this.columns = columns;
     }
 
     public TReqCheckPermission.Builder writeTo(TReqCheckPermission.Builder builder) {
@@ -37,6 +39,7 @@ public class CheckPermission extends MutateNode<CheckPermission> {
         return builder
                 .setUser(user)
                 .setPath(path)
-                .setPermission(permissions);
+                .setPermission(permissions)
+                .setColumns(TReqCheckPermission.TColumns.newBuilder().addAllItems(columns).build());
     }
 }
