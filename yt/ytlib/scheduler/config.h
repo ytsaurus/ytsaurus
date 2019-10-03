@@ -348,6 +348,7 @@ class TJobIOConfig
 public:
     NTableClient::TTableReaderConfigPtr TableReader;
     NTableClient::TTableWriterConfigPtr TableWriter;
+    NTableClient::TTableWriterConfigPtr DynamicTableWriter;
 
     NFormats::TControlAttributesConfigPtr ControlAttributes;
 

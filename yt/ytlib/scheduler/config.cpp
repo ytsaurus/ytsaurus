@@ -115,6 +115,8 @@ TJobIOConfig::TJobIOConfig()
         .DefaultNew();
     RegisterParameter("table_writer", TableWriter)
         .DefaultNew();
+    RegisterParameter("dynamic_table_writer", DynamicTableWriter)
+        .DefaultNew();
 
     RegisterParameter("control_attributes", ControlAttributes)
         .DefaultNew();
@@ -135,6 +137,9 @@ TJobIOConfig::TJobIOConfig()
 
     RegisterPreprocessor([&] () {
         ErrorFileWriter->UploadReplicationFactor = 1;
+
+        DynamicTableWriter->DesiredChunkSize = 256_MB;
+        DynamicTableWriter->BlockSize = 256_KB;
     });
 }
 

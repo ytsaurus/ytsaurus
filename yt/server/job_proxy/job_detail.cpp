@@ -235,7 +235,10 @@ TStatistics TSimpleJobBase::GetStatistics() const
 
 TTableWriterConfigPtr TSimpleJobBase::GetWriterConfig(const TTableOutputSpec& outputSpec)
 {
-    auto config = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableWriter;
+    auto ioConfig = Host_->GetJobSpecHelper()->GetJobIOConfig();
+    auto config = outputSpec.dynamic()
+        ? ioConfig->DynamicTableWriter
+        : ioConfig->TableWriter;
     if (outputSpec.has_table_writer_config()) {
         config = UpdateYsonSerializable(
             config,
