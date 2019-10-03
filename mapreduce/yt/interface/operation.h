@@ -9,6 +9,7 @@
 
 #include <statbox/ti/ti.h>
 
+#include <util/datetime/base.h>
 #include <util/generic/variant.h>
 #include <util/generic/vector.h>
 #include <util/generic/maybe.h>
@@ -311,7 +312,18 @@ struct TOperationIOSpec
 };
 
 template <class TDerived>
+struct TOperationSpecBase
+{
+    using TSelf = TDerived;
+
+    // Limit on operation execution time.
+    // If operation doesn't finish in time it will be aborted.
+    FLUENT_FIELD_OPTION(TDuration, TimeLimit);
+};
+
+template <class TDerived>
 struct TUserOperationSpecBase
+    : TOperationSpecBase<TDerived>
 {
     using TSelf = TDerived;
 
@@ -468,6 +480,11 @@ struct TUserJobSpec
     //
     // Number of ports reserved for the job. They are passed through environment in YT_PORT_0, YT_PORT_1, ...
     FLUENT_FIELD_OPTION(ui16, PortCount);
+
+    //
+    // Limit on job execution time.
+    // Jobs that exceed this limit will be considered failed.
+    FLUENT_FIELD_OPTION(TDuration, JobTimeLimit);
 
 private:
     TVector<std::tuple<TLocalFilePath, TAddLocalFileOptions>> LocalFiles_;
@@ -630,6 +647,7 @@ enum class ESchemaInferenceMode : int
 };
 
 struct TSortOperationSpec
+    : TOperationSpecBase<TSortOperationSpec>
 {
     using TSelf = TSortOperationSpec;
 
@@ -657,6 +675,7 @@ enum EMergeMode : int
 };
 
 struct TMergeOperationSpec
+    : TOperationSpecBase<TMergeOperationSpec>
 {
     using TSelf = TMergeOperationSpec;
 
@@ -675,6 +694,7 @@ struct TMergeOperationSpec
 };
 
 struct TEraseOperationSpec
+    : TOperationSpecBase<TEraseOperationSpec>
 {
     using TSelf = TEraseOperationSpec;
 
@@ -686,6 +706,7 @@ struct TEraseOperationSpec
 
 // See https://wiki.yandex-team.ru/yt/userdoc/operations/#remotecopy
 struct TRemoteCopyOperationSpec
+    : TOperationSpecBase<TRemoteCopyOperationSpec>
 {
     using TSelf = TRemoteCopyOperationSpec;
 

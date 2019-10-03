@@ -1557,7 +1557,7 @@ Y_UNIT_TEST_SUITE(Operations)
                     "\x18" "\xA8\x06"),
             TNode()
                 ("UrlRow_1", TNode().Add("ya.ru.mapped").Add("/maps").Add(300))
-                ("UrlRow_2", 
+                ("UrlRow_2",
                     "\x0A" "\x0C" "\x79\x61\x2E\x72\x75\x2E\x6D\x61\x70\x70\x65\x64"
                     "\x12" "\x05" "\x2F\x6D\x61\x70\x73"
                     "\x18" "\xD8\x04"),
@@ -3915,6 +3915,51 @@ Y_UNIT_TEST_SUITE(Operations)
             "key");
         UNIT_ASSERT_VALUES_EQUAL(readOutput(), expected);
     }
+
+    Y_UNIT_TEST(OperationTimeout)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        auto inputTable = TRichYPath(workingDir + "/input");
+        auto writer = client->CreateTableWriter<TNode>(inputTable);
+        writer->AddRow(TNode()("key", 1));
+        writer->Finish();
+
+        UNIT_ASSERT_EXCEPTION_CONTAINS(
+            client->Map(
+                TMapOperationSpec()
+                    .AddInput<TNode>(inputTable)
+                    .AddOutput<TNode>(workingDir + "/output")
+                    .TimeLimit(TDuration::Seconds(2)),
+                new TSleepingMapper(TDuration::Seconds(3))),
+            TOperationFailedError,
+            "Operation is running for too long");
+    }
+
+    Y_UNIT_TEST(JobTimeout)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        auto inputTable = TRichYPath(workingDir + "/input");
+        auto writer = client->CreateTableWriter<TNode>(inputTable);
+        writer->AddRow(TNode()("key", 1));
+        writer->Finish();
+
+        UNIT_ASSERT_EXCEPTION_CONTAINS(
+            client->Map(
+                TMapOperationSpec()
+                    .AddInput<TNode>(inputTable)
+                    .AddOutput<TNode>(workingDir + "/output")
+                    .MapperSpec(TUserJobSpec().JobTimeLimit(TDuration::Seconds(2))),
+                new TSleepingMapper(TDuration::Seconds(3))),
+            TOperationFailedError,
+            "Job time limit exceeded");
+    }
+
 } // Y_UNIT_TEST_SUITE(Operations)
 
 ////////////////////////////////////////////////////////////////////////////////
