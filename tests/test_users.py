@@ -64,3 +64,25 @@ class TestUsers(object):
             for id in ["everyone"]:
                 with pytest.raises(YpInvalidObjectIdError):
                     yp_client.create_object(type, attributes={"meta": {"id": id}})
+
+    # Subject creation / removal internally affects not only corresponding object table,
+    # but also technical tables (for example, subject_to_type table).
+    # So we provide additional tests of removal and creation in transaction.
+    def test_create_remove_in_transaction(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        subject_id = "subject1"
+
+        transaction_id = yp_client.start_transaction()
+        yp_client.create_object(
+            "user",
+            attributes=dict(meta=dict(id=subject_id)),
+            transaction_id=transaction_id,
+        )
+        yp_client.remove_object("user", subject_id, transaction_id=transaction_id)
+        yp_client.commit_transaction(transaction_id)
+
+        yp_client.create_object("group", attributes=dict(meta=dict(id=subject_id)))
+        assert subject_id == yp_client.get_object("group", subject_id, selectors=["/meta/id"])[0]
+        with pytest.raises(YtResponseError):
+            yp_client.get_object("user", subject_id, selectors=["/meta/id"])

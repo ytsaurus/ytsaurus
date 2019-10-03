@@ -1,4 +1,4 @@
-from yp.common import YtResponseError
+from yp.common import YtResponseError, YpNoSuchObjectError
 
 from yt.yson import YsonEntity
 
@@ -111,3 +111,112 @@ class TestAnnotations(object):
         yp_client.commit_transaction(tx_id)
 
         assert yp_client.get_object("pod_set", id, selectors=["/annotations"]) == [{"hello": "yp", "extra": "value2"}]
+
+    def test_remove_create_object_in_tx(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        annotations = dict(hello="world")
+
+        def validate(pod_set_id):
+            assert annotations == \
+                yp_client.get_object("pod_set", pod_set_id, selectors=["/annotations"])[0]
+
+        def create_pod_set(pod_set_id, transaction_id=None):
+            yp_client.create_object(
+                "pod_set",
+                attributes=dict(
+                    meta=dict(id=pod_set_id),
+                    annotations=annotations,
+                ),
+                transaction_id=transaction_id,
+            )
+
+        pod_set_id = "pod_set_id"
+        create_pod_set(pod_set_id)
+        tx_id = yp_client.start_transaction()
+        yp_client.remove_object("pod_set", pod_set_id, transaction_id=tx_id)
+        create_pod_set(pod_set_id, tx_id)
+        yp_client.commit_transaction(tx_id)
+        validate(pod_set_id)
+
+        pod_set_id2 = "pod_set_id2"
+        tx_id = yp_client.start_transaction()
+        create_pod_set(pod_set_id2, tx_id)
+        yp_client.remove_object("pod_set", pod_set_id2, transaction_id=tx_id)
+        create_pod_set(pod_set_id2, tx_id)
+        yp_client.commit_transaction(tx_id)
+        validate(pod_set_id2)
+
+        pod_set_id3 = "pod_set_id3"
+        tx_id = yp_client.start_transaction()
+        create_pod_set(pod_set_id3, tx_id)
+        yp_client.remove_object("pod_set", pod_set_id3, transaction_id=tx_id)
+        create_pod_set(pod_set_id3, tx_id)
+        yp_client.remove_object("pod_set", pod_set_id3, transaction_id=tx_id)
+        yp_client.commit_transaction(tx_id)
+        with pytest.raises(YpNoSuchObjectError):
+            validate(pod_set_id3)
+
+        pod_set_id4 = "pod_set_id4"
+        tx_id = yp_client.start_transaction()
+        create_pod_set(pod_set_id4, tx_id)
+        yp_client.remove_object("pod_set", pod_set_id4, transaction_id=tx_id)
+        create_pod_set(pod_set_id4, tx_id)
+        yp_client.remove_object("pod_set", pod_set_id4, transaction_id=tx_id)
+        create_pod_set(pod_set_id4, tx_id)
+        yp_client.commit_transaction(tx_id)
+        validate(pod_set_id4)
+
+    @pytest.mark.parametrize("remove_type", ("by-key", "all"))
+    def test_remove_set_in_tx(self, yp_env, remove_type):
+        yp_client = yp_env.yp_client
+
+        pod_set_id = "pod_set_id"
+
+        yp_client.create_object(
+            "pod_set",
+            attributes=dict(
+                meta=dict(id=pod_set_id),
+                annotations=dict(hello="world"),
+            ),
+        )
+
+        tx_id = yp_client.start_transaction()
+        if remove_type == "by-key":
+            yp_client.update_object(
+                "pod_set",
+                pod_set_id,
+                remove_updates=[
+                    dict(path="/annotations/hello"),
+                ],
+                transaction_id=tx_id,
+            )
+        else:
+            assert "all" == remove_type
+            yp_client.update_object(
+                "pod_set",
+                pod_set_id,
+                set_updates=[
+                    dict(
+                        path="/annotations",
+                        value=dict(),
+                    ),
+                ],
+                transaction_id=tx_id,
+            )
+
+        yp_client.update_object(
+            "pod_set",
+            pod_set_id,
+            set_updates=[
+                dict(
+                    path="/annotations/hello",
+                    value="world2",
+                ),
+            ],
+            transaction_id=tx_id,
+        )
+
+        yp_client.commit_transaction(tx_id)
+
+        assert "world2" == yp_client.get_object("pod_set", pod_set_id, selectors=["/annotations/hello"])[0]

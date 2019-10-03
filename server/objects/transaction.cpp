@@ -1475,7 +1475,7 @@ private:
         {
             YT_ASSERT(key.Size() == table->Key.size());
             YT_ASSERT(fields.Size() == values.Size());
-            WriteRequests_[table].push_back(TWriteRequest{
+            Requests_[table].push_back(TWriteRequest{
                 CaptureKey(key),
                 SmallVector<const TDBField*, 4>(fields.begin(), fields.end()),
                 SmallVector<TUnversionedValue, 4>(values.begin(), values.end())
@@ -1487,7 +1487,7 @@ private:
             TRange<TUnversionedValue> key) override
         {
             YT_ASSERT(key.Size() == table->Key.size());
-            DeleteRequests_[table].push_back(TDeleteRequest{
+            Requests_[table].push_back(TDeleteRequest{
                 CaptureKey(key)
             });
         }
@@ -1496,85 +1496,89 @@ private:
         {
             const auto& Logger = Transaction_->Logger;
 
-            for (const auto& pair : WriteRequests_) {
+            THashMap<const TDBField*, int> fieldToId;
+            SmallVector<const TDBField*, 64> idToField;
+
+            std::vector<TRowModification> modifications;
+            for (const auto& pair : Requests_) {
                 const auto* table = pair.first;
-
-                auto path = GetTablePath(table);
-
-                auto nameTable = BuildNameTable(table);
-
-                THashMap<const TDBField*, int> fieldToId;
-                SmallVector<const TDBField*, 64> idToField;
-
                 const auto& requests = pair.second;
 
-                for (const auto& request : requests) {
-                    for (const auto* field : request.Fields) {
-                        auto it = fieldToId.find(field);
-                        if (it == fieldToId.end()) {
-                            YT_VERIFY(fieldToId.emplace(field, nameTable->RegisterName(field->Name)).second);
-                            idToField.push_back(field);
-                        }
-                    }
-                }
-
-                std::vector<TUnversionedRow> rows;
-                rows.reserve(requests.size());
-
-                for (const auto& request : requests) {
-                    auto row = RowBuffer_->AllocateUnversioned(table->Key.size() + request.Fields.size());
-                    for (size_t index = 0; index < table->Key.size(); ++index) {
-                        row[index] = request.Key[index];
-                        row[index].Id = index;
-                    }
-                    for (size_t index = 0; index < request.Fields.size(); ++index) {
-                        auto& value = row[index + table->Key.size()];
-                        value = request.Values[index];
-                        value.Id = fieldToId[request.Fields[index]];
-                    }
-                    rows.push_back(row);
-                    YT_LOG_DEBUG("Executing write (Path: %v, Columns: %v, Row: %v)",
-                        path,
-                        MakeFormattableView(MakeRange(row.Begin() + table->Key.size(), row.End()), [&] (TStringBuilderBase* builder, const auto& value) {
-                            FormatValue(builder, idToField[value.Id - table->Key.size()]->Name, TStringBuf());
-                        }),
-                        row);
-                }
-
-                transaction->WriteRows(
-                    path,
-                    std::move(nameTable),
-                    MakeSharedRange(std::move(rows), RowBuffer_));
-            }
-
-            for (const auto& pair : DeleteRequests_) {
-                const auto* table = pair.first;
-
                 auto path = GetTablePath(table);
-
                 auto nameTable = BuildNameTable(table);
 
-                const auto& requests = pair.second;
-
-                std::vector<TKey> keys;
-                keys.reserve(requests.size());
-
-                for (const auto& request : requests) {
-                    auto key = RowBuffer_->AllocateUnversioned(table->Key.size());
-                    for (size_t index = 0; index < table->Key.size(); ++index) {
-                        key[index] = request.Key[index];
-                        key[index].Id = index;
-                    }
-                    keys.push_back(key);
-                    YT_LOG_DEBUG("Executing delete (Path: %v, Key: %v)",
-                        path,
-                        key);
+                fieldToId.clear();
+                idToField.clear();
+                for (const auto& variantRequest : requests) {
+                    Visit(variantRequest,
+                        [&] (const TWriteRequest& request) {
+                            for (const auto* field : request.Fields) {
+                                auto it = fieldToId.find(field);
+                                if (it == fieldToId.end()) {
+                                    YT_VERIFY(fieldToId.emplace(
+                                        field,
+                                        nameTable->RegisterName(field->Name)).second);
+                                    idToField.push_back(field);
+                                }
+                            }
+                        },
+                        [&] (const TDeleteRequest& /*request*/) {
+                            // Nothing to do: all key fields are already in the name table.
+                        });
                 }
 
-                transaction->DeleteRows(
+                modifications.clear();
+                modifications.reserve(requests.size());
+                for (const auto& variantRequest : requests) {
+                    Visit(variantRequest,
+                        [&] (const TWriteRequest& request) {
+                            auto row = RowBuffer_->AllocateUnversioned(
+                                table->Key.size() + request.Fields.size());
+                            for (size_t index = 0; index < table->Key.size(); ++index) {
+                                row[index] = request.Key[index];
+                                row[index].Id = index; // Implicit call to the name table.
+                            }
+                            for (size_t index = 0; index < request.Fields.size(); ++index) {
+                                auto& value = row[index + table->Key.size()];
+                                value = request.Values[index];
+                                value.Id = fieldToId[request.Fields[index]];
+                            }
+                            YT_LOG_DEBUG("Executing write (Path: %v, Columns: %v, Row: %v)",
+                                path,
+                                MakeFormattableView(
+                                    MakeRange(row.Begin() + table->Key.size(), row.End()),
+                                    [&] (TStringBuilderBase* builder, const auto& value) {
+                                        FormatValue(
+                                            builder,
+                                            idToField[value.Id - table->Key.size()]->Name,
+                                            TStringBuf());
+                                    }),
+                                row);
+                            modifications.push_back({
+                                ERowModificationType::Write,
+                                row.ToTypeErasedRow(),
+                                TLockMask()});
+                        },
+                        [&] (const TDeleteRequest& request) {
+                            auto key = RowBuffer_->AllocateUnversioned(table->Key.size());
+                            for (size_t index = 0; index < table->Key.size(); ++index) {
+                                key[index] = request.Key[index];
+                                key[index].Id = index; // Implicit call to the name table.
+                            }
+                            YT_LOG_DEBUG("Executing delete (Path: %v, Key: %v)",
+                                path,
+                                key);
+                            modifications.push_back({
+                                ERowModificationType::Delete,
+                                key.ToTypeErasedRow(),
+                                TLockMask()});
+                        });
+                }
+
+                transaction->ModifyRows(
                     path,
                     std::move(nameTable),
-                    MakeSharedRange(std::move(keys), RowBuffer_));
+                    MakeSharedRange(std::move(modifications), RowBuffer_));
             }
         }
 
@@ -1586,14 +1590,14 @@ private:
             SmallVector<TUnversionedValue, 4> Values;
         };
 
-        THashMap<const TDBTable*, std::vector<TWriteRequest>> WriteRequests_;
-
         struct TDeleteRequest
         {
             TKey Key;
         };
 
-        THashMap<const TDBTable*, std::vector<TDeleteRequest>> DeleteRequests_;
+        using TRequest = std::variant<TWriteRequest, TDeleteRequest>;
+
+        THashMap<const TDBTable*, std::vector<TRequest>> Requests_;
 
 
         TYPath GetTablePath(const TDBTable* table)
@@ -1965,7 +1969,7 @@ private:
 
                 auto* typeHandler = object->GetTypeHandler();
 
-                // Delete previous incarnation, of any.
+                // Delete previous incarnation (if any).
                 context.DeleteRow(
                     typeHandler->GetTable(),
                     CaptureCompositeObjectKey(object, context.GetRowBuffer()));
