@@ -272,7 +272,7 @@ message TRspStartTransaction
     required uint64 start_timestamp = 2;
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqPingTransaction
 {
@@ -285,7 +285,7 @@ message TRspPingTransaction
 {
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqCommitTransaction
 {
@@ -299,7 +299,7 @@ message TRspCommitTransaction
     optional NHiveClient.NProto.TTimestampMap commit_timestamps = 1;
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqAbortTransaction
 {
@@ -312,7 +312,7 @@ message TRspAbortTransaction
 {
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqLookupRows
 {
@@ -336,7 +336,7 @@ message TRspLookupRows
     required TRowsetDescriptor rowset_descriptor = 200;
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TRetentionConfig
 {
@@ -371,7 +371,7 @@ message TRspVersionedLookupRows
     required TRowsetDescriptor rowset_descriptor = 200;
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TQueryStatistics
 {
@@ -421,7 +421,7 @@ message TRspSelectRows
     optional TQueryStatistics statistics = 201;
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqGetInSyncReplicas
 {
@@ -437,7 +437,7 @@ message TRspGetInSyncReplicas
     repeated NYT.NProto.TGuid replica_ids = 1;
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqGetTabletInfos
 {
@@ -457,7 +457,7 @@ message TRspGetTabletInfos
     repeated TTabletInfo tablets = 1;
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqModifyRows
 {
@@ -482,7 +482,7 @@ message TRspModifyRows
 {
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 // Actual ModifyRows requests are passed as attachments: one for subrequest's
 // protobuf header, then its own attachments.
@@ -498,7 +498,7 @@ message TRspBatchModifyRows
 {
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqBuildSnapshot
 {
@@ -512,7 +512,7 @@ message TRspBuildSnapshot
     required int64 snapshot_id = 1;
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqGCCollect
 {
@@ -625,7 +625,7 @@ message TRspExistsNode
     required bool exists = 1;
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqGetNode
 {
@@ -645,7 +645,7 @@ message TRspGetNode
     required bytes value = 1; // YSON
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqListNode
 {
@@ -665,7 +665,7 @@ message TRspListNode
     required bytes value = 1; // YSON
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqCreateObject
 {
@@ -679,7 +679,7 @@ message TRspCreateObject
     required NYT.NProto.TGuid object_id = 1;
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TColumnSchema
 {
@@ -736,7 +736,7 @@ message TRspGetTableMountInfo
     repeated TReplicaInfo replicas = 6;
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqCreateNode
 {
@@ -758,7 +758,7 @@ message TRspCreateNode
     required NYT.NProto.TGuid node_id = 1;
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqRemoveNode
 {
@@ -776,7 +776,7 @@ message TRspRemoveNode
 {
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqSetNode
 {
@@ -795,7 +795,7 @@ message TRspSetNode
 {
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqLockNode
 {
@@ -817,7 +817,7 @@ message TRspLockNode
     required NYT.NProto.TGuid lock_id = 2;
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqUnlockNode
 {
@@ -832,7 +832,7 @@ message TRspUnlockNode
 {
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqCopyNode
 {
@@ -842,8 +842,9 @@ message TReqCopyNode
     optional bool recursive = 3 [default = false];
     optional bool force = 4 [default = false];
     optional bool preserve_account = 5 [default = false];
-    optional bool preserve_expiration_time = 6 [default = false];
     optional bool preserve_creation_time = 7 [default = false];
+    optional bool preserve_modification_time = 10 [default = false];
+    optional bool preserve_expiration_time = 6 [default = false];
     optional bool ignore_existing = 8 [default = false];
     optional bool pessimistic_quota_check = 9 [default = true];
 
@@ -857,7 +858,7 @@ message TRspCopyNode
     required NYT.NProto.TGuid node_id = 1;
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqMoveNode
 {
@@ -867,6 +868,8 @@ message TReqMoveNode
     optional bool recursive = 3 [default = false];
     optional bool force = 4 [default = false];
     optional bool preserve_account = 5 [default = false];
+    optional bool preserve_creation_time = 8 [default = false];
+    optional bool preserve_modification_time = 9 [default = false];
     optional bool preserve_expiration_time = 6 [default = false];
     optional bool pessimistic_quota_check = 7 [default = true];
 
@@ -880,7 +883,7 @@ message TRspMoveNode
     required NYT.NProto.TGuid node_id = 1;
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqLinkNode
 {
@@ -901,7 +904,7 @@ message TRspLinkNode
     required NYT.NProto.TGuid node_id = 1;
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqConcatenateNodes
 {
@@ -917,7 +920,21 @@ message TRspConcatenateNodes
 {
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqExternalizeNode
+{
+    required string path = 1; // YPath
+    required int32 cell_tag = 2;
+
+    optional TTransactionalOptions transactional_options = 100;
+}
+
+message TRspExternalizeNode
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqAttachTransaction
 {
@@ -962,7 +979,7 @@ message TRspMountTable
 {
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqUnmountTable
 {
@@ -978,7 +995,7 @@ message TRspUnmountTable
 {
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqRemountTable
 {
@@ -992,7 +1009,7 @@ message TRspRemountTable
 {
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqFreezeTable
 {
@@ -1006,7 +1023,7 @@ message TRspFreezeTable
 {
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqUnfreezeTable
 {
@@ -1020,7 +1037,7 @@ message TRspUnfreezeTable
 {
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqReshardTable
 {
@@ -1038,7 +1055,7 @@ message TRspReshardTable
 {
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqReshardTableAutomatic
 {
@@ -1054,7 +1071,7 @@ message TRspReshardTableAutomatic
     repeated NYT.NProto.TGuid tablet_actions = 1;
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqTrimTable
 {
@@ -1069,7 +1086,7 @@ message TRspTrimTable
 {
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqAlterTable
 {
@@ -1089,7 +1106,7 @@ message TRspAlterTable
 {
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqAlterTableReplica
 {
@@ -1105,24 +1122,24 @@ message TRspAlterTableReplica
 {
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqGetColumnarStatistics
 {
-    message FetchChunkSpec
+    message TFetchChunkSpec
     {
         optional int32 max_chunk_per_fetch = 1 [default = 100000];
         optional int32 max_chunk_per_locate_request = 2 [default = 10000];
     }
 
-    message Fetcher
+    message TFetcher
     {
         optional uint64 node_rpc_timeout = 1 [default = 30000000]; // TDuration, 30 seconds by default
     }
 
     repeated string path = 1; // RichYPath
-    required FetchChunkSpec fetch_chunk_spec = 2;
-    required Fetcher fetcher = 3;
+    required TFetchChunkSpec fetch_chunk_spec = 2;
+    required TFetcher fetcher = 3;
 
     optional TTransactionalOptions transactional_options = 100;
 }
@@ -1140,7 +1157,7 @@ message TRspGetColumnarStatistics
     repeated TColumnarStatistics statistics = 1;
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqBalanceTabletCells
 {
@@ -1174,7 +1191,7 @@ message TRspGetFileFromCache
     required TGetFileFromCacheResult result = 1;
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqPutFileToCache
 {
@@ -1211,7 +1228,7 @@ message TRspStartOperation
     required NYT.NProto.TGuid operation_id = 1;
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqAbortOperation
 {
@@ -1226,7 +1243,7 @@ message TRspAbortOperation
 {
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqSuspendOperation
 {
@@ -1241,7 +1258,7 @@ message TRspSuspendOperation
 {
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqResumeOperation
 {
@@ -1255,7 +1272,7 @@ message TRspResumeOperation
 {
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqCompleteOperation
 {
@@ -1268,7 +1285,7 @@ message TRspCompleteOperation
 {
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqUpdateOperationParameters
 {
@@ -1283,7 +1300,7 @@ message TRspUpdateOperationParameters
 {
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqGetOperation
 {
@@ -1303,7 +1320,7 @@ message TRspGetOperation
     required bytes meta = 1; // YSON
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqListOperations
 {
@@ -1376,7 +1393,7 @@ message TRspListJobs
     required TListJobsResult result = 1;
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqGetJob
 {
@@ -1391,7 +1408,7 @@ message TRspGetJob
     required bytes info = 1; // YSON
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqStraceJob
 {
@@ -1403,7 +1420,7 @@ message TRspStraceJob
     required bytes trace = 1; // YSON
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqGetJobInputPaths
 {
@@ -1415,7 +1432,7 @@ message TRspGetJobInputPaths
     required bytes paths = 1; // YSON
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqGetJobStderr
 {
@@ -1427,7 +1444,7 @@ message TRspGetJobStderr
 {
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqGetJobFailContext
 {
@@ -1439,7 +1456,7 @@ message TRspGetJobFailContext
 {
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqDumpJobContext
 {
@@ -1451,7 +1468,7 @@ message TRspDumpJobContext
 {
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqSignalJob
 {
@@ -1463,7 +1480,7 @@ message TRspSignalJob
 {
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqAbandonJob
 {
@@ -1474,7 +1491,7 @@ message TRspAbandonJob
 {
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqPollJobShell
 {
@@ -1487,7 +1504,7 @@ message TRspPollJobShell
     required bytes result = 1; // YSON
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqAbortJob
 {
@@ -1524,7 +1541,7 @@ message TRspReadFile
 {
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqWriteFile
 {
@@ -1541,7 +1558,7 @@ message TRspWriteFile
 {
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqReadJournal
 {
@@ -1559,7 +1576,7 @@ message TRspReadJournal
 {
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqWriteJournal
 {
@@ -1576,7 +1593,7 @@ message TRspWriteJournal
 {
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqReadTable
 {
@@ -1610,7 +1627,7 @@ message TRspReadTable
 {
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqWriteTable
 {
@@ -1630,7 +1647,7 @@ message TRspWriteTable
 {
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqGetJobInput
 {
@@ -1658,7 +1675,7 @@ message TRspAddMember
 {
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqRemoveMember
 {
@@ -1673,7 +1690,7 @@ message TRspRemoveMember
 {
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqCheckPermission
 {
@@ -1703,7 +1720,7 @@ message TRspCheckPermission
     optional TColumns columns = 2;
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqCheckPermissionByAcl
 {
@@ -1817,16 +1834,16 @@ message TListOperationsResult
     optional bool incomplete = 7 [default = false];
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TJob
 {
-    required NYT.NProto.TGuid id = 1;
-    required EJobType type = 2;
-    required EJobState state = 3;
-    required uint64 start_time = 4; // TInstant
+    optional NYT.NProto.TGuid id = 1;
+    optional EJobType type = 2;
+    optional EJobState state = 3;
+    optional uint64 start_time = 4; // TInstant
     optional uint64 finish_time = 5; // TInstant
-    required string address = 6;
+    optional string address = 6;
     optional double progress = 7;
     optional uint64 stderr_size = 8;
     optional uint64 fail_context_size = 9;
@@ -1875,21 +1892,21 @@ message TListJobsResult
     repeated NYT.NProto.TError errors = 6;
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TGetFileFromCacheResult
 {
     required string path = 1; // YPath
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TPutFileToCacheResult
 {
     required string path = 1; // YPath
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TCheckPermissionResult
 {
@@ -1900,7 +1917,7 @@ message TCheckPermissionResult
     optional string subject_name = 5;
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
 
 message TCheckPermissionByAclResult
 {

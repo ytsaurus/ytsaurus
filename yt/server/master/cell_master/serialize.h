@@ -95,6 +95,8 @@ DEFINE_ENUM(EMasterReign,
     ((SyncCellsBeforeRemoval)                                        (913))  // babenko
     ((RequestLimits)                                                 (914))  // aozeritsky
     ((TwoSidedPortalRemoval)                                         (915))  // babenko
+    ((YT_10745_Annotation)                                           (916))  // avmatrosov
+    ((ReplicateConfigToNewCellFirst)                                 (917))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////

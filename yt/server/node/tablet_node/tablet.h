@@ -222,6 +222,7 @@ struct TTabletCounters
     TTabletCounters(const NProfiling::TTagIdList& list);
 
     NProfiling::TAggregateGauge OverlappingStoreCount;
+    NProfiling::TAggregateGauge EdenStoreCount;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -473,6 +474,8 @@ public:
     void ReconfigureThrottlers();
 
     const TString& GetLoggingId() const;
+
+    int GetEdenStoreCount() const;
 
 private:
     TTableMountConfigPtr Config_;

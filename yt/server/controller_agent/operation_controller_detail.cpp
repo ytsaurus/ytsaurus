@@ -66,6 +66,9 @@
 #include <yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/ytlib/object_client/helpers.h>
 
+#include <yt/ytlib/cell_master_client/cell_directory.h>
+#include <yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
+
 #include <yt/client/chunk_client/data_statistics.h>
 
 #include <yt/client/object_client/helpers.h>
@@ -94,6 +97,8 @@
 #include <yt/core/misc/finally.h>
 #include <yt/core/misc/fs.h>
 #include <yt/core/misc/numeric_helpers.h>
+
+#include <yt/core/re2/re2.h>
 
 #include <yt/core/profiling/timing.h>
 #include <yt/core/profiling/profiler.h>
@@ -1222,11 +1227,25 @@ TFuture<ITransactionPtr> TOperationControllerBase::StartTransaction(
 
 void TOperationControllerBase::PickIntermediateDataCell()
 {
-    auto connection = OutputClient->GetNativeConnection();
-    const auto& secondaryCellTags = connection->GetSecondaryMasterCellTags();
-    IntermediateOutputCellTag = secondaryCellTags.empty()
-        ? connection->GetPrimaryMasterCellTag()
-        : secondaryCellTags[rand() % secondaryCellTags.size()];
+    const auto& connection = OutputClient->GetNativeConnection();
+
+    YT_LOG_DEBUG("Started synchronizing master cell directory");
+    const auto& cellDirectorySynchronizer = connection->GetMasterCellDirectorySynchronizer();
+    WaitFor(cellDirectorySynchronizer->RecentSync())
+        .ThrowOnError();
+    YT_LOG_DEBUG("Master cell directory synchronized successfully");
+
+    const auto& cellDirectory = connection->GetMasterCellDirectory();
+    auto cellId = cellDirectory->PickRandomMasterCellWithRole(NCellMasterClient::EMasterCellRoles::ChunkHost);
+
+    if (!cellId) {
+        THROW_ERROR_EXCEPTION("No master cells capable of hosting chunks are known");
+    }
+
+    IntermediateOutputCellTag = CellTagFromId(cellId);
+
+    YT_LOG_DEBUG("Intermediate data cell picked (CellTag: %v)",
+        IntermediateOutputCellTag);
 }
 
 void TOperationControllerBase::InitChunkListPools()
@@ -1343,7 +1362,8 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate, do
             YT_ABORT();
     }
     i64 desiredChunkSize = autoMergeSpec->JobIO->TableWriter->DesiredChunkSize;
-    i64 desiredChunkDataWeight = std::max<i64>(1, desiredChunkSize / InputCompressionRatio);
+    auto upperWeightLimit = std::min<i64>(autoMergeSpec->JobIO->TableWriter->DesiredChunkWeight, Spec_->MaxDataWeightPerJob / 2);
+    i64 desiredChunkDataWeight = std::clamp<i64>(desiredChunkSize / InputCompressionRatio, 1, upperWeightLimit);
     i64 dataWeightPerJob = desiredChunkDataWeight;
 
     // NB: if row count limit is set on any output table, we do not
@@ -1667,8 +1687,7 @@ void TOperationControllerBase::LockOutputDynamicTables()
         auto batchReq = proxy.ExecuteBatch();
 
         for (const auto& table : tables) {
-            auto objectIdPath = FromObjectId(table->ObjectId);
-            auto req = TTableYPathProxy::LockDynamicTable(objectIdPath);
+            auto req = TTableYPathProxy::LockDynamicTable(table->GetObjectIdPath());
             req->set_timestamp(currentTimestamp);
             AddCellTagToSyncWith(req, table->ObjectId);
             SetTransactionId(req, table->ExternalTransactionId);
@@ -2982,22 +3001,26 @@ bool TOperationControllerBase::AreForeignTablesSupported() const
 
 bool TOperationControllerBase::IsOutputLivePreviewSupported() const
 {
-    return !IsLivePreviewSuppressed && DoCheckOutputLivePreviewSupported();
+    return !IsLegacyLivePreviewSuppressed &&
+        (GetLegacyOutputLivePreviewMode() == ELegacyLivePreviewMode::DoNotCare ||
+        GetLegacyOutputLivePreviewMode() == ELegacyLivePreviewMode::ExplicitlyEnabled);
 }
 
 bool TOperationControllerBase::IsIntermediateLivePreviewSupported() const
 {
-    return !IsLivePreviewSuppressed && DoCheckIntermediateLivePreviewSupported();
+    return !IsLegacyLivePreviewSuppressed &&
+        (GetLegacyIntermediateLivePreviewMode() == ELegacyLivePreviewMode::DoNotCare ||
+        GetLegacyIntermediateLivePreviewMode() == ELegacyLivePreviewMode::ExplicitlyEnabled);
 }
 
-bool TOperationControllerBase::DoCheckOutputLivePreviewSupported() const
+ELegacyLivePreviewMode TOperationControllerBase::GetLegacyOutputLivePreviewMode() const
 {
-    return false;
+    return ELegacyLivePreviewMode::NotSupported;
 }
 
-bool TOperationControllerBase::DoCheckIntermediateLivePreviewSupported() const
+ELegacyLivePreviewMode TOperationControllerBase::GetLegacyIntermediateLivePreviewMode() const
 {
-    return false;
+    return ELegacyLivePreviewMode::NotSupported;
 }
 
 void TOperationControllerBase::OnTransactionsAborted(const std::vector<TTransactionId>& transactionIds)
@@ -4581,20 +4604,73 @@ bool TOperationControllerBase::IsFinished() const
 
 void TOperationControllerBase::SuppressLivePreviewIfNeeded()
 {
-    IsLivePreviewSuppressed = false;
+    if (GetLegacyOutputLivePreviewMode() == ELegacyLivePreviewMode::NotSupported &&
+        GetLegacyIntermediateLivePreviewMode() == ELegacyLivePreviewMode::NotSupported)
+    {
+        YT_LOG_INFO("Legacy live preview is not supported for this operation");
+        return;
+    }
 
+    std::vector<TError> suppressionErrors;
+
+    const auto& connection = Host->GetClient()->GetNativeConnection();
     for (const auto& table : OutputTables_) {
         if (table->Dynamic) {
-            IsLivePreviewSuppressed = true;
-            return;
+            suppressionErrors.emplace_back("Output table %v is dynamic", ToString(table->Path, EYsonFormat::Text));
+            break;
         }
     }
 
+    for (const auto& table : OutputTables_) {
+        if (table->ExternalCellTag == connection->GetPrimaryMasterCellTag() &&
+            !connection->GetSecondaryMasterCellTags().empty())
+        {
+            suppressionErrors.emplace_back(
+                "Output table %v is non-external and cluster is multicell",
+                ToString(table->Path, EYsonFormat::Text));
+            break;
+        }
+    }
+
+    // TODO(ifsmirnov): YT-11498. This is not the suppression you are looking for.
     for (const auto& table : InputTables_) {
         if (table->Schema.HasNontrivialSchemaModification()) {
-            IsLivePreviewSuppressed = true;
-            return;
+            suppressionErrors.emplace_back(
+                "Input table %v has non-trivial schema modification",
+                ToString(table->Path, EYsonFormat::Text));
+            break;
         }
+    }
+
+    if (GetLegacyOutputLivePreviewMode() == ELegacyLivePreviewMode::DoNotCare ||
+        GetLegacyIntermediateLivePreviewMode() == ELegacyLivePreviewMode::DoNotCare)
+    {
+        // Some live preview normally should appear, but user did not request anything explicitly.
+        // We should check if user is not in legacy live preview blacklist in order to inform him
+        // if he is in a blacklist.
+        if (NRe2::TRe2::FullMatch(
+            NRe2::StringPiece(AuthenticatedUser.data()),
+            *Config->LegacyLivePreviewUserBlacklist))
+        {
+            suppressionErrors.emplace_back(TError(
+                "User %v belongs to legacy live preview suppression blacklist; in order "
+                "to overcome this suppression reason, explicitly specify use_legacy_live_preview = %%true "
+                "in operation spec", AuthenticatedUser)
+                    << TErrorAttribute(
+                        "legacy_live_preview_blacklist_regex",
+                        Config->LegacyLivePreviewUserBlacklist->pattern()));
+        }
+    }
+
+    if (IsLegacyLivePreviewSuppressed = !suppressionErrors.empty()) {
+        auto combinedSuppressionError = TError("Legacy live preview is suppressed due to the following reasons")
+            << suppressionErrors
+            << TErrorAttribute("output_live_preview_mode", GetLegacyOutputLivePreviewMode())
+            << TErrorAttribute("intermediate_live_preview_mode", GetLegacyIntermediateLivePreviewMode());
+        YT_LOG_INFO("Suppressing live preview due to some reasons (CombinedError: %v)", combinedSuppressionError);
+        SetOperationAlert(EOperationAlertType::LegacyLivePreviewSuppressed, combinedSuppressionError);
+    } else {
+        YT_LOG_INFO("Legacy live preview is not suppressed");
     }
 }
 
@@ -6984,14 +7060,8 @@ void TOperationControllerBase::BuildBriefSpec(TFluentMap fluent) const
     }
 
     fluent
-        .DoIf(Spec_->Title.operator bool(), [&] (TFluentMap fluent) {
-            fluent
-                .Item("title").Value(*Spec_->Title);
-        })
-        .DoIf(Spec_->Alias.operator bool(), [&] (TFluentMap fluent) {
-            fluent
-                .Item("alias").Value(*Spec_->Alias);
-        })
+        .OptionalItem("title", Spec_->Title)
+        .OptionalItem("alias", Spec_->Alias)
         .Item("input_table_paths").ListLimited(inputPaths, 1)
         .Item("output_table_paths").ListLimited(outputPaths, 1);
 }

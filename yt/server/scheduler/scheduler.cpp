@@ -1205,8 +1205,6 @@ public:
         } else if (treeCount == 0) {
             NodeIdsWithoutTree_.insert(nodeId);
         }
-
-        YT_LOG_DEBUG("DoValidateNode (NodeId: %v, Address: %v, TreeCount: %v)", nodeId, address, treeCount);
     }
 
     void ProcessNodesWithoutPoolTreeAlert()
@@ -1842,7 +1840,6 @@ private:
             .DoIf(progress.operator bool(), [&] (TFluentMap fluent) {
                 fluent.Item("progress").Value(progress);
             });
-
     }
 
 
@@ -3152,10 +3149,7 @@ private:
                     fluent
                         .Item("agent_id").Value(agent->GetId());
                 })
-                .DoIf(static_cast<bool>(operation->Alias()), [&] (TFluentMap fluent) {
-                    fluent
-                        .Item("alias").Value(operation->Alias());
-                })
+                .OptionalItem("alias", operation->Alias())
             .EndMap();
     }
 

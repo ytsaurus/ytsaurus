@@ -55,7 +55,8 @@ bool IsRetriableError(const TError& error)
         return true;
     }
     auto code = error.GetCode();
-    return code == NRpc::EErrorCode::RequestQueueSizeLimitExceeded;
+    return code == NRpc::EErrorCode::RequestQueueSizeLimitExceeded ||
+           code == NYT::EErrorCode::Timeout;
 }
 
 bool IsChannelFailureError(const TError& error)
@@ -65,8 +66,7 @@ bool IsChannelFailureError(const TError& error)
            code == NRpc::EErrorCode::Unavailable ||
            code == NRpc::EErrorCode::NoSuchService ||
            code == NRpc::EErrorCode::NoSuchMethod ||
-           code == NRpc::EErrorCode::ProtocolError ||
-           code == NYT::EErrorCode::Timeout;
+           code == NRpc::EErrorCode::ProtocolError;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

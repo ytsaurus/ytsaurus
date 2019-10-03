@@ -1,7 +1,6 @@
 #include "execution_stack.h"
-#include "execution_context.h"
 
-#include <yt/core/misc/serialize.h>
+#include <yt/core/misc/ref.h>
 #include <yt/core/misc/ref_tracked.h>
 
 #if defined(_unix_)
@@ -16,17 +15,19 @@
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/object_pool.h>
 
+#include <util/system/sanitizers.h>
+
 namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 // Stack sizes.
-#ifdef _asan_enabled_
-static constexpr size_t SmallExecutionStackSize = 2_MB;
-static constexpr size_t LargeExecutionStackSize = 64_MB;
+#if defined(_asan_enabled_)
+    static constexpr size_t SmallExecutionStackSize = 2_MB;
+    static constexpr size_t LargeExecutionStackSize = 64_MB;
 #else
-static constexpr size_t SmallExecutionStackSize = 256_KB;
-static constexpr size_t LargeExecutionStackSize = 8_MB;
+    static constexpr size_t SmallExecutionStackSize = 256_KB;
+    static constexpr size_t LargeExecutionStackSize = 8_MB;
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////

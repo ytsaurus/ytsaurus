@@ -1191,7 +1191,7 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList* dynamic
     // Compute min shares sum and min weight.
     double minShareRatioSumForPools = 0.0;
     double minShareRatioSumForOperations = 0.0;
-    double minWeight = 1.0;
+    double minWeight = std::numeric_limits<double>::max();
     for (const auto& child : EnabledChildren_) {
         auto& childAttributes = child->Attributes();
         auto minShareRatio = child->GetMinShareRatio();

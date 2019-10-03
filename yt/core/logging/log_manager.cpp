@@ -8,6 +8,7 @@
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/scheduler_thread.h>
 #include <yt/core/concurrency/thread_affinity.h>
+#include <yt/core/concurrency/invoker_queue.h>
 
 #include <yt/core/misc/hash.h>
 #include <yt/core/misc/lock_free.h>
@@ -659,7 +660,7 @@ private:
 #endif
         }
 
-        virtual EBeginExecuteResult BeginExecute() override
+        virtual TClosure BeginExecute() override
         {
             return Owner_->BeginExecute();
         }
@@ -670,7 +671,7 @@ private:
         }
     };
 
-    EBeginExecuteResult BeginExecute()
+    TClosure BeginExecute()
     {
         VERIFY_THREAD_AFFINITY(LoggingThread);
 
@@ -860,7 +861,7 @@ private:
                     formatter = std::make_unique<TPlainTextLogFormatter>();
                     break;
                 case ELogMessageFormat::Structured:
-                    formatter = std::make_unique<TJsonLogFormatter>();
+                    formatter = std::make_unique<TJsonLogFormatter>(config->CommonFields);
                     break;
                 default:
                     YT_ABORT();

@@ -2,6 +2,8 @@
 
 #include <yt/server/lib/chunk_pools/config.h>
 
+#include <yt/core/re2/re2.h>
+
 namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -635,6 +637,9 @@ TControllerAgentConfig::TControllerAgentConfig()
         .Default(true);
     RegisterParameter("operation_progress_archivation_timeout", OperationProgressArchivationTimeout)
         .Default(TDuration::Seconds(3));
+
+    RegisterParameter("legacy_live_preview_user_blacklist", LegacyLivePreviewUserBlacklist)
+        .DefaultNew("robot-.*");
 
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;

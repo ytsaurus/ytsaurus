@@ -29,7 +29,7 @@ protected:
 
     TEnqueuedAction CurrentAction;
 
-    virtual EBeginExecuteResult BeginExecute() override;
+    virtual TClosure BeginExecute() override;
     virtual void EndExecute() override;
 };
 

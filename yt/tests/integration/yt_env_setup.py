@@ -497,7 +497,7 @@ class YTEnvSetup(object):
     ENABLE_TMP_PORTAL = False
     ENABLE_TABLET_BALANCER = False
 
-    REQUIRE_YTSERVER_ROOT_PRIVILIGES = False
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = False
 
     NUM_REMOTE_CLUSTERS = 0
 
@@ -596,7 +596,7 @@ class YTEnvSetup(object):
     def setup_class(cls, test_name=None, run_id=None):
         logging.basicConfig(level=logging.INFO)
 
-        if cls.get_param("REQUIRE_YTSERVER_ROOT_PRIVILIGES", False):
+        if cls.get_param("REQUIRE_YTSERVER_ROOT_PRIVILEGES", False):
             check_root_privileges()
 
         # Initialize `cls` fields before actual setup to make teardown correct.

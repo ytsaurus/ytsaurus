@@ -55,6 +55,8 @@
 #include <yt/core/rpc/service_detail.h>
 #include <yt/core/rpc/stream.h>
 
+#include <yt/core/tracing/sampler.h>
+
 namespace NYT::NRpcProxy {
 
 using namespace NApi;
@@ -392,13 +394,30 @@ private:
         return address;
     }
 
+    void SetupTracing(const TString& user)
+    {
+        if (auto trace = NTracing::GetCurrentTraceContext()) {
+            trace->AddTag("user", user);
+
+            if (Config_->ForceTracing) {
+                trace->SetSampled();
+            }
+
+            auto sampler = Coordinator_->GetTraceSampler();
+            if (sampler->IsTraceSampled(user)) {
+                trace->SetSampled();
+            }
+        }
+    }
+
     NNative::IClientPtr GetAuthenticatedClientOrThrow(
         const IServiceContextPtr& context,
         const google::protobuf::Message* request)
     {
-        Coordinator_->ValidateOperable();
-
         const auto& user = context->GetUser();
+        SetupTracing(user);
+
+        Coordinator_->ValidateOperable();
 
         // Pretty-printing Protobuf requires a bunch of effort, so we make it conditional.
         if (Config_->VerboseLogging) {
@@ -450,10 +469,13 @@ private:
     }
 
     template <class T>
-    void CompleteCallWith(const IServiceContextPtr& context, TFuture<T>&& future)
+    void CompleteCallWith(
+        NNative::IClientPtr client,
+        IServiceContextPtr context,
+        TFuture<T>&& future)
     {
         future.Subscribe(
-            BIND([context = context] (const TErrorOr<T>& valueOrError) {
+            BIND([client = std::move(client), context = std::move(context)] (const TErrorOr<T>& valueOrError) {
                 if (valueOrError.IsOK()) {
                     // XXX(sandello): This relies on the typed service context implementation.
                     context->Reply(TError());
@@ -465,10 +487,13 @@ private:
     }
 
     template <class TContext, class TResult, class F>
-    void CompleteCallWith(const TIntrusivePtr<TContext>& context, TFuture<TResult>&& future, F&& functor)
+    void CompleteCallWith(
+        NNative::IClientPtr client,
+        const TIntrusivePtr<TContext>& context,
+        TFuture<TResult>&& future, F&& functor)
     {
         future.Subscribe(
-            BIND([context, functor = std::move(functor)] (const TErrorOr<TResult>& valueOrError) {
+            BIND([client = std::move(client), context, functor = std::move(functor)] (const TErrorOr<TResult>& valueOrError) {
                 if (valueOrError.IsOK()) {
                     try {
                         functor(context, valueOrError.Value());
@@ -496,6 +521,7 @@ private:
         const auto& timestampProvider = Bootstrap_->GetNativeConnection()->GetTimestampProvider();
 
         CompleteCallWith(
+            client,
             context,
             timestampProvider->GenerateTimestamps(count),
             [] (const auto& context, const TTimestamp& timestamp) {
@@ -552,6 +578,7 @@ private:
             options.Durability);
 
         CompleteCallWith(
+            client,
             context,
             client->StartTransaction(NTransactionClient::ETransactionType(request->type()), options),
             [options, this_ = MakeStrong(this), this] (const auto& context, const auto& transaction) {
@@ -590,6 +617,7 @@ private:
         TTransactionPingOptions pingOptions;
         pingOptions.EnableRetries = false;
         CompleteCallWith(
+            NNative::IClientPtr(),
             context,
             transaction->Ping(pingOptions));
     }
@@ -613,6 +641,7 @@ private:
 
         // TODO(sandello): Options!
         CompleteCallWith(
+            NNative::IClientPtr(),
             context,
             transaction->Commit(),
             [] (const auto& context, const TTransactionCommitResult& result) {
@@ -643,6 +672,7 @@ private:
 
         // TODO(sandello): Options!
         CompleteCallWith(
+            NNative::IClientPtr(),
             context,
             transaction->Abort());
     }
@@ -701,6 +731,7 @@ private:
             options.IgnoreExisting);
 
         CompleteCallWith(
+            client,
             context,
             client->CreateObject(type, options),
             [] (const auto& context, NObjectClient::TObjectId objectId) {
@@ -721,6 +752,7 @@ private:
 
         const auto& tableMountCache = client->GetTableMountCache();
         CompleteCallWith(
+            client,
             context,
             tableMountCache->GetTableInfo(path),
             [] (const auto& context, const TTableMountInfoPtr& tableMountInfo) {
@@ -779,6 +811,7 @@ private:
             path);
 
         CompleteCallWith(
+            client,
             context,
             client->NodeExists(path, options),
             [] (const auto& context, const bool& result) {
@@ -821,6 +854,7 @@ private:
             path);
 
         CompleteCallWith(
+            client,
             context,
             client->GetNode(path, options),
             [] (const auto& context, const auto& result) {
@@ -860,6 +894,7 @@ private:
             path);
 
         CompleteCallWith(
+            client,
             context,
             client->ListNode(path, options),
             [] (const auto& context, const auto& result) {
@@ -904,6 +939,7 @@ private:
             type);
 
         CompleteCallWith(
+            client,
             context,
             client->CreateNode(path, type, options),
             [] (const auto& context, NCypressClient::TNodeId nodeId) {
@@ -943,6 +979,7 @@ private:
             path);
 
         CompleteCallWith(
+            client,
             context,
             client->RemoveNode(path, options));
     }
@@ -976,6 +1013,7 @@ private:
             path);
 
         CompleteCallWith(
+            client,
             context,
             client->SetNode(path, value, options));
     }
@@ -1013,6 +1051,7 @@ private:
             mode);
 
         CompleteCallWith(
+            client,
             context,
             client->LockNode(path, mode, options),
             [] (const auto& context, const auto& result) {
@@ -1046,7 +1085,10 @@ private:
 
         context->SetRequestInfo("Path: %v", path);
 
-        CompleteCallWith(context, client->UnlockNode(path, options));
+        CompleteCallWith(
+            client,
+            context,
+            client->UnlockNode(path, options));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CopyNode)
@@ -1070,11 +1112,14 @@ private:
         if (request->has_preserve_account()) {
             options.PreserveAccount = request->preserve_account();
         }
-        if (request->has_preserve_expiration_time()) {
-            options.PreserveExpirationTime = request->preserve_expiration_time();
-        }
         if (request->has_preserve_creation_time()) {
             options.PreserveCreationTime = request->preserve_creation_time();
+        }
+        if (request->has_preserve_modification_time()) {
+            options.PreserveModificationTime = request->preserve_modification_time();
+        }
+        if (request->has_preserve_expiration_time()) {
+            options.PreserveExpirationTime = request->preserve_expiration_time();
         }
         if (request->has_pessimistic_quota_check()) {
             options.PessimisticQuotaCheck = request->pessimistic_quota_check();
@@ -1094,6 +1139,7 @@ private:
             dstPath);
 
         CompleteCallWith(
+            client,
             context,
             client->CopyNode(srcPath, dstPath, options),
             [] (const auto& context, NCypressClient::TNodeId nodeId) {
@@ -1123,6 +1169,12 @@ private:
         if (request->has_preserve_account()) {
             options.PreserveAccount = request->preserve_account();
         }
+        if (request->has_preserve_creation_time()) {
+            options.PreserveCreationTime = request->preserve_creation_time();
+        }
+        if (request->has_preserve_modification_time()) {
+            options.PreserveModificationTime = request->preserve_modification_time();
+        }
         if (request->has_preserve_expiration_time()) {
             options.PreserveExpirationTime = request->preserve_expiration_time();
         }
@@ -1144,6 +1196,7 @@ private:
             dstPath);
 
         CompleteCallWith(
+            client,
             context,
             client->MoveNode(srcPath, dstPath, options),
             [] (const auto& context, const auto& nodeId) {
@@ -1188,6 +1241,7 @@ private:
             dstPath);
 
         CompleteCallWith(
+            client,
             context,
             client->LinkNode(
                 srcPath,
@@ -1223,8 +1277,32 @@ private:
             dstPath);
 
         CompleteCallWith(
+            client,
             context,
             client->ConcatenateNodes(srcPaths, dstPath, options));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ExternalizeNode)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        const auto& path = request->path();
+        auto cellTag = request->cell_tag();
+
+        TExternalizeNodeOptions options;
+        SetTimeoutOptions(&options, context.Get());
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
+
+        context->SetRequestInfo("Path: %v, CellTag: %v",
+            path,
+            cellTag);
+
+        CompleteCallWith(
+            client,
+            context,
+            client->ExternalizeNode(path, cellTag, options));
     }
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -1258,6 +1336,7 @@ private:
             path);
 
         CompleteCallWith(
+            client,
             context,
             client->MountTable(path, options));
     }
@@ -1284,6 +1363,7 @@ private:
             path);
 
         CompleteCallWith(
+            client,
             context,
             client->UnmountTable(path, options));
     }
@@ -1307,6 +1387,7 @@ private:
             path);
 
         CompleteCallWith(
+            client,
             context,
             client->RemountTable(path, options));
     }
@@ -1330,6 +1411,7 @@ private:
             path);
 
         CompleteCallWith(
+            client,
             context,
             client->FreezeTable(path, options));
     }
@@ -1353,6 +1435,7 @@ private:
             path);
 
         CompleteCallWith(
+            client,
             context,
             client->UnfreezeTable(path, options));
     }
@@ -1381,6 +1464,7 @@ private:
                 tabletCount);
 
             CompleteCallWith(
+                client,
                 context,
                 client->ReshardTable(path, tabletCount, options));
         } else {
@@ -1397,6 +1481,7 @@ private:
                 keys);
 
             CompleteCallWith(
+                client,
                 context,
                 client->ReshardTable(path, keys, options));
         }
@@ -1421,6 +1506,7 @@ private:
         TFuture<std::vector<TTabletActionId>> result;
 
         CompleteCallWith(
+            client,
             context,
             client->ReshardTableAutomatic(path, options),
             [] (const auto& context, const auto& tabletActions) {
@@ -1446,6 +1532,7 @@ private:
             trimmedRowCount);
 
         CompleteCallWith(
+            client,
             context,
             client->TrimTable(
                 path,
@@ -1485,6 +1572,7 @@ private:
             path);
 
         CompleteCallWith(
+            client,
             context,
             client->AlterTable(path, options));
     }
@@ -1516,6 +1604,7 @@ private:
             options.Mode);
 
         CompleteCallWith(
+            client,
             context,
             client->AlterTableReplica(replicaId, options));
     }
@@ -1537,6 +1626,7 @@ private:
         TFuture<std::vector<TTabletActionId>> result;
 
         CompleteCallWith(
+            client,
             context,
             client->BalanceTabletCells(bundle, tables, options),
             [] (const auto& context, const auto& tabletActions) {
@@ -1567,6 +1657,7 @@ private:
             spec);
 
         CompleteCallWith(
+            client,
             context,
             client->StartOperation(type, spec, options),
             [] (const auto& context, const auto& result) {
@@ -1593,6 +1684,7 @@ private:
             options.AbortMessage);
 
         CompleteCallWith(
+            client,
             context,
             client->AbortOperation(operationIdOrAlias, options));
     }
@@ -1614,6 +1706,7 @@ private:
             options.AbortRunningJobs);
 
         CompleteCallWith(
+            client,
             context,
             client->SuspendOperation(operationIdOrAlias, options));
     }
@@ -1631,6 +1724,7 @@ private:
             operationIdOrAlias);
 
         CompleteCallWith(
+            client,
             context,
             client->ResumeOperation(operationIdOrAlias, options));
     }
@@ -1648,6 +1742,7 @@ private:
             operationIdOrAlias);
 
         CompleteCallWith(
+            client,
             context,
             client->CompleteOperation(operationIdOrAlias, options));
     }
@@ -1668,6 +1763,7 @@ private:
             parameters);
 
         CompleteCallWith(
+            client,
             context,
             client->UpdateOperationParameters(
                 operationIdOrAlias,
@@ -1698,6 +1794,7 @@ private:
             options.IncludeRuntime);
 
         CompleteCallWith(
+            client,
             context,
             client->GetOperation(operationIdOrAlias, options),
             [] (const auto& context, const auto& result) {
@@ -1778,6 +1875,7 @@ private:
             options.SubstrFilter);
 
         CompleteCallWith(
+            client,
             context,
             client->ListOperations(options),
             [] (const auto& context, const auto& result) {
@@ -1852,6 +1950,7 @@ private:
             options.IncludeArchive);
 
         CompleteCallWith(
+            client,
             context,
             client->ListJobs(operationId, options),
             [] (const auto& context, const auto& result) {
@@ -1881,6 +1980,7 @@ private:
             path);
 
         CompleteCallWith(
+            client,
             context,
             client->DumpJobContext(jobId, path, options));
     }
@@ -1913,6 +2013,7 @@ private:
         context->SetRequestInfo("JobId: %v", jobId);
 
         CompleteCallWith(
+            client,
             context,
             client->GetJobInputPaths(jobId, options),
             [] (const auto& context, const auto& result) {
@@ -1936,6 +2037,7 @@ private:
             jobId);
 
         CompleteCallWith(
+            client,
             context,
             client->GetJobStderr(operationId, jobId, options),
             [] (const auto& context, const auto& result) {
@@ -1959,6 +2061,7 @@ private:
             jobId);
 
         CompleteCallWith(
+            client,
             context,
             client->GetJobFailContext(operationId, jobId, options),
             [] (const auto& context, const auto& result) {
@@ -1986,6 +2089,7 @@ private:
             jobId);
 
         CompleteCallWith(
+            client,
             context,
             client->GetJob(operationId, jobId, options),
             [] (const auto& context, const auto& result) {
@@ -2005,6 +2109,7 @@ private:
         context->SetRequestInfo("JobId: %v", jobId);
 
         CompleteCallWith(
+            client,
             context,
             client->StraceJob(jobId, options),
             [] (const auto& context, const auto& result) {
@@ -2028,6 +2133,7 @@ private:
             signalName);
 
         CompleteCallWith(
+            client,
             context,
             client->SignalJob(jobId, signalName, options));
     }
@@ -2043,6 +2149,7 @@ private:
         context->SetRequestInfo("JobId: %v", jobId);
 
         CompleteCallWith(
+            client,
             context,
             client->AbandonJob(jobId, options));
     }
@@ -2062,6 +2169,7 @@ private:
             parameters);
 
         CompleteCallWith(
+            client,
             context,
             client->PollJobShell(jobId, parameters, options),
             [] (const auto& context, const auto& result) {
@@ -2087,6 +2195,7 @@ private:
             options.InterruptTimeout);
 
         CompleteCallWith(
+            client,
             context,
             client->AbortJob(jobId, options));
     }
@@ -2174,6 +2283,7 @@ private:
         }
 
         CompleteCallWith(
+            client,
             context,
             client->LookupRows(
                 path,
@@ -2215,6 +2325,7 @@ private:
         }
 
         CompleteCallWith(
+            client,
             context,
             client->VersionedLookupRows(
                 path,
@@ -2287,6 +2398,7 @@ private:
             options.Timestamp);
 
         CompleteCallWith(
+            client,
             context,
             client->SelectRows(query, options),
             [] (const auto& context, const auto& result) {
@@ -2323,6 +2435,7 @@ private:
             rowset->GetRows().Size());
 
         CompleteCallWith(
+            client,
             context,
             client->GetInSyncReplicas(
                 path,
@@ -2353,6 +2466,7 @@ private:
         SetTimeoutOptions(&options, context.Get());
 
         CompleteCallWith(
+            client,
             context,
             client->GetTabletInfos(
                 path,
@@ -2541,6 +2655,7 @@ private:
             options.WaitForSnapshotCompletion);
 
         CompleteCallWith(
+            client,
             context,
             admin->BuildSnapshot(options),
             [] (const auto& context, int snapshotId) {
@@ -2573,7 +2688,10 @@ private:
 
         context->SetRequestInfo("CellId: %v", options.CellId);
 
-        CompleteCallWith(context, admin->GCCollect(options));
+        CompleteCallWith(
+            nullptr,
+            context,
+            admin->GCCollect(options));
     }
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -2603,8 +2721,9 @@ private:
             options.Retry);
 
         CompleteCallWith(
-                context,
-                client->AddMember(group, member, options));
+            client,
+            context,
+            client->AddMember(group, member, options));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, RemoveMember)
@@ -2630,6 +2749,7 @@ private:
             options.Retry);
 
         CompleteCallWith(
+            client,
             context,
             client->RemoveMember(group, member, options));
     }
@@ -2663,6 +2783,7 @@ private:
             FormatPermissions(permission));
 
         CompleteCallWith(
+            client,
             context,
             client->CheckPermission(user, path, permission, options),
             [] (const auto& context, const auto& checkResponse) {
@@ -2701,6 +2822,7 @@ private:
             FormatPermissions(permission));
 
         CompleteCallWith(
+            client,
             context,
             client->CheckPermissionByAcl(user, permission, acl, options),
             [] (const auto& context, const auto& result) {
@@ -3035,6 +3157,7 @@ private:
             options.CachePath);
 
         CompleteCallWith(
+            client,
             context,
             client->GetFileFromCache(md5, options),
             [] (const auto& context, const auto& result) {
@@ -3076,6 +3199,7 @@ private:
                                 options.CachePath);
 
         CompleteCallWith(
+            client,
             context,
             client->PutFileToCache(path, md5, options),
             [] (const auto& context, const auto& result) {
@@ -3115,6 +3239,7 @@ private:
         context->SetRequestInfo("Path: %v", path);
 
         CompleteCallWith(
+            client,
             context,
             client->GetColumnarStatistics(path, options),
             [] (const auto& context, const auto& result) {

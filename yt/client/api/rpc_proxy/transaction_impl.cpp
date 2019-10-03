@@ -578,6 +578,18 @@ TFuture<void> TTransaction::ConcatenateNodes(
         PatchTransactionId(options));
 }
 
+TFuture<void> TTransaction::ExternalizeNode(
+    const TYPath& path,
+    TCellTag cellTag,
+    const TExternalizeNodeOptions& options)
+{
+    ValidateActive();
+    return Client_->ExternalizeNode(
+        path,
+        cellTag,
+        PatchTransactionId(options));
+}
+
 TFuture<bool> TTransaction::NodeExists(
     const TYPath& path,
     const TNodeExistsOptions& options)

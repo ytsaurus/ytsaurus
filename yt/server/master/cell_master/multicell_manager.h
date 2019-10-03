@@ -74,6 +74,19 @@ public:
 
     void Initialize();
 
+    bool IsPrimaryMaster();
+    bool IsSecondaryMaster();
+    bool IsMulticell();
+
+    NObjectClient::TCellId GetCellId();
+    NObjectClient::TCellId GetCellId(NObjectClient::TCellTag cellTag);
+    NObjectClient::TCellTag GetCellTag();
+ 
+    NObjectClient::TCellId GetPrimaryCellId();
+    NObjectClient::TCellTag GetPrimaryCellTag();
+
+    const NObjectClient::TCellTagList& GetSecondaryCellTags();
+
     void PostToMaster(
         const TCrossCellMessage& message,
         NObjectClient::TCellTag cellTag,

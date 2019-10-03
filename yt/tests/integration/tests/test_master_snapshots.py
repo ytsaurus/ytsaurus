@@ -71,7 +71,7 @@ def check_removed_account():
     for i in xrange(0, 5):
         remove("//tmp/a1_table" + str(i))
 
-    remove_account("a1")
+    remove_account("a1", sync_deletion=False)
 
     yield
 

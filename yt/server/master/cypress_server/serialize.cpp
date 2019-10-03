@@ -22,18 +22,17 @@ using namespace NTransactionServer;
 
 TBeginCopyContext::TBeginCopyContext(
     TTransaction* transaction,
-    bool removeSource)
+    ENodeCloneMode mode)
     : Transaction_(transaction)
-    , RemoveSource_(removeSource)
+    , Mode_(mode)
     , TableSchemaRegistry_(New<TTableSchemaRegistry>())
-    , Stream_(Data_)
 {
     SetOutput(&Stream_);
 }
 
-TString TBeginCopyContext::Finish()
+std::vector<TSharedRef> TBeginCopyContext::Finish()
 {
-    return std::move(Data_);
+    return Stream_.Flush();
 }
 
 TCellTagList TBeginCopyContext::GetExternalCellTags()

@@ -773,7 +773,7 @@ class TestSchedulerCommon(YTEnvSetup):
     NUM_NODES = 16
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
-    REQUIRE_YTSERVER_ROOT_PRIVILIGES = True
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
@@ -1387,7 +1387,7 @@ class TestSchedulerCommon(YTEnvSetup):
 
     @authors("ignat")
     def test_input_with_custom_transaction(self):
-        custom_tx = start_transaction()
+        custom_tx = start_transaction(timeout=30000)
         create("table", "//tmp/in", tx=custom_tx)
         write_table("//tmp/in", {"foo": "bar"}, tx=custom_tx)
 
@@ -1402,7 +1402,7 @@ class TestSchedulerCommon(YTEnvSetup):
 
     @authors("ignat")
     def test_nested_input_transactions(self):
-        custom_tx = start_transaction()
+        custom_tx = start_transaction(timeout=30000)
         create("table", "//tmp/in", tx=custom_tx)
         write_table("//tmp/in", {"foo": "bar"}, tx=custom_tx)
 
@@ -2514,8 +2514,12 @@ class TestSchedulingTags(YTEnvSetup):
 
         running_jobs = list(op.get_running_jobs())
         if running_jobs:
-            abort_job(running_jobs[0])
+            assert(len(running_jobs) == 1)
+            job_id = running_jobs[0]
+            abort_job(job_id)
+            wait(lambda: job_id not in op.get_running_jobs())
 
+        # Just wait some time to be sure that scheduler have not run any other jobs.
         time.sleep(5)
         assert len(op.get_running_jobs()) == 0
         assert op.get_state() == "running"
@@ -3280,7 +3284,17 @@ class TestPoolMetrics(YTEnvSetup):
             "custom_job_metrics": [
                 {
                     "statistics_path": "/user_job/block_io/bytes_written",
-                    "profiling_name": "my_metric"
+                    "profiling_name": "my_metric",
+                },
+                {
+                    "statistics_path": "/user_job/block_io/bytes_written",
+                    "profiling_name": "my_metric_failed",
+                    "job_state_filter": "failed",
+                },
+                {
+                    "statistics_path": "/user_job/block_io/bytes_written",
+                    "profiling_name": "my_metric_completed",
+                    "job_state_filter": "completed",
                 },
                 {
                     "statistics_path": "/custom/value",
@@ -3291,7 +3305,7 @@ class TestPoolMetrics(YTEnvSetup):
                     "statistics_path": "/custom/value",
                     "profiling_name": "my_custom_metric_max",
                     "aggregate_type": "max",
-                }
+                },
             ]
         }
     }
@@ -3348,6 +3362,12 @@ class TestPoolMetrics(YTEnvSetup):
         custom_metric_delta = Metric.at_scheduler(
             "scheduler/pools/metrics/my_metric",
             grouped_by_tags=["pool"])
+        custom_metric_completed_delta = Metric.at_scheduler(
+            "scheduler/pools/metrics/my_metric_completed",
+            grouped_by_tags=["pool"])
+        custom_metric_failed_delta = Metric.at_scheduler(
+            "scheduler/pools/metrics/my_metric_failed",
+            grouped_by_tags=["pool"])
         custom_metric_max_last = Metric.at_scheduler(
             "scheduler/pools/metrics/my_custom_metric_max",
             with_tags={"pool": "child2"},
@@ -3377,7 +3397,7 @@ class TestPoolMetrics(YTEnvSetup):
             spec={"job_count": 2, "pool": "child2"},
         )
 
-        for metric_delta in (usual_metric_delta, custom_metric_delta):
+        for metric_delta in (usual_metric_delta, custom_metric_delta, custom_metric_completed_delta):
             wait(lambda: metric_delta.update().get("parent", verbose=True) > 0)
 
             op11_writes = get_cypress_metrics(op11.id, statistics_name)
@@ -3388,7 +3408,7 @@ class TestPoolMetrics(YTEnvSetup):
             wait(lambda: metric_delta.update().get("child2", verbose=True) == op2_writes > 0)
             wait(lambda: metric_delta.update().get("parent", verbose=True) == op11_writes + op12_writes + op2_writes > 0)
 
-        wait(lambda: custom_metric_delta.update().get("child2", verbose=True) == get_cypress_metrics(op2.id, statistics_name))
+        assert custom_metric_failed_delta.update().get("child2", verbose=True) == 0
 
         wait(lambda: custom_metric_max_last.update().get(verbose=True) == 20)
         wait(lambda: custom_metric_sum_last.update().get(verbose=True) == 110)
@@ -4522,7 +4542,8 @@ class TestNewLivePreview(YTEnvSetup):
 
     @authors("max42")
     def test_disabled_live_preview(self):
-        create_user("u")
+        create_user("robot-root")
+        add_member("robot-root", "superusers")
 
         data = [{"foo": i} for i in range(3)]
 
@@ -4531,20 +4552,41 @@ class TestNewLivePreview(YTEnvSetup):
 
         create("table", "//tmp/t2")
 
-        op = map(
-            wait_for_jobs=True,
-            dont_track=True,
-            command=with_breakpoint("BREAKPOINT ; cat"),
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            spec={"data_size_per_job": 1,
-                  "enable_legacy_live_preview": False})
+        # Run operation with given params and return a tuple (live preview created, suppression alert set)
+        def check_live_preview(enable_legacy_live_preview=None, authenticated_user=None, index=None):
+            op = map(
+                wait_for_jobs=True,
+                dont_track=True,
+                command=with_breakpoint("BREAKPOINT ; cat", breakpoint_name=str(index)),
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                spec={"data_size_per_job": 1, "enable_legacy_live_preview": enable_legacy_live_preview},
+                authenticated_user=authenticated_user)
 
-        wait_breakpoint(job_count=2)
+            wait_breakpoint(job_count=2, breakpoint_name=str(index))
 
-        async_transaction_id = get(op.get_path() + "/@async_scheduler_transaction_id")
-        assert not exists(op.get_path() + "/output_0", tx=async_transaction_id)
+            async_transaction_id = get(op.get_path() + "/@async_scheduler_transaction_id")
+            live_preview_created = exists(op.get_path() + "/output_0", tx=async_transaction_id)
+            suppression_alert_set = "legacy_live_preview_suppressed" in op.get_alerts()
 
+            op.abort()
+
+            return (live_preview_created, suppression_alert_set)
+
+        combinations = [
+            (None, "root", True, False),
+            (True, "root", True, False),
+            (False, "root", False, False),
+            (None, "robot-root", False, True),
+            (True, "robot-root", True, False),
+            (False, "robot-root", False, False)
+        ]
+
+        for i, combination in enumerate(combinations):
+            enable_legacy_live_preview, authenticated_user, live_preview_created, suppression_alert_set = combination
+            assert check_live_preview(enable_legacy_live_preview=enable_legacy_live_preview,
+                                      authenticated_user=authenticated_user,
+                                      index=i) == (live_preview_created, suppression_alert_set)
 
 class TestConnectToMaster(YTEnvSetup):
     NUM_MASTERS = 1
@@ -4793,5 +4835,5 @@ class TestConfigurablePoolTreeRoot(YTEnvSetup):
 
         pools_path = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/tree/fair_share_info/pools"
         wait(lambda: exists(pools_path + "/pool"))
-        assert get(pools_path + "/pool/parent") == "parent"
-        assert get(pools_path + "/pool/max_operation_count") == 10
+        wait(lambda: get(pools_path + "/pool/parent") == "parent")
+        wait(lambda: get(pools_path + "/pool/max_operation_count") == 10)

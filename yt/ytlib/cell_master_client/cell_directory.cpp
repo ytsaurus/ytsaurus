@@ -89,15 +89,20 @@ public:
         return GetMasterChannelOrThrow(kind, CellTagFromId(cellId));
     }
 
-    TCellId PickRandomTransactionCoordinatorMasterCell()
+    TCellId PickRandomMasterCellWithRole(EMasterCellRoles role)
     {
-        auto candidateCells = GetCellsForRole(EMasterCellRoles::TransactionCoordinator);
+        auto candidateCellTags = GetMasterCellTagsWithRole(role);
+        if (candidateCellTags.empty()) {
+            return {};
+        }
+
         size_t randomIndex = 0;
         {
             TReaderGuard guard(SpinLock_);
             randomIndex = RandomGenerator_.Generate<size_t>();
         }
-        auto cellTag = candidateCells[randomIndex % candidateCells.size()];
+
+        auto cellTag = candidateCellTags[randomIndex % candidateCellTags.size()];
         return ReplaceCellTagInId(GetPrimaryMasterCellId(), cellTag);
     }
 
@@ -158,7 +163,7 @@ public:
             cellRoles.emplace(PrimaryMasterCellTag_, primaryMasterCellRole);
             roleCells.clear();
         } else {
-            YT_LOG_FATAL_UNLESS(
+            YT_LOG_WARNING_UNLESS(
                 SecondaryMasterCellTags_ == secondaryCellTags,
                 "Synchronized secondary master cell tag list does not match, connection config is probably incorrect (ConfigSecondaryMasters: %v, SynchronizedSecondaryMasters: %v)",
                 SecondaryMasterCellTags_,
@@ -167,7 +172,7 @@ public:
             auto expectedPrimaryCellAddresses = Config_->PrimaryMaster->Addresses;
             std::sort(expectedPrimaryCellAddresses.begin(), expectedPrimaryCellAddresses.end());
             const auto& actualPrimaryCellAddresses = cellAddresses[PrimaryMasterCellTag_];
-            YT_LOG_FATAL_UNLESS(
+            YT_LOG_WARNING_UNLESS(
                 expectedPrimaryCellAddresses == actualPrimaryCellAddresses,
                 "Synchronized primary master cell addresses do not match, connection config is probably incorrect (ConfigPrimaryMasterAddresses: %v, SynchronizedPrimaryMasterAddresses: %v)",
                 expectedPrimaryCellAddresses,
@@ -178,7 +183,7 @@ public:
                 std::sort(expectedCellAddresses.begin(), expectedCellAddresses.end());
                 const auto& actualCellAddresses = cellAddresses[CellTagFromId(cellConfig->CellId)];
 
-                YT_LOG_FATAL_UNLESS(
+                YT_LOG_WARNING_UNLESS(
                     expectedCellAddresses == actualCellAddresses,
                     "Synchronized secondary master cell addresses do not match, connection config is probably incorrect (ConfigSecondaryMasterAddresses: %v, SynchronizedSecondaryMasterAddresses: %v)",
                     expectedCellAddresses,
@@ -191,34 +196,62 @@ public:
 
         {
             TWriterGuard guard(SpinLock_);
-            CellRoles_ = std::move(cellRoles);
-            RoleCells_ = std::move(roleCells);
+            CellRoleMap_ = std::move(cellRoles);
+            RoleCellsMap_ = std::move(roleCells);
         }
+    }
+
+    void UpdateDefault()
+    {
+        {
+            TWriterGuard guard(SpinLock_);
+
+            CellRoleMap_.clear();
+            RoleCellsMap_.clear();
+            auto addRole = [&] (auto cellTag, auto role) {
+                 CellRoleMap_[cellTag] |= role;
+                 RoleCellsMap_.emplace(role, cellTag);
+            };
+
+            addRole(PrimaryMasterCellTag_, EMasterCellRoles::TransactionCoordinator);
+            addRole(PrimaryMasterCellTag_, EMasterCellRoles::CypressNodeHost);
+
+            for (auto cellTag : SecondaryMasterCellTags_) {
+                addRole(cellTag, EMasterCellRoles::ChunkHost);
+            }
+
+            if (SecondaryMasterCellTags_.empty()) {
+                addRole(PrimaryMasterCellTag_, EMasterCellRoles::ChunkHost);
+            }
+        }
+
+        YT_LOG_DEBUG("Default master cell roles set");
     }
 
 private:
     const TCellDirectoryConfigPtr Config_;
     const TCellId PrimaryMasterCellId_;
     const TCellTag PrimaryMasterCellTag_;
+
     /*const*/ TCellTagList SecondaryMasterCellTags_;
 
-    /*const*/ THashMap<TCellTag, TEnumIndexedVector<EMasterChannelKind, IChannelPtr>> CellChannels_;
+    /*const*/ THashMap<TCellTag, TEnumIndexedVector<EMasterChannelKind, IChannelPtr>> CellChannelMap_;
 
     TReaderWriterSpinLock SpinLock_;
-    THashMap<TCellTag, EMasterCellRoles> CellRoles_;
+    THashMap<TCellTag, EMasterCellRoles> CellRoleMap_;
     // The keys are always single roles (i.e. each key is a role set consisting of exactly on member).
-    THashMultiMap<EMasterCellRoles, TCellTag> RoleCells_;
+    THashMultiMap<EMasterCellRoles, TCellTag> RoleCellsMap_;
     TRandomGenerator RandomGenerator_;
 
     const NLogging::TLogger Logger;
 
-    TCellTagList GetCellsForRole(EMasterCellRoles cellRole) const
+    TCellTagList GetMasterCellTagsWithRole(EMasterCellRoles role) const
     {
         TCellTagList result;
 
         {
             TReaderGuard guard(SpinLock_);
-            auto range = RoleCells_.equal_range(cellRole);
+            auto range = RoleCellsMap_.equal_range(role);
             for (auto it = range.first; it != range.second; ++it) {
                 result.emplace_back(it->second);
             }
@@ -229,8 +262,8 @@ private:
 
     IChannelPtr GetCellChannelOrThrow(TCellTag cellTag, EMasterChannelKind kind) const
     {
-        auto it = CellChannels_.find(cellTag);
-        if (it == CellChannels_.end()) {
+        auto it = CellChannelMap_.find(cellTag);
+        if (it == CellChannelMap_.end()) {
             ThrowUnknownMasterCellTag(cellTag);
         }
         return it->second[kind];
@@ -241,7 +274,10 @@ private:
         THROW_ERROR_EXCEPTION("Unknown master cell tag %v", cellTag);
     }
 
-    void InitMasterChannels(const TMasterConnectionConfigPtr& config, const TConnectionOptions& options, const IChannelFactoryPtr& channelFactory)
+    void InitMasterChannels(
+        const TMasterConnectionConfigPtr& config,
+        const TConnectionOptions& options,
+        const IChannelFactoryPtr& channelFactory)
     {
         InitMasterChannel(EMasterChannelKind::Leader, config, EPeerKind::Leader, options, channelFactory);
         InitMasterChannel(EMasterChannelKind::Follower, config, EPeerKind::Follower, options, channelFactory);
@@ -265,7 +301,7 @@ private:
         auto cellTag = CellTagFromId(config->CellId);
         auto peerChannel = CreatePeerChannel(config, peerKind, options, channelFactory);
 
-        CellChannels_[cellTag][channelKind] = peerChannel;
+        CellChannelMap_[cellTag][channelKind] = peerChannel;
     }
 
     IChannelPtr CreatePeerChannel(const TMasterConnectionConfigPtr& config, EPeerKind kind, const TConnectionOptions& options, const IChannelFactoryPtr& channelFactory)
@@ -310,6 +346,11 @@ void TCellDirectory::Update(const NCellMasterClient::NProto::TCellDirectory& pro
     return Impl_->Update(protoDirectory);
 }
 
+void TCellDirectory::UpdateDefault()
+{
+    return Impl_->UpdateDefault();
+}
+
 TCellId TCellDirectory::GetPrimaryMasterCellId() const
 {
     return Impl_->GetPrimaryMasterCellId();
@@ -335,9 +376,9 @@ IChannelPtr TCellDirectory::GetMasterChannelOrThrow(EMasterChannelKind kind, TCe
     return Impl_->GetMasterChannelOrThrow(kind, cellId);
 }
 
-TCellId TCellDirectory::PickRandomTransactionCoordinatorMasterCell() const
+TCellId TCellDirectory::PickRandomMasterCellWithRole(EMasterCellRoles role) const
 {
-    return Impl_->PickRandomTransactionCoordinatorMasterCell();
+    return Impl_->PickRandomMasterCellWithRole(role);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

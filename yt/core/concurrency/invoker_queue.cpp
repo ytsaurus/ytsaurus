@@ -305,16 +305,14 @@ void TInvokerQueue::Drain()
     QueueSize = 0;
 }
 
-EBeginExecuteResult TInvokerQueue::BeginExecute(TEnqueuedAction* action, int index)
+TClosure TInvokerQueue::BeginExecute(TEnqueuedAction* action, int index)
 {
     YT_ASSERT(action && action->Finished);
     YT_ASSERT(Queue);
 
     if (!Queue->Dequeue(action, index)) {
-        return EBeginExecuteResult::QueueEmpty;
+        return TClosure();
     }
-
-    CallbackEventCount->CancelWait();
 
     Profiler.Increment(DequeuedCounter);
 
@@ -324,19 +322,15 @@ EBeginExecuteResult TInvokerQueue::BeginExecute(TEnqueuedAction* action, int ind
         WaitTimeCounter,
         CpuDurationToValue(action->StartedAt - action->EnqueuedAt));
 
-    // Move callback to the stack frame to ensure that we hold it as long as it runs.
-    auto callback = std::move(action->Callback);
-    try {
-        TCurrentInvokerGuard guard(this);
-        callback.Run();
-        return EBeginExecuteResult::Success;
-    } catch (const TFiberCanceledException&) {
-        return EBeginExecuteResult::Terminated;
-    }
+    SetCurrentInvoker(this);
+
+    return std::move(action->Callback);
 }
 
 void TInvokerQueue::EndExecute(TEnqueuedAction* action)
 {
+    SetCurrentInvoker(nullptr);
+
     YT_ASSERT(action);
 
     if (action->Finished) {

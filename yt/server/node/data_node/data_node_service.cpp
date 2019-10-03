@@ -749,6 +749,7 @@ private:
                 BIND(
                     &TDataNodeService::MakeChunkSlices,
                     MakeStrong(this),
+                    context,
                     sliceRequest,
                     slices,
                     request->slice_data_size(),
@@ -773,6 +774,7 @@ private:
     }
 
     void MakeChunkSlices(
+        const TCtxGetChunkSlicesPtr& /*context*/,
         const TSliceRequest& sliceRequest,
         TRspGetChunkSlices::TChunkSlices* result,
         i64 sliceDataSize,

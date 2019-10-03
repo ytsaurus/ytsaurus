@@ -1,11 +1,12 @@
 #pragma once
 
 #include "public.h"
-#include "execution_context.h"
 #include "execution_stack.h"
 #include "scheduler.h"
 
 #include <yt/core/misc/optional.h>
+
+#include <util/system/context.h>
 
 namespace NYT::NConcurrency {
 
@@ -19,10 +20,10 @@ class TCoroutineBase
 protected:
     bool Completed_ = false;
 
-    TExecutionContext CallerContext_;
+    TExceptionSafeContext CallerContext_;
 
     std::shared_ptr<TExecutionStack> CoroutineStack_;
-    TExecutionContext CoroutineContext_;
+    TExceptionSafeContext CoroutineContext_;
     std::exception_ptr CoroutineException_;
 
     TCoroutineBase(const EExecutionStackKind stackKind);

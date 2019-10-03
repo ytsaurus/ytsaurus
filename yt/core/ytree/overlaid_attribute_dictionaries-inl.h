@@ -66,7 +66,7 @@ std::vector<NYTree::IAttributeDictionary::TKeyValuePair> TOverlaidAttributeDicti
 }
 
 template <class T>
-NYson::TYsonString TOverlaidAttributeDictionary<T>::FindYson(const TString& key) const
+NYson::TYsonString TOverlaidAttributeDictionary<T>::FindYson(TStringBuf key) const
 {
     for (const auto& dict : UnderlyingDictionaries_) {
         if (!dict) {

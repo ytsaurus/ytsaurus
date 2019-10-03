@@ -76,7 +76,8 @@ struct ISlot
     virtual TFuture<void> RunSetupCommands(
         TJobId jobId,
         const std::vector<NJobAgent::TShellCommandConfigPtr>& commands,
-        const NContainers::TRootFS& rootFS) = 0;
+        const NContainers::TRootFS& rootFS,
+        const TString& user) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISlot)

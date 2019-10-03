@@ -126,12 +126,14 @@ void TNontemplateCypressNodeTypeHandlerBase::BeginCopyCore(
 
     Save(*context, node->GetId());
     Save(*context, node->GetType());
+    Save(*context, node->GetExternalCellTag());
     Save(*context, node->GetAccount());
     Save(*context, node->GetTotalResourceUsage());
-    Save(*context, node->GetExternalCellTag());
     Save(*context, node->Acd());
     Save(*context, node->GetOpaque());
+    Save(*context, node->GetAnnotation());
     Save(*context, node->GetCreationTime());
+    Save(*context, node->GetModificationTime());
     Save(*context, node->TryGetExpirationTime());
 
     // User attributes
@@ -147,7 +149,7 @@ void TNontemplateCypressNodeTypeHandlerBase::BeginCopyCore(
         cypressManager->LockNode(
             node,
             context->GetTransaction(),
-            context->GetRemoveSource() ? ELockMode::Exclusive : ELockMode::Snapshot);
+            context->GetMode() == ENodeCloneMode::Copy ? ELockMode::Snapshot : ELockMode::Exclusive);
     }
 }
 
@@ -157,7 +159,48 @@ TCypressNode* TNontemplateCypressNodeTypeHandlerBase::EndCopyCore(
     TNodeId sourceNodeId)
 {
     // See BeginCopyCore.
-    // NB: The type is already deserialized.
+    auto externalCellTag = Load<TCellTag>(*context);
+
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    if (externalCellTag == multicellManager->GetCellTag()) {
+        THROW_ERROR_EXCEPTION("Cannot copy node %v to cell %v since the latter is its external cell",
+            sourceNodeId,
+            externalCellTag);
+    }
+
+    const auto& objectManager = Bootstrap_->GetObjectManager();
+    auto clonedId = objectManager->GenerateId(GetObjectType(), NullObjectId);
+    auto* clonedTrunkNode = factory->InstantiateNode(clonedId, externalCellTag);
+
+    LoadInplace(clonedTrunkNode, context, factory);
+
+    return clonedTrunkNode;
+}
+
+void TNontemplateCypressNodeTypeHandlerBase::EndCopyInplaceCore(
+    TCypressNode* trunkNode,
+    TEndCopyContext* context,
+    ICypressNodeFactory* factory,
+    TNodeId sourceNodeId)
+{
+    // See BeginCopyCore.
+    auto externalCellTag = Load<TCellTag>(*context);
+    if (externalCellTag != trunkNode->GetExternalCellTag()) {
+        THROW_ERROR_EXCEPTION("Cannot inplace copy node %v to node %v since external cell tags do not match: %v != %v",
+            sourceNodeId,
+            trunkNode->GetId(),
+            externalCellTag,
+            trunkNode->GetExternalCellTag());
+    }
+
+    LoadInplace(trunkNode, context, factory);
+}
+
+void TNontemplateCypressNodeTypeHandlerBase::LoadInplace(
+    TCypressNode* trunkNode,
+    TEndCopyContext* context,
+    ICypressNodeFactory* factory)
+{
     auto* sourceAccount = Load<TAccount*>(*context);
     auto sourceResourceUsage = Load<TClusterResources>(*context);
 
@@ -168,63 +211,57 @@ TCypressNode* TNontemplateCypressNodeTypeHandlerBase::EndCopyCore(
         sourceResourceUsage,
         clonedAccount);
 
-    auto externalCellTag = Load<TCellTag>(*context);
-    if (externalCellTag == Bootstrap_->GetCellTag()) {
-        THROW_ERROR_EXCEPTION("Cannot copy node %v to cell %v since the latter is its external cell",
-            sourceNodeId,
-            externalCellTag);
-    }
-
-    const auto& objectManager = Bootstrap_->GetObjectManager();
-    auto clonedId = objectManager->GenerateId(GetObjectType(), NullObjectId);
-    auto* clonedTrunkNode = factory->InstantiateNode(clonedId, externalCellTag);
-
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     securityManager->SetAccount(
-        clonedTrunkNode,
-        /* oldAccount */ nullptr,
+        trunkNode,
         clonedAccount,
         /* transaction */ nullptr);
 
     // Set owner.
     auto* user = securityManager->GetAuthenticatedUser();
-    clonedTrunkNode->Acd().SetOwner(user);
+    trunkNode->Acd().SetOwner(user);
 
-    // Copy ACD, but only in move.
+    // Copy ACD, but only in move and not for portal exits.
     auto sourceAcd = Load<TAccessControlDescriptor>(*context);
-    if (context->GetMode() == ENodeCloneMode::Move) {
-        clonedTrunkNode->Acd().SetInherit(sourceAcd.GetInherit());
-        for (const auto& ace : sourceAcd.Acl().Entries) {
-            clonedTrunkNode->Acd().AddEntry(ace);
-        }
+    if (context->GetMode() == ENodeCloneMode::Move && trunkNode->GetType() != EObjectType::PortalExit) {
+        trunkNode->Acd().SetInherit(sourceAcd.GetInherit());
+        trunkNode->Acd().SetEntries(sourceAcd.Acl());
     }
 
     // Copy opaque.
     auto opaque = Load<bool>(*context);
-    clonedTrunkNode->SetOpaque(opaque);
+    trunkNode->SetOpaque(opaque);
+
+    // Copy annotation.
+    auto annotation = Load<std::optional<TString>>(*context);
+    trunkNode->SetAnnotation(annotation);
 
     // Copy creation time.
     auto creationTime = Load<TInstant>(*context);
     if (factory->ShouldPreserveCreationTime()) {
-        clonedTrunkNode->SetCreationTime(creationTime);
+        trunkNode->SetCreationTime(creationTime);
+    }
+
+    // Copy modification time.
+    auto modificationTime = Load<TInstant>(*context);
+    if (factory->ShouldPreserveModificationTime()) {
+        trunkNode->SetModificationTime(modificationTime);
     }
 
     // Copy expiration time.
     auto expirationTime = Load<std::optional<TInstant>>(*context);
     if (factory->ShouldPreserveExpirationTime() && expirationTime) {
-        clonedTrunkNode->SetExpirationTime(*expirationTime);
+        trunkNode->SetExpirationTime(*expirationTime);
     }
 
     // Copy attributes directly to suppress validation.
     auto keyToAttribute = Load<std::vector<std::pair<TString, TYsonString>>>(*context);
     if (!keyToAttribute.empty()) {
-        auto* clonedAttributes = clonedTrunkNode->GetMutableAttributes();
+        auto* clonedAttributes = trunkNode->GetMutableAttributes();
         for (const auto& pair : keyToAttribute) {
             YT_VERIFY(clonedAttributes->Attributes().insert(pair).second);
         }
     }
-
-    return clonedTrunkNode;
 }
 
 void TNontemplateCypressNodeTypeHandlerBase::BranchCore(
@@ -253,6 +290,7 @@ void TNontemplateCypressNodeTypeHandlerBase::BranchCore(
     branchedNode->SetTransaction(transaction);
     branchedNode->SetOriginator(originatingNode);
     branchedNode->SetExternalCellTag(originatingNode->GetExternalCellTag());
+    branchedNode->SetAnnotation(originatingNode->GetAnnotation());
     if (originatingNode->IsForeign()) {
         branchedNode->SetForeign();
     }
@@ -262,7 +300,7 @@ void TNontemplateCypressNodeTypeHandlerBase::BranchCore(
     YT_VERIFY(!branchedNode->GetAccount());
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     auto* account = originatingNode->GetAccount();
-    securityManager->SetAccount(branchedNode, nullptr, account, transaction);
+    securityManager->SetAccount(branchedNode, account, transaction);
 
     // Branch user attributes.
     objectManager->BranchAttributes(originatingNode, branchedNode);
@@ -276,13 +314,14 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCore(
 
     // Merge user attributes.
     objectManager->MergeAttributes(originatingNode, branchedNode);
+    originatingNode->SetAnnotation(branchedNode->GetAnnotation());
 
     // Perform cleanup by resetting the parent link of the branched node.
     branchedNode->SetParent(nullptr);
 
     // Merge modification time.
     const auto* mutationContext = NHydra::GetCurrentMutationContext();
-    originatingNode->SetModificationTime(mutationContext->GetTimestamp());
+    originatingNode->SetModificationTime(std::max(originatingNode->GetModificationTime(), branchedNode->GetModificationTime()));
     originatingNode->SetAttributesRevision(mutationContext->GetVersion().ToRevision());
     originatingNode->SetContentRevision(mutationContext->GetVersion().ToRevision());
 }
@@ -304,7 +343,6 @@ TCypressNode* TNontemplateCypressNodeTypeHandlerBase::CloneCorePrologue(
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     securityManager->SetAccount(
         clonedTrunkNode,
-        /* oldAccount */ nullptr,
         account,
         /* transaction */ nullptr);
 
@@ -339,6 +377,7 @@ void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
 
     // Copy builtin attributes.
     clonedTrunkNode->SetOpaque(sourceNode->GetOpaque());
+    clonedTrunkNode->SetAnnotation(sourceNode->GetAnnotation());
     if (mode == ENodeCloneMode::Move) {
         clonedTrunkNode->SetCreationTime(sourceNode->GetCreationTime());
     }
@@ -371,20 +410,18 @@ void TCompositeNodeBase::TAttributes::Persist(NCellMaster::TPersistenceContext& 
     Persist(context, camelCaseName);
 
     using NYT::Persist;
-    FOR_EACH_INHERITABLE_ATTRIBUTE(XX);
-
+    FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
 #undef XX
 }
 
 void TCompositeNodeBase::TAttributes::Persist(NCypressServer::TCopyPersistenceContext& context)
 {
-//#define XX(camelCaseName, snakeCaseName) \
-//    Persist(context, camelCaseName);
-//
-//    using NYT::Persist;
-//    FOR_EACH_INHERITABLE_ATTRIBUTE(XX);
-//
-//#undef XX
+#define XX(camelCaseName, snakeCaseName) \
+    Persist(context, camelCaseName);
+
+    using NYT::Persist;
+    FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
+#undef XX
 }
 
 void TCompositeNodeBase::TAttributes::Save(NCellMaster::TSaveContext& context) const
@@ -411,9 +448,7 @@ bool TCompositeNodeBase::TAttributes::AreFull() const
 {
 #define XX(camelCaseName, snakeCaseName) \
     && camelCaseName
-
     return true FOR_EACH_INHERITABLE_ATTRIBUTE(XX);
-
 #undef XX
 }
 
@@ -421,9 +456,7 @@ bool TCompositeNodeBase::TAttributes::AreEmpty() const
 {
 #define XX(camelCaseName, snakeCaseName) \
     && !camelCaseName
-
     return true FOR_EACH_INHERITABLE_ATTRIBUTE(XX);
-
 #undef XX
 }
 
@@ -669,6 +702,13 @@ void TMapNodeChildren::Load(NCellMaster::TLoadContext& context)
     delete children;
 }
 
+/*static*/ void TMapNodeChildren::Clear(TMapNodeChildren* children)
+{
+    YT_VERIFY(children->GetRefCount() == 0);
+    // NB: does not unref children! This is to be used during automaton clearing only!
+    delete children;
+}
+
 /*static*/ TMapNodeChildren* TMapNodeChildren::Copy(
     TMapNodeChildren* srcChildren,
     const TObjectManagerPtr& objectManager)
@@ -710,7 +750,12 @@ TMapNode::TMapNode(const TVersionedNodeId& id)
     : TCompositeNodeBase(id)
 { }
 
-TMapNode::~TMapNode() = default;
+TMapNode::~TMapNode()
+{
+    // Usually, Children_.Reset() has already been called by now, so Clear is a no-op.
+    // This is only relevant when the whole automaton is being cleared.
+    Children_.Clear();
+}
 
 const TMapNode::TKeyToChild& TMapNode::KeyToChild() const
 {

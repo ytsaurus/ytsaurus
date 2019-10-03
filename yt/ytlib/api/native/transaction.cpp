@@ -422,6 +422,11 @@ public:
         const TRichYPath& dstPath,
         const TConcatenateNodesOptions& options),
         (srcPaths, dstPath, options))
+    DELEGATE_TRANSACTIONAL_METHOD(TFuture<void>, ExternalizeNode, (
+        const TYPath& path,
+        TCellTag cellTag,
+        const TExternalizeNodeOptions& options),
+        (path, cellTag, options))
     DELEGATE_TRANSACTIONAL_METHOD(TFuture<bool>, NodeExists, (
         const TYPath& path,
         const TNodeExistsOptions& options),

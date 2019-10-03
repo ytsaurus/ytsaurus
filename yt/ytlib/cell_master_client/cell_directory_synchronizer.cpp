@@ -134,9 +134,12 @@ private:
 
         auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspGetClusterMeta>(0)
             .Value();
+
         // COMPAT(shakurov): support old masters' empty responses.
-        if (rsp->cell_directory().items_size() != 0) {
+        if (rsp->has_cell_directory()) {
             Directory_->Update(rsp->cell_directory());
+        } else {
+            Directory_->UpdateDefault();
         }
     }
 
@@ -151,6 +154,10 @@ private:
         }
 
         auto nextSyncPromise = NextSyncPromise_;
+        // Don't drop the very first recent sync promise.
+        if (!RecentSyncPromise_.IsSet()) {
+            RecentSyncPromise_.Set(error);
+        }
         RenewSyncPromises();
 
         nextSyncPromise.Set(error);

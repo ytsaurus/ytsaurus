@@ -27,6 +27,9 @@ TYPathRewrite MakeYPathRewrite(
     const NYPath::TYPath& pathSuffix);
 
 TDuration ComputeForwardingTimeout(
+    TDuration timeout,
+    const TObjectServiceConfigPtr& config);
+TDuration ComputeForwardingTimeout(
     const NRpc::IServiceContextPtr& context,
     const TObjectServiceConfigPtr& config);
 

@@ -20,6 +20,18 @@ class TestRpcProxy(YTEnvSetup):
         tx = start_transaction(timeout=1000)
         wait(lambda: not exists("//sys/transactions/" + tx))
 
+    @authors("prime")
+    def test_dynamic_config(self):
+        proxy_name = ls("//sys/rpc_proxies")[0]
+
+        set("//sys/rpc_proxies/@config", {"tracing": {"user_sample_rate": {"prime": 1.0}}})
+
+        def config_updated():
+            config = get("//sys/rpc_proxies/" + proxy_name + "/orchid/coordinator/dynamic_config")
+            return "prime" in config["tracing"]["user_sample_rate"]
+
+        wait(config_updated)
+
 ##################################################################
 
 class TestRpcProxyBase(YTEnvSetup):
@@ -214,7 +226,7 @@ class TestOperationsRpcProxy(TestRpcProxyBase):
 ##################################################################
 
 class TestDumpJobContextRpcProxy(TestRpcProxyBase):
-    REQUIRE_YTSERVER_ROOT_PRIVILIGES = True
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     DELTA_NODE_CONFIG = {
         "exec_agent": {

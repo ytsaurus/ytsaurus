@@ -1314,6 +1314,11 @@ class TestSchedulerMapCommandsMulticell(TestSchedulerMapCommands):
 
 ##################################################################
 
+class TestSchedulerMapCommandsPortal(TestSchedulerMapCommandsMulticell):
+    ENABLE_TMP_PORTAL = True
+
+##################################################################
+
 class TestJobSizeAdjuster(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5

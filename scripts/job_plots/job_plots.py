@@ -62,7 +62,7 @@ def _get_operation_start(op_id, client):
         where id_lo = {}u and id_hi = {}u
         """.format(lo_id, hi_id)
     ))
-    if not operation_events:
+    if not operation_events or not operation_events[0]["events"]:
         return None
     return _get_event_time("running", operation_events[0]["events"])
 
@@ -193,23 +193,24 @@ class JobInfo(object):
         self.job_id_lo = job_info["job_id_lo"]
         self.job_id = parts_to_uuid(self.job_id_hi, self.job_id_lo)
         self.node = job_info["address"].split(".")[0] if "address" in job_info else ""
-
-        self.input_compressed_data_size = job_info["statistics"]["data"]["input"]["compressed_data_size"]
-        self.input_uncompressed_data_size = job_info["statistics"]["data"]["input"]["uncompressed_data_size"]
-        self.input_data_weight = job_info["statistics"]["data"]["input"]["data_weight"]
-        self.input_row_count = job_info["statistics"]["data"]["input"]["row_count"]
-        self.output_compressed_data_size = _get_statistic_from_output_tables(
-            "compressed_data_size", job_info["statistics"]["data"]["output"]
-        )
-        self.output_uncompressed_data_size = _get_statistic_from_output_tables(
-            "uncompressed_data_size", job_info["statistics"]["data"]["output"]
-        )
-        self.output_data_weight = _get_statistic_from_output_tables(
-            "data_weight", job_info["statistics"]["data"]["output"]
-        )
-        self.output_row_count = _get_statistic_from_output_tables(
-            "row_count", job_info["statistics"]["data"]["output"]
-        )
+        
+        if "data" in job_info["statistics"]:
+            self.input_compressed_data_size = job_info["statistics"]["data"]["input"]["compressed_data_size"]
+            self.input_uncompressed_data_size = job_info["statistics"]["data"]["input"]["uncompressed_data_size"]
+            self.input_data_weight = job_info["statistics"]["data"]["input"]["data_weight"]
+            self.input_row_count = job_info["statistics"]["data"]["input"]["row_count"]
+            self.output_compressed_data_size = _get_statistic_from_output_tables(
+                "compressed_data_size", job_info["statistics"]["data"]["output"]
+            )
+            self.output_uncompressed_data_size = _get_statistic_from_output_tables(
+                "uncompressed_data_size", job_info["statistics"]["data"]["output"]
+            )
+            self.output_data_weight = _get_statistic_from_output_tables(
+                "data_weight", job_info["statistics"]["data"]["output"]
+            )
+            self.output_row_count = _get_statistic_from_output_tables(
+                "row_count", job_info["statistics"]["data"]["output"]
+            )
 
         self.user_job_cpu = float(
             _nested_dict_find(job_info["statistics"], "user_job/cpu/sys") +
@@ -219,12 +220,15 @@ class JobInfo(object):
             _nested_dict_find(job_info["statistics"], "job_proxy/cpu/sys") +
             _nested_dict_find(job_info["statistics"], "job_proxy/cpu/user")
         ) / 1000
-        self.codec_decode = float(sum(
-            list(itervalues(job_info["statistics"]["codec"]["cpu"]["decode"]))
-        )) / 1000
-        self.codec_encode = float(sum(flatten(
-            list(itervalues(table)) for table in itervalues(job_info["statistics"]["codec"]["cpu"]["encode"])
-        ))) / 1000
+        
+        if "codec" in job_info["statistics"]:
+            self.codec_decode = float(sum(
+                list(itervalues(job_info["statistics"]["codec"]["cpu"]["decode"]))
+            )) / 1000
+            self.codec_encode = float(sum(flatten(
+                list(itervalues(table)) for table in itervalues(job_info["statistics"]["codec"]["cpu"]["encode"])
+            ))) / 1000
+        
         self.input_idle_time = float(_nested_dict_find(
             job_info["statistics"], "user_job/pipes/input/idle_time"
         )) / 1000
@@ -610,7 +614,7 @@ def get_raw_time_statistics_data(jobset):
         ]
         statistics_values = {}
         for statistic in statistics:
-            values = [getattr(job_info, statistic) for job_info in jobs_info]
+            values = [getattr(job_info, statistic, 0) for job_info in jobs_info]
             statistics_values[statistic] = values
         data.append(dict(
             job_type=job_type,

@@ -6,11 +6,12 @@
 
 #include <yt/core/http/http.h>
 
-#include <yt/ytlib/api/public.h>
-#include <yt/ytlib/api/native/public.h>
-
+#include <yt/core/tracing/sampler.h>
 
 #include <yt/core/ytree/yson_serializable.h>
+
+#include <yt/ytlib/api/public.h>
+#include <yt/ytlib/api/native/public.h>
 
 namespace NYT::NHttpProxy {
 
@@ -52,22 +53,6 @@ DEFINE_REFCOUNTED_TYPE(TProxyEntry)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTracingConfig
-    : public NYTree::TYsonSerializable
-{
-public:
-    double GlobalSampleRate;
-    THashMap<TString, double> UserSampleRate;
-
-    TTracingConfig();
-};
-
-DEFINE_REFCOUNTED_TYPE(TTracingConfig)
-
-bool IsTraceSampled(const TTracingConfigPtr& config, const TString& user);
-
-////////////////////////////////////////////////////////////////////////////////
-
 // TDynamicConfig is part of proxy configuration stored in cypress.
 //
 // NOTE: config might me unavalable. Users must handle such cases
@@ -76,7 +61,7 @@ class TDynamicConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    TTracingConfigPtr Tracing;
+    NTracing::TSamplingConfigPtr Tracing;
 
     TString FitnessFunction;
     double CpuWeight, CpuWaitWeight, ConcurrentRequestsWeight;
@@ -107,6 +92,7 @@ public:
 
     const TCoordinatorConfigPtr& GetConfig() const;
     TDynamicConfigPtr GetDynamicConfig();
+    NTracing::TSampler* GetTraceSampler();
 
     NYTree::IYPathServicePtr CreateOrchidService();
 
@@ -125,6 +111,7 @@ private:
     TSpinLock Lock_;
     TProxyEntryPtr Self_;
     TDynamicConfigPtr DynamicConfig_;
+    NTracing::TSampler Sampler_;
     std::vector<TProxyEntryPtr> Proxies_;
 
     TInstant StatisticsUpdatedAt_;

@@ -364,6 +364,8 @@ private:
 
     TChunkRequisitionRegistry* GetChunkRequisitionRegistry();
 
+    int GetCappedSecondaryCellCount();
+
     TChunkRepairQueue& ChunkRepairQueue(int mediumIndex, EChunkRepairQueue queue);
     std::array<TChunkRepairQueue, MaxMediumCount>& ChunkRepairQueues(EChunkRepairQueue queue);
     TDecayingMaxMinBalancer<int, double>& ChunkRepairQueueBalancer(EChunkRepairQueue queue);

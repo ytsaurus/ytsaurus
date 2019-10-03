@@ -50,8 +50,6 @@ using namespace NTools;
 
 static const auto& Logger = ExecAgentLogger;
 
-constexpr double CpuUpdatePrecision = 0.01;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -163,7 +161,8 @@ public:
         int /*slotIndex*/,
         TJobId /*jobId*/,
         const std::vector<NJobAgent::TShellCommandConfigPtr>& /*commands*/,
-        const TRootFS& /*rootFS*/) override
+        const TRootFS& /*rootFS*/,
+        const TString& /*user*/) override
     {
         THROW_ERROR_EXCEPTION("Setup scripts are not yet supported by %Qlv environment",
             BasicConfig_->Type);
@@ -422,6 +421,8 @@ private:
 
 #ifdef _linux_
 
+constexpr double CpuUpdatePrecision = 0.01;
+
 class TPortoJobEnvironment
     : public TProcessJobEnvironmentBase
 {
@@ -469,20 +470,12 @@ public:
 
     virtual IJobDirectoryManagerPtr CreateJobDirectoryManager(const TString& path)
     {
-#ifdef __linux__
         return CreatePortoJobDirectoryManager(Bootstrap_->GetConfig()->DataNode->VolumeManager, path);
-#else
-        return nullptr;
-#endif
     }
 
     virtual TFuture<IVolumePtr> PrepareRootVolume(const std::vector<TArtifactKey>& layers) override
     {
-#ifdef __linux__
         return RootVolumeManager_->PrepareVolume(layers);
-#else
-        return VoidFuture;
-#endif
     }
 
     virtual std::optional<i64> GetMemoryLimit() const override
@@ -506,9 +499,10 @@ public:
         int slotIndex,
         TJobId jobId,
         const std::vector<NJobAgent::TShellCommandConfigPtr>& commands,
-        const TRootFS& rootFS) override
+        const TRootFS& rootFS,
+        const TString& user) override
     {
-        auto instance = CreateSetupInstance(slotIndex, jobId, rootFS);
+        auto instance = CreateSetupInstance(slotIndex, jobId, rootFS, user);
 
         return BIND([instance, commands] {
             for (const auto& command : commands) {
@@ -653,7 +647,6 @@ private:
 
         TProcessJobEnvironmentBase::DoInit(slotCount, jobsCpuLimit);
 
-#ifdef __linux__
         // To these moment all old processed must have been killed, so we can safely clean up old volumes
         // during root volume manager initialization.
         RootVolumeManager_ = CreatePortoVolumeManager(
@@ -667,14 +660,13 @@ private:
                 *Config_->ResourceLimitsUpdatePeriod);
             LimitsUpdateExecutor_->Start();
         }
-#endif
     }
 
     void InitJobProxyInstance(int slotIndex, TJobId jobId)
     {
         if (!JobProxyInstances_[slotIndex]) {
             JobProxyInstances_[slotIndex] = CreatePortoInstance(
-                GetFullSlotMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex) + "/job_proxy_" + ToString(jobId),
+                GetFullSlotMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex) + "/jp_" + ToString(jobId),
                 PortoExecutor_);
 
             //TODO: remove because of deprecation
@@ -735,12 +727,13 @@ private:
         }
     }
 
-    IInstancePtr CreateSetupInstance(int slotIndex, TJobId jobId, const TRootFS& rootFS)
+    IInstancePtr CreateSetupInstance(int slotIndex, TJobId jobId, const TRootFS& rootFS, const TString& user)
     {
         auto instance = CreatePortoInstance(
             GetFullSlotMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex) + "/setup_" + ToString(jobId),
             PortoExecutor_);
         instance->SetRoot(rootFS);
+        instance->SetUser(user);
         return instance;
     }
 

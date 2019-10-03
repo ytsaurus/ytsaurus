@@ -21,6 +21,35 @@ using namespace NYTAlloc;
 
 static const auto& Logger = ConcurrencyLogger;
 
+static class TFiberIdGenerator
+{
+public:
+    TFiberIdGenerator()
+    {
+        Seed_.store(static_cast<TFiberId>(::time(nullptr)));
+    }
+
+    TFiberId Generate()
+    {
+        constexpr TFiberId Factor = std::numeric_limits<TFiberId>::max() - 173864;
+        static_assert(Factor % 2 == 1); // Factor must be coprime with 2^n.
+
+        while (true) {
+            auto seed = Seed_++;
+            auto id = seed * Factor;
+            if (id != InvalidFiberId) {
+                return id;
+            }
+        }
+    }
+
+private:
+    std::atomic<TFiberId> Seed_;
+
+} FiberIdGenerator;
+
+////////////////////////////////////////////////////////////////////////////////
+
 #ifdef DEBUG
 
 class TFiberRegistry
@@ -63,7 +92,9 @@ TFiberRegistry* GetFiberRegistry()
 TFiber::TFiber(TClosure callee, EExecutionStackKind stackKind)
     : Callee_(std::move(callee))
     , Stack_(CreateExecutionStack(stackKind))
-    , Context_(Stack_.get(), this)
+    , Context_({
+        this,
+        TArrayRef(static_cast<char*>(Stack_->GetStack()), Stack_->GetSize())})
 {
     RegenerateId();
 #ifdef DEBUG
@@ -84,12 +115,6 @@ TFiber::TFiber(TClosure callee, EExecutionStackKind stackKind)
 TFiber::~TFiber()
 {
     YT_VERIFY(IsTerminated());
-    for (int index = 0; index < Fsd_.size(); ++index) {
-        const auto& slot = Fsd_[index];
-        if (slot) {
-            NDetail::FlsDestruct(index, slot);
-        }
-    }
 #ifdef DEBUG
     GetFiberRegistry()->Unregister(Iterator_);
 #endif
@@ -104,7 +129,7 @@ TFiberId TFiber::GetId() const
 
 TFiberId TFiber::RegenerateId()
 {
-    Id_ = GenerateFiberId();
+    Id_ = FiberIdGenerator.Generate();
     return Id_;
 }
 
@@ -126,6 +151,8 @@ void TFiber::SetRunning()
     AwaitedFuture_.Reset();
     RunStartInstant_ = NProfiling::GetCpuInstant();
     InstallTraceContext(RunStartInstant_, std::move(SavedTraceContext_));
+
+    NDetail::SetCurrentFsdHolder(&FsdHolder_);
 }
 
 void TFiber::SetSleeping(TFuture<void> awaitedFuture)
@@ -152,7 +179,7 @@ void TFiber::SetSuspended()
     AwaitedFuture_.Reset();
 }
 
-TExecutionContext* TFiber::GetContext()
+TExceptionSafeContext* TFiber::GetContext()
 {
     return &Context_;
 }
@@ -227,29 +254,6 @@ bool TFiber::IsTerminated() const
     return State_ == EFiberState::Terminated;
 }
 
-uintptr_t& TFiber::FsdAt(int index)
-{
-    // THREAD_AFFINITY(OwnerThread);
-    if (Y_UNLIKELY(index >= Fsd_.size())) {
-        FsdResize();
-    }
-    return Fsd_[index];
-}
-
-void TFiber::FsdResize()
-{
-    int oldSize = static_cast<int>(Fsd_.size());
-    int newSize = NDetail::FlsCountSlots();
-
-    YT_ASSERT(newSize > oldSize);
-
-    Fsd_.resize(newSize);
-
-    for (int index = oldSize; index < newSize; ++index) {
-        Fsd_[index] = 0;
-    }
-}
-
 void TFiber::DoRunNaked()
 {
     try {
@@ -264,7 +268,7 @@ void TFiber::DoRunNaked()
     FinishRunning();
     State_ = EFiberState::Terminated;
 
-    GetCurrentScheduler()->Return();
+    ReturnFromFiber();
 
     YT_ABORT();
 }
@@ -315,19 +319,17 @@ void TFiber::FinishRunning()
     auto now = NProfiling::GetCpuInstant();
     SavedTraceContext_ = UninstallTraceContext(now);
     RunCpuTime_ += std::max<NProfiling::TCpuDuration>(0, now - RunStartInstant_);
+
+    NDetail::SetCurrentFsdHolder(nullptr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TClosure GetCurrentFiberCanceler()
 {
-    auto* scheduler = TryGetCurrentScheduler();
-    return scheduler ? scheduler->GetCurrentFiber()->GetCanceler() : TClosure();
+    auto* fiber = TryGetCurrentFiber();
+    return fiber ? fiber->GetCanceler() : TClosure();
 }
-
-namespace NDetail {
-
-} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -24,7 +24,7 @@
         ];
 
         writers = {
-            debug = { file_name = "debug.log"; type = file; }
+            debug = { file_name = "debug.log"; type = file; };
             info  = { file_name = "info.log"; type = file; };
             stderr = { type = stderr; };
         };

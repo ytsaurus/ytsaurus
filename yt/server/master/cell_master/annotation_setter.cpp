@@ -1,5 +1,6 @@
 #include "annotation_setter.h"
 #include "bootstrap.h"
+#include "multicell_manager.h"
 #include "config.h"
 #include "private.h"
 
@@ -38,11 +39,12 @@ public:
             Bootstrap_->GetConfig()->AddressResolver->LocalHostFqdn,
             Bootstrap_->GetConfig()->RpcPort);
 
-        if (Bootstrap_->IsPrimaryMaster()) {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsPrimaryMaster()) {
             Path_ = Format("//sys/primary_masters/%v", ToYPathLiteral(address));
         } else {
             Path_ = Format("//sys/secondary_masters/%v/%v",
-                ToYPathLiteral(Bootstrap_->GetCellTag()),
+                ToYPathLiteral(multicellManager->GetCellTag()),
                 ToYPathLiteral(address));
         }
     }

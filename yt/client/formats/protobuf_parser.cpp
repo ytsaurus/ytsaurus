@@ -14,8 +14,6 @@
 
 #include <yt/core/misc/varint.h>
 
-#include <mapreduce/yt/interface/protos/extension.pb.h>
-
 #include <util/generic/buffer.h>
 #include <util/string/escape.h>
 

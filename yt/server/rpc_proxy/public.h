@@ -11,11 +11,11 @@ namespace NYT::NRpcProxy {
 class TBootstrap;
 
 DECLARE_REFCOUNTED_CLASS(TCellProxyConfig)
-
-DECLARE_REFCOUNTED_STRUCT(IProxyCoordinator)
-
+DECLARE_REFCOUNTED_CLASS(TDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TApiServiceConfig)
 DECLARE_REFCOUNTED_CLASS(TDiscoveryServiceConfig)
+
+DECLARE_REFCOUNTED_STRUCT(IProxyCoordinator)
 
 ////////////////////////////////////////////////////////////////////////////////
 

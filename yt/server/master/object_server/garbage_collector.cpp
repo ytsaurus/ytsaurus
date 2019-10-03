@@ -466,7 +466,8 @@ void TGarbageCollector::OnObjectRemovalCellsSync()
 
     std::vector<TCellId> secondaryCellIds;
     const auto& connection = Bootstrap_->GetClusterConnection();
-    for (auto cellTag : Bootstrap_->GetSecondaryCellTags()) {
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    for (auto cellTag : multicellManager->GetSecondaryCellTags()) {
         secondaryCellIds.push_back(connection->GetMasterCellId(cellTag));
     }
 

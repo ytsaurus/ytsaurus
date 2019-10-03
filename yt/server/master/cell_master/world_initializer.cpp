@@ -99,7 +99,9 @@ public:
 
     bool HasProvisionLock()
     {
-        YT_VERIFY(Bootstrap_->IsPrimaryMaster());
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        YT_VERIFY(multicellManager->IsPrimaryMaster());
+
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto sysNode = cypressManager->ResolvePathToNodeProxy("//sys");
         return sysNode->Attributes().Get<bool>("provision_lock", false);
@@ -152,6 +154,7 @@ private:
 
             const auto& objectManager = Bootstrap_->GetObjectManager();
             const auto& securityManager = Bootstrap_->GetSecurityManager();
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
             // All initialization will be happening within this transaction.
             auto transactionId = StartTransaction();
@@ -163,7 +166,7 @@ private:
                 EObjectType::SysNode,
                 BuildYsonStringFluently()
                     .BeginMap()
-                        .DoIf(Config_->EnableProvisionLock && Bootstrap_->IsPrimaryMaster(), [&] (TFluentMap fluent) {
+                        .DoIf(Config_->EnableProvisionLock && multicellManager->IsPrimaryMaster(), [&] (TFluentMap fluent) {
                             fluent.Item("provision_lock").Value(true);
                         })
                     .EndMap());

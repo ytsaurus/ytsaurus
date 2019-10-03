@@ -1,6 +1,7 @@
 import pytest
 import time
 import datetime
+from string import printable
 from copy import deepcopy
 from cStringIO import StringIO
 from datetime import timedelta
@@ -800,7 +801,7 @@ class TestCypress(YTEnvSetup):
     @authors("babenko")
     def test_get_with_attributes_virtual_maps(self):
         tx = start_transaction()
-        assert get("//sys/transactions", attributes=["type"]) == to_yson_type(\
+        assert get("//sys/transactions", attributes=["type"]) == to_yson_type( \
             {tx: to_yson_type(None, attributes={"type": "transaction"})},
             attributes={"type": "transaction_map"})
 
@@ -1570,7 +1571,7 @@ class TestCypress(YTEnvSetup):
         assert exists("//tmp/t2")
 
     @authors("babenko")
-    def test_copy_preserve_expiration_time_in_tx(self):
+    def test_copy_preserve_expiration_time_in_tx1(self):
         create("table", "//tmp/t1", attributes={"expiration_time": str(self._now() + timedelta(seconds=1))})
         tx = start_transaction()
         copy("//tmp/t1", "//tmp/t2", preserve_expiration_time=True, tx=tx)
@@ -1579,8 +1580,23 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t1")
         assert exists("//tmp/t2", tx=tx)
         commit_transaction(tx)
-        time.sleep(1)
-        assert not exists("//tmp/t2")
+        wait(lambda: not exists("//tmp/t2"))
+
+    @authors("babenko")
+    def test_copy_preserve_expiration_time_in_tx2(self):
+        create("table", "//tmp/t1")
+        tx = start_transaction()
+        set("//tmp/t1/@expiration_time", str(self._now() + timedelta(seconds=1)), tx=tx)
+        copy("//tmp/t1", "//tmp/t2", preserve_expiration_time=True, tx=tx)
+        assert exists("//tmp/t1/@expiration_time", tx=tx)
+        assert exists("//tmp/t2/@expiration_time", tx=tx)
+        assert get("//tmp/t1/@expiration_time", tx=tx) == get("//tmp/t2/@expiration_time", tx=tx)
+        time.sleep(2)
+        assert exists("//tmp/t1")
+        assert exists("//tmp/t1", tx=tx)
+        assert exists("//tmp/t2", tx=tx)
+        commit_transaction(tx)
+        wait(lambda: not exists("//tmp/t1") and not exists("//tmp/t2"))
 
     @authors("babenko")
     def test_expire_orphaned_node_yt_8064(self):
@@ -2291,6 +2307,70 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t1/@compression_codec") == "lz4"
         assert get("//tmp/t1/@erasure_codec") == "lrc_12_2_2"
 
+    @authors("avmatrosov")
+    def test_annotation_attribute(self):
+        create("map_node", "//tmp/test_node")
+        create("map_node", "//tmp/test_node/child")
+        set("//tmp/test_node/@annotation", "test_node")
+        assert get("//tmp/test_node/@annotation") == "test_node"
+        assert get("//tmp/test_node/child/@annotation") == "test_node"
+        assert get("//tmp/test_node/child/@annotation_path") == "//tmp/test_node"
+
+        create("map_node", "//tmp/empty_node")
+        set("//tmp/@annotation", "tmp")
+
+        assert get("//tmp/test_node/@annotation") == get("//tmp/test_node/child/@annotation") == "test_node"
+        assert get("//tmp/empty_node/@annotation") == "tmp"
+        assert get("//tmp/empty_node/@annotation_path") == "//tmp"
+
+        remove("//tmp/@annotation")
+        assert get("//tmp/empty_node/@annotation") == None
+
+        set("//tmp/@annotation", "test")
+        set("//tmp/@annotation", None)
+        assert get("//tmp/@annotation") == None
+
+    @authors("avmatrosov")
+    def test_annotation_errors(self):
+        create("map_node", "//tmp/test_node")
+        assert get("//tmp/test_node/@annotation") == None
+        assert get("//tmp/test_node/@annotation_path") == None
+        with pytest.raises(YtError): set("//tmp/test_node/@annotation", "a" * 1025)
+        with pytest.raises(YtError): set("//tmp/test_node/@annotation", unichr(255))
+        set("//tmp/test_node/@annotation", printable)
+
+    @authors("avmatrosov")
+    def test_annotation_transaction(self):
+        create("map_node", "//tmp/test_node")
+        create("map_node", "//tmp/test_node/child")
+
+        def exists(path_to_attribute):
+            return get(path_to_attribute) not in [None, ""]
+
+        tx = start_transaction()
+        set("//tmp/test_node/@annotation", "test", tx=tx)
+        assert not exists("//tmp/test_node/@annotation")
+        assert not exists("//tmp/test_node/child/@annotation")
+        commit_transaction(tx)
+        assert exists("//tmp/test_node/@annotation")
+        assert exists("//tmp/test_node/child/@annotation")
+
+        tx = start_transaction()
+        remove("//tmp/test_node/@annotation", tx=tx)
+        assert exists("//tmp/test_node/@annotation")
+        assert exists("//tmp/test_node/child/@annotation")
+        commit_transaction(tx)
+        assert not exists("//tmp/test_node/@annotation")
+        assert not exists("//tmp/test_node/child/@annotation")
+
+    @authors("avmatrosov")
+    def test_annotation_clone(self):
+        create("map_node", "//tmp/test_node")
+        create("map_node", "//tmp/test_node/child")
+        set("//tmp/test_node/@annotation", "test")
+        move("//tmp/test_node", "//test")
+        assert get("//test/@annotation") == get("//test/child/@annotation") == "test"
+
 ##################################################################
 
 class TestCypressMulticell(TestCypress):
@@ -2306,6 +2386,38 @@ class TestCypressMulticell(TestCypress):
 
 class TestCypressPortal(TestCypressMulticell):
     ENABLE_TMP_PORTAL = True
+
+    def setup(self):
+        set("//tmp/@annotation", "")
+
+    @authors("avmatrosov")
+    def test_annotation_portal(self):
+        set("//@annotation", "test")
+        assert get("//tmp/@annotation") == ""
+
+        create("portal_entrance", "//p1", attributes={"exit_cell_tag": 1})
+        create("map_node", "//p1/test")
+
+        assert get("//@annotation") == "test"
+        assert get("//p1/test/@annotation") == "test"
+
+        remove("//@annotation")
+        assert get("//p1/test/@annotation") == "test"
+
+        with pytest.raises(YtError):
+            remove("//tmp/@annotation")
+
+        remove("//p1")
+
+    @authors("avmatrosov")
+    def test_annotation_attribute(self):
+        pass
+
+    @authors("avmatrosov")
+    def test_annotation_errors(self):
+        pass
+
+##################################################################
 
 class TestCypressRpcProxy(TestCypress):
     DRIVER_BACKEND = "rpc"

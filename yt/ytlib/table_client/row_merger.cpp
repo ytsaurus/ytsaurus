@@ -117,6 +117,68 @@ void TSchemafulRowMerger::AddPartialRow(TVersionedRow row)
     }
 }
 
+void TSchemafulRowMerger::AddPartialRow(TVersionedRow row, TTimestamp timestamp)
+{
+    if (!row) {
+        return;
+    }
+
+    Y_ASSERT(row.GetKeyCount() == KeyColumnCount_);
+
+    if (!Started_) {
+        if (!MergedRow_) {
+            MergedRow_ = RowBuffer_->AllocateUnversioned(ColumnIds_.size());
+        }
+
+        const auto* keyBegin = row.BeginKeys();
+        for (int index = 0; index < static_cast<int>(ColumnIds_.size()); ++index) {
+            int id = ColumnIds_[index];
+            auto* mergedValue = &MergedRow_[index];
+            if (id < KeyColumnCount_) {
+                MergedTimestamps_[index] = MaxTimestamp;
+                *mergedValue = keyBegin[id];
+            } else {
+                MergedTimestamps_[index] = NullTimestamp;
+                mergedValue->Id = id;
+                mergedValue->Type = EValueType::Null;
+                mergedValue->Aggregate = false;
+             }
+        }
+
+        Started_ = true;
+    }
+
+    for (auto it = row.BeginDeleteTimestamps(); it != row.EndDeleteTimestamps(); ++it) {
+        if (*it <= timestamp) {
+            LatestDelete_ = std::max(LatestDelete_, *it);
+            break;
+        }
+    }
+
+    for (auto it = row.BeginWriteTimestamps(); it != row.EndWriteTimestamps(); ++it) {
+        if (*it <= timestamp) {
+            LatestWrite_ = std::max(LatestWrite_, *it);
+            break;
+        }
+    }
+
+    for (auto it = row.BeginValues(); it != row.EndValues(); ++it) {
+        const auto& partialValue = *it;
+        if (partialValue.Timestamp > LatestDelete_) {
+            int id = partialValue.Id;
+            int mergedIndex = ColumnIdToIndex_[id];
+            if (mergedIndex >= 0) {
+                if (ColumnEvaluator_->IsAggregate(id)) {
+                    AggregateValues_.push_back(partialValue);
+                } else if (MergedTimestamps_[mergedIndex] < partialValue.Timestamp) {
+                    MergedRow_[mergedIndex] = partialValue;
+                    MergedTimestamps_[mergedIndex] = partialValue.Timestamp;
+                }
+            }
+        }
+    }
+}
+
 TUnversionedRow TSchemafulRowMerger::BuildMergedRow()
 {
     if (!Started_) {

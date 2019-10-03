@@ -586,9 +586,9 @@ private:
         ValidateUserFileCount(Spec->Mapper, "mapper");
     }
 
-    virtual bool DoCheckOutputLivePreviewSupported() const override
+    virtual ELegacyLivePreviewMode GetLegacyOutputLivePreviewMode() const override
     {
-        return Spec->EnableLegacyLivePreview;
+        return ToLegacyLivePreviewMode(Spec->EnableLegacyLivePreview);
     }
 
     // Unsorted helpers.

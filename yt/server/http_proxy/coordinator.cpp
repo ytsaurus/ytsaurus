@@ -43,6 +43,7 @@ static const TString SysProxies = "//sys/proxies";
 
 using namespace NApi;
 using namespace NConcurrency;
+using namespace NTracing;
 using namespace NYTree;
 using namespace NYson;
 using namespace NYPath;
@@ -88,31 +89,6 @@ TProxyEntry::TProxyEntry()
 TString TProxyEntry::GetHost() const
 {
     return TString{NNet::GetServiceHostName(Endpoint)};
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TTracingConfig::TTracingConfig()
-{
-    RegisterParameter("global_sample_rate", GlobalSampleRate)
-        .Default(0.0);
-    RegisterParameter("user_sample_rate", UserSampleRate)
-        .Default();
-}
-
-bool IsTraceSampled(const TTracingConfigPtr& config, const TString& user)
-{
-    auto p = RandomNumber<double>();
-    if (p < config->GlobalSampleRate) {
-        return true;
-    }
-
-    auto it = config->UserSampleRate.find(user);
-    if (it != config->UserSampleRate.end() && p < it->second) {
-        return true;
-    }
-
-    return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -272,6 +248,11 @@ TDynamicConfigPtr TCoordinator::GetDynamicConfig()
     return DynamicConfig_;
 }
 
+TSampler* TCoordinator::GetTraceSampler()
+{
+    return &Sampler_;
+}
+
 std::vector<TProxyEntryPtr> TCoordinator::ListCypressProxies()
 {
     TListNodeOptions options;
@@ -319,6 +300,11 @@ void TCoordinator::SetDynamicConfig(TDynamicConfigPtr config)
 {
     auto guard = Guard(Lock_);
     std::swap(config, DynamicConfig_);
+
+    if (DynamicConfig_->Tracing) {
+        Sampler_.UpdateConfig(DynamicConfig_->Tracing);
+        Sampler_.ResetPerUserLimits();
+    }
 }
 
 IYPathServicePtr TCoordinator::CreateOrchidService()

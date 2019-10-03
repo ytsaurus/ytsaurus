@@ -8,10 +8,6 @@
 
 #include <yt/server/master/object_server/public.h>
 
-// XXX(babenko)
-#include <yt/server/master/chunk_server/public.h>
-#include <yt/server/master/tablet_server/public.h>
-
 #include <yt/ytlib/cypress_client/cypress_ypath.pb.h>
 
 #include <yt/core/rpc/service_detail.h>
@@ -70,8 +66,15 @@ struct INodeTypeHandler
         TCypressNode* node,
         TBeginCopyContext* context) = 0;
 
-    //! Deserializes the subtree rooted at #node as a part of |EndCopy| verb handling.
+    //! Deserializes the subtree into a new node as a part of |EndCopy| verb handling.
     virtual TCypressNode* EndCopy(
+        TEndCopyContext* context,
+        ICypressNodeFactory* factory,
+        TNodeId sourceNodeId) = 0;
+
+    //! Deserializes the subtree into an existing #trunkNode as a part of |EndCopy| verb handling.
+    virtual void EndCopyInplace(
+        TCypressNode* trunkNode,
         TEndCopyContext* context,
         ICypressNodeFactory* factory,
         TNodeId sourceNodeId) = 0;

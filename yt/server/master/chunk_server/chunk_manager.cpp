@@ -433,12 +433,12 @@ public:
             "ChunkManager.Values",
             BIND(&TImpl::SaveValues, Unretained(this)));
 
-        auto cellTag = Bootstrap_->GetPrimaryCellTag();
-        DefaultStoreMediumId_ = MakeWellKnownId(EObjectType::Medium, cellTag, 0xffffffffffffffff);
-        DefaultCacheMediumId_ = MakeWellKnownId(EObjectType::Medium, cellTag, 0xfffffffffffffffe);
+        auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
+        DefaultStoreMediumId_ = MakeWellKnownId(EObjectType::Medium, primaryCellTag, 0xffffffffffffffff);
+        DefaultCacheMediumId_ = MakeWellKnownId(EObjectType::Medium, primaryCellTag, 0xfffffffffffffffe);
 
         auto* profileManager = TProfileManager::Get();
-        Profiler.TagIds().push_back(profileManager->RegisterTag("cell_tag", Bootstrap_->GetCellTag()));
+        Profiler.TagIds().push_back(profileManager->RegisterTag("cell_tag", primaryCellTag));
 
         for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
             if (jobType >= NJobTrackerClient::FirstMasterJobType && jobType <= NJobTrackerClient::LastMasterJobType) {
@@ -476,8 +476,8 @@ public:
         nodeTracker->SubscribeDataCenterRenamed(BIND(&TImpl::OnDataCenterRenamed, MakeWeak(this)));
         nodeTracker->SubscribeDataCenterDestroyed(BIND(&TImpl::OnDataCenterDestroyed, MakeWeak(this)));
 
-        if (Bootstrap_->IsPrimaryMaster()) {
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsPrimaryMaster()) {
             multicellManager->SubscribeReplicateKeysToSecondaryMaster(
                 BIND(&TImpl::OnReplicateKeysToSecondaryMaster, MakeWeak(this)));
             multicellManager->SubscribeReplicateValuesToSecondaryMaster(
@@ -1979,6 +1979,8 @@ private:
 
     void HydraUpdateChunkRequisition(NProto::TReqUpdateChunkRequisition* request)
     {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+
         // NB: Ordered map is a must to make the behavior deterministic.
         std::map<TCellTag, NProto::TReqUpdateChunkRequisition> crossCellRequestMap;
         auto getCrossCellRequest = [&] (const TChunk* chunk) -> NProto::TReqUpdateChunkRequisition& {
@@ -1986,13 +1988,12 @@ private:
             auto it = crossCellRequestMap.find(cellTag);
             if (it == crossCellRequestMap.end()) {
                 it = crossCellRequestMap.emplace(cellTag, NProto::TReqUpdateChunkRequisition()).first;
-                it->second.set_cell_tag(Bootstrap_->GetCellTag());
+                it->second.set_cell_tag(multicellManager->GetCellTag());
             }
             return it->second;
         };
 
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        auto local = request->cell_tag() == Bootstrap_->GetCellTag();
+        auto local = request->cell_tag() == multicellManager->GetCellTag();
         int cellIndex = local ? -1 : multicellManager->GetRegisteredMasterCellIndex(request->cell_tag());
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -2179,10 +2180,12 @@ private:
             transaction->ThrowInvalidState();
         }
 
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+
         std::vector<TChunkId> chunkIds;
         for (auto& importData : *request->mutable_chunks()) {
             auto chunkId = FromProto<TChunkId>(importData.id());
-            if (CellTagFromId(chunkId) == Bootstrap_->GetCellTag()) {
+            if (CellTagFromId(chunkId) == multicellManager->GetCellTag()) {
                 THROW_ERROR_EXCEPTION("Cannot import a native chunk %v", chunkId);
             }
 

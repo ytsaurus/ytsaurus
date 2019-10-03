@@ -59,7 +59,6 @@ public:
     bool IsMulticell() const;
 
     NObjectClient::TCellId GetCellId() const;
-    NObjectClient::TCellId GetCellId(NObjectClient::TCellTag cellTag) const;
     NObjectClient::TCellTag GetCellTag() const;
 
     NObjectClient::TCellId GetPrimaryCellId() const;
@@ -85,6 +84,7 @@ public:
     const TEpochHistoryManagerPtr& GetEpochHistoryManager() const;
     const TWorldInitializerPtr& GetWorldInitializer() const;
     const NObjectServer::TObjectManagerPtr& GetObjectManager() const;
+    const NObjectServer::TRequestProfilingManagerPtr& GetRequestProfilingManager() const;
     const NChunkServer::TChunkManagerPtr& GetChunkManager() const;
     const NJournalServer::TJournalManagerPtr& GetJournalManager() const;
     const NSecurityServer::TSecurityManagerPtr& GetSecurityManager() const;
@@ -132,6 +132,7 @@ private:
     TEpochHistoryManagerPtr EpochHistoryManager_;
     TWorldInitializerPtr WorldInitializer_;
     NObjectServer::TObjectManagerPtr ObjectManager_;
+    NObjectServer::TRequestProfilingManagerPtr RequestProfilingManager_;
     NChunkServer::TChunkManagerPtr ChunkManager_;
     NJournalServer::TJournalManagerPtr JournalManager_;
     NSecurityServer::TSecurityManagerPtr SecurityManager_;

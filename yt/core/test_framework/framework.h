@@ -1,6 +1,5 @@
 #pragma once
 
-#include <yt/core/concurrency/execution_context.h>
 #include <yt/core/actions/public.h>
 
 #include <library/ytalloc/core/misc/preprocessor.h>

@@ -69,7 +69,7 @@ TUrlRef ParseUrl(TStringBuf url)
 
 void THeaders::Add(const TString& header, TString value)
 {
-    ValidateValue(header, value);
+    ValidateHeaderValue(header, value);
 
     auto& entry = NameToEntry_[header];
     entry.OriginalHeaderName = header;
@@ -83,7 +83,7 @@ void THeaders::Remove(const TString& header)
 
 void THeaders::Set(const TString& header, TString value)
 {
-    ValidateValue(header, value);
+    ValidateHeaderValue(header, value);
 
     NameToEntry_[header] = {header, {std::move(value)}};
 }
@@ -168,7 +168,23 @@ void THeaders::MergeFrom(const THeadersPtr& headers)
     }
 }
 
-void THeaders::ValidateValue(TStringBuf header, TStringBuf value)
+////////////////////////////////////////////////////////////////////////////////
+
+TString EscapeHeaderValue(TStringBuf value)
+{
+    TString result;
+    result.reserve(value.length());
+    for (auto ch : value) {
+        if (ch == '\n') {
+            result.append("\\n");
+        } else {
+            result.append(ch);
+        }
+    }
+    return result;
+}
+
+void ValidateHeaderValue(TStringBuf header, TStringBuf value)
 {
     if (value.find('\n') != TString::npos) {
         THROW_ERROR_EXCEPTION("Header value should not contain newline symbol")

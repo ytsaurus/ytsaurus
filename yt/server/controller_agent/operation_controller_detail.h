@@ -739,8 +739,9 @@ protected:
     bool IsOutputLivePreviewSupported() const;
     bool IsIntermediateLivePreviewSupported() const;
 
-    virtual bool DoCheckOutputLivePreviewSupported() const;
-    virtual bool DoCheckIntermediateLivePreviewSupported() const;
+    //! Accumulate information about legacy live preview depending on operation type and user intent.
+    virtual ELegacyLivePreviewMode GetLegacyOutputLivePreviewMode() const;
+    virtual ELegacyLivePreviewMode GetLegacyIntermediateLivePreviewMode() const;
     virtual bool IsInputDataSizeHistogramSupported() const;
     virtual bool AreForeignTablesSupported() const;
 
@@ -1079,7 +1080,7 @@ private:
 
     std::unique_ptr<IJobSplitter> JobSplitter_;
 
-    bool IsLivePreviewSuppressed = false;
+    bool IsLegacyLivePreviewSuppressed = false;
 
     //! Error that lead to operation failure.
     TError Error_;

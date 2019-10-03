@@ -458,6 +458,9 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("validate_node_tags_period", ValidateNodeTagsPeriod)
         .Default(TDuration::Seconds(30));
 
+    RegisterParameter("enable_job_abort_on_zero_user_slots", EnableJobAbortOnZeroUserSlots)
+        .Default(true);
+
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;
         if (!EventLog->Path) {

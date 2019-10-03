@@ -31,6 +31,10 @@ void TCustomJobMetricDescription::Persist(const TStreamPersistenceContext& conte
     Persist(context, StatisticsPath);
     Persist(context, ProfilingName);
     Persist(context, AggregateType);
+
+    if (context.GetVersion() >= ToUnderlying(NControllerAgent::ESnapshotVersion::JobMetricsJobStateFilter)) {
+        Persist(context, JobStateFilter);
+    }
 }
 
 bool operator==(const TCustomJobMetricDescription& lhs, const TCustomJobMetricDescription& rhs)
@@ -54,6 +58,7 @@ void Serialize(const TCustomJobMetricDescription& customJobMetricDescription, NY
             .Item("statistics_path").Value(customJobMetricDescription.StatisticsPath)
             .Item("profiling_name").Value(customJobMetricDescription.ProfilingName)
             .Item("aggregate_type").Value(FormatEnum<EAggregateType>(customJobMetricDescription.AggregateType))
+            .Item("job_state_filter").Value(customJobMetricDescription.JobStateFilter)
         .EndMap();
 }
 
@@ -66,6 +71,11 @@ void Deserialize(TCustomJobMetricDescription& customJobMetricDescription, NYTree
     auto aggregateTypeNode = mapNode->FindChild("aggregate_type");
     if (aggregateTypeNode) {
         customJobMetricDescription.AggregateType = ParseEnum<EAggregateType>(aggregateTypeNode->GetValue<TString>());
+    }
+
+    auto jobStateFilterNode = mapNode->FindChild("job_state_filter");
+    if (jobStateFilterNode) {
+        customJobMetricDescription.JobStateFilter = ConvertTo<std::optional<EJobState>>(jobStateFilterNode);
     }
 }
 
@@ -122,6 +132,9 @@ TJobMetrics TJobMetrics::FromJobTrackerStatistics(
         FindNumericValue(statistics, "/job_proxy/aggregated_preempted_cpu_x100").value_or(0);
 
     for (const auto& jobMetricDescription : customJobMetricDescriptions) {
+        if (jobMetricDescription.JobStateFilter && *jobMetricDescription.JobStateFilter != jobState) {
+            continue;
+        }
         i64 value = 0;
         auto summary = FindSummary(statistics, jobMetricDescription.StatisticsPath);
         if (summary) {

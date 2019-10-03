@@ -62,7 +62,8 @@ private:
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
 
-        if (!Bootstrap_->IsPrimaryMaster()) {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (!multicellManager->IsPrimaryMaster()) {
             THROW_ERROR_EXCEPTION("Cannot register nodes at secondary master");
         }
 

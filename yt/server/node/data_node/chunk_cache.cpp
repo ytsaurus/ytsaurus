@@ -509,7 +509,9 @@ private:
         } else {
             YT_LOG_INFO(validationStatus, "Chunk is corrupted, reloading");
             TryRemove(chunk);
-            return DownloadArtifact(key, options);
+            return chunk->GetAsyncDestroyResult().Apply(BIND([=] () -> TFuture<IChunkPtr> {
+                return DownloadArtifact(key, options);
+            }));
         }
     }
 
@@ -523,25 +525,30 @@ private:
         }));
     }
 
-    void OnChunkDestroyed(
+    TFuture<void> OnChunkDestroyed(
         const TCacheLocationPtr& location,
         const TChunkDescriptor& descriptor)
     {
-        location->GetWritePoolInvoker()->Invoke(BIND(
-            &TCacheLocation::RemoveChunkFilesPermanently,
-            location,
-            descriptor.Id));
+        auto removeFuture = BIND(
+                &TCacheLocation::RemoveChunkFilesPermanently,
+                location,
+                descriptor.Id)
+            .AsyncVia(location->GetWritePoolInvoker())
+            .Run();
 
         Bootstrap_->GetControlInvoker()->Invoke(BIND([=] () {
             location->UpdateChunkCount(-1);
             location->UpdateUsedSpace(-descriptor.DiskSpace);
         }));
+
+        return removeFuture;
     }
 
     TCachedBlobChunkPtr CreateChunk(
         TCacheLocationPtr location,
         const TArtifactKey& key,
         const TChunkDescriptor& descriptor,
+        bool requiresValidation,
         const NChunkClient::TRefCountedChunkMetaPtr meta = nullptr)
     {
         auto chunk = New<TCachedBlobChunk>(
@@ -550,7 +557,8 @@ private:
             descriptor,
             meta,
             key,
-            BIND(&TImpl::OnChunkDestroyed, MakeStrong(this), location, descriptor));
+            BIND(&TImpl::OnChunkDestroyed, MakeStrong(this), location, descriptor),
+            requiresValidation);
 
         OnChunkCreated(location, descriptor);
         return chunk;
@@ -576,7 +584,7 @@ private:
             return;
         }
 
-        auto chunk = CreateChunk(location, key, descriptor);
+        auto chunk = CreateChunk(location, key, descriptor, /* requiresValidation */ true);
         cookie.EndInsert(chunk);
         YT_LOG_DEBUG("Cached chunk registered (ChunkId: %v, DiskSpace: %v)",
             chunkId,
@@ -731,7 +739,7 @@ private:
                 location->GetIOEngine(),
                 chunkId,
                 fileName,
-                /* syncOnClose */ true);
+                /* syncOnClose */ false);
 
             auto checkedChunkWriter = New<TErrorInterceptingChunkWriter>(location, chunkWriter);
 
@@ -798,7 +806,7 @@ private:
 
             TChunkDescriptor descriptor(chunkId);
             descriptor.DiskSpace = chunkWriter->GetChunkInfo().disk_space();
-            auto chunk = CreateChunk(location, key, descriptor, chunkMeta);
+            auto chunk = CreateChunk(location, key, descriptor, /* requiresValidation */ false, chunkMeta);
             cookie.EndInsert(chunk);
         } catch (const std::exception& ex) {
             auto error = TError("Error downloading chunk %v into cache",
@@ -1055,7 +1063,7 @@ private:
 
         TChunkDescriptor descriptor(chunkId);
         descriptor.DiskSpace = chunkSize + metaBlob.Size();
-        return CreateChunk(location, key, descriptor);
+        return CreateChunk(location, key, descriptor, /* requiresValidation */ false);
     }
 
     std::optional<TArtifactKey> TryParseArtifactMeta(

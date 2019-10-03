@@ -8,6 +8,8 @@ namespace NYT::NJson {
 
 DECLARE_REFCOUNTED_CLASS(TJsonFormatConfig)
 
+struct IJsonConsumer;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NJson

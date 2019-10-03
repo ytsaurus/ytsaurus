@@ -26,6 +26,7 @@ public:
         const NLogging::TLogger& logger);
 
     void Update(const NCellMasterClient::NProto::TCellDirectory& protoDirectory);
+    void UpdateDefault();
 
     NObjectClient::TCellId GetPrimaryMasterCellId() const;
     NObjectClient::TCellTag GetPrimaryMasterCellTag() const;
@@ -38,7 +39,7 @@ public:
         NApi::EMasterChannelKind kind,
         NObjectClient::TCellId cellId);
 
-    NObjectClient::TCellId PickRandomTransactionCoordinatorMasterCell() const;
+    NObjectClient::TCellId PickRandomMasterCellWithRole(EMasterCellRoles role) const;
 
 private:
     class TImpl;

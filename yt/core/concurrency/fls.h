@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/core/misc/small_vector.h>
+
 namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -11,14 +13,29 @@ namespace NDetail {
 typedef uintptr_t (*TFlsSlotCtor)();
 typedef void (*TFlsSlotDtor)(uintptr_t);
 
-int FlsAllocateSlot(TFlsSlotCtor ctor, TFlsSlotDtor dtor);
+int FlsAllocateSlot(TFlsSlotDtor dtor);
 
 int FlsCountSlots();
 
-uintptr_t FlsConstruct(int index);
+uintptr_t FlsConstruct(TFlsSlotCtor ctor);
 void FlsDestruct(int index, uintptr_t value);
 
-uintptr_t& FlsAt(int index, TFiber* fiber = nullptr);
+uintptr_t& FlsAt(int index);
+
+class TFsdHolder
+{
+public:
+    uintptr_t& FsdAt(int index);
+
+    ~TFsdHolder();
+
+private:
+    SmallVector<uintptr_t, 8> Fsd_;
+
+    void FsdResize();
+};
+
+void SetCurrentFsdHolder(TFsdHolder* currentFsd);
 
 } // namespace NDetail
 
@@ -36,9 +53,9 @@ public:
     const T* operator->() const;
     T* operator->();
 
-    T* Get(TFiber* fiber = nullptr) const;
+    T* Get() const;
 
-    bool IsInitialized(TFiber* fiber = nullptr) const;
+    bool IsInitialized() const;
 
 private:
     const int Index_;

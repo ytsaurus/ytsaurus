@@ -90,6 +90,7 @@ public:
     NTabletClient::EInMemoryMode InMemoryMode;
 
     int MaxStoresPerTablet;
+    int MaxEdenStoresPerTablet;
 
     std::optional<NHydra::TRevision> ForcedCompactionRevision;
 
@@ -227,6 +228,9 @@ public:
 
         RegisterParameter("max_stores_per_tablet", MaxStoresPerTablet)
             .Default(10000)
+            .GreaterThan(0);
+        RegisterParameter("max_eden_stores_per_tablet", MaxEdenStoresPerTablet)
+            .Default(100)
             .GreaterThan(0);
 
         RegisterParameter("forced_compaction_revision", ForcedCompactionRevision)

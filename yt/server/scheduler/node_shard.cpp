@@ -540,7 +540,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
 
     response->set_scheduling_skipped(skipScheduleJobs);
 
-    if (node->GetResourceLimits().GetUserSlots() == 0) {
+    if (Config_->EnableJobAbortOnZeroUserSlots && node->GetResourceLimits().GetUserSlots() == 0) {
         // Abort all jobs on node immediately, if it has no user slots.
         // Make a copy, the collection will be modified.
         auto jobs = node->Jobs();
@@ -659,7 +659,8 @@ void TNodeShard::UpdateExecNodeDescriptors()
     }
 
     for (const auto& node : nodesToRemove) {
-        YT_LOG_INFO("Node has not seen more that %v seconds, remove it (NodeId: %v, Address: %v)",
+        YT_LOG_INFO("Node has not seen more than %v seconds, remove it (NodeId: %v, Address: %v)",
+            Config_->MaxOfflineNodeAge,
             node->GetId(),
             node->GetDefaultAddress());
         RemoveNode(node);
@@ -1190,7 +1191,11 @@ void TNodeShard::ReleaseJob(TJobId jobId, bool archiveJobSpec, bool archiveStder
     // NB: While we kept job id in operation controller, its execution node
     // could have been unregistered.
     auto nodeId = NodeIdFromJobId(jobId);
-    if (auto execNode = FindNodeByJob(jobId)) {
+    auto execNode = FindNodeByJob(jobId);
+    if (execNode &&
+        execNode->GetMasterState() == NNodeTrackerClient::ENodeState::Online &&
+        execNode->GetSchedulerState() == ENodeState::Online)
+    {
         YT_LOG_DEBUG("Job released and will be reremoved (JobId: %v, NodeId: %v, NodeAddress: %v, ArchiveJobSpec: %v, ArchiveStderr: %v, ArchiveFailContext: %v, ArchiveProfile: %v)",
             jobId,
             nodeId,
@@ -1510,10 +1515,10 @@ void TNodeShard::DoUnregisterNode(const TExecNodePtr& node)
     AbortAllJobsAtNode(node);
 
     auto jobsToRemove = node->RecentlyFinishedJobs();
-    for (const auto& pair : jobsToRemove) {
-        auto jobId = pair.first;
+    for (const auto& [jobId, job] : jobsToRemove) {
         RemoveRecentlyFinishedJob(jobId);
     }
+    YT_VERIFY(node->RecentlyFinishedJobs().empty());
 
     if (node->GetJobReporterQueueIsTooLarge()) {
         --JobReporterQueueIsTooLargeNodeCount_;
@@ -1599,10 +1604,10 @@ void TNodeShard::ProcessHeartbeatJobs(
 {
     auto now = GetCpuInstant();
 
-    bool forceJobsLogging = false;
+    bool shouldLogOngoingJobs = false;
     auto lastJobsLogTime = node->GetLastJobsLogTime();
     if (!lastJobsLogTime || now > *lastJobsLogTime + DurationToCpuDuration(Config_->JobsLoggingPeriod)) {
-        forceJobsLogging = true;
+        shouldLogOngoingJobs = true;
         node->SetLastJobsLogTime(now);
     }
 
@@ -1654,9 +1659,7 @@ void TNodeShard::ProcessHeartbeatJobs(
     {
         auto now = GetCpuInstant();
         std::vector<TJobId> recentlyFinishedJobsToRemove;
-        for (const auto& pair : node->RecentlyFinishedJobs()) {
-            auto jobId = pair.first;
-            const auto& jobInfo = pair.second;
+        for (const auto& [jobId, jobInfo] : node->RecentlyFinishedJobs()) {
             if (now > jobInfo.EvictionDeadline) {
                 YT_LOG_DEBUG("Removing job from recently completed due to timeout for release "
                     "(JobId: %v, NodeId: %v, NodeAddress: %v)",
@@ -1671,6 +1674,8 @@ void TNodeShard::ProcessHeartbeatJobs(
         }
     }
 
+    // Used for debug logging.
+    THashMap<EJobState, std::vector<TJobId>> jobStateToOngoingJobIds;
     for (auto& jobStatus : *request->mutable_jobs()) {
         YT_VERIFY(jobStatus.has_job_type());
         auto jobType = EJobType(jobStatus.job_type());
@@ -1682,8 +1687,7 @@ void TNodeShard::ProcessHeartbeatJobs(
         auto job = ProcessJobHeartbeat(
             node,
             response,
-            &jobStatus,
-            forceJobsLogging);
+            &jobStatus);
         if (job) {
             if (checkMissingJobs) {
                 job->SetFoundOnNode(true);
@@ -1691,13 +1695,21 @@ void TNodeShard::ProcessHeartbeatJobs(
             switch (job->GetState()) {
                 case EJobState::Running:
                     runningJobs->push_back(job);
+                    jobStateToOngoingJobIds[job->GetState()].push_back(job->GetId());
                     break;
                 case EJobState::Waiting:
                     *hasWaitingJobs = true;
+                    jobStateToOngoingJobIds[job->GetState()].push_back(job->GetId());
                     break;
                 default:
                     break;
             }
+        }
+    }
+
+    if (shouldLogOngoingJobs) {
+        for (const auto& [jobState, jobIds] : jobStateToOngoingJobIds) {
+            YT_LOG_DEBUG_IF(!jobIds.empty(), "Jobs are %lv (JobIds: %v)", jobState, jobIds);
         }
     }
 
@@ -1758,8 +1770,7 @@ NLogging::TLogger TNodeShard::CreateJobLogger(
 TJobPtr TNodeShard::ProcessJobHeartbeat(
     const TExecNodePtr& node,
     NJobTrackerClient::NProto::TRspHeartbeat* response,
-    TJobStatus* jobStatus,
-    bool forceJobsLogging)
+    TJobStatus* jobStatus)
 {
     auto jobId = FromProto<TJobId>(jobStatus->job_id());
     auto operationId = FromProto<TOperationId>(jobStatus->operation_id());
@@ -1854,7 +1865,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
         ResetJobWaitingForConfirmation(job);
     }
 
-    bool shouldLogJob = (state != job->GetState()) || forceJobsLogging;
+    bool stateChanged = (state != job->GetState());
 
     switch (state) {
         case EJobState::Completed: {
@@ -1903,8 +1914,8 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
                 SetJobState(job, state);
                 switch (state) {
                     case EJobState::Running:
-                        YT_LOG_DEBUG_IF(shouldLogJob, "Job is running");
-                        OnJobRunning(job, jobStatus, shouldLogJob);
+                        YT_LOG_DEBUG_IF(stateChanged, "Job is now running");
+                        OnJobRunning(job, jobStatus, stateChanged);
                         if (job->GetInterruptDeadline() != 0 && GetCpuInstant() > job->GetInterruptDeadline()) {
                             YT_LOG_DEBUG("Interrupted job deadline reached, aborting (InterruptDeadline: %v)",
                                 CpuInstantToInstant(job->GetInterruptDeadline()));
@@ -1918,7 +1929,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
                         break;
 
                     case EJobState::Waiting:
-                        YT_LOG_DEBUG_IF(shouldLogJob, "Job is waiting", state);
+                        YT_LOG_DEBUG_IF(stateChanged, "Job is now waiting", state);
                         break;
 
                     default:
