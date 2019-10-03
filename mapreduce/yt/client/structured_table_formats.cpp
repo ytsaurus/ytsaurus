@@ -448,7 +448,7 @@ std::pair<TFormat, TMaybe<TSmallJobFile>> TFormatBuilder::CreateNodeYdlFormat(
                 ThrowTypeDeriveFail(direction, job, "ydl");
             }
         }
-        if (jobDescriptor && *descriptor != *jobDescriptor) {
+        if (jobDescriptor && descriptor->AsStruct().GetName() != jobDescriptor->AsStruct().GetName()) {
             ThrowUnexpectedDifferentDescriptors(
                 direction,
                 table,
