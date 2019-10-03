@@ -924,9 +924,14 @@ class SpecBuilder(object):
         spec = self._do_build(client)
         for user_job_script_path in self._user_job_scripts:
             task_spec = spec
+            skip_script = False
             for part in user_job_script_path:
+                if part not in task_spec:
+                    skip_script = True
+                    break
                 task_spec = task_spec[part]
-            self._apply_environment_patch(task_spec, client)
+            if not skip_script:
+                self._apply_environment_patch(task_spec, client)
         # For vanilla operation we should also visit all tasks from spec, as
         # they may be absent in _user_job_scripts in case of raw spec.
         # But be careful not to process same user job spec twice!
