@@ -40,6 +40,6 @@ public class CheckPermission extends MutateNode<CheckPermission> {
                 .setUser(user)
                 .setPath(path)
                 .setPermission(permissions)
-                .setColumns(TReqCheckPermission.TColumns.newBuilder().addAllItems(columns).build());
+                .setColumns(TReqCheckPermission.TColumns.newBuilder().addAllItems(columns));
     }
 }
