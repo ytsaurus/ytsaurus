@@ -1040,15 +1040,14 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        GuardedAction([&] {
-            if (JobPhase_ < EJobPhase::Running) {
-                THROW_ERROR_EXCEPTION(
-                    EErrorCode::JobPreparationTimeout,
-                    "Failed to prepare job within timeout")
-                    << TErrorAttribute("prepare_time_limit", prepareTimeLimit)
-                    << TErrorAttribute("job_start_time", StartTime_);
-            }
-        });
+        if (JobPhase_ < EJobPhase::Running) {
+            auto error = TError(
+                EErrorCode::JobPreparationTimeout,
+                "Failed to prepare job within timeout")
+                << TErrorAttribute("prepare_time_limit", prepareTimeLimit)
+                << TErrorAttribute("job_start_time", StartTime_);
+            Abort(error);
+        }
     }
 
     void OnJobAbortionTimeout()
