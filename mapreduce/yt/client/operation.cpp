@@ -959,6 +959,9 @@ void BuildUserJobFluently1(
         .DoIf(portCount.Defined(), [&] (TFluentMap fluentMap) {
             fluentMap.Item("port_count").Value(*portCount);
         })
+        .DoIf(userJobSpec.JobTimeLimit_.Defined(), [&] (TFluentMap fluentMap) {
+            fluentMap.Item("job_time_limit").Value(userJobSpec.JobTimeLimit_->MilliSeconds());
+        })
         .DoIf(preparer.ShouldMountSandbox(), [&] (TFluentMap fluentMap) {
             fluentMap.Item("tmpfs_path").Value(".");
             fluentMap.Item("tmpfs_size").Value(tmpfsSize);
@@ -966,7 +969,8 @@ void BuildUserJobFluently1(
         });
 }
 
-void BuildCommonOperationPart(const TOperationOptions& options, TFluentMap fluent)
+template <typename T>
+void BuildCommonOperationPart(const TOperationSpecBase<T>& baseSpec, const TOperationOptions& options, TFluentMap fluent)
 {
     const TProcessState* properties = TProcessState::Get();
     const TString& pool = TConfig::Get()->Pool;
@@ -982,6 +986,9 @@ void BuildCommonOperationPart(const TOperationOptions& options, TFluentMap fluen
         .EndMap()
         .DoIf(!pool.empty(), [&] (TFluentMap fluentMap) {
             fluentMap.Item("pool").Value(pool);
+        })
+        .DoIf(baseSpec.TimeLimit_.Defined(), [&] (TFluentMap fluentMap) {
+            fluentMap.Item("time_limit").Value(baseSpec.TimeLimit_->MilliSeconds());
         })
         .DoIf(options.SecureVault_.Defined(), [&] (TFluentMap fluentMap) {
             Y_ENSURE(options.SecureVault_->IsMap(),
@@ -1211,7 +1218,7 @@ TOperationId DoExecuteMap(
         .DoIf(spec.Ordered_.Defined(), [&] (TFluentMap fluent) {
             fluent.Item("ordered").Value(spec.Ordered_.GetRef());
         })
-        .Do(std::bind(BuildCommonOperationPart, options, std::placeholders::_1))
+        .Do(std::bind(BuildCommonOperationPart<T>, spec, options, std::placeholders::_1))
     .EndMap().EndMap();
 
     specNode["spec"]["job_io"]["control_attributes"]["enable_row_index"] = TNode(true);
@@ -1320,7 +1327,7 @@ TOperationId DoExecuteReduce(
             })
         .EndMap()
         .Item("title").Value(reduce.GetClassName())
-        .Do(std::bind(BuildCommonOperationPart, options, std::placeholders::_1))
+        .Do(std::bind(BuildCommonOperationPart<T>, spec, options, std::placeholders::_1))
     .EndMap().EndMap();
 
     BuildCommonUserOperationPart(spec, &specNode["spec"]);
@@ -1415,7 +1422,7 @@ TOperationId DoExecuteJoinReduce(
             })
         .EndMap()
         .Item("title").Value(reduce.GetClassName())
-        .Do(std::bind(BuildCommonOperationPart, options, std::placeholders::_1))
+        .Do(std::bind(BuildCommonOperationPart<T>, spec, options, std::placeholders::_1))
     .EndMap().EndMap();
 
     BuildCommonUserOperationPart(spec, &specNode["spec"]);
@@ -1583,7 +1590,7 @@ TOperationId DoExecuteMapReduce(
             })
         .EndMap()
         .Item("title").Value(title + "reducer:" + reduce.GetClassName())
-        .Do(std::bind(BuildCommonOperationPart, options, std::placeholders::_1))
+        .Do(std::bind(BuildCommonOperationPart<T>, spec, options, std::placeholders::_1))
     .EndMap().EndMap();
 
     if (spec.Ordered_) {
@@ -1908,7 +1915,7 @@ TOperationId ExecuteSort(
         .DoIf(spec.SchemaInferenceMode_.Defined(), [&] (TFluentMap fluent) {
             fluent.Item("schema_inference_mode").Value(::ToString(*spec.SchemaInferenceMode_));
         })
-        .Do(std::bind(BuildCommonOperationPart, options, std::placeholders::_1))
+        .Do(std::bind(BuildCommonOperationPart<TSortOperationSpec>, spec, options, std::placeholders::_1))
     .EndMap().EndMap();
 
     BuildPartitionCountOperationPart(spec, &specNode["spec"]);
@@ -1950,7 +1957,7 @@ TOperationId ExecuteMerge(
         .DoIf(spec.SchemaInferenceMode_.Defined(), [&] (TFluentMap fluent) {
             fluent.Item("schema_inference_mode").Value(::ToString(*spec.SchemaInferenceMode_));
         })
-        .Do(std::bind(BuildCommonOperationPart, options, std::placeholders::_1))
+        .Do(std::bind(BuildCommonOperationPart<TMergeOperationSpec>, spec, options, std::placeholders::_1))
     .EndMap().EndMap();
 
     BuildJobCountOperationPart(spec, &specNode["spec"]);
@@ -1980,7 +1987,7 @@ TOperationId ExecuteErase(
         .DoIf(spec.SchemaInferenceMode_.Defined(), [&] (TFluentMap fluent) {
             fluent.Item("schema_inference_mode").Value(::ToString(*spec.SchemaInferenceMode_));
         })
-        .Do(std::bind(BuildCommonOperationPart, options, std::placeholders::_1))
+        .Do(std::bind(BuildCommonOperationPart<TEraseOperationSpec>, spec, options, std::placeholders::_1))
     .EndMap().EndMap();
 
     auto operationId = preparer.StartOperation(
@@ -2025,7 +2032,7 @@ TOperationId ExecuteRemoteCopy(
                 "doesn't make sense without CopyAttributes == true");
             fluent.Item("attribute_keys").Value(spec.AttributeKeys_);
         })
-        .Do(std::bind(BuildCommonOperationPart, options, std::placeholders::_1))
+        .Do(std::bind(BuildCommonOperationPart<TRemoteCopyOperationSpec>, spec, options, std::placeholders::_1))
     .EndMap().EndMap();
 
     auto operationId = preparer.StartOperation(
@@ -2116,7 +2123,7 @@ TOperationId ExecuteVanilla(
     TNode specNode = BuildYsonNodeFluently()
     .BeginMap().Item("spec").BeginMap()
         .Item("tasks").DoMapFor(spec.Tasks_, addTask)
-        .Do(std::bind(BuildCommonOperationPart, options, std::placeholders::_1))
+        .Do(std::bind(BuildCommonOperationPart<TVanillaOperationSpec>, spec, options, std::placeholders::_1))
     .EndMap().EndMap();
 
     BuildCommonUserOperationPart(spec, &specNode["spec"]);
