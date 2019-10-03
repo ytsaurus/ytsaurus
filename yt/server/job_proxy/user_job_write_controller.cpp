@@ -68,7 +68,10 @@ void TUserJobWriteController::Init()
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
         options->EnableValidationOptions();
 
-        auto writerConfig = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableWriter;
+        auto ioConfig = Host_->GetJobSpecHelper()->GetJobIOConfig();
+        auto writerConfig = outputSpec.dynamic()
+            ? ioConfig->DynamicTableWriter
+            : ioConfig->TableWriter;
         if (outputSpec.has_table_writer_config()) {
             writerConfig = UpdateYsonSerializable(
                 writerConfig,
