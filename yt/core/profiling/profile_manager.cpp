@@ -6,6 +6,7 @@
 #include <yt/core/concurrency/fork_aware_spinlock.h>
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/scheduler_thread.h>
+#include <yt/core/concurrency/invoker_queue.h>
 
 #include <yt/core/logging/log.h>
 
@@ -422,7 +423,7 @@ private:
     private:
         TImpl* const Owner;
 
-        virtual EBeginExecuteResult BeginExecute() override
+        virtual TClosure BeginExecute() override
         {
             return Owner->BeginExecute();
         }
@@ -466,7 +467,7 @@ private:
 
     THashMap<TString, TString> GlobalTags_;
 
-    EBeginExecuteResult BeginExecute()
+    TClosure BeginExecute()
     {
         return EventQueue_->BeginExecute(&CurrentAction_);
     }

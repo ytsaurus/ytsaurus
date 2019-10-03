@@ -12,6 +12,7 @@
 #include <yt/server/master/cypress_server/resolve_cache.h>
 
 #include <yt/server/master/object_server/path_resolver.h>
+#include <yt/server/master/object_server/request_profiling_manager.h>
 
 #include <yt/server/master/security_server/security_manager.h>
 #include <yt/server/master/security_server/user.h>
@@ -24,6 +25,10 @@
 
 #include <yt/ytlib/transaction_client/helpers.h>
 
+#include <yt/ytlib/api/native/connection.h>
+
+#include <yt/ytlib/hive/cell_directory.h>
+
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/core/rpc/helpers.h>
@@ -34,7 +39,6 @@
 #include <yt/core/ytree/ypath_detail.h>
 
 #include <yt/core/profiling/timing.h>
-#include <yt/core/profiling/profiler.h>
 
 #include <yt/core/misc/crash_handler.h>
 #include <yt/core/misc/heap.h>
@@ -44,10 +48,7 @@
 
 #include <yt/core/concurrency/rw_spinlock.h>
 
-#include <yt/core/profiling/profile_manager.h>
-
 #include <atomic>
-#include <queue>
 
 namespace NYT::NObjectServer {
 
@@ -69,68 +70,6 @@ using namespace NProfiling;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Profiler = ObjectServerProfiler;
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TRequestProfilngCounters
-    : public TIntrinsicRefCounted
-{
-    explicit TRequestProfilngCounters(const NProfiling::TTagIdList& tagIds)
-        : TotalReadRequestCounter("/total_read_request_count", tagIds)
-        , TotalWriteRequestCounter("/total_write_request_count", tagIds)
-        , LocalReadRequestCounter("/local_read_request_count", tagIds)
-        , LocalWriteRequestCounter("/local_write_request_count", tagIds)
-        , LeaderFallbackRequestCounter("/leader_fallback_request_count", tagIds)
-        , IntraCellForwardingRequestCounter("/intra_cell_forwarding_request_count", tagIds)
-        , CrossCellForwardingRequestCounter("/cross_cell_forwarding_request_count", tagIds)
-        , LocalMutationScheduleTimeCounter("/local_mutation_schedule_time", tagIds)
-    { }
-
-    TMonotonicCounter TotalReadRequestCounter;
-    TMonotonicCounter TotalWriteRequestCounter;
-    TMonotonicCounter LocalReadRequestCounter;
-    TMonotonicCounter LocalWriteRequestCounter;
-    TMonotonicCounter LeaderFallbackRequestCounter;
-    TMonotonicCounter IntraCellForwardingRequestCounter;
-    TMonotonicCounter CrossCellForwardingRequestCounter;
-    TMonotonicCounter LocalMutationScheduleTimeCounter;
-};
-
-using TRequestProfilngCountersPtr = TIntrusivePtr<TRequestProfilngCounters>;
-
-class TRequestProfilingManager
-{
-public:
-    TRequestProfilngCountersPtr GetCounters(const TString& user, const TString& method)
-    {
-        auto key = std::make_tuple(user, method);
-
-        {
-            NConcurrency::TReaderGuard guard(Lock_);
-            if (auto it = KeyToCounters_.find(key)) {
-                return it->second;
-            }
-        }
-
-        TTagIdList tagIds{
-            TProfileManager::Get()->RegisterTag("user", user),
-            TProfileManager::Get()->RegisterTag("method", method)
-        };
-        auto counters = New<TRequestProfilngCounters>(tagIds);
-
-        {
-            NConcurrency::TWriterGuard guard(Lock_);
-            auto [it, inserted] = KeyToCounters_.emplace(key, std::move(counters));
-            return it->second;
-        }
-    }
-
-private:
-    // (user, method)
-    using TKey = std::tuple<TString, TString>;
-    NConcurrency::TReaderWriterSpinLock Lock_;
-    THashMap<TKey, TRequestProfilngCountersPtr> KeyToCounters_;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -260,7 +199,6 @@ private:
     std::atomic<bool> ProcessSessionsCallbackEnqueued_ = {false};
 
     TStickyUserErrorCache StickyUserErrorCache_;
-    TRequestProfilingManager ProfilingStatisticsManager_;
 
 
     static IInvokerPtr GetRpcInvoker()
@@ -539,7 +477,8 @@ private:
                     "Error parsing subrequest header");
             }
 
-            subrequest.ProfilingCounters = Owner_->ProfilingStatisticsManager_.GetCounters(
+            const auto& requestProfilingManager = Bootstrap_->GetRequestProfilingManager();
+            subrequest.ProfilingCounters = requestProfilingManager->GetCounters(
                 UserName_,
                 requestHeader.method());
 
@@ -671,12 +610,13 @@ private:
             return false;
         }
 
-        if (cellTag == Bootstrap_->GetCellTag()) {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (cellTag == multicellManager->GetCellTag()) {
             // No need to sync with self.
             return false;
         }
 
-        if (Bootstrap_->IsSecondaryMaster() && cellTag == Bootstrap_->GetPrimaryCellTag()) {
+        if (multicellManager->IsSecondaryMaster() && cellTag == multicellManager->GetPrimaryCellTag()) {
             // IHydraManager::SyncWithUpstream will take care of this.
             return false;
         }
@@ -703,6 +643,7 @@ private:
 
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         const auto& hiveManager = Bootstrap_->GetHiveManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
         if (syncWithUpstream) {
             addAsyncResult(hydraManager->SyncWithUpstream());
@@ -713,7 +654,7 @@ private:
             if (!RegisterCellToSyncWith(cellTag)) {
                 continue;
             }
-            auto cellId = Bootstrap_->GetCellId(cellTag);
+            auto cellId = multicellManager->GetCellId(cellTag);
             addAsyncResult(hiveManager->SyncWith(cellId, true));
             syncCellTags.push_back(cellTag);
         }
@@ -784,7 +725,7 @@ private:
 
     void MarkSubrequestRemoteIntraCell(TSubrequest* subrequest)
     {
-        subrequest->ForwardedCellTag = Bootstrap_->GetCellTag();
+        subrequest->ForwardedCellTag = Bootstrap_->GetMulticellManager()->GetCellTag();
         subrequest->RemoteRequestMessage = subrequest->RequestMessage;
         subrequest->Type = EExecutionSessionSubrequestType::Remote;
         Profiler.Increment(subrequest->ProfilingCounters->IntraCellForwardingRequestCounter);
@@ -953,13 +894,18 @@ private:
             auto key = std::make_tuple(cellTag, peerKind);
             auto it = batchMap.find(key);
             if (it == batchMap.end()) {
-                const auto& multicellManager = Bootstrap_->GetMulticellManager();
-                auto channel = multicellManager->GetMasterChannelOrThrow(cellTag, peerKind);
+                const auto& connection = Bootstrap_->GetClusterConnection();
+                auto cellId = connection->GetMasterCellId(cellTag);
+
+                const auto& cellDirectory = Bootstrap_->GetCellDirectory();
+                auto channel = cellDirectory->GetChannelOrThrow(cellId, peerKind);
+
                 TObjectServiceProxy proxy(std::move(channel));
                 auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
                 batchReq->SetOriginalRequestId(RequestId_);
                 batchReq->SetTimeout(ComputeForwardingTimeout(RpcContext_, Owner_->Config_));
                 batchReq->SetUser(RpcContext_->GetUser());
+
                 it = batchMap.emplace(key, TBatchValue{
                     .BatchReq = std::move(batchReq)
                 }).first;
@@ -1139,12 +1085,13 @@ private:
 
         if (!RequestQueueSizeIncreased_) {
             if (!securityManager->TryIncreaseRequestQueueSize(User_)) {
+                auto cellTag = Bootstrap_->GetMulticellManager()->GetCellTag();
                 auto error = TError(
                     NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded,
                     "User %Qv has exceeded its request queue size limit",
                     User_->GetName())
-                    << TErrorAttribute("limit", User_->GetRequestQueueSizeLimit(Bootstrap_->GetCellTag()))
-                    << TErrorAttribute("cell_tag", Bootstrap_->GetCellTag());
+                    << TErrorAttribute("limit", User_->GetRequestQueueSizeLimit(cellTag))
+                    << TErrorAttribute("cell_tag", cellTag);
                 Owner_->SetStickyUserError(UserName_, error);
                 THROW_ERROR error;
             }
@@ -1281,9 +1228,8 @@ private:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto asyncSubresponse = objectManager->ForwardObjectRequest(
             subrequest->RequestMessage,
-            Bootstrap_->GetCellTag(),
-            EPeerKind::Leader,
-            RpcContext_->GetTimeout());
+            Bootstrap_->GetMulticellManager()->GetCellTag(),
+            EPeerKind::Leader);
 
         SubscribeToSubresponse(subrequest, std::move(asyncSubresponse));
     }

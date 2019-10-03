@@ -27,6 +27,7 @@ Configuration = collections.namedtuple("Configuration", ["working_directory", "d
 ProfileConfiguration = collections.namedtuple("ProfileConfiguration", [
     "yt_source_directory",
     "port",
+    "use_ytserver_all",
 ])
 
 class MyLittleYtError(RuntimeError):
@@ -78,6 +79,10 @@ default_profile = "default"
 [profile.default]
 # Http port of the controller
 port = {port}
+
+# When set to true only ytserver-all binary is required.
+# Otherwise all binaries: ytserver-master, ytserver-scheduler etc are required.
+use_ytserver_all = false
 
 # Directory with YT sources.
 # When not specified it will be determined automatically assuming my-little-yt.py
@@ -176,12 +181,16 @@ def get_configuration():
     profiles = {}
     for profile_name, profile_node in profiles_node.items():
         port = get_type_checked(["profile", profile_name, "port"], int)
+        use_ytserver_all = get_type_checked(["profile", profile_name, "use_ytserver_all"], bool, required=False)
+        if use_ytserver_all is None:
+            use_ytserver_all = False
         yt_source_directory = get_type_checked(["profile", profile_name, "yt_source_directory"], str, required=False)
         if yt_source_directory is None:
             yt_source_directory = find_repo_root()
         profiles[profile_name] = ProfileConfiguration(
             port=port,
             yt_source_directory=pathlib.Path(yt_source_directory).expanduser(),
+            use_ytserver_all = use_ytserver_all
         )
 
     return Configuration(
@@ -253,11 +262,35 @@ class LocalYt:
         self._run_impl(subprocess.check_call, args)
 
     def _run_impl(self, func, args):
+        build_dir = self.profile_cfg.yt_source_directory / "ya-build"
+        if not self.profile_cfg.use_ytserver_all:
+            bin_dir = build_dir
+        else:
+            bin_dir = self.cfg.working_directory / "bin"
+            if not bin_dir.exists():
+                bin_dir.mkdir(parents=True)
+            for name in [
+                "ytserver-master",
+                "ytserver-clock",
+                "ytserver-node",
+                "ytserver-job-proxy",
+                "ytserver-exec",
+                "ytserver-proxy",
+                "ytserver-http-proxy",
+                "ytserver-tools",
+                "ytserver-scheduler",
+                "ytserver-controller-agent",
+            ]:
+                bin_name = bin_dir / name
+                if bin_name.exists():
+                    bin_name.unlink()
+                bin_name.symlink_to(build_dir / "ytserver-all")
+
         cmd = [
             "env",
             "PATH={}".format(
                 ":".join([
-                    str(self.profile_cfg.yt_source_directory / "ya-build"),
+                    str(bin_dir),
                     os.environ["PATH"]
                 ])
             ),

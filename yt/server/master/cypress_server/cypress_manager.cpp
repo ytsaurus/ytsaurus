@@ -205,14 +205,19 @@ public:
         return Transaction_;
     }
 
-    virtual bool ShouldPreserveExpirationTime() const override
-    {
-        return Options_.PreserveExpirationTime;
-    }
-
     virtual bool ShouldPreserveCreationTime() const override
     {
         return Options_.PreserveCreationTime;
+    }
+
+    virtual bool ShouldPreserveModificationTime() const override
+    {
+        return Options_.PreserveModificationTime;
+    }
+
+    virtual bool ShouldPreserveExpirationTime() const override
+    {
+        return Options_.PreserveExpirationTime;
     }
 
     virtual TAccount* GetNewNodeAccount() const override
@@ -288,7 +293,7 @@ public:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         bool defaultExternal =
             Any(handler->GetFlags() & ETypeFlags::Externalizable) &&
-            (Bootstrap_->IsPrimaryMaster() || Shard_ && Shard_->GetRoot() && Shard_->GetRoot()->GetType() == EObjectType::PortalExit) &&
+            (multicellManager->IsPrimaryMaster() || Shard_ && Shard_->GetRoot() && Shard_->GetRoot()->GetType() == EObjectType::PortalExit) &&
             !multicellManager->GetRegisteredMasterCellTags().empty();
         bool external = explicitAttributes->GetAndRemove<bool>("external", defaultExternal);
 
@@ -315,12 +320,12 @@ public:
             }
         }
 
-        if (externalCellTag == Bootstrap_->GetCellTag()) {
+        if (externalCellTag == multicellManager->GetCellTag()) {
             external = false;
             externalCellTag = NotReplicatedCellTag;
         }
 
-        if (externalCellTag == Bootstrap_->GetPrimaryCellTag()) {
+        if (externalCellTag == multicellManager->GetPrimaryCellTag()) {
             THROW_ERROR_EXCEPTION("Cannot place externalizable nodes at primary cell");
         }
 
@@ -472,6 +477,18 @@ public:
         }
 
         return clonedTrunkNode;
+    }
+
+    virtual void EndCopyNodeInplace(
+        TCypressNode* trunkNode,
+        TEndCopyContext* context) override
+    {
+        // See BeginCopyCore.
+        using NYT::Load;
+        auto sourceNodeId = Load<TNodeId>(*context);
+
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        cypressManager->EndCopyNodeInplace(trunkNode, context, this, sourceNodeId);
     }
 
 private:
@@ -652,7 +669,7 @@ public:
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
 
-        RootNodeId_ = MakeWellKnownId(EObjectType::MapNode, Bootstrap_->GetCellTag());
+        RootNodeId_ = MakeWellKnownId(EObjectType::MapNode, Bootstrap_->GetMulticellManager()->GetCellTag());
         RootShardId_ = MakeCypressShardId(RootNodeId_);
         ResolveCache_ = New<TResolveCache>(RootNodeId_);
 
@@ -923,6 +940,33 @@ public:
         return handler->EndCopy(context, factory, sourceNodeId);
     }
 
+    void EndCopyNodeInplace(
+        TCypressNode* trunkNode,
+        TEndCopyContext* context,
+        ICypressNodeFactory* factory,
+        TNodeId sourceNodeId)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(context);
+        YT_VERIFY(factory);
+        YT_VERIFY(trunkNode->IsTrunk());
+
+        // See BeginCopyCore.
+        auto type = Load<EObjectType>(*context);
+        if (type != trunkNode->GetType() &&
+           !(type == EObjectType::MapNode && trunkNode->GetType() == EObjectType::PortalExit))
+        {
+            THROW_ERROR_EXCEPTION("Cannot inplace copy node %v of type %Qlv to node %v of type %Qlv",
+                sourceNodeId,
+                type,
+                trunkNode->GetId(),
+                trunkNode->GetType());
+        }
+
+        const auto& handler = GetHandler(type);
+        return handler->EndCopyInplace(trunkNode, context, factory, sourceNodeId);
+    }
+
 
     TMapNode* GetRootNode() const
     {
@@ -1148,32 +1192,50 @@ public:
         YT_VERIFY(transaction);
         YT_VERIFY(!transaction->Locks().empty());
 
-        auto getStrongestLockMode = [&] () {
-            auto result = ELockMode::None;
-            for (auto* lock : trunkNode->LockingState().AcquiredLocks) {
-                if (lock->GetTransaction() != transaction) {
-                    continue;
-                }
-                if (lock->Request().Mode > result) {
-                    result = lock->Request().Mode;
-                    if (result == ELockMode::Exclusive) {
-                        break; // as strong as it gets
-                    }
-                }
+        // Nodes must be unbranched before locks are released (because unbranching uses them).
+        // The effect of releasing locks must therefore be predicted without actually affecting them.
+        // Make sure this prediction is consistent with what actually releasing locks does.
+
+        auto strongestLockModeBefore = ELockMode::None;
+        auto strongestLockModeAfter = ELockMode::None;
+        for (auto* lock : transaction->Locks()) {
+            if (lock->GetState() != ELockState::Acquired) {
+                continue;
             }
-            return result;
-        };
 
-        auto strongestLockModeBefore = getStrongestLockMode();
-        RemoveTransactionNodeLocks(trunkNode, transaction, explicitOnly);
-        auto strongestLockModeAfter = getStrongestLockMode();
+            if (lock->GetTransaction() != transaction) {
+                continue;
+            }
 
-        if (trunkNode->IsExternal() && trunkNode->IsNative()) {
-            PostUnlockForeignNodeRequest(trunkNode, transaction, explicitOnly);
+            auto lockMode = lock->Request().Mode;
+
+            if (lockMode > strongestLockModeBefore) {
+                strongestLockModeBefore = lockMode;
+            }
+
+            // This lock won't be destroyed and thus will affect the "after" mode.
+            if (!ShouldRemoveLockOnUnlock(lock, explicitOnly) && lockMode > strongestLockModeAfter) {
+                strongestLockModeAfter = lockMode;
+            }
+
+            if (strongestLockModeBefore == ELockMode::Exclusive &&
+                strongestLockModeAfter == ELockMode::Exclusive)
+            {
+                // As strong as it gets.
+                break;
+            }
         }
+
+        // Again, the order is crucial: first unbranch (or update) nodes, then destroy locks.
 
         if (strongestLockModeBefore != strongestLockModeAfter) {
             RemoveOrUpdateNodesOnLockModeChange(trunkNode, transaction, strongestLockModeBefore, strongestLockModeAfter);
+        }
+
+        RemoveTransactionNodeLocks(trunkNode, transaction, explicitOnly);
+
+        if (trunkNode->IsExternal() && trunkNode->IsNative()) {
+            PostUnlockForeignNodeRequest(trunkNode, transaction, explicitOnly);
         }
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Node explicitly unlocked (NodeId: %v, TransactionId: %v)",
@@ -1188,18 +1250,18 @@ public:
         NTransactionServer::TTransaction* transaction,
         bool explicitOnly)
     {
+        if (trunkNode->LockingState().IsEmpty()) {
+            return;
+        }
+
         auto isLockRelevant = [&] (TLock* l) { return l->GetTransaction() == transaction; };
 
         auto maybeRemoveLock = [&] (TLock* lock) {
             YT_ASSERT(lock->GetTrunkNode() == trunkNode);
-            if (isLockRelevant(lock) && (!explicitOnly || !lock->GetImplicit())) {
+            if (isLockRelevant(lock) && ShouldRemoveLockOnUnlock(lock, explicitOnly)) {
                 DoRemoveLock(lock, false /*resetEmptyLockingState*/);
             }
         };
-
-        if (trunkNode->LockingState().IsEmpty()) {
-            return;
-        }
 
         auto& acquiredLocks = trunkNode->MutableLockingState()->AcquiredLocks;
         for (auto it = acquiredLocks.begin(); it != acquiredLocks.end(); ) {
@@ -1223,6 +1285,11 @@ public:
         trunkNode->ResetLockingStateIfEmpty();
     }
 
+    bool ShouldRemoveLockOnUnlock(TLock* lock, bool explicitOnly)
+    {
+        return !explicitOnly || !lock->GetImplicit();
+    }
+
     // Returns the mode of the strongest lock among all of the descendants
     // (branches, subbranches, subsubbranches...) of the node.
     // NB: doesn't distinguish ELockMode::None and ELockMode::Snapshot - returns
@@ -1235,19 +1302,20 @@ public:
 
         auto result = ELockMode::Snapshot;
         for (auto* nestedTransaction : transaction->NestedTransactions()) {
-            auto* versionedNode = FindNode(TVersionedNodeId{trunkNode->GetId(), nestedTransaction->GetId()});
-            if (!versionedNode) {
-                continue;
-            }
+            for (auto* branchedNode : nestedTransaction->BranchedNodes()) {
+                if (branchedNode->GetTrunkNode() == trunkNode) {
+                    auto lockMode = branchedNode->GetLockMode();
+                    YT_VERIFY(lockMode != ELockMode::None);
 
-            auto lockMode = versionedNode->GetLockMode();
-            YT_VERIFY(lockMode != ELockMode::None);
+                    if (result < lockMode) {
+                        result = lockMode;
 
-            if (result < lockMode) {
-                result = lockMode;
+                        if (result == ELockMode::Exclusive) {
+                            // As strong as it gets.
+                            return result;
+                        }
+                    }
 
-                if (result == ELockMode::Exclusive) {
-                    break; // as strong as it gets
                 }
             }
         }
@@ -1305,9 +1373,8 @@ public:
         }
 
         SmallSet<TCypressNode*, 8> unbranchedNodes;
-        TCypressNode* newOriginator = nullptr;
-        auto unbranchNode = [&] (TCypressNode* node) {
-            newOriginator = node->GetOriginator();
+        auto unbranchNode = [&] (TCypressNode* node) -> TCypressNode* {
+            auto* originator = node->GetOriginator();
             auto* transaction = node->GetTransaction();
 
             DestroyBranchedNode(transaction, node);
@@ -1317,11 +1384,15 @@ public:
             branchedNodes.erase(it, branchedNodes.end());
 
             unbranchedNodes.insert(node);
+
+            return originator;
         };
         YT_VERIFY(!mustUnbranchThisNode || !mustUpdateThisNode);
 
+        // Store the originator before (maybe) unbranching.
+        TCypressNode* newOriginator = branchedNode->GetOriginator();
         if (mustUnbranchThisNode) {
-            unbranchNode(branchedNode);
+            YT_VERIFY(unbranchNode(branchedNode) == newOriginator);
         }
 
         if (mustUpdateThisNode) {
@@ -1332,17 +1403,19 @@ public:
         YT_VERIFY(!mustUnbranchAboveNodes || !mustUpdateAboveNodes);
         if (mustUnbranchAboveNodes || mustUpdateAboveNodes) {
             // Process nodes above until another lock is met.
-            for (auto* t = transaction->GetParent(); t; t = t->GetParent()) {
-                if (t->LockedNodes().contains(trunkNode)) {
+            for (auto* aboveNode = newOriginator; aboveNode != trunkNode; ) {
+                // Make sure to get the originator of the current node *before* it's unbranched.
+                auto* nextOriginator = aboveNode->GetOriginator();
+
+                auto* aboveNodeTransaction = aboveNode->GetTransaction();
+                if (aboveNodeTransaction->LockedNodes().contains(trunkNode)) {
                     break;
                 }
 
-                auto* node = GetNode(TVersionedNodeId{trunkNode->GetId(), t->GetId()});
-                YT_ASSERT(t == node->GetTransaction());
+                auto strongestLockModeBelow = GetStrongestLockModeOfNestedTransactions(trunkNode, aboveNodeTransaction);
 
-                auto strongestLockModeBelow = GetStrongestLockModeOfNestedTransactions(trunkNode, t);
                 auto updateNode = [&] () {
-                    node->SetLockMode(strongestLockModeBelow == ELockMode::Snapshot
+                    aboveNode->SetLockMode(strongestLockModeBelow == ELockMode::Snapshot
                         ? strongestLockModeBelow = ELockMode::None
                         : strongestLockModeBelow);
                 };
@@ -1354,7 +1427,7 @@ public:
                 if (mustUnbranchAboveNodes) {
                     // Be careful: it's not always possible to continue unbranching - some sibling may have a branch.
                     if (strongestLockModeBelow <= ELockMode::Snapshot) {
-                        unbranchNode(node);
+                        newOriginator = unbranchNode(aboveNode);
                     } else {
                         // Switch to updating.
                         updateNode();
@@ -1362,6 +1435,8 @@ public:
                         mustUpdateAboveNodes = true;
                     }
                 }
+
+                aboveNode = nextOriginator;
             }
         }
 
@@ -1371,11 +1446,9 @@ public:
             // as its originator. We must update these references to avoid dangling pointers.
             auto* newOriginatorTransaction = newOriginator->GetTransaction();
 
-            for (auto* lock : trunkNode->LockingState().AcquiredLocks) {
-                if (lock->Request().Mode != ELockMode::Snapshot) {
-                    continue;
-                }
-                auto* lockTransaction = lock->GetTransaction();
+            for (auto& [lockTransaction, lock] : trunkNode->LockingState().TransactionToSnapshotLocks) {
+                YT_ASSERT(lock->GetState() == ELockState::Acquired);
+                YT_ASSERT(lock->GetTrunkNode() == trunkNode);
 
                 // Locks are released later, so be sure to skip the node we've already unbranched.
                 if (lockTransaction == transaction) {
@@ -1469,14 +1542,12 @@ public:
     }
 
     void SetModified(
-        TCypressNode* trunkNode,
-        TTransaction* transaction,
+        TCypressNode* node,
         EModificationType modificationType)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YT_ASSERT(trunkNode->IsTrunk());
 
-        AccessTracker_->SetModified(trunkNode, transaction, modificationType);
+        AccessTracker_->SetModified(node, modificationType);
     }
 
     void SetAccessed(TCypressNode* trunkNode)
@@ -2983,15 +3054,20 @@ private:
         auto* user = securityManager->GetAuthenticatedUser();
         clonedTrunkNode->Acd().SetOwner(user);
 
-        // Copy expiration time.
-        auto expirationTime = sourceNode->GetTrunkNode()->TryGetExpirationTime();
-        if (factory->ShouldPreserveExpirationTime() && expirationTime) {
-            SetExpirationTime(clonedTrunkNode, *expirationTime);
-        }
-
         // Copy creation time.
         if (factory->ShouldPreserveCreationTime()) {
             clonedTrunkNode->SetCreationTime(sourceNode->GetTrunkNode()->GetCreationTime());
+        }
+
+        // Copy modification time.
+        if (factory->ShouldPreserveModificationTime()) {
+            clonedTrunkNode->SetModificationTime(sourceNode->GetTrunkNode()->GetModificationTime());
+        }
+
+        // Copy expiration time.
+        auto expirationTime = sourceNode->TryGetExpirationTime();
+        if (factory->ShouldPreserveExpirationTime() && expirationTime) {
+            SetExpirationTime(clonedTrunkNode, *expirationTime);
         }
 
         return clonedTrunkNode;
@@ -3033,7 +3109,9 @@ private:
     void HydraCreateForeignNode(NProto::TReqCreateForeignNode* request) noexcept
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YT_VERIFY(Bootstrap_->IsSecondaryMaster());
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        YT_VERIFY(multicellManager->IsSecondaryMaster());
 
         auto nodeId = FromProto<TObjectId>(request->node_id());
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
@@ -3076,7 +3154,9 @@ private:
     void HydraCloneForeignNode(NProto::TReqCloneForeignNode* request) noexcept
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YT_VERIFY(Bootstrap_->IsSecondaryMaster());
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        YT_VERIFY(multicellManager->IsSecondaryMaster());
 
         auto sourceNodeId = FromProto<TNodeId>(request->source_node_id());
         auto sourceTransactionId = FromProto<TTransactionId>(request->source_transaction_id());
@@ -3160,7 +3240,9 @@ private:
     void HydraLockForeignNode(NProto::TReqLockForeignNode* request) noexcept
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YT_VERIFY(Bootstrap_->IsSecondaryMaster());
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        YT_VERIFY(multicellManager->IsSecondaryMaster());
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto nodeId = FromProto<TNodeId>(request->node_id());
@@ -3213,7 +3295,9 @@ private:
     void HydraUnlockForeignNode(NProto::TReqUnlockForeignNode* request) noexcept
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YT_VERIFY(Bootstrap_->IsSecondaryMaster());
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        YT_VERIFY(multicellManager->IsSecondaryMaster());
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto nodeId = FromProto<TNodeId>(request->node_id());
@@ -3399,6 +3483,15 @@ TCypressNode* TCypressManager::EndCopyNode(
     return Impl_->EndCopyNode(context, factory, sourceNodeId);
 }
 
+void TCypressManager::EndCopyNodeInplace(
+    TCypressNode* trunkNode,
+    TEndCopyContext* context,
+    ICypressNodeFactory* factory,
+    TNodeId sourceNodeId)
+{
+    return Impl_->EndCopyNodeInplace(trunkNode, context, factory, sourceNodeId);
+}
+
 TMapNode* TCypressManager::GetRootNode() const
 {
     return Impl_->GetRootNode();
@@ -3477,11 +3570,10 @@ void TCypressManager::UnlockNode(
 }
 
 void TCypressManager::SetModified(
-    TCypressNode* trunkNode,
-    TTransaction* transaction,
+    TCypressNode* node,
     EModificationType modificationType)
 {
-    Impl_->SetModified(trunkNode, transaction, modificationType);
+    Impl_->SetModified(node, modificationType);
 }
 
 void TCypressManager::SetAccessed(TCypressNode* trunkNode)

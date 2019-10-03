@@ -113,16 +113,18 @@ constexpr EValueType WireTypeToValueType()
         return EValueType::Boolean;
     } else if constexpr (wireType == EWireType::String32) {
         return EValueType::String;
+    } else if constexpr (wireType == EWireType::Nothing) {
+        return EValueType::Null;
     } else {
         // Not compilable.
         static_assert(wireType == EWireType::Int64, "Bad wireType");
     }
 }
 
-template<EWireType wireType, bool required>
+template<EWireType wireType, bool isOptional>
 void ConvertSimpleValueImpl(const TUnversionedValue& value, TCheckedInDebugSkiffWriter* writer, TWriteContext* context)
 {
-    if constexpr (!required) {
+    if constexpr (isOptional) {
         if (value.Type == EValueType::Null) {
             writer->WriteVariant8Tag(0);
             return;
@@ -159,6 +161,8 @@ void ConvertSimpleValueImpl(const TUnversionedValue& value, TCheckedInDebugSkiff
             WriteYsonValue(&writer, value);
         }
         writer->WriteYson32(TStringBuf(context->TmpBuffer->data(), context->TmpBuffer->size()));
+    } else if constexpr (wireType == EWireType::Nothing) {
+        // Do nothing.
     } else {
         // Not compilable.
         static_assert(wireType == EWireType::Int64, "Bad wireType");
@@ -170,7 +174,7 @@ TUnversionedValueToSkiffConverter CreateSimpleValueConverter(EWireType wireType,
     switch (wireType) {
 #define CASE(t) \
         case t: \
-            return required ? ConvertSimpleValueImpl<t, true> : ConvertSimpleValueImpl<t, false>;
+            return required ? ConvertSimpleValueImpl<t, false> : ConvertSimpleValueImpl<t, true>;
         CASE(EWireType::Int64)
         CASE(EWireType::Uint64)
         CASE(EWireType::Double)
@@ -178,6 +182,10 @@ TUnversionedValueToSkiffConverter CreateSimpleValueConverter(EWireType wireType,
         CASE(EWireType::String32)
         CASE(EWireType::Yson32)
 #undef CASE
+        case EWireType::Nothing:
+            // TODO (ermolovd): we should use `isOptional` instead of `required` (with corresponding condition inversion).
+            YT_VERIFY(required);
+            return ConvertSimpleValueImpl<EWireType::Nothing, false>;
 
         default:
             YT_ABORT();

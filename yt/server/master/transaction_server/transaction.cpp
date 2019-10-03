@@ -167,14 +167,9 @@ void DumpTransaction(TFluent fluent, const TTransaction* transaction, bool dumpP
             .Item("id").Value(transaction->GetId())
             .Item("start_time").Value(transaction->GetStartTime())
             .Item("owner").Value(transaction->Acd().GetOwner()->GetName())
-            .DoIf(transaction->GetTimeout().operator bool(), [&] (TFluentMap fluent) {
-                fluent
-                    .Item("timeout").Value(*transaction->GetTimeout());
-            })
-            .DoIf(transaction->GetTitle().operator bool(), [&] (TFluentMap fluent) {
-                fluent
-                    .Item("title").Value(*transaction->GetTitle());
-            }).DoIf(dumpParents, [&] (auto fluent) {
+            .OptionalItem("timeout", transaction->GetTimeout())
+            .OptionalItem("title", transaction->GetTitle())
+            .DoIf(dumpParents, [&] (auto fluent) {
                 std::vector<TTransaction*> parents;
                 auto* parent = transaction->GetParent();
                 while (parent) {

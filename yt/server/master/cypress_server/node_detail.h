@@ -69,6 +69,15 @@ protected:
         TEndCopyContext* context,
         ICypressNodeFactory* factory,
         TNodeId sourceNodeId);
+    void EndCopyInplaceCore(
+        TCypressNode* trunkNode,
+        TEndCopyContext* context,
+        ICypressNodeFactory* factory,
+        TNodeId sourceNodeId);
+    void LoadInplace(
+        TCypressNode* trunkNode,
+        TEndCopyContext* context,
+        ICypressNodeFactory* factory);
 
     void BranchCore(
         TCypressNode* originatingNode,
@@ -118,9 +127,12 @@ public:
         std::unique_ptr<TCypressNode> nodeHolder(new TImpl(id));
         nodeHolder->SetExternalCellTag(externalCellTag);
         nodeHolder->SetTrunkNode(nodeHolder.get());
-        if (nodeHolder->GetNativeCellTag() != Bootstrap_->GetCellTag()) {
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (nodeHolder->GetNativeCellTag() != multicellManager->GetCellTag()) {
             nodeHolder->SetForeign();
         }
+
         return nodeHolder;
     }
 
@@ -158,6 +170,16 @@ public:
         auto* trunkNode = EndCopyCore(context, factory, sourceNodeId);
         DoEndCopy(trunkNode->template As<TImpl>(), context, factory);
         return trunkNode;
+    }
+
+    virtual void EndCopyInplace(
+        TCypressNode* trunkNode,
+        TEndCopyContext* context,
+        ICypressNodeFactory* factory,
+        TNodeId sourceNodeId) override
+    {
+        EndCopyInplaceCore(trunkNode, context, factory, sourceNodeId);
+        DoEndCopy(trunkNode->template As<TImpl>(), context, factory);
     }
 
     virtual std::unique_ptr<TCypressNode> Branch(
@@ -257,7 +279,9 @@ protected:
         auto nodeHolder = std::make_unique<TImpl>(id);
         nodeHolder->SetExternalCellTag(context.ExternalCellTag);
         nodeHolder->SetTrunkNode(nodeHolder.get());
-        if (nodeHolder->GetNativeCellTag() != Bootstrap_->GetCellTag()) {
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (nodeHolder->GetNativeCellTag() != multicellManager->GetCellTag()) {
             nodeHolder->SetForeign();
         }
 
@@ -267,7 +291,6 @@ protected:
         // Null is passed as transaction because DoCreate() always creates trunk nodes.
         securityManager->SetAccount(
             nodeHolder.get(),
-            nullptr /* oldAccount */,
             context.Account,
             nullptr /* transaction */);
 
@@ -728,6 +751,7 @@ struct TMapNodeChildren
     }
 
     static void Destroy(TMapNodeChildren* children, const NObjectServer::TObjectManagerPtr& objectManager);
+    static void Clear(TMapNodeChildren* children);
     static TMapNodeChildren* Copy(TMapNodeChildren* srcChildren, const NObjectServer::TObjectManagerPtr& objectManager);
 
 private:

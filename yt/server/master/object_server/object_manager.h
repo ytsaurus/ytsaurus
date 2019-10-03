@@ -185,12 +185,10 @@ public:
     void ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites);
 
     //! Forwards an object request to a given cell.
-    // XXX(babenko): consider taking timeout from requestMessage
     TFuture<TSharedRefArray> ForwardObjectRequest(
         TSharedRefArray requestMessage,
         TCellTag cellTag,
-        NHydra::EPeerKind peerKind,
-        std::optional<TDuration> timeout);
+        NHydra::EPeerKind peerKind);
 
     //! Posts a creation request to the secondary master.
     void ReplicateObjectCreationToSecondaryMaster(

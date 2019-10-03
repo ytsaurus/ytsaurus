@@ -65,79 +65,70 @@ private:
 
     virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& configManager = Bootstrap_->GetConfigManager();
+
         switch (key) {
             case EInternedAttributeKey::CellTag:
                 BuildYsonFluently(consumer)
-                    .Value(Bootstrap_->GetCellTag());
+                    .Value(multicellManager->GetCellTag());
                 return true;
 
             case EInternedAttributeKey::PrimaryCellTag:
                 BuildYsonFluently(consumer)
-                    .Value(Bootstrap_->GetPrimaryCellTag());
+                    .Value(multicellManager->GetPrimaryCellTag());
                 return true;
 
             case EInternedAttributeKey::CellId:
                 BuildYsonFluently(consumer)
-                    .Value(Bootstrap_->GetCellId());
+                    .Value(multicellManager->GetCellId());
                 return true;
 
             case EInternedAttributeKey::PrimaryCellId:
                 BuildYsonFluently(consumer)
-                    .Value(Bootstrap_->GetPrimaryCellId());
+                    .Value(multicellManager->GetPrimaryCellId());
                 return true;
 
-            case EInternedAttributeKey::CurrentCommitRevision: {
-                const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+            case EInternedAttributeKey::CurrentCommitRevision:
                 BuildYsonFluently(consumer)
                     .Value(hydraManager->GetAutomatonVersion().ToRevision());
                 return true;
-            }
 
-            case EInternedAttributeKey::ChunkReplicatorEnabled: {
+            case EInternedAttributeKey::ChunkReplicatorEnabled:
                 RequireLeader();
-                const auto& chunkManager = Bootstrap_->GetChunkManager();
                 BuildYsonFluently(consumer)
                     .Value(chunkManager->IsChunkReplicatorEnabled());
                 return true;
-            }
 
-            case EInternedAttributeKey::ChunkRefreshEnabled: {
+            case EInternedAttributeKey::ChunkRefreshEnabled:
                 RequireLeader();
-                const auto& chunkManager = Bootstrap_->GetChunkManager();
                 BuildYsonFluently(consumer)
                     .Value(chunkManager->IsChunkRefreshEnabled());
                 return true;
-            }
 
-            case EInternedAttributeKey::ChunkRequisitionUpdateEnabled: {
+            case EInternedAttributeKey::ChunkRequisitionUpdateEnabled:
                 RequireLeader();
-                const auto& chunkManager = Bootstrap_->GetChunkManager();
                 BuildYsonFluently(consumer)
                     .Value(chunkManager->IsChunkRequisitionUpdateEnabled());
                 return true;
-            }
 
-            case EInternedAttributeKey::ChunkSealerEnabled: {
+            case EInternedAttributeKey::ChunkSealerEnabled:
                 RequireLeader();
-                const auto& chunkManager = Bootstrap_->GetChunkManager();
                 BuildYsonFluently(consumer)
                     .Value(chunkManager->IsChunkSealerEnabled());
                 return true;
-            }
 
-            case EInternedAttributeKey::RegisteredMasterCellTags: {
-                const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            case EInternedAttributeKey::RegisteredMasterCellTags:
                 BuildYsonFluently(consumer)
                     .Value(multicellManager->GetRegisteredMasterCellTags());
                 return true;
-            }
 
-            case EInternedAttributeKey::Config: {
-                const auto& configManager = Bootstrap_->GetConfigManager();
+            case EInternedAttributeKey::Config:
                 BuildYsonFluently(consumer)
                     .Value(configManager->GetConfig());
                 return true;
-            }
 
             default:
                 break;

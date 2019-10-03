@@ -183,10 +183,11 @@ public:
     virtual TFuture<void> RunSetupCommands(
         TJobId jobId,
         const std::vector<NJobAgent::TShellCommandConfigPtr>& commands,
-        const NContainers::TRootFS& rootFS)
+        const NContainers::TRootFS& rootFS,
+        const TString& user)
     {
         return RunPrepareAction<void>([&] {
-                return JobEnvironment_->RunSetupCommands(SlotIndex_, jobId, commands, rootFS);
+                return JobEnvironment_->RunSetupCommands(SlotIndex_, jobId, commands, rootFS, user);
             },
             // Setup commands are uncancelable since they are run in separate processes.
             true);

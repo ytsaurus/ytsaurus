@@ -27,12 +27,16 @@ DEFINE_BIT_ENUM(ETypeFlags,
     ((TwoPhaseCreation)       (0x0080)) // employ two-phase creation protocol: CreationStarted -> CreationPreCommitted -> CreationCommitted
     ((Removable)              (0x0100)) // objects of this (unversioned) type can be removed by explicit Remove call
     ((TwoPhaseRemoval)        (0x0200)) // employ two-phase removal protocol: RemovalStarted -> RemovalPreCommitted -> RemovalComitted
+    ((ForbidAnnotationRemoval)(0x0400)) // annotation cannot be removed from portal entrances and exits
 );
 
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TObjectManager)
 DECLARE_REFCOUNTED_CLASS(TGarbageCollector)
+
+DECLARE_REFCOUNTED_STRUCT(TRequestProfilngCounters)
+DECLARE_REFCOUNTED_CLASS(TRequestProfilingManager)
 
 DECLARE_REFCOUNTED_CLASS(TObjectManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicObjectManagerConfig)
@@ -53,6 +57,8 @@ class TMasterObject;
 
 DECLARE_REFCOUNTED_STRUCT(IObjectProxy)
 DECLARE_REFCOUNTED_STRUCT(IObjectTypeHandler)
+
+const int MaxAnnotationLength = 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 

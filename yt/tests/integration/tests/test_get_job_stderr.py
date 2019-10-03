@@ -139,11 +139,11 @@ class TestGetJobStderr(YTEnvSetup):
             release_breakpoint()
             op.track()
 
-            time.sleep(1)
+            def get_other_job_ids():
+                return __builtin__.set(ls(op.get_path() + "/jobs")) - __builtin__.set(job_ids)
 
-            other_job_ids = __builtin__.set(ls(op.get_path() + "/jobs")) - __builtin__.set(job_ids)
-            assert len(other_job_ids) == 1
-            other_job_id = list(other_job_ids)[0]
+            wait(lambda: len(get_other_job_ids()) == 1)
+            other_job_id = list(get_other_job_ids())[0]
 
             res = get_job_stderr(op.id, job_id, authenticated_user="u")
             assert res == "STDERR-OUTPUT\n"

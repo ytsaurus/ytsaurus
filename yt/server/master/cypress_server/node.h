@@ -154,6 +154,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
 
     DEFINE_BYVAL_RW_PROPERTY(bool, Opaque);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, Annotation);
 
     //! The shard this node belongs to.
     //! Always null for foreign and non-trunk nodes.

@@ -783,9 +783,9 @@ private:
         }
     }
 
-    virtual bool DoCheckOutputLivePreviewSupported() const override
+    virtual ELegacyLivePreviewMode GetLegacyOutputLivePreviewMode() const override
     {
-        return Spec_->EnableLegacyLivePreview;
+        return ToLegacyLivePreviewMode(Spec_->EnableLegacyLivePreview);
     }
 
     virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override

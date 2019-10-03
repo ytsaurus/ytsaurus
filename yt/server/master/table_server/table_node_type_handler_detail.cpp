@@ -178,7 +178,6 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
 
         tabletManager->SetTabletCellBundle(node, tabletCellBundle);
     } catch (const std::exception&) {
-        //  XXX(babenko): how about DestroyCore?
         DoDestroy(node);
         throw;
     }
@@ -275,9 +274,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoBeginCopy(
     TBase::DoBeginCopy(node, context);
 
     const auto& tabletManager = this->Bootstrap_->GetTabletManager();
-    tabletManager->ValidateBeginCopyTable(
-        node,
-        context->GetRemoveSource() ? ENodeCloneMode::Move : ENodeCloneMode::Copy);
+    tabletManager->ValidateBeginCopyTable(node, context->GetMode());
 
     // TODO(babenko): support copying dynamic tables
     if (node->IsDynamic()) {

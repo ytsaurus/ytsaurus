@@ -988,7 +988,7 @@ void FromProto(TLogicalTypePtr* logicalType, const NProto::TLogicalType& protoLo
             return;
         }
         case NProto::TLogicalType::TypeCase::TYPE_NOT_SET:
-            break;
+            THROW_ERROR_EXCEPTION("Cannot parse unknown logical type from proto");
     }
     YT_ABORT();
 }

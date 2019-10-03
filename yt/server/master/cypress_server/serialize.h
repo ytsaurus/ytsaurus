@@ -18,11 +18,11 @@
 
 #include <yt/server/master/table_server/public.h>
 
+#include <yt/core/misc/chunked_output_stream.h>
+
 namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-constexpr int TreeFormatVersion = 1;
 
 class TBeginCopyContext
     : public TEntityStreamSaveContext
@@ -30,16 +30,16 @@ class TBeginCopyContext
 public:
     TBeginCopyContext(
         NTransactionServer::TTransaction* transaction,
-        bool removeSource);
+        ENodeCloneMode Mode);
 
     void RegisterOpaqueRootId(TNodeId rootId);
     void RegisterExternalCellTag(NObjectClient::TCellTag cellTag);
 
     DEFINE_BYREF_RO_PROPERTY(std::vector<TNodeId>, OpaqueRootIds);
     DEFINE_BYVAL_RO_PROPERTY(NTransactionServer::TTransaction*, Transaction);
-    DEFINE_BYVAL_RO_PROPERTY(bool, RemoveSource);
+    DEFINE_BYVAL_RO_PROPERTY(ENodeCloneMode, Mode);
 
-    TString Finish();
+    std::vector<TSharedRef> Finish();
     NObjectClient::TCellTagList GetExternalCellTags();
 
     // TODO(babenko): get rid of this separate registry
@@ -48,8 +48,7 @@ public:
 private:
     // TODO(babenko): get rid of this separate registry
     const NTableServer::TTableSchemaRegistryPtr TableSchemaRegistry_;
-    TString Data_;
-    TStringOutput Stream_;
+    TChunkedOutputStream Stream_;
     std::vector<NObjectClient::TCellTag> ExternalCellTags_;
 };
 

@@ -327,6 +327,16 @@ TEST(TLogicalTypeTest, TestAllExamplesAreNotEqual)
     }
 }
 
+TEST(TLogicalTypeTest, TestBadProtobufDeserialization)
+{
+    NProto::TLogicalType proto;
+
+    TLogicalTypePtr deserializedType;
+    EXPECT_THROW_WITH_SUBSTRING(
+        FromProto(&deserializedType, proto),
+        "Cannot parse unknown logical type from proto");
+}
+
 class TLogicalTypeTestExamples
     : public ::testing::TestWithParam<TLogicalTypePtr>
 { };

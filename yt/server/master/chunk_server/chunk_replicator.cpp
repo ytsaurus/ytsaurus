@@ -1052,8 +1052,12 @@ void TChunkReplicator::ProcessExistingJobs(
 
     for (const auto& job : currentJobs) {
         auto jobId = job->GetJobId();
-        YT_VERIFY(CellTagFromId(jobId) == Bootstrap_->GetCellTag());
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        YT_VERIFY(CellTagFromId(jobId) == multicellManager->GetCellTag());
+
         YT_VERIFY(TypeFromId(jobId) == EObjectType::MasterJob);
+
         switch (job->GetState()) {
             case EJobState::Running:
             case EJobState::Waiting: {
@@ -1140,7 +1144,8 @@ void TChunkReplicator::ProcessExistingJobs(
 
 TJobId TChunkReplicator::GenerateJobId()
 {
-    return MakeRandomId(EObjectType::MasterJob, Bootstrap_->GetCellTag());
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    return MakeRandomId(EObjectType::MasterJob, multicellManager->GetCellTag());
 }
 
 bool TChunkReplicator::CreateReplicationJob(
@@ -2093,7 +2098,8 @@ void TChunkReplicator::OnCheckEnabled()
     }
 
     try {
-        if (Bootstrap_->IsPrimaryMaster()) {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsPrimaryMaster()) {
             OnCheckEnabledPrimary();
         } else {
             OnCheckEnabledSecondary();
@@ -2165,7 +2171,9 @@ void TChunkReplicator::OnCheckEnabledPrimary()
 void TChunkReplicator::OnCheckEnabledSecondary()
 {
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
-    auto channel = multicellManager->GetMasterChannelOrThrow(Bootstrap_->GetPrimaryCellTag(), EPeerKind::Leader);
+    auto primaryCellTag = multicellManager->GetPrimaryCellTag();
+    auto channel = multicellManager->GetMasterChannelOrThrow(primaryCellTag, EPeerKind::Leader);
+
     TObjectServiceProxy proxy(channel);
 
     auto req = TYPathProxy::Get("//sys/@chunk_replicator_enabled");
@@ -2273,7 +2281,9 @@ void TChunkReplicator::OnRequisitionUpdate()
     }
 
     TReqUpdateChunkRequisition request;
-    request.set_cell_tag(Bootstrap_->GetCellTag());
+
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    request.set_cell_tag(multicellManager->GetCellTag());
 
     int totalCount = 0;
     int aliveCount = 0;
@@ -2609,8 +2619,6 @@ void TChunkReplicator::UpdateInterDCEdgeCapacities(bool force)
     InterDCEdgeCapacities_.clear();
 
     auto capacities = GetDynamicConfig()->InterDCLimits->GetCapacities();
-    auto secondaryCellCount = Bootstrap_->GetSecondaryCellTags().size();
-    secondaryCellCount = std::max<int>(secondaryCellCount, 1);
 
     const auto& nodeTracker = Bootstrap_->GetNodeTracker();
 
@@ -2627,7 +2635,7 @@ void TChunkReplicator::UpdateInterDCEdgeCapacities(bool force)
                 : std::nullopt;
             auto it = newInterDCEdgeCapacities.find(dstDataCenterName);
             if (it != newInterDCEdgeCapacities.end()) {
-                interDCEdgeCapacities[dstDataCenter] = it->second / secondaryCellCount;
+                interDCEdgeCapacities[dstDataCenter] = it->second / GetCappedSecondaryCellCount();
             }
         };
 
@@ -2653,8 +2661,7 @@ void TChunkReplicator::InitUnsaturatedInterDCEdges()
 {
     UnsaturatedInterDCEdges_.clear();
 
-    const auto defaultCapacity =
-        GetDynamicConfig()->InterDCLimits->GetDefaultCapacity() / std::max<int>(Bootstrap_->GetSecondaryCellTags().size(), 1);
+    const auto defaultCapacity = GetDynamicConfig()->InterDCLimits->GetDefaultCapacity() / GetCappedSecondaryCellCount();
 
     const auto& nodeTracker = Bootstrap_->GetNodeTracker();
 
@@ -2700,8 +2707,7 @@ void TChunkReplicator::UpdateInterDCEdgeConsumption(
     auto& interDCEdgeConsumption = InterDCEdgeConsumption_[srcDataCenter];
     const auto& interDCEdgeCapacities = InterDCEdgeCapacities_[srcDataCenter];
 
-    const auto defaultCapacity =
-        GetDynamicConfig()->InterDCLimits->GetDefaultCapacity() / std::max<int>(Bootstrap_->GetSecondaryCellTags().size(), 1);
+    const auto defaultCapacity = GetDynamicConfig()->InterDCLimits->GetDefaultCapacity() / GetCappedSecondaryCellCount();
 
     for (const auto& nodePtrWithIndexes : job->TargetReplicas()) {
         const auto* dstDataCenter = nodePtrWithIndexes.GetPtr()->GetDataCenter();
@@ -2744,8 +2750,7 @@ void TChunkReplicator::OnDataCenterCreated(const TDataCenter* dataCenter)
 {
     UpdateInterDCEdgeCapacities(true);
 
-    const auto defaultCapacity =
-        GetDynamicConfig()->InterDCLimits->GetDefaultCapacity() / std::max<int>(Bootstrap_->GetSecondaryCellTags().size(), 1);
+    const auto defaultCapacity = GetDynamicConfig()->InterDCLimits->GetDefaultCapacity() / GetCappedSecondaryCellCount();
 
     auto updateEdge = [&] (const TDataCenter* srcDataCenter, const TDataCenter* dstDataCenter) {
         if (InterDCEdgeConsumption_[srcDataCenter].Value(dstDataCenter, 0) <
@@ -2755,11 +2760,10 @@ void TChunkReplicator::OnDataCenterCreated(const TDataCenter* dataCenter)
         }
     };
 
-
-    const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-
     updateEdge(nullptr, dataCenter);
     updateEdge(dataCenter, nullptr);
+
+    const auto& nodeTracker = Bootstrap_->GetNodeTracker();
     for (const auto& [dstDataCenterId, otherDataCenter] : nodeTracker->DataCenters()) {
         updateEdge(dataCenter, otherDataCenter);
         updateEdge(otherDataCenter, dataCenter);
@@ -2787,6 +2791,11 @@ void TChunkReplicator::OnDataCenterDestroyed(const TDataCenter* dataCenter)
 TChunkRequisitionRegistry* TChunkReplicator::GetChunkRequisitionRegistry()
 {
     return Bootstrap_->GetChunkManager()->GetChunkRequisitionRegistry();
+}
+
+int TChunkReplicator::GetCappedSecondaryCellCount()
+{
+    return std::max<int>(1, Bootstrap_->GetMulticellManager()->GetSecondaryCellTags().size());
 }
 
 TChunkRepairQueue& TChunkReplicator::ChunkRepairQueue(int mediumIndex, EChunkRepairQueue queue)

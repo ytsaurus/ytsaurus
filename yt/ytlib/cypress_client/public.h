@@ -13,6 +13,13 @@ class TRspCreate;
 
 } // namespace NProto
 
+//! Describes the reason for cloning a node.
+//! Some node types may allow moving but not copying.
+DEFINE_ENUM(ENodeCloneMode,
+    ((Copy) (0))
+    ((Move) (1))
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressClient

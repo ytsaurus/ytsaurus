@@ -496,6 +496,9 @@ public:
     //! Period of scanning node infos to check that it belongs to some fair share tree.
     TDuration ValidateNodeTagsPeriod;
 
+    //! Enable immediate job abort if node reported zero number of user slots.
+    bool EnableJobAbortOnZeroUserSlots;
+
     TSchedulerConfig();
 };
 

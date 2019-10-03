@@ -17,15 +17,17 @@ namespace NYT::NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchemalessFormatWriterPtr CreateSchemalessWriterForWebJson(
-    TSchemalessWebJsonFormatConfigPtr config,
-    NConcurrency::IAsyncOutputStreamPtr output,
-    NTableClient::TNameTablePtr nameTable);
+ISchemalessFormatWriterPtr CreateWriterForWebJson(
+    TWebJsonFormatConfigPtr config,
+    NTableClient::TNameTablePtr nameTable,
+    const std::vector<NTableClient::TTableSchema>& schemas,
+    NConcurrency::IAsyncOutputStreamPtr output);
 
-ISchemalessFormatWriterPtr CreateSchemalessWriterForWebJson(
+ISchemalessFormatWriterPtr CreateWriterForWebJson(
     const NYTree::IAttributeDictionary& attributes,
-    NConcurrency::IAsyncOutputStreamPtr stream,
-    NTableClient::TNameTablePtr nameTable);
+    NTableClient::TNameTablePtr nameTable,
+    const std::vector<NTableClient::TTableSchema>& schemas,
+    NConcurrency::IAsyncOutputStreamPtr output);
 
 ////////////////////////////////////////////////////////////////////////////////
 

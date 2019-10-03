@@ -177,6 +177,7 @@ void TCypressNode::Save(TSaveContext& context) const
     Save(context, AccessTime_);
     Save(context, AccessCounter_);
     Save(context, Shard_);
+    Save(context, Annotation_);
 }
 
 void TCypressNode::Load(TLoadContext& context)
@@ -221,6 +222,10 @@ void TCypressNode::Load(TLoadContext& context)
     // COMPAT(babenko)
     if (context.GetVersion() >= EMasterReign::CypressShards) {
         Load(context, Shard_);
+    }
+    // COMPAT(avmatrosov)
+    if (context.GetVersion() >= EMasterReign::YT_10745_Annotation) {
+        Load(context, Annotation_);
     }
 }
 

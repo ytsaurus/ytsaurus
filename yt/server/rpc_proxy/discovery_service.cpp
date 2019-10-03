@@ -277,7 +277,7 @@ private:
                 std::vector<TString>{
                     RoleAttributeName,
                     BannedAttributeName,
-                    BanMessageAttributeName
+                    BanMessageAttributeName,
                 });
             batchReq->AddRequest(req, "get_ban");
         }
@@ -285,7 +285,11 @@ private:
             auto req = TYPathProxy::Get(RpcProxiesPath);
             ToProto(
                 req->mutable_attributes()->mutable_keys(),
-                std::vector<TString>{BannedAttributeName});
+                std::vector<TString>{
+                    RoleAttributeName,
+                    BannedAttributeName,
+                    ConfigAttributeName,
+                });
 
             auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
             cachingHeaderExt->set_success_expiration_time(ToProto<i64>(Config_->ProxyUpdatePeriod));
@@ -320,6 +324,11 @@ private:
 
             auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_proxies").Value();
             auto nodeResult = ConvertToNode(TYsonString(rsp->value()));
+
+            if (auto dynamicConfig = nodeResult->Attributes().Find<TDynamicConfigPtr>(ConfigAttributeName)) {
+                Coordinator_->SetDynamicConfig(dynamicConfig);
+            }
+
             for (const auto& child : nodeResult->AsMap()->GetChildren()) {
                 bool banned = child.second->Attributes().Get(BannedAttributeName, false);
                 auto role = child.second->Attributes().Get<TString>(RoleAttributeName, DefaultProxyRole);
@@ -342,7 +351,9 @@ private:
     {
         Coordinator_->ValidateOperable();
 
-        TString roleFilter = request->has_role() ? request->role() : DefaultProxyRole;
+        auto roleFilter = request->has_role() ? request->role() : DefaultProxyRole;
+
+        context->SetRequestInfo("Role: %v", roleFilter);
 
         {
             auto guard = Guard(ProxySpinLock_);
@@ -353,6 +364,7 @@ private:
             }
         }
 
+        context->SetResponseInfo("ProxyCount: %v", response->addresses_size());
         context->Reply();
     }
 };

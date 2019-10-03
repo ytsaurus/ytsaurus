@@ -6,6 +6,8 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
+#include <yt/core/compression/public.h>
+
 namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -76,6 +78,8 @@ public:
     int MaxExpiredNodesRemovalsPerCommit;
     TDuration ExpirationBackoffTime;
 
+    NCompression::ECodec TreeSerializationCodec;
+
     // COMPAT(ignat)
     //! Forbids performing set inside Cypress.
     bool ForbidSetCommand;
@@ -108,6 +112,9 @@ public:
             .Default(1000);
         RegisterParameter("expiration_backoff_time", ExpirationBackoffTime)
             .Default(TDuration::Seconds(10));
+
+        RegisterParameter("tree_serialization_codec", TreeSerializationCodec)
+            .Default(NCompression::ECodec::Lz4);
 
         RegisterParameter("forbid_set_command", ForbidSetCommand)
             .Default(false);

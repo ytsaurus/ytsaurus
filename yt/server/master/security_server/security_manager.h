@@ -165,7 +165,6 @@ public:
     //! Assigns node to a given account, updates the total resource usage.
     void SetAccount(
         NCypressServer::TCypressNode* node,
-        TAccount* oldAccount,
         TAccount* newAccount,
         NTransactionServer::TTransaction* transaction);
 
@@ -240,6 +239,9 @@ public:
     //! Returns the ACL obtained by combining ACLs of the object and its parents.
     //! The returned ACL is a fake one, i.e. does not exist explicitly anywhere.
     TAccessControlList GetEffectiveAcl(NObjectServer::TObject* object);
+
+    //! Returns annotation or std::nullopt if there are no annotations available.
+    std::optional<TString> GetEffectiveAnnotation(NCypressServer::TCypressNode* node);
 
 
     //! Sets the authenticated user.

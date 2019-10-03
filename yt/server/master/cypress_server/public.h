@@ -16,6 +16,7 @@ using NCypressClient::TNodeId;
 using NCypressClient::TLockId;
 using NCypressClient::ELockMode;
 using NCypressClient::ELockState;
+using NCypressClient::ENodeCloneMode;
 using NCypressClient::TVersionedNodeId;
 using NCypressClient::TCypressShardId;
 
@@ -79,13 +80,6 @@ DECLARE_REFCOUNTED_CLASS(TCypressManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicCypressManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
-
-//! Describes the reason for cloning a node.
-//! Some node types may allow moving but not copying.
-DEFINE_ENUM(ENodeCloneMode,
-    (Copy)
-    (Move)
-);
 
 DEFINE_ENUM(ELockKeyKind,
     (None)

@@ -1090,7 +1090,8 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
     auto uploadTransactionId = uploadTransaction->GetId();
     ToProto(response->mutable_upload_transaction_id(), uploadTransactionId);
 
-    response->set_cell_tag(externalCellTag == NotReplicatedCellTag ? Bootstrap_->GetCellTag() : externalCellTag);
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    response->set_cell_tag(externalCellTag == NotReplicatedCellTag ? multicellManager->GetCellTag() : externalCellTag);
 
     if (node->IsExternal()) {
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
@@ -1109,7 +1110,6 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         // NB: upload_transaction_timeout must be null
         // NB: upload_transaction_secondary_cell_tags must be empty
 
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToMaster(replicationRequest, externalCellTag);
     }
 

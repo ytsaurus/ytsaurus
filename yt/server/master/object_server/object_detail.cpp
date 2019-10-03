@@ -62,6 +62,8 @@
 #include <yt/core/yson/async_writer.h>
 #include <yt/core/yson/attribute_consumer.h>
 
+#include <util/string/ascii.h>
+
 namespace NYT::NObjectServer {
 
 using namespace NRpc;
@@ -400,7 +402,8 @@ void TObjectProxyBase::RemoveAttribute(
 void TObjectProxyBase::ReplicateAttributeUpdate(const IServiceContextPtr& context)
 {
     // XXX(babenko): make more objects foreign and replace with IsForeign
-    if (Object_->GetNativeCellTag() != Bootstrap_->GetCellTag()) {
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    if (Object_->GetNativeCellTag() != multicellManager->GetCellTag()) {
         return;
     }
 
@@ -758,6 +761,23 @@ void TObjectProxyBase::ValidatePermission(TObject* object, EPermission permissio
     securityManager->ValidatePermission(object, user, permission);
 }
 
+void TObjectProxyBase::ValidateAnnotation(const TString& annotation)
+{
+    if (annotation.size() > MaxAnnotationLength) {
+        THROW_ERROR_EXCEPTION("Annotation is too long")
+            << TErrorAttribute("annotation_length", annotation.size())
+            << TErrorAttribute("maximum_annotation_length", MaxAnnotationLength);
+    }
+
+    auto isAsciiText = [] (char c) {
+        return IsAsciiAlnum(c) || IsAsciiSpace(c) || IsAsciiPunct(c);
+    };
+
+    if (!AllOf(annotation.begin(), annotation.end(), isAsciiText)) {
+        THROW_ERROR_EXCEPTION("Only ASCII alphanumeric, white-space and punctuation characters are allowed in annotations");
+    }
+}
+
 bool TObjectProxyBase::IsRecovery() const
 {
     return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsRecovery();
@@ -775,12 +795,12 @@ bool TObjectProxyBase::IsFollower() const
 
 bool TObjectProxyBase::IsPrimaryMaster() const
 {
-    return Bootstrap_->IsPrimaryMaster();
+    return Bootstrap_->GetMulticellManager()->IsPrimaryMaster();
 }
 
 bool TObjectProxyBase::IsSecondaryMaster() const
 {
-    return Bootstrap_->IsSecondaryMaster();
+    return Bootstrap_->GetMulticellManager()->IsSecondaryMaster();
 }
 
 void TObjectProxyBase::RequireLeader() const
@@ -878,7 +898,7 @@ std::vector<IAttributeDictionary::TKeyValuePair> TNontemplateNonversionedObjectP
     return pairs;
 }
 
-TYsonString TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::FindYson(const TString& key) const
+TYsonString TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::FindYson(TStringBuf key) const
 {
     const auto* object = Proxy_->Object_;
     const auto* attributes = object->GetAttributes();

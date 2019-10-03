@@ -62,7 +62,7 @@ class TJsonLogFormatter
     : public ILogFormatter
 {
 public:
-    TJsonLogFormatter();
+    TJsonLogFormatter(const THashMap<TString, NYTree::INodePtr>& commonFields);
 
     virtual size_t WriteFormatted(IOutputStream* outputStream, const TLogEvent& event) const override;
 
@@ -74,6 +74,7 @@ public:
 
 private:
     std::unique_ptr<TCachingDateFormatter> CachingDateFormatter_;
+    const THashMap<TString, NYTree::INodePtr> CommonFields_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

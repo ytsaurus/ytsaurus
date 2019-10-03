@@ -1524,7 +1524,7 @@ private:
         }
 
         YT_LOG_INFO("Running setup commands");
-        return Slot_->RunSetupCommands(Id_, commands, MakeWritableRootFS());
+        return Slot_->RunSetupCommands(Id_, commands, MakeWritableRootFS(), Config_->JobController->SetupCommandUser);
     }
 
     // Analyse results.
@@ -1613,6 +1613,7 @@ private:
             resultError.FindMatching(EProcessErrorCode::CannotResolveBinary) ||
             resultError.FindMatching(NNet::EErrorCode::ResolveTimedOut) ||
             resultError.FindMatching(NExecAgent::EErrorCode::JobProxyPreparationTimeout) ||
+            resultError.FindMatching(NExecAgent::EErrorCode::JobPreparationTimeout) ||
             resultError.FindMatching(NExecAgent::EErrorCode::GpuLayerNotFetched))
         {
             return EAbortReason::Other;

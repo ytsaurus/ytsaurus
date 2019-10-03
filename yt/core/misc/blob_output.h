@@ -1,5 +1,7 @@
 #pragma once
 
+#include <util/stream/zerocopy_output.h>
+
 #include "common.h"
 #include "ref.h"
 
@@ -8,7 +10,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBlobOutput
-    : public IOutputStream
+    : public IZeroCopyOutput
 {
 public:
     TBlobOutput();
@@ -29,6 +31,8 @@ public:
     friend void swap(TBlobOutput& left, TBlobOutput& right);
 
 private:
+    virtual size_t DoNext(void** ptr) override;
+    virtual void DoAdvance(size_t len) override;
     virtual void DoWrite(const void* buf, size_t len) override;
 
     TBlob Blob_;

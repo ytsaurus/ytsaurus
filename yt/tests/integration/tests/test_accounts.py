@@ -165,7 +165,7 @@ class TestAccounts(YTEnvSetup):
         create_account("max")
         set("//tmp/a", {})
         set("//tmp/a/@account", "max")
-        remove_account("max")
+        remove_account("max", sync_deletion=False)
         assert get("//sys/accounts/max/@life_stage") == "removal_started"
         remove("//tmp/a")
         wait(lambda: not exists("//sys/accounts/max"))

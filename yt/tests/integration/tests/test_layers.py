@@ -1,5 +1,6 @@
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 from yt_commands import *
+from yt_helpers import from_sandbox
 
 from yt.environment.porto_helpers import porto_avaliable
 
@@ -8,8 +9,14 @@ import inspect
 import os
 import time
 
+from flaky import flaky
+
+@pytest.fixture(scope="module")
+def layers_resource():
+    from_sandbox("1144688059")
 
 @pytest.mark.skip_if('not porto_avaliable()')
+@pytest.mark.usefixtures("layers_resource")
 class TestLayers(YTEnvSetup):
     NUM_SCHEDULERS = 1
     DELTA_NODE_CONFIG = {
@@ -23,26 +30,24 @@ class TestLayers(YTEnvSetup):
         }
     }
 
-    REQUIRE_YTSERVER_ROOT_PRIVILIGES = True
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
     USE_PORTO_FOR_SERVERS = True
 
     def setup_files(self):
-        current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
-
         create("file", "//tmp/layer1")
-        file_name = os.path.join(current_dir, "layers/static-bin.tar.gz")
+        file_name = "layers/static-bin.tar.gz"
         write_file("//tmp/layer1", open(file_name).read())
 
         create("file", "//tmp/layer2")
-        file_name = os.path.join(current_dir, "layers/test.tar.gz")
+        file_name = "layers/test.tar.gz"
         write_file("//tmp/layer2", open(file_name).read())
 
         create("file", "//tmp/corrupted_layer")
-        file_name = os.path.join(current_dir, "layers/corrupted.tar.gz")
+        file_name = "layers/corrupted.tar.gz"
         write_file("//tmp/corrupted_layer", open(file_name).read())
 
         create("file", "//tmp/static_cat")
-        file_name = os.path.join(current_dir, "layers/static_cat")
+        file_name = "layers/static_cat"
         write_file("//tmp/static_cat", open(file_name).read())
 
         set("//tmp/static_cat/@executable", True)
@@ -163,6 +168,7 @@ class TestLayers(YTEnvSetup):
                     }
                 })
 
+@pytest.mark.usefixtures("layers_resource")
 @pytest.mark.skip_if('not porto_avaliable()')
 @authors("mrkastep")
 class TestJobSetup(YTEnvSetup):
@@ -187,13 +193,11 @@ class TestJobSetup(YTEnvSetup):
     }
 
     USE_PORTO_FOR_SERVERS = True
-    REQUIRE_YTSERVER_ROOT_PRIVILIGES = True
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     def setup_files(self):
-        current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
-
         create("file", "//tmp/layer1", attributes={"replication_factor": 1})
-        file_name = os.path.join(current_dir, "layers/static-bin.tar.gz")
+        file_name = "layers/static-bin.tar.gz"
         write_file("//tmp/layer1", open(file_name).read(), file_writer={"upload_replication_factor": 1})
 
     def test_setup_cat(self):
@@ -223,6 +227,7 @@ class TestJobSetup(YTEnvSetup):
         res = op.read_stderr(job_id)
         assert res == "SETUP-OUTPUT\n"
 
+@pytest.mark.usefixtures("layers_resource")
 @pytest.mark.skip_if('not porto_avaliable()')
 @authors("mrkastep")
 class TestGpuLayer(YTEnvSetup):
@@ -255,21 +260,19 @@ class TestGpuLayer(YTEnvSetup):
     }
 
     USE_PORTO_FOR_SERVERS = True
-    REQUIRE_YTSERVER_ROOT_PRIVILIGES = True
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     def setup_files(self):
         tx = start_transaction()
 
-        current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
-
         create("map_node", "//tmp/drivers", tx=tx)
         create("file", "//tmp/drivers/test_version", attributes={"replication_factor": 1}, tx=tx)
 
-        file_name = os.path.join(current_dir, "layers/static-bin.tar.gz")
+        file_name = "layers/static-bin.tar.gz"
         write_file("//tmp/drivers/test_version", open(file_name).read(), file_writer={"upload_replication_factor": 1}, tx=tx)
 
         create("file", "//tmp/layer2", attributes={"replication_factor": 1}, tx=tx)
-        file_name = os.path.join(current_dir, "layers/test.tar.gz")
+        file_name = "layers/test.tar.gz"
         write_file("//tmp/layer2", open(file_name).read(), file_writer={"upload_replication_factor": 1}, tx=tx)
 
         commit_transaction(tx)
@@ -303,6 +306,7 @@ class TestGpuLayer(YTEnvSetup):
         assert res == "SETUP-OUTPUT\n"
 
 
+@pytest.mark.usefixtures("layers_resource")
 @pytest.mark.skip_if('not porto_avaliable()')
 @authors("mrkastep")
 class TestCudaLayer(YTEnvSetup):
@@ -342,19 +346,17 @@ class TestCudaLayer(YTEnvSetup):
     }
 
     USE_PORTO_FOR_SERVERS = True
-    REQUIRE_YTSERVER_ROOT_PRIVILIGES = True
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     def setup_files(self):
-        current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
-
         create("map_node", "//tmp/cuda")
-        create("file", "//tmp/cuda/0", attributes={"replication_factor": 1})
 
-        file_name = os.path.join(current_dir, "layers/static-bin.tar.gz")
+        create("file", "//tmp/cuda/0", attributes={"replication_factor": 1})
+        file_name = "layers/static-bin.tar.gz"
         write_file("//tmp/cuda/0", open(file_name).read(), file_writer={"upload_replication_factor": 1})
 
         create("file", "//tmp/layer2", attributes={"replication_factor": 1})
-        file_name = os.path.join(current_dir, "layers/test.tar.gz")
+        file_name = "layers/test.tar.gz"
         write_file("//tmp/layer2", open(file_name).read(), file_writer={"upload_replication_factor": 1})
 
     def test_setup_cat_gpu_layer(self):
@@ -385,3 +387,66 @@ class TestCudaLayer(YTEnvSetup):
 
         res = op.read_stderr(job_id)
         assert res == "SETUP-OUTPUT\n"
+
+@pytest.mark.usefixtures("layers_resource")
+@pytest.mark.skip_if('not porto_avaliable()')
+@authors("mrkastep")
+class TestSetupUser(YTEnvSetup):
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 1
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "test_root_fs" : True,
+            "job_controller": {
+                "job_setup_command": {
+                    "path": "/static-bin/static-bash",
+                    "args": ["-c", "/static-bin/static-id -u > /playground/setup_output_file"]
+                },
+                "setup_command_user": "2019"
+            },
+            "slot_manager": {
+                "job_environment" : {
+                    "type" : "porto",
+                },
+            }
+        },
+    }
+    USE_PORTO_FOR_SERVERS = True
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
+
+    def setup_files(self):
+        create("file", "//tmp/layer1", attributes={"replication_factor": 1})
+        file_name = "layers/static-bin.tar.gz"
+        write_file("//tmp/layer1", open(file_name).read(), file_writer={"upload_replication_factor": 1})
+
+        create("file", "//tmp/playground_layer", attributes={"replication_factor": 1})
+        file_name = "layers/playground.tar.gz"
+        write_file("//tmp/playground_layer", open(file_name).read(), file_writer={"upload_replication_factor": 1})
+
+
+    def test_setup_cat(self):
+        self.setup_files()
+
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
+
+        write_table("//tmp/t_in", [{"k": 0}])
+        op = map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command='$YT_ROOT_FS/static-bin/static-cat $YT_ROOT_FS/playground/setup_output_file >&2',
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "layer_paths": ["//tmp/layer1", "//tmp/playground_layer"],
+                    "job_count": 1,
+                    "enable_setup_commands": True,
+                }
+            })
+
+        jobs_path = op.get_path() + "/jobs"
+        assert get(jobs_path + "/@count") == 1
+        job_id = ls(jobs_path)[0]
+
+        res = op.read_stderr(job_id)
+        assert res == "2019\n"

@@ -1507,6 +1507,38 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             insert_rows("//tmp/{}".format(table), rows, update=True, require_sync_replica=False)
             wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == rows)
 
+    @authors("savrus")
+    def test_replication_row_indexes(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t_original", schema=self.SIMPLE_SCHEMA_SORTED)
+        replica_id = create_table_replica("//tmp/t_original", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": "async", "preserve_timestamps": "false"})
+        self._create_replica_table("//tmp/r", schema=self.SIMPLE_SCHEMA_SORTED)
+        sync_enable_table_replica(replica_id)
+
+        rows = [{"key": 0, "value1": "0", "value2": 0}]
+        insert_rows("//tmp/t_original", rows, require_sync_replica=False)
+        wait(lambda: lookup_rows("//tmp/r", [{"key": 0}], driver=self.replica_driver) == rows)
+
+        sync_freeze_table("//tmp/t_original")
+        copy("//tmp/t_original", "//tmp/t_copy")
+        sync_unfreeze_table("//tmp/t_original")
+
+        copy_id = get("//tmp/t_copy/@replicas").keys()[0]
+        original_row_index = get("#{}/@tablets/0/current_replication_row_index".format(replica_id))
+        copy_row_index = get("#{}/@tablets/0/current_replication_row_index".format(copy_id))
+
+        sync_enable_table_replica(get("//tmp/t_copy/@replicas").keys()[0])
+
+        delete_rows("//tmp/t_original", [{"key": 0}], require_sync_replica=False)
+        wait(lambda: lookup_rows("//tmp/r", [{"key": 0}], driver=self.replica_driver) == [])
+
+        sync_mount_table("//tmp/t_copy")
+        rows = [{"key": 1, "value1": "1", "value2": 1}]
+        insert_rows("//tmp/t_copy", rows, require_sync_replica=False)
+        wait(lambda: lookup_rows("//tmp/r", [{"key": 1}], driver=self.replica_driver) == rows)
+
+        assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == rows
+
     ##################################################################
 
 class TestReplicatedDynamicTablesSafeMode(TestReplicatedDynamicTablesBase):

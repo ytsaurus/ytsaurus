@@ -1,18 +1,18 @@
 #pragma once
 
-#include "execution_context.h"
 #include "execution_stack.h"
+#include "fls.h"
 
 #include <yt/core/actions/future.h>
-
-#include <yt/core/ytalloc/memory_tag.h>
-#include <yt/core/ytalloc/memory_zone.h>
-
-#include <yt/core/misc/small_vector.h>
 
 #include <yt/core/profiling/public.h>
 
 #include <yt/core/tracing/public.h>
+
+#include <yt/core/ytalloc/memory_tag.h>
+#include <yt/core/ytalloc/memory_zone.h>
+
+#include <util/system/context.h>
 
 #include <atomic>
 #include <forward_list>
@@ -98,7 +98,7 @@ public:
     /*!
      *  Thread affinity: OwnerThread
      */
-    TExecutionContext* GetContext();
+    TExceptionSafeContext* GetContext();
 
     //! Returns a cached callback that schedules fiber cancelation.
     /*!
@@ -131,12 +131,6 @@ public:
      * caught in the trampoline).
      */
     bool IsTerminated() const;
-
-    //! Provides access to the fiber-specific data.
-    /*!
-     *  Thread affinity: OwnerThread
-     */
-    uintptr_t& FsdAt(int index);
 
     //! Pushes the context handlers.
     /*!
@@ -194,20 +188,18 @@ private:
 
     TClosure Callee_;
     std::shared_ptr<TExecutionStack> Stack_;
-    TExecutionContext Context_;
+    TExceptionSafeContext Context_;
 
     std::atomic<bool> Canceled_ = {false};
     TClosure Canceler_;
     void Cancel();
 
-    SmallVector<uintptr_t, 8> Fsd_;
+    NDetail::TFsdHolder FsdHolder_;
 
     NYTAlloc::TMemoryTag MemoryTag_ = NYTAlloc::NullMemoryTag;
     NYTAlloc::EMemoryZone MemoryZone_ = NYTAlloc::EMemoryZone::Normal;
 
     TContextSwitchHandlersList SwitchHandlers_;
-
-    void FsdResize();
 
     void FinishRunning();
 

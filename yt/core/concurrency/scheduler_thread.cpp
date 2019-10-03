@@ -23,7 +23,7 @@ void ResumeFiber(TFiberPtr fiber)
     YT_VERIFY(fiber->GetState() == EFiberState::Sleeping);
     fiber->SetSuspended();
 
-    GetCurrentScheduler()->YieldTo(std::move(fiber));
+    YieldToFiber(std::move(fiber));
 }
 
 void UnwindFiber(TFiberPtr fiber)
@@ -287,6 +287,12 @@ void TSchedulerThread::FiberMain(ui64 spawnedEpoch)
     }
 }
 
+DEFINE_ENUM(EBeginExecuteResult,
+    (Success)
+    (QueueEmpty)
+    (Terminated)
+);
+
 bool TSchedulerThread::FiberMainStep(ui64 spawnedEpoch)
 {
     // Call PrepareWait before checking Epoch, which may be modified by
@@ -300,10 +306,22 @@ bool TSchedulerThread::FiberMainStep(ui64 spawnedEpoch)
         return false;
     }
 
-    // The protocol is that BeginExecute() returns `Success` or `Terminated`
-    // if CancelWait was called. Otherwise, it returns `QueueEmpty` requesting
-    // to block until a notification.
-    auto result = BeginExecute();
+    // The protocol is that BeginExecute() returns callback. If callback is empty there are no actions in queue.
+    auto callback = BeginExecute();
+
+    EBeginExecuteResult result;
+    if (callback) {
+        CallbackEventCount_->CancelWait();
+        try {
+            callback.Run();
+            result = EBeginExecuteResult::Success;
+        } catch (const TFiberCanceledException&) {
+            result = EBeginExecuteResult::Terminated;
+        }
+        callback.Reset();
+    } else {
+        result = EBeginExecuteResult::QueueEmpty;
+    }
 
     // NB: We might get to this point after a long sleep, and scheduler might spawn
     // another event loop. So we carefully examine scheduler state.
@@ -349,8 +367,6 @@ bool TSchedulerThread::FiberMainStep(ui64 spawnedEpoch)
 
 void TSchedulerThread::Reschedule(TFiberPtr fiber, TFuture<void> future, IInvokerPtr invoker)
 {
-    SetCurrentInvoker(invoker, fiber.Get());
-
     fiber->GetCanceler(); // Initialize canceler; who knows what might happen to this fiber?
 
     auto resumer = BIND_DONT_CAPTURE_TRACE_CONTEXT(&ResumeFiber, fiber);
@@ -384,13 +400,6 @@ bool TSchedulerThread::IsStarted() const
 bool TSchedulerThread::IsShutdown() const
 {
     return Epoch_.load(std::memory_order_relaxed) & ShutdownEpochMask;
-}
-
-TFiber* TSchedulerThread::GetCurrentFiber()
-{
-    VERIFY_THREAD_AFFINITY(HomeThread);
-
-    return CurrentFiber_.Get();
 }
 
 void TSchedulerThread::Return()

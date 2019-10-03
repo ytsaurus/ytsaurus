@@ -2,6 +2,7 @@
 #include "bootstrap.h"
 #include "hydra_facade.h"
 #include "world_initializer.h"
+#include "multicell_manager.h"
 
 namespace NYT::NCellMaster {
 
@@ -18,7 +19,7 @@ TMasterHydraServiceBase::TMasterHydraServiceBase(
         bootstrap->GetHydraFacade()->GetGuardedAutomatonInvoker(defaultQueue),
         descriptor,
         logger,
-        bootstrap->GetCellId())
+        bootstrap->GetMulticellManager()->GetCellId())
     , Bootstrap_(bootstrap)
 {
     YT_VERIFY(Bootstrap_);

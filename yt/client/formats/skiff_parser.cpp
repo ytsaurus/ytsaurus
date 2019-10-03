@@ -33,7 +33,7 @@ namespace {
 
 using TSkiffToUnversionedValueConverter = std::function<void(TCheckedInDebugSkiffParser*, IValueConsumer*)>;
 
-template<EWireType wireType, bool required>
+template<EWireType wireType, bool isOptional>
 class TSimpleTypeConverterImpl
 {
 public:
@@ -44,7 +44,7 @@ public:
 
     void operator()(TCheckedInDebugSkiffParser* parser, IValueConsumer* valueConsumer)
     {
-        if constexpr (!required) {
+        if constexpr (isOptional) {
             ui8 tag = parser->ParseVariant8Tag();
             if (tag == 0) {
                 valueConsumer->OnValue(MakeUnversionedNullValue(ColumnId_));
@@ -73,6 +73,8 @@ public:
             valueConsumer->OnValue(MakeUnversionedBooleanValue(parser->ParseBoolean(), ColumnId_));
         } else if constexpr (wireType == EWireType::String32) {
             valueConsumer->OnValue(MakeUnversionedStringValue(parser->ParseString32(), ColumnId_));
+        } else if constexpr (wireType == EWireType::Nothing) {
+            valueConsumer->OnValue(MakeUnversionedNullValue(ColumnId_));
         } else {
             static_assert(wireType == EWireType::Int64);
         }
@@ -96,9 +98,9 @@ TSkiffToUnversionedValueConverter CreateSimpleValueConverter(
         case x: \
             do { \
                 if (required) { \
-                    return TSimpleTypeConverterImpl<x, true>(columnId, ysonConverter); \
-                } else { \
                     return TSimpleTypeConverterImpl<x, false>(columnId, ysonConverter); \
+                } else { \
+                    return TSimpleTypeConverterImpl<x, true>(columnId, ysonConverter); \
                 } \
             } while (0)
 
@@ -109,6 +111,9 @@ TSkiffToUnversionedValueConverter CreateSimpleValueConverter(
         CASE(EWireType::String32);
         CASE(EWireType::Yson32);
 #undef CASE
+        case EWireType::Nothing:
+            YT_VERIFY(required);
+            return TSimpleTypeConverterImpl<EWireType::Nothing, false>(columnId, ysonConverter);
 
         default:
             YT_ABORT();
@@ -133,7 +138,12 @@ public:
             ysonWriter.Flush();
         }
         auto value = TStringBuf(Buffer_.Data(), Buffer_.Size());
-        valueConsumer->OnValue(MakeUnversionedAnyValue(value, ColumnId_));
+        const auto entity = AsStringBuf("#");
+        if (value == entity) {
+            valueConsumer->OnValue(MakeUnversionedNullValue(ColumnId_));
+        } else {
+            valueConsumer->OnValue(MakeUnversionedAnyValue(value, ColumnId_));
+        }
     }
 
 private:

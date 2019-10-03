@@ -43,7 +43,6 @@ DEFINE_ENUM(EExecutionStackKind,
 );
 
 class TExecutionStack;
-class TExecutionContext;
 
 DECLARE_REFCOUNTED_CLASS(TFiber)
 

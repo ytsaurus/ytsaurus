@@ -62,7 +62,7 @@ protected:
         // IAttributeDictionary members
         virtual std::vector<TString> ListKeys() const override;
         virtual std::vector<TKeyValuePair> ListPairs() const override;
-        virtual NYson::TYsonString FindYson(const TString& key) const override;
+        virtual NYson::TYsonString FindYson(TStringBuf key) const override;
         virtual void SetYson(const TString& key, const NYson::TYsonString& value) override;
         virtual bool Remove(const TString& key) override;
 
@@ -91,6 +91,8 @@ protected:
     TFuture<NYson::TYsonString> GetExternalBuiltinAttributeAsync(NYTree::TInternedAttributeKey key);
     virtual bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
     virtual bool RemoveBuiltinAttribute(NYTree::TInternedAttributeKey key) override;
+
+    virtual TCypressNode* FindClosestAncestorWithAnnotation(TCypressNode* node);
 
     virtual void BeforeInvoke(const NRpc::IServiceContextPtr& context) override;
     virtual void AfterInvoke(const NRpc::IServiceContextPtr& context) override;
@@ -228,6 +230,7 @@ private:
     template <class TContextPtr, class TClonedTreeBuilder>
     void CopyCore(
         const TContextPtr& context,
+        bool inplace,
         const TClonedTreeBuilder& clonedTreeBuilder);
 
     void ValidateAccessTransaction();
@@ -266,7 +269,7 @@ public:
 
     virtual std::vector<TString> ListKeys() const override;
     virtual std::vector<TKeyValuePair> ListPairs() const override;
-    virtual NYson::TYsonString FindYson(const TString& key) const override;
+    virtual NYson::TYsonString FindYson(TStringBuf key) const override;
     virtual void SetYson(const TString& key, const NYson::TYsonString& value) override;
     virtual bool Remove(const TString& key) override;
 
@@ -346,17 +349,6 @@ private:
 
 public:
     using TBase::TBase;
-//    TScalarNodeProxy(
-//        NCellMaster::TBootstrap* bootstrap,
-//        NObjectServer::TObjectTypeMetadata* metadata,
-//        NTransactionServer::TTransaction* transaction,
-//        TScalarNode<TValue>* trunkNode)
-//        : TBase(
-//            bootstrap,
-//            metadata,
-//            transaction,
-//            trunkNode)
-//    { }
 
     virtual NYTree::ENodeType GetType() const override
     {

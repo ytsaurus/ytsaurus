@@ -9,7 +9,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonString IAttributeDictionary::GetYson(const TString& key) const
+TYsonString IAttributeDictionary::GetYson(TStringBuf key) const
 {
     auto result = FindYson(key);
     if (!result) {
@@ -18,12 +18,10 @@ TYsonString IAttributeDictionary::GetYson(const TString& key) const
     return result;
 }
 
-void IAttributeDictionary::MergeFrom(const IMapNodePtr other)
+void IAttributeDictionary::MergeFrom(const IMapNodePtr& other)
 {
-    for (const auto& pair : other->GetChildren()) {
-        const auto& key = pair.first;
-        auto value = ConvertToYsonString(pair.second);
-        SetYson(key, value);
+    for (const auto& [key, value] : other->GetChildren()) {
+        SetYson(key, ConvertToYsonString(value));
     }
 }
 
@@ -48,7 +46,7 @@ void IAttributeDictionary::Clear()
     }
 }
 
-bool IAttributeDictionary::Contains(const TString& key) const
+bool IAttributeDictionary::Contains(TStringBuf key) const
 {
     return FindYson(key).operator bool();
 }

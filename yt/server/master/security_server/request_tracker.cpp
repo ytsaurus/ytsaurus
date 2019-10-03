@@ -7,6 +7,7 @@
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/hydra_facade.h>
 #include <yt/server/master/cell_master/config_manager.h>
+#include <yt/server/master/cell_master/multicell_manager.h>
 #include <yt/server/master/cell_master/config.h>
 
 #include <yt/server/master/object_server/object_manager.h>
@@ -172,7 +173,8 @@ void TRequestTracker::ReconfigureUserRequestRateThrottler(TUser* user)
         auto config = New<TThroughputThrottlerConfig>();
         config->Period = GetDynamicConfig()->RequestRateSmoothingPeriod;
 
-        auto requestRateLimit = user->GetRequestRateLimit(workloadType, Bootstrap_->GetCellTag());
+        auto cellTag = Bootstrap_->GetMulticellManager()->GetCellTag();
+        auto requestRateLimit = user->GetRequestRateLimit(workloadType, cellTag);
 
         // If there're three or more peers, divide user limits by the number of
         // followers (because it's they who handle read requests).
@@ -195,8 +197,10 @@ void TRequestTracker::SetUserRequestQueueSizeLimit(TUser* user, int limit)
 
 bool TRequestTracker::TryIncreaseRequestQueueSize(TUser* user)
 {
+    auto cellTag = Bootstrap_->GetMulticellManager()->GetCellTag();
+    auto limit = user->GetRequestQueueSizeLimit(cellTag);
+
     auto size = user->GetRequestQueueSize();
-    auto limit = user->GetRequestQueueSizeLimit(Bootstrap_->GetCellTag());
     if (size >= limit) {
         return false;
     }
