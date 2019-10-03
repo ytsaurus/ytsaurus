@@ -4662,7 +4662,8 @@ void TOperationControllerBase::SuppressLivePreviewIfNeeded()
         }
     }
 
-    if (IsLegacyLivePreviewSuppressed = !suppressionErrors.empty()) {
+    IsLegacyLivePreviewSuppressed = !suppressionErrors.empty();
+    if (IsLegacyLivePreviewSuppressed) {
         auto combinedSuppressionError = TError("Legacy live preview is suppressed due to the following reasons")
             << suppressionErrors
             << TErrorAttribute("output_live_preview_mode", GetLegacyOutputLivePreviewMode())
