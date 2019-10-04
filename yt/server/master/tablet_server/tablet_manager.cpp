@@ -300,7 +300,10 @@ public:
 
         cellBundle->SetOptions(std::move(options));
 
-        for (auto* cell : cellBundle->TabletCells()) {
+        std::vector<TTabletCell*> cells(cellBundle->TabletCells().begin(), cellBundle->TabletCells().end());
+        std::sort(cells.begin(), cells.end(), TObjectRefComparer::Compare);
+
+        for (auto* cell : cells) {
             if (!IsObjectAlive(cell)) {
                 continue;
             }
