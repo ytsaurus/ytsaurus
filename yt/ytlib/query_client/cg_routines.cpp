@@ -1152,16 +1152,26 @@ const TValue* InsertGroupRow(
         return found != closure->Lookup.end() ? *found : nullptr;
     }
 
+    bool limitReached = closure->GroupedRows.size() == context->GroupRowLimit;
+
+    if (limitReached) {
+        auto found = closure->Lookup.find(row);
+
+        if (found == closure->Lookup.end()) {
+            throw TInterruptedIncompleteException();
+        }
+
+        return *found;
+    }
+
     auto inserted = closure->Lookup.insert(row);
 
     if (inserted.second) {
         closure->LastKey = *inserted.first;
 
-        if (closure->GroupedRows.size() >= context->GroupRowLimit) {
-            throw TInterruptedIncompleteException();
-        }
-
         closure->GroupedRows.push_back(row);
+        YT_VERIFY(closure->GroupedRows.size() <= context->GroupRowLimit);
+
         for (int index = 0; index < closure->KeySize; ++index) {
             closure->Buffer->Capture(&row[index]);
         }
@@ -1248,9 +1258,7 @@ void GroupOpHelper(
         auto& lookup = closure.Lookup;
 
         if (Y_UNLIKELY(isBoundarySegment)) {
-            size_t innerCount = groupedRows.size() < lookup.size()
-                ? 0
-                : groupedRows.size() - lookup.size();
+            size_t innerCount = groupedRows.size() - lookup.size();
 
             flushGroupedRows(false, groupedRows.data(), groupedRows.data() + innerCount);
             flushGroupedRows(true, groupedRows.data() + innerCount, groupedRows.data() + groupedRows.size());
