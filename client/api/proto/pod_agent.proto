@@ -848,6 +848,9 @@ message TContainerStatus {
 
         // Неструктурированное описание последней ошибки связанной c запуском контейнера
         string fail_reason = 5;
+
+        // timestamp попытки
+        google.protobuf.Timestamp start_time = 6;
     }
 
     TAttemptFeedback current = 16;
@@ -966,6 +969,7 @@ message TTcpCheckStatus {
     message TAttemptFeedback {
         ETcpCheckState state = 1;
         string fail_reason = 2;
+        google.protobuf.Timestamp start_time = 3;
     }
 
     TAttemptFeedback current = 7;
@@ -981,6 +985,7 @@ message THttpGetStatus {
         EHttpGetState state = 1;
         string fail_reason = 2;
         string inner_fail_reason = 3;
+        google.protobuf.Timestamp start_time = 4;
     }
 
     TAttemptFeedback current = 9;
