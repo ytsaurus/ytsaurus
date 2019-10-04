@@ -305,8 +305,6 @@ def get_jobs(op_id, cluster_name, ignore_parsing_errors=False):
                             formatted_exception,
                         )
                     )
-            else:
-                print(job_info_json["events"])
         start_job_id_hi, start_job_id_lo = chunk[-1]["job_id_hi"], chunk[-1]["job_id_lo"]
         chunk = _get_operation_info_by_chunks(op_id, client, start_job_id_hi, start_job_id_lo)
     
