@@ -414,6 +414,18 @@ message TUlimitSoft {
     uint64 value = 2;
 }
 
+enum EResolvConf {
+    EResolvConf_DEFAULT = 0 [(NYT.NYson.NProto.enum_value_name) = "default"];
+    EResolvConf_KEEP = 1 [(NYT.NYson.NProto.enum_value_name) = "keep"];
+
+    // При использовании nat64 resolv.conf будет содержать следующие строки:
+    // 1) search search.yandex.net.
+    // 2) nameserver 2a02:6b8:0:3400::5005 (https://wiki.yandex-team.ru/noc/ipv6/statefulnat64)
+    // 3) nameserver 2a02:6b8::1:1
+    // 4) nameserver 2a02:6b8:0:3400::1
+    EResolvConf_NAT64 = 2 [(NYT.NYson.NProto.enum_value_name) = "nat64"];
+}
+
 enum EWorkloadTargetState {
     EWorkloadTarget_ACTIVE = 0 [(NYT.NYson.NProto.enum_value_name) = "active"];
     EWorkloadTarget_REMOVED = 1 [(NYT.NYson.NProto.enum_value_name) = "removed"];
@@ -543,6 +555,10 @@ message TBox {
 
     // Ограничения на meta контейнер Box
     TComputeResources compute_resources = 12;
+
+    // Параметры сети в Box
+    // Передается при помощи porto property в meta контейнер box
+    EResolvConf resolv_conf = 15;
 
     // Переменные окружения - прокидываются во все init контейнеры бокса и во все вложенные workload
     // При этом, если переменная окружения указана и в box env, и в workload env, то будет выбрано значение из workload env
