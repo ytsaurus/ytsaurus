@@ -377,7 +377,6 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             blockReadOptions);
     }
 
-    auto blockCache = GetBlockCache();
     auto chunkReader = GetChunkReader(throttler);
     auto chunkState = PrepareChunkState(chunkReader, blockReadOptions);
 
