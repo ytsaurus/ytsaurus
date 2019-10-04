@@ -8,8 +8,6 @@
 
 #include <yt/client/api/config.h>
 
-#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/ytlib/chunk_client/chunk_writer.h>
 #include <yt/ytlib/chunk_client/confirming_writer.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/config.h>
@@ -66,11 +64,11 @@ TFileChunkOutput::TFileChunkOutput(
 
 void TFileChunkOutput::DoWrite(const void* buf, size_t len)
 {
+    EnsureOpen();
+
     if (GetSize() > SizeLimit_) {
         return;
     }
-
-    EnsureOpen();
 
     if (!FileChunkWriter_->Write(TRef(const_cast<void*>(buf), len))) {
         WaitFor(FileChunkWriter_->GetReadyEvent())
@@ -80,6 +78,8 @@ void TFileChunkOutput::DoWrite(const void* buf, size_t len)
 
 void TFileChunkOutput::DoFinish()
 {
+    EnsureOpen();
+
     if (GetSize() > 0) {
         YT_LOG_INFO("Closing file writer");
 
