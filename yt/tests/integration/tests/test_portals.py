@@ -274,6 +274,16 @@ class TestPortals(YTEnvSetup):
         wait(lambda: not exists("#{}/@account_statistics/a".format(shard_id)))
 
     @authors("babenko")
+    def test_copy_move_shard_friendly(self):
+        shard_id = get("//@shard_id")
+        create("table", "//tmp/t1")
+        assert get("//tmp/t1/@shard_id") == shard_id
+        copy("//tmp/t1", "//tmp/t2")
+        assert get("//tmp/t2/@shard_id") == shard_id
+        move("//tmp/t2", "//tmp/t3")
+        assert get("//tmp/t3/@shard_id") == shard_id
+
+    @authors("babenko")
     def test_portal_shard(self):
         create_account("a")
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
@@ -638,6 +648,14 @@ class TestPortals(YTEnvSetup):
 
         assert get("//tmp/m/orchid/@type") == "orchid"
         assert get("//tmp/m/orchid/@manifest") == ORCHID_MANIFEST
+
+        shard_id = get("//tmp/m/@shard_id")
+        assert get("//tmp/m/t/@shard_id") == shard_id
+        assert get("//sys/cypress_shards/{}/@account_statistics/tmp/node_count".format(shard_id)) == 6
+
+        remove("//tmp/m")
+        wait(lambda: "m" not in ls("//tmp"))
+        assert not exists("//tmp/m")
 
     @authors("babenko")
     def test_bulk_insert_yt_11194(self):
