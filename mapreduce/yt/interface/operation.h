@@ -122,6 +122,7 @@ struct TJobBinaryLocalPath
 struct TJobBinaryCypressPath
 {
     TYPath Path;
+    TMaybe<TTransactionId> TransactionId;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -460,7 +461,7 @@ struct TUserJobSpec
     // `md5` argument can be used to save cpu time and disk IO when binary md5 checksum is known.
     // When argument is not provided library will compute it itself.
     TUserJobSpec& JobBinaryLocalPath(TString path, TMaybe<TString> md5 = Nothing());
-    TUserJobSpec& JobBinaryCypressPath(TString path);
+    TUserJobSpec& JobBinaryCypressPath(TString path, TMaybe<TTransactionId> transactionId = Nothing());
     const TJobBinaryConfig& GetJobBinary() const;
 
     //
