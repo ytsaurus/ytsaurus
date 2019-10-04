@@ -559,9 +559,9 @@ TUserJobSpec::TUserJobSpec()
     RegisterParameter("interruption_signal", InterruptionSignal)
         .Default();
     RegisterParameter("enable_setup_commands", EnableSetupCommands)
-        .Default(false);
+        .Default(true);
     RegisterParameter("enable_gpu_layers", EnableGpuLayers)
-        .Default(false);
+        .Default(true);
     RegisterParameter("cuda_toolkit_version", CudaToolkitVersion)
         .Default();
 
