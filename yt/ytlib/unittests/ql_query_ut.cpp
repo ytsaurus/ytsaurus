@@ -2670,6 +2670,32 @@ TEST_F(TQueryEvaluateTest, OutputRowLimit2)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, OutputRowLimit3)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    std::vector<TString> source;
+    for (size_t i = 0; i < 20; ++i) {
+        source.push_back(Format("a=%v", i));
+    }
+
+    auto resultSplit = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    std::vector<TOwningRow> result;
+    for (size_t i = 0; i < 10; ++i) {
+        result.push_back(YsonToRow(Format("a=%v", i), resultSplit, false));
+    }
+
+    Evaluate("a FROM [//t] group by a", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(),
+             10);
+
+    SUCCEED();
+}
+
 TEST_F(TQueryEvaluateTest, TypeInference)
 {
     auto split = MakeSplit({
