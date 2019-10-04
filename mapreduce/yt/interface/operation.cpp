@@ -88,9 +88,9 @@ TUserJobSpec& TUserJobSpec::JobBinaryLocalPath(TString path, TMaybe<TString> md5
     return *this;
 }
 
-TUserJobSpec& TUserJobSpec::JobBinaryCypressPath(TString path)
+TUserJobSpec& TUserJobSpec::JobBinaryCypressPath(TString path, TMaybe<TTransactionId> transactionId)
 {
-    JobBinary_ = TJobBinaryCypressPath{path};
+    JobBinary_ = TJobBinaryCypressPath{path, transactionId};
     return *this;
 }
 

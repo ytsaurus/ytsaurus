@@ -704,7 +704,7 @@ private:
         if (!Exists(
             OperationPreparer_.GetClientRetryPolicy()->CreatePolicyForGenericRequest(),
             OperationPreparer_.GetAuth(),
-            OperationPreparer_.GetTransactionId(),
+            file.TransactionId_.GetOrElse(OperationPreparer_.GetTransactionId()),
             file.Path_))
         {
             ythrow yexception() << "File " << file.Path_ << " does not exist";
@@ -714,7 +714,7 @@ private:
             auto size = Get(
                 OperationPreparer_.GetClientRetryPolicy()->CreatePolicyForGenericRequest(),
                 OperationPreparer_.GetAuth(),
-                OperationPreparer_.GetTransactionId(),
+                file.TransactionId_.GetOrElse(OperationPreparer_.GetTransactionId()),
                 file.Path_ + "/@uncompressed_data_size")
                 .AsInt64();
 
@@ -757,11 +757,12 @@ private:
             }
             UploadLocalFile(binaryLocalPath.Path, opts);
         } else if (HoldsAlternative<TJobBinaryCypressPath>(jobBinary)) {
-            auto binaryCypressPath = ::Get<TJobBinaryCypressPath>(jobBinary).Path;
-            UseFileInCypress(
-                TRichYPath(binaryCypressPath)
-                    .FileName("cppbinary")
-                    .Executable(true));
+            auto binaryCypressPath = ::Get<TJobBinaryCypressPath>(jobBinary);
+            auto ytPath = TRichYPath(binaryCypressPath.Path);
+            if (binaryCypressPath.TransactionId) {
+                ytPath.TransactionId(*binaryCypressPath.TransactionId);
+            }
+            UseFileInCypress(ytPath.FileName("cppbinary").Executable(true));
         } else {
             Y_FAIL("%s", (TStringBuilder() << "Unexpected jobBinary tag: " << jobBinary.index()).data());
         }
