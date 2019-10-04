@@ -266,7 +266,7 @@ class LocalYt:
         if not self.profile_cfg.use_ytserver_all:
             bin_dir = build_dir
         else:
-            bin_dir = self.cfg.working_directory / self.profile / "bin"
+            bin_dir = self.cfg.working_directory / "bin" / self.profile
             if not bin_dir.exists():
                 bin_dir.mkdir(parents=True)
             for name in [
