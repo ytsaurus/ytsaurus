@@ -1446,26 +1446,44 @@ public:
             // as its originator. We must update these references to avoid dangling pointers.
             auto* newOriginatorTransaction = newOriginator->GetTransaction();
 
-            for (auto& [lockTransaction, lock] : trunkNode->LockingState().TransactionToSnapshotLocks) {
-                YT_ASSERT(lock->GetState() == ELockState::Acquired);
-                YT_ASSERT(lock->GetTrunkNode() == trunkNode);
-
-                // Locks are released later, so be sure to skip the node we've already unbranched.
-                if (lockTransaction == transaction) {
-                    continue;
-                }
-
-                if (!newOriginatorTransaction || lockTransaction->IsDescendantOf(newOriginatorTransaction)) {
-                    auto* node = GetNode(TVersionedNodeId{trunkNode->GetId(), lockTransaction->GetId()});
-                    auto* nodeOriginator = node->GetOriginator();
-                    if (unbranchedNodes.count(nodeOriginator) != 0) {
-                        node->SetOriginator(newOriginator);
-                        // NB: a branch holds a strong reference to its originator's trunk.
-                        // New originator will have the same trunk, which means there's
-                        // no need to adjust reference counters here.
+            VisitTransactionTree(
+                newOriginatorTransaction
+                    ? newOriginatorTransaction
+                    : transaction->GetTopmostTransaction(),
+                [&] (TTransaction* t) {
+                    // Locks are released later, so be sure to skip the node we've already unbranched.
+                    if (t == transaction) {
+                        return;
                     }
-                }
+
+                    for (auto* branchedNode : t->BranchedNodes()) {
+                        auto* branchedNodeOriginator = branchedNode->GetOriginator();
+                        if (unbranchedNodes.count(branchedNodeOriginator) != 0) {
+                            branchedNode->SetOriginator(newOriginator);
+                        }
+                    }
+                });
+        }
+    }
+
+    //! Traverses a transaction tree. The root transaction does not have to be topmost.
+    template <class F>
+    void VisitTransactionTree(TTransaction* rootTransaction, F&& processTransaction)
+    {
+        // BFS queue.
+        SmallVector<TTransaction*, 64> queue;
+
+        size_t frontIndex = 0;
+        queue.push_back(rootTransaction);
+
+        while (frontIndex < queue.size()) {
+            auto* transaction = queue[frontIndex++];
+
+            for (auto* t : transaction->NestedTransactions()) {
+                queue.push_back(t);
             }
+
+            processTransaction(transaction);
         }
     }
 
