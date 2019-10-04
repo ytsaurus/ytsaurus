@@ -1,4 +1,4 @@
-from .common import ThreadPoolHelper, set_param, datetime_to_string, date_string_to_datetime
+from .common import ThreadPoolHelper, set_param, datetime_to_string, date_string_to_datetime, deprecated
 from .config import get_config
 from .errors import YtOperationFailedError, YtResponseError
 from .driver import make_request, make_formatted_request, get_api_version
@@ -486,6 +486,14 @@ def get_jobs_with_error_or_stderr(operation, only_failed_jobs, client=None):
             pool.join()
     return result
 
+@deprecated(alternative="get_jobs_with_error_or_stderr")
+def get_stderrs(operation, only_failed_jobs, client=None):
+    """ Deprecated!
+
+    Use get_jobs_with_error_or_stderr instead.
+    """
+    return get_jobs_with_error_or_stderr(operation, only_failed_jobs, client=client)
+
 def format_operation_stderr(job_with_stderr, output):
     output.write("Host: ")
     output.write(job_with_stderr["host"])
@@ -632,6 +640,7 @@ class Operation(object):
         """
         return get_jobs_with_error_or_stderr(self.id, only_failed_jobs=only_failed_jobs, client=self.client)
 
+    @deprecated(alternative="get_jobs_with_error_or_stderr")
     def get_stderrs(self, only_failed_jobs=False):
         """ Deprecated!
 
