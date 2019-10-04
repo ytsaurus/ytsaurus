@@ -48,7 +48,7 @@ void TNonversionedMapObjectTypeHandlerBase<TObject>::ValidateAttachChildDepth(
         ValidateHeightLimit(child, heightLimit);
     } catch (const std::exception& ex) {
         // XXX(kiselyovp) object name is capitalized here, fix this in YT-11362
-        THROW_ERROR_EXCEPTION("Cannot add a child to %Qv")
+        THROW_ERROR_EXCEPTION("Cannot add a child to %v", parent->GetObjectName())
             << ex;
     }
 }

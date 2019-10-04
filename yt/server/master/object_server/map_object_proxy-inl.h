@@ -200,7 +200,9 @@ void TNonversionedMapObjectProxyBase<TObject>::ValidateBeforeAttachChild(
 {
     auto* impl = TBase::GetThisImpl();
     if (impl->IsBeingRemoved()) {
-        THROW_ERROR_EXCEPTION("Cannot attach new children to an object being removed (LifeStage: %Qlv, Id: %v)",
+        THROW_ERROR_EXCEPTION(
+            NObjectClient::EErrorCode::InvalidObjectLifeStage,
+            "Cannot attach new children to an object being removed (LifeStage: %Qlv, Id: %v)",
             impl->GetLifeStage(),
             impl->GetId());
     }
@@ -556,7 +558,9 @@ void TNonversionedMapObjectProxyBase<TObject>::ValidateRemoval()
         return;
     }
     if (impl->IsBeingCreated()) {
-        THROW_ERROR_EXCEPTION("Invalid life stage during object removal (LifeStage: %Qlv, Id: %v)",
+        THROW_ERROR_EXCEPTION(
+            NObjectClient::EErrorCode::InvalidObjectLifeStage,
+            "Invalid life stage during object removal (LifeStage: %Qlv, Id: %v)",
             impl->GetLifeStage(),
             impl->GetId());
     }
@@ -594,8 +598,9 @@ void TNonversionedMapObjectProxyBase<TObject>::ValidateChildName(const TString& 
     auto* impl = TBase::GetThisImpl();
     if (impl->KeyToChild().count(newChildName) != 0) {
         THROW_ERROR_EXCEPTION(
-            "Object %Qv already has a child %Qv",
-            impl->GetName(),
+            NYTree::EErrorCode::AlreadyExists,
+            "%v already has a child %Qv",
+            impl->GetObjectName(),
             newChildName);
     }
 }
