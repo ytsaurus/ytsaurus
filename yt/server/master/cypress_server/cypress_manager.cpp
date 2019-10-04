@@ -405,6 +405,10 @@ public:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* node = cypressManager->InstantiateNode(id, externalCellTag);
 
+        if (Shard_) {
+            cypressManager->SetShard(node, Shard_);
+        }
+
         RegisterCreatedNode(node);
 
         return node;
@@ -489,13 +493,13 @@ public:
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->EndCopyNodeInplace(trunkNode, context, this, sourceNodeId);
-        auto* clonedNode = cypressManager->LockNode(
+
+        return cypressManager->LockNode(
             trunkNode,
             Transaction_,
             ELockMode::Exclusive,
             false,
             true);
-        return clonedNode;
     }
 
 private:
@@ -1768,6 +1772,8 @@ private:
     // COMPAT(babenko)
     bool NeedBindNodesToRootShard_ = false;
     // COMPAT(babenko)
+    bool NeedBindNodesToAncestorShard_ = false;
+    // COMPAT(babenko)
     bool NeedSuggestShardNames_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
@@ -1816,6 +1822,8 @@ private:
         // COMPAT(babenko)
         NeedBindNodesToRootShard_ = context.GetVersion() < EMasterReign::CypressShards;
         // COMPAT(babenko)
+        NeedBindNodesToAncestorShard_ = context.GetVersion() < EMasterReign::FixSetShardInClone;
+        // COMPAT(babenko)
         NeedSuggestShardNames_ = context.GetVersion() < EMasterReign::CypressShardName;
     }
 
@@ -1851,6 +1859,8 @@ private:
 
         NeedCleanupHalfCommittedTransaction_ = false;
         NeedBindNodesToRootShard_ = false;
+        NeedBindNodesToAncestorShard_ = false;
+        NeedSuggestShardNames_ = false;
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -1993,6 +2003,24 @@ private:
             for (auto [nodeId, node] : NodeMap_) {
                 if (node->IsTrunk() && node->IsNative() && !node->GetShard()) {
                     SetShard(node, RootShard_);
+                }
+            }
+        }
+
+        // COMPAT(babenko)
+        if (NeedBindNodesToAncestorShard_) {
+            for (auto [nodeId, node] : NodeMap_) {
+                if (node->GetShard()) {
+                    continue;
+                }
+
+                auto* ancestorNode = node->GetTrunkNode();
+                while (ancestorNode->GetParent() && !ancestorNode->GetShard()) {
+                    ancestorNode = ancestorNode->GetParent();
+                }
+
+                if (auto* shard = ancestorNode->GetShard()) {
+                    SetShard(node, shard);
                 }
             }
         }

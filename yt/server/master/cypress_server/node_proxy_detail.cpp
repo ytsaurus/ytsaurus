@@ -1608,11 +1608,9 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, EndCopy)
         context,
         inplace,
         [&] (ICypressNodeFactory* factory) {
-            if (inplace) {
-                return factory->EndCopyNodeInplace(TrunkNode_, &copyContext);
-            } else {
-                return factory->EndCopyNode(&copyContext);
-            }
+            return inplace
+                ? factory->EndCopyNodeInplace(TrunkNode_, &copyContext)
+                : factory->EndCopyNode(&copyContext);
         });
 
     context->Reply();
@@ -1700,8 +1698,9 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
     });
 
     auto* clonedNode = clonedTreeBuilder(factory.get());
+    auto* clonedTrunkNode = clonedNode->GetTrunkNode();
     if (!inplace) {
-        auto clonedProxy = GetProxy(clonedNode->GetTrunkNode());
+        auto clonedProxy = GetProxy(clonedTrunkNode);
         if (replace) {
             parentProxy->ReplaceChild(this, clonedProxy);
         } else {
@@ -1715,9 +1714,9 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
 
     factory->Commit();
 
-    ToProto(response->mutable_node_id(), clonedNode->GetTrunkNode()->GetId());
+    ToProto(response->mutable_node_id(), clonedTrunkNode->GetId());
 
-    context->SetResponseInfo("NodeId: %v", clonedNode->GetTrunkNode()->GetId());
+    context->SetResponseInfo("NodeId: %v", clonedTrunkNode->GetId());
 }
 
 void TNontemplateCypressNodeProxyBase::ValidateAccessTransaction()
