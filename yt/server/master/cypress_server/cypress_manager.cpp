@@ -441,7 +441,7 @@ public:
             });
         }
 
-        return clonedTrunkNode;
+        return clonedNode;
     }
 
     virtual TCypressNode* EndCopyNode(TEndCopyContext* context) override
@@ -476,10 +476,10 @@ public:
             });
         }
 
-        return clonedTrunkNode;
+        return clonedNode;
     }
 
-    virtual void EndCopyNodeInplace(
+    virtual TCypressNode* EndCopyNodeInplace(
         TCypressNode* trunkNode,
         TEndCopyContext* context) override
     {
@@ -489,6 +489,13 @@ public:
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->EndCopyNodeInplace(trunkNode, context, this, sourceNodeId);
+        auto* clonedNode = cypressManager->LockNode(
+            trunkNode,
+            Transaction_,
+            ELockMode::Exclusive,
+            false,
+            true);
+        return clonedNode;
     }
 
 private:

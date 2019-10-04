@@ -2380,6 +2380,19 @@ class TestCypress(YTEnvSetup):
         move("//tmp/test_node", "//test")
         assert get("//test/@annotation") == get("//test/child/@annotation") == "test"
 
+    @authors("shakurov")
+    def test_recursive_copy_sets_parent_on_branched_node(self):
+        create_user("u")
+
+        tx = start_transaction(authenticated_user="u")
+
+        create('table', "//tmp/d1/d2/src/t", tx=tx, recursive=True, authenticated_user="u")
+        copy("//tmp/d1/d2/src", "//tmp/d1/d2/dst", tx=tx, recursive=True, authenticated_user="u")
+
+        tx2 = start_transaction(tx=tx, authenticated_user="u")
+        # Must not throw.
+        lock("//tmp/d1/d2/dst/t", tx=tx2, mode="snapshot", authenticated_user="u")
+
 ##################################################################
 
 class TestCypressMulticell(TestCypress):

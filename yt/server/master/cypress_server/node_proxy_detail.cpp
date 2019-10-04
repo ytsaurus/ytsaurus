@@ -1609,8 +1609,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, EndCopy)
         inplace,
         [&] (ICypressNodeFactory* factory) {
             if (inplace) {
-                factory->EndCopyNodeInplace(TrunkNode_, &copyContext);
-                return TrunkNode_;
+                return factory->EndCopyNodeInplace(TrunkNode_, &copyContext);
             } else {
                 return factory->EndCopyNode(&copyContext);
             }
