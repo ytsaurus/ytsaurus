@@ -358,7 +358,7 @@ public:
     {
         RegisterParameter("enable_replicated_table_tracker", EnableReplicatedTableTracker)
             .Default(true);
-        RegisterParameter("bunde_health_cache", BundleHealthCache)
+        RegisterParameter("bundle_health_cache", BundleHealthCache)
             // COMPAT(savrus)
             .Alias("async_expiring_cache")
             .Default();
