@@ -1248,7 +1248,9 @@ void GroupOpHelper(
         auto& lookup = closure.Lookup;
 
         if (Y_UNLIKELY(isBoundarySegment)) {
-            size_t innerCount = groupedRows.size() - lookup.size();
+            size_t innerCount = groupedRows.size() < lookup.size()
+                ? 0
+                : groupedRows.size() - lookup.size();
 
             flushGroupedRows(false, groupedRows.data(), groupedRows.data() + innerCount);
             flushGroupedRows(true, groupedRows.data() + innerCount, groupedRows.data() + groupedRows.size());
