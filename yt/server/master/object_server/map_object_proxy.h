@@ -192,7 +192,6 @@ public:
     virtual void DetachChild(const TProxyPtr& parent, const TProxyPtr& child);
 
 protected:
-    // YYY(kiselyovp) make sure that the whole transactional semantics actually works (e.g. all the logged events are "atomic")
     struct TFactoryEvent
     {
         EFactoryEventType Type;

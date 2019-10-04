@@ -421,7 +421,7 @@ void TMapNodeMixin::SetChild(
     bool recursive)
 {
     const auto& [rootKey, rootChild] = PrepareSetChild(factory, path, child, recursive);
-    AsMap()->AddChild(rootKey, rootChild);
+    AddChild(rootKey, rootChild);
 }
 
 int TMapNodeMixin::GetMaxKeyLength() const

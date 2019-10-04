@@ -26,6 +26,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TChildToKey, ChildToKey);
 
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
+    // YYY(kiselyovp) consider having a "custom root name" property here
 
 public:
     explicit TNonversionedMapObjectBase(TObjectId id);
