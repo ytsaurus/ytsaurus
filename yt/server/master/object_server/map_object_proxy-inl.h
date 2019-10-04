@@ -489,7 +489,7 @@ bool TNonversionedMapObjectProxyBase<TObject>::SetBuiltinAttribute(
 
             auto req = NCypressClient::TCypressYPathProxy::Copy("/" + name);
             req->set_source_path(GetShortPath());
-            req->set_remove_source(true);
+            req->set_mode(static_cast<int>(NCypressClient::ENodeCloneMode::Move));
             NYTree::SyncExecuteVerb(newParent, req);
             return true;
         }
@@ -745,8 +745,13 @@ DEFINE_YPATH_SERVICE_METHOD(TNonversionedMapObjectProxyBase<TObject>, Copy)
 {
     TObjectProxyBase::DeclareMutating();
 
-    auto sourcePath = request->source_path();
-    bool removeSource = request->remove_source();
+    const auto& ypathExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+    // COMPAT(babenko)
+    const auto& sourcePath = ypathExt.additional_paths_size() == 1
+        ? ypathExt.additional_paths(0)
+        : request->source_path();
+
+    auto mode = CheckedEnumCast<NCypressClient::ENodeCloneMode>(request->mode());
     auto recursive = request->recursive();
     auto ignoreExisting = request->ignore_existing();
     auto force = request->force();
@@ -766,13 +771,13 @@ DEFINE_YPATH_SERVICE_METHOD(TNonversionedMapObjectProxyBase<TObject>, Copy)
     if (force) {
         THROW_ERROR_EXCEPTION("\"force\" option is not supported for nonversioned map objects");
     }
-    if (ignoreExisting && removeSource) {
-        THROW_ERROR_EXCEPTION("Cannot specify both \"ignore_existing\" and \"remove_source\" options simultaneously");
+    if (ignoreExisting && mode == NCypressClient::ENodeCloneMode::Move) {
+        THROW_ERROR_EXCEPTION("Cannot specify \"ignore_existing\" for move operation");
     }
 
-    context->SetRequestInfo("SourcePath: %v, RemoveSource: %v, Recursive: %v, IgnoreExisting: %v, Force: %v",
+    context->SetRequestInfo("SourcePath: %v, Mode: %v, Recursive: %v, IgnoreExisting: %v, Force: %v",
         sourcePath,
-        removeSource,
+        mode,
         recursive,
         ignoreExisting,
         force);
@@ -808,7 +813,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNonversionedMapObjectProxyBase<TObject>, Copy)
         NSecurityServer::EPermission::Read);
 
     auto sourceParent = sourceProxy->DoGetParent();
-    if (removeSource) {
+    if (mode == NCypressClient::ENodeCloneMode::Move) {
         if (!sourceParent) {
             NYTree::ThrowCannotRemoveNode(sourceProxy);
         }
@@ -825,7 +830,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNonversionedMapObjectProxyBase<TObject>, Copy)
     auto factory = CreateObjectFactory();
 
     TSelfPtr clonedProxy;
-    if (removeSource) {
+    if (mode == NCypressClient::ENodeCloneMode::Move) {
         factory->DetachChild(sourceParent, sourceProxy);
         clonedProxy = sourceProxy;
     } else {
