@@ -1191,13 +1191,14 @@ private:
 
     std::vector<NYPath::TRichYPath> GetLayerPaths(const TUserJobSpecPtr& userJobSpec);
 
-    void AnalyzeProcessingUnitUsage(const std::vector<TString>& usageStatistics,
-                                    const std::vector<TString>& jobStates,
-                                    const std::function<double(const TUserJobSpecPtr&)>& getLimit,
-                                    const std::function<bool(i64, i64, double)>& needSetAlert,
-                                    const TString& name,
-                                    EOperationAlertType alertType,
-                                    const TString& message);
+    void AnalyzeProcessingUnitUsage(
+        const std::vector<TString>& usageStatistics,
+        const std::vector<TString>& jobStates,
+        const std::function<double(const TUserJobSpecPtr&)>& getLimit,
+        const std::function<bool(i64, i64, double)>& needSetAlert,
+        const TString& name,
+        EOperationAlertType alertType,
+        const TString& message);
 
     //! Helper class that implements IChunkPoolInput interface for output tables.
     class TSink
