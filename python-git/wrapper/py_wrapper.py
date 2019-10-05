@@ -5,6 +5,7 @@ from .config import get_config
 from .pickling import Pickler
 from .common import (get_python_version, YtError, chunk_iter_stream, get_value, which,
                      get_disk_size, is_arcadia_python)
+from .file_commands import LocalFile
 from .py_runner_helpers import process_rows
 from .local_mode import is_local_mode, enable_local_files_usage_in_job
 from ._py_runner import get_platform_version, main as run_py_runner
@@ -22,6 +23,7 @@ from yt.packages.six.moves import map as imap
 
 import re
 import imp
+import copy
 import string
 import inspect
 import os
@@ -550,16 +552,24 @@ def do_wrap(function, tempfiles_manager, local_mode, file_manager, params, clien
             prefix=prefix,
             suffix=suffix)
 
-    def file_argument_builder(file, caller=False):
-        if isinstance(file, str):
-            filename = file
+    def file_argument_builder(file_params, caller=False):
+        if isinstance(file_params, str):
+            file_params = {"filename": file_params}
         else:
-            filename = file["filename"]
+            file_params = copy.deepcopy(file_params)
+
         if enable_local_files_usage_in_job(client):
-            return os.path.abspath(filename)
+            return os.path.abspath(file_params["filename"])
         else:
-            file_manager.add_files(file)
-            return ("./" if caller else "") + os.path.basename(filename)
+            bypass_artifacts_cache = get_config(client)["pickling"]["modules_bypass_artifacts_cache"]
+            attributes = None
+            if bypass_artifacts_cache is not None:
+                if attributes is None:
+                    attributes = {}
+                attributes["bypass_artifacts_cache"] = bypass_artifacts_cache
+            file_params["filename"] = LocalFile(file_params["filename"], attributes=attributes)
+            file_manager.add_files(file_params)
+            return ("./" if caller else "") + os.path.basename(file_params["filename"].path)
 
     is_standalone_binary = SINGLE_INDEPENDENT_BINARY_CASE or \
         (SINGLE_INDEPENDENT_BINARY_CASE is None and getattr(sys, "is_standalone_binary", False))

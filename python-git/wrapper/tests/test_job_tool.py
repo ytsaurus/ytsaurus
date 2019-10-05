@@ -3,6 +3,8 @@ from .helpers import (get_tests_sandbox, TEST_DIR, get_tests_location, wait_reco
 
 from yt.common import to_native_str
 import yt.subprocess_wrapper as subprocess
+from yt.wrapper.spec_builders import VanillaSpecBuilder
+from yt.wrapper.ypath import YPath
 
 import yt.wrapper as yt
 
@@ -207,6 +209,43 @@ class TestJobTool(object):
         p = subprocess.Popen([os.path.join(path, "run.sh")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         _, p_stderr = p.communicate()
         assert p_stderr == u"OK_COMMAND\n".encode("ascii")
+
+    def test_file_name_precedence(self, yt_env_job_archive):
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"key": "1", "value": "2"}])
+
+        file_content = b"FILE_CONTENT"
+
+        def check_file_present(file_cypress_path, file_name_in_job):
+            command = "cat < {} >&2; cat ".format(file_name_in_job)
+            op = yt.run_map(command, table, TEST_DIR + "/output", format=self.TEXT_YSON, yt_files=[file_cypress_path])
+            job_id = yt.list(get_operation_path(op.id) + "/jobs")[0]
+            path = self._prepare_job_environment(yt_env_job_archive, op.id, job_id, full=True)
+            p = subprocess.Popen([os.path.join(path, "run.sh")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            _, p_stderr = p.communicate()
+            assert p_stderr == file_content
+
+        file_ = TEST_DIR + "/file_name_in_key"
+        yt.write_file(file_, file_content)
+
+        check_file_present(file_, "file_name_in_key")
+
+        yt.set(file_ + "/@file_name", "file_name_in_node_attribute")
+
+        check_file_present(file_, "file_name_in_node_attribute")
+
+        file_path_with_attribute = YPath(file_, attributes={"file_name": "file_name_in_path_attribute"})
+
+        check_file_present(file_path_with_attribute, "file_name_in_path_attribute")
+
+        link_to_file = TEST_DIR + "/link_to_file"
+        yt.link(file_, link_to_file)
+
+        check_file_present(link_to_file, "link_to_file")
+
+        yt.set(link_to_file + "&/@file_name", "file_name_in_link_attribute")
+
+        check_file_present(link_to_file, "file_name_in_link_attribute")
 
     def test_bash_env(self, yt_env_job_archive):
         table = TEST_DIR + "/table"

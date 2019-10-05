@@ -49,10 +49,10 @@ from .table_commands import create_temp_table, get_sorted_by
 from .table_helpers import _prepare_job_io, _prepare_operation_files
 from .transaction import Transaction
 from .ypath import TablePath
-from .http_helpers import get_api_version
+from .driver import get_api_version
 
 import yt.logger as logger
-from yt.common import YT_NULL_TRANSACTION_ID as null_transaction_id
+from yt.common import YT_NULL_TRANSACTION_ID as null_transaction_id, _pretty_format_messages
 
 import sys
 import time
@@ -299,6 +299,7 @@ def run_reduce(binary, source_table, destination_table=None,
                reduce_by=None,
                join_by=None,
                stderr_table=None,
+               enable_key_guarantee=None,
                client=None):
     """Runs reduce operation.
 
@@ -325,6 +326,7 @@ def run_reduce(binary, source_table, destination_table=None,
         .join_by(join_by) \
         .job_count(job_count) \
         .job_io(job_io) \
+        .enable_key_guarantee(enable_key_guarantee) \
         .spec(spec)
     return run_operation(spec_builder, sync=sync, enable_optimizations=True, client=client)
 
@@ -425,9 +427,14 @@ class OperationRequestRetrier(Retrier):
             client=self.client)
         return result["operation_id"] if get_api_version(self.client) == "v4" else result
 
+    def except_action(self, exception, attempt):
+        self.exception = exception
+
     def backoff_action(self, iter_number, sleep_backoff):
         for action in self.retry_actions:
             action()
+        if isinstance(self.exception, YtConcurrentOperationsLimitExceeded):
+            logger.warning(_pretty_format_messages(self.exception).replace("\n", "\\n"))
         logger.warning("Failed to start operation since concurrent operation limit exceeded. "
                        "Sleep for %.2lf seconds before next (%d) retry.",
                        sleep_backoff, iter_number)

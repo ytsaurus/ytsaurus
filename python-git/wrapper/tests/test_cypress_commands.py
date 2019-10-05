@@ -629,3 +629,4 @@ class TestCypressCommands(object):
 
         yt.set(TEST_DIR + "/node/node2/node3/node4", 1, recursive=True)
         assert yt.get(TEST_DIR + "/node/node2/node3/node4") == 1
+

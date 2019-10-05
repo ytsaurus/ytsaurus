@@ -12,7 +12,7 @@ except ImportError:
 
 from yt.wrapper.py_wrapper import create_modules_archive_default, TempfilesManager, TMPFS_SIZE_MULTIPLIER
 from yt.wrapper.common import get_disk_size, MB
-from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message, get_stderrs, get_operation_error
+from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message, get_jobs_with_error_or_stderr, get_operation_error
 from yt.wrapper.table import TablePath
 from yt.wrapper.spec_builders import MapSpecBuilder, MapReduceSpecBuilder, VanillaSpecBuilder
 from yt.wrapper.skiff import convert_to_skiff_schema
@@ -332,9 +332,9 @@ class TestOperations(object):
     @add_failed_operation_stderrs_to_error_message
     def test_vanilla_operation(self):
         def check(op):
-            stderrs = op.get_stderrs()
-            assert len(stderrs) == 1
-            assert stderrs[0]["stderr"] == "aaa\n"
+            job_infos = op.get_jobs_with_error_or_stderr()
+            assert len(job_infos) == 1
+            assert job_infos[0]["stderr"] == "aaa\n"
 
         op = yt.run_operation(VanillaSpecBuilder().task("sample", {"command": "echo 'aaa' >&2", "job_count": 1}))
         check(op)
@@ -930,6 +930,22 @@ print(op.id)
         op = yt.run_reduce("cat", table, table, format=yt.JsonFormat(), reduce_by=["x"], sort_by=["x", "y"])
         assert "sort_by" in op.get_attributes()["spec"]
 
+    def test_reduce_with_foreign_tables_and_disabled_key_guarantee(self):
+        table1 = TEST_DIR + "/table1"
+        table2 = TEST_DIR + "/table2"
+        table = TEST_DIR + "/table"
+        yt.write_table("<sorted_by=[x;y]>" + table1, [{"x": 1, "y": 1}])
+        yt.write_table("<sorted_by=[x]>" + table2, [{"x": 1}])
+
+        def func(_, rows):
+            for row in rows:
+                yield row
+
+        op = yt.run_reduce(func, [table1, "<foreign=true>" + table2], table,
+                           join_by=["x"], enable_key_guarantee=False)
+        assert "enable_key_guarantee" in op.get_attributes()["spec"]
+        check([{"x": 1, "y": 1}, {"x": 1}], yt.read_table(table))
+
     def test_operations_tracker_multiple_instances(self):
         tracker = yt.OperationsTracker()
 
@@ -1301,12 +1317,12 @@ print(op.id)
         operation = yt.run_map(mapper, temp_table_input, temp_table_output,
                                spec={"data_size_per_job": 1}, input_format=yt.JsonFormat())
 
-        stderrs_list = get_stderrs(operation.id, False)
-        for stderr in stderrs_list:
+        job_infos = get_jobs_with_error_or_stderr(operation.id, False)
+        for stderr in job_infos:
             assert stderr["stderr"] == "Job with stderr"
-        assert len(stderrs_list) == 10
+        assert len(job_infos) == 10
 
-        assert yt.format_operation_stderrs(stderrs_list)
+        assert yt.format_operation_stderrs(job_infos)
 
         old_timeout = yt.config["operation_tracker"]["stderr_download_timeout"]
         old_thread_count = yt.config["operation_tracker"]["stderr_download_thread_count"]
@@ -1314,8 +1330,8 @@ print(op.id)
         yt.config["operation_tracker"]["stderr_download_thread_count"] = 1
 
         try:
-            stderrs_list = get_stderrs(operation.id, False)
-            assert len(stderrs_list) < 10
+            job_infos = get_jobs_with_error_or_stderr(operation.id, False)
+            assert len(job_infos) < 10
         finally:
             yt.config["operation_tracker"]["stderr_download_timeout"] = old_timeout
             yt.config["operation_tracker"]["stderr_download_thread_count"] = old_thread_count
@@ -1538,9 +1554,9 @@ print(op.id)
 
             op.get_job_statistics()
 
-            stderrs = op.get_stderrs()
-            assert len(stderrs) == 1
-            assert stderrs[0]["stderr"] == "AAA\n"
+            job_infos = op.get_jobs_with_error_or_stderr()
+            assert len(job_infos) == 1
+            assert job_infos[0]["stderr"] == "AAA\n"
 
     def test_list_operations(self):
         if yt.config["backend"] == "rpc":
@@ -1939,9 +1955,9 @@ print(op.id)
         yt.write_table(input_table, [{"x": 0}, {"x": 1}, {"x": 2}])
         with set_config_option("operation_tracker/stderr_encoding", "latin1"):
             op = yt.run_map("echo -e -n '\\xF1\\xF2\\xF3\\xF4' >&2; cat", input_table, output_table)
-            stderrs = op.get_stderrs()
-            assert len(stderrs) == 1
-            assert stderrs[0]["stderr"] == "\xF1\xF2\xF3\xF4"
+            job_infos = op.get_jobs_with_error_or_stderr()
+            assert len(job_infos) == 1
+            assert job_infos[0]["stderr"] == "\xF1\xF2\xF3\xF4"
 
     def test_operation_alert(self):
         try:

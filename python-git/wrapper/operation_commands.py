@@ -1,19 +1,18 @@
-from .common import ThreadPoolHelper, set_param, datetime_to_string, date_string_to_datetime
+from .common import ThreadPoolHelper, set_param, datetime_to_string, date_string_to_datetime, deprecated
 from .config import get_config
 from .errors import YtOperationFailedError, YtResponseError
-from .driver import make_request, make_formatted_request
-from .http_helpers import get_proxy_url, get_retriable_errors, get_api_version
+from .driver import make_request, make_formatted_request, get_api_version
+from .http_helpers import get_proxy_url, get_retriable_errors
 from .exceptions_catcher import ExceptionCatcher
 from .cypress_commands import exists, get, list
 from .ypath import ypath_join
 from .file_commands import read_file
 from .job_commands import list_jobs, get_job_stderr
 from .local_mode import is_local_mode, get_local_mode_proxy_address
-from .batch_response import apply_function_to_result
 from . import yson
 
 import yt.logger as logger
-from yt.common import format_error, date_string_to_datetime, to_native_str, flatten
+from yt.common import format_error, to_native_str, flatten
 
 from yt.packages.decorator import decorator
 from yt.packages.six import iteritems, itervalues, iterkeys
@@ -272,15 +271,19 @@ def get_operation_state(operation, client=None):
     finally:
         config["proxy"]["retries"]["count"] = retry_count
 
-def get_operation_progress(operation, client=None):
+def get_operation_progress(operation, with_build_time=False, client=None):
     def calculate_total(counter):
         if isinstance(counter, dict):
             return sum(imap(calculate_total, itervalues(counter)))
         return counter
 
+    build_time = None
     try:
         attributes = get_operation_attributes(operation, fields=["brief_progress"], client=client)
         progress = attributes.get("brief_progress", {}).get("jobs", {})
+        build_time = attributes.get("brief_progress", {}).get("build_time")
+        if build_time is not None:
+            build_time = date_string_to_datetime(build_time)
         for key in progress:
             # Show total for hierarchical count.
             if key in progress and isinstance(progress[key], dict):
@@ -294,7 +297,10 @@ def get_operation_progress(operation, client=None):
             progress = {}
         else:
             raise
-    return progress
+    if with_build_time:
+        return build_time, progress
+    else:
+        return progress
 
 def order_progress(progress):
     filter_out = ("completed_details")
@@ -316,6 +322,7 @@ class PrintOperationInfo(object):
         self.operation = operation
         self.state = None
         self.progress = None
+        self.progress_build_time = None
 
         creation_time_str = get_operation_attributes(operation, fields=["start_time"], client=client)["start_time"]
         creation_time = date_string_to_datetime(creation_time_str).replace(tzinfo=None)
@@ -332,13 +339,15 @@ class PrintOperationInfo(object):
             if unrecognized_spec and unrecognized_spec.get("unrecognized_spec"):
                 self.log("Unrecognized spec: %s", str(unrecognized_spec["unrecognized_spec"]))
         if state.is_running():
-            progress = get_operation_progress(self.operation, client=self.client)
-            if progress and progress != self.progress:
-                self.log(
-                    "operation %s: %s",
-                    self.operation,
-                    " ".join("{0}={1:<5}".format(k, v) for k, v in order_progress(progress)))
-            self.progress = progress
+            build_time, progress = get_operation_progress(self.operation, with_build_time=True, client=self.client)
+            if build_time is not None and (self.progress_build_time is None or build_time > self.progress_build_time):
+                if progress and progress != self.progress:
+                    self.log(
+                        "operation %s: %s",
+                        self.operation,
+                        " ".join("{0}={1:<5}".format(k, v) for k, v in order_progress(progress)))
+                self.progress = progress
+                self.progress_build_time = build_time
         elif state != self.state:
             self.log("operation %s %s", self.operation, state)
             if state.is_finished():
@@ -380,7 +389,7 @@ def get_operation_state_monitor(operation, time_watcher, action=lambda: None, cl
         time_watcher.wait()
 
 
-def get_stderrs(operation, only_failed_jobs, client=None):
+def get_jobs_with_error_or_stderr(operation, only_failed_jobs, client=None):
     # TODO(ostyakov): Remove local import
     from .client import YtClient
 
@@ -430,20 +439,26 @@ def get_stderrs(operation, only_failed_jobs, client=None):
 
     if get_config(client)["enable_operations_api"]:
         job_state = None
+        with_stderr = None
         if only_failed_jobs:
             job_state = "failed"
+        else:
+            with_stderr = True
 
         response = list_jobs(
             operation,
             include_cypress=True,
             include_archive=True,
             include_runtime=False,
+            with_stderr=with_stderr,
             job_state=job_state,
             client=client)
 
         jobs = []
         for info in response["jobs"]:
             attributes = {"address": info["address"]}
+            if "error" not in info and "stderr_size" not in info:
+                continue
             if "error" in info:
                 attributes["error"] = info["error"]
             jobs.append(yson.to_yson_type(info["id"], attributes=attributes))
@@ -470,6 +485,14 @@ def get_stderrs(operation, only_failed_jobs, client=None):
             pool.terminate()
             pool.join()
     return result
+
+@deprecated(alternative="get_jobs_with_error_or_stderr")
+def get_stderrs(operation, only_failed_jobs, client=None):
+    """ Deprecated!
+
+    Use get_jobs_with_error_or_stderr instead.
+    """
+    return get_jobs_with_error_or_stderr(operation, only_failed_jobs, client=client)
 
 def format_operation_stderr(job_with_stderr, output):
     output.write("Host: ")
@@ -514,7 +537,7 @@ def get_operation_error(operation, client=None):
 
 def _create_operation_failed_error(operation, state):
     error = get_operation_error(operation.id, client=operation.client)
-    stderrs = get_stderrs(operation.id, only_failed_jobs=True, client=operation.client)
+    stderrs = get_jobs_with_error_or_stderr(operation.id, only_failed_jobs=True, client=operation.client)
     return YtOperationFailedError(
         id=operation.id,
         state=str(state),
@@ -595,7 +618,7 @@ class Operation(object):
         """Returns job statistics of operation."""
         try:
             attributes = get_operation_attributes(self.id, fields=["progress"], client=self.client)
-            return attributes["progress"]["job_statistics"]
+            return attributes.get("progress", {}).get("job_statistics", {})
         except YtResponseError as error:
             if error.is_resolve_error():
                 return {}
@@ -609,13 +632,21 @@ class Operation(object):
         """Returns object that represents state of operation."""
         return get_operation_state(self.id, client=self.client)
 
-    def get_stderrs(self, only_failed_jobs=False):
+    def get_jobs_with_error_or_stderr(self, only_failed_jobs=False):
         """Returns list of objects thar represents jobs with stderrs.
         Each object is dict with keys "stderr", "error" (if applyable), "host".
 
         :param bool only_failed_jobs: consider only failed jobs.
         """
-        return get_stderrs(self.id, only_failed_jobs=only_failed_jobs, client=self.client)
+        return get_jobs_with_error_or_stderr(self.id, only_failed_jobs=only_failed_jobs, client=self.client)
+
+    @deprecated(alternative="get_jobs_with_error_or_stderr")
+    def get_stderrs(self, only_failed_jobs=False):
+        """ Deprecated!
+
+        Use get_jobs_with_error_or_stderr instead.
+        """
+        return get_jobs_with_error_or_stderr(self.id, only_failed_jobs=only_failed_jobs, client=self.client)
 
     def exists(self):
         """Checks if operation attributes can be fetched from Cypress."""
@@ -675,6 +706,6 @@ class Operation(object):
 
         stderr_level = logging.getLevelName(get_config(self.client)["operation_tracker"]["stderr_logging_level"])
         if logger.LOGGER.isEnabledFor(stderr_level):
-            stderrs = get_stderrs(self.id, only_failed_jobs=False, client=self.client)
+            stderrs = get_jobs_with_error_or_stderr(self.id, only_failed_jobs=False, client=self.client)
             if stderrs:
                 logger.log(stderr_level, "\n" + format_operation_stderrs(stderrs))

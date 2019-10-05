@@ -5,7 +5,7 @@ from .helpers import TEST_DIR, set_config_option, set_config_options, failing_he
 from yt.wrapper.common import MB
 from yt.wrapper.driver import make_request
 from yt.packages.six import PY3
-from yt.wrapper import heavy_commands
+from yt.wrapper import heavy_commands, parallel_writer
 
 import yt.wrapper as yt
 
@@ -74,7 +74,9 @@ class TestFileCommands(object):
             yt.smart_upload_file(filename, destination="subdir/abc", placement_strategy="replace")
             assert yt.read_file("subdir/abc").read() == b"some content"
 
-    def test_parallel_read_file(self):
+    def test_parallel_read_file(self, yt_env_with_rpc):
+        if yt_env_with_rpc.version <= "19.6" and yt.config["backend"] == "rpc":
+            pytest.skip()
         override_options = {
             "read_parallel/enable": True,
             "read_parallel/data_size_per_thread": 6
@@ -149,21 +151,40 @@ class TestFileCommands(object):
 
         assert b"".join(chunks) == tuple(yt.read_file(file_path))[0]
 
-    def test_write_big_file_retries(self):
-        with set_config_option("write_retries/chunk_size", 3 * MB):
-            with set_config_option("proxy/content_encoding", "identity"):
-                string_length = 4 * MB
-                chunks = [
-                    b"1" * string_length,
-                    b"2" * string_length,
-                    b"3" * string_length,
-                    b"4" * string_length,
-                    b"5" * string_length,
-                ]
-                chunks_generator = (chunk for chunk in chunks)
+    @pytest.mark.parametrize("progress_bar", (False, True))
+    def test_read_file_retries(self, progress_bar):
+        data = b"abc" * 50
+        file_path = TEST_DIR + "/file"
+        yt.write_file(file_path, data)
 
-                file_path = TEST_DIR + "/file"
+        with set_config_option("read_retries/enable", True):
+            with set_config_option("read_progress_bar/enable", progress_bar):
                 with failing_heavy_request(heavy_commands, n_fails=2, assert_exhausted=True):
-                    yt.write_file(file_path, chunks_generator)
+                    assert tuple(yt.read_file(file_path))[0] == data
 
-                assert b"".join(chunks) == tuple(yt.read_file(file_path))[0]
+    @pytest.mark.parametrize("parallel,progress_bar", [(False, False), (True, False), (False, True),
+                                                       (True, True)])
+    def test_write_big_file_retries(self, parallel, progress_bar):
+        with set_config_option("write_parallel/enable", parallel):
+            with set_config_option("write_progress_bar/enable", progress_bar):
+                with set_config_option("write_retries/chunk_size", 3 * MB):
+                    string_length = 4 * MB
+                    chunks = [
+                        b"1" * string_length,
+                        b"2" * string_length,
+                        b"3" * string_length,
+                        b"4" * string_length,
+                        b"5" * string_length,
+                    ]
+                    chunks_generator = (chunk for chunk in chunks)
+
+                    if parallel:
+                        module = parallel_writer
+                    else:
+                        module = heavy_commands
+
+                    file_path = TEST_DIR + "/file"
+                    with failing_heavy_request(module, n_fails=2, assert_exhausted=True):
+                        yt.write_file(file_path, chunks_generator)
+
+                    assert b"".join(chunks) == tuple(yt.read_file(file_path))[0]

@@ -1,7 +1,7 @@
 import yt.logger as logger
 from .config import get_config, get_option
-from .common import require, parse_bool, set_param, get_value, get_disk_size, MB, chunk_iter_stream
-from .driver import get_command_list
+from .common import require, parse_bool, set_param, get_value, get_disk_size, MB, chunk_iter_stream, update
+from .driver import _create_http_client_from_rpc, get_command_list
 from .errors import YtError, YtResponseError, YtCypressTransactionLockConflict
 from .heavy_commands import make_write_request, make_read_request
 from .cypress_commands import (remove, exists, set_attribute, mkdir, find_free_subpath,
@@ -39,12 +39,15 @@ def md5sum(filename):
 
 class LocalFile(object):
     """Represents a local path of a file and its path in job's sandbox"""
-    def __init__(self, path, file_name=None):
+    def __init__(self, path, file_name=None, attributes=None):
         if isinstance(path, LocalFile):
             self._path = path.path
             self._file_name = path.file_name
-            if file_name:
-                self._file_name = file_name
+            self._attributes = path.attributes
+            if attributes is not None:
+                self._attributes = update(self._attributes, attributes)
+            if file_name is not None:
+                self._attributes["file_name"] = file_name
             return
 
         # Hacky way to split string into file path and file path attributes.
@@ -59,15 +62,22 @@ class LocalFile(object):
             encoding="utf-8" if PY3 else None,
             always_create_attributes=True)
 
-        attributes = {}
+        path_attributes = {}
         if parser._has_attributes():
-            attributes = parser._parse_attributes()
+            path_attributes = parser._parse_attributes()
             path = to_native_str(stream.read())
+        if attributes is None:
+            attributes = path_attributes
+        else:
+            attributes = update(path_attributes, attributes)
+
+        if file_name is not None:
+            attributes["file_name"] = file_name
+        if "file_name" not in attributes:
+            attributes["file_name"] = os.path.basename(path)
 
         self._path = path
-        self._file_name = attributes.get("file_name", os.path.basename(path))
-        if file_name:
-            self._file_name = file_name
+        self._attributes = attributes
 
     @property
     def path(self):
@@ -75,7 +85,11 @@ class LocalFile(object):
 
     @property
     def file_name(self):
-        return self._file_name
+        return self._attributes["file_name"]
+
+    @property
+    def attributes(self):
+        return self._attributes
 
 def _prepare_ranges_for_parallel_read(offset, length, data_size, data_size_per_thread):
     offset = get_value(offset, 0)
@@ -107,6 +121,9 @@ def read_file(path, file_reader=None, offset=None, length=None, enable_read_para
     :param int length: length in bytes of desired part of input file, all file without offset by default.
     :return: some stream over downloaded file, string generator by default.
     """
+    if get_config(client)["backend"] == "rpc" and get_config(client).get("use_http_backend_for_streaming", True):
+        client = _create_http_client_from_rpc(client, "read_file")
+
     path = FilePath(path, client=client)
     params = {"path": path}
     set_param(params, "file_reader", file_reader)
@@ -164,7 +181,8 @@ def read_file(path, file_reader=None, offset=None, length=None, enable_read_para
         process_response_action=process_response,
         retriable_state_class=RetriableState,
         client=client,
-        filename_hint=str(path))
+        filename_hint=str(path),
+        request_size=True)
 
 def write_file(destination, stream,
                file_writer=None, is_stream_compressed=False, force_create=None, compute_md5=False,
@@ -181,6 +199,9 @@ def write_file(destination, stream,
     :param bool force_create: unconditionally create file and ignores exsting file.
     :param bool compute_md5: compute md5 of file content.
     """
+    if get_config(client)["backend"] == "rpc" and get_config(client).get("use_http_backend_for_streaming", True):
+        client = _create_http_client_from_rpc(client, "write_file")
+
     if force_create is None:
         force_create = True
 
@@ -217,7 +238,9 @@ def write_file(destination, stream,
 
     enable_parallel_write = get_config(client)["write_parallel"]["enable"]
     if enable_parallel_write is None:
-        enable_parallel_write = size_hint is not None and size_hint > 128 * MB
+        enable_parallel_write = size_hint is not None \
+                and size_hint >= 2 * (get_config(client)["write_retries"]["chunk_size"] \
+                                      or DEFAULT_WRITE_CHUNK_SIZE)
 
     if enable_parallel_write and not is_stream_compressed and not compute_md5:
         force_create = True

@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 from .driver import make_request, make_formatted_request
 from .table_helpers import _prepare_command_format, _to_chunk_stream
 from .common import set_param, require, is_master_transaction, YtError, get_value
@@ -21,6 +23,7 @@ import yt.logger as logger
 
 from copy import deepcopy
 import time
+import sys
 
 SYNC_LAST_COMMITED_TIMESTAMP = 0x3fffffffffffff01
 ASYNC_LAST_COMMITED_TIMESTAMP = 0x3fffffffffffff04
@@ -586,3 +589,8 @@ def alter_table_replica(replica_id, enabled=None, mode=None, client=None):
     set_param(params, "enabled", enabled)
 
     return make_request("alter_table_replica", params, client=client)
+
+def get_tablet_infos(path, tablet_indexes, format=None, client=None):
+    """TODO"""
+    params = {"path": path, "tablet_indexes": tablet_indexes}
+    return make_formatted_request("get_tablet_infos", params, format=format, client=client)

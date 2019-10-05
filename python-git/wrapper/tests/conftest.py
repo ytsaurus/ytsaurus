@@ -2,15 +2,15 @@ from __future__ import print_function
 
 from .helpers import (get_tests_location, TEST_DIR, get_tests_sandbox, ENABLE_JOB_CONTROL,
                       sync_create_cell, get_test_file_path, get_port_locks_path,
-                      yatest_common, create_job_events)
+                      yatest_common, create_job_events, wait, sync_create_cell)
 
 from yt.environment import YTInstance
 from yt.wrapper.config import set_option
 from yt.wrapper.default_config import get_default_config
 from yt.wrapper.common import update, update_inplace
 from yt.common import which, makedirp, format_error
-import yt.environment.init_operation_archive as init_operation_archive
 from yt.environment import arcadia_interop
+import yt.environment.init_operation_archive as init_operation_archive
 import yt.subprocess_wrapper as subprocess
 
 from yt.packages.six import itervalues
@@ -141,7 +141,7 @@ class YtTestEnvironment(object):
 
         self.env = YTInstance(self.sandbox_dir,
                               master_count=1,
-                              node_count=5,
+                              node_count=3,
                               scheduler_count=1,
                               http_proxy_count=1 if has_http_proxy else 0,
                               rpc_proxy_count=1,
@@ -238,10 +238,11 @@ class YtTestEnvironment(object):
 
 def init_environment_for_test_session(mode, **kwargs):
     config = {"api_version": "v3"}
-    if mode in ("native", "native_multicell"):
+    if mode in ("native"):
         config["backend"] = "native"
     elif mode == "rpc":
         config["backend"] = "rpc"
+        config["use_http_backend_for_streaming"] = False
     elif mode in ("native_multicell", "yamr", "job_archive"):
         config["backend"] = "http"
         config["api_version"] = "v4"
@@ -336,6 +337,49 @@ def _remove_operations():
 
     yt.remove("//sys/operations/*")
 
+def _remove_objects():
+    TYPES = [
+        "accounts",
+        "users",
+        "groups",
+        "racks",
+        "data_centers",
+        "tablet_cells",
+        "tablet_cell_bundles",
+    ]
+
+    object_ids_to_remove = []
+    object_ids_to_check = []
+    for type in TYPES:
+
+        objects = yt.list("//sys/" + type, attributes=["id", "builtin", "life_stage"])
+        for object in objects:
+            if object.attributes["builtin"]:
+                continue
+            if type == "users" and str(object) == "application_operations":
+                continue
+            if type == "accounts" and str(object) == "operations_archive":
+                continue
+
+            id = object.attributes["id"]
+            if type == "tablet_cells":
+                try:
+                    if any([yt.get("#" + tablet_id + "/@table_path").startswith("//sys/operations_archive")
+                           for tablet_id in yt.get("#" + id + "/@tablet_ids")]):
+                        continue
+                except yt.YtError:
+                    pass
+
+            object_ids_to_check.append(id)
+            if object.attributes["life_stage"] == "creation_committed":
+                object_ids_to_remove.append(id)
+
+    for id in object_ids_to_remove:
+        yt.remove("#" + id, force=True)
+
+    for id in object_ids_to_check:
+        wait(lambda: not yt.exists("#" + id))
+
 def test_method_teardown():
     if yt.config["backend"] == "proxy":
         assert yt.config["proxy"]["url"].startswith("localhost")
@@ -356,8 +400,10 @@ def test_method_teardown():
             pass
 
     yt.remove(TEST_DIR, recursive=True, force=True)
+    yt.remove("//tmp/*", recursive=True)
 
     _remove_operations()
+    _remove_objects()
 
 def save_yatest_working_files(sandbox_path, output_subpath):
     if yatest_common is None or yatest_common.get_param("ram_drive_path") is None:

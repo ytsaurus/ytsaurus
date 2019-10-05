@@ -599,6 +599,11 @@ def add_concatenate_parser(add_parser):
     parser.add_argument("--src", action="append", required=True, dest="source_paths", help="Source paths")
     parser.add_argument("--dst", required=True, dest="destination_path", help="Destination paths")
 
+def add_externalize_parser(add_parser):
+    parser = add_parser("externalize", yt.externalize)
+    add_ypath_argument(parser, "path", hybrid=True)
+    parser.add_argument("--cell-tag", type=int, required=True)
+
 def tablet_args(parser):
     add_ypath_argument(parser, "path", hybrid=True)
     parser.add_argument("--first-tablet-index", type=int)
@@ -637,6 +642,19 @@ def add_unfreeze_table_parser(add_parser):
     parser = add_parser("unfreeze-table", yt.unfreeze_table)
     tablet_args(parser)
     parser.add_argument("--sync", action="store_true")
+
+@copy_docstring_from(yt.get_tablet_infos)
+def get_tablet_infos(**args):
+    result = yt.get_tablet_infos(**args)
+    if args["format"] is None:
+        result = dump_data(result)
+    print(result)
+
+def add_get_tablet_infos_parser(add_parser):
+    parser = add_parser("get-tablet-infos", get_tablet_infos)
+    add_ypath_argument(parser, "--path", required=True, help="path to dynamic table")
+    parser.add_argument("--tablet-indexes", nargs="+", type=int)
+    add_structured_format_argument(parser)
 
 @copy_docstring_from(yt.reshard_table)
 def reshard_table(**args):
@@ -1368,6 +1386,7 @@ def main():
     add_move_parser(add_parser)
     add_link_parser(add_parser)
     add_remove_parser(add_parser)
+    add_externalize_parser(add_parser)
     add_concatenate_parser(add_parser)
 
     add_mount_table_parser(add_parser)
@@ -1380,6 +1399,7 @@ def main():
     add_alter_table_parser(add_parser)
     add_freeze_table_parser(add_parser)
     add_unfreeze_table_parser(add_parser)
+    add_get_tablet_infos_parser(add_parser)
 
     add_alter_table_replica_parser(add_parser)
 

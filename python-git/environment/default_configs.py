@@ -8,6 +8,7 @@ except ImportError:
 
 def get_logging_config(enable_debug_logging=True, enable_structured_logging=False):
     config = {
+        "trap_on_alert": True,
         "rules": [
             {"min_level": "info", "writers": ["info"]},
             {"min_level": "error", "writers": ["stderr"]},
@@ -284,6 +285,7 @@ b"""
             spec_template = {
                 max_failed_job_count = 10;
                 locality_timeout = 100;
+                intermediate_data_replication_factor = 1;
             }
         };
     };
@@ -409,6 +411,15 @@ b"""
             tablet_cell_decommission_check_period = 100;
         };
 
+        security_manager = {
+            table_permission_cache = {
+                expire_after_failed_update_time = 0;
+            };
+            resource_limits_cache = {
+                expire_after_failed_update_time = 0;
+            };
+        };
+
         hive_manager = {
             ping_period = 1000;
             idle_post_period = 1000;
@@ -417,6 +428,7 @@ b"""
     };
 
     logging = {
+        trap_on_alert = %true;
         rules = [
             {
                 min_level = info;
@@ -505,9 +517,6 @@ def get_proxy_config():
 def get_watcher_config():
     return {
         "logs_rotate_max_part_count": 1000,
-        "logs_rotate_size": "8M",
-        "logs_rotate_interval": 120,
-        # NB(ignat): new settings may be the reason of build problem, it is commented temporarily.
-        # "logs_rotate_size": "1M",
-        # "logs_rotate_interval": 1,
+        "logs_rotate_size": "1M",
+        "logs_rotate_interval": 10,
     }

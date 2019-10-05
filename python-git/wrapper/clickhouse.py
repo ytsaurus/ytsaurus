@@ -2,7 +2,7 @@ from .operation_commands import TimeWatcher, process_operation_unsuccesful_finis
 from .common import YtError, require, update
 from .spec_builders import VanillaSpecBuilder
 from .run_operation_commands import run_operation
-from .cypress_commands import get, exists
+from .cypress_commands import get, exists, move
 from .transaction_commands import _make_transactional_request
 from .operation_commands import get_operation_url, abort_operation
 from .http_helpers import get_proxy_url
@@ -174,7 +174,9 @@ def get_clickhouse_clique_spec_builder(instance_count,
         },
         "tasks": {
             "instances": {
-                "user_job_memory_digest_lower_bound": 1.0
+                "user_job_memory_digest_lower_bound": 1.0,
+                "restart_completed_jobs": True,
+                "interruption_signal": "SIGINT",
             }
         },
     }
@@ -185,9 +187,9 @@ def get_clickhouse_clique_spec_builder(instance_count,
 
     patch_config_command = "sed -s \"s/\$YT_JOB_INDEX/$YT_JOB_INDEX/g\" config.yson -i ;"
 
-    run_clickhouse_command = "{} --config config.yson --instance-id $YT_JOB_ID " \
+    run_clickhouse_command = "({} --config config.yson --instance-id $YT_JOB_ID " \
                              "--clique-id $YT_OPERATION_ID --rpc-port $YT_PORT_0 --monitoring-port {} " \
-                             "--tcp-port $YT_PORT_2 --http-port $YT_PORT_3 ; ".format(executable_path, monitoring_port)
+                             "--tcp-port $YT_PORT_2 --http-port $YT_PORT_3 ;) ".format(executable_path, monitoring_port)
 
     if core_dump_destination is not None:
         copy_core_dumps_command = "exit_code=$? ;" \
@@ -266,6 +268,9 @@ def prepare_clickhouse_config(instance_count,
         "profile_manager": {
             "global_tags": {"operation_alias": operation_alias} if operation_alias is not None else {},
         },
+        "discovery": {
+            "directory": "//sys/clickhouse/cliques",
+        },
     }
 
     clickhouse_config_cypress_base = get(cypress_base_config_path, client=client) if cypress_base_config_path != "" else None
@@ -291,7 +296,9 @@ def start_clickhouse_clique(instance_count,
                             cypress_geodata_path=None,
                             description=None,
                             abort_existing=None,
+                            dump_tables=None,
                             operation_alias=None,
+                            spec=None,
                             client=None,
                             **kwargs):
     """Starts a clickhouse clique consisting of a given number of instances.
@@ -310,8 +317,9 @@ def start_clickhouse_clique(instance_count,
     :type enable_monitoring: bool
     :param description: YSON document which will be placed in cooresponding operation description.
     :type description: str or None
-    :param abort_existing: should we abort existing operation with the given alias?
+    :param abort_existing: Should we abort the existing operation with the given alias?
     :type abort_existing: bool or None
+    "param dump_tables: Should we dump stderr and/or core tables of the operationn with the given alias?
     :param cypress_geodata_path: path to archive with geodata in Cypress
     :type cypress_geodata_path str or None
     .. seealso::  :ref:`operation_parameters`.
@@ -321,18 +329,48 @@ def start_clickhouse_clique(instance_count,
 
     if abort_existing is None:
         abort_existing = False
+    if dump_tables is None:
+        dump_tables = False
 
-    if abort_existing and operation_alias is None:
-        logger.warning("Abort existing is meaningless without specifying operation alias")
+    if (abort_existing or dump_tables) and operation_alias is None:
+        logger.warning("abort_existing and dump_tables are meaningless without specifying operation alias")
         abort_existing = False
+        dump_tables = False
 
     prev_operation = _resolve_alias(operation_alias, client=client)
+    if operation_alias is not None:
+        if prev_operation is not None:
+            logger.info("Previous operation with alias %s is %s with state %s", operation_alias, prev_operation["id"], prev_operation["state"])
+        else:
+            logger.info("There was no operation with alias %s before", operation_alias)
+
     if abort_existing:
         if prev_operation is not None and prev_operation["state"] == "running":
-            logger.info("Aborting previous operation with alias " + operation_alias)
+            logger.info("Aborting previous operation with alias %s", operation_alias)
             abort_operation(prev_operation["id"], client=client)
         else:
-            logger.info("There is no running operation with alias " + operation_alias)
+            logger.info("There is no running operation with alias %s; not aborting anything", operation_alias)
+
+    if dump_tables:
+        if prev_operation is not None:
+            stderr_table_path = spec.get("tasks", {}).get("instances", {}).get("stderr_table_path")
+            core_table_path = spec.get("tasks", {}).get("instances", {}).get("core_table_path")
+            table_paths = []
+            if stderr_table_path is not None:
+                table_paths.append(stderr_table_path)
+            if core_table_path is not None:
+                table_paths.append(core_table_path)
+            logger.info("Tables for dumping: %s", table_paths)
+            for table_path in table_paths:
+                if exists(table_path, client=client):
+                    new_path = table_path + "." + prev_operation["id"]
+                    logger.info("Dumping %s into %s", table_path, new_path)
+                    move(table_path, new_path, client=client)
+                else:
+                    logger.info("Table %s does not exist, not dumping anything", table_path)
+        else:
+            logger.info("There was no operation with alias %s; not dumping anything", operation_alias) 
+        
     prev_operation_id = prev_operation["id"] if prev_operation is not None else None
 
     if cypress_ytserver_clickhouse_path is None and host_ytserver_clickhouse_path is None:
@@ -367,6 +405,7 @@ def start_clickhouse_clique(instance_count,
                                                           cypress_geodata_path=cypress_geodata_path,
                                                           operation_alias=operation_alias,
                                                           description=description,
+                                                          spec=spec,
                                                           defaults=defaults,
                                                           **kwargs),
                        client=client,
