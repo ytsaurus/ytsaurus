@@ -2886,7 +2886,10 @@ class TestSchedulerGpu(YTEnvSetup):
             command=with_breakpoint("cat ; BREAKPOINT"),
             in_="//tmp/in",
             out="//tmp/out",
-            spec={"mapper": {"gpu_limit": 1}},
+            spec={"mapper": {
+                "gpu_limit": 1,
+                "enable_gpu_layers": False,
+            }},
             dont_track=True)
 
         wait_breakpoint()
