@@ -115,9 +115,10 @@ class TestClient(object):
             assert client.get_operation_state(mr_operation.id) == "completed"
             assert client.row_count(TEST_DIR + "/mapreduce_output") == 3
 
-            with client.Transaction():
+            with client.Transaction() as tx:
                 client.set("//@attr", 10)
                 assert client.exists("//@attr")
+                assert client.get_current_transaction_id() == tx.transaction_id
 
             tx = client.start_transaction(timeout=5000)
             with client.PingTransaction(tx, delay=1):
@@ -143,7 +144,7 @@ class TestClient(object):
             # Second abort on aborted operation should be silent
             client.abort_operation(op.id)
             assert op.get_progress()["total"] != 0
-            assert op.get_stderrs() == []
+            assert op.get_jobs_with_error_or_stderr() == []
 
             client.write_file(TEST_DIR + "/file", b"0" * 1000)
             assert client.read_file(TEST_DIR + "/file").read() == b"0" * 1000

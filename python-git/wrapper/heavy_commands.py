@@ -1,5 +1,6 @@
 from .config import get_option, get_config, get_total_request_timeout, get_command_param
 from .common import YtError, MB
+from .cypress_commands import get
 from .default_config import DEFAULT_WRITE_CHUNK_SIZE
 from .retries import Retrier, IteratorRetrier, default_chaos_monkey
 from .errors import YtMasterCommunicationError, YtChunkUnavailable, YtAllTargetNodesFailed
@@ -15,6 +16,8 @@ from .format import YtFormatReadError
 
 import yt.logger as logger
 
+from yt.packages.six.moves import xrange
+
 import time
 
 class _ProgressReporter(object):
@@ -27,13 +30,44 @@ class _ProgressReporter(object):
     def __exit__(self, type, value, traceback):
         self._monitor.finish()
 
+    def __del__(self):
+        self._monitor.finish()
+
+class _IteratorProgressReporter(_ProgressReporter):
     def wrap_stream(self, stream):
         for chunk in stream:
             self._monitor.update(len(chunk))
             yield chunk
 
-    def __del__(self):
-        self._monitor.finish()
+class _FileProgressReporter(_ProgressReporter):
+    def wrap_file(self, target):
+        self._file = target
+        return self
+
+    def read(self, length=None):
+        if length is None:
+            length = 2 ** 63
+        result = []
+        step = 2 * MB
+        for start in xrange(0, length, step):
+            result.append(self._file.read(min((step, length - start))))
+            self._monitor.update(len(result[-1]))
+            if not result[-1]:
+                break
+        return b"".join(result)
+
+class _FakeFileProgressReporter:
+    def wrap_file(self, target):
+        return target
+
+    def wrap_stream(self, stream):
+        return stream
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        pass
 
 def process_read_exception(exception):
     logger.warning("Read request failed with error: %s", str(exception))
@@ -123,7 +157,7 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
         if progress_monitor is None:
             progress_monitor = SimpleProgressBar("upload", size_hint, filename_hint, enable_progress_bar)
         if get_config(client)["write_progress_bar"]["enable"] is not False:
-            progress_reporter = _ProgressReporter(progress_monitor)
+            progress_reporter = _IteratorProgressReporter(progress_monitor)
         else:
             progress_reporter = FakeProgressReporter()
 
@@ -257,9 +291,28 @@ class ReadIterator(IteratorRetrier):
         self.response = None
         process_read_exception(exception)
 
+def _try_get_size(path, client, request_size):
+    if request_size:
+        try:
+            return int(get(str(path) + "/@uncompressed_data_size", client=client))
+        except (ValueError, YtError):
+            pass
+    return None
+
+def _get_read_progress_reporter(size_hint, filename_hint, client, filelike=False):
+    enable_progress_bar = get_config(client)["read_progress_bar"]["enable"]
+    if enable_progress_bar:
+        bar = SimpleProgressBar("download", size_hint=size_hint,
+                                filename_hint=filename_hint, enable=enable_progress_bar)
+        return _FileProgressReporter(bar) if filelike else _IteratorProgressReporter(bar)
+    else:
+        return _FakeFileProgressReporter()
+
 def make_read_request(command_name, path, params, process_response_action, retriable_state_class, client,
-                      filename_hint=None):
+                      filename_hint=None, request_size=False):
     if not get_config(client)["read_retries"]["enable"]:
+        size_hint = _try_get_size(path, client, request_size)
+        reporter = _get_read_progress_reporter(size_hint, filename_hint, client, filelike=True)
         response = _make_transactional_request(
             command_name,
             params,
@@ -267,7 +320,10 @@ def make_read_request(command_name, path, params, process_response_action, retri
             use_heavy_proxy=True,
             client=client)
         process_response_action(response)
-        return response
+
+        # NB: __exit__() is done in __del__()
+        reporter.__enter__()
+        return reporter.wrap_file(response)
     else:
         title = "Python wrapper: {0} {1}".format(command_name, path)
 
@@ -281,15 +337,12 @@ def make_read_request(command_name, path, params, process_response_action, retri
             if tx:
                 with Transaction(transaction_id=tx.transaction_id, attributes={"title": title}, client=client):
                     lock(path, mode="snapshot", client=client)
+                    size_hint = _try_get_size(path, client, request_size)
+            else:
+                size_hint = _try_get_size(path, client, request_size)
 
             iterator = ReadIterator(command_name, tx, process_response_action, retriable_state_class, client)
-
-            enable_progress_bar = get_config(client)["read_progress_bar"]["enable"]
-            if enable_progress_bar:
-                bar = SimpleProgressBar("download", filename_hint=filename_hint, enable=enable_progress_bar)
-                reporter = _ProgressReporter(bar)
-            else:
-                reporter = FakeProgressReporter()
+            reporter = _get_read_progress_reporter(size_hint, filename_hint, client, filelike=False)
 
             # NB: __exit__() is done in __del__()
             reporter.__enter__()

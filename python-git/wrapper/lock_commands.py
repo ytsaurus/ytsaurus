@@ -2,7 +2,7 @@ from .common import get_value, YtError, set_param
 from .ypath import YPath
 from .cypress_commands import get
 from .transaction_commands import _make_transactional_request, _make_formatted_transactional_request
-from .http_helpers import get_api_version
+from .driver import get_api_version
 
 import time
 from datetime import timedelta, datetime

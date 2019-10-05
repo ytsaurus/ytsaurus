@@ -323,7 +323,7 @@ def _get_retrying_channel_config():
 
 def _get_rpc_config():
     return {
-        "rpc_timeout": 5000
+        "rpc_timeout": 25000
     }
 
 def _get_node_resource_limits_config(provision):
@@ -535,7 +535,7 @@ class ConfigsProvider_19(ConfigsProvider):
             cluster_connection["master_cache"] = {
                 "soft_backoff_time": 100,
                 "hard_backoff_time": 100,
-                "rpc_timeout": 5000,
+                "rpc_timeout": 25000,
                 "addresses": master_cache_nodes,
                 "cell_id": master_connection_configs[primary_cell_tag]["cell_id"]}
         else:
@@ -718,6 +718,7 @@ class ConfigsProvider_19(ConfigsProvider):
                     tag = secondary_cell_tags[cell_index - 1]
                     cell_connection_config = {
                         "primary_master": master_connection_configs[secondary_cell_tags[cell_index - 1]],
+                        "master_cell_directory_synchronizer": {"sync_period": None},
                         "timestamp_provider": {
                             "addresses": master_connection_configs[primary_cell_tag]["addresses"]
                         },

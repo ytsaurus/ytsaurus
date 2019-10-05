@@ -30,14 +30,15 @@ def _check_columns(columns, type):
                     'Did you mean to %s by a composite key?',
                     columns[0], type)
 
-def _prepare_reduce_by(reduce_by, client):
+def _prepare_reduce_by(reduce_by, client, required=True):
     if reduce_by is None:
         if get_config(client)["yamr_mode"]["use_yamr_sort_reduce_columns"]:
             reduce_by = ["key"]
-        else:
+        elif required:
             raise YtError("reduce_by option is required")
-    reduce_by = flatten(reduce_by)
-    _check_columns(reduce_by, "reduce")
+    else:
+        reduce_by = flatten(reduce_by)
+        _check_columns(reduce_by, "reduce")
     return reduce_by
 
 def _prepare_join_by(join_by, required=True):
@@ -455,9 +456,6 @@ class UserJobSpecBuilder(object):
         binary = prepare_result.cmd
         title = prepare_result.title
 
-        environment["YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB"] = \
-            str(int(get_config(client)["allow_http_requests_to_yt_from_job"]))
-
         if local_files_to_remove is not None:
             local_files_to_remove += prepare_result.local_files_to_remove
         if uploaded_files is not None:
@@ -662,10 +660,6 @@ class SpecBuilder(object):
         self._user_spec = {}
 
         self._prepared_spec = None
-
-        for index in xrange(len(self._user_job_scripts)):
-            if not isinstance(self._user_job_scripts[index], (list, tuple)):
-                self._user_job_scripts[index] = [self._user_job_scripts[index]]
 
     @spec_option("The name of the pool in which the operation will work")
     def pool(self, pool_name):
@@ -888,6 +882,13 @@ class SpecBuilder(object):
     def _apply_spec_defaults(self, spec, client=None):
         return update(get_config(client)["spec_defaults"], spec)
 
+    def _apply_environment_patch(self, task_spec, client=None):
+        config = get_config(client)
+        patch = dict(
+            YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB=str(int(config["allow_http_requests_to_yt_from_job"]))
+        )
+        task_spec["environment"] = update(patch, task_spec.get("environment", {}))
+
     def _prepare_spec(self, spec, client=None):
         spec = self._prepare_stderr_table(spec, client=client)
 
@@ -912,11 +913,31 @@ class SpecBuilder(object):
     def prepare(self, client=None):
         pass
 
-    def build(self, client=None):
+    def _do_build(self, client=None):
         if self._prepared_spec is None:
             self.prepare(client)
 
         spec = self._apply_spec_defaults(self._prepared_spec, client=client)
+        return spec
+
+    def build(self, client=None):
+        spec = self._do_build(client)
+        for user_job_script_path in self._user_job_scripts:
+            task_spec = spec
+            skip_script = False
+            for part in user_job_script_path:
+                if part not in task_spec:
+                    skip_script = True
+                    break
+                task_spec = task_spec[part]
+            if not skip_script:
+                self._apply_environment_patch(task_spec, client)
+        # For vanilla operation we should also visit all tasks from spec, as
+        # they may be absent in _user_job_scripts in case of raw spec.
+        # But be careful not to process same user job spec twice!
+        for task_key, task_spec in spec.get("tasks", {}).items():
+            if ("tasks", task_key) not in self._user_job_scripts:
+                self._apply_environment_patch(task_spec, client)
         return spec
 
     def supports_user_job_spec(self):
@@ -936,7 +957,7 @@ class ReduceSpecBuilder(SpecBuilder):
     def __init__(self, spec=None):
         super(ReduceSpecBuilder, self).__init__(
             operation_type="reduce",
-            user_job_scripts=["reducer"],
+            user_job_scripts=[("reducer",)],
             job_io_types=["job_io"],
             spec=spec)
 
@@ -984,6 +1005,10 @@ class ReduceSpecBuilder(SpecBuilder):
     def consider_only_primary_size(self, flag=True):
         return _set_spec_value(self, "consider_only_primary_size", flag)
 
+    @spec_option("Standard key guarantee of reduce operation. Can be disabled to deal with skewed keys")
+    def enable_key_guarantee(self, flag):
+        return _set_spec_value(self, "enable_key_guarantee", flag)
+
     @spec_option("I/O settings of jobs", nested_spec_builder=JobIOSpecBuilder)
     def job_io(self, job_io_spec):
         self._spec["job_io"] = deepcopy(job_io_spec)
@@ -998,10 +1023,16 @@ class ReduceSpecBuilder(SpecBuilder):
         spec = self._apply_user_spec(spec)
 
         self._prepare_tables(spec, client=client)
-        if spec.get("sort_by") is None and spec.get("reduce_by") is not None:
-            spec["sort_by"] = spec.get("reduce_by")
+        if spec.get("sort_by") is None:
+            if spec.get("reduce_by") is not None:
+                spec["sort_by"] = spec.get("reduce_by")
+            elif spec.get("join_by") is not None:
+                spec["sort_by"] = spec.get("join_by")
 
-        spec["reduce_by"] = _prepare_reduce_by(spec.get("reduce_by"), client)
+        reduce_by = _prepare_reduce_by(spec.get("reduce_by"), client, required=False)
+        if reduce_by is not None:
+            spec["reduce_by"] = reduce_by
+
         spec["sort_by"] = _prepare_sort_by(spec.get("sort_by"), client)
 
         if spec.get("join_by") is not None:
@@ -1009,7 +1040,7 @@ class ReduceSpecBuilder(SpecBuilder):
 
         self._prepare_spec(spec, client=client)
 
-    def build(self, client=None):
+    def _do_build(self, client=None):
         if self._prepared_spec is None:
             self.prepare(client)
         spec = self._prepared_spec
@@ -1035,7 +1066,7 @@ class JoinReduceSpecBuilder(SpecBuilder):
     def __init__(self):
         super(JoinReduceSpecBuilder, self).__init__(
             operation_type="join_reduce",
-            user_job_scripts=["reducer"],
+            user_job_scripts=[("reducer",)],
             job_io_types=["job_io"])
 
     @spec_option("The description of reducer script", nested_spec_builder=ReducerSpecBuilder)
@@ -1087,7 +1118,7 @@ class JoinReduceSpecBuilder(SpecBuilder):
         spec["join_by"] = _prepare_join_by(spec.get("join_by"))
         self._prepare_spec(spec, client=client)
 
-    def build(self, client=None):
+    def _do_build(self, client=None):
         if self._prepared_spec is None:
             self.prepare(client)
         spec = self._prepared_spec
@@ -1110,7 +1141,7 @@ class MapSpecBuilder(SpecBuilder):
     def __init__(self):
         super(MapSpecBuilder, self).__init__(
             operation_type="map",
-            user_job_scripts=["mapper"],
+            user_job_scripts=[("mapper",)],
             job_io_types=["job_io"])
 
     @spec_option("The description of mapper script", nested_spec_builder=MapperSpecBuilder)
@@ -1157,7 +1188,7 @@ class MapSpecBuilder(SpecBuilder):
         self._prepare_tables(spec, client=client)
         self._prepare_spec(spec, client=client)
 
-    def build(self, client=None):
+    def _do_build(self, client=None):
         if self._prepared_spec is None:
             self.prepare(client)
         spec = self._prepared_spec
@@ -1179,7 +1210,7 @@ class MapReduceSpecBuilder(SpecBuilder):
     def __init__(self):
         super(MapReduceSpecBuilder, self).__init__(
             operation_type="map_reduce",
-            user_job_scripts=["mapper", "reducer", "reduce_combiner"],
+            user_job_scripts=[("mapper",), ("reducer",), ("reduce_combiner",)],
             job_io_types=["map_job_io", "sort_job_io", "reduce_job_io"]
         )
 
@@ -1313,7 +1344,7 @@ class MapReduceSpecBuilder(SpecBuilder):
 
         self._prepare_spec(spec, client=client)
 
-    def build(self, client=None):
+    def _do_build(self, client=None):
         if self._prepared_spec is None:
             self.prepare(client)
         spec = self._prepared_spec
@@ -1663,7 +1694,7 @@ class VanillaSpecBuilder(SpecBuilder):
 
         self._prepare_spec(spec, client=client)
 
-    def build(self, client=None):
+    def _do_build(self, client=None):
         if self._prepared_spec is None:
             self.prepare(client)
         spec = self._prepared_spec

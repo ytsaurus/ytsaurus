@@ -79,7 +79,7 @@ class Transaction(object):
     .. seealso:: `transactions on wiki <https://wiki.yandex-team.ru/yt/userdoc/transactions>`_
     """
 
-    def __init__(self, timeout=None, attributes=None, ping=None, interrupt_on_failed=True, transaction_id=None,
+    def __init__(self, timeout=None, deadline=None, attributes=None, ping=None, interrupt_on_failed=True, transaction_id=None,
                  ping_ancestor_transactions=None, type="master",
                  client=None):
         timeout = get_value(timeout, get_total_request_timeout(client))
@@ -102,6 +102,7 @@ class Transaction(object):
                          get_command_param("ping_ancestor_transactions", self._client))
         if self.transaction_id is None:
             self.transaction_id = start_transaction(timeout=timeout,
+                                                    deadline=deadline,
                                                     attributes=attributes,
                                                     type=type,
                                                     sticky=self.sticky,
@@ -306,3 +307,12 @@ class PingTransaction(Thread):
     def __del__(self):
         self.stop()
 
+def get_current_transaction_id(client=None):
+    """
+    Returns current transaction id of client.
+    """
+    transaction_stack = get_option("_transaction_stack", client)
+    if not transaction_stack:
+        return null_transaction_id
+    else:
+        return transaction_stack.get()[0]

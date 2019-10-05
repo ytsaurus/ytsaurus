@@ -1,13 +1,13 @@
 from __future__ import print_function
 
-from .helpers import (TEST_DIR, get_tests_sandbox, get_tests_location,
+from .helpers import (TEST_DIR, get_tests_sandbox, get_tests_location, wait,
                       get_environment_for_binary_test, check, set_config_options, set_config_option)
 
 from yt.wrapper.errors import YtRetriableError
 from yt.wrapper.exceptions_catcher import KeyboardInterruptsCatcher
 from yt.wrapper.mappings import VerifiedDict, FrozenDict
 from yt.wrapper.response_stream import ResponseStream, EmptyResponseStream
-from yt.wrapper.http_helpers import get_api_version
+from yt.wrapper.driver import get_api_version
 from yt.wrapper.retries import run_with_retries, Retrier
 from yt.wrapper.ypath import ypath_join, ypath_dirname, ypath_split
 from yt.wrapper.stream import _ChunkStream
@@ -783,6 +783,91 @@ class TestCellId(object):
             cell_id = secondary_master["cell_id"]
             client.COMMAND_PARAMS["master_cell_id"] = cell_id
             assert client.get("//sys/@cell_id") == cell_id
+
+@pytest.mark.usefixtures("yt_env_multicell")
+class TestExternalize(object):
+    def test_externalize(self):
+        yt.create("account", attributes={"name": "a"})
+        yt.create("account", attributes={"name": "b"})
+        yt.create("user", attributes={"name": "u"})
+        wait(lambda: yt.get("//sys/users/u/@life_stage") == "creation_committed")
+        wait(lambda: yt.get("//sys/accounts/a/@life_stage") == "creation_committed")
+        wait(lambda: yt.get("//sys/accounts/b/@life_stage") == "creation_committed")
+
+        yt.create("map_node", "//tmp/m", attributes={"attr": "value", "acl": [
+            {
+                "action": "allow",
+                "subjects": ["u"],
+                "permissions": ["write"],
+            }
+        ]})
+
+        TABLE_PAYLOAD = [{"key": "value"}]
+        yt.create("table", "//tmp/m/t", attributes={"external": True, "external_cell_tag": 2, "account": "a", "attr": "t"})
+        yt.write_table("//tmp/m/t", TABLE_PAYLOAD)
+
+        FILE_PAYLOAD = b"PAYLOAD"
+        yt.create("file", "//tmp/m/f", attributes={"external": True, "external_cell_tag": 2, "account": "b", "attr": "f"})
+        yt.write_file("//tmp/m/f", FILE_PAYLOAD)
+
+        yt.create("document", "//tmp/m/d", attributes={"value": {"hello": "world"}})
+        ct = yt.get("//tmp/m/d/@creation_time")
+        mt = yt.get("//tmp/m/d/@modification_time")
+
+        yt.create("map_node", "//tmp/m/m", attributes={"account": "a", "compression_codec": "brotli_8"})
+
+        yt.create("table", "//tmp/m/et", attributes={"external_cell_tag": 2, "expiration_time": "2100-01-01T00:00:00.000000Z"})
+
+        yt.create("map_node", "//tmp/m/acl1", attributes={"inherit_acl": True,  "acl": [
+            {
+                "action": "deny",
+                "subjects": ["u"],
+                "permissions": ["read"],
+            }
+        ]})
+        yt.create("map_node", "//tmp/m/acl2", attributes={"inherit_acl": False, "acl": [
+            {
+                "action": "deny",
+                "subjects": ["u"],
+                "permissions": ["read"],
+            }
+        ]})
+
+        root_acl = yt.get("//tmp/m/@effective_acl")
+        acl1 = yt.get("//tmp/m/acl1/@acl")
+        acl2 = yt.get("//tmp/m/acl2/@acl")
+
+        yt.externalize("//tmp/m", 1)
+
+        assert not yt.get("//tmp/m/@inherit_acl")
+        assert yt.get("//tmp/m/@acl") == root_acl
+
+        assert yt.get("//tmp/m/acl1/@inherit_acl")
+        assert yt.get("//tmp/m/acl1/@acl") == acl1
+
+        assert not yt.get("//tmp/m/acl2/@inherit_acl")
+        assert yt.get("//tmp/m/acl2/@acl") == acl2
+
+        assert yt.get("//tmp/m/@type") == "portal_exit"
+        assert yt.get("//tmp/m/@attr") == "value"
+
+        assert list(yt.read_table("//tmp/m/t")) == TABLE_PAYLOAD
+        assert yt.get("//tmp/m/t/@account") == "a"
+        assert yt.get("//tmp/m/t/@attr") == "t"
+
+        assert yt.read_file("//tmp/m/f").read() == FILE_PAYLOAD
+        assert yt.get("//tmp/m/f/@account") == "b"
+        assert yt.get("//tmp/m/f/@attr") == "f"
+
+        assert yt.get("//tmp/m/d") == {"hello": "world"}
+        assert yt.get("//tmp/m/d/@creation_time") == ct
+        # XXX(babenko): modification time is not preserved yet
+        #assert get("//tmp/m/d/@modification_time") == mt
+
+        assert yt.get("//tmp/m/m/@account") == "a"
+        assert yt.get("//tmp/m/m/@compression_codec") == "brotli_8"
+
+        assert yt.get("//tmp/m/et/@expiration_time") == "2100-01-01T00:00:00.000000Z"
 
 @pytest.mark.usefixtures("yt_env")
 class TestGenerateTimestamp(object):

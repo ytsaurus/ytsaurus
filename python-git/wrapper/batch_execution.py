@@ -2,9 +2,10 @@ from .batch_client import BatchClient
 from .batch_response import BatchResponse
 from .common import chunk_iter_list, get_value
 from .config import get_config, get_option, get_client_state
+from .driver import get_api_version
 from .errors import YtError, YtResponseError
 from .etc_commands import execute_batch
-from .http_helpers import get_retriable_errors, get_api_version
+from .http_helpers import get_retriable_errors
 from .retries import Retrier, default_chaos_monkey
 
 import yt.yson as yson
