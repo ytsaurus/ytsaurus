@@ -514,6 +514,7 @@ protected:
     void AnalyzeAbortedJobs();
     void AnalyzeJobsIOUsage();
     void AnalyzeJobsCpuUsage();
+    void AnalyzeJobsGpuUsage();
     void AnalyzeJobsDuration();
     void AnalyzeOperationDuration();
     void AnalyzeScheduleJobStatistics();
@@ -1189,6 +1190,14 @@ private:
     void RegisterTestingSpeculativeJobIfNeeded(const TTaskPtr& task, TJobId jobId);
 
     std::vector<NYPath::TRichYPath> GetLayerPaths(const TUserJobSpecPtr& userJobSpec);
+
+    void AnalyzeProcessingUnitUsage(const std::vector<TString>& usageStatistics,
+                                    const std::vector<TString>& jobStates,
+                                    const std::function<double(const TUserJobSpecPtr&)>& getLimit,
+                                    const std::function<bool(i64, i64, double)>& needSetAlert,
+                                    const TString& name,
+                                    EOperationAlertType alertType,
+                                    const TString& message);
 
     //! Helper class that implements IChunkPoolInput interface for output tables.
     class TSink

@@ -319,8 +319,8 @@ public:
 
         // porto returns nanosecond
         TCpuStatistics cpuStatistics;
-        cpuStatistics.SystemTime = TDuration().MicroSeconds(ResourceUsage_[EStatField::CpuUsageSystem].Value() / 1000);
-        cpuStatistics.UserTime = TDuration().MicroSeconds(ResourceUsage_[EStatField::CpuUsageUser].Value() / 1000);
+        cpuStatistics.SystemTime = TDuration::MicroSeconds(ResourceUsage_[EStatField::CpuUsageSystem].Value() / 1000);
+        cpuStatistics.UserTime = TDuration::MicroSeconds(ResourceUsage_[EStatField::CpuUsageUser].Value() / 1000);
 
         CpuStatistics_= cpuStatistics;
         return cpuStatistics;
