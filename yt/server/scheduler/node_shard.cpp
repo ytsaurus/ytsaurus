@@ -195,6 +195,7 @@ IInvokerPtr TNodeShard::OnMasterConnected()
     CancelableInvoker_ = CancelableContext_->CreateInvoker(GetInvoker());
 
     CachedExecNodeDescriptorsRefresher_->Start();
+    SubmitJobsToStrategyExecutor_->Start();
 
     return CancelableInvoker_;
 }
