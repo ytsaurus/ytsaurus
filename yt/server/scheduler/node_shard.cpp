@@ -664,6 +664,7 @@ void TNodeShard::UpdateExecNodeDescriptors()
             Config_->MaxOfflineNodeAge,
             node->GetId(),
             node->GetDefaultAddress());
+        UnregisterNode(node);
         RemoveNode(node);
     }
 
@@ -1426,15 +1427,22 @@ TExecNodePtr TNodeShard::GetOrRegisterNode(TNodeId nodeId, const TNodeDescriptor
 void TNodeShard::OnNodeRegistrationLeaseExpired(TNodeId nodeId)
 {
     auto it = IdToNode_.find(nodeId);
-    YT_VERIFY(it != IdToNode_.end());
+    if (it == IdToNode_.end()) {
+        return;
+    }
 
-    // NB: Make a copy; the calls below will mutate IdToNode_ and thus invalidate it.
     auto node = it->second;
 
     YT_LOG_INFO("Node lease expired, unregistering (Address: %v)",
         node->GetDefaultAddress());
 
     UnregisterNode(node);
+
+    auto lease = TLeaseManager::CreateLease(
+        Config_->NodeRegistrationTimeout,
+        BIND(&TNodeShard::OnNodeRegistrationLeaseExpired, MakeWeak(this), node->GetId())
+            .Via(GetInvoker()));
+    node->SetRegistrationLease(lease);
 }
 
 void TNodeShard::OnNodeHeartbeatLeaseExpired(TNodeId nodeId)
