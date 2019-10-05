@@ -102,12 +102,19 @@ public:
 
     // Cpu usage threshold to send an alert
     double LowCpuUsageAlertCpuUsageThreshold;
+    std::vector<TString> LowCpuUsageAlertStatistics;
+    std::vector<TString> LowCpuUsageAlertJobStates;
 
     // Minimum wall time of operation duration
     TDuration OperationTooLongAlertMinWallTime;
 
     // Threshold for estimate duration of operation
     TDuration OperationTooLongAlertEstimateDurationThreshold;
+
+    TDuration LowGpuUsageAlertMinDuration;
+    double LowGpuUsageAlertGpuUsageThreshold;
+    std::vector<TString> LowGpuUsageAlertStatistics;
+    std::vector<TString> LowGpuUsageAlertJobStates;
 
     TOperationAlertsConfig();
 };

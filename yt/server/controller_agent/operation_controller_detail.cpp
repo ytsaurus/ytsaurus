@@ -3423,73 +3423,59 @@ void TOperationControllerBase::AnalyzeJobsIOUsage()
 
 void TOperationControllerBase::AnalyzeJobsCpuUsage()
 {
-    static const TVector<TString> allCpuStatistics = {
-        "/job_proxy/cpu/system/$/completed/",
-        "/job_proxy/cpu/user/$/completed/",
-        "/user_job/cpu/system/$/completed/",
-        "/user_job/cpu/user/$/completed/"
+    auto getCpuLimit = [] (const TUserJobSpecPtr& jobSpec) {
+        return jobSpec->CpuLimit;
     };
 
-    THashMap<EJobType, TError> jobTypeToError;
-    for (const auto& task : Tasks) {
-        auto jobType = task->GetJobType();
-        if (jobTypeToError.find(jobType) != jobTypeToError.end()) {
-            continue;
-        }
-
-        const auto& userJobSpecPtr = task->GetUserJobSpec();
-        if (!userJobSpecPtr) {
-            continue;
-        }
-
-        auto summary = FindSummary(JobStatistics, "/time/exec/$/completed/" + FormatEnum(jobType));
-        if (!summary) {
-            continue;
-        }
-
-        i64 totalExecutionTime = summary->GetSum();
-        i64 jobCount = summary->GetCount();
-        double cpuLimit = userJobSpecPtr->CpuLimit;
-        if (jobCount == 0 || totalExecutionTime == 0 || cpuLimit == 0) {
-            continue;
-        }
-
-        i64 cpuUsage = 0;
-        for (const auto& stat : allCpuStatistics) {
-            auto value = FindNumericValue(JobStatistics, stat + FormatEnum(jobType));
-            cpuUsage += value ? *value : 0;
-        }
-
+    auto needSetAlert = [&] (i64 totalExecutionTime, i64 jobCount, double ratio) {
         TDuration averageJobDuration = TDuration::MilliSeconds(totalExecutionTime / jobCount);
         TDuration totalExecutionDuration = TDuration::MilliSeconds(totalExecutionTime);
-        double cpuRatio = static_cast<double>(cpuUsage) / (totalExecutionTime * cpuLimit);
 
-        if (totalExecutionDuration > Config->OperationAlerts->LowCpuUsageAlertMinExecTime &&
-            averageJobDuration > Config->OperationAlerts->LowCpuUsageAlertMinAverageJobTime &&
-            cpuRatio < Config->OperationAlerts->LowCpuUsageAlertCpuUsageThreshold)
-        {
-            auto error = TError("Jobs of type %Qlv use %.2f%% of requested cpu limit", jobType, 100 * cpuRatio)
-                << TErrorAttribute("cpu_time", cpuUsage)
-                << TErrorAttribute("exec_time", totalExecutionDuration)
-                << TErrorAttribute("cpu_limit", cpuLimit);
-            YT_VERIFY(jobTypeToError.emplace(jobType, error).second);
-        }
+        return totalExecutionDuration > Config->OperationAlerts->LowCpuUsageAlertMinExecTime &&
+               averageJobDuration > Config->OperationAlerts->LowCpuUsageAlertMinAverageJobTime &&
+               ratio < Config->OperationAlerts->LowCpuUsageAlertCpuUsageThreshold;
+    };
+
+    const TString alertMessage =
+        "Average cpu usage of some of your job types is significantly lower than requested 'cpu_limit'. "
+        "Consider decreasing cpu_limit in spec of your operation";
+
+    AnalyzeProcessingUnitUsage(
+        Config->OperationAlerts->LowCpuUsageAlertStatistics,
+        Config->OperationAlerts->LowCpuUsageAlertJobStates,
+        getCpuLimit,
+        needSetAlert,
+        "cpu",
+        EOperationAlertType::LowCpuUsage,
+        alertMessage);
+}
+
+void TOperationControllerBase::AnalyzeJobsGpuUsage()
+{
+    if (TInstant::Now() - StartTime < Config->OperationAlerts->LowGpuUsageAlertMinDuration && !IsCompleted()) {
+        return;
     }
 
-    TError error;
-    if (!jobTypeToError.empty()) {
-        std::vector<TError> innerErrors;
-        innerErrors.reserve(jobTypeToError.size());
-        for (const auto& pair : jobTypeToError) {
-            innerErrors.push_back(pair.second);
-        }
-        error = TError(
-            "Average cpu usage of some of your job types is significantly lower than requested 'cpu_limit'. "
-            "Consider decreasing cpu_limit in spec of your operation")
-            << innerErrors;
-    }
+    auto getGpuLimit = [] (const TUserJobSpecPtr& jobSpec) {
+        return jobSpec->GpuLimit;
+    };
 
-    SetOperationAlert(EOperationAlertType::LowCpuUsage, error);
+    auto needSetAlert = [&] (i64 /*totalExecutionTime*/, i64 /*jobCount*/, double ratio) {
+        return ratio < Config->OperationAlerts->LowGpuUsageAlertGpuUsageThreshold;
+    };
+
+    static const TString alertMessage =
+        "Average gpu usage of some of your job types is significantly lower than requested 'gpu_limit'. "
+        "Consider optimizing your GPU utilization";
+
+    AnalyzeProcessingUnitUsage(
+        Config->OperationAlerts->LowGpuUsageAlertStatistics,
+        Config->OperationAlerts->LowGpuUsageAlertJobStates,
+        getGpuLimit,
+        needSetAlert,
+        "gpu",
+        EOperationAlertType::LowGpuUsage,
+        alertMessage);
 }
 
 void TOperationControllerBase::AnalyzeJobsDuration()
@@ -3600,6 +3586,7 @@ void TOperationControllerBase::AnalyzeOperationProgress()
     AnalyzeAbortedJobs();
     AnalyzeJobsIOUsage();
     AnalyzeJobsCpuUsage();
+    AnalyzeJobsGpuUsage();
     AnalyzeJobsDuration();
     AnalyzeOperationDuration();
     AnalyzeScheduleJobStatistics();
@@ -8337,6 +8324,83 @@ std::vector<NYPath::TRichYPath> TOperationControllerBase::GetLayerPaths(
         layerPaths.insert(layerPaths.begin(), *Config->SystemLayerPath);
     }
     return layerPaths;
+}
+
+void TOperationControllerBase::AnalyzeProcessingUnitUsage(
+    const std::vector<TString>& usageStatistics,
+    const std::vector<TString>& jobStates,
+    const std::function<double(const TUserJobSpecPtr&)>& getLimit,
+    const std::function<bool(i64, i64, double)>& needSetAlert,
+    const TString& name,
+    EOperationAlertType alertType,
+    const TString& message)
+{
+    std::vector<TString> allStatistics;
+    for (const auto& stat : usageStatistics) {
+        for (const auto& jobState : jobStates) {
+            allStatistics.push_back(Format("%s/$/%s/", stat, jobState));
+        }
+    }
+
+    THashMap<EJobType, TError> jobTypeToError;
+    for (const auto& task : Tasks) {
+        auto jobType = task->GetJobType();
+        if (jobTypeToError.find(jobType) != jobTypeToError.end()) {
+            continue;
+        }
+
+        const auto& userJobSpecPtr = task->GetUserJobSpec();
+        if (!userJobSpecPtr) {
+            continue;
+        }
+
+
+        i64 totalExecutionTime = 0;
+        i64 jobCount = 0;
+
+        for (const auto& jobState : jobStates) {
+            auto summary = FindSummary(JobStatistics, Format("/time/exec/$/%s/%s", jobState, FormatEnum(jobType)));
+            if (summary) {
+                totalExecutionTime += summary->GetSum();
+                jobCount += summary->GetCount();
+            }
+        }
+
+        double limit = getLimit(userJobSpecPtr);
+        if (jobCount == 0 || totalExecutionTime == 0 || limit == 0) {
+            continue;
+        }
+
+        i64 usage = 0;
+        for (const auto& stat : allStatistics) {
+            auto value = FindNumericValue(JobStatistics, stat + FormatEnum(jobType));
+            usage += value.value_or(0);
+        }
+
+        TDuration totalExecutionDuration = TDuration::MilliSeconds(totalExecutionTime);
+        double ratio = static_cast<double>(usage) / (totalExecutionTime * limit);
+
+        if (needSetAlert(totalExecutionTime, jobCount, ratio))
+        {
+            auto error = TError("Jobs of type %Qlv use %.2f%% of requested %s limit", jobType, 100 * ratio, name)
+                << TErrorAttribute(Format("%s_time", name), usage)
+                << TErrorAttribute("exec_time", totalExecutionDuration)
+                << TErrorAttribute(Format("%s_limit", name), limit);
+            YT_VERIFY(jobTypeToError.emplace(jobType, error).second);
+        }
+    }
+
+    TError error;
+    if (!jobTypeToError.empty()) {
+        std::vector<TError> innerErrors;
+        innerErrors.reserve(jobTypeToError.size());
+        for (const auto& pair : jobTypeToError) {
+            innerErrors.push_back(pair.second);
+        }
+        error = TError(message) << innerErrors;
+    }
+
+    SetOperationAlert(alertType, error);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

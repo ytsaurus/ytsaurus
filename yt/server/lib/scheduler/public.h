@@ -61,6 +61,7 @@ DEFINE_ENUM(EOperationAlertType,
     ((OwnersInSpecIgnored)                         (16))
     ((OmittedInaccesibleColumnsInInputTables)      (17))
     ((LegacyLivePreviewSuppressed)                 (18))
+    ((LowGpuUsage)                                 (19))
 );
 
 DEFINE_ENUM(EAgentToSchedulerOperationEventType,
