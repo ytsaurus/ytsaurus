@@ -903,7 +903,6 @@ private:
     TJobResources GetHierarchicalAvailableResources(const TFairShareContext& context) const;
 
     std::optional<EDeactivationReason> TryStartScheduleJob(
-        NProfiling::TCpuInstant now,
         const TFairShareContext& context,
         TJobResources* precommittedResourcesOutput,
         TJobResources* availableResourcesOutput);
