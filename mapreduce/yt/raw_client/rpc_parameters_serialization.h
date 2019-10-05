@@ -152,11 +152,13 @@ TNode SerializeParamsForGetTableColumnarStatistics(
     const TVector<TRichYPath>& paths);
 
 TNode SerializeParamsForGetFileFromCache(
+    const TTransactionId& transactionId,
     const TString& md5Signature,
     const TYPath& cachePath,
     const TGetFileFromCacheOptions&);
 
 TNode SerializeParamsForPutFileToCache(
+    const TTransactionId& transactionId,
     const TYPath& filePath,
     const TString& md5Signature,
     const TYPath& cachePath,

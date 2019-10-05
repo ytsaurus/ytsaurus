@@ -521,18 +521,47 @@ Y_UNIT_TEST_SUITE(CypressClient) {
         TYPath cachePath = "//tmp/yt_wrapper/file_storage/new_cache";
         client->Create(cachePath, ENodeType::NT_MAP, TCreateOptions().IgnoreExisting(true));
 
-        TString content = "Hello world!";
         {
-            auto writer = client->CreateFileWriter(workingDir + "/file", TFileWriterOptions().ComputeMD5(true));
-            *writer << content;
-            writer->Finish();
+            TString content = "Hello world!";
+            {
+                auto writer = client->CreateFileWriter(workingDir + "/file", TFileWriterOptions().ComputeMD5(true));
+                *writer << content;
+                writer->Finish();
+            }
+
+            auto md5 = MD5::Calc(content);
+            auto pathInCache = client->PutFileToCache(workingDir + "/file", md5, cachePath);
+
+            auto maybePath = client->GetFileFromCache(md5, cachePath);
+            UNIT_ASSERT(maybePath.Defined());
+            UNIT_ASSERT_VALUES_EQUAL(content, client->CreateFileReader(*maybePath)->ReadAll());
         }
 
-        auto md5 = MD5::Calc(content);
-        auto pathInCache = client->PutFileToCache(workingDir + "/file", md5, cachePath);
+        {
+            auto tx = client->StartTransaction();
 
-        auto maybePath = client->GetFileFromCache(md5, cachePath);
-        UNIT_ASSERT(maybePath.Defined());
-        UNIT_ASSERT_VALUES_EQUAL(content, client->CreateFileReader(*maybePath)->ReadAll());
+            TString content = "Hello world again!";
+            {
+                auto writer = tx->CreateFileWriter(workingDir + "/file2", TFileWriterOptions().ComputeMD5(true));
+                *writer << content;
+                writer->Finish();
+            }
+
+            auto md5 = MD5::Calc(content);
+            auto pathInCache = tx->PutFileToCache(workingDir + "/file2", md5, cachePath);
+
+            auto maybePath = tx->GetFileFromCache(md5, cachePath);
+            UNIT_ASSERT(maybePath.Defined());
+            UNIT_ASSERT_VALUES_EQUAL(content, tx->CreateFileReader(*maybePath)->ReadAll());
+
+            maybePath = client->GetFileFromCache(md5, cachePath);
+            UNIT_ASSERT(!maybePath.Defined());
+
+            tx->Commit();
+
+            maybePath = client->GetFileFromCache(md5, cachePath);
+            UNIT_ASSERT(maybePath.Defined());
+            UNIT_ASSERT_VALUES_EQUAL(content, client->CreateFileReader(*maybePath)->ReadAll());
+        }
     }
 }

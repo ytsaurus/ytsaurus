@@ -170,6 +170,23 @@ TVector<TTableColumnarStatistics> TClientBase::GetTableColumnarStatistics(const 
     return result;
 }
 
+TMaybe<TYPath> TClientBase::GetFileFromCache(
+    const TString& md5Signature,
+    const TYPath& cachePath,
+    const TGetFileFromCacheOptions& options)
+{
+    return NRawClient::GetFileFromCache(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, TransactionId_, md5Signature, cachePath, options);
+}
+
+TYPath TClientBase::PutFileToCache(
+    const TYPath& filePath,
+    const TString& md5Signature,
+    const TYPath& cachePath,
+    const TPutFileToCacheOptions& options)
+{
+    return NRawClient::PutFileToCache(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, TransactionId_, filePath, md5Signature, cachePath, options);
+}
+
 IFileReaderPtr TClientBase::CreateBlobTableReader(
     const TYPath& path,
     const TKey& key,
@@ -979,23 +996,6 @@ IFileReaderPtr TClient::GetJobStderr(
     const TGetJobStderrOptions& options)
 {
     return NRawClient::GetJobStderr(Auth_, operationId, jobId, options);
-}
-
-TMaybe<TYPath> TClient::GetFileFromCache(
-    const TString& md5Signature,
-    const TYPath& cachePath,
-    const TGetFileFromCacheOptions& options)
-{
-    return NRawClient::GetFileFromCache(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, md5Signature, cachePath, options);
-}
-
-TYPath TClient::PutFileToCache(
-    const TYPath& filePath,
-    const TString& md5Signature,
-    const TYPath& cachePath,
-    const TPutFileToCacheOptions& options)
-{
-    return NRawClient::PutFileToCache(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, filePath, md5Signature, cachePath, options);
 }
 
 TString TClient::SkyShareTable(const TYPath& tablePath)

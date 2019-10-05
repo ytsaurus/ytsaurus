@@ -631,6 +631,7 @@ private:
         auto maybePath = GetFileFromCache(
             retryPolicy,
             OperationPreparer_.GetAuth(),
+            TTransactionId(),
             md5Signature,
             GetCachePath(),
             TGetFileFromCacheOptions());
@@ -665,6 +666,7 @@ private:
         auto cachePath = PutFileToCache(
             retryPolicy,
             OperationPreparer_.GetAuth(),
+            TTransactionId(),
             uniquePath,
             md5Signature,
             GetCachePath(),
@@ -2701,6 +2703,7 @@ public:
         results.reserve(Signatures_.size());
         for (const auto& md5Signature : Signatures_) {
             results.push_back(batchRequest.GetFileFromCache(
+                TTransactionId(),
                 md5Signature,
                 CachePath_,
                 TGetFileFromCacheOptions()));

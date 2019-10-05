@@ -628,25 +628,31 @@ TNode SerializeParamsForGetTableColumnarStatistics(
 }
 
 TNode SerializeParamsForGetFileFromCache(
+    const TTransactionId& transactionId,
     const TString& md5Signature,
     const TYPath& cachePath,
     const TGetFileFromCacheOptions&)
 {
-    return TNode()
-        ("md5", md5Signature)
-        ("cache_path", cachePath);
+    TNode result;
+    SetTransactionIdParam(&result, transactionId);
+    result["md5"] = md5Signature;
+    result["cache_path"] = cachePath;
+    return result;
 }
 
 TNode SerializeParamsForPutFileToCache(
+    const TTransactionId& transactionId,
     const TYPath& filePath,
     const TString& md5Signature,
     const TYPath& cachePath,
     const TPutFileToCacheOptions&)
 {
-    return TNode()
-        ("path", filePath)
-        ("md5", md5Signature)
-        ("cache_path", cachePath);
+    TNode result;
+    SetTransactionIdParam(&result, transactionId);
+    SetPathParam(&result, filePath);
+    result["md5"] = md5Signature;
+    result["cache_path"] = cachePath;
+    return result;
 }
 
 TNode SerializeParamsForSkyShareTable(

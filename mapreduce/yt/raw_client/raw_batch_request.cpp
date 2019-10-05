@@ -438,17 +438,19 @@ TFuture<void> TRawBatchRequest::Unlock(
 }
 
 TFuture<TMaybe<TYPath>> TRawBatchRequest::GetFileFromCache(
+    const TTransactionId& transactionId,
     const TString& md5Signature,
     const TYPath& cachePath,
     const TGetFileFromCacheOptions& options)
 {
     return AddRequest<TGetFileFromCacheParser>(
         "get_file_from_cache",
-        SerializeParamsForGetFileFromCache(md5Signature, cachePath, options),
+        SerializeParamsForGetFileFromCache(transactionId, md5Signature, cachePath, options),
         Nothing());
 }
 
 TFuture<TYPath> TRawBatchRequest::PutFileToCache(
+    const TTransactionId& transactionId,
     const TYPath& filePath,
     const TString& md5Signature,
     const TYPath& cachePath,
@@ -456,7 +458,7 @@ TFuture<TYPath> TRawBatchRequest::PutFileToCache(
 {
     return AddRequest<TYPathParser>(
         "put_file_to_cache",
-        SerializeParamsForPutFileToCache(filePath, md5Signature, cachePath, options),
+        SerializeParamsForPutFileToCache(transactionId, filePath, md5Signature, cachePath, options),
         Nothing());
 }
 
