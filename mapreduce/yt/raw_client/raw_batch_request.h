@@ -109,10 +109,12 @@ public:
         const TYPath& path,
         const TUnlockOptions& options);
     NThreading::TFuture<TMaybe<TYPath>> GetFileFromCache(
+        const TTransactionId& transactionId,
         const TString& md5Signature,
         const TYPath& cachePath,
         const TGetFileFromCacheOptions& options);
     NThreading::TFuture<TYPath> PutFileToCache(
+        const TTransactionId& transactionId,
         const TYPath& filePath,
         const TString& md5Signature,
         const TYPath& cachePath,

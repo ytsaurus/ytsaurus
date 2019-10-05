@@ -661,12 +661,13 @@ IFileReaderPtr GetJobStderr(
 TMaybe<TYPath> GetFileFromCache(
     const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
+    const TTransactionId& transactionId,
     const TString& md5Signature,
     const TYPath& cachePath,
     const TGetFileFromCacheOptions& options)
 {
     THttpHeader header("GET", "get_file_from_cache");
-    header.MergeParameters(SerializeParamsForGetFileFromCache(md5Signature, cachePath, options));
+    header.MergeParameters(SerializeParamsForGetFileFromCache(transactionId, md5Signature, cachePath, options));
     auto responseInfo = RetryRequestWithPolicy(retryPolicy, auth, header);
     auto path = NodeFromYsonString(responseInfo.Response).AsString();
     return path.empty() ? Nothing() : TMaybe<TYPath>(path);
@@ -675,13 +676,14 @@ TMaybe<TYPath> GetFileFromCache(
 TYPath PutFileToCache(
     const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
+    const TTransactionId& transactionId,
     const TYPath& filePath,
     const TString& md5Signature,
     const TYPath& cachePath,
     const TPutFileToCacheOptions& options)
 {
     THttpHeader header("POST", "put_file_to_cache");
-    header.MergeParameters(SerializeParamsForPutFileToCache(filePath, md5Signature, cachePath, options));
+    header.MergeParameters(SerializeParamsForPutFileToCache(transactionId, filePath, md5Signature, cachePath, options));
     auto result = RetryRequestWithPolicy(retryPolicy, auth, header);
     return NodeFromYsonString(result.Response).AsString();
 }

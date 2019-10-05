@@ -71,6 +71,20 @@ public:
     virtual TRichYPath CanonizeYPath(const TRichYPath& path) = 0;
 
     virtual TVector<TTableColumnarStatistics> GetTableColumnarStatistics(const TVector<TRichYPath>& paths) = 0;
+
+    // Get a file with given md5 from Cypress file cache located at 'cachePath'.
+    virtual TMaybe<TYPath> GetFileFromCache(
+        const TString& md5Signature,
+        const TYPath& cachePath,
+        const TGetFileFromCacheOptions& options = TGetFileFromCacheOptions()) = 0;
+
+    // Put a file 'filePath' to Cypress file cache located at 'cachePath'.
+    // The file must have "md5" attribute and 'md5Signature' must match its value.
+    virtual TYPath PutFileToCache(
+        const TYPath& filePath,
+        const TString& md5Signature,
+        const TYPath& cachePath,
+        const TPutFileToCacheOptions& options = TPutFileToCacheOptions()) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
