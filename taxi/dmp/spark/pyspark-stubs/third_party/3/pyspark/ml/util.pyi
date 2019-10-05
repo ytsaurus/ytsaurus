@@ -77,10 +77,6 @@ class JavaMLReadable(MLReadable[R]):
     @classmethod
     def read(cls) ->  JavaMLReader[R]: ...
 
-class JavaPredictionModel:
-    @property
-    def numFeatures(self) -> int: ...
-
 class DefaultParamsWritable(MLWritable):
     def write(self) -> MLWriter: ...
 
