@@ -33,6 +33,7 @@ using namespace NYTree;
 using namespace NProfiling;
 using namespace NLogging;
 using namespace NYPath;
+using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -88,9 +89,11 @@ public:
 
             YT_LOG_DEBUG("Clique id parsed (CliqueId: %v)", CliqueIdOrAlias_);
 
+            bool isDatalens = false;
             // TODO(max42): remove this when DataLens makes proper authorization. Duh.
             if (auto* header = Request_->GetHeaders()->Find("X-DataLens-Real-User")) {
                 YT_LOG_DEBUG("Header contains DataLens real username (RealUser: %v)", *header);
+                isDatalens = true;
             }
 
             ProxiedRequestBody_ = Request_->ReadAll();
@@ -103,11 +106,27 @@ public:
             ProxiedRequestHeaders_->Remove("Authorization");
             ProxiedRequestHeaders_->Add("X-Yt-User", User_);
             ProxiedRequestHeaders_->Add("X-Clickhouse-User", User_);
-            ProxiedRequestHeaders_->Add("X-Yt-Request-Id", ToString(Request_->GetRequestId()));
 
             CgiParameters_.EraseAll("database");
             CgiParameters_.EraseAll("query_id");
-            CgiParameters_.emplace("query_id", ToString(Request_->GetRequestId()));
+            CgiParameters_.EraseAll("span_id");
+
+            auto* traceContext = GetCurrentTraceContext();
+            YT_VERIFY(traceContext);
+
+            if (!isDatalens) {
+                traceContext->SetSampled();
+            }
+
+            CgiParameters_.emplace("query_id", ToString(traceContext->GetTraceId()));
+
+            // COMPAT(max42): remove this, name is misleading.
+            ProxiedRequestHeaders_->Add("X-Yt-Request-Id", ToString(Request_->GetRequestId()));
+
+            ProxiedRequestHeaders_->Add("X-Yt-Query-Id", ToString(traceContext->GetTraceId()));
+            ProxiedRequestHeaders_->Add("X-Yt-Trace-Id", ToString(traceContext->GetTraceId()));
+            ProxiedRequestHeaders_->Add("X-Yt-Span-Id", Format("%" PRIx64, traceContext->GetSpanId()));
+            ProxiedRequestHeaders_->Add("X-Yt-Sampled", ToString(traceContext->IsSampled()));
         } catch (const std::exception& ex) {
             ReplyWithError(EStatusCode::InternalServerError, TError("Preparation failed")
                 << ex);

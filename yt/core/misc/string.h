@@ -163,6 +163,7 @@ TString CamelCaseToUnderscoreCase(TStringBuf str);
 TString TrimLeadingWhitespaces(const TString& str);
 TString Trim(const TString& str, const TString& whitespaces);
 
+bool TryParseBool(const TString& value, bool& result);
 bool ParseBool(const TString& value);
 TStringBuf FormatBool(bool value);
 

@@ -47,6 +47,7 @@ using namespace NTableClient;
 using namespace NYson;
 using namespace NYTree;
 using namespace NChunkPools;
+using namespace NTracing;
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -131,7 +132,13 @@ DB::BlockInputStreamPtr CreateRemoteStream(
 
     stream->setPoolMode(DB::PoolMode::GET_MANY);
     auto remoteQueryId = ToString(TQueryId::Create());
-    stream->setRemoteQueryId(remoteQueryId);
+    auto* traceContext = GetCurrentTraceContext();
+    if (!traceContext) {
+        traceContext = queryContext->TraceContext.Get();
+    }
+    YT_VERIFY(traceContext);
+    auto spanId = traceContext->GetSpanId();
+    stream->setRemoteQueryId(Format("%v@%" PRIx64 "%v", remoteQueryId, spanId, "FT"[traceContext->IsSampled()]));
 
     return CreateBlockInputStreamLoggingAdapter(std::move(stream), TLogger(queryContext->Logger)
         .AddTag("RemoteQueryId: %v, RemoteNode: %v, RemoteStreamId: %v",

@@ -11,9 +11,14 @@
 #include <Poco/Net/HTTPServerResponse.h>
 #include <Poco/URI.h>
 
+#include <yt/core/misc/string.h>
+
+#include <util/string/cast.h>
+
 namespace NYT::NClickHouseServer {
 
 using namespace DB;
+using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,6 +80,51 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! If span is present in query headers, parse it and setup trace context which is its child.
+//! Otherwise, generate our own trace id (aka query id) and maybe generate root trace context
+//! if X-Yt-Sampled = true.
+TTraceContextPtr SetupTraceContext(
+    const TLogger& logger,
+    const Poco::Net::HTTPServerRequest& request)
+{
+    const auto& Logger = logger;
+
+    TSpanContext parentSpan;
+    auto requestTraceId = request.get("X-Yt-Trace-Id", "");
+    auto requestSpanId = request.get("X-Yt-Span-Id", "");
+    if (!TTraceId::FromString(requestTraceId, &parentSpan.TraceId) ||
+        !TryIntFromString<16>(requestSpanId, parentSpan.SpanId))
+    {
+        parentSpan = TSpanContext{TTraceId::Create(), InvalidSpanId, false, false};
+        YT_LOG_INFO(
+            "Parent span context is absent or not parseable, generating our own trace id aka query id "
+            "(RequestTraceId: %Qv, RequestSpanId: %Qv, GeneratedTraceId: %v)",
+            requestTraceId,
+            requestSpanId,
+            parentSpan.TraceId);
+    } else {
+        YT_LOG_INFO("Parsed parent span context (RequestTraceId: %Qv, RequestSpanId: %Qv)",
+            requestTraceId,
+            requestSpanId);
+    }
+
+    auto requestSampled = request.get("X-Yt-Sampled", "");
+    int sampled;
+    if (!TryIntFromString<10>(TString(requestSampled), sampled) || sampled < 0 || sampled > 1) {
+        YT_LOG_INFO("Cannot parse X-Yt-Sampled, assuming false (RequestSampled: %Qv)", requestSampled);
+        sampled = 0;
+    } else {
+        YT_LOG_INFO("Parsed X-Yt-Sampled (RequetSampled: %Qv)", requestSampled);
+    }
+
+    auto traceContext = New<TTraceContext>(parentSpan, "HttpHandler");
+    if (sampled == 1) {
+        traceContext->SetSampled();
+    }
+
+    return traceContext;
+}
+
 Poco::Net::HTTPRequestHandler* THttpHandlerFactory::createRequestHandler(
     const Poco::Net::HTTPServerRequest& request)
 {
@@ -82,26 +132,28 @@ Poco::Net::HTTPRequestHandler* THttpHandlerFactory::createRequestHandler(
         : public DB::HTTPHandler
     {
     public:
-        THttpHandler(TBootstrap* bootstrap, DB::IServer& server, TQueryId queryId)
+        THttpHandler(TBootstrap* bootstrap, DB::IServer& server, TTraceContextPtr traceContext)
             : DB::HTTPHandler(server)
             , Bootstrap_(bootstrap)
-            , QueryId_(queryId)
+            , TraceContext_(std::move(traceContext))
         { }
 
         virtual void customizeContext(DB::Context& context) override
         {
-            SetupHostContext(Bootstrap_, context, QueryId_);
+            // For HTTP queries (which are always initial) query id is same as trace id.
+            context.getClientInfo().current_query_id = context.getClientInfo().initial_query_id = ToString(TraceContext_->GetTraceId());
+            SetupHostContext(Bootstrap_, context, TraceContext_->GetTraceId(), std::move(TraceContext_));
         }
 
     private:
         TBootstrap* const Bootstrap_;
-        const TQueryId QueryId_;
+        TTraceContextPtr TraceContext_;
     };
 
     Poco::URI uri(request.getURI());
 
     const auto& Logger = ServerLogger;
-    YT_LOG_DEBUG("HTTP request received (Method: %v, URI: %v, Address: %v, User-Agent: %v)",
+    YT_LOG_INFO("HTTP request received (Method: %v, URI: %v, Address: %v, User-Agent: %v)",
         request.getMethod(),
         uri.toString(),
         request.clientAddress().toString(),
@@ -124,18 +176,12 @@ Poco::Net::HTTPRequestHandler* THttpHandlerFactory::createRequestHandler(
         return new MovedPermanentlyRequestHandler();
     }
 
-    auto ytRequestId = request.get("X-Yt-Request-Id", "");
-    TQueryId queryId;
-    if (!TQueryId::FromString(ytRequestId, &queryId)) {
-        queryId = TQueryId::Create();
-    }
+    auto traceContext = SetupTraceContext(Logger, request);
 
-    // Query execution
-    // HTTPHandler executes query in read-only mode for GET requests
     if (IsGet(request) || IsPost(request)) {
         if ((uri.getPath() == "/") ||
             (uri.getPath() == "/query")) {
-            auto* handler = new THttpHandler(Bootstrap_, Server, queryId);
+            auto* handler = new THttpHandler(Bootstrap_, Server, std::move(traceContext));
             return handler;
         }
     }
