@@ -417,7 +417,7 @@ class TestSpecBuilders(object):
                 }
             })
             result_spec1 = spec_builder.build()
-            
+
         result_spec2 = VanillaSpecBuilder().spec({}).task("script", {
             "environment": {"YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB": "1"},
             "command": "cat",
@@ -473,39 +473,3 @@ class TestSpecBuilders(object):
         assert update(result_spec1, correct_spec) == result_spec1
         assert update(result_spec2, correct_spec) == result_spec2
 
-    def test_local_file_attributes(self):
-        def command(row):
-            pass
-
-        vanilla_spec = VanillaSpecBuilder()\
-            .begin_task("sample")\
-                .command("cat")\
-                .job_count(1)\
-                .file_paths(yt.LocalFile(get_test_file_path("capitalize_b.py"), attributes={"bypass_artifacts_cache": True}))\
-            .end_task()
-
-        result_spec = vanilla_spec.build()
-        assert result_spec["tasks"]["sample"]["file_paths"][0].attributes == {"bypass_artifacts_cache": True, "file_name": "capitalize_b.py", "executable": True}
-
-        try:
-            yt.config["pickling"]["modules_bypass_artifacts_cache"] = True
-
-            input_table = TEST_DIR + "/input"
-            output_table = TEST_DIR + "/output"
-
-            spec_builder = MapSpecBuilder() \
-                .begin_mapper() \
-                .command(command) \
-                .end_mapper() \
-                .input_table_paths(input_table) \
-                .output_table_paths(output_table)
-
-            result_spec = spec_builder.build()
-            modules_file_count = 0
-            for file_path in result_spec["mapper"]["file_paths"]:
-                if "modules" in str(file_path.attributes["file_name"]):
-                    modules_file_count += 1
-                    assert file_path.attributes["bypass_artifacts_cache"]
-            assert modules_file_count >= 1
-        finally:
-            yt.config["pickling"]["modules_bypass_artifacts_cache"] = None
