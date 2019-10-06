@@ -6,6 +6,7 @@ class PySparkCoreSuite(TypeCheckSuite):
     TypeCheckSuite.files = [
         "context.test",
         "ml-classification.test",
+        "ml-evaluation.test",
         "ml-feature.test",
         "ml-param.test",
         "ml-readable.test",

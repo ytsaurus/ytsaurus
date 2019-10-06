@@ -1,0 +1,9 @@
+[case BinaryClassificationEvaluator]
+from pyspark.ml.evaluation import BinaryClassificationEvaluator
+
+BinaryClassificationEvaluator().setMetricName("areaUnderROC")
+BinaryClassificationEvaluator(metricName="areaUnderPR")
+
+BinaryClassificationEvaluator().setMetricName("foo")  # E: Argument 1 to "setMetricName" of "BinaryClassificationEvaluator" has incompatible type "Literal['foo']"; expected "Union[Literal['areaUnderROC'], Literal['areaUnderPR']]"
+BinaryClassificationEvaluator(metricName="bar")  # E: Argument "metricName" to "BinaryClassificationEvaluator" has incompatible type "Literal['bar']"; expected "Union[Literal['areaUnderROC'], Literal['areaUnderPR']]"
+[out]
