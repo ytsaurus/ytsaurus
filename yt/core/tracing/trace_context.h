@@ -56,8 +56,8 @@ public:
     TSpanContext GetContext() const;
     TTraceId GetTraceId() const;
     TSpanId GetSpanId() const;
-    TSpanId  GetParentSpanId() const;
-    TSpanId  GetFollowsFromSpanId() const;
+    TSpanId GetParentSpanId() const;
+    TSpanId GetFollowsFromSpanId() const;
 
     TString GetName() const;
 

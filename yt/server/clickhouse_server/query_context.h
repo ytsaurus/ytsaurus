@@ -37,6 +37,7 @@ struct TQueryContext
 public:
     TLogger Logger;
     const TString User;
+    const NTracing::TTraceContextPtr TraceContext;
     const TQueryId QueryId;
     const EQueryKind QueryKind;
     TBootstrap* const Bootstrap;
@@ -52,7 +53,7 @@ public:
 
     NTableClient::TRowBufferPtr RowBuffer;
 
-    explicit TQueryContext(TBootstrap* bootstrap, TQueryId queryId, const DB::Context& context);
+    explicit TQueryContext(TBootstrap* bootstrap, const DB::Context& context, TQueryId queryId, NTracing::TTraceContextPtr traceContext);
 
     ~TQueryContext();
 
@@ -62,6 +63,7 @@ public:
 
 private:
     TClickHouseHostPtr Host_;
+    NTracing::TTraceContextGuard TraceContextGuard_;
 
     //! Spinlock controlling lazy client creation.
     mutable TReaderWriterSpinLock ClientLock_;
@@ -74,7 +76,7 @@ void Serialize(const TQueryContext& queryContext, NYson::IYsonConsumer* consumer
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SetupHostContext(TBootstrap* bootstrap, DB::Context& context, TQueryId queryId);
+void SetupHostContext(TBootstrap* bootstrap, DB::Context& context, TQueryId queryId, NTracing::TTraceContextPtr traceContext);
 
 TQueryContext* GetQueryContext(const DB::Context& context);
 

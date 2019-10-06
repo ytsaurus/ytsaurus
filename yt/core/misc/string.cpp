@@ -100,16 +100,27 @@ TString Trim(const TString& str, const TString& whitespaces)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ParseBool(const TString& value)
+bool TryParseBool(const TString& value, bool& result)
 {
     if (value == "true") {
+        result = true;
         return true;
     } else if (value == "false") {
-        return false;
+        result = false;
+        return true;
     } else {
+        return false;
+    }
+}
+
+bool ParseBool(const TString& value)
+{
+    bool result;
+    if (!TryParseBool(value, result)) {
         THROW_ERROR_EXCEPTION("Error parsing boolean value %Qv",
             value);
     }
+    return result;
 }
 
 TStringBuf FormatBool(bool value)
