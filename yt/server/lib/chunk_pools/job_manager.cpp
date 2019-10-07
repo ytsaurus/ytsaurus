@@ -64,26 +64,10 @@ void TJobStub::Finalize(bool sortByPosition)
             // This is done to ensure that all the data slices inside a stripe
             // are not only sorted by key, but additionally by their position
             // in the original table.
-
-            auto lessThan = [] (const TInputDataSlicePtr& lhs, const TInputDataSlicePtr& rhs) -> bool {
-                if (lhs->UpperLimit().Key <= rhs->LowerLimit().Key) {
-                    return true;
-                }
-
-                if (lhs->UpperLimit().RowIndex &&
-                    rhs->LowerLimit().RowIndex &&
-                    *lhs->UpperLimit().RowIndex <= *rhs->LowerLimit().RowIndex)
-                {
-                    return true;
-                }
-
-                return false;
-            };
-
             std::sort(
                 stripe->DataSlices.begin(),
                 stripe->DataSlices.end(),
-                [&] (const TInputDataSlicePtr& lhs, const TInputDataSlicePtr& rhs) {
+                [] (const TInputDataSlicePtr& lhs, const TInputDataSlicePtr& rhs) {
                     if (lhs->Type == EDataSourceType::UnversionedTable) {
                         auto lhsChunk = lhs->GetSingleUnversionedChunkOrThrow();
                         auto rhsChunk = rhs->GetSingleUnversionedChunkOrThrow();
@@ -92,13 +76,17 @@ void TJobStub::Finalize(bool sortByPosition)
                         }
                     }
 
-                    if (lessThan(lhs, rhs)) {
-                        return true;
+                    auto cmpResult = CompareRows(lhs->LowerLimit().Key, rhs->LowerLimit().Key);
+                    if (cmpResult != 0) {
+                        return cmpResult < 0;
                     }
 
-                    // Since slices of the single table must be disjoint, if lhs is not less than rhs,
-                    // then rhs must be less then lhs.
-                    YT_VERIFY(lessThan(rhs, lhs));
+                    if (lhs->LowerLimit().RowIndex &&
+                        rhs->LowerLimit().RowIndex &&
+                        *lhs->LowerLimit().RowIndex != *rhs->LowerLimit().RowIndex)
+                    {
+                        return *lhs->LowerLimit().RowIndex < *rhs->LowerLimit().RowIndex;
+                    }
 
                     return false;
                 });
