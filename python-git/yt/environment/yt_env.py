@@ -274,8 +274,8 @@ class YTInstance(object):
         self._capture_stderr_to_file = capture_stderr_to_file
 
         self._process_to_kill = defaultdict(list)
-        self._all_processes = {}
-        self._all_cgroups = []
+        self._pid_to_process = {}
+        self._process_cgroup_paths = []
 
         self.master_count = master_count
         self.nonvoting_master_count = nonvoting_master_count
@@ -329,7 +329,7 @@ class YTInstance(object):
             for cgroup_type in CGROUP_TYPES:
                 cgroup_path = self._get_cgroup_path(cgroup_type)
                 makedirp(cgroup_path)
-                self._all_cgroups.append(cgroup_path)
+                self._process_cgroup_paths.append(cgroup_path)
                 logger.info("Registered cgroup {0}".format(cgroup_path))
 
     def _prepare_directories(self):
@@ -504,7 +504,7 @@ class YTInstance(object):
     # COMPAT(ignat): remove use_new_proxy.
     def start(self, use_proxy_from_package=True, use_new_proxy=True, start_secondary_master_cells=False, on_masters_started_func=None):
         self._process_to_kill.clear()
-        self._all_processes.clear()
+        self._pid_to_process.clear()
 
         if self.master_count == 0:
             logger.warning("Cannot start YT instance without masters")
@@ -629,7 +629,7 @@ class YTInstance(object):
 
     def kill_cgroups_impl(self):
         freezer_cgroups = []
-        for cgroup_path in self._all_cgroups:
+        for cgroup_path in self._process_cgroup_paths:
             if "cgroup/freezer" in cgroup_path:
                 freezer_cgroups.append(cgroup_path)
 
@@ -652,7 +652,7 @@ class YTInstance(object):
                     logger.info("Sending SIGKILL (pid: {})".format(pid))
                     os.kill(pid, signal.SIGKILL)
 
-        for cgroup_path in self._all_cgroups:
+        for cgroup_path in self._process_cgroup_paths:
             for dirpath, dirnames, _ in os.walk(cgroup_path, topdown=False):
                 for dirname in dirnames:
                     inner_cgroup_path = os.path.join(dirpath, dirname)
@@ -678,7 +678,7 @@ class YTInstance(object):
             except OSError:
                 logger.exception("Failed to remove cgroup dir {0}".format(cgroup_path))
 
-        self._all_cgroups = []
+        self._process_cgroup_paths = []
 
     def kill_schedulers(self):
         self.kill_service("scheduler")
@@ -703,12 +703,12 @@ class YTInstance(object):
                 self._kill_process(p, name)
                 if isinstance(p, PortoSubprocess):
                     p.destroy()
-                del self._all_processes[p.pid]
+                del self._pid_to_process[p.pid]
             del self._process_to_kill[name]
 
     def check_liveness(self, callback_func):
         with self._lock:
-            for info in itervalues(self._all_processes):
+            for info in itervalues(self._pid_to_process):
                 proc, args = info
                 proc.poll()
                 if proc.returncode is not None:
@@ -825,7 +825,7 @@ class YTInstance(object):
             self._validate_process_is_running(p, name, number)
 
             self._process_to_kill[name].append(p)
-            self._all_processes[p.pid] = (p, args)
+            self._pid_to_process[p.pid] = (p, args)
             self._append_pid(p.pid)
 
             logger.debug("Process %s started (pid: %d)", name, p.pid)
@@ -1448,7 +1448,7 @@ class YTInstance(object):
         def send_sighup(pid):
             return "\t/usr/bin/test -d /proc/{0} && kill -HUP {0} >/dev/null 2>&1 || true".format(pid)
         
-        for pid in self._all_processes.keys():
+        for pid in self._pid_to_process.keys():
             postrotate_commands.append(send_sighup(pid))
 
         logrotate_options = [
