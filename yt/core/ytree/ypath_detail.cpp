@@ -1212,6 +1212,25 @@ const THashSet<TString>& TSystemCustomAttributeKeysCache::GetCustomAttributeKeys
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const THashSet<TString>& TOpaqueAttributeKeysCache::GetOpaqueAttributeKeys(
+    ISystemAttributeProvider* provider)
+{
+    if (!Initialized_) {
+        std::vector<ISystemAttributeProvider::TAttributeDescriptor> descriptors;
+        provider->ListSystemAttributes(&descriptors);
+        OpaqueKeys_.reserve(descriptors.size());
+        for (const auto& descriptor : descriptors) {
+            if (descriptor.Opaque) {
+                YT_VERIFY(OpaqueKeys_.insert(GetUninternedAttributeKey(descriptor.InternedKey)).second);
+            }
+        }
+        Initialized_ = true;
+    }
+    return OpaqueKeys_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TNodeSetterBase::TAttributesSetter
     : public TForwardingYsonConsumer
 {

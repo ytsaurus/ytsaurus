@@ -462,6 +462,8 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* d
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EffectiveAcl)
         .SetOpaque(true));
     descriptors->push_back(EInternedAttributeKey::UserAttributeKeys);
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::OpaqueAttributeKeys)
+        .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UserAttributes)
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LifeStage)
@@ -573,6 +575,13 @@ bool TObjectProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
                 }
             }
             consumer->OnEndList();
+            return true;
+        }
+
+        case EInternedAttributeKey::OpaqueAttributeKeys: {
+            const auto& opaqueKeys = Metadata_->OpaqueAttributeKeysCache.GetOpaqueAttributeKeys(this);
+            BuildYsonFluently(consumer)
+                .Value(opaqueKeys);
             return true;
         }
 
