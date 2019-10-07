@@ -300,28 +300,28 @@ public:
 
         cellBundle->SetOptions(std::move(options));
 
-        std::vector<TTabletCell*> cells(cellBundle->TabletCells().begin(), cellBundle->TabletCells().end());
-        std::sort(cells.begin(), cells.end(), TObjectRefComparer::Compare);
-
-        for (auto* cell : cells) {
-            if (!IsObjectAlive(cell)) {
-                continue;
-            }
-
+        for (auto* cell : GetValuesSortedByKey(cellBundle->TabletCells())) {
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             if (multicellManager->IsPrimaryMaster()) {
                 if (auto node = FindCellNode(cell->GetId())) {
                     auto cellNode = node->AsMap();
 
-                    {
-                        auto req = TCypressYPathProxy::Set("/snapshots/@acl");
-                        req->set_value(snapshotAcl);
-                        SyncExecuteVerb(cellNode, req);
-                    }
-                    {
-                        auto req = TCypressYPathProxy::Set("/changelogs/@acl");
-                        req->set_value(changelogAcl);
-                        SyncExecuteVerb(cellNode, req);
+                    try {
+                        {
+                            auto req = TCypressYPathProxy::Set("/snapshots/@acl");
+                            req->set_value(snapshotAcl);
+                            SyncExecuteVerb(cellNode, req);
+                        }
+                        {
+                            auto req = TCypressYPathProxy::Set("/changelogs/@acl");
+                            req->set_value(changelogAcl);
+                            SyncExecuteVerb(cellNode, req);
+                        }
+                    } catch (const std::exception& ex) {
+                        // TODO(savrus) Replace by YT_LOG_ALLERT
+                        YT_LOG_ERROR_UNLESS(IsRecovery(), ex, "Unexpected error: caught exception while changing ACL (Bundle: %v, TabletCellId: %v)",
+                            cellBundle->GetName(),
+                            cell->GetId());
                     }
                 }
 
