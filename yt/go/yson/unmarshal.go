@@ -224,22 +224,6 @@ func decodeAny(r *Reader, v interface{}) (err error) {
 		i, err = decodeInt(r, 64)
 		*vv = Duration(time.Millisecond * time.Duration(i))
 
-	case encoding.TextUnmarshaler:
-		var b []byte
-		b, err = decodeString(r)
-		if err != nil {
-			return
-		}
-		err = vv.UnmarshalText(b)
-
-	case encoding.BinaryUnmarshaler:
-		var b []byte
-		b, err = decodeString(r)
-		if err != nil {
-			return
-		}
-		err = vv.UnmarshalBinary(b)
-
 	case StreamUnmarshaler:
 		err = vv.UnmarshalYSON(r)
 	case Unmarshaler:
@@ -250,6 +234,22 @@ func decodeAny(r *Reader, v interface{}) (err error) {
 		}
 
 		err = vv.UnmarshalYSON(raw)
+
+	case encoding.BinaryUnmarshaler:
+		var b []byte
+		b, err = decodeString(r)
+		if err != nil {
+			return
+		}
+		err = vv.UnmarshalBinary(b)
+	case encoding.TextUnmarshaler:
+		var b []byte
+		b, err = decodeString(r)
+		if err != nil {
+			return
+		}
+		err = vv.UnmarshalText(b)
+
 	case *interface{}:
 		err = decodeGeneric(r, vv)
 
