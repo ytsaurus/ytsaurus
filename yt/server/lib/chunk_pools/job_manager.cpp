@@ -84,6 +84,11 @@ void TJobStub::Finalize(bool sortByPosition)
                 stripe->DataSlices.begin(),
                 stripe->DataSlices.end(),
                 [&] (const TInputDataSlicePtr& lhs, const TInputDataSlicePtr& rhs) {
+                    // Compare slice with itself.
+                    if (lhs.Get() == rhs.Get()) {
+                        return false;
+                    }
+
                     if (lhs->Type == EDataSourceType::UnversionedTable) {
                         auto lhsChunk = lhs->GetSingleUnversionedChunkOrThrow();
                         auto rhsChunk = rhs->GetSingleUnversionedChunkOrThrow();
