@@ -1,0 +1,8 @@
+[case readWriteOptions]
+from pyspark.sql import SparkSession
+
+spark = SparkSession.builder.getOrCreate()
+
+spark.read.option("foo", 1)
+spark.createDataFrame([(1, 2)], ["foo", "bar"]).write.option("bar", True)
+[out]
