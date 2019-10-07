@@ -108,6 +108,22 @@ private:
             Bootstrap_->GetConfigManager()->GetConfig()->CellMaster->MutationTimeCommitPeriod);
     }
 
+    void Clear() override
+    {
+        TMasterAutomatonPart::Clear();
+
+        Versions_.clear();
+        Instants_.clear();
+    }
+
+    void SetZeroState() override
+    {
+        TMasterAutomatonPart::SetZeroState();
+
+        Versions_ = std::vector<TVersion>(1);
+        Instants_ = std::vector<TInstant>(1);
+    }
+
     void Save(TSaveContext& context)
     {
         using NYT::Save;
