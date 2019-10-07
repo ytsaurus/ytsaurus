@@ -5406,6 +5406,7 @@ private:
 
         auto checkStatisticsMatch = [] (const TChunkTreeStatistics& lhs, TChunkTreeStatistics rhs) {
             rhs.ChunkListCount = lhs.ChunkListCount;
+            rhs.Rank = lhs.Rank;
             return lhs == rhs;
         };
 
