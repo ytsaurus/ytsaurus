@@ -1,6 +1,7 @@
 package yson_test
 
 import (
+	"encoding"
 	"encoding/json"
 	"testing"
 
@@ -192,4 +193,80 @@ func TestInvalidSkip(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, yson.Unmarshal(ys, &row))
+}
+
+func TestAttrsUnmarshal(t *testing.T) {
+	t.Skip("This is broken")
+
+	var result struct {
+		Type string `yson:"type,attr"`
+	}
+
+	in := `<type=foo>#`
+	require.NoError(t, yson.Unmarshal([]byte(in), &result))
+
+	in = `#`
+	require.NoError(t, yson.Unmarshal([]byte(in), &result))
+}
+
+type (
+	ysonBeforeBinary struct{}
+	binaryBeforeText struct{}
+)
+
+func (y *ysonBeforeBinary) UnmarshalBinary(data []byte) error {
+	panic("this should never be called")
+}
+
+func (y *ysonBeforeBinary) MarshalBinary() (data []byte, err error) {
+	panic("this should never be called")
+}
+
+func (y *ysonBeforeBinary) UnmarshalYSON(r *yson.Reader) error {
+	_, err := r.NextRawValue()
+	return err
+}
+
+func (y *ysonBeforeBinary) MarshalYSON(w *yson.Writer) error {
+	w.Entity()
+	return w.Err()
+}
+
+func (b *binaryBeforeText) UnmarshalText(text []byte) error {
+	panic("this should never be called")
+}
+
+func (b *binaryBeforeText) MarshalText() (text []byte, err error) {
+	panic("this should never be called")
+}
+
+func (b *binaryBeforeText) UnmarshalBinary(data []byte) error {
+	return nil
+}
+
+func (b *binaryBeforeText) MarshalBinary() (data []byte, err error) {
+	return nil, nil
+}
+
+var (
+	_ yson.StreamMarshaler       = &ysonBeforeBinary{}
+	_ yson.StreamUnmarshaler     = &ysonBeforeBinary{}
+	_ encoding.BinaryMarshaler   = &ysonBeforeBinary{}
+	_ encoding.BinaryUnmarshaler = &ysonBeforeBinary{}
+
+	_ encoding.BinaryMarshaler   = &binaryBeforeText{}
+	_ encoding.BinaryUnmarshaler = &binaryBeforeText{}
+	_ encoding.TextMarshaler     = &binaryBeforeText{}
+	_ encoding.TextUnmarshaler   = &binaryBeforeText{}
+)
+
+func TestHookPriority(t *testing.T) {
+	for _, v := range []interface{}{
+		&ysonBeforeBinary{},
+		&binaryBeforeText{},
+	} {
+		ys, err := yson.Marshal(v)
+		require.NoError(t, err)
+		require.NoError(t, yson.Unmarshal(ys, v))
+	}
 }
