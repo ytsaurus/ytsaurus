@@ -1257,6 +1257,11 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/file/@user_attribute_keys") == []
         assert get("//tmp/file/@user_attributes") == {}
 
+    @authors("babenko")
+    def test_opaque_attribute_keys(self):
+        create("table", "//tmp/t")
+        assert "compression_statistics" in get("//tmp/t/@opaque_attribute_keys")
+
     @authors("ignat")
     def test_boolean(self):
         yson_format = yson.loads("yson")
