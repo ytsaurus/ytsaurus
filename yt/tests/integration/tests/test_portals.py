@@ -63,7 +63,6 @@ class TestPortals(YTEnvSetup):
     def test_create_portal(self):
         entrance_id = create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
         assert get("//tmp/p&/@type") == "portal_entrance"
-        assert not get("//tmp/p&/@inherit_acl")
         acl = get("//tmp/@effective_acl")
         assert get("//tmp/p&/@acl") == acl
         assert get("//tmp/p&/@path") == "//tmp/p"
