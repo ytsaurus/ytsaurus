@@ -588,16 +588,18 @@ class ConfigsProvider_19(ConfigsProvider):
             proxy_config["monitoring_port"] = next(ports_generator)
             proxy_config["fqdn"] = "{0}:{1}".format(provision["fqdn"], proxy_config["port"])
 
-            set_at(proxy_config, "coordination/public_fqdn", proxy_config["fqdn"])
+            set_at(proxy_config, "coordinator/public_fqdn", proxy_config["fqdn"])
 
-            logging_config = get_at(proxy_config, "proxy/logging")
-            set_at(proxy_config, "proxy/logging",
-                   init_logging(logging_config, proxy_logs_dir, "http-proxy-{}".format(index), provision["enable_debug_logging"], enable_structured_logging=True))
-            set_at(proxy_config, "logging/filename", os.path.join(proxy_logs_dir, "http-application-{}.log".format(index)))
+            proxy_config["logging"] = init_logging(
+                proxy_config.get("logging"),
+                proxy_logs_dir,
+                "http-proxy-{}".format(index),
+                provision["enable_debug_logging"],
+                enable_structured_logging=True)
 
             _set_bind_retry_options(proxy_config)
 
-            proxy_config["proxy"]["driver"] = driver_config
+            proxy_config["driver"] = driver_config
 
             proxy_configs.append(proxy_config)
 
