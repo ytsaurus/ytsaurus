@@ -687,6 +687,20 @@ class TestPortals(YTEnvSetup):
 
         assert select_rows("* from [//tmp/p/target]") == PAYLOAD
 
+    @authors("babenko")
+    def test_root_shard_names(self):
+        root_shard_count = 0
+        for shard in ls("//sys/cypress_shards", attributes=["name"]):
+            if shard.attributes["name"].startswith("root:"):
+                root_shard_count += 1
+        assert root_shard_count == 1 + get("//sys/secondary_masters/@count")
+
+    @authors("babenko")
+    def test_portal_shard_name(self):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        shard_id = get("//tmp/p/@shard_id")
+        assert get("#{}/@name".format(shard_id)) == "portal://tmp/p"
+
 ##################################################################
 
 class TestResolveCache(YTEnvSetup):
