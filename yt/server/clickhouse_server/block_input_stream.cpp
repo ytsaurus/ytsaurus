@@ -195,6 +195,9 @@ public:
         if (elapsed > TDuration::Seconds(1)) {
             YT_LOG_DEBUG("Reading took significant time (WallTime: %v)", elapsed);
         }
+
+        YT_LOG_TRACE("Block read (Block: %v)", result);
+
         return result;
     }
 
