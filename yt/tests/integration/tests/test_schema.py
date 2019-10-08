@@ -887,21 +887,6 @@ class TestRequiredOption(YTEnvSetup):
             # Schemas are incompatible
             merge(in_=["//tmp/input1", "//tmp/input2"], out="//tmp/output", mode="unordered")
 
-    @authors("ermolovd")
-    def test_missing_columns_in_dynamic_tables_error(self):
-        schema = [
-            {"name": "foo", "type": "int64", "sort_order": "ascending", "required": True},
-            {"name": "bar", "type": "int64"},
-        ]
-
-        sync_create_cells(1)
-        create("table", "//tmp/t", attributes={"schema": schema, "dynamic": True})
-
-        sync_mount_table("//tmp/t")
-        with raises_yt_error(SchemaViolation):
-            insert_rows("//tmp/t", [{"baz": 1}])
-        sync_unmount_table("//tmp/t")
-
     @authors("ifsmirnov")
     def test_required_columns_in_dynamic_tables_schema(self):
         schema = [
@@ -984,3 +969,32 @@ class TestSchemaValidation(YTEnvSetup):
         ok_size = bad_size - 1
         create("table", "//tmp/ok-schema", attributes={"schema": make_schema(ok_size)})
         write_table("//tmp/ok-schema", [make_row(ok_size)])
+
+
+@authors("ermolovd")
+class TestErrorCodes(YTEnvSetup):
+    USE_DYNAMIC_TABLES = True
+
+    def test_YT_11522_missing_column(self):
+        schema = [
+            {"name": "foo", "type": "int64", "sort_order": "ascending", "required": True},
+            {"name": "bar", "type": "int64"},
+        ]
+
+        sync_create_cells(1)
+        create("table", "//tmp/t", attributes={"schema": schema, "dynamic": True})
+
+        sync_mount_table("//tmp/t")
+        with raises_yt_error(SchemaViolation):
+            insert_rows("//tmp/t", [{"baz": 1}])
+        sync_unmount_table("//tmp/t")
+
+    def test_YT_11522_convesion_error(self):
+        schema = [
+            {"name": "foo", "type": "uint64"}
+        ]
+
+        create("table", "//tmp/t", attributes={"schema": schema})
+
+        with raises_yt_error(SchemaViolation):
+            write_table("//tmp/t", [{"foo": -1}])
