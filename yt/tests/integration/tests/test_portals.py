@@ -64,7 +64,6 @@ class TestPortals(YTEnvSetup):
         entrance_id = create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
         assert get("//tmp/p&/@type") == "portal_entrance"
         acl = get("//tmp/@effective_acl")
-        assert get("//tmp/p&/@acl") == acl
         assert get("//tmp/p&/@path") == "//tmp/p"
 
         assert exists("//sys/portal_entrances/{}".format(entrance_id))
