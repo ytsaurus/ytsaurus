@@ -12,6 +12,7 @@
 
 #include <yt/core/misc/variant.h>
 #include <yt/core/misc/random.h>
+#include <yt/core/misc/small_set.h>
 
 #include <yt/core/utilex/random.h>
 
@@ -388,20 +389,31 @@ private:
 
         TReaderGuard guard(SpinLock_);
 
-        if (HashToViableChannel_.empty()) {
+        if (ViablePeers_.empty()) {
             return nullptr;
         }
 
         auto it = HashToViableChannel_.lower_bound(std::make_pair(hash, TString()));
-        for (int index = 0; index < randomIndex; ++index) {
+        auto rebaseIt = [&] {
             if (it == HashToViableChannel_.end()) {
                 it = HashToViableChannel_.begin();
             }
-            ++it;
-        }
+        };
 
-        if (it == HashToViableChannel_.end()) {
-            it = HashToViableChannel_.begin();
+        SmallSet<TStringBuf, 16> seenAddresses;
+        randomIndex %= ViablePeers_.size();
+        while (true) {
+            rebaseIt();
+            const auto& address = it->first.second;
+            if (seenAddresses.count(address) == 0) {
+                if (randomIndex == 0) {
+                    break;
+                }
+                seenAddresses.insert(address);
+                --randomIndex;
+            } else {
+                ++it;
+            }
         }
 
         YT_LOG_DEBUG("Sticky peer selected (RequestId: %v, RequestHash: %llx, RandomIndex: %v/%v, Address: %v)",
