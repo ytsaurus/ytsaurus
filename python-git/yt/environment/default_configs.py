@@ -481,36 +481,32 @@ b"""
 """)
 
 def get_proxy_config():
-    return json.loads(
+    return yson.loads(
 """
 {
-    "port" : -1,
-    "address" : "::",
-    "number_of_workers" : 1,
-    "memory_limit" : 33554432,
-    "thread_limit" : 64,
-    "spare_threads" : 4,
+    port = -1;
+    address = "::";
 
-    "neighbours" : [  ],
+    disable_cors_check = %true;
+    auth = {
+        enable_authentication = %false;
+        blackbox_service = {};
+        cypress_token_authenticator = {};
+        blackbox_token_authenticator = {
+            scope = "";
+            enable_scope_check = %false;
+        };
+        blackbox_cookie_authenticator = {
+            csrf_token = "";
+        };
+    };
 
-    "logging" : {
-        "filename" : "/dev/null"
-    },
-
-    "disable_cors_check" : true,
-    "authentication" : {
-        "enable" : false
-    },
-
-    "coordination" : {
-        "enable" : true,
-        "announce" : true,
-        "heartbeat_interval" : 500
-    },
-
-    "show_ports" : true,
-
-    "static": []
+    coordinator = {
+        enable = %true;
+        announce = %true;
+        heartbeat_interval = 500;
+        show_ports = %true;
+    };
 }
 """)
 

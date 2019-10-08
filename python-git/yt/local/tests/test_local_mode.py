@@ -213,8 +213,7 @@ class TestLocalMode(object):
 
         for component, count in iteritems(multiple_component_to_count):
             for index in xrange(count):
-                extension = "json" if component == "http-proxy" else "yson"
-                name = "{}-{}.{}".format(component, index, extension)
+                name = "{}-{}.yson".format(component, index)
                 assert os.path.exists(os.path.join(configs_path, name))
 
     def test_watcher(self):

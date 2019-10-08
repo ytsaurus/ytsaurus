@@ -5,7 +5,7 @@ from .default_configs import get_watcher_config, get_dynamic_master_config
 from .helpers import read_config, write_config, is_dead_or_zombie, OpenPortIterator, wait_for_removing_file_lock, add_binary_path
 from .porto_helpers import PortoSubprocess, porto_avaliable
 
-from yt.common import YtError, remove_file, makedirp, set_pdeathsig, which, to_native_str
+from yt.common import YtError, remove_file, makedirp, set_pdeathsig, which
 from yt.wrapper.common import generate_uuid, flatten
 from yt.wrapper.errors import YtResponseError
 from yt.wrapper import YtClient
@@ -16,7 +16,7 @@ import yt.yson as yson
 import yt.subprocess_wrapper as subprocess
 
 from yt.packages.six import itervalues, iteritems
-from yt.packages.six.moves import xrange, map as imap, filter as ifilter
+from yt.packages.six.moves import xrange, map as imap
 import yt.packages.requests as requests
 
 import logging
@@ -28,7 +28,6 @@ import shutil
 import sys
 import getpass
 import random
-import copy
 from collections import defaultdict, namedtuple
 from threading import RLock
 from itertools import count
@@ -1241,14 +1240,14 @@ class YTInstance(object):
         self.config_paths["http_proxy"] = []
 
         for i in xrange(len(http_proxy_dirs)):
-            config_path = os.path.join(self.configs_path, "http-proxy-{}.json".format(i))
+            config_path = os.path.join(self.configs_path, "http-proxy-{}.yson".format(i))
             if self._load_existing_environment:
                 if not os.path.isfile(config_path):
                     raise YtError("Http proxy config {0} not found".format(config_path))
-                config = read_config(config_path, format="json")
+                config = read_config(config_path)
             else:
                 config = proxy_configs[i]
-                write_config(config, config_path, format="json")
+                write_config(config, config_path)
 
             self.configs["http_proxy"].append(config)
             self.config_paths["http_proxy"].append(config_path)
@@ -1291,7 +1290,7 @@ class YTInstance(object):
             self._service_processes["skynet_manager"].append(None)
 
     def start_http_proxy(self, sync=True):
-        self._run_yt_component("http-proxy", name="http_proxy", config_option="--legacy-config")
+        self._run_yt_component("http-proxy", name="http_proxy")
 
         def proxy_ready():
             self._validate_processes_are_running("http_proxy")
@@ -1423,8 +1422,6 @@ class YTInstance(object):
                 def emit_rotate_config(service, config):
                     for log_type in ["debug", "info"]:
                         log_config_path = "logging/writers/" + log_type + "/file_name"
-                        if service == "http_proxy":
-                            log_config_path = "proxy/" + log_config_path
                         log_path = _config_safe_get(config, service, log_config_path)
                         config_file.write("{0}\n{{\n{1}\n}}\n\n".format(log_path, "\n".join(logrotate_options)))
 
