@@ -486,14 +486,6 @@ def get_jobs_with_error_or_stderr(operation, only_failed_jobs, client=None):
             pool.join()
     return result
 
-@deprecated(alternative="get_jobs_with_error_or_stderr")
-def get_stderrs(operation, only_failed_jobs, client=None):
-    """ Deprecated!
-
-    Use get_jobs_with_error_or_stderr instead.
-    """
-    return get_jobs_with_error_or_stderr(operation, only_failed_jobs, client=client)
-
 def format_operation_stderr(job_with_stderr, output):
     output.write("Host: ")
     output.write(job_with_stderr["host"])
