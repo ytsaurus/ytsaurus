@@ -98,37 +98,6 @@ def _is_ya_package(proxy_binary_path):
         "built_by_ya.txt")
     return os.path.exists(ytnode_node)
 
-def _find_nodejs(candidates=("nodejs", "node")):
-    nodejs_binary = None
-    for name in candidates:
-        if which(name):
-            nodejs_binary = name
-            break
-
-    if nodejs_binary is None:
-        raise YtError("Failed to find nodejs binary (checked: {0}). "
-                      "Make sure you added nodejs directory to PATH variable".format(",".join(candidates)))
-
-    version = subprocess.check_output([nodejs_binary, "-v"])
-
-    if not version.startswith("v0.8"):
-        raise YtError("Failed to find appropriate nodejs version (should start with 0.8)")
-
-    return nodejs_binary
-
-def _get_proxy_version(node_binary_path, proxy_binary_path):
-    # Output example: "*** YT HTTP Proxy ***\nVersion 0.17.3\nDepends..."
-    process = subprocess.Popen([node_binary_path, proxy_binary_path, "-v"], stderr=subprocess.PIPE)
-    _, err = process.communicate()
-    version_str = to_native_str(err).split("\n")[1].split()[1]
-
-    try:
-        version = tuple(imap(int, version_str.split(".")))
-    except ValueError:
-        return None
-
-    return version
-
 def _config_safe_get(config, service_name, key):
     d = config
     parts = key.split("/")
@@ -504,8 +473,7 @@ class YTInstance(object):
         else:
             self._wait_functions.append(function)
 
-    # COMPAT(ignat): remove use_new_proxy.
-    def start(self, use_proxy_from_package=True, use_new_proxy=True, start_secondary_master_cells=False, on_masters_started_func=None):
+    def start(self, start_secondary_master_cells=False, on_masters_started_func=None):
         for name, processes in iteritems(self._service_processes):
             for index in xrange(len(processes)):
                 processes[index] = None
@@ -520,7 +488,7 @@ class YTInstance(object):
             self._configure_driver_logging()
 
             if self.has_http_proxy:
-                self.start_proxy(use_proxy_from_package=use_proxy_from_package, use_new_proxy=use_new_proxy, sync=False)
+                self.start_http_proxy(sync=False)
 
             self.start_master_cell(sync=False)
 
@@ -844,9 +812,11 @@ class YTInstance(object):
 
             logger.debug("Process %s started (pid: %d)", name, p.pid)
 
-    def _run_yt_component(self, component, name=None):
+    def _run_yt_component(self, component, name=None, config_option=None):
         if name is None:
             name = component
+        if config_option is None:
+            config_option = "--config"
 
         logger.info("Starting %s", name)
 
@@ -859,7 +829,7 @@ class YTInstance(object):
                     args.extend(["--pdeathsig", str(int(signal.SIGKILL))])
             else:
                 raise YtError("Unsupported YT ABI version {0}".format(self.abi_version))
-            args.extend(["--config", self.config_paths[name][i]])
+            args.extend([config_option, self.config_paths[name][i]])
             cgroup_paths = None
             if self._use_cgroup_for_servers:
                 cgroup_paths = []
@@ -1320,48 +1290,8 @@ class YTInstance(object):
             self.config_paths["skynet_manager"].append(config_path)
             self._service_processes["skynet_manager"].append(None)
 
-    def _start_proxy_from_package(self):
-        node_path = list(ifilter(lambda x: x != "", os.environ.get("NODE_PATH", "").split(":")))
-        for path in node_path + ["/usr/lib/node_modules"]:
-            proxy_binary_path = os.path.join(path, "yt", "bin", "yt_http_proxy")
-            if os.path.exists(proxy_binary_path):
-                break
-        else:
-            raise YtError("Failed to find YT http proxy binary. Make sure you installed "
-                          "yandex-yt-http-proxy package or specify NODE_PATH manually")
-
-        if _is_ya_package(proxy_binary_path):
-            nodejs_binary_path = _find_nodejs(["ytnode",])
-        else:
-            nodejs_binary_path = _find_nodejs()
-
-        proxy_version = _get_proxy_version(nodejs_binary_path, proxy_binary_path)
-        if proxy_version and proxy_version[:2] != self.abi_version:
-            raise YtError("Proxy version (which is {0}.{1}) is incompatible with ytserver* ABI "
-                          "(which is {2}.{3})".format(*(proxy_version[:2] + self.abi_version)))
-
-        self._run([nodejs_binary_path,
-                   proxy_binary_path,
-                   "-c", self.config_paths["http_proxy"][0]],
-                   "http_proxy")
-
-    def start_proxy(self, use_proxy_from_package, use_new_proxy=True, sync=True):
-        logger.info("Starting proxy")
-        if use_new_proxy or which("ytserver-http-proxy"):
-            for index in xrange(len(self.config_paths["http_proxy"])):
-                self._run(["ytserver-http-proxy", "--legacy-config", self.config_paths["http_proxy"][index]], "http_proxy", number=index)
-        else:
-            if len(self.config_paths["http_proxy"]) != 1:
-                raise YtError("Failed to start more than one proxy in legacy mode; use new HTTP proxy")
-            elif use_proxy_from_package:
-                self._start_proxy_from_package()
-            else:
-                if not which("run_proxy.sh"):
-                    raise YtError("Failed to start proxy from source tree. "
-                                  "Make sure you added directory with run_proxy.sh to PATH")
-                self._run(["run_proxy.sh",
-                           "-c", self.config_paths["http_proxy"][0]],
-                           "http_proxy")
+    def start_http_proxy(self, sync=True):
+        self._run_yt_component("http-proxy", name="http_proxy", config_option="--legacy-config")
 
         def proxy_ready():
             self._validate_processes_are_running("http_proxy")
@@ -1376,7 +1306,7 @@ class YTInstance(object):
 
             return True
 
-        self._wait_or_skip(lambda: self._wait_for(proxy_ready, "proxy", max_wait_time=20), sync)
+        self._wait_or_skip(lambda: self._wait_for(proxy_ready, "http_proxy", max_wait_time=20), sync)
 
     def start_rpc_proxy(self, sync=True):
         self._run_yt_component("proxy", name="rpc_proxy")
@@ -1420,13 +1350,10 @@ class YTInstance(object):
                           .format(name_with_number, process.returncode))
 
     def _validate_processes_are_running(self, name):
-        if name == "http_proxy":
-            self._validate_process_is_running(self._service_processes[name][-1], name)
-        else:
-            for index, process in enumerate(self._service_processes[name]):
-                if process is None:
-                    continue
-                self._validate_process_is_running(process, name, index)
+        for index, process in enumerate(self._service_processes[name]):
+            if process is None:
+                continue
+            self._validate_process_is_running(process, name, index)
 
     def _wait_for(self, condition, name, max_wait_time=40, sleep_quantum=0.1):
         condition_error = None

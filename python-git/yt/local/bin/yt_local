@@ -82,8 +82,6 @@ def start_func(**kwargs):
         "schedulers_count": "scheduler_count",
         "ports_range_start": "port_range_start",
         "operations_memory_limit": "jobs_memory_limit",
-        "use_proxy_from_yt_source": None,
-        "use_new_proxy": None,
         "no_proxy": "http_proxy_count",
         "rpc_proxy": "rpc_proxy_count"
     }
@@ -239,8 +237,6 @@ def add_start_subparser(subparsers):
     parser.add_argument("--schedulers-count", type=int, help=argparse.SUPPRESS)
     parser.add_argument("--ports-range-start", type=int, help=argparse.SUPPRESS)
     parser.add_argument("--operations-memory-limit", type=int, help=argparse.SUPPRESS)
-    parser.add_argument("--use-proxy-from-yt-source", action="store_true", help=argparse.SUPPRESS)
-    parser.add_argument("--use-new-proxy", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--no-proxy", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--rpc-proxy", action="store_true", help=argparse.SUPPRESS)
 
