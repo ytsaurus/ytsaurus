@@ -155,6 +155,8 @@ void TQueryAnalyzer::ParseQuery()
 {
     auto* selectQuery = QueryInfo_.query->as<DB::ASTSelectQuery>();
 
+    YT_LOG_DEBUG("Analyzing query (Query: %v)", static_cast<const DB::IAST&>(*selectQuery));
+
     YT_VERIFY(selectQuery);
     YT_VERIFY(selectQuery->tables());
 
