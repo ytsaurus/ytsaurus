@@ -243,6 +243,8 @@ class TVariantStructLogicalType;
 class TDictLogicalType;
 class TTaggedLogicalType;
 
+struct TStructField;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient
