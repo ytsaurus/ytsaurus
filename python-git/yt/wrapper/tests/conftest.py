@@ -215,8 +215,10 @@ class YtTestEnvironment(object):
         self.reload_global_configuration()
         self.env.stop()
         for node_config in self.env.configs["node"]:
-            shutil.rmtree(node_config["data_node"]["store_locations"][0]["path"])
-            shutil.rmtree(node_config["data_node"]["cache_locations"][0]["path"])
+            for path in (node_config["data_node"]["store_locations"][0]["path"],
+                         node_config["data_node"]["cache_locations"][0]["path"]):
+                if os.path.exists(path):
+                    shutil.rmtree(path)
         self.save_sandbox()
 
     def save_sandbox(self):
