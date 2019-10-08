@@ -78,6 +78,7 @@
 #include <yt/client/tablet_client/public.h>
 #include <yt/client/tablet_client/table_mount_cache.h>
 
+#include <yt/client/transaction_client/public.h>
 #include <yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/client/api/transaction.h>
@@ -1648,6 +1649,10 @@ void TOperationControllerBase::SafeCommit()
 
 void TOperationControllerBase::LockOutputDynamicTables()
 {
+    if (Spec_->Atomicity == EAtomicity::None) {
+        return;
+    }
+
     THashMap<TCellTag, std::vector<TOutputTablePtr>> externalCellTagToTables;
     for (const auto& table : UpdatingTables_) {
         if (table->Dynamic) {
@@ -5365,6 +5370,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                 "vital",
                 "enable_skynet_sharing",
                 "tablet_state",
+                "atomicity",
             });
             SetTransactionId(req, GetTransactionForOutputTable(table)->GetId());
             batchReq->AddRequest(req);
@@ -5397,6 +5403,15 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                     THROW_ERROR_EXCEPTION(
                         "Operations with output to dynamic tables cannot be run under user transaction")
                         << TErrorAttribute("user_transaction_id", UserTransactionId);
+                }
+
+                auto atomicity = attributes->Get<EAtomicity>("atomicity");
+                if (atomicity != Spec_->Atomicity) {
+                    THROW_ERROR_EXCEPTION("Output table %v atomicity %Qv does not match spec atomicity %Qv",
+                        path,
+                        atomicity,
+                        Spec_->Atomicity);
+
                 }
             }
 

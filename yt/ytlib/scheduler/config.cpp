@@ -17,6 +17,7 @@ namespace NYT::NScheduler {
 using namespace NYson;
 using namespace NYTree;
 using namespace NSecurityClient;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -438,6 +439,9 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("job_speculation_timeout", JobSpeculationTimeout)
         .Default()
         .GreaterThan(TDuration::Zero());
+
+    RegisterParameter("atomicity", Atomicity)
+        .Default(EAtomicity::Full);
 
     RegisterPostprocessor([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&

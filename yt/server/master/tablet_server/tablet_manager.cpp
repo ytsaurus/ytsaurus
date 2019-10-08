@@ -1529,6 +1529,7 @@ public:
             TReqUnlockTablet req;
             ToProto(req.mutable_tablet_id(), tablet->GetId());
             ToProto(req.mutable_transaction_id(), transaction->GetId());
+            req.set_mount_revision(tablet->GetMountRevision());
             auto chunksOrViews = EnumerateChunksAndChunkViewsInChunkTree(appendChunkList->AsChunkList());
             auto storeType = originatingNode->IsPhysicallySorted() ? EStoreType::SortedChunk : EStoreType::OrderedChunk;
             i64 startingRowIndex = 0;
@@ -3056,6 +3057,7 @@ private:
                 TReqUnlockTablet req;
                 ToProto(req.mutable_tablet_id(), tablet->GetId());
                 ToProto(req.mutable_transaction_id(), transaction->GetId());
+                req.set_mount_revision(tablet->GetMountRevision());
                 hiveManager->PostMessage(mailbox, req);
             }
 

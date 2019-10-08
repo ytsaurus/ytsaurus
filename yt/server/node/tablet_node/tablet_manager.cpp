@@ -1171,6 +1171,12 @@ private:
         if (!tablet) {
             return;
         }
+
+        auto mountRevision = request->mount_revision();
+        if (mountRevision != tablet->GetMountRevision()) {
+            return;
+        }
+
         auto transactionId = FromProto<TTabletId>(request->transaction_id());
 
         const auto& storeManager = tablet->GetStoreManager();
@@ -1190,9 +1196,13 @@ private:
 
         const auto& lockManager = tablet->GetLockManager();
 
-        auto nextEpoch = lockManager->GetEpoch() + 1;
-        UpdateTabletSnapshot(tablet, nextEpoch);
-        lockManager->Unlock(transactionId);
+        if (tablet->GetAtomicity() == EAtomicity::Full) {
+            auto nextEpoch = lockManager->GetEpoch() + 1;
+            UpdateTabletSnapshot(tablet, nextEpoch);
+            lockManager->Unlock(transactionId);
+        } else {
+            UpdateTabletSnapshot(tablet);
+        }
 
         YT_LOG_INFO_UNLESS(IsRecovery(),
             "Tablet unlocked (TabletId: %v, TransactionId: %v, AddedStoreIds: %v, LockManagerEpoch: %v)",

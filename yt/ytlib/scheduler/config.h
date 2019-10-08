@@ -21,6 +21,8 @@
 
 #include <yt/client/ypath/rich.h>
 
+#include <yt/client/transaction_client/public.h>
+
 #include <yt/core/rpc/config.h>
 
 #include <yt/core/ytree/fluent.h>
@@ -619,6 +621,9 @@ public:
     //! Force running speculative job after this timeout. Has lower priority than `JobSpeculationTimeout`
     //! from TUserJobSpec.
     std::optional<TDuration> JobSpeculationTimeout;
+
+    //! Should match the atomicity of output dynamic tables. If present, output dynamic tables are not locked.
+    NTransactionClient::EAtomicity Atomicity;
 
     TOperationSpecBase();
 
