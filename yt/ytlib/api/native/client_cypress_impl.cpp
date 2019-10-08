@@ -251,13 +251,13 @@ protected:
             DstNodeId_);
     }
 
-    void SyncCells()
+    void SyncExternalCellsWithClonedNodeCell()
     {
         if (ExternalCellTags_.empty()) {
             return;
         }
 
-        YT_LOG_DEBUG("Synchronizing cells");
+        YT_LOG_DEBUG("Synchronizing external cells with the cloned node cell");
 
         auto nodeCellTag = CellTagFromId(DstNodeId_);
         const auto& connection = Client_->GetNativeConnection();
@@ -269,9 +269,9 @@ protected:
         }
 
         auto error = WaitFor(Combine(futures));
-        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error synchronizing external nodes cells with the cloned node cell");
+        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error synchronizing external cells with the cloned node cell");
 
-        YT_LOG_DEBUG("Cells synchronized");
+        YT_LOG_DEBUG("External cells synchronized with the cloned node cell");
     }
     
     void CommitTransaction()
@@ -317,7 +317,7 @@ public:
         if constexpr(std::is_assignable_v<TOptions, TMoveNodeOptions>) {
             RemoveSource();
         }
-        SyncCells();
+        SyncExternalCellsWithClonedNodeCell();
         CommitTransaction();
         YT_LOG_DEBUG("Cross-cell node cloning completed");
         return DstNodeId_;
@@ -369,8 +369,9 @@ public:
         RequestRootEffectiveAcl();
         BeginCopy(Path_, GetOptions());
         CreatePortal();
+        SyncExitCellWithEntranceCell();
         EndCopy(Path_, GetOptions(), true);
-        SyncCells();
+        SyncExternalCellsWithClonedNodeCell();
         CommitTransaction();
         YT_LOG_DEBUG("Node externalization completed");
     }
@@ -426,6 +427,21 @@ private:
         THROW_ERROR_EXCEPTION_IF_FAILED(nodeIdOrError, "Error creating portal");
 
         YT_LOG_DEBUG("Portal created");
+    }
+
+    void SyncExitCellWithEntranceCell()
+    {
+        YT_LOG_DEBUG("Synchronizing exit cell with entrance cell");
+
+        const auto& connection = Client_->GetNativeConnection();
+        auto future = connection->SyncHiveCellWithOthers(
+            {connection->GetMasterCellId(CellTagFromId(DstNodeId_))},
+            connection->GetMasterCellId(CellTag_));
+
+        auto error = WaitFor(future);
+        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error synchronizing exit cell with entrance cell");
+
+        YT_LOG_DEBUG("Exit cell synchronized with entrance cell");
     }
 };
 
