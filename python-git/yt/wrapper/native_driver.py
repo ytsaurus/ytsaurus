@@ -15,6 +15,12 @@ try:
 except ImportError:  # Python 3
     from io import BytesIO
 
+class NullStream(object):
+    def write(self, data):
+        pass
+    def close(self):
+        pass
+
 driver_bindings = None
 def lazy_import_driver_bindings(backend_type, allow_fallback_to_native_driver):
     global driver_bindings
@@ -234,13 +240,17 @@ def make_request(command_name, params,
     output_stream = None
     if description.output_type() != b"Null":
         if "output_format" not in params and description.output_type() != b"Binary":
-            raise YtError(
-                "Inner error: output format is not specified for native driver command '{0}'"
-                .format(command_name))
-        if return_content:
-            output_stream = BytesIO()
+            output_stream = NullStream()
+            params["output_format"] = "yson"
+            # TODO(ignat): return this error after full migration to v4.
+            # raise YtError(
+            #     "Inner error: output format is not specified for native driver command '{0}'"
+            #     .format(command_name))
         else:
-            output_stream = driver_bindings.BufferedStream(size=get_config(client)["read_buffer_size"])
+            if return_content:
+                output_stream = BytesIO()
+            else:
+                output_stream = driver_bindings.BufferedStream(size=get_config(client)["read_buffer_size"])
 
     request_id = generate_int64(get_option("_random_generator", client))
 
@@ -277,7 +287,7 @@ def make_request(command_name, params,
             error = YtResponseError(response.error())
             error.message = "Received driver response with error"
             raise error
-        if output_stream is not None:
+        if output_stream is not None and not isinstance(output_stream, NullStream):
             value = output_stream.getvalue()
             if decode_content and PY3:
                 return value.decode("utf-8")

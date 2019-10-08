@@ -240,8 +240,10 @@ class YtTestEnvironment(object):
 
 def init_environment_for_test_session(mode, **kwargs):
     config = {"api_version": "v3"}
-    if mode in ("native"):
+    if mode in ("native", "native_v4"):
         config["backend"] = "native"
+        if mode == "native_v4":
+            config["api_version"] = "v4"
     elif mode == "rpc":
         config["backend"] = "rpc"
         config["use_http_backend_for_streaming"] = False
@@ -265,13 +267,13 @@ def init_environment_for_test_session(mode, **kwargs):
 
     return environment
 
-@pytest.fixture(scope="session", params=["v3", "v4", "native"])
+@pytest.fixture(scope="session", params=["v3", "v4", "native", "native_v4"])
 def test_environment(request):
     environment = init_environment_for_test_session(request.param)
     request.addfinalizer(lambda: environment.cleanup())
     return environment
 
-@pytest.fixture(scope="session", params=["v3", "v4", "native", "rpc"])
+@pytest.fixture(scope="session", params=["v3", "v4", "native", "native_v4", "rpc"])
 def test_environment_with_rpc(request):
     environment = init_environment_for_test_session(request.param)
     request.addfinalizer(lambda: environment.cleanup())
