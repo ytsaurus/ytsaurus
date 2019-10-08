@@ -79,13 +79,7 @@ public:
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto effectiveAcl = securityManager->GetEffectiveAcl(node);
-        const auto& effectiveAnnotation = securityManager->GetEffectiveAnnotation(node);
-
-        // Turn off ACL inheritance, replace ACL with effective ACL.
-        node->Acd().SetEntries(effectiveAcl);
-        node->Acd().SetInherit(false);
-
-        node->SetAnnotation(effectiveAnnotation);
+        auto effectiveAnnotation = securityManager->GetEffectiveAnnotation(node);
 
         NProto::TReqCreatePortalExit request;
         ToProto(request.mutable_entrance_node_id(), node->GetId());
