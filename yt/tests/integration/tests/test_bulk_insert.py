@@ -755,6 +755,48 @@ class TestBulkInsert(DynamicTablesBase):
                 command="cat",
                 tx=tx)
 
+    @pytest.mark.parametrize("atomicity", ["none", "full"])
+    def test_atomicity_should_match(self, atomicity):
+        sync_create_cells(1)
+        create("table", "//tmp/t_input")
+        self._create_simple_dynamic_table("//tmp/t_output")
+        set("//tmp/t_output/@atomicity", atomicity)
+        sync_mount_table("//tmp/t_output")
+
+        write_table("//tmp/t_input", [{"key": 1, "value": "a"}])
+
+        def _run(op_atomicity):
+            map(
+                in_="//tmp/t_input",
+                out="<append=%true>//tmp/t_output",
+                command="cat",
+                spec={"atomicity": op_atomicity})
+
+        _run(atomicity)
+        with pytest.raises(YtError):
+            _run("none" if atomicity == "full" else "full")
+
+    def test_atomicity_none(self):
+        sync_create_cells(1)
+        create("table", "//tmp/t_input")
+        self._create_simple_dynamic_table("//tmp/t_output")
+        set("//tmp/t_output/@atomicity", "none")
+        sync_mount_table("//tmp/t_output")
+
+        rows = [{"key": 1, "value": "1"}]
+
+        write_table("//tmp/t_input", rows)
+
+        map(
+            in_="//tmp/t_input",
+            out="<append=%true>//tmp/t_output",
+            command="cat",
+            spec={"atomicity": "none"})
+
+        assert_items_equal(select_rows("* from [//tmp/t_output]"), rows)
+        assert lookup_rows("//tmp/t_output", [{"key": 1}]) == rows
+        assert read_table("//tmp/t_output") == rows
+
 ##################################################################
 
 @authors("ifsmirnov")
