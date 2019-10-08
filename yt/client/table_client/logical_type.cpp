@@ -130,6 +130,44 @@ const TTaggedLogicalType& TLogicalType::AsTaggedTypeRef() const
     return dynamic_cast<const TTaggedLogicalType&>(*this);
 }
 
+const TLogicalTypePtr& TLogicalType::GetElement() const
+{
+    switch (Metatype_) {
+        case ELogicalMetatype::Optional:
+            return AsOptionalTypeRef().GetElement();
+        case ELogicalMetatype::List:
+            return AsListTypeRef().GetElement();
+        case ELogicalMetatype::Tagged:
+            return AsTaggedTypeRef().GetElement();
+        default:
+            YT_ABORT();
+    }
+}
+
+const std::vector<TLogicalTypePtr>& TLogicalType::GetElements() const
+{
+    switch (Metatype_) {
+        case ELogicalMetatype::Tuple:
+            return AsTupleTypeRef().GetElements();
+        case ELogicalMetatype::VariantTuple:
+            return AsVariantTupleTypeRef().GetElements();
+        default:
+            YT_ABORT();
+    }
+}
+
+const std::vector<TStructField>& TLogicalType::GetFields() const
+{
+    switch (Metatype_) {
+        case ELogicalMetatype::Struct:
+            return AsStructTypeRef().GetFields();
+        case ELogicalMetatype::VariantStruct:
+            return AsVariantStructTypeRef().GetFields();
+        default:
+            YT_ABORT();
+    }
+}
+
 static bool operator == (const TStructField& lhs, const TStructField& rhs)
 {
     return (lhs.Name == rhs.Name) && (*lhs.Type == *rhs.Type);
