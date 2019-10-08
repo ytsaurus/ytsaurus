@@ -2,7 +2,7 @@ from .operation_commands import TimeWatcher, process_operation_unsuccesful_finis
 from .common import YtError, require, update
 from .spec_builders import VanillaSpecBuilder
 from .run_operation_commands import run_operation
-from .cypress_commands import get, exists, move
+from .cypress_commands import get, exists, copy
 from .transaction_commands import _make_transactional_request
 from .operation_commands import get_operation_url, abort_operation
 from .http_helpers import get_proxy_url
@@ -353,8 +353,8 @@ def start_clickhouse_clique(instance_count,
 
     if dump_tables:
         if prev_operation is not None:
-            stderr_table_path = spec.get("tasks", {}).get("instances", {}).get("stderr_table_path")
-            core_table_path = spec.get("tasks", {}).get("instances", {}).get("core_table_path")
+            stderr_table_path = spec.get("stderr_table_path")
+            core_table_path = spec.get("core_table_path")
             table_paths = []
             if stderr_table_path is not None:
                 table_paths.append(stderr_table_path)
@@ -365,7 +365,7 @@ def start_clickhouse_clique(instance_count,
                 if exists(table_path, client=client):
                     new_path = table_path + "." + prev_operation["id"]
                     logger.info("Dumping %s into %s", table_path, new_path)
-                    move(table_path, new_path, client=client)
+                    copy(table_path, new_path, client=client)
                 else:
                     logger.info("Table %s does not exist, not dumping anything", table_path)
         else:
