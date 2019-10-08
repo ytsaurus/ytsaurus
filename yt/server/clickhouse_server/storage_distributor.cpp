@@ -138,7 +138,7 @@ DB::BlockInputStreamPtr CreateRemoteStream(
     }
     YT_VERIFY(traceContext);
     auto spanId = traceContext->GetSpanId();
-    stream->setRemoteQueryId(Format("%v@%" PRIx64 "%v", remoteQueryId, spanId, "FT"[traceContext->IsSampled()]));
+    stream->setRemoteQueryId(Format("%v@%" PRIx64 "%v", remoteQueryId, spanId, traceContext->IsSampled() ? "T" : "F"));
 
     return CreateBlockInputStreamLoggingAdapter(std::move(stream), TLogger(queryContext->Logger)
         .AddTag("RemoteQueryId: %v, RemoteNode: %v, RemoteStreamId: %v",
