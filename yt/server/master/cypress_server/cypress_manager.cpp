@@ -389,7 +389,7 @@ public:
 
         if (type == EObjectType::PortalEntrance)  {
             CreatedPortalEntrances_.push_back({
-                StageNode(trunkNode->As<TPortalEntranceNode>()),
+                StageNode(node->As<TPortalEntranceNode>()),
                 inheritedAttributes->Clone(),
                 explicitAttributes->Clone()
             });

@@ -75,7 +75,7 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto path = cypressManager->GetNodePath(node,  nullptr);
+        auto path = cypressManager->GetNodePath(node->GetTrunkNode(), node->GetTransaction());
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto effectiveAcl = securityManager->GetEffectiveAcl(node);
@@ -95,15 +95,10 @@ public:
         ToProto(request.mutable_inherited_node_attributes(), inheritedAttributes);
         ToProto(request.mutable_explicit_node_attributes(), explicitAttributes);
         ToProto(request.mutable_parent_id(), node->GetParent()->GetId());
-        auto optionalKey = FindNodeKey(
-            Bootstrap_->GetCypressManager(),
-            node->GetTrunkNode(),
-            nullptr);
-        if (optionalKey) {
+        if (auto optionalKey = FindNodeKey(cypressManager, node->GetTrunkNode(), nullptr)) {
             request.set_key(*optionalKey);
         }
-
-        request.set_annotation(effectiveAnnotation.value_or(""));
+        request.set_annotation(effectiveAnnotation.value_or(TString()));
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToMaster(request, node->GetExitCellTag());
