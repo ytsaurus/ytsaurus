@@ -1,0 +1,40 @@
+INCLUDE(${ARCADIA_ROOT}/yt/ya.make.environment.inc)
+
+PEERDIR(
+    ${GOSTD}/strings
+    ${GOSTD}/fmt
+    ${GOSTD}/errors
+    ${GOSTD}/encoding/json
+    library/go/core/xerrors
+    yt/go/yson
+    yt/go/yterrors
+
+    yp/go/yson/ytypes
+)
+
+ADDINCL(GLOBAL ${ARCADIA_BUILD_ROOT}/${YT_ROOT})
+ADDINCL(GLOBAL ${YT_ROOT})
+
+PEERDIR(
+    contrib/libs/protobuf
+)
+
+SET_APPEND(
+    OUT_OPTS
+    paths=base_name:.
+)
+
+RUN_PROGRAM(
+    contrib/tools/protoc
+    --plugin="protoc-gen-custom=${ARCADIA_BUILD_ROOT}/yp/go/yson/internal/proto-yson-gen/cmd/proto-yson-gen/proto-yson-gen"
+    --proto_path="${ARCADIA_ROOT}"
+    --proto_path="${ARCADIA_ROOT}/${YT_ROOT}"
+    --proto_path="${ARCADIA_ROOT}/contrib/libs/protobuf"
+    --custom_out="${OUT_OPTS}"
+    ${IN_FILES}
+
+    TOOL yp/go/yson/internal/proto-yson-gen/cmd/proto-yson-gen
+    IN ${IN_FILES}
+    OUT ${OUT_FILES}
+    CWD ${BINDIR}
+)

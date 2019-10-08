@@ -1,0 +1,59 @@
+syntax = "proto2";
+
+package NYsonGen.NExamples;
+
+option go_package = "a.yandex-team.ru/yp/go/yson/internal/proto-yson-gen/tests";
+
+import "google/protobuf/timestamp.proto";
+import "yt/core/yson/proto/protobuf_interop.proto";
+
+
+enum Enum {
+  Foo = 1 [(NYT.NYson.NProto.enum_value_name) = "foo"];
+
+  Bar = 2 [(NYT.NYson.NProto.enum_value_name) = "bar"];
+}
+
+// Простое сообщение, должно обойтись без кастомного маршалинга
+message Simple {
+  message Nested {
+    optional string nested_val = 1;
+  }
+
+  // enum
+  optional Enum enum = 1;
+
+  optional string val = 2;
+
+  optional Nested nested = 3;
+
+  optional google.protobuf.Timestamp timestamp = 4;
+}
+
+// Тут тоже не будет катосного маршалинга
+message WithDefaults {
+  // enum
+  optional Enum enum = 1;
+
+  optional string val = 2 [default = "some_val"];
+}
+
+// Тут уже будут катосный маршалинг для валидации required полей
+message WithRequired {
+  // enum
+  optional Enum enum = 1;
+
+  required string val = 2;
+}
+
+// Тут будет катосный маршалинг для валидации oneof полей
+message OneOf {
+  message ComplexAction {
+    optional string url = 1;
+  }
+
+  oneof Action {
+    string simple = 1;
+    ComplexAction complex = 2;
+  }
+}
