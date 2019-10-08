@@ -701,6 +701,20 @@ class TestPortals(YTEnvSetup):
         shard_id = get("//tmp/p/@shard_id")
         assert get("#{}/@name".format(shard_id)) == "portal://tmp/p"
 
+    @authors("babenko")
+    def test_externalize_shard_name(self):
+        create("map_node", "//tmp/m")
+        externalize("//tmp/m", 1)
+        shard_id = get("//tmp/m/@shard_id")
+        assert get("#{}/@name".format(shard_id)) == "portal://tmp/m"
+
+    @authors("babenko")
+    def test_portal_get_set_shard_name(self):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        shard_id = get("//tmp/p/@shard_id")
+        set("#{}/@name".format(shard_id), "shard_name")
+        assert get("#{}/@name".format(shard_id)) == "shard_name"
+
 ##################################################################
 
 class TestResolveCache(YTEnvSetup):
