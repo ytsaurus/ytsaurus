@@ -153,7 +153,7 @@ Poco::Net::HTTPRequestHandler* THttpHandlerFactory::createRequestHandler(
     Poco::URI uri(request.getURI());
 
     const auto& Logger = ServerLogger;
-    YT_LOG_INFO("HTTP request received (Method: %v, URI: %v, Address: %v, User-Agent: %v)",
+    YT_LOG_INFO("HTTP request received (Method: %v, URI: %v, Address: %v, UserAgent: %v)",
         request.getMethod(),
         uri.toString(),
         request.clientAddress().toString(),
