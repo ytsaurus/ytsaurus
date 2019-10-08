@@ -86,7 +86,7 @@ public:
 
         NProto::TReqCreatePortalExit request;
         ToProto(request.mutable_entrance_node_id(), trunkNode->GetId());
-        ToProto(request.mutable_account_id(), trunkNode->GetId());
+        ToProto(request.mutable_account_id(), trunkNode->GetAccount()->GetId());
         request.set_path(path);
         request.set_acl(ConvertToYsonString(effectiveAcl).GetData());
         ToProto(request.mutable_inherited_node_attributes(), inheritedAttributes);
@@ -197,7 +197,7 @@ private:
         const auto& annotation = FromProto<TString>(request->annotation());
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* account = securityManager->GetAccount(accountId);
+        auto* account = securityManager->GetAccountOrThrow(accountId);
 
         TAccessControlList acl;
         Deserialize(acl, ConvertToNode(TYsonString(request->acl())), securityManager);
