@@ -188,7 +188,8 @@ public:
 
     StoragePtr executeImpl(
         const ASTPtr& functionAst,
-        const Context& context) const override
+        const Context& context,
+        const std::string& /* tableName */) const override
     {
         auto* queryContext = GetQueryContext(context);
 
@@ -234,7 +235,10 @@ public:
     TListFilterAndConcatenateTables()
     { }
 
-    virtual StoragePtr executeImpl(const ASTPtr& functionAst, const Context& context) const override
+    StoragePtr executeImpl(
+        const ASTPtr& functionAst,
+        const Context& context,
+        const std::string& /* tableName */) const override
     {
         auto* queryContext = GetQueryContext(context);
         const auto& Logger = queryContext->Logger;
