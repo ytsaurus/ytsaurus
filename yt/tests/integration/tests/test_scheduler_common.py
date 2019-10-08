@@ -4840,3 +4840,83 @@ class TestConfigurablePoolTreeRoot(YTEnvSetup):
         wait(lambda: exists(pools_path + "/pool"))
         wait(lambda: get(pools_path + "/pool/parent") == "parent")
         wait(lambda: get(pools_path + "/pool/max_operation_count") == 10)
+
+class TestNodeMultipleUnregistrations(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 2
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "node_heartbeat_timeout": 10000
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "lease_transaction_timeout": 10000,
+            "lease_transaction_ping_period": 10000,
+            "register_timeout": 10000,
+            "incremental_heartbeat_timeout": 10000,
+            "full_heartbeat_timeout": 10000,
+            "job_heartbeat_timeout": 10000,
+        }
+    }
+
+    @authors("ignat")
+    def test_scheduler_node_removal(self):
+        nodes = ls("//sys/nodes")
+        assert len(nodes) == 2
+
+        node = "localhost:" + str(self.Env.configs["node"][0]["rpc_port"])
+        assert node in nodes
+
+        create("table", "//tmp/t1", attributes={"replication_factor": 2})
+        write_table("//tmp/t1", [{"foo": i} for i in range(4)])
+        create("table", "//tmp/t2")
+        create("table", "//tmp/t3")
+
+        def start_op():
+            tag = str(random.randint(0, 1000000))
+            op = map(
+                dont_track=True,
+                command=with_breakpoint("BREAKPOINT", tag),
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                spec={"data_size_per_job": 1})
+            jobs = wait_breakpoint(tag, job_count=2)
+            release_breakpoint(breakpoint_name=tag, job_id=jobs[0])
+            release_breakpoint(breakpoint_name=tag, job_id=jobs[1])
+            time.sleep(5)
+            wait(lambda: op.get_job_count("running") == 2)
+            wait_breakpoint(tag)
+            op.tag = tag
+            return op
+
+        op = start_op()
+        with Restarter(self.Env, NODES_SERVICE, [0]):
+            wait(lambda: get("//sys/nodes/{}/@state".format(node)) == "offline")
+            wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)) == "offline")
+            wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "offline")
+            release_breakpoint(op.tag)
+            wait(lambda: get(op.get_path() + "/@state") == "completed")
+
+        op = start_op()
+        with Restarter(self.Env, NODES_SERVICE, [0]):
+            wait(lambda: get("//sys/nodes/{}/@state".format(node)) == "offline")
+            wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)) == "offline")
+            wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "offline")
+            release_breakpoint(op.tag)
+            wait(lambda: get(op.get_path() + "/@state") == "completed")
+
+        op = start_op()
+        set("//sys/scheduler/config/max_offline_node_age", 20000)
+        with Restarter(self.Env, NODES_SERVICE, [0]):
+            wait(lambda: get("//sys/nodes/{}/@state".format(node)) == "offline")
+            wait(lambda: not exists("//sys/scheduler/orchid/scheduler/nodes/{}".format(node)))
+            release_breakpoint(op.tag)
+            wait(lambda: get(op.get_path() + "/@state") == "completed")
+
+        op = start_op()
+        release_breakpoint(op.tag)
+        wait(lambda: get(op.get_path() + "/@state") == "completed")
