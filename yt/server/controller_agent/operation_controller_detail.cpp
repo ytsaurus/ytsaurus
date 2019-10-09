@@ -5322,6 +5322,12 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                         path,
                         tabletState);
                 }
+
+                if (UserTransactionId) {
+                    THROW_ERROR_EXCEPTION(
+                        "Operations with output to dynamic tables cannot be run under user transaction")
+                        << TErrorAttribute("user_transaction_id", UserTransactionId);
+                }
             }
 
             if (table->TableUploadOptions.TableSchema.IsSorted()) {

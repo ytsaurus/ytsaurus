@@ -739,6 +739,22 @@ class TestBulkInsert(DynamicTablesBase):
         chunk_id = get("//tmp/t_output/@chunk_ids/0")
         assert block_size - 50 < get("#{}/@max_block_size".format(chunk_id)) < block_size + 50
 
+    def test_no_user_transaction(self):
+        sync_create_cells(1)
+        create("table", "//tmp/t_input")
+        self._create_simple_dynamic_table("//tmp/t_output")
+        sync_mount_table("//tmp/t_output")
+
+        write_table("//tmp/t_input", [{"key": 1, "value": "1"}])
+
+        tx = start_transaction(timeout=60000)
+        with pytest.raises(YtError):
+            map(
+                in_="//tmp/t_input",
+                out="<append=%true>//tmp/t_output",
+                command="cat",
+                tx=tx)
+
 ##################################################################
 
 @authors("ifsmirnov")
