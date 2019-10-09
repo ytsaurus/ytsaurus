@@ -257,7 +257,7 @@ public:
         if (enableBatching) {
             return GetOrCreateSyncBatcher(cellId)->Run();
         } else {
-            return DoSyncWithCore(cellId);
+            return DoSyncWithCore(cellId).ToImmediatelyCancelable();
         }
     }
 
