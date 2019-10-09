@@ -945,8 +945,8 @@ void TClient::DoConcatenateNodes(
         }
 
         // Get source chunk ids.
-        // Maps src object -> list of chunk ids for this src.
-        THashMap<const TUserObject*, std::vector<TChunkId>> chunkIdsMap;
+        // Maps src object index -> list of chunk ids for this src.
+        std::vector<std::vector<TChunkId>> chunkIdsPerSrc(srcObjects.size());
         {
             THashMap<TCellTag, std::vector<const TUserObject*>> srcExternalCellTagMap;
             for (const auto& srcObject : srcObjects) {
@@ -975,7 +975,8 @@ void TClient::DoConcatenateNodes(
                     const auto& rsp = rspOrError.Value();
                     const auto* srcObject = std::any_cast<const TUserObject*>(rsp->Tag());
                     for (const auto& chunk : rsp->chunks()) {
-                        chunkIdsMap[srcObject].push_back(FromProto<TChunkId>(chunk.chunk_id()));
+                        auto srcIndex = srcObject - srcObjects.data();
+                        chunkIdsPerSrc[srcIndex].push_back(FromProto<TChunkId>(chunk.chunk_id()));
                     }
                 }
             }
@@ -1014,7 +1015,7 @@ void TClient::DoConcatenateNodes(
 
         // Flatten chunk ids.
         std::vector<TChunkId> flatChunkIds;
-        for (const auto& [srcObject, chunkIds] : chunkIdsMap) {
+        for (const auto& chunkIds : chunkIdsPerSrc) {
             flatChunkIds.insert(flatChunkIds.end(), chunkIds.begin(), chunkIds.end());
         }
 
