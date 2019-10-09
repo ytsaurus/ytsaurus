@@ -43,6 +43,9 @@ public:
     //! Maximum time to wait before syncing with another instance.
     TDuration SyncDelay;
 
+    //! Maximum time to wait before syncing with another instance.
+    TDuration SyncTimeout;
+
     THiveManagerConfig()
     {
         RegisterParameter("ping_period", PingPeriod)
@@ -65,6 +68,8 @@ public:
             .Default(TDuration::Seconds(3));
         RegisterParameter("sync_delay", SyncDelay)
             .Default(TDuration::MilliSeconds(10));
+        RegisterParameter("sync_delay", SyncTimeout)
+            .Default(TDuration::Seconds(30));
     }
 };
 
