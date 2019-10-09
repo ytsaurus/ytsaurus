@@ -53,6 +53,7 @@ protected:
         NYTAlloc::SetLibunwindBacktraceProvider();
         NYTAlloc::ConfigureFromEnv();
         NYTAlloc::EnableStockpile();
+        NYTAlloc::MlockallCurrentProcess();
 
         google::protobuf::internal::SetProto3PreserveUnknownsDefault(true);
 

@@ -16,11 +16,6 @@ using namespace NYT::NYPath;
 
 namespace {
 
-// TODO(babenko): Move to YT.
-static const TString TimestampColumnName = "$timestamp";
-static const TString TabletIndexColumnName = "$tablet_index";
-static const TString RowIndexColumnName = "$row_index";
-
 TString GetTimestampQueryString(const TYPath& tablePath, i64 tabletIndex, i64 rowIndex)
 {
     return Format("[%v] from [%v] where [%v] = %v and [%v] = %v",

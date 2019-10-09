@@ -8,10 +8,12 @@ TPodDisruptionBudget::TPodDisruptionBudget(
     TObjectId id,
     NYT::NYson::TYsonString labels,
     TObjectId uuid,
-    NClient::NApi::NProto::TPodDisruptionBudgetSpec spec)
+    NClient::NApi::NProto::TPodDisruptionBudgetSpec spec,
+    NClient::NApi::NProto::TPodDisruptionBudgetStatus status)
     : TObject(std::move(id), std::move(labels))
     , Uuid_(std::move(uuid))
     , Spec_(std::move(spec))
+    , Status_(std::move(status))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

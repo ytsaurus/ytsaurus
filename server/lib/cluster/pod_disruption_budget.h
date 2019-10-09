@@ -22,10 +22,12 @@ public:
         TObjectId id,
         NYT::NYson::TYsonString labels,
         TObjectId uuid,
-        NClient::NApi::NProto::TPodDisruptionBudgetSpec spec);
+        NClient::NApi::NProto::TPodDisruptionBudgetSpec spec,
+        NClient::NApi::NProto::TPodDisruptionBudgetStatus status);
 
     DEFINE_BYREF_RO_PROPERTY(TObjectId, Uuid);
     DEFINE_BYREF_RO_PROPERTY(NClient::NApi::NProto::TPodDisruptionBudgetSpec, Spec);
+    DEFINE_BYREF_RO_PROPERTY(NClient::NApi::NProto::TPodDisruptionBudgetStatus, Status);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
