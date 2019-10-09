@@ -776,79 +776,77 @@ void TClient::DoConcatenateNodes(
     bool append = dstPath.GetAppend();
 
     try {
-        // Get objects ids.
-        std::vector<TObjectId> srcIds;
-        TCellTagList srcCellTags;
-        TObjectId dstId;
-        TCellTag dstNativeCellTag;
-        TCellTag dstExternalCellTag;
+        std::vector<TUserObject> srcObjects;
+        for (const auto& srcPath : srcPaths) {
+            srcObjects.emplace_back(srcPath);
+        }
+
+        TUserObject dstObject(dstPath);
+
         std::unique_ptr<IOutputSchemaInferer> outputSchemaInferer;
         std::vector<TSecurityTag> inferredSecurityTags;
         {
             auto proxy = CreateReadProxy<TObjectServiceProxy>(TMasterReadOptions());
             auto batchReq = proxy->ExecuteBatch();
 
-            for (const auto& path : srcPaths) {
-                auto req = TObjectYPathProxy::GetBasicAttributes(path.GetPath());
+            for (auto& srcObject : srcObjects) {
+                auto req = TObjectYPathProxy::GetBasicAttributes(srcObject.GetPath());
                 req->set_populate_security_tags(true);
+                req->Tag() = &srcObject;
                 SetTransactionId(req, options, true);
                 batchReq->AddRequest(req, "get_src_attributes");
             }
 
             {
-                auto req = TObjectYPathProxy::GetBasicAttributes(simpleDstPath);
+                auto req = TObjectYPathProxy::GetBasicAttributes(dstObject.GetPath());
+                req->Tag() = &dstObject;
                 SetTransactionId(req, options, true);
                 batchReq->AddRequest(req, "get_dst_attributes");
             }
 
             auto batchRspOrError = WaitFor(batchReq->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error getting basic attributes of inputs and outputs");
+            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error getting basic attributes of inputs and outputs");
             const auto& batchRsp = batchRspOrError.Value();
 
             std::optional<EObjectType> commonType;
             std::optional<TString> pathWithCommonType;
-            auto checkType = [&] (EObjectType type, const TYPath& path) {
+            auto checkType = [&] (const TUserObject& object) {
+                auto type = TypeFromId(object.ObjectId);
                 if (type != EObjectType::Table && type != EObjectType::File) {
                     THROW_ERROR_EXCEPTION("Type of %v must be either %Qlv or %Qlv",
-                        path,
+                        object.GetPath(),
                         EObjectType::Table,
                         EObjectType::File);
                 }
                 if (commonType && *commonType != type) {
                     THROW_ERROR_EXCEPTION("Type of %v (%Qlv) must be the same as type of %v (%Qlv)",
-                        path,
+                        object.GetPath(),
                         type,
                         *pathWithCommonType,
                         *commonType);
                 }
                 commonType = type;
-                pathWithCommonType = path;
+                pathWithCommonType = object.GetPath();
             };
 
             {
                 auto rspsOrError = batchRsp->GetResponses<TObjectYPathProxy::TRspGetBasicAttributes>("get_src_attributes");
-                for (int srcIndex = 0; srcIndex < srcPaths.size(); ++srcIndex) {
-                    const auto& srcPath = srcPaths[srcIndex];
-                    THROW_ERROR_EXCEPTION_IF_FAILED(rspsOrError[srcIndex], "Error getting attributes of %v",
-                        srcPath.GetPath());
-                    const auto& rsp = rspsOrError[srcIndex].Value();
+                for (const auto& rspOrError : rspsOrError) {
+                    const auto& rsp = rspOrError.Value();
+                    auto* srcObject = std::any_cast<TUserObject*>(rsp->Tag());
 
-                    auto id = FromProto<TObjectId>(rsp->object_id());
-                    srcIds.push_back(id);
-
-                    auto externalCellTag = rsp->external_cell_tag();
-                    srcCellTags.push_back(externalCellTag);
-
-                    auto securityTags = FromProto<std::vector<TSecurityTag>>(rsp->security_tags().items());
-                    inferredSecurityTags.insert(inferredSecurityTags.end(), securityTags.begin(), securityTags.end());
+                    srcObject->ObjectId = FromProto<TObjectId>(rsp->object_id());
+                    srcObject->ExternalCellTag = rsp->external_cell_tag();
+                    srcObject->SecurityTags = FromProto<std::vector<TSecurityTag>>(rsp->security_tags().items());
+                    inferredSecurityTags.insert(inferredSecurityTags.end(), srcObject->SecurityTags.begin(), srcObject->SecurityTags.end());
 
                     YT_LOG_DEBUG("Source table attributes received (Path: %v, ObjectId: %v, ExternalCellTag: %v, SecurityTags: %v)",
-                        srcPath.GetPath(),
-                        id,
-                        externalCellTag,
-                        securityTags);
+                        srcObject->GetPath(),
+                        srcObject->ObjectId,
+                        srcObject->ExternalCellTag,
+                        srcObject->SecurityTags);
 
-                    checkType(TypeFromId(id), srcPath.GetPath());
+                    checkType(*srcObject);
                 }
             }
 
@@ -858,25 +856,26 @@ void TClient::DoConcatenateNodes(
 
             {
                 auto rspsOrError = batchRsp->GetResponses<TObjectYPathProxy::TRspGetBasicAttributes>("get_dst_attributes");
-                THROW_ERROR_EXCEPTION_IF_FAILED(rspsOrError[0], "Error getting attributes of %v",
-                    simpleDstPath);
+                YT_VERIFY(rspsOrError.size() == 1);
                 const auto& rsp = rspsOrError[0].Value();
+                auto* dstObject = std::any_cast<TUserObject*>(rsp->Tag());
 
-                dstId = FromProto<TObjectId>(rsp->object_id());
-                dstNativeCellTag = CellTagFromId(dstId);
+                dstObject->ObjectId = FromProto<TObjectId>(rsp->object_id());
+                dstObject->ExternalCellTag = rsp->external_cell_tag();
 
                 YT_LOG_DEBUG("Destination table attributes received (Path: %v, ObjectId: %v, ExternalCellTag: %v)",
-                    simpleDstPath,
-                    dstId,
-                    dstExternalCellTag);
+                    dstObject->GetPath(),
+                    dstObject->ObjectId,
+                    dstObject->GetObjectIdPath());
 
-                checkType(TypeFromId(dstId), simpleDstPath);
+                checkType(*dstObject);
             }
 
             // Check table schemas.
             if (*commonType == EObjectType::Table) {
-                auto createGetSchemaRequest = [&] (TObjectId objectId) {
-                    auto req = TYPathProxy::Get(FromObjectId(objectId) + "/@");
+                auto createGetSchemaRequest = [&] (const TUserObject& object) {
+                    auto req = TYPathProxy::Get(object.GetObjectIdPath() + "/@");
+                    AddCellTagToSyncWith(req, object.ObjectId);
                     SetTransactionId(req, options, true);
                     req->mutable_attributes()->add_keys("schema");
                     req->mutable_attributes()->add_keys("schema_mode");
@@ -888,28 +887,25 @@ void TClient::DoConcatenateNodes(
                     auto proxy = CreateReadProxy<TObjectServiceProxy>(TMasterReadOptions());
                     auto getSchemasReq = proxy->ExecuteBatch();
                     {
-                        auto req = createGetSchemaRequest(dstId);
+                        auto req = createGetSchemaRequest(dstObject);
                         getSchemasReq->AddRequest(req, "get_dst_schema");
                     }
-                    for (auto id : srcIds) {
-                        auto req = createGetSchemaRequest(id);
+                    for (const auto& srcObject : srcObjects) {
+                        auto req = createGetSchemaRequest(srcObject);
                         getSchemasReq->AddRequest(req, "get_src_schema");
                     }
 
-                    auto batchResponseOrError = WaitFor(getSchemasReq->Invoke());
-                    THROW_ERROR_EXCEPTION_IF_FAILED(batchResponseOrError, "Error fetching table schemas");
+                    auto batchRspOrError = WaitFor(getSchemasReq->Invoke());
+                    THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error fetching table schemas");
 
-                    getSchemasRsp = batchResponseOrError.Value();
+                    getSchemasRsp = batchRspOrError.Value();
                 }
 
                 {
                     const auto& rspOrErrorList = getSchemasRsp->GetResponses<TYPathProxy::TRspGet>("get_dst_schema");
                     YT_VERIFY(rspOrErrorList.size() == 1);
-                    const auto& rspOrError = rspOrErrorList[0];
-                    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching schema for %v",
-                        simpleDstPath);
+                    const auto& rsp = rspOrErrorList[0].Value();
 
-                    const auto& rsp = rspOrError.Value();
                     const auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
                     const auto schema = attributes->Get<TTableSchema>("schema");
                     const auto schemaMode = attributes->Get<ETableSchemaMode>("schema_mode");
@@ -917,14 +913,14 @@ void TClient::DoConcatenateNodes(
                         case ETableSchemaMode::Strong:
                             if (schema.IsSorted()) {
                                 THROW_ERROR_EXCEPTION("Destination path %v has sorted schema, concatenation into sorted table is not supported",
-                                    simpleDstPath);
+                                    dstObject.GetPath());
                             }
-                            outputSchemaInferer = CreateSchemaCompatibilityChecker(simpleDstPath, schema);
+                            outputSchemaInferer = CreateSchemaCompatibilityChecker(dstObject.GetPath(), schema);
                             break;
                         case ETableSchemaMode::Weak:
                             outputSchemaInferer = CreateOutputSchemaInferer();
                             if (append) {
-                                outputSchemaInferer->AddInputTableSchema(simpleDstPath, schema, schemaMode);
+                                outputSchemaInferer->AddInputTableSchema(dstObject.GetPath(), schema, schemaMode);
                             }
                             break;
                         default:
@@ -933,62 +929,52 @@ void TClient::DoConcatenateNodes(
                 }
 
                 {
-                    const auto& rspOrErrorList = getSchemasRsp->GetResponses<TYPathProxy::TRspGet>("get_src_schema");
-                    YT_VERIFY(rspOrErrorList.size() == srcPaths.size());
-                    for (size_t i = 0; i < rspOrErrorList.size(); ++i) {
-                        const auto& path = srcPaths[i];
-                        const auto& rspOrError = rspOrErrorList[i];
-                        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching schema for %v",
-                            path.GetPath());
-
+                    const auto& rspOrErrors = getSchemasRsp->GetResponses<TYPathProxy::TRspGet>("get_src_schema");
+                    YT_VERIFY(rspOrErrors.size() == srcPaths.size());
+                    for (const auto& rspOrError : rspOrErrors) {
                         const auto& rsp = rspOrError.Value();
+                        auto* srcObject = std::any_cast<TUserObject*>(rsp->Tag());
                         const auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
                         const auto schema = attributes->Get<TTableSchema>("schema");
                         const auto schemaMode = attributes->Get<ETableSchemaMode>("schema_mode");
-                        outputSchemaInferer->AddInputTableSchema(path.GetPath(), schema, schemaMode);
+                        outputSchemaInferer->AddInputTableSchema(srcObject->GetPath(), schema, schemaMode);
                     }
                 }
             }
         }
 
         // Get source chunk ids.
-        // Maps src index -> list of chunk ids for this src.
-        std::vector<std::vector<TChunkId>> groupedChunkIds(srcPaths.size());
+        // Maps src object -> list of chunk ids for this src.
+        THashMap<const TUserObject*, std::vector<TChunkId>> chunkIdsMap;
         {
-            THashMap<TCellTag, std::vector<int>> cellTagToIndexes;
-            for (int srcIndex = 0; srcIndex < srcCellTags.size(); ++srcIndex) {
-                cellTagToIndexes[srcCellTags[srcIndex]].push_back(srcIndex);
+            THashMap<TCellTag, std::vector<const TUserObject*>> srcExternalCellTagMap;
+            for (const auto& srcObject : srcObjects) {
+                srcExternalCellTagMap[srcObject.ExternalCellTag].push_back(&srcObject);
             }
 
-            for (const auto& [srcCellTag, srcIndexes] : cellTagToIndexes) {
-                auto proxy = CreateReadProxy<TObjectServiceProxy>(TMasterReadOptions(), srcCellTag);
+            for (const auto& [srcExternalCellTag, thisCellSrcObjects] : srcExternalCellTagMap) {
+                auto proxy = CreateReadProxy<TObjectServiceProxy>(TMasterReadOptions(), srcExternalCellTag);
                 auto batchReq = proxy->ExecuteBatch();
 
-                for (int localIndex = 0; localIndex < srcIndexes.size(); ++localIndex) {
-                    int srcIndex = srcIndexes[localIndex];
-                    auto srcId = srcIds[srcIndex];
-                    auto req = TChunkOwnerYPathProxy::Fetch(FromObjectId(srcId));
-                    AddCellTagToSyncWith(req, srcId);
+                for (const auto* srcObject : thisCellSrcObjects) {
+                    auto req = TChunkOwnerYPathProxy::Fetch(srcObject->GetObjectIdPath());
+                    AddCellTagToSyncWith(req, srcObject->ObjectId);
+                    req->Tag() = srcObject;
                     SetTransactionId(req, options, true);
                     ToProto(req->mutable_ranges(), std::vector<TReadRange>{TReadRange()});
                     batchReq->AddRequest(req, "fetch");
                 }
 
                 auto batchRspOrError = WaitFor(batchReq->Invoke());
-                THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error fetching inputs");
+                THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error fetching input chunks");
 
                 const auto& batchRsp = batchRspOrError.Value();
                 auto rspsOrError = batchRsp->GetResponses<TChunkOwnerYPathProxy::TRspFetch>("fetch");
-                for (int localIndex = 0; localIndex < srcIndexes.size(); ++localIndex) {
-                    int srcIndex = srcIndexes[localIndex];
-                    const auto& rspOrError = rspsOrError[localIndex];
-                    const auto& path = srcPaths[srcIndex];
-                    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching %v",
-                        path.GetPath());
+                for (const auto& rspOrError : rspsOrError) {
                     const auto& rsp = rspOrError.Value();
-
+                    const auto* srcObject = std::any_cast<const TUserObject*>(rsp->Tag());
                     for (const auto& chunk : rsp->chunks()) {
-                        groupedChunkIds[srcIndex].push_back(FromProto<TChunkId>(chunk.chunk_id()));
+                        chunkIdsMap[srcObject].push_back(FromProto<TChunkId>(chunk.chunk_id()));
                     }
                 }
             }
@@ -996,11 +982,10 @@ void TClient::DoConcatenateNodes(
 
         // Begin upload.
         TTransactionId uploadTransactionId;
-        const auto dstIdPath = FromObjectId(dstId);
         {
-            auto proxy = CreateWriteProxy<TObjectServiceProxy>(dstNativeCellTag);
+            auto proxy = CreateWriteProxy<TObjectServiceProxy>(CellTagFromId(dstObject.ObjectId));
 
-            auto req = TChunkOwnerYPathProxy::BeginUpload(dstIdPath);
+            auto req = TChunkOwnerYPathProxy::BeginUpload(dstObject.GetObjectIdPath());
             req->set_update_mode(static_cast<int>(append ? EUpdateMode::Append : EUpdateMode::Overwrite));
             req->set_lock_mode(static_cast<int>(append ? ELockMode::Shared : ELockMode::Exclusive));
             req->set_upload_transaction_title(Format("Concatenating %v to %v",
@@ -1019,7 +1004,6 @@ void TClient::DoConcatenateNodes(
             const auto& rsp = rspOrError.Value();
 
             uploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
-            dstExternalCellTag = rsp->cell_tag();
         }
 
         auto uploadTransaction = TransactionManager_->Attach(uploadTransactionId, TTransactionAttachOptions{
@@ -1029,8 +1013,8 @@ void TClient::DoConcatenateNodes(
 
         // Flatten chunk ids.
         std::vector<TChunkId> flatChunkIds;
-        for (const auto& ids : groupedChunkIds) {
-            flatChunkIds.insert(flatChunkIds.end(), ids.begin(), ids.end());
+        for (const auto& [srcObject, chunkIds] : chunkIdsMap) {
+            flatChunkIds.insert(flatChunkIds.end(), chunkIds.begin(), chunkIds.end());
         }
 
         // Teleport chunks.
@@ -1043,7 +1027,7 @@ void TClient::DoConcatenateNodes(
                 Logger);
 
             for (auto chunkId : flatChunkIds) {
-                teleporter->RegisterChunk(chunkId, dstExternalCellTag);
+                teleporter->RegisterChunk(chunkId, dstObject.ExternalCellTag);
             }
 
             WaitFor(teleporter->Run())
@@ -1053,9 +1037,9 @@ void TClient::DoConcatenateNodes(
         // Get upload params.
         TChunkListId chunkListId;
         {
-            auto proxy = CreateWriteProxy<TObjectServiceProxy>(dstExternalCellTag);
+            auto proxy = CreateWriteProxy<TObjectServiceProxy>(dstObject.ExternalCellTag);
 
-            auto req = TChunkOwnerYPathProxy::GetUploadParams(dstIdPath);
+            auto req = TChunkOwnerYPathProxy::GetUploadParams(dstObject.GetObjectIdPath());
             NCypressClient::SetTransactionId(req, uploadTransactionId);
 
             auto rspOrError = WaitFor(proxy->Execute(req));
@@ -1069,7 +1053,7 @@ void TClient::DoConcatenateNodes(
         // Attach chunks to chunk list.
         TDataStatistics dataStatistics;
         {
-            auto proxy = CreateWriteProxy<TChunkServiceProxy>(dstExternalCellTag);
+            auto proxy = CreateWriteProxy<TChunkServiceProxy>(dstObject.ExternalCellTag);
 
             auto batchReq = proxy->ExecuteBatch();
             NRpc::GenerateMutationId(batchReq);
@@ -1091,9 +1075,9 @@ void TClient::DoConcatenateNodes(
 
         // End upload.
         {
-            auto proxy = CreateWriteProxy<TObjectServiceProxy>(dstNativeCellTag);
+            auto proxy = CreateWriteProxy<TObjectServiceProxy>(CellTagFromId(dstObject.ObjectId));
 
-            auto req = TChunkOwnerYPathProxy::EndUpload(dstIdPath);
+            auto req = TChunkOwnerYPathProxy::EndUpload(dstObject.GetObjectIdPath());
             *req->mutable_statistics() = dataStatistics;
             if (outputSchemaInferer) {
                 ToProto(req->mutable_table_schema(), outputSchemaInferer->GetOutputTableSchema());
