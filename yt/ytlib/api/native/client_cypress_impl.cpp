@@ -875,7 +875,6 @@ void TClient::DoConcatenateNodes(
             if (*commonType == EObjectType::Table) {
                 auto createGetSchemaRequest = [&] (const TUserObject& object) {
                     auto req = TYPathProxy::Get(object.GetObjectIdPath() + "/@");
-                    req->Tag() = &object;
                     AddCellTagToSyncWith(req, object.ObjectId);
                     SetTransactionId(req, options, true);
                     req->mutable_attributes()->add_keys("schema");
@@ -934,7 +933,7 @@ void TClient::DoConcatenateNodes(
                     YT_VERIFY(rspOrErrors.size() == srcPaths.size());
                     for (const auto& rspOrError : rspOrErrors) {
                         const auto& rsp = rspOrError.Value();
-                        auto* srcObject = std::any_cast<const TUserObject*>(rsp->Tag());
+                        auto* srcObject = std::any_cast<TUserObject*>(rsp->Tag());
                         const auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
                         const auto schema = attributes->Get<TTableSchema>("schema");
                         const auto schemaMode = attributes->Get<ETableSchemaMode>("schema_mode");
