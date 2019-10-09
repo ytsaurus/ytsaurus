@@ -1263,7 +1263,7 @@ class TestClickHouseAccess(ClickHouseTestBase):
                 clique.make_query("select * from \"//tmp/t\"", user="u")
 
         with Clique(1,
-                    config_patch={"validate_operation_access": True},
+                    config_patch={"validate_operation_access": True, "operation_acl_update_period": 100},
                     spec={
                         "acl": [{
                             "subjects": ["u"],
@@ -1272,6 +1272,10 @@ class TestClickHouseAccess(ClickHouseTestBase):
                         }]
                     }) as clique:
             assert len(clique.make_query("select * from \"//tmp/t\"", user="u")) == 1
+            update_op_parameters(clique.op.id, parameters={"acl": []})
+            time.sleep(1)
+            with pytest.raises(YtError):
+                clique.make_query("select * from \"//tmp/t\"", user="u")
 
 
 class TestQueryLog(ClickHouseTestBase):
