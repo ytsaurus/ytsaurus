@@ -68,7 +68,7 @@ public:
             .Default(TDuration::Seconds(3));
         RegisterParameter("sync_delay", SyncDelay)
             .Default(TDuration::MilliSeconds(10));
-        RegisterParameter("sync_delay", SyncTimeout)
+        RegisterParameter("sync_timeout", SyncTimeout)
             .Default(TDuration::Seconds(30));
     }
 };
