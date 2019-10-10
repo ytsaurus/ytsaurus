@@ -2,9 +2,9 @@
 
 #include "skiff_validator.h"
 
-#include <util/system/unaligned_mem.h>
-
 #include <yt/core/misc/error.h>
+
+#include <util/system/unaligned_mem.h>
 
 namespace NYT::NSkiff {
 
