@@ -27,8 +27,8 @@ SET(YT_TEST_SRCS
     test_module.py
     test_operations.py
     test_parse_ypath.py
-    test_spec_builders.py
     test_random_sample.py
+    test_spec_builders.py
     test_table_commands.py
     test_thread_pool.py
     test_user_statistics.py
