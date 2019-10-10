@@ -41,6 +41,7 @@ public:
 
     void loadTables(
         Context& context,
+        ThreadPool* thread_pool,
         bool hasForceRestoreDataFlag) override;
 
     bool isTableExist(
@@ -134,6 +135,7 @@ std::string TDatabase::getEngineName() const
 
 void TDatabase::loadTables(
     Context& /* context */,
+    ThreadPool* /* thread_pool */,
     bool /* hasForceRestoreDataFlag */)
 {
     // nothing to do
