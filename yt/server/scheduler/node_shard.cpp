@@ -1430,7 +1430,6 @@ void TNodeShard::OnNodeRegistrationLeaseExpired(TNodeId nodeId)
     if (it == IdToNode_.end()) {
         return;
     }
-
     auto node = it->second;
 
     YT_LOG_INFO("Node lease expired, unregistering (Address: %v)",
@@ -1448,8 +1447,10 @@ void TNodeShard::OnNodeRegistrationLeaseExpired(TNodeId nodeId)
 void TNodeShard::OnNodeHeartbeatLeaseExpired(TNodeId nodeId)
 {
     auto it = IdToNode_.find(nodeId);
-    YT_VERIFY(it != IdToNode_.end());
-    const auto& node = it->second;
+    if (it == IdToNode_.end()) {
+        return;
+    }
+    auto node = it->second;
 
     // We intentionally do not abort jobs here, it will happen when RegistrationLease expired or
     // at node attributes update by separate timeout.
