@@ -27,7 +27,9 @@ public:
 
     virtual void Shutdown() override;
 
+    //! Return invoker over "ChunkReader:*" thread pool. NB: this is not a serialized invoker.
     IInvokerPtr GetReaderInvoker();
+    //! Return invoker over "ChunkWriter" thread.
     IInvokerPtr GetWriterInvoker();
 
 private:

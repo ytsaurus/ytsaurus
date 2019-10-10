@@ -32,21 +32,9 @@ class TBlockFetcher
 public:
     struct TBlockInfo
     {
-        int Index;
-        int UncompressedDataSize;
-        int Priority;
-
-        TBlockInfo()
-            : Index(-1)
-            , UncompressedDataSize(0)
-            , Priority(0)
-        { }
-
-        TBlockInfo(int index, int uncompressedDataSize, int priority)
-            : Index(index)
-            , UncompressedDataSize(uncompressedDataSize)
-            , Priority(priority)
-        { }
+        int Index = -1;
+        i64 UncompressedDataSize = 0;
+        int Priority = 0;
     };
 
     TBlockFetcher(
@@ -87,6 +75,7 @@ private:
     const IChunkReaderPtr ChunkReader_;
     const IBlockCachePtr BlockCache_;
     const IInvokerPtr CompressionInvoker_;
+    const IInvokerPtr ReaderInvoker_;
     const double CompressionRatio_;
     const NConcurrency::TAsyncSemaphorePtr AsyncSemaphore_;
     NCompression::ICodec* const Codec_;

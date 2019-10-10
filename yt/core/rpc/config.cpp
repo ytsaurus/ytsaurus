@@ -23,9 +23,4 @@ const TThroughputThrottlerConfigPtr TMethodConfig::DefaultLoggingSuppressionFail
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const int TDispatcherConfig::DefaultHeavyPoolSize = 16;
-const int TDispatcherConfig::DefaultCompressionPoolSize = 8;
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NRpc

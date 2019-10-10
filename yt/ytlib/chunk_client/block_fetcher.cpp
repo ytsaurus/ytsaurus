@@ -39,6 +39,7 @@ TBlockFetcher::TBlockFetcher(
         : CreateFixedPriorityInvoker(
             NRpc::TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
             blockReadOptions.WorkloadDescriptor.GetPriority()))
+    , ReaderInvoker_(CreateSerializedInvoker(TDispatcher::Get()->GetReaderInvoker()))
     , CompressionRatio_(compressionRatio)
     , AsyncSemaphore_(std::move(asyncSemaphore))
     , Codec_(NCompression::GetCodec(codecId))
@@ -114,7 +115,7 @@ TBlockFetcher::TBlockFetcher(
 
     AsyncSemaphore_->AsyncAcquire(
         BIND(&TBlockFetcher::FetchNextGroup, MakeWeak(this)),
-        TDispatcher::Get()->GetReaderInvoker(),
+        ReaderInvoker_,
         std::min(TotalRemainingSize_.load(), Config_->GroupSize));
 }
 
@@ -149,7 +150,7 @@ TFuture<TBlock> TBlockFetcher::FetchBlock(int blockIndex)
             GetBlockPromise(windowSlot).Set(uncompressedBlock);
             TotalRemainingSize_ -= BlockInfos_[windowIndex].UncompressedDataSize;
         } else {
-            TDispatcher::Get()->GetReaderInvoker()->Invoke(
+            ReaderInvoker_->Invoke(
                 BIND(&TBlockFetcher::RequestBlocks,
                     MakeWeak(this),
                     std::vector<int> { windowIndex },
@@ -162,7 +163,7 @@ TFuture<TBlock> TBlockFetcher::FetchBlock(int blockIndex)
     auto returnValue = blockPromise.ToFuture();
     auto hasBlock = blockPromise.IsSet();
     if (--windowSlot.RemainingFetches == 0 && hasBlock) {
-        TDispatcher::Get()->GetReaderInvoker()->Invoke(
+        ReaderInvoker_->Invoke(
             BIND(&TBlockFetcher::ReleaseBlock,
                 MakeWeak(this),
                 windowIndex));
@@ -212,7 +213,7 @@ void TBlockFetcher::DecompressBlocks(
         auto& windowSlot = Window_[windowIndex];
         GetBlockPromise(windowSlot).Set(TBlock(uncompressedBlock));
         if (windowSlot.RemainingFetches == 0) {
-            TDispatcher::Get()->GetReaderInvoker()->Invoke(
+            ReaderInvoker_->Invoke(
                 BIND(&TBlockFetcher::ReleaseBlock,
                     MakeWeak(this),
                     windowIndex));
@@ -277,7 +278,7 @@ void TBlockFetcher::FetchNextGroup(TAsyncSemaphoreGuard asyncSemaphoreGuard)
     if (TotalRemainingSize_ > 0) {
         AsyncSemaphore_->AsyncAcquire(
             BIND(&TBlockFetcher::FetchNextGroup, MakeWeak(this)),
-            TDispatcher::Get()->GetReaderInvoker(),
+            ReaderInvoker_,
             std::min(TotalRemainingSize_.load(), Config_->GroupSize));
     }
 

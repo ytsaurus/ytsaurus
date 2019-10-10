@@ -10,6 +10,7 @@
 
 #include <yt/core/concurrency/rw_spinlock.h>
 #include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/action_queue.h>
 
 #include <util/random/shuffle.h>
 
@@ -77,6 +78,7 @@ private:
     TReaderWriterSpinLock IndicesLock_;
     std::vector<TCpuInstant> SlowReaderBanTimes_;
     TPeriodicExecutorPtr ExpirationTimesExecutor_;
+    IInvokerPtr ReaderInvoker_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -105,6 +107,7 @@ public:
         , EstimatedSize_(estimatedSize)
         , DataBlocksPlacementInParts_(BuildDataBlocksPlacementInParts(BlockIndexes_, PlacementExt_))
         , Reader_(reader)
+        , ReaderInvoker_(CreateSerializedInvoker(TDispatcher::Get()->GetReaderInvoker()))
     {
         if (Config_->EnableAutoRepair) {
             YT_VERIFY(Readers_.size() == Codec_->GetTotalPartCount());
@@ -116,7 +119,7 @@ public:
     TFuture<std::vector<TBlock>> Run()
     {
         return BIND(&TRepairingReaderSession::DoRun, MakeStrong(this))
-            .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
+            .AsyncVia(ReaderInvoker_)
             .Run();
     }
 
@@ -131,6 +134,7 @@ private:
     const std::optional<i64> EstimatedSize_;
     TDataBlocksPlacementInParts DataBlocksPlacementInParts_;
     TWeakPtr<TRepairingReader> Reader_;
+    IInvokerPtr ReaderInvoker_;
 
     std::vector<TBlock> DoRun()
     {
@@ -213,6 +217,7 @@ TRepairingReader::TRepairingReader(
     , Config_(config)
     , Logger(logger)
     , SlowReaderBanTimes_(codec->GetTotalPartCount(), TCpuInstant())
+    , ReaderInvoker_(CreateSerializedInvoker(TDispatcher::Get()->GetReaderInvoker()))
 {
     if (Config_->EnableAutoRepair) {
         for (int partIndex = 0; partIndex < Codec_->GetTotalPartCount(); ++partIndex) {
@@ -227,7 +232,7 @@ TRepairingReader::TRepairingReader(
         }
 
         ExpirationTimesExecutor_ = New<TPeriodicExecutor>(
-            TDispatcher::Get()->GetReaderInvoker(),
+            ReaderInvoker_,
             BIND(&TRepairingReader::CheckSlowReaders, MakeWeak(this)),
             Config_->SlowReaderExpirationTimeout
         );
@@ -254,7 +259,7 @@ TFuture<TRefCountedChunkMetaPtr> TRepairingReader::GetMeta(
         options,
         partitionTag,
         extensionTags)
-        .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
+        .AsyncVia(ReaderInvoker_)
         .Run();
 }
 
