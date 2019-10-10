@@ -109,16 +109,21 @@ class _OperationsTrackingThread(Thread):
                 def get_state(operation, client=client):
                     return get_operation_attributes(operation, fields=["state"], client=client)
 
-                op_states_raw = batch_apply(get_state, data, client)
-                cluster_to_states[proxy] = [OperationState(operation_state["state"]) for operation_state in op_states_raw]
+                try:
+                    op_states_raw = batch_apply(get_state, data, client)
+                except YtError:
+                    logger.exception("Failed to get operation states")
+                    cluster_to_states[proxy] = [None for op in cluster_to_operations[proxy]]
+                else:
+                    cluster_to_states[proxy] = [OperationState(operation_state["state"]) for operation_state in op_states_raw]
 
         with self._thread_lock:
             for proxy in cluster_to_operations:
                 for operation, state in zip(cluster_to_operations[proxy], cluster_to_states[proxy]):
                     self.processing_operations_count -= 1
-                    if self._print_progress:
+                    if self._print_progress and state is not None:
                         operation.printer(state)
-                    if state.is_finished():
+                    if state is not None and state.is_finished():
                         if state.is_unsuccessfully_finished():
                             self.errors.append(_create_operation_failed_error(operation, state))
                     else:
