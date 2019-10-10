@@ -2,6 +2,8 @@ import "google/protobuf/descriptor.proto";
 
 package NYT;
 
+option go_package = "a.yandex-team.ru/mapreduce/yt/interface/protos";
+
 // Declare the actual enum inside a message to restrict visibility of names.
 message ESerializationMode {
     enum Enum
