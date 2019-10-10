@@ -482,7 +482,7 @@ b"""
 
 def get_proxy_config():
     return yson.loads(
-"""
+b"""
 {
     port = -1;
     address = "::";
