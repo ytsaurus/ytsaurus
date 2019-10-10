@@ -2,6 +2,8 @@ import "mapreduce/yt/interface/protos/extension.proto";
 
 package NYT;
 
+option go_package = "a.yandex-team.ru/mapreduce/yt/interface/protos";
+
 message TYamr {
     optional string Key = 1    [(NYT.key_column_name) = "key"];
     optional string Subkey = 2 [(NYT.key_column_name) = "subkey"];
