@@ -623,7 +623,7 @@ func stateDecodeStringLength(s *scanner, c byte) opcode {
 	if c&0x80 == 0 {
 		var n int
 		s.binaryLength, n = binary.Varint(s.stringLength[0:s.varintSize])
-		if n != s.varintSize {
+		if n != s.varintSize || s.binaryLength < 0 {
 			return s.error(c, "in binary string length")
 		}
 
