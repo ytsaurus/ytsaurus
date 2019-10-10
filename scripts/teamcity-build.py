@@ -231,7 +231,10 @@ def ya_make_yt_store_args(options):
     ]
 
 def ya_make_args(options):
-    args = ["--build", options.ya_build_type]
+    args = [
+        "--build", options.ya_build_type,
+        "--dont-merge-split-tests",
+    ]
     if options.use_thinlto:
         args += ["--thinlto"]
     if options.ya_target_platform:
