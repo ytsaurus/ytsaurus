@@ -51,6 +51,14 @@ public class MountWaitTest {
         );
 
         yt.waitProxies().join();
+
+        while(!yt.getNode("//sys/tablet_cell_bundles/default/@health").join().stringValue().equals("good")) {
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     @Test
