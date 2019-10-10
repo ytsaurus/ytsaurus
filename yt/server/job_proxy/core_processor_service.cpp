@@ -60,7 +60,7 @@ public:
         , Client_(jobHost->GetClient())
         , AsyncSemaphore_(New<TAsyncSemaphore>(1 /* totalSlots */))
         , ControlInvoker_(controlInvoker)
-        , IOInvoker_(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
+        , IOInvoker_(CreateSerializedInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker()))
         , BlobTableWriterConfig_(blobTableWriterConfig)
         , TableWriterOptions_(tableWriterOptions)
         , Transaction_(transaction)

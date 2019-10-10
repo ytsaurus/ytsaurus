@@ -760,10 +760,10 @@ private:
             std::vector<TBlockFetcher::TBlockInfo> blocks;
             blocks.reserve(blockCount);
             for (int index = 0; index < blockCount; ++index) {
-                blocks.push_back(TBlockFetcher::TBlockInfo(
+                blocks.push_back(TBlockFetcher::TBlockInfo{
                     index,
                     blocksExt.blocks(index).size(),
-                    index /* priority */));
+                    index /* priority */});
             }
 
             auto asyncSemaphore = New<TAsyncSemaphore>(Config_->ArtifactCacheReader->WindowSize);
