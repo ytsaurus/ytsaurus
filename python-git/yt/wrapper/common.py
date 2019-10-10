@@ -26,9 +26,12 @@ try:
     from yt.packages.distro import linux_distribution
 except ImportError:
     try:
-        from platform import linux_distribution
-    except ImportError:
-        linux_distribution = None
+        from distro import linux_distribution
+    except:
+        try:
+            from platform import linux_distribution
+        except ImportError:
+            linux_distribution = None
 
 from multiprocessing.pool import ThreadPool
 from multiprocessing.dummy import (Process as DummyProcess,
