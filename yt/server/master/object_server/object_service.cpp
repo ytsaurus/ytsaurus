@@ -1257,7 +1257,7 @@ private:
         }
 
         // NB: Even if the user was just removed the instance is still valid but not alive.
-        if (IsObjectAlive(User_) && !EpochCancelableContext_->IsCanceled()) {
+        if (!EpochCancelableContext_->IsCanceled()) {
             securityManager->ChargeUser(User_, {EUserWorkloadType::Read, 1, timer.GetElapsedTime()});
         }
 
@@ -1677,7 +1677,7 @@ void TObjectService::OnUserCharged(TUser* user, const TUserWorkload& workload)
     auto* bucket = GetOrCreateBucket(user->GetName());
     // Just charge the bucket, do not reorder it in the heap.
     auto actualExcessTime = std::max(bucket->ExcessTime, ExcessBaseline_);
-    bucket->ExcessTime = actualExcessTime + workload.Time;
+    bucket->ExcessTime = actualExcessTime + workload.RequestTime;
 }
 
 void TObjectService::SetStickyUserError(const TString& userName, const TError& error)
