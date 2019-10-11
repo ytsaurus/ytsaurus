@@ -880,7 +880,7 @@ void TClient::DoConcatenateNodes(
                     auto req = TYPathProxy::Get(object.GetObjectIdPath() + "/@");
                     req->Tag() = &object;
                     AddCellTagToSyncWith(req, object.ObjectId);
-                    SetTransactionId(req, options, false);
+                    SetTransactionId(req, options, true);
                     req->mutable_attributes()->add_keys("schema");
                     req->mutable_attributes()->add_keys("schema_mode");
                     return req;
