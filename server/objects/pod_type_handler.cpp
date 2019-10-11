@@ -555,6 +555,10 @@ private:
 
         for (const auto& request : pod->Spec().Etc().Load().ip6_address_requests()) {
             validateNetworkProject(request.network_id());
+
+            for (const auto& virtualServiceId : request.virtual_service_ids()) {
+                ValidateObjectId(EObjectType::VirtualService, virtualServiceId);
+            }
         }
 
         for (const auto& request : pod->Spec().Etc().Load().ip6_subnet_requests()) {

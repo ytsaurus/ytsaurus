@@ -1,10 +1,20 @@
-from .conftest import ZERO_RESOURCE_REQUESTS
+from .conftest import (
+    ZERO_RESOURCE_REQUESTS,
+    create_nodes,
+    create_pod_set,
+    create_pod_with_boilerplate,
+)
 
-from yp.common import YtResponseError, YpNoSuchObjectError, wait
+from yp.common import (
+    YpInvalidObjectIdError,
+    YpNoSuchObjectError,
+    YtResponseError,
+    wait,
+)
 
 from yt.yson import YsonEntity
 
-from six.moves import xrange
+from yt.packages.six.moves import xrange
 
 import pytest
 
@@ -55,34 +65,12 @@ class TestNet(object):
                 "project_id": 123
             }
         })
-
-        pod_set_id = yp_client.create_object("pod_set", attributes={
-            "spec": {
-                "node_segment_id": "default"
-            }
-        })
-
-        node_id = yp_client.create_object("node", attributes={
-                "meta": {
-                    "id": "test"
-                },
-                "spec": {
-                    "ip6_subnets": [
-                        {"vlan_id": "somevlan", "subnet": "1:2:3:4::/64"}
-                    ],
-                }
-            })
-        yp_client.update_hfsm_state(node_id, "up", "Test")
-
-        spec["resource_requests"] = ZERO_RESOURCE_REQUESTS
-        pod_id = yp_client.create_object("pod", attributes={
-            "meta": {
-                "pod_set_id": pod_set_id
-            },
-            "spec": spec
-        })
-
-        return pod_id
+        node_id = "test"
+        vlan_id = "somevlan"
+        subnet = "1:2:3:4::/64"
+        create_nodes(yp_client, node_ids=[node_id], vlan_id=vlan_id, subnet=subnet)
+        pod_set_id = create_pod_set(yp_client)
+        return create_pod_with_boilerplate(yp_client, pod_set_id, spec=spec)
 
     def test_invalid_pod_vlan_id(self, yp_env):
         yp_client = yp_env.yp_client
@@ -454,6 +442,49 @@ class TestNet(object):
         })
 
         wait(lambda: not isinstance(yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/error"])[0], YsonEntity))
+
+    def test_invalid_virtual_service_id_in_pod_spec(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        yp_client.create_object("network_project", attributes={
+            "meta": {
+                "id": "somenet"
+            },
+            "spec": {
+                "project_id": 123
+            }
+        })
+
+        node_id = "test"
+        vlan_id = "somevlan"
+        subnet = "1:2:3:4::/64"
+        create_nodes(yp_client, node_ids=[node_id], vlan_id=vlan_id, subnet=subnet)
+
+        pod_set_id = create_pod_set(yp_client)
+
+        def create_pod(virtual_service_ids=None):
+            spec = dict(
+                ip6_address_requests=[
+                    dict(
+                        vlan_id="somevlan",
+                        network_id="somenet",
+                    ),
+                ],
+                enable_scheduling=True,
+            )
+
+            if virtual_service_ids is not None:
+                spec["ip6_address_requests"][0]["virtual_service_ids"] = virtual_service_ids
+
+            return create_pod_with_boilerplate(yp_client, pod_set_id, spec=spec)
+
+        # Check correctness of other parameters.
+        pod_id = create_pod()
+        yp_client.remove_object("pod", pod_id)
+
+        for virtual_service_id in ("/", "", "*"):
+            with pytest.raises(YpInvalidObjectIdError):
+                create_pod([virtual_service_id])
 
     def test_update_virtual_service_tunnel(self, yp_env):
         yp_client = yp_env.yp_client
