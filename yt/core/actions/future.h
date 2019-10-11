@@ -126,8 +126,8 @@ class TPromiseBase;
  *  for it or retrieving it explicitly (#Get, #TryGet). Also it is possible
  *  to move the value out of the future state (#SubscribeUnique, #GetUnique, #TryGetUnique).
  *  In the latter case, however, at most one extraction is possible;
- *  further attempts to access the value results in UB.
- *  In particular at most one call to #SubscribeUnique, #GetUnique, and #TryGetUnique (expect
+ *  further attempts to access the value will result in UB.
+ *  In particular, at most one call to #SubscribeUnique, #GetUnique, and #TryGetUnique (expect
  *  for calls returning null) must happen to any future state (possibly shared by multiple
  *  TFuture instances).
  */
@@ -196,7 +196,7 @@ public:
      */
     void Subscribe(TCallback<void(const TErrorOr<T>&)> handler) const;
 
-    //! Similar to #Subscribe by enables moving the value to the handler.
+    //! Similar to #Subscribe but enables moving the value to the handler.
     void SubscribeUnique(TCallback<void(TErrorOr<T>&&)> handler) const;
 
     //! Notifies the producer that the promised value is no longer needed.
