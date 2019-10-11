@@ -1393,6 +1393,7 @@ private:
     {
         NYson::TYsonString Progress;
         NYson::TYsonString BriefProgress;
+        NYson::TYsonString Alerts;
     };
 
     THashMap<TNodeId, TExecNodeInfo> NodeIdToInfo_;
@@ -1830,7 +1831,8 @@ private:
         const TOperationPtr& operation,
         ELogEventType logEventType,
         const TError& error,
-        TYsonString progress)
+        TYsonString progress,
+        TYsonString alerts)
     {
         LogEventFluently(logEventType)
             .Do(BIND(&TImpl::BuildOperationInfoForEventLog, MakeStrong(this), operation))
@@ -1839,6 +1841,9 @@ private:
             .Item("error").Value(error)
             .DoIf(progress.operator bool(), [&] (TFluentMap fluent) {
                 fluent.Item("progress").Value(progress);
+            })
+            .DoIf(alerts.operator bool(), [&] (TFluentMap fluent) {
+                fluent.Item("alerts").Value(alerts);
             });
     }
 
@@ -2769,7 +2774,12 @@ private:
         YT_LOG_INFO("Operation completed (OperationId: %v)",
              operationId);
 
-        LogOperationFinished(operation, ELogEventType::OperationCompleted, TError(), operationProgress.Progress);
+        LogOperationFinished(
+            operation,
+            ELogEventType::OperationCompleted,
+            TError(),
+            operationProgress.Progress,
+            operationProgress.Alerts);
     }
 
     void DoFailOperation(
@@ -2873,6 +2883,10 @@ private:
                     .BeginMap()
                         .Items(TYsonString(rsp->brief_progress(), EYsonType::MapFragment))
                     .EndMap();
+                result.Alerts = BuildYsonStringFluently()
+                    .BeginMap()
+                        .Items(TYsonString(rsp->alerts(), EYsonType::MapFragment))
+                    .EndMap();
                 return result;
             } else {
                 YT_LOG_INFO(rspOrError, "Failed to get operation info from controller agent (OperationId: %v)",
@@ -2889,6 +2903,7 @@ private:
                 TOperationProgress result;
                 result.Progress = attributes->FindYson("progress");
                 result.BriefProgress = attributes->FindYson("brief_progress");
+                result.Alerts = attributes->FindYson("alerts");
                 return result;
             } else {
                 YT_LOG_INFO(attributesOrError, "Failed to get operation progress from Cypress (OperationId: %v)",
@@ -2909,6 +2924,7 @@ private:
         archivationReq.InitializeFromOperation(operation);
         archivationReq.Progress = operationProgress.Progress;
         archivationReq.BriefProgress = operationProgress.BriefProgress;
+        archivationReq.Alerts = operationProgress.Alerts;
 
         OperationsCleaner_->SubmitForArchivation(std::move(archivationReq));
     }
@@ -3020,7 +3036,12 @@ private:
             }
         }
 
-        LogOperationFinished(operation, logEventType, error, operationProgress.Progress);
+        LogOperationFinished(
+            operation,
+            logEventType,
+            error,
+            operationProgress.Progress,
+            operationProgress.Alerts);
 
         FinishOperation(operation);
     }
@@ -3051,8 +3072,16 @@ private:
         auto progress = result.IsOK()
             ? result.Value().Progress
             : TYsonString();
+        auto alerts = result.IsOK()
+            ? result.Value().Alerts
+            : TYsonString();
 
-        LogOperationFinished(operation, ELogEventType::OperationCompleted, TError(), progress);
+        LogOperationFinished(
+            operation,
+            ELogEventType::OperationCompleted,
+            TError(),
+            progress,
+            alerts);
 
         FinishOperation(operation);
     }
@@ -3092,8 +3121,16 @@ private:
         auto progress = result.IsOK()
             ? result.Value().Progress
             : TYsonString();
+        auto alerts = result.IsOK()
+            ? result.Value().Alerts
+            : TYsonString();
 
-        LogOperationFinished(operation, ELogEventType::OperationAborted, error, progress);
+        LogOperationFinished(
+            operation,
+            ELogEventType::OperationAborted,
+            error,
+            progress,
+            alerts);
 
         FinishOperation(operation);
     }

@@ -6844,6 +6844,18 @@ TOperationInfo TOperationControllerBase::BuildOperationInfo()
             .Do(std::bind(&TOperationControllerBase::BuildBriefProgress, this, _1))
         .Finish();
 
+    result.Alerts =
+        BuildYsonStringFluently<EYsonType::MapFragment>()
+            .DoFor(GetAlerts(), [&] (TFluentMap fluent, const auto& pair) {
+                auto alertType = pair.first;
+                const auto& error = pair.second;
+                if (!error.IsOK()) {
+                    fluent
+                        .Item(FormatEnum(alertType)).Value(error);
+                }
+            })
+        .Finish();
+
     result.RunningJobs =
         BuildYsonStringFluently<EYsonType::MapFragment>()
             .Do(std::bind(&TOperationControllerBase::BuildJobsYson, this, _1))

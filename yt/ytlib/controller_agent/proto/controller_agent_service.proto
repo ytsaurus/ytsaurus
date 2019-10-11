@@ -44,6 +44,7 @@ message TRspGetOperationInfo
     required bytes job_splitter = 4;   // YSON
     required int64 controller_memory_usage = 5;
     required int32 controller_state = 6;
+    required bytes alerts = 7; // YSON
 }
 
 ////////////////////////////////////////////////////////////////////////////////
