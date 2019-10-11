@@ -119,7 +119,7 @@ std::vector<IAttributeDictionary::TKeyValuePair> TNontemplateCypressNodeProxyBas
     return std::vector<TKeyValuePair>(pairs.begin(), pairs.end());
 }
 
-TYsonString TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::FindYson(const TString& name) const
+TYsonString TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::FindYson(TStringBuf name) const
 {
     const auto& cypressManager = Proxy_->Bootstrap_->GetCypressManager();
     auto originators = cypressManager->GetNodeOriginators(Proxy_->GetTransaction(), Proxy_->GetTrunkNode());
@@ -1296,9 +1296,10 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
         lockRequest,
         waitable);
 
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
     auto externalCellTag = TrunkNode_->IsExternal()
         ? TrunkNode_->GetExternalCellTag()
-        : Bootstrap_->GetCellTag();
+        : multicellManager->GetCellTag();
 
     const auto& transactionManager = Bootstrap_->GetTransactionManager();
     auto externalTransactionId = TrunkNode_->IsExternal()
@@ -1381,7 +1382,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         }
         ToProto(response->mutable_node_id(), impl->GetId());
         response->set_cell_tag(impl->GetExternalCellTag() == NotReplicatedCellTag
-            ? Bootstrap_->GetCellTag()
+            ? Bootstrap_->GetMulticellManager()->GetCellTag()
             : impl->GetExternalCellTag());
         context->SetResponseInfo("ExistingNodeId: %v",
             impl->GetId());
@@ -1452,7 +1453,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     auto* newNode = newProxy->GetTrunkNode();
     const auto& newNodeId = newNode->GetId();
     auto newNodeCellTag = newNode->GetExternalCellTag() == NotReplicatedCellTag
-        ? Bootstrap_->GetCellTag()
+        ? Bootstrap_->GetMulticellManager()->GetCellTag()
         : newNode->GetExternalCellTag();
 
     ToProto(response->mutable_node_id(), newNode->GetId());
@@ -1607,12 +1608,9 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, EndCopy)
         context,
         inplace,
         [&] (ICypressNodeFactory* factory) {
-            if (inplace) {
-                factory->EndCopyNodeInplace(TrunkNode_, &copyContext);
-                return TrunkNode_;
-            } else {
-                return factory->EndCopyNode(&copyContext);
-            }
+            return inplace
+                ? factory->EndCopyNodeInplace(TrunkNode_, &copyContext)
+                : factory->EndCopyNode(&copyContext);
         });
 
     context->Reply();
@@ -1700,8 +1698,9 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
     });
 
     auto* clonedNode = clonedTreeBuilder(factory.get());
+    auto* clonedTrunkNode = clonedNode->GetTrunkNode();
     if (!inplace) {
-        auto clonedProxy = GetProxy(clonedNode->GetTrunkNode());
+        auto clonedProxy = GetProxy(clonedTrunkNode);
         if (replace) {
             parentProxy->ReplaceChild(this, clonedProxy);
         } else {
@@ -1715,9 +1714,9 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
 
     factory->Commit();
 
-    ToProto(response->mutable_node_id(), clonedNode->GetTrunkNode()->GetId());
+    ToProto(response->mutable_node_id(), clonedTrunkNode->GetId());
 
-    context->SetResponseInfo("NodeId: %v", clonedNode->GetTrunkNode()->GetId());
+    context->SetResponseInfo("NodeId: %v", clonedTrunkNode->GetId());
 }
 
 void TNontemplateCypressNodeProxyBase::ValidateAccessTransaction()
@@ -2123,7 +2122,7 @@ std::vector<IAttributeDictionary::TKeyValuePair> TInheritedAttributeDictionary::
     return ListAttributesPairs(*this);
 }
 
-TYsonString TInheritedAttributeDictionary::FindYson(const TString& key) const
+TYsonString TInheritedAttributeDictionary::FindYson(TStringBuf key) const
 {
 #define XX(camelCaseName, snakeCaseName) \
     if (key == #snakeCaseName) { \

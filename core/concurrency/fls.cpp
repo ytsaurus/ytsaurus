@@ -1,11 +1,7 @@
 #include "fls.h"
 #include "atomic_flag_spinlock.h"
-#include "fiber.h"
-#include "scheduler.h"
 
-#ifdef _unix_
-    #include <pthread.h>
-#endif
+#include <yt/core/ytalloc/memory_tag.h>
 
 namespace NYT::NConcurrency::NDetail {
 
@@ -13,92 +9,24 @@ using namespace NYTAlloc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TFlsSlot
-{
-    TFlsSlotCtor Ctor;
-    TFlsSlotDtor Dtor;
-};
-
 static const int FlsMaxSize = 256;
 static std::atomic<int> FlsSize(0);
 
 static std::atomic_flag FlsLock = ATOMIC_FLAG_INIT;
-static TFlsSlot FlsSlots[FlsMaxSize] = {};
+static TFlsSlotDtor FlsDestructors[FlsMaxSize];
 
 // Thread-specific storage implementation.
 // For native threads we use native TLS to store FLS.
-// TODO(sandello): Register a destructor on the thread termination.
-#if defined(_unix_)
-typedef pthread_key_t TTlsKey;
-#elif defined(_win_)
-typedef DWORD TTlsKey;
-#else
-#error Unsupported platform
-#endif
 
-static TTlsKey FlsTsdKey;
-
-static void TsdDestroy(void* opaque)
+int FlsAllocateSlot(TFlsSlotDtor dtor)
 {
-    uintptr_t* tsd = static_cast<uintptr_t*>(opaque);
-    if (tsd) {
-        for (int i = 0; i < FlsMaxSize; ++i) {
-            if (tsd[i]) {
-                FlsDestruct(i, tsd[i]);
-            }
-        }
-        delete[] tsd;
-    }
-}
-
-static void TsdCreate()
-{
-#if defined(_unix_)
-    YT_VERIFY(pthread_key_create(&FlsTsdKey, &TsdDestroy) == 0);
-#elif defined(_win_)
-    YT_VERIFY((FlsTsdKey = TlsAlloc()) != TLS_OUT_OF_INDEXES);
-#endif
-}
-
-static uintptr_t& TsdAt(int index)
-{
-#if defined(_unix_)
-#define TLS_GET_ pthread_getspecific
-#define TLS_SET_ !pthread_setspecific
-#elif defined(_win_)
-#define TLS_GET_ TlsGetValue
-#define TLS_SET_ TlsSetValue
-#endif
-    uintptr_t* tsd = static_cast<uintptr_t*>(TLS_GET_(FlsTsdKey));
-    if (Y_LIKELY(tsd)) {
-        return tsd[index];
-    }
-
-    TMemoryTagGuard guard(NullMemoryTag);
-    tsd = new uintptr_t[FlsMaxSize];
-    YT_VERIFY(tsd);
-    memset(tsd, 0, FlsMaxSize * sizeof(uintptr_t));
-    YT_VERIFY(TLS_SET_(FlsTsdKey, tsd));
-
-    return tsd[index];
-#undef TLS_GET_
-#undef TLS_SET_
-}
-
-int FlsAllocateSlot(TFlsSlotCtor ctor, TFlsSlotDtor dtor)
-{
+    // TODO: TForkAwareSpinLock
     TGuard<std::atomic_flag> guard(FlsLock);
 
     int index = FlsSize++;
     YT_VERIFY(index < FlsMaxSize);
 
-    if (index == 0) {
-        TsdCreate();
-    }
-
-    auto& slot = FlsSlots[index];
-    slot.Ctor = ctor;
-    slot.Dtor = dtor;
+    FlsDestructors[index] = dtor;
 
     return index;
 }
@@ -108,28 +36,64 @@ int FlsCountSlots()
     return FlsSize;
 }
 
-uintptr_t FlsConstruct(int index)
+uintptr_t FlsConstruct(TFlsSlotCtor ctor)
 {
     TMemoryTagGuard guard(NullMemoryTag);
-    return FlsSlots[index].Ctor();
+    return ctor();
 }
 
 void FlsDestruct(int index, uintptr_t value)
 {
-    FlsSlots[index].Dtor(value);
+    FlsDestructors[index](value);
 }
 
-uintptr_t& FlsAt(int index, TFiber* fiber)
+uintptr_t& TFsdHolder::FsdAt(int index)
 {
-    if (!fiber) {
-        if (auto* scheduler = TryGetCurrentScheduler()) {
-            fiber = scheduler->GetCurrentFiber();
+    if (Y_UNLIKELY(index >= Fsd_.size())) {
+        FsdResize();
+    }
+    return Fsd_[index];
+}
+
+void TFsdHolder::FsdResize()
+{
+    int oldSize = static_cast<int>(Fsd_.size());
+    int newSize = FlsCountSlots();
+
+    YT_ASSERT(newSize > oldSize);
+
+    Fsd_.resize(newSize);
+
+    for (int index = oldSize; index < newSize; ++index) {
+        Fsd_[index] = 0;
+    }
+}
+
+TFsdHolder::~TFsdHolder()
+{
+    for (int index = 0; index < Fsd_.size(); ++index) {
+        const auto& slot = Fsd_[index];
+        if (slot) {
+           FlsDestruct(index, slot);
         }
     }
-    if (fiber) {
-        return fiber->FsdAt(index);
+}
+
+static thread_local TFsdHolder TsdHolder;
+thread_local TFsdHolder* CurrentFsdHolder = &TsdHolder;
+
+void SetCurrentFsdHolder(TFsdHolder* currentFsd)
+{
+    CurrentFsdHolder = currentFsd;
+}
+
+uintptr_t& FlsAt(int index)
+{
+    if (!CurrentFsdHolder) {
+        CurrentFsdHolder = &TsdHolder;
     }
-    return TsdAt(index);
+
+    return CurrentFsdHolder->FsdAt(index);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

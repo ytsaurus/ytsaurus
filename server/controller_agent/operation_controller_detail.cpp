@@ -66,9 +66,6 @@
 #include <yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/ytlib/object_client/helpers.h>
 
-#include <yt/ytlib/cell_master_client/cell_directory.h>
-#include <yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
-
 #include <yt/client/chunk_client/data_statistics.h>
 
 #include <yt/client/object_client/helpers.h>
@@ -97,6 +94,8 @@
 #include <yt/core/misc/finally.h>
 #include <yt/core/misc/fs.h>
 #include <yt/core/misc/numeric_helpers.h>
+
+#include <yt/core/re2/re2.h>
 
 #include <yt/core/profiling/timing.h>
 #include <yt/core/profiling/profiler.h>
@@ -1225,22 +1224,9 @@ TFuture<ITransactionPtr> TOperationControllerBase::StartTransaction(
 
 void TOperationControllerBase::PickIntermediateDataCell()
 {
-    const auto& connection = OutputClient->GetNativeConnection();
-
-    YT_LOG_DEBUG("Started synchronizing master cell directory");
-    const auto& cellDirectorySynchronizer = connection->GetMasterCellDirectorySynchronizer();
-    WaitFor(cellDirectorySynchronizer->RecentSync())
-        .ThrowOnError();
-    YT_LOG_DEBUG("Master cell directory synchronized successfully");
-
-    const auto& cellDirectory = connection->GetMasterCellDirectory();
-    auto cellId = cellDirectory->PickRandomMasterCellWithRole(NCellMasterClient::EMasterCellRoles::ChunkHost);
-
-    if (!cellId) {
-        THROW_ERROR_EXCEPTION("No master cells capable of hosting chunks are known");
-    }
-
-    IntermediateOutputCellTag = CellTagFromId(cellId);
+    IntermediateOutputCellTag = PickChunkHostingCell(
+        OutputClient->GetNativeConnection(),
+        Logger);
 
     YT_LOG_DEBUG("Intermediate data cell picked (CellTag: %v)",
         IntermediateOutputCellTag);
@@ -2002,7 +1988,7 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                     auto& minKey = chunk->BoundaryKeys()->MinKey;
                     auto& maxKey = chunk->BoundaryKeys()->MaxKey;
 
-                    auto start = LowerBound(0, tabletChunks.size() - 1, [&] (size_t index) {
+                    auto start = LowerBound(0, tabletChunks.size(), [&] (size_t index) {
                         return CompareRows(table->PivotKeys[index], minKey) <= 0;
                     });
                     if (start > 0) {
@@ -2999,22 +2985,26 @@ bool TOperationControllerBase::AreForeignTablesSupported() const
 
 bool TOperationControllerBase::IsOutputLivePreviewSupported() const
 {
-    return !IsLivePreviewSuppressed && DoCheckOutputLivePreviewSupported();
+    return !IsLegacyLivePreviewSuppressed &&
+        (GetLegacyOutputLivePreviewMode() == ELegacyLivePreviewMode::DoNotCare ||
+        GetLegacyOutputLivePreviewMode() == ELegacyLivePreviewMode::ExplicitlyEnabled);
 }
 
 bool TOperationControllerBase::IsIntermediateLivePreviewSupported() const
 {
-    return !IsLivePreviewSuppressed && DoCheckIntermediateLivePreviewSupported();
+    return !IsLegacyLivePreviewSuppressed &&
+        (GetLegacyIntermediateLivePreviewMode() == ELegacyLivePreviewMode::DoNotCare ||
+        GetLegacyIntermediateLivePreviewMode() == ELegacyLivePreviewMode::ExplicitlyEnabled);
 }
 
-bool TOperationControllerBase::DoCheckOutputLivePreviewSupported() const
+ELegacyLivePreviewMode TOperationControllerBase::GetLegacyOutputLivePreviewMode() const
 {
-    return false;
+    return ELegacyLivePreviewMode::NotSupported;
 }
 
-bool TOperationControllerBase::DoCheckIntermediateLivePreviewSupported() const
+ELegacyLivePreviewMode TOperationControllerBase::GetLegacyIntermediateLivePreviewMode() const
 {
-    return false;
+    return ELegacyLivePreviewMode::NotSupported;
 }
 
 void TOperationControllerBase::OnTransactionsAborted(const std::vector<TTransactionId>& transactionIds)
@@ -3433,73 +3423,59 @@ void TOperationControllerBase::AnalyzeJobsIOUsage()
 
 void TOperationControllerBase::AnalyzeJobsCpuUsage()
 {
-    static const TVector<TString> allCpuStatistics = {
-        "/job_proxy/cpu/system/$/completed/",
-        "/job_proxy/cpu/user/$/completed/",
-        "/user_job/cpu/system/$/completed/",
-        "/user_job/cpu/user/$/completed/"
+    auto getCpuLimit = [] (const TUserJobSpecPtr& jobSpec) {
+        return jobSpec->CpuLimit;
     };
 
-    THashMap<EJobType, TError> jobTypeToError;
-    for (const auto& task : Tasks) {
-        auto jobType = task->GetJobType();
-        if (jobTypeToError.find(jobType) != jobTypeToError.end()) {
-            continue;
-        }
-
-        const auto& userJobSpecPtr = task->GetUserJobSpec();
-        if (!userJobSpecPtr) {
-            continue;
-        }
-
-        auto summary = FindSummary(JobStatistics, "/time/exec/$/completed/" + FormatEnum(jobType));
-        if (!summary) {
-            continue;
-        }
-
-        i64 totalExecutionTime = summary->GetSum();
-        i64 jobCount = summary->GetCount();
-        double cpuLimit = userJobSpecPtr->CpuLimit;
-        if (jobCount == 0 || totalExecutionTime == 0 || cpuLimit == 0) {
-            continue;
-        }
-
-        i64 cpuUsage = 0;
-        for (const auto& stat : allCpuStatistics) {
-            auto value = FindNumericValue(JobStatistics, stat + FormatEnum(jobType));
-            cpuUsage += value ? *value : 0;
-        }
-
+    auto needSetAlert = [&] (i64 totalExecutionTime, i64 jobCount, double ratio) {
         TDuration averageJobDuration = TDuration::MilliSeconds(totalExecutionTime / jobCount);
         TDuration totalExecutionDuration = TDuration::MilliSeconds(totalExecutionTime);
-        double cpuRatio = static_cast<double>(cpuUsage) / (totalExecutionTime * cpuLimit);
 
-        if (totalExecutionDuration > Config->OperationAlerts->LowCpuUsageAlertMinExecTime &&
-            averageJobDuration > Config->OperationAlerts->LowCpuUsageAlertMinAverageJobTime &&
-            cpuRatio < Config->OperationAlerts->LowCpuUsageAlertCpuUsageThreshold)
-        {
-            auto error = TError("Jobs of type %Qlv use %.2f%% of requested cpu limit", jobType, 100 * cpuRatio)
-                << TErrorAttribute("cpu_time", cpuUsage)
-                << TErrorAttribute("exec_time", totalExecutionDuration)
-                << TErrorAttribute("cpu_limit", cpuLimit);
-            YT_VERIFY(jobTypeToError.emplace(jobType, error).second);
-        }
+        return totalExecutionDuration > Config->OperationAlerts->LowCpuUsageAlertMinExecTime &&
+               averageJobDuration > Config->OperationAlerts->LowCpuUsageAlertMinAverageJobTime &&
+               ratio < Config->OperationAlerts->LowCpuUsageAlertCpuUsageThreshold;
+    };
+
+    const TString alertMessage =
+        "Average cpu usage of some of your job types is significantly lower than requested 'cpu_limit'. "
+        "Consider decreasing cpu_limit in spec of your operation";
+
+    AnalyzeProcessingUnitUsage(
+        Config->OperationAlerts->LowCpuUsageAlertStatistics,
+        Config->OperationAlerts->LowCpuUsageAlertJobStates,
+        getCpuLimit,
+        needSetAlert,
+        "cpu",
+        EOperationAlertType::LowCpuUsage,
+        alertMessage);
+}
+
+void TOperationControllerBase::AnalyzeJobsGpuUsage()
+{
+    if (TInstant::Now() - StartTime < Config->OperationAlerts->LowGpuUsageAlertMinDuration && !IsCompleted()) {
+        return;
     }
 
-    TError error;
-    if (!jobTypeToError.empty()) {
-        std::vector<TError> innerErrors;
-        innerErrors.reserve(jobTypeToError.size());
-        for (const auto& pair : jobTypeToError) {
-            innerErrors.push_back(pair.second);
-        }
-        error = TError(
-            "Average cpu usage of some of your job types is significantly lower than requested 'cpu_limit'. "
-            "Consider decreasing cpu_limit in spec of your operation")
-            << innerErrors;
-    }
+    auto getGpuLimit = [] (const TUserJobSpecPtr& jobSpec) {
+        return jobSpec->GpuLimit;
+    };
 
-    SetOperationAlert(EOperationAlertType::LowCpuUsage, error);
+    auto needSetAlert = [&] (i64 /*totalExecutionTime*/, i64 /*jobCount*/, double ratio) {
+        return ratio < Config->OperationAlerts->LowGpuUsageAlertGpuUsageThreshold;
+    };
+
+    static const TString alertMessage =
+        "Average gpu usage of some of your job types is significantly lower than requested 'gpu_limit'. "
+        "Consider optimizing your GPU utilization";
+
+    AnalyzeProcessingUnitUsage(
+        Config->OperationAlerts->LowGpuUsageAlertStatistics,
+        Config->OperationAlerts->LowGpuUsageAlertJobStates,
+        getGpuLimit,
+        needSetAlert,
+        "gpu",
+        EOperationAlertType::LowGpuUsage,
+        alertMessage);
 }
 
 void TOperationControllerBase::AnalyzeJobsDuration()
@@ -3610,6 +3586,7 @@ void TOperationControllerBase::AnalyzeOperationProgress()
     AnalyzeAbortedJobs();
     AnalyzeJobsIOUsage();
     AnalyzeJobsCpuUsage();
+    AnalyzeJobsGpuUsage();
     AnalyzeJobsDuration();
     AnalyzeOperationDuration();
     AnalyzeScheduleJobStatistics();
@@ -4598,22 +4575,74 @@ bool TOperationControllerBase::IsFinished() const
 
 void TOperationControllerBase::SuppressLivePreviewIfNeeded()
 {
-    IsLivePreviewSuppressed = false;
+    if (GetLegacyOutputLivePreviewMode() == ELegacyLivePreviewMode::NotSupported &&
+        GetLegacyIntermediateLivePreviewMode() == ELegacyLivePreviewMode::NotSupported)
+    {
+        YT_LOG_INFO("Legacy live preview is not supported for this operation");
+        return;
+    }
+
+    std::vector<TError> suppressionErrors;
 
     const auto& connection = Host->GetClient()->GetNativeConnection();
     for (const auto& table : OutputTables_) {
-        if (table->Dynamic ||
-            table->ExternalCellTag == connection->GetPrimaryMasterCellTag() && !connection->GetSecondaryMasterCellTags().empty()) {
-            IsLivePreviewSuppressed = true;
-            return;
+        if (table->Dynamic) {
+            suppressionErrors.emplace_back("Output table %v is dynamic", ToString(table->Path, EYsonFormat::Text));
+            break;
         }
     }
 
+    for (const auto& table : OutputTables_) {
+        if (table->ExternalCellTag == connection->GetPrimaryMasterCellTag() &&
+            !connection->GetSecondaryMasterCellTags().empty())
+        {
+            suppressionErrors.emplace_back(
+                "Output table %v is non-external and cluster is multicell",
+                ToString(table->Path, EYsonFormat::Text));
+            break;
+        }
+    }
+
+    // TODO(ifsmirnov): YT-11498. This is not the suppression you are looking for.
     for (const auto& table : InputTables_) {
         if (table->Schema.HasNontrivialSchemaModification()) {
-            IsLivePreviewSuppressed = true;
-            return;
+            suppressionErrors.emplace_back(
+                "Input table %v has non-trivial schema modification",
+                ToString(table->Path, EYsonFormat::Text));
+            break;
         }
+    }
+
+    if (GetLegacyOutputLivePreviewMode() == ELegacyLivePreviewMode::DoNotCare ||
+        GetLegacyIntermediateLivePreviewMode() == ELegacyLivePreviewMode::DoNotCare)
+    {
+        // Some live preview normally should appear, but user did not request anything explicitly.
+        // We should check if user is not in legacy live preview blacklist in order to inform him
+        // if he is in a blacklist.
+        if (NRe2::TRe2::FullMatch(
+            NRe2::StringPiece(AuthenticatedUser.data()),
+            *Config->LegacyLivePreviewUserBlacklist))
+        {
+            suppressionErrors.emplace_back(TError(
+                "User %v belongs to legacy live preview suppression blacklist; in order "
+                "to overcome this suppression reason, explicitly specify use_legacy_live_preview = %%true "
+                "in operation spec", AuthenticatedUser)
+                    << TErrorAttribute(
+                        "legacy_live_preview_blacklist_regex",
+                        Config->LegacyLivePreviewUserBlacklist->pattern()));
+        }
+    }
+
+    IsLegacyLivePreviewSuppressed = !suppressionErrors.empty();
+    if (IsLegacyLivePreviewSuppressed) {
+        auto combinedSuppressionError = TError("Legacy live preview is suppressed due to the following reasons")
+            << suppressionErrors
+            << TErrorAttribute("output_live_preview_mode", GetLegacyOutputLivePreviewMode())
+            << TErrorAttribute("intermediate_live_preview_mode", GetLegacyIntermediateLivePreviewMode());
+        YT_LOG_INFO("Suppressing live preview due to some reasons (CombinedError: %v)", combinedSuppressionError);
+        SetOperationAlert(EOperationAlertType::LegacyLivePreviewSuppressed, combinedSuppressionError);
+    } else {
+        YT_LOG_INFO("Legacy live preview is not suppressed");
     }
 }
 
@@ -5292,6 +5321,12 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                     THROW_ERROR_EXCEPTION("Output table %v tablet state %Qv does not allow to write into it",
                         path,
                         tabletState);
+                }
+
+                if (UserTransactionId) {
+                    THROW_ERROR_EXCEPTION(
+                        "Operations with output to dynamic tables cannot be run under user transaction")
+                        << TErrorAttribute("user_transaction_id", UserTransactionId);
                 }
             }
 
@@ -7003,14 +7038,8 @@ void TOperationControllerBase::BuildBriefSpec(TFluentMap fluent) const
     }
 
     fluent
-        .DoIf(Spec_->Title.operator bool(), [&] (TFluentMap fluent) {
-            fluent
-                .Item("title").Value(*Spec_->Title);
-        })
-        .DoIf(Spec_->Alias.operator bool(), [&] (TFluentMap fluent) {
-            fluent
-                .Item("alias").Value(*Spec_->Alias);
-        })
+        .OptionalItem("title", Spec_->Title)
+        .OptionalItem("alias", Spec_->Alias)
         .Item("input_table_paths").ListLimited(inputPaths, 1)
         .Item("output_table_paths").ListLimited(outputPaths, 1);
 }
@@ -8301,6 +8330,83 @@ std::vector<NYPath::TRichYPath> TOperationControllerBase::GetLayerPaths(
         layerPaths.insert(layerPaths.begin(), *Config->SystemLayerPath);
     }
     return layerPaths;
+}
+
+void TOperationControllerBase::AnalyzeProcessingUnitUsage(
+    const std::vector<TString>& usageStatistics,
+    const std::vector<TString>& jobStates,
+    const std::function<double(const TUserJobSpecPtr&)>& getLimit,
+    const std::function<bool(i64, i64, double)>& needSetAlert,
+    const TString& name,
+    EOperationAlertType alertType,
+    const TString& message)
+{
+    std::vector<TString> allStatistics;
+    for (const auto& stat : usageStatistics) {
+        for (const auto& jobState : jobStates) {
+            allStatistics.push_back(Format("%s/$/%s/", stat, jobState));
+        }
+    }
+
+    THashMap<EJobType, TError> jobTypeToError;
+    for (const auto& task : Tasks) {
+        auto jobType = task->GetJobType();
+        if (jobTypeToError.find(jobType) != jobTypeToError.end()) {
+            continue;
+        }
+
+        const auto& userJobSpecPtr = task->GetUserJobSpec();
+        if (!userJobSpecPtr) {
+            continue;
+        }
+
+
+        i64 totalExecutionTime = 0;
+        i64 jobCount = 0;
+
+        for (const auto& jobState : jobStates) {
+            auto summary = FindSummary(JobStatistics, Format("/time/exec/$/%s/%s", jobState, FormatEnum(jobType)));
+            if (summary) {
+                totalExecutionTime += summary->GetSum();
+                jobCount += summary->GetCount();
+            }
+        }
+
+        double limit = getLimit(userJobSpecPtr);
+        if (jobCount == 0 || totalExecutionTime == 0 || limit == 0) {
+            continue;
+        }
+
+        i64 usage = 0;
+        for (const auto& stat : allStatistics) {
+            auto value = FindNumericValue(JobStatistics, stat + FormatEnum(jobType));
+            usage += value.value_or(0);
+        }
+
+        TDuration totalExecutionDuration = TDuration::MilliSeconds(totalExecutionTime);
+        double ratio = static_cast<double>(usage) / (totalExecutionTime * limit);
+
+        if (needSetAlert(totalExecutionTime, jobCount, ratio))
+        {
+            auto error = TError("Jobs of type %Qlv use %.2f%% of requested %s limit", jobType, 100 * ratio, name)
+                << TErrorAttribute(Format("%s_time", name), usage)
+                << TErrorAttribute("exec_time", totalExecutionDuration)
+                << TErrorAttribute(Format("%s_limit", name), limit);
+            YT_VERIFY(jobTypeToError.emplace(jobType, error).second);
+        }
+    }
+
+    TError error;
+    if (!jobTypeToError.empty()) {
+        std::vector<TError> innerErrors;
+        innerErrors.reserve(jobTypeToError.size());
+        for (const auto& pair : jobTypeToError) {
+            innerErrors.push_back(pair.second);
+        }
+        error = TError(message) << innerErrors;
+    }
+
+    SetOperationAlert(alertType, error);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

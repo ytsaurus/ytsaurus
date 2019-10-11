@@ -434,6 +434,16 @@ i64 THttpInput::GetReadByteCount() const
     return Connection_->GetReadByteCount() - StartByteCount_;
 }
 
+bool THttpInput::IsHttps() const
+{
+    return IsHttps_;
+}
+
+void THttpInput::SetHttps()
+{
+    IsHttps_ = true;
+}
+
 TSharedRef THttpInput::DoRead()
 {
     if (Parser_.GetState() == EParserState::MessageFinished) {

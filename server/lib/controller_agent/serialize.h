@@ -12,8 +12,10 @@ bool ValidateSnapshotVersion(int version);
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ESnapshotVersion,
+    ((JobMetricsJobStateFilter)           (300195))
     // 19.7 starts here
     ((ExternalizedTransactions)           (300200))
+    ((DynamicTableWriterConfig)           (300201))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

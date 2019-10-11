@@ -243,6 +243,10 @@ private:
             , Poller_(poller)
             , Logger(NLogging::TLogger(Poller_->Logger)
                 .AddTag("ThreadIndex: %v", index))
+            , ExecuteCallback_(BIND([this] {
+                HandleEvents();
+                HandleUnregister();
+            }))
         { }
 
         void ScheduleUnregister(TPollableEntryPtr entry)
@@ -256,13 +260,13 @@ private:
             Poller_->StartLatch_.CountDown();
         }
 
-        virtual EBeginExecuteResult BeginExecute() override
+        virtual TClosure BeginExecute() override
         {
-            CallbackEventCount_->CancelWait();
-
             if (ExecutingCallbacks_) {
+                SetCurrentInvoker(Poller_->Invoker_);
+
                 auto result = Poller_->Invoker_->ExecuteCallbacks();
-                if (result != EBeginExecuteResult::QueueEmpty) {
+                if (result) {
                     return result;
                 }
 
@@ -270,14 +274,13 @@ private:
                 Poller_->Invoker_->ArmPoller();
             }
 
-            HandleEvents();
-            HandleUnregister();
-
-            return EBeginExecuteResult::Success;
+            return ExecuteCallback_;
         }
 
         virtual void EndExecute() override
-        { }
+        {
+            SetCurrentInvoker(nullptr);
+        }
 
         virtual void AfterShutdown() override
         {
@@ -291,6 +294,8 @@ private:
         bool ExecutingCallbacks_ = false;
 
         TMultipleProducerSingleConsumerLockFreeStack<TPollableEntryPtr> UnregisterEntries_;
+
+        TClosure ExecuteCallback_;
 
         void HandleEvents()
         {
@@ -394,25 +399,18 @@ private:
             YT_ABORT();
         }
 
-        EBeginExecuteResult ExecuteCallbacks()
+        TClosure ExecuteCallbacks()
         {
-            TCurrentInvokerGuard guard(this);
-
             TClosure callback;
-            if (Callbacks_.Dequeue(&callback)) {
-                if (Owner_->ShutdownStarted_.load()) {
-                    return EBeginExecuteResult::Terminated;
-                }
-
-                try {
-                    callback.Run();
-                    return EBeginExecuteResult::Success;
-                } catch (const TFiberCanceledException&) {
-                    return EBeginExecuteResult::Terminated;
-                }
+            if (!Callbacks_.Dequeue(&callback)) {
+                return TClosure();
             }
 
-            return EBeginExecuteResult::QueueEmpty;
+            if (Owner_->ShutdownStarted_.load()) {
+                return BIND([] { });
+            }
+
+            return callback;
         }
 
         void DrainQueue()

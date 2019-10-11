@@ -51,7 +51,7 @@ public:
 
     void Drain();
 
-    EBeginExecuteResult BeginExecute(TEnqueuedAction* action, int index = 0);
+    TClosure BeginExecute(TEnqueuedAction* action, int index = 0);
     void EndExecute(TEnqueuedAction* action);
 
     int GetSize() const;

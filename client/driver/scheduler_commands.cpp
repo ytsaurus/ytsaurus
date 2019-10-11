@@ -153,12 +153,8 @@ void TListOperationsCommand::BuildOperations(const TListOperationsResult& result
 
     auto fillOperationAttributes = [needOperationType, needType] (const TOperation& operation, TFluentMap fluent) {
         fluent
-            .DoIf(operation.Id.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("id").Value(operation.Id);
-            })
-            .DoIf(operation.State.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("state").Value(operation.State);
-            })
+            .OptionalItem("id", operation.Id)
+            .OptionalItem("state", operation.State)
             .DoIf(operation.Type.operator bool(), [&] (TFluentMap fluent) {
                 if (needType) {
                     fluent.Item("type").Value(operation.Type);
@@ -167,55 +163,21 @@ void TListOperationsCommand::BuildOperations(const TListOperationsResult& result
                     fluent.Item("operation_type").Value(operation.Type);
                 }
             })
-            .DoIf(operation.AuthenticatedUser.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("authenticated_user").Value(operation.AuthenticatedUser);
-            })
-
-            .DoIf(operation.StartTime.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("start_time").Value(operation.StartTime);
-            })
-            .DoIf(operation.FinishTime.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("finish_time").Value(operation.FinishTime);
-            })
-
-            .DoIf(operation.BriefProgress.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("brief_progress").Value(operation.BriefProgress);
-            })
-            .DoIf(operation.Progress.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("progress").Value(operation.Progress);
-            })
-
-            .DoIf(operation.BriefSpec.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("brief_spec").Value(operation.BriefSpec);
-            })
-            .DoIf(operation.FullSpec.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("full_spec").Value(operation.FullSpec);
-            })
-            .DoIf(operation.Spec.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("spec").Value(operation.Spec);
-            })
-            .DoIf(operation.UnrecognizedSpec.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("unrecognized_spec").Value(operation.UnrecognizedSpec);
-            })
-
-            .DoIf(operation.RuntimeParameters.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("runtime_parameters").Value(operation.RuntimeParameters);
-            })
-            .DoIf(operation.Suspended.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("suspended").Value(operation.Suspended);
-            })
-            .DoIf(operation.Result.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("result").Value(operation.Result);
-            })
-            .DoIf(operation.Events.operator bool(), [&](TFluentMap fluent) {
-                fluent.Item("events").Value(operation.Events);
-            })
-            .DoIf(operation.SlotIndexPerPoolTree.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("slot_index_per_pool_tree").Value(operation.SlotIndexPerPoolTree);
-            })
-            .DoIf(operation.Alerts.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("alerts").Value(operation.Alerts);
-            });
+            .OptionalItem("authenticated_user", operation.AuthenticatedUser)
+            .OptionalItem("start_time", operation.StartTime)
+            .OptionalItem("finish_time", operation.FinishTime)
+            .OptionalItem("brief_progress", operation.BriefProgress)
+            .OptionalItem("progress", operation.Progress)
+            .OptionalItem("brief_spec", operation.BriefSpec)
+            .OptionalItem("full_spec", operation.FullSpec)
+            .OptionalItem("spec", operation.Spec)
+            .OptionalItem("unrecognized_spec", operation.UnrecognizedSpec)
+            .OptionalItem("runtime_parameters", operation.RuntimeParameters)
+            .OptionalItem("suspended", operation.Suspended)
+            .OptionalItem("result", operation.Result)
+            .OptionalItem("events", operation.Events)
+            .OptionalItem("slot_index_per_pool_tree", operation.SlotIndexPerPoolTree)
+            .OptionalItem("alerts", operation.Alerts);
     };
 
     if (EnableUIMode) {
@@ -286,9 +248,7 @@ void TListOperationsCommand::DoExecute(ICommandContextPtr context)
                 })
                 .EndMap();
             })
-            .DoIf(result.FailedJobsCount.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("failed_jobs_count").Value(*result.FailedJobsCount);
-            })
+            .OptionalItem("failed_jobs_count", result.FailedJobsCount)
         .EndMap());
 }
 
@@ -349,36 +309,20 @@ void TListJobsCommand::DoExecute(ICommandContextPtr context)
             .Item("jobs").DoListFor(result.Jobs, [] (TFluentList fluent, const TJob& job) {
                 fluent
                     .Item().BeginMap()
-                        .Item("id").Value(job.Id)
-                        .Item("type").Value(job.Type)
-                        .Item("state").Value(job.State)
-                        .Item("address").Value(job.Address)
-                        .Item("start_time").Value(job.StartTime)
-                        .Item("has_spec").Value(job.HasSpec)
-                        .DoIf(job.FinishTime.operator bool(), [&] (TFluentMap fluent) {
-                            fluent.Item("finish_time").Value(*job.FinishTime);
-                        })
-                        .DoIf(job.Progress.operator bool(), [&] (TFluentMap fluent) {
-                            fluent.Item("progress").Value(*job.Progress);
-                        })
-                        .DoIf(job.StderrSize.operator bool(), [&] (TFluentMap fluent) {
-                            fluent.Item("stderr_size").Value(*job.StderrSize);
-                        })
-                        .DoIf(job.FailContextSize.operator bool(), [&] (TFluentMap fluent) {
-                            fluent.Item("fail_context_size").Value(*job.FailContextSize);
-                        })
-                        .DoIf(job.Error.operator bool(), [&] (TFluentMap fluent) {
-                            fluent.Item("error").Value(job.Error);
-                        })
-                        .DoIf(job.BriefStatistics.operator bool(), [&] (TFluentMap fluent) {
-                            fluent.Item("brief_statistics").Value(job.BriefStatistics);
-                        })
-                        .DoIf(job.InputPaths.operator bool(), [&] (TFluentMap fluent) {
-                            fluent.Item("input_paths").Value(job.InputPaths);
-                        })
-                        .DoIf(job.CoreInfos.operator bool(), [&] (TFluentMap fluent) {
-                            fluent.Item("core_infos").Value(job.CoreInfos);
-                        })
+                        .OptionalItem("id", job.Id)
+                        .OptionalItem("type", job.Type)
+                        .OptionalItem("state", job.State)
+                        .OptionalItem("address", job.Address)
+                        .OptionalItem("start_time", job.StartTime)
+                        .OptionalItem("has_spec", job.HasSpec)
+                        .OptionalItem("finish_time", job.FinishTime)
+                        .OptionalItem("progress", job.Progress)
+                        .OptionalItem("stderr_size", job.StderrSize)
+                        .OptionalItem("fail_context_size", job.FailContextSize)
+                        .OptionalItem("error", job.Error)
+                        .OptionalItem("brief_statistics", job.BriefStatistics)
+                        .OptionalItem("input_paths", job.InputPaths)
+                        .OptionalItem("core_infos", job.CoreInfos)
                     .EndMap();
             })
             .Item("cypress_job_count").Value(result.CypressJobCount)

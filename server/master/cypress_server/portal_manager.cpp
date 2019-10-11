@@ -74,46 +74,38 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        auto* trunkNode = node->GetTrunkNode()->As<TPortalEntranceNode>();
+        auto* transaction = node->GetTransaction();
+
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto path = cypressManager->GetNodePath(node,  nullptr);
+        auto path = cypressManager->GetNodePath(trunkNode, transaction);
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto effectiveAcl = securityManager->GetEffectiveAcl(node);
-        const auto& effectiveAnnotation = securityManager->GetEffectiveAnnotation(node);
-
-        // Turn off ACL inheritance, replace ACL with effective ACL.
-        node->Acd().SetEntries(effectiveAcl);
-        node->Acd().SetInherit(false);
-
-        node->SetAnnotation(effectiveAnnotation);
+        auto effectiveAnnotation = securityManager->GetEffectiveAnnotation(node);
 
         NProto::TReqCreatePortalExit request;
-        ToProto(request.mutable_entrance_node_id(), node->GetId());
-        ToProto(request.mutable_account_id(), node->GetAccount()->GetId());
+        ToProto(request.mutable_entrance_node_id(), trunkNode->GetId());
+        ToProto(request.mutable_account_id(), trunkNode->GetAccount()->GetId());
         request.set_path(path);
         request.set_acl(ConvertToYsonString(effectiveAcl).GetData());
         ToProto(request.mutable_inherited_node_attributes(), inheritedAttributes);
         ToProto(request.mutable_explicit_node_attributes(), explicitAttributes);
-        ToProto(request.mutable_parent_id(), node->GetParent()->GetId());
-        auto optionalKey = FindNodeKey(
-            Bootstrap_->GetCypressManager(),
-            node->GetTrunkNode(),
-            nullptr);
-        if (optionalKey) {
+        ToProto(request.mutable_parent_id(), trunkNode->GetParent()->GetId());
+        if (auto optionalKey = FindNodeKey(cypressManager, trunkNode, transaction)) {
             request.set_key(*optionalKey);
         }
-
-        request.set_annotation(effectiveAnnotation.value_or(""));
+        request.set_annotation(effectiveAnnotation.value_or(TString()));
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        multicellManager->PostToMaster(request, node->GetExitCellTag());
+        multicellManager->PostToMaster(request, trunkNode->GetExitCellTag());
 
-        YT_VERIFY(EntranceNodes_.emplace(node->GetId(), node).second);
+        YT_VERIFY(EntranceNodes_.emplace(trunkNode->GetId(), trunkNode).second);
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Portal entrance registered (EntranceNodeId: %v, ExitCellTag: %v, Account: %v, Path: %v)",
-            node->GetId(),
-            node->GetExitCellTag(),
-            node->GetAccount()->GetName(),
+            trunkNode->GetId(),
+            trunkNode->GetExitCellTag(),
+            trunkNode->GetAccount()->GetName(),
             path);
     }
 
@@ -205,7 +197,7 @@ private:
         const auto& annotation = FromProto<TString>(request->annotation());
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* account = securityManager->GetAccount(accountId);
+        auto* account = securityManager->GetAccountOrThrow(accountId);
 
         TAccessControlList acl;
         Deserialize(acl, ConvertToNode(TYsonString(request->acl())), securityManager);
@@ -215,7 +207,8 @@ private:
 
         const auto& path = request->path();
 
-        auto exitNodeId = MakePortalExitNodeId(entranceNodeId, Bootstrap_->GetCellTag());
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto exitNodeId = MakePortalExitNodeId(entranceNodeId, multicellManager->GetCellTag());
         auto shardId = MakeCypressShardId(exitNodeId);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();

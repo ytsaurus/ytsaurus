@@ -16,6 +16,15 @@ extern const TString IntermediatePath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ELegacyLivePreviewMode,
+    (ExplicitlyEnabled)
+    (ExplicitlyDisabled)
+    (DoNotCare)
+    (NotSupported)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_STRUCT(IOperationController)
 using IOperationControllerWeakPtr = TWeakPtr<IOperationController>;
 

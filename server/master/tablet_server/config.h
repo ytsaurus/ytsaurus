@@ -323,7 +323,7 @@ public:
     TDuration CheckPeriod;
     TDuration UpdatePeriod;
     int ThreadCount;
-    TReplicatedTableTrackerExpiringCacheConfigPtr AsyncExpiringCacheConfig;
+    TReplicatedTableTrackerExpiringCacheConfigPtr BundleHealthCache;
 
     TReplicatedTableTrackerConfig()
     {
@@ -335,7 +335,9 @@ public:
             .Default(TDuration::Seconds(1));
         RegisterParameter("thread_count", ThreadCount)
             .Default(1);
-        RegisterParameter("async_expiring_cache", AsyncExpiringCacheConfig)
+        RegisterParameter("bundle_health_cache", BundleHealthCache)
+            // COMPAT(savrus)
+            .Alias("async_expiring_cache")
             .DefaultNew();
     }
 };
@@ -350,13 +352,15 @@ class TDynamicReplicatedTableTrackerConfig
 public:
     bool EnableReplicatedTableTracker;
 
-    TAsyncExpiringCacheConfigPtr AsyncExpiringCacheConfig;
+    TAsyncExpiringCacheConfigPtr BundleHealthCache;
 
     TDynamicReplicatedTableTrackerConfig()
     {
         RegisterParameter("enable_replicated_table_tracker", EnableReplicatedTableTracker)
             .Default(true);
-        RegisterParameter("async_expiring_cache", AsyncExpiringCacheConfig)
+        RegisterParameter("bundle_health_cache", BundleHealthCache)
+            // COMPAT(savrus)
+            .Alias("async_expiring_cache")
             .Default();
     }
 };

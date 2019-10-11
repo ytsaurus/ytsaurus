@@ -120,7 +120,8 @@ private:
         } else {
             ValidatePermission(EPermissionCheckScope::This, EPermission::Remove);
 
-            if (!Bootstrap_->IsPrimaryMaster()) {
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            if (!multicellManager->IsPrimaryMaster()) {
                 THROW_ERROR_EXCEPTION("Tablet cell is the primary world object and cannot be removed by a secondary master");
             }
 
@@ -164,6 +165,7 @@ private:
         const auto* cell = GetThisImpl();
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
         switch (key) {
             case EInternedAttributeKey::LeadingPeerId:
@@ -172,7 +174,7 @@ private:
                 return true;
 
             case EInternedAttributeKey::Health:
-                if (Bootstrap_->IsMulticell()) {
+                if (multicellManager->IsMulticell()) {
                     BuildYsonFluently(consumer)
                         .Value(cell->GetMulticellHealth());
                 } else {
@@ -203,7 +205,7 @@ private:
                 return true;
 
             case EInternedAttributeKey::TabletIds:
-                if (!Bootstrap_->IsPrimaryMaster()) {
+                if (multicellManager->IsSecondaryMaster()) {
                     BuildYsonFluently(consumer)
                         .DoListFor(cell->Tablets(), [] (TFluentList fluent, const TTablet* tablet) {
                             fluent
@@ -214,7 +216,7 @@ private:
                 break;
 
             case EInternedAttributeKey::ActionIds:
-                if (!Bootstrap_->IsPrimaryMaster()) {
+                if (multicellManager->IsSecondaryMaster()) {
                     BuildYsonFluently(consumer)
                         .DoListFor(cell->Actions(), [] (TFluentList fluent, const TTabletAction* action) {
                             fluent
@@ -225,7 +227,7 @@ private:
                 break;
 
             case EInternedAttributeKey::TabletCount: {
-                if (!Bootstrap_->IsPrimaryMaster()) {
+                if (multicellManager->IsSecondaryMaster()) {
                     BuildYsonFluently(consumer)
                         .Value(cell->Tablets().size());
                     return true;
@@ -289,7 +291,7 @@ private:
 
         switch (key) {
             case EInternedAttributeKey::TabletCount: {
-                YT_VERIFY(Bootstrap_->IsPrimaryMaster());
+                YT_VERIFY(IsPrimaryMaster());
 
                 int tabletCount = cell->Tablets().size();
                 return FetchFromSwarm<int>(key)
@@ -304,7 +306,7 @@ private:
             }
 
             case EInternedAttributeKey::TabletIds: {
-                YT_VERIFY(Bootstrap_->IsPrimaryMaster());
+                YT_VERIFY(IsPrimaryMaster());
 
                 std::vector<TTabletId> tabletIds;
                 for (const auto* tablet : cell->Tablets()) {
@@ -319,7 +321,7 @@ private:
             }
 
             case EInternedAttributeKey::ActionIds: {
-                YT_VERIFY(Bootstrap_->IsPrimaryMaster());
+                YT_VERIFY(IsPrimaryMaster());
 
                 std::vector<TTabletActionId> actionIds;
                 for (const auto* action : cell->Actions()) {

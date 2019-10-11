@@ -233,7 +233,7 @@ private:
 
         virtual std::vector<TString> ListKeys() const override;
         virtual std::vector<TKeyValuePair> ListPairs() const override;
-        virtual NYson::TYsonString FindYson(const TString& key) const override;
+        virtual NYson::TYsonString FindYson(TStringBuf key) const override;
         virtual void SetYson(const TString& key, const NYson::TYsonString& value) override;
         virtual bool Remove(const TString& key) override;
 
@@ -244,10 +244,10 @@ private:
 
     TCombinedAttributeDictionary CombinedAttributes_;
 
-    TFuture<NYson::TYsonString> DoFindAttribute(const TString& key);
+    TFuture<NYson::TYsonString> DoFindAttribute(TStringBuf key);
 
     static NYson::TYsonString DoGetAttributeFragment(
-        const TString& key,
+        TStringBuf key,
         const TYPath& path,
         const NYson::TYsonString& wholeYson);
     TFuture<NYson::TYsonString> DoGetAttribute(
@@ -255,13 +255,13 @@ private:
         const std::optional<std::vector<TString>>& attributeKeys);
 
     static bool DoExistsAttributeFragment(
-        const TString& key,
+        TStringBuf key,
         const TYPath& path,
         const TErrorOr<NYson::TYsonString>& wholeYsonOrError);
     TFuture<bool> DoExistsAttribute(const TYPath& path);
 
     static NYson::TYsonString DoListAttributeFragment(
-        const TString& key,
+        TStringBuf key,
         const TYPath& path,
         const NYson::TYsonString& wholeYson);
     TFuture<NYson::TYsonString> DoListAttribute(const TYPath& path);
@@ -273,7 +273,7 @@ private:
     bool GuardedSetBuiltinAttribute(TInternedAttributeKey key, const NYson::TYsonString& value);
     bool GuardedRemoveBuiltinAttribute(TInternedAttributeKey key);
 
-    void ValidateAttributeKey(const TString& key) const;
+    void ValidateAttributeKey(TStringBuf key) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -299,6 +299,19 @@ public:
 private:
     bool Initialized_ = false;
     THashSet<TString> CustomKeys_;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TOpaqueAttributeKeysCache
+{
+public:
+    const THashSet<TString>& GetOpaqueAttributeKeys(ISystemAttributeProvider* provider);
+
+private:
+    bool Initialized_ = false;
+    THashSet<TString> OpaqueKeys_;
 
 };
 

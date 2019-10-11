@@ -40,12 +40,17 @@ QUERY_TYPES_WITH_OUTPUT = ("describe", "select", "show")
 class Clique(object):
     base_config = None
     clique_index = 0
+    query_index = 0
     path_to_run = None
     core_dump_path = None
 
     def __init__(self, instance_count, max_failed_job_count=0, config_patch=None, **kwargs):
         config = update(Clique.base_config, config_patch) if config_patch is not None else copy.deepcopy(Clique.base_config)
         spec = {"pool": None}
+        self.is_tracing = False
+        if "YT_TRACE_DUMP_DIR" in os.environ:
+            self.is_tracing = True
+            spec["tasks"] = {"instances": {"environment" : {"YT_TRACE_DUMP_DIR": os.environ["YT_TRACE_DUMP_DIR"]}}}
         if "spec" in kwargs:
             spec = update(spec, kwargs.pop("spec"))
 
@@ -177,15 +182,18 @@ class Clique(object):
         host = instance.attributes["host"]
         port = instance.attributes["http_port"]
 
-        query_id = parts_to_uuid(random.randint(0, 2**64 - 1), random.randint(0, 2**64 - 1))
+        query_id = parts_to_uuid(random.randint(0, 2**64 - 1), (Clique.clique_index << 32) | Clique.query_index)
+        Clique.query_index += 1
 
         print_debug()
         print_debug("Querying {0}:{1} with the following data:\n> {2}".format(host, port, query))
         print_debug("Query id: {}".format(query_id))
-        result = requests.post("http://{}:{}/query?output_format_json_quote_64bit_integers=0&query_id={}".format(host, port, query_id),
+        result = requests.post("http://{}:{}/query?output_format_json_quote_64bit_integers=0".format(host, port),
                                data=query,
                                headers={"X-ClickHouse-User": user,
-                                        "X-Yt-Request-Id": query_id})
+                                        "X-Yt-Trace-Id": query_id,
+                                        "X-Yt-Span-Id": "0",
+                                        "X-Yt-Sampled": str(int(self.is_tracing))})
         output = ""
         if result.status_code != 200:
             output += "Query failed, HTTP code: {}\n".format(result.status_code)
@@ -317,7 +325,6 @@ class TestClickHouseCommon(ClickHouseTestBase):
             with pytest.raises(YtError):
                 clique.make_query('select avg(b) from "//tmp/t"')
 
-            # TODO(max42): support range selectors.
             assert abs(clique.make_query('select avg(a) from "//tmp/t[#2:#9]"')[0]["avg(a)"] - 5.0) < 1e-6
 
     # YT-9497
@@ -1256,7 +1263,7 @@ class TestClickHouseAccess(ClickHouseTestBase):
                 clique.make_query("select * from \"//tmp/t\"", user="u")
 
         with Clique(1,
-                    config_patch={"validate_operation_access": True},
+                    config_patch={"validate_operation_access": True, "operation_acl_update_period": 100},
                     spec={
                         "acl": [{
                             "subjects": ["u"],
@@ -1265,6 +1272,10 @@ class TestClickHouseAccess(ClickHouseTestBase):
                         }]
                     }) as clique:
             assert len(clique.make_query("select * from \"//tmp/t\"", user="u")) == 1
+            update_op_parameters(clique.op.id, parameters={"acl": []})
+            time.sleep(1)
+            with pytest.raises(YtError):
+                clique.make_query("select * from \"//tmp/t\"", user="u")
 
 
 class TestQueryLog(ClickHouseTestBase):
@@ -1565,8 +1576,16 @@ class TestHttpProxy(ClickHouseTestBase):
 
     @authors("dakovalkov")
     def test_ban_dead_instance_in_proxy(self):
-        with Clique(2) as clique:
+        patch = {
+            "discovery": {
+                # Set big value to prevent unlocking node.
+                "transaction_timeout": 1000000,
+            }
+        }
+        with Clique(2, config_patch=patch) as clique:
             url = self._get_proxy_address() + "/query?database={}".format(clique.op.id)
+
+            wait(lambda: clique.get_active_instance_count() == 2)
 
             jobs = list(clique.op.get_running_jobs())
             assert len(jobs) == 2
@@ -1664,3 +1683,17 @@ class TestHttpProxy(ClickHouseTestBase):
             assert ping_thread.is_alive()
             running = False
             ping_thread.join()
+
+    @authors("max42")
+    def test_tracing_via_http_proxy(self):
+        with Clique(5) as clique:
+            url = self._get_proxy_address() + "/query?database={}".format(clique.op.id)
+
+            create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
+            for i in range(5):
+                write_table("<append=%true>//tmp/t", [{"a": 2 * i}, {"a": 2 * i + 1}])
+
+            assert abs(requests.post(url,
+                                     data="select avg(a) from \"//tmp/t\"",
+                                     headers={"X-Yt-Sampled": "1"}).json() - 4.5) < 1e-6
+

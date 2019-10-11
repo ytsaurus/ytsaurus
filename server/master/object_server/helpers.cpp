@@ -38,6 +38,15 @@ TYPathRewrite MakeYPathRewrite(
 }
 
 TDuration ComputeForwardingTimeout(
+    TDuration timeout,
+    const TObjectServiceConfigPtr& config)
+{
+    return timeout > 2 * config->ForwardedRequestTimeoutReserve
+        ? timeout - config->ForwardedRequestTimeoutReserve
+        : timeout;
+}
+
+TDuration ComputeForwardingTimeout(
     const NRpc::IServiceContextPtr& context,
     const TObjectServiceConfigPtr& config)
 {
@@ -45,15 +54,10 @@ TDuration ComputeForwardingTimeout(
         return config->DefaultExecuteTimeout;
     }
 
-    auto timeout =
-        *context->GetStartTime() +
-        *context->GetTimeout() -
-        NProfiling::GetInstant();
-    return timeout > 2 * config->ForwardedRequestTimeoutReserve
-        ? timeout - config->ForwardedRequestTimeoutReserve
-        : timeout;
+    return ComputeForwardingTimeout(
+        *context->GetStartTime() + *context->GetTimeout() - NProfiling::GetInstant(),
+        config);
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -33,7 +33,7 @@ protected:
 
     TEnqueuedAction CurrentAction_;
 
-    virtual EBeginExecuteResult BeginExecute() override;
+    virtual TClosure BeginExecute() override;
     virtual void EndExecute() override;
 };
 

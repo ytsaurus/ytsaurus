@@ -2177,19 +2177,10 @@ std::optional<TJobResources> TOperationElementSharedState::RemoveJob(TJobId jobI
 }
 
 std::optional<EDeactivationReason> TOperationElement::TryStartScheduleJob(
-    NProfiling::TCpuInstant now,
     const TFairShareContext& context,
     TJobResources* precommittedResourcesOutput,
     TJobResources* availableResourcesOutput)
 {
-    auto blocked = Controller_->IsBlocked(
-        now,
-        Spec_->MaxConcurrentControllerScheduleJobCalls.value_or(ControllerConfig_->MaxConcurrentControllerScheduleJobCalls),
-        ControllerConfig_->ScheduleJobFailBackoffTime);
-    if (blocked) {
-        return EDeactivationReason::IsBlocked;
-    }
-
     auto minNeededResources = Controller_->GetAggregatedMinNeededJobResources();
 
     auto nodeFreeResources = context.SchedulingContext->GetNodeFreeResourcesWithDiscount();
@@ -2419,6 +2410,11 @@ void TOperationElement::PrescheduleJob(TFairShareContext* context, bool starving
         return;
     }
 
+    if (Spec_->PreemptionMode == EPreemptionMode::Graceful && GetStatus() == ESchedulableStatus::Normal) {
+        onOperationDeactivated(EDeactivationReason::FairShareExceeded);
+        return;
+    }
+
     if (TreeConfig_->EnableSchedulingTags &&
         SchedulingTagFilterIndex_ != EmptySchedulingTagFilterIndex &&
         !context->CanSchedule[SchedulingTagFilterIndex_])
@@ -2548,7 +2544,7 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
     TJobResources precommittedResources;
     TJobResources availableResources;
 
-    auto deactivationReason = TryStartScheduleJob(now, *context, &precommittedResources, &availableResources);
+    auto deactivationReason = TryStartScheduleJob(*context, &precommittedResources, &availableResources);
     if (deactivationReason) {
         disableOperationElement(*deactivationReason);
         return TFairShareScheduleJobResult(/* finished */ true, /* scheduled */ false);

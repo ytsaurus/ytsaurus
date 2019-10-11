@@ -402,7 +402,8 @@ void TObjectProxyBase::RemoveAttribute(
 void TObjectProxyBase::ReplicateAttributeUpdate(const IServiceContextPtr& context)
 {
     // XXX(babenko): make more objects foreign and replace with IsForeign
-    if (Object_->GetNativeCellTag() != Bootstrap_->GetCellTag()) {
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    if (Object_->GetNativeCellTag() != multicellManager->GetCellTag()) {
         return;
     }
 
@@ -461,6 +462,8 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* d
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EffectiveAcl)
         .SetOpaque(true));
     descriptors->push_back(EInternedAttributeKey::UserAttributeKeys);
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::OpaqueAttributeKeys)
+        .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UserAttributes)
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LifeStage)
@@ -575,6 +578,13 @@ bool TObjectProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
             return true;
         }
 
+        case EInternedAttributeKey::OpaqueAttributeKeys: {
+            const auto& opaqueKeys = Metadata_->OpaqueAttributeKeysCache.GetOpaqueAttributeKeys(this);
+            BuildYsonFluently(consumer)
+                .Value(opaqueKeys);
+            return true;
+        }
+
         case EInternedAttributeKey::UserAttributes: {
             auto customPairs = GetCustomAttributes()->ListPairs();
             const auto& systemCustomKeys = Metadata_->SystemCustomAttributeKeysCache.GetCustomAttributeKeys(this);
@@ -630,6 +640,11 @@ bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
         case EInternedAttributeKey::InheritAcl: {
             ValidateNoTransaction();
 
+            auto inherit = ConvertTo<bool>(value);
+            if (inherit == acd->GetInherit()) {
+                return true;
+            }
+
             const auto& objectManager = Bootstrap_->GetObjectManager();
             const auto& handler = objectManager->GetHandler(Object_);
             if (Any(handler->GetFlags() & ETypeFlags::ForbidInheritAclChange)) {
@@ -638,7 +653,7 @@ bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
                     Object_->GetType());
             }
 
-            acd->SetInherit(ConvertTo<bool>(value));
+            acd->SetInherit(inherit);
             return true;
         }
 
@@ -794,12 +809,12 @@ bool TObjectProxyBase::IsFollower() const
 
 bool TObjectProxyBase::IsPrimaryMaster() const
 {
-    return Bootstrap_->IsPrimaryMaster();
+    return Bootstrap_->GetMulticellManager()->IsPrimaryMaster();
 }
 
 bool TObjectProxyBase::IsSecondaryMaster() const
 {
-    return Bootstrap_->IsSecondaryMaster();
+    return Bootstrap_->GetMulticellManager()->IsSecondaryMaster();
 }
 
 void TObjectProxyBase::RequireLeader() const
@@ -897,7 +912,7 @@ std::vector<IAttributeDictionary::TKeyValuePair> TNontemplateNonversionedObjectP
     return pairs;
 }
 
-TYsonString TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::FindYson(const TString& key) const
+TYsonString TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::FindYson(TStringBuf key) const
 {
     const auto* object = Proxy_->Object_;
     const auto* attributes = object->GetAttributes();

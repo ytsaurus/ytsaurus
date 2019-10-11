@@ -977,9 +977,9 @@ public:
         return Spec_->CoreTableWriter;
     }
 
-    virtual bool DoCheckOutputLivePreviewSupported() const override
+    virtual ELegacyLivePreviewMode GetLegacyOutputLivePreviewMode() const override
     {
-        return Spec_->EnableLegacyLivePreview;
+        return ToLegacyLivePreviewMode(Spec_->EnableLegacyLivePreview);
     }
 
     virtual i64 GetForeignInputDataWeight() const override

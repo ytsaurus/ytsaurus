@@ -293,7 +293,7 @@ public:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         bool defaultExternal =
             Any(handler->GetFlags() & ETypeFlags::Externalizable) &&
-            (Bootstrap_->IsPrimaryMaster() || Shard_ && Shard_->GetRoot() && Shard_->GetRoot()->GetType() == EObjectType::PortalExit) &&
+            (multicellManager->IsPrimaryMaster() || Shard_ && Shard_->GetRoot() && Shard_->GetRoot()->GetType() == EObjectType::PortalExit) &&
             !multicellManager->GetRegisteredMasterCellTags().empty();
         bool external = explicitAttributes->GetAndRemove<bool>("external", defaultExternal);
 
@@ -320,12 +320,12 @@ public:
             }
         }
 
-        if (externalCellTag == Bootstrap_->GetCellTag()) {
+        if (externalCellTag == multicellManager->GetCellTag()) {
             external = false;
             externalCellTag = NotReplicatedCellTag;
         }
 
-        if (externalCellTag == Bootstrap_->GetPrimaryCellTag()) {
+        if (externalCellTag == multicellManager->GetPrimaryCellTag()) {
             THROW_ERROR_EXCEPTION("Cannot place externalizable nodes at primary cell");
         }
 
@@ -389,7 +389,7 @@ public:
 
         if (type == EObjectType::PortalEntrance)  {
             CreatedPortalEntrances_.push_back({
-                StageNode(trunkNode->As<TPortalEntranceNode>()),
+                StageNode(node->As<TPortalEntranceNode>()),
                 inheritedAttributes->Clone(),
                 explicitAttributes->Clone()
             });
@@ -404,6 +404,10 @@ public:
     {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* node = cypressManager->InstantiateNode(id, externalCellTag);
+
+        if (Shard_) {
+            cypressManager->SetShard(node, Shard_);
+        }
 
         RegisterCreatedNode(node);
 
@@ -441,7 +445,7 @@ public:
             });
         }
 
-        return clonedTrunkNode;
+        return clonedNode;
     }
 
     virtual TCypressNode* EndCopyNode(TEndCopyContext* context) override
@@ -476,10 +480,10 @@ public:
             });
         }
 
-        return clonedTrunkNode;
+        return clonedNode;
     }
 
-    virtual void EndCopyNodeInplace(
+    virtual TCypressNode* EndCopyNodeInplace(
         TCypressNode* trunkNode,
         TEndCopyContext* context) override
     {
@@ -489,6 +493,13 @@ public:
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->EndCopyNodeInplace(trunkNode, context, this, sourceNodeId);
+
+        return cypressManager->LockNode(
+            trunkNode,
+            Transaction_,
+            ELockMode::Exclusive,
+            false,
+            true);
     }
 
 private:
@@ -669,7 +680,7 @@ public:
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
 
-        RootNodeId_ = MakeWellKnownId(EObjectType::MapNode, Bootstrap_->GetCellTag());
+        RootNodeId_ = MakeWellKnownId(EObjectType::MapNode, Bootstrap_->GetMulticellManager()->GetCellTag());
         RootShardId_ = MakeCypressShardId(RootNodeId_);
         ResolveCache_ = New<TResolveCache>(RootNodeId_);
 
@@ -1403,7 +1414,10 @@ public:
         YT_VERIFY(!mustUnbranchAboveNodes || !mustUpdateAboveNodes);
         if (mustUnbranchAboveNodes || mustUpdateAboveNodes) {
             // Process nodes above until another lock is met.
-            for (auto* aboveNode = newOriginator; aboveNode != trunkNode; aboveNode = aboveNode->GetOriginator()) {
+            for (auto* aboveNode = newOriginator; aboveNode != trunkNode; ) {
+                // Make sure to get the originator of the current node *before* it's unbranched.
+                auto* nextOriginator = aboveNode->GetOriginator();
+
                 auto* aboveNodeTransaction = aboveNode->GetTransaction();
                 if (aboveNodeTransaction->LockedNodes().contains(trunkNode)) {
                     break;
@@ -1432,6 +1446,8 @@ public:
                         mustUpdateAboveNodes = true;
                     }
                 }
+
+                aboveNode = nextOriginator;
             }
         }
 
@@ -1441,26 +1457,44 @@ public:
             // as its originator. We must update these references to avoid dangling pointers.
             auto* newOriginatorTransaction = newOriginator->GetTransaction();
 
-            for (auto& [lockTransaction, lock] : trunkNode->LockingState().TransactionToSnapshotLocks) {
-                YT_ASSERT(lock->GetState() == ELockState::Acquired);
-                YT_ASSERT(lock->GetTrunkNode() == trunkNode);
-
-                // Locks are released later, so be sure to skip the node we've already unbranched.
-                if (lockTransaction == transaction) {
-                    continue;
-                }
-
-                if (!newOriginatorTransaction || lockTransaction->IsDescendantOf(newOriginatorTransaction)) {
-                    auto* node = GetNode(TVersionedNodeId{trunkNode->GetId(), lockTransaction->GetId()});
-                    auto* nodeOriginator = node->GetOriginator();
-                    if (unbranchedNodes.count(nodeOriginator) != 0) {
-                        node->SetOriginator(newOriginator);
-                        // NB: a branch holds a strong reference to its originator's trunk.
-                        // New originator will have the same trunk, which means there's
-                        // no need to adjust reference counters here.
+            VisitTransactionTree(
+                newOriginatorTransaction
+                    ? newOriginatorTransaction
+                    : transaction->GetTopmostTransaction(),
+                [&] (TTransaction* t) {
+                    // Locks are released later, so be sure to skip the node we've already unbranched.
+                    if (t == transaction) {
+                        return;
                     }
-                }
+
+                    for (auto* branchedNode : t->BranchedNodes()) {
+                        auto* branchedNodeOriginator = branchedNode->GetOriginator();
+                        if (unbranchedNodes.count(branchedNodeOriginator) != 0) {
+                            branchedNode->SetOriginator(newOriginator);
+                        }
+                    }
+                });
+        }
+    }
+
+    //! Traverses a transaction tree. The root transaction does not have to be topmost.
+    template <class F>
+    void VisitTransactionTree(TTransaction* rootTransaction, F&& processTransaction)
+    {
+        // BFS queue.
+        SmallVector<TTransaction*, 64> queue;
+
+        size_t frontIndex = 0;
+        queue.push_back(rootTransaction);
+
+        while (frontIndex < queue.size()) {
+            auto* transaction = queue[frontIndex++];
+
+            for (auto* t : transaction->NestedTransactions()) {
+                queue.push_back(t);
             }
+
+            processTransaction(transaction);
         }
     }
 
@@ -1738,6 +1772,8 @@ private:
     // COMPAT(babenko)
     bool NeedBindNodesToRootShard_ = false;
     // COMPAT(babenko)
+    bool NeedBindNodesToAncestorShard_ = false;
+    // COMPAT(babenko)
     bool NeedSuggestShardNames_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
@@ -1786,6 +1822,8 @@ private:
         // COMPAT(babenko)
         NeedBindNodesToRootShard_ = context.GetVersion() < EMasterReign::CypressShards;
         // COMPAT(babenko)
+        NeedBindNodesToAncestorShard_ = context.GetVersion() < EMasterReign::FixSetShardInClone;
+        // COMPAT(babenko)
         NeedSuggestShardNames_ = context.GetVersion() < EMasterReign::CypressShardName;
     }
 
@@ -1821,6 +1859,8 @@ private:
 
         NeedCleanupHalfCommittedTransaction_ = false;
         NeedBindNodesToRootShard_ = false;
+        NeedBindNodesToAncestorShard_ = false;
+        NeedSuggestShardNames_ = false;
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -1963,6 +2003,24 @@ private:
             for (auto [nodeId, node] : NodeMap_) {
                 if (node->IsTrunk() && node->IsNative() && !node->GetShard()) {
                     SetShard(node, RootShard_);
+                }
+            }
+        }
+
+        // COMPAT(babenko)
+        if (NeedBindNodesToAncestorShard_) {
+            for (auto [nodeId, node] : NodeMap_) {
+                if (node->GetShard()) {
+                    continue;
+                }
+
+                auto* ancestorNode = node->GetTrunkNode();
+                while (ancestorNode->GetParent() && !ancestorNode->GetShard()) {
+                    ancestorNode = ancestorNode->GetParent();
+                }
+
+                if (auto* shard = ancestorNode->GetShard()) {
+                    SetShard(node, shard);
                 }
             }
         }
@@ -3104,7 +3162,9 @@ private:
     void HydraCreateForeignNode(NProto::TReqCreateForeignNode* request) noexcept
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YT_VERIFY(Bootstrap_->IsSecondaryMaster());
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        YT_VERIFY(multicellManager->IsSecondaryMaster());
 
         auto nodeId = FromProto<TObjectId>(request->node_id());
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
@@ -3147,7 +3207,9 @@ private:
     void HydraCloneForeignNode(NProto::TReqCloneForeignNode* request) noexcept
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YT_VERIFY(Bootstrap_->IsSecondaryMaster());
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        YT_VERIFY(multicellManager->IsSecondaryMaster());
 
         auto sourceNodeId = FromProto<TNodeId>(request->source_node_id());
         auto sourceTransactionId = FromProto<TTransactionId>(request->source_transaction_id());
@@ -3231,7 +3293,9 @@ private:
     void HydraLockForeignNode(NProto::TReqLockForeignNode* request) noexcept
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YT_VERIFY(Bootstrap_->IsSecondaryMaster());
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        YT_VERIFY(multicellManager->IsSecondaryMaster());
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto nodeId = FromProto<TNodeId>(request->node_id());
@@ -3284,7 +3348,9 @@ private:
     void HydraUnlockForeignNode(NProto::TReqUnlockForeignNode* request) noexcept
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YT_VERIFY(Bootstrap_->IsSecondaryMaster());
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        YT_VERIFY(multicellManager->IsSecondaryMaster());
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto nodeId = FromProto<TNodeId>(request->node_id());

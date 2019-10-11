@@ -424,25 +424,29 @@ CONTROLLER_AGENTS_SERVICE = "controller_agents"
 NODES_SERVICE = "nodes"
 MASTER_CELL_SERVICE = "master_cell"
 
+# TODO(ignat): move it to python-repo
 class Restarter(object):
-    def __init__(self, Env, components):
+    def __init__(self, Env, components, *args, **kwargs):
         self.Env = Env
         self.components = components
         if type(self.components) == str:
             self.components = [self.components]
-        self.kill_dict = {SCHEDULERS_SERVICE: self.Env.kill_schedulers,
-                          CONTROLLER_AGENTS_SERVICE: self.Env.kill_controller_agents,
-                          NODES_SERVICE: self.Env.kill_nodes,
-                          MASTER_CELL_SERVICE: self.Env.kill_master_cell}
+        self.kill_args = args
+        self.kill_kwargs = kwargs
+
         self.start_dict = {SCHEDULERS_SERVICE: self.Env.start_schedulers,
                            CONTROLLER_AGENTS_SERVICE: self.Env.start_controller_agents,
                            NODES_SERVICE: self.Env.start_nodes,
                            MASTER_CELL_SERVICE: self.Env.start_master_cell}
+        self.name_dict = {SCHEDULERS_SERVICE: "scheduler",
+                          CONTROLLER_AGENTS_SERVICE: "controller_agent",
+                          NODES_SERVICE: "node",
+                          MASTER_CELL_SERVICE: "master"}
 
     def __enter__(self):
         for comp_name in self.components:
             try:
-                self.kill_dict[comp_name]()
+                self.Env.kill_service(self.name_dict[comp_name], *self.kill_args, **self.kill_kwargs)
             except KeyError:
                 logging.error("Failed to kill {}. No such component.".format(comp_name))
                 raise
@@ -653,7 +657,7 @@ class YTEnvSetup(object):
         yt_commands.path_to_run_tests = cls.path_to_run
         yt_commands.init_drivers([cls.Env] + cls.remote_envs)
 
-        cls.Env.start(use_proxy_from_package=False, use_new_proxy=True, start_secondary_master_cells=cls.START_SECONDARY_MASTER_CELLS, on_masters_started_func=cls.on_masters_started)
+        cls.Env.start(start_secondary_master_cells=cls.START_SECONDARY_MASTER_CELLS, on_masters_started_func=cls.on_masters_started)
         for index, env in enumerate(cls.remote_envs):
             env.start(start_secondary_master_cells=cls.get_param("START_SECONDARY_MASTER_CELLS", index))
 

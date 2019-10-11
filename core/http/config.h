@@ -45,6 +45,9 @@ public:
 
     bool EnableKeepAlive;
 
+    //! This field is not accessable from config.
+    bool IsHttps = false;
+
     TServerConfig();
 };
 

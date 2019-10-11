@@ -74,7 +74,7 @@ private:
 
             auto cellTag = CellTagFromId(ObjectId_);
             const auto& objectManager = Bootstrap_->GetObjectManager();
-            auto asyncResponseMessage = objectManager->ForwardObjectRequest(updatedMessage, cellTag, EPeerKind::Follower, std::nullopt);
+            auto asyncResponseMessage = objectManager->ForwardObjectRequest(updatedMessage, cellTag, EPeerKind::Follower);
             context->ReplyFrom(std::move(asyncResponseMessage));
         }
 
@@ -119,7 +119,8 @@ private:
         }
 
         // Cf. TPathResolver::ResolveRoot.
-        if (Bootstrap_->IsPrimaryMaster() && CellTagFromId(objectId) != Bootstrap_->GetCellTag()) {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsPrimaryMaster() && CellTagFromId(objectId) != multicellManager->GetCellTag()) {
             return New<TRemoteService>(Bootstrap_, objectId);
         } else {
             const auto& epochHistoryManager = Bootstrap_->GetEpochHistoryManager();

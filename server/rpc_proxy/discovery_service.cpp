@@ -277,7 +277,7 @@ private:
                 std::vector<TString>{
                     RoleAttributeName,
                     BannedAttributeName,
-                    BanMessageAttributeName
+                    BanMessageAttributeName,
                 });
             batchReq->AddRequest(req, "get_ban");
         }
@@ -288,6 +288,7 @@ private:
                 std::vector<TString>{
                     RoleAttributeName,
                     BannedAttributeName,
+                    ConfigAttributeName,
                 });
 
             auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
@@ -323,6 +324,11 @@ private:
 
             auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_proxies").Value();
             auto nodeResult = ConvertToNode(TYsonString(rsp->value()));
+
+            if (auto dynamicConfig = nodeResult->Attributes().Find<TDynamicConfigPtr>(ConfigAttributeName)) {
+                Coordinator_->SetDynamicConfig(dynamicConfig);
+            }
+
             for (const auto& child : nodeResult->AsMap()->GetChildren()) {
                 bool banned = child.second->Attributes().Get(BannedAttributeName, false);
                 auto role = child.second->Attributes().Get<TString>(RoleAttributeName, DefaultProxyRole);

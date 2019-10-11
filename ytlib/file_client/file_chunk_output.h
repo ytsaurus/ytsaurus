@@ -55,18 +55,22 @@ protected:
     NLogging::TLogger Logger;
 
 private:
-    void FlushBlock();
-
     const NApi::TFileWriterConfigPtr Config_;
     const NChunkClient::TMultiChunkWriterOptionsPtr Options_;
     const NApi::NNative::IClientPtr Client_;
     const NObjectClient::TTransactionId TransactionId_;
+    const NChunkClient::TTrafficMeterPtr TrafficMeter_;
+    const NConcurrency::IThroughputThrottlerPtr Throttler_;
     const i64 SizeLimit_;
+
+    bool Open_ = false;
 
     NChunkClient::IChunkWriterPtr ConfirmingChunkWriter_;
     IFileChunkWriterPtr FileChunkWriter_;
 
     i64 GetSize() const;
+    void EnsureOpen();
+    void FlushBlock();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

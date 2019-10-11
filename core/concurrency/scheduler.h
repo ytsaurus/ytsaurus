@@ -17,8 +17,6 @@ struct IScheduler
 {
     virtual ~IScheduler() = default;
 
-    virtual TFiber* GetCurrentFiber() = 0;
-
     //! Returns control back to the scheduler.
     //! This must be called upon fiber termination.
     virtual void Return() = 0;
@@ -37,26 +35,24 @@ struct IScheduler
 
 };
 
+//! Yield from current fiber.
+void Yield();
+
+//! Switch execution (current fiber) to another invoker.
+void SwitchTo(IInvokerPtr invoker);
+
+//! Exit from current fiber.
+void ReturnFromFiber();
+
+//! Suspend current fiber and continue execution of another one.
+void YieldToFiber(TFiberPtr&& other);
+
 ////////////////////////////////////////////////////////////////////////////////
 // Provides a way to work with the current scheduler and fiber.
 // Schedulers and fibers are thread-scoped so this is an access to TLS.
 
-//! Returns the current scheduler. Fails if there's none.
-IScheduler* GetCurrentScheduler();
-
-//! Returns the duration the fiber is running.
-//! This counts CPU wall time but excludes periods the fiber was sleeping.
-//! The call only makes sense if the fiber is currently runnning.
-NProfiling::TCpuDuration GetCurrentRunCpuTime();
-
-//! Returns the current scheduler or |nullptr| if there's none.
-IScheduler* TryGetCurrentScheduler();
-
 //! Sets the current scheduler. Can only be called once per thread.
 void SetCurrentScheduler(IScheduler* scheduler);
-
-//! Generates a fresh fiber id.
-TFiberId GenerateFiberId();
 
 //! Returns the current fiber id.
 TFiberId GetCurrentFiberId();
@@ -64,25 +60,21 @@ TFiberId GetCurrentFiberId();
 //! Sets the current fiber id.
 void SetCurrentFiberId(TFiberId id);
 
-//! Returns the current fiber. Fails if there's none.
-const TFiber* GetCurrentFiber();
-
 //! Returns the current fiber or |nullptr| if there's none.
-const TFiber* TryGetCurrentFiber();
+TFiber* TryGetCurrentFiber();
 
 //! Sets the current fiber id.
-void SetCurrentFiber(const TFiber* fiber);
+void SetCurrentFiber(TFiber* fiber);
 
-/////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+//! Returns the duration the fiber is running.
+//! This counts CPU wall time but excludes periods the fiber was sleeping.
+//! The call only makes sense if the fiber is currently runnning.
+NProfiling::TCpuDuration GetCurrentRunCpuTime();
 
 //! Returns |true| if there is enough remaining stack space.
 bool CheckFreeStackSpace(size_t space);
-
-////////////////////////////////////////////////////////////////////////////////
-// Shortcuts.
-
-void Yield();
-void SwitchTo(IInvokerPtr invoker);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -141,6 +133,33 @@ TClosure GetCurrentFiberCanceler();
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NConcurrency
+
+namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+// Provides a way to work with the current invoker.
+
+IInvokerPtr GetCurrentInvoker();
+void SetCurrentInvoker(IInvokerPtr invoker);
+
+//! Swaps the current active invoker with a provided one.
+class TCurrentInvokerGuard
+    : NConcurrency::TContextSwitchGuard
+{
+public:
+    explicit TCurrentInvokerGuard(IInvokerPtr invoker);
+    ~TCurrentInvokerGuard();
+
+private:
+    void Restore();
+
+    bool Active_;
+    IInvokerPtr SavedInvoker_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} //namespace NYT
 
 #define SCHEDULER_INL_H_
 #include "scheduler-inl.h"

@@ -95,7 +95,7 @@ public:
         const auto& configManager = Bootstrap_->GetConfigManager();
         configManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
 
-        if (Bootstrap_->IsSecondaryMaster()) {
+        if (IsSecondaryMaster()) {
             // NB: This causes a cyclic reference but we don't care.
             const auto& hiveManager = Bootstrap_->GetHiveManager();
             hiveManager->SubscribeIncomingMessageUpstreamSync(BIND(&TImpl::OnIncomingMessageUpstreamSync, MakeStrong(this)));
@@ -103,6 +103,54 @@ public:
             const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
             hydraManager->SubscribeUpstreamSync(BIND(&TImpl::OnHydraUpstreamSync, MakeStrong(this)));
         }
+    }
+
+
+    bool IsPrimaryMaster()
+    {
+        return Bootstrap_->IsPrimaryMaster();
+    }
+
+    bool IsSecondaryMaster()
+    {
+        return Bootstrap_->IsSecondaryMaster();
+    }
+
+    bool IsMulticell()
+    {
+        return Bootstrap_->IsMulticell();
+    }
+
+    TCellId GetCellId()
+    {
+        return Bootstrap_->GetCellId();
+    }
+
+    TCellId GetCellId(TCellTag cellTag)
+    {
+        return cellTag == PrimaryMasterCellTag
+            ? GetPrimaryCellId()
+            : ReplaceCellTagInId(GetPrimaryCellId(), cellTag);
+    }
+
+    TCellTag GetCellTag()
+    {
+        return Bootstrap_->GetCellTag();
+    }
+
+    TCellId GetPrimaryCellId()
+    {
+        return Bootstrap_->GetPrimaryCellId();
+    }
+
+    TCellTag GetPrimaryCellTag()
+    {
+        return Bootstrap_->GetPrimaryCellTag();
+    }
+
+    const TCellTagList& GetSecondaryCellTags()
+    {
+        return Bootstrap_->GetSecondaryCellTags();
     }
 
 
@@ -132,8 +180,8 @@ public:
         const TCrossCellMessage& message,
         bool reliable)
     {
-        YT_VERIFY(Bootstrap_->IsPrimaryMaster());
-        if (Bootstrap_->IsMulticell()) {
+        YT_VERIFY(IsPrimaryMaster());
+        if (IsMulticell()) {
             PostToMasters(message, GetRegisteredMasterCellTags(), reliable);
         }
     }
@@ -141,7 +189,7 @@ public:
 
     bool IsLocalMasterCellRegistered()
     {
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (IsPrimaryMaster()) {
             return true;
         }
 
@@ -179,7 +227,7 @@ public:
         // List candidates.
         SmallVector<std::pair<TCellTag, i64>, MaxSecondaryMasterCells> candidates;
         auto maybeAddCandidate = [&] (TCellTag cellTag, i64 chunkCount) {
-            if (cellTag == Bootstrap_->GetPrimaryCellTag()) {
+            if (cellTag == GetPrimaryCellTag()) {
                 return;
             }
             if (None(GetMasterCellRoles(cellTag) & EMasterCellRoles::ChunkHost)) {
@@ -188,9 +236,9 @@ public:
             candidates.emplace_back(cellTag, chunkCount);
         };
 
-        if (Bootstrap_->IsSecondaryMaster() && !Bootstrap_->IsMulticell()) {
+        if (IsSecondaryMaster() && !IsMulticell()) {
             maybeAddCandidate(
-                Bootstrap_->GetCellTag(),
+                GetCellTag(),
                 Bootstrap_->GetChunkManager()->Chunks().size());
         } else {
             for (const auto& [cellTag, entry] : RegisteredMasterMap_) {
@@ -275,13 +323,12 @@ public:
 
 
         const auto& cellDirectory = Bootstrap_->GetCellDirectory();
-        auto cellId = Bootstrap_->GetCellId(cellTag);
+        auto cellId = GetCellId(cellTag);
         auto channel = cellDirectory->FindChannel(cellId, peerKind);
         if (!channel) {
             return nullptr;
         }
 
-        // XXX(babenko): is this needed during forwarding?
         channel = CreateRetryingChannel(Config_->MasterConnection, channel);
         channel = CreateDefaultTimeoutChannel(channel, Config_->MasterConnection->RpcTimeout);
 
@@ -356,10 +403,10 @@ private:
 
             RegisteredMasterCellTags_[entry.Index] = cellTag;
 
-            auto cellId = Bootstrap_->GetCellId(cellTag);
+            auto cellId = GetCellId(cellTag);
             entry.Mailbox = hiveManager->GetMailbox(cellId);
 
-            if (cellTag == Bootstrap_->GetPrimaryCellTag()) {
+            if (cellTag == GetPrimaryCellTag()) {
                 PrimaryMasterMailbox_ = entry.Mailbox;
             }
 
@@ -402,7 +449,7 @@ private:
     {
         TMasterAutomatonPart::OnLeaderActive();
 
-        if (Bootstrap_->IsSecondaryMaster()) {
+        if (IsSecondaryMaster()) {
             RegisterAtPrimaryMasterExecutor_ = New<TPeriodicExecutor>(
                 Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Periodic),
                 BIND(&TImpl::OnStartSecondaryMasterRegistration, MakeWeak(this)),
@@ -475,7 +522,7 @@ private:
 
     void HydraRegisterSecondaryMasterAtPrimary(NProto::TReqRegisterSecondaryMasterAtPrimary* request)
     {
-        YT_VERIFY(Bootstrap_->IsPrimaryMaster());
+        YT_VERIFY(IsPrimaryMaster());
 
         auto cellTag = request->cell_tag();
         try {
@@ -522,7 +569,7 @@ private:
 
     void HydraOnSecondaryMasterRegisteredAtPrimary(NProto::TRspRegisterSecondaryMasterAtPrimary* response)
     {
-        YT_VERIFY(Bootstrap_->IsSecondaryMaster());
+        YT_VERIFY(IsSecondaryMaster());
 
         if (response->has_error()) {
             auto error = FromProto<TError>(response->error());
@@ -538,7 +585,7 @@ private:
 
     void HydraRegisterSecondaryMasterAtSecondary(NProto::TReqRegisterSecondaryMasterAtSecondary* request)
     {
-        YT_VERIFY(Bootstrap_->IsSecondaryMaster());
+        YT_VERIFY(IsSecondaryMaster());
 
         auto cellTag = request->cell_tag();
         try {
@@ -556,7 +603,7 @@ private:
 
     void HydraStartSecondaryMasterRegistration(NProto::TReqStartSecondaryMasterRegistration* /*request*/)
     {
-        YT_VERIFY(Bootstrap_->IsSecondaryMaster());
+        YT_VERIFY(IsSecondaryMaster());
 
         if (RegisterState_ != EPrimaryRegisterState::None) {
             return;
@@ -565,16 +612,16 @@ private:
         YT_LOG_INFO_UNLESS(IsRecovery(), "Registering at primary master");
 
         RegisterState_ = EPrimaryRegisterState::Registering;
-        RegisterMasterEntry(Bootstrap_->GetPrimaryCellTag());
+        RegisterMasterEntry(GetPrimaryCellTag());
 
         NProto::TReqRegisterSecondaryMasterAtPrimary request;
-        request.set_cell_tag(Bootstrap_->GetCellTag());
+        request.set_cell_tag(GetCellTag());
         PostToMaster(request, PrimaryMasterCellTag, true);
     }
 
     void HydraSetCellStatistics(NProto::TReqSetCellStatistics* request)
     {
-        YT_VERIFY(Bootstrap_->IsPrimaryMaster());
+        YT_VERIFY(IsPrimaryMaster());
 
         auto cellTag = request->cell_tag();
         YT_LOG_INFO_UNLESS(IsRecovery(), "Received cell statistics gossip message (CellTag: %v)",
@@ -620,11 +667,11 @@ private:
         auto& entry = it->second;
         entry.Index = index;
 
-        auto cellId = Bootstrap_->GetCellId(cellTag);
+        auto cellId = GetCellId(cellTag);
         const auto& hiveManager = Bootstrap_->GetHiveManager();
         entry.Mailbox = hiveManager->GetOrCreateMailbox(cellId);
 
-        if (cellTag == Bootstrap_->GetPrimaryCellTag()) {
+        if (cellTag == GetPrimaryCellTag()) {
             PrimaryMasterMailbox_ = entry.Mailbox;
         }
 
@@ -666,7 +713,7 @@ private:
 
     void OnStartSecondaryMasterRegistration()
     {
-        YT_VERIFY(Bootstrap_->IsSecondaryMaster());
+        YT_VERIFY(IsSecondaryMaster());
 
         const auto& worldInitializer = Bootstrap_->GetWorldInitializer();
         if (!worldInitializer->IsInitialized()) {
@@ -684,7 +731,7 @@ private:
 
     void OnCellStatisticsGossip()
     {
-        YT_VERIFY(Bootstrap_->IsSecondaryMaster());
+        YT_VERIFY(IsSecondaryMaster());
 
         if (!IsLocalMasterCellRegistered()) {
             return;
@@ -693,7 +740,7 @@ private:
         YT_LOG_INFO("Sending cell statistics gossip message");
 
         NProto::TReqSetCellStatistics request;
-        request.set_cell_tag(Bootstrap_->GetCellTag());
+        request.set_cell_tag(GetCellTag());
         *request.mutable_statistics() = GetLocalCellStatistics();
         PostToMaster(request, PrimaryMasterCellTag, false);
     }
@@ -714,12 +761,12 @@ private:
             return VoidFuture;
         }
         const auto& hiveManager = Bootstrap_->GetHiveManager();
-        return hiveManager->SyncWith(Bootstrap_->GetPrimaryCellId(), false);
+        return hiveManager->SyncWith(GetPrimaryCellId(), false);
     }
 
     TFuture<void> OnIncomingMessageUpstreamSync(TCellId srcCellId)
     {
-        if (srcCellId == Bootstrap_->GetPrimaryCellId()) {
+        if (srcCellId == GetPrimaryCellId() || CellTagFromId(srcCellId) != EObjectType::ClusterCell) {
             return VoidFuture;
         }
         return SyncWithPrimaryCell();
@@ -772,7 +819,7 @@ private:
         TMailboxList mailboxes;
         for (auto cellTag : cellTags) {
             if (cellTag == PrimaryMasterCellTag) {
-                cellTag = Bootstrap_->GetPrimaryCellTag();
+                cellTag = GetPrimaryCellTag();
             }
             auto* mailbox = FindMasterMailbox(cellTag);
             if (mailbox) {
@@ -805,7 +852,7 @@ private:
         auto populateCellRoles = [&] (TCellTag cellTag) {
             MasterCellRolesMap_[cellTag] = ComputeMasterCellRolesFromConfig(cellTag);
         };
-        populateCellRoles(Bootstrap_->GetCellTag());
+        populateCellRoles(GetCellTag());
         for (auto& [cellTag, entry] : RegisteredMasterMap_) {
             populateCellRoles(cellTag);
         }
@@ -813,10 +860,10 @@ private:
 
     EMasterCellRoles GetDefaultMasterCellRoles(TCellTag cellTag)
     {
-        return (cellTag == Bootstrap_->GetPrimaryCellTag())
+        return (cellTag == GetPrimaryCellTag())
             ? (EMasterCellRoles::CypressNodeHost |
                EMasterCellRoles::TransactionCoordinator |
-               (Bootstrap_->IsMulticell() ? EMasterCellRoles::None : EMasterCellRoles::ChunkHost))
+               (IsMulticell() ? EMasterCellRoles::None : EMasterCellRoles::ChunkHost))
             : (EMasterCellRoles::CypressNodeHost | EMasterCellRoles::ChunkHost);
     }
 
@@ -840,6 +887,51 @@ void TMulticellManager::Initialize()
     Impl_->Initialize();
 }
 
+bool TMulticellManager::IsPrimaryMaster()
+{
+    return Impl_->IsPrimaryMaster();
+}
+
+bool TMulticellManager::IsSecondaryMaster()
+{
+    return Impl_->IsSecondaryMaster();
+}
+
+bool TMulticellManager::IsMulticell()
+{
+    return Impl_->IsMulticell();
+}
+
+TCellId TMulticellManager::GetCellId()
+{
+    return Impl_->GetCellId();
+}
+
+TCellId TMulticellManager::GetCellId(TCellTag cellTag)
+{
+    return Impl_->GetCellId(cellTag);
+}
+
+TCellTag TMulticellManager::GetCellTag()
+{
+    return Impl_->GetCellTag();
+}
+
+TCellId TMulticellManager::GetPrimaryCellId()
+{
+    return Impl_->GetPrimaryCellId();
+}
+
+TCellTag TMulticellManager::GetPrimaryCellTag()
+{
+    return Impl_->GetPrimaryCellTag();
+}
+
+const TCellTagList& TMulticellManager::GetSecondaryCellTags()
+{
+    return Impl_->GetSecondaryCellTags();
+}
+
 void TMulticellManager::PostToMaster(
     const TCrossCellMessage& message,
     TCellTag cellTag,
@@ -850,7 +942,7 @@ void TMulticellManager::PostToMaster(
 
 void TMulticellManager::PostToMasters(
     const TCrossCellMessage& message,
-    const NObjectClient::TCellTagList& cellTags,
+    const TCellTagList& cellTags,
     bool reliable)
 {
     Impl_->PostToMasters(message, cellTags, reliable);
@@ -873,7 +965,7 @@ bool TMulticellManager::IsRegisteredMasterCell(TCellTag cellTag)
     return Impl_->IsRegisteredSecondaryMaster(cellTag);
 }
 
-EMasterCellRoles TMulticellManager::GetMasterCellRoles(NObjectClient::TCellTag cellTag)
+EMasterCellRoles TMulticellManager::GetMasterCellRoles(TCellTag cellTag)
 {
     return Impl_->GetMasterCellRoles(cellTag);
 }

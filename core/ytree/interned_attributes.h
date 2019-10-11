@@ -16,7 +16,7 @@ const TInternedAttributeKey CountInternedAttribute = 1;
 void InternAttribute(const TString& uninternedKey, TInternedAttributeKey internedKey);
 
 // May return #InvalidInternedAttribute if the attribute is not interned.
-TInternedAttributeKey GetInternedAttributeKey(const TString& uninternedKey);
+TInternedAttributeKey GetInternedAttributeKey(TStringBuf uninternedKey);
 
 const TString& GetUninternedAttributeKey(TInternedAttributeKey internedKey);
 

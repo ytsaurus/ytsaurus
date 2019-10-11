@@ -2,54 +2,66 @@
 #include "fiber.h"
 #include "fls.h"
 
+namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+thread_local IInvokerPtr CurrentInvoker;
+
+IInvokerPtr GetCurrentInvoker()
+{
+    return CurrentInvoker ? CurrentInvoker : GetSyncInvoker();
+}
+
+void SetCurrentInvoker(IInvokerPtr invoker)
+{
+    CurrentInvoker = std::move(invoker);
+}
+
+TCurrentInvokerGuard::TCurrentInvokerGuard(IInvokerPtr invoker)
+    : NConcurrency::TContextSwitchGuard(
+        [this] () noexcept {
+            Restore();
+        },
+        [] () noexcept { })
+    , Active_(true)
+    , SavedInvoker_(std::move(invoker))
+{
+    CurrentInvoker.Swap(SavedInvoker_);
+}
+
+void TCurrentInvokerGuard::Restore()
+{
+    if (!Active_) {
+        return;
+    }
+    Active_ = false;
+    CurrentInvoker.Swap(SavedInvoker_);
+}
+
+TCurrentInvokerGuard::~TCurrentInvokerGuard()
+{
+    Restore();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} //namespace NYT
+
 namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 thread_local IScheduler* CurrentScheduler;
 thread_local TFiberId CurrentFiberId;
-thread_local const TFiber* CurrentFiber;
+thread_local TFiber* CurrentFiber;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 NProfiling::TCpuDuration GetCurrentRunCpuTime()
 {
-    const auto* fiber = GetCurrentFiber();
-    return fiber->GetRunCpuTime();
-}
-
-/////////////////////////////////////////////////////////////////////////////
-
-static class TFiberIdGenerator
-{
-public:
-    TFiberIdGenerator()
-    {
-        Seed_.store(static_cast<TFiberId>(::time(nullptr)));
-    }
-
-    TFiberId Generate()
-    {
-        const TFiberId Factor = std::numeric_limits<TFiberId>::max() - 173864;
-        YT_ASSERT(Factor % 2 == 1); // Factor must be coprime with 2^n.
-
-        while (true) {
-            auto seed = Seed_++;
-            auto id = seed * Factor;
-            if (id != InvalidFiberId) {
-                return id;
-            }
-        }
-    }
-
-private:
-    std::atomic<TFiberId> Seed_;
-
-} FiberIdGenerator;
-
-TFiberId GenerateFiberId()
-{
-    return FiberIdGenerator.Generate();
+    YT_ASSERT(CurrentFiber);
+    return CurrentFiber->GetRunCpuTime();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -70,24 +82,48 @@ void Yield()
 void SwitchTo(IInvokerPtr invoker)
 {
     YT_ASSERT(invoker);
-    GetCurrentScheduler()->SwitchTo(std::move(invoker));
+    YT_ASSERT(CurrentScheduler);
+    CurrentScheduler->SwitchTo(std::move(invoker));
+}
+
+void ReturnFromFiber()
+{
+    YT_ASSERT(CurrentScheduler);
+    CurrentScheduler->Return();
+}
+
+void YieldToFiber(TFiberPtr&& other)
+{
+    YT_ASSERT(CurrentScheduler);
+    CurrentScheduler->YieldTo(std::move(other));
+}
+
+void WaitForImpl(TFuture<void> future, IInvokerPtr invoker)
+{
+    auto* scheduler = CurrentScheduler;
+    if (scheduler) {
+        NYTAlloc::TMemoryTagGuard guard(NYTAlloc::NullMemoryTag);
+        scheduler->WaitFor(std::move(future), std::move(invoker));
+    } else {
+        // When called from a fiber-unfriendly context, we fallback to blocking wait.
+        YT_VERIFY(invoker == GetCurrentInvoker());
+        YT_VERIFY(invoker == GetSyncInvoker());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TContextSwitchGuard::TContextSwitchGuard(std::function<void()> out, std::function<void()> in)
 {
-    auto* fiber = TryGetCurrentFiber();
-    if (fiber) {
-        const_cast<TFiber*>(fiber)->PushContextHandler(std::move(out), std::move(in));
+    if (auto* fiber = TryGetCurrentFiber()) {
+        fiber->PushContextHandler(std::move(out), std::move(in));
     }
 }
 
 TContextSwitchGuard::~TContextSwitchGuard()
 {
-    auto* fiber = TryGetCurrentFiber();
-    if (fiber) {
-        const_cast<TFiber*>(fiber)->PopContextHandler();
+    if (auto* fiber = TryGetCurrentFiber()) {
+        fiber->PopContextHandler();
     }
 }
 

@@ -497,7 +497,7 @@ TYsonString DoGetMulticellOwningNodes(
 
     // Request owning nodes from all cells.
     auto requestIdsFromCell = [&] (TCellTag cellTag) {
-        if (cellTag == bootstrap->GetCellTag()) {
+        if (cellTag == multicellManager->GetCellTag()) {
             return;
         }
 
@@ -534,15 +534,15 @@ TYsonString DoGetMulticellOwningNodes(
         }
     };
 
-    requestIdsFromCell(bootstrap->GetPrimaryCellTag());
-    for (auto cellTag : bootstrap->GetSecondaryCellTags()) {
+    requestIdsFromCell(multicellManager->GetPrimaryCellTag());
+    for (auto cellTag : multicellManager->GetSecondaryCellTags()) {
         requestIdsFromCell(cellTag);
     }
 
     // Request node paths from the primary cell.
     {
         auto channel = multicellManager->GetMasterChannelOrThrow(
-            bootstrap->GetPrimaryCellTag(),
+            multicellManager->GetPrimaryCellTag(),
             NHydra::EPeerKind::LeaderOrFollower);
         TObjectServiceProxy proxy(channel);
 

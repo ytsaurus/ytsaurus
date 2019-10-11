@@ -48,10 +48,7 @@ void Serialize(const TSerializableAccessControlEntry& ace, NYson::IYsonConsumer*
             .Item("subjects").Value(ace.Subjects)
             .Item("permissions").Value(ace.Permissions)
             .Item("inheritance_mode").Value(ace.InheritanceMode)
-            .DoIf(ace.Columns.has_value(), [&] (auto fluent) {
-                fluent
-                    .Item("columns").Value(ace.Columns);
-            })
+            .OptionalItem("columns", ace.Columns)
         .EndMap();
 }
 

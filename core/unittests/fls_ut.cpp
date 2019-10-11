@@ -1,6 +1,11 @@
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/core/concurrency/fls.h>
+#include <yt/core/concurrency/action_queue.h>
+
+#include <yt/core/actions/callback.h>
+#include <yt/core/actions/future.h>
+
 
 namespace NYT::NConcurrency {
 namespace {
@@ -48,10 +53,49 @@ protected:
         TMyValue<TString>::Reset();
     }
 
+    TActionQueuePtr ActionQueue = New<TActionQueue>();
+
+    virtual void TearDown()
+    {
+        ActionQueue->Shutdown();
+    }
+
 };
 
 TFls<TMyValue<int>> IntValue;
 TFls<TMyValue<TString>> StringValue;
+
+TEST_F(TFlsTest, TwoFibers)
+{
+    auto p1 = NewPromise<void>();
+    auto p2 = NewPromise<void>();
+
+    auto f1 = BIND([&] {
+        StringValue->Value = "fiber1";
+        WaitFor(p1.ToFuture())
+            .ThrowOnError();
+        EXPECT_EQ("fiber1", StringValue->Value);
+    })
+    .AsyncVia(ActionQueue->GetInvoker())
+    .Run();
+
+    auto f2 = BIND([&] {
+        StringValue->Value = "fiber2";
+        WaitFor(p2.ToFuture())
+            .ThrowOnError();
+        EXPECT_EQ("fiber2", StringValue->Value);
+    })
+    .AsyncVia(ActionQueue->GetInvoker())
+    .Run();
+
+    p1.Set();
+    p2.Set();
+
+    WaitFor(f1)
+        .ThrowOnError();
+    WaitFor(f2)
+        .ThrowOnError();
+}
 
 #if 0
 

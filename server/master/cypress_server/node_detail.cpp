@@ -160,7 +160,9 @@ TCypressNode* TNontemplateCypressNodeTypeHandlerBase::EndCopyCore(
 {
     // See BeginCopyCore.
     auto externalCellTag = Load<TCellTag>(*context);
-    if (externalCellTag == Bootstrap_->GetCellTag()) {
+
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    if (externalCellTag == multicellManager->GetCellTag()) {
         THROW_ERROR_EXCEPTION("Cannot copy node %v to cell %v since the latter is its external cell",
             sourceNodeId,
             externalCellTag);
@@ -700,6 +702,13 @@ void TMapNodeChildren::Load(NCellMaster::TLoadContext& context)
     delete children;
 }
 
+/*static*/ void TMapNodeChildren::Clear(TMapNodeChildren* children)
+{
+    YT_VERIFY(children->GetRefCount() == 0);
+    // NB: does not unref children! This is to be used during automaton clearing only!
+    delete children;
+}
+
 /*static*/ TMapNodeChildren* TMapNodeChildren::Copy(
     TMapNodeChildren* srcChildren,
     const TObjectManagerPtr& objectManager)
@@ -741,7 +750,12 @@ TMapNode::TMapNode(const TVersionedNodeId& id)
     : TCompositeNodeBase(id)
 { }
 
-TMapNode::~TMapNode() = default;
+TMapNode::~TMapNode()
+{
+    // Usually, Children_.Reset() has already been called by now, so Clear is a no-op.
+    // This is only relevant when the whole automaton is being cleared.
+    Children_.Clear();
+}
 
 const TMapNode::TKeyToChild& TMapNode::KeyToChild() const
 {

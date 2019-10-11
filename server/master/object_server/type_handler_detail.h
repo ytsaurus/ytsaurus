@@ -21,6 +21,7 @@ struct TObjectTypeMetadata
 {
     NYTree::TSystemBuiltinAttributeKeysCache SystemBuiltinAttributeKeysCache;
     NYTree::TSystemCustomAttributeKeysCache SystemCustomAttributeKeysCache;
+    NYTree::TOpaqueAttributeKeysCache OpaqueAttributeKeysCache;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

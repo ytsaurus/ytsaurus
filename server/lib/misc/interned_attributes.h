@@ -182,6 +182,7 @@
     XX(Online, online) \
     XX(OnlineNodeCount, online_node_count) \
     XX(Opaque, opaque) \
+    XX(OpaqueAttributeKeys, opaque_attribute_keys) \
     XX(OptimizeFor, optimize_for) \
     XX(OptimizeForStatistics, optimize_for_statistics) \
     XX(Options, options) \

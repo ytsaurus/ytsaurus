@@ -195,6 +195,7 @@ IInvokerPtr TNodeShard::OnMasterConnected()
     CancelableInvoker_ = CancelableContext_->CreateInvoker(GetInvoker());
 
     CachedExecNodeDescriptorsRefresher_->Start();
+    SubmitJobsToStrategyExecutor_->Start();
 
     return CancelableInvoker_;
 }
@@ -659,9 +660,11 @@ void TNodeShard::UpdateExecNodeDescriptors()
     }
 
     for (const auto& node : nodesToRemove) {
-        YT_LOG_INFO("Node has not seen more that %v seconds, remove it (NodeId: %v, Address: %v)",
+        YT_LOG_INFO("Node has not seen more than %v seconds, remove it (NodeId: %v, Address: %v)",
+            Config_->MaxOfflineNodeAge,
             node->GetId(),
             node->GetDefaultAddress());
+        UnregisterNode(node);
         RemoveNode(node);
     }
 
@@ -1424,22 +1427,30 @@ TExecNodePtr TNodeShard::GetOrRegisterNode(TNodeId nodeId, const TNodeDescriptor
 void TNodeShard::OnNodeRegistrationLeaseExpired(TNodeId nodeId)
 {
     auto it = IdToNode_.find(nodeId);
-    YT_VERIFY(it != IdToNode_.end());
-
-    // NB: Make a copy; the calls below will mutate IdToNode_ and thus invalidate it.
+    if (it == IdToNode_.end()) {
+        return;
+    }
     auto node = it->second;
 
     YT_LOG_INFO("Node lease expired, unregistering (Address: %v)",
         node->GetDefaultAddress());
 
     UnregisterNode(node);
+
+    auto lease = TLeaseManager::CreateLease(
+        Config_->NodeRegistrationTimeout,
+        BIND(&TNodeShard::OnNodeRegistrationLeaseExpired, MakeWeak(this), node->GetId())
+            .Via(GetInvoker()));
+    node->SetRegistrationLease(lease);
 }
 
 void TNodeShard::OnNodeHeartbeatLeaseExpired(TNodeId nodeId)
 {
     auto it = IdToNode_.find(nodeId);
-    YT_VERIFY(it != IdToNode_.end());
-    const auto& node = it->second;
+    if (it == IdToNode_.end()) {
+        return;
+    }
+    auto node = it->second;
 
     // We intentionally do not abort jobs here, it will happen when RegistrationLease expired or
     // at node attributes update by separate timeout.
@@ -1514,10 +1525,10 @@ void TNodeShard::DoUnregisterNode(const TExecNodePtr& node)
     AbortAllJobsAtNode(node);
 
     auto jobsToRemove = node->RecentlyFinishedJobs();
-    for (const auto& pair : jobsToRemove) {
-        auto jobId = pair.first;
+    for (const auto& [jobId, job] : jobsToRemove) {
         RemoveRecentlyFinishedJob(jobId);
     }
+    YT_VERIFY(node->RecentlyFinishedJobs().empty());
 
     if (node->GetJobReporterQueueIsTooLarge()) {
         --JobReporterQueueIsTooLargeNodeCount_;
@@ -1658,9 +1669,7 @@ void TNodeShard::ProcessHeartbeatJobs(
     {
         auto now = GetCpuInstant();
         std::vector<TJobId> recentlyFinishedJobsToRemove;
-        for (const auto& pair : node->RecentlyFinishedJobs()) {
-            auto jobId = pair.first;
-            const auto& jobInfo = pair.second;
+        for (const auto& [jobId, jobInfo] : node->RecentlyFinishedJobs()) {
             if (now > jobInfo.EvictionDeadline) {
                 YT_LOG_DEBUG("Removing job from recently completed due to timeout for release "
                     "(JobId: %v, NodeId: %v, NodeAddress: %v)",

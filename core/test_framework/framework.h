@@ -37,6 +37,13 @@ TString GenerateRandomFileName(const char* prefix);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void WaitForPredicate(
+    std::function<bool()> predicate,
+    int iterationCount = 100,
+    TDuration period = TDuration::Seconds(1));
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
 
 namespace NYT::NRpc {

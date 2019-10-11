@@ -115,6 +115,8 @@ TJobIOConfig::TJobIOConfig()
         .DefaultNew();
     RegisterParameter("table_writer", TableWriter)
         .DefaultNew();
+    RegisterParameter("dynamic_table_writer", DynamicTableWriter)
+        .DefaultNew();
 
     RegisterParameter("control_attributes", ControlAttributes)
         .DefaultNew();
@@ -135,6 +137,9 @@ TJobIOConfig::TJobIOConfig()
 
     RegisterPreprocessor([&] () {
         ErrorFileWriter->UploadReplicationFactor = 1;
+
+        DynamicTableWriter->DesiredChunkSize = 256_MB;
+        DynamicTableWriter->BlockSize = 256_KB;
     });
 }
 
@@ -388,7 +393,7 @@ TOperationSpecBase::TOperationSpecBase()
         .Default(false);
 
     RegisterParameter("enable_legacy_live_preview", EnableLegacyLivePreview)
-        .Default(true);
+        .Default();
 
     RegisterParameter("started_by", StartedBy)
         .Default();
@@ -559,9 +564,9 @@ TUserJobSpec::TUserJobSpec()
     RegisterParameter("interruption_signal", InterruptionSignal)
         .Default();
     RegisterParameter("enable_setup_commands", EnableSetupCommands)
-        .Default(false);
+        .Default(true);
     RegisterParameter("enable_gpu_layers", EnableGpuLayers)
-        .Default(false);
+        .Default(true);
     RegisterParameter("cuda_toolkit_version", CudaToolkitVersion)
         .Default();
 

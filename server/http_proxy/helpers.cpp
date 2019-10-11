@@ -341,10 +341,13 @@ void RedirectToDataProxy(const IRequestPtr& request, const IResponseWriterPtr& r
     auto target = coordinator->AllocateProxy("data");
     if (target) {
         auto url = request->GetUrl();
-        TString protocol{url.Protocol};
-        if (protocol.empty()) {
+        TString protocol;
+        if (request->IsHttps()) {
+            protocol = "https";
+        } else {
             protocol = "http";
         }
+
         auto location = Format("%v://%v%v?%v",
             protocol,
             target->GetHost(),

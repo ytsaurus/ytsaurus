@@ -80,12 +80,8 @@ void Serialize(const TJobEvents& events, NYson::IYsonConsumer* consumer)
             fluent.Item()
                 .BeginMap()
                 .Item("time").Value(event.Timestamp())
-                .DoIf(event.State().operator bool(), [&] (TFluentMap fluent) {
-                    fluent.Item("state").Value(*event.State());
-                })
-                .DoIf(event.Phase().operator bool(), [&] (TFluentMap fluent) {
-                    fluent.Item("phase").Value(*event.Phase());
-                })
+                .OptionalItem("state", event.State())
+                .OptionalItem("phase", event.Phase())
                 .EndMap();
         })
         .EndList();

@@ -163,7 +163,7 @@ public:
             cellRoles.emplace(PrimaryMasterCellTag_, primaryMasterCellRole);
             roleCells.clear();
         } else {
-            YT_LOG_FATAL_UNLESS(
+            YT_LOG_WARNING_UNLESS(
                 SecondaryMasterCellTags_ == secondaryCellTags,
                 "Synchronized secondary master cell tag list does not match, connection config is probably incorrect (ConfigSecondaryMasters: %v, SynchronizedSecondaryMasters: %v)",
                 SecondaryMasterCellTags_,
@@ -172,7 +172,7 @@ public:
             auto expectedPrimaryCellAddresses = Config_->PrimaryMaster->Addresses;
             std::sort(expectedPrimaryCellAddresses.begin(), expectedPrimaryCellAddresses.end());
             const auto& actualPrimaryCellAddresses = cellAddresses[PrimaryMasterCellTag_];
-            YT_LOG_FATAL_UNLESS(
+            YT_LOG_WARNING_UNLESS(
                 expectedPrimaryCellAddresses == actualPrimaryCellAddresses,
                 "Synchronized primary master cell addresses do not match, connection config is probably incorrect (ConfigPrimaryMasterAddresses: %v, SynchronizedPrimaryMasterAddresses: %v)",
                 expectedPrimaryCellAddresses,
@@ -183,7 +183,7 @@ public:
                 std::sort(expectedCellAddresses.begin(), expectedCellAddresses.end());
                 const auto& actualCellAddresses = cellAddresses[CellTagFromId(cellConfig->CellId)];
 
-                YT_LOG_FATAL_UNLESS(
+                YT_LOG_WARNING_UNLESS(
                     expectedCellAddresses == actualCellAddresses,
                     "Synchronized secondary master cell addresses do not match, connection config is probably incorrect (ConfigSecondaryMasterAddresses: %v, SynchronizedSecondaryMasterAddresses: %v)",
                     expectedCellAddresses,

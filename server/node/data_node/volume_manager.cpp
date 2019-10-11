@@ -29,6 +29,7 @@
 #include <yt/core/misc/async_cache.h>
 #include <yt/core/misc/checksum.h>
 #include <yt/core/misc/fs.h>
+#include <yt/core/misc/finally.h>
 #include <yt/core/misc/proc.h>
 
 #include <yt/core/tools/tools.h>
@@ -129,11 +130,13 @@ public:
     TLayerLocation(
         const TLayerLocationConfigPtr& locationConfig,
         const TDiskHealthCheckerConfigPtr healthCheckerConfig,
-        const IPortoExecutorPtr& executor,
+        IPortoExecutorPtr volumeExecutor,
+        IPortoExecutorPtr layerExecutor,
         const TString& id)
         : TDiskLocation(locationConfig, id, DataNodeLogger)
         , Config_(locationConfig)
-        , Executor_(executor)
+        , VolumeExecutor_(std::move(volumeExecutor))
+        , LayerExecutor_(std::move(layerExecutor))
         , LocationQueue_(New<TActionQueue>(id))
         , VolumesPath_(NFS::CombinePaths(Config_->Path, VolumesName))
         , VolumesMetaPath_(NFS::CombinePaths(Config_->Path, VolumesMetaName))
@@ -158,13 +161,13 @@ public:
                 .ThrowOnError();
 
             // Volumes are not expected to be used since all jobs must be dead by now.
-            auto volumes = WaitFor(Executor_->ListVolumes())
+            auto volumes = WaitFor(VolumeExecutor_->ListVolumes())
                 .ValueOrThrow();
 
             std::vector<TFuture<void>> unlinkFutures;
             for (const auto& volume : volumes) {
                 if (volume.Path.StartsWith(VolumesPath_)) {
-                    unlinkFutures.push_back(Executor_->UnlinkVolume(volume.Path, "self"));
+                    unlinkFutures.push_back(VolumeExecutor_->UnlinkVolume(volume.Path, "self"));
                 }
             }
             WaitFor(Combine(unlinkFutures))
@@ -277,14 +280,44 @@ public:
         return GetAvailableSpace() < Config_->LowWatermark;
     }
 
+    bool IsLayerImportInProgress() const
+    {
+        return LayerImportsInProgress_.load() > 0;
+    }
+
     i64 GetCapacity()
     {
         return std::max<i64>(0, UsedSpace_ + GetAvailableSpace() - Config_->LowWatermark);
     }
 
+    i64 GetAvailableSpace()
+    {
+        if (!IsEnabled()) {
+            return 0;
+        }
+
+        const auto& path = Config_->Path;
+
+        try {
+            auto statistics = NFS::GetDiskSpaceStatistics(path);
+            AvailableSpace_ = statistics.AvailableSpace;
+        } catch (const std::exception& ex) {
+            auto error = TError("Failed to compute available space")
+                << ex;
+            Disable(error);
+            YT_ABORT(); // Disable() exits the process.
+        }
+
+        i64 remainingQuota = std::max(static_cast<i64>(0), GetQuota() - UsedSpace_);
+        AvailableSpace_ = std::min(AvailableSpace_, remainingQuota);
+
+        return AvailableSpace_;
+    }
+
 private:
     const TLayerLocationConfigPtr Config_;
-    const IPortoExecutorPtr Executor_;
+    const IPortoExecutorPtr VolumeExecutor_;
+    const IPortoExecutorPtr LayerExecutor_;
 
     const TActionQueuePtr LocationQueue_ ;
     TDiskHealthCheckerPtr HealthChecker_;
@@ -296,6 +329,8 @@ private:
     const TString VolumesMetaPath_;
     const TString LayersPath_;
     const TString LayersMetaPath_;
+
+    std::atomic<int> LayerImportsInProgress_ = { 0 };
 
     THashMap<TLayerId, TLayerMeta> Layers_;
     THashMap<TVolumeId, TVolumeMeta> Volumes_;
@@ -357,7 +392,7 @@ private:
         }
 
         THashSet<TGuid> confirmedIds;
-        auto layerNames = WaitFor(Executor_->ListLayers(PlacePath_))
+        auto layerNames = WaitFor(LayerExecutor_->ListLayers(PlacePath_))
             .ValueOrThrow();
 
         for (const auto& layerName : layerNames) {
@@ -371,7 +406,7 @@ private:
             if (!fileIds.contains(id)) {
                 YT_LOG_DEBUG("Remove directory without a corresponding meta file (LayerName: %v)",
                     layerName);
-                WaitFor(Executor_->RemoveLayer(layerName, PlacePath_))
+                WaitFor(LayerExecutor_->RemoveLayer(layerName, PlacePath_))
                     .ThrowOnError();
                 continue;
             }
@@ -447,30 +482,6 @@ private:
         }
     }
 
-    i64 GetAvailableSpace()
-    {
-        if (!IsEnabled()) {
-            return 0;
-        }
-
-        const auto& path = Config_->Path;
-
-        try {
-            auto statistics = NFS::GetDiskSpaceStatistics(path);
-            AvailableSpace_ = statistics.AvailableSpace;
-        } catch (const std::exception& ex) {
-            auto error = TError("Failed to compute available space")
-                << ex;
-            Disable(error);
-            YT_ABORT(); // Disable() exits the process.
-        }
-
-        i64 remainingQuota = std::max(static_cast<i64>(0), GetQuota() - UsedSpace_);
-        AvailableSpace_ = std::min(AvailableSpace_, remainingQuota);
-
-        return AvailableSpace_;
-    }
-
     i64 GetQuota() const
     {
         return Config_->Quota.value_or(std::numeric_limits<i64>::max());
@@ -481,6 +492,11 @@ private:
         ValidateEnabled();
 
         auto id = TLayerId::Create();
+        LayerImportsInProgress_.fetch_add(1);
+
+        auto finally = Finally([&]{
+            LayerImportsInProgress_.fetch_add(-1);
+        });
         try {
             YT_LOG_DEBUG("Ensure that cached layer archive is not in use (LayerId: %v, ArchivePath: %v, Tag: %v)",
                 id,
@@ -504,7 +520,7 @@ private:
                 YT_LOG_DEBUG("Unpack layer (Path: %v, Tag: %v)",
                     layerDirectory,
                     tag);
-                WaitFor(Executor_->ImportLayer(archivePath, ToString(id), PlacePath_))
+                WaitFor(LayerExecutor_->ImportLayer(archivePath, ToString(id), PlacePath_))
                     .ThrowOnError();
             } catch (const std::exception& ex) {
                 YT_LOG_ERROR(ex, "Layer unpacking failed (LayerId: %v, ArchivePath: %v, Tag: %v)",
@@ -587,7 +603,7 @@ private:
             YT_LOG_INFO("Removing layer (LayerId: %v, LayerPath: %v)",
                 layerId,
                 layerPath);
-            Executor_->RemoveLayer(ToString(layerId), PlacePath_);
+            LayerExecutor_->RemoveLayer(ToString(layerId), PlacePath_);
             NFS::Remove(layerMetaPath);
         } catch (const std::exception& ex) {
             auto error = TError("Failed to remove layer %v",
@@ -640,7 +656,7 @@ private:
 
             parameters["layers"] = builder.Flush();
 
-            auto volumeId = WaitFor(Executor_->CreateVolume(mountPath, parameters))
+            auto volumeId = WaitFor(VolumeExecutor_->CreateVolume(mountPath, parameters))
                 .ValueOrThrow();
 
             YT_VERIFY(volumeId.Path == mountPath);
@@ -711,7 +727,7 @@ private:
             YT_LOG_DEBUG("Removing volume (VolumeId: %v)",
                 volumeId);
 
-            WaitFor(Executor_->UnlinkVolume(mountPath, "self"))
+            WaitFor(VolumeExecutor_->UnlinkVolume(mountPath, "self"))
                 .ThrowOnError();
 
             YT_LOG_DEBUG("Volume unlinked (VolumeId: %v)",
@@ -894,7 +910,6 @@ public:
 
                         // NB: ensure that artifact stays alive until the end of layer import.
                         const auto& artifactChunk = artifactChunkOrError.ValueOrThrow();
-                        auto location = this_->PickLocation();
 
                         // NB(psushin): we limit number of concurrently imported layers, since this is heavy operation 
                         // which may delay light operations performed in the same IO thread pool inside porto daemon.
@@ -905,6 +920,7 @@ public:
                                 .ThrowOnError();
                         }
 
+                        auto location = this_->PickLocation();
                         auto layerMeta = WaitFor(location->ImportLayer(artifactKey, artifactChunk->GetFileName(), tag))
                             .ValueOrThrow();
 
@@ -955,7 +971,14 @@ private:
     TLayerLocationPtr PickLocation() const
     {
         return DoPickLocation(LayerLocations_, [] (const TLayerLocationPtr& candidate, const TLayerLocationPtr& current) {
-            return candidate->GetLayerCount() < current->GetLayerCount();
+            if (!candidate->IsLayerImportInProgress() && current->IsLayerImportInProgress()) {
+                // Always prefer candidate which is not doing import right now.
+                return true;
+            } else if (candidate->IsLayerImportInProgress() && !current->IsLayerImportInProgress()) {
+                return false;
+            }
+
+            return candidate->GetAvailableSpace() > current->GetAvailableSpace();
         });
     }
 };
@@ -1101,7 +1124,6 @@ class TPortoVolumeManager
 {
 public:
     TPortoVolumeManager(const TVolumeManagerConfigPtr& config, TBootstrap* bootstrap)
-        : Executor_(CreatePortoExecutor(config->PortoRetryTimeout, config->PortoPollPeriod))
     {
         // Create locations.
         for (int index = 0; index < config->LayerLocations.size(); ++index) {
@@ -1112,7 +1134,8 @@ public:
                 auto location = New<TLayerLocation>(
                     locationConfig,
                     bootstrap->GetConfig()->DataNode->DiskHealthChecker,
-                    Executor_,
+                    CreatePortoExecutor(Format("volume_%v", index), config->PortoRetryTimeout, config->PortoPollPeriod),
+                    CreatePortoExecutor(Format("layer_%v", index), config->PortoRetryTimeout, config->PortoPollPeriod),
                     id);
                 Locations_.push_back(location);
             } catch (const std::exception& ex) {
@@ -1175,8 +1198,6 @@ public:
     }
 
 private:
-    IPortoExecutorPtr Executor_;
-
     std::vector<TLayerLocationPtr> Locations_;
 
     TLayerCachePtr LayerCache_;

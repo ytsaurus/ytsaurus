@@ -25,6 +25,8 @@
 #include <yt/core/ytree/yson_serializable.h>
 #include <yt/core/ytree/fluent.h>
 
+#include <yt/core/re2/public.h>
+
 #include <yt/core/misc/phoenix.h>
 
 namespace NYT::NControllerAgent {
@@ -100,12 +102,19 @@ public:
 
     // Cpu usage threshold to send an alert
     double LowCpuUsageAlertCpuUsageThreshold;
+    std::vector<TString> LowCpuUsageAlertStatistics;
+    std::vector<TString> LowCpuUsageAlertJobStates;
 
     // Minimum wall time of operation duration
     TDuration OperationTooLongAlertMinWallTime;
 
     // Threshold for estimate duration of operation
     TDuration OperationTooLongAlertEstimateDurationThreshold;
+
+    TDuration LowGpuUsageAlertMinDuration;
+    double LowGpuUsageAlertGpuUsageThreshold;
+    std::vector<TString> LowGpuUsageAlertStatistics;
+    std::vector<TString> LowGpuUsageAlertJobStates;
 
     TOperationAlertsConfig();
 };
@@ -716,6 +725,9 @@ public:
 
     bool EnableOperationProgressArchivation;
     TDuration OperationProgressArchivationTimeout;
+
+    //! Regex for users having legacy live preview disabled by default.
+    NRe2::TRe2Ptr LegacyLivePreviewUserBlacklist;
 
     TControllerAgentConfig();
 

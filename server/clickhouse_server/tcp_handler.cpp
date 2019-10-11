@@ -4,9 +4,14 @@
 
 #include <server/TCPHandler.h>
 
+#include <util/string/cast.h>
+
 namespace NYT::NClickHouseServer {
 
 using namespace DB;
+using namespace NTracing;
+
+const auto& Logger = ServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,14 +49,57 @@ Poco::Net::TCPServerConnection* TTcpHandlerFactory::createConnection(
         virtual void customizeContext(DB::Context& context) override
         {
             context.getClientInfo().current_user = context.getClientInfo().initial_user;
-            auto contextQueryId = context.getClientInfo().current_query_id;
             TQueryId queryId;
-            if (!TQueryId::FromString(contextQueryId, &queryId)) {
-                const auto& Logger = ServerLogger;
-                YT_LOG_INFO("Query id from TCP handler is not a valid YT query id (ContextQueryId: %v)", contextQueryId);
-                queryId = TQueryId::Create();
+            TSpanContext parentSpan;
+            auto& clientInfo = context.getClientInfo();
+
+            TTraceContextPtr traceContext;
+
+            // For secondary queries, query id looks like <query_id>@<parent_span_id><parent_sampled>.
+            // Parent trace id is the same as client info initial_query_id.
+            if (static_cast<int>(context.getClientInfo().query_kind) == 2 /* secondary query */) {
+                auto requestCompositeQueryId = clientInfo.current_query_id;
+                auto requestInitialQueryId = clientInfo.initial_query_id;
+                YT_LOG_DEBUG("Parsing composite query id and initial query id (RequestCompositeQueryId: %v, RequestInitialQueryId: %v)",
+                    requestCompositeQueryId,
+                    requestInitialQueryId);
+                auto pos = requestCompositeQueryId.find('@');
+                YT_VERIFY(pos != TString::npos);
+                auto requestQueryId = requestCompositeQueryId.substr(0, pos);
+                auto requestParentSpanId = requestCompositeQueryId.substr(pos + 1, requestCompositeQueryId.size() - pos - 2);
+                auto requestParentSampled = requestCompositeQueryId.back();
+                YT_VERIFY(TQueryId::FromString(requestQueryId, &queryId));
+                YT_VERIFY(TryIntFromString<16>(requestParentSpanId, parentSpan.SpanId));
+                YT_VERIFY(TTraceId::FromString(requestInitialQueryId, &parentSpan.TraceId));
+                YT_VERIFY(requestParentSampled == 'T' || requestParentSampled == 'F');
+                context.getClientInfo().current_query_id = ToString(requestQueryId);
+                YT_LOG_INFO(
+                    "Query is secondary; composite query id successfully decomposed, actual query id substituted into the context "
+                    "(CompositeQueryId: %v, QueryId: %v, ParentSpanId: %v, ParentSampled: %v, ParentTraceIdAkaInitialQueryId: %v)",
+                    requestCompositeQueryId,
+                    requestQueryId,
+                    requestParentSpanId,
+                    requestParentSampled,
+                    requestInitialQueryId);
+                traceContext = New<TTraceContext>(parentSpan, "TcpHandler");
+                if (requestParentSampled == 'T') {
+                    traceContext->SetSampled();
+                }
+            } else {
+                auto requestQueryId = clientInfo.current_query_id;
+                parentSpan = TSpanContext{TTraceId::Create(), InvalidSpanId, false, false};
+                if (!TQueryId::FromString(requestQueryId, &queryId)) {
+                    YT_LOG_INFO(
+                        "Query is initial; query id from TCP handler is not a valid YT query id, "
+                        "generating our own query id (RequestQueryId: %Qv, QueryId: %v)",
+                        requestQueryId,
+                        queryId);
+                } else {
+                    YT_LOG_INFO("Query is initial; query id from TCP handler is a valid YT query id (RequestQueryId: %Qv)", requestQueryId);
+                }
             }
-            SetupHostContext(Bootstrap_, context, queryId);
+
+            SetupHostContext(Bootstrap_, context, queryId, std::move(traceContext));
         }
 
     private:

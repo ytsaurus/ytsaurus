@@ -232,7 +232,7 @@ public:
         }
     }
 
-    EBeginExecuteResult BeginExecute(TEnqueuedAction* action, int index)
+    TClosure BeginExecute(TEnqueuedAction* action, int index)
     {
         auto& execution = CurrentlyExecutingActionsByThread_[index];
 
@@ -246,7 +246,7 @@ public:
             bucket = GetStarvingBucket(action);
 
             if (!bucket) {
-                return EBeginExecuteResult::QueueEmpty;
+                return TClosure();
             }
 
             ++bucket->CurrentExecutions;
@@ -260,21 +260,11 @@ public:
 
         YT_ASSERT(action && !action->Finished);
 
-        CallbackEventCount_->CancelWait();
-
         Profiler_.Update(
             WaitTimeCounter_,
             CpuDurationToValue(bucket->WaitTime));
 
-        // Move callback to the stack frame to ensure that we hold it as long as it runs.
-        auto callback = std::move(action->Callback);
-        try {
-            TCurrentInvokerGuard guard(bucket);
-            callback.Run();
-            return EBeginExecuteResult::Success;
-        } catch (const TFiberCanceledException&) {
-            return EBeginExecuteResult::Terminated;
-        }
+        return std::move(action->Callback);
     }
 
     void EndExecute(TEnqueuedAction* action, int index)
@@ -390,17 +380,22 @@ private:
         // For each currently evaluating buckets recalculate excess time.
         AccountCurrentlyExecutingBuckets();
 
-        YT_LOG_TRACE("Buckets: [%v]",
-            MakeFormattableView(
-                TagToBucket_,
-                [] (auto* builder, const auto& tagToBucket) {
-                    if (auto item = tagToBucket.second.Lock()) {
-                        auto excess = CpuDurationToDuration(tagToBucket.second.Lock()->ExcessTime).MilliSeconds();
-                        builder->AppendFormat("(%v %v)", tagToBucket.first, excess);
-                    } else {
-                        builder->AppendFormat("(%v *)", tagToBucket.first);
-                    }
-                }));
+        #ifdef YT_ENABLE_TRACE_LOGGING
+        {
+            TGuard<TSpinLock> guard(TagMappingSpinLock_);
+            YT_LOG_TRACE("Buckets: [%v]",
+                MakeFormattableView(
+                    TagToBucket_,
+                    [] (auto* builder, const auto& tagToBucket) {
+                        if (auto item = tagToBucket.second.Lock()) {
+                            auto excess = CpuDurationToDuration(tagToBucket.second.Lock()->ExcessTime).MilliSeconds();
+                            builder->AppendFormat("(%v %v)", tagToBucket.first, excess);
+                        } else {
+                            builder->AppendFormat("(%v *)", tagToBucket.first);
+                        }
+                    }));
+        }
+        #endif
 
         if (Heap_.empty()) {
             return nullptr;
@@ -468,7 +463,7 @@ protected:
 
     TEnqueuedAction CurrentAction;
 
-    virtual EBeginExecuteResult BeginExecute() override
+    virtual TClosure BeginExecute() override
     {
         return Queue_->BeginExecute(&CurrentAction, Index_);
     }
