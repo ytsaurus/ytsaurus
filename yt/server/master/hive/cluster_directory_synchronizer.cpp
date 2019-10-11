@@ -40,7 +40,7 @@ public:
         const NHiveClient::TClusterDirectoryPtr& clusterDirectory)
         : Bootstrap_(bootstrap)
         , SyncExecutor_(New<TPeriodicExecutor>(
-            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
+            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::ClusterDirectorySynchronizer),
             BIND(&TImpl::OnSync, MakeWeak(this)),
             syncPeriod))
         , ObjectManager_(Bootstrap_->GetObjectManager())

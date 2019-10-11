@@ -631,7 +631,7 @@ void TBootstrap::DoInitialize()
         CellDirectory_,
         TabletManager_,
         HydraFacade_->GetHydraManager(),
-        HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic));
+        HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::CellDirectorySynchronizer));
     CellDirectorySynchronizer_->Start();
 
     RpcServer_->RegisterService(timestampManager->GetRpcService()); // null realm

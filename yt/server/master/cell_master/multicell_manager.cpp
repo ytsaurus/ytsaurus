@@ -457,7 +457,7 @@ private:
             RegisterAtPrimaryMasterExecutor_->Start();
 
             CellStatisticsGossipExecutor_ = New<TPeriodicExecutor>(
-                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Periodic),
+                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::MulticellGossip),
                 BIND(&TImpl::OnCellStatisticsGossip, MakeWeak(this)));
             CellStatisticsGossipExecutor_->Start();
         }

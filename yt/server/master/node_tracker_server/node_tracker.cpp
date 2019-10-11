@@ -1335,12 +1335,12 @@ private:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsSecondaryMaster()) {
             IncrementalNodeStatesGossipExecutor_ = New<TPeriodicExecutor>(
-                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
+                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::NodeTrackerGossip),
                 BIND(&TImpl::OnNodeStatesGossip, MakeWeak(this), true));
             IncrementalNodeStatesGossipExecutor_->Start();
 
             FullNodeStatesGossipExecutor_ = New<TPeriodicExecutor>(
-                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
+                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::NodeTrackerGossip),
                 BIND(&TImpl::OnNodeStatesGossip, MakeWeak(this), false));
             FullNodeStatesGossipExecutor_->Start();
         }

@@ -652,7 +652,7 @@ private:
             ClusterDirectorySynchronizer_->Start();
 
             UpdaterExecutor_ = New<TPeriodicExecutor>(
-                Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
+                Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::ReplicatedTableTracker),
                 BIND(&TImpl::UpdateIteration, MakeWeak(this)),
                 Config_->UpdatePeriod);
             UpdaterExecutor_->Start();

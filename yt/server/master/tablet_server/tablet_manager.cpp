@@ -5971,7 +5971,7 @@ private:
             TabletTracker_->Start();
 
             CleanupExecutor_ = New<TPeriodicExecutor>(
-                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
+                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletCellJanitor),
                 BIND(&TImpl::OnCleanup, MakeWeak(this)),
                 dynamicConfig->TabletCellsCleanupPeriod);
             CleanupExecutor_->Start();
@@ -5982,14 +5982,14 @@ private:
         TabletActionManager_->Start();
 
         TabletCellStatisticsGossipExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
+            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletGossip),
             BIND(&TImpl::OnTabletCellStatisticsGossip, MakeWeak(this)),
             dynamicConfig->MulticellGossip->TabletCellStatisticsGossipPeriod);
         TabletCellStatisticsGossipExecutor_->Start();
 
         if (multicellManager->IsSecondaryMaster()) {
             TableStatisticsGossipExecutor_ = New<TPeriodicExecutor>(
-                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
+                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletGossip),
                 BIND(&TImpl::OnTableStatisticsGossip, MakeWeak(this)),
                 dynamicConfig->MulticellGossip->TableStatisticsGossipPeriod);
             TableStatisticsGossipExecutor_->Start();
