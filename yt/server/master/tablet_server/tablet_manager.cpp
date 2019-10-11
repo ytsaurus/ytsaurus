@@ -6603,7 +6603,7 @@ private:
             const auto& cypressManager = Bootstrap_->GetCypressManager();
             auto cellIds = GetKeys(TabletCellMap_);
 
-            for (const auto cellId : cellIds) {
+            for (auto cellId : cellIds) {
                 auto* cell = FindTabletCell(cellId);
                 if (!IsObjectAlive(cell)) {
                     continue;
