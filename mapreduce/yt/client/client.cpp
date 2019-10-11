@@ -655,6 +655,7 @@ TTransaction::TTransaction(
             auth,
             transactionId, // parent id
             options.Timeout_,
+            options.Deadline_,
             options.PingAncestors_,
             options.AutoPingable_,
             options.Title_,

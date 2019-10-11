@@ -26,6 +26,7 @@ TTransactionId StartTransaction(
     const TAuth& auth,
     const TTransactionId& parentId,
     const TMaybe<TDuration>& timeout,
+    const TMaybe<TInstant>& deadline,
     bool pingAncestors,
     const TMaybe<TString>& title,
     const TMaybe<TNode>& attributes);
