@@ -153,7 +153,7 @@ class YtTestEnvironment(object):
                               **env_options)
 
         try:
-            self.env.start(start_secondary_master_cells=True, use_proxy_from_package=False)
+            self.env.start(start_secondary_master_cells=True)
         except:
             self.save_sandbox()
 
@@ -215,8 +215,10 @@ class YtTestEnvironment(object):
         self.reload_global_configuration()
         self.env.stop()
         for node_config in self.env.configs["node"]:
-            shutil.rmtree(node_config["data_node"]["store_locations"][0]["path"])
-            shutil.rmtree(node_config["data_node"]["cache_locations"][0]["path"])
+            for path in (node_config["data_node"]["store_locations"][0]["path"],
+                         node_config["data_node"]["cache_locations"][0]["path"]):
+                if os.path.exists(path):
+                    shutil.rmtree(path)
         self.save_sandbox()
 
     def save_sandbox(self):
@@ -238,8 +240,10 @@ class YtTestEnvironment(object):
 
 def init_environment_for_test_session(mode, **kwargs):
     config = {"api_version": "v3"}
-    if mode in ("native"):
+    if mode in ("native", "native_v4"):
         config["backend"] = "native"
+        if mode == "native_v4":
+            config["api_version"] = "v4"
     elif mode == "rpc":
         config["backend"] = "rpc"
         config["use_http_backend_for_streaming"] = False
@@ -263,13 +267,13 @@ def init_environment_for_test_session(mode, **kwargs):
 
     return environment
 
-@pytest.fixture(scope="session", params=["v3", "v4", "native"])
+@pytest.fixture(scope="session", params=["v3", "v4", "native", "native_v4"])
 def test_environment(request):
     environment = init_environment_for_test_session(request.param)
     request.addfinalizer(lambda: environment.cleanup())
     return environment
 
-@pytest.fixture(scope="session", params=["v3", "v4", "native", "rpc"])
+@pytest.fixture(scope="session", params=["v3", "v4", "native", "native_v4", "rpc"])
 def test_environment_with_rpc(request):
     environment = init_environment_for_test_session(request.param)
     request.addfinalizer(lambda: environment.cleanup())
