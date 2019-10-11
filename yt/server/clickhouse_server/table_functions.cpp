@@ -45,7 +45,7 @@ public:
         return name;
     }
 
-    virtual StoragePtr executeImpl(const ASTPtr& functionAst, const Context& context) const override
+    virtual StoragePtr executeImpl(const ASTPtr& functionAst, const Context& context, const std::string& /* tableName */) const override
     {
         const char* err = "Table function 'ytTable' requires at least 1 parameter: name of remote table";
 
@@ -83,7 +83,7 @@ public:
         return name;
     }
 
-    virtual StoragePtr execute(const ASTPtr& functionAst, const Context& context, IAST * queryAst) const override
+    virtual StoragePtr execute(const ASTPtr& functionAst, const Context& context, const std::string& /* tableName */, IAST * queryAst) const override
     {
         const auto& Logger = GetQueryContext(context)->Logger;
 
