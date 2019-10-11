@@ -837,6 +837,9 @@ void TClient::DoConcatenateNodes(
 
                     srcObject->ObjectId = FromProto<TObjectId>(rsp->object_id());
                     srcObject->ExternalCellTag = rsp->external_cell_tag();
+                    srcObject->ExternalTransactionId = rsp->has_external_transaction_id()
+                        ? FromProto<TTransactionId>(rsp->external_transaction_id())
+                        : options.TransactionId;
                     srcObject->SecurityTags = FromProto<std::vector<TSecurityTag>>(rsp->security_tags().items());
                     inferredSecurityTags.insert(inferredSecurityTags.end(), srcObject->SecurityTags.begin(), srcObject->SecurityTags.end());
 
@@ -877,7 +880,7 @@ void TClient::DoConcatenateNodes(
                     auto req = TYPathProxy::Get(object.GetObjectIdPath() + "/@");
                     req->Tag() = &object;
                     AddCellTagToSyncWith(req, object.ObjectId);
-                    SetTransactionId(req, options, true);
+                    SetTransactionId(req, options, false);
                     req->mutable_attributes()->add_keys("schema");
                     req->mutable_attributes()->add_keys("schema_mode");
                     return req;
@@ -961,7 +964,7 @@ void TClient::DoConcatenateNodes(
                     auto req = TChunkOwnerYPathProxy::Fetch(srcObject->GetObjectIdPath());
                     AddCellTagToSyncWith(req, srcObject->ObjectId);
                     req->Tag() = srcObject;
-                    SetTransactionId(req, options, true);
+                    NCypressClient::SetTransactionId(req, srcObject->ExternalTransactionId);
                     ToProto(req->mutable_ranges(), std::vector<TReadRange>{TReadRange()});
                     batchReq->AddRequest(req, "fetch");
                 }

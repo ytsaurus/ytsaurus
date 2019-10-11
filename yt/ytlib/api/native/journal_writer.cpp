@@ -404,16 +404,15 @@ private:
 
                 auto req = TYPathProxy::Get(objectIdPath + "/@");
                 AddCellTagToSyncWith(req, ObjectId_);
-                SetTransactionId(req, Transaction_);
-                std::vector<TString> attributeKeys{
+                SetTransactionId(req, userObject.ExternalTransactionId);
+                ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
                     "type",
                     "replication_factor",
                     "read_quorum",
                     "write_quorum",
                     "account",
                     "primary_medium"
-                };
-                ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+                });
 
                 auto rspOrError = WaitFor(proxy.Execute(req));
                 THROW_ERROR_EXCEPTION_IF_FAILED(
