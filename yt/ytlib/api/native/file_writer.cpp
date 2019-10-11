@@ -180,7 +180,7 @@ private:
 
             auto req = TCypressYPathProxy::Get(objectIdPath + "/@");
             AddCellTagToSyncWith(req, ObjectId_);
-            SetTransactionId(req, userObject.ExternalTransactionId);
+            SetTransactionId(req, Transaction_);
             ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
                 "account",
                 "compression_codec",
