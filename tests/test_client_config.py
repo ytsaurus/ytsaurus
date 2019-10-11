@@ -1,5 +1,7 @@
 from yp.common import GrpcError
 
+from yt.packages.six import PY3
+
 import pytest
 
 
@@ -10,6 +12,10 @@ class TestClientConfig(object):
             client = yp_env.yp_instance.create_client(*args, **kwargs)
             return dict(client._transport_layer._create_channel_options())
 
+        def validate_keepalive_values(options, keepalive_time, keepalive_timeout):
+            assert keepalive_time == options["grpc.keepalive_time_ms"]
+            assert keepalive_timeout == options["grpc.keepalive_timeout_ms"]
+
         options = get_options(
             config=dict(
                 request_timeout=1000,
@@ -19,10 +25,10 @@ class TestClientConfig(object):
                 ),
             ),
         )
-        assert options == {"grpc.keepalive_time_ms": 10, "grpc.keepalive_timeout_ms": 1}
+        validate_keepalive_values(options, 10, 1)
 
         options = get_options(config=dict(request_timeout=999))
-        assert options == {"grpc.keepalive_time_ms": 499, "grpc.keepalive_timeout_ms": 999}
+        validate_keepalive_values(options, 499, 999)
 
         options = get_options(
             config=dict(
@@ -32,19 +38,26 @@ class TestClientConfig(object):
                 ),
             ),
         )
-        assert options == {"grpc.keepalive_time_ms": 15, "grpc.keepalive_timeout_ms": 1000}
+        validate_keepalive_values(options, 15, 1000)
+
+        def validate_receive_message_length_constraint(receive_message_length):
+            client = yp_env.yp_instance.create_client(
+                config=dict(
+                    request_timeout=1000,
+                    grpc_channel_options=dict(
+                        max_receive_message_length=receive_message_length,
+                    ),
+                ),
+            )
+            with pytest.raises(GrpcError):
+                client.generate_timestamp()
 
         # Make sure Grpc options are actually working.
-        client = yp_env.yp_instance.create_client(
-            config=dict(
-                request_timeout=1000,
-                grpc_channel_options=dict(
-                    max_receive_message_length=1,
-                ),
-            ),
-        )
-        with pytest.raises(GrpcError):
-            client.generate_timestamp()
+        validate_receive_message_length_constraint(1)
+
+        # Check long to int implicit conversion.
+        if not PY3:
+            validate_receive_message_length_constraint(long(1))
 
         # Make sure YP client is working with no options specified.
         client = yp_env.yp_instance.create_client()
