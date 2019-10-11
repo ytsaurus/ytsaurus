@@ -2,8 +2,7 @@ from mypy.test.data import DataDrivenTestCase, DataSuite
 from mypy.test.testcheck import TypeCheckSuite
 
 
-class PySparkCoreSuite(TypeCheckSuite):
-    TypeCheckSuite.files = [
+TypeCheckSuite.files = [
         "context.test",
         "ml-classification.test",
         "ml-evaluation.test",
@@ -12,6 +11,5 @@ class PySparkCoreSuite(TypeCheckSuite):
         "ml-readable.test",
         "resultiterable.test",
         "sql-readwriter.test",
-        "udf.test",
+        "sql-udf.test",
     ]
-    required_out_section = True
