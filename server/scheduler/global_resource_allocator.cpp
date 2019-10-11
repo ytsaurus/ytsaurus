@@ -333,7 +333,7 @@ public:
             const auto& podId = pair.first;
             const auto& history = pair.second;
 
-            const auto* pod = cluster->FindPod(podId);
+            const auto* pod = cluster->FindSchedulablePod(podId);
 
             // We compare uuids here to overcome possible pod ids collision:
             // current pod could be removed and another pod could be created with the same pod_id

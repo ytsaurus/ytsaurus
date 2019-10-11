@@ -63,6 +63,7 @@ TPod::TPod(
     const NObjects::TPodIP6AddressRequests& ip6AddressRequests,
     const NObjects::TPodIP6SubnetRequests& ip6SubnetRequests,
     TString nodeFilter,
+    bool enableScheduling,
     NClient::NApi::NProto::TPodStatus_TEviction eviction)
     : TObject(std::move(id), std::move(labels))
     , PodSetId_(std::move(podSetId))
@@ -75,6 +76,7 @@ TPod::TPod(
     , IP6AddressRequests_(ip6AddressRequests)
     , IP6SubnetRequests_(ip6SubnetRequests)
     , NodeFilter_(std::move(nodeFilter))
+    , EnableScheduling_(enableScheduling)
     , Eviction_(std::move(eviction))
     , AntiaffinityGroupIdsOrError_(TError("Uninitialized pod antiaffinity group ids"))
 { }

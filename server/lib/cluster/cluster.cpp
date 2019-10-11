@@ -45,10 +45,10 @@ public:
         , NodeFilterEvaluator_(std::move(nodeFilterEvaluator))
     { }
 
-    #define IMPLEMENT_ACCESSORS(name, pluralName) \
-        std::vector<T##name*> Get##pluralName() \
+    #define IMPLEMENT_EXTENDED_ACCESSORS(type, name, pluralName) \
+        std::vector<T##type*> Get##pluralName() \
         { \
-            std::vector<T##name*> result; \
+            std::vector<T##type*> result; \
             result.reserve(name##Map_.size()); \
             for (const auto& [id, object] : name##Map_) { \
                 result.push_back(object.get()); \
@@ -56,7 +56,7 @@ public:
             return result; \
         } \
         \
-        T##name* Find##name(const TObjectId& id) \
+        T##type* Find##name(const TObjectId& id) \
         { \
             if (!id) { \
                 return nullptr; \
@@ -65,29 +65,32 @@ public:
             return it == name##Map_.end() ? nullptr : it->second.get(); \
         } \
         \
-        T##name* Get##name##OrThrow(const TObjectId& id) \
+        T##type* Get##name##OrThrow(const TObjectId& id) \
         { \
             if (!id) { \
                 THROW_ERROR_EXCEPTION("%v id cannot be null", \
-                    GetCapitalizedHumanReadableTypeName(EObjectType::name)); \
+                    GetCapitalizedHumanReadableTypeName(EObjectType::type)); \
             } \
             auto* object = Find##name(id); \
             if (!object) { \
                 THROW_ERROR_EXCEPTION( \
                     NClient::NApi::EErrorCode::NoSuchObject, \
                     "No such %v %Qv", \
-                    GetHumanReadableTypeName(EObjectType::name), \
+                    GetHumanReadableTypeName(EObjectType::type), \
                     id); \
             } \
             return object; \
         }
+
+    #define IMPLEMENT_ACCESSORS(name, pluralName) \
+        IMPLEMENT_EXTENDED_ACCESSORS(name, name, pluralName)
 
 
     IMPLEMENT_ACCESSORS(Node, Nodes)
     IMPLEMENT_ACCESSORS(NodeSegment, NodeSegments)
     IMPLEMENT_ACCESSORS(PodDisruptionBudget, PodDisruptionBudgets)
     IMPLEMENT_ACCESSORS(PodSet, PodSets)
-    IMPLEMENT_ACCESSORS(Pod, Pods)
+    IMPLEMENT_EXTENDED_ACCESSORS(Pod, SchedulablePod, SchedulablePods)
     IMPLEMENT_ACCESSORS(InternetAddress, InternetAddresses)
     IMPLEMENT_ACCESSORS(IP4AddressPool, IP4AddressPools)
     IMPLEMENT_ACCESSORS(Account, Accounts)
@@ -181,7 +184,9 @@ public:
             PROFILE_TIMING("/time/read_pods") {
                 Reader_->ReadPods(
                     [this] (std::unique_ptr<TPod> pod) {
-                        RegisterObject(PodMap_, std::move(pod));
+                        if (pod->GetEnableScheduling()) {
+                            RegisterObject(SchedulablePodMap_, std::move(pod));
+                        }
                     });
             }
 
@@ -204,7 +209,7 @@ public:
             InitializeNetworkModules();
 
             YT_LOG_INFO("Finished loading cluster snapshot (PodCount: %v, NodeCount: %v, NodeSegmentCount: %v)",
-                PodMap_.size(),
+                SchedulablePodMap_.size(),
                 NodeMap_.size(),
                 NodeSegmentMap_.size());
         } catch (const std::exception& ex) {
@@ -222,7 +227,7 @@ private:
 
     NObjects::TTimestamp Timestamp_ = NObjects::NullTimestamp;
     THashMap<TObjectId, std::unique_ptr<TNode>> NodeMap_;
-    THashMap<TObjectId, std::unique_ptr<TPod>> PodMap_;
+    THashMap<TObjectId, std::unique_ptr<TPod>> SchedulablePodMap_;
     THashMap<TObjectId, std::unique_ptr<TPodDisruptionBudget>> PodDisruptionBudgetMap_;
     THashMap<TObjectId, std::unique_ptr<TPodSet>> PodSetMap_;
     THashMap<TObjectId, std::unique_ptr<TNodeSegment>> NodeSegmentMap_;
@@ -390,7 +395,7 @@ private:
     void InitializePods()
     {
         std::vector<TObjectId> invalidPodIds;
-        for (const auto& [podId, pod] : PodMap_) {
+        for (const auto& [podId, pod] : SchedulablePodMap_) {
             const auto& podSetId = pod->PodSetId();
             auto* podSet = FindPodSet(podSetId);
             if (!podSet) {
@@ -428,7 +433,7 @@ private:
             pod->PostprocessAttributes();
         }
         for (const auto& invalidPodId : invalidPodIds) {
-            YT_VERIFY(PodMap_.erase(invalidPodId) > 0);
+            YT_VERIFY(SchedulablePodMap_.erase(invalidPodId) > 0);
         }
     }
 
@@ -537,7 +542,7 @@ private:
 
     void InitializeNodePods()
     {
-        for (const auto& [podId, pod] : PodMap_) {
+        for (const auto& [podId, pod] : SchedulablePodMap_) {
             if (pod->GetNode()) {
                 YT_VERIFY(pod->GetNode()->Pods().insert(pod.get()).second);
             }
@@ -546,7 +551,7 @@ private:
 
     void InitializePodSetPods()
     {
-        for (const auto& [podId, pod] : PodMap_) {
+        for (const auto& [podId, pod] : SchedulablePodMap_) {
             auto* podSet = pod->GetPodSet();
             YT_VERIFY(podSet->Pods().insert(pod.get()).second);
         }
@@ -554,14 +559,14 @@ private:
 
     void InitializeAccountPods()
     {
-        for (const auto& [podId, pod] : PodMap_) {
+        for (const auto& [podId, pod] : SchedulablePodMap_) {
             YT_VERIFY(pod->GetEffectiveAccount()->Pods().insert(pod.get()).second);
         }
     }
 
     void InitializeAntiaffinityVacancies()
     {
-        for (const auto& [podId, pod] : PodMap_) {
+        for (const auto& [podId, pod] : SchedulablePodMap_) {
             auto* node = pod->GetNode();
             if (node) {
                 // NB! Allocates vacancies regardless of the pod validation errors or node overcommit.
@@ -660,7 +665,7 @@ private:
     void Clear()
     {
         NodeMap_.clear();
-        PodMap_.clear();
+        SchedulablePodMap_.clear();
         PodDisruptionBudgetMap_.clear();
         PodSetMap_.clear();
         AccountMap_.clear();
@@ -719,19 +724,19 @@ TResource* TCluster::GetResourceOrThrow(const TObjectId& id)
     return Impl_->GetResourceOrThrow(id);
 }
 
-std::vector<TPod*> TCluster::GetPods()
+std::vector<TPod*> TCluster::GetSchedulablePods()
 {
-    return Impl_->GetPods();
+    return Impl_->GetSchedulablePods();
 }
 
-TPod* TCluster::FindPod(const TObjectId& id)
+TPod* TCluster::FindSchedulablePod(const TObjectId& id)
 {
-    return Impl_->FindPod(id);
+    return Impl_->FindSchedulablePod(id);
 }
 
-TPod* TCluster::GetPodOrThrow(const TObjectId& id)
+TPod* TCluster::GetSchedulablePodOrThrow(const TObjectId& id)
 {
-    return Impl_->GetPodOrThrow(id);
+    return Impl_->GetSchedulablePodOrThrow(id);
 }
 
 std::vector<TNodeSegment*> TCluster::GetNodeSegments()

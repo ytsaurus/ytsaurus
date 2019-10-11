@@ -23,9 +23,9 @@ public:
     TNode* FindNode(const TObjectId& id);
     TNode* GetNodeOrThrow(const TObjectId& id);
 
-    std::vector<TPod*> GetPods();
-    TPod* FindPod(const TObjectId& id);
-    TPod* GetPodOrThrow(const TObjectId& id);
+    std::vector<TPod*> GetSchedulablePods();
+    TPod* FindSchedulablePod(const TObjectId& id);
+    TPod* GetSchedulablePodOrThrow(const TObjectId& id);
 
     std::vector<TResource*> GetResources();
     TResource* FindResource(const TObjectId& id);

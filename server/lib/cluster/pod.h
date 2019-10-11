@@ -33,6 +33,7 @@ public:
         const NObjects::TPodIP6AddressRequests& ip6AddressRequests,
         const NObjects::TPodIP6SubnetRequests& ip6SubnetRequests,
         TString nodeFilter,
+        bool enableScheduling,
         NClient::NApi::NProto::TPodStatus_TEviction eviction);
 
     DEFINE_BYREF_RO_PROPERTY(TObjectId, PodSetId);
@@ -49,6 +50,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(NObjects::TPodIP6AddressRequests, IP6AddressRequests);
     DEFINE_BYREF_RO_PROPERTY(NObjects::TPodIP6SubnetRequests, IP6SubnetRequests);
     DEFINE_BYREF_RO_PROPERTY(TString, NodeFilter);
+    DEFINE_BYVAL_RO_PROPERTY(bool, EnableScheduling);
 
     // Status.
     DEFINE_BYREF_RO_PROPERTY(NClient::NApi::NProto::TPodStatus_TEviction, Eviction);

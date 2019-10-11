@@ -197,7 +197,7 @@ private:
                 transaction->GetStartTimestamp(),
                 transitionName);
 
-            auto pods = cluster->GetPods();
+            auto pods = cluster->GetSchedulablePods();
             for (auto* pod : pods) {
                 ExecuteTransitionForPod(
                     transaction,
@@ -377,7 +377,7 @@ private:
 
             Context_.Cluster->LoadSnapshot();
 
-            auto pods = Context_.Cluster->GetPods();
+            auto pods = Context_.Cluster->GetSchedulablePods();
             auto now = TInstant::Now();
             for (auto* pod : pods) {
                 if (!pod->GetNode()) {
@@ -413,7 +413,7 @@ private:
 
         void RevokePodsWithAcknowledgedEviction()
         {
-            auto pods = Context_.Cluster->GetPods();
+            auto pods = Context_.Cluster->GetSchedulablePods();
             for (auto* pod : pods) {
                 if (pod->Eviction().state() == NClient::NApi::NProto::ES_ACKNOWLEDGED) {
                     YT_LOG_DEBUG("Pod eviction acknowledged (PodId: %v, NodeId: %v)",
@@ -430,7 +430,7 @@ private:
             for (auto* resource : Context_.Cluster->GetResources()) {
                 auto* node = resource->GetNode();
                 for (const auto& allocation : resource->ScheduledAllocations()) {
-                    auto* pod = Context_.Cluster->FindPod(allocation.pod_id());
+                    auto* pod = Context_.Cluster->FindSchedulablePod(allocation.pod_id());
                     if (!pod || pod->Uuid() != allocation.pod_uuid()) {
                         changedNodes.push_back(node);
                         break;
@@ -525,7 +525,7 @@ private:
                     break;
                 }
 
-                auto* pod = Context_.Cluster->FindPod(podId);
+                auto* pod = Context_.Cluster->FindSchedulablePod(podId);
                 if (!pod) {
                     YT_LOG_DEBUG("Pod no longer exists; discarded (PodId: %v)",
                         podId);
