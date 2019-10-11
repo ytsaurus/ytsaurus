@@ -404,7 +404,7 @@ private:
 
                 auto req = TYPathProxy::Get(objectIdPath + "/@");
                 AddCellTagToSyncWith(req, ObjectId_);
-                SetTransactionId(req, userObject.ExternalTransactionId);
+                SetTransactionId(req, Transaction_);
                 ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
                     "type",
                     "replication_factor",
