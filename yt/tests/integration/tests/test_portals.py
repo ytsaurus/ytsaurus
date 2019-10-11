@@ -713,6 +713,19 @@ class TestPortals(YTEnvSetup):
         set("#{}/@name".format(shard_id), "shard_name")
         assert get("#{}/@name".format(shard_id)) == "shard_name"
 
+    @authors("babenko")
+    def test_concat_in_tx(self):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        tx = start_transaction()
+        create("table", "//tmp/p/t1")
+        write_table("//tmp/p/t1", [{"key": "value1"}], tx=tx)
+        create("table", "//tmp/p/t2")
+        write_table("//tmp/p/t2", [{"key": "value2"}], tx=tx)
+        create("table", "//tmp/p/t3")
+        concatenate(["//tmp/p/t1", "//tmp/p/t2"], "//tmp/p/t3", tx=tx)
+        commit_transaction(tx)
+        assert read_table("//tmp/p/t3") == [{"key": "value1"}, {"key": "value2"}]
+
 ##################################################################
 
 class TestResolveCache(YTEnvSetup):
