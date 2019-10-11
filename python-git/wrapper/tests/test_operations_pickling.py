@@ -4,6 +4,7 @@ from .helpers import (TEST_DIR, set_config_option, get_tests_sandbox, check, get
                       build_python_egg, get_python, dumps_yt_config, run_python_script_with_check, get_operation_path)
 
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
+from yt.wrapper.spec_builders import VanillaSpecBuilder, MapSpecBuilder
 import yt.subprocess_wrapper as subprocess
 
 # Necessary for tests.

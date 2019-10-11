@@ -5,7 +5,7 @@ from .default_configs import get_watcher_config, get_dynamic_master_config
 from .helpers import read_config, write_config, is_dead_or_zombie, OpenPortIterator, wait_for_removing_file_lock, add_binary_path
 from .porto_helpers import PortoSubprocess, porto_avaliable
 
-from yt.common import YtError, remove_file, makedirp, set_pdeathsig, which, to_native_str
+from yt.common import YtError, remove_file, makedirp, set_pdeathsig, which
 from yt.wrapper.common import generate_uuid, flatten
 from yt.wrapper.errors import YtResponseError
 from yt.wrapper import YtClient
@@ -16,7 +16,7 @@ import yt.yson as yson
 import yt.subprocess_wrapper as subprocess
 
 from yt.packages.six import itervalues, iteritems
-from yt.packages.six.moves import xrange, map as imap, filter as ifilter
+from yt.packages.six.moves import xrange, map as imap
 import yt.packages.requests as requests
 
 import logging
@@ -28,7 +28,6 @@ import shutil
 import sys
 import getpass
 import random
-import copy
 from collections import defaultdict, namedtuple
 from threading import RLock
 from itertools import count
@@ -97,37 +96,6 @@ def _is_ya_package(proxy_binary_path):
         os.path.dirname(os.path.dirname(proxy_binary_path)),
         "built_by_ya.txt")
     return os.path.exists(ytnode_node)
-
-def _find_nodejs(candidates=("nodejs", "node")):
-    nodejs_binary = None
-    for name in candidates:
-        if which(name):
-            nodejs_binary = name
-            break
-
-    if nodejs_binary is None:
-        raise YtError("Failed to find nodejs binary (checked: {0}). "
-                      "Make sure you added nodejs directory to PATH variable".format(",".join(candidates)))
-
-    version = subprocess.check_output([nodejs_binary, "-v"])
-
-    if not version.startswith("v0.8"):
-        raise YtError("Failed to find appropriate nodejs version (should start with 0.8)")
-
-    return nodejs_binary
-
-def _get_proxy_version(node_binary_path, proxy_binary_path):
-    # Output example: "*** YT HTTP Proxy ***\nVersion 0.17.3\nDepends..."
-    process = subprocess.Popen([node_binary_path, proxy_binary_path, "-v"], stderr=subprocess.PIPE)
-    _, err = process.communicate()
-    version_str = to_native_str(err).split("\n")[1].split()[1]
-
-    try:
-        version = tuple(imap(int, version_str.split(".")))
-    except ValueError:
-        return None
-
-    return version
 
 def _config_safe_get(config, service_name, key):
     d = config
@@ -273,9 +241,12 @@ class YTInstance(object):
             capture_stderr_to_file = bool(int(os.environ.get("YT_CAPTURE_STDERR_TO_FILE", "0")))
         self._capture_stderr_to_file = capture_stderr_to_file
 
-        self._process_to_kill = defaultdict(list)
-        self._all_processes = {}
-        self._all_cgroups = []
+        # Dictionary from service name to the list of processes.
+        self._service_processes = defaultdict(list)
+        # Dictionary from pid to tuple with Process and arguments
+        self._pid_to_process = {}
+        # List of all used cgroup paths.
+        self._process_cgroup_paths = []
 
         self.master_count = master_count
         self.nonvoting_master_count = nonvoting_master_count
@@ -329,7 +300,7 @@ class YTInstance(object):
             for cgroup_type in CGROUP_TYPES:
                 cgroup_path = self._get_cgroup_path(cgroup_type)
                 makedirp(cgroup_path)
-                self._all_cgroups.append(cgroup_path)
+                self._process_cgroup_paths.append(cgroup_path)
                 logger.info("Registered cgroup {0}".format(cgroup_path))
 
     def _prepare_directories(self):
@@ -501,10 +472,11 @@ class YTInstance(object):
         else:
             self._wait_functions.append(function)
 
-    # COMPAT(ignat): remove use_new_proxy.
-    def start(self, use_proxy_from_package=True, use_new_proxy=True, start_secondary_master_cells=False, on_masters_started_func=None):
-        self._process_to_kill.clear()
-        self._all_processes.clear()
+    def start(self, start_secondary_master_cells=False, on_masters_started_func=None):
+        for name, processes in iteritems(self._service_processes):
+            for index in xrange(len(processes)):
+                processes[index] = None
+        self._pid_to_process.clear()
 
         if self.master_count == 0:
             logger.warning("Cannot start YT instance without masters")
@@ -515,7 +487,7 @@ class YTInstance(object):
             self._configure_driver_logging()
 
             if self.has_http_proxy:
-                self.start_proxy(use_proxy_from_package=use_proxy_from_package, use_new_proxy=use_new_proxy, sync=False)
+                self.start_http_proxy(sync=False)
 
             self.start_master_cell(sync=False)
 
@@ -629,7 +601,7 @@ class YTInstance(object):
 
     def kill_cgroups_impl(self):
         freezer_cgroups = []
-        for cgroup_path in self._all_cgroups:
+        for cgroup_path in self._process_cgroup_paths:
             if "cgroup/freezer" in cgroup_path:
                 freezer_cgroups.append(cgroup_path)
 
@@ -652,7 +624,7 @@ class YTInstance(object):
                     logger.info("Sending SIGKILL (pid: {})".format(pid))
                     os.kill(pid, signal.SIGKILL)
 
-        for cgroup_path in self._all_cgroups:
+        for cgroup_path in self._process_cgroup_paths:
             for dirpath, dirnames, _ in os.walk(cgroup_path, topdown=False):
                 for dirname in dirnames:
                     inner_cgroup_path = os.path.join(dirpath, dirname)
@@ -678,7 +650,7 @@ class YTInstance(object):
             except OSError:
                 logger.exception("Failed to remove cgroup dir {0}".format(cgroup_path))
 
-        self._all_cgroups = []
+        self._process_cgroup_paths = []
 
     def kill_schedulers(self):
         self.kill_service("scheduler")
@@ -696,19 +668,22 @@ class YTInstance(object):
         name = self._get_master_name("master", cell_index)
         self.kill_service(name)
 
-    def kill_service(self, name):
+    def kill_service(self, name, indexes=None):
         with self._lock:
             logger.info("Killing %s", name)
-            for p in self._process_to_kill[name]:
-                self._kill_process(p, name)
-                if isinstance(p, PortoSubprocess):
-                    p.destroy()
-                del self._all_processes[p.pid]
-            del self._process_to_kill[name]
+            processes = self._service_processes[name]
+            for index, process in enumerate(processes):
+                if process is None or (indexes is not None and index not in indexes):
+                    continue
+                self._kill_process(process, name)
+                if isinstance(process, PortoSubprocess):
+                    process.destroy()
+                del self._pid_to_process[process.pid]
+                processes[index] = None
 
     def check_liveness(self, callback_func):
         with self._lock:
-            for info in itervalues(self._all_processes):
+            for info in itervalues(self._pid_to_process):
                 proc, args = info
                 proc.poll()
                 if proc.returncode is not None:
@@ -795,9 +770,15 @@ class YTInstance(object):
             cgroup_paths = []
 
         with self._lock:
+            index = number if number is not None else 0
             name_with_number = name
             if number:
                 name_with_number = "{0}-{1}".format(name, number)
+
+            if self._service_processes[name][index] is not None:
+                logger.debug("Process %s already running", name_with_number, self._service_processes[name][index].pid)
+                return
+
             stderr_path = os.path.join(self.stderrs_path, "stderr.{0}".format(name_with_number))
             self._stderr_paths[name].append(stderr_path)
 
@@ -824,15 +805,17 @@ class YTInstance(object):
             time.sleep(timeout)
             self._validate_process_is_running(p, name, number)
 
-            self._process_to_kill[name].append(p)
-            self._all_processes[p.pid] = (p, args)
+            self._service_processes[name][index] = p
+            self._pid_to_process[p.pid] = (p, args)
             self._append_pid(p.pid)
 
             logger.debug("Process %s started (pid: %d)", name, p.pid)
 
-    def _run_yt_component(self, component, name=None):
+    def _run_yt_component(self, component, name=None, config_option=None):
         if name is None:
             name = component
+        if config_option is None:
+            config_option = "--config"
 
         logger.info("Starting %s", name)
 
@@ -845,7 +828,7 @@ class YTInstance(object):
                     args.extend(["--pdeathsig", str(int(signal.SIGKILL))])
             else:
                 raise YtError("Unsupported YT ABI version {0}".format(self.abi_version))
-            args.extend(["--config", self.config_paths[name][i]])
+            args.extend([config_option, self.config_paths[name][i]])
             cgroup_paths = None
             if self._use_cgroup_for_servers:
                 cgroup_paths = []
@@ -882,6 +865,7 @@ class YTInstance(object):
 
                 self.configs[master_name].append(config)
                 self.config_paths[master_name].append(config_path)
+                self._service_processes[master_name].append(None)
 
     def start_master_cell(self, cell_index=0, sync=True):
         master_name = self._get_master_name("master", cell_index)
@@ -955,6 +939,7 @@ class YTInstance(object):
 
             self.configs["clock"].append(config)
             self.config_paths["clock"].append(config_path)
+            self._service_processes["clock"].append(None)
 
     def start_clock(self, sync=True):
         self._run_yt_component("clock")
@@ -992,6 +977,7 @@ class YTInstance(object):
 
             self.configs["node"].append(config)
             self.config_paths["node"].append(config_path)
+            self._service_processes["node"].append(None)
 
     def start_nodes(self, sync=True):
         self._run_yt_component("node")
@@ -1022,6 +1008,7 @@ class YTInstance(object):
 
             self.configs["scheduler"].append(config)
             self.config_paths["scheduler"].append(config_path)
+            self._service_processes["scheduler"].append(None)
 
     def _prepare_controller_agents(self, controller_agent_configs, controller_agent_dirs):
         for controller_agent_index in xrange(self.controller_agent_count):
@@ -1038,6 +1025,7 @@ class YTInstance(object):
 
             self.configs["controller_agent"].append(config)
             self.config_paths["controller_agent"].append(config_path)
+            self._service_processes["controller_agent"].append(None)
 
     def start_schedulers(self, sync=True):
         self._remove_scheduler_lock()
@@ -1252,17 +1240,18 @@ class YTInstance(object):
         self.config_paths["http_proxy"] = []
 
         for i in xrange(len(http_proxy_dirs)):
-            config_path = os.path.join(self.configs_path, "http-proxy-{}.json".format(i))
+            config_path = os.path.join(self.configs_path, "http-proxy-{}.yson".format(i))
             if self._load_existing_environment:
                 if not os.path.isfile(config_path):
                     raise YtError("Http proxy config {0} not found".format(config_path))
-                config = read_config(config_path, format="json")
+                config = read_config(config_path)
             else:
                 config = proxy_configs[i]
-                write_config(config, config_path, format="json")
+                write_config(config, config_path)
 
             self.configs["http_proxy"].append(config)
             self.config_paths["http_proxy"].append(config_path)
+            self._service_processes["http_proxy"].append(None)
 
     def _prepare_rpc_proxies(self, rpc_proxy_configs, rpc_client_config, rpc_proxy_dirs):
         self.configs["rpc_proxy"] = []
@@ -1280,6 +1269,7 @@ class YTInstance(object):
 
             self.configs["rpc_proxy"].append(config)
             self.config_paths["rpc_proxy"].append(config_path)
+            self._service_processes["rpc_proxy"].append(None)
 
             rpc_client_config_path = os.path.join(self.configs_path, "rpc-client.yson")
             if self._load_existing_environment:
@@ -1297,49 +1287,10 @@ class YTInstance(object):
             write_config(skynet_manager_configs[i], config_path)
             self.configs["skynet_manager"].append(skynet_manager_configs[i])
             self.config_paths["skynet_manager"].append(config_path)
+            self._service_processes["skynet_manager"].append(None)
 
-    def _start_proxy_from_package(self):
-        node_path = list(ifilter(lambda x: x != "", os.environ.get("NODE_PATH", "").split(":")))
-        for path in node_path + ["/usr/lib/node_modules"]:
-            proxy_binary_path = os.path.join(path, "yt", "bin", "yt_http_proxy")
-            if os.path.exists(proxy_binary_path):
-                break
-        else:
-            raise YtError("Failed to find YT http proxy binary. Make sure you installed "
-                          "yandex-yt-http-proxy package or specify NODE_PATH manually")
-
-        if _is_ya_package(proxy_binary_path):
-            nodejs_binary_path = _find_nodejs(["ytnode",])
-        else:
-            nodejs_binary_path = _find_nodejs()
-
-        proxy_version = _get_proxy_version(nodejs_binary_path, proxy_binary_path)
-        if proxy_version and proxy_version[:2] != self.abi_version:
-            raise YtError("Proxy version (which is {0}.{1}) is incompatible with ytserver* ABI "
-                          "(which is {2}.{3})".format(*(proxy_version[:2] + self.abi_version)))
-
-        self._run([nodejs_binary_path,
-                   proxy_binary_path,
-                   "-c", self.config_paths["http_proxy"][0]],
-                   "http_proxy")
-
-    def start_proxy(self, use_proxy_from_package, use_new_proxy=True, sync=True):
-        logger.info("Starting proxy")
-        if use_new_proxy or which("ytserver-http-proxy"):
-            for index in xrange(len(self.config_paths["http_proxy"])):
-                self._run(["ytserver-http-proxy", "--legacy-config", self.config_paths["http_proxy"][index]], "http_proxy", number=index)
-        else:
-            if len(self.config_paths["http_proxy"]) != 1:
-                raise YtError("Failed to start more than one proxy in legacy mode; use new HTTP proxy")
-            elif use_proxy_from_package:
-                self._start_proxy_from_package()
-            else:
-                if not which("run_proxy.sh"):
-                    raise YtError("Failed to start proxy from source tree. "
-                                  "Make sure you added directory with run_proxy.sh to PATH")
-                self._run(["run_proxy.sh",
-                           "-c", self.config_paths["http_proxy"][0]],
-                           "http_proxy")
+    def start_http_proxy(self, sync=True):
+        self._run_yt_component("http-proxy", name="http_proxy")
 
         def proxy_ready():
             self._validate_processes_are_running("http_proxy")
@@ -1354,7 +1305,7 @@ class YTInstance(object):
 
             return True
 
-        self._wait_or_skip(lambda: self._wait_for(proxy_ready, "proxy", max_wait_time=20), sync)
+        self._wait_or_skip(lambda: self._wait_for(proxy_ready, "http_proxy", max_wait_time=20), sync)
 
     def start_rpc_proxy(self, sync=True):
         self._run_yt_component("proxy", name="rpc_proxy")
@@ -1398,11 +1349,10 @@ class YTInstance(object):
                           .format(name_with_number, process.returncode))
 
     def _validate_processes_are_running(self, name):
-        if name == "http_proxy":
-            self._validate_process_is_running(self._process_to_kill[name][-1], name)
-        else:
-            for index, process in enumerate(self._process_to_kill[name]):
-                self._validate_process_is_running(process, name, index)
+        for index, process in enumerate(self._service_processes[name]):
+            if process is None:
+                continue
+            self._validate_process_is_running(process, name, index)
 
     def _wait_for(self, condition, name, max_wait_time=40, sleep_quantum=0.1):
         condition_error = None
@@ -1447,8 +1397,8 @@ class YTInstance(object):
         postrotate_commands = []
         def send_sighup(pid):
             return "\t/usr/bin/test -d /proc/{0} && kill -HUP {0} >/dev/null 2>&1 || true".format(pid)
-        
-        for pid in self._all_processes.keys():
+
+        for pid in self._pid_to_process.keys():
             postrotate_commands.append(send_sighup(pid))
 
         logrotate_options = [
@@ -1472,8 +1422,6 @@ class YTInstance(object):
                 def emit_rotate_config(service, config):
                     for log_type in ["debug", "info"]:
                         log_config_path = "logging/writers/" + log_type + "/file_name"
-                        if service == "http_proxy":
-                            log_config_path = "proxy/" + log_config_path
                         log_path = _config_safe_get(config, service, log_config_path)
                         config_file.write("{0}\n{{\n{1}\n}}\n\n".format(log_path, "\n".join(logrotate_options)))
 
@@ -1495,6 +1443,8 @@ class YTInstance(object):
         logrotate_state_file = os.path.join(logs_rotator_data_path, "state")
 
         watcher_path = self._get_watcher_path()
+
+        self._service_processes["watcher"].append(None)
 
         self._run([watcher_path,
                    "--lock-file-path", os.path.join(self.path, "lock_file"),
