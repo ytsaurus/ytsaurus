@@ -365,6 +365,7 @@ struct TOperationInfo
 {
     NYson::TYsonString Progress;
     NYson::TYsonString BriefProgress;
+    NYson::TYsonString Alerts;
     NYson::TYsonString RunningJobs;
     NYson::TYsonString JobSplitter;
     ssize_t MemoryUsage;

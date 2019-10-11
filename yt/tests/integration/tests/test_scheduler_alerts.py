@@ -124,6 +124,9 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         "scheduler": {
             "operations_update_period": 100,
             "schedule_job_time_limit": 3000,
+            "event_log": {
+                "flush_period": 1000
+            }
         }
     }
 
@@ -149,6 +152,9 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
             },
             "map_reduce_operation_options": {
                 "min_uncompressed_block_size": 1
+            },
+            "event_log": {
+                "flush_period": 1000
             }
         }
     }
@@ -345,6 +351,30 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         time.sleep(8)
 
         assert "schedule_job_timed_out" in op.get_alerts()
+
+    @authors("ignat")
+    def test_event_log(self):
+        create_test_tables(row_count=4)
+
+        op = map(
+            command="cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={
+                "data_size_per_job": 1,
+            })
+
+        assert "short_jobs_duration" in op.get_alerts()
+
+        def check():
+            events = read_table("//sys/scheduler/event_log")
+            for event in events:
+                if event["event_type"] == "operation_completed":
+                    assert len(event["alerts"]) >= 1
+                    assert "short_jobs_duration" in event["alerts"]
+                    return True
+            return False
+        wait(check)
 
     def wait_for_running_jobs(self, operation):
         wait(lambda: operation.get_job_count("running") >= 1)
