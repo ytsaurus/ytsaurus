@@ -544,7 +544,7 @@ private:
     {
         for (const auto& [podId, pod] : SchedulablePodMap_) {
             if (pod->GetNode()) {
-                YT_VERIFY(pod->GetNode()->Pods().insert(pod.get()).second);
+                YT_VERIFY(pod->GetNode()->SchedulablePods().insert(pod.get()).second);
             }
         }
     }
@@ -553,14 +553,14 @@ private:
     {
         for (const auto& [podId, pod] : SchedulablePodMap_) {
             auto* podSet = pod->GetPodSet();
-            YT_VERIFY(podSet->Pods().insert(pod.get()).second);
+            YT_VERIFY(podSet->SchedulablePods().insert(pod.get()).second);
         }
     }
 
     void InitializeAccountPods()
     {
         for (const auto& [podId, pod] : SchedulablePodMap_) {
-            YT_VERIFY(pod->GetEffectiveAccount()->Pods().insert(pod.get()).second);
+            YT_VERIFY(pod->GetEffectiveAccount()->SchedulablePods().insert(pod.get()).second);
         }
     }
 

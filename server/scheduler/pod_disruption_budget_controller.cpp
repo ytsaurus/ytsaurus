@@ -192,7 +192,7 @@ private:
                 continue;
             }
             auto& statistics = StatisticsPerPodDisruptionBudgetUuid_[podDisruptionBudget->Uuid()];
-            for (auto* pod : podSet->Pods()) {
+            for (auto* pod : podSet->SchedulablePods()) {
                 statistics.TotalPodCount += 1;
                 statistics.AvailablePodCount += IsPodAvailable(pod);
             }

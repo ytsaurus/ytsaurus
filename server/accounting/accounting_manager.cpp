@@ -183,7 +183,7 @@ public:
             THashMap<TAccount*, NClient::NApi::NProto::TResourceTotals> accountToImmediateUsage;
             for (auto* account : accounts) {
                 NClient::NApi::NProto::TResourceTotals usage;
-                for (auto* pod : account->Pods()) {
+                for (auto* pod : account->SchedulablePods()) {
                     auto* nodeSegment = pod->GetPodSet()->GetNodeSegment();
                     usage += ResourceUsageFromPodSpecRequests(
                         pod->ResourceRequests(),
@@ -329,7 +329,7 @@ private:
                 for (const auto& perStorageClassPair : usagePerSegment.disk_per_storage_class()) {
                     const auto& storageClass = perStorageClassPair.first;
 
-                    auto getPerStorageClassTotals = [&] (const TPerSegmentResourceTotals& totals) 
+                    auto getPerStorageClassTotals = [&] (const TPerSegmentResourceTotals& totals)
                         -> const NClient::NApi::NProto::TPerSegmentResourceTotals_TDiskTotals&
                     {
                         auto it = totals.disk_per_storage_class().find(storageClass);

@@ -461,7 +461,7 @@ private:
 
                 auto nodes = Context_.Cluster->GetNodes();
                 for (auto* node : nodes) {
-                    if (!node->Pods().empty()) {
+                    if (!node->SchedulablePods().empty()) {
                         continue;
                     }
                     if (node->GetMaintenanceState() != ENodeMaintenanceState::Requested) {

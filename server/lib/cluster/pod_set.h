@@ -34,7 +34,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(std::vector<NClient::NApi::NProto::TAntiaffinityConstraint>, AntiaffinityConstraints);
     DEFINE_BYREF_RO_PROPERTY(TString, NodeFilter);
 
-    DEFINE_BYREF_RW_PROPERTY(THashSet<TPod*>, Pods);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<TPod*>, SchedulablePods);
 
     DEFINE_BYVAL_RW_PROPERTY(TNodeSegment*, NodeSegment);
     DEFINE_BYVAL_RW_PROPERTY(TAccount*, Account);

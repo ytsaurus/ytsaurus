@@ -25,7 +25,7 @@ public:
 
     DEFINE_BYREF_RO_PROPERTY(TObjectId, ParentId);
 
-    DEFINE_BYREF_RW_PROPERTY(THashSet<TPod*>, Pods);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<TPod*>, SchedulablePods);
     DEFINE_BYVAL_RW_PROPERTY(TAccount*, Parent);
     DEFINE_BYREF_RW_PROPERTY(THashSet<TAccount*>, Children);
 };

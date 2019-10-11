@@ -124,7 +124,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NClient::NApi::NProto::TNodeSpec, Spec);
 
     DEFINE_BYREF_RW_PROPERTY(std::vector<TTopologyZone*>, TopologyZones);
-    DEFINE_BYREF_RW_PROPERTY(THashSet<TPod*>, Pods);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<TPod*>, SchedulablePods);
 
     DEFINE_BYREF_RW_PROPERTY(THomogeneousResource, CpuResource);
     DEFINE_BYREF_RW_PROPERTY(THomogeneousResource, MemoryResource);
