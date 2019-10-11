@@ -247,9 +247,8 @@ public:
 
     virtual void InitOutputTables() override
     {
-        for (const auto& pair : Spec_->Tasks) {
+        for (const auto& [taskName, taskSpec] : Spec_->Tasks) {
             TaskOutputTables_.emplace_back();
-            const auto& taskSpec = pair.second;
             for (const auto& outputTablePath : taskSpec->OutputTablePaths) {
                 TaskOutputTables_.back().emplace_back(RegisterOutputTable(outputTablePath));
             }
@@ -259,8 +258,7 @@ public:
     virtual std::vector<TRichYPath> GetOutputTablePaths() const
     {
         std::vector<TRichYPath> outputTablePaths;
-        for (const auto& pair : Spec_->Tasks) {
-            const auto& taskSpec = pair.second;
+        for (const auto& [taskName, taskSpec] : Spec_->Tasks) {
             outputTablePaths.insert(outputTablePaths.end(), taskSpec->OutputTablePaths.begin(), taskSpec->OutputTablePaths.end());
         }
         return outputTablePaths;
@@ -316,9 +314,8 @@ public:
     {
         std::vector<TUserJobSpecPtr> specs;
         specs.reserve(Spec_->Tasks.size());
-        for (const auto& pair : Spec_->Tasks) {
-            const auto& spec = pair.second;
-            specs.emplace_back(spec);
+        for (const auto& [taskName, taskSpec] : Spec_->Tasks) {
+            specs.emplace_back(taskSpec);
         }
         return specs;
     }
@@ -342,8 +339,8 @@ public:
         }
 
         int expectedJobCount = 0;
-        for (const auto& pair : Spec_->Tasks) {
-            expectedJobCount += pair.second->JobCount;
+        for (const auto& [taskName, taskSpec] : Spec_->Tasks) {
+            expectedJobCount += taskSpec->JobCount;
         }
         const auto& jobCounter = GetDataFlowGraph()->GetTotalJobCounter();
         int startedJobCount = jobCounter->GetRunning() + jobCounter->GetCompletedTotal();

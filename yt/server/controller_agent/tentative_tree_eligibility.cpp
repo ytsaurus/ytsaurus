@@ -64,8 +64,7 @@ bool TTentativeTreeEligibility::CanScheduleJob(
 
     auto startedJobCount = StartedJobsPerPoolTree_.Value(treeId, 0);
     int finishedJobCount = 0;
-    for (const auto& pair : FinishedJobsPerStatePerPoolTree_.Value(treeId, THashMap<EJobState, int>())) {
-        auto jobCount = pair.second;
+    for (const auto& [jobState, jobCount] : FinishedJobsPerStatePerPoolTree_.Value(treeId, THashMap<EJobState, int>())) {
         finishedJobCount += jobCount;
     }
     int runningJobCount = startedJobCount - finishedJobCount;
@@ -114,8 +113,7 @@ TJobFinishedResult TTentativeTreeEligibility::OnJobFinished(const TJobSummary& j
 std::vector<TString> TTentativeTreeEligibility::FindAndBanSlowTentativeTrees()
 {
     std::vector<TString> slowTreeIds;
-    for (const auto& pair : StartedJobsPerPoolTree_) {
-        const auto& treeId = pair.first;
+    for (const auto& [treeId, jobs] : StartedJobsPerPoolTree_) {
         if (!IsTreeBanned(treeId) && IsSlow(treeId)) {
             BanTree(treeId);
             slowTreeIds.push_back(treeId);
@@ -131,8 +129,7 @@ void TTentativeTreeEligibility::LogTentativeTreeStatistics() const
     }
 
     THashMap<TString, TDuration> treeAverageJobDurations;
-    for (const auto& pair : StartedJobsPerPoolTree_) {
-        const auto& treeId = pair.first;
+    for (const auto& [treeId, jobs] : StartedJobsPerPoolTree_) {
         treeAverageJobDurations.insert(std::make_pair(treeId, GetTentativeTreeAverageJobDuration(treeId)));
     }
 
