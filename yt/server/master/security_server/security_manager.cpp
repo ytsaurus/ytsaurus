@@ -87,6 +87,8 @@ using NYT::ToProto;
 static const auto& Logger = SecurityServerLogger;
 static const auto& Profiler = SecurityServerProfiler;
 
+static const auto ProfilingPeriod = TDuration::MilliSeconds(100);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TAuthenticatedUserGuard::TAuthenticatedUserGuard(TSecurityManagerPtr securityManager, TUser* user)
@@ -306,8 +308,6 @@ public:
         UsersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffe);
         SuperusersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffd);
 
-        RegisterMethod(BIND(&TImpl::HydraIncreaseUserStatistics, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraSetUserStatistics, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSetAccountStatistics, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraRecomputeMembershipClosure, Unretained(this)));
     }
@@ -329,6 +329,12 @@ public:
             multicellManager->SubscribeReplicateValuesToSecondaryMaster(
                 BIND(&TImpl::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
         }
+
+        ProfilingExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
+            BIND(&TImpl::OnProfiling, MakeWeak(this)),
+            ProfilingPeriod);
+        ProfilingExecutor_->Start();
     }
 
 
@@ -619,7 +625,7 @@ public:
         }
 
         YT_VERIFY(AccountNameMap_.erase(account->GetName()) == 1);
-        YT_VERIFY(AccountNameMap_.insert(std::make_pair(newName, account)).second);
+        YT_VERIFY(AccountNameMap_.emplace(newName, account).second);
         account->SetName(newName);
     }
 
@@ -631,8 +637,8 @@ public:
         subject->MemberOf().clear();
         subject->RecursiveMemberOf().clear();
 
-        for (const auto& pair : subject->LinkedObjects()) {
-            auto* acd = GetAcd(pair.first);
+        for (auto [object, counter] : subject->LinkedObjects()) {
+            auto* acd = GetAcd(object);
             acd->OnSubjectDestroyed(subject, GuestUser_);
         }
         subject->LinkedObjects().clear();
@@ -925,12 +931,12 @@ public:
         switch (subject->GetType()) {
             case EObjectType::User:
                 YT_VERIFY(UserNameMap_.erase(subject->GetName()) == 1);
-                YT_VERIFY(UserNameMap_.insert(std::make_pair(newName, subject->AsUser())).second);
+                YT_VERIFY(UserNameMap_.emplace(newName, subject->AsUser()).second);
                 break;
 
             case EObjectType::Group:
                 YT_VERIFY(GroupNameMap_.erase(subject->GetName()) == 1);
-                YT_VERIFY(GroupNameMap_.insert(std::make_pair(newName, subject->AsGroup())).second);
+                YT_VERIFY(GroupNameMap_.emplace(newName, subject->AsGroup()).second);
                 break;
 
             default:
@@ -1351,6 +1357,9 @@ public:
 
     void ChargeUser(TUser* user, const TUserWorkload& workload)
     {
+        if (!IsObjectAlive(user)) {
+            return;
+        }
         RequestTracker_->ChargeUser(user, workload);
         UserCharged_.Fire(user, workload);
     }
@@ -1406,7 +1415,7 @@ private:
     const TSecurityTagsRegistryPtr SecurityTagsRegistry_ = New<TSecurityTagsRegistry>();
 
     TPeriodicExecutorPtr AccountStatisticsGossipExecutor_;
-    TPeriodicExecutorPtr UserStatisticsGossipExecutor_;
+    TPeriodicExecutorPtr ProfilingExecutor_;
     TPeriodicExecutorPtr MembershipClosureRecomputeExecutor_;
 
     NHydra::TEntityMap<TAccount> AccountMap_;
@@ -1575,7 +1584,7 @@ private:
         accountHolder->ClusterResourceLimits().ChunkCount = 100000;
 
         auto* account = AccountMap_.Insert(id, std::move(accountHolder));
-        YT_VERIFY(AccountNameMap_.insert(std::make_pair(account->GetName(), account)).second);
+        YT_VERIFY(AccountNameMap_.emplace(account->GetName(), account).second);
 
         InitializeAccountStatistics(account);
 
@@ -1618,9 +1627,7 @@ private:
         userHolder->SetName(name);
 
         auto* user = UserMap_.Insert(id, std::move(userHolder));
-        YT_VERIFY(UserNameMap_.insert(std::make_pair(user->GetName(), user)).second);
-
-        InitializeUserStatistics(user);
+        YT_VERIFY(UserNameMap_.emplace(user->GetName(), user).second);
 
         YT_VERIFY(user->RefObject() == 1);
         DoAddMember(GetBuiltinGroupForUser(user), user);
@@ -1633,25 +1640,13 @@ private:
         return user;
     }
 
-    TTagId GetProfilingTagForUser(TUser* user)
-    {
-        auto it = UserNameToProfilingTagId_.find(user->GetName());
-        if (it != UserNameToProfilingTagId_.end()) {
-            return it->second;
-        }
-
-        auto tagId = TProfileManager::Get()->RegisterTag("user", user->GetName());
-        YT_VERIFY(UserNameToProfilingTagId_.insert(std::make_pair(user->GetName(), tagId)).second);
-        return tagId;
-    }
-
     TGroup* DoCreateGroup(TGroupId id, const TString& name)
     {
         auto groupHolder = std::make_unique<TGroup>(id);
         groupHolder->SetName(name);
 
         auto* group = GroupMap_.Insert(id, std::move(groupHolder));
-        YT_VERIFY(GroupNameMap_.insert(std::make_pair(group->GetName(), group)).second);
+        YT_VERIFY(GroupNameMap_.emplace(group->GetName(), group).second);
 
         // Make the fake reference.
         YT_VERIFY(group->RefObject() == 1);
@@ -1688,16 +1683,15 @@ private:
     {
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Started recomputing membership closure");
 
-        for (const auto& pair : UserMap_) {
-            pair.second->RecursiveMemberOf().clear();
+        for (auto [userId, user] : UserMap_) {
+            user->RecursiveMemberOf().clear();
         }
 
-        for (const auto& pair : GroupMap_) {
-            pair.second->RecursiveMemberOf().clear();
+        for (auto [groupId, group] : GroupMap_) {
+            group->RecursiveMemberOf().clear();
         }
 
-        for (const auto& pair : GroupMap_) {
-            auto* group = pair.second;
+        for (auto [groupId, group] : GroupMap_) {
             for (auto* member : group->Members()) {
                 PropagateRecursiveMemberOf(member, group);
             }
@@ -1798,12 +1792,10 @@ private:
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
 
         AccountNameMap_.clear();
-        for (const auto& pair : AccountMap_) {
-            auto* account = pair.second;
-
+        for (auto [accountId, account] : AccountMap_) {
             // Reconstruct account name map.
             if (IsObjectAlive(account)) {
-                YT_VERIFY(AccountNameMap_.insert(std::make_pair(account->GetName(), account)).second);
+                YT_VERIFY(AccountNameMap_.emplace(account->GetName(), account).second);
             }
 
 
@@ -1813,17 +1805,13 @@ private:
         }
 
         UserNameMap_.clear();
-        for (const auto& pair : UserMap_) {
-            auto* user = pair.second;
-
-            // Reconstruct user name map.
-            if (IsObjectAlive(user)) {
-                YT_VERIFY(UserNameMap_.insert(std::make_pair(user->GetName(), user)).second);
+        for (auto [userId, user] : UserMap_) {
+            if (!IsObjectAlive(user)) {
+                continue;
             }
 
-            // Initialize statistics for this cell.
-            // NB: This also provides the necessary data migration for pre-0.18 versions.
-            InitializeUserStatistics(user);
+            // Reconstruct user name map.
+            YT_VERIFY(UserNameMap_.emplace(user->GetName(), user).second);
         }
 
         // COMPAT(shakurov)
@@ -1835,7 +1823,7 @@ private:
             const auto primaryCellReadPeerCount =
                 std::max(1, static_cast<int>(Bootstrap_->GetConfig()->PrimaryMaster->Peers.size()) - 1);
 
-            for (const auto& [userId, user] : UserMap_) {
+            for (auto [userId, user] : UserMap_) {
                 auto limit = user->GetRequestRateLimit(EUserWorkloadType::Read);
                 limit *= primaryCellReadPeerCount;
                 user->SetRequestRateLimit(limit, EUserWorkloadType::Read);
@@ -1843,13 +1831,13 @@ private:
         }
 
         GroupNameMap_.clear();
-        for (const auto& pair : GroupMap_) {
-            auto* group = pair.second;
+        for (auto [groupId, group] : GroupMap_) {
+            if (!IsObjectAlive(group)) {
+                continue;
+            }
 
             // Reconstruct group name map.
-            if (IsObjectAlive(group)) {
-                YT_VERIFY(GroupNameMap_.insert(std::make_pair(group->GetName(), group)).second);
-            }
+            YT_VERIFY(GroupNameMap_.emplace(group->GetName(), group).second);
         }
 
         InitBuiltins();
@@ -1898,9 +1886,7 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
 
         // Recompute everything except chunk count and disk space.
-        for (const auto& pair : cypressManager->Nodes()) {
-            const auto* node = pair.second;
-
+        for (auto [nodeId, node] : cypressManager->Nodes()) {
             // NB: zombie nodes are still accounted.
             if (node->IsDestroyed()) {
                 continue;
@@ -1935,9 +1921,7 @@ private:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto* requisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
 
-        for (const auto& pair : chunkManager->Chunks()) {
-            auto* chunk = pair.second;
-
+        for (auto [chunkId, chunk] : chunkManager->Chunks()) {
             // NB: zombie chunks are still accounted.
             if (chunk->IsDestroyed()) {
                 continue;
@@ -1953,9 +1937,7 @@ private:
             }  // Else this'll be done later when the chunk is confirmed/sealed.
         }
 
-        for (const auto& pair : Accounts()) {
-            auto* account = pair.second;
-
+        for (auto [accountId, account] : Accounts()) {
             if (!IsObjectAlive(account)) {
                 continue;
             }
@@ -2305,11 +2287,6 @@ private:
             BIND(&TImpl::OnAccountStatisticsGossip, MakeWeak(this)));
         AccountStatisticsGossipExecutor_->Start();
 
-        UserStatisticsGossipExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
-            BIND(&TImpl::OnUserStatisticsGossip, MakeWeak(this)));
-        UserStatisticsGossipExecutor_->Start();
-
         MembershipClosureRecomputeExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
             BIND(&TImpl::OnRecomputeMembershipClosure, MakeWeak(this)));
@@ -2327,11 +2304,6 @@ private:
         if (AccountStatisticsGossipExecutor_) {
             AccountStatisticsGossipExecutor_->Stop();
             AccountStatisticsGossipExecutor_.Reset();
-        }
-
-        if (UserStatisticsGossipExecutor_) {
-            UserStatisticsGossipExecutor_->Stop();
-            UserStatisticsGossipExecutor_.Reset();
         }
 
         if (MembershipClosureRecomputeExecutor_) {
@@ -2432,112 +2404,6 @@ private:
     {
         if (MustRecomputeMembershipClosure_) {
             DoRecomputeMembershipClosure();
-        }
-    }
-
-
-    void InitializeUserStatistics(TUser* user)
-    {
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        auto cellTag = multicellManager->GetCellTag();
-        const auto& secondaryCellTags = multicellManager->GetSecondaryCellTags();
-
-        auto& multicellStatistics = user->MulticellStatistics();
-        if (multicellStatistics.find(cellTag) == multicellStatistics.end()) {
-            multicellStatistics[cellTag] = user->ClusterStatistics();
-        }
-
-        for (auto secondaryCellTag : secondaryCellTags) {
-            multicellStatistics[secondaryCellTag];
-        }
-
-        user->SetLocalStatisticsPtr(&multicellStatistics[cellTag]);
-    }
-
-    void OnUserStatisticsGossip()
-    {
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        if (!multicellManager->IsLocalMasterCellRegistered()) {
-            return;
-        }
-
-        YT_LOG_INFO("Sending user statistics gossip message");
-
-        NProto::TReqSetUserStatistics request;
-        request.set_cell_tag(multicellManager->GetCellTag());
-        for (auto [id, user] : UserMap_) {
-            if (!IsObjectAlive(user)) {
-                continue;
-            }
-
-            auto* entry = request.add_entries();
-            ToProto(entry->mutable_user_id(), user->GetId());
-            ToProto(
-                entry->mutable_statistics(),
-                multicellManager->IsPrimaryMaster() ? user->ClusterStatistics() : user->LocalStatistics());
-        }
-
-        if (multicellManager->IsPrimaryMaster()) {
-            multicellManager->PostToSecondaryMasters(request, false);
-        } else {
-            multicellManager->PostToMaster(request, PrimaryMasterCellTag, false);
-        }
-    }
-
-    void HydraIncreaseUserStatistics(NProto::TReqIncreaseUserStatistics* request)
-    {
-        for (const auto& entry : request->entries()) {
-            auto userId = FromProto<TUserId>(entry.user_id());
-            auto* user = FindUser(userId);
-            if (!IsObjectAlive(user))
-                continue;
-
-            // Update access time.
-            auto statisticsDelta = FromProto<TUserStatistics>(entry.statistics());
-            user->LocalStatistics() += statisticsDelta;
-            user->ClusterStatistics() += statisticsDelta;
-
-            TTagIdList tagIds{
-                GetProfilingTagForUser(user)
-            };
-
-            const auto& localStatistics = user->LocalStatistics();
-            Profiler.Enqueue("/user_read_time", localStatistics.ReadRequestTime.MicroSeconds(), EMetricType::Counter, tagIds);
-            Profiler.Enqueue("/user_write_time", localStatistics.WriteRequestTime.MicroSeconds(), EMetricType::Counter, tagIds);
-            Profiler.Enqueue("/user_request_count", localStatistics.RequestCount, EMetricType::Counter, tagIds);
-            Profiler.Enqueue("/user_request_queue_size", user->GetRequestQueueSize(), EMetricType::Gauge, tagIds);
-        }
-    }
-
-    void HydraSetUserStatistics(NProto::TReqSetUserStatistics* request)
-    {
-        auto cellTag = request->cell_tag();
-
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        YT_VERIFY(multicellManager->IsPrimaryMaster() || cellTag == multicellManager->GetPrimaryCellTag());
-
-        if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
-            YT_LOG_ERROR_UNLESS(IsRecovery(), "Received user statistics gossip message from unknown cell (CellTag: %v)",
-                cellTag);
-            return;
-        }
-
-        YT_LOG_INFO_UNLESS(IsRecovery(), "Received user statistics gossip message (CellTag: %v)",
-            cellTag);
-
-        for (const auto& entry : request->entries()) {
-            auto userId = FromProto<TUserId>(entry.user_id());
-            auto* user = FindUser(userId);
-            if (!IsObjectAlive(user))
-                continue;
-
-            auto newStatistics = FromProto<TUserStatistics>(entry.statistics());
-            if (multicellManager->IsPrimaryMaster()) {
-                user->CellStatistics(cellTag) = newStatistics;
-                user->RecomputeClusterStatistics();
-            } else {
-                user->ClusterStatistics() = newStatistics;
-            }
         }
     }
 
@@ -2919,12 +2785,40 @@ private:
             AccountStatisticsGossipExecutor_->SetPeriod(GetDynamicConfig()->AccountStatisticsGossipPeriod);
         }
 
-        if (UserStatisticsGossipExecutor_) {
-            UserStatisticsGossipExecutor_->SetPeriod(GetDynamicConfig()->UserStatisticsGossipPeriod);
-        }
-
         if (MembershipClosureRecomputeExecutor_) {
             MembershipClosureRecomputeExecutor_->SetPeriod(GetDynamicConfig()->MembershipClosureRecomputePeriod);
+        }
+    }
+
+
+    TTagId GetProfilingTagForUser(TUser* user)
+    {
+        if (auto it = UserNameToProfilingTagId_.find(user->GetName())) {
+            return it->second;
+        }
+
+        auto tagId = TProfileManager::Get()->RegisterTag("user", user->GetName());
+        YT_VERIFY(UserNameToProfilingTagId_.emplace(user->GetName(), tagId).second);
+        return tagId;
+    }
+
+    void OnProfiling()
+    {
+        for (auto [userId, user] : Users()) {
+            if (!IsObjectAlive(user)) {
+                continue;
+            }
+
+            TTagIdList tagIds{
+                GetProfilingTagForUser(user)
+            };
+
+            Profiler.Enqueue("/user_read_time", NProfiling::DurationToValue(user->Statistics()[EUserWorkloadType::Read].RequestTime), EMetricType::Counter, tagIds);
+            Profiler.Enqueue("/user_write_time", NProfiling::DurationToValue(user->Statistics()[EUserWorkloadType::Write].RequestTime), EMetricType::Counter, tagIds);
+            Profiler.Enqueue("/user_read_request_count", user->Statistics()[EUserWorkloadType::Read].RequestCount, EMetricType::Counter, tagIds);
+            Profiler.Enqueue("/user_write_request_count", user->Statistics()[EUserWorkloadType::Write].RequestCount, EMetricType::Counter, tagIds);
+            Profiler.Enqueue("/user_request_count", user->Statistics()[EUserWorkloadType::Read].RequestCount + user->Statistics()[EUserWorkloadType::Write].RequestCount, EMetricType::Counter, tagIds);
+            Profiler.Enqueue("/user_request_queue_size", user->GetRequestQueueSize(), EMetricType::Gauge, tagIds);
         }
     }
 };

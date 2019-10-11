@@ -207,7 +207,6 @@
     XX(Racks, racks) \
     XX(ReadQuorum, read_quorum) \
     XX(ReadRequestRateLimit, read_request_rate_limit) \
-    XX(ReadRequestTime, read_request_time) \
     XX(RecursiveResourceUsage, recursive_resource_usage) \
     XX(RefCounter, ref_counter) \
     XX(RegisterTime, register_time) \
@@ -221,7 +220,6 @@
     XX(ReplicationFactor, replication_factor) \
     XX(ReplicationLagTime, replication_lag_time) \
     XX(ReplicationStatus, replication_status) \
-    XX(RequestCount, request_count) \
     XX(RequestQueueSizeLimit, request_queue_size_limit) \
     XX(RequestLimits, request_limits) \
     XX(Requisition, requisition) \
@@ -311,7 +309,6 @@
     XX(WithAlertsNodeCount, with_alerts_node_count) \
     XX(WriteQuorum, write_quorum) \
     XX(WriteRequestRateLimit, write_request_rate_limit) \
-    XX(WriteRequestTime, write_request_time) \
     XX(SecurityTags, security_tags) \
     XX(ShardId, shard_id) \
     XX(RootNodeId, root_node_id) \
