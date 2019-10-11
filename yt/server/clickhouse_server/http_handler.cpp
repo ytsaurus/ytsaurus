@@ -143,7 +143,7 @@ Poco::Net::HTTPRequestHandler* THttpHandlerFactory::createRequestHandler(
             YT_VERIFY(TraceContext_);
             // For HTTP queries (which are always initial) query id is same as trace id.
             context.getClientInfo().current_query_id = context.getClientInfo().initial_query_id = ToString(TraceContext_->GetTraceId());
-            SetupHostContext(Bootstrap_, context, TraceContext_->GetTraceId(), std::move(TraceContext_));
+            SetupHostContext(Bootstrap_, context, TraceContext_->GetTraceId(), TraceContext_);
         }
 
     private:
