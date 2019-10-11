@@ -2283,7 +2283,7 @@ private:
         TMasterAutomatonPart::OnLeaderActive();
 
         AccountStatisticsGossipExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
+            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::SecurityGossip),
             BIND(&TImpl::OnAccountStatisticsGossip, MakeWeak(this)));
         AccountStatisticsGossipExecutor_->Start();
 

@@ -82,7 +82,7 @@ public:
 
         ResponseKeeper_ = New<TResponseKeeper>(
             Config_->HydraManager->ResponseKeeper,
-            GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
+            GetAutomatonInvoker(EAutomatonThreadQueue::ResponseKeeper),
             NObjectServer::ObjectServerLogger,
             NObjectServer::ObjectServerProfiler);
 

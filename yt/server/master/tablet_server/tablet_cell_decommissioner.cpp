@@ -37,10 +37,10 @@ public:
         , Profiler("/tablet_server/tablet_cell_decommissioner")
         , Config_(New<TTabletCellDecommissionerConfig>())
         , DecommissionExecutor_(New<TPeriodicExecutor>(
-            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
+            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletDecommissioner),
             BIND(&TImpl::CheckDecommission, MakeWeak(this))))
         , KickOrphansExecutor_ (New<TPeriodicExecutor>(
-            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
+            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletDecommissioner),
             BIND(&TImpl::CheckOrphans, MakeWeak(this))))
         , DecommissionThrottler_(CreateNamedReconfigurableThroughputThrottler(
             Config_->DecommissionThrottler,
