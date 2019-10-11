@@ -42,7 +42,7 @@ class TPortoJobDirectoryManager
 public:
     explicit TPortoJobDirectoryManager(const TVolumeManagerConfigPtr& config, const TString& path)
         : Path_(path)
-        , Executor_(CreatePortoExecutor(config->PortoRetryTimeout, config->PortoPollPeriod))
+        , Executor_(CreatePortoExecutor("job_dir", config->PortoRetryTimeout, config->PortoPollPeriod))
     {
         // Collect and drop all existing volumes.
         auto volumes = WaitFor(Executor_->ListVolumes())

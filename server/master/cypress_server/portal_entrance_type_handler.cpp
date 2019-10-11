@@ -58,15 +58,17 @@ private:
         const TVersionedNodeId& id,
         const TCreateNodeContext& context) override
     {
-        auto exitCellTag  = context.ExplicitAttributes->GetAndRemove<TCellTag>("exit_cell_tag");
-        if (exitCellTag == Bootstrap_->GetPrimaryCellTag()) {
+        auto exitCellTag = context.ExplicitAttributes->GetAndRemove<TCellTag>("exit_cell_tag");
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (exitCellTag == multicellManager->GetPrimaryCellTag()) {
             THROW_ERROR_EXCEPTION("Portal exit cannot be placed on the primary cell");
         }
 
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (!multicellManager->IsRegisteredMasterCell(exitCellTag)) {
             THROW_ERROR_EXCEPTION("Unknown cell tag %v", exitCellTag);
         }
+
         if (None(multicellManager->GetMasterCellRoles(exitCellTag) & EMasterCellRoles::CypressNodeHost)) {
             THROW_ERROR_EXCEPTION("Cell with tag %v cannot host Cypress nodes", exitCellTag);
         }

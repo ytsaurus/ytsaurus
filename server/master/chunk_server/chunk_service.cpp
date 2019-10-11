@@ -83,8 +83,10 @@ private:
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         TNodeDirectoryBuilder nodeDirectoryBuilder(response->mutable_node_directory());
+
         const auto& cellDirectory = Bootstrap_->GetCellDirectory();
-        auto leaderChannel = cellDirectory->GetChannel(Bootstrap_->GetCellId(), EPeerKind::Leader);
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto leaderChannel = cellDirectory->GetChannel(multicellManager->GetCellId(), EPeerKind::Leader);
 
         TChunkServiceProxy leaderProxy(std::move(leaderChannel));
         auto leaderRequest = leaderProxy.TouchChunks();

@@ -2886,7 +2886,10 @@ class TestSchedulerGpu(YTEnvSetup):
             command=with_breakpoint("cat ; BREAKPOINT"),
             in_="//tmp/in",
             out="//tmp/out",
-            spec={"mapper": {"gpu_limit": 1}},
+            spec={"mapper": {
+                "gpu_limit": 1,
+                "enable_gpu_layers": False,
+            }},
             dont_track=True)
 
         wait_breakpoint()
@@ -3284,7 +3287,17 @@ class TestPoolMetrics(YTEnvSetup):
             "custom_job_metrics": [
                 {
                     "statistics_path": "/user_job/block_io/bytes_written",
-                    "profiling_name": "my_metric"
+                    "profiling_name": "my_metric",
+                },
+                {
+                    "statistics_path": "/user_job/block_io/bytes_written",
+                    "profiling_name": "my_metric_failed",
+                    "job_state_filter": "failed",
+                },
+                {
+                    "statistics_path": "/user_job/block_io/bytes_written",
+                    "profiling_name": "my_metric_completed",
+                    "job_state_filter": "completed",
                 },
                 {
                     "statistics_path": "/custom/value",
@@ -3295,7 +3308,7 @@ class TestPoolMetrics(YTEnvSetup):
                     "statistics_path": "/custom/value",
                     "profiling_name": "my_custom_metric_max",
                     "aggregate_type": "max",
-                }
+                },
             ]
         }
     }
@@ -3352,6 +3365,12 @@ class TestPoolMetrics(YTEnvSetup):
         custom_metric_delta = Metric.at_scheduler(
             "scheduler/pools/metrics/my_metric",
             grouped_by_tags=["pool"])
+        custom_metric_completed_delta = Metric.at_scheduler(
+            "scheduler/pools/metrics/my_metric_completed",
+            grouped_by_tags=["pool"])
+        custom_metric_failed_delta = Metric.at_scheduler(
+            "scheduler/pools/metrics/my_metric_failed",
+            grouped_by_tags=["pool"])
         custom_metric_max_last = Metric.at_scheduler(
             "scheduler/pools/metrics/my_custom_metric_max",
             with_tags={"pool": "child2"},
@@ -3381,7 +3400,7 @@ class TestPoolMetrics(YTEnvSetup):
             spec={"job_count": 2, "pool": "child2"},
         )
 
-        for metric_delta in (usual_metric_delta, custom_metric_delta):
+        for metric_delta in (usual_metric_delta, custom_metric_delta, custom_metric_completed_delta):
             wait(lambda: metric_delta.update().get("parent", verbose=True) > 0)
 
             op11_writes = get_cypress_metrics(op11.id, statistics_name)
@@ -3392,7 +3411,7 @@ class TestPoolMetrics(YTEnvSetup):
             wait(lambda: metric_delta.update().get("child2", verbose=True) == op2_writes > 0)
             wait(lambda: metric_delta.update().get("parent", verbose=True) == op11_writes + op12_writes + op2_writes > 0)
 
-        wait(lambda: custom_metric_delta.update().get("child2", verbose=True) == get_cypress_metrics(op2.id, statistics_name))
+        assert custom_metric_failed_delta.update().get("child2", verbose=True) == 0
 
         wait(lambda: custom_metric_max_last.update().get(verbose=True) == 20)
         wait(lambda: custom_metric_sum_last.update().get(verbose=True) == 110)
@@ -4526,7 +4545,8 @@ class TestNewLivePreview(YTEnvSetup):
 
     @authors("max42")
     def test_disabled_live_preview(self):
-        create_user("u")
+        create_user("robot-root")
+        add_member("robot-root", "superusers")
 
         data = [{"foo": i} for i in range(3)]
 
@@ -4535,20 +4555,41 @@ class TestNewLivePreview(YTEnvSetup):
 
         create("table", "//tmp/t2")
 
-        op = map(
-            wait_for_jobs=True,
-            dont_track=True,
-            command=with_breakpoint("BREAKPOINT ; cat"),
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            spec={"data_size_per_job": 1,
-                  "enable_legacy_live_preview": False})
+        # Run operation with given params and return a tuple (live preview created, suppression alert set)
+        def check_live_preview(enable_legacy_live_preview=None, authenticated_user=None, index=None):
+            op = map(
+                wait_for_jobs=True,
+                dont_track=True,
+                command=with_breakpoint("BREAKPOINT ; cat", breakpoint_name=str(index)),
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                spec={"data_size_per_job": 1, "enable_legacy_live_preview": enable_legacy_live_preview},
+                authenticated_user=authenticated_user)
 
-        wait_breakpoint(job_count=2)
+            wait_breakpoint(job_count=2, breakpoint_name=str(index))
 
-        async_transaction_id = get(op.get_path() + "/@async_scheduler_transaction_id")
-        assert not exists(op.get_path() + "/output_0", tx=async_transaction_id)
+            async_transaction_id = get(op.get_path() + "/@async_scheduler_transaction_id")
+            live_preview_created = exists(op.get_path() + "/output_0", tx=async_transaction_id)
+            suppression_alert_set = "legacy_live_preview_suppressed" in op.get_alerts()
 
+            op.abort()
+
+            return (live_preview_created, suppression_alert_set)
+
+        combinations = [
+            (None, "root", True, False),
+            (True, "root", True, False),
+            (False, "root", False, False),
+            (None, "robot-root", False, True),
+            (True, "robot-root", True, False),
+            (False, "robot-root", False, False)
+        ]
+
+        for i, combination in enumerate(combinations):
+            enable_legacy_live_preview, authenticated_user, live_preview_created, suppression_alert_set = combination
+            assert check_live_preview(enable_legacy_live_preview=enable_legacy_live_preview,
+                                      authenticated_user=authenticated_user,
+                                      index=i) == (live_preview_created, suppression_alert_set)
 
 class TestConnectToMaster(YTEnvSetup):
     NUM_MASTERS = 1
@@ -4799,3 +4840,83 @@ class TestConfigurablePoolTreeRoot(YTEnvSetup):
         wait(lambda: exists(pools_path + "/pool"))
         wait(lambda: get(pools_path + "/pool/parent") == "parent")
         wait(lambda: get(pools_path + "/pool/max_operation_count") == 10)
+
+class TestNodeMultipleUnregistrations(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 2
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "node_heartbeat_timeout": 10000
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "lease_transaction_timeout": 10000,
+            "lease_transaction_ping_period": 10000,
+            "register_timeout": 10000,
+            "incremental_heartbeat_timeout": 10000,
+            "full_heartbeat_timeout": 10000,
+            "job_heartbeat_timeout": 10000,
+        }
+    }
+
+    @authors("ignat")
+    def test_scheduler_node_removal(self):
+        nodes = ls("//sys/nodes")
+        assert len(nodes) == 2
+
+        node = "localhost:" + str(self.Env.configs["node"][0]["rpc_port"])
+        assert node in nodes
+
+        create("table", "//tmp/t1", attributes={"replication_factor": 2})
+        write_table("//tmp/t1", [{"foo": i} for i in range(4)])
+        create("table", "//tmp/t2")
+        create("table", "//tmp/t3")
+
+        def start_op():
+            tag = str(random.randint(0, 1000000))
+            op = map(
+                dont_track=True,
+                command=with_breakpoint("BREAKPOINT", tag),
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                spec={"data_size_per_job": 1})
+            jobs = wait_breakpoint(tag, job_count=2)
+            release_breakpoint(breakpoint_name=tag, job_id=jobs[0])
+            release_breakpoint(breakpoint_name=tag, job_id=jobs[1])
+            time.sleep(5)
+            wait(lambda: op.get_job_count("running") == 2)
+            wait_breakpoint(tag)
+            op.tag = tag
+            return op
+
+        op = start_op()
+        with Restarter(self.Env, NODES_SERVICE, [0]):
+            wait(lambda: get("//sys/nodes/{}/@state".format(node)) == "offline")
+            wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)) == "offline")
+            wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "offline")
+            release_breakpoint(op.tag)
+            wait(lambda: get(op.get_path() + "/@state") == "completed")
+
+        op = start_op()
+        with Restarter(self.Env, NODES_SERVICE, [0]):
+            wait(lambda: get("//sys/nodes/{}/@state".format(node)) == "offline")
+            wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)) == "offline")
+            wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "offline")
+            release_breakpoint(op.tag)
+            wait(lambda: get(op.get_path() + "/@state") == "completed")
+
+        op = start_op()
+        set("//sys/scheduler/config/max_offline_node_age", 20000)
+        with Restarter(self.Env, NODES_SERVICE, [0]):
+            wait(lambda: get("//sys/nodes/{}/@state".format(node)) == "offline")
+            wait(lambda: not exists("//sys/scheduler/orchid/scheduler/nodes/{}".format(node)))
+            release_breakpoint(op.tag)
+            wait(lambda: get(op.get_path() + "/@state") == "completed")
+
+        op = start_op()
+        release_breakpoint(op.tag)
+        wait(lambda: get(op.get_path() + "/@state") == "completed")

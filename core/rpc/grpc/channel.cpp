@@ -188,7 +188,9 @@ private:
             try {
                 RequestBody_ = Request_->Serialize();
             } catch (const std::exception& ex) {
-                ResponseHandler_->HandleError(TError(NRpc::EErrorCode::TransportError, "Request serialization failed")
+                auto responseHandler = TryAcquireResponseHandler();
+                YT_VERIFY(responseHandler);
+                responseHandler->HandleError(TError(NRpc::EErrorCode::TransportError, "Request serialization failed")
                     << ex);
                 return;
             }
@@ -282,7 +284,9 @@ private:
         const TChannelPtr Owner_;
         const TSendOptions Options_;
         const IClientRequestPtr Request_;
-        const IClientResponseHandlerPtr ResponseHandler_;
+
+        TSpinLock ResponseHandlerLock_;
+        IClientResponseHandlerPtr ResponseHandler_;
 
         grpc_completion_queue* const CompletionQueue_;
         const NLogging::TLogger& Logger;
@@ -299,10 +303,24 @@ private:
         grpc_slice ResponseStatusDetails_ = grpc_empty_slice();
 
         EClientCallStage Stage_;
-        std::atomic_flag Notified_ = ATOMIC_FLAG_INIT;
 
         TGrpcMetadataArrayBuilder InitialMetadataBuilder_;
 
+
+        IClientResponseHandlerPtr TryAcquireResponseHandler()
+        {
+            IClientResponseHandlerPtr result;
+
+            auto guard = Guard(ResponseHandlerLock_);
+
+            // NB! Reset response handler explicitly.
+            // Implicit destruction in ~TCallHandler cannot be guaranteed
+            // because of the possible cycle dependency between call handler and
+            // response handler, for example for retrying channels.
+            result.Swap(ResponseHandler_);
+
+            return result;
+        }
 
         //! Builds /<service>/<method> string.
         grpc_slice BuildGrpcMethodString()
@@ -474,7 +492,8 @@ private:
 
         void NotifyError(TStringBuf reason, const TError& error)
         {
-            if (Notified_.test_and_set()) {
+            auto responseHandler = TryAcquireResponseHandler();
+            if (!responseHandler) {
                 return;
             }
 
@@ -493,12 +512,13 @@ private:
                 reason,
                 Request_->GetRequestId());
 
-            ResponseHandler_->HandleError(detailedError);
+            responseHandler->HandleError(detailedError);
         }
 
         void NotifyResponse(TSharedRefArray message)
         {
-            if (Notified_.test_and_set()) {
+            auto responseHandler = TryAcquireResponseHandler();
+            if (!responseHandler) {
                 return;
             }
 
@@ -508,7 +528,7 @@ private:
                 Request_->GetMethod(),
                 Timer_.GetElapsedTime());
 
-            ResponseHandler_->HandleResponse(std::move(message));
+            responseHandler->HandleResponse(std::move(message));
         }
     };
 };

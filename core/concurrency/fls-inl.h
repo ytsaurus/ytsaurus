@@ -12,7 +12,7 @@ namespace NYT::NConcurrency {
 
 template <class T>
 TFls<T>::TFls()
-    : Index_(NDetail::FlsAllocateSlot(&ValueCtor, &ValueDtor))
+    : Index_(NDetail::FlsAllocateSlot(&ValueDtor))
 { }
 
 template <class T>
@@ -40,19 +40,19 @@ const T& TFls<T>::operator*() const
 }
 
 template <class T>
-T* TFls<T>::Get(TFiber* fiber) const
+T* TFls<T>::Get() const
 {
-    auto& slot = NDetail::FlsAt(Index_, fiber);
+    auto& slot = NDetail::FlsAt(Index_);
     if (slot == 0) {
-        slot = NDetail::FlsConstruct(Index_);
+        slot = NDetail::FlsConstruct(ValueCtor);
     }
     return reinterpret_cast<T*>(slot);
 }
 
 template <class T>
-bool TFls<T>::IsInitialized(TFiber* fiber) const
+bool TFls<T>::IsInitialized() const
 {
-    return NDetail::FlsAt(Index_, fiber) != 0;
+    return NDetail::FlsAt(Index_) != 0;
 }
 
 template <class T>

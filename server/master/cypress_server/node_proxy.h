@@ -51,10 +51,9 @@ struct ICypressNodeFactory
     virtual TCypressNode* CloneNode(
         TCypressNode* sourceNode,
         ENodeCloneMode mode) = 0;
-
     virtual TCypressNode* EndCopyNode(
         TEndCopyContext* context) = 0;
-    virtual void EndCopyNodeInplace(
+    virtual TCypressNode* EndCopyNodeInplace(
         TCypressNode* trunkNode,
         TEndCopyContext* context) = 0;
 };

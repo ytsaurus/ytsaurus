@@ -86,7 +86,9 @@ IServerPtr CreateServer(
     auto address = TNetworkAddress::CreateIPv6Any(config->Port);
     auto tlsListener = sslContext->CreateListener(address, poller);
 
-    auto httpServer = NHttp::CreateServer(config, tlsListener, poller);
+    auto configCopy = CloneYsonSerializable(config);
+    configCopy->IsHttps = true;
+    auto httpServer = NHttp::CreateServer(configCopy, tlsListener, poller);
 
     return New<TServer>(std::move(libraryLock), std::move(httpServer));
 }

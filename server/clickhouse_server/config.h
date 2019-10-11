@@ -351,7 +351,7 @@ public:
         RegisterParameter("validate_operation_access", ValidateOperationAccess)
             .Default(true);
         RegisterParameter("operation_acl_update_period", OperationAclUpdatePeriod)
-            .Default(TDuration::Minutes(1));
+            .Default(TDuration::Seconds(15));
 
         RegisterParameter("user", User)
             .Default("yt-clickhouse");

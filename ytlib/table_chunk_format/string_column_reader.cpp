@@ -49,22 +49,18 @@ protected:
         ui32 length = GetOffset(offsetIndex) - padding;
         auto string = TStringBuf(begin, length);
 
-        switch (ValueType) {
-            case EValueType::String:
-                *value = MakeUnversionedStringValue(string, id, aggregate);
-                break;
-
-            case EValueType::Any:
-                if (UnpackValue) {
-                    YT_VERIFY(aggregate == false);
-                    *value = MakeUnversionedValue(string, id, Lexer_);
-                } else {
-                    *value = MakeUnversionedAnyValue(string, id, aggregate);
-                }
-                break;
-
-            default:
-                YT_ABORT();
+        if constexpr (ValueType == EValueType::String) {
+            *value = MakeUnversionedStringValue(string, id, aggregate);
+        } else if constexpr (ValueType == EValueType::Any) {
+            if constexpr (UnpackValue) {
+                YT_VERIFY(aggregate == false);
+                *value = MakeUnversionedValue(string, id, Lexer_);
+            } else {
+                *value = MakeUnversionedAnyValue(string, id, aggregate);
+            }
+        } else {
+            // Effectively static_assert(false);
+            static_assert(ValueType == EValueType::String, "Unexpected ValueType");
         }
     }
 };

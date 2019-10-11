@@ -92,6 +92,7 @@ TEdgeDescriptor TOutputTable::GetEdgeDescriptorTemplate(int tableIndex)
     descriptor.RequiresRecoveryInfo = false;
     descriptor.CellTag = ExternalCellTag;
     descriptor.ImmediatelyUnstageChunkLists = false;
+    descriptor.IsOutputTableDynamic = Dynamic;
     return descriptor;
 }
 

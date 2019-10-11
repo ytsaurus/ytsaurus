@@ -54,6 +54,7 @@ TGroup* TSubject::AsGroup()
 
 void TSubject::LinkObject(TObject* object)
 {
+    YT_ASSERT(object->IsTrunk());
     auto it = LinkedObjects_.find(object);
     if (it == LinkedObjects_.end()) {
         YT_VERIFY(LinkedObjects_.insert(std::make_pair(object, 1)).second);
@@ -64,6 +65,7 @@ void TSubject::LinkObject(TObject* object)
 
 void TSubject::UnlinkObject(TObject* object)
 {
+    YT_ASSERT(object->IsTrunk());
     auto it = LinkedObjects_.find(object);
     YT_VERIFY(it != LinkedObjects_.end());
     if (--it->second == 0) {

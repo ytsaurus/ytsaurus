@@ -16,55 +16,6 @@ namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T>
-TErrorOr<T> WaitFor(TFuture<T> future)
-{
-    return WaitFor(std::move(future), GetCurrentInvoker());
-}
-
-template <class T>
-TErrorOr<T> WaitFor(TFuture<T> future, IInvokerPtr invoker)
-{
-    YT_ASSERT(future);
-    YT_ASSERT(invoker);
-
-    auto* scheduler = TryGetCurrentScheduler();
-    if (scheduler) {
-        NYTAlloc::TMemoryTagGuard guard(NYTAlloc::NullMemoryTag);
-        scheduler->WaitFor(future.template As<void>(), std::move(invoker));
-        YT_ASSERT(future.IsSet());
-    } else {
-        // When called from a fiber-unfriendly context, we fallback to blocking wait.
-        YT_VERIFY(invoker == GetCurrentInvoker());
-        YT_VERIFY(invoker == GetSyncInvoker());
-    }
-
-    return future.Get();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-extern thread_local IScheduler* CurrentScheduler;
-
-Y_FORCE_INLINE IScheduler* GetCurrentScheduler()
-{
-    YT_ASSERT(CurrentScheduler);
-    return CurrentScheduler;
-}
-
-Y_FORCE_INLINE IScheduler* TryGetCurrentScheduler()
-{
-    return CurrentScheduler;
-}
-
-Y_FORCE_INLINE void SetCurrentScheduler(IScheduler* scheduler)
-{
-    YT_VERIFY(!CurrentScheduler);
-    CurrentScheduler = scheduler;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 extern thread_local TFiberId CurrentFiberId;
 
 Y_FORCE_INLINE TFiberId GetCurrentFiberId()
@@ -80,22 +31,46 @@ Y_FORCE_INLINE void SetCurrentFiberId(TFiberId id)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern thread_local const TFiber* CurrentFiber;
+extern thread_local TFiber* CurrentFiber;
 
-Y_FORCE_INLINE const TFiber* GetCurrentFiber()
-{
-    YT_ASSERT(CurrentFiber);
-    return CurrentFiber;
-}
-
-Y_FORCE_INLINE const TFiber* TryGetCurrentFiber()
+Y_FORCE_INLINE TFiber* TryGetCurrentFiber()
 {
     return CurrentFiber;
 }
 
-Y_FORCE_INLINE void SetCurrentFiber(const TFiber* fiber)
+Y_FORCE_INLINE void SetCurrentFiber(TFiber* fiber)
 {
     CurrentFiber = fiber;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern thread_local IScheduler* CurrentScheduler;
+
+Y_FORCE_INLINE void SetCurrentScheduler(IScheduler* scheduler)
+{
+    YT_VERIFY(!CurrentScheduler);
+    CurrentScheduler = scheduler;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+TErrorOr<T> WaitFor(TFuture<T> future)
+{
+    return WaitFor(std::move(future), GetCurrentInvoker());
+}
+
+template <class T>
+TErrorOr<T> WaitFor(TFuture<T> future, IInvokerPtr invoker)
+{
+    YT_ASSERT(future);
+    YT_ASSERT(invoker);
+
+    void WaitForImpl(TFuture<void> future, IInvokerPtr invoker);
+    WaitForImpl(future.template As<void>(), std::move(invoker));
+
+    return future.Get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

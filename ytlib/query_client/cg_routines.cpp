@@ -1152,16 +1152,26 @@ const TValue* InsertGroupRow(
         return found != closure->Lookup.end() ? *found : nullptr;
     }
 
+    bool limitReached = closure->GroupedRows.size() == context->GroupRowLimit;
+
+    if (limitReached) {
+        auto found = closure->Lookup.find(row);
+
+        if (found == closure->Lookup.end()) {
+            throw TInterruptedIncompleteException();
+        }
+
+        return *found;
+    }
+
     auto inserted = closure->Lookup.insert(row);
 
     if (inserted.second) {
         closure->LastKey = *inserted.first;
 
-        if (closure->GroupedRows.size() >= context->GroupRowLimit) {
-            throw TInterruptedIncompleteException();
-        }
-
         closure->GroupedRows.push_back(row);
+        YT_VERIFY(closure->GroupedRows.size() <= context->GroupRowLimit);
+
         for (int index = 0; index < closure->KeySize; ++index) {
             closure->Buffer->Capture(&row[index]);
         }

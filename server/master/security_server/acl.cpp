@@ -92,10 +92,7 @@ void Serialize(const TAccessControlEntry& ace, IYsonConsumer* consumer)
             })
             .Item("permissions").Value(FormatPermissions(ace.Permissions))
             .Item("inheritance_mode").Value(ace.InheritanceMode)
-            .DoIf(ace.Columns.has_value(), [&] (auto fluent) {
-                fluent
-                    .Item("columns").Value(ace.Columns);
-            })
+            .OptionalItem("columns", ace.Columns)
         .EndMap();
 }
 

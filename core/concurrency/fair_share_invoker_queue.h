@@ -34,7 +34,7 @@ public:
 
     bool IsRunning() const;
 
-    EBeginExecuteResult BeginExecute(TEnqueuedAction* action);
+    TClosure BeginExecute(TEnqueuedAction* action);
     void EndExecute(TEnqueuedAction* action);
 
 private:

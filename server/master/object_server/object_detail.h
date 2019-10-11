@@ -181,7 +181,7 @@ protected:
         // IAttributeDictionary members
         virtual std::vector<TString> ListKeys() const override;
         virtual std::vector<TKeyValuePair> ListPairs() const override;
-        virtual NYson::TYsonString FindYson(const TString& key) const override;
+        virtual NYson::TYsonString FindYson(TStringBuf key) const override;
         virtual void SetYson(const TString& key, const NYson::TYsonString& value) override;
         virtual bool Remove(const TString& key) override;
 

@@ -35,7 +35,6 @@ public:
     bool IsStarted() const;
     bool IsShutdown() const;
 
-    virtual TFiber* GetCurrentFiber() override;
     virtual void Return() override;
     virtual void YieldTo(TFiberPtr&& other) override;
     virtual void SwitchTo(IInvokerPtr invoker) override;
@@ -49,7 +48,7 @@ protected:
         bool enableLogging,
         bool enableProfiling);
 
-    virtual EBeginExecuteResult BeginExecute() = 0;
+    virtual TClosure BeginExecute() = 0;
     virtual void EndExecute() = 0;
 
     virtual void OnStart();

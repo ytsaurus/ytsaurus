@@ -18,26 +18,26 @@ class TYqlJsonConsumer
 public:
     explicit TYqlJsonConsumer(NJson::IJsonConsumer* underlying);
 
-    void OnStringScalar(TStringBuf value) final;
+    virtual void OnStringScalar(TStringBuf value) final;
 
-    void OnInt64Scalar(i64 value) final;
-    void OnUint64Scalar(ui64 value) final;
-    void OnDoubleScalar(double value) final;
-    void OnBooleanScalar(bool value) final;
-    void OnEntity() final;
+    virtual void OnInt64Scalar(i64 value) final;
+    virtual void OnUint64Scalar(ui64 value) final;
+    virtual void OnDoubleScalar(double value) final;
+    virtual void OnBooleanScalar(bool value) final;
+    virtual void OnEntity() final;
 
-    void OnBeginList() final;
-    void OnListItem() final;
-    void OnEndList() final;
+    virtual void OnBeginList() final;
+    virtual void OnListItem() final;
+    virtual void OnEndList() final;
 
-    void OnBeginMap() final;
-    void OnKeyedItem(TStringBuf key) final;
-    void OnEndMap() final;
+    virtual void OnBeginMap() final;
+    virtual void OnKeyedItem(TStringBuf key) final;
+    virtual void OnEndMap() final;
 
-    void OnBeginAttributes() final;
-    void OnEndAttributes() final;
+    virtual void OnBeginAttributes() final;
+    virtual void OnEndAttributes() final;
 
-    void OnRaw(TStringBuf yson, NYson::EYsonType type) final;
+    virtual void OnRaw(TStringBuf yson, NYson::EYsonType type) final;
 
     void TransferYson(const std::function<void(NYson::IYsonConsumer*)>& callback);
 
@@ -52,7 +52,6 @@ using TUnversionedValueToYqlConverter = std::function<void(NTableClient::TUnvers
 // Created converters throw exceptions on schema incompliance.
 TYsonToYqlConverter CreateYsonToYqlConverter(const NTableClient::TLogicalTypePtr& logicalType);
 TUnversionedValueToYqlConverter CreateUnversionedValueToYqlConverter(const NTableClient::TLogicalTypePtr& logicalType);
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

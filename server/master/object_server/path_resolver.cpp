@@ -284,7 +284,8 @@ TPathResolver::TResolvePayload TPathResolver::ResolveRoot()
             }
             Tokenizer_.Advance();
 
-            if (CellTagFromId(objectId) != Bootstrap_->GetCellTag() && Bootstrap_->IsPrimaryMaster()) {
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            if (CellTagFromId(objectId) != multicellManager->GetCellTag() && multicellManager->IsPrimaryMaster()) {
                 return TRemoteObjectPayload{objectId};
             }
 

@@ -23,7 +23,7 @@ struct IAttributeDictionary
     virtual std::vector<TKeyValuePair> ListPairs() const = 0;
 
     //! Returns the value of the attribute (null indicates that the attribute is not found).
-    virtual NYson::TYsonString FindYson(const TString& key) const = 0;
+    virtual NYson::TYsonString FindYson(TStringBuf key) const = 0;
 
     //! Sets the value of the attribute.
     virtual void SetYson(const TString& key, const NYson::TYsonString& value) = 0;
@@ -38,12 +38,12 @@ struct IAttributeDictionary
     void Clear();
 
     //! Returns the value of the attribute (throws an exception if the attribute is not found).
-    NYson::TYsonString GetYson(const TString& key) const;
+    NYson::TYsonString GetYson(TStringBuf key) const;
 
     //! Finds the attribute and deserializes its value.
     //! Throws if no such value is found.
     template <class T>
-    T Get(const TString& key) const;
+    T Get(TStringBuf key) const;
 
     //! Same as #Get but removes the value.
     template <class T>
@@ -52,7 +52,7 @@ struct IAttributeDictionary
     //! Finds the attribute and deserializes its value.
     //! Uses default value if no such attribute is found.
     template <class T>
-    T Get(const TString& key, const T& defaultValue) const;
+    T Get(TStringBuf key, const T& defaultValue) const;
 
     //! Same as #Get but removes the value if it exists.
     template <class T>
@@ -61,14 +61,14 @@ struct IAttributeDictionary
     //! Finds the attribute and deserializes its value.
     //! Returns null if no such attribute is found.
     template <class T>
-    typename TOptionalTraits<T>::TOptional Find(const TString& key) const;
+    typename TOptionalTraits<T>::TOptional Find(TStringBuf key) const;
 
     //! Same as #Find but removes the value if it exists.
     template <class T>
     typename TOptionalTraits<T>::TOptional FindAndRemove(const TString& key);
 
     //! Returns |true| iff the given key is present.
-    bool Contains(const TString& key) const;
+    bool Contains(TStringBuf key) const;
 
     //! Sets the attribute with a serialized value.
     template <class T>
@@ -81,7 +81,7 @@ struct IAttributeDictionary
     IMapNodePtr ToMap() const;
 
     //! Adds more attributes from another map node.
-    void MergeFrom(const IMapNodePtr other);
+    void MergeFrom(const IMapNodePtr& other);
 
     //! Adds more attributes from another attribute dictionary.
     void MergeFrom(const IAttributeDictionary& other);

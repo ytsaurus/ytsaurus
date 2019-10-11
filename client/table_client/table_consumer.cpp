@@ -448,11 +448,13 @@ void TTableConsumer::OnKeyedItem(TStringBuf name)
                     << ex);
             }
         } else {
-            try {
-                columnIndex = CurrentNameTableWriter_->GetIdOrThrow(name);
-            } catch (const std::exception& ex) {
-                THROW_ERROR AttachLocationAttributes(ex);
+            auto id = CurrentNameTableWriter_->FindId(name);
+            if (!id) {
+                THROW_ERROR AttachLocationAttributes(
+                    TError(NTableClient::EErrorCode::SchemaViolation, "No column %Qv in table schema",
+                        name));
             }
+            columnIndex = *id;
         }
         YT_VERIFY(columnIndex != -1);
         YsonToUnversionedValueConverter_.SetColumnIndex(columnIndex);

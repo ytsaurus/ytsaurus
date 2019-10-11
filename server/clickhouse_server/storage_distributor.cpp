@@ -47,6 +47,7 @@ using namespace NTableClient;
 using namespace NYson;
 using namespace NYTree;
 using namespace NChunkPools;
+using namespace NTracing;
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -131,7 +132,13 @@ DB::BlockInputStreamPtr CreateRemoteStream(
 
     stream->setPoolMode(DB::PoolMode::GET_MANY);
     auto remoteQueryId = ToString(TQueryId::Create());
-    stream->setRemoteQueryId(remoteQueryId);
+    auto* traceContext = GetCurrentTraceContext();
+    if (!traceContext) {
+        traceContext = queryContext->TraceContext.Get();
+    }
+    YT_VERIFY(traceContext);
+    auto spanId = traceContext->GetSpanId();
+    stream->setQueryId(Format("%v@%" PRIx64 "%v", remoteQueryId, spanId, traceContext->IsSampled() ? "T" : "F"));
 
     return CreateBlockInputStreamLoggingAdapter(std::move(stream), TLogger(queryContext->Logger)
         .AddTag("RemoteQueryId: %v, RemoteNode: %v, RemoteStreamId: %v",
@@ -160,6 +167,9 @@ public:
 
     virtual void startup() override
     {
+        const auto& Logger = ServerLogger;
+
+        YT_LOG_TRACE("StorageDistributor instantiated (Address: %v)", static_cast<void*>(this));
         if (ClickHouseSchema_.Columns.empty()) {
             THROW_ERROR_EXCEPTION("CHYT does not support tables without schema")
                 << TErrorAttribute("path", getTableName());
@@ -220,6 +230,9 @@ public:
         auto* queryContext = GetQueryContext(context);
         const auto& Logger = queryContext->Logger;
 
+        YT_LOG_TRACE("StorageDistributor started reading (Address: %v)", static_cast<void*>(this));
+
+        SpecTemplate_ = TSubquerySpec();
         SpecTemplate_.InitialQueryId = queryContext->QueryId;
 
         auto cliqueNodes = queryContext->Bootstrap->GetHost()->GetNodes();
@@ -227,9 +240,7 @@ public:
             THROW_ERROR_EXCEPTION("There are no instances available through discovery");
         }
 
-        if (!Prepared_) {
-            Prepare(cliqueNodes.size(), queryInfo, context);
-        }
+        Prepare(cliqueNodes.size(), queryInfo, context);
 
         YT_LOG_INFO("Starting distribution (ColumnNames: %v, TableName: %v, NodeCount: %v, MaxThreads: %v, SubqueryCount: %v)",
             columnNames,
@@ -366,7 +377,6 @@ private:
     std::vector<TSubquery> Subqueries_;
     std::vector<TRichYPath> TablePaths_;
     std::optional<TQueryAnalyzer> QueryAnalyzer_;
-    bool Prepared_ = false;
 
     void Prepare(
         int subqueryCount,
@@ -407,8 +417,6 @@ private:
             subqueryCount * context.getSettings().max_threads,
             samplingRate,
             context);
-
-        Prepared_ = true;
     }
 };
 

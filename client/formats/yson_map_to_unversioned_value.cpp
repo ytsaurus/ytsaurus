@@ -109,7 +109,12 @@ void TYsonMapToUnversionedValueConverter::OnKeyedItem(TStringBuf name)
         if (AllowUnknownColumns_) {
             ColumnConsumer_.SetColumnIndex(NameTable_->GetIdOrRegisterName(name));
         } else {
-            ColumnConsumer_.SetColumnIndex(NameTable_->GetIdOrThrow(name));
+            auto id = NameTable_->FindId(name);
+            if (!id) {
+                THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::SchemaViolation, "No column %Qv in table schema",
+                    name);
+            }
+            ColumnConsumer_.SetColumnIndex(*id);
         }
     }
 }

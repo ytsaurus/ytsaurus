@@ -63,9 +63,7 @@ class TestPortals(YTEnvSetup):
     def test_create_portal(self):
         entrance_id = create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
         assert get("//tmp/p&/@type") == "portal_entrance"
-        assert not get("//tmp/p&/@inherit_acl")
         acl = get("//tmp/@effective_acl")
-        assert get("//tmp/p&/@acl") == acl
         assert get("//tmp/p&/@path") == "//tmp/p"
 
         assert exists("//sys/portal_entrances/{}".format(entrance_id))
@@ -272,6 +270,16 @@ class TestPortals(YTEnvSetup):
         assert get("#{}/@account_statistics/b/node_count".format(shard_id)) == 1
         remove("//tmp/*")
         wait(lambda: not exists("#{}/@account_statistics/a".format(shard_id)))
+
+    @authors("babenko")
+    def test_copy_move_shard_friendly(self):
+        shard_id = get("//@shard_id")
+        create("table", "//tmp/t1")
+        assert get("//tmp/t1/@shard_id") == shard_id
+        copy("//tmp/t1", "//tmp/t2")
+        assert get("//tmp/t2/@shard_id") == shard_id
+        move("//tmp/t2", "//tmp/t3")
+        assert get("//tmp/t3/@shard_id") == shard_id
 
     @authors("babenko")
     def test_portal_shard(self):
@@ -602,6 +610,9 @@ class TestPortals(YTEnvSetup):
         acl1 = get("//tmp/m/acl1/@acl")
         acl2 = get("//tmp/m/acl2/@acl")
 
+        ORCHID_MANIFEST = {"address": "someaddress"}
+        create("orchid", "//tmp/m/orchid", attributes={"manifest": ORCHID_MANIFEST})
+
         externalize("//tmp/m", 1)
 
         assert not get("//tmp/m/@inherit_acl")
@@ -633,6 +644,17 @@ class TestPortals(YTEnvSetup):
 
         assert get("//tmp/m/et/@expiration_time") == "2100-01-01T00:00:00.000000Z"
 
+        assert get("//tmp/m/orchid/@type") == "orchid"
+        assert get("//tmp/m/orchid/@manifest") == ORCHID_MANIFEST
+
+        shard_id = get("//tmp/m/@shard_id")
+        assert get("//tmp/m/t/@shard_id") == shard_id
+        assert get("//sys/cypress_shards/{}/@account_statistics/tmp/node_count".format(shard_id)) == 6
+
+        remove("//tmp/m")
+        wait(lambda: "m" not in ls("//tmp"))
+        assert not exists("//tmp/m")
+
     @authors("babenko")
     def test_bulk_insert_yt_11194(self):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
@@ -662,6 +684,34 @@ class TestPortals(YTEnvSetup):
             command="cat")
 
         assert select_rows("* from [//tmp/p/target]") == PAYLOAD
+
+    @authors("babenko")
+    def test_root_shard_names(self):
+        root_shard_count = 0
+        for shard in ls("//sys/cypress_shards", attributes=["name"]):
+            if shard.attributes["name"].startswith("root:"):
+                root_shard_count += 1
+        assert root_shard_count == 1 + get("//sys/secondary_masters/@count")
+
+    @authors("babenko")
+    def test_portal_shard_name(self):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        shard_id = get("//tmp/p/@shard_id")
+        assert get("#{}/@name".format(shard_id)) == "portal://tmp/p"
+
+    @authors("babenko")
+    def test_externalize_shard_name(self):
+        create("map_node", "//tmp/m")
+        externalize("//tmp/m", 1)
+        shard_id = get("//tmp/m/@shard_id")
+        assert get("#{}/@name".format(shard_id)) == "portal://tmp/m"
+
+    @authors("babenko")
+    def test_portal_get_set_shard_name(self):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        shard_id = get("//tmp/p/@shard_id")
+        set("#{}/@name".format(shard_id), "shard_name")
+        assert get("#{}/@name".format(shard_id)) == "shard_name"
 
 ##################################################################
 

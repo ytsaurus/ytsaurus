@@ -55,8 +55,14 @@ public:
 
     void Assign(const TObjectPartCoWPtr& rhs, const NObjectServer::TObjectManagerPtr& objectManager);
 
-    // Must be called before the destructor.
+    //! Unrefs the part and calls TObjectPart::Destroy if refcounter becomes zero.
+    //! Must be called when the object of which this is a part of is destroyed.
+    //! NB: Either Reset or Clear must be called before the destructor.
     void Reset(const NObjectServer::TObjectManagerPtr& objectManager);
+
+    //! Unrefs the part and calls TObjectPart::Clear if refcounter becomes zero.
+    //! NB: Either Reset or Clear must be called before the destructor.
+    void Clear();
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);

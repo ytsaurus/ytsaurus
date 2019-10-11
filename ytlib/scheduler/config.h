@@ -348,6 +348,7 @@ class TJobIOConfig
 public:
     NTableClient::TTableReaderConfigPtr TableReader;
     NTableClient::TTableWriterConfigPtr TableWriter;
+    NTableClient::TTableWriterConfigPtr DynamicTableWriter;
 
     NFormats::TControlAttributesConfigPtr ControlAttributes;
 
@@ -562,7 +563,9 @@ public:
     bool EnableCompatibleStorageMode;
 
     //! Option controlling the presence of a legacy live preview.
-    bool EnableLegacyLivePreview;
+    //! If set to std::nullopt, live preview is enabled depending on
+    //! presence of user in LegacyLivePreviewUserBlacklist.
+    std::optional<bool> EnableLegacyLivePreview;
 
     //! These fields are not used in scheduler but specified in order
     //! to not appear in unrecognized spec.

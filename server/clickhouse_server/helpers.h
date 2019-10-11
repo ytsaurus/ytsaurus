@@ -13,6 +13,7 @@
 #include <yt/core/logging/public.h>
 
 #include <Core/Field.h>
+#include <Core/Block.h>
 #include <Storages/ColumnsDescription.h>
 
 namespace NYT::NClickHouseServer {
@@ -70,9 +71,11 @@ namespace DB {
 
 /////////////////////////////////////////////////////////////////////////////
 
-TString ToString(const DB::IAST& ast);
+TString ToString(const IAST& ast);
 
-void Serialize(const DB::QueryStatusInfo& queryStatusInfo, NYT::NYson::IYsonConsumer* consumer);
+void Serialize(const QueryStatusInfo& queryStatusInfo, NYT::NYson::IYsonConsumer* consumer);
+
+TString ToString(const Block& block);
 
 /////////////////////////////////////////////////////////////////////////////
 

@@ -712,16 +712,26 @@ void ToProto(NProto::TJob* protoJob, const NApi::TJob& job)
 {
     protoJob->Clear();
 
-    ToProto(protoJob->mutable_id(), job.Id);
-    protoJob->set_type(ConvertJobTypeToProto(job.Type));
-    protoJob->set_state(ConvertJobStateToProto(job.State));
+    if (job.Id) {
+        ToProto(protoJob->mutable_id(), job.Id);
+    }
+    if (job.Type) {
+        protoJob->set_type(ConvertJobTypeToProto(*job.Type));
+    }
+    if (job.State) {
+        protoJob->set_state(ConvertJobStateToProto(*job.State));
+    }
 
-    protoJob->set_start_time(NYT::ToProto<i64>(job.StartTime));
+    if (job.StartTime) {
+        protoJob->set_start_time(NYT::ToProto<i64>(*job.StartTime));
+    }
     if (job.FinishTime) {
         protoJob->set_finish_time(NYT::ToProto<i64>(*job.FinishTime));
     }
 
-    protoJob->set_address(job.Address);
+    if (job.Address) {
+        protoJob->set_address(*job.Address);
+    }
     if (job.Progress) {
         protoJob->set_progress(*job.Progress);
     }
@@ -731,7 +741,9 @@ void ToProto(NProto::TJob* protoJob, const NApi::TJob& job)
     if (job.FailContextSize) {
         protoJob->set_fail_context_size(*job.FailContextSize);
     }
-    protoJob->set_has_spec(job.HasSpec);
+    if (job.HasSpec) {
+        protoJob->set_has_spec(*job.HasSpec);
+    }
 
     if (job.Error) {
         protoJob->set_error(job.Error.GetData());
@@ -749,18 +761,36 @@ void ToProto(NProto::TJob* protoJob, const NApi::TJob& job)
 
 void FromProto(NApi::TJob* job, const NProto::TJob& protoJob)
 {
-    FromProto(&job->Id, protoJob.id());
-    job->Type = ConvertJobTypeFromProto(protoJob.type());
-    job->State = ConvertJobStateFromProto(protoJob.state());
-
-    job->StartTime = TInstant::FromValue(protoJob.start_time());
+    if (protoJob.has_id()) {
+        FromProto(&job->Id, protoJob.id());
+    } else {
+        job->Id = {};
+    }
+    if (protoJob.has_type()) {
+        job->Type = ConvertJobTypeFromProto(protoJob.type());
+    } else {
+        job->Type.reset();
+    }
+    if (protoJob.has_state()) {
+        job->State = ConvertJobStateFromProto(protoJob.state());
+    } else {
+        job->State.reset();
+    }
+    if (protoJob.has_start_time()) {
+        job->StartTime = TInstant::FromValue(protoJob.start_time());
+    } else {
+        job->StartTime.reset();
+    }
     if (protoJob.has_finish_time()) {
         job->FinishTime = TInstant::FromValue(protoJob.finish_time());
     } else {
         job->FinishTime.reset();
     }
-
-    job->Address = protoJob.address();
+    if (protoJob.has_address()) {
+        job->Address = protoJob.address();
+    } else {
+        job->Address.reset();
+    }
     if (protoJob.has_progress()) {
         job->Progress = protoJob.progress();
     } else {

@@ -50,10 +50,12 @@ class TPortoExecutor
 {
 public:
     TPortoExecutor(
+        const TString& name,
         std::unique_ptr<Porto::Connection> api,
         TDuration retryTime,
         TDuration pollPeriod)
-        : Api_(std::move(api))
+        : Queue_(New<TActionQueue>(Format("Porto:%v", name)))
+        , Api_(std::move(api))
         , RetryTime_(retryTime)
     {
         PollExecutor_ = New<TPeriodicExecutor>(
@@ -202,10 +204,10 @@ public:
     }
 
 private:
+    const TActionQueuePtr Queue_;
     const std::unique_ptr<Porto::Connection> Api_;
     const TDuration RetryTime_;
 
-    const TActionQueuePtr Queue_ = New<TActionQueue>("PortoQueue");
     TPeriodicExecutorPtr PollExecutor_;
     std::vector<TString> Containers_;
     THashMap<TString, TPromise<int>> ContainersMap_;
@@ -451,10 +453,10 @@ const std::vector<TString> TPortoExecutor::ContainerRequestVars_ = {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IPortoExecutorPtr CreatePortoExecutor(TDuration retryTime, TDuration pollPeriod)
+IPortoExecutorPtr CreatePortoExecutor(const TString& name, TDuration retryTime, TDuration pollPeriod)
 {
     auto api = std::make_unique<Porto::Connection>();
-    return New<TPortoExecutor>(std::move(api), retryTime, pollPeriod);
+    return New<TPortoExecutor>(name, std::move(api), retryTime, pollPeriod);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

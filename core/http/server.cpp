@@ -223,6 +223,10 @@ private:
             EMessageType::Request,
             Config_);
 
+        if (Config_->IsHttps) {
+            request->SetHttps();
+        }
+
         auto response = New<THttpOutput>(
             connection,
             EMessageType::Response,

@@ -355,7 +355,7 @@ std::vector<IAttributeDictionary::TKeyValuePair> TSupportsAttributes::TCombinedA
     return pairs;
 }
 
-TYsonString TSupportsAttributes::TCombinedAttributeDictionary::FindYson(const TString& key) const
+TYsonString TSupportsAttributes::TCombinedAttributeDictionary::FindYson(TStringBuf key) const
 {
     auto* provider = Owner_->GetBuiltinAttributeProvider();
     if (provider) {
@@ -442,7 +442,7 @@ IYPathService::TResolveResult TSupportsAttributes::ResolveAttributes(
     return TResolveResultHere{"/@" + path};
 }
 
-TFuture<TYsonString> TSupportsAttributes::DoFindAttribute(const TString& key)
+TFuture<TYsonString> TSupportsAttributes::DoFindAttribute(TStringBuf key)
 {
     auto* customAttributes = GetCustomAttributes();
     auto* builtinAttributeProvider = GetBuiltinAttributeProvider();
@@ -456,12 +456,10 @@ TFuture<TYsonString> TSupportsAttributes::DoFindAttribute(const TString& key)
 
     if (builtinAttributeProvider) {
         auto internedKey = GetInternedAttributeKey(key);
-        TYsonString builtinYson;
         if (internedKey != InvalidInternedAttribute) {
-            builtinYson = builtinAttributeProvider->FindBuiltinAttribute(internedKey);
-        }
-        if (builtinYson) {
-            return MakeFuture(builtinYson);
+            if (auto builtinYson = builtinAttributeProvider->FindBuiltinAttribute(internedKey)) {
+                return MakeFuture(builtinYson);
+            }
         }
 
         auto asyncResult = builtinAttributeProvider->GetBuiltinAttributeAsync(internedKey);
@@ -474,7 +472,7 @@ TFuture<TYsonString> TSupportsAttributes::DoFindAttribute(const TString& key)
 }
 
 TYsonString TSupportsAttributes::DoGetAttributeFragment(
-    const TString& key,
+    const TStringBuf key,
     const TYPath& path,
     const TYsonString& wholeYson)
 {
@@ -581,7 +579,7 @@ void TSupportsAttributes::GetAttribute(
 }
 
 TYsonString TSupportsAttributes::DoListAttributeFragment(
-    const TString& key,
+    TStringBuf key,
     const TYPath& path,
     const TYsonString& wholeYson)
 {
@@ -678,7 +676,7 @@ void TSupportsAttributes::ListAttribute(
 }
 
 bool TSupportsAttributes::DoExistsAttributeFragment(
-    const TString& key,
+    TStringBuf /*key*/,
     const TYPath& path,
     const TErrorOr<TYsonString>& wholeYsonOrError)
 {
@@ -1167,7 +1165,7 @@ bool TSupportsAttributes::GuardedRemoveBuiltinAttribute(TInternedAttributeKey ke
     }
 }
 
-void TSupportsAttributes::ValidateAttributeKey(const TString& key) const
+void TSupportsAttributes::ValidateAttributeKey(TStringBuf key) const
 {
     if (key.empty()) {
         THROW_ERROR_EXCEPTION("Attribute key cannot be empty");
@@ -1210,6 +1208,25 @@ const THashSet<TString>& TSystemCustomAttributeKeysCache::GetCustomAttributeKeys
         Initialized_ = true;
     }
     return CustomKeys_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const THashSet<TString>& TOpaqueAttributeKeysCache::GetOpaqueAttributeKeys(
+    ISystemAttributeProvider* provider)
+{
+    if (!Initialized_) {
+        std::vector<ISystemAttributeProvider::TAttributeDescriptor> descriptors;
+        provider->ListSystemAttributes(&descriptors);
+        OpaqueKeys_.reserve(descriptors.size());
+        for (const auto& descriptor : descriptors) {
+            if (descriptor.Opaque) {
+                YT_VERIFY(OpaqueKeys_.insert(GetUninternedAttributeKey(descriptor.InternedKey)).second);
+            }
+        }
+        Initialized_ = true;
+    }
+    return OpaqueKeys_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

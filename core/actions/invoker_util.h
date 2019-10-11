@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <yt/core/concurrency/public.h>
+#include <yt/core/concurrency/scheduler.h>
 
 namespace NYT {
 
@@ -34,25 +35,6 @@ void GuardedInvoke(
     const IInvokerPtr& invoker,
     TClosure onSuccess,
     TClosure onCancel);
-
-////////////////////////////////////////////////////////////////////////////////
-// Provides a way to work with the current invoker (per-fiber).
-// Invoker is fiber-scoped so this is an access to FLS.
-
-IInvokerPtr GetCurrentInvoker();
-void SetCurrentInvoker(IInvokerPtr invoker);
-void SetCurrentInvoker(IInvokerPtr invoker, NConcurrency::TFiber* fiber);
-
-//! Swaps the current active invoker with a provided one.
-class TCurrentInvokerGuard
-{
-public:
-    explicit TCurrentInvokerGuard(IInvokerPtr invoker);
-    ~TCurrentInvokerGuard();
-
-private:
-    IInvokerPtr SavedInvoker_;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

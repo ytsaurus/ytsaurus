@@ -786,8 +786,14 @@ TFuture<T> TClient::Execute(
             commandName,
             promise,
             callback = std::move(callback),
-            Logger = Logger
+            this,
+            this_ = MakeWeak(this)
         ] (TAsyncSemaphoreGuard /*guard*/) mutable {
+            auto client = this_.Lock();
+            if (!client) {
+                return;
+            }
+            
             if (promise.IsCanceled()) {
                 return;
             }
@@ -796,6 +802,7 @@ TFuture<T> TClient::Execute(
             if (canceler) {
                 promise.OnCanceled(std::move(canceler));
             }
+
 
             try {
                 YT_LOG_DEBUG("Command started (Command: %v)", commandName);
@@ -2469,7 +2476,8 @@ TYsonString TClient::DoGetOperation(
     auto getOperationResponses = WaitFor(CombineAll<TYsonString>(getOperationFutures))
         .ValueOrThrow();
 
-    auto cypressResult = cypressFuture.Get().ValueOrThrow();
+    auto cypressResult = cypressFuture.Get()
+        .ValueOrThrow();
 
     auto archiveResultOrError = archiveFuture.Get();
     TYsonString archiveResult;
@@ -4358,6 +4366,9 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsyncImpl(
 
             if (row[startTimeIndex].Type != EValueType::Null) {
                 job.StartTime = TInstant::MicroSeconds(row[startTimeIndex].Data.Int64);
+            } else {
+                // This field previously was non-optional.
+                job.StartTime.emplace();
             }
 
             if (row[finishTimeIndex].Type != EValueType::Null) {
@@ -4366,6 +4377,9 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsyncImpl(
 
             if (row[addressIndex].Type != EValueType::Null) {
                 job.Address = TString(row[addressIndex].Data.String, row[addressIndex].Length);
+            } else {
+                // This field previously was non-optional.
+                job.Address.emplace();
             }
 
             if (row[stderrSizeIndex].Type != EValueType::Null) {
@@ -4378,6 +4392,9 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsyncImpl(
 
             if (row[hasSpecIndex].Type != EValueType::Null) {
                 job.HasSpec = row[hasSpecIndex].Data.Boolean;
+            } else {
+                // This field previously was non-optional.
+                job.HasSpec = false;
             }
 
             if (row[errorIndex].Type != EValueType::Null) {
@@ -4543,6 +4560,7 @@ TFuture<TClient::TListJobsFromArchiveResult> TClient::DoListJobsFromArchiveAsync
             auto difference = [] (std::vector<TJob> origin, const std::vector<TJob>& blacklist) {
                 THashSet<TJobId> idBlacklist;
                 for (const auto& job : blacklist) {
+                    YT_VERIFY(job.Id);
                     idBlacklist.emplace(job.Id);
                 }
                 origin.erase(
@@ -4550,6 +4568,7 @@ TFuture<TClient::TListJobsFromArchiveResult> TClient::DoListJobsFromArchiveAsync
                         origin.begin(),
                         origin.end(),
                         [&idBlacklist] (const TJob& job) {
+                            YT_VERIFY(job.Id);
                             return idBlacklist.contains(job.Id);
                         }),
                     origin.end());
@@ -4749,9 +4768,8 @@ std::function<bool(const TJob&, const TJob&)> TClient::GetJobsComparator(EJobSor
                 return [=] (const TJob& lhs, const TJob& rhs) {
                     return transform(rhs) < transform(lhs);
                 };
-            default:
-                YT_ABORT();
         }
+        YT_ABORT();
     };
 
     auto makeLessByField = [&] (auto TJob::* field) {
@@ -4761,8 +4779,12 @@ std::function<bool(const TJob&, const TJob&)> TClient::GetJobsComparator(EJobSor
     };
 
     auto makeLessByFormattedEnumField = [&] (auto TJob::* field) {
-        return makeLessBy([field] (const TJob& job) {
-            return FormatEnum(job.*field);
+        return makeLessBy([field] (const TJob& job) -> std::optional<TString> {
+            if (auto value = job.*field) {
+                return FormatEnum(*value);
+            } else {
+                return std::nullopt;
+            }
         });
     };
 
@@ -4786,8 +4808,12 @@ std::function<bool(const TJob&, const TJob&)> TClient::GetJobsComparator(EJobSor
                 return ToString(job.Id);
             });
         case EJobSortField::Duration:
-            return makeLessBy([now = TInstant::Now()] (const TJob& job) {
-                return (job.FinishTime ? *job.FinishTime : now) - job.StartTime;
+            return makeLessBy([now = TInstant::Now()] (const TJob& job) -> std::optional<TDuration> {
+                if (job.StartTime) {
+                    return (job.FinishTime ? *job.FinishTime : now) - *job.StartTime;
+                } else {
+                    return std::nullopt;
+                }
             });
         default:
             YT_ABORT();
@@ -4819,12 +4845,14 @@ void TClient::UpdateJobsList(std::vector<TJob> delta, std::vector<TJob>* origin,
 
     THashMap<TJobId, TJob*> originMap;
     for (auto& job : *origin) {
+        YT_VERIFY(job.Id);
         originMap.emplace(job.Id, &job);
     }
     // NB(levysotsky): We cannot insert directly into |origin|
     // as this can invalidate pointers stored in |originMap|.
     std::vector<TJob> actualDelta;
     for (auto& job : delta) {
+        YT_VERIFY(job.Id);
         auto originMapIt = originMap.find(job.Id);
         if (originMapIt != originMap.end()) {
             mergeJob(originMapIt->second, std::move(job));
@@ -4944,12 +4972,16 @@ TListJobsResult TClient::DoListJobs(
                 continue;
             }
 
-            statistics->TypeCounts[job.Type] += 1;
+            if (job.Type) {
+                statistics->TypeCounts[*job.Type] += 1;
+            }
             if (options.Type && job.Type != *options.Type) {
                 continue;
             }
 
-            statistics->StateCounts[job.State] += 1;
+            if (job.State) {
+                statistics->StateCounts[*job.State] += 1;
+            }
             if (options.State && job.State != *options.State) {
                 continue;
             }

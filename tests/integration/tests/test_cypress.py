@@ -14,6 +14,8 @@ from yt.environment.helpers import assert_items_equal
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
+import __builtin__
+
 ##################################################################
 
 class TestCypress(YTEnvSetup):
@@ -1255,6 +1257,11 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/file/@user_attribute_keys") == []
         assert get("//tmp/file/@user_attributes") == {}
 
+    @authors("babenko")
+    def test_opaque_attribute_keys(self):
+        create("table", "//tmp/t")
+        assert "compression_statistics" in get("//tmp/t/@opaque_attribute_keys")
+
     @authors("ignat")
     def test_boolean(self):
         yson_format = yson.loads("yson")
@@ -1835,6 +1842,20 @@ class TestCypress(YTEnvSetup):
         remove("//tmp/a")
         assert get("#{}/@path".format(node_id), tx=tx) == "#{}".format(node_id)
 
+    @authors("ignat")
+    def test_node_path_with_slash(self):
+        set("//tmp/dir", {"my\\t": {}})
+        assert ls("//tmp/dir") == ["my\\t"]
+        # It is double quoted since ypath syntax additionally quote backslash.
+        assert get("//tmp/dir/my\\\\t") == {}
+        assert get("//tmp/dir/my\\\\t/@path") == "//tmp/dir/my\\\\t"
+
+        set("//tmp/dir", {"my\t": {}})
+        assert ls("//tmp/dir") == ["my\t"]
+        # Non-ascii symbols are expressed in hex format in ypath.
+        assert get("//tmp/dir/my\\x09") == {}
+        assert get("//tmp/dir/my\\x09/@path") == "//tmp/dir/my\\x09"
+
     @authors("babenko")
     def test_broken_node_path2(self):
         set("//tmp/a", 123)
@@ -2363,6 +2384,19 @@ class TestCypress(YTEnvSetup):
         set("//tmp/test_node/@annotation", "test")
         move("//tmp/test_node", "//test")
         assert get("//test/@annotation") == get("//test/child/@annotation") == "test"
+
+    @authors("shakurov")
+    def test_recursive_copy_sets_parent_on_branched_node(self):
+        create_user("u")
+
+        tx = start_transaction(authenticated_user="u")
+
+        create('table', "//tmp/d1/d2/src/t", tx=tx, recursive=True, authenticated_user="u")
+        copy("//tmp/d1/d2/src", "//tmp/d1/d2/dst", tx=tx, recursive=True, authenticated_user="u")
+
+        tx2 = start_transaction(tx=tx, authenticated_user="u")
+        # Must not throw.
+        lock("//tmp/d1/d2/dst/t", tx=tx2, mode="snapshot", authenticated_user="u")
 
 ##################################################################
 

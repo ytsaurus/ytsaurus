@@ -180,8 +180,8 @@ public:
             "TabletManager.Values",
             BIND(&TImpl::SaveValues, Unretained(this)));
 
-        auto cellTag = Bootstrap_->GetPrimaryCellTag();
-        DefaultTabletCellBundleId_ = MakeWellKnownId(EObjectType::TabletCellBundle, cellTag, 0xffffffffffffffff);
+        auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
+        DefaultTabletCellBundleId_ = MakeWellKnownId(EObjectType::TabletCellBundle, primaryCellTag, 0xffffffffffffffff);
 
         RegisterMethod(BIND(&TImpl::HydraAssignPeers, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraRevokePeers, Unretained(this)));
@@ -239,8 +239,8 @@ public:
             MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitUpdateTabletStores, MakeStrong(this))),
             MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortUpdateTabletStores, MakeStrong(this))));
 
-        if (Bootstrap_->IsPrimaryMaster()) {
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsPrimaryMaster()) {
             multicellManager->SubscribeReplicateKeysToSecondaryMaster(
                 BIND(&TImpl::OnReplicateKeysToSecondaryMaster, MakeWeak(this)));
             multicellManager->SubscribeReplicateValuesToSecondaryMaster(
@@ -300,12 +300,16 @@ public:
 
         cellBundle->SetOptions(std::move(options));
 
-        for (auto* cell : cellBundle->TabletCells()) {
+        std::vector<TTabletCell*> cells(cellBundle->TabletCells().begin(), cellBundle->TabletCells().end());
+        std::sort(cells.begin(), cells.end(), TObjectRefComparer::Compare);
+
+        for (auto* cell : cells) {
             if (!IsObjectAlive(cell)) {
                 continue;
             }
 
-            if (Bootstrap_->IsPrimaryMaster()) {
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            if (multicellManager->IsPrimaryMaster()) {
                 if (auto node = FindCellNode(cell->GetId())) {
                     auto cellNode = node->AsMap();
 
@@ -376,7 +380,8 @@ public:
                 SyncExecuteVerb(cellMapNodeProxy, req);
             }
 
-            if (Bootstrap_->IsPrimaryMaster()) {
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            if (multicellManager->IsPrimaryMaster()) {
                 auto attributes = CreateEphemeralAttributes();
                 attributes->Set("inherit_acl", false);
 
@@ -457,7 +462,8 @@ public:
         auto* rootUser = securityManager->GetRootUser();
         TAuthenticatedUserGuard userGuard(securityManager, rootUser);
 
-        if (Bootstrap_->IsPrimaryMaster()) {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsPrimaryMaster()) {
             AbortPrerequisiteTransaction(cell);
             AbortCellSubtreeTransactions(cell);
         }
@@ -1696,9 +1702,9 @@ public:
             // NB: security manager has already been informed when node's account was reset.
         }
 
-        if (table->GetTabletCellBundle()) {
+        if (auto* bundle = table->GetTabletCellBundle()) {
             const auto& objectManager = Bootstrap_->GetObjectManager();
-            objectManager->UnrefObject(table->GetTabletCellBundle());
+            objectManager->UnrefObject(bundle);
             table->SetTabletCellBundle(nullptr);
         }
 
@@ -1715,8 +1721,8 @@ public:
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
 
-        for (auto& pair : table->DynamicTableLocks()) {
-            auto* transaction = transactionManager->FindTransaction(pair.first);
+        for (auto [transactionId, lock] : table->DynamicTableLocks()) {
+            auto* transaction = transactionManager->FindTransaction(transactionId);
             if (!IsObjectAlive(transaction)) {
                 continue;
             }
@@ -2210,7 +2216,8 @@ public:
 
     void RemoveTabletCell(TTabletCell* cell, bool force)
     {
-        YT_VERIFY(Bootstrap_->IsPrimaryMaster());
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        YT_VERIFY(multicellManager->IsPrimaryMaster());
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Removing tablet cell (TabletCellId: %v, Force: %v)",
             cell->GetId(),
@@ -2224,7 +2231,6 @@ public:
                 // Decommission tablet cell on secondary masters.
                 TReqDecommissionTabletCellOnMaster req;
                 ToProto(req.mutable_cell_id(), cell->GetId());
-                const auto& multicellManager = Bootstrap_->GetMulticellManager();
                 multicellManager->PostToMasters(req, multicellManager->GetRegisteredMasterCellTags());
 
                 // Decommission tablet cell on node.
@@ -2320,7 +2326,8 @@ public:
             return;
         }
 
-        if (Bootstrap_->IsPrimaryMaster()) {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsPrimaryMaster()) {
             if (table->GetTabletCellBundle() && table->IsDynamic()) {
                 table->ValidateAllTabletsUnmounted("Cannot change tablet cell bundle");
             }
@@ -2516,7 +2523,6 @@ private:
         action->SetCorrelationId(correlationId);
         action->SetExpirationTime(expirationTime);
         auto* bundle = action->Tablets()[0]->GetTable()->GetTabletCellBundle();
-        // XXX(babenko): validate life stage
         action->SetTabletCellBundle(bundle);
         bundle->TabletActions().insert(action);
         bundle->IncreaseActiveTabletActionCount();
@@ -3785,7 +3791,8 @@ private:
 
         // COMPAT(savrus)
         if (config->CompatibilityVersion == 0) {
-            if (Bootstrap_->IsPrimaryMaster() && IsLeader()) {
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            if (multicellManager->IsPrimaryMaster() && IsLeader()) {
                 BIND(&TImpl::UpdateDynamicConfigAsync, MakeWeak(this))
                     .Via(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Default))
                     .Run();
@@ -4084,8 +4091,9 @@ private:
 
     void InitializeTabletCellStatistics(TTabletCell* cell)
     {
-        auto cellTag = Bootstrap_->GetCellTag();
-        const auto& secondaryCellTags = Bootstrap_->GetSecondaryCellTags();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto cellTag = multicellManager->GetCellTag();
+        const auto& secondaryCellTags = multicellManager->GetSecondaryCellTags();
 
         if (secondaryCellTags.empty()) {
             cell->SetLocalStatisticsPtr(&cell->ClusterStatistics());
@@ -4108,7 +4116,8 @@ private:
         bool updateDataStatistics = true,
         bool updateTabletStatistics = true)
     {
-        if (!Bootstrap_->IsPrimaryMaster()) {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsSecondaryMaster()) {
             YT_LOG_DEBUG_UNLESS(IsRecovery(), "Schedule table statistics update (TableId: %v, UpdateDataStatistics: %v, UpdateTabletStatistics: %v)",
                 table->GetId(),
                 updateDataStatistics,
@@ -4151,7 +4160,8 @@ private:
 
     void SendTableStatisticsUpdates(TTableNode* table)
     {
-        YT_VERIFY(!Bootstrap_->IsPrimaryMaster());
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        YT_VERIFY(multicellManager->IsSecondaryMaster());
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Sending table statistics update (TableId: %v)",
             table->GetId());
@@ -4163,8 +4173,6 @@ private:
         ToProto(entry->mutable_tablet_resource_usage(), table->GetTabletResourceUsage());
         entry->set_modification_time(ToProto<ui64>(table->GetModificationTime()));
         entry->set_access_time(ToProto<ui64>(table->GetAccessTime()));
-
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToMaster(req, table->GetNativeCellTag());
 
         TableStatisticsUpdates_.Pop(table->GetId());
@@ -4172,7 +4180,8 @@ private:
 
     void HydraSendTableStatisticsUpdates(NProto::TReqSendTableStatisticsUpdates* request)
     {
-        YT_VERIFY(!Bootstrap_->IsPrimaryMaster());
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        YT_VERIFY(multicellManager->IsSecondaryMaster());
 
         auto remainingTableCount = request->table_count();
 
@@ -4205,7 +4214,6 @@ private:
             request->table_count(),
             tableIds);
 
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         for  (const auto& [cellTag, request] : cellTagToRequest) {
             multicellManager->PostToMaster(request, cellTag);
         }
@@ -4284,27 +4292,25 @@ private:
         YT_LOG_INFO("Sending tablet cell statistics gossip message");
 
         NProto::TReqSetTabletCellStatistics request;
-        request.set_cell_tag(Bootstrap_->GetCellTag());
+        request.set_cell_tag(multicellManager->GetCellTag());
 
-        for (const auto& pair : TabletCellMap_) {
-            auto* cell = pair.second;
-            if (!IsObjectAlive(cell))
+        for (auto [id, cell] : TabletCellMap_) {
+            if (!IsObjectAlive(cell)) {
                 continue;
+            }
 
             auto* entry = request.add_entries();
             ToProto(entry->mutable_tablet_cell_id(), cell->GetId());
-            if (Bootstrap_->IsPrimaryMaster()) {
-                ToProto(entry->mutable_statistics(), cell->ClusterStatistics());
-            } else {
-                ToProto(entry->mutable_statistics(), cell->LocalStatistics());
-            }
+            ToProto(
+                entry->mutable_statistics(),
+                multicellManager->IsPrimaryMaster() ? cell->ClusterStatistics() : cell->LocalStatistics());
         }
 
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         CreateMutation(hydraManager, NProto::TReqUpdateTabletCellHealthStatistics())
             ->CommitAndLog(Logger);
 
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (multicellManager->IsPrimaryMaster()) {
             multicellManager->PostToSecondaryMasters(request, false);
         } else {
             multicellManager->PostToMaster(request, PrimaryMasterCellTag, false);
@@ -4338,9 +4344,10 @@ private:
     void HydraSetTabletCellStatistics(NProto::TReqSetTabletCellStatistics* request)
     {
         auto cellTag = request->cell_tag();
-        YT_VERIFY(Bootstrap_->IsPrimaryMaster() || cellTag == Bootstrap_->GetPrimaryCellTag());
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        YT_VERIFY(multicellManager->IsPrimaryMaster() || cellTag == multicellManager->GetPrimaryCellTag());
+
         if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
             YT_LOG_ERROR_UNLESS(IsRecovery(), "Received tablet cell statistics gossip message from unknown cell (CellTag: %v)",
                 cellTag);
@@ -4357,7 +4364,7 @@ private:
                 continue;
 
             auto newStatistics = FromProto<NTabletServer::TTabletCellStatistics>(entry.statistics());
-            if (Bootstrap_->IsPrimaryMaster()) {
+            if (multicellManager->IsPrimaryMaster()) {
                 *cell->GetCellStatistics(cellTag) = newStatistics;
                 cell->RecomputeClusterStatistics();
             } else {
@@ -4393,13 +4400,17 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+
         // Various request helpers.
         auto requestCreateSlot = [&] (const TTabletCell* cell) {
-            if (!response)
+            if (!response) {
                 return;
+            }
 
-            if (!Bootstrap_->IsPrimaryMaster() || !cell->GetPrerequisiteTransaction())
+            if (multicellManager->IsSecondaryMaster() || !cell->GetPrerequisiteTransaction()) {
                 return;
+            }
 
             auto* protoInfo = response->add_tablet_slots_to_create();
 
@@ -4421,18 +4432,20 @@ private:
         };
 
         auto requestConfigureSlot = [&] (const TTabletCell* cell) {
-            if (!response)
+            if (!response) {
                 return;
+            }
 
-            if (!Bootstrap_->IsPrimaryMaster() || !cell->GetPrerequisiteTransaction())
+            if (multicellManager->IsSecondaryMaster() || !cell->GetPrerequisiteTransaction()) {
                 return;
+            }
 
             auto* protoInfo = response->add_tablet_slots_configure();
 
             auto cellId = cell->GetId();
             auto cellDescriptor = cell->GetDescriptor();
 
-            const auto& prerequisiteTransactionId = cell->GetPrerequisiteTransaction()->GetId();
+            auto prerequisiteTransactionId = cell->GetPrerequisiteTransaction()->GetId();
 
             ToProto(protoInfo->mutable_cell_descriptor(), cellDescriptor);
             ToProto(protoInfo->mutable_prerequisite_transaction_id(), prerequisiteTransactionId);
@@ -4446,11 +4459,13 @@ private:
         };
 
         auto requestUpdateSlot = [&] (const TTabletCell* cell) {
-            if (!response)
+            if (!response) {
                 return;
+            }
 
-            if (!Bootstrap_->IsPrimaryMaster())
+            if (multicellManager->IsSecondaryMaster()) {
                 return;
+            }
 
             auto* protoInfo = response->add_tablet_slots_update();
 
@@ -4469,11 +4484,13 @@ private:
         };
 
         auto requestRemoveSlot = [&] (TTabletCellId cellId) {
-            if (!response)
+            if (!response) {
                 return;
+            }
 
-            if (!Bootstrap_->IsPrimaryMaster())
+            if (multicellManager->IsSecondaryMaster()) {
                 return;
+            }
 
             auto* protoInfo = response->add_tablet_slots_to_remove();
             ToProto(protoInfo->mutable_cell_id(), cellId);
@@ -4784,13 +4801,13 @@ private:
                 peerId);
         }
 
-        if (Bootstrap_->IsPrimaryMaster()) {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsPrimaryMaster()) {
             // Once a peer is assigned, we must ensure that the cell has a valid prerequisite transaction.
             if (leadingPeerAssigned || !cell->GetPrerequisiteTransaction()) {
                 RestartPrerequisiteTransaction(cell);
             }
 
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToMasters(*request, multicellManager->GetRegisteredMasterCellTags());
         }
 
@@ -4815,13 +4832,13 @@ private:
             DoRevokePeer(cell, peerId);
         }
 
-        if (Bootstrap_->IsPrimaryMaster()) {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsPrimaryMaster()) {
             if (leadingPeerRevoked) {
                 AbortPrerequisiteTransaction(cell);
                 AbortCellSubtreeTransactions(cell);
             }
 
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToMasters(*request, multicellManager->GetRegisteredMasterCellTags());
         }
 
@@ -4864,10 +4881,10 @@ private:
             descriptor.GetDefaultAddress(),
             peerId);
 
-        if (Bootstrap_->IsPrimaryMaster()) {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsPrimaryMaster()) {
             RestartPrerequisiteTransaction(cell);
 
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToMasters(*request, multicellManager->GetRegisteredMasterCellTags());
         }
 
@@ -4916,7 +4933,8 @@ private:
 
     void HydraUpdateTabletState(TReqUpdateTabletState* request)
     {
-        YT_VERIFY(Bootstrap_->IsSecondaryMaster());
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        YT_VERIFY(multicellManager->IsSecondaryMaster());
 
         auto tableId = FromProto<TTableId>(request->table_id());
         const auto& cypressManager = Bootstrap_->GetCypressManager();
@@ -5021,7 +5039,8 @@ private:
             YT_VERIFY(!table->GetPrimaryLastMountTransactionId());
             table->SetLastMountTransactionId(TTransactionId());
         } else {
-            YT_VERIFY(Bootstrap_->IsSecondaryMaster());
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            YT_VERIFY(multicellManager->IsSecondaryMaster());
 
             // Check that primary master is waiting to clear LastMountTransactionId.
             bool clearLastMountTransactionId = table->GetLastMountTransactionId() &&
@@ -5040,7 +5059,6 @@ private:
                 request.set_expected_tablet_state(static_cast<i32>(*expectedState));
             }
 
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToMaster(request, table->GetNativeCellTag());
 
             if (clearLastMountTransactionId) {
@@ -5060,7 +5078,7 @@ private:
 
         auto state = tablet->GetState();
         if (state != ETabletState::Mounting && state != ETabletState::FrozenMounting) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Mounted notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Mounted notification received for a tablet in %Qlv state, xignored (TabletId: %v)",
                 state,
                 tabletId);
             return;
@@ -5388,6 +5406,7 @@ private:
 
         auto checkStatisticsMatch = [] (const TChunkTreeStatistics& lhs, TChunkTreeStatistics rhs) {
             rhs.ChunkListCount = lhs.ChunkListCount;
+            rhs.Rank = lhs.Rank;
             return lhs == rhs;
         };
 
@@ -5947,7 +5966,8 @@ private:
 
         const auto& dynamicConfig = GetDynamicConfig();
 
-        if (Bootstrap_->IsPrimaryMaster()) {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsPrimaryMaster()) {
             TabletTracker_->Start();
 
             CleanupExecutor_ = New<TPeriodicExecutor>(
@@ -5967,7 +5987,7 @@ private:
             dynamicConfig->MulticellGossip->TabletCellStatisticsGossipPeriod);
         TabletCellStatisticsGossipExecutor_->Start();
 
-        if (!Bootstrap_->IsPrimaryMaster()) {
+        if (multicellManager->IsSecondaryMaster()) {
             TableStatisticsGossipExecutor_ = New<TPeriodicExecutor>(
                 Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
                 BIND(&TImpl::OnTableStatisticsGossip, MakeWeak(this)),
@@ -6168,7 +6188,8 @@ private:
 
     void RestartPrerequisiteTransaction(TTabletCell* cell)
     {
-        YT_VERIFY(Bootstrap_->IsPrimaryMaster());
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        YT_VERIFY(multicellManager->IsPrimaryMaster());
 
         AbortPrerequisiteTransaction(cell);
         AbortCellSubtreeTransactions(cell);
@@ -6177,9 +6198,9 @@ private:
 
     void StartPrerequisiteTransaction(TTabletCell* cell)
     {
-        YT_VERIFY(Bootstrap_->IsPrimaryMaster());
-
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        YT_VERIFY(multicellManager->IsPrimaryMaster());
+
         const auto& secondaryCellTags = multicellManager->GetRegisteredMasterCellTags();
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
@@ -6209,7 +6230,8 @@ private:
 
     void HydraStartPrerequisiteTransaction(TReqStartPrerequisiteTransaction* request)
     {
-        YT_VERIFY(Bootstrap_->IsSecondaryMaster());
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        YT_VERIFY(multicellManager->IsSecondaryMaster());
 
         auto cellId = FromProto<TTabletCellId>(request->cell_id());
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
@@ -6247,7 +6269,8 @@ private:
 
     void AbortPrerequisiteTransaction(TTabletCell* cell)
     {
-        YT_VERIFY(Bootstrap_->IsPrimaryMaster());
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        YT_VERIFY(multicellManager->IsPrimaryMaster());
 
         auto* transaction = cell->GetPrerequisiteTransaction();
         if (!transaction) {
@@ -6262,7 +6285,6 @@ private:
         TReqAbortPrerequisiteTransactoin request;
         ToProto(request.mutable_cell_id(), cell->GetId());
         ToProto(request.mutable_transaction_id(), transaction->GetId());
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToMasters(request, multicellManager->GetRegisteredMasterCellTags());
 
         // NB: Make a copy, transaction will die soon.
@@ -6278,7 +6300,8 @@ private:
 
     void HydraAbortPrerequisiteTransaction(TReqAbortPrerequisiteTransactoin* request)
     {
-        YT_VERIFY(Bootstrap_->IsSecondaryMaster());
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        YT_VERIFY(multicellManager->IsSecondaryMaster());
 
         auto cellId = FromProto<TTabletCellId>(request->cell_id());
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());

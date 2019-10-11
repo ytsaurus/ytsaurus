@@ -514,6 +514,7 @@ protected:
     void AnalyzeAbortedJobs();
     void AnalyzeJobsIOUsage();
     void AnalyzeJobsCpuUsage();
+    void AnalyzeJobsGpuUsage();
     void AnalyzeJobsDuration();
     void AnalyzeOperationDuration();
     void AnalyzeScheduleJobStatistics();
@@ -739,8 +740,9 @@ protected:
     bool IsOutputLivePreviewSupported() const;
     bool IsIntermediateLivePreviewSupported() const;
 
-    virtual bool DoCheckOutputLivePreviewSupported() const;
-    virtual bool DoCheckIntermediateLivePreviewSupported() const;
+    //! Accumulate information about legacy live preview depending on operation type and user intent.
+    virtual ELegacyLivePreviewMode GetLegacyOutputLivePreviewMode() const;
+    virtual ELegacyLivePreviewMode GetLegacyIntermediateLivePreviewMode() const;
     virtual bool IsInputDataSizeHistogramSupported() const;
     virtual bool AreForeignTablesSupported() const;
 
@@ -1079,7 +1081,7 @@ private:
 
     std::unique_ptr<IJobSplitter> JobSplitter_;
 
-    bool IsLivePreviewSuppressed = false;
+    bool IsLegacyLivePreviewSuppressed = false;
 
     //! Error that lead to operation failure.
     TError Error_;
@@ -1188,6 +1190,15 @@ private:
     void RegisterTestingSpeculativeJobIfNeeded(const TTaskPtr& task, TJobId jobId);
 
     std::vector<NYPath::TRichYPath> GetLayerPaths(const TUserJobSpecPtr& userJobSpec);
+
+    void AnalyzeProcessingUnitUsage(
+        const std::vector<TString>& usageStatistics,
+        const std::vector<TString>& jobStates,
+        const std::function<double(const TUserJobSpecPtr&)>& getLimit,
+        const std::function<bool(i64, i64, double)>& needSetAlert,
+        const TString& name,
+        EOperationAlertType alertType,
+        const TString& message);
 
     //! Helper class that implements IChunkPoolInput interface for output tables.
     class TSink

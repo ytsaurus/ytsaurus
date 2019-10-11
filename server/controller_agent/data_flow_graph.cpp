@@ -16,6 +16,8 @@
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/virtual.h>
 
+#include <util/generic/cast.h>
+
 namespace NYT::NControllerAgent {
 
 using namespace NYTree;
@@ -51,6 +53,10 @@ void TEdgeDescriptor::Persist(const TPersistenceContext& context)
     Persist(context, Timestamp);
     Persist(context, CellTag);
     Persist(context, ImmediatelyUnstageChunkLists);
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= ToUnderlying(ESnapshotVersion::DynamicTableWriterConfig)) {
+        Persist(context, IsOutputTableDynamic);
+    }
     Persist(context, IsFinalOutput);
     Persist(context, LivePreviewIndex);
 }
@@ -67,6 +73,7 @@ TEdgeDescriptor& TEdgeDescriptor::operator =(const TEdgeDescriptor& other)
     CellTag = other.CellTag;
     ImmediatelyUnstageChunkLists = other.ImmediatelyUnstageChunkLists;
     IsFinalOutput = other.IsFinalOutput;
+    IsOutputTableDynamic = other.IsOutputTableDynamic;
     LivePreviewIndex = other.LivePreviewIndex;
 
     return *this;

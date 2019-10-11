@@ -1,5 +1,6 @@
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 from yt_commands import *
+from yt_helpers import from_sandbox
 
 from yt.environment.porto_helpers import porto_avaliable
 
@@ -8,8 +9,14 @@ import inspect
 import os
 import time
 
+from flaky import flaky
+
+@pytest.fixture(scope="module")
+def layers_resource():
+    from_sandbox("1144688059")
 
 @pytest.mark.skip_if('not porto_avaliable()')
+@pytest.mark.usefixtures("layers_resource")
 class TestLayers(YTEnvSetup):
     NUM_SCHEDULERS = 1
     DELTA_NODE_CONFIG = {
@@ -27,22 +34,20 @@ class TestLayers(YTEnvSetup):
     USE_PORTO_FOR_SERVERS = True
 
     def setup_files(self):
-        current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
-
         create("file", "//tmp/layer1")
-        file_name = os.path.join(current_dir, "layers/static-bin.tar.gz")
+        file_name = "layers/static-bin.tar.gz"
         write_file("//tmp/layer1", open(file_name).read())
 
         create("file", "//tmp/layer2")
-        file_name = os.path.join(current_dir, "layers/test.tar.gz")
+        file_name = "layers/test.tar.gz"
         write_file("//tmp/layer2", open(file_name).read())
 
         create("file", "//tmp/corrupted_layer")
-        file_name = os.path.join(current_dir, "layers/corrupted.tar.gz")
+        file_name = "layers/corrupted.tar.gz"
         write_file("//tmp/corrupted_layer", open(file_name).read())
 
         create("file", "//tmp/static_cat")
-        file_name = os.path.join(current_dir, "layers/static_cat")
+        file_name = "layers/static_cat"
         write_file("//tmp/static_cat", open(file_name).read())
 
         set("//tmp/static_cat/@executable", True)
@@ -163,6 +168,7 @@ class TestLayers(YTEnvSetup):
                     }
                 })
 
+@pytest.mark.usefixtures("layers_resource")
 @pytest.mark.skip_if('not porto_avaliable()')
 @authors("mrkastep")
 class TestJobSetup(YTEnvSetup):
@@ -190,10 +196,8 @@ class TestJobSetup(YTEnvSetup):
     REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     def setup_files(self):
-        current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
-
         create("file", "//tmp/layer1", attributes={"replication_factor": 1})
-        file_name = os.path.join(current_dir, "layers/static-bin.tar.gz")
+        file_name = "layers/static-bin.tar.gz"
         write_file("//tmp/layer1", open(file_name).read(), file_writer={"upload_replication_factor": 1})
 
     def test_setup_cat(self):
@@ -223,6 +227,7 @@ class TestJobSetup(YTEnvSetup):
         res = op.read_stderr(job_id)
         assert res == "SETUP-OUTPUT\n"
 
+@pytest.mark.usefixtures("layers_resource")
 @pytest.mark.skip_if('not porto_avaliable()')
 @authors("mrkastep")
 class TestGpuLayer(YTEnvSetup):
@@ -260,16 +265,14 @@ class TestGpuLayer(YTEnvSetup):
     def setup_files(self):
         tx = start_transaction()
 
-        current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
-
         create("map_node", "//tmp/drivers", tx=tx)
         create("file", "//tmp/drivers/test_version", attributes={"replication_factor": 1}, tx=tx)
 
-        file_name = os.path.join(current_dir, "layers/static-bin.tar.gz")
+        file_name = "layers/static-bin.tar.gz"
         write_file("//tmp/drivers/test_version", open(file_name).read(), file_writer={"upload_replication_factor": 1}, tx=tx)
 
         create("file", "//tmp/layer2", attributes={"replication_factor": 1}, tx=tx)
-        file_name = os.path.join(current_dir, "layers/test.tar.gz")
+        file_name = "layers/test.tar.gz"
         write_file("//tmp/layer2", open(file_name).read(), file_writer={"upload_replication_factor": 1}, tx=tx)
 
         commit_transaction(tx)
@@ -303,6 +306,7 @@ class TestGpuLayer(YTEnvSetup):
         assert res == "SETUP-OUTPUT\n"
 
 
+@pytest.mark.usefixtures("layers_resource")
 @pytest.mark.skip_if('not porto_avaliable()')
 @authors("mrkastep")
 class TestCudaLayer(YTEnvSetup):
@@ -345,16 +349,14 @@ class TestCudaLayer(YTEnvSetup):
     REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     def setup_files(self):
-        current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
-
         create("map_node", "//tmp/cuda")
-        create("file", "//tmp/cuda/0", attributes={"replication_factor": 1})
 
-        file_name = os.path.join(current_dir, "layers/static-bin.tar.gz")
+        create("file", "//tmp/cuda/0", attributes={"replication_factor": 1})
+        file_name = "layers/static-bin.tar.gz"
         write_file("//tmp/cuda/0", open(file_name).read(), file_writer={"upload_replication_factor": 1})
 
         create("file", "//tmp/layer2", attributes={"replication_factor": 1})
-        file_name = os.path.join(current_dir, "layers/test.tar.gz")
+        file_name = "layers/test.tar.gz"
         write_file("//tmp/layer2", open(file_name).read(), file_writer={"upload_replication_factor": 1})
 
     def test_setup_cat_gpu_layer(self):
@@ -386,6 +388,7 @@ class TestCudaLayer(YTEnvSetup):
         res = op.read_stderr(job_id)
         assert res == "SETUP-OUTPUT\n"
 
+@pytest.mark.usefixtures("layers_resource")
 @pytest.mark.skip_if('not porto_avaliable()')
 @authors("mrkastep")
 class TestSetupUser(YTEnvSetup):
@@ -412,14 +415,12 @@ class TestSetupUser(YTEnvSetup):
     REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     def setup_files(self):
-        current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
-
         create("file", "//tmp/layer1", attributes={"replication_factor": 1})
-        file_name = os.path.join(current_dir, "layers/static-bin.tar.gz")
+        file_name = "layers/static-bin.tar.gz"
         write_file("//tmp/layer1", open(file_name).read(), file_writer={"upload_replication_factor": 1})
 
         create("file", "//tmp/playground_layer", attributes={"replication_factor": 1})
-        file_name = os.path.join(current_dir, "layers/playground.tar.gz")
+        file_name = "layers/playground.tar.gz"
         write_file("//tmp/playground_layer", open(file_name).read(), file_writer={"upload_replication_factor": 1})
 
 

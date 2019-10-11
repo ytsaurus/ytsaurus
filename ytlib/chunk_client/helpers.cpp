@@ -17,6 +17,9 @@
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
+#include <yt/ytlib/cell_master_client/cell_directory.h>
+#include <yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
+
 #include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
@@ -60,6 +63,28 @@ using NYT::ToProto;
 using NNodeTrackerClient::TNodeId;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TCellTag PickChunkHostingCell(
+    const NApi::NNative::IConnectionPtr& connection,
+    const NLogging::TLogger& logger)
+{
+    const auto& Logger = logger;
+
+    YT_LOG_DEBUG("Started synchronizing master cell directory");
+    const auto& cellDirectorySynchronizer = connection->GetMasterCellDirectorySynchronizer();
+    WaitFor(cellDirectorySynchronizer->RecentSync())
+        .ThrowOnError();
+    YT_LOG_DEBUG("Master cell directory synchronized successfully");
+
+    const auto& cellDirectory = connection->GetMasterCellDirectory();
+    auto cellId = cellDirectory->PickRandomMasterCellWithRole(NCellMasterClient::EMasterCellRoles::ChunkHost);
+
+    if (!cellId) {
+        THROW_ERROR_EXCEPTION("No master cells capable of hosting chunks are known");
+    }
+
+    return CellTagFromId(cellId);
+}
 
 void GetUserObjectBasicAttributes(
     const NApi::NNative::IClientPtr& client,

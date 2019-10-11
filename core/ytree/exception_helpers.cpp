@@ -50,7 +50,7 @@ void ValidateNodeType(
     }
 }
 
-void ThrowNoSuchChildKey(const IConstNodePtr& node, const TString& key)
+void ThrowNoSuchChildKey(const IConstNodePtr& node, TStringBuf key)
 {
     THROW_ERROR_EXCEPTION(
         NYTree::EErrorCode::ResolveError,
@@ -68,7 +68,7 @@ void ThrowNoSuchChildIndex(const IConstNodePtr& node, int index)
         index);
 }
 
-void ThrowNoSuchAttribute(const TString& key)
+void ThrowNoSuchAttribute(TStringBuf key)
 {
     THROW_ERROR_EXCEPTION(
         NYTree::EErrorCode::ResolveError,
@@ -76,7 +76,7 @@ void ThrowNoSuchAttribute(const TString& key)
         ToYPathLiteral(key));
 }
 
-void ThrowNoSuchCustomAttribute(const TString& key)
+void ThrowNoSuchCustomAttribute(TStringBuf key)
 {
     THROW_ERROR_EXCEPTION(
         NYTree::EErrorCode::ResolveError,
@@ -84,7 +84,7 @@ void ThrowNoSuchCustomAttribute(const TString& key)
         ToYPathLiteral(key));
 }
 
-void ThrowNoSuchBuiltinAttribute(const TString& key)
+void ThrowNoSuchBuiltinAttribute(TStringBuf key)
 {
     THROW_ERROR_EXCEPTION(
         NYTree::EErrorCode::ResolveError,
@@ -92,7 +92,7 @@ void ThrowNoSuchBuiltinAttribute(const TString& key)
         ToYPathLiteral(key));
 }
 
-void ThrowMethodNotSupported(const TString& method, const std::optional<TString>& resolveType)
+void ThrowMethodNotSupported(TStringBuf method, const std::optional<TString>& resolveType)
 {
     auto error = TError(
         NRpc::EErrorCode::NoSuchMethod,
@@ -130,13 +130,13 @@ void ThrowCannotReplaceNode(const IConstNodePtr& node)
         GetNodePath(node));
 }
 
-void ThrowCannotRemoveAttribute(const TString& key)
+void ThrowCannotRemoveAttribute(TStringBuf key)
 {
     THROW_ERROR_EXCEPTION("Attribute %Qv cannot be removed",
         ToYPathLiteral(key));
 }
 
-void ThrowCannotSetBuiltinAttribute(const TString& key)
+void ThrowCannotSetBuiltinAttribute(TStringBuf key)
 {
     THROW_ERROR_EXCEPTION("Builtin attribute %Qv cannot be set",
         ToYPathLiteral(key));

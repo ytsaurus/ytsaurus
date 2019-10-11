@@ -24,7 +24,7 @@ TSingleQueueSchedulerThread::TSingleQueueSchedulerThread(
 
 TSingleQueueSchedulerThread::~TSingleQueueSchedulerThread() = default;
 
-EBeginExecuteResult TSingleQueueSchedulerThread::BeginExecute()
+TClosure TSingleQueueSchedulerThread::BeginExecute()
 {
     return Queue->BeginExecute(&CurrentAction, Index);
 }

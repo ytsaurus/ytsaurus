@@ -22,6 +22,7 @@
 
 #include <yt/core/logging/log.h>
 
+#include <Common/FieldVisitors.h>
 #include <Interpreters/ExpressionActions.h>
 #include <Interpreters/ProcessList.h>
 #include <Storages/MergeTree/KeyCondition.h>
@@ -297,7 +298,37 @@ void Serialize(const QueryStatusInfo& query, NYT::NYson::IYsonConsumer* consumer
         .EndMap();
 }
 
+TString ToString(const Block& block)
+{
+    NYT::TStringBuilder content;
+    const auto& columns = block.getColumns();
+    content.AppendChar('{');
+    for (size_t rowIndex = 0; rowIndex < block.rows(); ++rowIndex) {
+        if (rowIndex != 0) {
+            content.AppendString(", ");
+        }
+        content.AppendChar('{');
+        for (size_t columnIndex = 0; columnIndex < block.columns(); ++columnIndex) {
+            if (columnIndex != 0) {
+                content.AppendString(", ");
+            }
+            const auto& field = (*columns[columnIndex])[rowIndex];
+            content.AppendString(applyVisitor(FieldVisitorToString(), field));
+        }
+        content.AppendChar('}');
+    }
+    content.AppendChar('}');
+
+    return NYT::Format(
+        "{RowCount: %v, ColumnCount: %v, Structure: %v, Content: %v}",
+        block.rows(),
+        block.columns(),
+        block.dumpStructure(),
+        content.Flush());
+}
+
 /////////////////////////////////////////////////////////////////////////////
+
 
 } // namespace DB
 

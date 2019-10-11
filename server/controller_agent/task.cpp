@@ -869,6 +869,7 @@ void TTask::AddOutputTableSpecs(
         if (edgeDescriptor.Timestamp) {
             outputSpec->set_timestamp(*edgeDescriptor.Timestamp);
         }
+        outputSpec->set_dynamic(edgeDescriptor.IsOutputTableDynamic);
     }
 }
 

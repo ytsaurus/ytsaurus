@@ -135,9 +135,8 @@ message TUserJobSpec
 
     optional string interruption_signal = 43;
 
-    // TODO(mrkastep): eventually remove and enable by default
-    optional bool enable_setup_commands = 44 [default = false];
-    optional bool enable_gpu_layers = 45 [default = false];
+    optional bool enable_setup_commands = 44 [default = true];
+    optional bool enable_gpu_layers = 45 [default = true];
 
     optional string cuda_toolkit_version = 46;
 }
@@ -174,6 +173,9 @@ message TTableOutputSpec
 
     // Timestamp for rows.
     optional int64 timestamp = 10 [default = 0];
+
+    // Is table dynamic.
+    optional bool dynamic = 11 [default = false];
 
     required NTableClient.NProto.TTableSchemaExt table_schema = 8;
 }
