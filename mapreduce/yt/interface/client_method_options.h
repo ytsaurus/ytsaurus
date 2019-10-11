@@ -366,6 +366,7 @@ struct TStartTransactionOptions
 
     FLUENT_FIELD_DEFAULT(bool, PingAncestors, false);
     FLUENT_FIELD_OPTION(TDuration, Timeout);
+    FLUENT_FIELD_OPTION(TInstant, Deadline);
 
     // When set to true library creates a thread that pings transaction.
     // When set to false library doesn't ping transaction and it's user responsibility to ping it.

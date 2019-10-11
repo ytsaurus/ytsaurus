@@ -22,6 +22,7 @@ public:
         const TAuth& auth,
         const TTransactionId& parentId,
         const TMaybe<TDuration>& timeout = Nothing(),
+        const TMaybe<TInstant>& deadline = Nothing(),
         bool pingAncestors = false,
         bool autoPingable = true,
         const TMaybe<TString>& title = Nothing(),

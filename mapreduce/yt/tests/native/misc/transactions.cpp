@@ -90,6 +90,23 @@ Y_UNIT_TEST_SUITE(Transactions)
             UNIT_ASSERT(pt1 != pt3);
         }
     }
+
+    Y_UNIT_TEST(TestDeadline)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        auto transaction = client->StartTransaction(
+            TStartTransactionOptions().Deadline(TInstant::Now() + TDuration::Seconds(4)));
+
+        UNIT_ASSERT(client->Exists("#" + GetGuidAsString(transaction->GetId())));
+
+        Sleep(TDuration::Seconds(5));
+
+        UNIT_ASSERT(!client->Exists("#" + GetGuidAsString(transaction->GetId())));
+
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

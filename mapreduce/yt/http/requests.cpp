@@ -119,6 +119,7 @@ TTransactionId StartTransaction(
     const TAuth& auth,
     const TTransactionId& parentId,
     const TMaybe<TDuration>& timeout,
+    const TMaybe<TInstant>& deadline,
     bool pingAncestors,
     const TMaybe<TString>& title,
     const TMaybe<TNode>& maybeAttributes)
@@ -129,6 +130,9 @@ TTransactionId StartTransaction(
     header.AddMutationId();
     header.AddParameter("timeout",
         static_cast<i64>((timeout ? timeout : TConfig::Get()->TxTimeout)->MilliSeconds()));
+    if (deadline) {
+        header.AddParameter("deadline", ::ToString(deadline));
+    }
     if (pingAncestors) {
         header.AddParameter("ping_ancestor_transactions", true);
     }

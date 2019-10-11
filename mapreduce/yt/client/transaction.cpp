@@ -74,6 +74,7 @@ TPingableTransaction::TPingableTransaction(
     const TAuth& auth,
     const TTransactionId& parentId,
     const TMaybe<TDuration>& timeout,
+    const TMaybe<TInstant>& deadline,
     bool pingAncestors,
     bool autoPingable,
     const TMaybe<TString>& title,
@@ -85,6 +86,7 @@ TPingableTransaction::TPingableTransaction(
         auth,
         parentId,
         timeout,
+        deadline,
         pingAncestors,
         title,
         attributes);
