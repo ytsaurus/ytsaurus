@@ -398,9 +398,7 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
             checkTransaction(debugTransaction, ETransactionType::Debug, transactions.DebugId);
         }
 
-        for (const auto& pair : asyncCheckResults) {
-            const auto& transaction = pair.first;
-            const auto& asyncCheckResult = pair.second;
+        for (const auto& [transaction, asyncCheckResult] : asyncCheckResults) {
             auto error = WaitFor(asyncCheckResult);
             if (!error.IsOK()) {
                 cleanStart = true;
@@ -870,8 +868,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
             return result;
         } else {
             YT_VERIFY(UnavailableInputChunkCount == 0);
-            for (const auto& pair : InputChunkMap) {
-                const auto& chunkDescriptor = pair.second;
+            for (const auto& [chunkId, chunkDescriptor] : InputChunkMap) {
                 if (chunkDescriptor.State == EInputChunkState::Waiting) {
                     ++UnavailableInputChunkCount;
                 }
@@ -1022,8 +1019,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     MaxAvailableExecNodeResourcesUpdateExecutor->Start();
     CheckTentativeTreeEligibilityExecutor_->Start();
 
-    for (const auto& pair : JobletMap) {
-        const auto& joblet = pair.second;
+    for (const auto& [jobId, joblet] : JobletMap) {
         result.RevivedJobs.push_back({
             joblet->JobId,
             joblet->JobType,
@@ -1043,9 +1039,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
 
 void TOperationControllerBase::AbortAllJoblets()
 {
-    for (const auto& pair : JobletMap) {
-        auto joblet = pair.second;
-        auto jobId = pair.first;
+    for (const auto& [jobId, joblet] : JobletMap) {
         auto jobSummary = TAbortedJobSummary(jobId, EAbortReason::Scheduler);
         joblet->Task->OnJobAborted(joblet, jobSummary);
         if (JobSplitter_) {
@@ -1269,8 +1263,8 @@ void TOperationControllerBase::InitChunkListPools()
 void TOperationControllerBase::InitInputChunkScraper()
 {
     THashSet<TChunkId> chunkIds;
-    for (const auto& pair : InputChunkMap) {
-        chunkIds.insert(pair.first);
+    for (const auto& [chunkId, chunkDescriptor] : InputChunkMap) {
+        chunkIds.insert(chunkId);
     }
 
     YT_VERIFY(!InputChunkScraper);
@@ -1430,9 +1424,9 @@ THashSet<TChunkId> TOperationControllerBase::GetAliveIntermediateChunks() const
 {
     THashSet<TChunkId> intermediateChunks;
 
-    for (const auto& pair : ChunkOriginMap) {
-        if (!pair.second->Suspended || !pair.second->Restartable) {
-            intermediateChunks.insert(pair.first);
+    for (const auto& [chunkId, job] : ChunkOriginMap) {
+        if (!job->Suspended || !job->Restartable) {
+            intermediateChunks.insert(chunkId);
         }
     }
 
@@ -1458,9 +1452,9 @@ void TOperationControllerBase::ReinstallLivePreview()
     if (IsIntermediateLivePreviewSupported()) {
         std::vector<TChunkTreeId> childIds;
         childIds.reserve(ChunkOriginMap.size());
-        for (const auto& pair : ChunkOriginMap) {
-            if (!pair.second->Suspended) {
-                childIds.push_back(pair.first);
+        for (const auto& [chunkId, job] : ChunkOriginMap) {
+            if (!job->Suspended) {
+                childIds.push_back(chunkId);
             }
         }
         Host->AttachChunkTreesToLivePreview(
@@ -3291,9 +3285,8 @@ void TOperationControllerBase::AnalyzeTmpfsUsage()
 
     double minUnusedSpaceRatio = 1.0 - Config->OperationAlerts->TmpfsAlertMaxUnusedSpaceRatio;
 
-    for (const auto& pair : maximumUsedTmpfsSizesPerJobType) {
-        const auto& userJobSpecPtr = userJobSpecPerJobType[pair.first];
-        auto maxUsedTmpfsSizes = pair.second;
+    for (const auto& [jobId, maxUsedTmpfsSizes] : maximumUsedTmpfsSizesPerJobType) {
+        const auto& userJobSpecPtr = userJobSpecPerJobType[jobId];
 
         YT_VERIFY(userJobSpecPtr->TmpfsVolumes.size() == maxUsedTmpfsSizes.size());
 
@@ -3313,7 +3306,7 @@ void TOperationControllerBase::AnalyzeTmpfsUsage()
             if (minUnusedSpaceThresholdOvercome && minUnusedSpaceRatioViolated) {
                 auto error = TError(
                     "Jobs of type %Qlv use less than %.1f%% of requested tmpfs size in volume %Qv",
-                    pair.first,
+                    jobId,
                     minUnusedSpaceRatio * 100.0,
                     tmpfsVolumes[index]->Path)
                     << TErrorAttribute("max_used_tmpfs_size", *maxUsedTmpfsSize)
@@ -3599,8 +3592,7 @@ void TOperationControllerBase::UpdateCachedMaxAvailableExecNodeResources()
     const auto& nodeDescriptors = GetExecNodeDescriptors();
 
     TJobResources maxAvailableResources;
-    for (const auto& pair : nodeDescriptors) {
-        const auto& descriptor = pair.second;
+    for (const auto& [nodeId, descriptor] : nodeDescriptors) {
         maxAvailableResources = Max(maxAvailableResources, descriptor.ResourceLimits);
     }
 
@@ -3828,8 +3820,7 @@ void TOperationControllerBase::ResetTaskLocalityDelays()
 {
     YT_LOG_DEBUG("Task locality delays are reset");
     for (const auto& group : TaskGroups) {
-        for (const auto& pair : group->DelayedTasks) {
-            auto task = pair.second;
+        for (const auto& [time, task] : group->DelayedTasks) {
             if (task->GetPendingJobCount() > 0) {
                 MoveTaskToCandidates(task, group->CandidateTasks);
             } else {
@@ -4268,11 +4259,11 @@ void TOperationControllerBase::UpdateMinNeededJobResources()
         }
 
         TJobResourcesWithQuotaList result;
-        for (const auto& pair : minNeededJobResources) {
-            result.push_back(pair.second);
+        for (const auto& [jobType, resources] : minNeededJobResources) {
+            result.push_back(resources);
             YT_LOG_DEBUG("Aggregated minimal needed resources for jobs (JobType: %v, MinNeededResources: %v)",
-                pair.first,
-                FormatResources(pair.second));
+                jobType,
+                FormatResources(resources));
         }
 
         {
@@ -6962,9 +6953,7 @@ void TOperationControllerBase::UnregisterJoblet(const TJobletPtr& joblet)
 std::vector<TJobId> TOperationControllerBase::GetJobIdsByTreeId(const TString& treeId)
 {
     std::vector<TJobId> jobIds;
-    for (const auto& pair : JobletMap) {
-        auto jobId = pair.first;
-        const auto& joblet = pair.second;
+    for (const auto& [jobId, joblet] : JobletMap) {
         if (joblet->TreeId == treeId) {
             jobIds.push_back(jobId);
         }
@@ -7273,8 +7262,7 @@ void TOperationControllerBase::UpdateSuspiciousJobsYson()
     // leave top `MaxOrchidEntryCountPerType` for each job type.
 
     std::vector<TJobletPtr> suspiciousJoblets;
-    for (const auto& pair : JobletMap) {
-        const auto& joblet = pair.second;
+    for (const auto& [jobId, joblet] : JobletMap) {
         if (joblet->Suspicious) {
             suspiciousJoblets.emplace_back(joblet);
         }
@@ -7625,8 +7613,8 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     }
 
     auto fillEnvironment = [&] (THashMap<TString, TString>& env) {
-        for (const auto& pair : env) {
-            jobSpec->add_environment(Format("%v=%v", pair.first, pair.second));
+        for (const auto& [key, value] : env) {
+            jobSpec->add_environment(Format("%v=%v", key, value));
         }
     };
 
@@ -7682,9 +7670,8 @@ void TOperationControllerBase::InitUserJobSpec(
         jobSpec->add_environment(Format("YT_SECURE_VAULT=%v",
             ConvertToYsonString(SecureVault, EYsonFormat::Text)));
 
-        for (const auto& pair : SecureVault->GetChildren()) {
+        for (const auto& [key, node] : SecureVault->GetChildren()) {
             TString value;
-            auto node = pair.second;
             if (node->GetType() == ENodeType::Int64) {
                 value = ToString(node->GetValue<i64>());
             } else if (node->GetType() == ENodeType::Uint64) {
@@ -7699,7 +7686,7 @@ void TOperationControllerBase::InitUserJobSpec(
                 // We do not export composite values as a separate environment variables.
                 continue;
             }
-            jobSpec->add_environment(Format("YT_SECURE_VAULT_%v=%v", pair.first, value));
+            jobSpec->add_environment(Format("YT_SECURE_VAULT_%v=%v", key, value));
         }
 
         jobSpec->set_enable_secure_vault_variables_in_job_shell(Spec_->EnableSecureVaultVariablesInJobShell);
@@ -8400,8 +8387,8 @@ void TOperationControllerBase::AnalyzeProcessingUnitUsage(
     if (!jobTypeToError.empty()) {
         std::vector<TError> innerErrors;
         innerErrors.reserve(jobTypeToError.size());
-        for (const auto& pair : jobTypeToError) {
-            innerErrors.push_back(pair.second);
+        for (const auto& [jobType, error] : jobTypeToError) {
+            innerErrors.push_back(error);
         }
         error = TError(message) << innerErrors;
     }

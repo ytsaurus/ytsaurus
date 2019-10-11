@@ -1515,15 +1515,13 @@ protected:
         const auto& nodeDescriptors = GetOnlineExecNodeDescriptors();
         TJobResources maxResourceLimits;
         double maxIOWeight = 0;
-        for (const auto& pair : nodeDescriptors) {
-            const auto& descriptor = pair.second;
+        for (const auto& [nodeId, descriptor] : nodeDescriptors) {
             maxResourceLimits = Max(maxResourceLimits, descriptor.ResourceLimits);
             maxIOWeight = std::max(maxIOWeight, descriptor.IOWeight);
         }
 
         std::vector<TAssignedNodePtr> nodeHeap;
-        for (const auto& pair : nodeDescriptors) {
-            const auto& descriptor = pair.second;
+        for (const auto& [nodeId, descriptor] : nodeDescriptors) {
             double weight = 1.0;
             weight = std::min(weight, GetMinResourceRatio(descriptor.ResourceLimits, maxResourceLimits));
             weight = std::min(weight, descriptor.IOWeight > 0 ? descriptor.IOWeight / maxIOWeight : 0);
