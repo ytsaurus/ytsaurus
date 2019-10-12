@@ -263,6 +263,7 @@ public:
                     job->SetState(EJobState::Running);
                     result.RevivedJobs.push_back(job);
                 }
+                result.RevivedBannedTreeIds = FromProto<THashSet<TString>>(rsp->revived_banned_tree_ids());
                 return result;
             }));
     }

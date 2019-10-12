@@ -87,6 +87,7 @@ struct TOperationControllerReviveResult
 
     bool RevivedFromSnapshot = false;
     std::vector<TRevivedJob> RevivedJobs;
+    THashSet<TString> RevivedBannedTreeIds;
 };
 
 struct TOperationControllerUnregisterResult

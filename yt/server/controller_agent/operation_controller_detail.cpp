@@ -980,6 +980,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
 
     TOperationControllerReviveResult result;
     result.RevivedFromSnapshot = true;
+    result.RevivedBannedTreeIds = BannedTreeIds_;
     FillPrepareResult(&result);
 
     InitChunkListPools();
