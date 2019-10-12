@@ -8,7 +8,7 @@ except ImportError:
 
 def get_logging_config(enable_debug_logging=True, enable_structured_logging=False):
     config = {
-        "trap_on_alert": True,
+        "abort_on_alert": True,
         "rules": [
             {"min_level": "info", "writers": ["info"]},
             {"min_level": "error", "writers": ["stderr"]},
@@ -428,7 +428,7 @@ b"""
     };
 
     logging = {
-        trap_on_alert = %true;
+        abort_on_alert = %true;
         rules = [
             {
                 min_level = info;
