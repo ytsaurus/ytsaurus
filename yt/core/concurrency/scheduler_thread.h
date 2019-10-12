@@ -66,7 +66,7 @@ protected:
     void FiberMain(ui64 spawnedEpoch);
     bool FiberMainStep(ui64 spawnedEpoch);
 
-    void Reschedule(TFiberPtr fiber, const TAwaitable& awaitable, IInvokerPtr invoker);
+    void Reschedule(TFiberPtr fiber, TAwaitable awaitable, IInvokerPtr invoker);
 
     const std::shared_ptr<TEventCount> CallbackEventCount_;
     const TString ThreadName_;
