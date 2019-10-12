@@ -1025,6 +1025,8 @@ void TNontemplateNonversionedObjectProxyBase::RemoveSelf(
     ValidatePermission(EPermissionCheckScope::This, EPermission::Remove);
     ValidateRemoval();
 
+    context->SetRequestInfo();
+
     const auto& objectManager = Bootstrap_->GetObjectManager();
     objectManager->RemoveObject(Object_);
 
