@@ -228,12 +228,28 @@ public:
 
             YT_LOG_INFO(
                 "Finished loading cluster snapshot ("
-                "PodCount: %v, "
                 "NodeCount: %v, "
-                "NodeSegmentCount: %v)",
-                PodMap_.size(),
+                "PodCount: %v, "
+                "PodDisruptionBudgetCount: %v, "
+                "PodSetCount: %v, "
+                "NodeSegmentCount: %v, "
+                "AccountCount: %v, "
+                "InternetAddressCount: %v, "
+                "IP4AddressPoolCount: %v, "
+                "NetworkModuleCount: %v, "
+                "ResourceCount: %v, "
+                "TopologyZoneCount: %v)",
                 NodeMap_.size(),
-                NodeSegmentMap_.size());
+                PodMap_.size(),
+                PodDisruptionBudgetMap_.size(),
+                PodSetMap_.size(),
+                NodeSegmentMap_.size(),
+                AccountMap_.size(),
+                InternetAddressMap_.size(),
+                IP4AddressPoolMap_.size(),
+                NetworkModuleMap_.size(),
+                ResourceMap_.size(),
+                TopologyZoneMap_.size());
         } catch (const std::exception& ex) {
             Clear();
             THROW_ERROR_EXCEPTION("Error loading cluster snapshot")

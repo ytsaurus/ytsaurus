@@ -18,8 +18,10 @@ DEFINE_ENUM(EAllocationPlanPodRequestType,
 );
 
 DEFINE_ENUM(EAllocationPlanNodeRequestType,
-    ((RemoveOrphanedResourceScheduledAllocations)   (  0))
+    ((RemoveOrphanedAllocations)   (0))
 );
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TAllocationPlan
 {
@@ -28,7 +30,8 @@ public:
     void AssignPodToNode(NCluster::TPod* pod, NCluster::TNode* node);
     void RevokePodFromNode(NCluster::TPod* pod);
     void RemoveOrphanedAllocations(NCluster::TNode* node);
-    void RecordFailure(NCluster::TPod* pod, const TError& error);
+    void RecordComputeAllocationFailure(NCluster::TPod* pod, const TError& error);
+    void RecordAssignPodToNodeFailure(NCluster::TPod* pod, const TError& error);
 
     struct TPodRequest
     {
@@ -61,18 +64,39 @@ public:
 
     int GetPodCount() const;
     int GetNodeCount() const;
+    int GetAssignPodToNodeCount() const;
+    int GetRevokePodFromNodeCount() const;
+    int GetRemoveOrphanedAllocationsCount() const;
+    int GetComputeAllocationFailureCount() const;
+    int GetAssignPodToNodeFailureCount() const;
+    int GetFailureCount() const;
 
 private:
     THashMultiMap<NCluster::TNode*, TRequest> NodeToRequests_;
     std::vector<TFailure> Failures_;
+
     int NodeCount_ = 0;
+    int AssignPodToNodeCount_ = 0;
+    int RevokePodFromNodeCount_ = 0;
+    int RemoveOrphanedAllocationsCount_ = 0;
+    int ComputeAllocationFailureCount_ = 0;
+    int AssignPodToNodeFailureCount_ = 0;
 
     void EmplaceRequest(NCluster::TNode* node, const TRequest& request);
+    void RecordFailure(NCluster::TPod* pod, const TError& error);
 };
 
-void FormatValue(TStringBuilderBase* builder, const TAllocationPlan::TPodRequest& podRequest, TStringBuf format);
+////////////////////////////////////////////////////////////////////////////////
 
-void FormatValue(TStringBuilderBase* builder, const TAllocationPlan::TNodeRequest& nodeRequest, TStringBuf format);
+void FormatValue(
+    TStringBuilderBase* builder,
+    const TAllocationPlan::TPodRequest& podRequest,
+    TStringBuf format);
+
+void FormatValue(
+    TStringBuilderBase* builder,
+    const TAllocationPlan::TNodeRequest& nodeRequest,
+    TStringBuf format);
 
 ////////////////////////////////////////////////////////////////////////////////
 

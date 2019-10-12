@@ -268,6 +268,23 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(LoopThread);
 
+    struct TAllocationPlanProfiling
+    {
+        TAllocationPlanProfiling()
+            : AssignPodToNodeCounter("/allocation_plan/assign_pod_to_node")
+            , RevokePodFromNodeCounter("/allocation_plan/revoke_pod_from_node")
+            , RemoveOrphanedAllocationsCounter("/allocation_plan/remove_orphaned_allocations")
+            , ComputeAllocationFailureCounter("/allocation_plan/compute_allocation_failure")
+            , AssignPodToNodeFailureCounter("/allocation_plan/assign_pod_to_node_failure")
+        { }
+
+        NProfiling::TSimpleGauge AssignPodToNodeCounter;
+        NProfiling::TSimpleGauge RevokePodFromNodeCounter;
+        NProfiling::TSimpleGauge RemoveOrphanedAllocationsCounter;
+        NProfiling::TSimpleGauge ComputeAllocationFailureCounter;
+        NProfiling::TSimpleGauge AssignPodToNodeFailureCounter;
+    };
+
     struct TLoopContext
     {
         explicit TLoopContext(TBootstrap* bootstrap)
@@ -284,6 +301,7 @@ private:
         TPodDisruptionBudgetControllerPtr PodDisruptionBudgetController;
         NCluster::TClusterPtr Cluster;
         TScheduleQueuePtr ScheduleQueue;
+        TAllocationPlanProfiling AllocationPlanProfiling;
     };
 
     TLoopContext GlobalLoopContext_;
@@ -295,6 +313,7 @@ private:
     public:
         explicit TLoopIteration(TBootstrap* bootstrap, TLoopContext context)
             : Bootstrap_(bootstrap)
+            , Profiler(NScheduler::Profiler.AppendPath("/loop"))
             , Context_(std::move(context))
         { }
 
@@ -308,63 +327,65 @@ private:
                 }
                 return true;
             };
-            PROFILE_TIMING("/loop/time/reconcile_state") {
+            PROFILE_TIMING("/time/reconcile_state") {
                 ReconcileState();
             }
             if (shouldRunStage(ESchedulerLoopStage::UpdateNodeSegmentsStatus)) {
                 const auto& accountingManager = Bootstrap_->GetAccountingManager();
-                PROFILE_TIMING("/loop/time/update_node_segments_status") {
+                PROFILE_TIMING("/time/update_node_segments_status") {
                     accountingManager->UpdateNodeSegmentsStatus(Context_.Cluster);
                 }
             }
             if (shouldRunStage(ESchedulerLoopStage::UpdateAccountsStatus)) {
                 const auto& accountingManager = Bootstrap_->GetAccountingManager();
-                PROFILE_TIMING("/loop/time/update_accounts_status") {
+                PROFILE_TIMING("/time/update_accounts_status") {
                     accountingManager->UpdateAccountsStatus(Context_.Cluster);
                 }
             }
             if (shouldRunStage(ESchedulerLoopStage::RunPodDisruptionBudgetController)) {
-                PROFILE_TIMING("/loop/time/run_pod_disruption_budget_controller") {
+                PROFILE_TIMING("/time/run_pod_disruption_budget_controller") {
                     Context_.PodDisruptionBudgetController->Run(Context_.Cluster);
                 }
             }
             if (shouldRunStage(ESchedulerLoopStage::RunPodEvictionByHfsmController)) {
                 TPodEvictionByHfsmController podEvictionByHfsmController(Bootstrap_);
-                PROFILE_TIMING("/loop/time/abort_requested_pod_eviction_at_up_nodes") {
+                PROFILE_TIMING("/time/abort_requested_pod_eviction_at_up_nodes") {
                     podEvictionByHfsmController.AbortPodEvictionAtUpNodes(Context_.Cluster);
                 }
-                PROFILE_TIMING("/loop/time/request_pod_eviction_at_nodes_with_requested_maintenance") {
+                PROFILE_TIMING("/time/request_pod_eviction_at_nodes_with_requested_maintenance") {
                     podEvictionByHfsmController.RequestPodEvictionAtNodesWithRequestedMaintenance(Context_.Cluster);
                 }
             }
             if (shouldRunStage(ESchedulerLoopStage::RevokePodsWithAcknowledgedEviction)) {
-                PROFILE_TIMING("/loop/time/revoke_pods_with_acknowledged_eviction") {
+                PROFILE_TIMING("/time/revoke_pods_with_acknowledged_eviction") {
                     RevokePodsWithAcknowledgedEviction();
                 }
             }
             if (shouldRunStage(ESchedulerLoopStage::RemoveOrphanedAllocations)) {
-                PROFILE_TIMING("/loop/time/remove_orphaned_allocations") {
+                PROFILE_TIMING("/time/remove_orphaned_allocations") {
                     RemoveOrphanedAllocations();
                 }
             }
             if (shouldRunStage(ESchedulerLoopStage::AcknowledgeNodeMaintenance)) {
-                PROFILE_TIMING("/loop/time/acknowledge_node_maintenance") {
+                PROFILE_TIMING("/time/acknowledge_node_maintenance") {
                     AcknowledgeNodeMaintenance();
                 }
             }
             if (shouldRunStage(ESchedulerLoopStage::SchedulePods)) {
-                PROFILE_TIMING("/loop/time/schedule_pods") {
+                PROFILE_TIMING("/time/schedule_pods") {
                     SchedulePods();
                 }
             }
-            PROFILE_TIMING("/loop/time/commit") {
+            PROFILE_TIMING("/time/commit") {
                 Commit();
             }
         }
 
     private:
         TBootstrap* const Bootstrap_;
-        const TLoopContext Context_;
+        const NProfiling::TProfiler Profiler;
+
+        TLoopContext Context_;
 
         NNet::TInternetAddressManager InternetAddressManager_;
 
@@ -483,35 +504,15 @@ private:
             }
         }
 
-        void RecordAllocationSuccess(NCluster::TPod* pod, NCluster::TNode* node)
-        {
-            YT_LOG_DEBUG("Node allocation succeeded (PodId: %v, NodeId: %v)",
-                pod->GetId(),
-                node->GetId());
-            AllocationPlan_.AssignPodToNode(pod, node);
-        }
-
-        void RecordAllocationFailure(NCluster::TPod* pod)
+        void BackoffScheduling(const NCluster::TPod* pod)
         {
             const auto& podId = pod->GetId();
             auto now = TInstant::Now();
             auto deadline = now + Context_.Config->FailedAllocationBackoffTime;
-            YT_LOG_DEBUG("Node allocation failed; backing off (PodId: %v, Deadline: %v)",
+            YT_LOG_DEBUG("Backing off pod scheduling (PodId: %v, Deadline: %v)",
                 podId,
                 deadline);
             Context_.ScheduleQueue->Enqueue(podId, deadline);
-        }
-
-        void RecordSchedulingFailure(NCluster::TPod* pod, const TError& error)
-        {
-            const auto& podId = pod->GetId();
-            auto now = TInstant::Now();
-            auto deadline = now + Context_.Config->FailedAllocationBackoffTime;
-            YT_LOG_DEBUG(error, "Pod scheduling failure; backing off (PodId: %v, Deadline: %v)",
-                podId,
-                deadline);
-            Context_.ScheduleQueue->Enqueue(podId, deadline);
-            AllocationPlan_.RecordFailure(pod, error);
         }
 
         void SchedulePods()
@@ -543,12 +544,20 @@ private:
                 if (nodeOrError.IsOK()) {
                     auto* node = nodeOrError.Value();
                     if (node) {
-                        RecordAllocationSuccess(pod, node);
+                        YT_LOG_DEBUG("Node allocation succeeded (PodId: %v, NodeId: %v)",
+                            pod->GetId(),
+                            node->GetId());
+                        AllocationPlan_.AssignPodToNode(pod, node);
                     } else {
-                        RecordAllocationFailure(pod);
+                        YT_LOG_DEBUG("Node allocation failed (PodId: %v)",
+                            podId);
+                        BackoffScheduling(pod);
                     }
                 } else {
-                    RecordSchedulingFailure(pod, nodeOrError);
+                    YT_LOG_DEBUG(nodeOrError, "Pod scheduling failure (PodId: %v)",
+                        pod->GetId());
+                    BackoffScheduling(pod);
+                    AllocationPlan_.RecordComputeAllocationFailure(pod, nodeOrError);
                 }
             }
             YT_LOG_DEBUG("Pods scheduled");
@@ -557,10 +566,27 @@ private:
         void Commit()
         {
             {
-                YT_LOG_DEBUG("Started committing scheduling results (PodCount: %v, NodeCount: %v, FailureCount: %v)",
+                YT_LOG_DEBUG("Started committing scheduling results ("
+                    "PodCount: %v, "
+                    "NodeCount: %v, "
+                    "AssignPodToNodeCount: %v, "
+                    "RevokePodFromNodeCount: %v, "
+                    "RemoveOrphanedAllocationsCount: %v)",
                     AllocationPlan_.GetPodCount(),
                     AllocationPlan_.GetNodeCount(),
-                    AllocationPlan_.GetFailures().size());
+                    AllocationPlan_.GetAssignPodToNodeCount(),
+                    AllocationPlan_.GetRevokePodFromNodeCount(),
+                    AllocationPlan_.GetRemoveOrphanedAllocationsCount());
+
+                Profiler.Update(
+                    Context_.AllocationPlanProfiling.AssignPodToNodeCounter,
+                    AllocationPlan_.GetAssignPodToNodeCount());
+                Profiler.Update(
+                    Context_.AllocationPlanProfiling.RevokePodFromNodeCounter,
+                    AllocationPlan_.GetRevokePodFromNodeCount());
+                Profiler.Update(
+                    Context_.AllocationPlanProfiling.RemoveOrphanedAllocationsCounter,
+                    AllocationPlan_.GetRemoveOrphanedAllocationsCount());
 
                 std::vector<TFuture<void>> asyncResults;
                 for (int index = 0; index < Context_.Config->AllocationCommitConcurrency; ++index) {
@@ -574,11 +600,19 @@ private:
                 YT_LOG_DEBUG("Scheduled pods committed");
             }
 
-            if (!AllocationPlan_.GetFailures().empty()) {
-                YT_LOG_DEBUG("Started committing scheduling failures (Count: %v)",
-                    AllocationPlan_.GetPodCount(),
-                    AllocationPlan_.GetNodeCount(),
-                    AllocationPlan_.GetFailures().size());
+            Profiler.Update(
+                Context_.AllocationPlanProfiling.ComputeAllocationFailureCounter,
+                AllocationPlan_.GetComputeAllocationFailureCount());
+            Profiler.Update(
+                Context_.AllocationPlanProfiling.AssignPodToNodeFailureCounter,
+                AllocationPlan_.GetAssignPodToNodeFailureCount());
+
+            if (AllocationPlan_.GetFailureCount() > 0) {
+                YT_LOG_DEBUG("Started committing scheduling failures ("
+                    "ComputeAllocationFailureCount: %v, "
+                    "AssignPodToNodeFailureCount: %v)",
+                    AllocationPlan_.GetComputeAllocationFailureCount(),
+                    AllocationPlan_.GetAssignPodToNodeFailureCount());
 
                 WaitFor(BIND(&TLoopIteration::CommitSchedulingFailures, MakeStrong(this))
                     .AsyncVia(GetCurrentInvoker())
@@ -639,17 +673,17 @@ private:
                     };
 
                     for (const auto& variantRequest : perNodePlan.Requests) {
-
                         if (auto nodeRequest = std::get_if<TAllocationPlan::TNodeRequest>(&variantRequest);
-                                nodeRequest && nodeRequest->Type == EAllocationPlanNodeRequestType::RemoveOrphanedResourceScheduledAllocations) {
+                            nodeRequest && nodeRequest->Type == EAllocationPlanNodeRequestType::RemoveOrphanedAllocations)
+                        {
                             resourceManager->RemoveOrphanedAllocations(transaction, transactionNode);
                             continue;
                         }
 
                         const auto& podRequest = std::get<TAllocationPlan::TPodRequest>(variantRequest);
+                        auto* pod = podRequest.Pod;
 
-                        const auto& podId = podRequest.Pod->GetId();
-                        auto* transactionPod = transaction->GetPod(podId);
+                        auto* transactionPod = transaction->GetPod(pod->GetId());
 
                         if (!CheckPodSchedulable(transactionPod)) {
                             continue;
@@ -665,12 +699,15 @@ private:
                                 auto error = TError("Error assigning pod to node %Qv",
                                     transactionNode->GetId())
                                     << ex;
-                                RecordSchedulingFailure(podRequest.Pod, error);
+                                YT_LOG_DEBUG(error, "Pod scheduling failure (PodId: %v)",
+                                    pod->GetId());
+                                BackoffScheduling(pod);
+                                AllocationPlan_.RecordAssignPodToNodeFailure(pod, error);
                             }
                         } else if (podRequest.Type == EAllocationPlanPodRequestType::RevokePodFromNode) {
                             if (transactionPod->Spec().Node().Load() != transactionNode) {
                                 YT_LOG_DEBUG("Pod is no longer assigned to the expected node; skipped (PodId: %v, ExpectedNodeId: %v, ActualNodeId: %v)",
-                                    podId,
+                                    pod->GetId(),
                                     perNodePlan.Node->GetId(),
                                     transactionPod->Spec().Node().Load()->GetId());
                                 continue;

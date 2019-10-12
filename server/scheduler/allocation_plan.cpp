@@ -13,15 +13,22 @@ void TAllocationPlan::Clear()
 {
     NodeToRequests_.clear();
     NodeCount_ = 0;
+    AssignPodToNodeCount_ = 0;
+    RevokePodFromNodeCount_ = 0;
+    RemoveOrphanedAllocationsCount_ = 0;
+    ComputeAllocationFailureCount_ = 0;
+    AssignPodToNodeFailureCount_ = 0;
 }
 
 void TAllocationPlan::AssignPodToNode(TPod* pod, TNode* node)
 {
+    ++AssignPodToNodeCount_;
     EmplaceRequest(node, TPodRequest{pod, EAllocationPlanPodRequestType::AssignPodToNode});
 }
 
 void TAllocationPlan::RevokePodFromNode(TPod* pod)
 {
+    ++RevokePodFromNodeCount_;
     auto* node = pod->GetNode();
     YT_ASSERT(node);
     EmplaceRequest(node, TPodRequest{pod, EAllocationPlanPodRequestType::RevokePodFromNode});
@@ -29,13 +36,23 @@ void TAllocationPlan::RevokePodFromNode(TPod* pod)
 
 void TAllocationPlan::RemoveOrphanedAllocations(TNode* node)
 {
-    EmplaceRequest(node, TNodeRequest{EAllocationPlanNodeRequestType::RemoveOrphanedResourceScheduledAllocations});
+    ++RemoveOrphanedAllocationsCount_;
+    EmplaceRequest(node, TNodeRequest{EAllocationPlanNodeRequestType::RemoveOrphanedAllocations});
 }
 
-void TAllocationPlan::RecordFailure(TPod* pod, const TError& error)
+void TAllocationPlan::RecordComputeAllocationFailure(TPod* pod, const TError& error)
 {
-    Failures_.push_back(TFailure{pod, error});
+    ++ComputeAllocationFailureCount_;
+    RecordFailure(pod, error);
 }
+
+void TAllocationPlan::RecordAssignPodToNodeFailure(TPod* pod, const TError& error)
+{
+    ++AssignPodToNodeFailureCount_;
+    RecordFailure(pod, error);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 std::optional<TAllocationPlan::TPerNodePlan> TAllocationPlan::TryExtractPerNodePlan()
 {
@@ -58,6 +75,8 @@ const std::vector<TAllocationPlan::TFailure>& TAllocationPlan::GetFailures() con
     return Failures_;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 int TAllocationPlan::GetPodCount() const
 {
     return static_cast<int>(NodeToRequests_.size());
@@ -68,6 +87,38 @@ int TAllocationPlan::GetNodeCount() const
     return NodeCount_;
 }
 
+int TAllocationPlan::GetAssignPodToNodeCount() const
+{
+    return AssignPodToNodeCount_;
+}
+
+int TAllocationPlan::GetRevokePodFromNodeCount() const
+{
+    return RevokePodFromNodeCount_;
+}
+
+int TAllocationPlan::GetRemoveOrphanedAllocationsCount() const
+{
+    return RemoveOrphanedAllocationsCount_;
+}
+
+int TAllocationPlan::GetComputeAllocationFailureCount() const
+{
+    return ComputeAllocationFailureCount_;
+}
+
+int TAllocationPlan::GetAssignPodToNodeFailureCount() const
+{
+    return AssignPodToNodeFailureCount_;
+}
+
+int TAllocationPlan::GetFailureCount() const
+{
+    return static_cast<int>(Failures_.size());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TAllocationPlan::EmplaceRequest(TNode* node, const TRequest& request)
 {
     auto range = NodeToRequests_.equal_range(node);
@@ -77,14 +128,29 @@ void TAllocationPlan::EmplaceRequest(TNode* node, const TRequest& request)
     NodeToRequests_.emplace(node, request);
 }
 
-void FormatValue(TStringBuilderBase* builder, const TAllocationPlan::TPodRequest& podRequest, TStringBuf /* format */)
+void TAllocationPlan::RecordFailure(TPod* pod, const TError& error)
 {
-    builder->AppendFormat("PodId: %v%v", podRequest.Type == EAllocationPlanPodRequestType::AssignPodToNode ? "+" : "-", podRequest.Pod->GetId());
+    Failures_.push_back(TFailure{pod, error});
 }
 
-void FormatValue(TStringBuilderBase* builder, const TAllocationPlan::TNodeRequest& /* nodeRequest */, TStringBuf /* format */)
+////////////////////////////////////////////////////////////////////////////////
+
+void FormatValue(
+    TStringBuilderBase* builder,
+    const TAllocationPlan::TPodRequest& podRequest,
+    TStringBuf /* format */)
 {
-    builder->AppendString("Remove orphaned scheduled allocations");
+    builder->AppendFormat("PodId: %v%v",
+        podRequest.Type == EAllocationPlanPodRequestType::AssignPodToNode ? "+" : "-",
+        podRequest.Pod->GetId());
+}
+
+void FormatValue(
+    TStringBuilderBase* builder,
+    const TAllocationPlan::TNodeRequest& /* nodeRequest */,
+    TStringBuf /* format */)
+{
+    builder->AppendString("Remove orphaned allocations");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

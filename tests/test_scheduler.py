@@ -2,14 +2,16 @@ from .conftest import (
     DEFAULT_ACCOUNT_ID,
     DEFAULT_POD_SET_SPEC,
     ZERO_RESOURCE_REQUESTS,
+    are_pods_assigned,
+    assert_over_time,
     create_nodes,
-    create_pod_with_boilerplate,
+    create_pod_set,
     create_pod_set_with_quota,
+    create_pod_with_boilerplate,
     get_pod_scheduling_status,
     is_assigned_pod_scheduling_status,
     is_error_pod_scheduling_status,
     is_pod_assigned,
-    are_pods_assigned,
     wait_pod_is_assigned,
     wait_pod_is_assigned_to,
 )
@@ -18,17 +20,19 @@ from yp.local import set_account_infinite_resource_limits
 
 from yp.common import YtResponseError, wait, WaitFailed
 
-from yt.packages.six.moves import xrange
-
 from yt.yson import YsonEntity, YsonUint64
+
 import yt.common
+
+from yt.packages.six import itervalues
+from yt.packages.six.moves import xrange
 
 import pytest
 
 from collections import defaultdict, Counter
 from functools import partial
-import time
 import random
+import time
 
 
 @pytest.mark.usefixtures("yp_env")
@@ -1159,6 +1163,66 @@ class TestScheduler(object):
         for pod_id in pod_ids:
             pod_node = yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/node_id"])[0]
             assert pod_node == pod_to_node[pod_id]
+
+    def test_remove_orphaned_allocations_profiling(self, yp_env):
+        orchid = yp_env.create_orchid_client()
+        assert len(orchid.get_instances()) == 1
+        instance = orchid.get_instances()[0]
+        def get_profiling():
+            samples = orchid.get(
+                instance,
+                "/profiling/scheduler/loop/allocation_plan/remove_orphaned_allocations",
+            )
+            return dict((sample["time"], sample["value"]) for sample in samples)
+
+        base_profiling = get_profiling()
+
+        def get_delta_profiling_values():
+            profiling = get_profiling()
+            for t in base_profiling:
+                if t in profiling:
+                    profiling.pop(t)
+            return list(itervalues(profiling))
+
+        yp_client = yp_env.yp_client
+
+        resource_requests = dict(vcpu_guarantee=100)
+
+        node_ids = create_nodes(yp_client, node_count=2)
+        pod_set_id = create_pod_set(yp_client)
+
+        pod_id1 = create_pod_with_boilerplate(
+            yp_client,
+            pod_set_id,
+            spec=dict(enable_scheduling=True, resource_requests=resource_requests),
+        )
+        wait_pod_is_assigned(yp_client, pod_id1)
+
+        pod_node_id1 = yp_client.get_object("pod", pod_id1, selectors=["/status/scheduling/node_id"])[0]
+
+        pod_node_id2 = None
+        for node_id in node_ids:
+            if node_id != pod_node_id1:
+                pod_node_id2 = node_id
+                break
+        assert pod_node_id2 is not None
+
+        pod_id2 = create_pod_with_boilerplate(
+            yp_client,
+            pod_set_id,
+            spec=dict(node_id=pod_node_id2, resource_requests=resource_requests),
+        )
+
+        def all_zeros(values):
+            return all(map(lambda value: value == 0, values))
+
+        assert_over_time(lambda: all_zeros(get_delta_profiling_values()))
+
+        yp_client.remove_object("pod", pod_id1)
+        yp_client.remove_object("pod", pod_id2)
+
+        wait(lambda: sum(get_delta_profiling_values()) == 2)
+        assert_over_time(lambda: sum(get_delta_profiling_values()) == 2)
 
 @pytest.mark.usefixtures("yp_env_configurable")
 class TestSchedulerEveryNodeSelectionStrategy(object):
