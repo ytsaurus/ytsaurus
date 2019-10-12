@@ -22,9 +22,6 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 // Forward declarations
 
-// invoker_util.h.
-IInvokerPtr GetFinalizerInvoker();
-
 namespace NConcurrency {
 
 // scheduler.h
@@ -36,27 +33,80 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T>
-class TFutureState
+class TFutureStateBase
     : public TRefCountedBase
 {
 public:
-    ~TFutureState() noexcept
+    using TVoidResultHandler = TClosure;
+    using TVoidResultHandlers = SmallVector<TVoidResultHandler, 8>;
+
+    using TCancelHandler = TClosure;
+    using TCancelHandlers = SmallVector<TCancelHandler, 8>;
+
+    virtual ~TFutureStateBase() noexcept
     {
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
         FinalizeTracking();
 #endif
     }
 
-    using TResultHandler = TCallback<void(const TErrorOr<T>&)>;
-    using TResultHandlers = SmallVector<TResultHandler, 8>;
-    
-    using TUniqueResultHandler = TCallback<void(TErrorOr<T>&&)>;
+    void RefFuture()
+    {
+        if (WellKnown_) {
+            return;
+        }
+        auto oldWeakCount = WeakRefCount_++;
+        YT_ASSERT(oldWeakCount > 0);
+    }
 
-    using TCancelHandler = TClosure;
-    using TCancelHandlers = SmallVector<TCancelHandler, 8>;
+    void UnrefFuture()
+    {
+        if (WellKnown_) {
+            return;
+        }
+        auto oldWeakCount = WeakRefCount_--;
+        YT_ASSERT(oldWeakCount > 0);
+        if (oldWeakCount == 1) {
+            delete this;
+        }
+    }
 
-private:
+    void RefPromise()
+    {
+        YT_ASSERT(!WellKnown_);
+        auto oldStrongCount = StrongRefCount_++;
+        YT_ASSERT(oldStrongCount > 0 && WeakRefCount_ > 0);
+    }
+
+    void UnrefPromise()
+    {
+        YT_ASSERT(!WellKnown_);
+        auto oldStrongCount = StrongRefCount_--;
+        YT_ASSERT(oldStrongCount > 0);
+        if (oldStrongCount == 1) {
+            Dispose();
+        }
+    }
+
+    void Subscribe(TVoidResultHandler handler);
+
+    bool Cancel() noexcept;
+
+    void OnCanceled(TCancelHandler handler);
+
+    bool IsSet() const
+    {
+        return Set_ || AbandonedUnset_;
+    }
+
+    bool IsCanceled() const
+    {
+        return Canceled_;
+    }
+
+    bool TimedWait(TDuration timeout) const;
+
+protected:
     const bool WellKnown_;
 
     //! Number of promises.
@@ -69,20 +119,81 @@ private:
     std::atomic<bool> Canceled_;
     std::atomic<bool> Set_;
     std::atomic<bool> AbandonedUnset_ = {false};
+
+    mutable std::unique_ptr<NConcurrency::TEvent> ReadyEvent_;
+
+    bool HasHandlers_ = false;
+    TVoidResultHandlers VoidResultHandlers_;
+    TCancelHandlers CancelHandlers_;
+
+
+    TFutureStateBase(int strongRefCount, int weakRefCount)
+        : WellKnown_(false)
+        , StrongRefCount_(strongRefCount)
+        , WeakRefCount_(weakRefCount)
+        , Canceled_(false)
+        , Set_(false)
+    { }
+
+    TFutureStateBase(bool wellKnown, int strongRefCount, int weakRefCount)
+        : WellKnown_(wellKnown)
+        , StrongRefCount_(strongRefCount)
+        , WeakRefCount_(weakRefCount)
+        , Canceled_ (false)
+        , Set_(true)
+    { }
+
+
+    template <class F, class... As>
+    static auto RunNoExcept(F&& functor, As&&... args) noexcept -> decltype(functor(std::forward<As>(args)...))
+    {
+        return functor(std::forward<As>(args)...);
+    }
+
+
+    virtual void DoInstallAbandonedError() = 0;
+    virtual void DoTrySetAbandonedError() = 0;
+
+    static TError MakeAbandonedError();
+
+    void InstallAbandonedError();
+    void InstallAbandonedError() const;
+
+private:
+    void Dispose();
+};
+
+Y_FORCE_INLINE void Ref(TFutureStateBase* state)
+{
+    state->RefFuture();
+}
+
+Y_FORCE_INLINE void Unref(TFutureStateBase* state)
+{
+    state->UnrefFuture();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+class TFutureState
+    : public TFutureStateBase
+{
+public:
+    using TResultHandler = TCallback<void(const TErrorOr<T>&)>;
+    using TResultHandlers = SmallVector<TResultHandler, 8>;
+    
+    using TUniqueResultHandler = TCallback<void(TErrorOr<T>&&)>;
+
+private:
     std::optional<TErrorOr<T>> Value_;
 #ifndef NDEBUG
     std::atomic_flag ValueMovedOut_ = ATOMIC_FLAG_INIT;
 #endif
-    mutable std::unique_ptr<NConcurrency::TEvent> ReadyEvent_;
+
     TResultHandlers ResultHandlers_;
     TUniqueResultHandler UniqueResultHandler_;
-    TCancelHandlers CancelHandlers_;
 
-    template <class F, class... As>
-    auto RunNoExcept(F&& functor, As&&... args) noexcept -> decltype(functor(std::forward<As>(args)...))
-    {
-        return functor(std::forward<As>(args)...);
-    }
 
     template <class U, bool MustSet>
     bool DoSet(U&& value) noexcept
@@ -113,11 +224,16 @@ private:
             readyEvent->NotifyAll();
         }
 
+        for (const auto& handler : VoidResultHandlers_) {
+            RunNoExcept(handler);
+        }
+        VoidResultHandlers_.clear();
+        
         for (const auto& handler : ResultHandlers_) {
             RunNoExcept(handler, *Value_);
         }
         ResultHandlers_.clear();
-        
+
         if (UniqueResultHandler_) {
             RunNoExcept(UniqueResultHandler_, MoveValueOut());
         }
@@ -127,64 +243,6 @@ private:
         }
 
         return true;
-    }
-
-    void Dispose()
-    {
-        // Check for fast path.
-        if (Set_) {
-            // Just kill the fake weak reference.
-            UnrefFuture();
-            return;
-        }
-
-        // Another fast path: no subscribers.
-        {
-            auto guard = Guard(SpinLock_);
-            if (ResultHandlers_.empty() && CancelHandlers_.empty()) {
-                YT_ASSERT(!AbandonedUnset_);
-                AbandonedUnset_ = true;
-                // Cannot access this after UnrefFuture; in particular, cannot touch SpinLock_ in guard's dtor.
-                guard.Release();
-                UnrefFuture();
-                return;
-            }
-        }
-
-        // Slow path: notify the subscribers in a dedicated thread.
-        GetFinalizerInvoker()->Invoke(BIND([=] () {
-            // Set the promise if the value is still missing.
-            if (!Set_) {
-                TrySet(MakeAbandonedError());
-            }
-            // Kill the fake weak reference.
-            UnrefFuture();
-        }));
-    }
-
-    void Destroy()
-    {
-        delete this;
-    }
-
-    static TError MakeAbandonedError()
-    {
-        return TError(NYT::EErrorCode::Canceled, "Promise abandoned");
-    }
-
-    void InstallAbandonedError()
-    {
-        VERIFY_SPINLOCK_AFFINITY(SpinLock_);
-
-        if (AbandonedUnset_ && !Set_) {
-            Value_ = MakeAbandonedError();
-            Set_ = true;
-        }
-    }
-
-    void InstallAbandonedError() const
-    {
-        const_cast<TFutureState*>(this)->InstallAbandonedError();
     }
 
     TErrorOr<T> MoveValueOut()
@@ -197,86 +255,29 @@ private:
         return result;
     }
 
-    bool DoCancel() noexcept
+    virtual void DoInstallAbandonedError() override
     {
-        // Calling subscribers may release the last reference to this.
-        TIntrusivePtr<TFutureState> this_(this);
+        Value_ = MakeAbandonedError();
+        Set_ = true;
+    }
 
-        {
-            auto guard = Guard(SpinLock_);
-            if (Set_ || AbandonedUnset_ || Canceled_) {
-                return false;
-            }
-            Canceled_ = true;
-        }
-
-        for (auto& handler : CancelHandlers_) {
-            RunNoExcept(handler);
-        }
-        CancelHandlers_.clear();
-
-        return true;
+    virtual void DoTrySetAbandonedError() override
+    {
+        TrySet(MakeAbandonedError());
     }
 
 protected:
     TFutureState(int strongRefCount, int weakRefCount)
-        : WellKnown_(false)
-        , StrongRefCount_(strongRefCount)
-        , WeakRefCount_(weakRefCount)
-        , Canceled_(false)
-        , Set_(false)
+        : TFutureStateBase(strongRefCount, weakRefCount)
     { }
 
     template <class U>
     TFutureState(bool wellKnown, int strongRefCount, int weakRefCount, U&& value)
-        : WellKnown_(wellKnown)
-        , StrongRefCount_(strongRefCount)
-        , WeakRefCount_(weakRefCount)
-        , Canceled_ (false)
-        , Set_(true)
+        : TFutureStateBase(wellKnown, strongRefCount, weakRefCount)
         , Value_(std::forward<U>(value))
     { }
 
 public:
-    void RefFuture()
-    {
-        if (WellKnown_) {
-            return;
-        }
-        auto oldWeakCount = WeakRefCount_++;
-        YT_ASSERT(oldWeakCount > 0);
-    }
-
-    void UnrefFuture()
-    {
-        if (WellKnown_) {
-            return;
-        }
-        auto oldWeakCount = WeakRefCount_--;
-        YT_ASSERT(oldWeakCount > 0);
-        if (oldWeakCount == 1) {
-            Destroy();
-        }
-    }
-
-    void RefPromise()
-    {
-        YT_ASSERT(!WellKnown_);
-        auto oldStrongCount = StrongRefCount_++;
-        YT_ASSERT(oldStrongCount > 0 && WeakRefCount_ > 0);
-    }
-
-    void UnrefPromise()
-    {
-        YT_ASSERT(!WellKnown_);
-        auto oldStrongCount = StrongRefCount_--;
-        YT_ASSERT(oldStrongCount > 0);
-        if (oldStrongCount == 1) {
-            Dispose();
-        }
-    }
-
-
     const TErrorOr<T>& Get() const
     {
         // Fast path.
@@ -325,28 +326,6 @@ public:
         return MoveValueOut();
     }
 
-    bool TimedWait(TDuration timeout) const
-    {
-        // Fast path.
-        if (Set_ || AbandonedUnset_) {
-            return true;
-        }
-
-        // Slow path.
-        {
-            auto guard = Guard(SpinLock_);
-            InstallAbandonedError();
-            if (Set_) {
-                return true;
-            }
-            if (!ReadyEvent_) {
-                ReadyEvent_.reset(new NConcurrency::TEvent());
-            }
-        }
-
-        return ReadyEvent_->Wait(timeout.ToDeadLine());
-    }
-
     std::optional<TErrorOr<T>> TryGet() const
     {
         // Fast path.
@@ -383,16 +362,6 @@ public:
         }
     }
 
-    bool IsSet() const
-    {
-        return Set_ || AbandonedUnset_;
-    }
-
-    bool IsCanceled() const
-    {
-        return Canceled_;
-    }
-
     template <class U>
     void Set(U&& value)
     {
@@ -426,6 +395,7 @@ public:
                 RunNoExcept(handler, *Value_);
             } else {
                 ResultHandlers_.push_back(std::move(handler));
+                HasHandlers_ = true;
             }
         }
     }
@@ -449,48 +419,20 @@ public:
                 YT_ASSERT(!UniqueResultHandler_);
                 YT_ASSERT(ResultHandlers_.empty());
                 UniqueResultHandler_ = std::move(handler);
+                HasHandlers_ = true;
             }
         }
-    }
-
-    void OnCanceled(TCancelHandler handler)
-    {
-        // Fast path.
-        if (Set_) {
-            return;
-        }
-        if (Canceled_) {
-            RunNoExcept(handler);
-            return;
-        }
-
-        // Slow path.
-        {
-            auto guard = Guard(SpinLock_);
-            InstallAbandonedError();
-            if (Canceled_) {
-                guard.Release();
-                RunNoExcept(handler);
-            } else if (!Set_) {
-                CancelHandlers_.push_back(std::move(handler));
-            }
-        }
-    }
-
-    bool Cancel()
-    {
-        return DoCancel();
     }
 };
 
 template <class T>
-void Ref(TFutureState<T>* state)
+Y_FORCE_INLINE void Ref(TFutureState<T>* state)
 {
     state->RefFuture();
 }
 
 template <class T>
-void Unref(TFutureState<T>* state)
+Y_FORCE_INLINE void Unref(TFutureState<T>* state)
 {
     state->UnrefFuture();
 }
@@ -513,13 +455,13 @@ public:
 };
 
 template <class T>
-void Ref(TPromiseState<T>* state)
+Y_FORCE_INLINE void Ref(TPromiseState<T>* state)
 {
     state->RefPromise();
 }
 
 template <class T>
-void Unref(TPromiseState<T>* state)
+Y_FORCE_INLINE void Unref(TPromiseState<T>* state)
 {
     state->UnrefPromise();
 }
@@ -705,6 +647,22 @@ TFuture<T> MakeWellKnownFuture(TErrorOr<T> value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline bool operator==(const TAwaitable& lhs, const TAwaitable& rhs)
+{
+    return lhs.Impl_ == rhs.Impl_;
+}
+
+inline bool operator!=(const TAwaitable& lhs, const TAwaitable& rhs)
+{
+    return !(lhs == rhs);
+}
+
+inline void swap(TAwaitable& lhs, TAwaitable& rhs)
+{
+    using std::swap;
+    swap(lhs.Impl_, rhs.Impl_);
+}
+
 template <class T>
 bool operator==(const TFuture<T>& lhs, const TFuture<T>& rhs)
 {
@@ -742,6 +700,34 @@ void swap(TPromise<T>& lhs, TPromise<T>& rhs)
     using std::swap;
     swap(lhs.Impl_, rhs.Impl_);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline TAwaitable::operator bool() const
+{
+    return Impl_.operator bool();
+}
+
+inline void TAwaitable::Reset()
+{
+    Impl_.Reset();
+}
+
+inline void TAwaitable::Subscribe(TClosure handler) const
+{
+    YT_ASSERT(Impl_);
+    return Impl_->Subscribe(std::move(handler));
+}
+
+inline bool TAwaitable::Cancel() const
+{
+    YT_ASSERT(Impl_);
+    return Impl_->Cancel();
+}
+
+inline TAwaitable::TAwaitable(TIntrusivePtr<NYT::NDetail::TFutureStateBase> impl)
+    : Impl_(std::move(impl))
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -950,6 +936,12 @@ TFuture<U> TFutureBase<T>::As() const
     }));
 
     return promise;
+}
+
+template <class T>
+TAwaitable TFutureBase<T>::AsAwaitable() const
+{
+    return TAwaitable(Impl_);
 }
 
 template <class T>
@@ -1793,6 +1785,16 @@ TFuture<std::vector<TErrorOr<T>>> RunWithBoundedConcurrency(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
+
+//! A hasher for TAwaitable.
+template <>
+struct THash<NYT::TAwaitable>
+{
+    inline size_t operator () (const NYT::TAwaitable& awaitable) const
+    {
+        return THash<NYT::TIntrusivePtr<NYT::NDetail::TFutureStateBase>>()(awaitable.Impl_);
+    }
+};
 
 //! A hasher for TFuture.
 template <class T>
