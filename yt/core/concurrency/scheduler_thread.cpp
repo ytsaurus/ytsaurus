@@ -365,7 +365,7 @@ bool TSchedulerThread::FiberMainStep(ui64 spawnedEpoch)
     return true;
 }
 
-void TSchedulerThread::Reschedule(TFiberPtr fiber, const TAwaitable& awaitable, IInvokerPtr invoker)
+void TSchedulerThread::Reschedule(TFiberPtr fiber, TAwaitable awaitable, IInvokerPtr invoker)
 {
     fiber->GetCanceler(); // Initialize canceler; who knows what might happen to this fiber?
 
