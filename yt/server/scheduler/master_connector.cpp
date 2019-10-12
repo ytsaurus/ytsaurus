@@ -784,11 +784,11 @@ private:
             auto listOperationsResult = NScheduler::ListOperations(createBatchRequest);
             OperationIds_.reserve(listOperationsResult.OperationsToRevive.size());
 
-            for (const auto& pair : listOperationsResult.OperationsToRevive) {
+            for (const auto& [operationId, state] : listOperationsResult.OperationsToRevive) {
                 YT_LOG_DEBUG("Found operation in Cypress (OperationId: %v, State: %v)",
-                    pair.first,
-                    pair.second);
-                OperationIds_.push_back(pair.first);
+                    operationId,
+                    state);
+                OperationIds_.push_back(operationId);
             }
 
             OperationIdsToArchive_ = std::move(listOperationsResult.OperationsToArchive);
@@ -952,8 +952,8 @@ private:
 
             auto slotIndexMap = attributes.Find<THashMap<TString, int>>("slot_index_per_pool_tree");
             if (slotIndexMap) {
-                for (const auto& pair : *slotIndexMap) {
-                    operation->SetSlotIndex(pair.first, pair.second);
+                for (const auto& [treeId, slotIndex] : *slotIndexMap) {
+                    operation->SetSlotIndex(treeId, slotIndex);
                 }
             }
 
@@ -1552,8 +1552,7 @@ private:
         }
 
         // Per-operation watchers.
-        for (const auto& pair : WatcherLists) {
-            const auto& list = pair.second;
+        for (const auto& [operationId, list] : WatcherLists) {
             auto operation = list.Operation;
             if (operation->GetState() != EOperationState::Running)
                 continue;

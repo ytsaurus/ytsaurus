@@ -213,10 +213,9 @@ TListOperationsResult ListOperations(
         }
     }
 
-    for (const auto& pair : rootOperationIdToState) {
-        const auto& id = pair.first;
-        if (operationSet.find(id) == operationSet.end()) {
-            result.OperationsToRemove.push_back(id);
+    for (const auto& [operationId, operationState] : rootOperationIdToState) {
+        if (operationSet.find(operationId) == operationSet.end()) {
+            result.OperationsToRemove.push_back(operationId);
         }
     }
 
