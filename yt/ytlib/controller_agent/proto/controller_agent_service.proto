@@ -179,6 +179,7 @@ message TRspReviveOperation
     required bytes attributes = 1; // YSON
     required bool revived_from_snapshot = 2;
     repeated TRevivedJob revived_jobs = 3;
+    repeated string revived_banned_tree_ids = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

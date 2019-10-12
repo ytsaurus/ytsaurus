@@ -242,10 +242,12 @@ private:
                 protoJob->set_node_id(job.NodeId);
                 protoJob->set_node_address(job.NodeAddress);
             }
+            ToProto(response->mutable_revived_banned_tree_ids(), result.RevivedBannedTreeIds);
 
-            context->SetResponseInfo("RevivedFromSnapshot: %v, RevivedJobCount: %v",
+            context->SetResponseInfo("RevivedFromSnapshot: %v, RevivedJobCount: %v, RevivedBannedTreeIds: %v",
                 result.RevivedFromSnapshot,
-                result.RevivedJobs.size());
+                result.RevivedJobs.size(),
+                result.RevivedBannedTreeIds);
             context->Reply();
         });
     }

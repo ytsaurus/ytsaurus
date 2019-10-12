@@ -2447,6 +2447,13 @@ private:
                 operation->ControllerAttributes().PrepareAttributes = result.Attributes;
                 operation->SetRevivedFromSnapshot(result.RevivedFromSnapshot);
                 operation->RevivedJobs() = std::move(result.RevivedJobs);
+                for (const auto& bannedTreeId : result.RevivedBannedTreeIds) {
+                    // If operation is already erased from the tree, UnregisterOperationFromTree() will produce unnecessary log messages.
+                    // However, I believe that this way the code is simpler and more concise.
+                    // NB(eshcherbin): this procedure won't abort jobs that are running in banned tentative trees.
+                    // So in case of an unfortunate scheduler failure, these jobs will continue running.
+                    Strategy_->UnregisterOperationFromTree(operation->GetId(), bannedTreeId);
+                }
             }
 
             ValidateOperationState(operation, EOperationState::Reviving);
