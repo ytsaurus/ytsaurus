@@ -165,7 +165,7 @@ void ScanOpHelper(
     auto& reader = context->Reader;
 
     std::vector<TRow> rows;
-    rows.reserve(context->IsOrdered && context->Limit < RowsetProcessingSize
+    rows.reserve(context->Ordered && context->Limit < RowsetProcessingSize
         ? context->Limit
         : RowsetProcessingSize);
 
@@ -1142,7 +1142,7 @@ const TValue* InsertGroupRow(
         closure->ProcessSegment();
     }
 
-    if (context->IsOrdered && closure->Lookup.size() >= context->Limit) {
+    if (context->Ordered && closure->Lookup.size() >= context->Limit) {
         if (closure->ValuesCount == 0) {
             throw TInterruptedCompleteException();
         }
