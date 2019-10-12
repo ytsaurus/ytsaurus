@@ -1131,8 +1131,8 @@ public:
         }
 
         if (request->exec_nodes_requested()) {
-            for (const auto& [nodeId, descritor] : *scheduler->GetCachedExecNodeDescriptors()) {
-                ToProto(response->mutable_exec_nodes()->add_exec_nodes(), descritor);
+            for (const auto& [nodeId, descriptor] : *scheduler->GetCachedExecNodeDescriptors()) {
+                ToProto(response->mutable_exec_nodes()->add_exec_nodes(), descriptor);
             }
         }
 
