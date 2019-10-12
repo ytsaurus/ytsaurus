@@ -38,15 +38,17 @@ namespace NDetail {
 
 template <class T>
 class TPromiseState;
-
 template <class T>
 void Ref(TPromiseState<T>* state);
 template <class T>
 void Unref(TPromiseState<T>* state);
 
+class TFutureStateBase;
+void Ref(TFutureStateBase* state);
+void Unref(TFutureStateBase* state);
+
 template <class T>
 class TFutureState;
-
 template <class T>
 void Ref(TFutureState<T>* state);
 template <class T>
@@ -61,7 +63,6 @@ template <class T>
 TPromise<T> NewPromise();
 
 //! Constructs a pre-set promise.
-// FIXME(babenko): pass by const-ref, pass by rvalue-ref
 template <class T>
 TPromise<T> MakePromise(TErrorOr<T> value);
 template <class T>
@@ -79,22 +80,23 @@ template <class T>
 TFuture<T> MakeWellKnownFuture(TErrorOr<T> value);
 
 ////////////////////////////////////////////////////////////////////////////////
+// Comparison and swap.
+
+bool operator==(const TAwaitable& lhs, const TAwaitable& rhs);
+bool operator!=(const TAwaitable& lhs, const TAwaitable& rhs);
+void swap(TAwaitable& lhs, TAwaitable& rhs);
 
 template <class T>
 bool operator==(const TFuture<T>& lhs, const TFuture<T>& rhs);
-
 template <class T>
 bool operator!=(const TFuture<T>& lhs, const TFuture<T>& rhs);
-
 template <class T>
 void swap(TFuture<T>& lhs, TFuture<T>& rhs);
 
 template <class T>
 bool operator==(const TPromise<T>& lhs, const TPromise<T>& rhs);
-
 template <class T>
 bool operator!=(const TPromise<T>& lhs, const TPromise<T>& rhs);
-
 template <class T>
 void swap(TPromise<T>& lhs, TPromise<T>& rhs);
 
@@ -117,6 +119,43 @@ class TFutureBase;
 
 template <class T>
 class TPromiseBase;
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A distilled version of TFuture able of notifying the subscribers of completion
+//! but not providing any means to extract the computation result.
+class TAwaitable
+{
+public:
+    //! Creates a null awaitable.
+    TAwaitable() = default;
+
+    //! Checks if the awaitable is null.
+    explicit operator bool() const;
+
+    //! Drops underlying associated state resetting the awaitable to null.
+    void Reset();
+
+    //! Attaches a handler invoked when the awaitable is set.
+    void Subscribe(TClosure handler) const;
+
+    //! Notifies the producer that the promised value is no longer needed.
+    //! Returns |true| if succeeded, |false| is the promise was already set or canceled.
+    bool Cancel() const;
+
+private:
+    explicit TAwaitable(TIntrusivePtr<NYT::NDetail::TFutureStateBase> impl);
+
+    TIntrusivePtr<NYT::NDetail::TFutureStateBase> Impl_;
+
+    friend bool operator==(const TAwaitable& lhs, const TAwaitable& rhs);
+    friend bool operator!=(const TAwaitable& lhs, const TAwaitable& rhs);
+    friend void swap(TAwaitable& lhs, TAwaitable& rhs);
+    template <class U>
+    friend struct ::THash;
+    template <class U>
+    friend class TFutureBase;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -234,6 +273,9 @@ public:
     //! Converts (successful) result to |U|; propagates errors as is.
     template <class U>
     TFuture<U> As() const;
+
+    //! Converts to TAwaitable interface.
+    TAwaitable AsAwaitable() const;
 
 protected:
     explicit TFutureBase(TIntrusivePtr<NYT::NDetail::TFutureState<T>> impl);

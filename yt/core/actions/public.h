@@ -14,6 +14,8 @@ typedef TCallback<void()> TClosure;
 template <class TSignature>
 class TCallbackList;
 
+class TAwaitable;
+
 template <class T>
 class TFuture;
 

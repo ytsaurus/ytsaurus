@@ -38,7 +38,7 @@ public:
     virtual void Return() override;
     virtual void YieldTo(TFiberPtr&& other) override;
     virtual void SwitchTo(IInvokerPtr invoker) override;
-    virtual void WaitFor(TFuture<void> future, IInvokerPtr invoker) override;
+    virtual void WaitFor(TAwaitable awaitable, IInvokerPtr invoker) override;
 
 protected:
     TSchedulerThread(
@@ -66,7 +66,7 @@ protected:
     void FiberMain(ui64 spawnedEpoch);
     bool FiberMainStep(ui64 spawnedEpoch);
 
-    void Reschedule(TFiberPtr fiber, TFuture<void> future, IInvokerPtr invoker);
+    void Reschedule(TFiberPtr fiber, const TAwaitable& awaitable, IInvokerPtr invoker);
 
     const std::shared_ptr<TEventCount> CallbackEventCount_;
     const TString ThreadName_;
@@ -97,8 +97,8 @@ protected:
     TFiberPtr IdleFiber_;
     TFiberPtr CurrentFiber_;
 
-    TFuture<void> WaitForFuture_;
-    IInvokerPtr SwitchToInvoker_;
+    TAwaitable AwaitableToWaitFor_;
+    IInvokerPtr InvokerToSwitchTo_;
 
     DECLARE_THREAD_AFFINITY_SLOT(HomeThread);
 

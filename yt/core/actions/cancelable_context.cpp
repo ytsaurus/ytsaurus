@@ -3,6 +3,8 @@
 #include "invoker_detail.h"
 #include "invoker_util.h"
 
+#include <yt/core/concurrency/scheduler.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -33,7 +35,7 @@ public:
                 return;
             }
 
-            TCurrentInvokerGuard guard(this_);
+            NConcurrency::TCurrentInvokerGuard guard(this_);
             callback.Run();
         }));
     }
@@ -56,8 +58,9 @@ void TCancelableContext::Cancel()
     THashSet<TFuture<void>> propagateToFutures;
     {
         TGuard<TSpinLock> guard(SpinLock_);
-        if (Canceled_)
+        if (Canceled_) {
             return;
+        }
         Canceled_ = true;
         PropagateToContexts_.swap(propagateToContexts);
         PropagateToFutures_.swap(propagateToFutures);
@@ -65,14 +68,14 @@ void TCancelableContext::Cancel()
 
     Handlers_.FireAndClear();
 
-    for (auto weakContext : propagateToContexts) {
+    for (const auto& weakContext : propagateToContexts) {
         auto context = weakContext.Lock();
         if (context) {
             context->Cancel();
         }
     }
 
-    for (auto future : propagateToFutures) {
+    for (const auto& future : propagateToFutures) {
         future.Cancel();
     }
 }
@@ -98,7 +101,7 @@ void TCancelableContext::UnsubscribeCanceled(const TClosure& /*callback*/)
     YT_ABORT();
 }
 
-void TCancelableContext::PropagateTo(TCancelableContextPtr context)
+void TCancelableContext::PropagateTo(const TCancelableContextPtr& context)
 {
     auto weakContext = MakeWeak(context);
 
@@ -107,29 +110,25 @@ void TCancelableContext::PropagateTo(TCancelableContextPtr context)
         PropagateToContexts_.insert(context);
     }
 
-    auto weakThis = MakeWeak(this);
-    context->SubscribeCanceled(BIND([=] () {
-        auto this_ = weakThis.Lock();
-        if (this_) {
-            TGuard<TSpinLock> guard(this_->SpinLock_);
-            this_->PropagateToContexts_.erase(context);
+    context->SubscribeCanceled(BIND([=, weakThis = MakeWeak(this)] {
+        if (auto this_ = weakThis.Lock()) {
+            TGuard<TSpinLock> guard(SpinLock_);
+            PropagateToContexts_.erase(context);
         }
     }));
 }
 
-void TCancelableContext::PropagateTo(TFuture<void> future)
+void TCancelableContext::PropagateTo(const TFuture<void>& future)
 {
     {
         TGuard<TSpinLock> guard(SpinLock_);
         PropagateToFutures_.insert(future);
     }
 
-    auto weakThis = MakeWeak(this);
-    future.Subscribe(BIND([=] (const TError&) {
-        auto this_ = weakThis.Lock();
-        if (this_) {
-            TGuard<TSpinLock> guard(this_->SpinLock_);
-            this_->PropagateToFutures_.erase(future);
+    future.Subscribe(BIND([=, weakThis = MakeWeak(this)] (const TError&) {
+        if (auto this_ = weakThis.Lock()) {
+            TGuard<TSpinLock> guard(SpinLock_);
+            PropagateToFutures_.erase(future);
         }
     }));
 }
