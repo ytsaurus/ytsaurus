@@ -168,7 +168,7 @@ public:
 
         auto runtimeParameters = operation->GetRuntimeParameters();
 
-        for (auto& [treeId, poolName] : state->TreeIdToPoolNameMap()) {
+        for (const auto& [treeId, poolName] : state->TreeIdToPoolNameMap()) {
             auto tree = GetTree(treeId);
             auto paramsIt = runtimeParameters->SchedulingOptionsPerPoolTree.find(treeId);
             YT_VERIFY(paramsIt != runtimeParameters->SchedulingOptionsPerPoolTree.end());
