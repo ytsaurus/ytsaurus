@@ -526,7 +526,7 @@ private:
         auto* mailbox = FindMailbox(srcCellId);
         if (!mailbox) {
             if (firstMessageId != 0) {
-                YT_LOG_ALERT_UNLESS(IsRecovery(), "Mailbox %v does not exist; expecting message 0 but got %v",
+                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Received a non-initial message to a missing mailbox; ignored (SrcCellId: %v, MessageId: %v)",
                     srcCellId,
                     firstMessageId);
                 return;
