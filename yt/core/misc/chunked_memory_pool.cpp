@@ -35,7 +35,7 @@ TAllocationHolder::~TAllocationHolder()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMemoryChunkProvider
+class TDefaultMemoryChunkProvider
     : public IMemoryChunkProvider
 {
 public:
@@ -45,9 +45,10 @@ public:
     }
 };
 
-IMemoryChunkProviderPtr CreateMemoryChunkProvider()
+const IMemoryChunkProviderPtr& GetDefaultMemoryChunkProvider()
 {
-    return New<TMemoryChunkProvider>();
+    static const IMemoryChunkProviderPtr Result = New<TDefaultMemoryChunkProvider>();
+    return Result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -57,9 +58,24 @@ TChunkedMemoryPool::TChunkedMemoryPool(
     IMemoryChunkProviderPtr chunkProvider,
     size_t startChunkSize)
     : TagCookie_(tagCookie)
-    , ChunkProvider_(std::move(chunkProvider))
-    , NextSmallSize_(startChunkSize)
+    , ChunkProviderHolder_(std::move(chunkProvider))
+    , ChunkProvider_(ChunkProviderHolder_.Get())
 {
+    Initialize(startChunkSize);
+}
+
+TChunkedMemoryPool::TChunkedMemoryPool(
+    TRefCountedTypeCookie tagCookie,
+    size_t startChunkSize)
+    : TagCookie_(tagCookie)
+    , ChunkProvider_(GetDefaultMemoryChunkProvider().Get())
+{
+    Initialize(startChunkSize);
+}
+
+void TChunkedMemoryPool::Initialize(size_t startChunkSize)
+{
+    NextSmallSize_ = startChunkSize;
     FreeZoneBegin_ = nullptr;
     FreeZoneEnd_ = nullptr;
 }
