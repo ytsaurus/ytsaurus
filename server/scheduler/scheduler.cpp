@@ -430,7 +430,7 @@ private:
             for (auto* resource : Context_.Cluster->GetResources()) {
                 auto* node = resource->GetNode();
                 for (const auto& allocation : resource->ScheduledAllocations()) {
-                    auto* pod = Context_.Cluster->FindSchedulablePod(allocation.pod_id());
+                    auto* pod = Context_.Cluster->FindPod(allocation.pod_id());
                     if (!pod || pod->Uuid() != allocation.pod_uuid()) {
                         changedNodes.push_back(node);
                         break;

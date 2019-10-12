@@ -90,7 +90,7 @@ public:
     IMPLEMENT_ACCESSORS(NodeSegment, NodeSegments)
     IMPLEMENT_ACCESSORS(PodDisruptionBudget, PodDisruptionBudgets)
     IMPLEMENT_ACCESSORS(PodSet, PodSets)
-    IMPLEMENT_EXTENDED_ACCESSORS(Pod, SchedulablePod, SchedulablePods)
+    IMPLEMENT_ACCESSORS(Pod, Pods)
     IMPLEMENT_ACCESSORS(InternetAddress, InternetAddresses)
     IMPLEMENT_ACCESSORS(IP4AddressPool, IP4AddressPools)
     IMPLEMENT_ACCESSORS(Account, Accounts)
@@ -98,6 +98,26 @@ public:
     IMPLEMENT_ACCESSORS(Resource, Resources)
 
     #undef IMPLEMENT_ACCESSORS
+
+    std::vector<TPod*> GetSchedulablePods()
+    {
+        auto pods = GetPods();
+        pods.erase(
+            std::remove_if(
+                pods.begin(),
+                pods.end(),
+                [] (auto* pod) {
+                    return !pod->GetEnableScheduling();
+                }),
+            pods.end());
+        return pods;
+    }
+
+    TPod* FindSchedulablePod(const TObjectId& id)
+    {
+        auto* pod = FindPod(id);
+        return !pod || !pod->GetEnableScheduling() ? nullptr : pod;
+    }
 
     TTimestamp GetSnapshotTimestamp() const
     {
@@ -184,9 +204,7 @@ public:
             PROFILE_TIMING("/time/read_pods") {
                 Reader_->ReadPods(
                     [this] (std::unique_ptr<TPod> pod) {
-                        if (pod->GetEnableScheduling()) {
-                            RegisterObject(SchedulablePodMap_, std::move(pod));
-                        }
+                        RegisterObject(PodMap_, std::move(pod));
                     });
             }
 
@@ -208,8 +226,12 @@ public:
             InitializeAntiaffinityVacancies();
             InitializeNetworkModules();
 
-            YT_LOG_INFO("Finished loading cluster snapshot (PodCount: %v, NodeCount: %v, NodeSegmentCount: %v)",
-                SchedulablePodMap_.size(),
+            YT_LOG_INFO(
+                "Finished loading cluster snapshot ("
+                "PodCount: %v, "
+                "NodeCount: %v, "
+                "NodeSegmentCount: %v)",
+                PodMap_.size(),
                 NodeMap_.size(),
                 NodeSegmentMap_.size());
         } catch (const std::exception& ex) {
@@ -227,7 +249,7 @@ private:
 
     NObjects::TTimestamp Timestamp_ = NObjects::NullTimestamp;
     THashMap<TObjectId, std::unique_ptr<TNode>> NodeMap_;
-    THashMap<TObjectId, std::unique_ptr<TPod>> SchedulablePodMap_;
+    THashMap<TObjectId, std::unique_ptr<TPod>> PodMap_;
     THashMap<TObjectId, std::unique_ptr<TPodDisruptionBudget>> PodDisruptionBudgetMap_;
     THashMap<TObjectId, std::unique_ptr<TPodSet>> PodSetMap_;
     THashMap<TObjectId, std::unique_ptr<TNodeSegment>> NodeSegmentMap_;
@@ -395,7 +417,7 @@ private:
     void InitializePods()
     {
         std::vector<TObjectId> invalidPodIds;
-        for (const auto& [podId, pod] : SchedulablePodMap_) {
+        for (const auto& [podId, pod] : PodMap_) {
             const auto& podSetId = pod->PodSetId();
             auto* podSet = FindPodSet(podSetId);
             if (!podSet) {
@@ -433,7 +455,7 @@ private:
             pod->PostprocessAttributes();
         }
         for (const auto& invalidPodId : invalidPodIds) {
-            YT_VERIFY(SchedulablePodMap_.erase(invalidPodId) > 0);
+            YT_VERIFY(PodMap_.erase(invalidPodId) > 0);
         }
     }
 
@@ -542,8 +564,8 @@ private:
 
     void InitializeNodePods()
     {
-        for (const auto& [podId, pod] : SchedulablePodMap_) {
-            if (pod->GetNode()) {
+        for (const auto& [podId, pod] : PodMap_) {
+            if (pod->GetNode() && pod->GetEnableScheduling()) {
                 YT_VERIFY(pod->GetNode()->SchedulablePods().insert(pod.get()).second);
             }
         }
@@ -551,24 +573,28 @@ private:
 
     void InitializePodSetPods()
     {
-        for (const auto& [podId, pod] : SchedulablePodMap_) {
+        for (const auto& [podId, pod] : PodMap_) {
             auto* podSet = pod->GetPodSet();
-            YT_VERIFY(podSet->SchedulablePods().insert(pod.get()).second);
+            if (pod->GetEnableScheduling()) {
+                YT_VERIFY(podSet->SchedulablePods().insert(pod.get()).second);
+            }
         }
     }
 
     void InitializeAccountPods()
     {
-        for (const auto& [podId, pod] : SchedulablePodMap_) {
-            YT_VERIFY(pod->GetEffectiveAccount()->SchedulablePods().insert(pod.get()).second);
+        for (const auto& [podId, pod] : PodMap_) {
+            if (pod->GetEnableScheduling()) {
+                YT_VERIFY(pod->GetEffectiveAccount()->SchedulablePods().insert(pod.get()).second);
+            }
         }
     }
 
     void InitializeAntiaffinityVacancies()
     {
-        for (const auto& [podId, pod] : SchedulablePodMap_) {
+        for (const auto& [podId, pod] : PodMap_) {
             auto* node = pod->GetNode();
-            if (node) {
+            if (node && pod->GetEnableScheduling()) {
                 // NB! Allocates vacancies regardless of the pod validation errors or node overcommit.
                 node->AllocateAntiaffinityVacancies(pod.get());
             }
@@ -665,7 +691,7 @@ private:
     void Clear()
     {
         NodeMap_.clear();
-        SchedulablePodMap_.clear();
+        PodMap_.clear();
         PodDisruptionBudgetMap_.clear();
         PodSetMap_.clear();
         AccountMap_.clear();
@@ -734,9 +760,9 @@ TPod* TCluster::FindSchedulablePod(const TObjectId& id)
     return Impl_->FindSchedulablePod(id);
 }
 
-TPod* TCluster::GetSchedulablePodOrThrow(const TObjectId& id)
+TPod* TCluster::FindPod(const TObjectId& id)
 {
-    return Impl_->GetSchedulablePodOrThrow(id);
+    return Impl_->FindPod(id);
 }
 
 std::vector<TNodeSegment*> TCluster::GetNodeSegments()
