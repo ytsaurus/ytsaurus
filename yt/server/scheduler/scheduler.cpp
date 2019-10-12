@@ -868,8 +868,8 @@ public:
             if (update->Pool) {
                 THROW_ERROR_EXCEPTION("Pool updates temporary disabled");
             }
-            for (const auto& pair : update->SchedulingOptionsPerPoolTree) {
-                if (pair.second->Pool) {
+            for (const auto& [treeId, schedulingOptions] : update->SchedulingOptionsPerPoolTree) {
+                if (schedulingOptions->Pool) {
                     THROW_ERROR_EXCEPTION("Pool updates temporary disabled");
                 }
             }
@@ -1112,9 +1112,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         std::vector<TNodeId> result;
-        for (const auto& pair : NodeIdToInfo_) {
-            auto nodeId = pair.first;
-            const auto& execNode = pair.second;
+        for (const auto& [nodeId, execNode] : NodeIdToInfo_) {
             if (filter.CanSchedule(execNode.Tags)) {
                 result.push_back(nodeId);
             }
@@ -1763,8 +1761,7 @@ private:
 
         {
             auto error = TError("Master disconnected");
-            for (const auto& pair : IdToOperation_) {
-                const auto& operation = pair.second;
+            for (const auto& [operationId, operation] : IdToOperation_) {
                 if (!operation->IsFinishedState()) {
                     // This awakes those waiting for start promise.
                     SetOperationFinalState(
@@ -2212,8 +2209,7 @@ private:
         }
 
         auto result = New<TRefCountedExecNodeDescriptorMap>();
-        for (const auto& pair : *descriptors) {
-            const auto& descriptor = pair.second;
+        for (const auto& [nodeId, descriptor] : *descriptors) {
             if (filter.CanSchedule(descriptor.Tags)) {
                 YT_VERIFY(result->emplace(descriptor.Id, descriptor).second);
             }
@@ -2230,8 +2226,7 @@ private:
         {
             TReaderGuard guard(ExecNodeDescriptorsLock_);
 
-            for (const auto& pair : *CachedExecNodeDescriptors_) {
-                const auto& descriptor = pair.second;
+            for (const auto& [nodeId, descriptor] : *CachedExecNodeDescriptors_) {
                 if (descriptor.Online && filter.CanSchedule(descriptor.Tags)) {
                     ++result[RoundUp<i64>(descriptor.ResourceLimits.GetMemory(), 1_GB)];
                 }
@@ -3145,9 +3140,7 @@ private:
     void RemoveExpiredResourceLimitsTags()
     {
         std::vector<TSchedulingTagFilter> toRemove;
-        for (const auto& pair : CachedResourceLimitsByTags_) {
-            const auto& filter = pair.first;
-            const auto& record = pair.second;
+        for (const auto& [filter, record] : CachedResourceLimitsByTags_) {
             if (record.first + DurationToCpuDuration(Config_->SchedulingTagFilterExpireTimeout) < GetCpuInstant()) {
                 toRemove.push_back(filter);
             }
@@ -3173,8 +3166,7 @@ private:
     TYsonString BuildSuspiciousJobsYson()
     {
         TStringBuilder builder;
-        for (const auto& pair : IdToOperation_) {
-            const auto& operation = pair.second;
+        for (const auto& [operationId, operation] : IdToOperation_) {
             builder.AppendString(operation->GetSuspiciousJobs().GetData());
         }
         return TYsonString(builder.Flush(), EYsonType::MapFragment);
@@ -3215,8 +3207,7 @@ private:
                     .Item("nodes_memory_distribution").Value(GetExecNodeMemoryDistribution(TSchedulingTagFilter()))
                     .Item("resource_limits_by_tags")
                         .DoMapFor(CachedResourceLimitsByTags_, [] (TFluentMap fluent, const auto& pair) {
-                            const auto& filter = pair.first;
-                            const auto& record = pair.second;
+                            const auto& [filter, record] = pair;
                             if (!filter.IsEmpty()) {
                                 fluent.Item(filter.GetBooleanFormula().GetFormula()).Value(record.second);
                             }
@@ -3230,8 +3221,7 @@ private:
                     .Item("nodes_memory_distribution").Value(GetExecNodeMemoryDistribution(TSchedulingTagFilter()))
                     .Item("resource_limits_by_tags")
                         .DoMapFor(CachedResourceLimitsByTags_, [] (TFluentMap fluent, const auto& pair) {
-                            const auto& filter = pair.first;
-                            const auto& record = pair.second;
+                            const auto& [filter, record] = pair;
                             if (!filter.IsEmpty()) {
                                 fluent.Item(filter.GetBooleanFormula().GetFormula()).Value(record.second);
                             }
@@ -3497,17 +3487,17 @@ private:
         {
             std::vector<TString> keys;
             keys.reserve(limit);
-            for (const auto& pair : Scheduler_->IdToOperation_) {
+            for (const auto& [operationId, operation] : Scheduler_->IdToOperation_) {
                 if (static_cast<i64>(keys.size()) >= limit) {
                     break;
                 }
-                keys.emplace_back(ToString(pair.first));
+                keys.emplace_back(ToString(operationId));
             }
-            for (const auto& pair : Scheduler_->OperationAliases_) {
+            for (const auto& [aliasString, alias] : Scheduler_->OperationAliases_) {
                 if (static_cast<i64>(keys.size()) >= limit) {
                     break;
                 }
-                keys.emplace_back(pair.first);
+                keys.emplace_back(aliasString);
             }
             return keys;
         }

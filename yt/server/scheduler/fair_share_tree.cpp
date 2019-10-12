@@ -648,8 +648,7 @@ void TFairShareTree::UpdateControllerConfig(const TFairShareStrategyOperationCon
 
     ControllerConfig_ = config;
 
-    for (const auto& pair : OperationIdToElement_) {
-        const auto& element = pair.second;
+    for (const auto& [operationId, element] : OperationIdToElement_) {
         element->UpdateControllerConfig(config);
     }
 }

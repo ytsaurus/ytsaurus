@@ -1778,8 +1778,8 @@ TJobResources TOperationElementSharedState::Disable()
     Enabled_ = false;
 
     TJobResources resourceUsage;
-    for (const auto& pair : JobPropertiesMap_) {
-        resourceUsage += pair.second.ResourceUsage;
+    for (const auto& [jodId, properties] : JobPropertiesMap_) {
+        resourceUsage += properties.ResourceUsage;
     }
 
     NonpreemptableResourceUsage_ = {};
