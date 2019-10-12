@@ -369,7 +369,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         def check():
             events = read_table("//sys/scheduler/event_log")
             for event in events:
-                if event["event_type"] == "operation_completed":
+                if event["event_type"] == "operation_completed" and event["operation_id"] == op.id:
                     assert len(event["alerts"]) >= 1
                     assert "short_jobs_duration" in event["alerts"]
                     return True
