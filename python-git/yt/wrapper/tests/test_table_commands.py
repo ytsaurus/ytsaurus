@@ -703,9 +703,12 @@ class TestTableCommands(object):
         assert result[1]["z"] == 2
 
     def test_get_table_columnar_statistics(self):
-        res = yt.get_table_columnar_statistics(paths=["//sys/scheduler/event_log{timestamp}"])
+        table = TEST_DIR + "/test_table"
+        yt.write_table(table, [{"x": "abacaba", "y": 1}, {"x": 2}])
+
+        res = yt.get_table_columnar_statistics(paths=[table + "{x}"])
         assert res
-        assert res[0].get("column_data_weights", {}).get("timestamp", 0) > 0
+        assert res[0].get("column_data_weights", {}).get("x", 0) > 0
 
     def test_unaligned_write(self):
         with set_config_option("write_retries/chunk_size", 3 * MB):
