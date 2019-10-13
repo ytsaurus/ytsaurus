@@ -128,16 +128,14 @@ message TReqGetBlockSet
 {
     required NYT.NProto.TGuid chunk_id = 1;
     repeated int32 block_indexes = 2;
-
-    // Deprecated.
-    // optional NYT.NNodeTrackerClient.NProto.TNodeDescriptor peer_descriptor = 3;
-
     optional uint64 peer_expiration_time = 4;
     optional bool populate_cache = 5 [default = true];
     required NYT.NProto.TWorkloadDescriptor workload_descriptor = 6;
     optional bool fetch_from_cache = 7 [default = true];
     optional bool fetch_from_disk = 8 [default = true];
     optional int32 peer_node_id = 9;
+
+    reserved 3;
 }
 
 message TRspGetBlockSet
@@ -145,11 +143,9 @@ message TRspGetBlockSet
     message TPeerDescriptor
     {
         required int32 block_index = 1;
-
-        // Deprecated.
-        // repeated NYT.NNodeTrackerClient.NProto.TNodeDescriptor node_descriptors = 2;
-
         repeated int32 node_ids = 3;
+
+        reserved 2;
     }
 
     repeated TPeerDescriptor peer_descriptors = 1;
@@ -262,29 +258,28 @@ message TReqGetTableSamples
     required int32 max_sample_size = 3;
     required NYT.NProto.TWorkloadDescriptor workload_descriptor = 4;
     required int32 sampling_policy = 5;
-
-    optional bool keys_in_attachment = 6 [default = false];
 }
 
 message TRspGetTableSamples
 {
     message TSample
     {
-        optional bytes key = 1;
         required bool incomplete = 2;
         required int64 weight = 3;
-        optional int32 key_index = 4;
+        required int32 key_index = 4;
+
+        reserved 1;
     }
 
     message TChunkSamples
     {
         optional NYT.NProto.TError error = 1;
-        // Deprecated = 2;
         repeated TSample samples = 3;
+
+        reserved 2;
     }
 
     repeated TChunkSamples sample_responses = 1;
-    optional bool keys_in_attachment = 2 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -302,22 +297,22 @@ message TReqGetChunkSlices
     required bool slice_by_keys = 4;
     required NYT.NProto.TWorkloadDescriptor workload_descriptor = 5;
 
-    // COMPAT(psushin).
-    optional bool keys_in_attachment = 6 [default = false];
+    reserved 6;
 }
 
 message TRspGetChunkSlices
 {
-    message TChunkSlices
+    message TSliceResponse
     {
         optional NYT.NProto.TError error = 1;
-        // Deprecated = 2;
         repeated TChunkSlice chunk_slices = 3;
+
+        reserved 2;
     }
 
-    repeated TChunkSlices slices = 1;
+    repeated TSliceResponse slice_responses = 1;
 
-    optional bool keys_in_attachment = 2 [default = false];
+    reserved 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
