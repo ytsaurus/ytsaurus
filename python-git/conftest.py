@@ -57,7 +57,7 @@ def pytest_configure(config):
                         break
 
             split_process_id = hash(test.name) % TESTS_SPLIT_FACTOR.get(test_class_name, DEFAULT_SPLIT_FACTOR)
-            suite_name = test_class_name + suite_name + str(split_process_id)
+            suite_name = suite_name + "_" + test_class_name + "_" + str(split_process_id)
 
             suites[suite_name].append(index)
 
