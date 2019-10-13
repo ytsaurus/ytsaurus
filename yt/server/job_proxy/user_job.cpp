@@ -67,13 +67,14 @@
 #include <yt/core/misc/process.h>
 #include <yt/core/misc/public.h>
 #include <yt/core/misc/subprocess.h>
-#include <yt/core/misc/signaler.h>
+
+#include <yt/ytlib/tools/signaler.h>
 
 #include <yt/core/net/connection.h>
 
 #include <yt/core/rpc/server.h>
 
-#include <yt/core/tools/tools.h>
+#include <yt/ytlib/tools/tools.h>
 
 #include <yt/core/ypath/tokenizer.h>
 

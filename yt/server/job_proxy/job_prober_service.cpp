@@ -7,12 +7,12 @@
 
 #include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
-#include <yt/core/tools/tools.h>
+#include <yt/ytlib/tools/tools.h>
+#include <yt/ytlib/tools/signaler.h>
 
 #include <yt/core/rpc/service_detail.h>
 
 #include <yt/core/misc/finally.h>
-#include <yt/core/misc/signaler.h>
 #include <yt/core/misc/fs.h>
 
 #include <util/system/fs.h>
