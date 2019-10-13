@@ -418,6 +418,7 @@ struct TLookupRowsOptionsBase
     NTableClient::TColumnFilter ColumnFilter;
     bool KeepMissingRows = false;
     bool EnablePartialResult = false;
+    NRpc::EMultiplexingBand MultiplexingBand = NRpc::EMultiplexingBand::Default;
 };
 
 struct TLookupRowsOptions

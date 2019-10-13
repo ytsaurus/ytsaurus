@@ -277,7 +277,7 @@ private:
         const auto& batch = Batches_[InvokeBatchIndex_];
 
         auto req = InvokeProxy_->Read();
-        // TODO(babenko): set proper band
+        req->SetMultiplexingBand(Options_.MultiplexingBand);
         ToProto(req->mutable_tablet_id(), batch->TabletInfo->TabletId);
         req->set_mount_revision(batch->TabletInfo->MountRevision);
         req->set_timestamp(Options_.Timestamp);
@@ -739,7 +739,7 @@ TRowset TClient::DoLookupRowsOnce(
             proxy.SetDefaultRequestAck(false);
 
             auto req = proxy.Multiread();
-            // TODO(babenko): set proper band
+            req->SetMultiplexingBand(options.MultiplexingBand);
             req->set_request_codec(static_cast<int>(Connection_->GetConfig()->LookupRowsRequestCodec));
             req->set_response_codec(static_cast<int>(Connection_->GetConfig()->LookupRowsResponseCodec));
             req->set_timestamp(options.Timestamp);

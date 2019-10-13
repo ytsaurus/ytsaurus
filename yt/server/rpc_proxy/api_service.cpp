@@ -2239,6 +2239,10 @@ private:
         options->KeepMissingRows = request->keep_missing_rows();
         options->EnablePartialResult = request->enable_partial_result();
 
+        if (request->has_multiplexing_band()) {
+            options->MultiplexingBand = CheckedEnumCast<EMultiplexingBand>(request->multiplexing_band());
+        }
+
         context->SetRequestInfo("Path: %v, Rows: %v",
             request->path(),
             keys->Size());
