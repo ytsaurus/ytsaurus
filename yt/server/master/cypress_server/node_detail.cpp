@@ -124,9 +124,21 @@ void TNontemplateCypressNodeTypeHandlerBase::BeginCopyCore(
 {
     using NYT::Save;
 
+    auto erasedType = node->GetType();
+    if (erasedType == EObjectType::PortalExit) {
+        erasedType = EObjectType::MapNode;
+    }
+
+    // These are loaded in TCypressManager::TNodeFactory::EndCopyNode.
     Save(*context, node->GetId());
-    Save(*context, node->GetType());
+
+    // These are loaded in TCypressManager::EndCopyNode.
+    Save(*context, erasedType);
+
+    // These are loaded in EndCopyCore.
     Save(*context, node->GetExternalCellTag());
+
+    // These are loaded in type handler.
     Save(*context, node->GetAccount());
     Save(*context, node->GetTotalResourceUsage());
     Save(*context, node->Acd());
