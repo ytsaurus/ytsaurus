@@ -42,8 +42,9 @@ public:
                 MakeEtcAttributeSchema()
                     ->SetAttribute(TStage::TSpec::EtcSchema)
                     ->SetUpdatable()
-                    ->SetValidator<TStage>(ValidateSpecEtc)
             })
+            // TODO(YP-1389) Move validator to EtcAttributeSchema after the bug is fixed.
+            ->SetValidator<TStage>(ValidateSpec)
             ->SetExtensible()
             ->SetHistoryEnabled();
 
@@ -97,7 +98,7 @@ private:
             << ex;
     }
 
-    static void ValidateSpecEtc(TTransaction* /*transaction*/, TStage* stage)
+    static void ValidateSpec(TTransaction* /*transaction*/, TStage* stage)
     {
         try {
             for (const auto& idAndDeployUnit : stage->Spec().Etc().Load().deploy_units()) {

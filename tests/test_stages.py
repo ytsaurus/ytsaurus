@@ -25,3 +25,7 @@ class TestStages(object):
         yp_client = yp_env.yp_client
         with pytest.raises(YtResponseError):
             yp_client.create_object("stage", attributes={"meta": {"id": "val"}, "spec": {"account_id": "tmp", "deploy_units": {"inv*": {}}}})
+
+        stage_id = yp_client.create_object("stage", attributes={"meta": {"id": "val"}, "spec": {"account_id": "tmp", "deploy_units": {"correct_deploy_unit_id": {}}}})
+        with pytest.raises(YtResponseError):
+            yp_client.update_object("stage", stage_id, set_updates=[{"path": "/spec", "value": {"account_id": "tmp", "deploy_units": {"inv*": {}}}}])
