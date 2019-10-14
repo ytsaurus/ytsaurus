@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+from six.moves import reduce
+
 
 def combine_pods(pod_set_id, pods, combine_labels_callback=None):
     def impl(p1, p2):
@@ -83,3 +85,10 @@ def generate_pod(pod_set_id,
     if labels is not None:
         pod["labels"] = labels
     return pod
+
+
+def get_disk_request_capacity(disk_request):
+    if "quota_policy" in disk_request:
+        return disk_request["quota_policy"]["capacity"]
+    else:
+        return disk_request["exclusive_policy"]["min_capacity"]
