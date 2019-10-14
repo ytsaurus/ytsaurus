@@ -125,6 +125,7 @@ private:
     virtual IObjectProxyPtr DoGetProxy(TNode* node, TTransaction* transaction) override;
 
     virtual void DoZombifyObject(TNode* node) override;
+    virtual void DoDestroyObject(TNode* node) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2158,6 +2159,13 @@ void TNodeTracker::TClusterNodeTypeHandler::DoZombifyObject(TNode* node)
     // NB: Destroy the node right away and do not wait for GC to prevent
     // dangling links from occurring in //sys/cluster_nodes.
     Owner_->DestroyNode(node);
+}
+
+void TNodeTracker::TClusterNodeTypeHandler::DoDestroyObject(TNode* node)
+{
+    TObjectTypeHandlerBase::DoDestroyObject(node);
+    // Remove the object from the map but keep it alive.
+    Owner_->NodeMap_.Release(node->TObject::GetId()).release();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
