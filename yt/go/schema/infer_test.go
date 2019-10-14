@@ -3,6 +3,7 @@ package schema
 import (
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -29,6 +30,8 @@ type testBasicTypes struct {
 	A1 innerStruct
 	A2 map[string]interface{}
 	A3 [3]interface{}
+
+	T0 time.Time
 }
 
 func TestInfer(t *testing.T) {
@@ -51,6 +54,7 @@ func TestInfer(t *testing.T) {
 			{Name: "A1", Type: TypeAny},
 			{Name: "A2", Type: TypeAny},
 			{Name: "A3", Type: TypeAny},
+			{Name: "T0", Type: TypeString, Required: true},
 		},
 	})
 }

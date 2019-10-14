@@ -211,7 +211,7 @@ func TestAttrsUnmarshal(t *testing.T) {
 
 type (
 	ysonBeforeBinary struct{}
-	binaryBeforeText struct{}
+	textBeforeBinary struct{}
 )
 
 func (y *ysonBeforeBinary) UnmarshalBinary(data []byte) error {
@@ -232,20 +232,20 @@ func (y *ysonBeforeBinary) MarshalYSON(w *yson.Writer) error {
 	return w.Err()
 }
 
-func (b *binaryBeforeText) UnmarshalText(text []byte) error {
-	panic("this should never be called")
-}
-
-func (b *binaryBeforeText) MarshalText() (text []byte, err error) {
-	panic("this should never be called")
-}
-
-func (b *binaryBeforeText) UnmarshalBinary(data []byte) error {
+func (b *textBeforeBinary) UnmarshalText(text []byte) error {
 	return nil
 }
 
-func (b *binaryBeforeText) MarshalBinary() (data []byte, err error) {
+func (b *textBeforeBinary) MarshalText() (text []byte, err error) {
 	return nil, nil
+}
+
+func (b *textBeforeBinary) UnmarshalBinary(data []byte) error {
+	panic("this should never be called")
+}
+
+func (b *textBeforeBinary) MarshalBinary() (data []byte, err error) {
+	panic("this should never be called")
 }
 
 var (
@@ -254,16 +254,16 @@ var (
 	_ encoding.BinaryMarshaler   = &ysonBeforeBinary{}
 	_ encoding.BinaryUnmarshaler = &ysonBeforeBinary{}
 
-	_ encoding.BinaryMarshaler   = &binaryBeforeText{}
-	_ encoding.BinaryUnmarshaler = &binaryBeforeText{}
-	_ encoding.TextMarshaler     = &binaryBeforeText{}
-	_ encoding.TextUnmarshaler   = &binaryBeforeText{}
+	_ encoding.BinaryMarshaler   = &textBeforeBinary{}
+	_ encoding.BinaryUnmarshaler = &textBeforeBinary{}
+	_ encoding.TextMarshaler     = &textBeforeBinary{}
+	_ encoding.TextUnmarshaler   = &textBeforeBinary{}
 )
 
 func TestHookPriority(t *testing.T) {
 	for _, v := range []interface{}{
 		&ysonBeforeBinary{},
-		&binaryBeforeText{},
+		&textBeforeBinary{},
 	} {
 		ys, err := yson.Marshal(v)
 		require.NoError(t, err)
