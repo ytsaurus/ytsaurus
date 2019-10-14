@@ -119,12 +119,13 @@ private:
         balancingHeaderExt->set_enable_stickness(true);
         balancingHeaderExt->set_sticky_group_size(1);
 
-        auto* cachingHeaderExt = batchReq->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
+        auto req = TMasterYPathProxy::GetClusterMeta();
+        req->set_populate_cell_directory(true);
+
+        auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
         cachingHeaderExt->set_success_expiration_time(ToProto<i64>(Config_->SuccessExpirationTime));
         cachingHeaderExt->set_failure_expiration_time(ToProto<i64>(Config_->FailureExpirationTime));
 
-        auto req = TMasterYPathProxy::GetClusterMeta();
-        req->set_populate_cell_directory(true);
         batchReq->AddRequest(req);
 
         auto batchRsp = WaitFor(batchReq->Invoke())
