@@ -28,6 +28,7 @@
 #include <DataStreams/MaterializingBlockInputStream.h>
 #include <DataStreams/RemoteBlockInputStream.h>
 #include <Interpreters/InterpreterSelectQuery.h>
+#include <Interpreters/ProcessList.h>
 #include <DataTypes/DataTypeFactory.h>
 #include <DataTypes/DataTypeNullable.h>
 #include <Storages/MergeTree/MergeTreeData.h>
@@ -234,6 +235,9 @@ public:
 
         SpecTemplate_ = TSubquerySpec();
         SpecTemplate_.InitialQueryId = queryContext->QueryId;
+        if (auto* queryStatus = queryContext->TryGetQueryStatus()) {
+            SpecTemplate_.InitialQuery = queryStatus->getInfo().query;
+        }
 
         auto cliqueNodes = queryContext->Bootstrap->GetHost()->GetNodes();
         if (cliqueNodes.empty()) {

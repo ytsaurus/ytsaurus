@@ -18,6 +18,7 @@ import random
 import os
 import copy
 import threading
+import pprint
 
 TEST_DIR = os.path.join(os.path.dirname(__file__))
 
@@ -79,7 +80,8 @@ class Clique(object):
 
     def get_active_instances(self):
         if exists("//sys/clickhouse/cliques/{0}".format(self.op.id), verbose=False):
-            instances = ls("//sys/clickhouse/cliques/{0}".format(self.op.id), attributes=["locks", "host", "http_port"])
+            instances = ls("//sys/clickhouse/cliques/{0}".format(self.op.id),
+                           attributes=["locks", "host", "http_port", "monitoring_port"])
 
             def is_active(instance):
                 if not instance.attributes["locks"]:
@@ -1278,7 +1280,7 @@ class TestClickHouseAccess(ClickHouseTestBase):
                 clique.make_query("select * from \"//tmp/t\"", user="u")
 
 
-class TestQueryLog(ClickHouseTestBase):
+class TestQueryLogAndQueryRegistry(ClickHouseTestBase):
     def setup(self):
         self._setup()
 
@@ -1289,6 +1291,40 @@ class TestQueryLog(ClickHouseTestBase):
             wait(lambda: len(clique.make_query("select * from system.tables where database = 'system' and "
                                                "name = 'query_log';")) >= 1)
             wait(lambda: len(clique.make_query("select * from system.query_log")) >= 1)
+
+    @authors("max42")
+    def test_query_registry(self):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        write_table("//tmp/t", [{"a": 0}])
+        with Clique(1) as clique:
+            monitoring_port = clique.get_active_instances()[0].attributes["monitoring_port"]
+
+            def check_query_registry():
+                query_registry = requests.get("http://localhost:{}/orchid/queries".format(monitoring_port)).json()
+                running_queries = list(query_registry["running_queries"].values())
+                print_debug(running_queries)
+                if len(running_queries) < 2:
+                    return False
+                assert len(running_queries) == 2
+                qi = running_queries[0]
+                qs = running_queries[1]
+                if qi["query_kind"] != "initial_query":
+                    qi, qs = qs, qi
+                print_debug("Initial: ", pprint.pformat(qi))
+                print_debug("Secondary: ", pprint.pformat(qs))
+                assert qi["query_kind"] == "initial_query"
+                assert qs["query_kind"] == "secondary_query"
+                assert "initial_query" in qs
+                assert qs["initial_query_id"] == qi["query_id"]
+                return True
+
+            from threading import Thread
+            t = Thread(target=clique.make_query, args=("select sleep(3) from \"//tmp/t\"",))
+            t.start()
+
+            wait(lambda: check_query_registry())
+
+            t.join()
 
 
 class TestQueryRegistry(ClickHouseTestBase):
