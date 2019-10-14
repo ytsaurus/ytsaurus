@@ -381,7 +381,8 @@ class TestPortals(YTEnvSetup):
             tx = "0-0-0-0"
 
         copy("//tmp/p1/m", "//tmp/p2/m", preserve_account=True, tx=tx)
-        
+
+        assert get("//tmp/p2/m/@key", tx=tx) == "m"
         assert get("//tmp/p2/m/@type", tx=tx) == "map_node"
         assert get("//tmp/p2/m/@account", tx=tx) == "a"
         assert get("//tmp/p2/m/d/@type", tx=tx) == "document"
@@ -654,6 +655,43 @@ class TestPortals(YTEnvSetup):
         remove("//tmp/m")
         wait(lambda: "m" not in ls("//tmp"))
         assert not exists("//tmp/m")
+
+    @authors("babenko")
+    def test_externalize_copy_externalize(self):
+        create("map_node", "//tmp/m1")
+
+        TABLE_PAYLOAD = [{"key": "value"}]
+        create("table", "//tmp/m1/t", attributes={"external": True, "external_cell_tag": 3})
+        write_table("//tmp/m1/t", TABLE_PAYLOAD)
+
+        FILE_PAYLOAD = "PAYLOAD"
+        create("file", "//tmp/m1/f", attributes={"external": True, "external_cell_tag": 3})
+        write_file("//tmp/m1/f", FILE_PAYLOAD)
+
+        externalize("//tmp/m1", 1)
+
+        shard_id1 = get("//tmp/m1/@shard_id")
+        assert get("//tmp/m1/t/@shard_id") == shard_id1
+        assert get("//tmp/m1/f/@shard_id") == shard_id1
+
+        assert read_table("//tmp/m1/t") == TABLE_PAYLOAD
+        assert read_file("//tmp/m1/f") == FILE_PAYLOAD
+
+        copy("//tmp/m1", "//tmp/m2")
+        assert get("//tmp/m2/@type") == "map_node"
+        assert_items_equal(ls("//tmp"), ["m1", "m2"]) 
+        assert get("//tmp/m1/@key") == "m1"
+        assert get("//tmp/m2/@key") == "m2"
+        
+        externalize("//tmp/m2", 2)
+        
+        shard_id2 = get("//tmp/m2/@shard_id")
+        assert shard_id1 != shard_id2
+        assert get("//tmp/m2/t/@shard_id") == shard_id2
+        assert get("//tmp/m2/f/@shard_id") == shard_id2
+
+        assert read_table("//tmp/m2/t") == TABLE_PAYLOAD
+        assert read_file("//tmp/m2/f") == FILE_PAYLOAD
 
     @authors("babenko")
     def test_bulk_insert_yt_11194(self):
