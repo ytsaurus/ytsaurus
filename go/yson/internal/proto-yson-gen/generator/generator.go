@@ -1,4 +1,5 @@
-// Protocol Buffers to YSON generator for Go with.
+// Protocol Buffers to YSON generator for Go.
+// It generates Go code from the protocol buffer description files read by the main routine.
 // This code is heavily based on the Google's original code.
 //
 // Copyright 2010 The Go Authors.  All rights reserved.
@@ -30,11 +31,6 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-/*
-	The code generator for the plugin for the Google protocol buffer compiler.
-	It generates Go code from the protocol buffer description files read by the
-	main routine.
-*/
 package generator
 
 import (
