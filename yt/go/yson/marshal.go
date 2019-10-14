@@ -302,19 +302,19 @@ func encodeAny(w *Writer, value interface{}) (err error) {
 			w.Entity()
 		}
 
-	case encoding.BinaryMarshaler:
-		var bin []byte
-		if bin, err = vv.MarshalBinary(); err != nil {
-			return err
-		}
-		w.Bytes(bin)
-
 	case encoding.TextMarshaler:
 		var text []byte
 		if text, err = vv.MarshalText(); err != nil {
 			return err
 		}
 		w.Bytes(text)
+
+	case encoding.BinaryMarshaler:
+		var bin []byte
+		if bin, err = vv.MarshalBinary(); err != nil {
+			return err
+		}
+		w.Bytes(bin)
 
 	default:
 		err = encodeReflect(w, reflect.ValueOf(vv))

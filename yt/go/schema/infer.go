@@ -21,12 +21,12 @@ func ytTypeFor(typ reflect.Type) (ytTyp Type, err error) {
 		return TypeBytes, nil
 	}
 
-	if typ.Implements(typeOfBinaryMarshaler) || (typ.Kind() != reflect.Ptr && reflect.PtrTo(typ).Implements(typeOfBinaryMarshaler)) {
-		return TypeBytes, nil
-	}
-
 	if typ.Implements(typeOfTextMarshaler) || (typ.Kind() != reflect.Ptr && reflect.PtrTo(typ).Implements(typeOfTextMarshaler)) {
 		return TypeString, nil
+	}
+
+	if typ.Implements(typeOfBinaryMarshaler) || (typ.Kind() != reflect.Ptr && reflect.PtrTo(typ).Implements(typeOfBinaryMarshaler)) {
+		return TypeBytes, nil
 	}
 
 	if typ.Kind() == reflect.Ptr {
