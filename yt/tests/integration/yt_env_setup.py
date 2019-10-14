@@ -43,14 +43,19 @@ def prepare_yatest_environment():
     if arcadia_interop.yatest_common is None:
         return
 
-    destination = os.path.join(arcadia_interop.yatest_common.work_path(), "build")
+    ram_drive_path = arcadia_interop.yatest_common.get_param("ram_drive_path")
+
+    if ram_drive_path is None:
+        destination = os.path.join(arcadia_interop.yatest_common.work_path(), "build")
+    else:
+        destination = os.path.join(ram_drive_path, "build")
     if not os.path.exists(destination):
         os.makedirs(destination)
-        path = arcadia_interop.prepare_yt_environment(destination, inside_arcadia=False)
+        path = arcadia_interop.prepare_yt_environment(destination, inside_arcadia=False, use_ytserver_all=True, copy_ytserver_all=True)
         os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
 
     global SANDBOX_ROOTDIR
-    SANDBOX_ROOTDIR = arcadia_interop.yatest_common.get_param("ram_drive_path")
+    SANDBOX_ROOTDIR = ram_drive_path
     if SANDBOX_ROOTDIR is None:
         SANDBOX_ROOTDIR = arcadia_interop.yatest_common.work_path()
 
