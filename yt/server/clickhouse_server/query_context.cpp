@@ -142,7 +142,8 @@ void Serialize(const TQueryContext& queryContext, IYsonConsumer* consumer)
                 fluent
                     .Item("initial_query_id").Value(queryContext.InitialQueryId)
                     .Item("initial_address").Value(queryContext.InitialAddress)
-                    .Item("initial_user").Value(queryContext.InitialUser);
+                    .Item("initial_user").Value(queryContext.InitialUser)
+                    .Item("initial_query").Value(queryContext.InitialQuery);
             })
             .Item("query_info").Do([&] (TFluentAny fluent) {
                 if (auto* queryStatus = queryContext.TryGetQueryStatus()) {
