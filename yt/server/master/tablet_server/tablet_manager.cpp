@@ -2205,6 +2205,7 @@ private:
     bool RecomputeExpectedTabletStates_ = false;
     bool ValidateAllTablesUnmounted_ = false;
     bool EnableUpdateStatisticsOnHeartbeat_ = true;
+    bool AddTabletCellBundleForActions_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -3654,6 +3655,8 @@ private:
         RecomputeExpectedTabletStates_ = (context.GetVersion() < EMasterReign::MulticellForDynamicTables);
         // COMPAT(savrus)
         ValidateAllTablesUnmounted_ = (context.GetVersion() < EMasterReign::MakeTabletStateBackwardCompatible);
+        // COMPAT(savrus,ifsmirnov)
+        AddTabletCellBundleForActions_ = (context.GetVersion() < EMasterReign::SynchronousHandlesForTabletBalancer);
     }
 
 
@@ -3662,6 +3665,22 @@ private:
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
 
         InitBuiltins();
+
+        // COMPAT(savrus,ifsmirnov)
+        if (AddTabletCellBundleForActions_) {
+            for (const auto [actionId, action] : TabletActionMap_) {
+                if (!IsObjectAlive(action)) {
+                    continue;
+                }
+
+                if (!action->IsFinished()) {
+                    auto* bundle = action->Tablets().front()->GetTable()->GetTabletCellBundle();
+                    action->SetTabletCellBundle(bundle);
+                    bundle->TabletActions().insert(action);
+                    bundle->IncreaseActiveTabletActionCount();
+                }
+            }
+        }
 
         // COMPAT(savrus)
         if (RecomputeTabletCountByState_) {
