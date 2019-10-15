@@ -181,13 +181,13 @@ class TestMasterCellsSync(YTEnvSetup):
 
         remove("#{0}".format(cell_id))
 
-        config_version = get("#{0}/@config_version".format(cell_id), "read_from" == "master")
+        config_version = get("#{0}/@config_version".format(cell_id), read_from="leader")
         assert config_version > 2
 
         def check(driver):
             return get("//sys/tablet_cells/{0}/@tablet_cell_bundle".format(cell_id), driver=driver) == "b" and \
-                get("#{0}/@config_version".format(cell_id), driver=driver, "read_from" == "master") == config_version and \
-                get("#{0}/@tablet_cell_life_stage".format(cell_id), driver=driver, "read_from" == "master") == "decommissioned"
+                get("#{0}/@config_version".format(cell_id), driver=driver, read_from="leader") == config_version and \
+                get("#{0}/@tablet_cell_life_stage".format(cell_id), driver=driver, read_from="leader") == "decommissioned"
 
         self._check_true_for_secondary(lambda driver: check(driver))
 
