@@ -1,9 +1,12 @@
 #include "query_registry.h"
 
 #include "query_context.h"
+#include "private.h"
 
 #include <yt/core/ytree/ypath_service.h>
 #include <yt/core/ytree/fluent.h>
+
+#include <yt/core/misc/crash_handler.h>
 
 #include <yt/core/profiling/profile_manager.h>
 
@@ -15,6 +18,8 @@ namespace NYT::NClickHouseServer {
 using namespace NProfiling;
 using namespace NYTree;
 using namespace NYson;
+
+static const auto& Logger = ServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -97,7 +102,9 @@ public:
         : OrchidService_(IYPathService::FromProducer(BIND(&TImpl::BuildYson, MakeWeak(this))))
         , Bootstrap_(bootstrap)
         , IdlePromise_(MakePromise<void>(TError()))
-    { }
+    {
+        memset(&StateBuffer_, 0, sizeof(StateBuffer_));
+    }
 
     void Register(TQueryContext* queryContext)
     {
@@ -131,6 +138,8 @@ public:
                 YT_ABORT();
         }
 
+        SaveState();
+
         YT_LOG_INFO("Query registered (UserInfo: %v)", userInfo);
 
         if (Queries_.size() == 1) {
@@ -161,6 +170,8 @@ public:
                 YT_ABORT();
         }
 
+        SaveState();
+
         YT_LOG_INFO("Query unregistered (UserInfo: %v)", userInfo);
 
         if (Queries_.empty()) {
@@ -185,6 +196,8 @@ public:
     void OnProfiling() const
     {
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+
+        std::lock_guard<std::mutex> guard(Bootstrap_->GetHost()->GetContext().getProcessList().mutex);
 
         for (const auto& [user, userInfo] : UserToUserInfo_) {
             if (userInfo.RunningInitialQueryCount > 0) {
@@ -229,16 +242,12 @@ public:
         }
     }
 
-    void DumpCodicils() const
+    void WriteStateToStderr() const
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
-
-        Cerr << "*** Begin codicils ***" << Endl;
-        Cerr << "Query registry:" << Endl;
-        TYsonWriter writer(&Cerr, EYsonFormat::Pretty);
-        BuildYson(&writer);
-        Cerr << Endl;
-        Cerr << "*** End codicils ***" << Endl;
+        int startPosition = StatePointer_;
+        int zeroPosition;
+        for (zeroPosition = startPosition; StateBuffer_[zeroPosition]; ++zeroPosition);
+        WriteToStderr(&StateBuffer_[startPosition], zeroPosition - startPosition);
     }
 
 private:
@@ -249,9 +258,44 @@ private:
 
     TPromise<void> IdlePromise_;
 
+    static constexpr size_t StateAllocationSize_ = 128_MB;
+    std::array<char, StateAllocationSize_> StateBuffer_;
+    int StatePointer_ = 0;
+
+    void SaveState()
+    {
+        YT_LOG_INFO("Saving query registry state (StatePointer: %v)", StatePointer_);
+        TStringStream stream;
+        TYsonWriter writer(&stream);
+        BuildYson(&writer);
+        auto result = stream.Str();
+
+        size_t remainingSize = StateAllocationSize_ - StatePointer_ - 1;
+        YT_LOG_DEBUG("New query registry state built (StateSize: %v, RemainingSize: %v)", result.size(), remainingSize);
+        if (remainingSize < result.size()) {
+            YT_LOG_INFO("Not enough place for new query registry state, moving pointer to the beginning", StatePointer_);
+            StatePointer_ = 0;
+        }
+        remainingSize = StateAllocationSize_ - StatePointer_ - 1;
+        if (remainingSize < result.size()) {
+            YT_LOG_ERROR("Query registry state is too large, it is going to be truncated (StateSize: %v, StateAllocationSize: %v)",
+                result.size(),
+                StateAllocationSize_);
+            static const char* truncatedMarker = "...TRUNCATED";
+            result.resize(StateAllocationSize_ - 13 /* sizeof(truncatedMarker)*/);
+            result += truncatedMarker;
+        }
+
+        strcpy(&StateBuffer_[StatePointer_], result.data());
+        StatePointer_ += result.size() + 1;
+        YT_LOG_INFO("Query registry state saved (StatePointer: %v)", StatePointer_);
+    }
+
     void BuildYson(IYsonConsumer* consumer) const
     {
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+
+        std::lock_guard<std::mutex> guard(Bootstrap_->GetHost()->GetContext().getProcessList().mutex);
 
         BuildYsonFluently(consumer)
             .BeginMap()
@@ -304,9 +348,9 @@ IYPathServicePtr TQueryRegistry::GetOrchidService() const
     return Impl_->GetOrchidService();
 }
 
-void TQueryRegistry::DumpCodicils() const
+void TQueryRegistry::WriteStateToStderr() const
 {
-    Impl_->DumpCodicils();
+    Impl_->WriteStateToStderr();
 }
 
 /////////////////////////////////////////////////////////////////////////////

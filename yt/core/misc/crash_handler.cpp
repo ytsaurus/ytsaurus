@@ -84,6 +84,12 @@ void WriteToStderr(const char* buffer, int length)
     }
 }
 
+//! Writes the given zero-terminated buffer to the standard error.
+void WriteToStderr(const char* buffer)
+{
+    WriteToStderr(buffer, strlen(buffer));
+}
+
 //! Dumps time information.
 /*!
  *  We do not dump human-readable time information with localtime()
@@ -260,7 +266,8 @@ void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
 
     DumpSignalInfo(signal, si);
 
-    DumpStackTrace(WriteToStderr);
+    // Easiest way to choose proper overload...
+    DumpStackTrace([] (const char* buffer, int length) { WriteToStderr(buffer, length); });
 
     formatter.Reset();
     formatter.AppendString("*** Wait for logger to shut down ***\n");

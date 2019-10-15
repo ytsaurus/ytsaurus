@@ -50,6 +50,11 @@ private:
 
 };
 
+//! Writes the given buffer with the length to the standard error.
+void WriteToStderr(const char* buffer, int length);
+//! Writes the given zero-terminated buffer to the standard error.
+void WriteToStderr(const char* buffer);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
