@@ -151,18 +151,21 @@ private:
             DoSync();
         } catch (const std::exception& ex) {
             error = TError(ex);
-            YT_LOG_DEBUG(error);
         }
 
-        auto nextSyncPromise = NextSyncPromise_;
-        // Don't drop the very first recent sync promise.
-        if (!RecentSyncPromise_.IsSet()) {
+        if (error.IsOK()) {
+            auto nextSyncPromise = NextSyncPromise_;
+            // Don't drop the very first recent sync promise.
+            if (!RecentSyncPromise_.IsSet()) {
+                RecentSyncPromise_.Set(error);
+            }
+            RenewSyncPromises();
+
+            nextSyncPromise.Set(error);
             RecentSyncPromise_.Set(error);
+        } else {
+            YT_LOG_WARNING(error, "Synchronizing cell roles failed");
         }
-        RenewSyncPromises();
-
-        nextSyncPromise.Set(error);
-        RecentSyncPromise_.Set(error);
     }
 
     void RenewSyncPromises()
