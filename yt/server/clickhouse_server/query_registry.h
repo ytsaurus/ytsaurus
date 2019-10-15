@@ -17,6 +17,8 @@ public:
     TQueryRegistry(TBootstrap* bootstrap);
     ~TQueryRegistry() = default;
 
+    void SetupStateWritingCrashSignalHandler();
+
     void Register(TQueryContext* queryContext);
     void Unregister(TQueryContext* queryContext);
 
@@ -28,6 +30,8 @@ public:
     NYTree::IYPathServicePtr GetOrchidService() const;
 
     void WriteStateToStderr() const;
+
+    void SaveState();
 
 private:
     class TImpl;

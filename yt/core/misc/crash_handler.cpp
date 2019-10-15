@@ -51,20 +51,6 @@ namespace NYT {
 // See http://pubs.opengroup.org/onlinepubs/009695399/functions/xsh_chap02_04.html
 // for a list of async signal safe functions.
 
-// We will install the failure signal handler for these signals.
-// We could use strsignal() to get signal names, but we do not use it to avoid
-// introducing yet another #ifdef complication.
-const struct {
-    int Number;
-    const char* Name;
-} FailureSignals[] = {
-    { SIGSEGV, "SIGSEGV" },
-    { SIGILL,  "SIGILL"  },
-    { SIGFPE,  "SIGFPE"  },
-    { SIGABRT, "SIGABRT" },
-    { SIGBUS,  "SIGBUS"  },
-};
-
 //! Returns the program counter from a signal context, NULL if unknown.
 void* GetPC(void* uc)
 {

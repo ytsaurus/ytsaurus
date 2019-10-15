@@ -5,6 +5,7 @@
 #include "helpers.h"
 #include "query_context.h"
 #include "table.h"
+#include "query_registry.h"
 
 #include <yt/ytlib/api/native/client.h>
 
@@ -127,6 +128,16 @@ StoragePtr TDatabase::GetTable(
         // table not found
         return nullptr;
     }
+
+    // Here goes the dirty-ass hack. When query context is created, query AST is not parsed yet,
+    // so it is not present in client info for query. That's why if we crash somewhere during coordination
+    // phase, dumped query registry in crash handler will lack crashing query itself. As a workaround,
+    // we forcefully rebuild query registry state when creating TStorageDistributor.
+    WaitFor(
+        BIND(&TQueryRegistry::SaveState, queryContext->Bootstrap->GetQueryRegistry())
+            .AsyncVia(queryContext->Bootstrap->GetControlInvoker())
+            .Run())
+        .ThrowOnError();
 
     return CreateStorageDistributor({std::move(table)});
 }

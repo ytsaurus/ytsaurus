@@ -7,6 +7,7 @@
 #include <yt/core/ytree/fluent.h>
 
 #include <yt/core/misc/crash_handler.h>
+#include <yt/core/misc/signal_registry.h>
 
 #include <yt/core/profiling/profile_manager.h>
 
@@ -104,6 +105,13 @@ public:
         , IdlePromise_(MakePromise<void>(TError()))
     {
         memset(&StateBuffer_, 0, sizeof(StateBuffer_));
+    }
+
+    void SetupStateWritingCrashSignalHandler()
+    {
+        for (const auto& signal : FailureSignals) {
+            TSignalRegistry::Get()->PushCallback(signal.Number, [=] { WriteStateToStderr(); });
+        }
     }
 
     void Register(TQueryContext* queryContext)
@@ -247,26 +255,24 @@ public:
         int startPosition = StatePointer_;
         int zeroPosition;
         for (zeroPosition = startPosition; StateBuffer_[zeroPosition]; ++zeroPosition);
+        WriteToStderr("*** Query registry state ***\n");
         WriteToStderr(&StateBuffer_[startPosition], zeroPosition - startPosition);
+        WriteToStderr("\n");
     }
-
-private:
-    TBootstrap* Bootstrap_;
-    THashSet<TQueryContext*> Queries_;
-
-    THashMap<TString, TUserInfo> UserToUserInfo_;
-
-    TPromise<void> IdlePromise_;
-
-    static constexpr size_t StateAllocationSize_ = 128_MB;
-    std::array<char, StateAllocationSize_> StateBuffer_;
-    int StatePointer_ = 0;
 
     void SaveState()
     {
+        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+
         YT_LOG_INFO("Saving query registry state (StatePointer: %v)", StatePointer_);
+        while (StateBuffer_[StatePointer_] != 0) {
+            ++StatePointer_;
+        }
+        // Skip one more zero to keep previous string readable.
+        ++StatePointer_;
+        YT_LOG_DEBUG("Skipped previous string (StatePointer: %v)");
         TStringStream stream;
-        TYsonWriter writer(&stream);
+        TYsonWriter writer(&stream, EYsonFormat::Pretty);
         BuildYson(&writer);
         auto result = stream.Str();
 
@@ -287,9 +293,20 @@ private:
         }
 
         strcpy(&StateBuffer_[StatePointer_], result.data());
-        StatePointer_ += result.size() + 1;
-        YT_LOG_INFO("Query registry state saved (StatePointer: %v)", StatePointer_);
+        YT_LOG_INFO("Query registry state saved (StatePointer: %v, Length: %v)", StatePointer_, result.size());
     }
+
+private:
+    TBootstrap* Bootstrap_;
+    THashSet<TQueryContext*> Queries_;
+
+    THashMap<TString, TUserInfo> UserToUserInfo_;
+
+    TPromise<void> IdlePromise_;
+
+    static constexpr size_t StateAllocationSize_ = 128_MB;
+    std::array<char, StateAllocationSize_> StateBuffer_;
+    int StatePointer_ = 0;
 
     void BuildYson(IYsonConsumer* consumer) const
     {
@@ -328,6 +345,11 @@ void TQueryRegistry::Unregister(TQueryContext* queryContext)
     Impl_->Unregister(queryContext);
 }
 
+void TQueryRegistry::SetupStateWritingCrashSignalHandler()
+{
+    Impl_->SetupStateWritingCrashSignalHandler();
+}
+
 size_t TQueryRegistry::GetQueryCount() const
 {
     return Impl_->GetQueryCount();
@@ -351,6 +373,11 @@ IYPathServicePtr TQueryRegistry::GetOrchidService() const
 void TQueryRegistry::WriteStateToStderr() const
 {
     Impl_->WriteStateToStderr();
+}
+
+void TQueryRegistry::SaveState()
+{
+    Impl_->SaveState();
 }
 
 /////////////////////////////////////////////////////////////////////////////
