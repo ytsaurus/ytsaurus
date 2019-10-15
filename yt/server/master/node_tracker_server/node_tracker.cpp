@@ -457,10 +457,10 @@ public:
     std::vector<TNode*> GetRackNodes(const TRack* rack)
     {
         std::vector<TNode*> result;
-        for (const auto& pair : NodeMap_) {
-            auto* node = pair.second;
-            if (!IsObjectAlive(node))
+        for (auto [nodeId, node] : NodeMap_) {
+            if (!IsObjectAlive(node)) {
                 continue;
+            }
             if (node->GetRack() == rack) {
                 result.push_back(node);
             }
@@ -471,10 +471,10 @@ public:
     std::vector<TRack*> GetDataCenterRacks(const TDataCenter* dc)
     {
         std::vector<TRack*> result;
-        for (const auto& pair : RackMap_) {
-            auto* rack = pair.second;
-            if (!IsObjectAlive(rack))
+        for (auto [rackId, rack] : RackMap_) {
+            if (!IsObjectAlive(rack)) {
                 continue;
+            }
             if (rack->GetDataCenter() == dc) {
                 result.push_back(rack);
             }
@@ -1274,9 +1274,11 @@ private:
 
         AggregatedOnlineNodeCount_ = 0;
 
-        for (const auto& pair : NodeMap_) {
-            auto* node = pair.second;
-
+        for (auto [nodeId, node] : NodeMap_) {
+            if (!IsObjectAlive(node)) {
+                continue;
+            }
+            
             node->RebuildTags();
             InitializeNodeStates(node);
             InitializeNodeIOWeights(node);
@@ -1290,8 +1292,10 @@ private:
 
         UsedRackIndexes_.reset();
         RackCount_ = 0;
-        for (const auto& pair : RackMap_) {
-            auto* rack = pair.second;
+        for (auto [rackId, rack] : RackMap_) {
+            if (!IsObjectAlive(rack)) {
+                continue;
+            }
 
             YT_VERIFY(NameToRackMap_.insert(std::make_pair(rack->GetName(), rack)).second);
 
@@ -1301,8 +1305,10 @@ private:
             ++RackCount_;
         }
 
-        for (const auto& pair : DataCenterMap_) {
-            auto* dc = pair.second;
+        for (auto [dcId, dc] : DataCenterMap_) {
+            if (!IsObjectAlive(dc)) {
+                continue;
+            }
 
             YT_VERIFY(NameToDataCenterMap_.insert(std::make_pair(dc->GetName(), dc)).second);
         }
@@ -1351,8 +1357,10 @@ private:
             group.PendingRegisterNodeMutationCount = 0;
         }
 
-        for (const auto& pair : NodeMap_) {
-            auto* node = pair.second;
+        for (auto [nodeId, node] : NodeMap_) {
+            if (!IsObjectAlive(node)) {
+                continue;
+            }
             if (node->GetLocalState() == ENodeState::Unregistered) {
                 CommitDisposeNodeWithSemaphore(node);
             }
@@ -1579,8 +1587,7 @@ private:
 
         TReqSetCellNodeDescriptors request;
         request.set_cell_tag(multicellManager->GetCellTag());
-        for (const auto& pair : NodeMap_) {
-            auto* node = pair.second;
+        for (auto [nodeId, node] : NodeMap_) {
             if (!IsObjectAlive(node)) {
                 continue;
             }
@@ -1700,6 +1707,9 @@ private:
 
         auto nodes = GetValuesSortedByKey(NodeMap_);
         for (const auto* node : nodes) {
+            if (!IsObjectAlive(node)) {
+                continue;
+            }
             // NB: TReqRegisterNode+TReqUnregisterNode create an offline node at the secondary master.
             {
                 TReqRegisterNode request;
@@ -1717,11 +1727,17 @@ private:
 
         auto racks = GetValuesSortedByKey(RackMap_);
         for (auto* rack : racks) {
+            if (!IsObjectAlive(rack)) {
+                continue;
+            }
             objectManager->ReplicateObjectCreationToSecondaryMaster(rack, cellTag);
         }
 
         auto dcs = GetValuesSortedByKey(DataCenterMap_);
         for (auto* dc : dcs) {
+            if (!IsObjectAlive(dc)) {
+                continue;
+            }
             objectManager->ReplicateObjectCreationToSecondaryMaster(dc, cellTag);
         }
     }
@@ -1732,16 +1748,25 @@ private:
 
         auto nodes = GetValuesSortedByKey(NodeMap_);
         for (auto* node : nodes) {
+            if (!IsObjectAlive(node)) {
+                continue;
+            }
             objectManager->ReplicateObjectAttributesToSecondaryMaster(node, cellTag);
         }
 
         auto racks = GetValuesSortedByKey(RackMap_);
         for (auto* rack : racks) {
+            if (!IsObjectAlive(rack)) {
+                continue;
+            }
             objectManager->ReplicateObjectAttributesToSecondaryMaster(rack, cellTag);
         }
 
         auto dcs = GetValuesSortedByKey(DataCenterMap_);
         for (auto* dc : dcs) {
+            if (!IsObjectAlive(dc)) {
+                continue;
+            }
             objectManager->ReplicateObjectAttributesToSecondaryMaster(dc, cellTag);
         }
     }
@@ -1832,8 +1857,10 @@ private:
 
     void RebuildNodeGroups()
     {
-        for (const auto& pair : NodeMap_) {
-            auto* node = pair.second;
+        for (auto [nodeId, node] : NodeMap_) {
+            if (!IsObjectAlive(node)) {
+                continue;
+            }
             UpdateNodeCounters(node, -1);
         }
 
@@ -1854,8 +1881,10 @@ private:
             DefaultNodeGroup_->Config->MaxConcurrentNodeRegistrations = GetDynamicConfig()->MaxConcurrentNodeRegistrations;
         }
 
-        for (const auto& pair : NodeMap_) {
-            auto* node = pair.second;
+        for (auto [nodeId, node] : NodeMap_) {
+            if (!IsObjectAlive(node)) {
+                continue;
+            }
             UpdateNodeCounters(node, +1);
         }
     }
@@ -1894,8 +1923,11 @@ private:
     void RebuildTotalNodeStatistics()
     {
         TotalNodeStatistics_ = TTotalNodeStatistics();
-        for (const auto& pair : NodeMap_) {
-            const auto* node = pair.second;
+        for (auto [nodeId, node] : NodeMap_) {
+            if (!IsObjectAlive(node)) {
+                continue;
+            }
+
             TotalNodeStatistics_.BannedNodeCount += node->GetBanned();
             TotalNodeStatistics_.DecommissinedNodeCount += node->GetDecommissioned();
             TotalNodeStatistics_.WithAlertsNodeCount += !node->Alerts().empty();
