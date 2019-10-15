@@ -279,6 +279,7 @@
     XX(Timeout, timeout) \
     XX(Timestamp, timestamp) \
     XX(Title, title) \
+    XX(TotalAccountStatistics, total_account_statistics) \
     XX(TotalCommittedResourceUsage, total_committed_resource_usage) \
     XX(TotalResourceLimits, total_resource_limits) \
     XX(TotalResourceUsage, total_resource_usage) \

@@ -43,6 +43,8 @@ private:
             .SetPresent(shard->GetRoot() != nullptr));
         attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::AccountStatistics)
             .SetOpaque(true));
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::TotalAccountStatistics)
+            .SetOpaque(true));
         attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::Name)
             .SetWritable(true));
 
@@ -69,6 +71,11 @@ private:
                                 .Item(accountAndStatistics.first->GetName())
                                 .Value(accountAndStatistics.second);
                         });
+                return true;
+
+            case EInternedAttributeKey::TotalAccountStatistics:
+                BuildYsonFluently(consumer)
+                    .Value(shard->ComputeTotalAccountStatistics());
                 return true;
 
             case EInternedAttributeKey::Name:
