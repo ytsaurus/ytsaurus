@@ -204,18 +204,18 @@ public:
         SetupLogger();
         EngineConfig_ = new Poco::Util::LayeredConfiguration();
         EngineConfig_->add(ConvertToPocoConfig(ConvertToNode(Config_->Engine)));
-        
+
         Discovery_ = New<TDiscovery>(
             Config_->Discovery,
             Bootstrap_->GetRootClient(),
             ControlInvoker_,
             std::vector<TString>{"host", "rpc_port", "monitoring_port", "tcp_port", "http_port", "pid"},
             Logger);
-        
+
         SetupContext();
         WarmupDictionaries();
         SetupHandlers();
-        
+
         Discovery_->StartPolling();
 
         TAttributeMap attributes = {
@@ -566,7 +566,6 @@ private:
         if (total + Config_->MemoryWatchdog->CodicilWatermark > Config_->MemoryWatchdog->MemoryLimit) {
             YT_LOG_ERROR("We are close to OOM, printing query digest codicils and killing ourselves");
             NYT::NLogging::TLogManager::Get()->Shutdown();
-            WriteToStderr("*** Query registry ***\n");
             Bootstrap_->GetQueryRegistry()->WriteStateToStderr();
             _exit(MemoryLimitExceededExitCode);
         }

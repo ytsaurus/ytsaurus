@@ -70,7 +70,7 @@ private:
 
         ConfigureUids();
         ConfigureSignals();
-        ConfigureCrashHandler();
+        // NB: ConfigureCrashHandler() is not called intentionally; crash handlers is set up in bootstrap.
         ConfigureExitZeroOnSigterm();
         EnablePhdrCache();
         EnableRefCountedTrackerProfiling();

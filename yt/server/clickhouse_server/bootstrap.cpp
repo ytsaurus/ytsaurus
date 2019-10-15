@@ -43,6 +43,7 @@
 #include <yt/core/misc/core_dumper.h>
 #include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
 #include <yt/core/misc/signal_registry.h>
+#include <yt/core/misc/crash_handler.h>
 
 #include <yt/core/ytalloc/statistics_producer.h>
 
@@ -127,6 +128,10 @@ void TBootstrap::DoRun()
     NMonitoring::Initialize(HttpServer_, &MonitoringManager_, &orchidRoot);
 
     QueryRegistry_ = New<TQueryRegistry>(this);
+
+    // Set up crash handlers.
+    QueryRegistry_->SetupStateWritingCrashSignalHandler();
+    InstallCrashSignalHandler();
 
     SetNodeByYPath(
         orchidRoot,
