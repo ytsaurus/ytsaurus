@@ -160,6 +160,10 @@ private:
     //! Try to update current acl if it is not fresh enough, and clear users map if it has actually changed.
     void MaybeUpdateCurrentAcl()
     {
+        if (!Bootstrap_->GetConfig()->ValidateOperationAccess) {
+            return;
+        }
+
         auto currentTime = NProfiling::GetCpuInstant();
         auto updatePeriod = NProfiling::DurationToCpuDuration(Bootstrap_->GetConfig()->OperationAclUpdatePeriod);
         {
