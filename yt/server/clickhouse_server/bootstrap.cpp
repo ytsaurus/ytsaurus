@@ -29,6 +29,8 @@
 #include <yt/client/api/client.h>
 #include <yt/client/api/client_cache.h>
 
+#include <yt/client/misc/discovery.h>
+
 #include <yt/core/bus/tcp/server.h>
 
 #include <yt/core/concurrency/action_queue.h>
@@ -72,6 +74,8 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = ServerLogger;
+
+const TString CacheUser = "yt-clickhouse-cache";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -171,6 +175,7 @@ void TBootstrap::DoRun()
     ClientCache_ = New<NApi::NNative::TClientCache>(Config_->ClientCache, Connection_);
 
     RootClient_ = ClientCache_->GetClient(Config_->User);
+    CacheClient_ = ClientCache_->GetClient(CacheUser);
 
     // Configure clique's directory.
     Config_->Discovery->Directory += "/" + CliqueId_;

@@ -28,7 +28,9 @@
 #include <yt/ytlib/chunk_client/chunk_spec_fetcher.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/ytlib/object_client/object_attribute_cache.h>
+
+#include <yt/ytlib/security_client/permission_cache.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -98,6 +100,7 @@ public:
 
 public:
     TDataSliceFetcher(
+        TBootstrap* bootstrap,
         NNative::IClientPtr client,
         IInvokerPtr invoker,
         std::vector<TTableSchema> tableSchemas,
@@ -105,14 +108,15 @@ public:
         std::vector<std::optional<KeyCondition>> keyConditions,
         TRowBufferPtr rowBuffer,
         TSubqueryConfigPtr config)
-        : Client_(std::move(client))
+        : Bootstrap_(bootstrap)
+        , Client_(std::move(client))
         , Invoker_(std::move(invoker))
         , TableSchemas_(std::move(tableSchemas))
         , InputTablePaths_(std::move(inputTablePaths))
         , KeyConditions_(std::move(keyConditions))
         , RowBuffer_(std::move(rowBuffer))
         , Config_(std::move(config))
-    {}
+    { }
 
     TFuture<void> Fetch()
     {
@@ -122,6 +126,8 @@ public:
     }
 
 private:
+    TBootstrap* Bootstrap_;
+
     const NLogging::TLogger& Logger = ServerLogger;
 
     NApi::NNative::IClientPtr Client_;
@@ -172,10 +178,11 @@ private:
             ResultStripeList_->TotalRowCount);
     }
 
-    // TODO(max42): get rid of duplicating code.
-    void CollectBasicAttributes()
+    void CollectTablesAttributes()
     {
-        YT_LOG_DEBUG("Requesting basic object attributes");
+        YT_LOG_INFO("Collecting input table attributes");
+        
+        std::vector<TYPath> paths;
 
         for (
             int logicalTableIndex = 0;
@@ -187,72 +194,60 @@ private:
                 auto& table = InputTables_.emplace_back();
                 table.Path = tablePath;
                 table.TableIndex = logicalTableIndex;
+                paths.emplace_back(tablePath.GetPath());
             }
         }
 
-        GetUserObjectBasicAttributes(
-            Client_,
-            MakeUserObjectList(InputTables_),
-            NullTransactionId,
-            Logger,
+        auto permissionsFuture = Bootstrap_->GetHost()->GetPermissionsCache()->CheckPermissions(
+            paths,
+            Client_->GetOptions().GetUser(),
             EPermission::Read);
 
-        for (const auto& table : InputTables_) {
-            if (table.Type != NObjectClient::EObjectType::Table) {
-                THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
-                    table.Path.GetPath(),
-                    NObjectClient::EObjectType::Table,
-                    table.Type);
+        auto attributes = WaitFor(Bootstrap_->GetHost()->GetTableAttributeCache()->Get(paths))
+            .ValueOrThrow();
+
+        auto permissions = WaitFor(permissionsFuture)
+            .ValueOrThrow();
+
+        std::vector<TError> errors;
+
+        for (const auto& permission : permissions) {
+            if (!permission.IsOK()) {
+                errors.emplace_back(permission);
             }
         }
-    }
-
-    void CollectTableSpecificAttributes()
-    {
-        // XXX(babenko): fetch from external cells
-        YT_LOG_DEBUG("Requesting extended table attributes");
-
-        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
-
-        TObjectServiceProxy proxy(channel);
-        auto batchReq = proxy.ExecuteBatch();
-
-        for (const auto& table : InputTables_) {
-            auto req = TTableYPathProxy::Get(table.GetObjectIdPath() + "/@");
-            AddCellTagToSyncWith(req, table.ObjectId);
-            ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
-                "dynamic",
-                "chunk_count",
-                "schema",
-            });
-            batchReq->AddRequest(req, "get_attributes");
-        }
-
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error requesting extended attributes of tables");
-        const auto& batchRsp = batchRspOrError.Value();
-
-        auto getInAttributesRspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspGet>("get_attributes");
-        for (size_t index = 0; index < InputTables_.size(); ++index) {
-            auto& table = InputTables_[index];
-
-            {
-                const auto& rsp = getInAttributesRspsOrError[index].Value();
-                auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
-
-                table.ChunkCount = attributes->Get<int>("chunk_count");
-                table.IsDynamic = attributes->Get<bool>("dynamic");
-                table.Schema = attributes->Get<TTableSchema>("schema");
+        for (const auto& attribute : attributes) {
+            if (!attribute.IsOK()) {
+                errors.emplace_back(attribute);
             }
         }
-    }
+        
+        if (errors.empty()) {
+            for (size_t index = 0; index < InputTables_.size(); ++index) {
+                auto& table = InputTables_[index];
+                const auto& attrs = attributes[index].Value();
 
-    void CollectTablesAttributes()
-    {
-        YT_LOG_INFO("Collecting input tables attributes");
+                table.ObjectId = TObjectId::FromString(attrs.at("id")->GetValue<TString>());
+                table.Type = TypeFromId(table.ObjectId);
+                if (table.Type ==  NObjectClient::EObjectType::Table) {
+                    table.ExternalCellTag = attrs.at("external")->GetValue<bool>() ? 
+                        attrs.at("external_cell_tag")->GetValue<ui64>() : CellTagFromId(table.ObjectId);
+                    table.ChunkCount = attrs.at("chunk_count")->GetValue<i64>();
+                    table.IsDynamic = attrs.at("dynamic")->GetValue<bool>();
+                    table.Schema = ConvertTo<TTableSchema>(attrs.at("schema"));
+                } else {
+                    errors.emplace_back("Object %v has invalid type: expected %Qlv, actual %Qlv",
+                        table.Path.GetPath(),
+                        NObjectClient::EObjectType::Table,
+                        table.Type);
+                }
+            }
+        }
 
-        CollectBasicAttributes();
-        CollectTableSpecificAttributes();
+        if (!errors.empty()) {
+            THROW_ERROR_EXCEPTION(TError("Failed to collect table attributes")
+                << errors);
+        }
     }
 
     void ValidateSchema()
@@ -361,6 +356,7 @@ DEFINE_REFCOUNTED_TYPE(TDataSliceFetcher);
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkStripeListPtr FetchInput(
+    TBootstrap* bootstrap,
     NNative::IClientPtr client,
     const IInvokerPtr& invoker,
     std::vector<TTableSchema> tableSchemas,
@@ -371,6 +367,7 @@ TChunkStripeListPtr FetchInput(
     TSubquerySpec& specTemplate)
 {
     auto dataSliceFetcher = New<TDataSliceFetcher>(
+        bootstrap,
         std::move(client),
         invoker,
         std::move(tableSchemas),

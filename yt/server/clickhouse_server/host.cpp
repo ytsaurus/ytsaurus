@@ -24,6 +24,10 @@
 
 #include <yt/ytlib/api/native/client.h>
 
+#include <yt/ytlib/security_client/permission_cache.h>
+
+#include <yt/ytlib/object_client/object_attribute_cache.h>
+
 #include <yt/client/misc/discovery.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
@@ -84,6 +88,8 @@ using namespace NProfiling;
 using namespace NYTree;
 using namespace NRpc::NBus;
 using namespace NProto;
+using namespace NSecurityClient;
+using namespace NObjectClient;
 
 static const auto& Logger = ServerLogger;
 
@@ -106,6 +112,8 @@ std::string GetCanonicalPath(std::string path)
 }   // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
+
+const std::vector<TString> AttributesToCache{"id", "schema", "type", "dynamic", "chunk_count", "external", "external_cell_tag"};
 
 class TClickHouseHost::TImpl
     : public IServer
@@ -146,6 +154,9 @@ private:
     THashSet<TString> KnownInstances_;
     THashMap<TString, int> UnknownInstancePingCounter_;
 
+    TPermissionCachePtr PermissionCache_;
+    TObjectAttributeCachePtr TableAttributeCache_;
+
 public:
     TImpl(
         TBootstrap* bootstrap,
@@ -165,6 +176,17 @@ public:
         , MonitoringPort_(monitoringPort)
         , TcpPort_(tcpPort)
         , HttpPort_(httpPort)
+        , PermissionCache_(New<TPermissionCache>(
+            Config_->PermissionCache,
+            Bootstrap_->GetCacheClient(),
+            ServerProfiler.AppendPath("/permission_cache")))
+        , TableAttributeCache_(New<NObjectClient::TObjectAttributeCache>(
+            Config_->TableAttributeCache,
+            AttributesToCache,
+            Bootstrap_->GetCacheClient(),
+            Bootstrap_->GetControlInvoker(),
+            Logger,
+            ServerProfiler.AppendPath("/object_attribute_cache")))
     { }
 
     void Start()
@@ -196,7 +218,7 @@ public:
         
         Discovery_->StartPolling();
 
-        TDiscovery::TAttributeDictionary attributes = {
+        TAttributeMap attributes = {
             {"host", ConvertToNode(GetFQDNHostName())},
             {"rpc_port", ConvertToNode(RpcPort_)},
             {"monitoring_port", ConvertToNode(MonitoringPort_)},
@@ -244,6 +266,16 @@ public:
                 server->stop();
             }
         }
+    }
+
+    TObjectAttributeCachePtr GetTableAttributeCache()
+    {
+        return TableAttributeCache_;
+    }
+
+    TPermissionCachePtr GetPermissionsCache()
+    {
+        return PermissionCache_;
     }
 
     Poco::Logger& logger() const override
@@ -661,6 +693,16 @@ TFuture<void> TClickHouseHost::StopDiscovery()
 void TClickHouseHost::StopTcpServers()
 {
     return Impl_->StopTcpServers();
+}
+
+TObjectAttributeCachePtr TClickHouseHost::GetTableAttributeCache()
+{
+    return Impl_->GetTableAttributeCache();
+}
+
+TPermissionCachePtr TClickHouseHost::GetPermissionsCache()
+{
+    return Impl_->GetPermissionsCache();
 }
 
 const IInvokerPtr& TClickHouseHost::GetControlInvoker() const

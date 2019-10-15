@@ -116,7 +116,13 @@ StoragePtr TDatabase::GetTable(
     const std::string& path) const
 {
     auto* queryContext = GetQueryContext(context);
-    auto table = FetchClickHouseTable(queryContext->Client(), TRichYPath::Parse(TString(path)), queryContext->Logger);
+
+    auto table = FetchClickHouseTableFromCache(
+        queryContext->Bootstrap,
+        queryContext->Client()->GetOptions().GetUser(),
+        TRichYPath::Parse(TString(path)),
+        queryContext->Logger);
+
     if (!table) {
         // table not found
         return nullptr;
@@ -319,8 +325,9 @@ ASTPtr TDatabase::DoGetCreateTableQuery(const DB::Context& context, const DB::St
         false /* allow_multi_statements */,
         0 /* max_query_size */);
 
-    if (!ast && throwOnError)
+    if (!ast && throwOnError) {
         THROW_ERROR_EXCEPTION("Caught following error while parsing table creation query: %v", errorMessage);
+    }
 
     return ast;
 }
