@@ -940,7 +940,7 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
                 continue;
             }
             if (!slot->CanConfigure()) {
-                YT_LOG_WARNING("Cannot configure slot in non-configurable state, ignored (CellId: %v, State: %Qlv)",
+                YT_LOG_WARNING("Cannot configure slot in non-configurable state, ignored (CellId: %v, State: %v)",
                     descriptor.CellId,
                     slot->GetControlState());
                 continue;
@@ -957,7 +957,7 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
                 continue;
             }
             if (!slot->CanConfigure()) {
-                YT_LOG_WARNING("Cannot update slot in non-configurable state, ignored (CellId: %v, State: %Qlv)",
+                YT_LOG_WARNING("Cannot update slot in non-configurable state, ignored (CellId: %v, State: %v)",
                     cellId,
                     slot->GetControlState());
                 continue;

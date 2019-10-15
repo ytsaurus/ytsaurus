@@ -6790,7 +6790,7 @@ void TOperationControllerBase::Dispose()
         }
 
         YT_LOG_DEBUG(
-            "Adding total time per tree to residual job metrics on controller disposal (FinalState: %Qlv, TotalTimePerTree: %v)",
+            "Adding total time per tree to residual job metrics on controller disposal (FinalState: %v, TotalTimePerTree: %v)",
             State.load(),
             TotalTimePerTree_);
     }

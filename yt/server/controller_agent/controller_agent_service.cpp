@@ -299,7 +299,7 @@ private:
         auto incarnationId = FromProto<TIncarnationId>(request->incarnation_id());
         auto operationId = FromProto<TOperationId>(request->operation_id());
         auto controllerFinalState = static_cast<EControllerState>(request->controller_final_state());
-        context->SetRequestInfo("IncarnationId: %v, OperationId: %v, ControllerFinalState: %Qlv",
+        context->SetRequestInfo("IncarnationId: %v, OperationId: %v, ControllerFinalState: %v",
             incarnationId,
             operationId,
             controllerFinalState);
