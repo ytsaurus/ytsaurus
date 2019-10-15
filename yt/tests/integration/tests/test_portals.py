@@ -254,22 +254,50 @@ class TestPortals(YTEnvSetup):
         assert exists("//sys/cypress_shards/{}".format(shard_id))
         assert get("//@id") == get("#{}/@root_node_id".format(shard_id))
         assert get("#{}/@account_statistics/sys/node_count".format(shard_id)) > 0
+        assert get("#{}/@total_account_statistics/node_count".format(shard_id)) > 0
 
     @authors("babenko")
-    def test_shard_statistics(self):
+    def test_root_shard_statistics(self):
         shard_id = get("//@shard_id")
         create_account("a")
         create_account("b")
+
         assert not exists("#{}/@account_statistics/a".format(shard_id))
+
         create("table", "//tmp/t1", attributes={"account": "a"})
+
         assert get("#{}/@account_statistics/a/node_count".format(shard_id)) == 1
+        assert get("#{}/@total_account_statistics/node_count".format(shard_id)) >= 1
+
         create("table", "//tmp/t2", attributes={"account": "a"})
+
         assert get("#{}/@account_statistics/a/node_count".format(shard_id)) == 2
+        assert get("#{}/@total_account_statistics/node_count".format(shard_id)) >= 2
+
         set("//tmp/t2/@account", "b")
+
         assert get("#{}/@account_statistics/a/node_count".format(shard_id)) == 1
         assert get("#{}/@account_statistics/b/node_count".format(shard_id)) == 1
+        assert get("#{}/@total_account_statistics/node_count".format(shard_id)) >= 2
+
         remove("//tmp/*")
+
         wait(lambda: not exists("#{}/@account_statistics/a".format(shard_id)))
+
+    @authors("babenko")
+    def test_portal_shard_statistics(self):
+        create_account("a")
+        create_account("b")
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        shard_id = get("//tmp/p/@shard_id")
+
+        create("table", "//tmp/p/a", attributes={"account": "a"})
+        create("table", "//tmp/p/b", attributes={"account": "b"})
+
+        assert get("#{}/@account_statistics/a/node_count".format(shard_id)) == 1
+        assert get("#{}/@account_statistics/b/node_count".format(shard_id)) == 1
+        assert get("#{}/@account_statistics/tmp/node_count".format(shard_id)) == 1
+        assert get("#{}/@total_account_statistics/node_count".format(shard_id)) == 3
 
     @authors("babenko")
     def test_copy_move_shard_friendly(self):
