@@ -81,7 +81,7 @@ class Clique(object):
     def get_active_instances(self):
         if exists("//sys/clickhouse/cliques/{0}".format(self.op.id), verbose=False):
             instances = ls("//sys/clickhouse/cliques/{0}".format(self.op.id),
-                           attributes=["locks", "host", "http_port", "monitoring_port"])
+                           attributes=["locks", "host", "http_port", "monitoring_port"], verbose=False)
 
             def is_active(instance):
                 if not instance.attributes["locks"]:

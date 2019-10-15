@@ -30,6 +30,7 @@
 #include <yt/core/profiling/profile_manager.h>
 #include <yt/core/misc/proc.h>
 #include <yt/core/logging/log_manager.h>
+#include <yt/core/misc/crash_handler.h>
 
 #include <yt/core/rpc/bus/channel.h>
 #include <yt/core/rpc/caching_channel_factory.h>
@@ -533,7 +534,8 @@ private:
         if (total + Config_->MemoryWatchdog->CodicilWatermark > Config_->MemoryWatchdog->MemoryLimit) {
             YT_LOG_ERROR("We are close to OOM, printing query digest codicils and killing ourselves");
             NYT::NLogging::TLogManager::Get()->Shutdown();
-            Bootstrap_->GetQueryRegistry()->DumpCodicils();
+            WriteToStderr("*** Query registry ***\n");
+            Bootstrap_->GetQueryRegistry()->WriteStateToStderr();
             _exit(MemoryLimitExceededExitCode);
         }
     }
