@@ -420,7 +420,7 @@ public:
         YT_VERIFY(chunk->IsNative());
 
         auto doCharge = [] (TClusterResources* usage, int mediumIndex, i64 chunkCount, i64 diskSpace) {
-            usage->DiskSpace[mediumIndex] += diskSpace;
+            usage->AddToMediumDiskSpace(mediumIndex, diskSpace);
             usage->ChunkCount += chunkCount;
         };
 
@@ -458,7 +458,7 @@ public:
             }
 
             auto* transactionUsage = GetTransactionAccountUsage(stagingTransaction, account);
-            transactionUsage->DiskSpace[mediumIndex] += diskSpace;
+            transactionUsage->AddToMediumDiskSpace(mediumIndex, diskSpace);
             transactionUsage->ChunkCount += chunkCount;
         };
 
@@ -578,7 +578,7 @@ public:
         auto resources = node->GetDeltaResourceUsage()
             .SetNodeCount(0)
             .SetChunkCount(0);
-        resources.DiskSpace.clear();
+        resources.ClearDiskSpace();
 
         UpdateTabletResourceUsage(node, oldAccount, -resources, oldCommitted);
         UpdateTabletResourceUsage(node, newAccount, resources, newCommitted);
@@ -597,7 +597,7 @@ public:
 
         YT_ASSERT(resourceUsageDelta.NodeCount == 0);
         YT_ASSERT(resourceUsageDelta.ChunkCount == 0);
-        for (const auto& item : resourceUsageDelta.DiskSpace) {
+        for (const auto& item : resourceUsageDelta.DiskSpace()) {
             YT_ASSERT(item.second == 0);
         }
 
@@ -1262,9 +1262,9 @@ public:
         const auto& committedUsage = account->ClusterStatistics().CommittedResourceUsage;
         const auto& limits = account->ClusterResourceLimits();
 
-        for (const auto& [index, deltaSpace] : delta.DiskSpace) {
-            auto usageSpace = usage.DiskSpace.lookup(index);
-            auto limitsSpace = limits.DiskSpace.lookup(index);
+        for (const auto& [index, deltaSpace] : delta.DiskSpace()) {
+            auto usageSpace = usage.DiskSpace().lookup(index);
+            auto limitsSpace = limits.DiskSpace().lookup(index);
 
             if (usageSpace + deltaSpace > limitsSpace) {
                 const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -1274,8 +1274,8 @@ public:
                     "Account %Qv is over disk space limit in medium %Qv",
                     account->GetName(),
                     medium->GetName())
-                    << TErrorAttribute("usage", usage.DiskSpace)
-                    << TErrorAttribute("limit", limits.DiskSpace);
+                    << TErrorAttribute("usage", usage.DiskSpace())
+                    << TErrorAttribute("limit", limits.DiskSpace());
             }
         }
         // Branched nodes are usually "paid for" by the originating node's
@@ -1578,8 +1578,7 @@ private:
         auto accountHolder = std::make_unique<TAccount>(id);
         accountHolder->SetName(name);
         // Give some reasonable initial resource limits.
-        accountHolder->ClusterResourceLimits()
-            .DiskSpace[NChunkServer::DefaultStoreMediumIndex] = 1_GB;
+        accountHolder->ClusterResourceLimits().SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, 1_GB);
         accountHolder->ClusterResourceLimits().NodeCount = 1000;
         accountHolder->ClusterResourceLimits().ChunkCount = 100000;
 
@@ -1899,7 +1898,7 @@ private:
             auto* account = node->GetAccount();
             auto usage = node->GetDeltaResourceUsage();
             usage.ChunkCount = 0;
-            usage.DiskSpace.clear();
+            usage.ClearDiskSpace();
 
             auto& stat = statMap[account];
             stat.NodeUsage += usage;
@@ -1910,10 +1909,10 @@ private:
 
         auto chargeStatMap = [&] (TAccount* account, int mediumIndex, i64 chunkCount, i64 diskSpace, bool committed) {
             auto& stat = statMap[account];
-            stat.NodeUsage.DiskSpace[mediumIndex] += diskSpace;
+            stat.NodeUsage.AddToMediumDiskSpace(mediumIndex, diskSpace);
             stat.NodeUsage.ChunkCount += chunkCount;
             if (committed) {
-                stat.NodeCommittedUsage.DiskSpace[mediumIndex] += diskSpace;
+                stat.NodeCommittedUsage.AddToMediumDiskSpace(mediumIndex, diskSpace);
                 stat.NodeCommittedUsage.ChunkCount += chunkCount;
             }
         };
@@ -2217,7 +2216,7 @@ private:
                 .SetNodeCount(std::numeric_limits<int>::max())
                 .SetChunkCount(std::numeric_limits<int>::max());
             ChunkWiseAccountingMigrationAccount_->ClusterResourceLimits()
-                .DiskSpace[NChunkServer::DefaultStoreMediumIndex] = std::numeric_limits<i64>::max();
+                .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, std::numeric_limits<i64>::max());
             ChunkWiseAccountingMigrationAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 RootUser_,

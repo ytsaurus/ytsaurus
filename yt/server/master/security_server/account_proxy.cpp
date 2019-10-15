@@ -71,14 +71,6 @@ private:
     {
         const auto* account = GetThisImpl();
 
-        auto resourceUsage = [account] (const TClusterResources& resources) {
-            auto result = resources;
-            for (const auto& [mediumId, _] : account->ClusterResourceLimits().DiskSpace) {
-                result.DiskSpace[mediumId] += 0;
-            }
-            return result;
-        };
-
         switch (key) {
             case EInternedAttributeKey::Name:
                 BuildYsonFluently(consumer)
@@ -86,11 +78,11 @@ private:
                 return true;
 
             case EInternedAttributeKey::ResourceUsage:
-                SerializeClusterResources(resourceUsage(account->ClusterStatistics().ResourceUsage), consumer);
+                SerializeClusterResources(account->ClusterStatistics().ResourceUsage, account, consumer);
                 return true;
 
             case EInternedAttributeKey::CommittedResourceUsage:
-                SerializeClusterResources(resourceUsage(account->ClusterStatistics().CommittedResourceUsage), consumer);
+                SerializeClusterResources(account->ClusterStatistics().CommittedResourceUsage, account, consumer);
                 return true;
 
             case EInternedAttributeKey::MulticellStatistics: {
@@ -105,7 +97,7 @@ private:
             }
 
             case EInternedAttributeKey::ResourceLimits:
-                SerializeClusterResources(account->ClusterResourceLimits(), consumer);
+                SerializeClusterResources(account->ClusterResourceLimits(), account, consumer);
                 return true;
 
             case EInternedAttributeKey::ViolatedResourceLimits: {
@@ -160,10 +152,20 @@ private:
         return TBase::SetBuiltinAttribute(key, value);
     }
 
-    void SerializeClusterResources(const TClusterResources& clusterResources, NYson::IYsonConsumer* consumer)
+    void SerializeClusterResources(const TClusterResources& clusterResources, const TAccount* account, NYson::IYsonConsumer* consumer)
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto resourceSerializer = New<TSerializableClusterResources>(chunkManager, clusterResources);
+
+        // Make sure medium disk space usage is serialized even if it's zero - for media with limits set.
+        for (const auto& [mediumIndex, _] : account->ClusterResourceLimits().DiskSpace()) {
+            const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+            if (!medium || medium->GetCache()) {
+                continue;
+            }
+            resourceSerializer->AddToMediumDiskSpace(medium->GetName(), 0);
+        }
+
         BuildYsonFluently(consumer)
             .Value(resourceSerializer);
     }
