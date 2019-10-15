@@ -34,7 +34,13 @@ TAsyncExpiringCache<TKey, TValue>::TAsyncExpiringCache(
     NProfiling::TProfiler profiler)
     : Config_(std::move(config))
     , Profiler_(std::move(profiler))
-{ }
+{
+    if (Config_->BatchUpdate && Config_->RefreshTime) {
+        NConcurrency::TDelayedExecutor::Submit(
+            BIND(&TAsyncExpiringCache::UpdateAll, MakeWeak(this)),
+            *Config_->RefreshTime);
+    }
+}
 
 template <class TKey, class TValue>
 typename TAsyncExpiringCache<TKey, TValue>::TExtendedGetResult TAsyncExpiringCache<TKey, TValue>::GetExtended(const TKey& key)
@@ -80,8 +86,9 @@ typename TAsyncExpiringCache<TKey, TValue>::TExtendedGetResult TAsyncExpiringCac
         // NB: we don't want to hold a strong reference to entry after releasing the guard, so we make a weak reference here.
         auto weakEntry = MakeWeak(entry);
         YT_VERIFY(Map_.insert(std::make_pair(key, std::move(entry))).second);
+        Profiler_.Update(SizeCounter_, Map_.size());
         guard.Release();
-        InvokeGet(weakEntry, key, false);
+        InvokeGet(weakEntry, key);
         return {promise, true};
     }
 }
@@ -93,7 +100,7 @@ TFuture<TValue> TAsyncExpiringCache<TKey, TValue>::Get(const TKey& key)
 }
 
 template <class TKey, class TValue>
-TFuture<typename TAsyncExpiringCache<TKey, TValue>::TCombinedValue> TAsyncExpiringCache<TKey, TValue>::Get(const std::vector<TKey>& keys)
+TFuture<std::vector<TErrorOr<TValue>>> TAsyncExpiringCache<TKey, TValue>::Get(const std::vector<TKey>& keys)
 {
     auto now = NProfiling::GetCpuInstant();
 
@@ -154,6 +161,8 @@ TFuture<typename TAsyncExpiringCache<TKey, TValue>::TCombinedValue> TAsyncExpiri
 
             YT_VERIFY(Map_.insert(std::make_pair(key, std::move(entry))).second);
         }
+        
+        Profiler_.Update(SizeCounter_, Map_.size());
 
         std::vector<TKey> invokeKeys;
         for (auto index : invokeIndexes) {
@@ -164,7 +173,7 @@ TFuture<typename TAsyncExpiringCache<TKey, TValue>::TCombinedValue> TAsyncExpiri
         InvokeGetMany(invokeEntries, invokeKeys);
     }
 
-    return Combine(results);
+    return CombineAll(results);
 }
 
 template <class TKey, class TValue>
@@ -175,6 +184,7 @@ void TAsyncExpiringCache<TKey, TValue>::Invalidate(const TKey& key)
     if (it != Map_.end() && it->second->Promise.IsSet()) {
         NConcurrency::TDelayedExecutor::CancelAndClear(it->second->ProbationCookie);
         Map_.erase(it);
+        Profiler_.Update(SizeCounter_, Map_.size());
         OnErase(key);
     }
 }
@@ -183,12 +193,15 @@ template <class TKey, class TValue>
 void TAsyncExpiringCache<TKey, TValue>::Clear()
 {
     NConcurrency::TWriterGuard guard(SpinLock_);
-    for (const auto& pair : Map_) {
-        if (pair.second->Promise.IsSet()) {
-            NConcurrency::TDelayedExecutor::CancelAndClear(pair.second->ProbationCookie);
+    if (!Config_->BatchUpdate) {
+        for (const auto& pair : Map_) {	
+            if (pair.second->Promise.IsSet()) {	
+                NConcurrency::TDelayedExecutor::CancelAndClear(pair.second->ProbationCookie);	
+            }	
         }
     }
     Map_.clear();
+    Profiler_.Update(SizeCounter_, 0);
 }
 
 template <class TKey, class TValue>
@@ -211,13 +224,14 @@ void TAsyncExpiringCache<TKey, TValue>::SetResult(const TWeakPtr<TEntry>& weakEn
         entry->Promise.Set(valueOrError);
     }
 
-    if (now > entry->AccessDeadline) {
+    if (now > entry->AccessDeadline || expirationTime == TDuration::Zero()) {
         Map_.erase(it);
+        Profiler_.Update(SizeCounter_, Map_.size());
         OnErase(key);
         return;
     }
 
-    if (valueOrError.IsOK() && Config_->RefreshTime) {
+    if (!Config_->BatchUpdate && valueOrError.IsOK() && Config_->RefreshTime) {
         entry->ProbationCookie = NConcurrency::TDelayedExecutor::Submit(
             BIND_DONT_CAPTURE_TRACE_CONTEXT(&TAsyncExpiringCache::InvokeGet, MakeWeak(this), MakeWeak(entry), key, true),
             *Config_->RefreshTime);
@@ -247,20 +261,28 @@ bool TAsyncExpiringCache<TKey, TValue>::TryEraseExpired(const TWeakPtr<TEntry>& 
         return true;
     }
 
-    if (NProfiling::GetCpuInstant() > entry->AccessDeadline) {
+    auto now = NProfiling::GetCpuInstant();
+
+    if (now > entry->AccessDeadline) {
         NConcurrency::TWriterGuard writerGuard(SpinLock_);
-        Map_.erase(key);
-        OnErase(key);
+        if (auto it = Map_.find(key); it != Map_.end() && now > it->second->AccessDeadline) {
+            Map_.erase(it);
+            Profiler_.Update(SizeCounter_, Map_.size());
+            OnErase(key);
+        }
         return true;
     }
     return false;
 }
 
 template <class TKey, class TValue>
-void TAsyncExpiringCache<TKey, TValue>::InvokeGetMany(const std::vector<TWeakPtr<TEntry>>& entries, const std::vector<TKey>& keys)
+void TAsyncExpiringCache<TKey, TValue>::InvokeGetMany(
+    const std::vector<TWeakPtr<TEntry>>& entries,
+    const std::vector<TKey>& keys,
+    bool isPeriodicUpdate)
 {
     DoGetMany(keys)
-        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TValue>>& valueOrError) {
+        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TErrorOr<TValue>>>& valueOrError) {
             NConcurrency::TWriterGuard guard(SpinLock_);
 
             if (valueOrError.IsOK()) {
@@ -272,11 +294,17 @@ void TAsyncExpiringCache<TKey, TValue>::InvokeGetMany(const std::vector<TWeakPtr
                     SetResult(entries[index], keys[index], TError(valueOrError));
                 }
             }
+
+            if (isPeriodicUpdate) {
+                NConcurrency::TDelayedExecutor::Submit(
+                    BIND(&TAsyncExpiringCache::UpdateAll, MakeWeak(this)),
+                    *Config_->RefreshTime);
+            }
         }));
 }
 
 template <class TKey, class TValue>
-TFuture<typename TAsyncExpiringCache<TKey, TValue>::TCombinedValue> TAsyncExpiringCache<TKey, TValue>::DoGetMany(const std::vector<TKey>& keys)
+TFuture<std::vector<TErrorOr<TValue>>> TAsyncExpiringCache<TKey, TValue>::DoGetMany(const std::vector<TKey>& keys)
 {
     std::vector<TFuture<TValue>> results;
 
@@ -284,12 +312,63 @@ TFuture<typename TAsyncExpiringCache<TKey, TValue>::TCombinedValue> TAsyncExpiri
         results.push_back(DoGet(key));
     }
 
-    return Combine(results);
+    return CombineAll(results);
 }
 
 template <class TKey, class TValue>
 void TAsyncExpiringCache<TKey, TValue>::OnErase(const TKey& )
 { }
+
+template<class TKey, class TValue>
+void TAsyncExpiringCache<TKey, TValue>::UpdateAll()
+{
+    std::vector<TWeakPtr<TEntry>> entries;
+    std::vector<TKey> keys;
+    std::vector<TKey> expiredKeys;
+    
+    auto now = NProfiling::GetCpuInstant();
+
+    {
+        NConcurrency::TReaderGuard guard(SpinLock_);
+        for (const auto& [key, entry] : Map_) {
+            if (entry->Promise.IsSet()) {
+                if (now > entry->AccessDeadline) {
+                    expiredKeys.emplace_back(key);
+                } else if (entry->Promise.Get().IsOK()) {
+                    keys.emplace_back(key);
+                    entries.emplace_back(MakeWeak(entry));
+                }
+            }
+        }
+    }
+
+    if (!expiredKeys.empty()) {
+        NConcurrency::TWriterGuard guard(SpinLock_);
+        for (const auto& key : expiredKeys) {
+            if (auto it = Map_.find(key); it != Map_.end()) {
+                const auto& [_, entry] = *it;
+                if (entry->Promise.IsSet()) {
+                    if (now > entry->AccessDeadline) {
+                        Map_.erase(it);
+                        Profiler_.Update(SizeCounter_, Map_.size());
+                        OnErase(key);
+                    } else if (entry->Promise.Get().IsOK()) {
+                        keys.emplace_back(key);
+                        entries.emplace_back(MakeWeak(entry));
+                    }
+                }
+            }
+        }
+    }
+
+    if (entries.empty()) {
+        NConcurrency::TDelayedExecutor::Submit(
+            BIND(&TAsyncExpiringCache::UpdateAll, MakeWeak(this)),
+            *Config_->RefreshTime);
+    } else {
+        InvokeGetMany(entries, keys, /* isPeriodicUpdate */ true);
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

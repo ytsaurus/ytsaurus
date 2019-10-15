@@ -35,7 +35,7 @@ DEFINE_REFCOUNTED_TYPE(TStrictMockTransaction)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TString> GetNames(const THashMap<TString, TDiscovery::TAttributeDictionary>& listResult)
+std::vector<TString> GetNames(const THashMap<TString, TAttributeMap>& listResult)
 {
     auto result = GetKeys(listResult);
     std::sort(result.begin(), result.end());
@@ -136,7 +136,7 @@ TEST(TDiscoveryTest, Enter)
 
     EXPECT_THAT(discovery->List(), ResultOf(GetNames, std::vector<TString>()));
 
-    WaitFor(discovery->Enter("test_node", TDiscovery::TAttributeDictionary()))
+    WaitFor(discovery->Enter("test_node", TAttributeMap()))
         .ThrowOnError();
 
     TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(100));
@@ -165,7 +165,7 @@ TEST(TDiscoveryTest, Leave) {
     NYPath::TYPath path = "/test/1234";
     std::vector<TString> keys = {};
 
-    TDiscovery::TAttributeDictionary attrs;
+    TAttributeMap attrs;
     attrs["host"] = BuildYsonNodeFluently().Value("something.ru");
     THashMap<TString, TString> comparableAttrs;
     comparableAttrs["host"] = "something.ru";
@@ -271,7 +271,7 @@ TEST(TDiscoveryTest, Ban)
         .ThrowOnError();
 }
 
-THashMap<TString, std::vector<TString>> GetAttributesKeys(THashMap<TString, TDiscovery::TAttributeDictionary> listResult)
+THashMap<TString, std::vector<TString>> GetAttributesKeys(THashMap<TString, TAttributeMap> listResult)
 {
     THashMap<TString, std::vector<TString>> result;
     for (const auto& [name, attributes] : listResult) {
@@ -381,7 +381,7 @@ TEST(TDiscoveryTest, CreationRace)
 
     EXPECT_THAT(discovery->List(), ResultOf(GetNames, std::vector<TString>()));
 
-    auto enterFuture = discovery->Enter("test_node", TDiscovery::TAttributeDictionary());
+    auto enterFuture = discovery->Enter("test_node", TAttributeMap());
 
     TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(50));
 

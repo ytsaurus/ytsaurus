@@ -388,7 +388,18 @@ public:
         for (const auto& name : names) {
             keys.emplace_back(udfRegistryPath, name);
         }
-        return Get(keys);
+        return Get(keys)
+            .Apply(BIND([] (std::vector<TErrorOr<TExternalFunctionSpec>> specs) {
+                for (const auto& spec : specs) {
+                    spec.ThrowOnError();
+                }
+                std::vector<TExternalFunctionSpec> result;
+                result.reserve(specs.size());
+                for (const auto& spec : specs) {
+                    result.emplace_back(std::move(spec.Value()));
+                }
+                return result;
+            }));
     }
 
 private:
@@ -398,20 +409,25 @@ private:
     virtual TFuture<TExternalFunctionSpec> DoGet(const std::pair<TString, TString>& key) override
     {
         return DoGetMany({key})
-            .Apply(BIND([] (const std::vector<TExternalFunctionSpec>& result) {
-                return result[0];
+            .Apply(BIND([] (const std::vector<TErrorOr<TExternalFunctionSpec>>& specs) {
+                return specs[0]
+                    .ValueOrThrow();
             }));
     }
 
-    virtual TFuture<std::vector<TExternalFunctionSpec>> DoGetMany(
+    virtual TFuture<std::vector<TErrorOr<TExternalFunctionSpec>>> DoGetMany(
         const std::vector<std::pair<TString, TString>>& keys) override
     {
         if (auto client = Client_.Lock()) {
-            return BIND(LookupAllUdfDescriptors, keys, std::move(client))
+            auto future = BIND(LookupAllUdfDescriptors, keys, std::move(client))
                 .AsyncVia(Invoker_)
                 .Run();
+            return future
+                .Apply(BIND([] (const std::vector<TExternalFunctionSpec>& specs) {
+                    return std::vector<TErrorOr<TExternalFunctionSpec>>(specs.begin(), specs.end());
+                }));
         } else {
-            return MakeFuture<std::vector<TExternalFunctionSpec>>(TError("Client destroyed"));
+            return MakeFuture<std::vector<TErrorOr<TExternalFunctionSpec>>>(TError("Client destroyed"));
         }
     }
 };

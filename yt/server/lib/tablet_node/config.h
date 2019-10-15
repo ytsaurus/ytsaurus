@@ -8,9 +8,11 @@
 
 #include <yt/ytlib/chunk_client/config.h>
 
-#include <yt/client/misc/workload.h>
-
 #include <yt/ytlib/table_client/config.h>
+
+#include <yt/ytlib/security_client/config.h>
+
+#include <yt/client/misc/workload.h>
 
 #include <yt/core/compression/public.h>
 
@@ -583,7 +585,7 @@ class TSecurityManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    TAsyncExpiringCacheConfigPtr PermissionCache;
+    NSecurityClient::TPermissionCacheConfigPtr PermissionCache;
     TAsyncExpiringCacheConfigPtr ResourceLimitsCache;
 
     TSecurityManagerConfig()
