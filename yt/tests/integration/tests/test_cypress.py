@@ -1115,65 +1115,72 @@ class TestCypress(YTEnvSetup):
 
     @authors("babenko")
     def test_access_stat1(self):
+        create("map_node", "//tmp/d")
         time.sleep(1)
-        c1 = get("//tmp/@access_counter")
+        c1 = get("//tmp/d/@access_counter")
         time.sleep(1)
-        c2 = get("//tmp/@access_counter")
+        c2 = get("//tmp/d/@access_counter")
         assert c2 == c1
 
     @authors("babenko", "ignat")
     def test_access_stat2(self):
+        create("map_node", "//tmp/d")
         time.sleep(1)
-        c1 = get("//tmp/@access_counter")
+        c1 = get("//tmp/d/@access_counter")
         tx = start_transaction()
-        lock("//tmp", mode = "snapshot", tx = tx)
+        lock("//tmp/d", mode = "snapshot", tx = tx)
         time.sleep(1)
-        c2 = get("//tmp/@access_counter", tx = tx)
+        c2 = get("//tmp/d/@access_counter", tx = tx)
         assert c2 == c1 + 1
 
     @authors("babenko", "ignat")
     def test_access_stat3(self):
+        create("map_node", "//tmp/d")
         time.sleep(1)
-        c1 = get("//tmp/@access_counter")
-        get("//tmp/@")
+        c1 = get("//tmp/d/@access_counter")
+        get("//tmp/d/@")
         time.sleep(1)
-        c2 = get("//tmp/@access_counter")
+        c2 = get("//tmp/d/@access_counter")
         assert c1 == c2
 
     @authors("babenko", "ignat")
     def test_access_stat4(self):
+        create("map_node", "//tmp/d")
         time.sleep(1)
-        c1 = get("//tmp/@access_counter")
-        assert exists("//tmp")
+        c1 = get("//tmp/d/@access_counter")
+        assert exists("//tmp/d")
         time.sleep(1)
-        c2 = get("//tmp/@access_counter")
+        c2 = get("//tmp/d/@access_counter")
         assert c1 == c2
 
     @authors("babenko", "ignat")
     def test_access_stat5(self):
+        create("map_node", "//tmp/d")
         time.sleep(1)
-        c1 = get("//tmp/@access_counter")
-        assert exists("//tmp/@id")
+        c1 = get("//tmp/d/@access_counter")
+        assert exists("//tmp/d/@id")
         time.sleep(1)
-        c2 = get("//tmp/@access_counter")
+        c2 = get("//tmp/d/@access_counter")
         assert c1 == c2
 
     @authors("babenko", "ignat")
     def test_access_stat6(self):
+        create("map_node", "//tmp/d")
         time.sleep(1)
-        c1 = get("//tmp/@access_counter")
-        ls("//tmp/@")
+        c1 = get("//tmp/d/@access_counter")
+        ls("//tmp/d/@")
         time.sleep(1)
-        c2 = get("//tmp/@access_counter")
+        c2 = get("//tmp/d/@access_counter")
         assert c1 == c2
 
     @authors("babenko", "ignat")
     def test_access_stat7(self):
+        create("map_node", "//tmp/d")
         time.sleep(1)
-        c1 = get("//tmp/@access_counter")
-        ls("//tmp")
+        c1 = get("//tmp/d/@access_counter")
+        ls("//tmp/d")
         time.sleep(1)
-        c2 = get("//tmp/@access_counter")
+        c2 = get("//tmp/d/@access_counter")
         assert c2 == c1 + 1
 
     @authors("babenko", "ignat")
@@ -1189,20 +1196,22 @@ class TestCypress(YTEnvSetup):
 
     @authors("babenko", "ignat")
     def test_access_stat_suppress1(self):
+        create("map_node", "//tmp/d")
         time.sleep(1)
-        c1 = get("//tmp/@access_counter")
-        get("//tmp", suppress_access_tracking=True)
+        c1 = get("//tmp/d/@access_counter")
+        get("//tmp/d", suppress_access_tracking=True)
         time.sleep(1)
-        c2 = get("//tmp/@access_counter")
+        c2 = get("//tmp/d/@access_counter")
         assert c1 == c2
 
     @authors("babenko", "ignat")
     def test_access_stat_suppress2(self):
+        create("map_node", "//tmp/d")
         time.sleep(1)
-        c1 = get("//tmp/@access_counter")
-        ls("//tmp", suppress_access_tracking=True)
+        c1 = get("//tmp/d/@access_counter")
+        ls("//tmp/d", suppress_access_tracking=True)
         time.sleep(1)
-        c2 = get("//tmp/@access_counter")
+        c2 = get("//tmp/d/@access_counter")
         assert c1 == c2
 
     @authors("babenko", "ignat")
