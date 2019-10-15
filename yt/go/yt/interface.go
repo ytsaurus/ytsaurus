@@ -712,6 +712,16 @@ type RemountTableOptions struct {
 	*MutatingOptions
 }
 
+type FreezeTableOptions struct {
+	*TabletRangeOptions
+	*MutatingOptions
+}
+
+type UnfreezeTableOptions struct {
+	*TabletRangeOptions
+	*MutatingOptions
+}
+
 type ReshardTableOptions struct {
 	*TabletRangeOptions
 	*MutatingOptions
@@ -856,6 +866,22 @@ type MountClient interface {
 		ctx context.Context,
 		path ypath.Path,
 		options *AlterTableOptions,
+	) (err error)
+
+	// http:verb:"freeze_table"
+	// http:params:"path"
+	FreezeTable(
+		ctx context.Context,
+		path ypath.Path,
+		options *FreezeTableOptions,
+	) (err error)
+
+	// http:verb:"unfreeze_table"
+	// http:params:"path"
+	UnfreezeTable(
+		ctx context.Context,
+		path ypath.Path,
+		options *UnfreezeTableOptions,
 	) (err error)
 }
 

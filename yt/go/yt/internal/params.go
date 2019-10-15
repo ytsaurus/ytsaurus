@@ -578,6 +578,22 @@ func writeRemountTableOptions(w *yson.Writer, o *yt.RemountTableOptions) {
 	writeMutatingOptions(w, o.MutatingOptions)
 }
 
+func writeFreezeTableOptions(w *yson.Writer, o *yt.FreezeTableOptions) {
+	if o == nil {
+		return
+	}
+	writeTabletRangeOptions(w, o.TabletRangeOptions)
+	writeMutatingOptions(w, o.MutatingOptions)
+}
+
+func writeUnfreezeTableOptions(w *yson.Writer, o *yt.UnfreezeTableOptions) {
+	if o == nil {
+		return
+	}
+	writeTabletRangeOptions(w, o.TabletRangeOptions)
+	writeMutatingOptions(w, o.MutatingOptions)
+}
+
 func writeReshardTableOptions(w *yson.Writer, o *yt.ReshardTableOptions) {
 	if o == nil {
 		return
@@ -2479,5 +2495,91 @@ func (p *AlterTableParams) MarshalHTTP(w *yson.Writer) {
 }
 
 func (p *AlterTableParams) MutatingOptions() **yt.MutatingOptions {
+	return &p.options.MutatingOptions
+}
+
+type FreezeTableParams struct {
+	verb    Verb
+	path    ypath.Path
+	options *yt.FreezeTableOptions
+}
+
+func NewFreezeTableParams(
+	path ypath.Path,
+	options *yt.FreezeTableOptions,
+) *FreezeTableParams {
+	if options == nil {
+		options = &yt.FreezeTableOptions{}
+	}
+	return &FreezeTableParams{
+		Verb("freeze_table"),
+		path,
+		options,
+	}
+}
+
+func (p *FreezeTableParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *FreezeTableParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("path", p.path),
+	}
+}
+
+func (p *FreezeTableParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("path")
+	w.Any(p.path)
+	writeFreezeTableOptions(w, p.options)
+}
+
+func (p *FreezeTableParams) TabletRangeOptions() **yt.TabletRangeOptions {
+	return &p.options.TabletRangeOptions
+}
+
+func (p *FreezeTableParams) MutatingOptions() **yt.MutatingOptions {
+	return &p.options.MutatingOptions
+}
+
+type UnfreezeTableParams struct {
+	verb    Verb
+	path    ypath.Path
+	options *yt.UnfreezeTableOptions
+}
+
+func NewUnfreezeTableParams(
+	path ypath.Path,
+	options *yt.UnfreezeTableOptions,
+) *UnfreezeTableParams {
+	if options == nil {
+		options = &yt.UnfreezeTableOptions{}
+	}
+	return &UnfreezeTableParams{
+		Verb("unfreeze_table"),
+		path,
+		options,
+	}
+}
+
+func (p *UnfreezeTableParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *UnfreezeTableParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("path", p.path),
+	}
+}
+
+func (p *UnfreezeTableParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("path")
+	w.Any(p.path)
+	writeUnfreezeTableOptions(w, p.options)
+}
+
+func (p *UnfreezeTableParams) TabletRangeOptions() **yt.TabletRangeOptions {
+	return &p.options.TabletRangeOptions
+}
+
+func (p *UnfreezeTableParams) MutatingOptions() **yt.MutatingOptions {
 	return &p.options.MutatingOptions
 }

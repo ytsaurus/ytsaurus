@@ -529,3 +529,19 @@ func (e *Encoder) AlterTable(
 ) (err error) {
 	return e.do(ctx, e.newCall(NewAlterTableParams(path, options)), func(res *CallResult) error { return nil })
 }
+
+func (e *Encoder) FreezeTable(
+	ctx context.Context,
+	path ypath.Path,
+	options *yt.FreezeTableOptions,
+) (err error) {
+	return e.do(ctx, e.newCall(NewFreezeTableParams(path, options)), func(res *CallResult) error { return nil })
+}
+
+func (e *Encoder) UnfreezeTable(
+	ctx context.Context,
+	path ypath.Path,
+	options *yt.UnfreezeTableOptions,
+) (err error) {
+	return e.do(ctx, e.newCall(NewUnfreezeTableParams(path, options)), func(res *CallResult) error { return nil })
+}
