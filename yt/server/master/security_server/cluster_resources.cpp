@@ -33,7 +33,7 @@ void ValidateDiskSpace(i64 diskSpace)
 ////////////////////////////////////////////////////////////////////////////////
 
 TClusterResources::TClusterResources()
-    : DiskSpace{}
+    : DiskSpace_{}
     , NodeCount(0)
     , ChunkCount(0)
     , TabletCount(0)
@@ -66,15 +66,49 @@ TClusterResources&& TClusterResources::SetTabletStaticMemory(i64 tabletStaticMem
 
 TClusterResources&& TClusterResources::SetMediumDiskSpace(int mediumIndex, i64 diskSpace) &&
 {
-    DiskSpace[mediumIndex] = diskSpace;
+    SetMediumDiskSpace(mediumIndex, diskSpace);
     return std::move(*this);
+}
+
+void TClusterResources::SetMediumDiskSpace(int mediumIndex, i64 diskSpace) &
+{
+    if (diskSpace == 0) {
+        DiskSpace_.erase(mediumIndex);
+    } else {
+        DiskSpace_[mediumIndex] = diskSpace;
+    }
+}
+
+void TClusterResources::AddToMediumDiskSpace(int mediumIndex, i64 diskSpaceDelta)
+{
+    auto it = DiskSpace_.find(mediumIndex);
+    if (it == DiskSpace_.end()) {
+        if (diskSpaceDelta != 0) {
+            DiskSpace_.insert({mediumIndex, diskSpaceDelta});
+        }
+    } else {
+        it->second += diskSpaceDelta;
+        if (it->second == 0) {
+            DiskSpace_.erase(it);
+        }
+    }
+}
+
+void TClusterResources::ClearDiskSpace()
+{
+    DiskSpace_.clear();
+}
+
+const NChunkClient::TMediumMap<i64>& TClusterResources::DiskSpace() const
+{
+    return DiskSpace_;
 }
 
 void TClusterResources::Save(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;
-    Save(context, static_cast<int>(DiskSpace.size()));
-    for (auto [mediumIndex, space] : DiskSpace) {
+    Save(context, static_cast<int>(DiskSpace_.size()));
+    for (auto [mediumIndex, space] : DiskSpace_) {
         Save(context, space);
         Save(context, mediumIndex);
     }
@@ -95,7 +129,7 @@ void TClusterResources::Load(NCellMaster::TLoadContext& context)
 
         for (int mediumIndex = 0 ; mediumIndex < 7; ++mediumIndex) {
             if (oldDiskSpaceArray[mediumIndex] > 0) {
-                DiskSpace[mediumIndex] = oldDiskSpaceArray[mediumIndex];
+                DiskSpace_[mediumIndex] = oldDiskSpaceArray[mediumIndex];
             }
         }
     } else {
@@ -103,7 +137,9 @@ void TClusterResources::Load(NCellMaster::TLoadContext& context)
         for (auto i = 0; i < mediumCount; ++i) {
             auto space = Load<i64>(context);
             auto mediumIndex = Load<int>(context);
-            DiskSpace[mediumIndex] = space;
+            if (space != 0) {
+                DiskSpace_[mediumIndex] = space;
+            }
         }
     }
     // COMPAT(shakurov)
@@ -121,8 +157,8 @@ void TClusterResources::Load(NCellMaster::TLoadContext& context)
 void TClusterResources::Save(NCypressServer::TBeginCopyContext& context) const
 {
     using NYT::Save;
-    Save(context, static_cast<int>(DiskSpace.size()));
-    for (auto [mediumIndex, space] : DiskSpace) {
+    Save(context, static_cast<int>(DiskSpace_.size()));
+    for (auto [mediumIndex, space] : DiskSpace_) {
         Save(context, space);
         Save(context, mediumIndex);
     }
@@ -139,7 +175,7 @@ void TClusterResources::Load(NCypressServer::TEndCopyContext& context)
     for (auto i = 0; i < mediumCount; ++i) {
         auto space = Load<i64>(context);
         auto mediumIndex = Load<int>(context);
-        DiskSpace[mediumIndex] = space;
+        DiskSpace_[mediumIndex] = space;
     }
     Load(context, NodeCount);
     Load(context, ChunkCount);
@@ -156,7 +192,7 @@ void ToProto(NProto::TClusterResources* protoResources, const TClusterResources&
     protoResources->set_tablet_count(resources.TabletCount);
     protoResources->set_tablet_static_memory_size(resources.TabletStaticMemory);
 
-    for (const auto& [index, diskSpace] : resources.DiskSpace) {
+    for (const auto& [index, diskSpace] : resources.DiskSpace()) {
         if (diskSpace != 0) {
             auto* protoDiskSpace = protoResources->add_disk_space_per_medium();
             protoDiskSpace->set_medium_index(index);
@@ -172,9 +208,9 @@ void FromProto(TClusterResources* resources, const NProto::TClusterResources& pr
     resources->TabletCount = protoResources.tablet_count();
     resources->TabletStaticMemory = protoResources.tablet_static_memory_size();
 
-    resources->DiskSpace.clear();
+    resources->ClearDiskSpace();
     for (const auto& spaceStats : protoResources.disk_space_per_medium()) {
-        resources->DiskSpace[spaceStats.medium_index()] = spaceStats.disk_space();
+        resources->SetMediumDiskSpace(spaceStats.medium_index(), spaceStats.disk_space());
     }
 }
 
@@ -217,7 +253,7 @@ TSerializableClusterResources::TSerializableClusterResources(
     TabletCount_ = clusterResources.TabletCount;
     TabletStaticMemory_ = clusterResources.TabletStaticMemory;
     DiskSpace_ = 0;
-    for (const auto& [mediumIndex, mediumDiskSpace] : clusterResources.DiskSpace) {
+    for (const auto& [mediumIndex, mediumDiskSpace] : clusterResources.DiskSpace()) {
         const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
         if (!medium || medium->GetCache()) {
             continue;
@@ -234,19 +270,24 @@ TClusterResources TSerializableClusterResources::ToClusterResources(const NChunk
         .SetChunkCount(ChunkCount_)
         .SetTabletCount(TabletCount_)
         .SetTabletStaticMemory(TabletStaticMemory_);
-    for (const auto& pair : DiskSpacePerMedium_) {
-        auto* medium = chunkManager->GetMediumByNameOrThrow(pair.first);
-        result.DiskSpace[medium->GetIndex()] = pair.second;
+    for (const auto& [mediumName, mediumDiskSpace] : DiskSpacePerMedium_) {
+        auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
+        result.SetMediumDiskSpace(medium->GetIndex(), mediumDiskSpace);
     }
     return result;
+}
+
+void TSerializableClusterResources::AddToMediumDiskSpace(const TString& mediumName, i64 mediumDiskSpace)
+{
+    DiskSpacePerMedium_[mediumName] += mediumDiskSpace;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TClusterResources& operator += (TClusterResources& lhs, const TClusterResources& rhs)
 {
-    for (const auto& [mediumIndex, diskSpace] : rhs.DiskSpace) {
-        lhs.DiskSpace[mediumIndex] += diskSpace;
+    for (const auto& [mediumIndex, diskSpace] : rhs.DiskSpace()) {
+        lhs.AddToMediumDiskSpace(mediumIndex, diskSpace);
     }
     lhs.NodeCount += rhs.NodeCount;
     lhs.ChunkCount += rhs.ChunkCount;
@@ -264,8 +305,8 @@ TClusterResources operator + (const TClusterResources& lhs, const TClusterResour
 
 TClusterResources& operator -= (TClusterResources& lhs, const TClusterResources& rhs)
 {
-    for (const auto& [mediumIndex, diskSpace] : rhs.DiskSpace) {
-        lhs.DiskSpace[mediumIndex] -= diskSpace;
+    for (const auto& [mediumIndex, diskSpace] : rhs.DiskSpace()) {
+        lhs.AddToMediumDiskSpace(mediumIndex, -diskSpace);
     }
     lhs.NodeCount -= rhs.NodeCount;
     lhs.ChunkCount -= rhs.ChunkCount;
@@ -283,8 +324,8 @@ TClusterResources operator - (const TClusterResources& lhs, const TClusterResour
 
 TClusterResources& operator *= (TClusterResources& lhs, i64 rhs)
 {
-    for (auto& item : lhs.DiskSpace) {
-        item.second *= rhs;
+    for (const auto& [mediumIndex, diskSpace] : lhs.DiskSpace()) {
+        lhs.SetMediumDiskSpace(mediumIndex, diskSpace * rhs);
     }
     lhs.NodeCount *= rhs;
     lhs.ChunkCount *= rhs;
@@ -303,8 +344,8 @@ TClusterResources operator * (const TClusterResources& lhs, i64 rhs)
 TClusterResources operator -  (const TClusterResources& resources)
 {
     TClusterResources result;
-    for (const auto& [mediumIndex, diskSpace] : resources.DiskSpace) {
-        result.DiskSpace[mediumIndex] = -diskSpace;
+    for (const auto& [mediumIndex, diskSpace] : resources.DiskSpace()) {
+        result.SetMediumDiskSpace(mediumIndex, -diskSpace);
     }
     result.NodeCount = -resources.NodeCount;
     result.ChunkCount = -resources.ChunkCount;
@@ -318,12 +359,12 @@ bool operator == (const TClusterResources& lhs, const TClusterResources& rhs)
     if (&lhs == &rhs) {
         return true;
     }
-    if (lhs.DiskSpace.size() != rhs.DiskSpace.size()) {
+    if (lhs.DiskSpace().size() != rhs.DiskSpace().size()) {
         return false;
     }
-    for (const auto& item : lhs.DiskSpace) {
-        const auto it = rhs.DiskSpace.find(item.first);
-        if (it == rhs.DiskSpace.end() || it->second != item.second) {
+    for (const auto& [mediumIndex, mediumDiskSpace] : lhs.DiskSpace()) {
+        const auto it = rhs.DiskSpace().find(mediumIndex);
+        if (it == rhs.DiskSpace().end() || it->second != mediumDiskSpace) {
             return false;
         }
     }
@@ -351,7 +392,7 @@ void FormatValue(TStringBuilderBase* builder, const TClusterResources& resources
 {
     builder->AppendString(AsStringBuf("{DiskSpace: ["));
     bool firstDiskSpace = true;
-    for (const auto& [mediumIndex, diskSpace] : resources.DiskSpace) {
+    for (const auto& [mediumIndex, diskSpace] : resources.DiskSpace()) {
         if (diskSpace != 0) {
             if (!firstDiskSpace) {
                 builder->AppendString(AsStringBuf(", "));
