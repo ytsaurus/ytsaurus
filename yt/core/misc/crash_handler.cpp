@@ -40,6 +40,8 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "signal_registry.h"
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -189,18 +191,6 @@ void DumpSignalInfo(int signal, siginfo_t* si)
     WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
 }
 
-//! Invoke the default signal handler.
-void InvokeDefaultSignalHandler(int signal)
-{
-    struct sigaction sa;
-    memset(&sa, 0, sizeof(sa));
-    sigemptyset(&sa.sa_mask);
-    sa.sa_handler = SIG_DFL;
-    YT_VERIFY(sigaction(signal, &sa, nullptr) == 0);
-
-    pthread_kill(pthread_self(), signal);
-}
-
 void CrashTimeoutHandler(int signal)
 {
     TRawFormatter<256> formatter;
@@ -230,11 +220,11 @@ void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
         if (pthread_equal(currentThreadId, *expectedCrashingThreadId)) {
             // It looks the current thread is reentering the signal handler.
             // Something must be going wrong (maybe we are reentering by another
-            // type of signal?). Kill ourself by the default signal handler.
-            InvokeDefaultSignalHandler(signal);
-            // If we happen to fall through here, not being killed, we will probably end up
-            // running out of stack entering CrashSignalHandler over and over again.
-            // Not a bad thing, after all.
+            // type of signal?). Simply return from here and hope that the default signal handler
+            // (which is going to be executed after us by TSignalRegistry) will succeed in killing us.
+            // Otherwise, we will probably end up  running out of stack entering
+            // CrashSignalHandler over and over again. Not a bad thing, after all.
+            return;
         } else {
             // Another thread is dumping stuff. Let's wait until that thread
             // finishes the job and kills the process.
@@ -282,24 +272,16 @@ void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
     formatter.Reset();
     formatter.AppendString("*** Terminate ***\n");
     WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
-
-    // Kill ourself by the default signal handler.
-    InvokeDefaultSignalHandler(signal);
 }
 #endif
 
 void InstallCrashSignalHandler(std::optional<std::set<int>> signalNumbers)
 {
 #ifdef _unix_
-    struct sigaction sa;
-    memset(&sa, 0, sizeof(sa));
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags |= SA_SIGINFO;
-    sa.sa_sigaction = &CrashSignalHandler;
-
     for (size_t i = 0; i < Y_ARRAY_SIZE(FailureSignals); ++i) {
         if (!signalNumbers || signalNumbers->find(FailureSignals[i].Number) != signalNumbers->end()) {
-            YT_VERIFY(sigaction(FailureSignals[i].Number, &sa, NULL) == 0);
+            TSignalRegistry::Get()->PushCallback(FailureSignals[i].Number, CrashSignalHandler);
+            TSignalRegistry::Get()->PushDefaultSignalHandler(FailureSignals[i].Number);
         }
     }
 #endif

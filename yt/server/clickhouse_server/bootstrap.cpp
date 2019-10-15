@@ -213,7 +213,8 @@ void TBootstrap::DoRun()
 
     Host_->Start();
 
-    TSignalRegistry::Get()->RegisterHandler(SIGINT, BIND(&TBootstrap::SigintHandler, this));
+    // Bootstrap never dies, so it is _kinda_ safe.
+    TSignalRegistry::Get()->PushCallback(SIGINT, [=] { SigintHandler(); });
 }
 
 const IInvokerPtr& TBootstrap::GetControlInvoker() const
