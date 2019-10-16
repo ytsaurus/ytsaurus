@@ -613,6 +613,10 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
 
     UpdateMaximumUsedTmpfsSizes(statistics);
 
+    // Sometimes job completion may create new pending jobs in same task
+    // (like in vanilla operation with restart_completed_jobs = %true).
+    AddPendingHint();
+    
     return result;
 }
 
