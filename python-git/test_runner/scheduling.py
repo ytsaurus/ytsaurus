@@ -10,6 +10,7 @@ _test_scheduling_func = None
 def split_test_suites(suites, process_count):
     suites_per_process = max(1, len(suites) // process_count)
     suites_keys = list(suites)
+    suites_keys.sort()
 
     slaves_tasks = []
 
