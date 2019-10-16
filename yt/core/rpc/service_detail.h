@@ -182,11 +182,17 @@ public:
         auto body = UnderlyingContext_->GetRequestBody();
         if (requestHeader.has_request_format()) {
             auto format = static_cast<EMessageFormat>(GetRequestHeader().request_format());
+
+            NYson::TYsonString formatOptionsYson;
+            if (GetRequestHeader().has_request_format_options()) {
+                formatOptionsYson = NYson::TYsonString(GetRequestHeader().request_format_options());
+            }
             if (format != EMessageFormat::Protobuf) {
                 body = ConvertMessageFromFormat(
                     body,
                     format,
-                    NYson::ReflectProtobufMessageType<TRequestMessage>());
+                    NYson::ReflectProtobufMessageType<TRequestMessage>(),
+                    formatOptionsYson);
             }
         }
 
@@ -315,11 +321,17 @@ protected:
                     return;
                 }
 
+                NYson::TYsonString formatOptionsYson;
+                if (requestHeader.has_response_format_options()) {
+                    formatOptionsYson = NYson::TYsonString(requestHeader.response_format_options());
+                }
+
                 if (format != EMessageFormat::Protobuf) {
                     serializedBody = ConvertMessageToFormat(
                         serializedBody,
                         format,
-                        NYson::ReflectProtobufMessageType<TResponseMessage>());
+                        NYson::ReflectProtobufMessageType<TResponseMessage>(),
+                        formatOptionsYson);
                 }
             }
 
