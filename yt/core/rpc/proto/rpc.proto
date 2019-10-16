@@ -59,6 +59,9 @@ message TRequestHeader
 
     optional TStreamingParameters server_attachments_streaming_parameters = 33;
 
+    optional bytes request_format_options = 34; // TYsonString
+    optional bytes response_format_options = 35; // TYsonString
+
     extensions 100 to max;
 }
 

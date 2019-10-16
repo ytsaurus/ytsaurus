@@ -251,6 +251,12 @@ private:
             rpcHeader->set_request_format(static_cast<i32>(*decodedType));
         }
 
+        static const TString RequestFormatOptionsHeaderName("X-YT-Request-Format-Options");
+        auto requestFormatOptionsYson = httpHeaders->Find(RequestFormatOptionsHeaderName);
+        if (requestFormatOptionsYson) {
+            rpcHeader->set_request_format_options(*requestFormatOptionsYson);
+        }
+
         static const TString AcceptHeaderName("Accept");
         auto acceptString = httpHeaders->Find(AcceptHeaderName);
         if (acceptString) {
@@ -260,6 +266,12 @@ private:
                     << TErrorAttribute("value", *acceptString);
             }
             rpcHeader->set_response_format(static_cast<i32>(*decodedType));
+        }
+
+        static const TString ResponseFormatOptionsHeaderName("X-YT-Response-Format-Options");
+        auto responseFormatOptionsYson = httpHeaders->Find(ResponseFormatOptionsHeaderName);
+        if (responseFormatOptionsYson) {
+            rpcHeader->set_response_format_options(*responseFormatOptionsYson);
         }
 
         static const TString RequestIdHeaderName("X-YT-Request-Id");
