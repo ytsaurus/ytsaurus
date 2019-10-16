@@ -1,12 +1,13 @@
 package ru.yandex.spark.yt.utils
 
-import java.util.function.Consumer
+import java.util.{ArrayList => JList}
 
 import org.apache.spark.sql.catalyst.encoders.RowEncoder
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.StructType
-import org.apache.spark.sql.{DataFrame, Row}
-import java.util.{ArrayList => JList}
+import org.apache.spark.sql.{Column, DataFrame, Dataset, Encoders, Row}
+
+import scala.reflect.runtime.universe.TypeTag
 
 object DataFrameUtils {
 
@@ -32,7 +33,7 @@ object DataFrameUtils {
         }(RowEncoder(df.schema))
     }
 
-    def joinWithHotKey(right: DataFrame, key: String, hotKey: Option[String], joinType: String): DataFrame = {
+    def joinWithHotKey(right: DataFrame, key: String, hotKey: Option[String], joinType: String, andCondition: Column = lit(true)): DataFrame = {
       import df.sparkSession.implicits._
 
       val splitHotDf = (1 to 1000).map(i => hotKey -> s"#null$i").toDF(key, s"${key}_key")
@@ -53,7 +54,8 @@ object DataFrameUtils {
         .withColumn(s"${key}_key", coalesce(col(s"${key}_key"), col(key)))
 
       splitLeft
-        .join(splitRight, Seq(s"${key}_key"), joinType)
+        .join(splitRight, splitLeft(s"${key}_key") === splitRight(s"${key}_key") && andCondition, joinType)
+        .drop(splitLeft(s"${key}_key"))
         .drop(splitRight(key))
         .drop(s"${key}_key")
     }
@@ -82,6 +84,12 @@ object DataFrameUtils {
           )
         }(RowEncoder(outputSchema))
     }
+
+    def selectAs[T <: Product : TypeTag]: Dataset[T] = {
+      import df.sparkSession.implicits._
+      val fields = Encoders.product[T].schema.fieldNames
+      df.select(fields.head, fields.tail: _*).as[T]
+    }
   }
 
   implicit class UtilsRow(row: Row) {
@@ -107,11 +115,11 @@ object DataFrameUtils {
                    minBy: JList[JList[String]],
                    maxBy: JList[JList[String]]): DataFrame = {
     import scala.collection.JavaConverters._
-    val minByScala = minBy.asScala.map{v =>
+    val minByScala = minBy.asScala.map { v =>
       val asScala = v.asScala
       asScala.head -> asScala
     }
-    val maxByScala = maxBy.asScala.map{v =>
+    val maxByScala = maxBy.asScala.map { v =>
       val asScala = v.asScala
       asScala.head -> asScala
     }
