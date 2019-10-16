@@ -164,7 +164,7 @@ private:
             nextSyncPromise.Set(error);
             RecentSyncPromise_.Set(error);
         } else {
-            YT_LOG_WARNING(error, "Synchronizing cell roles failed");
+            YT_LOG_WARNING(error, "Synchronizing master cell directory failed");
         }
     }
 
