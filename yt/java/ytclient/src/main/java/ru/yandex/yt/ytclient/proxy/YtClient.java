@@ -2,7 +2,6 @@ package ru.yandex.yt.ytclient.proxy;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -10,6 +9,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import com.google.protobuf.MessageLite;
 import org.slf4j.Logger;
@@ -39,15 +39,16 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
     final private RpcOptions options;
     final private DataCenter localDataCenter;
 
-    final private LinkedList<CompletableFuture<Void>> waiting = new LinkedList<>();
+    final private HashMap<PeriodicDiscoveryListener, Boolean> discoveriesFailed = new HashMap<>();
+    private CompletableFuture<Void> waitProxiesFuture = null;
+
 
     public YtClient(
             BusConnector connector,
             List<YtCluster> clusters,
             String localDataCenterName,
             RpcCredentials credentials,
-            RpcOptions options)
-    {
+            RpcOptions options) {
         this(connector, clusters, localDataCenterName, null, credentials, options);
     }
 
@@ -57,8 +58,7 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
             String localDataCenterName,
             String proxyRole,
             RpcCredentials credentials,
-            RpcOptions options)
-    {
+            RpcOptions options) {
         this(connector, clusters, localDataCenterName, proxyRole, credentials, new RpcCompression(), options);
     }
 
@@ -69,8 +69,7 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
             String proxyRole,
             RpcCredentials credentials,
             RpcCompression compression,
-            RpcOptions options)
-    {
+            RpcOptions options) {
         super(options);
         discovery = new ArrayList<>();
 
@@ -102,12 +101,28 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
                     @Override
                     public void onProxiesAdded(Set<RpcClient> proxies) {
                         dc.addProxies(proxies);
-                        wakeUp();
+                        synchronized (discoveriesFailed) {
+                            discoveriesFailed.put(this, false);
+                            if (waitProxiesFuture != null) {
+                                waitProxiesFuture.complete(null);
+                                waitProxiesFuture = null;
+                            }
+                        }
                     }
 
                     @Override
                     public void onError(Throwable e) {
-                        wakeUp(e);
+                        synchronized (discoveriesFailed) {
+                            discoveriesFailed.put(this, true);
+                            if (discoveriesFailed.size() == clusters.size() &&
+                                    discoveriesFailed.values().stream().allMatch(value -> value)) {
+                                if (waitProxiesFuture != null) {
+                                    waitProxiesFuture.completeExceptionally(e);
+                                    waitProxiesFuture = null;
+                                }
+
+                            }
+                        }
                     }
 
                     @Override
@@ -153,8 +168,7 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
             BusConnector connector,
             YtCluster cluster,
             RpcCredentials credentials,
-            RpcOptions options)
-    {
+            RpcOptions options) {
         this(connector, Cf.list(cluster), cluster.name, credentials, options);
     }
 
@@ -162,50 +176,42 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
             BusConnector connector,
             String clusterName,
             RpcCredentials credentials,
-            RpcOptions options)
-    {
+            RpcOptions options) {
         this(connector, new YtCluster(clusterName), credentials, options);
     }
 
     public YtClient(
             BusConnector connector,
             String clusterName,
-            RpcCredentials credentials)
-    {
+            RpcCredentials credentials) {
         this(connector, clusterName, credentials, new RpcOptions());
     }
 
-    private void wakeUp()
-    {
-        synchronized (waiting) {
-            while (!waiting.isEmpty()) {
-                waiting.pop().complete(null);
-            }
-        }
-    }
-
-    private void wakeUp(Throwable e) {
-        synchronized (waiting) {
-            while (!waiting.isEmpty()) {
-                waiting.pop().completeExceptionally(e);
-            }
-        }
-    }
-
-
     public CompletableFuture<Void> waitProxies() {
+        return this.waitProxies(5, TimeUnit.SECONDS);
+    }
+
+    public CompletableFuture<Void> waitProxies(long timeout, TimeUnit timeUnit) {
         CompletableFuture<Void> future = new CompletableFuture<>();
-        synchronized (waiting) {
-            waiting.push(future);
+        synchronized (discoveriesFailed) {
+            discoveriesFailed.clear();
+            waitProxiesFuture = future;
         }
 
         int proxies = 0;
-        for (DataCenter dataCenter: dataCenters) {
+        for (DataCenter dataCenter : dataCenters) {
             proxies += dataCenter.getAliveDestinations().size();
         }
         if (proxies > 0) {
             return CompletableFuture.completedFuture(null);
         } else {
+            executorService.schedule(() -> {
+                synchronized (discoveriesFailed) {
+                    if (waitProxiesFuture != null) {
+                        waitProxiesFuture.completeExceptionally(new TimeoutException("waitProxies took too long to complete"));
+                    }
+                }
+            }, timeout, timeUnit);
             return future;
         }
     }
@@ -253,20 +259,18 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
                 dataCenters, 3,
                 localDataCenter != null,
                 rnd,
-                ! options.getFailoverPolicy().randomizeDcs());
+                !options.getFailoverPolicy().randomizeDcs());
     }
 
     @Override
     protected <RequestType extends MessageLite.Builder, ResponseType> CompletableFuture<ResponseType> invoke(
-            RpcClientRequestBuilder<RequestType, ResponseType> builder)
-    {
+            RpcClientRequestBuilder<RequestType, ResponseType> builder) {
         return builder.invokeVia(selectDestinations());
     }
 
     @Override
     protected <RequestType extends MessageLite.Builder, ResponseType> RpcClientStreamControl startStream(
-            RpcClientRequestBuilder<RequestType, ResponseType> builder)
-    {
+            RpcClientRequestBuilder<RequestType, ResponseType> builder) {
         return builder.startStream(selectDestinations());
     }
 }
