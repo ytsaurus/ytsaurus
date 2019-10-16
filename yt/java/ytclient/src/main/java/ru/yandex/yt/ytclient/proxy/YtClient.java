@@ -2,14 +2,15 @@ package ru.yandex.yt.ytclient.proxy;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 import com.google.protobuf.MessageLite;
 import org.slf4j.Logger;
@@ -39,8 +40,8 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
     final private RpcOptions options;
     final private DataCenter localDataCenter;
 
-    final private HashMap<PeriodicDiscoveryListener, Boolean> discoveriesFailed = new HashMap<>();
-    private CompletableFuture<Void> waitProxiesFuture = null;
+    final private LinkedList<CompletableFuture<Void>> waiting = new LinkedList<>();
+    final private ConcurrentHashMap<PeriodicDiscoveryListener, Boolean> discoveriesFailed = new ConcurrentHashMap<>();
 
 
     public YtClient(
@@ -101,27 +102,14 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
                     @Override
                     public void onProxiesAdded(Set<RpcClient> proxies) {
                         dc.addProxies(proxies);
-                        synchronized (discoveriesFailed) {
-                            discoveriesFailed.put(this, false);
-                            if (waitProxiesFuture != null) {
-                                waitProxiesFuture.complete(null);
-                                waitProxiesFuture = null;
-                            }
-                        }
+                        wakeUp();
                     }
 
                     @Override
                     public void onError(Throwable e) {
-                        synchronized (discoveriesFailed) {
-                            discoveriesFailed.put(this, true);
-                            if (discoveriesFailed.size() == clusters.size() &&
-                                    discoveriesFailed.values().stream().allMatch(value -> value)) {
-                                if (waitProxiesFuture != null) {
-                                    waitProxiesFuture.completeExceptionally(e);
-                                    waitProxiesFuture = null;
-                                }
-
-                            }
+                        discoveriesFailed.put(this, true);
+                        if (discoveriesFailed.size() == clusters.size()) {
+                            wakeUp(e);
                         }
                     }
 
@@ -187,31 +175,36 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
         this(connector, clusterName, credentials, new RpcOptions());
     }
 
-    public CompletableFuture<Void> waitProxies() {
-        return this.waitProxies(5, TimeUnit.SECONDS);
+    private void wakeUp()
+    {
+        synchronized (waiting) {
+            while (!waiting.isEmpty()) {
+                waiting.pop().complete(null);
+            }
+        }
     }
 
-    public CompletableFuture<Void> waitProxies(long timeout, TimeUnit timeUnit) {
+    private void wakeUp(Throwable e) {
+        synchronized (waiting) {
+            while (!waiting.isEmpty()) {
+                waiting.pop().completeExceptionally(e);
+            }
+        }
+    }
+
+    public CompletableFuture<Void> waitProxies() {
         CompletableFuture<Void> future = new CompletableFuture<>();
-        synchronized (discoveriesFailed) {
-            discoveriesFailed.clear();
-            waitProxiesFuture = future;
+        synchronized (waiting) {
+            waiting.push(future);
         }
 
         int proxies = 0;
-        for (DataCenter dataCenter : dataCenters) {
+        for (DataCenter dataCenter: dataCenters) {
             proxies += dataCenter.getAliveDestinations().size();
         }
         if (proxies > 0) {
             return CompletableFuture.completedFuture(null);
         } else {
-            executorService.schedule(() -> {
-                synchronized (discoveriesFailed) {
-                    if (waitProxiesFuture != null) {
-                        waitProxiesFuture.completeExceptionally(new TimeoutException("waitProxies took too long to complete"));
-                    }
-                }
-            }, timeout, timeUnit);
             return future;
         }
     }
