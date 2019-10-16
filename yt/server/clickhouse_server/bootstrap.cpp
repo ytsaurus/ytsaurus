@@ -32,6 +32,7 @@
 #include <yt/client/misc/discovery.h>
 
 #include <yt/core/bus/tcp/server.h>
+#include <yt/core/misc/crash_handler.h>
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/throughput_throttler.h>
@@ -130,8 +131,9 @@ void TBootstrap::DoRun()
     QueryRegistry_ = New<TQueryRegistry>(this);
 
     // Set up crash handlers.
-    QueryRegistry_->SetupStateWritingCrashSignalHandler();
-    InstallCrashSignalHandler();
+    TSignalRegistry::Get()->PushCallback(AllCrashSignals, [=] { QueryRegistry_->WriteStateToStderr(); });
+    TSignalRegistry::Get()->PushCallback(AllCrashSignals, CrashSignalHandler);
+    TSignalRegistry::Get()->PushDefaultSignalHandler(AllCrashSignals);
 
     SetNodeByYPath(
         orchidRoot,

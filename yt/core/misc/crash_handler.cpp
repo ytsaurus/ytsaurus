@@ -48,6 +48,20 @@ namespace NYT {
 
 #ifdef _unix_
 
+// We will install the failure signal handler for these signals.
+// We could use strsignal() to get signal names, but we do not use it to avoid
+// introducing yet another #ifdef complication.
+const struct {
+    int Number;
+    const char* Name;
+} FailureSignals[] = {
+    { SIGSEGV, "SIGSEGV" },
+    { SIGILL,  "SIGILL"  },
+    { SIGFPE,  "SIGFPE"  },
+    { SIGABRT, "SIGABRT" },
+    { SIGBUS,  "SIGBUS"  },
+};
+
 // See http://pubs.opengroup.org/onlinepubs/009695399/functions/xsh_chap02_04.html
 // for a list of async signal safe functions.
 
@@ -186,8 +200,7 @@ void CrashTimeoutHandler(int signal)
     _exit(1);
 }
 
-// Dumps signal and stack frame information, and invokes the default
-// signal handler once our job is done.
+// Dumps signal, stack frame information and codicils.
 void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
 {
     // All code here _MUST_ be async signal safe unless specified otherwise.
@@ -260,18 +273,6 @@ void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
     WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
 }
 #endif
-
-void InstallCrashSignalHandler(std::optional<std::set<int>> signalNumbers)
-{
-#ifdef _unix_
-    for (size_t i = 0; i < Y_ARRAY_SIZE(FailureSignals); ++i) {
-        if (!signalNumbers || signalNumbers->find(FailureSignals[i].Number) != signalNumbers->end()) {
-            TSignalRegistry::Get()->PushCallback(FailureSignals[i].Number, CrashSignalHandler);
-            TSignalRegistry::Get()->PushDefaultSignalHandler(FailureSignals[i].Number);
-        }
-    }
-#endif
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

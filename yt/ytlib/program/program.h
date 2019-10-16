@@ -77,7 +77,7 @@ void ConfigureUids();
 //! Blocks SIGPIPE and masks SIGHUP.
 void ConfigureSignals();
 
-//! Intercepts SIGSEGV with a nice handler.
+//! Intercepts standard crash signals (see signal_registry.h for full list) with a nice handler.
 void ConfigureCrashHandler();
 
 void ConfigureExitZeroOnSigterm();

@@ -7,7 +7,6 @@
 #include <yt/core/ytree/fluent.h>
 
 #include <yt/core/misc/crash_handler.h>
-#include <yt/core/misc/signal_registry.h>
 
 #include <yt/core/profiling/profile_manager.h>
 
@@ -105,13 +104,6 @@ public:
         , IdlePromise_(MakePromise<void>(TError()))
     {
         memset(&StateBuffer_, 0, sizeof(StateBuffer_));
-    }
-
-    void SetupStateWritingCrashSignalHandler()
-    {
-        for (const auto& signal : FailureSignals) {
-            TSignalRegistry::Get()->PushCallback(signal.Number, [=] { WriteStateToStderr(); });
-        }
     }
 
     void Register(TQueryContext* queryContext)
@@ -343,11 +335,6 @@ void TQueryRegistry::Register(TQueryContext* queryContext)
 void TQueryRegistry::Unregister(TQueryContext* queryContext)
 {
     Impl_->Unregister(queryContext);
-}
-
-void TQueryRegistry::SetupStateWritingCrashSignalHandler()
-{
-    Impl_->SetupStateWritingCrashSignalHandler();
 }
 
 size_t TQueryRegistry::GetQueryCount() const

@@ -10,21 +10,8 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// We will install the failure signal handler for these signals.
-// We could use strsignal() to get signal names, but we do not use it to avoid
-// introducing yet another #ifdef complication.
-const struct {
-    int Number;
-    const char* Name;
-} FailureSignals[] = {
-    { SIGSEGV, "SIGSEGV" },
-    { SIGILL,  "SIGILL"  },
-    { SIGFPE,  "SIGFPE"  },
-    { SIGABRT, "SIGABRT" },
-    { SIGBUS,  "SIGBUS"  },
-};
-
-void InstallCrashSignalHandler(std::optional<std::set<int>> signalNumbers = std::nullopt);
+// Dumps signal, stack frame information and codicils.
+void CrashSignalHandler(int signal, siginfo_t* si, void* uc);
 
 void DumpCodicils();
 
