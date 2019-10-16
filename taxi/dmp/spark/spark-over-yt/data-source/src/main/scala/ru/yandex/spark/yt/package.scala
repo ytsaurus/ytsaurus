@@ -1,26 +1,52 @@
 package ru.yandex.spark
 
-import org.apache.spark.sql.types._
+import org.apache.log4j.Logger
+import org.apache.spark.SparkConf
 import org.apache.spark.sql._
-
-import scala.reflect.runtime.universe.TypeTag
+import org.apache.spark.sql.types._
+import ru.yandex.spark.yt.format.{GlobalTableOptions, YtSourceStrategy}
+import ru.yandex.spark.yt.serializers.SchemaConverter
 
 package object yt {
+  SparkSession.getActiveSession.foreach(setup)
+
+  def setup(spark: SparkSession): SparkSession = {
+    import ru.yandex.spark.yt.format.SparkYtOptions._
+    spark.sqlContext.setConf("fs.yt.impl", "ru.yandex.spark.yt.format.YtFileSystem")
+    spark.sqlContext.setConf("fs.defaultFS", "yt:///")
+    spark.sqlContext.setYtConf("user", DefaultRpcCredentials.user)
+    spark.sqlContext.setYtConf("token", DefaultRpcCredentials.token)
+    spark
+  }
+
+  def restartSparkWithExtensions(): SparkSession = {
+    restartSparkWithExtensions(SparkSession.getActiveSession.get)
+  }
+
+  def restartSparkWithExtensions(spark: SparkSession): SparkSession = {
+    val conf = spark.conf
+    spark.stop()
+    startSparkWithExtensions(conf)
+  }
+
+  def startSparkWithExtensions(conf: RuntimeConfig): SparkSession = {
+    val newSession = SparkSession.builder()
+      .config(new SparkConf().setAll(conf.getAll))
+      .withExtensions(_.injectPlannerStrategy(_ => YtSourceStrategy))
+      .getOrCreate()
+    setup(newSession)
+  }
+
   implicit class YtReader(reader: DataFrameReader) {
-    def partitions(partitions: Int): DataFrameReader = {
-      reader.option(DefaultSourceParameters.partitionsParam, partitions)
+    def yt(path: String): DataFrame = reader.format("yt").load(path)
+
+    def yt(path: String, filesCount: Int): DataFrame = {
+      GlobalTableOptions.setFilesCount(path, filesCount)
+      yt(path)
     }
-
-    def proxy(proxy: String): DataFrameReader = {
-      reader.option(DefaultSourceParameters.proxyParam, proxy)
-    }
-
-    def hume: DataFrameReader = proxy("hume")
-
-    def yt(path: String): DataFrame = reader.format("ru.yandex.spark.yt").load(path)
 
     def schemaHint(schemaHint: StructType): DataFrameReader = {
-      reader.option(DefaultSourceParameters.isSchemaFullParam, false).schema(schemaHint)
+      reader.options(SchemaConverter.serializeSchemaHint(schemaHint))
     }
 
     def schemaHint(structField: StructField, structFields: StructField*): DataFrameReader = {
@@ -28,35 +54,27 @@ package object yt {
     }
 
     def schemaHint(field: (String, DataType), fields: (String, DataType)*): DataFrameReader = {
-      schemaHint(StructField(field._1, field._2), fields.map(f => StructField(f._1, f._2)):_*)
-    }
-
-    def schemaHint2(field: (String, DataType), fields: (String, DataType)*): DataFrameReader = {
-      (field +: fields).foldLeft(reader){case (result, (name, dataType)) =>
-          result.option(s"${name}_hint", SchemaConverter.stringType(dataType))
-      }
+      schemaHint(
+        StructField(field._1, field._2),
+        fields.map { case (name, dataType) => StructField(name, dataType) }: _*
+      )
     }
   }
 
   implicit class YtWriter[T](writer: DataFrameWriter[T]) {
-    def yt(path: String): Unit = writer.format("ru.yandex.spark.yt").save(path)
-
-    def proxy(proxy: String): DataFrameWriter[T] = {
-      writer.option(DefaultSourceParameters.proxyParam, proxy)
-    }
-
-    def hume: DataFrameWriter[T] = proxy("hume")
+    def yt(path: String): Unit = writer.format("yt").save(path)
 
     def optimizeFor(optimizeMode: OptimizeMode): DataFrameWriter[T] = {
       writer.option("optimize_for", optimizeMode.name)
     }
   }
 
-  implicit class YtDataFrame(df: DataFrame) {
-    def selectAs[T <: Product : TypeTag]: Dataset[T] = {
-      import df.sparkSession.implicits._
-      val fields = Encoders.product[T].schema.fieldNames
-      df.select(fields.head, fields.tail:_*).as[T]
+  implicit class RichLogger(log: Logger) {
+    def debugLazy(message: => String): Unit = {
+      if (log.isDebugEnabled) {
+        log.debug(message)
+      }
     }
   }
+
 }

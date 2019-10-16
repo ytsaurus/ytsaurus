@@ -26,7 +26,11 @@ object DateTimeUtils {
       null
     } else {
       val dt1 = if (dt.length > 19) dt.take(19) else dt
-      format.format(parseDatetime(dt1))
+      if (dt1.isEmpty) {
+        "ERROR"
+      } else {
+        format.format(parseDatetime(dt1))
+      }
     }
   })
 
