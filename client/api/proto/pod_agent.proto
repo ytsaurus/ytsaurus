@@ -562,7 +562,7 @@ message TBox {
     // Передается при помощи porto property в meta контейнер box
     EResolvConf resolv_conf = 15;
 
-    // Переменные окружения - прокидываются во все init контейнеры бокса и во все вложенные workload
+    // Переменные окружения - прокидываются во все init контейнеры бокса, meta контейнер бокса и во все вложенные workload
     // При этом, если переменная окружения указана и в box env, и в workload env, то будет выбрано значение из workload env
     repeated TEnvVar env = 13;
 
