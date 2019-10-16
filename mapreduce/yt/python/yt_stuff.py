@@ -275,7 +275,7 @@ class YtStuff(object):
         if len(yt_package_versions) == 1:
             source_prefix = "yt/packages/" + yt_package_versions[0] + "/"
 
-        prepare_yt_binaries(self.yt_bins_path, source_prefix, use_ytserver_all=True)
+        prepare_yt_binaries(self.yt_bins_path, source_prefix, use_ytserver_all=True, use_from_package=True)
 
         self.yt_local_exec = [yatest.common.binary_path(source_prefix + "result/yt_local")]
 
