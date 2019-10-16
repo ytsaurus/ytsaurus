@@ -129,6 +129,9 @@ public:
 
         RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet);
 
+        // When restart_complteed_jobs = %true, job completion may create new pending jobs in same task.
+        AddPendingHint();
+
         return result;
     }
 
