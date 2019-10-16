@@ -6,6 +6,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.TimeUnit;
 
 import io.netty.channel.nio.NioEventLoopGroup;
 import org.junit.Assert;
@@ -43,7 +44,7 @@ public class YtClientMultipleClustersTest {
     public void testMultipleClusters() {
         YtClient goodAndBadClustersClient = new YtClient(
                 connector,
-                Cf.list(goodCluster, badCluster),
+                Cf.list(badCluster, badCluster, badCluster, badCluster, badCluster, badCluster, badCluster, badCluster, badCluster, goodCluster),
                 "local",
                 new RpcCredentials(user, token),
                 new RpcOptions()
