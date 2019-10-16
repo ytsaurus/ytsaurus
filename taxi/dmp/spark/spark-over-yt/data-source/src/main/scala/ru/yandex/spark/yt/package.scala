@@ -6,6 +6,7 @@ import org.apache.spark.sql._
 import org.apache.spark.sql.types._
 import ru.yandex.spark.yt.format.{GlobalTableOptions, YtSourceStrategy}
 import ru.yandex.spark.yt.serializers.SchemaConverter
+import ru.yandex.spark.yt.utils.DefaultRpcCredentials
 
 package object yt {
   SparkSession.getActiveSession.foreach(setup)

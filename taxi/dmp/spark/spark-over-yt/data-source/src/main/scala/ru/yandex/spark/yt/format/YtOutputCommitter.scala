@@ -67,7 +67,7 @@ object YtOutputCommitter {
 
   def createTransaction(conf: Configuration, confName: String, parent: Option[String]): String = {
     val transactionGuid = YtTableUtils
-      .createTransaction(parent)(YtClientProvider.ytClient(YtClientConfiguration(conf)))
+      .createTransaction(parent)(YtClientProvider.ytClient(YtClientConfigurationConverter(conf)))
       .toString
     log.debugLazy(s"Create write transaction: $transactionGuid")
     conf.setYtConf(confName, transactionGuid)
@@ -75,22 +75,22 @@ object YtOutputCommitter {
   }
 
   def abortTransaction(conf: Configuration, confName: String): Unit = {
-    val transactionGuid = conf.getYtConf(confName)
+    val transactionGuid = conf.ytConf(confName)
     log.debugLazy(s"Abort write transaction: $transactionGuid")
     YtTableUtils.abortTransaction(transactionGuid)
   }
 
   def commitTransaction(conf: Configuration, confName: String): Unit = {
-    val transactionGuid = conf.getYtConf(confName)
+    val transactionGuid = conf.ytConf(confName)
     log.debugLazy(s"Commit write transaction: $transactionGuid")
     YtTableUtils.commitTransaction(transactionGuid)
   }
 
   def getWriteTransaction(conf: Configuration): String = {
-    conf.getYtConf(writeTransactionConfName)
+    conf.ytConf(writeTransactionConfName)
   }
 
   def getGlobalWriteTransaction(conf: Configuration): String = {
-    conf.getYtConf(globalWriteTransactionConfName)
+    conf.ytConf(globalWriteTransactionConfName)
   }
 }

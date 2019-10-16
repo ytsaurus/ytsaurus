@@ -7,7 +7,7 @@ import org.apache.hadoop.fs._
 import org.apache.hadoop.fs.permission.FsPermission
 import org.apache.hadoop.util.Progressable
 import ru.yandex.spark.yt.YtTableUtils._
-import ru.yandex.spark.yt.{YtClientConfiguration, YtClientProvider, YtTableUtils}
+import ru.yandex.spark.yt.{YtClientConfigurationConverter, YtClientProvider, YtTableUtils}
 import ru.yandex.yt.ytclient.proxy.YtClient
 
 class YtFileSystem extends FileSystem {
@@ -17,7 +17,7 @@ class YtFileSystem extends FileSystem {
 
   override def initialize(uri: URI, conf: Configuration): Unit = {
     super.initialize(uri, conf)
-    val yt = YtClientProvider.ytClient(YtClientConfiguration(conf))
+    val yt = YtClientProvider.ytClient(YtClientConfigurationConverter(conf))
     _uri = uri
   }
 

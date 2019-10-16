@@ -1,8 +1,5 @@
 package ru.yandex.spark.yt
 
-import org.apache.log4j.Logger
-import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.expressions.UnsafeProjection
 import org.apache.spark.sql.types.StructType
 import org.joda.time.Duration
 import ru.yandex.bolts.collection.{Option => YOption}
@@ -13,14 +10,13 @@ import ru.yandex.inside.yt.kosher.impl.rpc.TransactionManager
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.format.TableIterator
-import ru.yandex.spark.yt.serializers.{InternalRowDeserializer, SchemaConverter}
+import ru.yandex.spark.yt.serializers.SchemaConverter
 import ru.yandex.yt.ytclient.`object`.WireRowDeserializer
 import ru.yandex.yt.ytclient.proxy.YtClient
 import ru.yandex.yt.ytclient.proxy.request._
 
 object YtTableUtils {
   private val tableOptions = Set("optimize_for", "schema")
-  private val log = Logger.getLogger(getClass)
 
   def createTable(path: String,
                   schema: StructType,

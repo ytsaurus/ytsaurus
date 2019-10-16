@@ -22,12 +22,8 @@ object SparkYtOptions {
 
 
   implicit class YtOptionsSqlContext(sqlContext: SQLContext) {
-    def getYtConf(name: String): String = {
-      sqlContext.getConf(s"$configurationPrefix.$name")
-    }
-
-    def getYtConf(name: String, default: => String): String = {
-      Try(sqlContext.getConf(s"$configurationPrefix.$name")).getOrElse(default)
+    def getYtConf(name: String): Option[String] = {
+      Try(sqlContext.getConf(s"$configurationPrefix.$name")).toOption
     }
 
     def setYtConf(name: String, value: Any): Unit = {
@@ -36,13 +32,12 @@ object SparkYtOptions {
   }
 
   implicit class YtOptionsConfiguration(configuration: Configuration) {
-    def getYtConf(name: String): String = {
+    def ytConf(name: String): String = {
       configuration.get(s"$configurationPrefix.$name")
     }
 
-    def getYtConf(name: String, default: => String): String = {
-      val res = configuration.get(s"$configurationPrefix.$name")
-      if (res != null) res else default
+    def getYtConf(name: String): Option[String] = {
+      Option(configuration.get(s"$configurationPrefix.$name"))
     }
 
     def setYtConf(name: String, value: Any): Unit = {

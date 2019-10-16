@@ -1,7 +1,5 @@
 package ru.yandex.spark.yt.format
 
-import java.net.URI
-
 import net.sf.saxon.`type`.AtomicType
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileStatus, Path}
@@ -15,8 +13,8 @@ import org.apache.spark.sql.execution.vectorized.OnHeapColumnVector
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.sources.{DataSourceRegister, Filter}
 import org.apache.spark.sql.types.{StringType, StructType}
-import ru.yandex.spark.yt.serializers.{InternalRowDeserializer, SchemaConverter, UnsafeRowDeserializer}
-import ru.yandex.spark.yt.{YtClientConfiguration, YtClientProvider, YtTableUtils}
+import ru.yandex.spark.yt.serializers.{InternalRowDeserializer, SchemaConverter}
+import ru.yandex.spark.yt.{YtClientConfigurationConverter, YtClientProvider, YtTableUtils}
 import ru.yandex.yt.ytclient.proxy.YtClient
 
 import scala.util.Random
@@ -28,7 +26,7 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
     files match {
       case fileStatus :: _ =>
         val schemaHint = SchemaConverter.schemaHint(options)
-        implicit val client: YtClient = YtClientProvider.ytClient(YtClientConfiguration(sparkSession))
+        implicit val client: YtClient = YtClientProvider.ytClient(YtClientConfigurationConverter(sparkSession))
         val schemaTree = YtTableUtils.tableAttribute(fileStatus.getPath.asInstanceOf[YtPath].stringPath , "schema")
         Some(SchemaConverter.sparkSchema(schemaTree, schemaHint))
       case Nil => None
@@ -48,9 +46,9 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
                                               options: Map[String, String],
                                               hadoopConf: Configuration): PartitionedFile => Iterator[InternalRow] = {
     import SparkYtOptions._
-    val ytClientConfiguration = YtClientConfiguration(hadoopConf)
+    val ytClientConfiguration = YtClientConfigurationConverter(hadoopConf)
     val readBatch = supportBatch(sparkSession, requiredSchema)
-    val vectorizedReaderCapacity = hadoopConf.getYtConf("read.vectorized.capacity", "1000").toInt
+    val vectorizedReaderCapacity = hadoopConf.getYtConf("read.vectorized.capacity").map(_.toInt).getOrElse(1000)
 
     (file: PartitionedFile) => {
       implicit val yt: YtClient = YtClientProvider.ytClient(ytClientConfiguration)
@@ -75,10 +73,10 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
                             options: Map[String, String],
                             dataSchema: StructType): OutputWriterFactory = {
     import SparkYtOptions._
-    val ytClientConfiguration = YtClientConfiguration(sparkSession)
-    val batchSize = sparkSession.sqlContext.getYtConf("write.batchSize", "500000").toInt
-    val miniBatchSize = sparkSession.sqlContext.getYtConf("write.miniBatchSize", "1000").toInt
-    val timeoutSeconds = sparkSession.sqlContext.getYtConf("write.timeout", "60").toInt
+    val ytClientConfiguration = YtClientConfigurationConverter(sparkSession)
+    val batchSize = sparkSession.sqlContext.getYtConf("write.batchSize").map(_.toInt).getOrElse(500000)
+    val miniBatchSize = sparkSession.sqlContext.getYtConf("write.miniBatchSize").map(_.toInt).getOrElse(1000)
+    val timeoutSeconds = sparkSession.sqlContext.getYtConf("write.timeout").map(_.toInt).getOrElse(60)
 
     val r = new Random(1)
     job.setJobID(new JobID("yt_job", r.nextInt(Int.MaxValue)))

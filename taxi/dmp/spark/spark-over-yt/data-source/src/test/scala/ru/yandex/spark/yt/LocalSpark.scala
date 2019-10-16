@@ -2,11 +2,12 @@ package ru.yandex.spark.yt
 
 import org.apache.spark.sql.SparkSession
 import ru.yandex.spark.yt.format.YtSourceStrategy
+import ru.yandex.spark.yt.utils.DefaultRpcCredentials
 import ru.yandex.yt.ytclient.proxy.YtClient
 
 trait LocalSpark {
   val spark: SparkSession = LocalSpark.spark
-  implicit val ytClient: YtClient = YtClientProvider.ytClient(YtClientConfiguration(spark))
+  implicit val ytClient: YtClient = YtClientProvider.ytClient(YtClientConfigurationConverter(spark))
 }
 
 object LocalSpark {

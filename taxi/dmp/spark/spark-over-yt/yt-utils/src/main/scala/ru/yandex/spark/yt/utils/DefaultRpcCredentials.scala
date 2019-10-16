@@ -1,4 +1,4 @@
-package ru.yandex.spark.yt
+package ru.yandex.spark.yt.utils
 
 import java.nio.file.{Files, Paths}
 
