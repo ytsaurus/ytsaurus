@@ -1,5 +1,4 @@
 import os
-import sys
 import fcntl
 import time
 import shutil
@@ -10,7 +9,7 @@ except ImportError:
     yatest_common = None
 
 
-def prepare_yt_binaries(destination, source_prefix="", arcadia_root=None, inside_arcadia=True, use_ytserver_all=False):
+def prepare_yt_binaries(destination, source_prefix="", arcadia_root=None, inside_arcadia=True, use_ytserver_all=False, use_from_package=False, copy_ytserver_all=False):
     def get_binary_path(path):
         if arcadia_root is None:
             return yatest_common.binary_path(path)
@@ -26,6 +25,18 @@ def prepare_yt_binaries(destination, source_prefix="", arcadia_root=None, inside
         python_root = "python/"
         global_root = ""
 
+    if use_ytserver_all:
+        if use_from_package:
+            ytserver_all = yatest_common.binary_path("yt/packages/19_4/result/ytserver-all")
+        else:
+            ytserver_all = get_binary_path("{0}yt/server/all/ytserver-all".format(yt_root))
+        if copy_ytserver_all:
+            shutil.copy(ytserver_all, os.path.join(destination, "ytserver-all"))
+            ytserver_all = os.path.join(destination, "ytserver-all")
+
+    else:
+        assert not use_from_package
+
     programs = [("master", "master/bin"),
                 ("clock", "clock_server/bin"),
                 ("node", "node/bin"),
@@ -37,23 +48,25 @@ def prepare_yt_binaries(destination, source_prefix="", arcadia_root=None, inside
                 ("scheduler", "scheduler/bin"),
                 ("controller-agent", "controller_agent/bin")]
     for binary, server_dir in programs:
-        if not use_ytserver_all:
+        if use_ytserver_all:
+            if copy_ytserver_all:
+                os.link(ytserver_all, os.path.join(destination, "ytserver-" + binary))
+            else:
+                if binary in ("exec", "tools"):
+                    shutil.copy(ytserver_all, os.path.join(destination, "ytserver-" + binary))
+                else:
+                    os.symlink(ytserver_all, os.path.join(destination, "ytserver-" + binary))
+        else:
             binary_path = get_binary_path("{0}yt/server/{1}/ytserver-{2}".format(yt_root, server_dir, binary))
-        else:
-            binary_path = yatest_common.binary_path("yt/packages/19_4/result/ytserver-all")
-
-        if use_ytserver_all or binary not in ["exec", "tools"]:
             os.symlink(binary_path, os.path.join(destination, "ytserver-" + binary))
-        else:
-            shutil.copy(binary_path, os.path.join(destination, "ytserver-" + binary))
 
     watcher_path = get_binary_path(python_root + "yt/environment/bin/yt_env_watcher_make/yt_env_watcher")
-    os.symlink(watcher_path, os.path.join(destination, "yt_env_watcher"))
+    shutil.copy(watcher_path, os.path.join(destination, "yt_env_watcher"))
 
     logrotate_path = get_binary_path(global_root + "infra/nanny/logrotate/logrotate")
-    os.symlink(logrotate_path, os.path.join(destination, "logrotate"))
+    shutil.copy(logrotate_path, os.path.join(destination, "logrotate"))
 
-def prepare_yt_environment(destination, arcadia_root=None, inside_arcadia=True):
+def prepare_yt_environment(destination, **kwargs):
     bin_dir = os.path.join(destination, "bin")
     lock_path = os.path.join(destination, "lock")
     prepared_path = os.path.join(destination, "prepared")
@@ -69,7 +82,7 @@ def prepare_yt_environment(destination, arcadia_root=None, inside_arcadia=True):
     if not os.path.exists(bin_dir):
         os.makedirs(bin_dir)
 
-        prepare_yt_binaries(bin_dir, arcadia_root=arcadia_root, inside_arcadia=inside_arcadia)
+        prepare_yt_binaries(bin_dir, **kwargs)
 
     with open(prepared_path, "w"):
         pass
