@@ -81,6 +81,25 @@ const TString CacheUser = "yt-clickhouse-cache";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail
+{
+
+/////////////////////////////////////////////////////////////////////////////
+
+void WriteCurrentQueryIdToStderr()
+{
+    WriteToStderr("*** Current query id (possible reason of failure): ");
+    const auto& queryId = DB::CurrentThread::getQueryId();
+    WriteToStderr(queryId.data, queryId.size);
+    WriteToStderr(" ***\n");
+}
+
+/////////////////////////////////////////////////////////////////////////////
+
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
 TBootstrap::TBootstrap(
     TClickHouseServerBootstrapConfigPtr config,
     INodePtr configNode,
@@ -132,6 +151,7 @@ void TBootstrap::DoRun()
 
     // Set up crash handlers.
     TSignalRegistry::Get()->PushCallback(AllCrashSignals, [=] { QueryRegistry_->WriteStateToStderr(); });
+    TSignalRegistry::Get()->PushCallback(AllCrashSignals, NDetail::WriteCurrentQueryIdToStderr);
     TSignalRegistry::Get()->PushCallback(AllCrashSignals, CrashSignalHandler);
     TSignalRegistry::Get()->PushDefaultSignalHandler(AllCrashSignals);
 
