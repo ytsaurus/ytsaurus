@@ -195,6 +195,7 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
     public CompletableFuture<Void> waitProxies() {
         CompletableFuture<Void> future = new CompletableFuture<>();
         synchronized (waiting) {
+            // TODO: fix posible memleak here
             waiting.push(future);
         }
 
@@ -204,6 +205,8 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
         }
         if (proxies > 0) {
             return CompletableFuture.completedFuture(null);
+        } else if (discoveriesFailed.size() == dataCenters.length) {
+            return CompletableFuture.failedFuture(new IllegalStateException("cannot initialize proxies"));
         } else {
             return future;
         }
