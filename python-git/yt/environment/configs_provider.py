@@ -586,6 +586,7 @@ class ConfigsProvider_19(ConfigsProvider):
             proxy_config = default_configs.get_proxy_config()
             proxy_config["port"] = provision["http_proxy"]["http_ports"][index] if provision["http_proxy"]["http_ports"] else next(ports_generator)
             proxy_config["monitoring_port"] = next(ports_generator)
+            proxy_config["rpc_port"] = next(ports_generator)
             proxy_config["fqdn"] = "{0}:{1}".format(provision["fqdn"], proxy_config["port"])
 
             set_at(proxy_config, "coordinator/public_fqdn", proxy_config["fqdn"])
@@ -600,6 +601,8 @@ class ConfigsProvider_19(ConfigsProvider):
             _set_bind_retry_options(proxy_config)
 
             proxy_config["driver"] = driver_config
+
+            _set_bind_retry_options(proxy_config, key="bus_server")
 
             proxy_configs.append(proxy_config)
 
