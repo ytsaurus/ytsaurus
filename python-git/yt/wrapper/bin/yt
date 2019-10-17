@@ -967,6 +967,8 @@ def add_start_clickhouse_clique_parser(add_parser):
     parser.add_argument("--enable-monitoring", action="store_true", default=False,
                         help="(only for development use) bind monitoring port to 10142")
     parser.add_argument("--cypress-geodata-path")
+    parser.add_argument("--operation-alias", help="Alias for clique")
+    parser.add_argument("--abort-existing", action="store_true", help="Abort existing operation under same alias")
     add_structured_argument(parser, "--spec")
     add_structured_argument(parser, "--clickhouse-config", "ClickHouse configuration patch")
 
