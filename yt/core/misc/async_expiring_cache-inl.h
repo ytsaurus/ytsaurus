@@ -333,10 +333,10 @@ void TAsyncExpiringCache<TKey, TValue>::UpdateAll()
         for (const auto& [key, entry] : Map_) {
             if (entry->Promise.IsSet()) {
                 if (now > entry->AccessDeadline) {
-                    expiredKeys.emplace_back(key);
+                    expiredKeys.push_back(key);
                 } else if (entry->Promise.Get().IsOK()) {
-                    keys.emplace_back(key);
-                    entries.emplace_back(MakeWeak(entry));
+                    keys.push_back(key);
+                    entries.push_back(MakeWeak(entry));
                 }
             }
         }
@@ -353,8 +353,8 @@ void TAsyncExpiringCache<TKey, TValue>::UpdateAll()
                         Profiler_.Update(SizeCounter_, Map_.size());
                         OnErase(key);
                     } else if (entry->Promise.Get().IsOK()) {
-                        keys.emplace_back(key);
-                        entries.emplace_back(MakeWeak(entry));
+                        keys.push_back(key);
+                        entries.push_back(MakeWeak(entry));
                     }
                 }
             }

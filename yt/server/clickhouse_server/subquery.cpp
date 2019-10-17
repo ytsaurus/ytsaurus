@@ -126,7 +126,7 @@ public:
     }
 
 private:
-    TBootstrap* Bootstrap_;
+    const TBootstrap* Bootstrap_;
 
     const NLogging::TLogger& Logger = ServerLogger;
 
@@ -203,29 +203,29 @@ private:
             Client_->GetOptions().GetUser(),
             EPermission::Read);
 
-        auto attributes = WaitFor(Bootstrap_->GetHost()->GetTableAttributeCache()->Get(paths))
+        auto attributeOrErrors = WaitFor(Bootstrap_->GetHost()->GetTableAttributeCache()->Get(paths))
             .ValueOrThrow();
 
-        auto permissions = WaitFor(permissionsFuture)
+        auto permissionOrErrors = WaitFor(permissionsFuture)
             .ValueOrThrow();
 
         std::vector<TError> errors;
 
-        for (const auto& permission : permissions) {
+        for (const auto& permission : permissionOrErrors) {
             if (!permission.IsOK()) {
-                errors.emplace_back(permission);
+                errors.push_back(permission);
             }
         }
-        for (const auto& attribute : attributes) {
+        for (const auto& attribute : attributeOrErrors) {
             if (!attribute.IsOK()) {
-                errors.emplace_back(attribute);
+                errors.push_back(attribute);
             }
         }
         
         if (errors.empty()) {
             for (size_t index = 0; index < InputTables_.size(); ++index) {
                 auto& table = InputTables_[index];
-                const auto& attrs = attributes[index].Value();
+                const auto& attrs = attributeOrErrors[index].Value();
 
                 table.ObjectId = TObjectId::FromString(attrs.at("id")->GetValue<TString>());
                 table.Type = TypeFromId(table.ObjectId);

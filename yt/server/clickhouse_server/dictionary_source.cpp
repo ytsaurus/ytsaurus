@@ -55,7 +55,7 @@ public:
 
         YT_LOG_INFO("Reloading dictionary (Revision: %v)", RevisionTracker_.GetRevision());
 
-        // We have no information about a user here. It may be a weak point.
+        // We have no information about the user here. It may be a weak point.
         // Anyway, only table's schema is used here, no other information is under threat.
         auto table = FetchClickHouseTableFromCache(Bootstrap_, /* user */ std::nullopt, Path_, Logger);
         if (!table) {

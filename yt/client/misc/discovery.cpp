@@ -20,7 +20,7 @@ TDiscovery::TDiscovery(
     NApi::IClientPtr client,
     IInvokerPtr invoker,
     std::vector<TString> extraAttributes,
-    const NLogging::TLogger& logger)
+    NLogging::TLogger logger)
     : Config_(config)
     , Client_(client)
     , Invoker_(invoker)
@@ -28,7 +28,9 @@ TDiscovery::TDiscovery(
         invoker,
         BIND(&TDiscovery::DoUpdateList, MakeWeak(this)),
         config->UpdatePeriod))
-    , Logger(logger)
+    , Logger(logger
+        .AddTag("Group: %v", Config_->Directory)
+        .AddTag("DiscoveryId: %v", TGuid::Create()))
     , Epoch_(0)
 {
     if (std::find(extraAttributes.begin(), extraAttributes.end(), "locks") == extraAttributes.end()) {
@@ -39,8 +41,6 @@ TDiscovery::TDiscovery(
     ListOptions_.ReadFrom = Config_->ReadFrom;
     ListOptions_.ExpireAfterSuccessfulUpdateTime = Config_->MasterCacheExpireTime;
     ListOptions_.ExpireAfterFailedUpdateTime = Config_->MasterCacheExpireTime;
-    Logger.AddTag("Group: %v", Config_->Directory);
-    Logger.AddTag("DiscoveryId: %v", TGuid::Create());
 }
 
 TFuture<void> TDiscovery::Enter(TString name, TAttributeMap attributes)

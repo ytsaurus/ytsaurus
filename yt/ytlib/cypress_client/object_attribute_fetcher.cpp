@@ -8,18 +8,19 @@
 
 #include <yt/core/ytree/ypath_proxy.h>
 
-namespace NYT::NObjectClient {
+namespace NYT::NCypressClient {
 
-using namespace NYPath;
 using namespace NApi;
-using namespace NYTree;
+using namespace NObjectClient;
+using namespace NYPath;
 using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<std::vector<TErrorOr<TAttributeMap>>> FetchAttributes(
     const std::vector<TYPath>& paths,
-    const std::vector<TString>& attributes,
+    const std::vector<TString>& attributeKeys,
     const NNative::IClientPtr& client,
     const TMasterReadOptions& options)
 {
@@ -27,7 +28,7 @@ TFuture<std::vector<TErrorOr<TAttributeMap>>> FetchAttributes(
     auto batchReq = proxy.ExecuteBatch();
     for (const auto& path : paths) {
         auto req = TYPathProxy::Get(path + "/@");
-        ToProto(req->mutable_attributes()->mutable_keys(), attributes);
+        ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
         if (options.ReadFrom == EMasterChannelKind::Cache) {
             auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
             cachingHeaderExt->set_success_expiration_time(ToProto<i64>(options.ExpireAfterSuccessfulUpdateTime));
@@ -58,4 +59,4 @@ TFuture<std::vector<TErrorOr<TAttributeMap>>> FetchAttributes(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // NYT::NObjectClient
+} // NYT::NCypressClient
