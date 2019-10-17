@@ -5,7 +5,10 @@
 #include "helpers.h"
 #include "public.h"
 #include "schemaless_writer_adapter.h"
+#include "unversioned_value_yson_writer.h"
 #include "yql_yson_converter.h"
+
+#include <yt/client/complex_types/named_structures_yson.h>
 
 #include <yt/client/table_client/logical_type.h>
 #include <yt/client/table_client/schema.h>
@@ -26,6 +29,7 @@
 namespace NYT::NFormats {
 
 using namespace NConcurrency;
+using namespace NComplexTypes;
 using namespace NYTree;
 using namespace NYson;
 using namespace NJson;
@@ -297,6 +301,7 @@ class TYqlValueWriter
 public:
     TYqlValueWriter(
         const TWebJsonFormatConfigPtr& config,
+        const TNameTablePtr& nameTable,
         const std::vector<TTableSchema>& schemas,
         IJsonConsumer* consumer)
         : Consumer_(consumer)
@@ -327,26 +332,9 @@ public:
         }
     }
 
-    void RegisterColumnNames(const TNameTablePtr& nameTable)
+    void WriteValue(int tableIndex, TStringBuf columnName, TUnversionedValue value)
     {
-        TableIndexId_ = nameTable->GetIdOrRegisterName(TableIndexColumnName);
-    }
-
-    void ProcessRow(TUnversionedRow row)
-    {
-        YT_VERIFY(TableIndexId_ != -1);
-        // Search for table index switch. If it is not found we assume the table index has not changed.
-        for (auto value : row) {
-            if (value.Id == TableIndexId_) {
-                CurrentTableIndex_ = value.Data.Int64;
-                break;
-            }
-        }
-    }
-
-    void WriteValue(TStringBuf columnName, TUnversionedValue value)
-    {
-        auto typeIndex = GetTypeIndex(CurrentTableIndex_, value.Id, columnName, value.Type);
+        auto typeIndex = GetTypeIndex(tableIndex, value.Id, columnName, value.Type);
         BuildYsonFluently(&Consumer_)
             .BeginList()
                 .Item().Do([&, value] (TFluentAny fluent) {
@@ -387,9 +375,6 @@ private:
     TEnumIndexedVector<EValueType, int> ValueTypeToTypeIndex_;
     TBuffer BufferForWriters_;
 
-    int CurrentTableIndex_ = 0;
-    int TableIndexId_ = -1;
-
 private:
     int GetTypeIndex(int tableIndex, ui16 columnId, TStringBuf columnName, EValueType valueType)
     {
@@ -422,36 +407,72 @@ class TSchemalessValueWriter
 public:
     TSchemalessValueWriter(
         const TWebJsonFormatConfigPtr& config,
-        const std::vector<TTableSchema>& /* schemas */,
+        const TNameTablePtr& nameTable,
+        const std::vector<TTableSchema>& schemas,
         IJsonConsumer* consumer)
         : FieldWeightLimit_(config->FieldWeightLimit)
         , Consumer_(consumer)
+        , BlobYsonWriter_(&TmpBlob_, EYsonType::Node)
     {
         YT_VERIFY(config->ValueFormat == EWebJsonValueFormat::Schemaless);
+
+        for (int tableIndex = 0; tableIndex != schemas.size(); ++tableIndex) {
+            for (const auto& column : schemas[tableIndex].Columns()) {
+                if (column.SimplifiedLogicalType()) {
+                    continue;
+                }
+                auto columnId = nameTable->GetIdOrRegisterName(column.Name());
+                auto key = std::pair<int,int>(tableIndex, columnId);
+                auto descriptor = TComplexTypeFieldDescriptor(column);
+                YsonConverters_[key] = CreatePositionalToNamedYsonConverter(descriptor, { });
+            }
+        }
     }
 
-    void RegisterColumnNames(const TNameTablePtr& /* nameTable */)
-    { }
-
-    void ProcessRow(TUnversionedRow /* row */)
-    { }
-
-    void WriteValue(TStringBuf columnName, TUnversionedValue value)
+    void WriteValue(int tableIndex, TStringBuf columnName, TUnversionedValue value)
     {
         switch (value.Type) {
-            case EValueType::Any:
-                Consumer_->OnNodeWeightLimited(
-                    TStringBuf(value.Data.String, value.Length),
-                    FieldWeightLimit_);
-                break;
+            case EValueType::Any: {
+                const auto data = TStringBuf(value.Data.String, value.Length);
+                auto key = std::pair<int,int>(tableIndex, value.Id);
+                auto it = YsonConverters_.find(key);
+                if (it == YsonConverters_.end()) {
+                    Consumer_->OnNodeWeightLimited(data, FieldWeightLimit_);
+                } else {
+                    TmpBlob_.Clear();
+                    ApplyYsonConverter(it->second, data, &BlobYsonWriter_);
+                    BlobYsonWriter_.Flush();
+
+                    Consumer_->OnNodeWeightLimited(TStringBuf(TmpBlob_.Begin(), TmpBlob_.Size()), FieldWeightLimit_);
+                }
+                return;
+            }
             case EValueType::String:
                 Consumer_->OnStringScalarWeightLimited(
                     TStringBuf(value.Data.String, value.Length),
                     FieldWeightLimit_);
+                return;
+            case EValueType::Int64:
+                Consumer_->OnInt64Scalar(value.Data.Int64);
+                return;
+            case EValueType::Uint64:
+                Consumer_->OnUint64Scalar(value.Data.Uint64);
+                return;
+            case EValueType::Double:
+                Consumer_->OnDoubleScalar(value.Data.Double);
+                return;
+            case EValueType::Boolean:
+                Consumer_->OnBooleanScalar(value.Data.Boolean);
+                return;
+            case EValueType::Null:
+                Consumer_->OnEntity();
+                return;
+            case EValueType::TheBottom:
+            case EValueType::Min:
+            case EValueType::Max:
                 break;
-            default:
-                WriteYsonValue(Consumer_, value);
         }
+        YT_ABORT();
     }
 
     void WriteMetaInfo()
@@ -468,6 +489,11 @@ public:
 private:
     int FieldWeightLimit_;
     IJsonConsumer* Consumer_;
+
+    // Map <tableIndex,columnId> -> YsonConverter
+    THashMap<std::pair<int, int>, TYsonConverter> YsonConverters_;
+    TBlobOutput TmpBlob_;
+    TBufferedBinaryYsonWriter BlobYsonWriter_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -507,6 +533,7 @@ private:
     bool IncompleteColumns_ = false;
 
     TError Error_;
+    int TableIndexId_ = -1;
 
 private:
     bool TryRegisterColumn(ui16 columnId, TStringBuf columnName);
@@ -536,17 +563,12 @@ TWriterForWebJson<TValueWriter>::TWriterForWebJson(
         NYson::EYsonType::Node,
         TValueWriter::GetJsonConfig(Config_)))
     , ColumnFilter_(std::move(columnFilter))
-    , ValueWriter_(Config_, schemas, ResponseBuilder_.get())
+    , ValueWriter_(Config_, NameTable_, schemas, ResponseBuilder_.get())
 {
-    try {
-        ValueWriter_.RegisterColumnNames(NameTable_);
-    } catch (const std::exception& ex) {
-        Error_ = TError("Failed to register columns for web JSON writer") << ex;
-    }
-
     ResponseBuilder_->OnBeginMap();
     ResponseBuilder_->OnKeyedItem("rows");
     ResponseBuilder_->OnBeginList();
+    TableIndexId_ = NameTable_->GetIdOrRegisterName(TableIndexColumnName);
 }
 
 template <typename TValueWriter>
@@ -646,8 +668,6 @@ void TWriterForWebJson<TValueWriter>::DoWrite(TRange<TUnversionedRow> rows)
         ResponseBuilder_->OnListItem();
         ResponseBuilder_->OnBeginMap();
 
-        ValueWriter_.ProcessRow(row);
-
         for (auto value : row) {
             TStringBuf columnName;
             if (!NameTableReader_.TryGetName(value.Id, columnName)) {
@@ -658,8 +678,16 @@ void TWriterForWebJson<TValueWriter>::DoWrite(TRange<TUnversionedRow> rows)
                 continue;
             }
 
+            int tableIndex = 0;
+            for (const auto& value : row) {
+                if (value.Id == TableIndexId_) {
+                    tableIndex = value.Data.Int64;
+                    break;
+                }
+            }
+
             ResponseBuilder_->OnKeyedItem(columnName);
-            ValueWriter_.WriteValue(columnName, value);
+            ValueWriter_.WriteValue(tableIndex, columnName, value);
         }
 
         ResponseBuilder_->OnEndMap();

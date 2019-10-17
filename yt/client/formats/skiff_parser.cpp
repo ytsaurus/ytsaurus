@@ -61,7 +61,10 @@ public:
             YT_VERIFY(YsonConverter_);
             auto ysonString = parser->ParseYson32();
             YsonConverter_->SetColumnIndex(ColumnId_);
-            YsonConverter_->SetValueConsumer(valueConsumer);
+            {
+                auto consumer = YsonConverter_->SwitchToTable(0);
+                YT_VERIFY(consumer == valueConsumer);
+            }
             ParseYsonStringBuffer(ysonString, NYson::EYsonType::Node, YsonConverter_);
         } else if constexpr (wireType == EWireType::Int64) {
             valueConsumer->OnValue(MakeUnversionedInt64Value(parser->ParseInt64(), ColumnId_));
@@ -172,7 +175,8 @@ public:
     TSkiffParserImpl(IValueConsumer* valueConsumer, const TSkiffSchemaPtr& skiffSchema)
         : SkiffSchemaList_({skiffSchema})
         , ValueConsumer_(valueConsumer)
-        , OtherColumnsConsumer_(ValueConsumer_)
+        , YsonToUnversionedValueConverter_(EComplexTypeMode::Named, ValueConsumer_)
+        , OtherColumnsConsumer_(EComplexTypeMode::Named, ValueConsumer_)
     {
         THashMap<TString, const TColumnSchema*> columnSchemas;
         for (const auto& column : valueConsumer->GetSchema().Columns()) {
