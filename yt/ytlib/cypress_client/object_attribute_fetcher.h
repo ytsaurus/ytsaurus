@@ -10,12 +10,12 @@
 
 #include <yt/core/ypath/public.h>
 
-namespace NYT::NObjectClient {
+namespace NYT::NCypressClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 // Attributes will be fetched from cypress.
-TFuture<std::vector<TErrorOr<TAttributeMap>>> FetchAttributes(
+TFuture<std::vector<TErrorOr<NYTree::TAttributeMap>>> FetchAttributes(
     const std::vector<NYPath::TYPath>& paths,
     const std::vector<TString>& attributes,
     const NApi::NNative::IClientPtr& client,
@@ -23,4 +23,4 @@ TFuture<std::vector<TErrorOr<TAttributeMap>>> FetchAttributes(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // NYT::NObjectClient
+} // NYT::NCypressClient

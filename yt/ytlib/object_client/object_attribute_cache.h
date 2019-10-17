@@ -15,7 +15,7 @@ namespace NYT::NObjectClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TObjectAttributeCache
-    : public TAsyncExpiringCache<NYPath::TYPath, TAttributeMap>
+    : public TAsyncExpiringCache<NYPath::TYPath, NYTree::TAttributeMap>
 {
 public:
     TObjectAttributeCache(
@@ -23,20 +23,21 @@ public:
         std::vector<TString> attributes,
         NApi::NNative::IClientPtr client,
         IInvokerPtr invoker,
-        const NLogging::TLogger& logger,
+        NLogging::TLogger logger = {},
         NProfiling::TProfiler profiler = {});
 
 protected:
-    virtual TFuture<TAttributeMap> DoGet(const NYPath::TYPath& path) override;
-    virtual TFuture<std::vector<TErrorOr<TAttributeMap>>> DoGetMany(
+    virtual TFuture<NYTree::TAttributeMap> DoGet(const NYPath::TYPath& path) override;
+    virtual TFuture<std::vector<TErrorOr<NYTree::TAttributeMap>>> DoGetMany(
         const std::vector<NYPath::TYPath>& paths) override;
 
 private:
     const TObjectAttributeCacheConfigPtr Config_;
     const std::vector<TString> Attributes_;
+    const NLogging::TLogger Logger;
+
     NApi::NNative::IClientPtr Client_;
     IInvokerPtr Invoker_;
-    NLogging::TLogger Logger;
 };
 
 DEFINE_REFCOUNTED_TYPE(TObjectAttributeCache)

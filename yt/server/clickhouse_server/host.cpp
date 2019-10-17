@@ -113,7 +113,15 @@ std::string GetCanonicalPath(std::string path)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const std::vector<TString> AttributesToCache{"id", "schema", "type", "dynamic", "chunk_count", "external", "external_cell_tag"};
+const std::vector<TString> AttributesToCache{
+    "id",
+    "schema",
+    "type",
+    "dynamic",
+    "chunk_count",
+    "external",
+    "external_cell_tag",
+};
 
 class TClickHouseHost::TImpl
     : public IServer

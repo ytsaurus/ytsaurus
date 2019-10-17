@@ -10,9 +10,11 @@ namespace NYT::NObjectClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TObjectAttributeCacheConfig
+class TObjectAttributeCacheConfig
     : public TAsyncExpiringCacheConfig
 {
+public:
+
     NApi::EMasterChannelKind ReadFrom;
     // All following parameters make sense only if ReadFrom is Cache.
     TDuration MasterCacheExpireAfterSuccessfulUpdateTime;
