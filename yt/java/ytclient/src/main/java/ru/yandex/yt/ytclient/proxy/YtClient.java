@@ -206,7 +206,9 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
         if (proxies > 0) {
             return CompletableFuture.completedFuture(null);
         } else if (discoveriesFailed.size() == dataCenters.length) {
-            return CompletableFuture.failedFuture(new IllegalStateException("cannot initialize proxies"));
+            future = new CompletableFuture<>();
+            future.completeExceptionally(new IllegalStateException("cannot initialize proxies"));
+            return future;
         } else {
             return future;
         }
