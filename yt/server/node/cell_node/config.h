@@ -121,6 +121,8 @@ public:
 
     NYTree::IMapNodePtr CypressAnnotations;
 
+    bool EnableUnrecognizedOptionsAlert;
+
     TCellNodeConfig()
     {
         RegisterParameter("orchid_cache_update_period", OrchidCacheUpdatePeriod)
@@ -162,6 +164,9 @@ public:
                 .BeginMap()
                 .EndMap()
             ->AsMap());
+
+        RegisterParameter("enable_unrecognized_options_alert", EnableUnrecognizedOptionsAlert)
+            .Default(false);
 
         RegisterPostprocessor([&] () {
             NNodeTrackerClient::ValidateNodeTags(Tags);
