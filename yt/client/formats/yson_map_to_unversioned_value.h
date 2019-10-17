@@ -17,7 +17,9 @@ class TYsonMapToUnversionedValueConverter
     , private NTableClient::IValueConsumer
 {
 public:
-    explicit TYsonMapToUnversionedValueConverter(NTableClient::IValueConsumer* consumer);
+    TYsonMapToUnversionedValueConverter(
+        EComplexTypeMode complexTypeMode,
+        NTableClient::IValueConsumer* valueConsumer);
 
     void Reset();
     virtual void OnStringScalar(TStringBuf value) override;

@@ -374,9 +374,11 @@ private:
 
 TEST(TProtobufFormat, TestConfigParsing)
 {
-    auto parseAndValidateConfig = [] (const auto& node) {
+    auto parseAndValidateConfig = [] (const auto& node, std::vector<TTableSchema> schemas = {}) {
         auto config = ParseFormatConfigFromNode(node);
-        std::vector<TTableSchema> schemas(config->Tables.size());
+        if (schemas.empty()) {
+            schemas.resize(config->Tables.size());
+        }
         New<TProtobufFormatDescription>()->Init(config, schemas, false);
         return config;
     };
@@ -455,6 +457,33 @@ TEST(TProtobufFormat, TestConfigParsing)
     EXPECT_THROW_WITH_SUBSTRING(
         parseAndValidateConfig(duplicateColumnNamesConfig),
         "Multiple fields with same column name \"SomeColumn\" are forbidden in protobuf format");
+
+    auto anyCorrespondsToStruct = BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("tables")
+            .BeginList()
+                .Item()
+                .BeginMap()
+                    .Item("columns")
+                    .BeginList()
+                        .Item()
+                        .BeginMap()
+                            .Item("name").Value("SomeColumn")
+                            .Item("field_number").Value(1)
+                            .Item("proto_type").Value("any")
+                        .EndMap()
+                    .EndList()
+                .EndMap()
+            .EndList()
+        .EndMap();
+
+    auto schema = TTableSchema({
+        TColumnSchema("SomeColumn", StructLogicalType({})),
+    });
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        parseAndValidateConfig(duplicateColumnNamesConfig, {schema}),
+        "Schema and protobuf config mismatch");
 }
 
 TEST(TProtobufFormat, TestParseBigZigZag)

@@ -14,6 +14,8 @@ def stable_json(obj):
     return json.dumps(obj, sort_keys=True)
 
 
+POSITIONAL_YSON = yson.loads("<complex_type_mode=positional>yson")
+
 class TypeTester(object):
     class DynamicHelper(object):
         def make_schema(self, type_v2):
@@ -33,7 +35,7 @@ class TypeTester(object):
             return make_schema([make_column("column", type_v2)])
 
         def write(self, path, value):
-            write_table(path, [{"column": value}])
+            write_table(path, [{"column": value}], input_format=POSITIONAL_YSON)
 
     def __init__(self, type_list, dynamic=False):
         self.types = {}
@@ -82,7 +84,7 @@ class SingleColumnTable(object):
         })
 
     def check_good_value(self, value):
-        write_table(self.path, [{"column": value}])
+        write_table(self.path, [{"column": value}], input_format=POSITIONAL_YSON)
 
     def check_bad_value(self, value):
         with raises_yt_error(SchemaViolation):
@@ -436,58 +438,34 @@ class TestComplexTypes(YTEnvSetup):
 
     @authors("ermolovd")
     def test_tagged(self):
-        create("table", "//tmp/table", force=True, attributes={
-            "schema": make_schema([{
-                "name": "column",
-                "type_v2": struct_type([
-                    ("a", tagged_type("yt.cluster_name", "utf8")),
-                    ("b", optional_type("int64")),
-                ])
-            }])
-        })
-        assert get("//tmp/table/@schema/0/type") == "any"
-        assert get("//tmp/table/@schema/0/required") == True
-
-        write_table("//tmp/table", [
-            {"column": ["hume", 1]},
-            {"column": ["freud", None]},
-            {"column": ["hahn"]},
+        logical_type1 = struct_type([
+            ("a", tagged_type("yt.cluster_name", "utf8")),
+            ("b", optional_type("int64")),
         ])
+        assert type_v2_to_type_v1(logical_type1) == TypeV1("any", True)
 
-        def check_bad(value):
-            with raises_yt_error(SchemaViolation):
-                write_table("//tmp/table", [
-                    {"column": value},
-                ])
+        table1 = SingleColumnTable(logical_type1)
 
-        check_bad([])
-        check_bad(None)
-        check_bad(["sakura", 2, 3])
-        check_bad(["betula", "redwood"])
+        table1.check_good_value(["hume", 1])
+        table1.check_good_value(["freud", None])
+        table1.check_good_value(["hahn"])
 
-        create("table", "//tmp/table", force=True, attributes={
-            "schema": make_schema([{
-                "name": "column",
-                "type_v2": tagged_type("even", optional_type("int64")),
-            }])
-        })
-        assert get("//tmp/table/@schema/0/type") == "int64"
-        assert get("//tmp/table/@schema/0/required") == False
+        table1.check_bad_value([])
+        table1.check_bad_value(None)
+        table1.check_bad_value(["sakura", 2, 3])
+        table1.check_bad_value(["betula", "redwood"])
 
-        write_table("//tmp/table", [
-            {"column": 0},
-            {"column": 2},
-            {"column": None},
-        ])
+        logical_type2 = tagged_type("even", optional_type("int64"))
+        assert type_v2_to_type_v1(logical_type2) == TypeV1("int64", False)
 
-        def check_bad(value):
-            with raises_yt_error(SchemaViolation):
-                write_table("//tmp/table", [
-                    {"column": value},
-                ])
+        table2 = SingleColumnTable(logical_type2)
 
-        check_bad("1")
-        check_bad(3.0)
+        table2.check_good_value(0)
+        table2.check_good_value(2)
+        table2.check_good_value(None)
+
+        table2.check_bad_value("1")
+        table2.check_bad_value(3.0)
 
     @authors("ermolovd")
     def test_complex_types_disallowed_in_dynamic_tables(self):

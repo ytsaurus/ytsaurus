@@ -8,19 +8,55 @@
 
 namespace NYT::NTableClient {
 
+using NFormats::EComplexTypeMode;
 using namespace NYson;
 using namespace NConcurrency;
+using namespace NComplexTypes;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonToUnversionedValueConverter::TYsonToUnversionedValueConverter()
-    : ValueWriter_(&ValueBuffer_)
+TYsonToUnversionedValueConverter::TYsonToUnversionedValueConverter(
+    EComplexTypeMode complexTypeMode,
+    IValueConsumer* valueConsumer)
+    : TYsonToUnversionedValueConverter(complexTypeMode, std::vector<IValueConsumer*>{valueConsumer})
 { }
 
-void TYsonToUnversionedValueConverter::SetValueConsumer(IValueConsumer* valueConsumer)
+TYsonToUnversionedValueConverter::TYsonToUnversionedValueConverter(
+    EComplexTypeMode complexTypeMode,
+    std::vector<IValueConsumer*> valueConsumers,
+    int tableIndex)
+    : ValueConsumers_(std::move(valueConsumers))
+    , ValueWriter_(&ValueBuffer_)
+    , ConvertedWriter_(&ConvertedBuffer_)
 {
-    YT_VERIFY(valueConsumer != nullptr);
-    ValueConsumer_ = valueConsumer;
+    SwitchToTable(tableIndex);
+
+    if (complexTypeMode == EComplexTypeMode::Positional) {
+        return;
+    }
+
+    for (size_t tableIndex = 0; tableIndex < ValueConsumers_.size(); ++tableIndex) {
+        const auto& valueConsumer = ValueConsumers_[tableIndex];
+        const auto& nameTable = valueConsumer->GetNameTable();
+
+        for (const auto& column : valueConsumer->GetSchema().Columns()) {
+            if (column.SimplifiedLogicalType()) {
+                continue;
+            }
+            const auto id = nameTable->GetIdOrRegisterName(column.Name());
+            auto key = std::pair<int,int>(tableIndex, id);
+            Converters_[key] = CreateNamedToPositionalYsonConverter(TComplexTypeFieldDescriptor(column));
+        }
+    }
+}
+
+IValueConsumer* TYsonToUnversionedValueConverter::SwitchToTable(int tableIndex)
+{
+    TableIndex_ = tableIndex;
+    YT_VERIFY(0 <= tableIndex && tableIndex < ValueConsumers_.size());
+    CurrentValueConsumer_ = ValueConsumers_[tableIndex];
+    YT_VERIFY(CurrentValueConsumer_ != nullptr);
+    return CurrentValueConsumer_;
 }
 
 void TYsonToUnversionedValueConverter::SetColumnIndex(int columnIndex)
@@ -31,7 +67,7 @@ void TYsonToUnversionedValueConverter::SetColumnIndex(int columnIndex)
 void TYsonToUnversionedValueConverter::OnStringScalar(TStringBuf value)
 {
     if (Depth_ == 0) {
-        ValueConsumer_->OnValue(MakeUnversionedStringValue(value, ColumnIndex_));
+        CurrentValueConsumer_->OnValue(MakeUnversionedStringValue(value, ColumnIndex_));
     } else {
         ValueWriter_.OnStringScalar(value);
     }
@@ -40,7 +76,7 @@ void TYsonToUnversionedValueConverter::OnStringScalar(TStringBuf value)
 void TYsonToUnversionedValueConverter::OnInt64Scalar(i64 value)
 {
     if (Depth_ == 0) {
-        ValueConsumer_->OnValue(MakeUnversionedInt64Value(value, ColumnIndex_));
+        CurrentValueConsumer_->OnValue(MakeUnversionedInt64Value(value, ColumnIndex_));
     } else {
         ValueWriter_.OnInt64Scalar(value);
     }
@@ -49,7 +85,7 @@ void TYsonToUnversionedValueConverter::OnInt64Scalar(i64 value)
 void TYsonToUnversionedValueConverter::OnUint64Scalar(ui64 value)
 {
     if (Depth_ == 0) {
-        ValueConsumer_->OnValue(MakeUnversionedUint64Value(value, ColumnIndex_));
+        CurrentValueConsumer_->OnValue(MakeUnversionedUint64Value(value, ColumnIndex_));
     } else {
         ValueWriter_.OnUint64Scalar(value);
     }
@@ -58,7 +94,7 @@ void TYsonToUnversionedValueConverter::OnUint64Scalar(ui64 value)
 void TYsonToUnversionedValueConverter::OnDoubleScalar(double value)
 {
     if (Depth_ == 0) {
-        ValueConsumer_->OnValue(MakeUnversionedDoubleValue(value, ColumnIndex_));
+        CurrentValueConsumer_->OnValue(MakeUnversionedDoubleValue(value, ColumnIndex_));
     } else {
         ValueWriter_.OnDoubleScalar(value);
     }
@@ -67,7 +103,7 @@ void TYsonToUnversionedValueConverter::OnDoubleScalar(double value)
 void TYsonToUnversionedValueConverter::OnBooleanScalar(bool value)
 {
     if (Depth_ == 0) {
-        ValueConsumer_->OnValue(MakeUnversionedBooleanValue(value, ColumnIndex_));
+        CurrentValueConsumer_->OnValue(MakeUnversionedBooleanValue(value, ColumnIndex_));
     } else {
         ValueWriter_.OnBooleanScalar(value);
     }
@@ -76,7 +112,7 @@ void TYsonToUnversionedValueConverter::OnBooleanScalar(bool value)
 void TYsonToUnversionedValueConverter::OnEntity()
 {
     if (Depth_ == 0) {
-        ValueConsumer_->OnValue(MakeUnversionedSentinelValue(EValueType::Null, ColumnIndex_));
+        CurrentValueConsumer_->OnValue(MakeUnversionedSentinelValue(EValueType::Null, ColumnIndex_));
     } else {
         ValueWriter_.OnEntity();
     }
@@ -146,11 +182,26 @@ void TYsonToUnversionedValueConverter::FlushCurrentValueIfCompleted()
 {
     if (Depth_ == 0) {
         ValueWriter_.Flush();
-        ValueConsumer_->OnValue(MakeUnversionedAnyValue(
-            TStringBuf(
-                ValueBuffer_.Begin(),
-                ValueBuffer_.Begin() + ValueBuffer_.Size()),
-            ColumnIndex_));
+        auto it = Converters_.find(std::pair(TableIndex_, ColumnIndex_));
+        if (it == Converters_.end()) {
+            CurrentValueConsumer_->OnValue(
+                MakeUnversionedAnyValue(
+                    TStringBuf(
+                        ValueBuffer_.Begin(),
+                        ValueBuffer_.Begin() + ValueBuffer_.Size()),
+                    ColumnIndex_));
+        } else {
+            const auto& converter = it->second;
+            ApplyYsonConverter(converter, TStringBuf(ValueBuffer_.Begin(), ValueBuffer_.Size()), &ConvertedWriter_);
+            ConvertedWriter_.Flush();
+            CurrentValueConsumer_->OnValue(
+                MakeUnversionedAnyValue(
+                    TStringBuf(
+                        ConvertedBuffer_.Begin(),
+                        ConvertedBuffer_.Begin() + ConvertedBuffer_.Size()),
+                    ColumnIndex_));
+            ConvertedBuffer_.Clear();
+        }
         ValueBuffer_.Clear();
     }
 }
@@ -158,18 +209,19 @@ void TYsonToUnversionedValueConverter::FlushCurrentValueIfCompleted()
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableConsumer::TTableConsumer(
+    EComplexTypeMode complexTypeMode,
     std::vector<IValueConsumer*> valueConsumers,
     int tableIndex)
-    : ValueConsumers_(std::move(valueConsumers))
+    : YsonToUnversionedValueConverter_(complexTypeMode, std::move(valueConsumers))
 {
-    for (auto* consumer : ValueConsumers_) {
+    for (auto* consumer : YsonToUnversionedValueConverter_.ValueConsumers()) {
         NameTableWriters_.emplace_back(std::make_unique<TNameTableWriter>(consumer->GetNameTable()));
     }
     SwitchToTable(tableIndex);
 }
 
-TTableConsumer::TTableConsumer(IValueConsumer* valueConsumer)
-    : TTableConsumer(std::vector<IValueConsumer*>(1, valueConsumer))
+TTableConsumer::TTableConsumer(EComplexTypeMode complexTypeMode, IValueConsumer* valueConsumer)
+    : TTableConsumer(complexTypeMode, std::vector<IValueConsumer*>(1, valueConsumer))
 { }
 
 TError TTableConsumer::AttachLocationAttributes(TError error) const
@@ -181,11 +233,11 @@ void TTableConsumer::OnControlInt64Scalar(i64 value)
 {
     switch (ControlAttribute_) {
         case EControlAttribute::TableIndex:
-            if (value < 0 || value >= ValueConsumers_.size()) {
+            if (value < 0 || value >= GetTableCount()) {
                 THROW_ERROR AttachLocationAttributes(TError(
                     "Invalid table index %v: expected integer in range [0,%v]",
                     value,
-                    ValueConsumers_.size() - 1));
+                    GetTableCount() - 1));
             }
             SwitchToTable(value);
             break;
@@ -515,10 +567,14 @@ void TTableConsumer::OnEndAttributes()
 
 void TTableConsumer::SwitchToTable(int tableIndex)
 {
-    YT_VERIFY(tableIndex >= 0 && tableIndex < ValueConsumers_.size());
-    CurrentValueConsumer_ = ValueConsumers_[tableIndex];
+    YT_VERIFY(tableIndex >= 0 && tableIndex < GetTableCount());
+    CurrentValueConsumer_ = YsonToUnversionedValueConverter_.SwitchToTable(tableIndex);
     CurrentNameTableWriter_ = NameTableWriters_[tableIndex].get();
-    YsonToUnversionedValueConverter_.SetValueConsumer(CurrentValueConsumer_);
+}
+
+int TTableConsumer::GetTableCount() const
+{
+    return NameTableWriters_.size();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

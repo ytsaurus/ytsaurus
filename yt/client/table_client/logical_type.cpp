@@ -1,4 +1,5 @@
 #include "logical_type.h"
+#include "schema.h"
 
 #include <yt/client/table_client/proto/chunk_meta.pb.h>
 
@@ -368,6 +369,10 @@ bool TListLogicalType::IsNullable() const
 
 TComplexTypeFieldDescriptor::TComplexTypeFieldDescriptor(TLogicalTypePtr type)
     : Type_(std::move(type))
+{ }
+
+TComplexTypeFieldDescriptor::TComplexTypeFieldDescriptor(const NYT::NTableClient::TColumnSchema& column)
+    : TComplexTypeFieldDescriptor(column.Name(), column.LogicalType())
 { }
 
 TComplexTypeFieldDescriptor::TComplexTypeFieldDescriptor(TString columnName, TLogicalTypePtr type)

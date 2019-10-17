@@ -553,4 +553,14 @@ TYsonConverter CreateNamedToPositionalYsonConverter(const TComplexTypeFieldDescr
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ApplyYsonConverter(const TYsonConverter& converter, TStringBuf inputYson, NYson::IYsonConsumer* consumer)
+{
+    TMemoryInput in(inputYson);
+    TYsonPullParser parser(&in, EYsonType::Node);
+    TYsonPullParserCursor cursor(&parser);
+    converter(&cursor, consumer);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NComplexTypes

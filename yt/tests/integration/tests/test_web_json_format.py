@@ -21,7 +21,7 @@ ROWS = [
         "boolean_column": True,
         "optional_list_int64_column": [11, 12, 13],
         "variant_tuple_column": [0, "bar"],
-        "struct_column": [False, yson.YsonUint64(1), "flame", yson.YsonEntity()],
+        "struct_column": {"a": False, "b": yson.YsonUint64(1), "c": "flame", "d": yson.YsonEntity()},
         "non_utf_string_column": b"\xFF\xFE\xFD\xFC",
     },
     {
@@ -33,7 +33,7 @@ ROWS = [
         "boolean_column": True,
         "optional_list_int64_column": yson.YsonEntity(),
         "variant_tuple_column": [1, [7, 8]],
-        "struct_column": [True, yson.YsonUint64(12), "hey", [yson.YsonEntity()]],
+        "struct_column": {"a": True, "b": yson.YsonUint64(12), "c": "hey", "d": [yson.YsonEntity()]},
         "non_utf_string_column": b"ab\xFAcd",
     }
 ]
@@ -548,4 +548,3 @@ class TestWebJsonFormat(YTEnvSetup):
         assert not output["incomplete_columns"]
         assert not output["incomplete_all_column_names"]
         assert output["all_column_names"] == get_expected_all_column_names(dynamic_ordered=False)
-

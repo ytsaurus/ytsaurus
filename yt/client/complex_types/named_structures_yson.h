@@ -45,6 +45,10 @@ TYsonConverter CreatePositionalToNamedYsonConverter(
     const NTableClient::TComplexTypeFieldDescriptor& descriptor,
     const TPositionalToNamedConfig& config);
 
+
+// Helper method to reduce boilerplate code.
+void ApplyYsonConverter(const TYsonConverter& converter, TStringBuf inputYson, NYson::IYsonConsumer* consumer);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NComplexTypes
