@@ -396,7 +396,7 @@ public:
                 std::vector<TExternalFunctionSpec> result;
                 result.reserve(specs.size());
                 for (const auto& spec : specs) {
-                    result.push_back(std::move(spec.Value()));
+                    result.emplace_back(std::move(spec.Value()));
                 }
                 return result;
             }));
