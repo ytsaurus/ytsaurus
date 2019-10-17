@@ -1709,7 +1709,7 @@ class TestOperationsTmpfs(object):
         time.sleep(0.5)
         os.kill(process.pid, signal.SIGINT)
 
-        timeout = 3.0
+        timeout = 5.0
         start_time = time.time()
         while time.time() - start_time < timeout:
             if process.poll() is not None:
