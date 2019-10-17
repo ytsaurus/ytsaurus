@@ -210,8 +210,7 @@ class TestTableCommands(object):
         client = yt.YtClient(config=config)
         with client.TempTable() as table:
             assert client.exists(table)
-            time.sleep(5.5)
-            assert not client.exists(table)
+            wait(lambda: not client.exists(table))
 
     def test_write_many_chunks(self):
         with set_config_option("write_retries/chunk_size", 1):
