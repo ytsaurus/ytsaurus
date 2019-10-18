@@ -98,6 +98,24 @@ TString ToString(const TAttributeSelector& selector);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TAttributeGroupingExpressions
+{
+    std::vector<TString> Expressions;
+};
+
+TString ToString(const TAttributeGroupingExpressions& groupingExpression);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TAttributeAggregateExpressions
+{
+    std::vector<TString> Expressions;
+};
+
+TString ToString(const TAttributeAggregateExpressions& groupingExpression);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TGetQueryOptions
 {
     bool IgnoreNonexistent = false;
@@ -175,6 +193,13 @@ struct TSelectObjectHistoryResult
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TAggregateQueryResult
+{
+    std::vector<TAttributeValueList> Objects;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTransaction
     : public NYT::TRefCounted
 {
@@ -232,6 +257,11 @@ public:
         const TObjectId& objectId,
         const TAttributeSelector& attributeSelector,
         const TSelectObjectHistoryOptions& options);
+    TAggregateQueryResult ExecuteAggregateQuery(
+        EObjectType type,
+        const std::optional<TObjectFilter>& filter,
+        const TAttributeAggregateExpressions& aggregators,
+        const TAttributeGroupingExpressions& groupingExpressions);
 
     NYT::NApi::IUnversionedRowsetPtr SelectFields(
         EObjectType objectType,

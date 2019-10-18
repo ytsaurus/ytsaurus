@@ -74,6 +74,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetObject));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetObjects));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SelectObjects));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(AggregateObjects));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(WatchObjects));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CheckObjectPermissions));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetObjectAccessAllowedFor));
@@ -837,7 +838,7 @@ private:
         if (request->has_continuation_token()) {
             DeserializeContinuationToken(request->continuation_token(), &(options.ContinuationToken.emplace()));
         }
-        
+
         // TODO(avitella): Only session object required. Drop dependency from full transaction.
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto transaction = WaitFor(transactionManager->StartReadOnlyTransaction(timestamp))
@@ -919,6 +920,60 @@ private:
         }
 
         response->set_timestamp(transaction->GetStartTimestamp());
+
+        context->SetResponseInfo("Count: %v, Timestamp: %llx",
+            result.Objects.size(),
+            transaction->GetStartTimestamp());
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NClient::NApi::NProto, AggregateObjects)
+    {
+        auto objectType = CheckedEnumCastToObjectType(request->object_type());
+        auto timestamp = request->timestamp();
+
+        auto filter = request->has_filter()
+            ? std::make_optional(TObjectFilter{request->filter().query()})
+            : std::nullopt;
+
+        TAttributeGroupingExpressions groupByExpressions{FromProto<std::vector<TString>>(request->group_by_expressions().expressions())};
+        TAttributeAggregateExpressions aggregateExpressions{FromProto<std::vector<TString>>(request->aggregate_expressions().expressions())};
+
+        context->SetRequestInfo("ObjectType: %v, Timestamp: %llx, Filter: %v, Aggregators: %v, GroupByExpressions: %v",
+            objectType,
+            timestamp,
+            filter,
+            aggregateExpressions,
+            groupByExpressions);
+
+        // Only generic yson can be used for aggregate query.
+        auto format = NClient::NApi::NProto::PF_YSON;
+        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context);
+
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto transaction = WaitFor(transactionManager->StartReadOnlyTransaction(timestamp))
+            .ValueOrThrow();
+
+        auto result = transaction->ExecuteAggregateQuery(
+            objectType,
+            filter,
+            aggregateExpressions,
+            groupByExpressions);
+
+        TAttributeSelector selector;
+        for (const auto& attribute : groupByExpressions.Expressions) {
+            selector.Paths.push_back(attribute);
+        }
+        for (const auto& attribute : aggregateExpressions.Expressions) {
+            selector.Paths.push_back(attribute);
+        }
+
+        response->set_timestamp(transaction->GetStartTimestamp());
+        response->mutable_results()->Reserve(result.Objects.size());
+        for (auto& object : result.Objects) {
+            auto* protoResult = response->add_results();
+            MoveObjectResultToProto(format, objectType, selector, &object, protoResult);
+        }
 
         context->SetResponseInfo("Count: %v, Timestamp: %llx",
             result.Objects.size(),

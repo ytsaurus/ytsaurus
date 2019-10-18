@@ -116,6 +116,10 @@ NYT::NQueryClient::NAst::TExpressionPtr BuildAndExpression(
     NYT::NQueryClient::NAst::TExpressionPtr lhs,
     NYT::NQueryClient::NAst::TExpressionPtr rhs);
 
+NYT::NQueryClient::NAst::TExpressionList RewriteExpressions(
+    IQueryContext* context,
+    const std::vector<TString>& expressions);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TString GetObjectDisplayName(const TObject* object);

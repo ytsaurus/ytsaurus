@@ -40,8 +40,13 @@ def create_cli(yp_env):
     return YpCli(yp_env.yp_instance.yp_client_grpc_address)
 
 
-def create_pod(cli):
-    pod_set_id = cli.check_output(["create", "pod_set"])
+def create_pod_set(cli):
+    return cli.check_output(["create", "pod_set"])
+
+def create_pod(cli, pod_set_id=None):
+    if pod_set_id is None:
+        pod_set_id = create_pod_set(cli)
+
     attributes = {"meta": {"pod_set_id": pod_set_id}}
     return cli.check_output([
         "create",
@@ -273,3 +278,35 @@ class TestCli(object):
         timestamps2 = get_timestamps()
         assert all(timestamps2[i] > timestamps1[i] for i in range(5)) and timestamps1[5:] == timestamps2[5:]
         timestamps1 = timestamps2
+
+    def test_aggregate(self, yp_env):
+        cli = create_cli(yp_env)
+
+        pod_set_id = create_pod_set(cli)
+        pod_ids = []
+        memory_limits = [i * 2**20 for i in range(1, 8)]
+        for memory_limit in memory_limits:
+            attributes = {
+                "meta": {"pod_set_id": pod_set_id},
+                "spec": {"resource_requests": {"memory_limit": memory_limit}},
+            }
+            pod_ids.append(cli.check_output([
+                "create",
+                "pod",
+                "--attributes", yson.dumps(attributes)
+            ]))
+
+        result = cli.check_yson_output([
+            "aggregate",
+            "pod",
+            "--group-by", "is_prefix([/meta/pod_set_id], \"{}\")".format(pod_set_id),
+            "--group-by", "int64([/status/agent_spec_timestamp]) + 5",
+            "--aggregator", "avg(int64([/spec/resource_requests/memory_limit]))",
+            "--aggregator", "max([/meta/creation_time])",
+            "--filter", "[/meta/pod_set_id] = \"{}\"".format(pod_set_id),
+            "--no-tabular",
+        ])
+
+        assert len(result) == 1
+        assert len(result[0]) == 4
+        assert result[0][2] == float(sum(memory_limits)) / len(memory_limits)

@@ -146,6 +146,16 @@ TString ToString(const TAttributeSelector& selector)
     return Format("{Paths: %v}", selector.Paths);
 }
 
+TString ToString(const TAttributeGroupingExpressions& groupByExpressions)
+{
+    return Format("{Expressions: %v}", groupByExpressions.Expressions);
+}
+
+TString ToString(const TAttributeAggregateExpressions& aggregators)
+{
+    return Format("{Expressions: %v}", aggregators.Expressions);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TChildrenAttributeHelper
@@ -170,10 +180,12 @@ public:
     TQueryContext(
         NMaster::TBootstrap* bootstrap,
         EObjectType objectType,
-        TQuery* query)
+        TQuery* query,
+        bool allowAnnotations = true)
         : Bootstrap_(bootstrap)
         , ObjectType_(objectType)
         , Query_(query)
+        , AllowAnnotations_(allowAnnotations)
     { }
 
     virtual IObjectTypeHandler* GetTypeHandler() override
@@ -193,6 +205,9 @@ public:
 
     virtual TExpressionPtr GetAnnotationExpression(const TString& name) override
     {
+        if (!AllowAnnotations_) {
+            THROW_ERROR_EXCEPTION("Accessing /annotations is not allowed for this type of query");
+        }
         auto it = AnnotationNameToExpression_.find(name);
         if (it == AnnotationNameToExpression_.end()) {
             auto foreignTableAlias = AnnotationsTableAliasPrefix + ToString(AnnotationNameToExpression_.size());
@@ -226,6 +241,7 @@ private:
 
     THashMap<const TDBField*, TExpressionPtr> FieldToExpression_;
     THashMap<TString, TExpressionPtr> AnnotationNameToExpression_;
+    const bool AllowAnnotations_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -665,6 +681,68 @@ public:
                 } else {
                     event.Attributes.Values.emplace_back(ConvertToYsonString(GetEphemeralNodeFactory()->CreateEntity()));
                 }
+            }
+        }
+
+        return result;
+    }
+
+    TAggregateQueryResult ExecuteAggregateQuery(
+        EObjectType type,
+        const std::optional<TObjectFilter>& filter,
+        const TAttributeAggregateExpressions& aggregators,
+        const TAttributeGroupingExpressions& groupByExpressions)
+    {
+        if (groupByExpressions.Expressions.empty()) {
+            THROW_ERROR_EXCEPTION("Empty list of group by expressions");
+        }
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto* typeHandler = objectManager->GetTypeHandlerOrThrow(type);
+
+        auto query = MakeQuery(typeHandler);
+
+        TQueryContext queryContext(
+            Bootstrap_,
+            type,
+            query.get(),
+            /* allowAnnotations = */ false);
+
+        query->GroupExprs = std::make_pair(
+            TExpressionList{},
+            NQueryClient::ETotalsMode::None);
+
+        int i = 0;
+        query->SelectExprs = TExpressionList{};
+        for (auto&& expr : RewriteExpressions(&queryContext, groupByExpressions.Expressions)) {
+            const auto aliasName = Format("group_by_expr_%v", i++);
+            query->GroupExprs->first.push_back(New<TAliasExpression>(TSourceLocation{}, std::move(expr), aliasName));
+            query->SelectExprs->push_back(New<TReferenceExpression>(TSourceLocation{}, aliasName));
+        }
+        for (auto&& expr : RewriteExpressions(&queryContext, aggregators.Expressions)) {
+            query->SelectExprs->emplace_back(std::move(expr));
+        }
+
+        auto predicateExpr = BuildAndExpression(
+            filter
+                ? BuildFilterExpression(&queryContext, *filter)
+                : nullptr,
+            BuildObjectFilterByRemovalTime());
+        query->WherePredicate = {std::move(predicateExpr)};
+
+        const auto queryString = FormatQuery(*query);
+
+        YT_LOG_DEBUG("Aggregating objects (Type: %v, Query: %v)",
+            type,
+            queryString);
+
+        const auto rowset = RunSelect(queryString);
+
+        TAggregateQueryResult result;
+        for (const auto& row : rowset->GetRows()) {
+            auto& valueList = result.Objects.emplace_back();
+            for (const auto& value : row) {
+                valueList.Values.push_back(UnversionedValueToYson(value));
             }
         }
 
@@ -2803,7 +2881,7 @@ private:
         auto query = std::make_unique<TQuery>();
         const auto& ytConnector = Bootstrap_->GetYTConnector();
         const auto* table = typeHandler->GetTable();
-        query->Table = TTableDescriptor(ytConnector->GetTablePath(table),  PrimaryTableAlias);
+        query->Table = TTableDescriptor(ytConnector->GetTablePath(table), PrimaryTableAlias);
         query->SelectExprs.emplace();
         return query;
     }
@@ -2945,7 +3023,6 @@ private:
                 object));
         }
     }
-
 
     IUnversionedRowsetPtr RunSelect(const TString& queryString)
     {
@@ -3155,6 +3232,19 @@ TSelectObjectHistoryResult TTransaction::ExecuteSelectObjectHistoryQuery(
         options);
 }
 
+TAggregateQueryResult TTransaction::ExecuteAggregateQuery(
+    EObjectType type,
+    const std::optional<TObjectFilter>& filter,
+    const TAttributeAggregateExpressions& aggregators,
+    const TAttributeGroupingExpressions& groupByExpressions)
+{
+    return Impl_->ExecuteAggregateQuery(
+        type,
+        filter,
+        aggregators,
+        groupByExpressions);
+}
+
 IUnversionedRowsetPtr TTransaction::SelectFields(
     EObjectType type,
     const std::vector<const TDBField*>& fields)
@@ -3280,4 +3370,3 @@ TAsyncSemaphoreGuard TTransaction::AcquireLock()
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYP::NServer::NObjects
-

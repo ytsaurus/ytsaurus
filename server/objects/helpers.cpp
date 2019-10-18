@@ -439,22 +439,50 @@ void TAttributeFetcher::DoFetch(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TExpressionPtr BuildFilterExpression(
-    IQueryContext* context,
-    const TObjectFilter& filter)
-{
-    auto parsedQuery = NQueryClient::ParseSource(filter.Query, NQueryClient::EParseMode::Expression);
-    const auto& queryExpr = std::get<TExpressionPtr>(parsedQuery->AstHead.Ast);
-
+NQueryHelpers::TQueryRewriter MakeQueryRewriter(IQueryContext* context) {
     auto referenceMapping = [context] (const TReference& ref) {
         if (ref.TableName) {
             THROW_ERROR_EXCEPTION("Table references are not supported");
         }
         return BuildAttributeSelector(context, ref.ColumnName);
     };
-    NQueryHelpers::TQueryRewriter rewriter(std::move(referenceMapping));
+    return NQueryHelpers::TQueryRewriter(std::move(referenceMapping));
+}
 
+TExpressionPtr RewriteExpression(
+    const TString& expression,
+    NQueryHelpers::TQueryRewriter rewriter)
+{
+    auto parsedQuery = NQueryClient::ParseSource(expression, NQueryClient::EParseMode::Expression);
+    const auto& queryExpr = std::get<TExpressionPtr>(parsedQuery->AstHead.Ast);
     return rewriter.Run(queryExpr);
+}
+
+TExpressionPtr RewriteExpression(
+    IQueryContext* context,
+    const TString& expression)
+{
+    NQueryHelpers::TQueryRewriter rewriter = MakeQueryRewriter(context);
+    return RewriteExpression(expression, rewriter);
+}
+
+TExpressionPtr BuildFilterExpression(
+    IQueryContext* context,
+    const TObjectFilter& filter)
+{
+    return RewriteExpression(context, filter.Query);
+}
+
+TExpressionList RewriteExpressions(
+    IQueryContext* context,
+    const std::vector<TString>& expressions)
+{
+    NQueryHelpers::TQueryRewriter rewriter = MakeQueryRewriter(context);
+    TExpressionList result;
+    for (const auto& expression : expressions) {
+        result.push_back(RewriteExpression(expression, rewriter));
+    }
+    return result;
 }
 
 TExpressionPtr BuildAndExpression(

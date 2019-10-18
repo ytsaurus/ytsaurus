@@ -515,6 +515,50 @@ message TRspSelectObjects
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TAggregateExpressions
+{
+    repeated string expressions = 1;
+}
+
+message TGroupByExpressions
+{
+    repeated string expressions = 1;
+}
+
+message TReqAggregateObjects
+{
+    // Provides snapshot isolation.
+    // If omitted then reads the latest state.
+    optional uint64 timestamp = 1;
+
+    // Type of objects to select.
+    required EObjectType object_type = 2;
+
+    // Provides means for filtering certain objects.
+    optional TObjectFilter filter = 3;
+
+    // Group by expression.
+    optional TGroupByExpressions group_by_expressions = 4;
+
+    // Aggregate expressions.
+    optional TAggregateExpressions aggregate_expressions = 5;
+}
+
+message TRspAggregateObjects
+{
+    // The result set: each element of this list corresponds to a single group of objects and its aggregation.
+    // List is ordered as follows:
+    //     1) group-by keys ordered according to group_by_expressions;
+    //     2) aggregated values ordered according to aggregate_expressions.
+    repeated TAttributeList results = 1;
+
+    // If TReqAggregateObjects.timestamp is missing, then this contains the actual timestamp
+    // used for reading the DB; otherwise this is just the copy of TReqAggregateObjects.timestamp.
+    optional uint64 timestamp = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqCheckObjectPermissions
 {
     message TSubrequest
@@ -808,6 +852,9 @@ service ObjectService
 
     // Executes a query and fetches attributes for relevant objects.
     rpc SelectObjects (TReqSelectObjects) returns (TRspSelectObjects);
+
+    // Executes a group-by query and aggregates attributes for relevant objects.
+    rpc AggregateObjects (TReqAggregateObjects) returns (TRspAggregateObjects);
 
     // Runs permission checks for given objects, permissions, and users.
     rpc CheckObjectPermissions (TReqCheckObjectPermissions) returns (TRspCheckObjectPermissions);
