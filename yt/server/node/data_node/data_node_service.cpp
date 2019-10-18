@@ -744,11 +744,6 @@ private:
             sliceByKeys,
             workloadDescriptor);
 
-        // COMPAT(babenko)
-        if (!request->keys_in_attachment()) {
-            THROW_ERROR_EXCEPTION("keys_in_attachment must be true");
-        }
-
         ValidateConnected();
 
         GetChunkMetasForRequests(workloadDescriptor, request->slice_requests())
@@ -866,11 +861,6 @@ private:
             keyColumns,
             requestCount,
             workloadDescriptor);
-
-        // COMPAT(babenko)
-        if (!request->keys_in_attachment()) {
-            THROW_ERROR_EXCEPTION("keys_in_attachment must be true");
-        }
 
         ValidateConnected();
 
