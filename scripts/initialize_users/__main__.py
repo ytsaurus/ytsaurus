@@ -456,6 +456,7 @@ def initialize_users(cluster):
         # https://st.yandex-team.ru/YPADMIN-233
         if cluster in ("sas-test", "man-pre"):
             set_schema_permissions(client, "stage", "robot-deploy-test", right_rw)
+            set_schema_permissions(client, "account", "robot-deploy-test", right_u)
 
         set_schema_permissions(client, "dns_record_set", "robot-ydnxdns-export", right_crwu)
 
