@@ -53,6 +53,7 @@ def set_schema_permissions(client, type, user, rights):
         actual_user_permissions = set()
         for record in schema_rights[0]:
             action, subjects, permissions = record["action"], record["subjects"], record["permissions"]
+            assert action == "allow"
             if user in subjects or "everyone" in subjects:
                 for permission in permissions:
                     actual_user_permissions.add(permission)
@@ -276,16 +277,16 @@ ACCOUNTS = [
 def accounts_override_xdc(cluster, accounts, client):
     # XDC accounts not presented in ABC, so order monitoring resources inplace
     accounts.append(
-        Account("abc:service:1979", {
-                "default": {
-                    "cpu": 100000,
-                    "memory": 1099511627776,
-                    "hdd": 1099511627776000,
-                    "ssd": 1099511627776000,
-                    "ipv4": 0
-                }
-                }
-                )
+        Account("abc:service:1979",
+                {
+                    "default": {
+                        "cpu": 100000,
+                        "memory": 1099511627776,
+                        "hdd": 1099511627776000,
+                        "ssd": 1099511627776000,
+                        "ipv4": 0
+                    }
+                })
     )
 
 
@@ -451,6 +452,10 @@ def initialize_users(cluster):
 
         if cluster == "xdc":
             set_schema_permissions(client, "dns_record_set", "robot-gencfg", right_crw)
+
+        # https://st.yandex-team.ru/YPADMIN-233
+        if cluster in ("sas-test", "man-pre"):
+            set_schema_permissions(client, "stage", "robot-deploy-test", right_rw)
 
         set_schema_permissions(client, "dns_record_set", "robot-ydnxdns-export", right_crwu)
 
