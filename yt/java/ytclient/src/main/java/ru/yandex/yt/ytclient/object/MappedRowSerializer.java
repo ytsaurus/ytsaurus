@@ -20,6 +20,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeFloa
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeInstantSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeIntEnumSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeIntegerSerializer;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeJavaInstantSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeLocalDateTimeSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeLongSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeStringEnumSerializer;
@@ -95,7 +96,7 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
     static ColumnValueType asType(YTreeSerializer<?> serializer) {
         if (serializer instanceof YTreeIntegerSerializer || serializer instanceof YTreeLongSerializer
                 || serializer instanceof YTreeIntEnumSerializer || serializer instanceof YTreeInstantSerializer ||
-                serializer instanceof YTreeDurationSerializer) {
+                serializer instanceof YTreeDurationSerializer || serializer instanceof YTreeJavaInstantSerializer) {
             return ColumnValueType.INT64;
         } else if (serializer instanceof YTreeDoubleSerializer || serializer instanceof YTreeFloatSerializer) {
             return ColumnValueType.DOUBLE;
