@@ -905,10 +905,15 @@ void TCompositeSchedulerElement::UpdateDynamicAttributes(TDynamicAttributesList*
     }
 }
 
-void TCompositeSchedulerElement::BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap)
+void TCompositeSchedulerElement::BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap, TDisabledOperationsSet* disabledOperations)
 {
     for (const auto& child : EnabledChildren_) {
-        child->BuildElementMapping(operationMap, poolMap);
+        child->BuildElementMapping(operationMap, poolMap, disabledOperations);
+    }
+    for (const auto& child : DisabledChildren_) {
+        if (child->IsOperation()) {
+            child->BuildElementMapping(operationMap, poolMap, disabledOperations);
+        }
     }
 }
 
@@ -1743,10 +1748,10 @@ TJobResources TPool::ComputeResourceLimits() const
     return ComputeResourceLimitsBase(Config_->ResourceLimits);
 }
 
-void TPool::BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap)
+void TPool::BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap, TDisabledOperationsSet* disabledOperations)
 {
     poolMap->emplace(GetId(), this);
-    TCompositeSchedulerElement::BuildElementMapping(operationMap, poolMap);
+    TCompositeSchedulerElement::BuildElementMapping(operationMap, poolMap, disabledOperations);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1799,6 +1804,12 @@ void TOperationElementSharedState::Enable()
 
     YT_VERIFY(!Enabled_);
     Enabled_ = true;
+}
+
+bool TOperationElementSharedState::Enabled()
+{
+    TReaderGuard guard(JobPropertiesMapLock_);
+    return Enabled_;
 }
 
 void TOperationElementSharedState::RecordHeartbeat(
@@ -2851,9 +2862,13 @@ void TOperationElement::OnJobFinished(TJobId jobId)
     }
 }
 
-void TOperationElement::BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap)
+void TOperationElement::BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap, TDisabledOperationsSet* disabledOperations)
 {
-    operationMap->emplace(OperationId_, this);
+    if (OperationElementSharedState_->Enabled()) {
+        operationMap->emplace(OperationId_, this);
+    } else {
+        disabledOperations->insert(OperationId_);
+    }
 }
 
 TSchedulerElementPtr TOperationElement::Clone(TCompositeSchedulerElement* clonedParent)

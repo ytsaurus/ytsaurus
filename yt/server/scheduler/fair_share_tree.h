@@ -18,6 +18,7 @@ struct IFairShareTreeSnapshot
     virtual void ProcessUpdatedJob(TOperationId operationId, TJobId jobId, const TJobResources& delta) = 0;
     virtual void ProcessFinishedJob(TOperationId operationId, TJobId jobId) = 0;
     virtual bool HasOperation(TOperationId operationId) const = 0;
+    virtual bool IsOperationDisabled(TOperationId operationId) const = 0;
     virtual void ApplyJobMetricsDelta(TOperationId operationId, const TJobMetrics& jobMetricsDelta) = 0;
     virtual void ProfileFairShare() const = 0;
     virtual const TSchedulingTagFilter& GetNodesFilter() const = 0;
@@ -242,6 +243,7 @@ private:
         TRawOperationElementMap OperationIdToElement;
         TRawPoolMap PoolNameToElement;
         TFairShareStrategyTreeConfigPtr Config;
+        THashSet<TOperationId> DisabledOperations;
 
         TOperationElement* FindOperationElement(TOperationId operationId) const;
         TPool* FindPool(const TString& poolName) const;
@@ -272,6 +274,8 @@ private:
         virtual void ProfileFairShare() const override;
 
         virtual bool HasOperation(TOperationId operationId) const override;
+
+        virtual bool IsOperationDisabled(TOperationId operationId) const override;
 
         virtual const TSchedulingTagFilter& GetNodesFilter() const override;
 

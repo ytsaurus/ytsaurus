@@ -2306,12 +2306,10 @@ void TNodeShard::SubmitJobsToStrategy()
             std::vector<TJobId> jobsToAbort;
             std::vector<std::pair<TOperationId, TJobId>> jobsToRemove;
             auto jobUpdates = GetValues(JobsToSubmitToStrategy_);
-            int snapshotRevision;
             Host_->GetStrategy()->ProcessJobUpdates(
                 jobUpdates,
                 &jobsToRemove,
-                &jobsToAbort,
-                &snapshotRevision);
+                &jobsToAbort);
 
             for (auto jobId : jobsToAbort) {
                 AbortJob(jobId, TError("Aborting job by strategy request"));
@@ -2324,10 +2322,6 @@ void TNodeShard::SubmitJobsToStrategy()
                 }
 
                 YT_VERIFY(JobsToSubmitToStrategy_.erase(jobId) == 1);
-            }
-
-            for (auto& pair : JobsToSubmitToStrategy_) {
-                pair.second.SnapshotRevision = snapshotRevision;
             }
         }
     }

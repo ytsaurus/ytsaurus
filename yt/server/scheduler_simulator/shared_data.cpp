@@ -362,8 +362,7 @@ void TSharedSchedulerStrategy::ProcessJobUpdates(
     std::vector<std::pair<TOperationId, TJobId>>* successfullyUpdatedJobs,
     std::vector<TJobId>* jobsToAbort)
 {
-    int snapshotRevision;
-    SchedulerStrategy_->ProcessJobUpdates(jobUpdates, successfullyUpdatedJobs, jobsToAbort, &snapshotRevision);
+    SchedulerStrategy_->ProcessJobUpdates(jobUpdates, successfullyUpdatedJobs, jobsToAbort);
 }
 
 void TSharedSchedulerStrategy::UnregisterOperation(NYT::NScheduler::IOperationStrategyHost* operation)

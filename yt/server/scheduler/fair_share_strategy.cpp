@@ -689,7 +689,6 @@ public:
         {
             TWriterGuard guard(TreeIdToSnapshotLock_);
             std::swap(TreeIdToSnapshot_, snapshots);
-            ++SnapshotRevision_;
         }
 
         if (!errors.empty()) {
@@ -724,8 +723,7 @@ public:
     virtual void ProcessJobUpdates(
         const std::vector<TJobUpdate>& jobUpdates,
         std::vector<std::pair<TOperationId, TJobId>>* successfullyUpdatedJobs,
-        std::vector<TJobId>* jobsToAbort,
-        int* snapshotRevision) override
+        std::vector<TJobId>* jobsToAbort) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YT_VERIFY(successfullyUpdatedJobs->empty());
@@ -738,10 +736,9 @@ public:
         {
             TReaderGuard guard(TreeIdToSnapshotLock_);
             snapshots = TreeIdToSnapshot_;
-            *snapshotRevision = SnapshotRevision_;
         }
 
-        THashSet<TJobId> jobsToSave;
+        THashSet<TJobId> jobsToPostpone;
 
         for (const auto& job : jobUpdates) {
             switch (job.Status) {
@@ -765,8 +762,8 @@ public:
                     const auto& snapshot = snapshotIt->second;
                     if (snapshot->HasOperation(job.OperationId)) {
                         snapshot->ProcessFinishedJob(job.OperationId, job.JobId);
-                    } else if (!job.SnapshotRevision || *job.SnapshotRevision == *snapshotRevision) {
-                        jobsToSave.insert(job.JobId);
+                    } else if (snapshot->IsOperationDisabled(job.OperationId)) {
+                        jobsToPostpone.insert(job.JobId);
                     } else {
                         YT_LOG_DEBUG("Dropping finished job (OperationId: %v, JobId: %v)", job.OperationId, job.JobId);
                     }
@@ -778,7 +775,7 @@ public:
         }
 
         for (const auto& job : jobUpdates) {
-            if (!jobsToSave.contains(job.JobId)) {
+            if (!jobsToPostpone.contains(job.JobId)) {
                 successfullyUpdatedJobs->push_back({job.OperationId, job.JobId});
             }
         }
@@ -860,7 +857,6 @@ private:
 
     TReaderWriterSpinLock TreeIdToSnapshotLock_;
     THashMap<TString, IFairShareTreeSnapshotPtr> TreeIdToSnapshot_;
-    int SnapshotRevision_ = 0;
 
     struct TPoolTreeDescription
     {

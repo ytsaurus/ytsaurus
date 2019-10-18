@@ -33,6 +33,7 @@ class TJobMetrics;
 
 using TRawOperationElementMap = THashMap<TOperationId, TOperationElement*>;
 using TOperationElementMap = THashMap<TOperationId, TOperationElementPtr>;
+using TDisabledOperationsSet = THashSet<TOperationId>;
 
 using TRawPoolMap = THashMap<TString, TPool*>;
 using TPoolMap = THashMap<TString, TPoolPtr>;
