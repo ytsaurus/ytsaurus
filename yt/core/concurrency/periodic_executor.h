@@ -16,6 +16,17 @@ DEFINE_ENUM(EPeriodicExecutorMode,
     (Manual)
 );
 
+struct TPeriodicExecutorOptions
+{
+public:
+    static constexpr double DefaultJitter = 0.2;
+
+    std::optional<TDuration> Period;
+    EPeriodicExecutorMode Mode = EPeriodicExecutorMode::Automatic;
+    TDuration Splay = TDuration::Zero();
+    double Jitter = DefaultJitter;
+};
+
 //! Helps to perform certain actions periodically.
 class TPeriodicExecutor
     : public TRefCounted
@@ -37,6 +48,11 @@ public:
         std::optional<TDuration> period = std::nullopt,
         EPeriodicExecutorMode mode = EPeriodicExecutorMode::Automatic,
         TDuration splay = TDuration::Zero());
+
+    TPeriodicExecutor(
+        IInvokerPtr invoker,
+        TClosure callback,
+        TPeriodicExecutorOptions options);
 
     //! Starts the instance.
     //! The first invocation happens with a random delay within splay time.
@@ -66,6 +82,7 @@ private:
     std::optional<TDuration> Period_;
     const EPeriodicExecutorMode Mode_;
     const TDuration Splay_;
+    const double Jitter_;
 
     TSpinLock SpinLock_;
     bool Started_ = false;
@@ -91,6 +108,7 @@ private:
     void OnCallbackSuccess();
     void OnCallbackFailure();
 
+    TDuration Delay();
 };
 
 DEFINE_REFCOUNTED_TYPE(TPeriodicExecutor)
