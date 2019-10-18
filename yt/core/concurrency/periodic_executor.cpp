@@ -13,6 +13,16 @@ namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TPeriodicExecutorOptions TPeriodicExecutorOptions::WithJitter(TDuration period)
+{
+    TPeriodicExecutorOptions options;
+    options.Period = period;
+    options.Jitter = DefaultJitter;
+    return options;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TPeriodicExecutor::TPeriodicExecutor(
     IInvokerPtr invoker,
     TClosure callback,
@@ -26,7 +36,7 @@ TPeriodicExecutor::TPeriodicExecutor(
             period,
             mode,
             splay,
-            TPeriodicExecutorOptions::DefaultJitter
+            0.0,
         })
 {
     YT_VERIFY(Invoker_);
@@ -170,7 +180,7 @@ void TPeriodicExecutor::ScheduleNext()
         guard.Release();
         PostCallback();
     } else if (Period_) {
-        PostDelayedCallback(Delay());
+        PostDelayedCallback(NextDelay());
     }
 }
 
@@ -267,7 +277,7 @@ void TPeriodicExecutor::OnCallbackFailure()
     }
 
     if (Period_) {
-        PostDelayedCallback(Delay());
+        PostDelayedCallback(NextDelay());
     }
 }
 
@@ -290,7 +300,7 @@ TFuture<void> TPeriodicExecutor::GetExecutedEvent()
     return ExecutedPromise_;
 }
 
-TDuration TPeriodicExecutor::Delay()
+TDuration TPeriodicExecutor::NextDelay()
 {
     if (Jitter_ == 0.0) {
         return *Period_;
@@ -300,7 +310,6 @@ TDuration TPeriodicExecutor::Delay()
         return period;
     }
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
