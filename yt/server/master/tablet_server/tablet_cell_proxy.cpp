@@ -167,12 +167,16 @@ private:
                 break;
             }
 
-            case EInternedAttributeKey::TotalStatistics:
+            case EInternedAttributeKey::TotalStatistics: {
+                // COMPAT(savrus)
+                auto statistics = cell->GossipStatistics().Cluster();
+                statistics.Health = cell->GossipStatus().Cluster().Health;
                 BuildYsonFluently(consumer)
                     .Value(New<TSerializableTabletCellStatistics>(
-                        cell->GossipStatistics().Cluster(),
+                        statistics,
                         chunkManager));
                 return true;
+            }
 
             case EInternedAttributeKey::MulticellStatistics:
                 BuildYsonFluently(consumer)
