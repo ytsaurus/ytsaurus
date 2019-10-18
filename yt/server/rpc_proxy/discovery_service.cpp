@@ -89,11 +89,11 @@ public:
         , AliveUpdateExecutor_(New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(),
             BIND(&TDiscoveryService::OnPeriodicEvent, MakeWeak(this), &TDiscoveryService::UpdateLiveness),
-            Config_->LivenessUpdatePeriod))
+            TPeriodicExecutorOptions::WithJitter(Config_->LivenessUpdatePeriod)))
         , ProxyUpdateExecutor_(New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(),
             BIND(&TDiscoveryService::OnPeriodicEvent, MakeWeak(this), &TDiscoveryService::UpdateProxies),
-            Config_->ProxyUpdatePeriod))
+            TPeriodicExecutorOptions::WithJitter(Config_->ProxyUpdatePeriod)))
     {
         Initialize();
 

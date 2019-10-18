@@ -120,11 +120,11 @@ TCoordinator::TCoordinator(
     , UpdateStateExecutor_(New<TPeriodicExecutor>(
         bootstrap->GetControlInvoker(),
         BIND(&TCoordinator::UpdateState, MakeWeak(this)),
-        Config_->HeartbeatInterval))
+        TPeriodicExecutorOptions::WithJitter(Config_->HeartbeatInterval)))
     , UpdateDynamicConfigExecutor_(New<TPeriodicExecutor>(
         bootstrap->GetControlInvoker(),
         BIND(&TCoordinator::UpdateDynamicConfig, MakeWeak(this)),
-        Config_->HeartbeatInterval))
+        TPeriodicExecutorOptions::WithJitter(Config_->HeartbeatInterval)))
 {
     Self_ = New<TProxyEntry>();
     Self_->Endpoint = Config_->PublicFqdn

@@ -18,13 +18,14 @@ DEFINE_ENUM(EPeriodicExecutorMode,
 
 struct TPeriodicExecutorOptions
 {
-public:
     static constexpr double DefaultJitter = 0.2;
 
     std::optional<TDuration> Period;
     EPeriodicExecutorMode Mode = EPeriodicExecutorMode::Automatic;
     TDuration Splay = TDuration::Zero();
-    double Jitter = DefaultJitter;
+    double Jitter = 0.0;
+
+    static TPeriodicExecutorOptions WithJitter(TDuration period);
 };
 
 //! Helps to perform certain actions periodically.
@@ -108,7 +109,7 @@ private:
     void OnCallbackSuccess();
     void OnCallbackFailure();
 
-    TDuration Delay();
+    TDuration NextDelay();
 };
 
 DEFINE_REFCOUNTED_TYPE(TPeriodicExecutor)
