@@ -1085,6 +1085,9 @@ public:
                 if (operation->GetState() != expectedState) {
                     return;
                 }
+                if (operation->Spec()->TestingOperationOptions->DelayInsideMaterialize) {
+                    TDelayedExecutor::WaitForDuration(*operation->Spec()->TestingOperationOptions->DelayInsideMaterialize);
+                }
                 operation->SetStateAndEnqueueEvent(EOperationState::Running);
                 Strategy_->EnableOperation(operation.Get());
                 if (asyncMaterializeResult) {
@@ -2496,9 +2499,9 @@ private:
 
         // Second, register jobs on the corresponding node shards.
         std::vector<std::vector<TJobPtr>> jobsByShardId(NodeShards_.size());
-        for (const auto& job : jobs) {
+        for (auto& job : jobs) {
             auto shardId = GetNodeShardId(NodeIdFromJobId(job->GetId()));
-            jobsByShardId[shardId].emplace_back(std::move(job));
+            jobsByShardId[shardId].push_back(std::move(job));
         }
 
         std::vector<TFuture<void>> asyncResults;

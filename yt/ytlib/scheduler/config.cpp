@@ -157,6 +157,8 @@ TTestingOperationOptions::TTestingOperationOptions()
         .Default();
     RegisterParameter("delay_inside_suspend", DelayInsideSuspend)
         .Default();
+    RegisterParameter("delay_inside_materialize", DelayInsideMaterialize)
+        .Default();
     RegisterParameter("delay_inside_operation_commit", DelayInsideOperationCommit)
         .Default();
     RegisterParameter("delay_inside_operation_commit_stage", DelayInsideOperationCommitStage)

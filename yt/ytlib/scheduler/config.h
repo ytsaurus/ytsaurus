@@ -413,6 +413,8 @@ public:
 
     std::optional<TDuration> DelayInsideSuspend;
 
+    std::optional<TDuration> DelayInsideMaterialize;
+
     std::optional<i64> AllocationSize;
 
     //! Intentionally fails the operation controller. Used only for testing purposes.

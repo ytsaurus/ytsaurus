@@ -1538,3 +1538,59 @@ class TestSchedulerErrorTruncate(YTEnvSetup):
         job_error = get_job(job_id=running_job, operation_id=op.id)["error"]
         assert find_truncated_errors(job_error)
 
+
+class TestRaceBetweenShardAndStrategy(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 2   # snapshot upload replication factor is 2; unable to configure
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "fair_share_update_period": 100,
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "snapshot_period": 500,
+            "operation_time_limit_check_period": 100,
+            "operation_build_progress_period": 100,
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "scheduler_connector": {
+                "heartbeat_period": 100
+            }
+        }
+    }
+
+    @authors("renadeen")
+    def test_race_between_shard_and_strategy(self):
+        # Scenario:
+        # 1. operation is running
+        # 2. controller fails, scheduler disables operation and it disappears from tree snapshot
+        # 3. job completed event arrives to node shard but is not processed until job revival
+        # 4. controller returns, scheduler revives operation
+        # 5. node shard revives job and sets JobsReady=true
+        # 6. scheduler should enable operation but a bit delayed
+        # 7. node shard manages to process job completed event cause job is revived
+        #    but operation still is not present at tree snapshot (due to not being enabled)
+        #    and strategy discards job completed event telling node to remove it forever
+        # 8. job resource usage is stuck in scheduler and next job won't be scheduled ever
+
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=2,
+            spec={
+                "testing": {"delay_inside_materialize": 1000},
+                "resource_limits": {"user_slots": 1}
+            })
+        wait_breakpoint()
+        op.wait_fresh_snapshot()
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            release_breakpoint()
+
+        wait(lambda: op.get_state() == "completed")

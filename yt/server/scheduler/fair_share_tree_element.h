@@ -315,7 +315,10 @@ public:
 
     void IncreaseHierarchicalResourceUsage(const TJobResources& delta);
 
-    virtual void BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap) = 0;
+    virtual void BuildElementMapping(
+        TRawOperationElementMap* operationMap,
+        TRawPoolMap* poolMap,
+        TDisabledOperationsSet* disabledOperations) = 0;
 
     virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) = 0;
 
@@ -466,7 +469,7 @@ public:
     virtual std::vector<EFifoSortParameter> GetFifoSortParameters() const = 0;
     virtual bool AreImmediateOperationsForbidden() const = 0;
 
-    virtual void BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap) override;
+    virtual void BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap, TDisabledOperationsSet* disabledOperations) override;
 
     void IncreaseOperationCount(int delta);
     void IncreaseRunningOperationCount(int delta);
@@ -602,7 +605,7 @@ public:
     virtual bool IsInferringChildrenWeightsFromHistoricUsageEnabled() const override;
     virtual THistoricUsageAggregationParameters GetHistoricUsageAggregationParameters() const override;
 
-    virtual void BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap) override;
+    virtual void BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap, TDisabledOperationsSet* disabledOperations) override;
 private:
     TPoolConfigPtr Config_;
     TSchedulingTagFilter SchedulingTagFilter_;
@@ -682,6 +685,7 @@ public:
 
     TJobResources Disable();
     void Enable();
+    bool Enabled();
 
     void RecordHeartbeat(
         const TPackingHeartbeatSnapshot& heartbeatSnapshot,
@@ -854,7 +858,7 @@ public:
         bool force = false);
     void OnJobFinished(TJobId jobId);
 
-    virtual void BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap) override;
+    virtual void BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap, TDisabledOperationsSet* disabledOperations) override;
 
     virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
 
