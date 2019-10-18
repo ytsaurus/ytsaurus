@@ -744,6 +744,11 @@ private:
             sliceByKeys,
             workloadDescriptor);
 
+        // COMPAT(babenko)
+        if (!request->keys_in_attachment()) {
+            THROW_ERROR_EXCEPTION("keys_in_attachment must be true");
+        }
+
         ValidateConnected();
 
         GetChunkMetasForRequests(workloadDescriptor, request->slice_requests())
@@ -773,6 +778,8 @@ private:
                         results[requestIndex]);
                 }
 
+                // COMPAT(babenko)
+                response->set_keys_in_attachment(true);
                 response->Attachments().push_back(keySetWriter->Finish());
                 context->Reply();
             }).Via(Bootstrap_->GetStorageHeavyInvoker()));
@@ -860,6 +867,11 @@ private:
             requestCount,
             workloadDescriptor);
 
+        // COMPAT(babenko)
+        if (!request->keys_in_attachment()) {
+            THROW_ERROR_EXCEPTION("keys_in_attachment must be true");
+        }
+
         ValidateConnected();
 
         GetChunkMetasForRequests(workloadDescriptor, request->sample_requests())
@@ -889,6 +901,8 @@ private:
                         results[requestIndex]);
                 }
 
+                // COMPAT(babenko)
+                response->set_keys_in_attachment(true);
                 response->Attachments().push_back(keySetWriter->Finish());
                 context->Reply();
             }).Via(Bootstrap_->GetStorageHeavyInvoker()));
