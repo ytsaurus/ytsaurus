@@ -435,7 +435,7 @@ private:
 
         const auto& connection = Client_->GetNativeConnection();
         auto future = connection->SyncHiveCellWithOthers(
-            {connection->GetMasterCellId(CellTagFromId(DstNodeId_))},
+            {connection->GetMasterCellId(SrcNodeId_)},
             connection->GetMasterCellId(CellTag_));
 
         auto error = WaitFor(future);
