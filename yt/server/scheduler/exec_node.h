@@ -84,9 +84,6 @@ public:
     //! Is |true| iff heartbeat from this node is being processed at the moment.
     DEFINE_BYVAL_RW_PROPERTY(bool, HasOngoingHeartbeat);
 
-    //! Is |true| iff jobs are scheduled on the node at the moment by the strategy.
-    DEFINE_BYVAL_RW_PROPERTY(bool, HasOngoingJobsScheduling);
-
     //! Stores the time when resources overcommit has detected.
     DEFINE_BYVAL_RW_PROPERTY(TInstant, ResourcesOvercommitStartTime);
 

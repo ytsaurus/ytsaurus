@@ -577,9 +577,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         }
 
         PROFILE_AGGREGATED_TIMING (ScheduleTimeCounter) {
-            node->SetHasOngoingJobsScheduling(true);
             Y_UNUSED(WaitFor(Host_->GetStrategy()->ScheduleJobs(schedulingContext)));
-            node->SetHasOngoingJobsScheduling(false);
         }
 
         const auto& statistics = schedulingContext->GetSchedulingStatistics();
