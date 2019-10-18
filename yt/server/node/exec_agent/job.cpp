@@ -89,6 +89,7 @@ class TJob
 public:
     DEFINE_SIGNAL(void(const TNodeResources&), ResourcesUpdated);
     DEFINE_SIGNAL(void(), PortsReleased);
+    DEFINE_SIGNAL(void(), JobFinished);
 
 public:
     TJob(
@@ -1165,6 +1166,7 @@ private:
         }
 
         YT_LOG_INFO(error, "Setting final job state (JobState: %v)", GetState());
+        JobFinished_.Fire();
 
         // Release resources.
         GpuSlots_.clear();

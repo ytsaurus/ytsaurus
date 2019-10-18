@@ -35,6 +35,8 @@ struct IJob
 
     DECLARE_INTERFACE_SIGNAL(void(), PortsReleased);
 
+    DECLARE_INTERFACE_SIGNAL(void(), JobFinished);
+
     virtual void Start() = 0;
 
     virtual void Abort(const TError& error) = 0;

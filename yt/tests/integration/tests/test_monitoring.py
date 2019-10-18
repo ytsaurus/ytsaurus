@@ -8,6 +8,7 @@ import yt.packages.requests as requests
 
 from yt_env_setup import YTEnvSetup, wait
 from yt_commands import *
+from yt_helpers import Metric
 
 import yt_proto.yt.core.profiling.proto.profiling_pb2 as profiling_pb2
 
@@ -107,6 +108,17 @@ class TestMonitoring(YTEnvSetup):
 
         with pytest.raises(requests.HTTPError):
             self.get_proto(http_port, "/profiling/proto?start_samples_index=abc")
+
+    @authors("gritukan")
+    def test_set_final_job_state_metrics(self):
+        nodes = ls("//sys/nodes")
+
+        op = run_test_vanilla("sleep 1")
+
+        metric = Metric.at_node(nodes[0], "job_controller/job_final_state")
+        wait(lambda: metric.update().get(verbose=True) > 0)
+
+        op.track()
 
 
 class TestNodeUnrecognizedOptionsAlert(YTEnvSetup):
