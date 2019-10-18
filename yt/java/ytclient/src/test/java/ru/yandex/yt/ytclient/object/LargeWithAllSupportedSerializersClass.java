@@ -76,6 +76,7 @@ public class LargeWithAllSupportedSerializersClass {
 
     private Long longObjectValue;
     private Instant instantValue;
+    private java.time.Instant javaInstantValue;
     private Duration durationValue;
     private List<Long> longListValue;
     private List<Duration> durationListValue;
@@ -155,6 +156,14 @@ public class LargeWithAllSupportedSerializersClass {
 
     public void setInstantValue(Instant instantValue) {
         this.instantValue = instantValue;
+    }
+
+    public java.time.Instant getJavaInstantValue() {
+        return javaInstantValue;
+    }
+
+    public void setJavaInstantValue(java.time.Instant javaInstantValue) {
+        this.javaInstantValue = javaInstantValue;
     }
 
     public Duration getDurationValue() {
@@ -410,7 +419,7 @@ public class LargeWithAllSupportedSerializersClass {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
+        if (!(o instanceof LargeWithAllSupportedSerializersClass)) {
             return false;
         }
         LargeWithAllSupportedSerializersClass that = (LargeWithAllSupportedSerializersClass) o;
@@ -423,6 +432,7 @@ public class LargeWithAllSupportedSerializersClass {
                 Objects.equals(unsignedLongValue, that.unsignedLongValue) &&
                 Objects.equals(longObjectValue, that.longObjectValue) &&
                 Objects.equals(instantValue, that.instantValue) &&
+                Objects.equals(javaInstantValue, that.javaInstantValue) &&
                 Objects.equals(durationValue, that.durationValue) &&
                 Objects.equals(longListValue, that.longListValue) &&
                 Objects.equals(durationListValue, that.durationListValue) &&
@@ -454,13 +464,13 @@ public class LargeWithAllSupportedSerializersClass {
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(unsignedLongValue, longValue, longObjectValue, instantValue, durationValue,
-                longListValue, durationListValue, internalObjectListValue, stringEnumValue, longSetValue,
-                durationSetValue, internalObjectSetValue, booleanValue, booleanObjectValue, localDateTimeValue,
-                intEnumValue, intEnumSerialized, longMapValue, durationMapValue, internalObjectMapValue,
-                internalObject, internalFlattenObject, stringValue, doubleValue, doubleObjectValue, integerValue,
-                integerObjectValue, dateTimeValueDateTimeSerializer, dateTimeValueDateSerializer, floatValue,
-                floatObjectValue);
+        int result = Objects.hash(unsignedLongValue, longValue, longObjectValue, instantValue, javaInstantValue,
+                durationValue, longListValue, durationListValue, internalObjectListValue, stringEnumValue,
+                longSetValue, durationSetValue, internalObjectSetValue, booleanValue, booleanObjectValue,
+                localDateTimeValue, intEnumValue, intEnumSerialized, longMapValue, durationMapValue,
+                internalObjectMapValue, internalObject, internalFlattenObject, stringValue, doubleValue,
+                doubleObjectValue, integerValue, integerObjectValue, dateTimeValueDateTimeSerializer,
+                dateTimeValueDateSerializer, floatValue, floatObjectValue);
         result = 31 * result + Arrays.hashCode(bytesValues);
         result = 31 * result + Arrays.hashCode(longArrayValue);
         result = 31 * result + Arrays.hashCode(longObjectArrayValue);
@@ -477,6 +487,7 @@ public class LargeWithAllSupportedSerializersClass {
                 ", longValue=" + longValue +
                 ", longObjectValue=" + longObjectValue +
                 ", instantValue=" + instantValue +
+                ", javaInstantValue=" + javaInstantValue +
                 ", durationValue=" + durationValue +
                 ", longListValue=" + longListValue +
                 ", durationListValue=" + durationListValue +
