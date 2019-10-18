@@ -1602,6 +1602,7 @@ void TNodeShard::AbortUnconfirmedJobs(
     }
 }
 
+// TODO(eshcherbin): This method has become too big -- gotta split it.
 void TNodeShard::ProcessHeartbeatJobs(
     const TExecNodePtr& node,
     NJobTrackerClient::NProto::TReqHeartbeat* request,
@@ -1683,6 +1684,7 @@ void TNodeShard::ProcessHeartbeatJobs(
 
     // Used for debug logging.
     THashMap<EJobState, std::vector<TJobId>> jobStateToOngoingJobIds;
+    std::vector<TJobId> recentlyFinishedJobIdsToLog;
     for (auto& jobStatus : *request->mutable_jobs()) {
         YT_VERIFY(jobStatus.has_job_type());
         auto jobType = EJobType(jobStatus.job_type());
@@ -1711,8 +1713,22 @@ void TNodeShard::ProcessHeartbeatJobs(
                 default:
                     break;
             }
+        } else {
+            auto jobId = FromProto<TJobId>(jobStatus.job_id());
+            auto operationId = FromProto<TOperationId>(jobStatus.operation_id());
+            auto operation = FindOperationState(operationId);
+            if (!(operation && operation->SkippedJobIds.contains(jobId))
+                && node->RecentlyFinishedJobs().contains(jobId))
+            {
+                recentlyFinishedJobIdsToLog.push_back(jobId);
+            }
         }
     }
+
+    YT_LOG_DEBUG_UNLESS(recentlyFinishedJobIdsToLog.empty(),
+        "Jobs are skipped since they were recently finished and are currently being stored"
+        "(JobIds: %v)",
+        recentlyFinishedJobIdsToLog);
 
     if (shouldLogOngoingJobs) {
         for (const auto& [jobState, jobIds] : jobStateToOngoingJobIds) {
@@ -1802,7 +1818,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
         }
 
         if (node->RecentlyFinishedJobs().contains(jobId)) {
-            YT_LOG_DEBUG("Job is skipped since it was recently finished and is currently being stored");
+            // NB(eshcherbin): This event is logged one level above.
             return nullptr;
         }
 
