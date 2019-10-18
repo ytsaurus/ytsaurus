@@ -8,7 +8,6 @@ from yp.common import YpNoSuchObjectError
 import argparse
 import copy
 import logging
-import os
 import sys
 
 
@@ -28,15 +27,14 @@ def create_user(client, user):
 
     # type: (YpClient, basestring, basestring) -> None
     try:
-        user_info = client.get_object("user", user, ["/meta"])
+        client.get_object("user", user, ["/meta"])
     except YpNoSuchObjectError:
         client.create_object(object_type="user",
                              attributes={
                                  "meta": {
                                      "id": user
                                  }
-                             }
-                             )
+                             })
 
 
 def set_schema_permissions(client, type, user, rights):
@@ -51,7 +49,7 @@ def set_schema_permissions(client, type, user, rights):
 
     logger.debug("Current schema permissions for user {}, type={}, rights={}".format(user, type, schema_rights))
 
-    if len(schema_rights)>0:
+    if schema_rights:
         actual_user_permissions = set()
         for record in schema_rights[0]:
             action, subjects, permissions = record["action"], record["subjects"], record["permissions"]
@@ -72,8 +70,6 @@ def set_schema_permissions(client, type, user, rights):
                      "permissions": [right]
                  }})
 
-        updates_remove = []
-
         # if len(rights_to_revoke):
         #     for right in rights_to_revoke:
         #         updates_remove.append(
@@ -86,7 +82,7 @@ def set_schema_permissions(client, type, user, rights):
 
         logger.debug("Modifying user {}, granting rights={}".format(user, rights_to_add))
 
-        if len(updates_set) > 0:
+        if updates_set:
             client.update_object("schema", type, updates_set)
 
 
@@ -128,7 +124,7 @@ def set_account(client, account_name, segment_name, cpu, memory, hdd, ssd, ipv4)
 def create_account(client, account_name, allow_use_for_all):
     # type: (YpClient, basestring, basestring) -> None
     try:
-        account_info = client.get_object("account", account_name, ["/meta"])
+        client.get_object("account", account_name, ["/meta"])
     except YpNoSuchObjectError:
         attributes = {"meta": {"id": account_name, "inherit_acl": True}}
         if allow_use_for_all:
@@ -325,8 +321,7 @@ def setup_dev_segment(cluster, accounts, client):
                         "ssd": 1192927166464,
                         "ipv4": 0
                         }
-                    }
-                    )
+                    })
         )
     elif cluster == "man":
         accounts.append(
@@ -338,8 +333,7 @@ def setup_dev_segment(cluster, accounts, client):
                         "ssd": 992137445376,
                         "ipv4": 0
                         }
-                    }
-                    )
+                    })
         )
     elif cluster == "vla":
         accounts.append(
@@ -351,8 +345,7 @@ def setup_dev_segment(cluster, accounts, client):
                         "ssd": 17324609581875,
                         "ipv4": 0
                         }
-                    }
-                    )
+                    })
         )
     elif cluster == "sas-test":
         accounts.append(
@@ -364,8 +357,7 @@ def setup_dev_segment(cluster, accounts, client):
                         "ssd": 17324609581875,
                         "ipv4": 100
                         }
-                    }
-                    )
+                    })
         )
 
     else:
