@@ -230,8 +230,6 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, PingSession)
     {
-        Y_UNUSED(response);
-
         auto sessionId = FromProto<TSessionId>(request->session_id());
 
         context->SetRequestInfo("ChunkId: %v",
@@ -239,7 +237,10 @@ private:
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSessionOrThrow(sessionId);
+        auto location = session->GetStoreLocation();
         session->Ping();
+
+        response->set_close_demanded(location->IsSick() || sessionManager->GetDisableWriteSessions());
 
         context->Reply();
     }
@@ -247,8 +248,6 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, PutBlocks)
     {
-        Y_UNUSED(response);
-
         auto sessionId = FromProto<TSessionId>(request->session_id());
         int firstBlockIndex = request->first_block_index();
         int blockCount = static_cast<int>(request->Attachments().size());
@@ -278,7 +277,7 @@ private:
 
         TWallTimer timer;
 
-        response->set_location_sick(location->IsSick() || sessionManager->GetDisableWriteSessions());
+        response->set_close_demanded(location->IsSick() || sessionManager->GetDisableWriteSessions());
 
         // NB: block checksums are validated before writing to disk.
         auto result = session->PutBlocks(
@@ -306,8 +305,6 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, SendBlocks)
     {
-        Y_UNUSED(response);
-
         auto sessionId = FromProto<TSessionId>(request->session_id());
         int firstBlockIndex = request->first_block_index();
         int blockCount = request->block_count();
@@ -327,7 +324,7 @@ private:
         session->SendBlocks(firstBlockIndex, blockCount, targetDescriptor)
             .Subscribe(BIND([=] (const TDataNodeServiceProxy::TErrorOrRspPutBlocksPtr& errorOrRsp) {
                 if (errorOrRsp.IsOK()) {
-                    response->set_location_sick(errorOrRsp.Value()->location_sick());
+                    response->set_close_demanded(errorOrRsp.Value()->close_demanded());
                     context->Reply();
                 } else {
                     context->Reply(TError(
@@ -341,8 +338,6 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, FlushBlocks)
     {
-        Y_UNUSED(response);
-
         auto sessionId = FromProto<TSessionId>(request->session_id());
         int blockIndex = request->block_index();
 
@@ -357,7 +352,7 @@ private:
         const auto& location = session->GetStoreLocation();
         auto result = session->FlushBlocks(blockIndex);
 
-        response->set_location_sick(location->IsSick());
+        response->set_close_demanded(location->IsSick() || sessionManager->GetDisableWriteSessions());
         context->ReplyFrom(result);
     }
 

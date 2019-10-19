@@ -300,7 +300,7 @@ i64 TFileWriter::GetDataSize() const
     return DataSize_;
 }
 
-bool TFileWriter::HasSickReplicas() const
+bool TFileWriter::IsCloseDemanded() const
 {
     YT_UNIMPLEMENTED();
 }

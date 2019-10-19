@@ -897,10 +897,10 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
 
         auto jobController = Bootstrap_->GetJobController();
         jobController->SetResourceLimitsOverrides(rsp->resource_limits_overrides());
-        jobController->SetDisableSchedulerJobs(rsp->disable_scheduler_jobs());
+        jobController->SetDisableSchedulerJobs(rsp->disable_scheduler_jobs() || rsp->decommissioned());
 
         auto sessionManager = Bootstrap_->GetSessionManager();
-        sessionManager->SetDisableWriteSessions(rsp->disable_write_sessions());
+        sessionManager->SetDisableWriteSessions(rsp->disable_write_sessions() || rsp->decommissioned());
 
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         for (const auto& info : rsp->tablet_slots_to_remove()) {
