@@ -1054,6 +1054,8 @@ public:
 
     std::optional<i64> DataWeightPerSortedJob;
 
+    std::vector<NTableClient::TOwningKey> PivotKeys;
+
     TSortOperationSpecBase();
 
 private:

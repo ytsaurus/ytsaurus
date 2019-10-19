@@ -968,11 +968,22 @@ TSortOperationSpecBase::TSortOperationSpecBase()
         .Default(true);
     RegisterParameter("enable_intermediate_output_recalculation", EnableIntermediateOutputRecalculation)
         .Default(true);
+    RegisterParameter("pivot_keys", PivotKeys)
+        .Default();
 
     RegisterPostprocessor([&] () {
         NTableClient::ValidateKeyColumns(SortBy);
 
         InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
+
+        // Validate pivot_keys.
+        for (int index = 1; index < PivotKeys.size(); ++index) {
+            if (PivotKeys[index] < PivotKeys[index - 1]) {
+                THROW_ERROR_EXCEPTION("Pivot keys should be sorted")
+                    << TErrorAttribute("previous_key", PivotKeys[index - 1])
+                    << TErrorAttribute("current_key", PivotKeys[index]);
+            }
+        }
     });
 }
 
