@@ -67,7 +67,7 @@ message TReqPutBlocks
 
 message TRspPutBlocks
 {
-    optional bool location_sick = 1 [default = false];
+    optional bool close_demanded = 1 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -83,7 +83,7 @@ message TReqSendBlocks
 
 message TRspSendBlocks
 {
-    optional bool location_sick = 1 [default = false];
+    optional bool close_demanded = 1 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -96,7 +96,7 @@ message TReqFlushBlocks
 
 message TRspFlushBlocks
 {
-    optional bool location_sick = 1 [default = false];
+    optional bool close_demanded = 1 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -198,7 +198,9 @@ message TReqPingSession
 }
 
 message TRspPingSession
-{ }
+{
+    optional bool close_demanded = 1 [default = false];
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

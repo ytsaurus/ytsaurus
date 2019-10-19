@@ -105,6 +105,38 @@ class TestNodeTracker(YTEnvSetup):
         kwargs = {"type": "cluster_node"}
         with pytest.raises(YtError): execute_command("create", kwargs)
 
+    @authors("gritukan")
+    def test_node_decommissioned(self):
+        nodes = ls("//sys/cluster_nodes")
+        assert len(nodes) == 3
+
+        create("table", "//tmp/t")
+
+        def can_write():
+            try:
+                write_table("//tmp/t", {"a" : "b"})
+                return True
+            except:
+                return False
+
+        for node in nodes:
+            wait(lambda: get("//sys/cluster_nodes/{0}/@resource_limits/user_slots".format(node)) > 0)
+        wait(lambda: can_write())
+
+        for node in nodes:
+            set("//sys/cluster_nodes/{0}/@decommissioned".format(node), True)
+
+        for node in nodes:
+           wait(lambda: get("//sys/cluster_nodes/{0}/@resource_limits/user_slots".format(node)) == 0)
+        wait(lambda: not can_write())
+
+        for node in nodes:
+            set("//sys/cluster_nodes/{0}/@decommissioned".format(node), False)
+
+        for node in nodes:
+            wait(lambda: get("//sys/cluster_nodes/{0}/@resource_limits/user_slots".format(node)) > 0)
+        wait(lambda: can_write())
+
 ##################################################################
 
 class TestNodeTrackerMulticell(TestNodeTracker):
