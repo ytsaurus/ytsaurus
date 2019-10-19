@@ -2,7 +2,7 @@ from .conftest import Cli
 
 from yp.local import ACTUAL_DB_VERSION, INITIAL_DB_VERSION
 
-from yp.common import YtError
+from yp.common import YtError, wait
 
 from yt.wrapper import ypath_join
 from yt.wrapper.errors import YtTabletNotMounted
@@ -11,6 +11,7 @@ import pytest
 
 import os
 import re
+import time
 
 
 class YpAdminCli(Cli):
@@ -252,3 +253,63 @@ class TestAdminCliBackupRestore(object):
             assert output == ""
         yp_env_configurable._start()
         yp_env_configurable.yp_client.select_objects("pod", selectors=["/meta/id"])
+
+
+@pytest.mark.usefixtures("yp_env_configurable")
+class TestAdminCliCleanupHistory(object):
+    LOCAL_YT_OPTIONS = ADMIN_CLI_TESTS_LOCAL_YT_OPTIONS
+    START = True
+
+    def _generate_changes(self, yp_client, n=5):
+        for i in range(n):
+            account_id = yp_client.create_object("account")
+            rs_id = yp_client.create_object(
+                object_type="replica_set",
+                attributes={
+                    "spec": {
+                        "account_id": account_id,
+                        "revision_id": "42",
+                        "replica_count": 32,
+                        "deployment_strategy": {
+                            "min_available": 21,
+                            "max_unavailable": 11,
+                            "max_surge": 13,
+                        },
+                    },
+                })
+
+    def _get_timestamp(self):
+        return time.time() * 10**6
+
+    def _get_history_events(self, yt_client):
+        history_table_path = "//yp/db/history_events"
+        return yt_client.select_rows("* from [{}]".format(history_table_path))
+
+    def _count_history_events(self, yt_client):
+        return len(list(self._get_history_events(yt_client)))
+
+    def test_cleanup(self, yp_env_configurable):
+        yp_client = yp_env_configurable.yp_client
+        yt_client = yp_env_configurable.yt_client
+
+        self._generate_changes(yp_client, 4)
+
+        wait(lambda: self._count_history_events(yt_client) == 4)
+
+        start_time = self._get_timestamp()
+        self._generate_changes(yp_client, 3)
+        finish_time = self._get_timestamp()
+
+        wait(lambda: self._count_history_events(yt_client) == 4 + 3)
+
+        cli = YpAdminCli()
+        output = cli.check_output([
+            "cleanup-history",
+            "--yt-proxy", get_yt_proxy_address(yp_env_configurable),
+            "--yp-path", "//yp",
+            "--start-time", str(int(start_time)),
+            "--finish-time", str(int(finish_time)),
+            "--object-type", str(13),
+        ])
+
+        wait(lambda: self._count_history_events(yt_client) == 4)
