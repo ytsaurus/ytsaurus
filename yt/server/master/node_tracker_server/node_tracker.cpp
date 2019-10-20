@@ -1879,11 +1879,6 @@ TNode* TNodeTracker::FindNodeByHostName(const TString& hostName)
     return Impl_->FindNodeByHostName(hostName);
 }
 
-void TNodeTracker::ZombifyNode(TNode* node)
-{
-    Impl_->ZombifyNode(node);
-}
-
 std::vector<TNode*> TNodeTracker::GetRackNodes(const TRack* rack)
 {
     return Impl_->GetRackNodes(rack);
@@ -1930,16 +1925,6 @@ std::unique_ptr<TMutation> TNodeTracker::CreateUpdateNodeResourcesMutation(
     return Impl_->CreateUpdateNodeResourcesMutation(request);
 }
 
-TRack* TNodeTracker::CreateRack(const TString& name)
-{
-    return Impl_->CreateRack(name, NullObjectId);
-}
-
-void TNodeTracker::ZombifyRack(TRack* rack)
-{
-    Impl_->ZombifyRack(rack);
-}
-
 void TNodeTracker::RenameRack(TRack* rack, const TString& newName)
 {
     Impl_->RenameRack(rack, newName);
@@ -1958,16 +1943,6 @@ TRack* TNodeTracker::GetRackByNameOrThrow(const TString& name)
 void TNodeTracker::SetRackDataCenter(TRack* rack, TDataCenter* dc)
 {
     return Impl_->SetRackDataCenter(rack, dc);
-}
-
-TDataCenter* TNodeTracker::CreateDataCenter(const TString& name)
-{
-    return Impl_->CreateDataCenter(name, NullObjectId);
-}
-
-void TNodeTracker::ZombifyDataCenter(TDataCenter* dc)
-{
-    Impl_->ZombifyDataCenter(dc);
 }
 
 void TNodeTracker::RenameDataCenter(TDataCenter* dc, const TString& newName)
@@ -2010,6 +1985,31 @@ TTotalNodeStatistics TNodeTracker::GetTotalNodeStatistics()
 int TNodeTracker::GetOnlineNodeCount()
 {
     return Impl_->GetOnlineNodeCount();
+}
+
+void TNodeTracker::ZombifyNode(TNode* node)
+{
+    Impl_->ZombifyNode(node);
+}
+
+TRack* TNodeTracker::CreateRack(const TString& name, TObjectId hintId)
+{
+    return Impl_->CreateRack(name, hintId);
+}
+
+void TNodeTracker::ZombifyRack(TRack* rack)
+{
+    Impl_->ZombifyRack(rack);
+}
+
+TDataCenter* TNodeTracker::CreateDataCenter(const TString& name, TObjectId hintId)
+{
+    return Impl_->CreateDataCenter(name, hintId);
+}
+
+void TNodeTracker::ZombifyDataCenter(TDataCenter* dc)
+{
+    Impl_->ZombifyDataCenter(dc);
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TNodeTracker, Node, TNode, *Impl_)
