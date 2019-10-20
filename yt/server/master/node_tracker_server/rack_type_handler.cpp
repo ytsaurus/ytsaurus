@@ -46,11 +46,11 @@ public:
     }
 
     virtual TObject* CreateObject(
-        TObjectId /*hintId*/,
+        TObjectId hintId,
         IAttributeDictionary* attributes) override
     {
         auto name = attributes->GetAndRemove<TString>("name");
-        return Bootstrap_->GetNodeTracker()->CreateRack(name);
+        return Bootstrap_->GetNodeTracker()->CreateRack(name, hintId);
     }
 
 private:

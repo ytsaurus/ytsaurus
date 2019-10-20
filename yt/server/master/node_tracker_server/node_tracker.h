@@ -169,9 +169,6 @@ public:
     //! Sets the flag disabling tablet cells at the node.
     void SetDisableTabletCells(TNode* node, bool value);
 
-    //! Creates a new rack with a given name. Throws on name conflict.
-    TRack* CreateRack(const TString& name);
-
     //! Renames an existing racks. Throws on name conflict.
     void RenameRack(TRack* rack, const TString& newName);
 
@@ -213,7 +210,11 @@ private:
     friend class TDataCenterTypeHandler;
 
     void ZombifyNode(TNode* node);
+
+    TRack* CreateRack(const TString& name, NObjectClient::TObjectId hintId);
     void ZombifyRack(TRack* rack);
+
+    TDataCenter* CreateDataCenter(const TString& name, NObjectClient::TObjectId hintId);
     void ZombifyDataCenter(TDataCenter* dc);
 };
 
