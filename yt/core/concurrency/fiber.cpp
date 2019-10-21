@@ -229,8 +229,6 @@ void TFiber::DoRunNaked()
 
     Terminated = true;
 
-
-    YT_VERIFY(CurrentFiber);
     SwitchToFiber(nullptr);
 
     YT_ABORT();
