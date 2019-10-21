@@ -29,7 +29,7 @@ namespace NYT::NConcurrency {
 
 extern thread_local IInvokerPtr CurrentInvoker;
 
-Y_FORCE_INLINE IInvokerPtr GetCurrentInvoker()
+Y_FORCE_INLINE IInvokerPtr GetCurrentInvokerImpl()
 {
     return CurrentInvoker ? CurrentInvoker : GetSyncInvoker();
 }
@@ -96,3 +96,13 @@ TErrorOr<T> WaitFor(TFuture<T> future, IInvokerPtr invoker)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NConcurrency
+
+namespace NYT {
+
+Y_FORCE_INLINE IInvokerPtr GetCurrentInvoker()
+{
+    return NYT::NConcurrency::GetCurrentInvokerImpl();
+}
+
+} // namespace NYT
+
