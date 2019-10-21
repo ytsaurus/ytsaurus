@@ -7,7 +7,7 @@
 
 #include <util/thread/lfstack.h>
 
-//#define REUSE_FIBERS
+#define REUSE_FIBERS
 
 namespace NYT::NConcurrency {
 
@@ -245,8 +245,6 @@ void TFiberReusingAdapter::FiberMain()
     // Terminating fiber.
 }
 
-#ifdef REUSE_FIBERS
-
 void TFiberReusingAdapter::DestroyIdleFibers()
 {
     std::vector<TFiberPtr> fibers;
@@ -263,8 +261,6 @@ void TFiberReusingAdapter::DestroyIdleFibers()
 }
 
 REGISTER_SHUTDOWN_CALLBACK(0, TFiberReusingAdapter::DestroyIdleFibers)
-
-#endif
 
 bool TFiberReusingAdapter::OnLoop(TEventCount::TCookie* cookie)
 {
