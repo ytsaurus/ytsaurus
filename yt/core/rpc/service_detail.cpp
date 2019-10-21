@@ -602,7 +602,7 @@ private:
     {
         TDelayedExecutor::CancelAndClear(TimeoutCookie_);
 
-        auto handlerFiberTime = CpuDurationToDuration(GetCurrentFiberRunCpuTime());
+        auto handlerFiberTime = CpuDurationToDuration(GetCurrentRunCpuTime());
         Profiler.Increment(PerformanceCounters_->HandlerFiberTimeCounter, DurationToValue(handlerFiberTime));
 
         if (TraceContext_) {
