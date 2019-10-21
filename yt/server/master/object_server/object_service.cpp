@@ -507,8 +507,12 @@ private:
             subrequest.MulticellSyncExt = &requestHeader.GetExtension(NObjectClient::NProto::TMulticellSyncExt::multicell_sync_ext);
 
             // Store original path.
-            ypathExt->set_original_target_path(ypathExt->target_path());
-            *ypathExt->mutable_original_additional_paths() = ypathExt->additional_paths();
+            if (!ypathExt->has_original_target_path()) {
+                ypathExt->set_original_target_path(ypathExt->target_path());
+            }
+            if (ypathExt->original_additional_paths_size() == 0) {
+                *ypathExt->mutable_original_additional_paths() = ypathExt->additional_paths();
+            }
 
             // COMPAT(savrus) Support old mount/unmount/etc interface.
             if (ypathExt->mutating() && (requestHeader.method() == "Mount" ||
