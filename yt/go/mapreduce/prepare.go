@@ -80,6 +80,10 @@ func (p *prepare) prepare() error {
 	}
 	p.spec.PatchUserBinary(p.mr.binaryPath)
 
+	if len(p.spec.ACL) == 0 || len(p.mr.defaultACL) != 0 {
+		p.spec.ACL = p.mr.defaultACL
+	}
+
 	for _, inputTablePath := range p.spec.InputTablePaths {
 		var tableAttrs struct {
 			Typ    yt.NodeType   `yson:"type"`

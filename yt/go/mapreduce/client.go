@@ -52,6 +52,8 @@ func New(yc yt.Client, options ...Option) Client {
 			mr.ctx = o.ctx
 		case *configOption:
 			mr.config = o.config
+		case *defaultACLOption:
+			mr.defaultACL = o.acl
 		default:
 			panic(fmt.Sprintf("received unsupported option of type %T", o))
 		}
@@ -63,10 +65,11 @@ func New(yc yt.Client, options ...Option) Client {
 type client struct {
 	m sync.Mutex
 
-	yc     yt.Client
-	tx     yt.Tx
-	ctx    context.Context
-	config *Config
+	yc         yt.Client
+	tx         yt.Tx
+	ctx        context.Context
+	config     *Config
+	defaultACL []yt.ACE
 
 	binaryPath ypath.Path
 }
