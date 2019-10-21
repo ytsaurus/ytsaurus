@@ -108,7 +108,6 @@ void TFiber::OnSwitchOut()
     MemoryZone_ = NYTAlloc::GetCurrentMemoryZone();
 
     YT_LOG_DEBUG("Switching out fiber (Id: %llx)", Id_);
-    SetCurrentFiberId(InvalidFiberId);
 }
 
 NProfiling::TCpuDuration TFiber::GetRunCpuTime() const
@@ -121,6 +120,7 @@ void TFiber::OnStartRunning()
     auto isRunning = IsRunning_.exchange(true);
     YT_VERIFY(!isRunning);
 
+    YT_VERIFY(CurrentFiberId == InvalidFiberId);
     SetCurrentFiberId(Id_);
 
     RunStartInstant_ = NProfiling::GetCpuInstant();
@@ -139,6 +139,9 @@ void TFiber::OnFinishRunning()
     RunCpuTime_ += std::max<NProfiling::TCpuDuration>(0, now - RunStartInstant_);
 
     NDetail::SetCurrentFsdHolder(nullptr);
+
+    YT_VERIFY(CurrentFiberId == Id_);
+    SetCurrentFiberId(InvalidFiberId);
 }
 
 void TFiber::Cancel()
