@@ -1,11 +1,11 @@
-package ru.yandex.spark.discovery.model
+package ru.yandex.spark.discovery
 
 import com.google.common.net.HostAndPort
 
 import scala.concurrent.duration.Duration
 
 trait DiscoveryService extends AutoCloseable {
-  def register(id: String, operationId: String, hostPort: HostAndPort): Unit
+  def register(id: String, operationId: String, host: String, port: Int, webUiPort: Int): Unit
 
   def getAddress(id: String): Option[HostAndPort]
 

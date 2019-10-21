@@ -6,24 +6,27 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs._
 import org.apache.hadoop.fs.permission.FsPermission
 import org.apache.hadoop.util.Progressable
+import org.apache.log4j.Logger
 import ru.yandex.spark.yt.YtTableUtils._
 import ru.yandex.spark.yt.{YtClientConfigurationConverter, YtClientProvider, YtTableUtils}
 import ru.yandex.yt.ytclient.proxy.YtClient
 
 class YtFileSystem extends FileSystem {
+  private val log = Logger.getLogger(getClass)
   private var _uri: URI = _
   private var _workingDirectory: Path = new Path("/")
-
+  private var yt: YtClient = _
 
   override def initialize(uri: URI, conf: Configuration): Unit = {
     super.initialize(uri, conf)
-    val yt = YtClientProvider.ytClient(YtClientConfigurationConverter(conf))
+    yt = YtClientProvider.ytClient(YtClientConfigurationConverter(conf))
     _uri = uri
   }
 
   override def getUri: URI = _uri
 
-  override def open(f: Path, bufferSize: Int): FSDataInputStream = ???
+  override def open(f: Path, bufferSize: Int): FSDataInputStream =
+    YtTableUtils.downloadFile(ytPath(f))(yt)
 
   override def create(f: Path, permission: FsPermission, overwrite: Boolean, bufferSize: Int,
                       replication: Short, blockSize: Long, progress: Progressable): FSDataOutputStream = ???
@@ -33,12 +36,12 @@ class YtFileSystem extends FileSystem {
   override def rename(src: Path, dst: Path): Boolean = ???
 
   override def delete(f: Path, recursive: Boolean): Boolean = {
-    removeTable(ytPath(f))(YtClientProvider.ytClient)
+    removeTable(ytPath(f))(yt)
     true
   }
 
   override def listStatus(f: Path): Array[FileStatus] = {
-    implicit val yt: YtClient = YtClientProvider.ytClient
+    implicit val ytClient: YtClient = yt
     val path = ytPath(f)
     val transaction = GlobalTableOptions.getTransaction(path)
     val rowCount = YtTableUtils.tableAttribute(path, "row_count", transaction).longValue()
@@ -62,13 +65,10 @@ class YtFileSystem extends FileSystem {
 
   override def getWorkingDirectory: Path = _workingDirectory
 
-  override def mkdirs(f: Path, permission: FsPermission): Boolean = {
-    //createTable(ytPath(f), )
-    ???
-  }
+  override def mkdirs(f: Path, permission: FsPermission): Boolean = ???
 
   override def getFileStatus(f: Path): FileStatus = {
-    implicit val yt: YtClient = YtClientProvider.ytClient
+    implicit val ytClient: YtClient = yt
     val path = ytPath(f)
     val transaction = GlobalTableOptions.getTransaction(path)
 
@@ -79,7 +79,12 @@ class YtFileSystem extends FileSystem {
         if (!YtTableUtils.exists(path, transaction)) {
           null
         } else {
-          new FileStatus(0, true, 1, 0, 0, f)
+          val pathType = YtTableUtils.getType(path, transaction)
+          pathType match {
+            case PathType.Table => new FileStatus(0, true, 1, 0, 0, f)
+            case PathType.File => new FileStatus(0, false, 1, 0, 0, f)
+            case PathType.None => null
+          }
         }
     }
   }

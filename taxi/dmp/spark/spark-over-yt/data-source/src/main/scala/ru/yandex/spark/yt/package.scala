@@ -9,15 +9,13 @@ import ru.yandex.spark.yt.serializers.SchemaConverter
 import ru.yandex.spark.yt.utils.DefaultRpcCredentials
 
 package object yt {
-  SparkSession.getActiveSession.foreach(setup)
-
-  def setup(spark: SparkSession): SparkSession = {
-    import ru.yandex.spark.yt.format.SparkYtOptions._
-    spark.sqlContext.setConf("fs.yt.impl", "ru.yandex.spark.yt.format.YtFileSystem")
-    spark.sqlContext.setConf("fs.defaultFS", "yt:///")
-    spark.sqlContext.setYtConf("user", DefaultRpcCredentials.user)
-    spark.sqlContext.setYtConf("token", DefaultRpcCredentials.token)
-    spark
+  def createSparkSession(user: String, token: String, conf: SparkConf): SparkSession = {
+    SparkSession.builder()
+      .config(conf)
+      .config("spark.yt.user", user)
+      .config("spark.yt.token", token)
+      .withExtensions(_.injectPlannerStrategy(_ => YtSourceStrategy))
+      .getOrCreate()
   }
 
   def restartSparkWithExtensions(): SparkSession = {
@@ -27,15 +25,7 @@ package object yt {
   def restartSparkWithExtensions(spark: SparkSession): SparkSession = {
     val conf = spark.conf
     spark.stop()
-    startSparkWithExtensions(conf)
-  }
-
-  def startSparkWithExtensions(conf: RuntimeConfig): SparkSession = {
-    val newSession = SparkSession.builder()
-      .config(new SparkConf().setAll(conf.getAll))
-      .withExtensions(_.injectPlannerStrategy(_ => YtSourceStrategy))
-      .getOrCreate()
-    setup(newSession)
+    createSparkSession(DefaultRpcCredentials.user, DefaultRpcCredentials.token, new SparkConf().setAll(conf.getAll))
   }
 
   implicit class YtReader(reader: DataFrameReader) {

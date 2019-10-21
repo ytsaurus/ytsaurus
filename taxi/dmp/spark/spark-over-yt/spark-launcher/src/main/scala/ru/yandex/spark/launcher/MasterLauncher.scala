@@ -5,7 +5,7 @@ import java.net.InetAddress
 import com.google.common.net.HostAndPort
 import com.twitter.scalding.Args
 import org.apache.log4j.Logger
-import ru.yandex.spark.discovery.model.CypressDiscoveryService
+import ru.yandex.spark.discovery.CypressDiscoveryService
 import ru.yandex.spark.yt.utils.YtClientConfiguration
 
 import scala.concurrent.duration._
@@ -13,24 +13,25 @@ import scala.language.postfixOps
 
 object MasterLauncher extends App {
   private val log = Logger.getLogger(getClass)
-  val masterLauncherArgs = MasterLauncherArgs(args)
-  val discoveryService = new CypressDiscoveryService(masterLauncherArgs.ytConfig, masterLauncherArgs.discoveryPath)
-  val hostAndPort = HostAndPort.fromParts(InetAddress.getLocalHost.getHostName, masterLauncherArgs.port)
+  val masterArgs = MasterLauncherArgs(args)
+  val discoveryService = new CypressDiscoveryService(masterArgs.ytConfig, masterArgs.discoveryPath)
+  val host = InetAddress.getLocalHost.getHostName
 
   try {
     log.info("Start master")
-    SparkLauncher.startMaster(masterLauncherArgs.port)
+    val boundPorts = SparkLauncher.startMaster(Ports(masterArgs.port, masterArgs.webUiPort))
+    val hostAndPort = HostAndPort.fromParts(host, boundPorts.port)
     discoveryService.waitAlive(hostAndPort, (5 minutes).toMillis)
-    log.info(s"Master started at port ${masterLauncherArgs.port}")
+    log.info(s"Master started at port ${boundPorts.port}")
 
     log.info("Register master")
-    discoveryService.register(masterLauncherArgs.id, masterLauncherArgs.operationId, hostAndPort)
+    discoveryService.register(masterArgs.id, masterArgs.operationId, host, boundPorts.port, boundPorts.webUiPort)
     log.info("Master registered")
 
     try {
       discoveryService.checkPeriodically(hostAndPort)
     } finally {
-      discoveryService.removeAddress(masterLauncherArgs.id)
+      discoveryService.removeAddress(masterArgs.id)
     }
   } finally {
     discoveryService.close()
@@ -39,6 +40,7 @@ object MasterLauncher extends App {
 
 case class MasterLauncherArgs(id: String,
                               port: Int,
+                              webUiPort: Int,
                               ytConfig: YtClientConfiguration,
                               discoveryPath: String,
                               operationId: String)
@@ -47,6 +49,7 @@ object MasterLauncherArgs {
   def apply(args: Args): MasterLauncherArgs = MasterLauncherArgs(
     args.required("id"),
     args.optional("port").map(_.toInt).getOrElse(7077),
+    args.optional("web-ui-port").map(_.toInt).getOrElse(8080),
     YtClientConfiguration(args.optional),
     args.optional("discovery-path").getOrElse(sys.env("SPARK_DISCOVERY_PATH")),
     args.required("operation-id")

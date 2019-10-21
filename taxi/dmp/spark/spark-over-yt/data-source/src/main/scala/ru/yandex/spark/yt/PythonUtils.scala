@@ -7,8 +7,6 @@ import ru.yandex.spark.yt.format.GlobalTableOptions
 object PythonUtils {
   def restartSparkWithExtensions(spark: SparkSession): SparkSession = yt.restartSparkWithExtensions(spark)
 
-  def startSparkWithExtensions(conf: RuntimeConfig): SparkSession = yt.startSparkWithExtensions(conf)
-
   def setPathFilesCount(path: String, filesCount: Int): Unit = {
     GlobalTableOptions.setFilesCount(path, filesCount)
   }

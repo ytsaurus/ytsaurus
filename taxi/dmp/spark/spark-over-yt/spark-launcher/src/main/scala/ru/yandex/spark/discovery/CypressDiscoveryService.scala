@@ -1,15 +1,17 @@
-package ru.yandex.spark.discovery.model
+package ru.yandex.spark.discovery
 
 import java.io.IOException
 import java.net.{InetSocketAddress, Socket}
 
 import com.google.common.net.HostAndPort
 import org.apache.log4j.Logger
+import org.joda.time.{Duration => JDuration}
+import ru.yandex.inside.yt.kosher.common.GUID
 import ru.yandex.inside.yt.kosher.impl.rpc.TransactionManager
 import ru.yandex.spark.yt.utils.{YtClientConfiguration, YtUtils}
 import ru.yandex.yt.ytclient.proxy.request.{CreateNode, ObjectType, RemoveNode, TransactionalOptions}
-import org.joda.time.{Duration => JDuration}
-import ru.yandex.inside.yt.kosher.common.GUID
+import java.io.IOException
+import java.net.ServerSocket
 
 import scala.annotation.tailrec
 import scala.concurrent.duration._
@@ -22,7 +24,7 @@ class CypressDiscoveryService(config: YtClientConfiguration,
   private val client = YtUtils.createRpcClient(config)
   private val yt = client.yt
 
-  override def register(id: String, operationId: String, hostPort: HostAndPort): Unit = {
+  override def register(id: String, operationId: String, host: String, port: Int, webUiPort: Int): Unit = {
     getAddress(id) match {
       case Some(address) if isAlive(address) =>
         throw new IllegalStateException(s"Spark instance with id $id already exists")
@@ -35,7 +37,8 @@ class CypressDiscoveryService(config: YtClientConfiguration,
     val tm = new TransactionManager(yt)
     val transaction = tm.start(JDuration.standardMinutes(1)).join()
     try {
-      createNode(s"$discoveryPath/$id/address/${hostPort.toString}", transaction)
+      createNode(s"$discoveryPath/$id/address/${HostAndPort.fromParts(host, port)}", transaction)
+      createNode(s"$discoveryPath/$id/webui/${HostAndPort.fromParts(host, webUiPort)}", transaction)
       createNode(s"$discoveryPath/$id/operation/$operationId", transaction)
     } catch {
       case e: Throwable =>

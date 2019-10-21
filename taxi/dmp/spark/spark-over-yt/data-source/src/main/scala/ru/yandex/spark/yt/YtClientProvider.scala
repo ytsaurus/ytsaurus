@@ -8,7 +8,7 @@ import ru.yandex.yt.ytclient.proxy.YtClient
 
 
 object YtClientProvider {
-  private val _client: ThreadLocal[Option[YtRpcClient]] = new ThreadLocal[Option[YtClient]]
+  private val _client: ThreadLocal[Option[YtRpcClient]] = new ThreadLocal[Option[YtRpcClient]]
   private val _conf: ThreadLocal[YtClientConfiguration] = new ThreadLocal[YtClientConfiguration]
 
   private def cachedYtClient: Option[YtClient] = cachedClient.map(_.yt)
