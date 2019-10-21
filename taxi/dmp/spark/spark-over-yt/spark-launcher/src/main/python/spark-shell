@@ -1,0 +1,23 @@
+#!/usr/bin/env python
+
+import os
+import argparse
+from yt.wrapper.cypress_commands import list
+
+parser = argparse.ArgumentParser(description="Spark Shell")
+parser.add_argument("--id", required=True)
+parser.add_argument("--working-dir", required=False)
+
+args, unknown_args = parser.parse_known_args()
+
+id = args.id
+user = os.getenv("USER")
+working_dir = args.working_dir or "//home/{0}/spark-tmp".format(user)
+
+spark_home = os.getenv("SPARK_HOME")
+master = list("{0}/instances/{1}/address".format(working_dir, id))[0]
+
+print(spark_home)
+
+os.execv("{0}/bin/spark-shell".format(spark_home),
+         ["spark-shell", "--master", "spark://{0}".format(master)] + unknown_args)

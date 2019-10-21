@@ -3,7 +3,7 @@ import sbt._
 object Dependencies {
   lazy val circeVersion = "0.11.1"
   lazy val scalatestVersion = "3.0.8"
-  lazy val sparkVersion = "2.4.3"
+  lazy val sparkVersion = "2.4.4"
   lazy val yandexIcebergVersion = "5822869"
 
   lazy val circe = Seq(
@@ -38,6 +38,7 @@ object Dependencies {
   )
 
   lazy val logging = Seq(
-    "org.slf4j" % "slf4j-log4j12" % "1.7.28"
+    "org.slf4j" % "slf4j-log4j12" % "1.7.28",
+    "org.slf4j" % "slf4j-api" % "1.7.28"
   )
 }

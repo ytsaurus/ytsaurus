@@ -1,5 +1,6 @@
 package ru.yandex.spark.yt
 
+import org.apache.hadoop.fs.{FSDataInputStream, FSInputStream}
 import org.apache.spark.sql.types.StructType
 import org.joda.time.Duration
 import ru.yandex.bolts.collection.{Option => YOption}
@@ -9,7 +10,7 @@ import ru.yandex.inside.yt.kosher.common.GUID
 import ru.yandex.inside.yt.kosher.impl.rpc.TransactionManager
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
-import ru.yandex.spark.yt.format.TableIterator
+import ru.yandex.spark.yt.format.{FileIterator, PathType, TableIterator}
 import ru.yandex.spark.yt.serializers.SchemaConverter
 import ru.yandex.yt.ytclient.`object`.WireRowDeserializer
 import ru.yandex.yt.ytclient.proxy.YtClient
@@ -54,14 +55,18 @@ object YtTableUtils {
     }
   }
 
-  def exists(path: String, transaction: Option[String] = None)(implicit yt: YtClient): Boolean = {
-    try {
-      val request = new GetNode(formatPath(path)).optionalTransaction(transaction)
-      yt.getNode(request).join()
-      true
-    } catch {
-      case _: Throwable => false
+  def getType(path: String, transaction: Option[String] = None)(implicit yt: YtClient): PathType = {
+    val objectType = tableAttribute(path, "type", transaction).stringValue()
+    objectType match {
+      case "file" => PathType.File
+      case "table" => PathType.Table
+      case _ => PathType.None
     }
+  }
+
+  def exists(path: String, transaction: Option[String] = None)(implicit yt: YtClient): Boolean = {
+    val request = new ExistsNode(s"${formatPath(path)}/@").optionalTransaction(transaction)
+    yt.existsNode(request).join().booleanValue()
   }
 
   def tableAttribute(path: String, attrName: String, transaction: Option[String] = None)
@@ -142,5 +147,10 @@ object YtTableUtils {
         request.setTransactionalOptions(new TransactionalOptions(GUID.valueOf(t))).asInstanceOf[T]
       }.getOrElse(request)
     }
+  }
+
+  def downloadFile(path: String, transaction: Option[String] = None)(implicit yt: YtClient): FSDataInputStream = {
+    val fileReader = yt.readFile(new ReadFile(formatPath(path))).join()
+    new FSDataInputStream(new FileIterator(fileReader))
   }
 }

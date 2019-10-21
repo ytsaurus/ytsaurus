@@ -11,6 +11,7 @@ object CommonPlugin extends AutoPlugin {
   override def projectSettings: Seq[Def.Setting[_]] = Seq(
     resolvers += "Arcadia" at "http://artifactory.yandex.net/artifactory/yandex_media_releases",
     version := "0.0.1-SNAPSHOT",
+    name := s"spark-yt-${name.value}",
     scalaVersion := "2.12.8",
     assemblyMergeStrategy in assembly := {
       case x if x endsWith "io.netty.versions.properties" => MergeStrategy.first

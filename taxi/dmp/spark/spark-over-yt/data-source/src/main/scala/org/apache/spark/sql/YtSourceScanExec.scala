@@ -48,14 +48,14 @@ case class YtSourceScanExec(
 
   private var metadataTime = 0L
 
-  @transient private lazy val selectedPartitions: Seq[PartitionDirectory] = {
+  @transient private lazy val selectedPartitions: Array[PartitionDirectory] = {
     val optimizerMetadataTimeNs = relation.location.metadataOpsTimeNs.getOrElse(0L)
     val startTime = System.nanoTime()
     val ret = relation.location.listFiles(partitionFilters, dataFilters)
     val timeTakenMs = ((System.nanoTime() - startTime) + optimizerMetadataTimeNs) / 1000 / 1000
     metadataTime = timeTakenMs
     ret
-  }
+  }.toArray
 
   override lazy val (outputPartitioning, outputOrdering): (Partitioning, Seq[SortOrder]) = {
     val bucketSpec = if (relation.sparkSession.sessionState.conf.bucketingEnabled) {
@@ -130,7 +130,6 @@ case class YtSourceScanExec(
 
   override lazy val metadata: Map[String, String] = {
     def seqToString(seq: Seq[Any]) = seq.mkString("[", ", ", "]")
-
     val location = relation.location
     val locationDesc =
       location.getClass.getSimpleName + seqToString(location.rootPaths)
@@ -208,7 +207,7 @@ case class YtSourceScanExec(
         inputRDD.mapPartitionsWithIndexInternal { (index, iter) =>
           val proj = UnsafeProjection.create(schema)
           proj.initialize(index)
-          iter.map(r => {
+          iter.map( r => {
             numOutputRows += 1
             proj(r)
           })
@@ -231,16 +230,16 @@ case class YtSourceScanExec(
    * The algorithm is pretty simple: each RDD partition being returned should include all the files
    * with the same bucket id from all the given Hive partitions.
    *
-   * @param bucketSpec         the bucketing spec.
-   * @param readFile           a function to read each (part of a) file.
+   * @param bucketSpec the bucketing spec.
+   * @param readFile a function to read each (part of a) file.
    * @param selectedPartitions Hive-style partition that are part of the read.
-   * @param fsRelation         [[HadoopFsRelation]] associated with the read.
+   * @param fsRelation [[HadoopFsRelation]] associated with the read.
    */
   private def createBucketedReadRDD(
-                                     bucketSpec: BucketSpec,
-                                     readFile: (PartitionedFile) => Iterator[InternalRow],
-                                     selectedPartitions: Seq[PartitionDirectory],
-                                     fsRelation: HadoopFsRelation): RDD[InternalRow] = {
+      bucketSpec: BucketSpec,
+      readFile: (PartitionedFile) => Iterator[InternalRow],
+      selectedPartitions: Array[PartitionDirectory],
+      fsRelation: HadoopFsRelation): RDD[InternalRow] = {
     logInfo(s"Planning with ${bucketSpec.numBuckets} buckets")
     val filesGroupedToBuckets =
       selectedPartitions.flatMap { p =>
@@ -264,7 +263,7 @@ case class YtSourceScanExec(
     }
 
     val filePartitions = Seq.tabulate(bucketSpec.numBuckets) { bucketId =>
-      FilePartition(bucketId, prunedFilesGroupedToBuckets.getOrElse(bucketId, Nil))
+      FilePartition(bucketId, prunedFilesGroupedToBuckets.getOrElse(bucketId, Array.empty))
     }
 
     new FileScanRDD(fsRelation.sparkSession, readFile, filePartitions)
@@ -274,16 +273,20 @@ case class YtSourceScanExec(
    * Create an RDD for non-bucketed reads.
    * The bucketed variant of this function is [[createBucketedReadRDD]].
    *
-   * @param readFile           a function to read each (part of a) file.
+   * @param readFile a function to read each (part of a) file.
    * @param selectedPartitions Hive-style partition that are part of the read.
-   * @param fsRelation         [[HadoopFsRelation]] associated with the read.
+   * @param fsRelation [[HadoopFsRelation]] associated with the read.
    */
   private def createNonBucketedReadRDD(
-                                        readFile: (PartitionedFile) => Iterator[InternalRow],
-                                        selectedPartitions: Seq[PartitionDirectory],
-                                        fsRelation: HadoopFsRelation): RDD[InternalRow] = {
-
+      readFile: (PartitionedFile) => Iterator[InternalRow],
+      selectedPartitions: Array[PartitionDirectory],
+      fsRelation: HadoopFsRelation): RDD[InternalRow] = {
+    val defaultMaxSplitBytes =
+      fsRelation.sparkSession.sessionState.conf.filesMaxPartitionBytes
     val openCostInBytes = fsRelation.sparkSession.sessionState.conf.filesOpenCostInBytes
+    val defaultParallelism = fsRelation.sparkSession.sparkContext.defaultParallelism
+    val totalBytes = selectedPartitions.flatMap(_.files.map(_.getLen + openCostInBytes)).sum
+    val bytesPerCore = totalBytes / defaultParallelism
 
     val maxSplitBytes = fsRelation.options.get("maxSplitRows").map(_.toLong)
       .orElse(selectedPartitions.headOption.flatMap(_.files.headOption).flatMap {
@@ -291,22 +294,16 @@ case class YtSourceScanExec(
         case _ => None
       })
       .getOrElse {
-        val defaultMaxSplitBytes =
-          fsRelation.sparkSession.sessionState.conf.filesMaxPartitionBytes
-        val defaultParallelism = fsRelation.sparkSession.sparkContext.defaultParallelism
-        val totalBytes = selectedPartitions.flatMap(_.files.map(_.getLen + openCostInBytes)).sum
-        val bytesPerCore = totalBytes / defaultParallelism
-        val res = Math.min(defaultMaxSplitBytes, Math.max(openCostInBytes, bytesPerCore))
-        logInfo(s"Planning scan with bin packing, max size: $res bytes, " +
-          s"open cost is considered as scanning $openCostInBytes bytes.")
-        res
+        Math.min(defaultMaxSplitBytes, Math.max(openCostInBytes, bytesPerCore))
       }
+    logInfo(s"Planning scan with bin packing, max size: $maxSplitBytes bytes, " +
+      s"open cost is considered as scanning $openCostInBytes bytes.")
 
     val splitFiles = selectedPartitions.flatMap { partition =>
       partition.files.flatMap { file =>
         val blockLocations = getBlockLocations(file)
         if (fsRelation.fileFormat.isSplitable(
-          fsRelation.sparkSession, fsRelation.options, file.getPath)) {
+            fsRelation.sparkSession, fsRelation.options, file.getPath)) {
           (0L until file.getLen by maxSplitBytes).map { offset =>
             val remaining = file.getLen - offset
             val size = if (remaining > maxSplitBytes) maxSplitBytes else remaining
@@ -320,7 +317,7 @@ case class YtSourceScanExec(
             partition.values, file.getPath.toUri.toString, 0, file.getLen, hosts))
         }
       }
-    }.toArray.sortBy(_.length)(implicitly[Ordering[Long]].reverse)
+    }.sortBy(_.length)(implicitly[Ordering[Long]].reverse)
 
     val partitions = new ArrayBuffer[FilePartition]
     val currentFiles = new ArrayBuffer[PartitionedFile]
@@ -332,7 +329,7 @@ case class YtSourceScanExec(
         val newPartition =
           FilePartition(
             partitions.size,
-            currentFiles.toArray.toSeq) // Copy to a new Array.
+            currentFiles.toArray) // Copy to a new Array.
         partitions += newPartition
       }
       currentFiles.clear()
@@ -363,7 +360,7 @@ case class YtSourceScanExec(
   // fraction the segment, and returns location hosts of that block. If no such block can be found,
   // returns an empty array.
   private def getBlockHosts(
-                             blockLocations: Array[BlockLocation], offset: Long, length: Long): Array[String] = {
+      blockLocations: Array[BlockLocation], offset: Long, length: Long): Array[String] = {
     val candidates = blockLocations.map {
       // The fragment starts from a position within this block
       case b if b.getOffset <= offset && offset < b.getOffset + b.getLength =>
