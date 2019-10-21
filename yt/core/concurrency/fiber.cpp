@@ -92,7 +92,8 @@ void TFiber::InvokeContextInHandlers()
 
 void TFiber::OnSwitchInto()
 {
-    YT_LOG_DEBUG("Switched into fiber (Id: %llx)", Id_);
+    SetCurrentFiberId(Id_);
+    YT_LOG_TRACE("Switched into fiber (Id: %llx)", Id_);
 
     OnStartRunning();
 
@@ -107,7 +108,7 @@ void TFiber::OnSwitchOut()
     MemoryTag_ = NYTAlloc::GetCurrentMemoryTag();
     MemoryZone_ = NYTAlloc::GetCurrentMemoryZone();
 
-    YT_LOG_DEBUG("Switching out fiber (Id: %llx)", Id_);
+    YT_LOG_TRACE("Switching out fiber (Id: %llx)", Id_);
     SetCurrentFiberId(InvalidFiberId);
 }
 
@@ -118,11 +119,6 @@ NProfiling::TCpuDuration TFiber::GetRunCpuTime() const
 
 void TFiber::OnStartRunning()
 {
-    auto isRunning = IsRunning_.exchange(true);
-    YT_VERIFY(!isRunning);
-
-    SetCurrentFiberId(Id_);
-
     RunStartInstant_ = NProfiling::GetCpuInstant();
     InstallTraceContext(RunStartInstant_, std::move(SavedTraceContext_));
 
@@ -131,9 +127,6 @@ void TFiber::OnStartRunning()
 
 void TFiber::OnFinishRunning()
 {
-    auto isRunning = IsRunning_.exchange(false);
-    YT_VERIFY(isRunning);
-
     auto now = NProfiling::GetCpuInstant();
     SavedTraceContext_ = NTracing::UninstallTraceContext(now);
     RunCpuTime_ += std::max<NProfiling::TCpuDuration>(0, now - RunStartInstant_);
@@ -220,6 +213,8 @@ void TFiber::DoRunNaked()
             YT_LOG_DEBUG("Fiber canceled");
         }
 
+        OnFinishRunning();
+
         // NB: All other uncaught exceptions will lead to std::terminate().
         // This way we preserve the much-needed backtrace.
     }
@@ -295,12 +290,8 @@ void SwitchToFiber(TFiberPtr target)
 
     // Allows set new AfterSwitch inside it.
     if (auto afterSwitch = std::move(AfterSwitch)) {
-        YT_VERIFY(!AfterSwitch);
         afterSwitch.Run();
     }
-
-    // TODO: Allow to set after switch inside itself
-    YT_VERIFY(!AfterSwitch);
 
     if (CurrentFiber) {
         CurrentFiber->OnSwitchInto();

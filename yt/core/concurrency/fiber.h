@@ -123,8 +123,6 @@ private:
     NProfiling::TCpuInstant RunStartInstant_ = 0;
     NProfiling::TCpuDuration RunCpuTime_ = 0;
 
-    std::atomic<bool> IsRunning_ = {false};
-
     void OnStartRunning();
 
     void OnFinishRunning();
