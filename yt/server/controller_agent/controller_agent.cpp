@@ -297,8 +297,7 @@ public:
 
         StaticOrchidService_->SetCachePeriod(Config_->StaticOrchidCacheUpdatePeriod);
 
-        for (const auto& pair : IdToOperation_) {
-            const auto& operation = pair.second;
+        for (const auto& [operationId, operation] : IdToOperation_) {
             auto controller = operation->GetController();
             controller->GetCancelableInvoker()->Invoke(
                 BIND(&IOperationController::UpdateConfig, controller, config));
@@ -931,8 +930,7 @@ private:
         ConnectionTime_.store(TInstant::Zero());
         IncarnationId_ = {};
 
-        for (const auto& pair : IdToOperation_) {
-            const auto& operation = pair.second;
+        for (const auto& [operationId, operation] : IdToOperation_) {
             auto controller = operation->GetController();
             controller->Cancel();
         }
@@ -1062,9 +1060,7 @@ private:
         preparedRequest.SuspiciousJobsSent = LastSuspiciousJobsSendTime_ + Config_->SuspiciousJobsPushPeriod < now;
 
         if (preparedRequest.OperationsSent) {
-            for (const auto& pair : GetOperations()) {
-                auto operationId = pair.first;
-                const auto& operation = pair.second;
+            for (const auto& [operationId, operation] : GetOperations()) {
                 auto controller = operation->GetController();
 
                 auto* protoOperation = request->add_operations();
@@ -1077,9 +1073,7 @@ private:
 
                 if (preparedRequest.OperationAlertsSent) {
                     auto* protoAlerts = protoOperation->mutable_alerts();
-                    for (const auto& pair : controller->GetAlerts()) {
-                        auto alertType = pair.first;
-                        const auto& alert = pair.second;
+                    for (const auto& [alertType, alert] : controller->GetAlerts()) {
                         auto* protoAlert = protoAlerts->add_alerts();
                         protoAlert->set_type(static_cast<int>(alertType));
                         ToProto(protoAlert->mutable_error(), alert);
@@ -1382,9 +1376,7 @@ private:
         result.All = New<TRefCountedExecNodeDescriptorMap>();
         result.Online = New<TRefCountedExecNodeDescriptorMap>();
 
-        for (const auto& pair : *CachedExecNodeDescriptors_) {
-            auto nodeId = pair.first;
-            const auto& descriptor = pair.second;
+        for (const auto& [nodeId, descriptor] : *CachedExecNodeDescriptors_) {
             if (filter.CanSchedule(descriptor.Tags)) {
                 YT_VERIFY(result.All->emplace(nodeId, descriptor).second);
                 if (descriptor.Online) {
@@ -1448,11 +1440,11 @@ private:
         {
             std::vector<TString> keys;
             keys.reserve(limit);
-            for (const auto& pair : ControllerAgent_->IdToOperation_) {
+            for (const auto& [operationId, operation] : ControllerAgent_->IdToOperation_) {
                 if (static_cast<i64>(keys.size()) >= limit) {
                     break;
                 }
-                keys.emplace_back(ToString(pair.first));
+                keys.emplace_back(ToString(operationId));
             }
             return keys;
         }

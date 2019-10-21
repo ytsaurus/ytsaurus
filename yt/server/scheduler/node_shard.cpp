@@ -195,6 +195,7 @@ IInvokerPtr TNodeShard::OnMasterConnected()
     CancelableInvoker_ = CancelableContext_->CreateInvoker(GetInvoker());
 
     CachedExecNodeDescriptorsRefresher_->Start();
+    SubmitJobsToStrategyExecutor_->Start();
 
     return CancelableInvoker_;
 }
@@ -230,8 +231,7 @@ void TNodeShard::DoCleanup()
 
     CachedExecNodeDescriptorsRefresher_->Stop();
 
-    for (const auto& pair : IdToNode_) {
-        const auto& node = pair.second;
+    for (const auto& [nodeId, node] : IdToNode_) {
         TLeaseManager::CloseLease(node->GetRegistrationLease());
         TLeaseManager::CloseLease(node->GetHeartbeatLease());
     }
@@ -294,10 +294,9 @@ void TNodeShard::StartOperationRevival(TOperationId operationId)
         operationState.Jobs.size());
 
     auto jobs = operationState.Jobs;
-    for (const auto& pair : jobs) {
-        const auto& job = pair.second;
+    for (const auto& [jobId, job] : jobs) {
         UnregisterJob(job, /* enableLogging */ false);
-        JobsToSubmitToStrategy_.erase(job->GetId());
+        JobsToSubmitToStrategy_.erase(jobId);
     }
 
     for (auto jobId : operationState.JobsToSubmitToStrategy) {
@@ -663,6 +662,7 @@ void TNodeShard::UpdateExecNodeDescriptors()
             Config_->MaxOfflineNodeAge,
             node->GetId(),
             node->GetDefaultAddress());
+        UnregisterNode(node);
         RemoveNode(node);
     }
 
@@ -1222,8 +1222,8 @@ void TNodeShard::BuildNodesYson(TFluentMap fluent)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
-    for (const auto& pair : IdToNode_) {
-        BuildNodeYson(pair.second, fluent);
+    for (const auto& [nodeId, node] : IdToNode_) {
+        BuildNodeYson(node, fluent);
     }
 }
 
@@ -1247,8 +1247,7 @@ TNodeShard::TResourceStatistics TNodeShard::CalculateResourceStatistics(const TS
         descriptors = CachedExecNodeDescriptors_;
     }
 
-    for (const auto& pair : *descriptors) {
-        const auto& descriptor = pair.second;
+    for (const auto& [nodeId, descriptor] : *descriptors) {
         if (descriptor.Online && descriptor.CanSchedule(filter)) {
             statistics.Usage += descriptor.ResourceUsage;
             statistics.Limits += descriptor.ResourceLimits;
@@ -1425,22 +1424,30 @@ TExecNodePtr TNodeShard::GetOrRegisterNode(TNodeId nodeId, const TNodeDescriptor
 void TNodeShard::OnNodeRegistrationLeaseExpired(TNodeId nodeId)
 {
     auto it = IdToNode_.find(nodeId);
-    YT_VERIFY(it != IdToNode_.end());
-
-    // NB: Make a copy; the calls below will mutate IdToNode_ and thus invalidate it.
+    if (it == IdToNode_.end()) {
+        return;
+    }
     auto node = it->second;
 
     YT_LOG_INFO("Node lease expired, unregistering (Address: %v)",
         node->GetDefaultAddress());
 
     UnregisterNode(node);
+
+    auto lease = TLeaseManager::CreateLease(
+        Config_->NodeRegistrationTimeout,
+        BIND(&TNodeShard::OnNodeRegistrationLeaseExpired, MakeWeak(this), node->GetId())
+            .Via(GetInvoker()));
+    node->SetRegistrationLease(lease);
 }
 
 void TNodeShard::OnNodeHeartbeatLeaseExpired(TNodeId nodeId)
 {
     auto it = IdToNode_.find(nodeId);
-    YT_VERIFY(it != IdToNode_.end());
-    const auto& node = it->second;
+    if (it == IdToNode_.end()) {
+        return;
+    }
+    auto node = it->second;
 
     // We intentionally do not abort jobs here, it will happen when RegistrationLease expired or
     // at node attributes update by separate timeout.
@@ -1595,6 +1602,7 @@ void TNodeShard::AbortUnconfirmedJobs(
     }
 }
 
+// TODO(eshcherbin): This method has become too big -- gotta split it.
 void TNodeShard::ProcessHeartbeatJobs(
     const TExecNodePtr& node,
     NJobTrackerClient::NProto::TReqHeartbeat* request,
@@ -1676,6 +1684,7 @@ void TNodeShard::ProcessHeartbeatJobs(
 
     // Used for debug logging.
     THashMap<EJobState, std::vector<TJobId>> jobStateToOngoingJobIds;
+    std::vector<TJobId> recentlyFinishedJobIdsToLog;
     for (auto& jobStatus : *request->mutable_jobs()) {
         YT_VERIFY(jobStatus.has_job_type());
         auto jobType = EJobType(jobStatus.job_type());
@@ -1704,8 +1713,22 @@ void TNodeShard::ProcessHeartbeatJobs(
                 default:
                     break;
             }
+        } else {
+            auto jobId = FromProto<TJobId>(jobStatus.job_id());
+            auto operationId = FromProto<TOperationId>(jobStatus.operation_id());
+            auto operation = FindOperationState(operationId);
+            if (!(operation && operation->SkippedJobIds.contains(jobId))
+                && node->RecentlyFinishedJobs().contains(jobId))
+            {
+                recentlyFinishedJobIdsToLog.push_back(jobId);
+            }
         }
     }
+
+    YT_LOG_DEBUG_UNLESS(recentlyFinishedJobIdsToLog.empty(),
+        "Jobs are skipped since they were recently finished and are currently being stored"
+        "(JobIds: %v)",
+        recentlyFinishedJobIdsToLog);
 
     if (shouldLogOngoingJobs) {
         for (const auto& [jobState, jobIds] : jobStateToOngoingJobIds) {
@@ -1795,7 +1818,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
         }
 
         if (node->RecentlyFinishedJobs().contains(jobId)) {
-            YT_LOG_DEBUG("Job is skipped since it was recently finished and is currently being stored");
+            // NB(eshcherbin): This event is logged one level above.
             return nullptr;
         }
 
@@ -2283,31 +2306,22 @@ void TNodeShard::SubmitJobsToStrategy()
             std::vector<TJobId> jobsToAbort;
             std::vector<std::pair<TOperationId, TJobId>> jobsToRemove;
             auto jobUpdates = GetValues(JobsToSubmitToStrategy_);
-            int snapshotRevision;
             Host_->GetStrategy()->ProcessJobUpdates(
                 jobUpdates,
                 &jobsToRemove,
-                &jobsToAbort,
-                &snapshotRevision);
+                &jobsToAbort);
 
             for (auto jobId : jobsToAbort) {
                 AbortJob(jobId, TError("Aborting job by strategy request"));
             }
 
-            for (const auto& pair : jobsToRemove) {
-                auto operationId = pair.first;
-                auto jobId = pair.second;
-
+            for (const auto& [operationId, jobId] : jobsToRemove) {
                 auto* operationState = FindOperationState(operationId);
                 if (operationState) {
                     operationState->JobsToSubmitToStrategy.erase(jobId);
                 }
 
                 YT_VERIFY(JobsToSubmitToStrategy_.erase(jobId) == 1);
-            }
-
-            for (auto& pair : JobsToSubmitToStrategy_) {
-                pair.second.SnapshotRevision = snapshotRevision;
             }
         }
     }

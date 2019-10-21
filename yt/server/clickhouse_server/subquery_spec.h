@@ -27,6 +27,7 @@ public:
     std::vector<std::vector<NChunkClient::TDataSliceDescriptor>> DataSliceDescriptors;
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
     TQueryId InitialQueryId;
+    TString InitialQuery;
     DB::NamesAndTypesList Columns;
     NTableClient::TTableSchema ReadSchema;
     // TODO(max42): CHYT-154.

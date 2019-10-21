@@ -1560,7 +1560,7 @@ void TObjectManager::TImpl::HydraExecuteLeader(
         rpcContext->Reply(ex);
     }
 
-    if (!IsRecovery() && IsObjectAlive(user)) {
+    if (!IsRecovery()) {
         securityManager->ChargeUser(user, {EUserWorkloadType::Write, 1, timer.GetElapsedTime()});
     }
 

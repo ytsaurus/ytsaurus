@@ -10,7 +10,8 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void InstallCrashSignalHandler(std::optional<std::set<int>> signalNumbers = std::nullopt);
+// Dumps signal, stack frame information and codicils.
+void CrashSignalHandler(int signal, siginfo_t* si, void* uc);
 
 void DumpCodicils();
 
@@ -49,6 +50,11 @@ private:
     void Release();
 
 };
+
+//! Writes the given buffer with the length to the standard error.
+void WriteToStderr(const char* buffer, int length);
+//! Writes the given zero-terminated buffer to the standard error.
+void WriteToStderr(const char* buffer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

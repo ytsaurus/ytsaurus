@@ -80,32 +80,6 @@ class TestUsers(YTEnvSetup):
         assert(get("//sys/users/u/@request_limits/read_request_rate/per_cell/0") == 1337)
 
     @authors("babenko")
-    def test_access_counter1(self):
-        create_user("u")
-        assert get("//sys/users/u/@request_count") == 0
-
-        ls("//tmp", authenticated_user="u")
-        sleep(1.0)
-        assert get("//sys/users/u/@request_count") == 1
-
-    @authors("sandello")
-    def test_access_counter2(self):
-        create_user('u')
-        with pytest.raises(YtError): set('//sys/users/u/@request_count', -1.0)
-
-    @authors("ignat")
-    def test_access_counter3(self):
-        create_user('u')
-
-        assert get("//sys/users/u/@request_count") == 0
-
-        # Transaction ping is not accounted in request counter
-        tx = start_transaction()
-        ping_transaction(tx, authenticated_user='u')
-
-        assert get("//sys/users/u/@request_count") == 0
-
-    @authors("babenko")
     def test_builtin_init(self):
         assert_items_equal(get("//sys/groups/everyone/@members"),
             ["users", "guest"])

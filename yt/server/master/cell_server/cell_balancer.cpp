@@ -1,16 +1,20 @@
+#include <yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
+
 #include "config.h"
 #include "private.h"
-#include "tablet_cell.h"
-#include "tablet_cell_balancer.h"
-#include "tablet_cell_bundle.h"
+#include "cell_base.h"
+#include "cell_balancer.h"
+#include "cell_bundle.h"
 
 #include <yt/server/master/node_tracker_server/node.h>
+
+#include <yt/server/master/object_server/helpers.h>
 
 #include <yt/ytlib/tablet_client/config.h>
 
 #include <yt/core/misc/numeric_helpers.h>
 
-namespace NYT::NTabletServer {
+namespace NYT::NCellServer {
 
 using namespace NNodeTrackerServer;
 using namespace NNodeTrackerClient;
@@ -18,42 +22,42 @@ using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = TabletServerLogger;
+static const auto& Logger = CellServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletCellMoveDescriptor::TTabletCellMoveDescriptor(const TTabletCell* cell, int peerId, const TNode* source, const TNode* target)
+TCellMoveDescriptor::TCellMoveDescriptor(const TCellBase* cell, int peerId, const TNode* source, const TNode* target)
     : Cell(cell)
     , PeerId(peerId)
     , Source(source)
     , Target(target)
 { }
 
-bool TTabletCellMoveDescriptor::operator<(const TTabletCellMoveDescriptor& other) const
+bool TCellMoveDescriptor::operator<(const TCellMoveDescriptor& other) const
 {
     return Cell == other.Cell
         ? PeerId < other.PeerId
         : Cell < other.Cell;
 }
 
-bool TTabletCellMoveDescriptor::operator==(const TTabletCellMoveDescriptor& other) const
+bool TCellMoveDescriptor::operator==(const TCellMoveDescriptor& other) const
 {
     return Cell == other.Cell && PeerId == other.PeerId;
 }
 
-bool TTabletCellMoveDescriptor::operator!=(const TTabletCellMoveDescriptor& other) const
+bool TCellMoveDescriptor::operator!=(const TCellMoveDescriptor& other) const
 {
     return !(*this == other);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeHolder::TNodeHolder(const TNode* node, int totalSlots, const TTabletCellSet& slots)
+TNodeHolder::TNodeHolder(const TNode* node, int totalSlots, const TCellSet& slots)
     : Node_(node)
     , TotalSlots_(totalSlots)
     , Slots_(slots)
 {
-    CountCells();
+    UpdateCellCounts();
 }
 
 const TNode* TNodeHolder::GetNode() const
@@ -66,12 +70,12 @@ int TNodeHolder::GetTotalSlots() const
     return TotalSlots_;
 }
 
-const TTabletCellSet& TNodeHolder::GetSlots() const
+const TCellSet& TNodeHolder::GetSlots() const
 {
     return Slots_;
 }
 
-std::pair<const TTabletCell*, int> TNodeHolder::ExtractCell(int cellIndex)
+std::pair<const TCellBase*, int> TNodeHolder::ExtractCell(int cellIndex)
 {
     YT_ASSERT(cellIndex < Slots_.size());
 
@@ -82,13 +86,13 @@ std::pair<const TTabletCell*, int> TNodeHolder::ExtractCell(int cellIndex)
     return pair;
 }
 
-void TNodeHolder::InsertCell(std::pair<const TTabletCell*, int> pair)
+void TNodeHolder::InsertCell(std::pair<const TCellBase*, int> pair)
 {
     Slots_.push_back(pair);
     ++CellCount_[pair.first->GetCellBundle()];
 }
 
-std::optional<int> TNodeHolder::FindCell(const TTabletCell* cell)
+std::optional<int> TNodeHolder::FindCell(const TCellBase* cell)
 {
     for (int cellIndex = 0; cellIndex < Slots_.size(); ++cellIndex) {
         if (Slots_[cellIndex].first == cell) {
@@ -98,18 +102,18 @@ std::optional<int> TNodeHolder::FindCell(const TTabletCell* cell)
     return std::nullopt;
 }
 
-std::pair<const TTabletCell*, int> TNodeHolder::RemoveCell(const TTabletCell* cell)
+std::pair<const TCellBase*, int> TNodeHolder::RemoveCell(const TCellBase* cell)
 {
     return ExtractCell(*FindCell(cell));
 }
 
-int TNodeHolder::GetCellCount(const TTabletCellBundle* bundle) const
+int TNodeHolder::GetCellCount(const TCellBundle* bundle) const
 {
     auto it = CellCount_.find(bundle);
     return it != CellCount_.end() ? it->second : 0;
 }
 
-void TNodeHolder::CountCells()
+void TNodeHolder::UpdateCellCounts()
 {
     for (const auto& pair : Slots_) {
         const auto* cell = pair.first;
@@ -119,16 +123,16 @@ void TNodeHolder::CountCells()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletCellBalancer
-    : public ITabletCellBalancer
+class TCellBalancer
+    : public ICellBalancer
 {
 public:
-    explicit TTabletCellBalancer(
-        ITabletCellBalancerProviderPtr provider)
+    explicit TCellBalancer(
+        ICellBalancerProviderPtr provider)
         : Provider_(std::move(provider))
     { }
 
-    virtual void AssignPeer(const TTabletCell* cell, int peerId) override
+    virtual void AssignPeer(const TCellBase* cell, int peerId) override
     {
         LazyInitNodes();
 
@@ -146,7 +150,7 @@ public:
         }
     }
 
-    virtual void RevokePeer(const TTabletCell* cell, int peerId) override
+    virtual void RevokePeer(const TCellBase* cell, int peerId) override
     {
         LazyInitNodes();
 
@@ -171,10 +175,10 @@ public:
             }
         }
 
-        TabletCellMoveDescriptors_.emplace_back(cell, peerId, node, nullptr);
+        MoveDescriptors_.emplace_back(cell, peerId, node, nullptr);
     }
 
-    virtual std::vector<TTabletCellMoveDescriptor> GetTabletCellMoveDescriptors() override
+    virtual std::vector<TCellMoveDescriptor> GetCellMoveDescriptors() override
     {
         if (Provider_->IsBalancingRequired()) {
             LazyInitNodes();
@@ -186,9 +190,12 @@ public:
             DumpState(dumpId);
         }
 
-        for (const auto& pair : Provider_->TabletCellBundles()) {
-            if (pair.second->TabletBalancerConfig()->EnableTabletCellSmoothing) {
-                RebalanceBundle(pair.second);
+        for (const auto& [bundleId, bundle] : Provider_->CellBundles()) {
+            if (!IsObjectAlive(bundle)){
+                continue;
+            }
+            if (bundle->CellBalancerConfig()->EnableTabletCellSmoothing) {
+                RebalanceBundle(bundle);
             }
         }
 
@@ -200,7 +207,7 @@ public:
 
         if (Provider_->IsVerboseLoggingEnabled()) {
             YT_LOG_DEBUG("Tablet cell balancer request moves (before filter): %v",
-                MakeFormattableView(TabletCellMoveDescriptors_, [] (TStringBuilderBase* builder, const TTabletCellMoveDescriptor& action) {
+                MakeFormattableView(MoveDescriptors_, [] (TStringBuilderBase* builder, const TCellMoveDescriptor& action) {
                     builder->AppendFormat("<%v,%v,%v,%v>",
                         action.Cell->GetId(),
                         action.PeerId,
@@ -213,7 +220,7 @@ public:
 
         if (Provider_->IsVerboseLoggingEnabled()) {
             YT_LOG_DEBUG("Tablet cell balancer request moves: %v",
-                MakeFormattableView(TabletCellMoveDescriptors_, [] (TStringBuilderBase* builder, const TTabletCellMoveDescriptor& action) {
+                MakeFormattableView(MoveDescriptors_, [] (TStringBuilderBase* builder, const TCellMoveDescriptor& action) {
                     builder->AppendFormat("<%v,%v,%v,%v>",
                         action.Cell->GetId(),
                         action.PeerId,
@@ -222,14 +229,14 @@ public:
                 }));
         }
 
-        return std::move(TabletCellMoveDescriptors_);
+        return std::move(MoveDescriptors_);
     }
 
 private:
     class TPeerTracker
     {
     public:
-        void AddPeer(const TTabletCell* cell, int peerId, const TNode* peer)
+        void AddPeer(const TCellBase* cell, int peerId, const TNode* peer)
         {
             YT_ASSERT(!IsPeer(cell, peer));
 
@@ -242,7 +249,7 @@ private:
             peers[peerId] = peer;
         }
 
-        const TNode* FindPeer(const TTabletCell* cell, int peerId)
+        const TNode* FindPeer(const TCellBase* cell, int peerId)
         {
             if (auto it = Peers_.find(cell)) {
                 const auto& peers = it->second;
@@ -254,7 +261,7 @@ private:
             return nullptr;
         }
 
-        void RemovePeer(const TTabletCell* cell, int peerId, const TNode* peer)
+        void RemovePeer(const TCellBase* cell, int peerId, const TNode* peer)
         {
             YT_ASSERT(IsPeer(cell, peer));
 
@@ -263,7 +270,7 @@ private:
             peers[peerId] = nullptr;
         }
 
-        int MoveCell(const TTabletCell* cell, const TNode* src, const TNode* dst)
+        int MoveCell(const TCellBase* cell, const TNode* src, const TNode* dst)
         {
             YT_ASSERT(IsPeer(cell, src));
 
@@ -278,7 +285,7 @@ private:
             YT_ABORT();
         }
 
-        bool IsPeer(const TTabletCell* cell, const TNode* node) const
+        bool IsPeer(const TCellBase* cell, const TNode* node) const
         {
             auto it = Peers_.find(cell);
             if (it == Peers_.end()) {
@@ -300,27 +307,27 @@ private:
         }
 
     private:
-        THashMap<const TTabletCell*, SmallVector<const TNode*, TypicalPeerCount>> Peers_;
+        THashMap<const TCellBase*, SmallVector<const TNode*, TypicalPeerCount>> Peers_;
     };
 
-    const ITabletCellBalancerProviderPtr Provider_;
+    const ICellBalancerProviderPtr Provider_;
 
     bool Initialized_ = false;
     std::vector<TNodeHolder> Nodes_;
     THashMap<const TNode*, int> NodeToIndex_;
     TPeerTracker PeerTracker_;
     TPeerTracker BannedPeerTracker_;
-    THashMap<const TTabletCellBundle*, std::vector<int>> FreeNodes_;
-    THashMap<const TTabletCellBundle*, THashSet<int>> FilledNodes_;
+    THashMap<const TCellBundle*, std::vector<int>> FreeNodes_;
+    THashMap<const TCellBundle*, THashSet<int>> FilledNodes_;
 
-    std::vector<TTabletCellMoveDescriptor> TabletCellMoveDescriptors_;
+    std::vector<TCellMoveDescriptor> MoveDescriptors_;
 
     void DumpState(TGuid dumpId)
     {
         for (const auto& node : Nodes_) {
             YT_LOG_DEBUG("Tablet cell distribution %v %v (DumpId: %v)",
                 node.GetNode()->GetDefaultAddress(),
-                MakeFormattableView(node.GetSlots(), [] (TStringBuilderBase* builder, const std::pair<const TTabletCell*, int>& pair) {
+                MakeFormattableView(node.GetSlots(), [] (TStringBuilderBase* builder, const std::pair<const TCellBase*, int>& pair) {
                     const auto* cell = pair.first;
                     int peerId = pair.second;
                     builder->AppendFormat("<%v,%v,%v>", cell->GetCellBundle()->GetName(), cell->GetId(), peerId);
@@ -343,8 +350,7 @@ private:
             const auto& node = Nodes_[nodeIndex];
             NodeToIndex_[node.GetNode()] = nodeIndex;
 
-            for (const auto& pair : Provider_->TabletCellBundles()) {
-                const auto* bundle = pair.second;
+            for (const auto& [bundleId, bundle] : Provider_->CellBundles()) {
                 if (!IsObjectAlive(bundle)) {
                     continue;
                 }
@@ -367,28 +373,28 @@ private:
 
     void FilterActions()
     {
-        std::stable_sort(TabletCellMoveDescriptors_.begin(), TabletCellMoveDescriptors_.end());
+        std::stable_sort(MoveDescriptors_.begin(), MoveDescriptors_.end());
 
         int last = -1;
-        for (int index = 0; index < TabletCellMoveDescriptors_.size() ; ++index) {
-            if (last < 0 || TabletCellMoveDescriptors_[last] != TabletCellMoveDescriptors_[index]) {
-                if (last >= 0 && TabletCellMoveDescriptors_[last].Source == TabletCellMoveDescriptors_[last].Target && TabletCellMoveDescriptors_[last].Target) {
+        for (int index = 0; index < MoveDescriptors_.size() ; ++index) {
+            if (last < 0 || MoveDescriptors_[last] != MoveDescriptors_[index]) {
+                if (last >= 0 && MoveDescriptors_[last].Source == MoveDescriptors_[last].Target && MoveDescriptors_[last].Target) {
                     --last;
                 }
 
                 ++last;
                 if (last != index) {
-                    TabletCellMoveDescriptors_[last] = TabletCellMoveDescriptors_[index];
+                    MoveDescriptors_[last] = MoveDescriptors_[index];
                 }
             }
-            if (TabletCellMoveDescriptors_[last] == TabletCellMoveDescriptors_[index]) {
-                TabletCellMoveDescriptors_[last].Target = TabletCellMoveDescriptors_[index].Target;
+            if (MoveDescriptors_[last] == MoveDescriptors_[index]) {
+                MoveDescriptors_[last].Target = MoveDescriptors_[index].Target;
             }
         }
-        TabletCellMoveDescriptors_.resize(last + 1);
+        MoveDescriptors_.resize(last + 1);
     }
 
-    TNodeHolder* TryAllocateNode(const TTabletCell* cell)
+    TNodeHolder* TryAllocateNode(const TCellBase* cell)
     {
         auto* bundle = cell->GetCellBundle();
 
@@ -424,7 +430,7 @@ private:
         return nullptr;
     }
 
-    TNodeHolder* TryAllocateMultipeerNode(const TTabletCell* cell, int peerNodeIndex)
+    TNodeHolder* TryAllocateMultipeerNode(const TCellBase* cell, int peerNodeIndex)
     {
         auto* peerNode = &Nodes_[peerNodeIndex];
 
@@ -449,7 +455,7 @@ private:
         return nullptr;
     }
 
-    bool TryExchangeCell(const TTabletCell* cell, TNodeHolder* srcNode, TNodeHolder* dstNode)
+    bool TryExchangeCell(const TCellBase* cell, TNodeHolder* srcNode, TNodeHolder* dstNode)
     {
         int srcIndex = *srcNode->FindCell(cell);
 
@@ -470,11 +476,11 @@ private:
         return false;
     }
 
-    void AddCell(TNodeHolder* dstNode, const TTabletCell* cell, int peerId)
+    void AddCell(TNodeHolder* dstNode, const TCellBase* cell, int peerId)
     {
         dstNode->InsertCell(std::make_pair(cell, peerId));
         PeerTracker_.AddPeer(cell, peerId, dstNode->GetNode());
-        TabletCellMoveDescriptors_.emplace_back(cell, peerId, nullptr, dstNode->GetNode());
+        MoveDescriptors_.emplace_back(cell, peerId, nullptr, dstNode->GetNode());
     }
 
     void MoveCell(TNodeHolder* srcNode, int srcIndex, TNodeHolder* dstNode)
@@ -484,7 +490,7 @@ private:
         dstNode->InsertCell(srcCell);
         // TODO(savrus) use peerId form ExtractCell.
         int srcPeerId = PeerTracker_.MoveCell(srcCell.first, srcNode->GetNode(), dstNode->GetNode());
-        TabletCellMoveDescriptors_.emplace_back(srcCell.first, srcPeerId, srcNode->GetNode(), dstNode->GetNode());
+        MoveDescriptors_.emplace_back(srcCell.first, srcPeerId, srcNode->GetNode(), dstNode->GetNode());
     }
 
     void ExchangeCells(TNodeHolder* srcNode, int srcIndex, TNodeHolder* dstNode, int dstIndex)
@@ -496,8 +502,8 @@ private:
         // TODO(savrus) use peerId form ExtractCell.
         int srcPeerId = PeerTracker_.MoveCell(srcCell.first, srcNode->GetNode(), dstNode->GetNode());
         int dstPeerId = PeerTracker_.MoveCell(dstCell.first, dstNode->GetNode(), srcNode->GetNode());
-        TabletCellMoveDescriptors_.emplace_back(srcCell.first, srcPeerId, srcNode->GetNode(), dstNode->GetNode());
-        TabletCellMoveDescriptors_.emplace_back(dstCell.first, dstPeerId, dstNode->GetNode(), srcNode->GetNode());
+        MoveDescriptors_.emplace_back(srcCell.first, srcPeerId, srcNode->GetNode(), dstNode->GetNode());
+        MoveDescriptors_.emplace_back(dstCell.first, dstPeerId, dstNode->GetNode(), srcNode->GetNode());
     }
 
     void MoveNodeToFreedListIfNotFilled(TNodeHolder* node)
@@ -513,8 +519,7 @@ private:
         }
 
         auto nodeIndex = NodeToIndex_[node->GetNode()];
-        for (const auto& pair : Provider_->TabletCellBundles()) {
-            const auto* bundle = pair.second;
+        for (const auto& [bundleId, bundle] : Provider_->CellBundles()) {
             if (!IsObjectAlive(bundle)) {
                 continue;
             }
@@ -528,13 +533,13 @@ private:
         }
     }
 
-    bool NodeInPeers(const TTabletCell* cell, const TNodeHolder* node)
+    bool NodeInPeers(const TCellBase* cell, const TNodeHolder* node)
     {
         return PeerTracker_.IsPeer(cell, node->GetNode()) ||
             BannedPeerTracker_.IsPeer(cell, node->GetNode());
     };
 
-    void SmoothNodes(TNodeHolder* srcNode, TNodeHolder* dstNode, const TTabletCellBundle* bundle, int limit)
+    void SmoothNodes(TNodeHolder* srcNode, TNodeHolder* dstNode, const TCellBundle* bundle, int limit)
     {
         if (srcNode->GetCellCount(bundle) < dstNode->GetCellCount(bundle)) {
             std::swap(srcNode, dstNode);
@@ -575,7 +580,7 @@ private:
         }
     }
 
-    void RebalanceBundle(const TTabletCellBundle* bundle)
+    void RebalanceBundle(const TCellBundle* bundle)
     {
         std::vector<TNodeHolder*> nodes;
         for (auto& node : Nodes_) {
@@ -611,7 +616,7 @@ private:
             }
         };
 
-        auto slotCount = bundle->TabletCells().size() * bundle->GetOptions()->PeerCount;
+        auto slotCount = bundle->Cells().size() * bundle->GetOptions()->PeerCount;
         auto ceil = DivCeil<i64>(slotCount, nodes.size());
         auto floor = slotCount / nodes.size();
 
@@ -651,13 +656,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<ITabletCellBalancer> CreateTabletCellBalancer(
-    ITabletCellBalancerProviderPtr provider)
+std::unique_ptr<ICellBalancer> CreateCellBalancer(
+    ICellBalancerProviderPtr provider)
 {
-    return std::make_unique<TTabletCellBalancer>(std::move(provider));
+    return std::make_unique<TCellBalancer>(std::move(provider));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTabletServer
-
+} // namespace NYT::NCellServer

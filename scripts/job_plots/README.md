@@ -8,5 +8,8 @@ yandex_yt_job_plots/
 └───yandex_yt_job_plots/
     │   __init__.py  <-- all code is here 
 ```  
-To update package, put new version of code in __init__.py, increase package version in setup.py and run "python setup.py sdist upload -r yandex" from the directory where setup.py is located.  
-
+To update package, put new version of code in \_\_init\_\_.py, increase package version in setup.py and run following commands from the directory where setup.py is located:  
+```
+python setup.py sdist bdist_wheel
+twine upload -r yandex dist/*
+```

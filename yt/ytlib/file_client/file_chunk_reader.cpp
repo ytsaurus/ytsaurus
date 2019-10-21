@@ -204,7 +204,7 @@ private:
                 return true;
             } else if (selectedSize < EndOffset_) {
                 selectedSize += size;
-                blockSequence.push_back(TBlockFetcher::TBlockInfo(index, size, index /* priority */));
+                blockSequence.push_back(TBlockFetcher::TBlockInfo{index, size, index /* priority */});
                 return true;
             }
             return false;

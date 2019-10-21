@@ -53,6 +53,24 @@ private:
             portalManager->DestroyExitNode(node);
         }
     }
+
+    virtual void DoBeginCopy(
+        TPortalExitNode* node,
+        TBeginCopyContext* context) override
+    {
+        // NB: Portal exits _must_ be snapshot-wise compatible with map nodes
+        // due to type erasure in TNontemplateCypressNodeTypeHandlerBase::BeginCopyCore.
+        TMapNodeTypeHandlerImpl::DoBeginCopy(node, context);
+    }
+
+    virtual void DoEndCopy(
+        TPortalExitNode* /*trunkNode*/,
+        TEndCopyContext* /*context*/,
+        ICypressNodeFactory* /*factory*/) override
+    {
+        // Should not actually happen.
+        THROW_ERROR_EXCEPTION("Portal exits cannot be materialized during cross-cell cloning");
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

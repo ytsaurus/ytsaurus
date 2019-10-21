@@ -905,10 +905,15 @@ void TCompositeSchedulerElement::UpdateDynamicAttributes(TDynamicAttributesList*
     }
 }
 
-void TCompositeSchedulerElement::BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap)
+void TCompositeSchedulerElement::BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap, TDisabledOperationsSet* disabledOperations)
 {
     for (const auto& child : EnabledChildren_) {
-        child->BuildElementMapping(operationMap, poolMap);
+        child->BuildElementMapping(operationMap, poolMap, disabledOperations);
+    }
+    for (const auto& child : DisabledChildren_) {
+        if (child->IsOperation()) {
+            child->BuildElementMapping(operationMap, poolMap, disabledOperations);
+        }
     }
 }
 
@@ -1743,10 +1748,10 @@ TJobResources TPool::ComputeResourceLimits() const
     return ComputeResourceLimitsBase(Config_->ResourceLimits);
 }
 
-void TPool::BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap)
+void TPool::BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap, TDisabledOperationsSet* disabledOperations)
 {
     poolMap->emplace(GetId(), this);
-    TCompositeSchedulerElement::BuildElementMapping(operationMap, poolMap);
+    TCompositeSchedulerElement::BuildElementMapping(operationMap, poolMap, disabledOperations);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1778,8 +1783,8 @@ TJobResources TOperationElementSharedState::Disable()
     Enabled_ = false;
 
     TJobResources resourceUsage;
-    for (const auto& pair : JobPropertiesMap_) {
-        resourceUsage += pair.second.ResourceUsage;
+    for (const auto& [jodId, properties] : JobPropertiesMap_) {
+        resourceUsage += properties.ResourceUsage;
     }
 
     NonpreemptableResourceUsage_ = {};
@@ -1799,6 +1804,12 @@ void TOperationElementSharedState::Enable()
 
     YT_VERIFY(!Enabled_);
     Enabled_ = true;
+}
+
+bool TOperationElementSharedState::Enabled()
+{
+    TReaderGuard guard(JobPropertiesMapLock_);
+    return Enabled_;
 }
 
 void TOperationElementSharedState::RecordHeartbeat(
@@ -2177,19 +2188,10 @@ std::optional<TJobResources> TOperationElementSharedState::RemoveJob(TJobId jobI
 }
 
 std::optional<EDeactivationReason> TOperationElement::TryStartScheduleJob(
-    NProfiling::TCpuInstant now,
     const TFairShareContext& context,
     TJobResources* precommittedResourcesOutput,
     TJobResources* availableResourcesOutput)
 {
-    auto blocked = Controller_->IsBlocked(
-        now,
-        Spec_->MaxConcurrentControllerScheduleJobCalls.value_or(ControllerConfig_->MaxConcurrentControllerScheduleJobCalls),
-        ControllerConfig_->ScheduleJobFailBackoffTime);
-    if (blocked) {
-        return EDeactivationReason::IsBlocked;
-    }
-
     auto minNeededResources = Controller_->GetAggregatedMinNeededJobResources();
 
     auto nodeFreeResources = context.SchedulingContext->GetNodeFreeResourcesWithDiscount();
@@ -2419,6 +2421,11 @@ void TOperationElement::PrescheduleJob(TFairShareContext* context, bool starving
         return;
     }
 
+    if (Spec_->PreemptionMode == EPreemptionMode::Graceful && GetStatus() == ESchedulableStatus::Normal) {
+        onOperationDeactivated(EDeactivationReason::FairShareExceeded);
+        return;
+    }
+
     if (TreeConfig_->EnableSchedulingTags &&
         SchedulingTagFilterIndex_ != EmptySchedulingTagFilterIndex &&
         !context->CanSchedule[SchedulingTagFilterIndex_])
@@ -2548,7 +2555,7 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
     TJobResources precommittedResources;
     TJobResources availableResources;
 
-    auto deactivationReason = TryStartScheduleJob(now, *context, &precommittedResources, &availableResources);
+    auto deactivationReason = TryStartScheduleJob(*context, &precommittedResources, &availableResources);
     if (deactivationReason) {
         disableOperationElement(*deactivationReason);
         return TFairShareScheduleJobResult(/* finished */ true, /* scheduled */ false);
@@ -2855,9 +2862,13 @@ void TOperationElement::OnJobFinished(TJobId jobId)
     }
 }
 
-void TOperationElement::BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap)
+void TOperationElement::BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap, TDisabledOperationsSet* disabledOperations)
 {
-    operationMap->emplace(OperationId_, this);
+    if (OperationElementSharedState_->Enabled()) {
+        operationMap->emplace(OperationId_, this);
+    } else {
+        disabledOperations->insert(OperationId_);
+    }
 }
 
 TSchedulerElementPtr TOperationElement::Clone(TCompositeSchedulerElement* clonedParent)

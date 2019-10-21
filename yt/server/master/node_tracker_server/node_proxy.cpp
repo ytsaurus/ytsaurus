@@ -16,7 +16,7 @@
 
 #include <yt/server/master/transaction_server/transaction.h>
 
-#include <yt/server/master/tablet_server/tablet_cell.h>
+#include <yt/server/master/cell_server/cell_base.h>
 
 #include <yt/server/master/cell_master/bootstrap.h>
 
@@ -333,7 +333,7 @@ private:
                 }
 
                 BuildYsonFluently(consumer)
-                    .DoListFor(node->TabletSlots(), [] (TFluentList fluent, const TNode::TTabletSlot& slot) {
+                    .DoListFor(node->TabletSlots(), [] (TFluentList fluent, const TNode::TCellSlot& slot) {
                         fluent
                             .Item().BeginMap()
                             .Item("state").Value(slot.PeerState)

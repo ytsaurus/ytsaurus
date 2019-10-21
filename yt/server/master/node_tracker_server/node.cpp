@@ -11,7 +11,7 @@
 
 #include <yt/server/master/node_tracker_server/config.h>
 
-#include <yt/server/master/tablet_server/tablet_cell.h>
+#include <yt/server/master/cell_server/cell_base.h>
 
 #include <yt/server/master/transaction_server/transaction.h>
 
@@ -33,6 +33,7 @@ using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NChunkClient;
 using namespace NChunkServer;
+using namespace NCellServer;
 using namespace NCellMaster;
 using namespace NTabletServer;
 using namespace NNodeTrackerClient;
@@ -72,7 +73,7 @@ TChunk* ToSealKey(TChunkPtrWithIndexes replica)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TNode::TTabletSlot::Persist(NCellMaster::TPersistenceContext& context)
+void TNode::TCellSlot::Persist(NCellMaster::TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Cell);
@@ -654,7 +655,7 @@ int TNode::GetTotalSessionCount() const
         Statistics_.total_repair_session_count() + TotalHintedRepairSessionCount_;
 }
 
-TNode::TTabletSlot* TNode::FindTabletSlot(const TTabletCell* cell)
+TNode::TCellSlot* TNode::FindCellSlot(const TCellBase* cell)
 {
     for (auto& slot : TabletSlots_) {
         if (slot.Cell == cell) {
@@ -664,18 +665,18 @@ TNode::TTabletSlot* TNode::FindTabletSlot(const TTabletCell* cell)
     return nullptr;
 }
 
-TNode::TTabletSlot* TNode::GetTabletSlot(const TTabletCell* cell)
+TNode::TCellSlot* TNode::GetCellSlot(const TCellBase* cell)
 {
-    auto* slot = FindTabletSlot(cell);
+    auto* slot = FindCellSlot(cell);
     YT_VERIFY(slot);
     return slot;
 }
 
-void TNode::DetachTabletCell(const TTabletCell* cell)
+void TNode::DetachTabletCell(const TCellBase* cell)
 {
-    auto* slot = FindTabletSlot(cell);
+    auto* slot = FindCellSlot(cell);
     if (slot) {
-        *slot = TTabletSlot();
+        *slot = TCellSlot();
     }
 }
 

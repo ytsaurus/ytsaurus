@@ -148,14 +148,14 @@ void TFiber::SetRunning()
     TGuard<TSpinLock> guard(SpinLock_);
     YT_ASSERT(State_ != EFiberState::Terminated);
     State_ = EFiberState::Running;
-    AwaitedFuture_.Reset();
+    Awaitable_.Reset();
     RunStartInstant_ = NProfiling::GetCpuInstant();
     InstallTraceContext(RunStartInstant_, std::move(SavedTraceContext_));
 
     NDetail::SetCurrentFsdHolder(&FsdHolder_);
 }
 
-void TFiber::SetSleeping(TFuture<void> awaitedFuture)
+void TFiber::SetSleeping(TAwaitable awaitable)
 {
     // THREAD_AFFINITY(OwnerThread);
 
@@ -164,8 +164,8 @@ void TFiber::SetSleeping(TFuture<void> awaitedFuture)
     FinishRunning();
     YT_ASSERT(State_ != EFiberState::Terminated);
     State_ = EFiberState::Sleeping;
-    YT_ASSERT(!AwaitedFuture_);
-    AwaitedFuture_ = std::move(awaitedFuture);
+    YT_ASSERT(!Awaitable_);
+    Awaitable_ = std::move(awaitable);
 }
 
 void TFiber::SetSuspended()
@@ -176,7 +176,7 @@ void TFiber::SetSuspended()
     FinishRunning();
     YT_ASSERT(State_ != EFiberState::Terminated);
     State_ = EFiberState::Suspended;
-    AwaitedFuture_.Reset();
+    Awaitable_.Reset();
 }
 
 TExceptionSafeContext* TFiber::GetContext()
@@ -193,16 +193,16 @@ void TFiber::Cancel()
         return;
     }
 
-    TFuture<void> awaitedFuture;
+    TAwaitable awaitable;
     {
         TGuard<TSpinLock> guard(SpinLock_);
-        awaitedFuture = std::move(AwaitedFuture_);
+        awaitable = std::move(Awaitable_);
     }
 
-    if (awaitedFuture) {
+    if (awaitable) {
         YT_LOG_DEBUG("Sending cancelation to fiber, propagating to the awaited future (TargetFiberId: %llx)",
             Id_);
-        awaitedFuture.Cancel();
+        awaitable.Cancel();
     } else {
         YT_LOG_DEBUG("Sending cancelation to fiber (TargetFiberId: %llx)",
             Id_);
@@ -275,26 +275,30 @@ void TFiber::DoRunNaked()
 
 void TFiber::PushContextHandler(std::function<void()> out, std::function<void()> in)
 {
-    SwitchHandlers_.push_front({std::move(out), std::move(in)});
+    SwitchHandlers_.push_back({std::move(out), std::move(in)});
 }
 
 void TFiber::PopContextHandler()
 {
-    YT_VERIFY(!SwitchHandlers_.empty());
-    SwitchHandlers_.pop_front();
+    YT_ASSERT(!SwitchHandlers_.empty());
+    SwitchHandlers_.pop_back();
 }
 
 void TFiber::InvokeContextOutHandlers()
 {
-    for (auto& handler : SwitchHandlers_) {
-        handler.Out();
+    for (auto it = SwitchHandlers_.rbegin(); it != SwitchHandlers_.rend(); ++it) {
+        if (it->Out) {
+            it->Out();
+        }
     }
 }
 
 void TFiber::InvokeContextInHandlers()
 {
-    for (auto& handler : SwitchHandlers_) {
-        handler.In();
+    for (auto it = SwitchHandlers_.rbegin(); it != SwitchHandlers_.rend(); ++it) {
+        if (it->In) {
+            it->In();
+        }
     }
 }
 

@@ -1,5 +1,6 @@
 #include "helpers.h"
 
+#include "bootstrap.h"
 #include "table.h"
 #include "table_schema.h"
 #include "type_translation.h"
@@ -11,7 +12,9 @@
 #include <yt/ytlib/api/native/client.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
-#include <yt/ytlib/object_client/helpers.h>
+#include <yt/ytlib/object_client/object_attribute_cache.h>
+
+#include <yt/ytlib/security_client/permission_cache.h>
 
 #include <yt/client/table_client/unversioned_row.h>
 
@@ -22,6 +25,7 @@
 
 #include <yt/core/logging/log.h>
 
+#include <Common/FieldVisitors.h>
 #include <Interpreters/ExpressionActions.h>
 #include <Interpreters/ProcessList.h>
 #include <Storages/MergeTree/KeyCondition.h>
@@ -126,80 +130,30 @@ void ConvertToUnversionedValue(const DB::Field& field, TUnversionedValue* value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<TTableObject> GetTableAttributes(
-    const NApi::NNative::IClientPtr& client,
+TClickHouseTablePtr FetchClickHouseTableFromCache(
+    TBootstrap* bootstrap,
+    std::optional<TString> user,
     const TRichYPath& path,
-    EPermission permission,
-    const TLogger& logger)
-{
-    auto Logger = NLogging::TLogger(logger)
-        .AddTag("Path: %v", path);
-
-    auto userObject = std::make_unique<TTableObject>();
-    userObject->Path = path;
-
-    // TODO(max42): YT-10402, columnar ACL
-    GetUserObjectBasicAttributes(
-        client,
-        {userObject.get()},
-        NullTransactionId,
-        Logger,
-        permission,
-        TGetUserObjectBasicAttributesOptions{
-            .SuppressAccessTracking = true,
-            .ChannelKind = EMasterChannelKind::Cache
-        });
-
-    if (userObject->Type != EObjectType::Table) {
-        THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
-            path,
-            EObjectType::Table,
-            userObject->Type);
-    }
-
-    YT_LOG_INFO("Requesting extended table attributes");
-
-    {
-        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Follower, userObject->ExternalCellTag);
-        TObjectServiceProxy proxy(channel);
-
-        auto req = TYPathProxy::Get(userObject->GetObjectIdPath() + "/@");
-        AddCellTagToSyncWith(req, userObject->ObjectId);
-        SetSuppressAccessTracking(req, true);
-        ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
-            "chunk_count",
-            "dynamic",
-            "schema",
-        });
-
-        auto rspOrError = WaitFor(proxy.Execute(req));
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting extended attributes of table %v",
-            path);
-
-        const auto& rsp = rspOrError.Value();
-        auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
-
-        userObject->ChunkCount = attributes->Get<int>("chunk_count");
-        userObject->Dynamic = attributes->Get<bool>("dynamic");
-        userObject->Schema = attributes->Get<TTableSchema>("schema");
-    }
-
-    return userObject;
-}
-
-TClickHouseTablePtr FetchClickHouseTable(
-    const NApi::NNative::IClientPtr& client,
-    const TRichYPath& path,
-    const TLogger& logger)
+    const TLogger& Logger)
 {
     try {
-        auto userObject = GetTableAttributes(
-            client,
-            path,
-            EPermission::Read,
-            logger);
 
-        return std::make_shared<TClickHouseTable>(path, userObject->Schema);
+        YT_LOG_DEBUG("Fetching clickhouse table");
+
+        auto attributesFuture = bootstrap->GetHost()->GetTableAttributeCache()->Get(path.GetPath());
+
+        if (user) {
+            WaitFor(bootstrap->GetHost()->GetPermissionsCache()->Get({
+                path.GetPath(),
+                user.value(),
+                EPermission::Read}))
+                .ThrowOnError();
+        }
+
+        auto attributes = WaitFor(attributesFuture)
+            .ValueOrThrow();
+
+        return std::make_shared<TClickHouseTable>(path, ConvertTo<TTableSchema>(attributes.at("schema")));
     } catch (TErrorException& ex) {
         if (ex.Error().FindMatching(NYTree::EErrorCode::ResolveError)) {
             return nullptr;
@@ -297,7 +251,37 @@ void Serialize(const QueryStatusInfo& query, NYT::NYson::IYsonConsumer* consumer
         .EndMap();
 }
 
+TString ToString(const Block& block)
+{
+    NYT::TStringBuilder content;
+    const auto& columns = block.getColumns();
+    content.AppendChar('{');
+    for (size_t rowIndex = 0; rowIndex < block.rows(); ++rowIndex) {
+        if (rowIndex != 0) {
+            content.AppendString(", ");
+        }
+        content.AppendChar('{');
+        for (size_t columnIndex = 0; columnIndex < block.columns(); ++columnIndex) {
+            if (columnIndex != 0) {
+                content.AppendString(", ");
+            }
+            const auto& field = (*columns[columnIndex])[rowIndex];
+            content.AppendString(applyVisitor(FieldVisitorToString(), field));
+        }
+        content.AppendChar('}');
+    }
+    content.AppendChar('}');
+
+    return NYT::Format(
+        "{RowCount: %v, ColumnCount: %v, Structure: %v, Content: %v}",
+        block.rows(),
+        block.columns(),
+        block.dumpStructure(),
+        content.Flush());
+}
+
 /////////////////////////////////////////////////////////////////////////////
+
 
 } // namespace DB
 

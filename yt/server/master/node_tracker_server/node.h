@@ -10,7 +10,7 @@
 
 #include <yt/server/master/node_tracker_server/proto/node_tracker.pb.h>
 
-#include <yt/server/master/tablet_server/public.h>
+#include <yt/server/master/cell_server/public.h>
 
 #include <yt/server/master/transaction_server/public.h>
 
@@ -166,18 +166,18 @@ public:
     using TChunkSealQueue = THashMap<TChunk*, TMediumIndexSet>;
     DEFINE_BYREF_RW_PROPERTY(TChunkSealQueue, ChunkSealQueue);
 
-    // Tablet Manager stuff.
-    struct TTabletSlot
+    // Cell Manager stuff.
+    struct TCellSlot
     {
-        NTabletServer::TTabletCell* Cell = nullptr;
+        NCellServer::TCellBase* Cell = nullptr;
         NHydra::EPeerState PeerState = NHydra::EPeerState::None;
         int PeerId = NHydra::InvalidPeerId;
 
         void Persist(NCellMaster::TPersistenceContext& context);
     };
 
-    using TTabletSlotList = SmallVector<TTabletSlot, NTabletClient::TypicalTabletSlotCount>;
-    DEFINE_BYREF_RW_PROPERTY(TTabletSlotList, TabletSlots);
+    using TCellSlotList = SmallVector<TCellSlot, NTabletClient::TypicalTabletSlotCount>;
+    DEFINE_BYREF_RW_PROPERTY(TCellSlotList, TabletSlots);
 
 public:
     explicit TNode(NObjectServer::TObjectId objectId);
@@ -270,10 +270,10 @@ public:
 
     bool IsWriteEnabled(int mediumIndex) const;
 
-    TTabletSlot* FindTabletSlot(const NTabletServer::TTabletCell* cell);
-    TTabletSlot* GetTabletSlot(const NTabletServer::TTabletCell* cell);
+    TCellSlot* FindCellSlot(const NCellServer::TCellBase* cell);
+    TCellSlot* GetCellSlot(const NCellServer::TCellBase* cell);
 
-    void DetachTabletCell(const NTabletServer::TTabletCell* cell);
+    void DetachTabletCell(const NCellServer::TCellBase* cell);
 
     void InitTabletSlots();
     void ClearTabletSlots();

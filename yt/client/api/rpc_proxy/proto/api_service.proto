@@ -189,6 +189,13 @@ enum ESecurityAction
     SA_DENY = 2;
 }
 
+enum EMultiplexingBand
+{
+    MB_DEFAULT = 0;
+    MB_CONTROL = 1;
+    MB_HEAVY = 2;
+}
+
 enum ETableSchemaModification
 {
     TSM_NONE = 0;
@@ -328,6 +335,8 @@ message TReqLookupRows
 
     optional TTabletReadOptions tablet_read_options = 106;
 
+    optional EMultiplexingBand multiplexing_band = 8;
+
     required TRowsetDescriptor rowset_descriptor = 200;
 }
 
@@ -362,6 +371,8 @@ message TReqVersionedLookupRows
     optional bool enable_partial_result = 7 [default = false];
 
     optional TTabletReadOptions tablet_read_options = 106;
+
+    optional EMultiplexingBand multiplexing_band = 8;
 
     required TRowsetDescriptor rowset_descriptor = 200;
 }

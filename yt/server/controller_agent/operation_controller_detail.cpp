@@ -66,9 +66,6 @@
 #include <yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/ytlib/object_client/helpers.h>
 
-#include <yt/ytlib/cell_master_client/cell_directory.h>
-#include <yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
-
 #include <yt/client/chunk_client/data_statistics.h>
 
 #include <yt/client/object_client/helpers.h>
@@ -401,9 +398,7 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
             checkTransaction(debugTransaction, ETransactionType::Debug, transactions.DebugId);
         }
 
-        for (const auto& pair : asyncCheckResults) {
-            const auto& transaction = pair.first;
-            const auto& asyncCheckResult = pair.second;
+        for (const auto& [transaction, asyncCheckResult] : asyncCheckResults) {
             auto error = WaitFor(asyncCheckResult);
             if (!error.IsOK()) {
                 cleanStart = true;
@@ -873,8 +868,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
             return result;
         } else {
             YT_VERIFY(UnavailableInputChunkCount == 0);
-            for (const auto& pair : InputChunkMap) {
-                const auto& chunkDescriptor = pair.second;
+            for (const auto& [chunkId, chunkDescriptor] : InputChunkMap) {
                 if (chunkDescriptor.State == EInputChunkState::Waiting) {
                     ++UnavailableInputChunkCount;
                 }
@@ -986,6 +980,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
 
     TOperationControllerReviveResult result;
     result.RevivedFromSnapshot = true;
+    result.RevivedBannedTreeIds = BannedTreeIds_;
     FillPrepareResult(&result);
 
     InitChunkListPools();
@@ -1025,8 +1020,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     MaxAvailableExecNodeResourcesUpdateExecutor->Start();
     CheckTentativeTreeEligibilityExecutor_->Start();
 
-    for (const auto& pair : JobletMap) {
-        const auto& joblet = pair.second;
+    for (const auto& [jobId, joblet] : JobletMap) {
         result.RevivedJobs.push_back({
             joblet->JobId,
             joblet->JobType,
@@ -1046,9 +1040,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
 
 void TOperationControllerBase::AbortAllJoblets()
 {
-    for (const auto& pair : JobletMap) {
-        auto joblet = pair.second;
-        auto jobId = pair.first;
+    for (const auto& [jobId, joblet] : JobletMap) {
         auto jobSummary = TAbortedJobSummary(jobId, EAbortReason::Scheduler);
         joblet->Task->OnJobAborted(joblet, jobSummary);
         if (JobSplitter_) {
@@ -1227,22 +1219,9 @@ TFuture<ITransactionPtr> TOperationControllerBase::StartTransaction(
 
 void TOperationControllerBase::PickIntermediateDataCell()
 {
-    const auto& connection = OutputClient->GetNativeConnection();
-
-    YT_LOG_DEBUG("Started synchronizing master cell directory");
-    const auto& cellDirectorySynchronizer = connection->GetMasterCellDirectorySynchronizer();
-    WaitFor(cellDirectorySynchronizer->RecentSync())
-        .ThrowOnError();
-    YT_LOG_DEBUG("Master cell directory synchronized successfully");
-
-    const auto& cellDirectory = connection->GetMasterCellDirectory();
-    auto cellId = cellDirectory->PickRandomMasterCellWithRole(NCellMasterClient::EMasterCellRoles::ChunkHost);
-
-    if (!cellId) {
-        THROW_ERROR_EXCEPTION("No master cells capable of hosting chunks are known");
-    }
-
-    IntermediateOutputCellTag = CellTagFromId(cellId);
+    IntermediateOutputCellTag = PickChunkHostingCell(
+        OutputClient->GetNativeConnection(),
+        Logger);
 
     YT_LOG_DEBUG("Intermediate data cell picked (CellTag: %v)",
         IntermediateOutputCellTag);
@@ -1285,8 +1264,8 @@ void TOperationControllerBase::InitChunkListPools()
 void TOperationControllerBase::InitInputChunkScraper()
 {
     THashSet<TChunkId> chunkIds;
-    for (const auto& pair : InputChunkMap) {
-        chunkIds.insert(pair.first);
+    for (const auto& [chunkId, chunkDescriptor] : InputChunkMap) {
+        chunkIds.insert(chunkId);
     }
 
     YT_VERIFY(!InputChunkScraper);
@@ -1446,9 +1425,9 @@ THashSet<TChunkId> TOperationControllerBase::GetAliveIntermediateChunks() const
 {
     THashSet<TChunkId> intermediateChunks;
 
-    for (const auto& pair : ChunkOriginMap) {
-        if (!pair.second->Suspended || !pair.second->Restartable) {
-            intermediateChunks.insert(pair.first);
+    for (const auto& [chunkId, job] : ChunkOriginMap) {
+        if (!job->Suspended || !job->Restartable) {
+            intermediateChunks.insert(chunkId);
         }
     }
 
@@ -1474,9 +1453,9 @@ void TOperationControllerBase::ReinstallLivePreview()
     if (IsIntermediateLivePreviewSupported()) {
         std::vector<TChunkTreeId> childIds;
         childIds.reserve(ChunkOriginMap.size());
-        for (const auto& pair : ChunkOriginMap) {
-            if (!pair.second->Suspended) {
-                childIds.push_back(pair.first);
+        for (const auto& [chunkId, job] : ChunkOriginMap) {
+            if (!job->Suspended) {
+                childIds.push_back(chunkId);
             }
         }
         Host->AttachChunkTreesToLivePreview(
@@ -2004,7 +1983,7 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                     auto& minKey = chunk->BoundaryKeys()->MinKey;
                     auto& maxKey = chunk->BoundaryKeys()->MaxKey;
 
-                    auto start = LowerBound(0, tabletChunks.size() - 1, [&] (size_t index) {
+                    auto start = LowerBound(0, tabletChunks.size(), [&] (size_t index) {
                         return CompareRows(table->PivotKeys[index], minKey) <= 0;
                     });
                     if (start > 0) {
@@ -2611,6 +2590,15 @@ void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSumma
 
     joblet->Progress = jobSummary->Progress;
     joblet->StderrSize = jobSummary->StderrSize;
+
+    if (joblet->JobSpeculationTimeout &&
+        jobSummary->PrepareDuration.value_or(TDuration()) + jobSummary->ExecDuration.value_or(TDuration()) >= joblet->JobSpeculationTimeout)
+    {
+        YT_LOG_DEBUG("Speculation timeout expired; trying to launch speculative job (ExpiredJobId: %v)", jobId);
+        if (joblet->Task->TryRegisterSpeculativeJob(joblet)) {
+            UpdateTask(joblet->Task);
+        }
+    }
 
     if (jobSummary->StatisticsYson) {
         joblet->StatisticsYson = jobSummary->StatisticsYson;
@@ -3307,9 +3295,8 @@ void TOperationControllerBase::AnalyzeTmpfsUsage()
 
     double minUnusedSpaceRatio = 1.0 - Config->OperationAlerts->TmpfsAlertMaxUnusedSpaceRatio;
 
-    for (const auto& pair : maximumUsedTmpfsSizesPerJobType) {
-        const auto& userJobSpecPtr = userJobSpecPerJobType[pair.first];
-        auto maxUsedTmpfsSizes = pair.second;
+    for (const auto& [jobId, maxUsedTmpfsSizes] : maximumUsedTmpfsSizesPerJobType) {
+        const auto& userJobSpecPtr = userJobSpecPerJobType[jobId];
 
         YT_VERIFY(userJobSpecPtr->TmpfsVolumes.size() == maxUsedTmpfsSizes.size());
 
@@ -3329,7 +3316,7 @@ void TOperationControllerBase::AnalyzeTmpfsUsage()
             if (minUnusedSpaceThresholdOvercome && minUnusedSpaceRatioViolated) {
                 auto error = TError(
                     "Jobs of type %Qlv use less than %.1f%% of requested tmpfs size in volume %Qv",
-                    pair.first,
+                    jobId,
                     minUnusedSpaceRatio * 100.0,
                     tmpfsVolumes[index]->Path)
                     << TErrorAttribute("max_used_tmpfs_size", *maxUsedTmpfsSize)
@@ -3439,73 +3426,59 @@ void TOperationControllerBase::AnalyzeJobsIOUsage()
 
 void TOperationControllerBase::AnalyzeJobsCpuUsage()
 {
-    static const TVector<TString> allCpuStatistics = {
-        "/job_proxy/cpu/system/$/completed/",
-        "/job_proxy/cpu/user/$/completed/",
-        "/user_job/cpu/system/$/completed/",
-        "/user_job/cpu/user/$/completed/"
+    auto getCpuLimit = [] (const TUserJobSpecPtr& jobSpec) {
+        return jobSpec->CpuLimit;
     };
 
-    THashMap<EJobType, TError> jobTypeToError;
-    for (const auto& task : Tasks) {
-        auto jobType = task->GetJobType();
-        if (jobTypeToError.find(jobType) != jobTypeToError.end()) {
-            continue;
-        }
-
-        const auto& userJobSpecPtr = task->GetUserJobSpec();
-        if (!userJobSpecPtr) {
-            continue;
-        }
-
-        auto summary = FindSummary(JobStatistics, "/time/exec/$/completed/" + FormatEnum(jobType));
-        if (!summary) {
-            continue;
-        }
-
-        i64 totalExecutionTime = summary->GetSum();
-        i64 jobCount = summary->GetCount();
-        double cpuLimit = userJobSpecPtr->CpuLimit;
-        if (jobCount == 0 || totalExecutionTime == 0 || cpuLimit == 0) {
-            continue;
-        }
-
-        i64 cpuUsage = 0;
-        for (const auto& stat : allCpuStatistics) {
-            auto value = FindNumericValue(JobStatistics, stat + FormatEnum(jobType));
-            cpuUsage += value ? *value : 0;
-        }
-
+    auto needSetAlert = [&] (i64 totalExecutionTime, i64 jobCount, double ratio) {
         TDuration averageJobDuration = TDuration::MilliSeconds(totalExecutionTime / jobCount);
         TDuration totalExecutionDuration = TDuration::MilliSeconds(totalExecutionTime);
-        double cpuRatio = static_cast<double>(cpuUsage) / (totalExecutionTime * cpuLimit);
 
-        if (totalExecutionDuration > Config->OperationAlerts->LowCpuUsageAlertMinExecTime &&
-            averageJobDuration > Config->OperationAlerts->LowCpuUsageAlertMinAverageJobTime &&
-            cpuRatio < Config->OperationAlerts->LowCpuUsageAlertCpuUsageThreshold)
-        {
-            auto error = TError("Jobs of type %Qlv use %.2f%% of requested cpu limit", jobType, 100 * cpuRatio)
-                << TErrorAttribute("cpu_time", cpuUsage)
-                << TErrorAttribute("exec_time", totalExecutionDuration)
-                << TErrorAttribute("cpu_limit", cpuLimit);
-            YT_VERIFY(jobTypeToError.emplace(jobType, error).second);
-        }
+        return totalExecutionDuration > Config->OperationAlerts->LowCpuUsageAlertMinExecTime &&
+               averageJobDuration > Config->OperationAlerts->LowCpuUsageAlertMinAverageJobTime &&
+               ratio < Config->OperationAlerts->LowCpuUsageAlertCpuUsageThreshold;
+    };
+
+    const TString alertMessage =
+        "Average cpu usage of some of your job types is significantly lower than requested 'cpu_limit'. "
+        "Consider decreasing cpu_limit in spec of your operation";
+
+    AnalyzeProcessingUnitUsage(
+        Config->OperationAlerts->LowCpuUsageAlertStatistics,
+        Config->OperationAlerts->LowCpuUsageAlertJobStates,
+        getCpuLimit,
+        needSetAlert,
+        "cpu",
+        EOperationAlertType::LowCpuUsage,
+        alertMessage);
+}
+
+void TOperationControllerBase::AnalyzeJobsGpuUsage()
+{
+    if (TInstant::Now() - StartTime < Config->OperationAlerts->LowGpuUsageAlertMinDuration && !IsCompleted()) {
+        return;
     }
 
-    TError error;
-    if (!jobTypeToError.empty()) {
-        std::vector<TError> innerErrors;
-        innerErrors.reserve(jobTypeToError.size());
-        for (const auto& pair : jobTypeToError) {
-            innerErrors.push_back(pair.second);
-        }
-        error = TError(
-            "Average cpu usage of some of your job types is significantly lower than requested 'cpu_limit'. "
-            "Consider decreasing cpu_limit in spec of your operation")
-            << innerErrors;
-    }
+    auto getGpuLimit = [] (const TUserJobSpecPtr& jobSpec) {
+        return jobSpec->GpuLimit;
+    };
 
-    SetOperationAlert(EOperationAlertType::LowCpuUsage, error);
+    auto needSetAlert = [&] (i64 /*totalExecutionTime*/, i64 /*jobCount*/, double ratio) {
+        return ratio < Config->OperationAlerts->LowGpuUsageAlertGpuUsageThreshold;
+    };
+
+    static const TString alertMessage =
+        "Average gpu usage of some of your job types is significantly lower than requested 'gpu_limit'. "
+        "Consider optimizing your GPU utilization";
+
+    AnalyzeProcessingUnitUsage(
+        Config->OperationAlerts->LowGpuUsageAlertStatistics,
+        Config->OperationAlerts->LowGpuUsageAlertJobStates,
+        getGpuLimit,
+        needSetAlert,
+        "gpu",
+        EOperationAlertType::LowGpuUsage,
+        alertMessage);
 }
 
 void TOperationControllerBase::AnalyzeJobsDuration()
@@ -3616,6 +3589,7 @@ void TOperationControllerBase::AnalyzeOperationProgress()
     AnalyzeAbortedJobs();
     AnalyzeJobsIOUsage();
     AnalyzeJobsCpuUsage();
+    AnalyzeJobsGpuUsage();
     AnalyzeJobsDuration();
     AnalyzeOperationDuration();
     AnalyzeScheduleJobStatistics();
@@ -3628,8 +3602,7 @@ void TOperationControllerBase::UpdateCachedMaxAvailableExecNodeResources()
     const auto& nodeDescriptors = GetExecNodeDescriptors();
 
     TJobResources maxAvailableResources;
-    for (const auto& pair : nodeDescriptors) {
-        const auto& descriptor = pair.second;
+    for (const auto& [nodeId, descriptor] : nodeDescriptors) {
         maxAvailableResources = Max(maxAvailableResources, descriptor.ResourceLimits);
     }
 
@@ -3857,8 +3830,7 @@ void TOperationControllerBase::ResetTaskLocalityDelays()
 {
     YT_LOG_DEBUG("Task locality delays are reset");
     for (const auto& group : TaskGroups) {
-        for (const auto& pair : group->DelayedTasks) {
-            auto task = pair.second;
+        for (const auto& [time, task] : group->DelayedTasks) {
             if (task->GetPendingJobCount() > 0) {
                 MoveTaskToCandidates(task, group->CandidateTasks);
             } else {
@@ -4297,11 +4269,11 @@ void TOperationControllerBase::UpdateMinNeededJobResources()
         }
 
         TJobResourcesWithQuotaList result;
-        for (const auto& pair : minNeededJobResources) {
-            result.push_back(pair.second);
+        for (const auto& [jobType, resources] : minNeededJobResources) {
+            result.push_back(resources);
             YT_LOG_DEBUG("Aggregated minimal needed resources for jobs (JobType: %v, MinNeededResources: %v)",
-                pair.first,
-                FormatResources(pair.second));
+                jobType,
+                FormatResources(resources));
         }
 
         {
@@ -4662,7 +4634,8 @@ void TOperationControllerBase::SuppressLivePreviewIfNeeded()
         }
     }
 
-    if (IsLegacyLivePreviewSuppressed = !suppressionErrors.empty()) {
+    IsLegacyLivePreviewSuppressed = !suppressionErrors.empty();
+    if (IsLegacyLivePreviewSuppressed) {
         auto combinedSuppressionError = TError("Legacy live preview is suppressed due to the following reasons")
             << suppressionErrors
             << TErrorAttribute("output_live_preview_mode", GetLegacyOutputLivePreviewMode())
@@ -5349,6 +5322,12 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                     THROW_ERROR_EXCEPTION("Output table %v tablet state %Qv does not allow to write into it",
                         path,
                         tabletState);
+                }
+
+                if (UserTransactionId) {
+                    THROW_ERROR_EXCEPTION(
+                        "Operations with output to dynamic tables cannot be run under user transaction")
+                        << TErrorAttribute("user_transaction_id", UserTransactionId);
                 }
             }
 
@@ -6875,6 +6854,18 @@ TOperationInfo TOperationControllerBase::BuildOperationInfo()
             .Do(std::bind(&TOperationControllerBase::BuildBriefProgress, this, _1))
         .Finish();
 
+    result.Alerts =
+        BuildYsonStringFluently<EYsonType::MapFragment>()
+            .DoFor(GetAlerts(), [&] (TFluentMap fluent, const auto& pair) {
+                auto alertType = pair.first;
+                const auto& error = pair.second;
+                if (!error.IsOK()) {
+                    fluent
+                        .Item(FormatEnum(alertType)).Value(error);
+                }
+            })
+        .Finish();
+
     result.RunningJobs =
         BuildYsonStringFluently<EYsonType::MapFragment>()
             .Do(std::bind(&TOperationControllerBase::BuildJobsYson, this, _1))
@@ -6984,9 +6975,7 @@ void TOperationControllerBase::UnregisterJoblet(const TJobletPtr& joblet)
 std::vector<TJobId> TOperationControllerBase::GetJobIdsByTreeId(const TString& treeId)
 {
     std::vector<TJobId> jobIds;
-    for (const auto& pair : JobletMap) {
-        auto jobId = pair.first;
-        const auto& joblet = pair.second;
+    for (const auto& [jobId, joblet] : JobletMap) {
         if (joblet->TreeId == treeId) {
             jobIds.push_back(jobId);
         }
@@ -7295,8 +7284,7 @@ void TOperationControllerBase::UpdateSuspiciousJobsYson()
     // leave top `MaxOrchidEntryCountPerType` for each job type.
 
     std::vector<TJobletPtr> suspiciousJoblets;
-    for (const auto& pair : JobletMap) {
-        const auto& joblet = pair.second;
+    for (const auto& [jobId, joblet] : JobletMap) {
         if (joblet->Suspicious) {
             suspiciousJoblets.emplace_back(joblet);
         }
@@ -7647,8 +7635,8 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     }
 
     auto fillEnvironment = [&] (THashMap<TString, TString>& env) {
-        for (const auto& pair : env) {
-            jobSpec->add_environment(Format("%v=%v", pair.first, pair.second));
+        for (const auto& [key, value] : env) {
+            jobSpec->add_environment(Format("%v=%v", key, value));
         }
     };
 
@@ -7704,9 +7692,8 @@ void TOperationControllerBase::InitUserJobSpec(
         jobSpec->add_environment(Format("YT_SECURE_VAULT=%v",
             ConvertToYsonString(SecureVault, EYsonFormat::Text)));
 
-        for (const auto& pair : SecureVault->GetChildren()) {
+        for (const auto& [key, node] : SecureVault->GetChildren()) {
             TString value;
-            auto node = pair.second;
             if (node->GetType() == ENodeType::Int64) {
                 value = ToString(node->GetValue<i64>());
             } else if (node->GetType() == ENodeType::Uint64) {
@@ -7721,7 +7708,7 @@ void TOperationControllerBase::InitUserJobSpec(
                 // We do not export composite values as a separate environment variables.
                 continue;
             }
-            jobSpec->add_environment(Format("YT_SECURE_VAULT_%v=%v", pair.first, value));
+            jobSpec->add_environment(Format("YT_SECURE_VAULT_%v=%v", key, value));
         }
 
         jobSpec->set_enable_secure_vault_variables_in_job_shell(Spec_->EnableSecureVaultVariablesInJobShell);
@@ -8352,6 +8339,83 @@ std::vector<NYPath::TRichYPath> TOperationControllerBase::GetLayerPaths(
         layerPaths.insert(layerPaths.begin(), *Config->SystemLayerPath);
     }
     return layerPaths;
+}
+
+void TOperationControllerBase::AnalyzeProcessingUnitUsage(
+    const std::vector<TString>& usageStatistics,
+    const std::vector<TString>& jobStates,
+    const std::function<double(const TUserJobSpecPtr&)>& getLimit,
+    const std::function<bool(i64, i64, double)>& needSetAlert,
+    const TString& name,
+    EOperationAlertType alertType,
+    const TString& message)
+{
+    std::vector<TString> allStatistics;
+    for (const auto& stat : usageStatistics) {
+        for (const auto& jobState : jobStates) {
+            allStatistics.push_back(Format("%s/$/%s/", stat, jobState));
+        }
+    }
+
+    THashMap<EJobType, TError> jobTypeToError;
+    for (const auto& task : Tasks) {
+        auto jobType = task->GetJobType();
+        if (jobTypeToError.find(jobType) != jobTypeToError.end()) {
+            continue;
+        }
+
+        const auto& userJobSpecPtr = task->GetUserJobSpec();
+        if (!userJobSpecPtr) {
+            continue;
+        }
+
+
+        i64 totalExecutionTime = 0;
+        i64 jobCount = 0;
+
+        for (const auto& jobState : jobStates) {
+            auto summary = FindSummary(JobStatistics, Format("/time/exec/$/%s/%s", jobState, FormatEnum(jobType)));
+            if (summary) {
+                totalExecutionTime += summary->GetSum();
+                jobCount += summary->GetCount();
+            }
+        }
+
+        double limit = getLimit(userJobSpecPtr);
+        if (jobCount == 0 || totalExecutionTime == 0 || limit == 0) {
+            continue;
+        }
+
+        i64 usage = 0;
+        for (const auto& stat : allStatistics) {
+            auto value = FindNumericValue(JobStatistics, stat + FormatEnum(jobType));
+            usage += value.value_or(0);
+        }
+
+        TDuration totalExecutionDuration = TDuration::MilliSeconds(totalExecutionTime);
+        double ratio = static_cast<double>(usage) / (totalExecutionTime * limit);
+
+        if (needSetAlert(totalExecutionTime, jobCount, ratio))
+        {
+            auto error = TError("Jobs of type %Qlv use %.2f%% of requested %s limit", jobType, 100 * ratio, name)
+                << TErrorAttribute(Format("%s_time", name), usage)
+                << TErrorAttribute("exec_time", totalExecutionDuration)
+                << TErrorAttribute(Format("%s_limit", name), limit);
+            YT_VERIFY(jobTypeToError.emplace(jobType, error).second);
+        }
+    }
+
+    TError error;
+    if (!jobTypeToError.empty()) {
+        std::vector<TError> innerErrors;
+        innerErrors.reserve(jobTypeToError.size());
+        for (const auto& [jobType, error] : jobTypeToError) {
+            innerErrors.push_back(error);
+        }
+        error = TError(message) << innerErrors;
+    }
+
+    SetOperationAlert(alertType, error);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

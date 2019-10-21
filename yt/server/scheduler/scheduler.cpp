@@ -868,8 +868,8 @@ public:
             if (update->Pool) {
                 THROW_ERROR_EXCEPTION("Pool updates temporary disabled");
             }
-            for (const auto& pair : update->SchedulingOptionsPerPoolTree) {
-                if (pair.second->Pool) {
+            for (const auto& [treeId, schedulingOptions] : update->SchedulingOptionsPerPoolTree) {
+                if (schedulingOptions->Pool) {
                     THROW_ERROR_EXCEPTION("Pool updates temporary disabled");
                 }
             }
@@ -1085,6 +1085,9 @@ public:
                 if (operation->GetState() != expectedState) {
                     return;
                 }
+                if (operation->Spec()->TestingOperationOptions->DelayInsideMaterialize) {
+                    TDelayedExecutor::WaitForDuration(*operation->Spec()->TestingOperationOptions->DelayInsideMaterialize);
+                }
                 operation->SetStateAndEnqueueEvent(EOperationState::Running);
                 Strategy_->EnableOperation(operation.Get());
                 if (asyncMaterializeResult) {
@@ -1112,9 +1115,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         std::vector<TNodeId> result;
-        for (const auto& pair : NodeIdToInfo_) {
-            auto nodeId = pair.first;
-            const auto& execNode = pair.second;
+        for (const auto& [nodeId, execNode] : NodeIdToInfo_) {
             if (filter.CanSchedule(execNode.Tags)) {
                 result.push_back(nodeId);
             }
@@ -1393,6 +1394,7 @@ private:
     {
         NYson::TYsonString Progress;
         NYson::TYsonString BriefProgress;
+        NYson::TYsonString Alerts;
     };
 
     THashMap<TNodeId, TExecNodeInfo> NodeIdToInfo_;
@@ -1762,8 +1764,7 @@ private:
 
         {
             auto error = TError("Master disconnected");
-            for (const auto& pair : IdToOperation_) {
-                const auto& operation = pair.second;
+            for (const auto& [operationId, operation] : IdToOperation_) {
                 if (!operation->IsFinishedState()) {
                     // This awakes those waiting for start promise.
                     SetOperationFinalState(
@@ -1830,7 +1831,8 @@ private:
         const TOperationPtr& operation,
         ELogEventType logEventType,
         const TError& error,
-        TYsonString progress)
+        TYsonString progress,
+        TYsonString alerts)
     {
         LogEventFluently(logEventType)
             .Do(BIND(&TImpl::BuildOperationInfoForEventLog, MakeStrong(this), operation))
@@ -1839,6 +1841,9 @@ private:
             .Item("error").Value(error)
             .DoIf(progress.operator bool(), [&] (TFluentMap fluent) {
                 fluent.Item("progress").Value(progress);
+            })
+            .DoIf(alerts.operator bool(), [&] (TFluentMap fluent) {
+                fluent.Item("alerts").Value(alerts);
             });
     }
 
@@ -2207,8 +2212,7 @@ private:
         }
 
         auto result = New<TRefCountedExecNodeDescriptorMap>();
-        for (const auto& pair : *descriptors) {
-            const auto& descriptor = pair.second;
+        for (const auto& [nodeId, descriptor] : *descriptors) {
             if (filter.CanSchedule(descriptor.Tags)) {
                 YT_VERIFY(result->emplace(descriptor.Id, descriptor).second);
             }
@@ -2225,8 +2229,7 @@ private:
         {
             TReaderGuard guard(ExecNodeDescriptorsLock_);
 
-            for (const auto& pair : *CachedExecNodeDescriptors_) {
-                const auto& descriptor = pair.second;
+            for (const auto& [nodeId, descriptor] : *CachedExecNodeDescriptors_) {
                 if (descriptor.Online && filter.CanSchedule(descriptor.Tags)) {
                     ++result[RoundUp<i64>(descriptor.ResourceLimits.GetMemory(), 1_GB)];
                 }
@@ -2442,6 +2445,13 @@ private:
                 operation->ControllerAttributes().PrepareAttributes = result.Attributes;
                 operation->SetRevivedFromSnapshot(result.RevivedFromSnapshot);
                 operation->RevivedJobs() = std::move(result.RevivedJobs);
+                for (const auto& bannedTreeId : result.RevivedBannedTreeIds) {
+                    // If operation is already erased from the tree, UnregisterOperationFromTree() will produce unnecessary log messages.
+                    // However, I believe that this way the code is simpler and more concise.
+                    // NB(eshcherbin): this procedure won't abort jobs that are running in banned tentative trees.
+                    // So in case of an unfortunate scheduler failure, these jobs will continue running.
+                    Strategy_->UnregisterOperationFromTree(operation->GetId(), bannedTreeId);
+                }
             }
 
             ValidateOperationState(operation, EOperationState::Reviving);
@@ -2489,9 +2499,9 @@ private:
 
         // Second, register jobs on the corresponding node shards.
         std::vector<std::vector<TJobPtr>> jobsByShardId(NodeShards_.size());
-        for (const auto& job : jobs) {
+        for (auto& job : jobs) {
             auto shardId = GetNodeShardId(NodeIdFromJobId(job->GetId()));
-            jobsByShardId[shardId].emplace_back(std::move(job));
+            jobsByShardId[shardId].push_back(std::move(job));
         }
 
         std::vector<TFuture<void>> asyncResults;
@@ -2769,7 +2779,12 @@ private:
         YT_LOG_INFO("Operation completed (OperationId: %v)",
              operationId);
 
-        LogOperationFinished(operation, ELogEventType::OperationCompleted, TError(), operationProgress.Progress);
+        LogOperationFinished(
+            operation,
+            ELogEventType::OperationCompleted,
+            TError(),
+            operationProgress.Progress,
+            operationProgress.Alerts);
     }
 
     void DoFailOperation(
@@ -2873,6 +2888,10 @@ private:
                     .BeginMap()
                         .Items(TYsonString(rsp->brief_progress(), EYsonType::MapFragment))
                     .EndMap();
+                result.Alerts = BuildYsonStringFluently()
+                    .BeginMap()
+                        .Items(TYsonString(rsp->alerts(), EYsonType::MapFragment))
+                    .EndMap();
                 return result;
             } else {
                 YT_LOG_INFO(rspOrError, "Failed to get operation info from controller agent (OperationId: %v)",
@@ -2889,6 +2908,7 @@ private:
                 TOperationProgress result;
                 result.Progress = attributes->FindYson("progress");
                 result.BriefProgress = attributes->FindYson("brief_progress");
+                result.Alerts = attributes->FindYson("alerts");
                 return result;
             } else {
                 YT_LOG_INFO(attributesOrError, "Failed to get operation progress from Cypress (OperationId: %v)",
@@ -2909,6 +2929,7 @@ private:
         archivationReq.InitializeFromOperation(operation);
         archivationReq.Progress = operationProgress.Progress;
         archivationReq.BriefProgress = operationProgress.BriefProgress;
+        archivationReq.Alerts = operationProgress.Alerts;
 
         OperationsCleaner_->SubmitForArchivation(std::move(archivationReq));
     }
@@ -3020,7 +3041,12 @@ private:
             }
         }
 
-        LogOperationFinished(operation, logEventType, error, operationProgress.Progress);
+        LogOperationFinished(
+            operation,
+            logEventType,
+            error,
+            operationProgress.Progress,
+            operationProgress.Alerts);
 
         FinishOperation(operation);
     }
@@ -3051,8 +3077,16 @@ private:
         auto progress = result.IsOK()
             ? result.Value().Progress
             : TYsonString();
+        auto alerts = result.IsOK()
+            ? result.Value().Alerts
+            : TYsonString();
 
-        LogOperationFinished(operation, ELogEventType::OperationCompleted, TError(), progress);
+        LogOperationFinished(
+            operation,
+            ELogEventType::OperationCompleted,
+            TError(),
+            progress,
+            alerts);
 
         FinishOperation(operation);
     }
@@ -3092,8 +3126,16 @@ private:
         auto progress = result.IsOK()
             ? result.Value().Progress
             : TYsonString();
+        auto alerts = result.IsOK()
+            ? result.Value().Alerts
+            : TYsonString();
 
-        LogOperationFinished(operation, ELogEventType::OperationAborted, error, progress);
+        LogOperationFinished(
+            operation,
+            ELogEventType::OperationAborted,
+            error,
+            progress,
+            alerts);
 
         FinishOperation(operation);
     }
@@ -3101,9 +3143,7 @@ private:
     void RemoveExpiredResourceLimitsTags()
     {
         std::vector<TSchedulingTagFilter> toRemove;
-        for (const auto& pair : CachedResourceLimitsByTags_) {
-            const auto& filter = pair.first;
-            const auto& record = pair.second;
+        for (const auto& [filter, record] : CachedResourceLimitsByTags_) {
             if (record.first + DurationToCpuDuration(Config_->SchedulingTagFilterExpireTimeout) < GetCpuInstant()) {
                 toRemove.push_back(filter);
             }
@@ -3129,8 +3169,7 @@ private:
     TYsonString BuildSuspiciousJobsYson()
     {
         TStringBuilder builder;
-        for (const auto& pair : IdToOperation_) {
-            const auto& operation = pair.second;
+        for (const auto& [operationId, operation] : IdToOperation_) {
             builder.AppendString(operation->GetSuspiciousJobs().GetData());
         }
         return TYsonString(builder.Flush(), EYsonType::MapFragment);
@@ -3171,8 +3210,7 @@ private:
                     .Item("nodes_memory_distribution").Value(GetExecNodeMemoryDistribution(TSchedulingTagFilter()))
                     .Item("resource_limits_by_tags")
                         .DoMapFor(CachedResourceLimitsByTags_, [] (TFluentMap fluent, const auto& pair) {
-                            const auto& filter = pair.first;
-                            const auto& record = pair.second;
+                            const auto& [filter, record] = pair;
                             if (!filter.IsEmpty()) {
                                 fluent.Item(filter.GetBooleanFormula().GetFormula()).Value(record.second);
                             }
@@ -3186,8 +3224,7 @@ private:
                     .Item("nodes_memory_distribution").Value(GetExecNodeMemoryDistribution(TSchedulingTagFilter()))
                     .Item("resource_limits_by_tags")
                         .DoMapFor(CachedResourceLimitsByTags_, [] (TFluentMap fluent, const auto& pair) {
-                            const auto& filter = pair.first;
-                            const auto& record = pair.second;
+                            const auto& [filter, record] = pair;
                             if (!filter.IsEmpty()) {
                                 fluent.Item(filter.GetBooleanFormula().GetFormula()).Value(record.second);
                             }
@@ -3453,17 +3490,17 @@ private:
         {
             std::vector<TString> keys;
             keys.reserve(limit);
-            for (const auto& pair : Scheduler_->IdToOperation_) {
+            for (const auto& [operationId, operation] : Scheduler_->IdToOperation_) {
                 if (static_cast<i64>(keys.size()) >= limit) {
                     break;
                 }
-                keys.emplace_back(ToString(pair.first));
+                keys.emplace_back(ToString(operationId));
             }
-            for (const auto& pair : Scheduler_->OperationAliases_) {
+            for (const auto& [aliasString, alias] : Scheduler_->OperationAliases_) {
                 if (static_cast<i64>(keys.size()) >= limit) {
                     break;
                 }
-                keys.emplace_back(pair.first);
+                keys.emplace_back(aliasString);
             }
             return keys;
         }

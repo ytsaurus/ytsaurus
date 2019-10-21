@@ -380,17 +380,22 @@ private:
         // For each currently evaluating buckets recalculate excess time.
         AccountCurrentlyExecutingBuckets();
 
-        YT_LOG_TRACE("Buckets: [%v]",
-            MakeFormattableView(
-                TagToBucket_,
-                [] (auto* builder, const auto& tagToBucket) {
-                    if (auto item = tagToBucket.second.Lock()) {
-                        auto excess = CpuDurationToDuration(tagToBucket.second.Lock()->ExcessTime).MilliSeconds();
-                        builder->AppendFormat("(%v %v)", tagToBucket.first, excess);
-                    } else {
-                        builder->AppendFormat("(%v *)", tagToBucket.first);
-                    }
-                }));
+        #ifdef YT_ENABLE_TRACE_LOGGING
+        {
+            TGuard<TSpinLock> guard(TagMappingSpinLock_);
+            YT_LOG_TRACE("Buckets: [%v]",
+                MakeFormattableView(
+                    TagToBucket_,
+                    [] (auto* builder, const auto& tagToBucket) {
+                        if (auto item = tagToBucket.second.Lock()) {
+                            auto excess = CpuDurationToDuration(tagToBucket.second.Lock()->ExcessTime).MilliSeconds();
+                            builder->AppendFormat("(%v %v)", tagToBucket.first, excess);
+                        } else {
+                            builder->AppendFormat("(%v *)", tagToBucket.first);
+                        }
+                    }));
+        }
+        #endif
 
         if (Heap_.empty()) {
             return nullptr;

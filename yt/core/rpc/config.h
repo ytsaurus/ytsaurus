@@ -283,8 +283,8 @@ class TDispatcherConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    static const int DefaultHeavyPoolSize;
-    static const int DefaultCompressionPoolSize;
+    static constexpr int DefaultHeavyPoolSize = 16;
+    static constexpr int DefaultCompressionPoolSize = 8;
     int HeavyPoolSize;
     int CompressionPoolSize;
 

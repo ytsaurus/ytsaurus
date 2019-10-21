@@ -2847,6 +2847,66 @@ TEST_F(TSortedChunkPoolTest, TrickySliceSortOrder)
     EXPECT_EQ(BuildRow({0xB}), stripeList->Stripes[0]->DataSlices[0]->UpperLimit().Key);
 }
 
+// YTADMINREQ-19334
+TEST_F(TSortedChunkPoolTest, TrickySliceSortOrder2)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
+    InitTables(
+        {false} /* isForeign */,
+        {false} /* isTeleportable */,
+        {false} /* isVersioned */
+    );
+    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
+    DataSizePerJob_ = 10_KB;
+    InitJobConstraints();
+
+    PrepareNewMock();
+    CreateChunkPool();
+
+    auto chunk = CreateChunk(BuildRow({0xA}), BuildRow({0xD}), 0);
+    auto chunkSlice1 = CreateInputChunkSlice(chunk);
+    chunkSlice1->LowerLimit().RowIndex = 0;
+    chunkSlice1->UpperLimit().RowIndex = 10;
+    chunkSlice1->LowerLimit().Key = BuildRow({0xA});
+    chunkSlice1->UpperLimit().Key = BuildRow({0xD});
+    auto chunkSlice2 = CreateInputChunkSlice(chunk);
+    chunkSlice2->LowerLimit().RowIndex = 10;
+    chunkSlice2->UpperLimit().RowIndex = 20;
+    chunkSlice2->LowerLimit().Key = BuildRow({0xA});
+    chunkSlice2->UpperLimit().Key = BuildRow({0xD});
+
+    CurrentMock().RegisterSliceableUnversionedChunk(chunk, {chunkSlice1, chunkSlice2});
+
+    AddChunk(chunk);
+
+    ChunkPool_->Finish();
+
+    EXPECT_EQ(1, ChunkPool_->GetPendingJobCount());
+    auto outputCookie = ChunkPool_->Extract(0);
+    auto stripeList = ChunkPool_->GetStripeList(outputCookie);
+    EXPECT_EQ(1, stripeList->Stripes.size());
+    EXPECT_EQ(2, stripeList->Stripes[0]->DataSlices.size());
+    EXPECT_EQ(10, stripeList->Stripes[0]->DataSlices[0]->UpperLimit().RowIndex);
+
+    std::vector<TInputDataSlicePtr> unreadDataSlices = {
+        CreateInputDataSlice(stripeList->Stripes[0]->DataSlices[0]),
+        CreateInputDataSlice(stripeList->Stripes[0]->DataSlices[1]),
+    };
+    unreadDataSlices[0]->LowerLimit().RowIndex = 5;
+    unreadDataSlices[0]->LowerLimit().Key = BuildRow({0xB});
+    TCompletedJobSummary jobSummary;
+    jobSummary.InterruptReason = EInterruptReason::Preemption;
+    jobSummary.UnreadInputDataSlices = unreadDataSlices;
+    ChunkPool_->Completed(outputCookie, jobSummary);
+
+    EXPECT_EQ(1, ChunkPool_->GetPendingJobCount());
+    outputCookie = ChunkPool_->Extract(0);
+    stripeList = ChunkPool_->GetStripeList(outputCookie);
+    EXPECT_EQ(1, stripeList->Stripes.size());
+    EXPECT_EQ(2, stripeList->Stripes[0]->DataSlices.size());
+    EXPECT_EQ(BuildRow({0xB}), stripeList->Stripes[0]->DataSlices[0]->LowerLimit().Key);
+    EXPECT_EQ(5, stripeList->Stripes[0]->DataSlices[0]->LowerLimit().RowIndex);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

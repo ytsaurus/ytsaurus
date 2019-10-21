@@ -176,9 +176,7 @@ TBootstrap::TBootstrap(TCellNodeConfigPtr config, INodePtr configNode)
     , QueryThreadPool_(BIND([this] () {
         return CreateTwoLevelFairShareThreadPool(Config_->QueryAgent->ThreadPoolSize, "Query");
     }))
-{
-    WarnForUnrecognizedOptions(Logger, Config_);
-}
+{ }
 
 TBootstrap::~TBootstrap() = default;
 
@@ -443,7 +441,6 @@ void TBootstrap::DoInitialize()
     JobProxyConfigTemplate_->JobThrottler = Config_->JobThrottler;
 
     JobProxyConfigTemplate_->ClusterConnection = CloneYsonSerializable(Config_->ClusterConnection);
-    JobProxyConfigTemplate_->ClusterConnection->MasterCellDirectorySynchronizer->SyncPeriod = std::nullopt;
 
     auto patchMasterConnectionConfig = [&] (const NNative::TMasterConnectionConfigPtr& config) {
         config->Addresses = {localAddress};
@@ -673,6 +670,21 @@ void TBootstrap::DoRun()
     RpcServer_->Start();
     HttpServer_->Start();
     SkynetHttpServer_->Start();
+
+    DoValidateConfig();
+}
+
+void TBootstrap::DoValidateConfig()
+{
+    auto unrecognized = Config_->GetUnrecognizedRecursively();
+    if (unrecognized && unrecognized->GetChildCount() > 0) {
+        YT_LOG_WARNING("Node config contains unrecognized options (Unrecognized: %v)",
+            ConvertToYsonString(unrecognized, NYson::EYsonFormat::Text));
+        if (Config_->EnableUnrecognizedOptionsAlert) {
+            MasterConnector_->RegisterAlert(TError(EErrorCode::UnrecognizedConfigOption, "Node config contains unrecognized options")
+                << TErrorAttribute("unrecognized", unrecognized));
+        }
+    }
 }
 
 void TBootstrap::DoValidateSnapshot(const TString& fileName)

@@ -462,6 +462,8 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* d
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EffectiveAcl)
         .SetOpaque(true));
     descriptors->push_back(EInternedAttributeKey::UserAttributeKeys);
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::OpaqueAttributeKeys)
+        .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UserAttributes)
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LifeStage)
@@ -576,6 +578,13 @@ bool TObjectProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
             return true;
         }
 
+        case EInternedAttributeKey::OpaqueAttributeKeys: {
+            const auto& opaqueKeys = Metadata_->OpaqueAttributeKeysCache.GetOpaqueAttributeKeys(this);
+            BuildYsonFluently(consumer)
+                .Value(opaqueKeys);
+            return true;
+        }
+
         case EInternedAttributeKey::UserAttributes: {
             auto customPairs = GetCustomAttributes()->ListPairs();
             const auto& systemCustomKeys = Metadata_->SystemCustomAttributeKeysCache.GetCustomAttributeKeys(this);
@@ -631,6 +640,11 @@ bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
         case EInternedAttributeKey::InheritAcl: {
             ValidateNoTransaction();
 
+            auto inherit = ConvertTo<bool>(value);
+            if (inherit == acd->GetInherit()) {
+                return true;
+            }
+
             const auto& objectManager = Bootstrap_->GetObjectManager();
             const auto& handler = objectManager->GetHandler(Object_);
             if (Any(handler->GetFlags() & ETypeFlags::ForbidInheritAclChange)) {
@@ -639,7 +653,7 @@ bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
                     Object_->GetType());
             }
 
-            acd->SetInherit(ConvertTo<bool>(value));
+            acd->SetInherit(inherit);
             return true;
         }
 
@@ -1010,6 +1024,8 @@ void TNontemplateNonversionedObjectProxyBase::RemoveSelf(
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Remove);
     ValidateRemoval();
+
+    context->SetRequestInfo();
 
     const auto& objectManager = Bootstrap_->GetObjectManager();
     objectManager->RemoveObject(Object_);

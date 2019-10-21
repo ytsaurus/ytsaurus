@@ -4,9 +4,6 @@
 
 #include <yt/core/actions/future.h>
 
-// Someone above has defined this by including one of Windows headers.
-#undef Yield
-
 namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,8 +28,7 @@ struct IScheduler
 
     //! Transfers control back to the scheduler and puts currently executing fiber
     //! into sleep until occurrence of an external event.
-    virtual void WaitFor(TFuture<void> future, IInvokerPtr invoker) = 0;
-
+    virtual void WaitFor(TAwaitable awaitable, IInvokerPtr invoker) = 0;
 };
 
 //! Yield from current fiber.
@@ -48,8 +44,14 @@ void ReturnFromFiber();
 void YieldToFiber(TFiberPtr&& other);
 
 ////////////////////////////////////////////////////////////////////////////////
-// Provides a way to work with the current scheduler and fiber.
-// Schedulers and fibers are thread-scoped so this is an access to TLS.
+// Provides a way to work with the current invoker, scheduler, and fiber.
+// Invokers, schedulers and fibers are thread-scoped so this is an access to TLS.
+
+//! Returns the current invoker.
+IInvokerPtr GetCurrentInvoker();
+
+//! Sets the current invoker.
+void SetCurrentInvoker(IInvokerPtr invoker);
 
 //! Sets the current scheduler. Can only be called once per thread.
 void SetCurrentScheduler(IScheduler* scheduler);
@@ -88,60 +90,6 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOneShotContextSwitchGuard
-    : public TContextSwitchGuard
-{
-public:
-    explicit TOneShotContextSwitchGuard(std::function<void()> handler);
-
-private:
-    bool Active_;
-
-};
-
-class TForbidContextSwitchGuard
-    : public TOneShotContextSwitchGuard
-{
-public:
-    TForbidContextSwitchGuard();
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-#ifndef FAKEID
-#define WF_WARN_UNUSED_RESULT [[nodiscard]]
-#else
-#define WF_WARN_UNUSED_RESULT
-#endif
-
-template <class T>
-TErrorOr<T> WaitFor(TFuture<T> future) WF_WARN_UNUSED_RESULT;
-
-template <class T>
-TErrorOr<T> WaitFor(TFuture<T> future, IInvokerPtr invoker) WF_WARN_UNUSED_RESULT;
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Thrown when a fiber is being terminated by an external event.
-class TFiberCanceledException
-{ };
-
-//! Delegates to TFiber::GetCanceler for the current fiber.
-//! Used to avoid dependencies on |fiber.h|.
-TClosure GetCurrentFiberCanceler();
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NYT::NConcurrency
-
-namespace NYT {
-
-////////////////////////////////////////////////////////////////////////////////
-// Provides a way to work with the current invoker.
-
-IInvokerPtr GetCurrentInvoker();
-void SetCurrentInvoker(IInvokerPtr invoker);
-
 //! Swaps the current active invoker with a provided one.
 class TCurrentInvokerGuard
     : NConcurrency::TContextSwitchGuard
@@ -159,7 +107,44 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} //namespace NYT
+class TOneShotContextSwitchGuard
+    : public TContextSwitchGuard
+{
+public:
+    explicit TOneShotContextSwitchGuard(std::function<void()> handler);
+
+private:
+    bool Active_;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TForbidContextSwitchGuard
+    : public TOneShotContextSwitchGuard
+{
+public:
+    TForbidContextSwitchGuard();
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+[[nodisard]] TErrorOr<T> WaitFor(TFuture<T> future, IInvokerPtr invoker = GetCurrentInvoker());
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Thrown when a fiber is being terminated by an external event.
+class TFiberCanceledException
+{ };
+
+//! Delegates to TFiber::GetCanceler for the current fiber.
+//! Used to avoid dependencies on |fiber.h|.
+TClosure GetCurrentFiberCanceler();
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NConcurrency
 
 #define SCHEDULER_INL_H_
 #include "scheduler-inl.h"

@@ -13,6 +13,7 @@
 #include <yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/ytlib/file_client/file_chunk_writer.h>
 #include <yt/ytlib/file_client/file_ypath_proxy.h>

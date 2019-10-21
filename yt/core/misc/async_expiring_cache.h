@@ -19,7 +19,6 @@ class TAsyncExpiringCache
     : public virtual TRefCounted
 {
 public:
-    using TCombinedValue = typename TFutureCombineTraits<TValue>::TCombinedVector;
     struct TExtendedGetResult
     {
         TFuture<TValue> Future;
@@ -32,7 +31,7 @@ public:
 
     TFuture<TValue> Get(const TKey& key);
     TExtendedGetResult GetExtended(const TKey& key);
-    TFuture<TCombinedValue> Get(const std::vector<TKey>& keys);
+    TFuture<std::vector<TErrorOr<TValue>>> Get(const std::vector<TKey>& keys);
 
     void Invalidate(const TKey& key);
 
@@ -40,7 +39,7 @@ public:
 
 protected:
     virtual TFuture<TValue> DoGet(const TKey& key) = 0;
-    virtual TFuture<TCombinedValue> DoGetMany(const std::vector<TKey>& keys);
+    virtual TFuture<std::vector<TErrorOr<TValue>>> DoGetMany(const std::vector<TKey>& keys);
     virtual void OnErase(const TKey& key);
 
 private:
@@ -74,11 +73,28 @@ private:
 
     NProfiling::TMonotonicCounter HitCounter_{"/hit"};
     NProfiling::TMonotonicCounter MissedCounter_{"/missed"};
+    NProfiling::TSimpleGauge SizeCounter_{"/size"};
 
-    void SetResult(const TWeakPtr<TEntry>& entry, const TKey& key, const TErrorOr<TValue>& valueOrError);
-    void InvokeGetMany(const std::vector<TWeakPtr<TEntry>>& entries, const std::vector<TKey>& keys);
-    void InvokeGet(const TWeakPtr<TEntry>& entry, const TKey& key, bool checkExpired);
-    bool TryEraseExpired(const TWeakPtr<TEntry>& weakEntry, const TKey& key);
+    void SetResult(
+        const TWeakPtr<TEntry>& entry,
+        const TKey& key,
+        const TErrorOr<TValue>& valueOrError);
+    
+    void InvokeGetMany(
+        const std::vector<TWeakPtr<TEntry>>& entries,
+        const std::vector<TKey>& keys,
+        bool isPeriodicUpdate = false);
+    
+    void InvokeGet(
+        const TWeakPtr<TEntry>& entry,
+        const TKey& key,
+        bool checkExpired = false);
+
+    bool TryEraseExpired(
+        const TWeakPtr<TEntry>& weakEntry,
+        const TKey& key);
+
+    void UpdateAll();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

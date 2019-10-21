@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include "tablet_cell.h"
+#include "cell_base.h"
 
 #include <yt/server/master/cell_master/public.h>
 
@@ -10,14 +10,14 @@
 
 #include <yt/core/concurrency/thread_affinity.h>
 
-namespace NYT::NTabletServer {
+namespace NYT::NCellServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletTrackerImplOld
+class TCellTrackerImplOld
 {
 public:
-    TTabletTrackerImplOld(
+    TCellTrackerImplOld(
         NCellMaster::TBootstrap* bootstrap,
         TInstant startTime);
 
@@ -31,20 +31,20 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
-    const TDynamicTabletManagerConfigPtr& GetDynamicConfig();
+    const TDynamicCellManagerConfigPtr& GetDynamicConfig();
 
-    void ScheduleLeaderReassignment(TTabletCell* cell, TCandidatePool* pool);
-    void SchedulePeerAssignment(TTabletCell* cell, TCandidatePool* pool);
-    void SchedulePeerRevocation(TTabletCell* cell);
+    void ScheduleLeaderReassignment(TCellBase* cell, TCandidatePool* pool);
+    void SchedulePeerAssignment(TCellBase* cell, TCandidatePool* pool);
+    void SchedulePeerRevocation(TCellBase* cell);
 
     bool IsFailed(
-        const TTabletCell::TPeer& peer,
+        const TCellBase::TPeer& peer,
         const TBooleanFormula& nodeTagFilter,
         TDuration timeout);
     static bool IsGood(const NNodeTrackerServer::TNode* node);
-    static int FindGoodPeer(const TTabletCell* cell);
+    static int FindGoodPeer(const TCellBase* cell);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTabletServer
+} // namespace NYT::NCellServer

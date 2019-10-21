@@ -73,6 +73,8 @@ protected:
     TFuture<void> ReadyEvent_;
     TPromise<void> CompletionError_ = NewPromise<void>();
 
+    IInvokerPtr ReaderInvoker_;
+
     virtual void OnReaderOpened(IReaderBasePtr chunkReader, int chunkIndex) = 0;
 
     virtual void OnReaderBlocked() = 0;

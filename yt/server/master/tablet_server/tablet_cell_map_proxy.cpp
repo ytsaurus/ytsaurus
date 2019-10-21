@@ -1,8 +1,9 @@
 #include "tablet_cell_map_proxy.h"
-#include "tablet_manager.h"
-#include "tablet_cell.h"
 
 #include <yt/server/master/cypress_server/node_proxy_detail.h>
+
+#include <yt/server/master/cell_server/tamed_cell_manager.h>
+#include <yt/server/master/cell_server/cell_base.h>
 
 #include <yt/server/lib/misc/interned_attributes.h>
 
@@ -51,10 +52,9 @@ private:
     {
         switch (key) {
             case EInternedAttributeKey::CountByHealth: {
-                const auto& tabletManager = Bootstrap_->GetTabletManager();
+                const auto& cellManager = Bootstrap_->GetTamedCellManager();
                 TEnumIndexedVector<ETabletCellHealth, int> counts;
-                for (const auto& pair : tabletManager->TabletCells()) {
-                    const auto* cell = pair.second;
+                for (const auto [cellId, cell] : cellManager->Cells()) {
                     if (!IsObjectAlive(cell)) {
                         continue;
                     }

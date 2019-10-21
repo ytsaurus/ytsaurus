@@ -10,6 +10,8 @@
 
 #include <yt/server/lib/hydra/public.h>
 
+#include <yt/server/master/cell_server/public.h>
+
 #include <yt/server/master/journal_server/public.h>
 
 #include <yt/server/master/node_tracker_server/public.h>
@@ -88,6 +90,7 @@ public:
     const NChunkServer::TChunkManagerPtr& GetChunkManager() const;
     const NJournalServer::TJournalManagerPtr& GetJournalManager() const;
     const NSecurityServer::TSecurityManagerPtr& GetSecurityManager() const;
+    const NCellServer::TTamedCellManagerPtr& GetTamedCellManager() const;
     const NTabletServer::TTabletManagerPtr& GetTabletManager() const;
     const NHiveServer::THiveManagerPtr& GetHiveManager() const;
     const NHiveClient::TCellDirectoryPtr& GetCellDirectory() const;
@@ -136,6 +139,7 @@ private:
     NChunkServer::TChunkManagerPtr ChunkManager_;
     NJournalServer::TJournalManagerPtr JournalManager_;
     NSecurityServer::TSecurityManagerPtr SecurityManager_;
+    NCellServer::TTamedCellManagerPtr TamedCellManager_;
     NTabletServer::TTabletManagerPtr TabletManager_;
     NTabletServer::TReplicatedTableTrackerPtr ReplicatedTableTracker_;
     NHiveServer::THiveManagerPtr HiveManager_;

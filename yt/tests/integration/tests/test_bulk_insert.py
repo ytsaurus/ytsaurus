@@ -713,6 +713,48 @@ class TestBulkInsert(DynamicTablesBase):
         assert read_table("//tmp/t_output") == sorted(rows)
         assert_items_equal(select_rows("* from [//tmp/t_output]"), sorted(rows))
 
+    @pytest.mark.parametrize("config_source", ["default", "spec"])
+    def test_table_writer_config(self, config_source):
+        sync_create_cells(1)
+        create("table", "//tmp/t_input")
+        self._create_simple_dynamic_table("//tmp/t_output")
+        sync_mount_table("//tmp/t_output")
+
+        rows = [{"key": i, "value": str(i)} for i in range(100000)]
+        write_table("//tmp/t_input", rows)
+
+        if config_source == "spec":
+            block_size = 2000
+            spec={"job_io": {"dynamic_table_writer": {"block_size": block_size}}}
+        else:
+            block_size = 256 * 2**10
+            spec = {}
+
+        map(
+            in_="//tmp/t_input",
+            out="<append=%true>//tmp/t_output",
+            command="cat",
+            spec=spec)
+
+        chunk_id = get("//tmp/t_output/@chunk_ids/0")
+        assert block_size - 50 < get("#{}/@max_block_size".format(chunk_id)) < block_size + 50
+
+    def test_no_user_transaction(self):
+        sync_create_cells(1)
+        create("table", "//tmp/t_input")
+        self._create_simple_dynamic_table("//tmp/t_output")
+        sync_mount_table("//tmp/t_output")
+
+        write_table("//tmp/t_input", [{"key": 1, "value": "1"}])
+
+        tx = start_transaction(timeout=60000)
+        with pytest.raises(YtError):
+            map(
+                in_="//tmp/t_input",
+                out="<append=%true>//tmp/t_output",
+                command="cat",
+                tx=tx)
+
 ##################################################################
 
 @authors("ifsmirnov")

@@ -1,0 +1,26 @@
+package NYT.NCellServer.NProto;
+
+import "yt/core/misc/proto/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TCellStatus
+{
+    required bool decommissioned = 1;
+    required int32 health = 2; // ECellHealth
+}
+
+message TReqSetCellStatus
+{
+    message TEntry
+    {
+        required NYT.NProto.TGuid cell_id = 1;
+        required TCellStatus status = 2;
+    }
+
+    required int32 cell_tag = 1;
+    repeated TEntry entries = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+

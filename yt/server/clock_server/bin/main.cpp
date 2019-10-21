@@ -60,6 +60,7 @@ protected:
         NYTAlloc::SetLibunwindBacktraceProvider();
         NYTAlloc::ConfigureFromEnv();
         NYTAlloc::EnableStockpile();
+        NYTAlloc::MlockallCurrentProcess();
 
         if (HandlePdeathsigOptions()) {
             return;

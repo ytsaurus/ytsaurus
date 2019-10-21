@@ -150,6 +150,8 @@ private:
     THashMap<int, TTagId> GpuDeviceNumberToProfilingTag_;
     THashMap<TString, TTagId> GpuNameToProfilingTag_;
 
+    THashMap<std::pair<EJobState, EJobOrigin>, TMonotonicCounter> JobFinalStateCounters_;
+
     TPeriodicExecutorPtr ProfilingExecutor_;
     TPeriodicExecutorPtr ResourceAdjustmentExecutor_;
     TPeriodicExecutorPtr RecentlyRemovedJobCleaner_;
@@ -210,6 +212,8 @@ private:
 
     void OnPortsReleased(const TWeakPtr<IJob>& job);
 
+    void OnJobFinished(const TWeakPtr<IJob>& job);
+
     void StartWaitingJobs();
 
     //! Compares new usage with resource limits. Detects resource overdraft.
@@ -241,6 +245,8 @@ private:
     void CleanRecentlyRemovedJobs();
 
     void CheckReservedMappedMemory();
+
+    TMonotonicCounter* GetJobFinalStateCounter(EJobState state, EJobOrigin origin);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -733,6 +739,10 @@ void TJobController::TImpl::StartWaitingJobs()
             BIND(&TImpl::OnPortsReleased, MakeWeak(this), MakeWeak(job))
                 .Via(Bootstrap_->GetControlInvoker()));
 
+        job->SubscribeJobFinished(
+            BIND(&TImpl::OnJobFinished, MakeWeak(this), MakeWeak(job))
+                .Via(Bootstrap_->GetControlInvoker()));
+
         job->Start();
 
         resourcesUpdated = true;
@@ -921,6 +931,29 @@ void TJobController::TImpl::OnPortsReleased(const TWeakPtr<IJob>& job)
         for (auto port : ports) {
             YT_VERIFY(FreePorts_.insert(port).second);
         }
+    }
+}
+
+void TJobController::TImpl::OnJobFinished(const TWeakPtr<IJob>& weakJob)
+{
+    auto job = weakJob.Lock();
+    if (job) {
+        EJobOrigin origin;
+        switch (TypeFromId(job->GetId())) {
+            case EObjectType::SchedulerJob:
+                origin = EJobOrigin::Scheduler;
+                break;
+
+            case EObjectType::MasterJob:
+                origin = EJobOrigin::Master;
+                break;
+
+            default:
+                YT_ABORT();
+        }
+
+        auto* jobFinalStateCounter = GetJobFinalStateCounter(job->GetState(), origin);
+        Profiler_.Increment(*jobFinalStateCounter);
     }
 }
 
@@ -1440,6 +1473,26 @@ i64 TJobController::TImpl::GetUserJobsFreeMemoryWatermark() const
     return Bootstrap_->GetExecSlotManager()->ExternalJobMemory()
         ? 0
         : Config_->FreeMemoryWatermark;
+}
+
+TMonotonicCounter* TJobController::TImpl::GetJobFinalStateCounter(EJobState state, EJobOrigin origin)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    auto key = std::make_pair(state, origin);
+    auto it = JobFinalStateCounters_.find(key);
+    if (it == JobFinalStateCounters_.end()) {
+        TMonotonicCounter counter{
+            "/job_final_state",
+            {
+                TProfileManager::Get()->RegisterTag("state", state),
+                TProfileManager::Get()->RegisterTag("origin", origin)
+            }
+        };
+        it = JobFinalStateCounters_.emplace(key, std::move(counter)).first;
+    }
+
+    return &it->second;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1571,7 +1571,11 @@ INSTANTIATE_TEST_CASE_P(
         std::tuple<const char*, const char*, TUnversionedValue>(
             "any=\"hello\"",
             "string(any)",
-            MakeString("hello"))
+            MakeString("hello")),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "any=#",
+            "list_contains(any, \"1\")",
+            MakeNull())
 ));
 
 INSTANTIATE_TEST_CASE_P(

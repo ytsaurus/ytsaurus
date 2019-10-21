@@ -26,4 +26,5 @@ message TSubquerySpec
     optional string membership_hint = 7;
     optional int64 subquery_index = 8;
     optional int64 table_index = 9;
+    optional string initial_query = 10;
 };

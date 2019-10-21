@@ -253,18 +253,22 @@ struct TExecutionContext
     ISchemafulReaderPtr Reader;
     IUnversionedRowsetWriterPtr Writer;
 
-    TQueryStatistics* Statistics;
+    TQueryStatistics* Statistics = nullptr;
 
     // These limits prevent full scan.
-    i64 InputRowLimit;
-    i64 OutputRowLimit;
-    i64 GroupRowLimit;
-    i64 JoinRowLimit;
+    i64 InputRowLimit = std::numeric_limits<i64>::max();
+    i64 OutputRowLimit = std::numeric_limits<i64>::max();
+    i64 GroupRowLimit = std::numeric_limits<i64>::max();
+    i64 JoinRowLimit = std::numeric_limits<i64>::max();
 
-    i64 Offset;
-
+    // Offset from OFFSET clause.
+    i64 Offset = 0;
     // Limit from LIMIT clause.
-    i64 Limit;
+    i64 Limit = std::numeric_limits<i64>::max();
+
+    bool Ordered = false;
+
+    IMemoryChunkProviderPtr MemoryChunkProvider;
 
     TExecutionContext()
     {
@@ -272,10 +276,6 @@ struct TExecutionContext
         Y_UNUSED(context);
         CHECK_STACK();
     }
-    bool IsOrdered = false;
-
-    IMemoryChunkProviderPtr MemoryChunkProvider;
-
 };
 
 class TTopCollector

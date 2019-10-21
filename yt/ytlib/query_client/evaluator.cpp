@@ -18,8 +18,11 @@
 #include <yt/core/misc/finally.h>
 
 #include <llvm/ADT/FoldingSet.h>
+
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Support/Threading.h>
+
+#include <utility>
 
 namespace NYT::NQueryClient {
 ////////////////////////////////////////////////////////////////////////////////
@@ -32,8 +35,9 @@ using NNodeTrackerClient::TNodeMemoryTracker;
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TMemoryProviderMapByTag)
-
 DECLARE_REFCOUNTED_CLASS(TTrackedMemoryChunkProvider)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TTrackedMemoryChunkProvider
     : public IMemoryChunkProvider
@@ -46,26 +50,26 @@ private:
             : TAllocationHolder(ref, cookie)
         { }
 
-        NNodeTrackerClient::TNodeMemoryTrackerGuard MemoryTrackerGuard;
-        TIntrusivePtr<TTrackedMemoryChunkProvider> Owner;
-
         ~THolder()
         {
             Owner->Allocated_ -= GetRef().Size();
         }
+
+        NNodeTrackerClient::TNodeMemoryTrackerGuard MemoryTrackerGuard;
+        TIntrusivePtr<TTrackedMemoryChunkProvider> Owner;
     };
 
 public:
-    explicit TTrackedMemoryChunkProvider(
+    TTrackedMemoryChunkProvider(
         TString key,
         TMemoryProviderMapByTagPtr parent,
         size_t limit,
-        NNodeTrackerClient::EMemoryCategory mainCategory,
+        NNodeTrackerClient::EMemoryCategory memoryCategory,
         NNodeTrackerClient::TNodeMemoryTrackerPtr memoryTracker)
-        : Key_(key)
+        : Key_(std::move(key))
         , Parent_(std::move(parent))
         , Limit_(limit)
-        , MainCategory_(mainCategory)
+        , MainCategory_(memoryCategory)
         , MemoryTracker_(std::move(memoryTracker))
     { }
 
@@ -74,10 +78,13 @@ public:
         size_t allocated = Allocated_.load();
         do {
             if (allocated + size > Limit_) {
-                THROW_ERROR_EXCEPTION("Not enough memory to allocate %v (Allocated: %v, Limit: %v)",
+                THROW_ERROR_EXCEPTION("Not enough memory to serve allocation",
                     size,
                     allocated,
-                    Limit_);
+                    Limit_)
+                    << TErrorAttribute("allocation_size", size)
+                    << TErrorAttribute("allocated", allocated)
+                    << TErrorAttribute("limit", Limit_);
             }
         } while (!Allocated_.compare_exchange_weak(allocated, allocated + size));
 
@@ -117,29 +124,31 @@ private:
     const NNodeTrackerClient::EMemoryCategory MainCategory_;
     const NNodeTrackerClient::TNodeMemoryTrackerPtr MemoryTracker_;
 
-    std::atomic<size_t> Allocated_ = 0;
-    std::atomic<size_t> MaxAllocated_ = 0;
+    std::atomic<size_t> Allocated_ = {0};
+    std::atomic<size_t> MaxAllocated_ = {0};
 };
 
 DEFINE_REFCOUNTED_TYPE(TTrackedMemoryChunkProvider)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TMemoryProviderMapByTag
     : public TRefCounted
 {
 public:
     TTrackedMemoryChunkProviderPtr GetProvider(
-        TString tag,
+        const TString& tag,
         size_t limit,
-        NNodeTrackerClient::EMemoryCategory mainCategory,
+        NNodeTrackerClient::EMemoryCategory memoryCategory,
         NNodeTrackerClient::TNodeMemoryTrackerPtr memoryTracker)
     {
         auto guard = Guard(SpinLock_);
         auto it = Map_.emplace(tag, nullptr).first;
 
-        TTrackedMemoryChunkProviderPtr result = it->second.Lock();
+        auto result = it->second.Lock();
 
         if (!result) {
-            result = New<TTrackedMemoryChunkProvider>(tag, this, limit, mainCategory, std::move(memoryTracker));
+            result = New<TTrackedMemoryChunkProvider>(tag, this, limit, memoryCategory, std::move(memoryTracker));
             it->second = result;
         }
 
@@ -149,8 +158,8 @@ public:
     friend class TTrackedMemoryChunkProvider;
 
 private:
-    THashMap<TString, TWeakPtr<TTrackedMemoryChunkProvider>> Map_;
     TSpinLock SpinLock_;
+    THashMap<TString, TWeakPtr<TTrackedMemoryChunkProvider>> Map_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TMemoryProviderMapByTag);
@@ -190,7 +199,7 @@ class TEvaluator::TImpl
 {
 public:
     TImpl(
-        TExecutorConfigPtr config,
+        const TExecutorConfigPtr& config,
         const NProfiling::TProfiler& profiler,
         NNodeTrackerClient::TNodeMemoryTrackerPtr memoryTracker)
         : TAsyncSlruCacheBase(config->CGCache, profiler.AppendPath("/cg_cache"))
@@ -198,10 +207,10 @@ public:
     { }
 
     TQueryStatistics Run(
-        TConstBaseQueryPtr query,
-        ISchemafulReaderPtr reader,
-        IUnversionedRowsetWriterPtr writer,
-        TJoinSubqueryProfiler joinProfiler,
+        const TConstBaseQueryPtr& query,
+        const ISchemafulReaderPtr& reader,
+        const IUnversionedRowsetWriterPtr& writer,
+        const TJoinSubqueryProfiler& joinProfiler,
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
         const TQueryBaseOptions& options)
@@ -222,7 +231,7 @@ public:
         NProfiling::TWallTimer wallTime;
         NProfiling::TFiberWallTimer syncTime;
 
-        auto finalLogger = Finally([&] () {
+        auto finalLogger = Finally([&] {
             YT_LOG_DEBUG("Finalizing evaluation");
         });
 
@@ -248,8 +257,6 @@ public:
                 fragmentParams.Clear();
             });
 
-            YT_LOG_DEBUG("Evaluating plan fragment");
-
             // NB: function contexts need to be destroyed before cgQuery since it hosts destructors.
             TExecutionContext executionContext;
             executionContext.Reader = reader;
@@ -261,7 +268,7 @@ public:
             executionContext.JoinRowLimit = options.OutputRowLimit;
             executionContext.Offset = query->Offset;
             executionContext.Limit = query->Limit;
-            executionContext.IsOrdered = query->IsOrdered();
+            executionContext.Ordered = query->IsOrdered();
             executionContext.MemoryChunkProvider = memoryChunkProvider;
 
             YT_LOG_DEBUG("Evaluating query");
@@ -405,8 +412,8 @@ TQueryStatistics TEvaluator::Run(
         std::move(reader),
         std::move(writer),
         std::move(joinProfiler),
-        functionProfilers,
-        aggregateProfilers,
+        std::move(functionProfilers),
+        std::move(aggregateProfilers),
         options);
 }
 

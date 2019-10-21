@@ -29,7 +29,10 @@
 #include <yt/client/api/client.h>
 #include <yt/client/api/client_cache.h>
 
+#include <yt/client/misc/discovery.h>
+
 #include <yt/core/bus/tcp/server.h>
+#include <yt/core/misc/crash_handler.h>
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/throughput_throttler.h>
@@ -41,6 +44,7 @@
 #include <yt/core/misc/core_dumper.h>
 #include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
 #include <yt/core/misc/signal_registry.h>
+#include <yt/core/misc/crash_handler.h>
 
 #include <yt/core/ytalloc/statistics_producer.h>
 
@@ -72,6 +76,27 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = ServerLogger;
+
+const TString CacheUser = "yt-clickhouse-cache";
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NDetail
+{
+
+/////////////////////////////////////////////////////////////////////////////
+
+void WriteCurrentQueryIdToStderr()
+{
+    WriteToStderr("*** Current query id (possible reason of failure): ");
+    const auto& queryId = DB::CurrentThread::getQueryId();
+    WriteToStderr(queryId.data, queryId.size);
+    WriteToStderr(" ***\n");
+}
+
+/////////////////////////////////////////////////////////////////////////////
+
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -124,6 +149,12 @@ void TBootstrap::DoRun()
 
     QueryRegistry_ = New<TQueryRegistry>(this);
 
+    // Set up crash handlers.
+    TSignalRegistry::Get()->PushCallback(AllCrashSignals, [=] { QueryRegistry_->WriteStateToStderr(); });
+    TSignalRegistry::Get()->PushCallback(AllCrashSignals, NDetail::WriteCurrentQueryIdToStderr);
+    TSignalRegistry::Get()->PushCallback(AllCrashSignals, CrashSignalHandler);
+    TSignalRegistry::Get()->PushDefaultSignalHandler(AllCrashSignals);
+
     SetNodeByYPath(
         orchidRoot,
         "/config",
@@ -171,6 +202,7 @@ void TBootstrap::DoRun()
     ClientCache_ = New<NApi::NNative::TClientCache>(Config_->ClientCache, Connection_);
 
     RootClient_ = ClientCache_->GetClient(Config_->User);
+    CacheClient_ = ClientCache_->GetClient(CacheUser);
 
     // Configure clique's directory.
     Config_->Discovery->Directory += "/" + CliqueId_;
@@ -208,7 +240,8 @@ void TBootstrap::DoRun()
 
     Host_->Start();
 
-    TSignalRegistry::Get()->RegisterHandler(SIGINT, BIND(&TBootstrap::SigintHandler, this));
+    // Bootstrap never dies, so it is _kinda_ safe.
+    TSignalRegistry::Get()->PushCallback(SIGINT, [=] { SigintHandler(); });
 }
 
 const IInvokerPtr& TBootstrap::GetControlInvoker() const

@@ -31,12 +31,12 @@ public:
     DECLARE_SIGNAL(void(), Canceled);
 
     //! Registers another context for propagating cancelation.
-    void PropagateTo(TCancelableContextPtr context);
+    void PropagateTo(const TCancelableContextPtr& context);
 
     //! Registers a future for propagating cancelation.
     template <class T>
     void PropagateTo(TFuture<T> future);
-    void PropagateTo(TFuture<void> future);
+    void PropagateTo(const TFuture<void>& future);
 
     //! Creates a new invoker wrapping the existing one.
     /*!

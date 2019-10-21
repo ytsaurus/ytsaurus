@@ -228,8 +228,8 @@ void TSchedulerThread::ThreadMainStep()
             // Reschedule this fiber to wake up later.
             Reschedule(
                 std::move(CurrentFiber_),
-                std::move(WaitForFuture_),
-                std::move(SwitchToInvoker_));
+                std::move(AwaitableToWaitFor_),
+                std::move(InvokerToSwitchTo_));
             break;
 
         case EFiberState::Suspended:
@@ -258,8 +258,8 @@ void TSchedulerThread::ThreadMainStep()
 
     // Check for a clear scheduling state.
     YT_ASSERT(!CurrentFiber_);
-    YT_ASSERT(!WaitForFuture_);
-    YT_ASSERT(!SwitchToInvoker_);
+    YT_ASSERT(!AwaitableToWaitFor_);
+    YT_ASSERT(!InvokerToSwitchTo_);
 }
 
 void TSchedulerThread::FiberMain(ui64 spawnedEpoch)
@@ -365,20 +365,20 @@ bool TSchedulerThread::FiberMainStep(ui64 spawnedEpoch)
     return true;
 }
 
-void TSchedulerThread::Reschedule(TFiberPtr fiber, TFuture<void> future, IInvokerPtr invoker)
+void TSchedulerThread::Reschedule(TFiberPtr fiber, TAwaitable awaitable, IInvokerPtr invoker)
 {
     fiber->GetCanceler(); // Initialize canceler; who knows what might happen to this fiber?
 
     auto resumer = BIND_DONT_CAPTURE_TRACE_CONTEXT(&ResumeFiber, fiber);
     auto unwinder = BIND_DONT_CAPTURE_TRACE_CONTEXT(&UnwindFiber, fiber);
 
-    if (future) {
-        future.Subscribe(BIND_DONT_CAPTURE_TRACE_CONTEXT([
+    if (awaitable) {
+        awaitable.Subscribe(BIND_DONT_CAPTURE_TRACE_CONTEXT([
             invoker = std::move(invoker),
             fiber = std::move(fiber),
             resumer = std::move(resumer),
             unwinder = std::move(unwinder)
-        ] (const TError&) mutable {
+        ] () mutable {
             YT_LOG_DEBUG("Waking up fiber (TargetFiberId: %llx)", fiber->GetId());
             GuardedInvoke(std::move(invoker), std::move(resumer), std::move(unwinder));
         }));
@@ -449,10 +449,10 @@ void TSchedulerThread::YieldTo(TFiberPtr&& other)
 
 void TSchedulerThread::SwitchTo(IInvokerPtr invoker)
 {
-    WaitFor(TFuture<void>(), std::move(invoker));
+    WaitFor(TAwaitable(), std::move(invoker));
 }
 
-void TSchedulerThread::WaitFor(TFuture<void> future, IInvokerPtr invoker)
+void TSchedulerThread::WaitFor(TAwaitable awaitable, IInvokerPtr invoker)
 {
     VERIFY_THREAD_AFFINITY(HomeThread);
 
@@ -461,13 +461,13 @@ void TSchedulerThread::WaitFor(TFuture<void> future, IInvokerPtr invoker)
 
     // NB: This may throw TFiberCanceledException;
     // therefore this call must come first and succeed before we update our internal state.
-    fiber->SetSleeping(future);
+    fiber->SetSleeping(awaitable);
 
     // Update scheduling state.
-    YT_VERIFY(!SwitchToInvoker_);
-    SwitchToInvoker_ = std::move(invoker);
-    YT_VERIFY(!WaitForFuture_);
-    WaitForFuture_ = std::move(future);
+    YT_VERIFY(!InvokerToSwitchTo_);
+    InvokerToSwitchTo_ = std::move(invoker);
+    YT_VERIFY(!AwaitableToWaitFor_);
+    AwaitableToWaitFor_ = std::move(awaitable);
 
     SwitchContextFrom(fiber);
 

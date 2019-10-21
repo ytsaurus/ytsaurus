@@ -50,8 +50,7 @@ TDerived* TAllocationHolder::Allocate(size_t size, TRefCountedTypeCookie cookie)
 
 inline TChunkedMemoryPool::TChunkedMemoryPool()
     : TChunkedMemoryPool(
-        GetRefCountedTypeCookie<TDefaultChunkedMemoryPoolTag>(),
-        CreateMemoryChunkProvider())
+        GetRefCountedTypeCookie<TDefaultChunkedMemoryPoolTag>())
 { }
 
 template <class TTag>
@@ -60,7 +59,6 @@ inline TChunkedMemoryPool::TChunkedMemoryPool(
     size_t startChunkSize)
     : TChunkedMemoryPool(
         GetRefCountedTypeCookie<TTag>(),
-        CreateMemoryChunkProvider(),
         startChunkSize)
 { }
 

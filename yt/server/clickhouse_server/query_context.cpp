@@ -23,19 +23,23 @@ using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYson;
 using namespace DB;
+using namespace NTracing;
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TQueryContext::TQueryContext(TBootstrap* bootstrap, TQueryId queryId, const DB::Context& context)
+TQueryContext::TQueryContext(TBootstrap* bootstrap, const DB::Context& context, TQueryId queryId, TTraceContextPtr traceContext)
     : Logger(ServerLogger)
     , User(TString(context.getClientInfo().initial_user))
+    , TraceContext(std::move(traceContext))
     , QueryId(queryId)
     , QueryKind(static_cast<EQueryKind>(context.getClientInfo().query_kind))
     , Bootstrap(bootstrap)
     , RowBuffer(New<NTableClient::TRowBuffer>())
     , Host_(Bootstrap->GetHost())
+    , TraceContextGuard_(TraceContext)
 {
-    Logger.AddTag("QueryId: %v", queryId);
+    Logger.AddTag("QueryId: %v", QueryId);
     YT_LOG_INFO("Query context created (User: %v, QueryKind: %v)", User, QueryKind);
 
     const auto& clientInfo = context.getClientInfo();
@@ -80,6 +84,10 @@ TQueryContext::TQueryContext(TBootstrap* bootstrap, TQueryId queryId, const DB::
 
 TQueryContext::~TQueryContext()
 {
+    if (TraceContext) {
+        TraceContext->Finish();
+    }
+
     auto error = WaitFor(BIND(
         &TQueryRegistry::Unregister,
         Bootstrap->GetQueryRegistry(),
@@ -134,7 +142,8 @@ void Serialize(const TQueryContext& queryContext, IYsonConsumer* consumer)
                 fluent
                     .Item("initial_query_id").Value(queryContext.InitialQueryId)
                     .Item("initial_address").Value(queryContext.InitialAddress)
-                    .Item("initial_user").Value(queryContext.InitialUser);
+                    .Item("initial_user").Value(queryContext.InitialUser)
+                    .Item("initial_query").Value(queryContext.InitialQuery);
             })
             .Item("query_info").Do([&] (TFluentAny fluent) {
                 if (auto* queryStatus = queryContext.TryGetQueryStatus()) {
@@ -150,21 +159,24 @@ void Serialize(const TQueryContext& queryContext, IYsonConsumer* consumer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SetupHostContext(TBootstrap* bootstrap, DB::Context& context, TQueryId queryId)
+void SetupHostContext(TBootstrap* bootstrap, DB::Context& context, TQueryId queryId, TTraceContextPtr traceContext)
 {
-    YT_VERIFY(queryId);
+    YT_VERIFY(traceContext);
 
     context.getHostContext() = std::make_shared<TQueryContext>(
         bootstrap,
+        context,
         queryId,
-        context);
+        std::move(traceContext));
 }
 
 TQueryContext* GetQueryContext(const DB::Context& context)
 {
     auto* hostContext = context.getHostContext().get();
     YT_ASSERT(dynamic_cast<TQueryContext*>(hostContext) != nullptr);
-    return static_cast<TQueryContext*>(hostContext);
+    auto* queryContext = static_cast<TQueryContext*>(hostContext);
+
+    return queryContext;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -77,7 +77,7 @@ public:
     TImpl(TReplicatedTableTrackerConfigPtr config, TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::ReplicatedTableTracker)
         , Config_(std::move(config))
-        , BundleHealthCacheConfig_(Config_->AsyncExpiringCacheConfig)
+        , BundleHealthCacheConfig_(Config_->BundleHealthCache)
         , BundleHealthCache_(New<TBundleHealthCache>(BundleHealthCacheConfig_))
         , CheckerThreadPool_(New<TThreadPool>(Config_->ThreadCount, "ReplTableCheck"))
         , ClusterDirectory_(New<TClusterDirectory>())
@@ -547,10 +547,10 @@ private:
             return;
         }
 
-        if (dynamicConfig->AsyncExpiringCacheConfig && BundleHealthCacheConfig_ != dynamicConfig->AsyncExpiringCacheConfig) {
+        if (dynamicConfig->BundleHealthCache && BundleHealthCacheConfig_ != dynamicConfig->BundleHealthCache) {
             auto lock = Guard(Lock_);
 
-            BundleHealthCacheConfig_ = dynamicConfig->AsyncExpiringCacheConfig;
+            BundleHealthCacheConfig_ = dynamicConfig->BundleHealthCache;
             BundleHealthCache_ = New<TBundleHealthCache>(BundleHealthCacheConfig_);
         }
 
@@ -652,7 +652,7 @@ private:
             ClusterDirectorySynchronizer_->Start();
 
             UpdaterExecutor_ = New<TPeriodicExecutor>(
-                Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
+                Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::ReplicatedTableTracker),
                 BIND(&TImpl::UpdateIteration, MakeWeak(this)),
                 Config_->UpdatePeriod);
             UpdaterExecutor_->Start();

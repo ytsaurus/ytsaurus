@@ -66,6 +66,10 @@ using namespace NSecurityServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const TString NullUserId("<null>");
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTransactionManager::TTransactionTypeHandler
     : public TObjectTypeHandlerWithMapBase<TTransaction>
 {
@@ -192,6 +196,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        NProfiling::TWallTimer timer;
+
         const auto& dynamicConfig = GetDynamicConfig();
 
         if (parent) {
@@ -238,6 +244,7 @@ public:
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         bool foreign = (CellTagFromId(transactionId) != multicellManager->GetCellTag());
+
         if (foreign) {
             transaction->SetForeign();
         }
@@ -279,13 +286,13 @@ public:
             if (title) {
                 startRequest.set_title(*title);
             }
-
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToMasters(startRequest, replicateStartToCellTags);
         }
 
+        auto time = timer.GetElapsedTime();
+
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, ParentId: %v, PrerequisiteTransactionIds: %v, "
-            "ReplicateStartToCellTags: %v, ReplicatedToCellTags: %v, Timeout: %v, Deadline: %v, Title: %v)",
+            "ReplicateStartToCellTags: %v, ReplicatedToCellTags: %v, Timeout: %v, Deadline: %v, User: %v, Title: %v, WallTime: %v)",
             transactionId,
             GetObjectId(parent),
             MakeFormattableView(transaction->PrerequisiteTransactions(), [] (auto* builder, const auto* prerequisiteTransaction) {
@@ -295,7 +302,11 @@ public:
             replicatedToCellTags,
             transaction->GetTimeout(),
             transaction->GetDeadline(),
-            title);
+            user->GetName(),
+            title,
+            time);
+
+        securityManager->ChargeUser(user, {EUserWorkloadType::Write, 1, time});
 
         return transaction;
     }
@@ -305,6 +316,8 @@ public:
         TTimestamp commitTimestamp)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        NProfiling::TWallTimer timer;
 
         auto transactionId = transaction->GetId();
 
@@ -382,11 +395,20 @@ public:
         transaction->ExportedObjects().clear();
         transaction->ImportedObjects().clear();
 
+        auto* user = transaction->Acd().GetOwner()->AsUser();
+
         FinishTransaction(transaction);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %v, CommitTimestamp: %llx)",
+        auto time = timer.GetElapsedTime();
+
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %v, User: %v, CommitTimestamp: %llx, WallTime: %v)",
             transactionId,
-            commitTimestamp);
+            user ? user->GetName() : NullUserId,
+            commitTimestamp,
+            time);
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->ChargeUser(user, {EUserWorkloadType::Write, 1, time});
     }
 
     void AbortTransaction(
@@ -396,7 +418,10 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        NProfiling::TWallTimer timer;
+
         auto transactionId = transaction->GetId();
+
         auto state = transaction->GetPersistentState();
         if (state == ETransactionState::Aborted) {
             return;
@@ -462,11 +487,20 @@ public:
         transaction->ExportedObjects().clear();
         transaction->ImportedObjects().clear();
 
+        auto* user = transaction->Acd().GetOwner()->AsUser();
+
         FinishTransaction(transaction);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %v, Force: %v)",
+        auto time = timer.GetElapsedTime();
+
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %v, User: %v, Force: %v, WallTime: %v)",
             transactionId,
-            force);
+            user ? user->GetName() : NullUserId,
+            force,
+            time);
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->ChargeUser(user, {EUserWorkloadType::Write, 1, time});
     }
 
     TTransactionId ExternalizeTransaction(TTransaction* transaction, TCellTag dstCellTag)

@@ -115,6 +115,8 @@ TJobIOConfig::TJobIOConfig()
         .DefaultNew();
     RegisterParameter("table_writer", TableWriter)
         .DefaultNew();
+    RegisterParameter("dynamic_table_writer", DynamicTableWriter)
+        .DefaultNew();
 
     RegisterParameter("control_attributes", ControlAttributes)
         .DefaultNew();
@@ -135,6 +137,9 @@ TJobIOConfig::TJobIOConfig()
 
     RegisterPreprocessor([&] () {
         ErrorFileWriter->UploadReplicationFactor = 1;
+
+        DynamicTableWriter->DesiredChunkSize = 256_MB;
+        DynamicTableWriter->BlockSize = 256_KB;
     });
 }
 
@@ -151,6 +156,8 @@ TTestingOperationOptions::TTestingOperationOptions()
     RegisterParameter("delay_inside_prepare", DelayInsidePrepare)
         .Default();
     RegisterParameter("delay_inside_suspend", DelayInsideSuspend)
+        .Default();
+    RegisterParameter("delay_inside_materialize", DelayInsideMaterialize)
         .Default();
     RegisterParameter("delay_inside_operation_commit", DelayInsideOperationCommit)
         .Default();
@@ -424,6 +431,10 @@ TOperationSpecBase::TOperationSpecBase()
         .GreaterThanOrEqual(TDuration::Seconds(10))
         .LessThanOrEqual(TDuration::Minutes(10));
 
+    RegisterParameter("job_speculation_timeout", JobSpeculationTimeout)
+        .Default()
+        .GreaterThan(TDuration::Zero());
+
     RegisterPostprocessor([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             UnavailableChunkTactics == EUnavailableChunkAction::Skip)
@@ -559,11 +570,14 @@ TUserJobSpec::TUserJobSpec()
     RegisterParameter("interruption_signal", InterruptionSignal)
         .Default();
     RegisterParameter("enable_setup_commands", EnableSetupCommands)
-        .Default(false);
+        .Default(true);
     RegisterParameter("enable_gpu_layers", EnableGpuLayers)
-        .Default(false);
+        .Default(true);
     RegisterParameter("cuda_toolkit_version", CudaToolkitVersion)
         .Default();
+    RegisterParameter("job_speculation_timeout", JobSpeculationTimeout)
+        .Default()
+        .GreaterThan(TDuration::Zero());
 
     RegisterPostprocessor([&] () {
         if ((TmpfsSize || TmpfsPath) && !TmpfsVolumes.empty()) {

@@ -26,8 +26,7 @@ TDataBalancer::TDataBalancer(
     : Options_(std::move(options))
     , TotalDataWeight_(totalDataWeight)
 {
-    for (const auto& pair : execNodes) {
-        const auto& execNode = pair.second;
+    for (const auto& [nodeId, execNode] : execNodes) {
         auto& node = GetOrRegisterNode(execNode);
         if (node.Descriptor.IOWeight > 0) {
             node.Active = true;
@@ -131,9 +130,7 @@ void TDataBalancer::LogStatistics() const
 {
     TStringBuilder line;
     bool isFirst = true;
-    for (const auto& pair : IdToNode_) {
-        auto nodeId = pair.first;
-        auto& node = pair.second;
+    for (const auto& [nodeId, node] : IdToNode_) {
         if (!node.Active && node.DataWeight == 0) {
             // Nothing interesting in such a node.
             continue;

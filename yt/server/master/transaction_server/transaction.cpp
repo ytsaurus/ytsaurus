@@ -119,15 +119,13 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     }
 }
 
-bool TTransaction::IsDescendantOf(TTransaction* transaction) const
+TTransaction* TTransaction::GetTopmostTransaction()
 {
-    YT_VERIFY(transaction);
-    for (auto* current = GetParent(); current; current = current->GetParent()) {
-        if (current == transaction) {
-            return true;
-        }
+    auto* currentTransaction = this;
+    while (currentTransaction->GetParent()) {
+        currentTransaction = currentTransaction->GetParent();
     }
-    return false;
+    return currentTransaction;
 }
 
 bool TTransaction::IsExternalized() const

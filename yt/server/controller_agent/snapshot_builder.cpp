@@ -88,10 +88,7 @@ TFuture<void> TSnapshotBuilder::Run(const TOperationIdToWeakControllerMap& contr
     std::vector<TFuture<TSnapshotCookie>> onSnapshotStartedFutures;
 
     // Capture everything needed in Build.
-    for (const auto& pair : controllers) {
-        auto operationId = pair.first;
-        const auto& weakController = pair.second;
-
+    for (const auto& [operationId, weakController] : controllers) {
         auto controller = weakController.Lock();
         if (!controller || !controller->IsRunning()) {
             continue;

@@ -82,6 +82,9 @@ public:
     //! Time before next (background) update.
     std::optional<TDuration> RefreshTime;
 
+    //! If set to true, cache will invoke DoGetMany once instead of DoGet on every entry during an update.
+    bool BatchUpdate;
+
     TAsyncExpiringCacheConfig()
     {
         RegisterParameter("expire_after_access_time", ExpireAfterAccessTime)
@@ -95,6 +98,8 @@ public:
         RegisterParameter("refresh_time", RefreshTime)
             .Alias("success_probation_time")
             .Default(TDuration::Seconds(10));
+        RegisterParameter("batch_update", BatchUpdate)
+            .Default(false);
 
         RegisterPostprocessor([&] () {
             if (RefreshTime && *RefreshTime > ExpireAfterSuccessfulUpdateTime) {

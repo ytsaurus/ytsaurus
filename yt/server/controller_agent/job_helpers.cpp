@@ -153,8 +153,8 @@ TBriefJobStatisticsPtr BuildBriefStatistics(std::unique_ptr<TJobSummary> jobSumm
     if (!outputPipeIdleTimes.empty()) {
         briefStatistics->OutputPipeIdleTime = 0;
         // This is a simplest way to achieve the desired result, although not the most fair one.
-        for (const auto& pair : outputPipeIdleTimes) {
-            briefStatistics->OutputPipeIdleTime = std::max<i64>(*briefStatistics->OutputPipeIdleTime, pair.second);
+        for (const auto& [tableIndex, idleTime] : outputPipeIdleTimes) {
+            briefStatistics->OutputPipeIdleTime = std::max<i64>(*briefStatistics->OutputPipeIdleTime, idleTime);
         }
     }
 

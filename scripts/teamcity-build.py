@@ -981,6 +981,7 @@ def run_ya_tests(options, build_context):
         "-E", "--output", sandbox_storage,
         "--junit", junit_output,
         "-ttt",
+        "--dont-merge-split-tests",
         "yt/tests",
     ]
     args += ya_make_args(options)

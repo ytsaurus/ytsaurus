@@ -348,6 +348,7 @@ class TJobIOConfig
 public:
     NTableClient::TTableReaderConfigPtr TableReader;
     NTableClient::TTableWriterConfigPtr TableWriter;
+    NTableClient::TTableWriterConfigPtr DynamicTableWriter;
 
     NFormats::TControlAttributesConfigPtr ControlAttributes;
 
@@ -411,6 +412,8 @@ public:
     std::optional<TDuration> DelayInsideRevive;
 
     std::optional<TDuration> DelayInsideSuspend;
+
+    std::optional<TDuration> DelayInsideMaterialize;
 
     std::optional<i64> AllocationSize;
 
@@ -601,6 +604,10 @@ public:
     //! Timeout of waiting job start on the host.
     std::optional<TDuration> WaitingJobTimeout;
 
+    //! Force running speculative job after this timeout. Has lower priority than `JobSpeculationTimeout`
+    //! from TUserJobSpec.
+    std::optional<TDuration> JobSpeculationTimeout;
+
     TOperationSpecBase();
 
 private:
@@ -685,6 +692,10 @@ public:
     bool EnableGpuLayers;
 
     std::optional<TString> CudaToolkitVersion;
+
+    //! Force running speculative job after this timeout. Has higher priority than `JobSpeculationTimeout`
+    //! from TOperationBaseSpec.
+    std::optional<TDuration> JobSpeculationTimeout;
 
     TUserJobSpec();
 

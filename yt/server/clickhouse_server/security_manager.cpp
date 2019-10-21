@@ -32,6 +32,7 @@ using namespace NConcurrency;
 using namespace NLogging;
 using namespace NYTree;
 using namespace NSecurityClient;
+using namespace NYson;
 
 static const auto& Logger = ServerLogger;
 
@@ -40,17 +41,6 @@ static const auto& Logger = ServerLogger;
 class TUsersManager
     : public DB::IUsersManager
 {
-private:
-    THashMap<TString, DB::IUsersManager::UserPtr> Users_;
-    std::optional<DB::User> UserTemplate_;
-    TReaderWriterSpinLock SpinLock_;
-
-    TBootstrap* Bootstrap_;
-    TString CliqueId_;
-
-    std::optional<TSerializableAccessControlList> CurrentAcl_;
-    NProfiling::TCpuInstant LastCurrentAclUpdateTime_;
-
 public:
     TUsersManager(TBootstrap* bootstrap, TString cliqueId)
         : Bootstrap_(bootstrap)
@@ -84,40 +74,32 @@ public:
         return that->GetOrRegisterUser(userName);
     }
 
-    bool hasAccessToDatabase(const std::string& userName, const std::string& /* databaseName */) const override
+    bool hasAccessToDatabase(const std::string& userName, const std::string& databaseName) const override
     {
-        // At this point we only check if the user has access to current clique.
-        // Storage layer is responsible for access control for specific tables.
-        if (!Bootstrap_->GetConfig()->ValidateOperationAccess) {
-            return true;
-        }
-
         try {
-            if (auto acl = const_cast<TUsersManager*>(this)->GetCurrentAcl()) {
-                NScheduler::ValidateOperationAccess(
-                    TString(userName),
-                    TGuid::FromString(CliqueId_),
-                    TGuid() /* jobId */,
-                    EPermission::Read,
-                    *acl,
-                    Bootstrap_->GetRootClient(),
-                    Logger);
-            }
+            const_cast<TUsersManager*>(this)->GetOrRegisterUser(TString(userName));
             return true;
-        } catch (const TErrorException& ex) {
-            if (ex.Error().FindMatching(NSecurityClient::EErrorCode::AuthorizationError)) {
-                YT_LOG_INFO(ex, "User does not have access to the containing operation (User: %v, OperationId: %v)",
-                    userName,
-                    CliqueId_);
-                return false;
-            }
-            throw;
+        } catch (const std::exception& ex) {
+            YT_LOG_INFO(ex, "Error while registering user (UserName: %v, DatabaseName: %v)", userName, databaseName);
+            return false;
         }
     }
 
 private:
+    THashMap<TString, DB::IUsersManager::UserPtr> Users_;
+    std::optional<DB::User> UserTemplate_;
+    TReaderWriterSpinLock SpinLock_;
+
+    TBootstrap* Bootstrap_;
+    TString CliqueId_;
+
+    std::optional<TSerializableAccessControlList> CurrentAcl_;
+    NProfiling::TCpuInstant LastCurrentAclUpdateTime_ = 0;
+
     DB::IUsersManager::UserPtr GetOrRegisterUser(TStringBuf userName)
     {
+        MaybeUpdateCurrentAcl();
+
         {
             auto guard = TReaderGuard(SpinLock_);
 
@@ -136,6 +118,7 @@ private:
             }
 
             YT_LOG_INFO("Registering new user (UserName: %v)", userName);
+            ValidateUserAccess(TString(userName));
 
             auto user = CreateNewUserFromTemplate(userName);
             auto result = Users_.emplace(userName, user);
@@ -144,26 +127,72 @@ private:
         }
     }
 
-    std::optional<TSerializableAccessControlList> GetCurrentAcl()
+    void ValidateUserAccess(const TString& userName)
     {
+        // At this point we only check if the user has access to current clique.
+        // Storage layer is responsible for access control for specific tables.
+        if (!Bootstrap_->GetConfig()->ValidateOperationAccess) {
+            YT_LOG_DEBUG("Operation access validation disabled, allowing access to user (User: %v)", userName);
+            return;
+        }
+
+        if (userName == "default") {
+            YT_LOG_DEBUG("Username is default, allowing this user to register");
+            return;
+        }
+
+        if (!CurrentAcl_) {
+            YT_LOG_DEBUG("No operation ACL available, allowing access to user (User: %v)", userName);
+            return;
+        }
+
+        NScheduler::ValidateOperationAccess(
+            userName,
+            TGuid::FromString(CliqueId_),
+            TGuid() /* jobId */,
+            EPermission::Read,
+            *CurrentAcl_,
+            Bootstrap_->GetRootClient(),
+            Logger);
+        YT_LOG_DEBUG("User access validated using master, allowing access to user (User: %v)", userName);
+    }
+
+    //! Try to update current acl if it is not fresh enough, and clear users map if it has actually changed.
+    void MaybeUpdateCurrentAcl()
+    {
+        if (!Bootstrap_->GetConfig()->ValidateOperationAccess) {
+            return;
+        }
+
         auto currentTime = NProfiling::GetCpuInstant();
         auto updatePeriod = NProfiling::DurationToCpuDuration(Bootstrap_->GetConfig()->OperationAclUpdatePeriod);
         {
             auto guard = TReaderGuard(SpinLock_);
             if (LastCurrentAclUpdateTime_ + updatePeriod >= currentTime) {
-                return CurrentAcl_;
+                return;
             }
         }
         {
             auto guard = TWriterGuard(SpinLock_);
-            if (LastCurrentAclUpdateTime_ + updatePeriod < currentTime) {
-                UpdateCurrentAcl();
+            if (LastCurrentAclUpdateTime_ + updatePeriod >= currentTime) {
+                // Somebody has updated acl before us.
+                return;
             }
-            return CurrentAcl_;
+
+            auto newCurrentAcl = FetchCurrentAcl();
+            YT_LOG_DEBUG("Current operation ACL fetched (Acl: %v)", ConvertToYsonString(newCurrentAcl, EYsonFormat::Text));
+            LastCurrentAclUpdateTime_ = NProfiling::GetCpuInstant();
+            if (CurrentAcl_ != newCurrentAcl) {
+                YT_LOG_INFO("Operation ACL has changed (OldAcl: %v, NewAcl: %v)",
+                    ConvertToYsonString(CurrentAcl_, EYsonFormat::Text),
+                    ConvertToYsonString(newCurrentAcl, EYsonFormat::Text));
+                Users_.clear();
+                CurrentAcl_ = newCurrentAcl;
+            }
         }
     }
 
-    void UpdateCurrentAcl()
+    std::optional<TSerializableAccessControlList> FetchCurrentAcl()
     {
         NApi::TGetOperationOptions options;
         options.IncludeRuntime = true;
@@ -175,16 +204,15 @@ private:
         auto runtimeParametersNode = ConvertTo<IMapNodePtr>(runtimeParametersYsonString)
             ->FindChild("runtime_parameters");
         if (!runtimeParametersNode) {
-            return;
+            return std::nullopt;
         }
         auto aclNode = runtimeParametersNode
             ->AsMap()
             ->FindChild("acl");
         if (!aclNode) {
-            return;
+            return std::nullopt;
         }
-        CurrentAcl_ = ConvertTo<TSerializableAccessControlList>(std::move(aclNode));
-        LastCurrentAclUpdateTime_ = NProfiling::GetCpuInstant();
+        return ConvertTo<TSerializableAccessControlList>(std::move(aclNode));
     }
 
     DB::IUsersManager::UserPtr CreateNewUserFromTemplate(TStringBuf userName)

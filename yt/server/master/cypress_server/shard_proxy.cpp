@@ -41,7 +41,8 @@ private:
 
         attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::RootNodeId)
             .SetPresent(shard->GetRoot() != nullptr));
-        attributes->push_back(EInternedAttributeKey::AccountStatistics);
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::AccountStatistics)
+            .SetOpaque(true));
         attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::Name)
             .SetWritable(true));
 

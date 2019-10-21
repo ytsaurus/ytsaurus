@@ -74,6 +74,7 @@ DEFINE_REFCOUNTED_TYPE(IPortoExecutor)
 ////////////////////////////////////////////////////////////////////////////////
 
 IPortoExecutorPtr CreatePortoExecutor(
+    const TString& name = "Executor",
     TDuration retryTime = TDuration::Seconds(10),
     TDuration pollPeriod = TDuration::MilliSeconds(100));
 

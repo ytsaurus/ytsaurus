@@ -97,6 +97,9 @@ DEFINE_ENUM(EMasterReign,
     ((TwoSidedPortalRemoval)                                         (915))  // babenko
     ((YT_10745_Annotation)                                           (916))  // avmatrosov
     ((ReplicateConfigToNewCellFirst)                                 (917))  // babenko
+    ((FixSetShardInClone)                                            (918))  // babenko
+    ((DropUserStatistics)                                            (919))  // babenko
+    ((CellServer)                                                   (1000))  // savrus
 );
 
 ////////////////////////////////////////////////////////////////////////////////

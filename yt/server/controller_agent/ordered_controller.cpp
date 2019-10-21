@@ -277,7 +277,7 @@ protected:
 
     virtual bool IsCompleted() const override
     {
-        return OrderedTask_->IsCompleted();
+        return OrderedTask_ && OrderedTask_->IsCompleted();
     }
 
     virtual void DoInitialize() override

@@ -22,6 +22,7 @@ from functools import total_ordering
 from itertools import groupby
 import numbers
 import traceback
+import sys
 
 
 def _format_lo_hi(id_lo, id_hi, id_as_parts=False):
@@ -44,6 +45,14 @@ def _ts_to_time_str(ts):
     return datetime.fromtimestamp(ts).strftime("%H:%M:%S")
 
 
+def _job_finished(job_info_json):
+    state = job_info_json["state"] or job_info_json["transient_state"]
+    return state in ["completed", "failed"] and any([
+        event.get("phase") == "finished" or event.get("state") == "finished"
+        for event in job_info_json["events"]
+    ])
+
+
 def _get_event_time(phase, events):
     """Get starting time of some phase for particular job"""
     time_str = next(
@@ -51,20 +60,6 @@ def _get_event_time(phase, events):
         event.get("phase") == phase or event.get("state") == phase
     )
     return yt.common.date_string_to_timestamp(time_str)
-
-
-def _get_operation_start(op_id, client):
-    """Get start time of the operation"""
-    hi_id, lo_id = uuid_to_parts(op_id)
-    operation_events = list(client.select_rows(
-        """
-        events from [//sys/operations_archive/ordered_by_id]
-        where id_lo = {}u and id_hi = {}u
-        """.format(lo_id, hi_id)
-    ))
-    if not operation_events or not operation_events[0]["events"]:
-        return None
-    return _get_event_time("running", operation_events[0]["events"])
 
 
 def _get_operation_info_by_chunks(op_id, client, start_job_id_hi, start_job_id_lo):
@@ -287,17 +282,18 @@ def get_jobs(op_id, cluster_name, ignore_parsing_errors=False):
     client = yt.client.Yt(proxy = cluster_name)
     jobset = []
 
-    operation_start = _get_operation_start(op_id, client)
     chunk = _get_operation_info_by_chunks(op_id, client, 0, 0)
-    if not operation_start or not chunk:
+    if not chunk:
         print("There is no operation {} in the operations archive!".format(op_id))
         return
+    operation_start = sys.maxsize
     while chunk:
         for job_info_json in chunk:
             state = job_info_json["state"] or job_info_json["transient_state"]
-            if state in ["completed", "failed"]:
+            if _job_finished(job_info_json):
                 try:
-                    job_info = JobInfo(job_info_json, operation_start)
+                    job_info = JobInfo(job_info_json)
+                    operation_start = min(operation_start, job_info.start_time)
                     jobset.append(job_info)
                 except Exception:
                     if not ignore_parsing_errors:
@@ -311,6 +307,12 @@ def get_jobs(op_id, cluster_name, ignore_parsing_errors=False):
                     )
         start_job_id_hi, start_job_id_lo = chunk[-1]["job_id_hi"], chunk[-1]["job_id_lo"]
         chunk = _get_operation_info_by_chunks(op_id, client, start_job_id_hi, start_job_id_lo)
+    
+    for job_info in jobset:
+        job_info.operation_start = operation_start
+        job_info.start_time -= operation_start
+        job_info.start_running -= operation_start
+        job_info.finish_time -= operation_start
 
     jobset.sort()
     return jobset
