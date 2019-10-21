@@ -35,30 +35,27 @@ import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.misc.lang.CharsetUtils;
 import ru.yandex.yt.ytclient.tables.ColumnSchema;
 import ru.yandex.yt.ytclient.tables.TableSchema;
-import ru.yandex.yt.ytclient.wire.UnversionedRow;
-import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 
 public class YtResultSet extends AbstractWrapper implements ResultSet {
 
-    final TableSchema schema;
-
+    private final TableSchema schema;
     private final YtStatement statement;
     private final String[] columnNames;
     private final Map<String, Integer> columnPos;
 
-    private final List<UnversionedRow> rows;
+    private final List<YTreeMapNode> rows;
 
     private int fetchSize;
 
     private boolean closed;
     private YTreeMapNode node;
+    private boolean wasNull;
     private int row;
 
-    YtResultSet(YtStatement statement, UnversionedRowset rowset) {
+    YtResultSet(YtStatement statement, TableSchema schema, List<YTreeMapNode> rows) {
         this.statement = Objects.requireNonNull(statement);
-        Objects.requireNonNull(rowset);
 
-        this.schema = rowset.getSchema();
+        this.schema = schema;
         final List<ColumnSchema> columns = schema.getColumns();
         final int size = columns.size();
 
@@ -70,7 +67,7 @@ public class YtResultSet extends AbstractWrapper implements ResultSet {
             columnNames[i] = name;
             columnPos.put(name, i);
         }
-        this.rows = rowset.getRows();
+        this.rows = Objects.requireNonNull(rows);
         this.row = -1;
     }
 
@@ -84,6 +81,8 @@ public class YtResultSet extends AbstractWrapper implements ResultSet {
             return false;
         }
         row++;
+        node = null;
+        wasNull = true;
         return true;
     }
 
@@ -96,9 +95,13 @@ public class YtResultSet extends AbstractWrapper implements ResultSet {
             throw new SQLException("Row is not selected");
         }
         if (node == null) {
-            this.node = rows.get(row).toYTreeMap(schema);
+            this.node = rows.get(row);
         }
         return node;
+    }
+
+    private YTreeNode column(String column) throws SQLException {
+        return checkExists().getOrThrow(column);
     }
 
     @Override
@@ -108,7 +111,7 @@ public class YtResultSet extends AbstractWrapper implements ResultSet {
 
     @Override
     public boolean wasNull() throws SQLException {
-        return false; // TODO: Поддержать
+        return wasNull;
     }
 
     @Override
@@ -200,7 +203,9 @@ public class YtResultSet extends AbstractWrapper implements ResultSet {
 
     @Override
     public boolean getBoolean(String columnLabel) throws SQLException {
-        return checkExists().getBool(columnLabel);
+        final boolean ret = column(columnLabel).boolValue();
+        wasNull = false;
+        return ret;
     }
 
     @Override
@@ -215,12 +220,16 @@ public class YtResultSet extends AbstractWrapper implements ResultSet {
 
     @Override
     public int getInt(String columnLabel) throws SQLException {
-        return checkExists().getInt(columnLabel);
+        final int ret = column(columnLabel).intValue();
+        wasNull = false;
+        return ret;
     }
 
     @Override
     public long getLong(String columnLabel) throws SQLException {
-        return checkExists().getLong(columnLabel);
+        final long ret = column(columnLabel).longValue();
+        wasNull = false;
+        return ret;
     }
 
     @Override
@@ -230,7 +239,9 @@ public class YtResultSet extends AbstractWrapper implements ResultSet {
 
     @Override
     public double getDouble(String columnLabel) throws SQLException {
-        return checkExists().getDouble(columnLabel);
+        final double ret = column(columnLabel).doubleValue();
+        wasNull = false;
+        return ret;
     }
 
     @Deprecated
@@ -241,7 +252,9 @@ public class YtResultSet extends AbstractWrapper implements ResultSet {
 
     @Override
     public byte[] getBytes(String columnLabel) throws SQLException {
-        return checkExists().getBytes(columnLabel);
+        final byte[] ret = column(columnLabel).bytesValue();
+        wasNull = ret == null;
+        return ret;
     }
 
     @Override
@@ -292,7 +305,7 @@ public class YtResultSet extends AbstractWrapper implements ResultSet {
 
     @Override
     public ResultSetMetaData getMetaData() throws SQLException {
-        return statement.getYtConnection().getWrapper().wrap(ResultSetMetaData.class, new YtResultSetMetaData(this));
+        return new YtResultSetMetaData(this.schema);
     }
 
     @Override
@@ -302,24 +315,27 @@ public class YtResultSet extends AbstractWrapper implements ResultSet {
 
     @Override
     public Object getObject(String columnLabel) throws SQLException {
-        final YTreeNode value = checkExists().getOrThrow(columnLabel);
+        final YTreeNode value = column(columnLabel);
+        final Object ret;
         if (value.isStringNode()) {
-            return value.stringValue();
+            ret = value.stringValue();
         } else if (value.isIntegerNode()) {
-            return value.longValue();
+            ret = value.longValue();
         } else if (value.isDoubleNode()) {
-            return value.doubleValue();
+            ret = value.doubleValue();
         } else if (value.isBooleanNode()) {
-            return value.boolValue();
+            ret = value.boolValue();
         } else if (value.isListNode()) {
-            return value.listNode();
+            ret = value.listNode();
         } else if (value.isMapNode()) {
-            return value.mapNode();
+            ret = value.mapNode();
         } else if (value.isEntityNode()) {
-            return value.entityNode();
+            ret = value.entityNode();
         } else {
-            return null;
+            ret = null;
         }
+        wasNull = ret == null;
+        return ret;
     }
 
     @Override
@@ -1068,7 +1084,10 @@ public class YtResultSet extends AbstractWrapper implements ResultSet {
     @SuppressWarnings("unchecked")
     @Override
     public <T> T getObject(String columnLabel, Class<T> type) throws SQLException {
-        return (T) checkExists().getOrThrow(columnLabel).cast();
+        final T ret = (T) column(columnLabel).cast();
+        wasNull = ret == null;
+        return ret;
     }
+
 
 }

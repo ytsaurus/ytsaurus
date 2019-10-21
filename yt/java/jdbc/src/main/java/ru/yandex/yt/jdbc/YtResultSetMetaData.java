@@ -6,17 +6,18 @@ import java.util.Objects;
 
 import ru.yandex.yt.ytclient.tables.ColumnSchema;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
+import ru.yandex.yt.ytclient.tables.TableSchema;
 
 public class YtResultSetMetaData extends AbstractWrapper implements ResultSetMetaData {
 
-    private final YtResultSet resultSet;
+    private final TableSchema schema;
 
-    YtResultSetMetaData(YtResultSet resultSet) {
-        this.resultSet = Objects.requireNonNull(resultSet);
+    YtResultSetMetaData(TableSchema schema) {
+        this.schema = Objects.requireNonNull(schema);
     }
 
     private ColumnSchema getColumn(int column) {
-        return resultSet.schema.getColumnSchema(column - 1);
+        return schema.getColumnSchema(column - 1);
     }
 
     private ColumnValueType getType(int column) {
@@ -25,7 +26,7 @@ public class YtResultSetMetaData extends AbstractWrapper implements ResultSetMet
 
     @Override
     public int getColumnCount() throws SQLException {
-        return resultSet.schema.getColumnsCount();
+        return schema.getColumnsCount();
     }
 
     @Override
@@ -79,7 +80,7 @@ public class YtResultSetMetaData extends AbstractWrapper implements ResultSetMet
 
     @Override
     public String getSchemaName(int column) throws SQLException {
-        return "DEFAULT";
+        return "";
     }
 
     @Override
@@ -94,7 +95,7 @@ public class YtResultSetMetaData extends AbstractWrapper implements ResultSetMet
 
     @Override
     public String getTableName(int column) throws SQLException {
-        return "";
+        return ""; // Не можем определить
     }
 
     @Override
@@ -104,7 +105,7 @@ public class YtResultSetMetaData extends AbstractWrapper implements ResultSetMet
 
     @Override
     public int getColumnType(int column) throws SQLException {
-        return YtTypes.toSqlType(getType(column));
+        return YtTypes.columnTypeToSqlType(getType(column));
     }
 
     @Override
@@ -129,7 +130,7 @@ public class YtResultSetMetaData extends AbstractWrapper implements ResultSetMet
 
     @Override
     public String getColumnClassName(int column) throws SQLException {
-        return YtTypes.toClass(getType(column)).getName();
+        return YtTypes.columnTypeToClass(getType(column)).getName();
     }
 
 }

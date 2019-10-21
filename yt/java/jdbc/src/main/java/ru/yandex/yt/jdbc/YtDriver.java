@@ -42,7 +42,7 @@ public class YtDriver implements Driver {
         synchronized (wrapper) {
             if (wrapper.impl == null) {
                 wrapper.impl = new YtClientWrapper(properties);
-                LOGGER.info("Created connection for {}", properties);
+                LOGGER.info("Created new connection for {}", properties);
             }
             wrapper.count++;
 
