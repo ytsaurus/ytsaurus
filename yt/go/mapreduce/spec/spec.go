@@ -92,6 +92,8 @@ type Spec struct {
 	JobIO       *JobIO `yson:"job_io,omitempty"`
 	MapJobIO    *JobIO `yson:"map_job_io,omitempty"`
 	ReduceJobIO *JobIO `yson:"reduce_job_io,omitempty"`
+
+	ACL []yt.ACE `yson:"acl,omitempty"`
 }
 
 func (s *Spec) ReduceByColumns(columns ...string) *Spec {

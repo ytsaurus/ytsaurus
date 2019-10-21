@@ -1,6 +1,10 @@
 package mapreduce
 
-import "context"
+import (
+	"context"
+
+	"a.yandex-team.ru/yt/go/yt"
+)
 
 type Option interface {
 	MapReduceOption()
@@ -24,6 +28,16 @@ func (*configOption) MapReduceOption() {}
 
 func WithConfig(config *Config) Option {
 	return &configOption{config}
+}
+
+type defaultACLOption struct {
+	acl []yt.ACE
+}
+
+func (*defaultACLOption) MapReduceOption() {}
+
+func WithDefaultOperationACL(acl []yt.ACE) Option {
+	return &defaultACLOption{acl}
 }
 
 type Config struct {
