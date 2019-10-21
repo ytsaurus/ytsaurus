@@ -2,7 +2,6 @@
 
 #include <yt/core/concurrency/fls.h>
 #include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/actions/callback.h>
 #include <yt/core/actions/future.h>

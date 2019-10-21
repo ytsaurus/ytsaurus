@@ -44,6 +44,8 @@ DEFINE_ENUM(EExecutionStackKind,
 
 class TExecutionStack;
 
+DECLARE_REFCOUNTED_CLASS(TFiber)
+
 template <class TSignature>
 class TCoroutine;
 

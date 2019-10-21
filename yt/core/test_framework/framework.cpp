@@ -4,6 +4,7 @@
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/delayed_executor.h>
+#include <yt/core/concurrency/fiber.h>
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/logging/config.h>
@@ -98,17 +99,31 @@ void RunAndTrackFiber(TClosure closure)
     auto queue = New<TActionQueue>("Main");
     auto invoker = queue->GetInvoker();
 
-    auto result = BIND([invoker/*, promise*/, closure] () mutable {
+    auto promise = NewPromise<TFiberPtr>();
+
+    BIND([invoker, promise, closure] () mutable {
         // NB: Make sure TActionQueue does not keep a strong reference to this fiber by forcing a yield.
         SwitchTo(invoker);
 
+        auto fiber = TryGetCurrentFiber();
+        YT_ASSERT(fiber);
+        promise.Set(fiber);
         closure.Run();
     })
-    .AsyncVia(invoker)
+    .Via(invoker)
     .Run();
 
+    auto strongFiber = promise.Get().ValueOrThrow();
+    auto weakFiber = MakeWeak(strongFiber);
+
+    promise.Reset();
+    strongFiber.Reset();
+
+    YT_ASSERT(!promise);
+    YT_ASSERT(!strongFiber);
+
     auto startedAt = TInstant::Now();
-    while (!result.IsSet()) {
+    while (weakFiber.Lock()) {
         if (TInstant::Now() - startedAt > TDuration::Seconds(5)) {
             GTEST_FAIL() << "Probably stuck.";
             break;

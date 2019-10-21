@@ -35,7 +35,7 @@ public:
                 return;
             }
 
-            TCurrentInvokerGuard guard(this_);
+            NConcurrency::TCurrentInvokerGuard guard(this_);
             callback.Run();
         }));
     }

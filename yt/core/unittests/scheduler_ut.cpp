@@ -686,7 +686,7 @@ TEST_F(TSchedulerTest, SerializedDoubleWaitFor)
 
 void CheckCurrentFiberRunDuration(TDuration lo, TDuration hi)
 {
-    auto actual = NProfiling::CpuDurationToDuration(GetCurrentFiberRunCpuTime());
+    auto actual = NProfiling::CpuDurationToDuration(GetCurrentRunCpuTime());
     EXPECT_LE(actual, hi);
     EXPECT_GE(actual, lo);
 }
