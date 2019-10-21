@@ -8,7 +8,7 @@ import (
 	"fmt"
 
 	"github.com/gofrs/uuid/v3"
-	"github.com/pkg/errors"
+	"golang.org/x/xerrors"
 
 	"a.yandex-team.ru/yt/go/yson"
 )
@@ -76,11 +76,11 @@ func ParseString(s string) (g GUID, err error) {
 	var n int
 	n, err = fmt.Sscanf(s, format, &a, &b, &c, &d)
 	if err != nil {
-		err = errors.Errorf("invalid GUID format: %v", err)
+		err = xerrors.Errorf("invalid GUID format: %v", err)
 		return
 	}
 	if n != 4 {
-		err = errors.Errorf("invalid GUID format")
+		err = xerrors.Errorf("invalid GUID format")
 		return
 	}
 
