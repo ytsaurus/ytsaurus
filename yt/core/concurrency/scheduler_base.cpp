@@ -181,17 +181,12 @@ void TFiberReusingAdapter::FiberMain()
             YT_VERIFY(CurrentFiber);
 
             NYTAlloc::TMemoryTagGuard guard(NYTAlloc::NullMemoryTag);
-            YT_VERIFY(!AfterSwitch);
 #ifdef REUSE_FIBERS
             // Switch out and add fiber to idle fibers.
             // Save fiber in AfterSwitch because it can be immediately concurrently reused.
             AfterSwitch = BIND_DONT_CAPTURE_TRACE_CONTEXT([current = CurrentFiber] () mutable {
                 // Reuse the fiber but regenerate its id.
                 current->ResetForReuse();
-
-                YT_LOG_DEBUG("Make fiber idle (FiberId: %llx)",
-                    current->GetId());
-
                 Profiler.Increment(IdleFibersCounter, 1);
                 IdleFibers.Enqueue(std::move(current));
             });
@@ -214,18 +209,13 @@ void TFiberReusingAdapter::FiberMain()
             SetCurrentFiberId(CurrentFiber->GetId());
         }
 
-        // CurrentFiber->IsCanceled() used in shutdown to destroy idle fibers
         if (!ThreadThis_ || ThreadThis_->IsShutdown() || CurrentFiber->IsCanceled()) {
             // Do not reuse fiber in this rear case. Otherwise too many idle fibers are collected.
             YT_VERIFY(!AfterSwitch);
             YT_VERIFY(!ResumerFiber);
 
             NYTAlloc::TMemoryTagGuard guard(NYTAlloc::NullMemoryTag);
-            YT_VERIFY(!AfterSwitch);
             AfterSwitch = BIND_DONT_CAPTURE_TRACE_CONTEXT([current = CurrentFiber] () mutable {
-                YT_LOG_DEBUG("Destroying fiber (FiberId: %llx)",
-                    current->GetId());
-
                 current.Reset();
             });
 
@@ -294,11 +284,8 @@ bool TFiberReusingAdapter::OnLoop(TEventCount::TCookie* cookie)
 
 void ResumeFiber(TFiberPtr fiber)
 {
-    YT_LOG_DEBUG("Resuming fiber (TargetFiberId: %llx)", fiber->GetId());
-
     YT_VERIFY(CurrentFiber);
     ResumerFiber = CurrentFiber;
-    YT_VERIFY(!AfterSwitch);
     SwitchToFiber(std::move(fiber));
     YT_VERIFY(!ResumerFiber);
 }
@@ -306,8 +293,6 @@ void ResumeFiber(TFiberPtr fiber)
 void UnwindFiber(TFiberPtr fiber)
 {
     fiber->Cancel();
-
-    YT_LOG_DEBUG("Unwinding fiber (TargetFiberId: %llx)", fiber->GetId());
 
     GetFinalizerInvoker()->Invoke(
         BIND_DONT_CAPTURE_TRACE_CONTEXT(&ResumeFiber, Passed(std::move(fiber))));
@@ -333,7 +318,6 @@ struct TResumeGuard
 
     void operator()()
     {
-        YT_VERIFY(Fiber);
         ResumeFiber(std::move(Fiber));
     }
 
@@ -371,30 +355,13 @@ void WaitForImpl(TAwaitable awaitable, IInvokerPtr invoker)
         }
 
         NYTAlloc::TMemoryTagGuard guard(NYTAlloc::NullMemoryTag);
-        YT_VERIFY(!AfterSwitch);
-        AfterSwitch = BIND_DONT_CAPTURE_TRACE_CONTEXT([=, fiber = CurrentFiber, once = true] () mutable {
-            YT_VERIFY(once);
-            once = false;
-
-            auto awaitableId = THash<NYT::TAwaitable>()(awaitable);
-
-            YT_LOG_DEBUG("Rescheduling fiber (TargetFiberId: %llx, AwaitableId: %llx)",
-                fiber->GetId(),
-                awaitableId);
-
+        AfterSwitch = BIND_DONT_CAPTURE_TRACE_CONTEXT([=, fiber = CurrentFiber] () mutable {
             if (awaitable) {
                 awaitable.Subscribe(BIND_DONT_CAPTURE_TRACE_CONTEXT([
                     invoker = std::move(invoker),
-                    fiber = std::move(fiber),
-                    awaitableId,
-                    once = true
+                    fiber = std::move(fiber)
                 ] () mutable {
-                    YT_VERIFY(once);
-                    once = false;
-
-                    YT_LOG_DEBUG("Waking up fiber (TargetFiberId: %llx, AwaitableId: %llx)",
-                        fiber->GetId(),
-                        awaitableId);
+                    YT_LOG_DEBUG("Waking up fiber (TargetFiberId: %llx)", fiber->GetId());
                     invoker->Invoke(BIND(TResumeGuard{std::move(fiber)}));
                 }));
             } else {
