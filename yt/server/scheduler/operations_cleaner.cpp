@@ -154,8 +154,8 @@ std::vector<TString> GetPools(const IMapNodePtr& runtimeParameters)
     }
 
     std::vector<TString> pools;
-    for (const auto& pair : schedulingOptionsNode->AsMap()->GetChildren()) {
-        auto poolNode = pair.second->AsMap()->FindChild("pool");
+    for (const auto& [key, value] : schedulingOptionsNode->AsMap()->GetChildren()) {
+        auto poolNode = value->AsMap()->FindChild("pool");
         if (poolNode) { // COMPAT(renadeen): remove this check when everything will be on 19.4
             pools.push_back(poolNode->GetValue<TString>());
         }

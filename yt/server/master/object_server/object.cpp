@@ -71,6 +71,7 @@ int TObject::GetGCWeight() const
 
 void TObject::Save(NCellMaster::TSaveContext& context) const
 {
+    YT_VERIFY(!Flags_.Disposed);
     using NYT::Save;
     Save(context, RefCounter_);
     Save(context, WeakRefCounter_);

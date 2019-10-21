@@ -572,7 +572,7 @@ TYsonItem TYsonPullParser::NextImpl()
                 } else if (isdigit(ch) || ch == '-' || ch == '+') { // case of '+' is handled in AfterPlus state
                     TStringBuf valueBuffer;
 
-                    ENumericResult numericResult = Lexer_.template ReadNumeric<false>(&valueBuffer);
+                    ENumericResult numericResult = Lexer_.template ReadNumeric<true>(&valueBuffer);
                     if (numericResult == ENumericResult::Double) {
                         double value;
                         try {
@@ -608,7 +608,7 @@ TYsonItem TYsonPullParser::NextImpl()
                         return TYsonItem::Uint64(value);
                     }
                 } else if (isalpha(ch) || ch == '_') {
-                    TStringBuf value = Lexer_.template ReadUnquotedString<false>();
+                    TStringBuf value = Lexer_.template ReadUnquotedString<true>();
                     SyntaxChecker_.OnString();
                     return TYsonItem::String(value);
                 } else {

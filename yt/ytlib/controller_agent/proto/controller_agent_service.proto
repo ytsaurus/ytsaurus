@@ -44,6 +44,7 @@ message TRspGetOperationInfo
     required bytes job_splitter = 4;   // YSON
     required int64 controller_memory_usage = 5;
     required int32 controller_state = 6;
+    required bytes alerts = 7; // YSON
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -178,6 +179,7 @@ message TRspReviveOperation
     required bytes attributes = 1; // YSON
     required bool revived_from_snapshot = 2;
     repeated TRevivedJob revived_jobs = 3;
+    repeated string revived_banned_tree_ids = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

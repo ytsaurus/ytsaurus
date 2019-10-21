@@ -12,14 +12,13 @@
 #include <yt/core/concurrency/thread_pool.h>
 #include <yt/core/concurrency/delayed_executor.h>
 
-#include <yt/core/misc/error.h>
-
 #include <yt/core/bus/public.h>
 
 #include <yt/core/rpc/bus/channel.h>
 #include <yt/core/rpc/bus/server.h>
 
 #include <yt/core/rpc/client.h>
+#include <yt/core/rpc/retrying_channel.h>
 #include <yt/core/rpc/server.h>
 #include <yt/core/rpc/service_detail.h>
 #include <yt/core/rpc/stream.h>
@@ -31,6 +30,10 @@
 #include <yt/core/rpc/grpc/server.h>
 #include <yt/core/rpc/grpc/proto/grpc.pb.h>
 
+#include <yt/core/misc/error.h>
+#include <yt/core/yson/string.h>
+#include <yt/core/ytree/fluent.h>
+
 #include <random>
 
 namespace NYT::NRpc {
@@ -38,6 +41,8 @@ namespace {
 
 using namespace NYT::NBus;
 using namespace NYT::NRpc::NBus;
+using namespace NYT::NYTree;
+using namespace NYT::NYson;
 using namespace NConcurrency;
 using namespace NCrypto;
 using namespace NYTAlloc;
@@ -64,6 +69,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NMyRpc, SlowCall);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, SlowCanceledCall);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, NoReply);
+    DEFINE_RPC_PROXY_METHOD(NMyRpc, FlakyCall);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, StreamingEcho,
         .SetStreamingEnabled(true));
     DEFINE_RPC_PROXY_METHOD(NMyRpc, ServerStreamsAborted,
@@ -130,6 +136,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SlowCanceledCall)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(NoReply));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(FlakyCall));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StreamingEcho)
             .SetStreamingEnabled(true)
             .SetCancelable(true));
@@ -353,6 +360,19 @@ public:
         } catch (const TFiberCanceledException&) {
             SlowCallCanceled_.Set();
             throw;
+        }
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NMyRpc, FlakyCall)
+    {
+        static std::atomic<int> callCount(0);
+
+        context->SetRequestInfo();
+
+        if (callCount.fetch_add(1) % 2) {
+            context->Reply();
+        } else {
+            context->Reply(TError(EErrorCode::TransportError, "Flaky call iteration"));
         }
     }
 
@@ -729,6 +749,29 @@ TYPED_TEST(TRpcTest, Send)
     EXPECT_TRUE(rspOrError.IsOK()) << ToString(rspOrError);
     const auto& rsp = rspOrError.Value();
     EXPECT_EQ(142, rsp->b());
+}
+
+TYPED_TEST(TRpcTest, RetryingSend)
+{
+    auto config = New<TRetryingChannelConfig>();
+    config->Load(ConvertTo<NYTree::INodePtr>(TYsonString("{retry_backoff_time=10}")));
+
+    IChannelPtr channel = CreateRetryingChannel(
+        std::move(config),
+        this->CreateChannel());
+
+    {
+        TMyProxy proxy(channel);
+        auto req = proxy.FlakyCall();
+        auto rspOrError = req->Invoke().Get();
+        EXPECT_TRUE(rspOrError.IsOK()) << ToString(rspOrError);
+    }
+
+    // Channel must be asynchronously deleted after response handling finished.
+    // In particular, all possible cyclic dependencies must be resolved.
+    WaitForPredicate([&channel] {
+        return channel->GetRefCount() == 1;
+    });
 }
 
 TYPED_TEST(TNotGrpcTest, SendSimple)

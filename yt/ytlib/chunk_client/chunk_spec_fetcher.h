@@ -12,8 +12,7 @@
 
 #pragma once
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,7 +34,7 @@ public:
         int maxChunksPerLocateRequest,
         const std::function<void(const TChunkOwnerYPathProxy::TReqFetchPtr&)>& initializeFetchRequest,
         const NLogging::TLogger& logger,
-        bool skipUnavialableChunks = false);
+        bool skipUnavailableChunks = false);
 
     void Add(
         NObjectClient::TObjectId objectId,
@@ -79,5 +78,4 @@ DEFINE_REFCOUNTED_TYPE(TChunkSpecFetcher)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient

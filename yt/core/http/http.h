@@ -229,6 +229,8 @@ struct IRequest
     virtual TGuid GetConnectionId() const = 0;
     virtual TGuid GetRequestId() const = 0;
     virtual i64 GetReadByteCount() const = 0;
+
+    virtual bool IsHttps() const { return false; }
 };
 
 DEFINE_REFCOUNTED_TYPE(IRequest)

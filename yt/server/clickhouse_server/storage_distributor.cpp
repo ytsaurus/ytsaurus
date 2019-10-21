@@ -28,6 +28,7 @@
 #include <DataStreams/MaterializingBlockInputStream.h>
 #include <DataStreams/RemoteBlockInputStream.h>
 #include <Interpreters/InterpreterSelectQuery.h>
+#include <Interpreters/ProcessList.h>
 #include <DataTypes/DataTypeFactory.h>
 #include <DataTypes/DataTypeNullable.h>
 #include <Storages/MergeTree/MergeTreeData.h>
@@ -47,6 +48,7 @@ using namespace NTableClient;
 using namespace NYson;
 using namespace NYTree;
 using namespace NChunkPools;
+using namespace NTracing;
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -131,7 +133,13 @@ DB::BlockInputStreamPtr CreateRemoteStream(
 
     stream->setPoolMode(DB::PoolMode::GET_MANY);
     auto remoteQueryId = ToString(TQueryId::Create());
-    stream->setRemoteQueryId(remoteQueryId);
+    auto* traceContext = GetCurrentTraceContext();
+    if (!traceContext) {
+        traceContext = queryContext->TraceContext.Get();
+    }
+    YT_VERIFY(traceContext);
+    auto spanId = traceContext->GetSpanId();
+    stream->setQueryId(Format("%v@%" PRIx64 "%v", remoteQueryId, spanId, traceContext->IsSampled() ? "T" : "F"));
 
     return CreateBlockInputStreamLoggingAdapter(std::move(stream), TLogger(queryContext->Logger)
         .AddTag("RemoteQueryId: %v, RemoteNode: %v, RemoteStreamId: %v",
@@ -160,6 +168,9 @@ public:
 
     virtual void startup() override
     {
+        const auto& Logger = ServerLogger;
+
+        YT_LOG_TRACE("StorageDistributor instantiated (Address: %v)", static_cast<void*>(this));
         if (ClickHouseSchema_.Columns.empty()) {
             THROW_ERROR_EXCEPTION("CHYT does not support tables without schema")
                 << TErrorAttribute("path", getTableName());
@@ -220,16 +231,20 @@ public:
         auto* queryContext = GetQueryContext(context);
         const auto& Logger = queryContext->Logger;
 
+        YT_LOG_TRACE("StorageDistributor started reading (Address: %v)", static_cast<void*>(this));
+
+        SpecTemplate_ = TSubquerySpec();
         SpecTemplate_.InitialQueryId = queryContext->QueryId;
+        if (auto* queryStatus = queryContext->TryGetQueryStatus()) {
+            SpecTemplate_.InitialQuery = queryStatus->getInfo().query;
+        }
 
         auto cliqueNodes = queryContext->Bootstrap->GetHost()->GetNodes();
         if (cliqueNodes.empty()) {
             THROW_ERROR_EXCEPTION("There are no instances available through discovery");
         }
 
-        if (!Prepared_) {
-            Prepare(cliqueNodes.size(), queryInfo, context);
-        }
+        Prepare(cliqueNodes.size(), queryInfo, context);
 
         YT_LOG_INFO("Starting distribution (ColumnNames: %v, TableName: %v, NodeCount: %v, MaxThreads: %v, SubqueryCount: %v)",
             columnNames,
@@ -366,7 +381,6 @@ private:
     std::vector<TSubquery> Subqueries_;
     std::vector<TRichYPath> TablePaths_;
     std::optional<TQueryAnalyzer> QueryAnalyzer_;
-    bool Prepared_ = false;
 
     void Prepare(
         int subqueryCount,
@@ -379,6 +393,7 @@ private:
         auto analyzerResult = QueryAnalyzer_->Analyze();
 
         auto inputStripeList = FetchInput(
+            queryContext->Bootstrap,
             queryContext->Client(),
             queryContext->Bootstrap->GetSerializedWorkerInvoker(),
             analyzerResult.TableSchemas,
@@ -396,7 +411,7 @@ private:
             if (rate > 1.0) {
                 rate /= inputStripeList->TotalRowCount;
             }
-            rate = std::max(0.0, std::min(1.0, rate));
+            rate = std::clamp(rate, 0.0, 1.0);
             samplingRate = rate;
         }
 
@@ -407,8 +422,6 @@ private:
             subqueryCount * context.getSettings().max_threads,
             samplingRate,
             context);
-
-        Prepared_ = true;
     }
 };
 
@@ -470,19 +483,19 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
     };
 
     YT_LOG_DEBUG("Creating table (Attributes: %v)", ConvertToYsonString(attributes->ToMap(), EYsonFormat::Text));
+
+    auto schema = attributes->Get<TTableSchema>("schema");
+
     NApi::TCreateNodeOptions options;
     options.Attributes = std::move(attributes);
     auto id = WaitFor(client->CreateNode(path.GetPath(), NObjectClient::EObjectType::Table, options))
         .ValueOrThrow();
     YT_LOG_DEBUG("Table created (ObjectId: %v)", id);
 
-    auto table = FetchClickHouseTable(client, path, Logger);
-    YT_VERIFY(table);
-
     return std::make_shared<TStorageDistributor>(
-        table->TableSchema,
-        TClickHouseTableSchema::From(*table),
-        std::vector<TRichYPath>{table->Path});
+        schema,
+        TClickHouseTableSchema::From(TClickHouseTable(path, schema)),
+        std::vector<TRichYPath>{path});
 }
 
 ////////////////////////////////////////////////////////////////////////////////

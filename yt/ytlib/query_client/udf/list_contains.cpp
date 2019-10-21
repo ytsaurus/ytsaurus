@@ -12,5 +12,10 @@ extern "C" void list_contains(
     TUnversionedValue* ysonList,
     TUnversionedValue* what)
 {
+    if (ysonList->Type == EValueType::Null) {
+        result->Type = EValueType::Null;
+        return;
+    }
+
     ListContains(context, result, ysonList, what);
 }

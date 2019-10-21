@@ -102,8 +102,8 @@ TAccountStatistics& TAccount::LocalStatistics()
 
 bool TAccount::IsDiskSpaceLimitViolated() const
 {
-    const auto& usage = ClusterStatistics_.ResourceUsage.DiskSpace;
-    const auto& limits = ClusterResourceLimits_.DiskSpace;
+    const auto& usage = ClusterStatistics_.ResourceUsage.DiskSpace();
+    const auto& limits = ClusterResourceLimits_.DiskSpace();
 
     for (const auto& [mediumIndex, diskSpace] : usage) {
         if (diskSpace >= limits.lookup(mediumIndex)) {
@@ -116,8 +116,8 @@ bool TAccount::IsDiskSpaceLimitViolated() const
 
 bool TAccount::IsDiskSpaceLimitViolated(int mediumIndex) const
 {
-    const auto& usage = ClusterStatistics_.ResourceUsage.DiskSpace;
-    const auto& limits = ClusterResourceLimits_.DiskSpace;
+    const auto& usage = ClusterStatistics_.ResourceUsage.DiskSpace();
+    const auto& limits = ClusterResourceLimits_.DiskSpace();
     return usage.lookup(mediumIndex) > limits.lookup(mediumIndex);
 }
 

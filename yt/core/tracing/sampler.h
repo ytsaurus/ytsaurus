@@ -12,7 +12,7 @@ class TSampler
 {
 public:
     TSampler();
-    TSampler(const TSamplingConfigPtr& config);
+    explicit TSampler(const TSamplingConfigPtr& config);
 
     bool IsTraceSampled(const TString& user);
 
@@ -21,7 +21,7 @@ public:
 
 private:
     struct TUserState
-        : public TRefCounted
+        : public TIntrinsicRefCounted
     {
         std::atomic<uint64_t> SampleCount;
     };

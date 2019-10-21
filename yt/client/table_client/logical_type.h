@@ -73,8 +73,24 @@ public:
     // Users should use ValidateLogicalType function.
     virtual void ValidateNode(const TWalkContext& context) const = 0;
 
-    // Whether or not element might be null.
+    // Whether or not this type can have null value.
     virtual bool IsNullable() const = 0;
+
+    //
+    // Additional helpers to decompose complex type.
+    // Logical type MUST have appropriate metatype otherwise abort() will be called.
+
+    //
+    // Return underlying element for Optional,List,Tagged.
+    const TLogicalTypePtr& GetElement() const;
+
+    //
+    // Return elements for Tuple,VariantTuple
+    const std::vector<TLogicalTypePtr>& GetElements() const;
+
+    //
+    // Return fields for Struct,VariantStruct
+    const std::vector<TStructField>& GetFields() const;
 
 private:
     const ELogicalMetatype Metatype_;

@@ -304,6 +304,19 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TOpaqueAttributeKeysCache
+{
+public:
+    const THashSet<TString>& GetOpaqueAttributeKeys(ISystemAttributeProvider* provider);
+
+private:
+    bool Initialized_ = false;
+    THashSet<TString> OpaqueKeys_;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TNodeSetterBase
     : public NYson::TForwardingYsonConsumer
 {

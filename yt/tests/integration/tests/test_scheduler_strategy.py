@@ -2725,7 +2725,8 @@ class TestTentativePoolTrees(YTEnvSetup):
 
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"x": i} for i in xrange(30)])
-        create("table", "//tmp/t_out")
+        create("table", "//tmp/t_out1")
+        create("table", "//tmp/t_out2")
 
         events = events_on_fs()
 
@@ -2734,14 +2735,14 @@ class TestTentativePoolTrees(YTEnvSetup):
             reducer_command=events.wait_event_cmd("continue_job_${YT_JOB_ID}"),
             sort_by=["x"],
             in_="//tmp/t_in",
-            out="//tmp/t_out",
+            out="//tmp/t_out1",
             spec=spec,
             dont_track=True)
 
         op1 = map(
             command=events.wait_event_cmd("continue_job_${YT_JOB_ID}"),
             in_="//tmp/t_in",
-            out="//tmp/t_out",
+            out="//tmp/t_out2",
             spec=spec,
             dont_track=True)
 

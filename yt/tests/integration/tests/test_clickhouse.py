@@ -18,6 +18,7 @@ import random
 import os
 import copy
 import threading
+import pprint
 
 TEST_DIR = os.path.join(os.path.dirname(__file__))
 
@@ -40,12 +41,17 @@ QUERY_TYPES_WITH_OUTPUT = ("describe", "select", "show")
 class Clique(object):
     base_config = None
     clique_index = 0
+    query_index = 0
     path_to_run = None
     core_dump_path = None
 
     def __init__(self, instance_count, max_failed_job_count=0, config_patch=None, **kwargs):
         config = update(Clique.base_config, config_patch) if config_patch is not None else copy.deepcopy(Clique.base_config)
         spec = {"pool": None}
+        self.is_tracing = False
+        if "YT_TRACE_DUMP_DIR" in os.environ:
+            self.is_tracing = True
+            spec["tasks"] = {"instances": {"environment" : {"YT_TRACE_DUMP_DIR": os.environ["YT_TRACE_DUMP_DIR"]}}}
         if "spec" in kwargs:
             spec = update(spec, kwargs.pop("spec"))
 
@@ -74,7 +80,8 @@ class Clique(object):
 
     def get_active_instances(self):
         if exists("//sys/clickhouse/cliques/{0}".format(self.op.id), verbose=False):
-            instances = ls("//sys/clickhouse/cliques/{0}".format(self.op.id), attributes=["locks", "host", "http_port"])
+            instances = ls("//sys/clickhouse/cliques/{0}".format(self.op.id),
+                           attributes=["locks", "host", "http_port", "monitoring_port"], verbose=False)
 
             def is_active(instance):
                 if not instance.attributes["locks"]:
@@ -177,15 +184,18 @@ class Clique(object):
         host = instance.attributes["host"]
         port = instance.attributes["http_port"]
 
-        query_id = parts_to_uuid(random.randint(0, 2**64 - 1), random.randint(0, 2**64 - 1))
+        query_id = parts_to_uuid(random.randint(0, 2**64 - 1), (Clique.clique_index << 32) | Clique.query_index)
+        Clique.query_index += 1
 
         print_debug()
         print_debug("Querying {0}:{1} with the following data:\n> {2}".format(host, port, query))
         print_debug("Query id: {}".format(query_id))
-        result = requests.post("http://{}:{}/query?output_format_json_quote_64bit_integers=0&query_id={}".format(host, port, query_id),
+        result = requests.post("http://{}:{}/query?output_format_json_quote_64bit_integers=0".format(host, port),
                                data=query,
                                headers={"X-ClickHouse-User": user,
-                                        "X-Yt-Request-Id": query_id})
+                                        "X-Yt-Trace-Id": query_id,
+                                        "X-Yt-Span-Id": "0",
+                                        "X-Yt-Sampled": str(int(self.is_tracing))})
         output = ""
         if result.status_code != 200:
             output += "Query failed, HTTP code: {}\n".format(result.status_code)
@@ -282,6 +292,8 @@ class ClickHouseTestBase(YTEnvSetup):
         if YTSERVER_CLICKHOUSE_BINARY is None:
             pytest.skip("This test requires ytserver-clickhouse binary being built")
 
+        create_user("yt-clickhouse-cache")
+
         if exists("//sys/clickhouse"):
             return
         create("map_node", "//sys/clickhouse")
@@ -301,6 +313,19 @@ def get_scheduling_options(user_slots):
         }
     }
 
+def get_async_expiring_cache_config(expire_after_access_time, expire_after_successful_update_time, refresh_time):
+    return {
+        "expire_after_access_time": expire_after_access_time,
+        "expire_after_successful_update_time": expire_after_successful_update_time,
+        "refresh_time": refresh_time,
+    }
+
+def get_object_attibute_cache_config(expire_after_access_time, expire_after_successful_update_time, refresh_time):
+    return {
+        "table_attribute_cache": get_async_expiring_cache_config(expire_after_access_time, expire_after_successful_update_time, refresh_time),
+        "permission_cache": get_async_expiring_cache_config(expire_after_access_time, expire_after_successful_update_time, refresh_time),
+    }
+
 class TestClickHouseCommon(ClickHouseTestBase):
     def setup(self):
         self._setup()
@@ -317,7 +342,6 @@ class TestClickHouseCommon(ClickHouseTestBase):
             with pytest.raises(YtError):
                 clique.make_query('select avg(b) from "//tmp/t"')
 
-            # TODO(max42): support range selectors.
             assert abs(clique.make_query('select avg(a) from "//tmp/t[#2:#9]"')[0]["avg(a)"] - 5.0) < 1e-6
 
     # YT-9497
@@ -354,16 +378,44 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert result[0]["value"] == "1234"
             assert result[0]["changed"] == 1
 
-    @authors("max42")
+    @authors("max42", "dakovalkov")
     def test_schema_caching(self):
-        with Clique(1) as clique:
+        patch = get_object_attibute_cache_config(500, 500, None)
+
+        with Clique(1, config_patch=patch) as clique:
             create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
             write_table("//tmp/t", [{"a": 1}])
             old_description = clique.make_query('describe "//tmp/t"')
             assert old_description[0]["name"] == "a"
             remove("//tmp/t")
+            cached_description = clique.make_query('describe "//tmp/t"')
+            assert cached_description == old_description
             create("table", "//tmp/t", attributes={"schema": [{"name": "b", "type": "int64"}]})
             write_table("//tmp/t", [{"b": 1}])
+            time.sleep(1)
+            new_description = clique.make_query('describe "//tmp/t"')
+            assert new_description[0]["name"] == "b"
+
+    @authors("dakovalkov")
+    def test_cache_auto_update(self):
+        # Will never expire.
+        patch = get_object_attibute_cache_config(100500, 100500, 100)
+
+        with Clique(1, config_patch=patch) as clique:
+            create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
+            write_table("//tmp/t", [{"a": 1}])
+            old_description = clique.make_query('describe "//tmp/t"')
+            assert old_description[0]["name"] == "a"
+            
+            remove("//tmp/t")
+            time.sleep(0.5)
+            with pytest.raises(YtError):
+                cached_description = clique.make_query('describe "//tmp/t"')
+
+            create("table", "//tmp/t", attributes={"schema": [{"name": "b", "type": "int64"}]})
+            write_table("//tmp/t", [{"b": 1}])
+            time.sleep(0.5)
+
             new_description = clique.make_query('describe "//tmp/t"')
             assert new_description[0]["name"] == "b"
 
@@ -874,6 +926,33 @@ class TestMutations(ClickHouseTestBase):
             # This is wrong.
             # assert get("//tmp/s2/@compression_codec") == "snappy"
 
+    @authors("dakovalkov")
+    def test_create_table_clear_cache(self):
+        patch = get_object_attibute_cache_config(15000, 15000, 500)
+        with Clique(1, config_patch=patch) as clique:
+            create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
+
+            def get_schema(describe_info):
+                schema = []
+                for info in describe_info:
+                    schema.append({
+                        "name": info["name"],
+                        "type": info["type"],
+                    })
+                return schema
+
+            # Load attributes into cache.
+            assert get_schema(clique.make_query('describe "//tmp/t"')) == [{"name": "a", "type": "Nullable(Int64)"}]
+
+            remove("//tmp/t")
+
+            # Wait for clearing cache.
+            time.sleep(1)
+
+            clique.make_query('create table "//tmp/t"(b String) engine YtTable()')
+
+            assert get_schema(clique.make_query('describe "//tmp/t"')) == [{"name": "b", "type": "Nullable(String)"}]
+
 
 class TestCompositeTypes(ClickHouseTestBase):
     def setup(self):
@@ -1117,7 +1196,11 @@ class TestYtDictionaries(ClickHouseTestBase):
                                                              {"name": "value", "type": "string", "required": True}]})
         write_table("//tmp/dict", [{"key": 42, "value": "x"}])
 
-        with Clique(1, config_patch={
+        patch = {
+            # Disable background update.
+            "table_attribute_cache": get_async_expiring_cache_config(2000, 2000, None),                
+            "permission_cache": get_async_expiring_cache_config(2000, 2000, None),
+
             "engine": {"dictionaries": [
                 {
                     "name": "dict",
@@ -1133,7 +1216,10 @@ class TestYtDictionaries(ClickHouseTestBase):
                         }
                     }
                 }
-            ]}}) as clique:
+            ]},
+        }
+
+        with Clique(1, config_patch=patch) as clique:
             assert clique.make_query("select dictGetString('dict', 'value', CAST(42 as UInt64)) as value")[0]["value"] == "x"
 
             write_table("//tmp/dict", [{"key": 42, "value": "y"}])
@@ -1256,7 +1342,7 @@ class TestClickHouseAccess(ClickHouseTestBase):
                 clique.make_query("select * from \"//tmp/t\"", user="u")
 
         with Clique(1,
-                    config_patch={"validate_operation_access": True},
+                    config_patch={"validate_operation_access": True, "operation_acl_update_period": 100},
                     spec={
                         "acl": [{
                             "subjects": ["u"],
@@ -1265,9 +1351,13 @@ class TestClickHouseAccess(ClickHouseTestBase):
                         }]
                     }) as clique:
             assert len(clique.make_query("select * from \"//tmp/t\"", user="u")) == 1
+            update_op_parameters(clique.op.id, parameters={"acl": []})
+            time.sleep(1)
+            with pytest.raises(YtError):
+                clique.make_query("select * from \"//tmp/t\"", user="u")
 
 
-class TestQueryLog(ClickHouseTestBase):
+class TestQueryLogAndQueryRegistry(ClickHouseTestBase):
     def setup(self):
         self._setup()
 
@@ -1278,6 +1368,40 @@ class TestQueryLog(ClickHouseTestBase):
             wait(lambda: len(clique.make_query("select * from system.tables where database = 'system' and "
                                                "name = 'query_log';")) >= 1)
             wait(lambda: len(clique.make_query("select * from system.query_log")) >= 1)
+
+    @authors("max42")
+    def test_query_registry(self):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        write_table("//tmp/t", [{"a": 0}])
+        with Clique(1) as clique:
+            monitoring_port = clique.get_active_instances()[0].attributes["monitoring_port"]
+
+            def check_query_registry():
+                query_registry = requests.get("http://localhost:{}/orchid/queries".format(monitoring_port)).json()
+                running_queries = list(query_registry["running_queries"].values())
+                print_debug(running_queries)
+                if len(running_queries) < 2:
+                    return False
+                assert len(running_queries) == 2
+                qi = running_queries[0]
+                qs = running_queries[1]
+                if qi["query_kind"] != "initial_query":
+                    qi, qs = qs, qi
+                print_debug("Initial: ", pprint.pformat(qi))
+                print_debug("Secondary: ", pprint.pformat(qs))
+                assert qi["query_kind"] == "initial_query"
+                assert qs["query_kind"] == "secondary_query"
+                assert "initial_query" in qs
+                assert qs["initial_query_id"] == qi["query_id"]
+                return True
+
+            from threading import Thread
+            t = Thread(target=clique.make_query, args=("select sleep(3) from \"//tmp/t\"",))
+            t.start()
+
+            wait(lambda: check_query_registry())
+
+            t.join()
 
 
 class TestQueryRegistry(ClickHouseTestBase):
@@ -1672,3 +1796,17 @@ class TestHttpProxy(ClickHouseTestBase):
             assert ping_thread.is_alive()
             running = False
             ping_thread.join()
+
+    @authors("max42")
+    def test_tracing_via_http_proxy(self):
+        with Clique(5) as clique:
+            url = self._get_proxy_address() + "/query?database={}".format(clique.op.id)
+
+            create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
+            for i in range(5):
+                write_table("<append=%true>//tmp/t", [{"a": 2 * i}, {"a": 2 * i + 1}])
+
+            assert abs(requests.post(url,
+                                     data="select avg(a) from \"//tmp/t\"",
+                                     headers={"X-Yt-Sampled": "1"}).json() - 4.5) < 1e-6
+

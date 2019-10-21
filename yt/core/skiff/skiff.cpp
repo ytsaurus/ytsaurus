@@ -4,6 +4,8 @@
 
 #include <yt/core/misc/error.h>
 
+#include <util/system/unaligned_mem.h>
+
 namespace NYT::NSkiff {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -66,7 +68,7 @@ ui16 TUncheckedSkiffParser::ParseVariant16Tag()
 template <typename T>
 T TUncheckedSkiffParser::ParseSimple()
 {
-    return *static_cast<const T*>(GetData(sizeof(T)));
+    return ReadUnaligned<T>(GetData(sizeof(T)));
 }
 
 const void* TUncheckedSkiffParser::GetData(size_t size)

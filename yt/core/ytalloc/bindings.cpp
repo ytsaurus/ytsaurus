@@ -247,7 +247,7 @@ public:
             .Default();
         RegisterParameter("stockpile_interval", StockpileInterval)
             .Default();
-        RegisterParameter("stockpile_interval", StockpileSize)
+        RegisterParameter("stockpile_size", StockpileSize)
             .GreaterThan(0)
             .Default();
     }

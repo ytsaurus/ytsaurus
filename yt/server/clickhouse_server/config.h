@@ -10,6 +10,10 @@
 
 #include <yt/ytlib/table_client/config.h>
 
+#include <yt/ytlib/object_client/config.h>
+
+#include <yt/ytlib/security_client/config.h>
+
 #include <yt/client/misc/config.h>
 
 #include <yt/client/ypath/rich.h>
@@ -341,6 +345,12 @@ public:
     //! To avoid reciving queries after shutdown, this value should be greater than GossipPeriod.
     TDuration InterruptionGracefulTimeout;
 
+    //! Config for cache which is used for checking read permissions to tables.
+    NSecurityClient::TPermissionCacheConfigPtr PermissionCache;
+
+    //! Config for cache which is used for getting table's attributes, like id, schema, external_cell_tag, etc.
+    NObjectClient::TObjectAttributeCacheConfigPtr TableAttributeCache;
+
     TClickHouseServerBootstrapConfig()
     {
         RegisterParameter("cluster_connection", ClusterConnection);
@@ -351,7 +361,7 @@ public:
         RegisterParameter("validate_operation_access", ValidateOperationAccess)
             .Default(true);
         RegisterParameter("operation_acl_update_period", OperationAclUpdatePeriod)
-            .Default(TDuration::Minutes(1));
+            .Default(TDuration::Seconds(15));
 
         RegisterParameter("user", User)
             .Default("yt-clickhouse");
@@ -381,6 +391,29 @@ public:
         
         RegisterParameter("interruption_graceful_timeout", InterruptionGracefulTimeout)
             .Default(TDuration::Seconds(2));
+
+        RegisterParameter("permission_cache", PermissionCache)
+            .DefaultNew();
+
+        RegisterPreprocessor([&] {
+            PermissionCache->ExpireAfterAccessTime = TDuration::Minutes(2);
+            PermissionCache->ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(20);
+            PermissionCache->ExpireAfterFailedUpdateTime = TDuration::Zero();
+            PermissionCache->RefreshTime = TDuration::Seconds(15);
+            PermissionCache->BatchUpdate = true;
+            PermissionCache->ReadFrom = NApi::EMasterChannelKind::Follower;
+        });
+
+        RegisterParameter("table_attribute_cache", TableAttributeCache)
+            .DefaultNew();
+
+        RegisterPreprocessor([&] {
+            TableAttributeCache->ExpireAfterAccessTime = TDuration::Minutes(2);
+            TableAttributeCache->ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(20);
+            TableAttributeCache->ExpireAfterFailedUpdateTime = TDuration::Zero();
+            TableAttributeCache->RefreshTime = TDuration::Seconds(15);
+            TableAttributeCache->BatchUpdate = true;
+        });
     }
 };
 

@@ -209,8 +209,7 @@ class TestChunkServer(YTEnvSetup):
         def check_replica_count():
             nodes = get("#{0}/@stored_replicas".format(chunk_id))
             for node in nodes:
-                if not (get("//sys/cluster_nodes/{0}/@chunk_replica_count/cache".format(node)) == 0 and
-                        get("//sys/cluster_nodes/{0}/@chunk_replica_count/default".format(node)) == 1):
+                if get("//sys/cluster_nodes/{0}/@chunk_replica_count/default".format(node)) == 0:
                     return False
             return True
 

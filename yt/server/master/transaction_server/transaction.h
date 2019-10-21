@@ -81,12 +81,11 @@ public:
 
     NYson::TYsonString GetErrorDescription() const;
 
-    //! Returns true iff this transaction is (arbitrarily deeply) nested in #transaction.
+    //! Walks up parent links and returns the topmost ancestor.
     /*!
-     *  A transaction is NOT a descendant of itself.
-     *  NB: complexity is O(number of intermediate descendants).
+     *  NB: complexity is O(number of intermediate ancestors).
      */
-    bool IsDescendantOf(TTransaction* transaction) const;
+    TTransaction* GetTopmostTransaction();
 
     //! Returns |true| if this a (topmost or nested) externalized transaction.
     bool IsExternalized() const;

@@ -853,8 +853,8 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     @authors("aozeritsky")
     def test_replicated_table_tracker_options(self):
         self._create_cells()
-        set("//sys/@config/tablet_manager/replicated_table_tracker/async_expiring_cache", {"expire_after_access_time": 1337})
-        assert(get("//sys/@config/tablet_manager/replicated_table_tracker/async_expiring_cache/expire_after_access_time") == 1337)
+        set("//sys/@config/tablet_manager/replicated_table_tracker/bundle_health_cache", {"expire_after_access_time": 1337})
+        assert(get("//sys/@config/tablet_manager/replicated_table_tracker/bundle_health_cache/expire_after_access_time") == 1337)
 
     @authors("babenko")
     def test_cannot_sync_write_into_disabled_replica(self):

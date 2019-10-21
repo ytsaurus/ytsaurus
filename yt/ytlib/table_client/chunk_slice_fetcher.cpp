@@ -117,7 +117,6 @@ private:
         req->SetMultiplexingBand(EMultiplexingBand::Heavy);
         req->set_slice_data_size(ChunkSliceSize_);
         req->set_slice_by_keys(SliceByKeys_);
-        req->set_keys_in_attachment(true);
         ToProto(req->mutable_key_columns(), KeyColumns_);
         // TODO(babenko): make configurable
         ToProto(req->mutable_workload_descriptor(), TWorkloadDescriptor(EWorkloadCategory::UserBatch));
@@ -193,22 +192,17 @@ private:
 
         const auto& rsp = rspOrError.Value();
 
-        // We keep reader in the scope as a holder for a wire reader and uncompressed attachment.
-        std::optional<TKeySetReader> keysReader;
-        NYT::TRange<TKey> keys;
-        if (rsp->keys_in_attachment()) {
-            YT_VERIFY(rsp->Attachments().size() == 1);
-            keysReader.emplace(rsp->Attachments().front());
-            keys = keysReader->GetKeys();
-        }
+        YT_VERIFY(rsp->Attachments().size() == 1);
+        TKeySetReader keysReader(rsp->Attachments()[0]);
+        auto keys = keysReader.GetKeys();
 
         for (int i = 0; i < requestedChunkIndexes.size(); ++i) {
             int index = requestedChunkIndexes[i];
             const auto& chunk = Chunks_[index];
-            const auto& slices = rsp->slices(i);
+            const auto& sliceResponse = rsp->slice_responses(i);
 
-            if (slices.has_error()) {
-                auto error = FromProto<TError>(slices.error());
+            if (sliceResponse.has_error()) {
+                auto error = FromProto<TError>(sliceResponse.error());
 
                 if (error.FindMatching(EErrorCode::IncompatibleKeyColumns)) {
                     // Any exception thrown here interrupts fetching.
@@ -220,13 +214,13 @@ private:
             }
 
             YT_LOG_TRACE("Received %v chunk slices for chunk #%v",
-                slices.chunk_slices_size(),
+                sliceResponse.chunk_slices_size(),
                 index);
 
             if (SlicesByChunkIndex_.size() <= index) {
                 SlicesByChunkIndex_.resize(index + 1, std::vector<NChunkClient::TInputChunkSlicePtr>());
             }
-            for (const auto& protoChunkSlice : slices.chunk_slices()) {
+            for (const auto& protoChunkSlice : sliceResponse.chunk_slices()) {
                 auto slice = New<TInputChunkSlice>(chunk, RowBuffer_, protoChunkSlice, keys);
                 SlicesByChunkIndex_[index].push_back(slice);
                 SliceCount_++;

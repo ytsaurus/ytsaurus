@@ -393,10 +393,16 @@ void TTask::ScheduleJob(
             TaskHost_->GetConfig()->UserJobMemoryReserveQuantile);
     }
 
+    if (userJobSpec && userJobSpec->JobSpeculationTimeout) {
+        joblet->JobSpeculationTimeout = userJobSpec->JobSpeculationTimeout;
+    } else if (TaskHost_->GetSpec()->JobSpeculationTimeout) {
+        joblet->JobSpeculationTimeout = TaskHost_->GetSpec()->JobSpeculationTimeout;
+    }
+
     YT_LOG_DEBUG(
         "Job scheduled (JobId: %v, OperationId: %v, JobType: %v, Address: %v, JobIndex: %v, OutputCookie: %v, SliceCount: %v (%v local), "
         "Approximate: %v, DataWeight: %v (%v local), RowCount: %v, Splittable: %v, Restarted: %v, EstimatedResourceUsage: %v, JobProxyMemoryReserveFactor: %v, "
-        "UserJobMemoryReserveFactor: %v, ResourceLimits: %v, Speculative: %v)",
+        "UserJobMemoryReserveFactor: %v, ResourceLimits: %v, Speculative: %v, JobSpeculationTimeout: %v)",
         joblet->JobId,
         TaskHost_->GetOperationId(),
         jobType,
@@ -415,7 +421,8 @@ void TTask::ScheduleJob(
         joblet->JobProxyMemoryReserveFactor,
         joblet->UserJobMemoryReserveFactor,
         FormatResources(neededResources),
-        joblet->Speculative);
+        joblet->Speculative,
+        joblet->JobSpeculationTimeout);
 
     for (const auto& edgeDescriptor : EdgeDescriptors_) {
         joblet->ChunkListIds.push_back(TaskHost_->ExtractOutputChunkList(edgeDescriptor.CellTag));
@@ -869,6 +876,7 @@ void TTask::AddOutputTableSpecs(
         if (edgeDescriptor.Timestamp) {
             outputSpec->set_timestamp(*edgeDescriptor.Timestamp);
         }
+        outputSpec->set_dynamic(edgeDescriptor.IsOutputTableDynamic);
     }
 }
 

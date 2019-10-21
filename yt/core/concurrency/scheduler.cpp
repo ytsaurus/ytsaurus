@@ -2,56 +2,11 @@
 #include "fiber.h"
 #include "fls.h"
 
-namespace NYT {
-
-////////////////////////////////////////////////////////////////////////////////
-
-thread_local IInvokerPtr CurrentInvoker;
-
-IInvokerPtr GetCurrentInvoker()
-{
-    return CurrentInvoker ? CurrentInvoker : GetSyncInvoker();
-}
-
-void SetCurrentInvoker(IInvokerPtr invoker)
-{
-    CurrentInvoker = std::move(invoker);
-}
-
-TCurrentInvokerGuard::TCurrentInvokerGuard(IInvokerPtr invoker)
-    : NConcurrency::TContextSwitchGuard(
-        [this] () noexcept {
-            Restore();
-        },
-        [] () noexcept { })
-    , Active_(true)
-    , SavedInvoker_(std::move(invoker))
-{
-    CurrentInvoker.Swap(SavedInvoker_);
-}
-
-void TCurrentInvokerGuard::Restore()
-{
-    if (!Active_) {
-        return;
-    }
-    Active_ = false;
-    CurrentInvoker.Swap(SavedInvoker_);
-}
-
-TCurrentInvokerGuard::~TCurrentInvokerGuard()
-{
-    Restore();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-} //namespace NYT
-
 namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+thread_local IInvokerPtr CurrentInvoker;
 thread_local IScheduler* CurrentScheduler;
 thread_local TFiberId CurrentFiberId;
 thread_local TFiber* CurrentFiber;
@@ -98,18 +53,24 @@ void YieldToFiber(TFiberPtr&& other)
     CurrentScheduler->YieldTo(std::move(other));
 }
 
-void WaitForImpl(TFuture<void> future, IInvokerPtr invoker)
+namespace NDetail {
+
+void WaitForImpl(TAwaitable awaitable, IInvokerPtr invoker)
 {
+    YT_ASSERT(awaitable);
+    YT_ASSERT(invoker);
     auto* scheduler = CurrentScheduler;
     if (scheduler) {
         NYTAlloc::TMemoryTagGuard guard(NYTAlloc::NullMemoryTag);
-        scheduler->WaitFor(std::move(future), std::move(invoker));
+        scheduler->WaitFor(std::move(awaitable), std::move(invoker));
     } else {
         // When called from a fiber-unfriendly context, we fallback to blocking wait.
         YT_VERIFY(invoker == GetCurrentInvoker());
         YT_VERIFY(invoker == GetSyncInvoker());
     }
 }
+
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -129,6 +90,32 @@ TContextSwitchGuard::~TContextSwitchGuard()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TCurrentInvokerGuard::TCurrentInvokerGuard(IInvokerPtr invoker)
+    : NConcurrency::TContextSwitchGuard(
+        [this] () noexcept { Restore(); },
+        nullptr)
+    , Active_(true)
+    , SavedInvoker_(std::move(invoker))
+{
+    CurrentInvoker.Swap(SavedInvoker_);
+}
+
+void TCurrentInvokerGuard::Restore()
+{
+    if (!Active_) {
+        return;
+    }
+    Active_ = false;
+    CurrentInvoker.Swap(SavedInvoker_);
+}
+
+TCurrentInvokerGuard::~TCurrentInvokerGuard()
+{
+    Restore();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TOneShotContextSwitchGuard::TOneShotContextSwitchGuard(std::function<void()> handler)
     : TContextSwitchGuard(
         [this, handler = std::move(handler)] () noexcept {
@@ -138,14 +125,14 @@ TOneShotContextSwitchGuard::TOneShotContextSwitchGuard(std::function<void()> han
             Active_ = false;
             handler();
         },
-        [] () noexcept { })
+        nullptr)
     , Active_(true)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TForbidContextSwitchGuard::TForbidContextSwitchGuard()
-    : TOneShotContextSwitchGuard( [] { YT_ABORT(); })
+    : TOneShotContextSwitchGuard([] { YT_ABORT(); })
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -921,9 +921,7 @@ public:
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* user = securityManager->FindUserByName(UserName_);
-        if (IsObjectAlive(user)) {
-            securityManager->ChargeUser(user, {EUserWorkloadType::Read, 0, time});
-        }
+        securityManager->ChargeUser(user, {EUserWorkloadType::Read, 0, time});
     }
 
 private:

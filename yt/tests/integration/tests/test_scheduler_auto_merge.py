@@ -148,7 +148,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
 
     @authors("max42")
     def test_several_auto_merge_output_tables(self):
-        self._create_account(35)
+        self._create_account(50)
 
         create("table", "//tmp/t_in", attributes={"account": "acc"})
         create("table", "//tmp/t_out1", attributes={"account": "acc"})

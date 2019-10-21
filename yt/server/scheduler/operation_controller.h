@@ -64,6 +64,7 @@ struct TOperationControllerReviveResult
 {
     bool RevivedFromSnapshot = false;
     std::vector<TJobPtr> RevivedJobs;
+    THashSet<TString> RevivedBannedTreeIds;
 };
 
 struct TOperationControllerMaterializeResult

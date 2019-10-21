@@ -319,8 +319,8 @@ public:
 
         // porto returns nanosecond
         TCpuStatistics cpuStatistics;
-        cpuStatistics.SystemTime = TDuration().MicroSeconds(ResourceUsage_[EStatField::CpuUsageSystem].Value() / 1000);
-        cpuStatistics.UserTime = TDuration().MicroSeconds(ResourceUsage_[EStatField::CpuUsageUser].Value() / 1000);
+        cpuStatistics.SystemTime = TDuration::MicroSeconds(ResourceUsage_[EStatField::CpuUsageSystem].Value() / 1000);
+        cpuStatistics.UserTime = TDuration::MicroSeconds(ResourceUsage_[EStatField::CpuUsageUser].Value() / 1000);
 
         CpuStatistics_= cpuStatistics;
         return cpuStatistics;
@@ -552,7 +552,7 @@ public:
         : RootFS_(rootFS)
         , GpuDevices_(std::move(gpuDevices))
         , BlockIOWatchdogPeriod_(config->BlockIOWatchdogPeriod)
-        , PortoExecutor_(CreatePortoExecutor(config->PortoWaitTime, config->PortoPollPeriod))
+        , PortoExecutor_(CreatePortoExecutor("environ", config->PortoWaitTime, config->PortoPollPeriod))
         , Self_(GetSelfPortoInstance(PortoExecutor_))
         , ResourceTracker_(New<TPortoResourceTracker>(Self_, TDuration::MilliSeconds(100)))
     {

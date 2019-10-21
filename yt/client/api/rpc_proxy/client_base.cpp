@@ -666,6 +666,9 @@ TFuture<IUnversionedRowsetPtr> TClientBase::LookupRows(
     req->set_keep_missing_rows(options.KeepMissingRows);
     req->set_enable_partial_result(options.EnablePartialResult);
 
+    req->SetMultiplexingBand(options.MultiplexingBand);
+    req->set_multiplexing_band(static_cast<NProto::EMultiplexingBand>(options.MultiplexingBand));
+
     ToProto(req->mutable_tablet_read_options(), options);
 
     return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspLookupRowsPtr>& rspOrError) {
@@ -697,6 +700,9 @@ TFuture<IVersionedRowsetPtr> TClientBase::VersionedLookupRows(
     }
     req->set_timestamp(options.Timestamp);
     req->set_keep_missing_rows(options.KeepMissingRows);
+
+    req->SetMultiplexingBand(options.MultiplexingBand);
+    req->set_multiplexing_band(static_cast<NProto::EMultiplexingBand>(options.MultiplexingBand));
     if (options.RetentionConfig) {
         ToProto(req->mutable_retention_config(), *options.RetentionConfig);
     }

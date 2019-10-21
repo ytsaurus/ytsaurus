@@ -43,6 +43,11 @@ public:
     {
         if (SubquerySpec_.InitialQueryId != queryContext->QueryId) {
             queryContext->Logger.AddTag("InitialQueryId: %v", SubquerySpec_.InitialQueryId);
+            if (queryContext->InitialQuery) {
+                YT_VERIFY(*queryContext->InitialQuery == SubquerySpec_.InitialQuery);
+            } else {
+                queryContext->InitialQuery = SubquerySpec_.InitialQuery;
+            }
         }
         Logger = queryContext->Logger;
         Logger.AddTag("SubqueryIndex: %v, SubqueryTableIndex: %v", SubquerySpec_.SubqueryIndex, SubquerySpec_.TableIndex);

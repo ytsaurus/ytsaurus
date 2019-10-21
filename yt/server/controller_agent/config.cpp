@@ -66,11 +66,41 @@ TOperationAlertsConfig::TOperationAlertsConfig()
         .Default(0.5)
         .GreaterThan(0);
 
+    RegisterParameter("low_cpu_usage_alert_statistics", LowCpuUsageAlertStatistics)
+        .Default({
+            "/job_proxy/cpu/system",
+            "/job_proxy/cpu/user",
+            "/user_job/cpu/system",
+            "/user_job/cpu/user"
+        });
+
+    RegisterParameter("low_cpu_usage_alert_job_states", LowCpuUsageAlertJobStates)
+        .Default({
+            "completed"
+        });
+
     RegisterParameter("operation_too_long_alert_min_wall_time", OperationTooLongAlertMinWallTime)
         .Default(TDuration::Minutes(5));
 
     RegisterParameter("operation_too_long_alert_estimate_duration_threshold", OperationTooLongAlertEstimateDurationThreshold)
         .Default(TDuration::Days(7));
+
+    RegisterParameter("low_gpu_usage_alert_min_duration", LowGpuUsageAlertMinDuration)
+        .Default(TDuration::Minutes(30));
+
+    RegisterParameter("low_gpu_usage_alert_gpu_usage_threshold", LowGpuUsageAlertGpuUsageThreshold)
+        .Default(0.5);
+
+    RegisterParameter("low_gpu_usage_alert_statistics", LowGpuUsageAlertStatistics)
+        .Default({
+            "/user_job/gpu/utilization_gpu",
+        });
+
+    RegisterParameter("low_gpu_usage_alert_job_states", LowGpuUsageAlertJobStates)
+        .Default({
+            "completed",
+            "running"
+        });
 }
 
 TJobSplitterConfig::TJobSplitterConfig()

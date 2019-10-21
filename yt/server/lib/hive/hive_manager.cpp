@@ -165,6 +165,12 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        if (RemovedCellIds_.erase(cellId) != 0) {
+            YT_LOG_ALERT_UNLESS(IsRecovery(), "Mailbox has been resurrected (SrcCellId: %v, DstCellId: %v)",
+                SelfCellId_,
+                cellId);
+        }
+
         auto mailboxHolder = std::make_unique<TMailbox>(cellId);
         auto* mailbox = MailboxMap_.Insert(cellId, std::move(mailboxHolder));
 
@@ -206,7 +212,15 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto cellId = mailbox->GetCellId();
+
         MailboxMap_.Remove(cellId);
+
+        if (!RemovedCellIds_.insert(cellId).second) {
+            YT_LOG_ALERT_UNLESS(IsRecovery(), "Mailbox is already removed (SrcCellId: %v, DstCellId: %v)",
+                SelfCellId_,
+                cellId);
+        }
+
         YT_LOG_INFO_UNLESS(IsRecovery(), "Mailbox removed (SrcCellId: %v, DstCellId: %v)",
             SelfCellId_,
             cellId);
@@ -257,7 +271,7 @@ public:
         if (enableBatching) {
             return GetOrCreateSyncBatcher(cellId)->Run();
         } else {
-            return DoSyncWithCore(cellId);
+            return DoSyncWithCore(cellId).ToImmediatelyCancelable();
         }
     }
 
@@ -277,6 +291,8 @@ private:
 
     TEntityMap<TMailbox> MailboxMap_;
     THashMap<TCellId, TMessageId> CellIdToNextTransientIncomingMessageId_;
+
+    THashSet<TCellId> RemovedCellIds_;
 
     TReaderWriterSpinLock CellToIdToBatcherLock_;
     THashMap<TCellId, TIntrusivePtr<TAsyncBatcher<void>>> CellToIdToBatcher_;
@@ -522,11 +538,17 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto srcCellId = FromProto<TCellId>(request->src_cell_id());
+        if (RemovedCellIds_.contains(srcCellId)) {
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Received messages from a removed cell; ignored (SrcCellId: %v)",
+                srcCellId);
+            return;
+        }
+
         auto firstMessageId = request->first_message_id();
         auto* mailbox = FindMailbox(srcCellId);
         if (!mailbox) {
             if (firstMessageId != 0) {
-                YT_LOG_ALERT_UNLESS(IsRecovery(), "Mailbox %v does not exist; expecting message 0 but got %v",
+                YT_LOG_ALERT_UNLESS(IsRecovery(), "Received a non-initial message to a missing mailbox (SrcCellId: %v, MessageId: %v)",
                     srcCellId,
                     firstMessageId);
                 return;
@@ -892,6 +914,7 @@ private:
             .Apply(
                 BIND(&TImpl::OnSyncPingResponse, MakeStrong(this), cellId)
                     .AsyncVia(GuardedAutomatonInvoker_))
+            .WithTimeout(Config_->SyncTimeout)
             // NB: Many subscribers are typically waiting for the sync to complete.
             // Make sure the promise is set in a large thread pool.
             .Apply(
@@ -1406,12 +1429,14 @@ private:
 
     virtual bool ValidateSnapshotVersion(int version) override
     {
-        return version == 3;
+        return
+            version == 3 ||
+            version == 4;
     }
 
     virtual int GetCurrentSnapshotVersion() override
     {
-        return 3;
+        return 4;
     }
 
 
@@ -1430,6 +1455,7 @@ private:
     void SaveValues(TSaveContext& context) const
     {
         MailboxMap_.SaveValues(context);
+        Save(context, RemovedCellIds_);
     }
 
     void LoadKeys(TLoadContext& context)
@@ -1440,6 +1466,10 @@ private:
     void LoadValues(TLoadContext& context)
     {
         MailboxMap_.LoadValues(context);
+        // COMPAT(babenko)
+        if (context.GetVersion() >= 4) {
+            Load(context, RemovedCellIds_);
+        }
     }
 
 

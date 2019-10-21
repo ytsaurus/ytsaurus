@@ -63,12 +63,6 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::RequestLimits)
             .SetWritable(true)
             .SetReplicated(true));
-        descriptors->push_back(EInternedAttributeKey::AccessTime);
-        descriptors->push_back(EInternedAttributeKey::RequestCount);
-        descriptors->push_back(EInternedAttributeKey::ReadRequestTime);
-        descriptors->push_back(EInternedAttributeKey::WriteRequestTime);
-        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MulticellStatistics)
-            .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UsableAccounts)
             .SetOpaque(true));
     }
@@ -101,33 +95,6 @@ private:
             case EInternedAttributeKey::RequestLimits:
                 BuildYsonFluently(consumer)
                     .Value(user->GetRequestLimits());
-                return true;
-
-            case EInternedAttributeKey::AccessTime:
-                BuildYsonFluently(consumer)
-                    .Value(user->ClusterStatistics().AccessTime);
-                return true;
-
-            case EInternedAttributeKey::RequestCount:
-                BuildYsonFluently(consumer)
-                    .Value(user->ClusterStatistics().RequestCount);
-                return true;
-
-            case EInternedAttributeKey::ReadRequestTime:
-                BuildYsonFluently(consumer)
-                    .Value(user->ClusterStatistics().ReadRequestTime);
-                return true;
-
-            case EInternedAttributeKey::WriteRequestTime:
-                BuildYsonFluently(consumer)
-                    .Value(user->ClusterStatistics().WriteRequestTime);
-                return true;
-
-            case EInternedAttributeKey::MulticellStatistics:
-                BuildYsonFluently(consumer)
-                    .DoMapFor(user->MulticellStatistics(), [] (TFluentMap fluent, const std::pair<TCellTag, const TUserStatistics&>& pair) {
-                        fluent.Item(ToString(pair.first)).Value(pair.second);
-                    });
                 return true;
 
             case EInternedAttributeKey::UsableAccounts: {

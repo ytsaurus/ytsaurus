@@ -11,6 +11,13 @@ class TestMasterCellsSync(YTEnvSetup):
     NUM_SECONDARY_MASTER_CELLS = 2
     NUM_NODES = 2
 
+    DELTA_MASTER_CONFIG = {
+        "tablet_manager": {
+            "leader_reassignment_timeout" : 2000,
+            "peer_revocation_timeout" : 3000,
+        },
+    }
+
     @classmethod
     def setup_class(cls, delayed_secondary_cells_start=False):
         super(TestMasterCellsSync, cls).setup_class()
@@ -160,17 +167,27 @@ class TestMasterCellsSync(YTEnvSetup):
         create_tablet_cell_bundle("b")
         set("//sys/tablet_cell_bundles/b/@dynamic_options/suppress_tablet_cell_decommission", True)
         cell_id = create_tablet_cell(attributes={"tablet_cell_bundle": "b"})
-
         wait_for_cells()
-        peer = get("#{0}/@peers/0/address".format(cell_id))
+
+        def _get_peer_address(cell_id):
+            try:
+                return get("#{0}/@peers/0/address".format(cell_id))
+            except YtError:
+                return None
+
+        peer = _get_peer_address(cell_id)
         set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(peer), True)
-        wait(lambda: get("#{0}/@config_version".format(cell_id)) == 2)
+        wait(lambda: _get_peer_address(cell_id) != peer)
+
         remove("#{0}".format(cell_id))
+
+        config_version = get("#{0}/@config_version".format(cell_id), read_from="leader")
+        assert config_version > 2
 
         def check(driver):
             return get("//sys/tablet_cells/{0}/@tablet_cell_bundle".format(cell_id), driver=driver) == "b" and \
-                get("#{0}/@config_version".format(cell_id), driver=driver) == 2 and \
-                get("#{0}/@tablet_cell_life_stage".format(cell_id), driver=driver) == "decommissioned"
+                get("#{0}/@config_version".format(cell_id), driver=driver, read_from="leader") == config_version and \
+                get("#{0}/@tablet_cell_life_stage".format(cell_id), driver=driver, read_from="leader") == "decommissioned"
 
         self._check_true_for_secondary(lambda driver: check(driver))
 

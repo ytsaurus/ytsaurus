@@ -155,6 +155,8 @@ void TQueryAnalyzer::ParseQuery()
 {
     auto* selectQuery = QueryInfo_.query->as<DB::ASTSelectQuery>();
 
+    YT_LOG_DEBUG("Analyzing query (Query: %v)", static_cast<const DB::IAST&>(*selectQuery));
+
     YT_VERIFY(selectQuery);
     YT_VERIFY(selectQuery->tables());
 
@@ -268,8 +270,8 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze()
 
 DB::ASTPtr TQueryAnalyzer::RewriteQuery(const TRange<TSubquery> threadSubqueries, TSubquerySpec specTemplate, int subqueryIndex, bool isLastSubquery)
 {
-    auto Logger = this->Logger
-        .AddTag("SubqueryIndex: %v", subqueryIndex);
+    auto Logger = this->Logger;
+    Logger.AddTag("SubqueryIndex: %v", subqueryIndex);
 
     YT_VERIFY(!threadSubqueries.Empty());
 

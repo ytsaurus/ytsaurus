@@ -36,6 +36,10 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NObjectClient::TCellTag PickChunkHostingCell(
+    const NApi::NNative::IConnectionPtr& connection,
+    const NLogging::TLogger& logger);
+
 TSessionId CreateChunk(
     const NApi::NNative::IClientPtr& client,
     NObjectClient::TCellTag cellTag,

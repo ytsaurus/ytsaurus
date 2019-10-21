@@ -219,6 +219,11 @@ bool TFairShareTree::TFairShareTreeSnapshot::HasOperation(TOperationId operation
     return operationElement != nullptr;
 }
 
+bool TFairShareTree::TFairShareTreeSnapshot::IsOperationDisabled(TOperationId operationId) const
+{
+    return RootElementSnapshot_->DisabledOperations.contains(operationId);
+}
+
 const TSchedulingTagFilter& TFairShareTree::TFairShareTreeSnapshot::GetNodesFilter() const
 {
     return NodesFilter_;
@@ -648,8 +653,7 @@ void TFairShareTree::UpdateControllerConfig(const TFairShareStrategyOperationCon
 
     ControllerConfig_ = config;
 
-    for (const auto& pair : OperationIdToElement_) {
-        const auto& element = pair.second;
+    for (const auto& [operationId, element] : OperationIdToElement_) {
         element->UpdateControllerConfig(config);
     }
 }
@@ -987,7 +991,8 @@ std::pair<IFairShareTreeSnapshotPtr, TError> TFairShareTree::DoFairShareUpdateAt
     auto rootElementSnapshot = New<TRootElementSnapshot>();
     rootElement->BuildElementMapping(
         &rootElementSnapshot->OperationIdToElement,
-        &rootElementSnapshot->PoolNameToElement);
+        &rootElementSnapshot->PoolNameToElement,
+        &rootElementSnapshot->DisabledOperations);
 
     // Update starvation flags for operations and pools.
     for (const auto& [operationId, element] : rootElementSnapshot->OperationIdToElement) {

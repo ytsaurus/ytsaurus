@@ -10,6 +10,8 @@
 
 #include <yt/core/profiling/timing.h>
 
+#include <util/generic/cast.h>
+
 namespace NYT::NControllerAgent {
 
 using namespace NChunkPools;
@@ -100,6 +102,10 @@ void TJoblet::Persist(const TPersistenceContext& context)
     Persist(context, TreeId);
     Persist(context, TreeIsTentative);
     Persist(context, Speculative);
+    // COMPAT(gritukan)
+    if (context.GetVersion() >= ToUnderlying(ESnapshotVersion::JobSpeculationTimeout)) {
+        Persist(context, JobSpeculationTimeout);
+    }
 
     if (context.IsLoad()) {
         Revived = true;

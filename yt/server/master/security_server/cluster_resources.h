@@ -35,13 +35,29 @@ struct TClusterResources
 
     //! Set medium disk space.
     TClusterResources&& SetMediumDiskSpace(int mediumIndex, i64 diskSpace) &&;
+    void SetMediumDiskSpace(int mediumIndex, i64 diskSpace) &;
 
+    //! Increases medium disk space by a given amount.
+    //! NB: the amount may be negative.
+    void AddToMediumDiskSpace(int mediumIndex, i64 diskSpaceDelta);
+
+    //! Completely empties disk space counts for all media.
+    void ClearDiskSpace();
+
+private:
     //! Space occupied on data nodes in bytes per medium.
     /*!
      *  This takes replication into account. At intermediate stages
      *  the actual space may be different.
+     *
+     *  Zero disk space for a medium is considered equivalent to that medium
+     *  missing an entry in this map. In particular, setting zero disk space for
+     *  a medium leads to erasing it from the map altogether.
      */
-    NChunkClient::TMediumMap<i64> DiskSpace;
+    NChunkClient::TMediumMap<i64> DiskSpace_;
+
+public:
+    const NChunkClient::TMediumMap<i64>& DiskSpace() const;
 
     //! Number of Cypress nodes created at master.
     /*!
@@ -82,6 +98,8 @@ public:
         const TClusterResources& clusterResources);
 
     TClusterResources ToClusterResources(const NChunkServer::TChunkManagerPtr& chunkManager) const;
+
+    void AddToMediumDiskSpace(const TString& mediumName, i64 mediumDiskSpace);
 
 private:
     i64 NodeCount_ = 0;

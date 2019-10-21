@@ -27,6 +27,7 @@ struct TSubquery
 
 //! Fetch data slices for given input tables and fill given subquery spec template.
 NChunkPools::TChunkStripeListPtr FetchInput(
+    TBootstrap* bootstrap,
     NApi::NNative::IClientPtr client,
     const IInvokerPtr& invoker,
     std::vector<NTableClient::TTableSchema> tableSchemas,

@@ -10,6 +10,7 @@
 #include <yt/ytlib/api/native/client.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/ytlib/object_client/object_attribute_cache.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -101,52 +102,31 @@ T EvaluateArgument(ASTPtr& argument, const Context& context)
 }
 
 // TODO(max42): unify with remaining functions.
-std::vector<TClickHouseTablePtr> FetchClickHouseTables(TQueryContext* queryContext, const std::vector<NYPath::TRichYPath>& paths)
+std::vector<TClickHouseTablePtr> FetchClickHouseTables(TQueryContext* queryContext, const std::vector<NYPath::TRichYPath>& richPaths)
 {
-    // XXX(babenko): fetch from external cells
-    TObjectServiceProxy proxy(queryContext->Client()->GetMasterChannelOrThrow(EMasterChannelKind::Cache));
-    auto batchReq = proxy.ExecuteBatch();
-
-    for (const auto& path : paths) {
-        auto req = TYPathProxy::Get(path.GetPath() + "/@");
-        SetSuppressAccessTracking(req, true);
-        ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
-            "schema",
-            "type",
-            "dynamic",
-        });
-        batchReq->AddRequest(req);
+    std::vector<TYPath> paths;
+    paths.reserve(richPaths.size());
+    for (const auto& path: richPaths) {
+        paths.emplace_back(path.GetPath());
     }
 
-    auto batchRspOrError = WaitFor(batchReq->Invoke());
-    if (!batchRspOrError.IsOK()) {
-        THROW_ERROR batchRspOrError;
-    }
-
-    const auto& rsps = batchRspOrError.Value()->GetResponses<TYPathProxy::TRspGet>();
-    YT_VERIFY(rsps.size() == paths.size());
+    auto attributes = WaitFor(queryContext->Bootstrap->GetHost()->GetTableAttributeCache()->Get(paths))
+        .ValueOrThrow();
 
     std::vector<TClickHouseTablePtr> tables;
     std::vector<TError> errors;
-    for (int index = 0; index < static_cast<int>(paths.size()); ++index) {
-        const auto& path = paths[index];
-        const auto& rspOrError = rsps[index];
+    for (int index = 0; index < static_cast<int>(richPaths.size()); ++index) {
+        const auto& path = richPaths[index];
+        const auto& attrOrError = attributes[index];
 
-        if (!rspOrError.IsOK()) {
+        if (!attrOrError.IsOK()) {
             // We intentionally skip missing tables.
-            if (!rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                errors.emplace_back(rspOrError
+            if (!attrOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                errors.emplace_back(attrOrError
                     << TErrorAttribute("path", path));
             }
         } else {
-            const auto& rsp = rspOrError.Value();
-            auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
-            // Skip non-table or dynamic table nodes.
-            if (attributes->Get<NObjectClient::EObjectType>("type") == NObjectClient::EObjectType::Table &&
-                !attributes->Get<bool>("dynamic", false))
-            {
-                tables.emplace_back(std::make_shared<TClickHouseTable>(path, attributes->Get<TTableSchema>("schema")));
-            }
+            tables.emplace_back(std::make_shared<TClickHouseTable>(path, ConvertTo<TTableSchema>(attrOrError.Value().at("schema"))));
         }
     }
     if (!errors.empty()) {
@@ -188,7 +168,8 @@ public:
 
     StoragePtr executeImpl(
         const ASTPtr& functionAst,
-        const Context& context) const override
+        const Context& context,
+        const std::string& /* tableName */) const override
     {
         auto* queryContext = GetQueryContext(context);
 
@@ -234,7 +215,10 @@ public:
     TListFilterAndConcatenateTables()
     { }
 
-    virtual StoragePtr executeImpl(const ASTPtr& functionAst, const Context& context) const override
+    StoragePtr executeImpl(
+        const ASTPtr& functionAst,
+        const Context& context,
+        const std::string& /* tableName */) const override
     {
         auto* queryContext = GetQueryContext(context);
         const auto& Logger = queryContext->Logger;
@@ -247,7 +231,7 @@ public:
         YT_LOG_INFO("Listing directory (Path: %v)", directory);
 
         TListNodeOptions options;
-        options.Attributes = {"type", "path"};
+        options.Attributes = {"type", "path", "dynamic"};
         options.SuppressAccessTracking = true;
 
         auto items = WaitFor(queryContext->Client()->ListNode(directory.GetPath(), options))
@@ -257,7 +241,9 @@ public:
         std::vector<TRichYPath> tablePaths;
         for (const auto& child : itemList->GetChildren()) {
             const auto& attributes = child->Attributes();
-            if (attributes.Get<NObjectClient::EObjectType>("type") == NObjectClient::EObjectType::Table) {
+            if (attributes.Get<NObjectClient::EObjectType>("type") == NObjectClient::EObjectType::Table &&
+                attributes.Get<bool>("dynamic") == false)
+            {
                 auto richPath = TRichYPath(attributes.Get<TYPath>("path"), directory.Attributes());
                 tablePaths.emplace_back(richPath);
             }

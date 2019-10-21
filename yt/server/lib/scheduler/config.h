@@ -42,6 +42,7 @@ DEFINE_ENUM(EDeactivationReason,
     (SaturatedInTentativeTree)
     (OperationDisabled)
     (BadPacking)
+    (FairShareExceeded)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

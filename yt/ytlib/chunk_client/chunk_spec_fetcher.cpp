@@ -12,8 +12,7 @@
 
 #include <yt/core/misc/protobuf_helpers.h>
 
-namespace NYT {
-namespace NChunkClient {
+namespace NYT::NChunkClient {
 
 using namespace NApi;
 using namespace NApi::NNative;
@@ -185,5 +184,4 @@ void TChunkSpecFetcher::DoFetchFromCell(TCellTag cellTag)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
-} // namespace NYT
+} // namespace NYT::NChunkClient
