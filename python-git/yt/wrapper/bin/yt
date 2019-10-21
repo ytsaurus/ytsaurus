@@ -564,6 +564,8 @@ def add_copy_parser(add_parser):
                         help="preserve creation time of copied nodes")
     parser.add_argument("--preserve-owner", action="store_true",
                         help="preserve owner of copied nodes")
+    parser.add_argument("--preserve-acl", action="store_true",
+                        help="preserve acl of copied nodes")
     parser.add_argument("-r", "--recursive", action="store_true")
     parser.add_argument("-i", "--ignore-existing", action="store_true")
     parser.add_argument("-f", "--force", action="store_true")

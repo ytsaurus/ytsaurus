@@ -96,7 +96,7 @@ def set(path, value, format=None, recursive=False, force=None, client=None):
         client=client)
 
 def copy(source_path, destination_path,
-         recursive=None, ignore_existing=None, preserve_account=None,
+         recursive=None, ignore_existing=None, preserve_account=None, preserve_acl=None,
          preserve_expiration_time=None, preserve_creation_time=None,
          preserve_owner=None, force=None, pessimistic_quota_check=None, client=None):
     """Copies Cypress node.
@@ -108,6 +108,7 @@ def copy(source_path, destination_path,
     :param bool recursive: ``yt.wrapper.config["yamr_mode"]["create_recursive"]`` by default.
     :param bool ignore_existing: ignore existing.
     :param bool preserve_account: preserve account.
+    :param bool preserve_acl: preserve acl.
     :param bool preserve_expiration_time: preserve expiration time.
     :param bool preserve_creation_time: preserve creation time.
     :param bool preserve_owner: preserve owner.
@@ -124,6 +125,7 @@ def copy(source_path, destination_path,
     set_param(params, "ignore_existing", ignore_existing)
     set_param(params, "force", force)
     set_param(params, "preserve_account", preserve_account)
+    set_param(params, "preserve_acl", preserve_acl)
     set_param(params, "preserve_expiration_time", preserve_expiration_time)
     set_param(params, "preserve_creation_time", preserve_creation_time)
     set_param(params, "preserve_owner", preserve_owner)
