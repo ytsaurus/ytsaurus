@@ -468,8 +468,6 @@ private:
         NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTag);
     NRpc::IChannelPtr GetReadCellChannelOrThrow(NObjectClient::TCellId cellId);
 
-    class TTabletCellLookupSession;
-    using TTabletCellLookupSessionPtr = TIntrusivePtr<TTabletCellLookupSession>;
     using TEncoderWithMapping = std::function<std::vector<TSharedRef>(
         const NTableClient::TColumnFilter&,
         const std::vector<NTableClient::TUnversionedRow>&)>;
@@ -509,21 +507,6 @@ private:
 
     NApi::IConnectionPtr GetReplicaConnectionOrThrow(const TString& clusterName);
     NApi::IClientPtr CreateReplicaClient(const TString& clusterName);
-
-    static NTableClient::TColumnFilter RemapColumnFilter(
-        const NTableClient::TColumnFilter& columnFilter,
-        const NTableClient::TNameTableToSchemaIdMapping& idMapping,
-        const NTableClient::TNameTablePtr& nameTable);
-    static void RemapValueIds(
-        NTableClient::TVersionedRow row,
-        std::vector<NTableClient::TTypeErasedRow>& rows,
-        const std::vector<int>& mapping);
-    static void RemapValueIds(
-        NTableClient::TUnversionedRow row,
-        std::vector<NTableClient::TTypeErasedRow>& rows,
-        const std::vector<int>& mapping);
-    static std::vector<int> BuildResponseIdMapping(
-        const NTableClient::TColumnFilter& remappedColumnFilter);
 
     template <class TRowset, class TRow>
     TRowset DoLookupRowsOnce(

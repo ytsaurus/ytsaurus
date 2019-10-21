@@ -9,6 +9,7 @@
 #include <yt/client/driver/config.h>
 
 #include <yt/core/misc/crash_handler.h>
+#include <yt/core/misc/signal_registry.h>
 #include <yt/core/misc/shutdown.h>
 
 #include <yt/core/logging/log_manager.h>
@@ -244,7 +245,8 @@ void TDriverModuleBase::Initialize(
         /*index*/ 0
     );
 
-    InstallCrashSignalHandler(std::set<int>({SIGSEGV}));
+    TSignalRegistry::Get()->PushCallback(SIGSEGV, CrashSignalHandler);
+    TSignalRegistry::Get()->PushDefaultSignalHandler(SIGSEGV);
 
     TBufferedStreamWrap::InitType();
     TDriverResponse::InitType();

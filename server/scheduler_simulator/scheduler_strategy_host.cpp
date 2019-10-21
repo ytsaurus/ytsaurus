@@ -3,6 +3,7 @@
 namespace NYT::NSchedulerSimulator {
 
 using namespace NScheduler;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

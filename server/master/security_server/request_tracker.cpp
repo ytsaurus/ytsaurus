@@ -26,13 +26,6 @@ namespace NYT::NSecurityServer {
 using namespace NConcurrency;
 using namespace NHydra;
 
-using NYT::ToProto;
-using NYT::FromProto;
-
-////////////////////////////////////////////////////////////////////////////////
-
-static const auto& Logger = SecurityServerLogger;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TRequestTracker::TRequestTracker(NCellMaster::TBootstrap* bootstrap)
@@ -43,17 +36,11 @@ void TRequestTracker::Start()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    YT_VERIFY(!FlushExecutor_);
-    const auto& hydraFacade = Bootstrap_->GetHydraFacade();
-    FlushExecutor_ = New<TPeriodicExecutor>(
-        hydraFacade->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
-        BIND(&TRequestTracker::OnFlush, MakeWeak(this)));
-    FlushExecutor_->Start();
-
     const auto& configManager = Bootstrap_->GetConfigManager();
     configManager->SubscribeConfigChanged(DynamicConfigChangedCallback_);
     OnDynamicConfigChanged();
 
+    const auto& hydraFacade = Bootstrap_->GetHydraFacade();
     const auto& hydraManager = hydraFacade->GetHydraManager();
     AlivePeerCount_ = static_cast<int>(hydraManager->AlivePeers().size());
     hydraManager->SubscribeAlivePeerSetChanged(
@@ -69,18 +56,13 @@ void TRequestTracker::Stop()
     configManager->UnsubscribeConfigChanged(DynamicConfigChangedCallback_);
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();
-    for (const auto& pair : securityManager->Users()) {
-        auto* user = pair.second;
+    for (auto [userId, user] : securityManager->Users()) {
         user->SetRequestRateThrottler(nullptr, EUserWorkloadType::Read);
         user->SetRequestRateThrottler(nullptr, EUserWorkloadType::Write);
         user->SetRequestQueueSize(0);
     }
 
     AlivePeerCount_ = 0;
-
-    FlushExecutor_.Reset();
-
-    Reset();
 }
 
 void TRequestTracker::ChargeUser(
@@ -105,7 +87,6 @@ void TRequestTracker::ChargeUser(
         }
         default:
             YT_ABORT();
-
     }
 }
 
@@ -113,36 +94,9 @@ void TRequestTracker::DoChargeUser(
     TUser* user,
     const TUserWorkload& workload)
 {
-    YT_VERIFY(FlushExecutor_);
-
-    int index = user->GetRequestStatisticsUpdateIndex();
-    if (index < 0) {
-        index = Request_.entries_size();
-        user->SetRequestStatisticsUpdateIndex(index);
-        UsersWithsEntry_.push_back(user);
-
-        auto* entry = Request_.add_entries();
-        ToProto(entry->mutable_user_id(), user->GetId());
-
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        objectManager->EphemeralRefObject(user);
-    }
-
-    auto now = NProfiling::GetInstant();
-    auto* entry = Request_.mutable_entries(index);
-    auto* statistics = entry->mutable_statistics();
-    statistics->set_request_count(statistics->request_count() + workload.RequestCount);
-    switch (workload.Type) {
-        case EUserWorkloadType::Read:
-            statistics->set_read_request_time(ToProto<i64>(FromProto<TDuration>(statistics->read_request_time()) + workload.Time));
-            break;
-        case EUserWorkloadType::Write:
-            statistics->set_write_request_time(ToProto<i64>(FromProto<TDuration>(statistics->write_request_time()) + workload.Time));
-            break;
-        default:
-            YT_ABORT();
-    }
-    statistics->set_access_time(ToProto<i64>(now));
+    auto& statistics = user->Statistics()[workload.Type];
+    statistics.RequestCount = workload.RequestCount;
+    statistics.RequestTime = workload.RequestTime;
 }
 
 TFuture<void> TRequestTracker::ThrottleUserRequest(TUser* user, int requestCount, EUserWorkloadType workloadType)
@@ -159,7 +113,7 @@ void TRequestTracker::SetUserRequestRateLimit(TUser* user, int limit, EUserWorkl
 
 void TRequestTracker::SetUserRequestLimits(TUser* user, TUserRequestLimitsConfigPtr config)
 {
-    user->SetRequestLimits(config);
+    user->SetRequestLimits(std::move(config));
     ReconfigureUserRequestRateThrottler(user);
 }
 
@@ -215,40 +169,6 @@ void TRequestTracker::DecreaseRequestQueueSize(TUser* user)
     user->SetRequestQueueSize(size - 1);
 }
 
-void TRequestTracker::Reset()
-{
-    const auto& objectManager = Bootstrap_->GetObjectManager();
-    for (auto* user : UsersWithsEntry_) {
-        user->SetRequestStatisticsUpdateIndex(-1);
-        objectManager->EphemeralUnrefObject(user);
-    }
-
-    Request_.Clear();
-    UsersWithsEntry_.clear();
-}
-
-void TRequestTracker::OnFlush()
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-    if (UsersWithsEntry_.empty() || !hydraManager->IsActive()) {
-        return;
-    }
-
-    YT_LOG_DEBUG("Starting user statistics commit (UserCount: %v)",
-        Request_.entries_size());
-
-    const auto& hydraFacade = Bootstrap_->GetHydraFacade();
-    auto mutation = CreateMutation(hydraFacade->GetHydraManager(), Request_);
-    mutation->SetAllowLeaderForwarding(true);
-    auto asyncResult = mutation->CommitAndLog(Logger);
-
-    Reset();
-
-    Y_UNUSED(WaitFor(asyncResult));
-}
-
 const TDynamicSecurityManagerConfigPtr& TRequestTracker::GetDynamicConfig()
 {
     const auto& configManager = Bootstrap_->GetConfigManager();
@@ -258,14 +178,12 @@ const TDynamicSecurityManagerConfigPtr& TRequestTracker::GetDynamicConfig()
 void TRequestTracker::OnDynamicConfigChanged()
 {
     ReconfigureUserThrottlers();
-    FlushExecutor_->SetPeriod(GetDynamicConfig()->UserStatisticsFlushPeriod);
 }
 
 void TRequestTracker::ReconfigureUserThrottlers()
 {
     const auto& securityManager = Bootstrap_->GetSecurityManager();
-    for (const auto& pair : securityManager->Users()) {
-        auto* user = pair.second;
+    for (auto [userId, user] : securityManager->Users()) {
         if (IsObjectAlive(user)) {
             ReconfigureUserRequestRateThrottler(user);
         }

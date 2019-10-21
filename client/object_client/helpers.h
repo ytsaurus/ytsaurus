@@ -27,6 +27,12 @@ bool IsUserType(EObjectType type);
 //! Checks if the given type is table, i.e. represents a Cypress table.
 bool IsTableType(EObjectType type);
 
+//! Checks if the given type is cell.
+bool IsCellType(EObjectType type);
+
+//! Checks if the given type is cell bundle.
+bool IsCellBundleType(EObjectType type);
+
 //! Extracts the type component from #id.
 EObjectType TypeFromId(TObjectId id);
 

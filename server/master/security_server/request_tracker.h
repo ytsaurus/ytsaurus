@@ -33,10 +33,6 @@ public:
         int requestCount,
         EUserWorkloadType type);
 
-    TFuture<void> ThrottleUserWriteRequest(
-        TUser* user,
-        int requestCount);
-
     void SetUserRequestRateLimit(
         TUser* user,
         int limit,
@@ -60,11 +56,6 @@ private:
 
     const TClosure DynamicConfigChangedCallback_ = BIND(&TRequestTracker::OnDynamicConfigChanged, MakeWeak(this));
 
-    NProto::TReqIncreaseUserStatistics Request_;
-    std::vector<TUser*> UsersWithsEntry_;
-
-    NConcurrency::TPeriodicExecutorPtr FlushExecutor_;
-
     int AlivePeerCount_ = 0;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
@@ -73,8 +64,6 @@ private:
     void DoChargeUser(
         TUser* user,
         const TUserWorkload& workload);
-    void Reset();
-    void OnFlush();
 
     const TDynamicSecurityManagerConfigPtr& GetDynamicConfig();
     void OnDynamicConfigChanged();

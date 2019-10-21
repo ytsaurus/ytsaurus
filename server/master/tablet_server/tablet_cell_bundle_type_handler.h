@@ -13,8 +13,7 @@ namespace NYT::NTabletServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 NObjectServer::IObjectTypeHandlerPtr CreateTabletCellBundleTypeHandler(
-    NCellMaster::TBootstrap* bootstrap,
-    NHydra::TEntityMap<TTabletCellBundle>* map);
+    NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

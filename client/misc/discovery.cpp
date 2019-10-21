@@ -20,7 +20,7 @@ TDiscovery::TDiscovery(
     NApi::IClientPtr client,
     IInvokerPtr invoker,
     std::vector<TString> extraAttributes,
-    const NLogging::TLogger& logger)
+    NLogging::TLogger logger)
     : Config_(config)
     , Client_(client)
     , Invoker_(invoker)
@@ -28,7 +28,9 @@ TDiscovery::TDiscovery(
         invoker,
         BIND(&TDiscovery::DoUpdateList, MakeWeak(this)),
         config->UpdatePeriod))
-    , Logger(logger)
+    , Logger(logger
+        .AddTag("Group: %v", Config_->Directory)
+        .AddTag("DiscoveryId: %v", TGuid::Create()))
     , Epoch_(0)
 {
     if (std::find(extraAttributes.begin(), extraAttributes.end(), "locks") == extraAttributes.end()) {
@@ -39,11 +41,9 @@ TDiscovery::TDiscovery(
     ListOptions_.ReadFrom = Config_->ReadFrom;
     ListOptions_.ExpireAfterSuccessfulUpdateTime = Config_->MasterCacheExpireTime;
     ListOptions_.ExpireAfterFailedUpdateTime = Config_->MasterCacheExpireTime;
-    Logger.AddTag("Group: %v", Config_->Directory);
-    Logger.AddTag("DiscoveryId: %v", TGuid::Create());
 }
 
-TFuture<void> TDiscovery::Enter(TString name, TAttributeDictionary attributes)
+TFuture<void> TDiscovery::Enter(TString name, TAttributeMap attributes)
 {
     return BIND(&TDiscovery::DoEnter, MakeStrong(this), std::move(name), std::move(attributes))
         .AsyncVia(Invoker_)
@@ -72,9 +72,9 @@ TFuture<void> TDiscovery::UpdateList(TDuration ageThreshold)
     return ScheduledForceUpdate_;
 }
 
-THashMap<TString, TDiscovery::TAttributeDictionary> TDiscovery::List(bool includeBanned) const
+THashMap<TString, TAttributeMap> TDiscovery::List(bool includeBanned) const
 {
-    THashMap<TString, TAttributeDictionary> result;
+    THashMap<TString, TAttributeMap> result;
     THashMap<TString, TInstant> bannedSince;
     decltype(SelfAttributes_) selfAttributes;
     {
@@ -124,7 +124,7 @@ i64 TDiscovery::GetWeight()
     return List_.size();
 }
 
-void TDiscovery::DoEnter(TString name, TAttributeDictionary attributes)
+void TDiscovery::DoEnter(TString name, TAttributeMap attributes)
 {
     YT_VERIFY(!Transaction_);
 
@@ -182,7 +182,7 @@ void TDiscovery::DoUpdateList()
 {
     auto list = ConvertToNode(WaitFor(Client_->ListNode(Config_->Directory, ListOptions_))
         .ValueOrThrow());
-    THashMap<TString, TAttributeDictionary> newList;
+    THashMap<TString, TAttributeMap> newList;
 
     i64 aliveCount = 0;
     i64 deadCount = 0;
@@ -207,7 +207,7 @@ void TDiscovery::DoUpdateList()
             ++aliveCount;
             auto stringNode = node->AsString();
             auto attributes = stringNode->Attributes().ToMap()->GetChildren();
-            newList[stringNode->GetValue()] = TAttributeDictionary(attributes.begin(), attributes.end());
+            newList[stringNode->GetValue()] = TAttributeMap(attributes.begin(), attributes.end());
         } else {
             ++deadCount;
         }

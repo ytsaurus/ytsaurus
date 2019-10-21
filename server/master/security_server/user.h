@@ -17,23 +17,11 @@ namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TUserStatistics
+struct TUserWorkloadStatistics
 {
     i64 RequestCount = 0;
-    TDuration ReadRequestTime;
-    TDuration WriteRequestTime;
-    TInstant AccessTime;
-
-    void Persist(NCellMaster::TPersistenceContext& context);
+    TDuration RequestTime;
 };
-
-void ToProto(NProto::TUserStatistics* protoStatistics, const TUserStatistics& statistics);
-void FromProto(TUserStatistics* statistics, const NProto::TUserStatistics& protoStatistics);
-
-void Serialize(const TUserStatistics& statistics, NYson::IYsonConsumer* consumer);
-
-TUserStatistics& operator += (TUserStatistics& lhs, const TUserStatistics& rhs);
-TUserStatistics  operator +  (const TUserStatistics& lhs, const TUserStatistics& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -126,18 +114,14 @@ class TUser
 {
 public:
     // Limits and bans.
-    DEFINE_BYVAL_RW_PROPERTY(bool, Banned, false);
-
-    DEFINE_BYVAL_RW_PROPERTY(int, RequestQueueSize, 0);
-
-    // Statistics
-    using TMulticellStatistics = THashMap<NObjectClient::TCellTag, TUserStatistics>;
-    DEFINE_BYREF_RW_PROPERTY(TMulticellStatistics, MulticellStatistics);
-    DEFINE_BYVAL_RW_PROPERTY(TUserStatistics*, LocalStatisticsPtr);
-    DEFINE_BYREF_RW_PROPERTY(TUserStatistics, ClusterStatistics);
-    DEFINE_BYVAL_RW_PROPERTY(int, RequestStatisticsUpdateIndex, -1);
-
+    DEFINE_BYVAL_RW_PROPERTY(bool, Banned);
     DEFINE_BYVAL_RW_PROPERTY(TUserRequestLimitsConfigPtr, RequestLimits);
+
+    // Transient
+    DEFINE_BYVAL_RW_PROPERTY(int, RequestQueueSize);
+
+    using TStatistics = TEnumIndexedVector<EUserWorkloadType, TUserWorkloadStatistics>;
+    DEFINE_BYREF_RW_PROPERTY(TStatistics, Statistics);
 
 public:
     explicit TUser(TUserId id);
@@ -146,11 +130,6 @@ public:
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
-
-    TUserStatistics& CellStatistics(NObjectClient::TCellTag cellTag);
-    TUserStatistics& LocalStatistics();
-
-    void RecomputeClusterStatistics();
 
     const NConcurrency::IReconfigurableThroughputThrottlerPtr& GetRequestRateThrottler(EUserWorkloadType workloadType);
     void SetRequestRateThrottler(NConcurrency::IReconfigurableThroughputThrottlerPtr throttler, EUserWorkloadType workloadType);

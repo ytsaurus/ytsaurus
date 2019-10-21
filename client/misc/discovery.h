@@ -15,8 +15,6 @@ class TDiscovery
     : public virtual TRefCounted
 {
 public:
-    using TAttributeDictionary = THashMap<TString, NYTree::INodePtr>; 
-
     static constexpr int Version = 1;
 
     TDiscovery(
@@ -24,15 +22,15 @@ public:
         NApi::IClientPtr client,
         IInvokerPtr invoker,
         std::vector<TString> extraAttributes,
-        const NLogging::TLogger& logger);
+        NLogging::TLogger logger = {});
 
     //! Make this participant exposed to the group.
-    TFuture<void> Enter(TString name, TAttributeDictionary attributes);
+    TFuture<void> Enter(TString name, NYTree::TAttributeMap attributes);
     //! Make this participant unexposed to the group.
     TFuture<void> Leave();
 
     //! Return the list of participants stored in data structure.
-    THashMap<TString, TAttributeDictionary> List(bool includeBanned = false) const;
+    THashMap<TString, NYTree::TAttributeMap> List(bool includeBanned = false) const;
     //! Temporary exclude |name| from the list of available participants.
     void Ban(TString name);
 
@@ -54,20 +52,20 @@ private:
     TDiscoveryConfigPtr Config_;
     NApi::IClientPtr Client_;
     IInvokerPtr Invoker_;
-    THashMap<TString, TAttributeDictionary> List_;
+    THashMap<TString, NYTree::TAttributeMap> List_;
     THashMap<TString, TInstant> BannedSince_;
     NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
     NApi::TListNodeOptions ListOptions_;
     mutable NConcurrency::TReaderWriterSpinLock Lock_;
     NApi::ITransactionPtr Transaction_;
-    NLogging::TLogger Logger;
-    std::optional<std::pair<TString, TAttributeDictionary>> SelfAttributes_;
+    const NLogging::TLogger Logger;
+    std::optional<std::pair<TString, NYTree::TAttributeMap>> SelfAttributes_;
     TFuture<void> ScheduledForceUpdate_;
     TInstant LastUpdate_;
     TCallback<void(void)> TransactionRestorer_;
     int Epoch_;
     
-    void DoEnter(TString name, TAttributeDictionary attributes);
+    void DoEnter(TString name, NYTree::TAttributeMap attributes);
     void DoLeave();
     
     void DoUpdateList();

@@ -8,6 +8,8 @@
 
 #include <yt/ytlib/api/native/client.h>
 
+#include <yt/ytlib/security_client/permission_cache.h>
+
 #include <yt/core/concurrency/fls.h>
 #include <yt/core/concurrency/scheduler.h>
 
@@ -34,97 +36,6 @@ TAuthenticatedUserGuard::TAuthenticatedUserGuard(
     const std::optional<TString>& optionalUser)
     : TAuthenticatedUserGuardBase(std::move(securityManager), optionalUser)
 { }
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TPermissionKey
-{
-    TString Object;
-    TString User;
-    EPermission Permission;
-
-    // Hasher.
-    operator size_t() const
-    {
-        size_t result = 0;
-        HashCombine(result, Object);
-        HashCombine(result, User);
-        HashCombine(result, Permission);
-        return result;
-    }
-
-    // Comparer.
-    bool operator == (const TPermissionKey& other) const
-    {
-        return
-            Object == other.Object &&
-            User == other.User &&
-            Permission == other.Permission;
-    }
-
-    // Formatter.
-    friend TString ToString(const TPermissionKey& key)
-    {
-        return Format("%v:%v:%v",
-            key.Object,
-            key.User,
-            key.Permission);
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-DECLARE_REFCOUNTED_CLASS(TPermissionCache)
-
-class TPermissionCache
-    : public TAsyncExpiringCache<TPermissionKey, void>
-{
-public:
-    TPermissionCache(
-        TAsyncExpiringCacheConfigPtr config,
-        NCellNode::TBootstrap* bootstrap)
-        : TAsyncExpiringCache(std::move(config))
-        , Bootstrap_(bootstrap)
-    { }
-
-private:
-    NCellNode::TBootstrap* const Bootstrap_;
-
-    virtual TFuture<void> DoGet(const TPermissionKey& key) override
-    {
-        YT_LOG_DEBUG("Permission check started (Key: %v)",
-            key);
-
-        auto client = Bootstrap_->GetMasterClient();
-        auto options = TCheckPermissionOptions();
-        options.ReadFrom = EMasterChannelKind::Cache;
-        return client->CheckPermission(key.User, key.Object, key.Permission, options).Apply(
-            BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TCheckPermissionResponse>& responseOrError) {
-                if (!responseOrError.IsOK()) {
-                    auto wrappedError = TError("Error checking permission for object %v",
-                        key.Object)
-                        << responseOrError;
-                    YT_LOG_WARNING(wrappedError);
-                    THROW_ERROR wrappedError;
-                }
-
-                const auto& response = responseOrError.Value();
-
-                YT_LOG_DEBUG("Permission check complete (Key: %v, Action: %v)",
-                    key,
-                    response.Action);
-
-                // TODO(babenko): YT-10367, columnar ACL
-
-                auto error = response.ToError(key.User, key.Permission);
-                if (!error.IsOK()) {
-                    THROW_ERROR error << TErrorAttribute("object", key.Object);
-                }
-            }));
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TPermissionCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -245,7 +156,7 @@ public:
         NCellNode::TBootstrap* bootstrap)
         : Config_(std::move(config))
         , Bootstrap_(bootstrap)
-        , PermissionCache_(New<TPermissionCache>(Config_->PermissionCache, Bootstrap_))
+        , PermissionCache_(New<TPermissionCache>(Config_->PermissionCache, Bootstrap_->GetMasterClient()))
         , ResourceLimitsCache_(New<TResourceLimitsCache>(Config_->ResourceLimitsCache, Bootstrap_))
     { }
 

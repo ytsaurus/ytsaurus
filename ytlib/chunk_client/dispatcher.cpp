@@ -21,17 +21,19 @@ public:
     TImpl() = default;
 
     void Configure(TDispatcherConfigPtr config)
-    { }
+    {
+        ReaderThreadPool_->Configure(config->ChunkReaderPoolSize);
+    }
 
     void Shutdown()
     {
-        ReaderThread_->Shutdown();
+        ReaderThreadPool_->Shutdown();
         WriterThread_->Shutdown();
     }
 
     IInvokerPtr GetReaderInvoker()
     {
-        return ReaderThread_->GetInvoker();
+        return ReaderThreadPool_->GetInvoker();
     }
 
     IInvokerPtr GetWriterInvoker()
@@ -40,9 +42,11 @@ public:
     }
 
 private:
-    const TActionQueuePtr ReaderThread_ = New<TActionQueue>("ChunkReader");
     const TActionQueuePtr WriterThread_ = New<TActionQueue>("ChunkWriter");
+    const TThreadPoolPtr ReaderThreadPool_ = New<TThreadPool>(TDispatcherConfig::DefaultChunkReaderPoolSize, "ChunkReader");
 };
+
+/////////////////////////////////////////////////////////////////////////////
 
 TDispatcher::TDispatcher()
     : Impl_(new TImpl())

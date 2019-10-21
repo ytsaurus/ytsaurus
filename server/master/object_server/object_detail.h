@@ -218,14 +218,16 @@ public:
     { }
 
 protected:
-    const TObject* GetThisImpl() const
+    template <class TActualImpl = TObject>
+    const TActualImpl* GetThisImpl() const
     {
-        return Object_->As<TObject>();
+        return Object_->As<TActualImpl>();
     }
 
-    TObject* GetThisImpl()
+    template <class TActualImpl = TObject>
+    TActualImpl* GetThisImpl()
     {
-        return Object_->As<TObject>();
+        return Object_->As<TActualImpl>();
     }
 
     TFuture<NYson::TYsonString> FetchFromShepherd(const NYPath::TYPath& path);

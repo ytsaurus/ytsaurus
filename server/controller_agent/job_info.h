@@ -111,6 +111,8 @@ public:
 
     NScheduler::TJobMetrics JobMetrics;
 
+    std::optional<TDuration> JobSpeculationTimeout;
+
     virtual void Persist(const TPersistenceContext& context) override;
 
     NScheduler::TJobMetrics UpdateJobMetrics(const TJobSummary& jobSummary);

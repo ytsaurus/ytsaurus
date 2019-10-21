@@ -26,6 +26,7 @@
 #include <yt/core/yson/null_consumer.h>
 
 #include <yt/core/misc/crash_handler.h>
+#include <yt/core/misc/signal_registry.h>
 
 #include <contrib/libs/protobuf/io/coded_stream.h>
 #include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
@@ -214,7 +215,8 @@ public:
         PyEval_InitThreads();
 
         RegisterShutdown();
-        InstallCrashSignalHandler(std::set<int>({SIGSEGV}));
+        TSignalRegistry::Get()->PushCallback(SIGSEGV, CrashSignalHandler);
+        TSignalRegistry::Get()->PushDefaultSignalHandler(SIGSEGV);
 
         InitTLazyYsonMapType();
 

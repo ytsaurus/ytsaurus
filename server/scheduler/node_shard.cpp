@@ -231,8 +231,7 @@ void TNodeShard::DoCleanup()
 
     CachedExecNodeDescriptorsRefresher_->Stop();
 
-    for (const auto& pair : IdToNode_) {
-        const auto& node = pair.second;
+    for (const auto& [nodeId, node] : IdToNode_) {
         TLeaseManager::CloseLease(node->GetRegistrationLease());
         TLeaseManager::CloseLease(node->GetHeartbeatLease());
     }
@@ -295,10 +294,9 @@ void TNodeShard::StartOperationRevival(TOperationId operationId)
         operationState.Jobs.size());
 
     auto jobs = operationState.Jobs;
-    for (const auto& pair : jobs) {
-        const auto& job = pair.second;
+    for (const auto& [jobId, job] : jobs) {
         UnregisterJob(job, /* enableLogging */ false);
-        JobsToSubmitToStrategy_.erase(job->GetId());
+        JobsToSubmitToStrategy_.erase(jobId);
     }
 
     for (auto jobId : operationState.JobsToSubmitToStrategy) {
@@ -1224,8 +1222,8 @@ void TNodeShard::BuildNodesYson(TFluentMap fluent)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
-    for (const auto& pair : IdToNode_) {
-        BuildNodeYson(pair.second, fluent);
+    for (const auto& [nodeId, node] : IdToNode_) {
+        BuildNodeYson(node, fluent);
     }
 }
 
@@ -1249,8 +1247,7 @@ TNodeShard::TResourceStatistics TNodeShard::CalculateResourceStatistics(const TS
         descriptors = CachedExecNodeDescriptors_;
     }
 
-    for (const auto& pair : *descriptors) {
-        const auto& descriptor = pair.second;
+    for (const auto& [nodeId, descriptor] : *descriptors) {
         if (descriptor.Online && descriptor.CanSchedule(filter)) {
             statistics.Usage += descriptor.ResourceUsage;
             statistics.Limits += descriptor.ResourceLimits;
@@ -2304,10 +2301,7 @@ void TNodeShard::SubmitJobsToStrategy()
                 AbortJob(jobId, TError("Aborting job by strategy request"));
             }
 
-            for (const auto& pair : jobsToRemove) {
-                auto operationId = pair.first;
-                auto jobId = pair.second;
-
+            for (const auto& [operationId, jobId] : jobsToRemove) {
                 auto* operationState = FindOperationState(operationId);
                 if (operationState) {
                     operationState->JobsToSubmitToStrategy.erase(jobId);

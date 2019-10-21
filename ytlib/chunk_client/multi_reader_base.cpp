@@ -6,6 +6,7 @@
 #include "data_slice_descriptor.h"
 
 #include <yt/core/concurrency/scheduler.h>
+#include <yt/core/concurrency/action_queue.h>
 
 namespace NYT::NChunkClient {
 
@@ -26,6 +27,7 @@ TMultiReaderBase::TMultiReaderBase(
     , ReaderFactories_(readerFactories)
     , Logger(NLogging::TLogger(ChunkClientLogger)
         .AddTag("MultiReaderId: %v", TGuid::Create()))
+    , ReaderInvoker_(CreateSerializedInvoker(TDispatcher::Get()->GetReaderInvoker()))
     , FreeBufferSize_(Config_->MaxBufferSize)
 {
     CurrentSession_.Reset();
@@ -49,7 +51,7 @@ void TMultiReaderBase::Open()
     ReadyEvent_ = CombineCompletionError(BIND(
             &TMultiReaderBase::DoOpen,
             MakeStrong(this))
-        .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
+        .AsyncVia(ReaderInvoker_)
         .Run());
 }
 
@@ -125,7 +127,7 @@ void TMultiReaderBase::OpenNextChunks()
             &TMultiReaderBase::DoOpenReader,
             MakeWeak(this),
             PrefetchIndex_)
-        .Via(TDispatcher::Get()->GetReaderInvoker())
+        .Via(ReaderInvoker_)
         .Run();
     }
 }
@@ -255,7 +257,7 @@ TSequentialMultiReaderBase::TSequentialMultiReaderBase(
 
     CompletionError_.ToFuture().Subscribe(
         BIND(&TSequentialMultiReaderBase::PropagateError, MakeWeak(this))
-            .Via(TDispatcher::Get()->GetReaderInvoker()));
+            .Via(ReaderInvoker_));
 }
 
 void TSequentialMultiReaderBase::DoOpen()
@@ -288,7 +290,7 @@ void TSequentialMultiReaderBase::OnReaderBlocked()
     ReadyEvent_ = CombineCompletionError(BIND(
         &TSequentialMultiReaderBase::WaitForCurrentReader,
         MakeStrong(this))
-    .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
+    .AsyncVia(ReaderInvoker_)
     .Run());
 }
 
@@ -305,7 +307,7 @@ void TSequentialMultiReaderBase::OnReaderFinished()
     ReadyEvent_ = CombineCompletionError(BIND(
         &TSequentialMultiReaderBase::WaitForNextReader,
         MakeStrong(this))
-    .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
+    .AsyncVia(ReaderInvoker_)
     .Run());
 }
 
@@ -390,7 +392,7 @@ void TParallelMultiReaderBase::OnReaderBlocked()
         &TParallelMultiReaderBase::WaitForReader,
         MakeStrong(this),
         CurrentSession_)
-    .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
+    .AsyncVia(ReaderInvoker_)
     .Run();
 
     CurrentSession_.Reset();
@@ -398,7 +400,7 @@ void TParallelMultiReaderBase::OnReaderBlocked()
     ReadyEvent_ = CombineCompletionError(BIND(
         &TParallelMultiReaderBase::WaitForReadyReader,
         MakeStrong(this))
-    .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
+    .AsyncVia(ReaderInvoker_)
     .Run());
 }
 
@@ -414,7 +416,7 @@ void TParallelMultiReaderBase::OnReaderFinished()
         ReadyEvent_ = CombineCompletionError(BIND(
             &TParallelMultiReaderBase::WaitForReadyReader,
             MakeStrong(this))
-        .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
+        .AsyncVia(ReaderInvoker_)
         .Run());
     }
 }

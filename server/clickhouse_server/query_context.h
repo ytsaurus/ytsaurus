@@ -47,6 +47,8 @@ public:
     std::optional<TString> InitialUser;
     std::optional<TString> InitialAddress;
     std::optional<TQueryId> InitialQueryId;
+    //! Text of the initial query. Used for better debugging.
+    std::optional<TString> InitialQuery;
     EInterface Interface;
     TString ClientHostName;
     std::optional<TString> HttpUserAgent;

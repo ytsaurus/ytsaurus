@@ -1,7 +1,8 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, MASTER_CELL_SERVICE
 from yt_commands import *
+from time import sleep
 
 ##################################################################
 
@@ -108,6 +109,39 @@ class TestNodeTracker(YTEnvSetup):
 
 class TestNodeTrackerMulticell(TestNodeTracker):
     NUM_SECONDARY_MASTER_CELLS = 2
+
+################################################################################
+
+class TestRemoveClusterNodes(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "lease_transaction_timeout": 2000,
+            "lease_transaction_ping_period": 1000,
+            "register_timeout": 1000,
+            "incremental_heartbeat_timeout": 1000,
+            "full_heartbeat_timeout": 1000,
+            "job_heartbeat_timeout": 1000,
+        }
+    }
+
+    @authors("babenko")
+    def test_remove_nodes(self):
+        for _ in xrange(10):
+            with Restarter(self.Env, NODES_SERVICE):
+                for node in ls("//sys/nodes"):
+                    wait(lambda: get("//sys/nodes/{}/@state".format(node)) == "offline")
+                    id = get("//sys/nodes/{}/@id".format(node))
+                    remove("//sys/nodes/" + node)
+                    wait(lambda: not exists("#" + id))
+
+            build_snapshot(cell_id=None)
+
+            with Restarter(self.Env, MASTER_CELL_SERVICE):
+                pass
+
 
 ################################################################################
 

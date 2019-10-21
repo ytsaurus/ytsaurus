@@ -152,6 +152,82 @@ TEST_F(TFutureTest, Subscribe)
     future.Subscribe(secondSubscriber);
 }
 
+TEST_F(TFutureTest, GetUnique)
+{
+    auto promise = NewPromise<std::vector<int>>();
+    auto future = promise.ToFuture();
+
+    EXPECT_FALSE(future.IsSet());
+
+    std::vector v{1, 2, 3};
+    promise.Set(v);
+
+    EXPECT_TRUE(future.IsSet());
+    auto w = future.GetUnique();
+    EXPECT_TRUE(w.IsOK());
+    EXPECT_EQ(v, w.Value());
+    EXPECT_TRUE(future.IsSet());
+}
+
+TEST_F(TFutureTest, TryGetUnique)
+{
+    auto promise = NewPromise<std::vector<int>>();
+    auto future = promise.ToFuture();
+
+    EXPECT_FALSE(future.IsSet());
+    EXPECT_FALSE(future.TryGetUnique());
+
+    std::vector v{1, 2, 3};
+    promise.Set(v);
+
+    EXPECT_TRUE(future.IsSet());
+    auto w = future.TryGetUnique();
+    EXPECT_TRUE(w);
+    EXPECT_TRUE(w->IsOK());
+    EXPECT_EQ(v, w->Value());
+    EXPECT_TRUE(future.IsSet());
+}
+
+TEST_F(TFutureTest, SubscribeUniqueBeforeSet)
+{
+    std::vector v{1, 2, 3};
+
+    auto promise = NewPromise<std::vector<int>>();
+    auto future = promise.ToFuture();
+
+    std::vector<int> vv;
+    future.SubscribeUnique(BIND([&] (TErrorOr<std::vector<int>>&& arg) {
+        EXPECT_TRUE(arg.IsOK());
+        vv = std::move(arg.Value());
+    }));
+
+    EXPECT_FALSE(future.IsSet());
+    promise.Set(v);
+    EXPECT_TRUE(future.IsSet());
+    EXPECT_EQ(v, vv);
+}
+
+TEST_F(TFutureTest, SubscribeUniqueAfterSet)
+{
+    std::vector v{1, 2, 3};
+
+    auto promise = NewPromise<std::vector<int>>();
+    auto future = promise.ToFuture();
+
+    EXPECT_FALSE(future.IsSet());
+    promise.Set(v);
+    EXPECT_TRUE(future.IsSet());
+
+    std::vector<int> vv;
+    future.SubscribeUnique(BIND([&] (TErrorOr<std::vector<int>>&& arg) {
+        EXPECT_TRUE(arg.IsOK());
+        vv = std::move(arg.Value());
+    }));
+
+    EXPECT_EQ(v, vv);
+    EXPECT_TRUE(future.IsSet());
+}
+
 static void* AsynchronousIntSetter(void* param)
 {
     Sleep(SleepQuantum);

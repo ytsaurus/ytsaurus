@@ -209,6 +209,7 @@ private:
 
     void DoInitialize();
     void DoRun();
+    void DoValidateConfig();
     void DoValidateSnapshot(const TString& fileName);
     void PopulateAlerts(std::vector<TError>* alerts);
 

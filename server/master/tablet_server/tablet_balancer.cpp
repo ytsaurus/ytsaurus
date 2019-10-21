@@ -10,6 +10,8 @@
 #include <yt/server/master/cell_master/world_initializer.h>
 #include <yt/server/master/cell_master/config.h>
 
+#include <yt/server/master/cell_server/tamed_cell_manager.h>
+
 #include <yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
 #include <yt/core/misc/arithmetic_formula.h>
@@ -203,8 +205,8 @@ private:
             (ignoreConfig || tablet->GetTable()->TabletBalancerConfig()->EnableAutoReshard) &&
             tablet->GetTable()->IsPhysicallySorted() &&
             IsObjectAlive(tablet->GetCell()) &&
-            IsObjectAlive(tablet->GetCell()->GetCellBundle()) &&
-            (ignoreConfig || tablet->GetCell()->GetCellBundle()->TabletBalancerConfig()->EnableTabletSizeBalancer) &&
+            IsObjectAlive(tablet->GetCell()->GetTabletCellBundle()) &&
+            (ignoreConfig || tablet->GetCell()->GetTabletCellBundle()->TabletBalancerConfig()->EnableTabletSizeBalancer) &&
             tablet->Replicas().empty() &&
             IsTabletUntouched(tablet);
     }
@@ -237,11 +239,13 @@ private:
 
         CurrentTime_ = TruncatedNow();
 
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
+        const auto& cellManager = Bootstrap_->GetTamedCellManager();
         THashSet<TTabletCellBundleId> bundlesForCellBalancingOnNextIteration;
-        for (const auto& bundleAndId : tabletManager->TabletCellBundles()) {
-            const auto& bundleId = bundleAndId.first;
-            const auto* bundle = bundleAndId.second;
+        for (const auto [bundleId, bundleBase] : cellManager->CellBundles()) {
+            if (bundleBase->GetType() != EObjectType::TabletCellBundle) {
+                continue;
+            }
+            const auto* bundle = bundleBase->As<TTabletCellBundle>();
 
             // If it is necessary and possible to balance cells, do it...
             if (BundlesPendingCellBalancing_.contains(bundleId) && bundle->GetActiveTabletActionCount() == 0) {
@@ -344,9 +348,10 @@ private:
     std::vector<const TTabletCell*> GetAliveCells(const TTabletCellBundle* bundle)
     {
         std::vector<const TTabletCell*> cells;
-        for (const auto* cell : bundle->TabletCells()) {
-            if (IsObjectAlive(cell) && !cell->DecommissionStarted() && cell->GetCellBundle() == bundle) {
-                cells.push_back(cell);
+        for (const auto* cell : bundle->Cells()) {
+            if (IsObjectAlive(cell) && !cell->IsDecommissionStarted() && cell->GetCellBundle() == bundle) {
+                YT_VERIFY(cell->GetType() == EObjectType::TabletCell);
+                cells.push_back(cell->As<TTabletCell>());
             }
         }
         return cells;
@@ -385,7 +390,7 @@ private:
         if (sync) {
             try {
                 const auto& tabletManager = Bootstrap_->GetTabletManager();
-                auto* dstCell = tabletManager->GetTabletCell(targetCellId);
+                auto* dstCell = tabletManager->GetTabletCellOrThrow(targetCellId);
                 auto* action = tabletManager->CreateTabletAction(
                     TObjectId{},
                     ETabletActionKind::Move,
@@ -528,7 +533,7 @@ private:
         i64 total = 0;
         memoryUsage.reserve(cells.size());
         for (const auto* cell : cells) {
-            i64 size = cell->LocalStatistics().MemorySize;
+            i64 size = cell->GossipStatistics().Local().MemorySize;
             total += size;
             memoryUsage.push_back({size, cell});
         }
@@ -1021,14 +1026,14 @@ private:
         i64 maxTabletSize;
         i64 desiredTabletSize = 0;
 
-        const auto& config = tablet->GetCell()->GetCellBundle()->TabletBalancerConfig();
+        const auto& config = tablet->GetCell()->GetTabletCellBundle()->TabletBalancerConfig();
         auto* table = tablet->GetTable();
         const auto& desiredTabletCount = table->GetDesiredTabletCount();
         auto statistics = table->ComputeTotalStatistics();
         i64 tableSize = tablet->GetInMemoryMode() == EInMemoryMode::Compressed
             ? statistics.compressed_data_size()
             : statistics.uncompressed_data_size();
-        i64 cellCount = tablet->GetCell()->GetCellBundle()->TabletCells().size() *
+        i64 cellCount = tablet->GetCell()->GetTabletCellBundle()->Cells().size() *
             config->TabletToCellRatio;
 
         if (!desiredTabletCount) {

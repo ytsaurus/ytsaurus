@@ -98,6 +98,8 @@ DEFINE_ENUM(EMasterReign,
     ((YT_10745_Annotation)                                           (916))  // avmatrosov
     ((ReplicateConfigToNewCellFirst)                                 (917))  // babenko
     ((FixSetShardInClone)                                            (918))  // babenko
+    ((DropUserStatistics)                                            (919))  // babenko
+    ((CellServer)                                                   (1000))  // savrus
 );
 
 ////////////////////////////////////////////////////////////////////////////////

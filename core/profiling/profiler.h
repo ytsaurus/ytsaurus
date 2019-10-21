@@ -209,7 +209,7 @@ public:
     //! Constructs a new profiler by adding a suffix to the path.
     TProfiler AppendPath(const NYPath::TYPath& pathSuffix) const;
 
-    //! Constructs a adding more tags.
+    //! Constructs a new profiler by adding more tags.
     TProfiler AddTags(const TTagIdList& tagIds) const;
 
 

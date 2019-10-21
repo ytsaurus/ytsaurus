@@ -99,6 +99,16 @@ bool IsTableType(EObjectType type)
         type == EObjectType::ReplicatedTable;
 }
 
+bool IsCellType(EObjectType type)
+{
+    return type == EObjectType::TabletCell;
+}
+
+bool IsCellBundleType(EObjectType type)
+{
+    return type == EObjectType::TabletCellBundle;
+}
+
 bool HasSchema(EObjectType type)
 {
     if (type == EObjectType::Master) {

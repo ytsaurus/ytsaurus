@@ -45,7 +45,7 @@ struct IMemoryChunkProvider
 
 DEFINE_REFCOUNTED_TYPE(IMemoryChunkProvider)
 
-IMemoryChunkProviderPtr CreateMemoryChunkProvider();
+const IMemoryChunkProviderPtr& GetDefaultMemoryChunkProvider();
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,6 +59,10 @@ public:
     TChunkedMemoryPool(
         TRefCountedTypeCookie tagCookie,
         IMemoryChunkProviderPtr chunkProvider,
+        size_t startChunkSize = DefaultStartChunkSize);
+
+    explicit TChunkedMemoryPool(
+        TRefCountedTypeCookie tagCookie,
         size_t startChunkSize = DefaultStartChunkSize);
 
     TChunkedMemoryPool();
@@ -100,7 +104,8 @@ public:
 
 private:
     const TRefCountedTypeCookie TagCookie_;
-    const IMemoryChunkProviderPtr ChunkProvider_;
+    const IMemoryChunkProviderPtr ChunkProviderHolder_;
+    IMemoryChunkProvider* const ChunkProvider_;
 
     int NextChunkIndex_ = 0;
     size_t NextSmallSize_;
@@ -120,10 +125,11 @@ private:
     std::vector<std::unique_ptr<TAllocationHolder>> Chunks_;
     std::vector<std::unique_ptr<TAllocationHolder>> OtherBlocks_;
 
+    void Initialize(size_t startChunkSize);
+
     char* AllocateUnalignedSlow(size_t size);
     char* AllocateAlignedSlow(size_t size, int align);
     char* AllocateSlowCore(size_t size);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

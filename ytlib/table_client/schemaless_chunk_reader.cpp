@@ -38,6 +38,7 @@
 #include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/core/concurrency/scheduler.h>
+#include <yt/core/concurrency/action_queue.h>
 
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/numeric_helpers.h>
@@ -121,6 +122,7 @@ public:
         , Logger(NLogging::TLogger(TableClientLogger)
             .AddTag("ChunkReaderId: %v", TGuid::Create())
             .AddTag("ChunkId: %v", chunkId))
+        , ReaderInvoker_(CreateSerializedInvoker(NChunkClient::TDispatcher::Get()->GetReaderInvoker()))
     {
         if (blockReadOptions.ReadSessionId) {
             Logger.AddTag("ReadSessionId: %v", blockReadOptions.ReadSessionId);
@@ -180,6 +182,8 @@ protected:
     int TableIndexId_ = -1;
 
     NLogging::TLogger Logger;
+
+    IInvokerPtr ReaderInvoker_;
 
     void InitializeSystemColumnIds()
     {
@@ -516,7 +520,7 @@ THorizontalSchemalessRangeChunkReader::THorizontalSchemalessRangeChunkReader(
     // RowIndex_ is set into proper value.
     // Must be called after the object is constructed and vtable initialized.
     ReadyEvent_ = BIND(&THorizontalSchemalessRangeChunkReader::InitializeBlockSequence, MakeStrong(this))
-        .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
+        .AsyncVia(ReaderInvoker_)
         .Run()
         .Apply(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
             if (!error.IsOK()) {
@@ -806,7 +810,7 @@ THorizontalSchemalessLookupChunkReader::THorizontalSchemalessLookupChunkReader(
     // RowIndex_ is set into proper value.
     // Must be called after the object is constructed and vtable initialized.
     ReadyEvent_ = BIND(&THorizontalSchemalessLookupChunkReader::InitializeBlockSequence, MakeStrong(this))
-        .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
+        .AsyncVia(ReaderInvoker_)
         .Run()
         .Apply(BIND([this, this_ = MakeStrong(this)] () {
             if (InitFirstBlockNeeded_) {
@@ -997,7 +1001,7 @@ public:
         RowIndex_ = LowerLimit_.HasRowIndex() ? LowerLimit_.GetRowIndex() : 0;
 
         ReadyEvent_ = BIND(&TColumnarSchemalessRangeChunkReader::InitializeBlockSequence, MakeStrong(this))
-            .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
+            .AsyncVia(ReaderInvoker_)
             .Run();
     }
 
@@ -1434,7 +1438,7 @@ public:
         Keys_ = keys;
 
         ReadyEvent_ = BIND(&TColumnarSchemalessLookupChunkReader::InitializeBlockSequence, MakeStrong(this))
-            .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
+            .AsyncVia(ReaderInvoker_)
             .Run();
     }
 

@@ -40,14 +40,13 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "signal_registry.h"
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 #ifdef _unix_
-
-// See http://pubs.opengroup.org/onlinepubs/009695399/functions/xsh_chap02_04.html
-// for a list of async signal safe functions.
 
 // We will install the failure signal handler for these signals.
 // We could use strsignal() to get signal names, but we do not use it to avoid
@@ -62,6 +61,9 @@ const struct {
     { SIGABRT, "SIGABRT" },
     { SIGBUS,  "SIGBUS"  },
 };
+
+// See http://pubs.opengroup.org/onlinepubs/009695399/functions/xsh_chap02_04.html
+// for a list of async signal safe functions.
 
 //! Returns the program counter from a signal context, NULL if unknown.
 void* GetPC(void* uc)
@@ -82,6 +84,12 @@ void WriteToStderr(const char* buffer, int length)
     if (write(2, buffer, length) < 0) {
         // Ignore errors.
     }
+}
+
+//! Writes the given zero-terminated buffer to the standard error.
+void WriteToStderr(const char* buffer)
+{
+    WriteToStderr(buffer, strlen(buffer));
 }
 
 //! Dumps time information.
@@ -183,18 +191,6 @@ void DumpSignalInfo(int signal, siginfo_t* si)
     WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
 }
 
-//! Invoke the default signal handler.
-void InvokeDefaultSignalHandler(int signal)
-{
-    struct sigaction sa;
-    memset(&sa, 0, sizeof(sa));
-    sigemptyset(&sa.sa_mask);
-    sa.sa_handler = SIG_DFL;
-    YT_VERIFY(sigaction(signal, &sa, nullptr) == 0);
-
-    pthread_kill(pthread_self(), signal);
-}
-
 void CrashTimeoutHandler(int signal)
 {
     TRawFormatter<256> formatter;
@@ -204,8 +200,7 @@ void CrashTimeoutHandler(int signal)
     _exit(1);
 }
 
-// Dumps signal and stack frame information, and invokes the default
-// signal handler once our job is done.
+// Dumps signal, stack frame information and codicils.
 void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
 {
     // All code here _MUST_ be async signal safe unless specified otherwise.
@@ -224,11 +219,11 @@ void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
         if (pthread_equal(currentThreadId, *expectedCrashingThreadId)) {
             // It looks the current thread is reentering the signal handler.
             // Something must be going wrong (maybe we are reentering by another
-            // type of signal?). Kill ourself by the default signal handler.
-            InvokeDefaultSignalHandler(signal);
-            // If we happen to fall through here, not being killed, we will probably end up
-            // running out of stack entering CrashSignalHandler over and over again.
-            // Not a bad thing, after all.
+            // type of signal?). Simply return from here and hope that the default signal handler
+            // (which is going to be executed after us by TSignalRegistry) will succeed in killing us.
+            // Otherwise, we will probably end up  running out of stack entering
+            // CrashSignalHandler over and over again. Not a bad thing, after all.
+            return;
         } else {
             // Another thread is dumping stuff. Let's wait until that thread
             // finishes the job and kills the process.
@@ -260,7 +255,8 @@ void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
 
     DumpSignalInfo(signal, si);
 
-    DumpStackTrace(WriteToStderr);
+    // Easiest way to choose proper overload...
+    DumpStackTrace([] (const char* buffer, int length) { WriteToStderr(buffer, length); });
 
     formatter.Reset();
     formatter.AppendString("*** Wait for logger to shut down ***\n");
@@ -275,28 +271,8 @@ void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
     formatter.Reset();
     formatter.AppendString("*** Terminate ***\n");
     WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
-
-    // Kill ourself by the default signal handler.
-    InvokeDefaultSignalHandler(signal);
 }
 #endif
-
-void InstallCrashSignalHandler(std::optional<std::set<int>> signalNumbers)
-{
-#ifdef _unix_
-    struct sigaction sa;
-    memset(&sa, 0, sizeof(sa));
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags |= SA_SIGINFO;
-    sa.sa_sigaction = &CrashSignalHandler;
-
-    for (size_t i = 0; i < Y_ARRAY_SIZE(FailureSignals); ++i) {
-        if (!signalNumbers || signalNumbers->find(FailureSignals[i].Number) != signalNumbers->end()) {
-            YT_VERIFY(sigaction(FailureSignals[i].Number, &sa, NULL) == 0);
-        }
-    }
-#endif
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -93,7 +93,7 @@ struct TUserWorkload
 {
     EUserWorkloadType Type;
     int RequestCount;
-    TDuration Time;
+    TDuration RequestTime;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
