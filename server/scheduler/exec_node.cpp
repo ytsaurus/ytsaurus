@@ -54,8 +54,8 @@ void TExecNode::SetIOWeights(const THashMap<TString, double>& mediumToWeight)
     TWriterGuard guard(SpinLock_);
     // NB: surely, something smarter than this should be done with individual medium weights here.
     IOWeight_ = 0.0;
-    for (const auto& pair : mediumToWeight) {
-        IOWeight_ += pair.second;
+    for (const auto& [medium, weight] : mediumToWeight) {
+        IOWeight_ += weight;
     }
 }
 

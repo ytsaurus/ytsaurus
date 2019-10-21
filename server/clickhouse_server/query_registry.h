@@ -27,7 +27,9 @@ public:
 
     NYTree::IYPathServicePtr GetOrchidService() const;
 
-    void DumpCodicils() const;
+    void WriteStateToStderr() const;
+
+    void SaveState();
 
 private:
     class TImpl;

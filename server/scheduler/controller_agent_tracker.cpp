@@ -263,6 +263,7 @@ public:
                     job->SetState(EJobState::Running);
                     result.RevivedJobs.push_back(job);
                 }
+                result.RevivedBannedTreeIds = FromProto<THashSet<TString>>(rsp->revived_banned_tree_ids());
                 return result;
             }));
     }
@@ -659,8 +660,8 @@ public:
 
         std::vector<TControllerAgentPtr> result;
         result.reserve(IdToAgent_.size());
-        for (const auto& pair : IdToAgent_) {
-            result.push_back(pair.second);
+        for (const auto& [agentId, agent] : IdToAgent_) {
+            result.push_back(agent);
         }
         return result;
     }
@@ -677,8 +678,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         std::vector<TControllerAgentPtr> registeredAgents;
-        for (const auto& pair : IdToAgent_) {
-            const auto& agent = pair.second;
+        for (const auto& [agentId, agent] : IdToAgent_) {
             if (agent->GetState() != EControllerAgentState::Registered) {
                 continue;
             }
@@ -1131,8 +1131,8 @@ public:
         }
 
         if (request->exec_nodes_requested()) {
-            for (const auto& pair : *scheduler->GetCachedExecNodeDescriptors()) {
-                ToProto(response->mutable_exec_nodes()->add_exec_nodes(), pair.second);
+            for (const auto& [nodeId, descriptor] : *scheduler->GetCachedExecNodeDescriptors()) {
+                ToProto(response->mutable_exec_nodes()->add_exec_nodes(), descriptor);
             }
         }
 
@@ -1294,8 +1294,7 @@ private:
 
     void DoCleanup()
     {
-        for (const auto& pair : IdToAgent_) {
-            const auto& agent = pair.second;
+        for (const auto& [agentId, agent] : IdToAgent_) {
             TerminateAgent(agent);
             agent->SetState(EControllerAgentState::Unregistered);
         }

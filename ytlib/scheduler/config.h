@@ -602,6 +602,10 @@ public:
     //! Timeout of waiting job start on the host.
     std::optional<TDuration> WaitingJobTimeout;
 
+    //! Force running speculative job after this timeout. Has lower priority than `JobSpeculationTimeout`
+    //! from TUserJobSpec.
+    std::optional<TDuration> JobSpeculationTimeout;
+
     TOperationSpecBase();
 
 private:
@@ -686,6 +690,10 @@ public:
     bool EnableGpuLayers;
 
     std::optional<TString> CudaToolkitVersion;
+
+    //! Force running speculative job after this timeout. Has higher priority than `JobSpeculationTimeout`
+    //! from TOperationBaseSpec.
+    std::optional<TDuration> JobSpeculationTimeout;
 
     TUserJobSpec();
 

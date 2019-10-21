@@ -117,8 +117,7 @@ public:
 
         YT_LOG_INFO("Starting min needed job resources update");
 
-        for (const auto& pair : OperationIdToOperationState_) {
-            const auto& state = pair.second;
+        for (const auto& [operationId, state] : OperationIdToOperationState_) {
             if (state->GetHost()->IsSchedulable()) {
                 state->GetController()->UpdateMinNeededJobResources();
             }
@@ -169,10 +168,8 @@ public:
 
         auto runtimeParameters = operation->GetRuntimeParameters();
 
-        for (const auto& pair : state->TreeIdToPoolNameMap()) {
-            const auto& treeId = pair.first;
-            const auto& tree = GetTree(pair.first);
-
+        for (const auto& [treeId, poolName] : state->TreeIdToPoolNameMap()) {
+            auto tree = GetTree(treeId);
             auto paramsIt = runtimeParameters->SchedulingOptionsPerPoolTree.find(treeId);
             YT_VERIFY(paramsIt != runtimeParameters->SchedulingOptionsPerPoolTree.end());
 
@@ -187,8 +184,7 @@ public:
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         const auto& state = GetOperationState(operation->GetId());
-        for (const auto& pair : state->TreeIdToPoolNameMap()) {
-            const auto& treeId = pair.first;
+        for (const auto& [treeId, poolName] : state->TreeIdToPoolNameMap()) {
             DoUnregisterOperationFromTree(state, treeId);
         }
 
@@ -226,8 +222,7 @@ public:
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         const auto& state = GetOperationState(operation->GetId());
-        for (const auto& pair : state->TreeIdToPoolNameMap()) {
-            const auto& treeId = pair.first;
+        for (const auto& [treeId, poolName] : state->TreeIdToPoolNameMap()) {
             GetTree(treeId)->DisableOperation(state);
         }
     }
@@ -412,8 +407,7 @@ public:
 
         Config = config;
 
-        for (const auto& pair : IdToTree_) {
-            const auto& tree = pair.second;
+        for (const auto& [treeId, tree] : IdToTree_) {
             tree->UpdateControllerConfig(config);
         }
 
@@ -456,10 +450,7 @@ public:
             newPools.erase(erasedTree);
         }
 
-        for (const auto& pair : state->TreeIdToPoolNameMap()) {
-            const auto& treeId = pair.first;
-            const auto& oldPool = pair.second;
-
+        for (const auto& [treeId, oldPool] : state->TreeIdToPoolNameMap()) {
             auto newPoolIt = newPools.find(treeId);
             YT_VERIFY(newPoolIt != newPools.end());
 
@@ -518,10 +509,10 @@ public:
 
         const auto& state = GetOperationState(operation->GetId());
 
-        for (const auto& pair : runtimeParameters->SchedulingOptionsPerPoolTree) {
+        for (const auto& [treeId, schedulingOptions] : runtimeParameters->SchedulingOptionsPerPoolTree) {
             auto poolTrees = state->TreeIdToPoolNameMap();
-            if (poolTrees.find(pair.first) == poolTrees.end()) {
-                THROW_ERROR_EXCEPTION("Pool tree %Qv was not configured for this operation", pair.first);
+            if (poolTrees.find(treeId) == poolTrees.end()) {
+                THROW_ERROR_EXCEPTION("Pool tree %Qv was not configured for this operation", treeId);
             }
         }
 
@@ -541,8 +532,7 @@ public:
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         THashMap<TString, std::vector<TExecNodeDescriptor>> descriptorsPerPoolTree;
-        for (const auto& pair : IdToTree_) {
-            const auto& treeId = pair.first;
+        for (const auto& [treeId, poolTree] : IdToTree_) {
             descriptorsPerPoolTree.emplace(treeId, std::vector<TExecNodeDescriptor>{});
         }
 
@@ -565,8 +555,7 @@ public:
         fluent
             .OptionalItem("default_fair_share_tree", DefaultTreeId_)
             .Item("scheduling_info_per_pool_tree").DoMapFor(IdToTree_, [&] (TFluentMap fluent, const auto& pair) {
-                const auto& treeId = pair.first;
-                const auto& tree = pair.second;
+                const auto& [treeId, tree] = pair;
 
                 auto it = descriptorsPerPoolTree.find(treeId);
                 YT_VERIFY(it != descriptorsPerPoolTree.end());
@@ -591,9 +580,8 @@ public:
             snapshots = TreeIdToSnapshot_;
         }
 
-        for (const auto& pair : operationIdToOperationJobMetrics) {
-            auto operationId = pair.first;
-            for (const auto& metrics : pair.second) {
+        for (const auto& [operationId, metricsPerTree] : operationIdToOperationJobMetrics) {
+            for (const auto& metrics : metricsPerTree) {
                 auto snapshotIt = snapshots.find(metrics.TreeId);
                 if (snapshotIt == snapshots.end()) {
                     continue;
@@ -644,9 +632,9 @@ public:
 
         auto pools = GetOperationPools(runtimeParameters);
 
-        for (const auto& pair : pools) {
-            auto tree = GetTree(pair.first);
-            tree->ValidatePoolLimitsOnPoolChange(operation, pair.second);
+        for (const auto& [treeId, pool] : pools) {
+            auto tree = GetTree(treeId);
+            tree->ValidatePoolLimitsOnPoolChange(operation, pool);
         }
     }
 
@@ -719,8 +707,7 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        for (const auto& pair : IdToTree_) {
-            const auto& tree = pair.second;
+        for (const auto& [treeId, tree] : IdToTree_) {
             tree->OnFairShareEssentialLoggingAt(now);
         }
     }
@@ -729,8 +716,7 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        for (const auto& pair : IdToTree_) {
-            const auto& tree = pair.second;
+        for (const auto& [treeId, tree] : IdToTree_) {
             tree->OnFairShareLoggingAt(now);
         }
     }
@@ -808,11 +794,11 @@ public:
             jobsByTreeId[job->GetTreeId()].push_back(job);
         }
 
-        for (const auto& pair : jobsByTreeId) {
-            auto tree = FindTree(pair.first);
+        for (const auto& [treeId, jobs] : jobsByTreeId) {
+            auto tree = FindTree(treeId);
             // NB: operation can be missing in tree since ban.
             if (tree && tree->HasOperation(operationId)) {
-                tree->RegisterJobsFromRevivedOperation(operationId, pair.second);
+                tree->RegisterJobsFromRevivedOperation(operationId, jobs);
             }
         }
     }
@@ -821,8 +807,7 @@ public:
     {
         auto operationId = host->GetId();
         const auto& state = GetOperationState(operationId);
-        for (const auto& pair : state->TreeIdToPoolNameMap()) {
-            const auto& treeId = pair.first;
+        for (const auto& [treeId, poolName] : state->TreeIdToPoolNameMap()) {
             GetTree(treeId)->EnableOperation(state);
         }
         if (host->IsSchedulable()) {
@@ -837,9 +822,7 @@ public:
         // Trees this node falls into.
         std::vector<TString> trees;
 
-        for (const auto& pair : IdToTree_) {
-            const auto& treeId = pair.first;
-            const auto& tree = pair.second;
+        for (const auto& [treeId, tree] : IdToTree_) {
             if (tree->GetNodesFilter().CanSchedule(tags)) {
                 trees.push_back(treeId);
             }
@@ -1015,9 +998,9 @@ private:
 
         std::vector<TFuture<void>> futures;
 
-        for (const auto& pair : pools) {
-            auto tree = GetTree(pair.first);
-            futures.push_back(tree->ValidateOperationPoolsCanBeUsed(operation, pair.second));
+        for (const auto& [treeId, pool] : pools) {
+            auto tree = GetTree(treeId);
+            futures.push_back(tree->ValidateOperationPoolsCanBeUsed(operation, pool));
         }
 
         WaitFor(Combine(futures))
@@ -1093,10 +1076,7 @@ private:
             }
         }
 
-        for (const auto& pair : IdToTree_) {
-            const auto& treeId = pair.first;
-            const auto& tree = pair.second;
-
+        for (const auto& [treeId, tree] : IdToTree_) {
             auto child = poolsMap->FindChild(treeId);
             if (!child) {
                 treesToRemove->insert(treeId);
@@ -1144,9 +1124,9 @@ private:
             trees.emplace(treeId, tree);
         }
 
-        for (const auto& pair : IdToTree_) {
-            if (treesToRemove.find(pair.first) == treesToRemove.end()) {
-                trees.insert(pair);
+        for (const auto& [treeId, tree] : IdToTree_) {
+            if (treesToRemove.find(treeId) == treesToRemove.end()) {
+                trees.emplace(treeId, tree);
             }
         }
 
@@ -1157,9 +1137,7 @@ private:
     {
         THashMap<NNodeTrackerClient::TNodeId, THashSet<TString>> nodeIdToTreeSet;
 
-        for (const auto& pair : trees) {
-            const auto& treeId = pair.first;
-            const auto& tree = pair.second;
+        for (const auto& [treeId, tree] : trees) {
             auto nodes = Host->GetExecNodeIds(tree->GetNodesFilter());
 
             for (const auto& node : nodes) {
@@ -1167,9 +1145,7 @@ private:
             }
         }
 
-        for (const auto& pair : nodeIdToTreeSet) {
-            const auto& nodeId = pair.first;
-            const auto& treeIds  = pair.second;
+        for (const auto& [nodeId, treeIds] : nodeIdToTreeSet) {
             if (treeIds.size() > 1) {
                 errors->emplace_back(
                     TError("Cannot update fair-share trees since there is node that belongs to multiple trees")
@@ -1189,10 +1165,7 @@ private:
         std::vector<TError>* errors,
         std::vector<TString>* updatedTreeIds) const
     {
-        for (const auto& pair : trees) {
-            const auto& treeId = pair.first;
-            const auto& tree = pair.second;
-
+        for (const auto& [treeId, tree] : trees) {
             auto child = poolsMap->GetChild(treeId);
 
             try {
@@ -1225,13 +1198,9 @@ private:
         THashMap<TOperationId, THashSet<TString>> operationIdToTreeSet;
         THashMap<TString, THashSet<TOperationId>> treeIdToOperationSet;
 
-        for (const auto& pair : OperationIdToOperationState_) {
-            auto operationId = pair.first;
-            const auto& poolsMap = pair.second->TreeIdToPoolNameMap();
-
-            for (const auto& treeAndPool : poolsMap) {
-                const auto& treeId = treeAndPool.first;
-
+        for (const auto& [operationId, operationState] : OperationIdToOperationState_) {
+            const auto& poolsMap = operationState->TreeIdToPoolNameMap();
+            for (const auto& [treeId, pool] : poolsMap) {
                 YT_VERIFY(operationIdToTreeSet[operationId].insert(treeId).second);
                 YT_VERIFY(treeIdToOperationSet[treeId].insert(operationId).second);
             }
@@ -1258,9 +1227,7 @@ private:
         }
 
         // Aborting orphaned operations.
-        for (const auto& pair : operationIdToTreeSet) {
-            auto operationId = pair.first;
-            const auto& treeSet = pair.second;
+        for (const auto& [operationId, treeSet] : operationIdToTreeSet) {
             bool isOperationExists = OperationIdToOperationState_.find(operationId) != OperationIdToOperationState_.end();
             if (treeSet.empty() && isOperationExists) {
                 Host->AbortOperation(

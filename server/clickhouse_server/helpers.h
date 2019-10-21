@@ -52,8 +52,10 @@ std::unique_ptr<TTableObject> GetTableAttributes(
     NYTree::EPermission permission,
     const NLogging::TLogger& logger);
 
-TClickHouseTablePtr FetchClickHouseTable(
-    const NApi::NNative::IClientPtr& client,
+TClickHouseTablePtr FetchClickHouseTableFromCache(
+    TBootstrap* bootstrap,
+    // User for checking permissions. If user is nullopt, permissions won't be checked.
+    std::optional<TString> user,
     const NYPath::TRichYPath& path,
     const NLogging::TLogger& logger);
 

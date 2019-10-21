@@ -285,8 +285,8 @@ private:
 
             std::vector<std::pair<TInstant, TJobId>> samples;
             samples.reserve(JobIdToCompletionTime_.size());
-            for (const auto& pair : JobIdToCompletionTime_) {
-                samples.emplace_back(pair.second, pair.first);
+            for (const auto& [jobId, time] : JobIdToCompletionTime_) {
+                samples.emplace_back(time, jobId);
             }
 
             int medianIndex = JobIdToCompletionTime_.size() / 2;

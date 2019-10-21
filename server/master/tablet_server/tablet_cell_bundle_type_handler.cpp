@@ -3,7 +3,7 @@
 #include "tablet_cell_bundle_proxy.h"
 #include "tablet_manager.h"
 
-#include <yt/server/master/object_server/type_handler_detail.h>
+#include <yt/server/master/cell_server/cell_bundle_type_handler.h>
 
 #include <yt/client/object_client/helpers.h>
 
@@ -13,22 +13,21 @@ namespace NYT::NTabletServer {
 
 using namespace NHydra;
 using namespace NObjectServer;
+using namespace NObjectClient;
 using namespace NTransactionServer;
 using namespace NSecurityServer;
 using namespace NYTree;
 using namespace NCellMaster;
+using namespace NCellServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletCellBundleTypeHandler
-    : public TObjectTypeHandlerWithMapBase<TTabletCellBundle>
+    : public TCellBundleTypeHandlerBase<TTabletCellBundle>
 {
 public:
-    TTabletCellBundleTypeHandler(
-        TBootstrap* bootstrap,
-        TEntityMap<TTabletCellBundle>* map)
-        : TObjectTypeHandlerWithMapBase(bootstrap, map)
-        , Bootstrap_(bootstrap)
+    explicit TTabletCellBundleTypeHandler(TBootstrap* bootstrap)
+        : TBase(bootstrap)
     { }
 
     virtual EObjectType GetType() const override
@@ -36,63 +35,42 @@ public:
         return EObjectType::TabletCellBundle;
     }
 
-    virtual ETypeFlags GetFlags() const override
-    {
-        return
-            ETypeFlags::ReplicateCreate |
-            ETypeFlags::ReplicateDestroy |
-            ETypeFlags::ReplicateAttributes |
-            ETypeFlags::Creatable |
-            ETypeFlags::Removable |
-            ETypeFlags::TwoPhaseRemoval;
-    }
-
     virtual TObject* CreateObject(
         TObjectId hintId,
         IAttributeDictionary* attributes) override
     {
-        auto name = attributes->GetAndRemove<TString>("name");
-        auto options = attributes->GetAndRemove<TTabletCellOptionsPtr>("options");
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
-        return tabletManager->CreateTabletCellBundle(name, hintId, std::move(options));
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto id = objectManager->GenerateId(EObjectType::TabletCellBundle, hintId);
+        auto holder = std::make_unique<TTabletCellBundle>(id);
+        return DoCreateObject(std::move(holder), attributes);
+    }
+
+    virtual std::unique_ptr<TObject> InstantiateObject(
+        TObjectId hintId) override
+    {
+        return std::make_unique<TTabletCellBundle>(hintId);
     }
 
 private:
-    TBootstrap* const Bootstrap_;
-
-    virtual TCellTagList DoGetReplicationCellTags(const TTabletCellBundle* /*cellBundle*/) override
-    {
-        return AllSecondaryCellTags();
-    }
+    using TBase = TCellBundleTypeHandlerBase<TTabletCellBundle>;
 
     virtual TString DoGetName(const TTabletCellBundle* cellBundle) override
     {
         return Format("tablet cell bundle %Qv", cellBundle->GetName());
     }
 
-    virtual TAccessControlDescriptor* DoFindAcd(TTabletCellBundle* cellBundle) override
-    {
-        return &cellBundle->Acd();
-    }
-
     virtual IObjectProxyPtr DoGetProxy(TTabletCellBundle* cellBundle, TTransaction* /*transaction*/) override
     {
         return CreateTabletCellBundleProxy(Bootstrap_, &Metadata_, cellBundle);
     }
-
-    virtual void DoZombifyObject(TTabletCellBundle* cellBundle) override
-    {
-        TObjectTypeHandlerWithMapBase::DoZombifyObject(cellBundle);
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
-        tabletManager->DestroyTabletCellBundle(cellBundle);
-    }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 IObjectTypeHandlerPtr CreateTabletCellBundleTypeHandler(
-    TBootstrap* bootstrap,
-    TEntityMap<TTabletCellBundle>* map)
+    TBootstrap* bootstrap)
 {
-    return New<TTabletCellBundleTypeHandler>(bootstrap, map);
+    return New<TTabletCellBundleTypeHandler>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

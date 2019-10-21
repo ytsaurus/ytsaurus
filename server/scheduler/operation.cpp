@@ -285,8 +285,7 @@ TYsonString TOperation::BuildAlertsString() const
 {
     auto result = BuildYsonStringFluently()
         .DoMapFor(Alerts_, [&] (TFluentMap fluent, const auto& pair) {
-            const auto& alertType = pair.first;
-            const auto& alert = pair.second;
+            const auto& [alertType, alert] = pair;
 
             fluent
                 .Item(FormatEnum(alertType)).Value(alert.Error);

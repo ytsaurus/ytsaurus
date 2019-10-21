@@ -3132,7 +3132,7 @@ private:
             ++ChunkReplicasAdded_;
         }
 
-        if (chunk->IsStaged() && !chunk->IsConfirmed()) {
+        if (chunk->IsStaged() && !chunk->IsConfirmed() && !chunk->GetExpirationTime()) {
             ScheduleChunkExpiration(chunk);
         }
     }

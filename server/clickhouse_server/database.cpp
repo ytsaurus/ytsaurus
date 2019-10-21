@@ -5,6 +5,7 @@
 #include "helpers.h"
 #include "query_context.h"
 #include "table.h"
+#include "query_registry.h"
 
 #include <yt/ytlib/api/native/client.h>
 
@@ -116,11 +117,27 @@ StoragePtr TDatabase::GetTable(
     const std::string& path) const
 {
     auto* queryContext = GetQueryContext(context);
-    auto table = FetchClickHouseTable(queryContext->Client(), TRichYPath::Parse(TString(path)), queryContext->Logger);
+
+    auto table = FetchClickHouseTableFromCache(
+        queryContext->Bootstrap,
+        queryContext->Client()->GetOptions().GetUser(),
+        TRichYPath::Parse(TString(path)),
+        queryContext->Logger);
+
     if (!table) {
         // table not found
         return nullptr;
     }
+
+    // Here goes the dirty-ass hack. When query context is created, query AST is not parsed yet,
+    // so it is not present in client info for query. That's why if we crash somewhere during coordination
+    // phase, dumped query registry in crash handler will lack crashing query itself. As a workaround,
+    // we forcefully rebuild query registry state when creating TStorageDistributor.
+    WaitFor(
+        BIND(&TQueryRegistry::SaveState, queryContext->Bootstrap->GetQueryRegistry())
+            .AsyncVia(queryContext->Bootstrap->GetControlInvoker())
+            .Run())
+        .ThrowOnError();
 
     return CreateStorageDistributor({std::move(table)});
 }
@@ -319,8 +336,9 @@ ASTPtr TDatabase::DoGetCreateTableQuery(const DB::Context& context, const DB::St
         false /* allow_multi_statements */,
         0 /* max_query_size */);
 
-    if (!ast && throwOnError)
+    if (!ast && throwOnError) {
         THROW_ERROR_EXCEPTION("Caught following error while parsing table creation query: %v", errorMessage);
+    }
 
     return ast;
 }

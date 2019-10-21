@@ -594,7 +594,7 @@ public:
     void SetVital(std::optional<bool> vital);
 
     NTabletServer::TTabletCellBundle* GetTabletCellBundle() const;
-    void SetTabletCellBundle(NTabletServer::TTabletCellBundle* tabletCellBundle);
+    void SetTabletCellBundle(NTabletServer::TTabletCellBundle* cellBundle);
 
     std::optional<NTransactionClient::EAtomicity> GetAtomicity() const;
     void SetAtomicity(std::optional<NTransactionClient::EAtomicity> atomicity);

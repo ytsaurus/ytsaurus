@@ -485,8 +485,7 @@ private:
 
         // Collect all transactions that are used by currently running operations.
         THashSet<TTransactionId> watchSet;
-        for (const auto& pair : controllerAgent->GetOperations()) {
-            const auto& operation = pair.second;
+        for (const auto& [operationId, operation] : controllerAgent->GetOperations()) {
             for (auto transactionId : operation->GetWatchTransactionIds()) {
                 watchSet.insert(transactionId);
             }
@@ -517,9 +516,7 @@ private:
 
         THashMap<TCellTag, NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr> batchRsps;
 
-        for (const auto& pair : batchReqs) {
-            auto cellTag = pair.first;
-            const auto& batchReq = pair.second;
+        for (const auto& [cellTag, batchReq] : batchReqs) {
             auto batchRspOrError = WaitFor(batchReq->Invoke());
             if (batchRspOrError.IsOK()) {
                 batchRsps[cellTag] = batchRspOrError.Value();
@@ -547,8 +544,7 @@ private:
         YT_LOG_INFO("Transactions refreshed");
 
         // Check every transaction of every operation and raise appropriate notifications.
-        for (const auto& pair : controllerAgent->GetOperations()) {
-            const auto& operation = pair.second;
+        for (const auto& [operationId, operation] : controllerAgent->GetOperations()) {
             auto controller = operation->GetController();
             std::vector<TTransactionId> locallyDeadTransactionIds;
             for (auto transactionId : operation->GetWatchTransactionIds()) {
@@ -1178,8 +1174,8 @@ private:
         {
             const auto& controllerAgent = Bootstrap_->GetControllerAgent();
             auto controllerMap = controllerAgent->GetOperations();
-            for (const auto& pair : controllerMap) {
-                weakControllerMap.insert({pair.first, pair.second->GetController()});
+            for (const auto& [operationId, operation] : controllerMap) {
+                weakControllerMap.insert({operationId, operation->GetController()});
             }
         }
 

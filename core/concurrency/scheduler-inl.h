@@ -12,7 +12,32 @@
 
 #include <library/ytalloc/api/ytalloc.h>
 
+namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Forward declaration.
+IInvokerPtr GetSyncInvoker();
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT
+
 namespace NYT::NConcurrency {
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern thread_local IInvokerPtr CurrentInvoker;
+
+Y_FORCE_INLINE IInvokerPtr GetCurrentInvokerImpl()
+{
+    return CurrentInvoker ? CurrentInvoker : GetSyncInvoker();
+}
+
+Y_FORCE_INLINE void SetCurrentInvoker(IInvokerPtr invoker)
+{
+    CurrentInvoker = std::move(invoker);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,24 +80,29 @@ Y_FORCE_INLINE void SetCurrentScheduler(IScheduler* scheduler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T>
-TErrorOr<T> WaitFor(TFuture<T> future)
-{
-    return WaitFor(std::move(future), GetCurrentInvoker());
-}
+namespace NDetail {
+
+void WaitForImpl(TAwaitable awaitable, IInvokerPtr invoker);
+
+} // namespace NDetail
 
 template <class T>
 TErrorOr<T> WaitFor(TFuture<T> future, IInvokerPtr invoker)
 {
-    YT_ASSERT(future);
-    YT_ASSERT(invoker);
-
-    void WaitForImpl(TFuture<void> future, IInvokerPtr invoker);
-    WaitForImpl(future.template As<void>(), std::move(invoker));
-
+    NDetail::WaitForImpl(future.AsAwaitable(), std::move(invoker));
     return future.Get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NConcurrency
+
+namespace NYT {
+
+Y_FORCE_INLINE IInvokerPtr GetCurrentInvoker()
+{
+    return NYT::NConcurrency::GetCurrentInvokerImpl();
+}
+
+} // namespace NYT
+

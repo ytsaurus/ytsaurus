@@ -429,6 +429,10 @@ TOperationSpecBase::TOperationSpecBase()
         .GreaterThanOrEqual(TDuration::Seconds(10))
         .LessThanOrEqual(TDuration::Minutes(10));
 
+    RegisterParameter("job_speculation_timeout", JobSpeculationTimeout)
+        .Default()
+        .GreaterThan(TDuration::Zero());
+
     RegisterPostprocessor([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             UnavailableChunkTactics == EUnavailableChunkAction::Skip)
@@ -569,6 +573,9 @@ TUserJobSpec::TUserJobSpec()
         .Default(true);
     RegisterParameter("cuda_toolkit_version", CudaToolkitVersion)
         .Default();
+    RegisterParameter("job_speculation_timeout", JobSpeculationTimeout)
+        .Default()
+        .GreaterThan(TDuration::Zero());
 
     RegisterPostprocessor([&] () {
         if ((TmpfsSize || TmpfsPath) && !TmpfsVolumes.empty()) {

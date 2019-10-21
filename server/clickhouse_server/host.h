@@ -4,9 +4,13 @@
 #include "query_context.h"
 #include "private.h"
 
-#include <yt/client/misc/discovery.h>
+#include <yt/ytlib/object_client/public.h>
+
+#include <yt/ytlib/security_client/public.h>
 
 #include <yt/core/actions/public.h>
+
+#include <yt/core/ytree/permission.h>
 
 #include <string>
 
@@ -36,6 +40,9 @@ public:
 
     TFuture<void> StopDiscovery();
     void StopTcpServers();
+
+    NObjectClient::TObjectAttributeCachePtr GetTableAttributeCache();
+    NSecurityClient::TPermissionCachePtr GetPermissionsCache();
 
     const IInvokerPtr& GetControlInvoker() const;
 

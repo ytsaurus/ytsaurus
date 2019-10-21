@@ -28,6 +28,7 @@ class TBootstrap
 public:
     DEFINE_BYVAL_RO_PROPERTY(TClickHouseServerBootstrapConfigPtr, Config);
     DEFINE_BYVAL_RO_PROPERTY(NApi::NNative::IClientPtr, RootClient)
+    DEFINE_BYVAL_RO_PROPERTY(NApi::NNative::IClientPtr, CacheClient)
     DEFINE_BYVAL_RO_PROPERTY(TClickHouseHostPtr, Host);
     DEFINE_BYVAL_RO_PROPERTY(NApi::NNative::IConnectionPtr, Connection);
     DEFINE_BYVAL_RO_PROPERTY(NApi::NNative::TClientCachePtr, ClientCache);

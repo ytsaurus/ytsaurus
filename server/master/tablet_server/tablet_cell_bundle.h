@@ -7,8 +7,9 @@
 #include <yt/server/master/security_server/acl.h>
 
 #include <yt/server/master/cell_master/public.h>
-
 #include <yt/server/master/cell_master/serialize.h>
+
+#include <yt/server/master/cell_server/cell_bundle.h>
 
 #include <yt/ytlib/tablet_client/public.h>
 
@@ -22,43 +23,22 @@ namespace NYT::NTabletServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletCellBundle
-    : public NObjectServer::TNonversionedObjectBase
-    , public TRefTracked<TTabletCellBundle>
+    : public NCellServer::TCellBundle
 {
 public:
-    DECLARE_BYVAL_RW_PROPERTY(TString, Name);
-
-    DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
-
-    DEFINE_BYVAL_RW_PROPERTY(TTabletCellOptionsPtr, Options);
-    DECLARE_BYVAL_RW_PROPERTY(TDynamicTabletCellOptionsPtr, DynamicOptions);
-    DEFINE_BYVAL_RO_PROPERTY(int, DynamicConfigVersion);
-    DEFINE_BYREF_RW_PROPERTY(TBooleanFormula, NodeTagFilter);
     DEFINE_BYREF_RW_PROPERTY(TTabletBalancerConfigPtr, TabletBalancerConfig);
-    DEFINE_BYREF_RW_PROPERTY(ETabletCellHealth, Health, ETabletCellHealth::Good);
 
-    DEFINE_BYREF_RW_PROPERTY(THashSet<TTabletCell*>, TabletCells);
     DEFINE_BYREF_RW_PROPERTY(THashSet<TTabletAction*>, TabletActions);
     DEFINE_BYVAL_RO_PROPERTY(int, ActiveTabletActionCount);
-
-    DEFINE_BYVAL_RO_PROPERTY(NProfiling::TTagId, ProfilingTag);
 
 public:
     explicit TTabletCellBundle(TTabletCellBundleId id);
 
-    virtual TString GetObjectName() const override;
-
     void IncreaseActiveTabletActionCount();
     void DecreaseActiveTabletActionCount();
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
-
-private:
-    TString Name_;
-    TDynamicTabletCellOptionsPtr DynamicOptions_;
-
-    void FillProfilingTag();
+    virtual void Save(NCellMaster::TSaveContext& context) const override;
+    virtual void Load(NCellMaster::TLoadContext& context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

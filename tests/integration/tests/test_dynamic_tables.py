@@ -282,7 +282,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
     @authors("savrus")
     def test_tablet_cell_health_statistics(self):
         cell_id = sync_create_cells(1)[0]
-        wait(lambda: get("#{0}/@total_statistics/health".format(cell_id)) == "good")
+        wait(lambda: get("#{0}/@health".format(cell_id)) == "good")
 
     @authors("kiselyovp")
     def test_distributed_commit(self):

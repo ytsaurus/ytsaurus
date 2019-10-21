@@ -384,10 +384,11 @@ private:
             }
 
             for (auto it = blocksIt; it < blockKeysEnd; ++it) {
-                auto blockIndex = std::distance(blockIndexKeys.begin(), it);
+                int blockIndex = std::distance(blockIndexKeys.begin(), it);
                 BlockIndexes_.push_back(blockIndex);
                 auto& blockMeta = blockMetaExt->blocks(blockIndex);
-                blocks.push_back(TBlockFetcher::TBlockInfo(blockIndex, blockMeta.uncompressed_size(), blocks.size()));
+                int priority = blocks.size();
+                blocks.push_back(TBlockFetcher::TBlockInfo{blockIndex, blockMeta.uncompressed_size(), priority});
             }
 
             blocksIt = blockKeysEnd;
@@ -578,10 +579,11 @@ private:
                 keyIt = std::upper_bound(keyIt, Keys_.end(), *blocksIt);
                 YT_VERIFY(keyIt > saved);
 
-                auto blockIndex = std::distance(blockIndexKeys.begin(), blocksIt);
+                int blockIndex = std::distance(blockIndexKeys.begin(), blocksIt);
                 BlockIndexes_.push_back(blockIndex);
                 auto& blockMeta = blockMetaExt->blocks(blockIndex);
-                blocks.push_back(TBlockFetcher::TBlockInfo(blockIndex, blockMeta.uncompressed_size(), blocks.size()));
+                int priority = blocks.size();
+                blocks.push_back(TBlockFetcher::TBlockInfo{blockIndex, blockMeta.uncompressed_size(), priority});
 
                 ++blocksIt;
             } else {

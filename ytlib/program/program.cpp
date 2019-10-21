@@ -3,6 +3,7 @@
 #include <yt/build/build.h>
 
 #include <yt/core/misc/crash_handler.h>
+#include <yt/core/misc/signal_registry.h>
 #include <yt/core/misc/fs.h>
 
 #include <yt/core/logging/log_manager.h>
@@ -201,7 +202,8 @@ void ConfigureSignals()
 
 void ConfigureCrashHandler()
 {
-    InstallCrashSignalHandler();
+    TSignalRegistry::Get()->PushCallback(AllCrashSignals, CrashSignalHandler);
+    TSignalRegistry::Get()->PushDefaultSignalHandler(AllCrashSignals);
 }
 
 void ExitZero(int /* unused */)

@@ -5,6 +5,9 @@
 #include "tablet_action.h"
 
 #include <yt/server/master/cell_master/public.h>
+#include <yt/server/master/cell_master/gossip_value.h>
+
+#include <yt/server/master/cell_server/cell_base.h>
 
 #include <yt/server/master/node_tracker_server/public.h>
 
@@ -29,85 +32,25 @@ namespace NYT::NTabletServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletCell
-    : public NObjectServer::TNonversionedObjectBase
-    , public TRefTracked<TTablet>
+    : public NCellServer::TCellBase
 {
 public:
-    struct TPeer
-    {
-        NNodeTrackerClient::TNodeDescriptor Descriptor;
-        NNodeTrackerServer::TNode* Node = nullptr;
-        TInstant LastSeenTime;
-
-        void Persist(NCellMaster::TPersistenceContext& context);
-    };
-
-    using TPeerList = SmallVector<TPeer, TypicalPeerCount>;
-    DEFINE_BYREF_RW_PROPERTY(TPeerList, Peers);
-    DEFINE_BYVAL_RW_PROPERTY(int, LeadingPeerId);
-
-    DEFINE_BYVAL_RW_PROPERTY(int, ConfigVersion);
-    DEFINE_BYVAL_RW_PROPERTY(TTabletCellConfigPtr, Config);
-
     DEFINE_BYREF_RW_PROPERTY(THashSet<TTablet*>, Tablets);
     DEFINE_BYREF_RW_PROPERTY(THashSet<TTabletAction*>, Actions);
 
-    using TMulticellStatistics = THashMap<NObjectClient::TCellTag, TTabletCellStatistics>;
-    DEFINE_BYREF_RW_PROPERTY(TTabletCellStatistics, ClusterStatistics);
-    DEFINE_BYREF_RW_PROPERTY(TMulticellStatistics, MulticellStatistics);
-    DEFINE_BYVAL_RW_PROPERTY(TTabletCellStatistics*, LocalStatisticsPtr);
+    using TGossipStatistics = NCellMaster::TGossipValue<TTabletCellStatistics>;
+    DEFINE_BYREF_RW_PROPERTY(TGossipStatistics, GossipStatistics);
 
-    DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, PrerequisiteTransaction);
-
-    DEFINE_BYVAL_RW_PROPERTY(TTabletCellBundle*, CellBundle);
-
-    DEFINE_BYVAL_RW_PROPERTY(NTabletClient::ETabletCellLifeStage, TabletCellLifeStage, NTabletClient::ETabletCellLifeStage::Running);
+    DECLARE_BYVAL_RO_PROPERTY(TTabletCellBundle*, TabletCellBundle);
 
 public:
     explicit TTabletCell(TTabletCellId id);
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
-
-    TPeerId FindPeerId(const TString& address) const;
-    TPeerId GetPeerId(const TString& address) const;
-
-    TPeerId FindPeerId(NNodeTrackerServer::TNode* node) const;
-    TPeerId GetPeerId(NNodeTrackerServer::TNode* node) const;
-
-    void AssignPeer(const NHiveClient::TCellPeerDescriptor& descriptor, TPeerId peerId);
-    void RevokePeer(TPeerId peerId);
-
-    void AttachPeer(NNodeTrackerServer::TNode* node, TPeerId peerId);
-    void DetachPeer(NNodeTrackerServer::TNode* node);
-    void UpdatePeerSeenTime(TPeerId peerId, TInstant when);
-
-    //! Get health from a point of view of a single master.
-    ETabletCellHealth GetHealth() const;
-
-    //! Get aggregated health for all masters.
-    ETabletCellHealth GetMulticellHealth() const;
-
-    NHiveClient::TCellDescriptor GetDescriptor() const;
-
-    //! Dereferences the local statistics pointer.
-    TTabletCellStatistics& LocalStatistics();
-    const TTabletCellStatistics& LocalStatistics() const;
-
-    //! Returns statistics for a given cell tag.
-    TTabletCellStatistics* GetCellStatistics(NObjectClient::TCellTag cellTag);
+    virtual void Save(NCellMaster::TSaveContext& context) const override;
+    virtual void Load(NCellMaster::TLoadContext& context) override;
 
     //! Recompute cluster statistics from multicell statistics.
     void RecomputeClusterStatistics();
-
-    //! Helper to calculate aggregated health.
-    static ETabletCellHealth CombineHealths(ETabletCellHealth lhs, ETabletCellHealth rhs);
-
-    //! Returns |true| if decommission requested.
-    bool DecommissionStarted() const;
-
-    //! Returns |true| if cell reported that it is decommissioned.
-    bool DecommissionCompleted() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

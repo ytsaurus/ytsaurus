@@ -9,6 +9,8 @@
 
 #include <yt/core/tracing/public.h>
 
+#include <yt/core/misc/small_set.h>
+
 #include <yt/core/ytalloc/memory_tag.h>
 #include <yt/core/ytalloc/memory_zone.h>
 
@@ -33,8 +35,6 @@ struct TContextSwitchHandlers
     std::function<void()> Out;
     std::function<void()> In;
 };
-
-using TContextSwitchHandlersList = std::forward_list<TContextSwitchHandlers>;
 
 //! A fiber :)
 /*!
@@ -81,12 +81,12 @@ public:
      */
     void SetRunning();
 
-    //! Sets the current fiber state to EFiberState::Sleeping (optionally providing a future
+    //! Sets the current fiber state to EFiberState::Sleeping (optionally providing an awaitable
     //! the fiber is waiting for).
     /*!
      *  Thread affinity: OwnerThread
      */
-    void SetSleeping(TFuture<void> awaitedFuture = TFuture<void>());
+    void SetSleeping(TAwaitable awaitable = {});
 
     //! Sets the current fiber state to EFiberState::Suspended.
     /*!
@@ -184,7 +184,7 @@ private:
     NProfiling::TCpuDuration RunCpuTime_ = 0;
 
     EFiberState State_ = EFiberState::Suspended;
-    TFuture<void> AwaitedFuture_;
+    TAwaitable Awaitable_;
 
     TClosure Callee_;
     std::shared_ptr<TExecutionStack> Stack_;
@@ -199,7 +199,7 @@ private:
     NYTAlloc::TMemoryTag MemoryTag_ = NYTAlloc::NullMemoryTag;
     NYTAlloc::EMemoryZone MemoryZone_ = NYTAlloc::EMemoryZone::Normal;
 
-    TContextSwitchHandlersList SwitchHandlers_;
+    SmallVector<TContextSwitchHandlers, 16> SwitchHandlers_;
 
     void FinishRunning();
 

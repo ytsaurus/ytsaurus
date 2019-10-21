@@ -24,12 +24,17 @@
 
 #include <yt/ytlib/api/native/client.h>
 
+#include <yt/ytlib/security_client/permission_cache.h>
+
+#include <yt/ytlib/object_client/object_attribute_cache.h>
+
 #include <yt/client/misc/discovery.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/profiling/profile_manager.h>
 #include <yt/core/misc/proc.h>
 #include <yt/core/logging/log_manager.h>
+#include <yt/core/misc/crash_handler.h>
 
 #include <yt/core/rpc/bus/channel.h>
 #include <yt/core/rpc/caching_channel_factory.h>
@@ -83,6 +88,8 @@ using namespace NProfiling;
 using namespace NYTree;
 using namespace NRpc::NBus;
 using namespace NProto;
+using namespace NSecurityClient;
+using namespace NObjectClient;
 
 static const auto& Logger = ServerLogger;
 
@@ -105,6 +112,16 @@ std::string GetCanonicalPath(std::string path)
 }   // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
+
+const std::vector<TString> AttributesToCache{
+    "id",
+    "schema",
+    "type",
+    "dynamic",
+    "chunk_count",
+    "external",
+    "external_cell_tag",
+};
 
 class TClickHouseHost::TImpl
     : public IServer
@@ -145,6 +162,9 @@ private:
     THashSet<TString> KnownInstances_;
     THashMap<TString, int> UnknownInstancePingCounter_;
 
+    TPermissionCachePtr PermissionCache_;
+    TObjectAttributeCachePtr TableAttributeCache_;
+
 public:
     TImpl(
         TBootstrap* bootstrap,
@@ -164,6 +184,17 @@ public:
         , MonitoringPort_(monitoringPort)
         , TcpPort_(tcpPort)
         , HttpPort_(httpPort)
+        , PermissionCache_(New<TPermissionCache>(
+            Config_->PermissionCache,
+            Bootstrap_->GetCacheClient(),
+            ServerProfiler.AppendPath("/permission_cache")))
+        , TableAttributeCache_(New<NObjectClient::TObjectAttributeCache>(
+            Config_->TableAttributeCache,
+            AttributesToCache,
+            Bootstrap_->GetCacheClient(),
+            Bootstrap_->GetControlInvoker(),
+            Logger,
+            ServerProfiler.AppendPath("/object_attribute_cache")))
     { }
 
     void Start()
@@ -181,21 +212,21 @@ public:
         SetupLogger();
         EngineConfig_ = new Poco::Util::LayeredConfiguration();
         EngineConfig_->add(ConvertToPocoConfig(ConvertToNode(Config_->Engine)));
-        
+
         Discovery_ = New<TDiscovery>(
             Config_->Discovery,
             Bootstrap_->GetRootClient(),
             ControlInvoker_,
             std::vector<TString>{"host", "rpc_port", "monitoring_port", "tcp_port", "http_port", "pid"},
             Logger);
-        
+
         SetupContext();
         WarmupDictionaries();
         SetupHandlers();
-        
+
         Discovery_->StartPolling();
 
-        TDiscovery::TAttributeDictionary attributes = {
+        TAttributeMap attributes = {
             {"host", ConvertToNode(GetFQDNHostName())},
             {"rpc_port", ConvertToNode(RpcPort_)},
             {"monitoring_port", ConvertToNode(MonitoringPort_)},
@@ -243,6 +274,16 @@ public:
                 server->stop();
             }
         }
+    }
+
+    TObjectAttributeCachePtr GetTableAttributeCache()
+    {
+        return TableAttributeCache_;
+    }
+
+    TPermissionCachePtr GetPermissionsCache()
+    {
+        return PermissionCache_;
     }
 
     Poco::Logger& logger() const override
@@ -533,7 +574,7 @@ private:
         if (total + Config_->MemoryWatchdog->CodicilWatermark > Config_->MemoryWatchdog->MemoryLimit) {
             YT_LOG_ERROR("We are close to OOM, printing query digest codicils and killing ourselves");
             NYT::NLogging::TLogManager::Get()->Shutdown();
-            Bootstrap_->GetQueryRegistry()->DumpCodicils();
+            Bootstrap_->GetQueryRegistry()->WriteStateToStderr();
             _exit(MemoryLimitExceededExitCode);
         }
     }
@@ -659,6 +700,16 @@ TFuture<void> TClickHouseHost::StopDiscovery()
 void TClickHouseHost::StopTcpServers()
 {
     return Impl_->StopTcpServers();
+}
+
+TObjectAttributeCachePtr TClickHouseHost::GetTableAttributeCache()
+{
+    return Impl_->GetTableAttributeCache();
+}
+
+TPermissionCachePtr TClickHouseHost::GetPermissionsCache()
+{
+    return Impl_->GetPermissionsCache();
 }
 
 const IInvokerPtr& TClickHouseHost::GetControlInvoker() const

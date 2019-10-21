@@ -76,7 +76,17 @@ DEFINE_REFCOUNTED_TYPE(TRemoteWriterOptions)
 
 class TDispatcherConfig
     : public virtual NYTree::TYsonSerializable
-{ };
+{
+public:
+    static constexpr int DefaultChunkReaderPoolSize = 8;
+    int ChunkReaderPoolSize;
+
+    TDispatcherConfig()
+    {
+        RegisterParameter("chunk_reader_pool_size", ChunkReaderPoolSize)
+            .Default(DefaultChunkReaderPoolSize);
+    }
+};
 
 DEFINE_REFCOUNTED_TYPE(TDispatcherConfig)
 

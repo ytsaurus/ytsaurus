@@ -5,8 +5,8 @@
 
 #include <yt/server/lib/hydra/hydra_manager.h>
 
-#include <yt/server/master/tablet_server/tablet_manager.h>
-#include <yt/server/master/tablet_server/tablet_cell.h>
+#include <yt/server/master/cell_server/tamed_cell_manager.h>
+#include <yt/server/master/cell_server/cell_base.h>
 
 #include <yt/server/master/object_server/object.h>
 
@@ -18,7 +18,7 @@
 
 namespace NYT::NHiveServer {
 
-using namespace NTabletServer;
+using namespace NCellServer;
 using namespace NObjectServer;
 using namespace NHiveClient;
 using namespace NObjectClient;
@@ -41,12 +41,12 @@ public:
     TImpl(
         TCellDirectorySynchronizerConfigPtr config,
         TCellDirectoryPtr cellDirectory,
-        TTabletManagerPtr tabletManager,
+        TTamedCellManagerPtr cellManager,
         IHydraManagerPtr hydraManager,
         IInvokerPtr automatonInvoker)
         : Config_(std::move(config))
         , CellDirectory_(std::move(cellDirectory))
-        , TabletManager_(std::move(tabletManager))
+        , CellManager_(std::move(cellManager))
         , HydraManager_(std::move(hydraManager))
         , SyncExecutor_(New<TPeriodicExecutor>(
             std::move(automatonInvoker),
@@ -67,7 +67,7 @@ public:
 private:
     const TCellDirectorySynchronizerConfigPtr Config_;
     const TCellDirectoryPtr CellDirectory_;
-    const TTabletManagerPtr TabletManager_;
+    const TTamedCellManagerPtr CellManager_;
     const IHydraManagerPtr HydraManager_;
 
     const TPeriodicExecutorPtr SyncExecutor_;
@@ -90,8 +90,7 @@ private:
             WaitFor(HydraManager_->SyncWithUpstream())
                 .ThrowOnError();
 
-            for (const auto& pair : TabletManager_->TabletCells()) {
-                auto* cell = pair.second;
+            for (const auto [cellId, cell] : CellManager_->Cells()) {
                 if (!IsObjectAlive(cell)) {
                     continue;
                 }
@@ -105,10 +104,9 @@ private:
                 }
             }
 
-            for (const auto& pair : idToVersion) {
-                const auto& id = pair.first;
-                if (TypeFromId(id) == EObjectType::TabletCell) {
-                    CellDirectory_->UnregisterCell(pair.first);
+            for (const auto [cellId, version] : idToVersion) {
+                if (IsCellType(TypeFromId(cellId))) {
+                    CellDirectory_->UnregisterCell(cellId);
                 }
             }
 
@@ -124,13 +122,13 @@ private:
 TCellDirectorySynchronizer::TCellDirectorySynchronizer(
     TCellDirectorySynchronizerConfigPtr config,
     TCellDirectoryPtr cellDirectory,
-    TTabletManagerPtr tabletManager,
+    TTamedCellManagerPtr cellManager,
     IHydraManagerPtr hydraManager,
     IInvokerPtr automatonInvoker)
     : Impl_(New<TImpl>(
         std::move(config),
         std::move(cellDirectory),
-        std::move(tabletManager),
+        std::move(cellManager),
         std::move(hydraManager),
         std::move(automatonInvoker)))
 { }

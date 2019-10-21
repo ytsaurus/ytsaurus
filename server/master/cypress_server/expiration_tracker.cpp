@@ -46,7 +46,7 @@ void TExpirationTracker::Start()
 
     YT_VERIFY(!CheckExecutor_);
     CheckExecutor_ = New<TPeriodicExecutor>(
-        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::NodeExpirationTracker),
+        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::CypressNodeExpirationTracker),
         BIND(&TExpirationTracker::OnCheck, MakeWeak(this)));
     CheckExecutor_->Start();
 

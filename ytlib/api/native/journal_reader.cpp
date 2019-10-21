@@ -30,6 +30,8 @@
 
 #include <yt/client/chunk_client/read_limit.h>
 
+#include <yt/core/concurrency/action_queue.h>
+
 namespace NYT::NApi::NNative {
 
 using namespace NChunkClient;
@@ -61,6 +63,7 @@ public:
             .AddTag("Path: %v, TransactionId: %v",
                 Path_,
                 Options_.TransactionId))
+        , ReaderInvoker_(CreateSerializedInvoker(NChunkClient::TDispatcher::Get()->GetReaderInvoker()))
     {
         if (Options_.TransactionId) {
             Transaction_ = Client_->AttachTransaction(Options_.TransactionId);
@@ -70,14 +73,14 @@ public:
     virtual TFuture<void> Open() override
     {
         return BIND(&TJournalReader::DoOpen, MakeStrong(this))
-            .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
+            .AsyncVia(ReaderInvoker_)
             .Run();
     }
 
     virtual TFuture<std::vector<TSharedRef>> Read() override
     {
         return BIND(&TJournalReader::DoRead, MakeStrong(this))
-            .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
+            .AsyncVia(ReaderInvoker_)
             .Run();
     }
 
@@ -93,6 +96,8 @@ private:
 
     TNodeDirectoryPtr NodeDirectory_ = New<TNodeDirectory>();
     std::vector<NChunkClient::NProto::TChunkSpec> ChunkSpecs_;
+
+    IInvokerPtr ReaderInvoker_;
 
     int CurrentChunkIndex_ = -1;
     bool Finished_ = false;

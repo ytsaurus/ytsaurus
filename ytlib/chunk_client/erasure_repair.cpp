@@ -9,6 +9,7 @@
 #include "chunk_reader_statistics.h"
 
 #include <yt/core/concurrency/scheduler.h>
+#include <yt/core/concurrency/action_queue.h>
 
 #include <yt/core/erasure/codec.h>
 
@@ -392,7 +393,8 @@ public:
         const std::vector<IChunkReaderAllowingRepairPtr>& readers,
         const TErasurePlacementExt& placementExt,
         const std::vector<int>& blockIndexes,
-        const TClientBlockReadOptions& options)
+        const TClientBlockReadOptions& options,
+        const IInvokerPtr& readerInvoker)
         : Codec_(codec)
         , ErasedIndices_(erasedIndices)
         , Readers_(readers)
@@ -401,6 +403,7 @@ public:
         , BlockReadOptions_(options)
         , ParityPartSplitInfo_(GetParityPartSplitInfo(PlacementExt_))
         , DataBlocksPlacementInParts_(BuildDataBlocksPlacementInParts(BlockIndexes_, PlacementExt_))
+        , ReaderInvoker_(readerInvoker)
     {
         auto repairIndices = *Codec_->GetRepairIndices(ErasedIndices_);
         YT_VERIFY(std::is_sorted(ErasedIndices_.begin(), ErasedIndices_.end()));
@@ -472,7 +475,7 @@ public:
     TFuture<std::vector<TBlock>> Run()
     {
         return BIND(&TRepairingErasureReaderSession::RepairBlocks, MakeStrong(this))
-            .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
+            .AsyncVia(ReaderInvoker_)
             .Run()
             .Apply(BIND(&TRepairingErasureReaderSession::ReadRemainingBlocks, MakeStrong(this)))
             .Apply(BIND(&TRepairingErasureReaderSession::BuildResult, MakeStrong(this)));
@@ -499,6 +502,8 @@ private:
     std::vector<IPartBlockConsumerPtr> BlockConsumers_;
 
     std::vector<TPartRange> RepairRanges_;
+
+    IInvokerPtr ReaderInvoker_;
 
     void RepairBlocks()
     {
@@ -556,6 +561,7 @@ public:
         const std::vector<IChunkReaderAllowingRepairPtr>& readers)
         : TErasureChunkReaderBase(codec, readers)
         , ErasedIndices_(erasedIndices)
+        , ReaderInvoker_(CreateSerializedInvoker(TDispatcher::Get()->GetReaderInvoker()))
     { }
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
@@ -566,16 +572,17 @@ public:
         // NB(psushin): do not use estimated size for throttling here, repair requires much more traffic than estimated.
         // When reading erasure chunks we fallback to post-throttling.
         return PreparePlacementMeta(options).Apply(
-            BIND([=, this_ = MakeStrong(this)] () {
+            BIND([=, this_ = MakeStrong(this)] {
                 auto session = New<TRepairingErasureReaderSession>(
                     Codec_,
                     ErasedIndices_,
                     Readers_,
                     PlacementExt_,
                     blockIndexes,
-                    options);
+                    options,
+                    ReaderInvoker_);
                 return session->Run();
-            }).AsyncVia(TDispatcher::Get()->GetReaderInvoker()));
+            }).AsyncVia(ReaderInvoker_));
     }
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
@@ -600,6 +607,7 @@ public:
 
 private:
     const TPartIndexList ErasedIndices_;
+    IInvokerPtr ReaderInvoker_;
 };
 
 IChunkReaderPtr CreateRepairingErasureReader(

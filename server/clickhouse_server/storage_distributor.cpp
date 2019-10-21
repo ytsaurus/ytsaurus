@@ -28,6 +28,7 @@
 #include <DataStreams/MaterializingBlockInputStream.h>
 #include <DataStreams/RemoteBlockInputStream.h>
 #include <Interpreters/InterpreterSelectQuery.h>
+#include <Interpreters/ProcessList.h>
 #include <DataTypes/DataTypeFactory.h>
 #include <DataTypes/DataTypeNullable.h>
 #include <Storages/MergeTree/MergeTreeData.h>
@@ -234,6 +235,9 @@ public:
 
         SpecTemplate_ = TSubquerySpec();
         SpecTemplate_.InitialQueryId = queryContext->QueryId;
+        if (auto* queryStatus = queryContext->TryGetQueryStatus()) {
+            SpecTemplate_.InitialQuery = queryStatus->getInfo().query;
+        }
 
         auto cliqueNodes = queryContext->Bootstrap->GetHost()->GetNodes();
         if (cliqueNodes.empty()) {
@@ -389,6 +393,7 @@ private:
         auto analyzerResult = QueryAnalyzer_->Analyze();
 
         auto inputStripeList = FetchInput(
+            queryContext->Bootstrap,
             queryContext->Client(),
             queryContext->Bootstrap->GetSerializedWorkerInvoker(),
             analyzerResult.TableSchemas,
@@ -406,7 +411,7 @@ private:
             if (rate > 1.0) {
                 rate /= inputStripeList->TotalRowCount;
             }
-            rate = std::max(0.0, std::min(1.0, rate));
+            rate = std::clamp(rate, 0.0, 1.0);
             samplingRate = rate;
         }
 
@@ -478,19 +483,19 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
     };
 
     YT_LOG_DEBUG("Creating table (Attributes: %v)", ConvertToYsonString(attributes->ToMap(), EYsonFormat::Text));
+
+    auto schema = attributes->Get<TTableSchema>("schema");
+
     NApi::TCreateNodeOptions options;
     options.Attributes = std::move(attributes);
     auto id = WaitFor(client->CreateNode(path.GetPath(), NObjectClient::EObjectType::Table, options))
         .ValueOrThrow();
     YT_LOG_DEBUG("Table created (ObjectId: %v)", id);
 
-    auto table = FetchClickHouseTable(client, path, Logger);
-    YT_VERIFY(table);
-
     return std::make_shared<TStorageDistributor>(
-        table->TableSchema,
-        TClickHouseTableSchema::From(*table),
-        std::vector<TRichYPath>{table->Path});
+        schema,
+        TClickHouseTableSchema::From(TClickHouseTable(path, schema)),
+        std::vector<TRichYPath>{path});
 }
 
 ////////////////////////////////////////////////////////////////////////////////

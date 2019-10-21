@@ -309,3 +309,22 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
         wait(lambda: get(op.get_path() + "/@brief_progress/jobs")["running"] == 2)
 
         return op
+
+    @authors("gritukan")
+    def test_speculation_job_timeout(self):
+        spec = {
+            "enable_job_splitting": False,
+            "job_speculation_timeout": 100
+        }
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec=spec, job_count=1)
+
+        wait_breakpoint(job_count=2)
+        wait(lambda: get(op.get_path() + "/@brief_progress/jobs")["running"] == 2)
+        assert get(op.get_path() + "/@brief_progress/jobs")["pending"] == 0
+
+        release_breakpoint()
+        op.track()
+
+        job_counters = get(op.get_path() + "/@progress/jobs")
+        assert job_counters["aborted"]["scheduled"]["speculative_run_lost"] > 0 or \
+            job_counters["aborted"]["scheduled"]["speculative_run_won"] > 0
