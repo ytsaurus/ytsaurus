@@ -185,8 +185,73 @@ void DumpSignalInfo(int signal, siginfo_t* si)
     formatter.AppendString("from PID ");
     formatter.AppendNumber(si->si_pid);
     formatter.AppendString(" ");
+    formatter.AppendString("code ");
+    formatter.AppendNumber(si->si_code);
+    formatter.AppendString(" ");
 #endif
     formatter.AppendString("***\n");
+
+    WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
+}
+
+void DumpSigcontext(void* uc)
+{
+#if !((defined(HAVE_UCONTEXT_H) || defined(HAVE_SYS_UCONTEXT_H)) && defined(PC_FROM_UCONTEXT) && defined(_linux_) && defined(_x86_64_))
+    return;
+#endif
+
+    ucontext_t* context = reinterpret_cast<ucontext_t*>(uc);
+
+    TRawFormatter<512> formatter;
+
+    formatter.AppendString("*** Begin Context ***");
+    formatter.AppendString("\nR8 ");
+    formatter.AppendNumber(context->uc_mcontext.gregs[REG_R8], 16);
+    formatter.AppendString("\nR9 ");
+    formatter.AppendNumber(context->uc_mcontext.gregs[REG_R9], 16);
+    formatter.AppendString("\nR10 ");
+    formatter.AppendNumber(context->uc_mcontext.gregs[REG_R10], 16);
+    formatter.AppendString("\nR11 ");
+    formatter.AppendNumber(context->uc_mcontext.gregs[REG_R11], 16);
+    formatter.AppendString("\nR12 ");
+    formatter.AppendNumber(context->uc_mcontext.gregs[REG_R12], 16);
+    formatter.AppendString("\nR13 ");
+    formatter.AppendNumber(context->uc_mcontext.gregs[REG_R13], 16);
+    formatter.AppendString("\nR14 ");
+    formatter.AppendNumber(context->uc_mcontext.gregs[REG_R14], 16);
+    formatter.AppendString("\nR15 ");
+    formatter.AppendNumber(context->uc_mcontext.gregs[REG_R15], 16);
+    formatter.AppendString("\nRDI ");
+    formatter.AppendNumber(context->uc_mcontext.gregs[REG_RDI], 16);
+    formatter.AppendString("\nRSI ");
+    formatter.AppendNumber(context->uc_mcontext.gregs[REG_RSI], 16);
+    formatter.AppendString("\nRBP ");
+    formatter.AppendNumber(context->uc_mcontext.gregs[REG_RBP], 16);
+    formatter.AppendString("\nRBX ");
+    formatter.AppendNumber(context->uc_mcontext.gregs[REG_RBX], 16);
+    formatter.AppendString("\nRDX ");
+    formatter.AppendNumber(context->uc_mcontext.gregs[REG_RDX], 16);
+    formatter.AppendString("\nRAX ");
+    formatter.AppendNumber(context->uc_mcontext.gregs[REG_RAX], 16);
+    formatter.AppendString("\nRCX ");
+    formatter.AppendNumber(context->uc_mcontext.gregs[REG_RCX], 16);
+    formatter.AppendString("\nRSP ");
+    formatter.AppendNumber(context->uc_mcontext.gregs[REG_RSP], 16);
+    formatter.AppendString("\nRIP ");
+    formatter.AppendNumber(context->uc_mcontext.gregs[REG_RIP], 16);
+    formatter.AppendString("\nEFL ");
+    formatter.AppendNumber(context->uc_mcontext.gregs[REG_EFL], 16);
+    formatter.AppendString("\nCSGSFS ");
+    formatter.AppendNumber(context->uc_mcontext.gregs[REG_CSGSFS], 16);
+    formatter.AppendString("\nERR ");
+    formatter.AppendNumber(context->uc_mcontext.gregs[REG_ERR], 16);
+    formatter.AppendString("\nTRAPNO ");
+    formatter.AppendNumber(context->uc_mcontext.gregs[REG_TRAPNO], 16);
+    formatter.AppendString("\nOLDMASK ");
+    formatter.AppendNumber(context->uc_mcontext.gregs[REG_OLDMASK], 16);
+    formatter.AppendString("\nCR2 ");
+    formatter.AppendNumber(context->uc_mcontext.gregs[REG_CR2], 16);
+    formatter.AppendString("*** End Context ***\n");
 
     WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
 }
@@ -254,6 +319,8 @@ void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
     }
 
     DumpSignalInfo(signal, si);
+
+    DumpSigcontext(uc);
 
     // Easiest way to choose proper overload...
     DumpStackTrace([] (const char* buffer, int length) { WriteToStderr(buffer, length); });
