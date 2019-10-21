@@ -3,6 +3,13 @@
 #include "public.h"
 
 #include <yt/core/actions/future.h>
+#include <yt/core/actions/invoker_util.h>
+
+namespace NYT {
+
+IInvokerPtr GetCurrentInvoker();
+
+} // namespace NYT
 
 namespace NYT::NConcurrency {
 
@@ -48,7 +55,7 @@ void YieldToFiber(TFiberPtr&& other);
 // Invokers, schedulers and fibers are thread-scoped so this is an access to TLS.
 
 //! Returns the current invoker.
-IInvokerPtr GetCurrentInvoker();
+IInvokerPtr GetCurrentInvokerImpl();
 
 //! Sets the current invoker.
 void SetCurrentInvoker(IInvokerPtr invoker);
@@ -130,7 +137,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-[[nodisard]] TErrorOr<T> WaitFor(TFuture<T> future, IInvokerPtr invoker = GetCurrentInvoker());
+[[nodisard]] TErrorOr<T> WaitFor(TFuture<T> future, IInvokerPtr invoker = NYT::GetCurrentInvoker());
 
 ////////////////////////////////////////////////////////////////////////////////
 
