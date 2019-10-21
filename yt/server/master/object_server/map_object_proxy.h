@@ -58,11 +58,18 @@ public:
     virtual NYTree::IYPathService::TResolveResult ResolveRecursive(
         const NYPath::TYPath& path,
         const NRpc::IServiceContextPtr& context) override;
+
     virtual void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
     virtual void RemoveSelf(
         TReqRemove* request,
         TRspRemove* response,
         const TCtxRemovePtr& context) override;
+    virtual void SetSelf(TReqSet* request, TRspSet* response, const TCtxSetPtr& context) override;
+    virtual void SetRecursive(
+        const NYPath::TYPath& path,
+        TReqSet* request,
+        TRspSet* response,
+        const TCtxSetPtr& context) override;
 
     virtual int GetChildCount() const override;
     virtual std::vector<std::pair<TString, NYTree::INodePtr>> GetChildren() const override;
@@ -79,13 +86,6 @@ public:
 
     virtual void Clear() override;
 
-    virtual void SetSelf(TReqSet* request, TRspSet* response, const TCtxSetPtr& context) override;
-    virtual void SetRecursive(
-        const NYPath::TYPath& path,
-        TReqSet* request,
-        TRspSet* response,
-        const TCtxSetPtr& context) override;
-
     TSelfPtr Create(
         EObjectType type,
         const TString& path,
@@ -97,8 +97,6 @@ public:
 protected:
     static TIntrusivePtr<const TSelf> FromNode(const NYTree::IConstNodePtr& node);
     static TSelfPtr FromNode(const NYTree::INodePtr& node);
-    static TIntrusivePtr<const TSelf> FromNodeOrThrow(const NYTree::IConstNodePtr& node);
-    static TSelfPtr FromNodeOrThrow(const NYTree::INodePtr& node);
 
     TTypeHandlerPtr GetTypeHandler() const;
 
@@ -150,7 +148,8 @@ protected:
 
     void RemoveChildren();
 
-    virtual void ValidateChildName(const TString& newChildName);
+    void ValidateChildName(const TString& childName);
+    virtual void ValidateChildNameAvailability(const TString& childName);
 
     void RenameSelf(const TString& newName);
     virtual void DoRenameSelf(const TString& newName);
@@ -167,7 +166,7 @@ DEFINE_ENUM(EFactoryEventType,
     (DetachChild)
 );
 
-//! Is designed to work with TNonversionedMapObjectProxyBase.
+//! Designed to work with TNonversionedMapObjectProxyBase.
 //! Supports transactional semantics for its AttachChild and DetachChild methods.
 template <class TObject>
 class TNonversionedMapObjectFactoryBase
@@ -204,7 +203,7 @@ protected:
     std::vector<TObject*> CreatedObjects_;
     std::vector<TFactoryEvent> EventLog_;
 
-    virtual void CleanupCreatedObjects(bool removeObjects);
+    virtual void RemoveCreatedObjects();
 
     //! NB: in case of failure, the implementation must not leave any unattended objects
     virtual TObject* DoCreateObject(NYTree::IAttributeDictionary* attributes) = 0;

@@ -1099,6 +1099,7 @@ void TNontemplateCypressNodeProxyBase::ValidatePermission(
     }
 }
 
+// YYY(kiselyovp) deduplicate this!
 void TNontemplateCypressNodeProxyBase::ValidatePermission(
     TCypressNode* node,
     EPermissionCheckScope scope,
@@ -1402,6 +1403,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         }
     }
 
+    // YYY(kiselyovp) deduplicate this?!
     if (replace) {
         ValidatePermission(EPermissionCheckScope::This | EPermissionCheckScope::Descendants, EPermission::Remove);
         ValidatePermission(EPermissionCheckScope::Parent, EPermission::Write | EPermission::ModifyChildren);
@@ -1428,6 +1430,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
             account->ValidateActiveLifeStage();
         }
 
+        // YYY(kiselyovp) deduplicate this!
         if ((explicitAttributes->Contains("acl") || explicitAttributes->Contains("inherit_acl")) &&
             intendedParentNode->GetTrunkNode())
         {
@@ -1499,7 +1502,11 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
         THROW_ERROR_EXCEPTION("Cannot copy or move a node to its descendant");
     }
 
-    ValidatePermission(sourceNode, EPermissionCheckScope::This | EPermissionCheckScope::Descendants, EPermission::Read);
+    // YYY(kiselyovp) deduplicate this!
+    ValidatePermission(
+        sourceNode,
+        EPermissionCheckScope::This | EPermissionCheckScope::Descendants,
+        EPermission::Read);
 
     auto sourceParentProxy = sourceProxy->GetParent();
     if (mode == ENodeCloneMode::Move) {
@@ -1507,9 +1514,14 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
         if (!sourceParentProxy) {
             ThrowCannotRemoveNode(sourceProxy);
         }
-        ValidatePermission(sourceNode, EPermissionCheckScope::This | EPermissionCheckScope::Descendants,
+        ValidatePermission(
+            sourceNode,
+            EPermissionCheckScope::This | EPermissionCheckScope::Descendants,
             EPermission::Remove);
-        ValidatePermission(sourceNode, EPermissionCheckScope::Parent, EPermission::Write | EPermission::ModifyChildren);
+        ValidatePermission(
+            sourceNode,
+            EPermissionCheckScope::Parent,
+            EPermission::Write | EPermission::ModifyChildren);
     }
 
     CopyCore(
@@ -1681,6 +1693,7 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
         }
     }
 
+    // YYY(kiselyovp) deduplicate this!
     if (replace && !inplace) {
         ValidatePermission(EPermissionCheckScope::This | EPermissionCheckScope::Descendants, EPermission::Remove);
         ValidatePermission(EPermissionCheckScope::Parent, EPermission::Write | EPermission::ModifyChildren);

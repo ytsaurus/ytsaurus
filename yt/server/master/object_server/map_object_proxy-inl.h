@@ -100,10 +100,6 @@ bool TNonversionedMapObjectProxyBase<TObject>::DoInvoke(const NRpc::IServiceCont
     DISPATCH_YPATH_SERVICE_METHOD(Create);
     DISPATCH_YPATH_SERVICE_METHOD(Copy);
 
-    if (TNodeBase::DoInvoke(context)) {
-        return true;
-    }
-
     if (TBase::DoInvoke(context)) {
         return true;
     }
@@ -116,7 +112,7 @@ NYTree::IYPathService::TResolveResult TNonversionedMapObjectProxyBase<TObject>::
     const NYPath::TYPath& path,
     const NRpc::IServiceContextPtr& context)
 {
-    return NYTree::TMapNodeMixin::ResolveRecursive(path, context);
+    return TMapNodeMixin::ResolveRecursive(path, context);
 }
 
 template <class TObject>
@@ -125,7 +121,7 @@ void TNonversionedMapObjectProxyBase<TObject>::GetSelf(
     TRspGet* response,
     const TCtxGetPtr& context)
 {
-    NYTree::TNodeBase::GetSelf(request, response, context);
+    TNodeBase::GetSelf(request, response, context);
 }
 
 template <class TObject>
@@ -135,6 +131,25 @@ void TNonversionedMapObjectProxyBase<TObject>::RemoveSelf(
     const TCtxRemovePtr& context)
 {
     TNodeBase::RemoveSelf(request, response, context);
+}
+
+template <class TObject>
+void TNonversionedMapObjectProxyBase<TObject>::SetSelf(
+    TReqSet* request,
+    TRspSet* response,
+    const TCtxSetPtr& context)
+{
+    TSupportsSet::SetSelf(request, response, context);
+}
+
+template <class TObject>
+void TNonversionedMapObjectProxyBase<TObject>::SetRecursive(
+    const NYPath::TYPath& path,
+    TReqSet* request,
+    TRspSet* response,
+    const TCtxSetPtr& context)
+{
+    TSupportsSet::SetRecursive(path, request, response, context);
 }
 
 template <class TObject>
@@ -177,10 +192,6 @@ std::optional<TString> TNonversionedMapObjectProxyBase<TObject>::FindChildKey(
     const NYTree::IConstNodePtr& child)
 {
     auto childProxy = FromNode(child);
-    if (!childProxy) {
-        return std::nullopt;
-    }
-
     const auto* childImpl = childProxy->GetThisImpl();
     return TBase::GetThisImpl()->GetChildKey(childImpl);
 }
@@ -230,6 +241,9 @@ void TNonversionedMapObjectProxyBase<TObject>::RemoveChild(const NYTree::INodePt
 {
     YT_VERIFY(child);
     auto childProxy = FromNode(child);
+    if (childProxy->GetThisImpl()->GetParent() != TBase::GetThisImpl()) {
+        THROW_ERROR_EXCEPTION("Node is not a child");
+    }
     childProxy->ValidateRemoval();
     DoRemoveChild(childProxy);
 }
@@ -318,7 +332,7 @@ void TNonversionedMapObjectProxyBase<TObject>::Clear()
     std::vector<TIntrusivePtr<TNonversionedMapObjectProxyBase>> children;
     children.reserve(keys.size());
     for (const auto& key : keys) {
-        children.emplace_back(FromNodeOrThrow(GetChild(key)));
+        children.emplace_back(FromNode(GetChild(key)));
     }
 
     for (auto& child : children) {
@@ -330,25 +344,6 @@ void TNonversionedMapObjectProxyBase<TObject>::Clear()
 }
 
 template <class TObject>
-void TNonversionedMapObjectProxyBase<TObject>::SetSelf(
-    TReqSet* request,
-    TRspSet* response,
-    const TCtxSetPtr& context)
-{
-    TSupportsSet::SetSelf(request, response, context);
-}
-
-template <class TObject>
-void TNonversionedMapObjectProxyBase<TObject>::SetRecursive(
-    const NYPath::TYPath& path,
-    TReqSet* request,
-    TRspSet* response,
-    const TCtxSetPtr& context)
-{
-    TSupportsSet::SetRecursive(path, request, response, context);
-}
-
-template <class TObject>
 void TNonversionedMapObjectProxyBase<TObject>::ValidatePermission(
     NYTree::EPermissionCheckScope scope,
     NYTree::EPermission permission,
@@ -357,6 +352,7 @@ void TNonversionedMapObjectProxyBase<TObject>::ValidatePermission(
     ValidatePermission(TBase::GetThisImpl(), scope, permission);
 }
 
+// YYY(kiselyovp) deduplicate this! (ValidatePermissionInScope??)
 template <class TObject>
 void TNonversionedMapObjectProxyBase<TObject>::ValidatePermission(
     TObject* object,
@@ -383,7 +379,7 @@ void TNonversionedMapObjectProxyBase<TObject>::ValidatePermission(
 
 template <class TObject>
 void TNonversionedMapObjectProxyBase<TObject>::ListSystemAttributes(
-    std::vector<NYTree::ISystemAttributeProvider::TAttributeDescriptor> *descriptors)
+    std::vector<NYTree::ISystemAttributeProvider::TAttributeDescriptor>* descriptors)
 {
     using TAttributeDescriptor = NYTree::ISystemAttributeProvider::TAttributeDescriptor;
 
@@ -504,7 +500,7 @@ bool TNonversionedMapObjectProxyBase<TObject>::SetBuiltinAttribute(
 }
 
 template <class TObject>
-TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>>
+/*static*/ TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>>
 TNonversionedMapObjectProxyBase<TObject>::GetProxy(NCellMaster::TBootstrap* bootstrap, TObject* object)
 {
     const auto& objectManager = bootstrap->GetObjectManager();
@@ -566,7 +562,7 @@ void TNonversionedMapObjectProxyBase<TObject>::ValidateRemoval()
     }
 
     for (auto [_, child] : GetChildren()) {
-        FromNodeOrThrow(child)->ValidateRemoval();
+        FromNode(child)->ValidateRemoval();
     }
 
     auto handler = GetTypeHandler();
@@ -582,26 +578,22 @@ void TNonversionedMapObjectProxyBase<TObject>::ValidateRemoval()
 }
 
 template <class TObject>
-void TNonversionedMapObjectProxyBase<TObject>::ValidateChildName(const TString& newChildName)
+void TNonversionedMapObjectProxyBase<TObject>::ValidateChildName(const TString& childName)
 {
-    if (newChildName.empty()) {
-        THROW_ERROR_EXCEPTION("Name cannot be empty");
-    }
-    if (newChildName.find("/") != TString::npos) {
-        THROW_ERROR_EXCEPTION("Name cannot contain slashes");
-    }
-    if (newChildName.StartsWith(NObjectClient::ObjectIdPathPrefix)) {
-        THROW_ERROR_EXCEPTION("Name cannot start with %Qv",
-            NObjectClient::ObjectIdPathPrefix);
-    }
+    GetTypeHandler()->ValidateObjectName(childName);
+    ValidateChildNameAvailability(childName);
+}
 
+template <class TObject>
+void TNonversionedMapObjectProxyBase<TObject>::ValidateChildNameAvailability(const TString& childName)
+{
     auto* impl = TBase::GetThisImpl();
-    if (impl->KeyToChild().count(newChildName) != 0) {
+    if (impl->KeyToChild().count(childName) != 0) {
         THROW_ERROR_EXCEPTION(
             NYTree::EErrorCode::AlreadyExists,
             "%v already has a child %Qv",
             impl->GetObjectName(),
-            newChildName);
+            childName);
     }
 }
 
@@ -609,35 +601,17 @@ template <class TObject>
 TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>> TNonversionedMapObjectProxyBase<TObject>::FromNode(
     const NYTree::INodePtr& node)
 {
-    return dynamic_cast<TSelf*>(node.Get());
+    auto* result = dynamic_cast<TSelf*>(node.Get());
+    YT_ASSERT(result);
+    return result;
 }
 
 template <class TObject>
 TIntrusivePtr<const TNonversionedMapObjectProxyBase<TObject>> TNonversionedMapObjectProxyBase<TObject>::FromNode(
     const NYTree::IConstNodePtr& node)
 {
-    return dynamic_cast<const TSelf*>(node.Get());
-}
-
-template <class TObject>
-TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>> TNonversionedMapObjectProxyBase<TObject>::FromNodeOrThrow(
-    const NYTree::INodePtr& node)
-{
-    auto result = FromNode(node);
-    if (node && !result) {
-        THROW_ERROR_EXCEPTION("Failed to convert node to map object proxy");
-    }
-    return result;
-}
-
-template <class TObject>
-TIntrusivePtr<const TNonversionedMapObjectProxyBase<TObject>> TNonversionedMapObjectProxyBase<TObject>::FromNodeOrThrow(
-    const NYTree::IConstNodePtr& node)
-{
-    auto result = FromNode(node);
-    if (node && !result) {
-        THROW_ERROR_EXCEPTION("Failed to convert node to map object proxy");
-    }
+    const auto* result = dynamic_cast<const TSelf*>(node.Get());
+    YT_ASSERT(result);
     return result;
 }
 
@@ -647,9 +621,7 @@ TIntrusivePtr<TNonversionedMapObjectTypeHandlerBase<TObject>>
 {
     auto& objectManager = TBase::Bootstrap_->GetObjectManager();
     auto handler = objectManager->GetHandler(TBase::GetThisImpl());
-
-    auto* mapObjectHandler = dynamic_cast<TTypeHandler*>(handler.Get());
-    YT_VERIFY(mapObjectHandler);
+    auto* mapObjectHandler = static_cast<TTypeHandler*>(handler.Get());
     return mapObjectHandler;
 }
 
@@ -689,9 +661,9 @@ TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>> TNonversionedMapObjectPr
         NYTree::EPermissionCheckScope::This,
         NSecurityServer::EPermission::Write | NSecurityServer::EPermission::ModifyChildren);
 
+    // YYY(kiselyovp) deduplicate this! (ValidateCreatePermissions??)
     if (attributes && (attributes->Contains("acl") || attributes->Contains("inherit_acl"))) {
         ValidatePermission(
-            TBase::GetThisImpl(),
             NYTree::EPermissionCheckScope::This,
             NSecurityServer::EPermission::Administer);
     }
@@ -808,6 +780,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNonversionedMapObjectProxyBase<TObject>, Copy)
         }
     }
 
+    // YYY(kiselyovp) deduplicate this!
     ValidatePermission(
         NYTree::EPermissionCheckScope::This,
         NSecurityServer::EPermission::Write | NSecurityServer::EPermission::ModifyChildren);
@@ -879,7 +852,7 @@ void TNonversionedMapObjectFactoryBase<TObject>::Commit()
         CommitEvent(event);
     }
     EventLog_.clear();
-    CleanupCreatedObjects(false);
+    CreatedObjects_.clear();
 }
 
 template <class TObject>
@@ -889,7 +862,8 @@ void TNonversionedMapObjectFactoryBase<TObject>::Rollback()
         RollbackEvent(*it);
     }
     EventLog_.clear();
-    CleanupCreatedObjects(true);
+    RemoveCreatedObjects();
+    CreatedObjects_.clear();
 }
 
 template <class TObject>
@@ -952,16 +926,12 @@ void TNonversionedMapObjectFactoryBase<TObject>::DetachChild(const TProxyPtr& pa
 }
 
 template <class TObject>
-void TNonversionedMapObjectFactoryBase<TObject>::CleanupCreatedObjects(bool removeObjects)
+void TNonversionedMapObjectFactoryBase<TObject>::RemoveCreatedObjects()
 {
-    if (removeObjects) {
-        for (auto* object: CreatedObjects_) {
-            YT_VERIFY(object->GetObjectRefCounter() == 1);
-            Bootstrap_->GetObjectManager()->UnrefObject(object);
-        }
+    for (auto* object: CreatedObjects_) {
+        YT_VERIFY(object->GetObjectRefCounter() == 1);
+        Bootstrap_->GetObjectManager()->UnrefObject(object);
     }
-
-    CreatedObjects_.clear();
 }
 
 template <class TObject>
