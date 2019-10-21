@@ -26,9 +26,10 @@ public class YtStatement extends AbstractWrapper implements Statement {
 
     private final YtConnection connection;
     private final YtClient client;
+    private final int inputLimit;
 
     private boolean closed;
-    private int maxRows = Integer.MAX_VALUE;
+    private int maxRows = 10_000;
     private int queryTimeout;
     private int fetchSize;
 
@@ -38,6 +39,7 @@ public class YtStatement extends AbstractWrapper implements Statement {
     YtStatement(YtConnection connection) {
         this.connection = connection;
         this.client = connection.getWrapper().getClient();
+        this.inputLimit = connection.getWrapper().getProperties().getMaxInputLimit();
     }
 
     YtConnection getYtConnection() {
@@ -49,13 +51,17 @@ public class YtStatement extends AbstractWrapper implements Statement {
         if (StringUtils.isEmpty(sql)) {
             throw new SQLException("sql cannot be empty");
         }
+        sql = sql.trim();
         if (StringUtils.startsWithIgnoreCase(sql, "select ")) {
             sql = sql.substring("select ".length());
+        }
+        if (sql.endsWith(";")) {
+            sql = sql.substring(0, sql.length() - 1);
         }
 
         // maxRows может быть аггрессивно задана в IDE (и быть меньше, чем limit при постраничной выборке)
         final SelectRowsRequest request = SelectRowsRequest.of(sql)
-                .setInputRowsLimit(Integer.MAX_VALUE) // TODO: Поддержать настройками?
+                .setInputRowsLimit(inputLimit)
                 .setOutputRowsLimit(maxRows)
                 .setFailOnIncompleteResult(false);
 
@@ -78,7 +84,7 @@ public class YtStatement extends AbstractWrapper implements Statement {
         } finally {
             this.future = null;
         }
-        this.resultSet = new YtResultSet(this, rowSet);
+        this.resultSet = new YtResultSet(this, rowSet.getSchema(), rowSet.getYTreeRows());
         return getResultSet();
     }
 
@@ -158,7 +164,7 @@ public class YtStatement extends AbstractWrapper implements Statement {
 
     @Override
     public ResultSet getResultSet() throws SQLException {
-        return connection.getWrapper().wrap(ResultSet.class, resultSet);
+        return resultSet;
     }
 
     @Override

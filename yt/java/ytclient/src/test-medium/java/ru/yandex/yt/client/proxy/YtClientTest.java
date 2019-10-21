@@ -62,6 +62,23 @@ public class YtClientTest {
                 {new RpcCompression(Compression.Lz4HighCompression, Compression.Zlib_9)}};
     }
 
+    public static String getProxy() {
+        return Objects.requireNonNull(System.getenv().get("YT_PROXY"), "Env variable YT_PROXY is required");
+    }
+    public static String getUsername() {
+        return Objects.requireNonNull(System.getenv().getOrDefault("YT_USERNAME", "root"));
+    }
+    public static String getToken() {
+        return Objects.requireNonNull(System.getenv().getOrDefault("YT_TOKEN", ""));
+    }
+    public static String getPathPrefix() {
+        return Objects.requireNonNull(System.getenv().getOrDefault("YT_PATH",
+                "//home/" + System.getProperty("user.name")));
+    }
+    public static String getPath() {
+        return StringUtils.removeEnd(getPathPrefix(), "/") + "/ytclient-junit/" + UUID.randomUUID().toString();
+    }
+
     private static DefaultBusConnector bus;
 
     @BeforeClass
@@ -85,12 +102,9 @@ public class YtClientTest {
     @Before
     public void init() {
 
-        final Map<String, String> env = System.getenv();
-
-        final String proxy = Objects.requireNonNull(env.get("YT_PROXY"), "Env variable YT_PROXY is required");
-        final String username = env.getOrDefault("YT_USERNAME", "root");
-        final String token = env.getOrDefault("YT_TOKEN", "");
-        final String pathPrefix = env.getOrDefault("YT_PATH", "//home/" + System.getProperty("user.name"));
+        final String proxy = getProxy();
+        final String username = getUsername();
+        final String token = getToken();
 
         final YtCluster cluster = new YtCluster(proxy);
         client = new YtClient(bus,
@@ -102,14 +116,14 @@ public class YtClientTest {
                 new RpcOptions());
 
         client.waitProxies().join();
-        path = StringUtils.removeEnd(pathPrefix, "/") + "/ytclient-junit/" + UUID.randomUUID().toString();
+        path = getPath();
     }
 
     @After
     public void cleanup() {
         if (client != null) {
             try {
-                client.removeNode(new RemoveNode(path)).join();
+                deleteDirectory(client, path);
             } finally {
                 client.close();
             }
@@ -121,8 +135,8 @@ public class YtClientTest {
         final String dir1 = path + "/dir1";
         final String table1 = dir1 + "/table1";
 
-        this.createDirectory(dir1);
-        this.createTable(table1);
+        createDirectory(client, dir1);
+        createTable(client, table1);
 
         final String query = String.format("* from [%s]", table1);
         final YTreeObjectSerializer<MappedObject> serializer =
@@ -134,7 +148,7 @@ public class YtClientTest {
                 new MappedObject(1, "test1"),
                 new MappedObject(2, "test2"));
 
-        this.insertData(table1, objects, serializer);
+        this.insertData(client, table1, objects, serializer);
 
         final List<UnversionedRow> rows = client.selectRows(query).join().getRows();
         final List<MappedObject> mappedRows = client.selectRows(SelectRowsRequest.of(query), serializer).join();
@@ -151,14 +165,18 @@ public class YtClientTest {
         ), rows);
     }
 
-    private void createDirectory(String dir) {
+    public static void deleteDirectory(YtClient client, String path) {
+        client.removeNode(new RemoveNode(path)).join();
+    }
+
+    public static void createDirectory(YtClient client, String dir) {
         client.createNode(new CreateNode(YPath.simple(dir), CypressNodeType.MAP, Collections.emptyMap())
                 .setRecursive(true)
                 .setIgnoreExisting(false)).join();
 
     }
 
-    private void createTable(String table) {
+    public static void createTable(YtClient client, String table) {
         final Map<String, YTreeNode> attrs = YTree.mapBuilder()
                 .key("dynamic").value(YTree.booleanNode(true))
                 .key("schema").value(YTree.builder()
@@ -201,7 +219,7 @@ public class YtClientTest {
         }
     }
 
-    private <T> void insertData(String table, Collection<T> objects, YTreeObjectSerializer<T> serializer) {
+    public static <T> void insertData(YtClient client, String table, Collection<T> objects, YTreeObjectSerializer<T> serializer) {
         final MappedModifyRowsRequest<T> request = new MappedModifyRowsRequest<>(table, serializer);
         request.addUpdates(objects);
 

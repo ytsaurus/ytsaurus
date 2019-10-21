@@ -11,12 +11,12 @@ import ru.yandex.yt.ytclient.rpc.internal.Compression;
 public enum YtClientParameters implements Function<Properties, DriverPropertyInfo> {
     USERNAME("username"),
     TOKEN("token"),
-    COMPRESSION("compression",
-            Compression.None.name(),
+    COMPRESSION("compression", Compression.None.name(),
             Stream.of(Compression.values()).map(Enum::name).toArray(String[]::new)),
-    DEBUG_OUTPUT("debug_output",
-            "false",
-            new String[]{"true", "false"});
+    DEBUG_OUTPUT("debug_output", "false", new String[]{"true", "false"}),
+    MAX_INPUT_LIMIT("max_input_limit", "10000000", null),
+    HOME("home"),
+    SCAN_RECURSIVE("scan_recursive", "true", new String[]{"true", "false"});
 
     private final String key;
     private final String defaultValue;

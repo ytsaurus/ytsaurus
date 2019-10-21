@@ -24,6 +24,7 @@ import java.util.Properties;
 import java.util.concurrent.Executor;
 
 import ru.yandex.yt.ytclient.proxy.ApiServiceClient;
+import ru.yandex.yt.ytclient.proxy.YtClient;
 
 public class YtConnection extends AbstractWrapper implements Connection {
 
@@ -44,6 +45,10 @@ public class YtConnection extends AbstractWrapper implements Connection {
 
     YtClientWrapper getWrapper() {
         return wrapper;
+    }
+
+    public YtClient getClient() {
+        return wrapper.getClient();
     }
 
     private Statement createStatementImpl() {

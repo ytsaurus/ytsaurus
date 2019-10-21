@@ -24,7 +24,7 @@ class YtJdbcUrlParser {
     }
 
     private static YtClientProperties parseYtUrl(String proxy, Properties properties) throws URISyntaxException {
-        return new YtClientProperties(StringUtils.stripStart(proxy, "/"), properties);
+        return new YtClientProperties(StringUtils.strip(proxy, "/"), properties);
 
     }
 }

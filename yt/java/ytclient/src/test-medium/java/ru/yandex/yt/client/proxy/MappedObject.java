@@ -6,7 +6,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeKeyField;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;
 
 @YTreeObject
-class MappedObject {
+public class MappedObject {
     @YTreeKeyField
     private int k1;
     private String v1;
