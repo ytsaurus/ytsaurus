@@ -29,25 +29,13 @@ const TSelf* TNonversionedMapObjectBase<TSelf>::GetSelf() const
 }
 
 template <class TSelf>
-TSelf* TNonversionedMapObjectBase<TSelf>::GetParent() const
-{
-    return Parent_;
-}
-
-template <class TSelf>
-void TNonversionedMapObjectBase<TSelf>::SetParent(TSelf* parent)
-{
-    Parent_ = parent;
-}
-
-template <class TSelf>
 void TNonversionedMapObjectBase<TSelf>::AttachChild(const TString& key, TSelf* child) noexcept
 {
     YT_VERIFY(child);
     YT_VERIFY(!child->GetParent());
     child->SetParent(GetSelf());
-    YT_VERIFY(KeyToChild().insert({key, child}).second);
-    YT_VERIFY(ChildToKey().insert({child, key}).second);
+    YT_VERIFY(KeyToChild().emplace(key, child).second);
+    YT_VERIFY(ChildToKey().emplace(child, key).second);
 }
 
 template <class TSelf>
@@ -62,7 +50,7 @@ void TNonversionedMapObjectBase<TSelf>::DetachChild(TSelf* child) noexcept
 }
 
 template <class TSelf>
-void TNonversionedMapObjectBase<TSelf>::RenameChild(TSelf* child, const TString& newKey)
+void TNonversionedMapObjectBase<TSelf>::RenameChild(TSelf* child, const TString& newKey) noexcept
 {
     YT_VERIFY(child->GetParent() == this);
     auto key = GetChildKey(child);
@@ -70,7 +58,7 @@ void TNonversionedMapObjectBase<TSelf>::RenameChild(TSelf* child, const TString&
         return;
     }
     YT_VERIFY(KeyToChild().erase(key) == 1);
-    YT_VERIFY(KeyToChild().insert({newKey, child}).second);
+    YT_VERIFY(KeyToChild().emplace(newKey, child).second);
 
     auto it = ChildToKey().find(child);
     YT_VERIFY(it != ChildToKey().end());
@@ -88,7 +76,7 @@ TSelf* TNonversionedMapObjectBase<TSelf>::FindChild(const TString& key) const
 }
 
 template <class TSelf>
-std::optional<TString> TNonversionedMapObjectBase<TSelf>::FindChildKey(const TSelf* child) const
+std::optional<TString> TNonversionedMapObjectBase<TSelf>::FindChildKey(const TSelf* child) const noexcept
 {
     auto it = ChildToKey().find(child);
     return it == ChildToKey().end()
@@ -97,7 +85,7 @@ std::optional<TString> TNonversionedMapObjectBase<TSelf>::FindChildKey(const TSe
 }
 
 template <class TSelf>
-TString TNonversionedMapObjectBase<TSelf>::GetChildKey(const TSelf* child) const
+TString TNonversionedMapObjectBase<TSelf>::GetChildKey(const TSelf* child) const noexcept
 {
     auto optionalKey = FindChildKey(child);
     YT_VERIFY(optionalKey);
@@ -107,11 +95,8 @@ TString TNonversionedMapObjectBase<TSelf>::GetChildKey(const TSelf* child) const
 template <class TSelf>
 TString TNonversionedMapObjectBase<TSelf>::GetName() const
 {
-    if (!GetParent()) {
-        // XXX7(kiselyovp) this doesn't return RootAccountName for actual root account
-        return NObjectClient::FromObjectId(GetId());
-    }
-    return GetParent()->GetChildKey(GetSelf());
+    // XXX7(kiselyovp) this doesn't return RootAccountName for actual root account
+    return Parent_ ? Parent_->GetChildKey(GetSelf()) : NObjectClient::FromObjectId(GetId());
 }
 
 template <class TSelf>

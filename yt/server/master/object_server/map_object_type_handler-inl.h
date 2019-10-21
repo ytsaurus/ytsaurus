@@ -35,6 +35,21 @@ NObjectServer::TObject* TNonversionedMapObjectTypeHandlerBase<TObject>::DoGetPar
 }
 
 template <class TObject>
+void TNonversionedMapObjectTypeHandlerBase<TObject>::ValidateObjectName(const TString& name)
+{
+    if (name.empty()) {
+        THROW_ERROR_EXCEPTION("Name cannot be empty");
+    }
+    if (name.find("/") != TString::npos) {
+        THROW_ERROR_EXCEPTION("Name cannot contain slashes");
+    }
+    if (name.StartsWith(NObjectClient::ObjectIdPathPrefix)) {
+        THROW_ERROR_EXCEPTION("Name cannot start with %Qv",
+            NObjectClient::ObjectIdPathPrefix);
+    }
+}
+
+template <class TObject>
 void TNonversionedMapObjectTypeHandlerBase<TObject>::ValidateAttachChildDepth(
     const TObject* parent, const TObject* child)
 {
@@ -125,7 +140,7 @@ void TNonversionedMapObjectTypeHandlerBase<TObject>::ValidateHeightLimit(
 {
     YT_VERIFY(root);
     if (heightLimit < 0) {
-        THROW_ERROR_EXCEPTION("Depth limit exceeded");
+        THROW_ERROR_EXCEPTION("Tree height limit exceeded");
     }
     for (const auto& [child, _] : root->ChildToKey()) {
         ValidateHeightLimit(child, heightLimit - 1);

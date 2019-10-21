@@ -131,7 +131,6 @@ inline void TObject::SetLifeStage(EObjectLifeStage lifeStage)
     LifeStage_ = lifeStage;
 }
 
-// XXX(kiselyovp) looks like a crutch but seems necessary?
 inline bool TObject::IsBeingCreated() const
 {
     return LifeStage_ == EObjectLifeStage::CreationStarted ||

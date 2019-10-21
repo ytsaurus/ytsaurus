@@ -33,6 +33,7 @@ public:
     virtual void RegisterName(const TString& /* name */, TObject* /* object */) noexcept = 0;
     virtual void UnregisterName(const TString& /* name */, TObject* /* object */) noexcept = 0;
 
+    virtual void ValidateObjectName(const TString& name);
     // XXX(kiselyovp) we might want to move this to the proxy
     virtual void ValidateAttachChildDepth(const TObject* parent, const TObject* child);
 
