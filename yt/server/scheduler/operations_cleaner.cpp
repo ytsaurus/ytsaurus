@@ -285,7 +285,9 @@ TUnversionedRow BuildOrderedByIdTableRow(
     builder.AddValue(MakeUnversionedStringValue(filterFactors, index.FilterFactors));
     builder.AddValue(MakeUnversionedAnyValue(request.Result.GetData(), index.Result));
     builder.AddValue(MakeUnversionedAnyValue(request.Events.GetData(), index.Events));
-    builder.AddValue(MakeUnversionedAnyValue(request.Alerts.GetData(), index.Alerts));
+    if (request.Alerts) {
+        builder.AddValue(MakeUnversionedAnyValue(request.Alerts.GetData(), index.Alerts));
+    }
     if (version >= 17) {
         if (request.UnrecognizedSpec) {
             builder.AddValue(MakeUnversionedAnyValue(request.UnrecognizedSpec.GetData(), index.UnrecognizedSpec));
