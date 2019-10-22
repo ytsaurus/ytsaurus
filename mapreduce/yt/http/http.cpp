@@ -498,10 +498,6 @@ THttpResponse::THttpResponse(
     };
 
     switch (HttpCode_) {
-        case 401:
-            logAndSetError("authentication error");
-            break;
-
         case 429:
             logAndSetError("request rate limit exceeded");
             break;
