@@ -295,6 +295,8 @@ TCopyCommand::TCopyCommand()
         .Optional();
     RegisterParameter("preserve_owner", Options.PreserveOwner)
         .Optional();
+    RegisterParameter("preserve_acl", Options.PreserveAcl)
+        .Optional();
     RegisterParameter("pessimistic_quota_check", Options.PessimisticQuotaCheck)
         .Optional();
 }
