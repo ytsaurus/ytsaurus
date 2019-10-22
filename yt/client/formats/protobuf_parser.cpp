@@ -626,6 +626,10 @@ std::unique_ptr<IParser> CreateParserForProtobuf(
     if (newFormat) {
         // Retain only one table config, as we have only one schema here.
         config = NYTree::CloneYsonSerializable(config);
+        if (tableIndex >= config->Tables.size()) {
+            THROW_ERROR_EXCEPTION("Protobuf format does not have table with index %v",
+                tableIndex);
+        }
         config->Tables = {config->Tables[tableIndex]};
     }
     formatDescription->Init(
