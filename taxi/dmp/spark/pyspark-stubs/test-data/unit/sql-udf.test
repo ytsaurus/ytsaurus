@@ -83,7 +83,7 @@ import pandas.core.frame  # type: ignore[import]
 spark = SparkSession.builder.getOrCreate()
 
 @pandas_udf("id long", PandasUDFType.MAP_ITER)
-def f(batch_iter: Iterable[pandas.core.frame.DataFrame]) -> pandas.core.frame.DataFrame:
+def f(batch_iter: Iterable[pandas.core.frame.DataFrame]) -> Iterable[pandas.core.frame.DataFrame]:
     for pdf in batch_iter:
         yield pdf[pdf.id == 1]
 
