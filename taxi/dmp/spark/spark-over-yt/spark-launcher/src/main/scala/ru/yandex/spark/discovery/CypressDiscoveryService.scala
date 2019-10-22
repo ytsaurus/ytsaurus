@@ -10,8 +10,6 @@ import ru.yandex.inside.yt.kosher.common.GUID
 import ru.yandex.inside.yt.kosher.impl.rpc.TransactionManager
 import ru.yandex.spark.yt.utils.{YtClientConfiguration, YtUtils}
 import ru.yandex.yt.ytclient.proxy.request.{CreateNode, ObjectType, RemoveNode, TransactionalOptions}
-import java.io.IOException
-import java.net.ServerSocket
 
 import scala.annotation.tailrec
 import scala.concurrent.duration._
@@ -24,9 +22,15 @@ class CypressDiscoveryService(config: YtClientConfiguration,
   private val client = YtUtils.createRpcClient(config)
   private val yt = client.yt
 
-  override def register(id: String, operationId: String, host: String, port: Int, webUiPort: Int): Unit = {
+  private def addressPath(id: String): String = s"$discoveryPath/$id/address"
+
+  private def webUiPath(id: String): String = s"$discoveryPath/$id/webui"
+
+  private def operationPath(id: String): String = s"$discoveryPath/$id/operation"
+
+  override def register(id: String, operationId: String, address: Address): Unit = {
     getAddress(id) match {
-      case Some(address) if isAlive(address) =>
+      case Some(address) if isAlive(address.hostAndPort) =>
         throw new IllegalStateException(s"Spark instance with id $id already exists")
       case Some(_) =>
         log.info(s"Spark instance with id $id registered, but is not alive, rewriting id")
@@ -37,9 +41,9 @@ class CypressDiscoveryService(config: YtClientConfiguration,
     val tm = new TransactionManager(yt)
     val transaction = tm.start(JDuration.standardMinutes(1)).join()
     try {
-      createNode(s"$discoveryPath/$id/address/${HostAndPort.fromParts(host, port)}", transaction)
-      createNode(s"$discoveryPath/$id/webui/${HostAndPort.fromParts(host, webUiPort)}", transaction)
-      createNode(s"$discoveryPath/$id/operation/$operationId", transaction)
+      createNode(s"${addressPath(id)}/${address.hostAndPort}", transaction)
+      createNode(s"${webUiPath(id)}/${address.webUiHostAndPort}", transaction)
+      createNode(s"${operationPath(id)}/$operationId", transaction)
     } catch {
       case e: Throwable =>
         yt.abortTransaction(transaction, true)
@@ -55,21 +59,27 @@ class CypressDiscoveryService(config: YtClientConfiguration,
     yt.createNode(request).join()
   }
 
-  override def getAddress(id: String): Option[HostAndPort] = Try {
-    HostAndPort.fromString(yt.getNode(s"$discoveryPath/$id/address").join().asMap().keys().first())
+  private def cypressHostAndPort(path: String): HostAndPort = {
+    HostAndPort.fromString(yt.getNode(path).join().asMap().keys().first())
+  }
+
+  override def getAddress(id: String): Option[Address] = Try {
+    val hostAndPort = cypressHostAndPort(addressPath(id))
+    val webUiHostAndPort = cypressHostAndPort(webUiPath(id))
+    Address(hostAndPort, webUiHostAndPort)
   }.toOption
 
-  override def waitAddress(id: String, timeout: Duration): Option[HostAndPort] = {
+  override def waitAddress(id: String, timeout: Duration): Option[Address] = {
     waitAddress(id, timeout.toMillis)
   }
 
   @tailrec
-  private def waitAddress(id: String, timeout: Long, retryCount: Int = 2): Option[HostAndPort] = {
+  private def waitAddress(id: String, timeout: Long, retryCount: Int = 2): Option[Address] = {
     val start = System.currentTimeMillis()
     val maybeAddress = getAddress(id)
 
     maybeAddress match {
-      case Some(address) if isAlive(address) => maybeAddress
+      case Some(address) if isAlive(address.hostAndPort) => maybeAddress
       case _ =>
         log.info("Sleep 200 milliseconds before next retry")
         Thread.sleep(200)
