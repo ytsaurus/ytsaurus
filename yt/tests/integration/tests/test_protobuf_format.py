@@ -97,6 +97,25 @@ class TestProtobufFormat(YTEnvSetup):
         assert read_table("//tmp/t_in") == read_table("//tmp/t_out1")
         assert read_table("//tmp/t_in") == read_table("//tmp/t_out2")
 
+        # Check bad format (number of tables in format doesn't match number of output tables).
+        output_format = yson.YsonString("protobuf")
+        output_format.attributes["tables"] = [table_config] * 1
+
+        try:
+            map(in_="//tmp/t_in",
+                out=["//tmp/t_out1", "//tmp/t_out2"],
+                command="tee /dev/fd/4",
+                spec={
+                    "mapper": {
+                        "input_format": input_format,
+                        "output_format": output_format,
+                    },
+                    "max_failed_job_count": 1,
+                })
+            assert False, "Mapper should have failed"
+        except YtError as error:
+            assert "Protobuf format does not have table with index 1" in str(error)
+
     @authors("levysotsky")
     @unix_only
     def test_id_map(self):
