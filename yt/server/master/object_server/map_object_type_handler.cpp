@@ -1,16 +1,16 @@
-#pragma once
-
-#ifndef MAP_OBJECT_TYPE_HANDLER_INL_H_
-#error "Direct inclusion of this file is not allowed, include map_object.h"
-// For the sake of sane code completion.
 #include "map_object_type_handler.h"
-#endif
-
 #include "map_object_proxy.h"
 
 namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+template <class TObject>
+TNonversionedMapObjectTypeHandlerBase<TObject>::TNonversionedMapObjectTypeHandlerBase(
+    NCellMaster::TBootstrap* bootstrap,
+    TMapType* map)
+    : TBase(bootstrap, map)
+{ }
 
 template <class TObject>
 ETypeFlags TNonversionedMapObjectTypeHandlerBase<TObject>::GetFlags() const

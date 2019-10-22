@@ -1200,7 +1200,7 @@ TObject* TObjectManager::TImpl::CreateObject(
 
     const auto& handler = FindHandler(type);
     if (!handler) {
-        THROW_ERROR_EXCEPTION("Unknown object type %v",
+        THROW_ERROR_EXCEPTION("Unknown object type %Qlv",
             type);
     }
 
