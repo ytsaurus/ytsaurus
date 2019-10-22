@@ -111,7 +111,10 @@ using TStructuredRowStreamDescription = ::TVariant<
 ///////////////////////////////////////////////////////////////////////////////
 
 struct TJobBinaryDefault
-{ };
+{
+    static TFile File;
+    static TMaybe<TString> MD5CheckSum;
+};
 
 struct TJobBinaryLocalPath
 {

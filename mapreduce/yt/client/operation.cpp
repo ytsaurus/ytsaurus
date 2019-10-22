@@ -343,6 +343,58 @@ struct IItemToUpload
     virtual TString CalculateMD5() const = 0;
     virtual THolder<IInputStream> CreateInputStream() const = 0;
     virtual TString GetDescription() const = 0;
+    virtual TString GetNameForRichYPath() const = 0;
+    virtual ui64 GetSize() const = 0;
+    virtual bool IsExecutable() const = 0;
+};
+
+class TOpenedFileToUpload
+    : public IItemToUpload
+{
+public:
+    TOpenedFileToUpload(const TFile& file, TString md5)
+        : File_(file)
+        , FileStat_(file)
+        , MD5_(std::move(md5))
+    {
+        Y_ENSURE(File_.IsOpen());
+    }
+
+    TString CalculateMD5() const override
+    {
+        return MD5_;
+    }
+
+    THolder<IInputStream> CreateInputStream() const override
+    {
+        File_.Seek(0, SeekDir::sSet);
+        return MakeHolder<TFileInput>(File_);
+    }
+
+    TString GetDescription() const override
+    {
+        return File_.GetName();
+    }
+
+    TString GetNameForRichYPath() const override
+    {
+        return File_.GetName();
+    }
+
+    ui64 GetSize() const override
+    {
+        return FileStat_.Size;
+    }
+
+    bool IsExecutable() const override
+    {
+        return FileStat_.Mode & (S_IXUSR | S_IXGRP | S_IXOTH);
+    }
+
+private:
+    mutable TFile File_;
+    const TFileStat FileStat_;
+    const TString MD5_;
 };
 
 class TFileToUpload
@@ -351,6 +403,7 @@ class TFileToUpload
 public:
     TFileToUpload(TString fileName, TMaybe<TString> md5)
         : FileName_(std::move(fileName))
+        , FileStat_(FileName_)
         , MD5_(std::move(md5))
     { }
 
@@ -376,8 +429,24 @@ public:
         return FileName_;
     }
 
+    TString GetNameForRichYPath() const override
+    {
+        return FileName_;
+    }
+
+    ui64 GetSize() const override
+    {
+        return FileStat_.Size;
+    }
+
+    bool IsExecutable() const override
+    {
+        return FileStat_.Mode & (S_IXUSR | S_IXGRP | S_IXOTH);
+    }
+
 private:
     TString FileName_;
+    const TFileStat FileStat_;
     TMaybe<TString> MD5_;
 };
 
@@ -385,9 +454,10 @@ class TDataToUpload
     : public IItemToUpload
 {
 public:
-    TDataToUpload(TString data, TString description)
+    TDataToUpload(TString data, TString fileName)
         : Data_(std::move(data))
-        , Description_(std::move(description))
+        , FileName_(std::move(fileName))
+        , Description_(FileName_ + " [generated-file]")
     { }
 
     TString CalculateMD5() const override
@@ -409,16 +479,26 @@ public:
         return Description_;
     }
 
+    TString GetNameForRichYPath() const override
+    {
+        return FileName_;
+    }
+
+    ui64 GetSize() const override
+    {
+        return Data_.size();
+    }
+
+    bool IsExecutable() const override
+    {
+        return false;
+    }
+
 private:
     TString Data_;
+    TString FileName_;
     TString Description_;
 };
-
-const TString& GetPersistentExecPathMd5()
-{
-    static TString md5 = MD5::File(GetPersistentExecPath());
-    return md5;
-}
 
 class TJobPreparer
     : private TNonCopyable
@@ -446,8 +526,14 @@ public:
             }
 
             const bool isLocalMode = UseLocalModeOptimization(OperationPreparer_.GetAuth(), OperationPreparer_.GetClientRetryPolicy());
-            const TMaybe<TString> md5 = !isLocalMode ? MakeMaybe(GetPersistentExecPathMd5()) : Nothing();
-            jobBinary = TJobBinaryLocalPath{GetPersistentExecPath(), md5};
+            if (!isLocalMode && TJobBinaryDefault::MD5CheckSum.Empty()) {
+                TFileInput fileInput(TJobBinaryDefault::File);
+                constexpr size_t md5Size = 32;
+                TString result;
+                result.ReserveAndResize(md5Size);
+                TJobBinaryDefault::MD5CheckSum = MD5::Stream(&fileInput, result.Detach());
+                TJobBinaryDefault::File.Seek(0, SeekDir::sSet);
+            }
 
             if (isLocalMode) {
                 binaryPathInsideJob = GetExecPath();
@@ -457,7 +543,6 @@ public:
                 binaryPathInsideJob = TFsPath(::Get<TJobBinaryLocalPath>(jobBinary).Path).RealPath();
             }
         }
-        Y_ASSERT(!HoldsAlternative<TJobBinaryDefault>(jobBinary));
 
         CreateStorage();
         auto cypressFileList = CanonizePaths(OperationPreparer_.GetAuth(), spec.Files_);
@@ -465,7 +550,7 @@ public:
             UseFileInCypress(file);
         }
         for (const auto& localFile : spec.GetLocalFiles()) {
-            UploadLocalFile(std::get<0>(localFile), std::get<1>(localFile));
+            UploadLocalFile(TFileToUpload(std::get<0>(localFile), std::get<1>(localFile).MD5CheckSum_), std::get<1>(localFile));
         }
         auto jobStateSmallFile = GetJobState(job);
         if (jobStateSmallFile) {
@@ -725,25 +810,24 @@ private:
         CypressFiles_.push_back(file);
     }
 
-    void UploadLocalFile(const TLocalFilePath& localPath, const TAddLocalFileOptions& options)
+    void UploadLocalFile(const IItemToUpload& localFile, const TAddLocalFileOptions& options)
     {
-        TFsPath fsPath(localPath);
-        fsPath.CheckExists();
-
-        TFileStat stat;
-        fsPath.Stat(stat);
-
-        bool isExecutable = stat.Mode & (S_IXUSR | S_IXGRP | S_IXOTH);
-        auto cachePath = UploadToCache(TFileToUpload(localPath, options.MD5CheckSum_));
-
+        TString cachePath = UploadToCache(localFile);
         TRichYPath cypressPath(cachePath);
-        cypressPath.FileName(options.PathInJob_.GetOrElse(fsPath.Basename()));
-        if (isExecutable) {
+        if (options.PathInJob_) {
+            cypressPath.FileName(*options.PathInJob_);
+        } else {
+            TFsPath fsPath(localFile.GetNameForRichYPath());
+            fsPath.CheckExists();
+            cypressPath.FileName(fsPath.Basename());
+        }
+
+        if (localFile.IsExecutable()) {
             cypressPath.Executable(true);
         }
 
         if (ShouldMountSandbox()) {
-            TotalFileSize_ += RoundUpFileSize(stat.Size);
+            TotalFileSize_ += RoundUpFileSize(localFile.GetSize());
         }
 
         CachedFiles_.push_back(cypressPath);
@@ -751,13 +835,14 @@ private:
 
     void UploadBinary(const TJobBinaryConfig& jobBinary)
     {
-        if (HoldsAlternative<TJobBinaryLocalPath>(jobBinary)) {
+        if (HoldsAlternative<TJobBinaryDefault>(jobBinary)) {
+            auto options = TAddLocalFileOptions().PathInJob("cppbinary");
+            Y_VERIFY(TJobBinaryDefault::MD5CheckSum);
+            UploadLocalFile(TOpenedFileToUpload(TJobBinaryDefault::File, *TJobBinaryDefault::MD5CheckSum), options);
+        } else if (HoldsAlternative<TJobBinaryLocalPath>(jobBinary)) {
             auto binaryLocalPath = ::Get<TJobBinaryLocalPath>(jobBinary);
             auto opts = TAddLocalFileOptions().PathInJob("cppbinary");
-            if (binaryLocalPath.MD5CheckSum) {
-                opts.MD5CheckSum(*binaryLocalPath.MD5CheckSum);
-            }
-            UploadLocalFile(binaryLocalPath.Path, opts);
+            UploadLocalFile(TFileToUpload(binaryLocalPath.Path, binaryLocalPath.MD5CheckSum), opts);
         } else if (HoldsAlternative<TJobBinaryCypressPath>(jobBinary)) {
             auto binaryCypressPath = ::Get<TJobBinaryCypressPath>(jobBinary);
             auto ytPath = TRichYPath(binaryCypressPath.Path);
@@ -787,7 +872,7 @@ private:
 
     void UploadSmallFile(const TSmallJobFile& smallFile)
     {
-        auto cachePath = UploadToCache(TDataToUpload(smallFile.Data, smallFile.FileName + " [generated-file]"));
+        auto cachePath = UploadToCache(TDataToUpload(smallFile.Data, smallFile.FileName));
         CachedFiles_.push_back(TRichYPath(cachePath).FileName(smallFile.FileName));
         if (ShouldMountSandbox()) {
             TotalFileSize_ += RoundUpFileSize(smallFile.Data.size());
