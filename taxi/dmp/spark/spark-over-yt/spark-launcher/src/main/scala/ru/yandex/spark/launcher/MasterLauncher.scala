@@ -1,8 +1,5 @@
 package ru.yandex.spark.launcher
 
-import java.net.InetAddress
-
-import com.google.common.net.HostAndPort
 import com.twitter.scalding.Args
 import org.apache.log4j.Logger
 import ru.yandex.spark.discovery.CypressDiscoveryService
@@ -15,21 +12,19 @@ object MasterLauncher extends App {
   private val log = Logger.getLogger(getClass)
   val masterArgs = MasterLauncherArgs(args)
   val discoveryService = new CypressDiscoveryService(masterArgs.ytConfig, masterArgs.discoveryPath)
-  val host = InetAddress.getLocalHost.getHostName
 
   try {
     log.info("Start master")
-    val boundPorts = SparkLauncher.startMaster(Ports(masterArgs.port, masterArgs.webUiPort))
-    val hostAndPort = HostAndPort.fromParts(host, boundPorts.port)
-    discoveryService.waitAlive(hostAndPort, (5 minutes).toMillis)
-    log.info(s"Master started at port ${boundPorts.port}")
+    val masterAddress = SparkLauncher.startMaster(masterArgs.port, masterArgs.webUiPort)
+    discoveryService.waitAlive(masterAddress.hostAndPort, (5 minutes).toMillis)
+    log.info(s"Master started at port ${masterAddress.port}")
 
     log.info("Register master")
-    discoveryService.register(masterArgs.id, masterArgs.operationId, host, boundPorts.port, boundPorts.webUiPort)
+    discoveryService.register(masterArgs.id, masterArgs.operationId, masterAddress)
     log.info("Master registered")
 
     try {
-      discoveryService.checkPeriodically(hostAndPort)
+      discoveryService.checkPeriodically(masterAddress.webUiHostAndPort)
     } finally {
       discoveryService.removeAddress(masterArgs.id)
     }

@@ -113,7 +113,6 @@ spec_builder = \
             .environment(environment) \
             .layer_paths(layer_paths) \
             .spec(task_spec) \
-            .port_count(2) \
         .end_task() \
         .begin_task("workers") \
             .job_count(worker_num) \
@@ -123,7 +122,6 @@ spec_builder = \
             .environment(environment) \
             .layer_paths(layer_paths) \
             .spec(task_spec) \
-            .port_count(50) \
         .end_task() \
         .secure_vault(secure_vault) \
         .max_failed_job_count(1) \

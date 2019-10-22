@@ -1,10 +1,10 @@
 package ru.yandex.spark.launcher
 
-import java.io.File
+import java.io.{File, PrintWriter, StringWriter}
 import java.net.InetAddress
 
-import com.google.common.net.HostAndPort
 import org.apache.log4j.Logger
+import ru.yandex.spark.discovery.Address
 
 import scala.annotation.tailrec
 import scala.io.Source
@@ -17,17 +17,21 @@ object SparkLauncher {
   private val masterClass = "org.apache.spark.deploy.master.Master"
   private val workerClass = "org.apache.spark.deploy.worker.Worker"
 
-  def startMaster(ports: Ports): Ports = {
-    runSparkClass(masterClass, Nil, Map(
-      "host" -> InetAddress.getLocalHost.getHostName,
-      "port" -> ports.port.toString,
-      "webui-port" -> ports.webUiPort.toString
-    ), Nil, Map(), ProcessLogger(log.info(_)))
+  private var sparkProcess: Process = _
+
+  def startMaster(port: Int, webUiPort: Int): Address = {
+    val host = InetAddress.getLocalHost.getHostName
+    runSparkThread(masterClass, Map(
+      "host" -> host,
+      "port" -> port.toString,
+      "webui-port" -> webUiPort.toString
+    ), Nil, Map())
 
     val boundPorts = readPorts()
     log.info(s"Ports from file: $boundPorts")
 
-    Ports(
+    Address(
+      host,
       boundPorts.head,
       boundPorts(1)
     )
@@ -50,26 +54,48 @@ object SparkLauncher {
     }
   }
 
+  private def runSparkThread(className: String,
+                             namedArgs: Map[String, String],
+                             positionalArgs: Seq[String],
+                             env: Map[String, String]): Unit = {
+    val thread = new Thread(() => {
+      try {
+        val log = Logger.getLogger(SparkLauncher.getClass)
+        runSparkClass(className, namedArgs, positionalArgs, env, log)
+      } catch {
+        case e: Throwable =>
+          log.error(s"Spark failed with error: ${e.getMessage}")
+          val sw = new StringWriter
+          e.printStackTrace(new PrintWriter(sw))
+          log.error(sw.toString)
+      }
+    }, "Spark Thread")
+    thread.setDaemon(true)
+    thread.start()
+  }
+
   private def runSparkClass(className: String,
+                            namedArgs: Map[String, String],
                             positionalArgs: Seq[String],
-                            args: Map[String, String],
-                            pargs: Seq[String],
                             env: Map[String, String],
-                            logger: ProcessLogger): Unit = {
-    val command = s"$sparkHome/bin/spark-class $className ${positionalArgs.mkString(" ")} " +
-      s"${args.map{case (k, v) => s"--$k $v"}.mkString(" ")} ${pargs.mkString(" ")}"
+                            log: Logger): Unit = {
+    val command = s"$sparkHome/bin/spark-class $className " +
+      s"${namedArgs.map{case (k, v) => s"--$k $v"}.mkString(" ")} " +
+      s"${positionalArgs.mkString(" ")}"
 
     log.info(s"Run command: $command")
 
-    Process(command, None, env.toSeq:_*)
-      .run(logger)
+    sparkProcess = Process(command, None, env.toSeq:_*)
+      .run(ProcessLogger(log.info(_)))
+
+    sparkProcess.exitValue()
   }
 
-  def stopMaster(): Unit = {
-    s"$sparkHome/sbin/stop-master.sh" !
+  def stopSpark(): Unit = {
+    sparkProcess.destroy()
   }
 
-  def startSlave(master: HostAndPort,
+  def startSlave(master: Address,
                  port: Option[Int], webUiPort: Int,
                  cores: Int, memory: String, ops: Option[String]): Unit = {
     val env = Map(
@@ -78,18 +104,15 @@ object SparkLauncher {
 
     log.info(s"Env: $env")
 
-    runSparkClass(workerClass, Nil, Map(
+    runSparkThread(workerClass, Map(
       "port" -> port.get.toString,
       "webui-port" -> webUiPort.toString,
       "cores" -> cores.toString,
       "memory" -> memory
-    ), Seq(s"spark://$master"), env, ProcessLogger(log.info(_)))
+    ), Seq(s"spark://${master.hostAndPort}"), env)
   }
 
   def stopSlave(): Unit = {
     s"$sparkHome/sbin/stop-slave.sh" !
   }
-
 }
-
-case class Ports(port: Int, webUiPort: Int)

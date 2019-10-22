@@ -24,7 +24,7 @@ object WorkerLauncher extends App {
     log.info(s"Worker args: ${args.mkString(" ")}")
     SparkLauncher.startSlave(masterAddress, workerArgs.port, workerArgs.webUiPort,
       workerArgs.cores, workerArgs.memory, workerArgs.ops)
-    discoveryService.checkPeriodically(masterAddress)
+    discoveryService.checkPeriodically(masterAddress.webUiHostAndPort)
   } finally {
     discoveryService.close()
     SparkLauncher.stopSlave()
