@@ -10,7 +10,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBlobOutput
-    : public IZeroCopyOutput
+    : public IOutputStream
 {
 public:
     TBlobOutput();
@@ -31,8 +31,6 @@ public:
     friend void swap(TBlobOutput& left, TBlobOutput& right);
 
 private:
-    virtual size_t DoNext(void** ptr) override;
-    virtual void DoAdvance(size_t len) override;
     virtual void DoWrite(const void* buf, size_t len) override;
 
     TBlob Blob_;
