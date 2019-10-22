@@ -12,6 +12,11 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TFile TJobBinaryDefault::File;
+TMaybe<TString> TJobBinaryDefault::MD5CheckSum;
+
+////////////////////////////////////////////////////////////////////////////////
+
 const TVector<TStructuredTablePath>& TOperationInputSpecBase::GetStructuredInputs() const
 {
     return StructuredInputs_;
