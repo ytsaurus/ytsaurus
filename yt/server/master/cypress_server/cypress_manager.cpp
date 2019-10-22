@@ -225,6 +225,11 @@ public:
         return Options_.PreserveOwner;
     }
 
+    virtual bool ShouldPreserveAcl() const override
+    {
+        return Options_.PreserveAcl;
+    }
+
     virtual TAccount* GetNewNodeAccount() const override
     {
         return Account_;

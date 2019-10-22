@@ -1684,6 +1684,7 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
     bool preserveModificationTime = request->preserve_modification_time();
     bool preserveExpirationTime = request->preserve_expiration_time();
     bool preserveOwner = request->preserve_owner();
+    bool preserveAcl = request->preserve_acl();
     auto recursive = request->recursive();
     auto ignoreExisting = request->ignore_existing();
     auto force = request->force();
@@ -1698,13 +1699,14 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
 
     context->SetRequestInfo("TransactionId: %v "
         "PreserveAccount: %v, PreserveCreationTime: %v, PreserveModificationTime: %v, PreserveExpirationTime: %v, "
-        "PreserveOwner: %v, Recursive: %v, IgnoreExisting: %v, Force: %v, PessimisticQuotaCheck: %v",
+        "PreserveOwner: %v, PreserveAcl: %v, Recursive: %v, IgnoreExisting: %v, Force: %v, PessimisticQuotaCheck: %v",
         NObjectServer::GetObjectId(Transaction_),
         preserveAccount,
         preserveCreationTime,
         preserveModificationTime,
         preserveExpirationTime,
         preserveOwner,
+        preserveAcl,
         recursive,
         ignoreExisting,
         force,
@@ -1736,8 +1738,14 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
     if (replace && !inplace) {
         ValidatePermission(EPermissionCheckScope::This | EPermissionCheckScope::Descendants, EPermission::Remove);
         ValidatePermission(EPermissionCheckScope::Parent, EPermission::Write);
+        if (preserveAcl) {
+            ValidatePermission(EPermissionCheckScope::Parent, EPermission::Administer);
+        }
     } else {
         ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+        if (preserveAcl) {
+            ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
+        }
     }
 
     auto* account = (replace && !inplace)
@@ -1750,6 +1758,7 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
         .PreserveModificationTime = preserveModificationTime,
         .PreserveExpirationTime = preserveExpirationTime,
         .PreserveOwner = preserveOwner,
+        .PreserveAcl = preserveAcl,
         .PessimisticQuotaCheck = pessimisticQuotaCheck
     });
 

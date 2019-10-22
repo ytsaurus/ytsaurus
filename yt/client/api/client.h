@@ -565,6 +565,7 @@ struct TCopyNodeOptionsBase
     bool PreserveModificationTime = false;
     bool PreserveOwner = false;
     bool PreserveExpirationTime = false;
+    bool PreserveAcl = false;
     bool PessimisticQuotaCheck = true;
 };
 

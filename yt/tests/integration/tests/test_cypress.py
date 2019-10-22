@@ -2433,6 +2433,31 @@ class TestCypress(YTEnvSetup):
         commit_transaction(tx)
         assert get("//tmp/x/2/@owner") == "u1"
 
+    @authors("avmatrosov")
+    def test_preserve_acl(self):
+        create("table", "//tmp/t1")
+
+        set("//tmp/t1/@inherit_acl", False)
+        acl = [make_ace("deny", "guest", "write")]
+        set("//tmp/t1/@acl", acl)
+        copy("//tmp/t1", "//tmp/t2", preserve_acl=True)
+
+        assert not get("//tmp/t2/@inherit_acl")
+        assert_items_equal(get("//tmp/t2/@acl"), acl)
+
+    @authors("avmatrosov")
+    def test_preserve_acl_without_rights(self):
+        create_user("u")
+        create("table", "//tmp/t1", authenticated_user="u")
+        create("map_node", "//tmp/test")
+
+        set("//tmp/t1/@inherit_acl", False)
+        acl = [make_ace("allow", "u", "read")]
+        set("//tmp/t1/@acl", acl)
+
+        with pytest.raises(YtError):
+            copy("//tmp/t1", "//tmp/test/t2", preserve_acl=True, authenticated_user="u")
+
 ##################################################################
 
 class TestCypressMulticell(TestCypress):
@@ -2484,6 +2509,19 @@ class TestCypressPortal(TestCypressMulticell):
         # test cross-cell copy
         copy("//tmp/doc", "//tmp/p/doc", preserve_owner=True)
         assert get("//tmp/doc/@owner") == get("//tmp/p/doc/@owner") == "u1"
+
+    @authors("avmatrosov")
+    def test_preserve_acl(self):
+        create("document", "//tmp/t1")
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 2})
+
+        set("//tmp/t1/@inherit_acl", False)
+        acl = [make_ace("deny", "guest", "write")]
+        set("//tmp/t1/@acl", acl)
+        copy("//tmp/t1", "//tmp/p/t2", preserve_acl=True)
+
+        assert not get("//tmp/p/t2/@inherit_acl")
+        assert_items_equal(get("//tmp/p/t2/@acl"), acl)
 
 ##################################################################
 
