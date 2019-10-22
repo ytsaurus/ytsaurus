@@ -1554,7 +1554,7 @@ message TInternetAddressMetaBase
 option (NYP.NClient.NApi.NProto.object_type) = {
     camel_case_name: "IP4AddressPool"
     snake_case_name: "ip4_address_pool"
-    human_readable_name: "IP4 pool"
+    human_readable_name: "IP4 address pool"
     type_value: 21
 };
 
