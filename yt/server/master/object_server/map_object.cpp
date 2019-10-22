@@ -1,10 +1,4 @@
-#pragma once
-
-#ifndef MAP_OBJECT_INL_H_
-#error "Direct inclusion of this file is not allowed, include map_object.h"
-// For the sake of sane code completion.
 #include "map_object.h"
-#endif
 
 namespace NYT::NObjectServer {
 
@@ -126,7 +120,7 @@ void TNonversionedMapObjectBase<TSelf>::Load(NCellMaster::TLoadContext& context)
     Load(context, Parent_);
     Load(context, KeyToChild_);
 
-    // Reconstruct ChildToKey map.
+    // Reconstruct ChildToKey_ map.
     for (const auto& [key, child] : KeyToChild_) {
         if (child) {
             YT_VERIFY(ChildToKey_.emplace(child, key).second);

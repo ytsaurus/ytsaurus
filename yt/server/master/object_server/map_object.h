@@ -13,7 +13,7 @@ namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Provides a base for non-versioned objects with tree-like structure.
+//! Provides a base for non-versioned objects with a tree-like structure.
 template <class TSelf>
 class TNonversionedMapObjectBase
     : public TNonversionedObjectBase
@@ -66,7 +66,3 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NObjectServer
-
-#define MAP_OBJECT_INL_H_
-#include "map_object-inl.h"
-#undef MAP_OBJECT_INL_H_

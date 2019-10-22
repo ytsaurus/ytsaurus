@@ -89,7 +89,7 @@ public:
     virtual TObject* FindExistingObject(
         const NYTree::IAttributeDictionary* /*attributes*/) const override
     {
-        THROW_ERROR_EXCEPTION("FindExistingObject() method is not supported for type %Qv",
+        THROW_ERROR_EXCEPTION("FindExistingObject() method is not supported for type %Qlv",
             GetType());
     }
 

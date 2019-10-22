@@ -18,9 +18,7 @@ private:
     using TBase = NObjectServer::TObjectTypeHandlerWithMapBase<TObject>;
 
 public:
-    TNonversionedMapObjectTypeHandlerBase(NCellMaster::TBootstrap* bootstrap, TMapType* map)
-        : TBase(bootstrap, map)
-    { }
+    TNonversionedMapObjectTypeHandlerBase(NCellMaster::TBootstrap* bootstrap, TMapType* map);
 
     virtual ETypeFlags GetFlags() const override;
 
@@ -57,7 +55,3 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NObjectServer
-
-#define MAP_OBJECT_TYPE_HANDLER_INL_H_
-#include "map_object_type_handler-inl.h"
-#undef MAP_OBJECT_TYPE_HANDLER_INL_H_

@@ -1,13 +1,6 @@
-#pragma once
-
-#ifndef MAP_OBJECT_PROXY_INL_H_
-#error "Direct inclusion of this file is not allowed, include map_object_proxy.h"
-// For the sake of sane code completion.
-#include "map_object_proxy.h"
-#endif
-
 #include "private.h"
 
+#include "map_object_proxy.h"
 #include "map_object_type_handler.h"
 
 #include <yt/client/object_client/helpers.h>
@@ -213,9 +206,9 @@ void TNonversionedMapObjectProxyBase<TObject>::ValidateBeforeAttachChild(
     if (impl->IsBeingRemoved()) {
         THROW_ERROR_EXCEPTION(
             NObjectClient::EErrorCode::InvalidObjectLifeStage,
-            "Cannot attach new children to an object being removed (LifeStage: %Qlv, Id: %v)",
-            impl->GetLifeStage(),
-            impl->GetId());
+            "Cannot attach new children to an object being removed")
+            << TErrorAttribute("life_stage", impl->GetLifeStage())
+            << TErrorAttribute("id", impl->GetId());
     }
 
     ValidateChildName(key);
@@ -224,14 +217,14 @@ void TNonversionedMapObjectProxyBase<TObject>::ValidateBeforeAttachChild(
 
 template <class TObject>
 void TNonversionedMapObjectProxyBase<TObject>::ValidateAfterAttachChild(
-    const TString& key,
-    const TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>>& childProxy)
+    const TString& /*key*/,
+    const TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>>& /*childProxy*/)
 { }
 
 template <class TObject>
 void TNonversionedMapObjectProxyBase<TObject>::ReplaceChild(
-    const NYTree::INodePtr& oldChild,
-    const NYTree::INodePtr& newChild)
+    const NYTree::INodePtr& /*oldChild*/,
+    const NYTree::INodePtr& /*newChild*/)
 {
     Y_UNREACHABLE();
 }
@@ -335,10 +328,10 @@ void TNonversionedMapObjectProxyBase<TObject>::Clear()
         children.emplace_back(FromNode(GetChild(key)));
     }
 
-    for (auto& child : children) {
+    for (const auto& child : children) {
         child->ValidateRemoval();
     }
-    for (auto& child : children) {
+    for (const auto& child : children) {
         DoRemoveChild(child);
     }
 }
@@ -438,7 +431,7 @@ void TNonversionedMapObjectProxyBase<TObject>::RenameSelf(const TString& newName
     auto* impl = TBase::GetThisImpl();
     auto* parent = impl->GetParent();
     if (!parent) {
-        THROW_ERROR_EXCEPTION("Cannot rename root %v", impl->GetType());
+        THROW_ERROR_EXCEPTION("Cannot rename root %Qlv", impl->GetType());
     }
     auto oldName = impl->GetName();
     if (oldName == newName) {
@@ -477,7 +470,7 @@ bool TNonversionedMapObjectProxyBase<TObject>::SetBuiltinAttribute(
         case EInternedAttributeKey::ParentName: {
             auto* impl = TBase::GetThisImpl();
             if (!impl->GetParent()) {
-                THROW_ERROR_EXCEPTION("Cannot change parent for a nameless %v", impl->GetType())
+                THROW_ERROR_EXCEPTION("Cannot change parent for a nameless %Qlv", impl->GetType())
                     << TErrorAttribute("id", impl->GetId());
             }
 
@@ -556,12 +549,12 @@ void TNonversionedMapObjectProxyBase<TObject>::ValidateRemoval()
     if (impl->IsBeingCreated()) {
         THROW_ERROR_EXCEPTION(
             NObjectClient::EErrorCode::InvalidObjectLifeStage,
-            "Invalid life stage during object removal (LifeStage: %Qlv, Id: %v)",
-            impl->GetLifeStage(),
-            impl->GetId());
+            "Invalid life stage during object removal")
+            << TErrorAttribute("life_stage", impl->GetLifeStage())
+            << TErrorAttribute("id", impl->GetId());
     }
 
-    for (auto [_, child] : GetChildren()) {
+    for (const auto& [_, child] : GetChildren()) {
         FromNode(child)->ValidateRemoval();
     }
 
@@ -649,7 +642,7 @@ TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>> TNonversionedMapObjectPr
     TObjectProxyBase::DeclareMutating();
 
     if (type != TBase::GetThisImpl()->GetType()) {
-        THROW_ERROR_EXCEPTION("Cannot create an object of the type %Qv, expected type %Qv",
+        THROW_ERROR_EXCEPTION("Cannot create an object of the type %Qlv, expected type %Qlv",
             type,
             TBase::GetThisImpl()->GetType());
     }
@@ -842,7 +835,7 @@ TObject* TNonversionedMapObjectFactoryBase<TObject>::CloneObject(
     TObject* /* object */,
     NCypressServer::ENodeCloneMode /* mode */)
 {
-    THROW_ERROR_EXCEPTION("Nonversioned map objects don't support cloning");
+    THROW_ERROR_EXCEPTION("Nonversioned map objects do not support cloning");
 }
 
 template <class TObject>
@@ -895,7 +888,7 @@ void TNonversionedMapObjectFactoryBase<TObject>::AttachChild(
 
     parent->AttachChild(key, child);
     LogEvent({
-        EFactoryEventType::AttachChild,
+        EEventType::AttachChild,
         parent,
         key,
         child
@@ -909,7 +902,7 @@ void TNonversionedMapObjectFactoryBase<TObject>::DetachChild(const TProxyPtr& pa
 {
     Bootstrap_->GetObjectManager()->RefObject(parent->GetObject());
     LogEvent({
-        EFactoryEventType::RefObject,
+        EEventType::RefObject,
         parent,
         TString(), /* key */
         child /* child */
@@ -918,7 +911,7 @@ void TNonversionedMapObjectFactoryBase<TObject>::DetachChild(const TProxyPtr& pa
     auto key = parent->GetChildKeyOrThrow(child);
     parent->DetachChild(child);
     LogEvent({
-        EFactoryEventType::DetachChild,
+        EEventType::DetachChild,
         parent,
         key,
         child
@@ -937,7 +930,7 @@ void TNonversionedMapObjectFactoryBase<TObject>::RemoveCreatedObjects()
 template <class TObject>
 void TNonversionedMapObjectFactoryBase<TObject>::CommitEvent(const TFactoryEvent& event)
 {
-    if (event.Type == EFactoryEventType::RefObject) {
+    if (event.Type == EEventType::RefObject) {
         Bootstrap_->GetObjectManager()->UnrefObject(event.Parent->GetObject());
     }
 }
@@ -947,21 +940,21 @@ void TNonversionedMapObjectFactoryBase<TObject>::RollbackEvent(const TFactoryEve
 {
     try {
         switch (event.Type) {
-            case EFactoryEventType::RefObject:
+            case EEventType::RefObject:
                 Bootstrap_->GetObjectManager()->UnrefObject(event.Parent->GetObject());
                 break;
-            case EFactoryEventType::AttachChild:
+            case EEventType::AttachChild:
                 event.Parent->DetachChild(event.Child);
                 break;
-            case EFactoryEventType::DetachChild:
+            case EEventType::DetachChild:
                 event.Parent->AttachChild(event.Key, event.Child);
                 break;
             default:
                 Y_UNREACHABLE();
         }
     } catch (const std::exception& ex) {
-        auto& Logger = NObjectServer::ObjectServerLogger;
-        YT_LOG_FATAL(ex, "Unhandled exception during rollback of factory event of the type %Qv", event.Type);
+        const auto& Logger = NObjectServer::ObjectServerLogger;
+        YT_LOG_FATAL(ex, "Unhandled exception during rollback of factory event of the type %Qlv", event.Type);
     }
 }
 

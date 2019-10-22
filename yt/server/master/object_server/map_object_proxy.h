@@ -160,7 +160,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EFactoryEventType,
+DEFINE_ENUM(EMapObjectFactoryEventType,
     (RefObject)
     (AttachChild)
     (DetachChild)
@@ -174,6 +174,7 @@ class TNonversionedMapObjectFactoryBase
 protected:
     using TProxy = TNonversionedMapObjectProxyBase<TObject>;
     using TProxyPtr = TIntrusivePtr<TProxy>;
+    using EEventType = EMapObjectFactoryEventType;
 
 public:
     explicit TNonversionedMapObjectFactoryBase(NCellMaster::TBootstrap* bootstrap);
@@ -193,7 +194,7 @@ public:
 protected:
     struct TFactoryEvent
     {
-        EFactoryEventType Type;
+        EEventType Type;
         TProxyPtr Parent;
         TString Key;
         TProxyPtr Child;
@@ -216,7 +217,3 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NObjectServer
-
-#define MAP_OBJECT_PROXY_INL_H_
-#include "map_object_proxy-inl.h"
-#undef MAP_OBJECT_PROXY_INL_H_
