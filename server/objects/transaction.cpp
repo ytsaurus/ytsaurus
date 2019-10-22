@@ -1161,6 +1161,8 @@ private:
 
             const auto& Logger = Transaction_->Logger;
 
+            YT_LOG_DEBUG("Running reads");
+
             std::vector<TFuture<void>> asyncResults;
 
             for (auto& request : SelectRequests_) {
@@ -1197,6 +1199,8 @@ private:
 
             WaitFor(Combine(asyncResults))
                 .ThrowOnError();
+
+            YT_LOG_DEBUG("Reads complete; parsing results");
 
             std::vector<TError> errors;
             auto guardedRun = [&] (auto f) {
@@ -1237,6 +1241,8 @@ private:
                     });
                 }
             }
+
+            YT_LOG_DEBUG("Results parsed");
 
             if (!errors.empty()) {
                 THROW_ERROR_EXCEPTION("Error parsing database results")
@@ -1966,7 +1972,7 @@ private:
 
         void ValidateCreatedObjects()
         {
-            i64 eventCount = 0;
+            YT_LOG_DEBUG("Started validating created object");
 
             std::vector<std::unique_ptr<TObjectExistenceChecker>> checkers;
             std::vector<std::pair<TObject*, TObject*>> objectParentPairs;
@@ -1981,8 +1987,6 @@ private:
                 if (RemovedObjects_[key.first].find(key.second) != RemovedObjects_[key.first].end()) {
                     continue;
                 }
-
-                ++eventCount;
 
                 auto checker = std::make_unique<TObjectExistenceChecker>(object);
                 checker->ScheduleCheck();
@@ -2024,16 +2028,15 @@ private:
                 }
             }
 
-            YT_LOG_DEBUG_UNLESS(eventCount == 0, "Created objects are validated (Count: %v)", eventCount);
+            YT_LOG_DEBUG("Finished validating created objects");
         }
 
         void FlushObjectsCreation()
         {
+            YT_LOG_DEBUG("Started preparing objects creation");
             TStoreContext context(Owner_);
 
             const auto& watchManager = Owner_->Bootstrap_->GetWatchManager();
-
-            i64 eventCount = 0;
 
             for (const auto& item : CreatedObjects_) {
                 const auto* object = item.second;
@@ -2041,8 +2044,6 @@ private:
                 if (object->GetState() != EObjectState::Created) {
                     continue;
                 }
-
-                ++eventCount;
 
                 auto* typeHandler = object->GetTypeHandler();
 
@@ -2077,23 +2078,21 @@ private:
             }
 
             context.FillTransaction(Owner_->UnderlyingTransaction_);
-
-            YT_LOG_DEBUG_UNLESS(eventCount == 0, "Objects creation prepared (Count: %v)", eventCount);
+            YT_LOG_DEBUG("Finished preparing objects creation");
         }
 
         void FlushWatchLogObjectsUpdates()
         {
+            YT_LOG_DEBUG("Started watch log objects updation");
             TStoreContext context(Owner_);
 
             const auto& watchManager = Owner_->Bootstrap_->GetWatchManager();
-            i64 eventCount = 0;
 
             if (watchManager->Enabled()) {
                 for (const auto& [key, object] : InstantiatedObjects_) {
                     if (!object->IsStoreScheduled() || object->GetState() != EObjectState::Instantiated) {
                         continue;
                     }
-                    ++eventCount;
 
                     context.WriteRow(
                         watchManager->GetWatchLogTable(object->GetType()),
@@ -2104,20 +2103,18 @@ private:
             }
 
             context.FillTransaction(Owner_->UnderlyingTransaction_);
-
-            YT_LOG_DEBUG_UNLESS(eventCount == 0, "Watch log objects update prepared (Count: %v)", eventCount);
+            YT_LOG_DEBUG("Finished watch log objects updation");
         }
 
         void FlushObjectsDeletion()
         {
             auto now = TInstant::Now();
 
+            YT_LOG_DEBUG("Started preparing objects deletion");
             TStoreContext context(Owner_);
 
             const auto& objectManager = Owner_->Bootstrap_->GetObjectManager();
             const auto& watchManager = Owner_->Bootstrap_->GetWatchManager();
-
-            i64 eventCount = 0;
 
             for (auto type : TEnumTraits<EObjectType>::GetDomainValues()) {
                 auto* typeHandler = objectManager->FindTypeHandler(type);
@@ -2131,7 +2128,6 @@ private:
                 const auto& objects = RemovedObjects_[type];
                 for (const auto& item : objects) {
                     const auto* object = item.second;
-                    ++eventCount;
 
                     if (watchManager->Enabled()) {
                         context.WriteRow(
@@ -2170,8 +2166,7 @@ private:
             }
 
             context.FillTransaction(Owner_->UnderlyingTransaction_);
-
-            YT_LOG_DEBUG_UNLESS(eventCount == 0, "Prepared objects deletion (Count: %v)", eventCount);
+            YT_LOG_DEBUG("Finished preparing objects deletion");
         }
 
         void WriteHistoryEvent(
@@ -2212,9 +2207,9 @@ private:
 
         void FlushHistoryEvents()
         {
-            const auto time = TInstant::Now();
+            YT_LOG_DEBUG("Started writing history events");
 
-            i64 eventCount = 0;
+            const auto time = TInstant::Now();
 
             TStoreContext storeContext(Owner_);
             const auto& objectManager = Owner_->Bootstrap_->GetObjectManager();
@@ -2225,7 +2220,6 @@ private:
                 }
 
                 for (const auto& [objectType, object] : RemovedObjects_[type]) {
-                    ++eventCount;
                     WriteHistoryEvent(storeContext, object, EEventType::ObjectRemoved, time);
                 }
             }
@@ -2237,7 +2231,6 @@ private:
 
                 auto* typeHandler = object->GetTypeHandler();
                 if (typeHandler->HasStoreScheduledHistoryEnabledAttributes(object.get())) {
-                    ++eventCount;
                     WriteHistoryEvent(storeContext, object.get(), EEventType::ObjectUpdated, time);
                 }
             }
@@ -2245,14 +2238,12 @@ private:
             for (const auto& [objectType, object] : CreatedObjects_) {
                 auto* typeHandler = object->GetTypeHandler();
                 if (typeHandler->HasHistoryEnabledAttributes()) {
-                    ++eventCount;
                     WriteHistoryEvent(storeContext, object, EEventType::ObjectCreated, time);
                 }
             }
 
             storeContext.FillTransaction(Owner_->UnderlyingTransaction_);
-
-            YT_LOG_DEBUG_UNLESS(eventCount == 0, "History events write prepared (Count: %v)", eventCount);
+            YT_LOG_DEBUG("Finished writing history events");
         }
 
         void FlushLoadsOnce(std::vector<TError>* errors)
@@ -2263,7 +2254,7 @@ private:
                     continue;
                 }
 
-                YT_LOG_DEBUG_UNLESS(scheduledLoads.empty(), "Preparing reads (Priority: %v, Count: %v)",
+                YT_LOG_DEBUG("Started preparing reads (Priority: %v, Count: %v)",
                     priority,
                     scheduledLoads.size());
 
@@ -2279,6 +2270,8 @@ private:
                     }
                 }
 
+                YT_LOG_DEBUG("Finished preparing reads");
+
                 context.RunReads();
             }
         }
@@ -2288,6 +2281,9 @@ private:
             if (ScheduledStores_.empty()) {
                 return;
             }
+
+            YT_LOG_DEBUG("Started preparing writes (Count: %v)",
+                ScheduledStores_.size());
 
             TStoreContext context(Owner_);
 
@@ -2303,7 +2299,7 @@ private:
 
             context.FillTransaction(Owner_->UnderlyingTransaction_);
 
-            YT_LOG_DEBUG_UNLESS(ScheduledStores_.empty(), "Writes prepared (Count: %v)", ScheduledStores_.size());
+            YT_LOG_DEBUG("Finished preparing writes");
         }
     };
 
