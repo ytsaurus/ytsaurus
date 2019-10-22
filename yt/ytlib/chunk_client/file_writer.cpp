@@ -153,6 +153,19 @@ bool TFileWriter::WriteBlock(const TBlock& block)
         DataSize_ += block.Size();
 
         YT_VERIFY(filePosition == DataSize_);
+    } catch (const TSystemError& error) {
+        if (error.Status() == ENOSPC) {
+            Error_ = TError(
+                NChunkClient::EErrorCode::NoSpaceLeftOnDevice,
+                "Not enough space to write chunk data file %v",
+                FileName_);
+        } else {
+            Error_ = TError(
+                "Failed to write chunk data file %v",
+                FileName_)
+                << static_cast<const std::exception&>(error);
+        }
+        return false;
     } catch (const std::exception& ex) {
         Error_ = TError(
             "Failed to write chunk data file %v",
