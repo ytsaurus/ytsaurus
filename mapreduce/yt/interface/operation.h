@@ -345,6 +345,9 @@ struct TUserOperationSpecBase
     // https://clubs.at.yandex-team.ru/yt/1045
     FLUENT_FIELD_OPTION(TYPath, CoreTablePath);
 
+    //Choose title you can see it in web interface
+    FLUENT_FIELD_OPTION(TString, Title);
+
     // How long should the scheduler wait for the job to be started on a node.
     // When you run huge jobs that require preemption of all the other jobs on
     // a node, the default timeout might be insufficient and your job may be

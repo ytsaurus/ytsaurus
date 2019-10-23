@@ -932,6 +932,42 @@ Y_UNIT_TEST_SUITE(Operations)
         UNIT_ASSERT_EQUAL((*spec)["ordered"].AsBool(), true);
     }
 
+    Y_UNIT_TEST(CustomTitle)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        {
+            auto writer = client->CreateTableWriter<TNode>(workingDir + "/input");
+            writer->AddRow(TNode()("foo", "bar"));
+            writer->Finish();
+        }
+
+        {
+            auto newTitle = "MyCustomTitle";
+
+            auto op = client->Map(
+                TMapOperationSpec()
+                .AddInput<TNode>(workingDir + "/input")
+                .AddOutput<TNode>(workingDir + "/output")
+                .Title(newTitle),
+                new TIdMapper);
+            auto spec = client->GetOperation(op->GetId()).Spec;
+            UNIT_ASSERT_EQUAL((*spec)["title"].AsString(), newTitle);
+        }
+
+        {
+            auto op = client->Map(
+                TMapOperationSpec()
+                .AddInput<TNode>(workingDir + "/input")
+                .AddOutput<TNode>(workingDir + "/output"),
+                new TIdMapper);
+            auto spec = client->GetOperation(op->GetId()).Spec;
+            UNIT_ASSERT_STRING_CONTAINS((*spec)["title"].AsString(), "TIdMapper");
+        }
+    }
+
     Y_UNIT_TEST(MaxFailedJobCount)
     {
         TTestFixture fixture;
