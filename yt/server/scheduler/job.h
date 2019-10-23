@@ -7,8 +7,6 @@
 
 #include <yt/ytlib/chunk_client/input_data_slice.h>
 
-#include <yt/ytlib/job_tracker_client/statistics.h>
-
 #include <yt/client/node_tracker_client/proto/node.pb.h>
 
 #include <yt/ytlib/scheduler/job_resources.h>

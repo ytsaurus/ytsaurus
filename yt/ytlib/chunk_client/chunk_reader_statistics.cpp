@@ -1,6 +1,6 @@
 #include "chunk_reader_statistics.h"
 
-#include <yt/ytlib/job_tracker_client/statistics.h>
+#include <yt/core/misc/statistics.h>
 
 namespace NYT::NChunkClient {
 
@@ -46,7 +46,7 @@ void UpdateFromProto(const TChunkReaderStatisticsPtr* chunkReaderStatisticsPtr, 
 }
 
 void DumpChunkReaderStatistics(
-    NJobTrackerClient::TStatistics* jobStatisitcs,
+    TStatistics* jobStatisitcs,
     const TString& path,
     const TChunkReaderStatisticsPtr& chunkReaderStatisticsPtr)
 {

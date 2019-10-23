@@ -35,7 +35,6 @@ using namespace NExecAgent;
 using namespace NJobAgent;
 using namespace NCoreDump;
 
-using NJobTrackerClient::TStatistics;
 using NChunkClient::TDataSliceDescriptor;
 using NChunkClient::TChunkReaderStatistics;
 

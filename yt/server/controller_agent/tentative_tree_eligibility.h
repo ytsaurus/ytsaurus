@@ -6,9 +6,9 @@
 
 #include <yt/server/lib/scheduler/scheduling_tag.h>
 
-#include <yt/ytlib/job_tracker_client/statistics.h>
-
 #include <yt/core/misc/serialize.h>
+
+#include <yt/core/misc/statistics.h>
 
 namespace NYT::NControllerAgent {
 

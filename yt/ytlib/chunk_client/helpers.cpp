@@ -24,8 +24,6 @@
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/ytlib/job_tracker_client/statistics.h>
-
 #include <yt/client/chunk_client/chunk_replica.h>
 #include <yt/client/chunk_client/data_statistics.h>
 
@@ -40,6 +38,8 @@
 #include <yt/core/erasure/codec.h>
 
 #include <yt/core/net/local_address.h>
+
+#include <yt/core/misc/statistics.h>
 
 #include <array>
 
@@ -678,7 +678,7 @@ i64 CalculateDiskSpaceUsage(
 void DumpCodecStatistics(
     const TCodecStatistics& codecStatistics,
     const NYPath::TYPath& path,
-    NJobTrackerClient::TStatistics* statistics)
+    TStatistics* statistics)
 {
     for (const auto& pair : codecStatistics.CodecToDuration()) {
         statistics->AddSample(path + '/' + FormatEnum(pair.first), pair.second);

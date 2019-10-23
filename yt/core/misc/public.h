@@ -132,6 +132,9 @@ class TInternedObject;
 
 DECLARE_REFCOUNTED_STRUCT(IMemoryChunkProvider)
 
+class TStatistics;
+class TSummary;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EErrorCode,
