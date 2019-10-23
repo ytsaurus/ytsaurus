@@ -25,7 +25,6 @@
 #include <util/string/type.h>
 
 #include <util/system/env.h>
-#include <util/system/execpath.h>
 #include <util/system/thread.h>
 
 namespace NYT {
@@ -168,11 +167,6 @@ void NonJobInitialize(const TInitializeOptions& options)
         NDetail::TWaitProxy::Get()->SetProxy(options.WaitProxy_);
     }
     WriteVersionToLog();
-
-    // File that is stored under `GetPersistentExecPath` can be rewritten outside of current process (e.g. some update).
-    // We need original file for runnning operations. So we open it and opened descriptor cannot be changed.
-    // Check YT-9218 for details.
-    TJobBinaryDefault::File = TFile(GetPersistentExecPath(), EOpenModeFlag::RdOnly);
 }
 
 void ExecJob(int argc, const char** argv, const TInitializeOptions& options)
