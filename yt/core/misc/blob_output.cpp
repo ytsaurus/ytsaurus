@@ -32,13 +32,17 @@ size_t TBlobOutput::DoNext(void** ptr)
         }
     }
     *ptr = Blob_.Begin() + Blob_.Size();
-    return Blob_.Capacity() - Blob_.Size();
+
+    auto result = Blob_.Capacity() - Blob_.Size();
+    Blob_.Resize(Blob_.Capacity(), false);
+
+    return result;
 }
 
-void TBlobOutput::DoAdvance(size_t len)
+void TBlobOutput::DoUndo(size_t len)
 {
-    YT_ASSERT(Blob_.Size() + len <= Blob_.Capacity());
-    Blob_.Resize(Blob_.Size() + len, false);
+    YT_ASSERT(len <= Blob_.Size());
+    Blob_.Resize(Blob_.Size() - len, false);
 }
 
 void TBlobOutput::DoWrite(const void* buffer, size_t length)
