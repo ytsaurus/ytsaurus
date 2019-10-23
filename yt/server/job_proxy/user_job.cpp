@@ -1211,13 +1211,12 @@ private:
                 auto asyncError = action
                     .AsyncVia(invoker)
                     .Run();
-                asyncError.Subscribe(onError);
-                result.emplace_back(std::move(asyncError));
+                result.emplace_back(asyncError.Apply(onError));
             }
             return result;
         };
 
-        ProcessFinished_.Subscribe(onProcessFinished);
+        auto processFinished = ProcessFinished_.Apply(onProcessFinished);
 
         // Wait until executor opens and dup named pipes,
         // satellite calls waitpid()
@@ -1255,9 +1254,8 @@ private:
         // Then, wait for job process to finish.
         // Theoretically, process could have explicitely closed its output pipes
         // but still be doing some computations.
-        auto jobExitError = WaitFor(ProcessFinished_);
-        YT_LOG_INFO(jobExitError, "Job process finished");
-        onIOError.Run(jobExitError);
+        YT_VERIFY(WaitFor(processFinished).IsOK());
+        YT_LOG_INFO("Job process finished (Error: %v)", JobErrorPromise_.ToFuture().TryGet());
 
         // Abort input pipes unconditionally.
         // If the job didn't read input to the end, pipe writer could be blocked,
