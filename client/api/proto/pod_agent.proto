@@ -15,7 +15,6 @@ import "yt/core/yson/proto/protobuf_interop.proto";
 
 option (NYT.NYson.NProto.derive_underscore_case_names) = true;
 
-// TODO: itype (labels)
 // TODO: coredump probabilty
 
 // Конфигурация Пода, передаваемая в Pod-agent.
@@ -673,7 +672,6 @@ message TUtilityContainer {
     uint32 stdout_and_stderr_limit = 12;
 }
 
-// TODO
 // Позволяет выставить ограничение сверху на все закачки. Важным моментом является, что сумма лимитов
 // ресурсов может быть больше, чем даже лимиты Pod. Поэтому pod-agent должен будет запускать закачки так:
 // Снача запускаются закачки для активных workload и параллельно запускаются только те, которые можно разместить
@@ -1100,7 +1098,6 @@ message TDownloadProgress {
     uint32 percent = 1;
 }
 
-// TODO: нужно придумать как сделать прогресс скачивания
 message TLayerStatus {
     string id = 1;
 
