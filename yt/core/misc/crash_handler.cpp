@@ -196,10 +196,7 @@ void DumpSignalInfo(int signal, siginfo_t* si)
 
 void DumpSigcontext(void* uc)
 {
-#if !((defined(HAVE_UCONTEXT_H) || defined(HAVE_SYS_UCONTEXT_H)) && defined(PC_FROM_UCONTEXT) && defined(_linux_) && defined(_x86_64_))
-    return;
-#endif
-
+#if (defined(HAVE_UCONTEXT_H) || defined(HAVE_SYS_UCONTEXT_H)) && defined(PC_FROM_UCONTEXT) && defined(_linux_) && defined(_x86_64_)
     ucontext_t* context = reinterpret_cast<ucontext_t*>(uc);
 
     TRawFormatter<512> formatter;
@@ -254,6 +251,7 @@ void DumpSigcontext(void* uc)
     formatter.AppendString("*** End Context ***\n");
 
     WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
+#endif
 }
 
 void CrashTimeoutHandler(int signal)
