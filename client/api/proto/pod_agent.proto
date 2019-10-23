@@ -97,6 +97,14 @@ message TPodAgentStatus {
     // LastTransitionTime -- максимальное значение InProgress.LastTransitionTime среди всех вложеных T*Status
     TCondition in_progress = 9;
 
+    // Если хотя бы один из Failed вложенных T*Status имеет Status == EConditionStatus_UNKNOWN,
+    // обращается в EConditionStatus_UNKNOWN.
+    // Иначе, если хотя бы один из них имеет Status == EConditionStatus_TRUE,
+    // обращается в EConditionStatus_TRUE.
+    // Иначе обращается в EConditionStatus_FALSE.
+    // LastTransitionTime -- максимальное значение InProgress.LastTransitionTime среди всех вложеных T*Status
+    TCondition failed = 12;
+
     TResourceGangStatus resource_cache = 10;
 
     // yp timestamp последнего обновления спецификации пода
@@ -710,6 +718,8 @@ message TBoxStatus {
 
     TCondition in_progress = 7;
 
+    TCondition failed = 16;
+
     // Ревизия к которой относится box
     // Скоро будет удалена в пользу spec_timestamp: DEPLOY-417
     uint32 revision = 8;
@@ -919,6 +929,8 @@ message TWorkloadStatus {
 
     TCondition in_progress = 8;
 
+    TCondition failed = 18;
+
     // mutalbe target state
     EWorkloadTargetState target_state = 11;
 
@@ -1120,6 +1132,8 @@ message TLayerStatus {
 
     TCondition in_progress = 8;
 
+    TCondition failed = 12;
+
     // Ревизия к которой относится layer
     // Скоро будет удалена в пользу spec_timestamp: DEPLOY-417
     uint32 revision = 9;
@@ -1152,6 +1166,8 @@ message TStaticResourceStatus {
     TCondition ready = 7;
 
     TCondition in_progress = 8;
+
+    TCondition failed = 12;
 
     // Ревизия к которой относится layer
     // Скоро будет удалена в пользу spec_timestamp: DEPLOY-417
@@ -1206,6 +1222,8 @@ message TVolumeStatus {
     TCondition ready = 5;
 
     TCondition in_progress = 6;
+
+    TCondition failed = 9;
 
     // Ревизия к которой относится volume
     // Скоро будет удалена в пользу spec_timestamp: DEPLOY-417
