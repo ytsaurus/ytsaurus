@@ -39,7 +39,7 @@ if yatest_common is not None:
         if os.path.exists(destination):
             return
         os.makedirs(destination)
-        path = arcadia_interop.prepare_yt_environment(destination, use_ytserver_all=True)
+        path = arcadia_interop.prepare_yt_environment(destination, use_ytserver_all=True, copy_ytserver_all=True)
         os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
 
 def _pytest_finalize_func(environment, process_call_args):

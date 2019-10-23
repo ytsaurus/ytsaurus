@@ -52,10 +52,7 @@ def prepare_yt_binaries(destination, source_prefix="", arcadia_root=None, inside
             if copy_ytserver_all:
                 os.link(ytserver_all, os.path.join(destination, "ytserver-" + binary))
             else:
-                if binary in ("exec", "tools"):
-                    shutil.copy(ytserver_all, os.path.join(destination, "ytserver-" + binary))
-                else:
-                    os.symlink(ytserver_all, os.path.join(destination, "ytserver-" + binary))
+                os.symlink(ytserver_all, os.path.join(destination, "ytserver-" + binary))
         else:
             binary_path = get_binary_path("{0}yt/server/{1}/ytserver-{2}".format(yt_root, server_dir, binary))
             os.symlink(binary_path, os.path.join(destination, "ytserver-" + binary))
