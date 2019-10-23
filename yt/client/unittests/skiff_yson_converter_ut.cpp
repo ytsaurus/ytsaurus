@@ -5,6 +5,7 @@
 #include <yt/client/formats/skiff_yson_converter.h>
 
 #include <yt/core/yson/pull_parser.h>
+#include <yt/core/yson/token_writer.h>
 #include <yt/core/skiff/skiff.h>
 #include <yt/core/skiff/skiff_schema.h>
 
@@ -68,16 +69,25 @@ TString ConvertHexToTextYson(
 {
     auto converter = CreateSkiffToYsonConverter(TComplexTypeFieldDescriptor("test-field", logicalType), skiffSchema, config);
 
-    TStringStream out;
+
+    TStringStream binaryOut;
     {
         TString binaryString = HexDecode(hexString);
         TMemoryInput in(binaryString);
         TCheckedInDebugSkiffParser parser(skiffSchema, &in);
 
-        auto writer = TYsonWriter(&out, EYsonFormat::Text);
+        auto writer = TCheckedInDebugYsonTokenWriter(&binaryOut);
         converter(&parser, &writer);
         EXPECT_EQ(parser.GetReadBytesCount(), binaryString.size());
     }
+    binaryOut.Finish();
+
+    TStringStream out;
+    {
+        auto writer = TYsonWriter(&out, EYsonFormat::Text);
+        ParseYsonStringBuffer(binaryOut.Str(), EYsonType::Node, &writer);
+    }
+    out.Finish();
 
     return out.Str();
 }
