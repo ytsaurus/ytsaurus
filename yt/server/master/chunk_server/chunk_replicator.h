@@ -71,9 +71,14 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TInterDCEdgeDataSize, InterDCEdgeConsumption);
     DEFINE_BYREF_RO_PROPERTY(TInterDCEdgeDataSize, InterDCEdgeCapacities);
 
-    using TJobCounters = TEnumIndexedVector<EJobType, int, NJobTrackerClient::FirstMasterJobType, NJobTrackerClient::LastMasterJobType>;
+    using TJobCounters = TEnumIndexedVector<EJobType, i64, NJobTrackerClient::FirstMasterJobType, NJobTrackerClient::LastMasterJobType>;
     // Number of jobs running - per job type. For profiling.
-    DEFINE_BYREF_RO_PROPERTY(TJobCounters, JobCounters);
+    DEFINE_BYREF_RO_PROPERTY(TJobCounters, RunningJobs);
+
+    DEFINE_BYREF_RO_PROPERTY(TJobCounters, JobsStarted);
+    DEFINE_BYREF_RO_PROPERTY(TJobCounters, JobsCompleted);
+    DEFINE_BYREF_RO_PROPERTY(TJobCounters, JobsFailed);
+    DEFINE_BYREF_RO_PROPERTY(TJobCounters, JobsAborted);
 
     void OnChunkDestroyed(TChunk* chunk);
     void OnReplicaRemoved(
@@ -343,8 +348,6 @@ private:
 
     void RegisterJob(const TJobPtr& job);
     void UnregisterJob(const TJobPtr& job);
-
-    void UpdateJobCountGauge(EJobType jobType, int delta);
 
     void AddToChunkRepairQueue(TChunkPtrWithIndexes chunkWithIndexes, EChunkRepairQueue queue);
     void RemoveFromChunkRepairQueues(TChunkPtrWithIndexes chunkWithIndexes);
