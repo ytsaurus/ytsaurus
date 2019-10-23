@@ -17,6 +17,7 @@
 #include <yt/core/actions/invoker_detail.h>
 
 #include <yt/core/concurrency/scheduler.h>
+#include <yt/core/concurrency/delayed_executor.h>
 
 #include <yt/core/misc/blob.h>
 #include <yt/core/misc/proc.h>
@@ -235,12 +236,6 @@ public:
 
             SnapshotWriter_ = Owner_->SnapshotStore_->CreateWriter(SnapshotId_, meta);
 
-            if (BuildSnapshotDelay_ != TDuration::Zero()) {
-                YT_LOG_DEBUG("Working in testing mode, sleeping (BuildSnapshotDelay: %v)", BuildSnapshotDelay_);
-                // NB: Sleep, not TDelayedExecutor::WaitForDuration since context switch could be forbidden.
-                Sleep(BuildSnapshotDelay_);
-            }
-
             return DoRun().Apply(
                 BIND(&TSnapshotBuilderBase::OnFinished, MakeStrong(this))
                     .AsyncVia(GetHydraIOInvoker()));
@@ -283,6 +278,11 @@ protected:
     void ReleaseLock()
     {
         if (LockAcquired_) {
+            if (BuildSnapshotDelay_ != TDuration::Zero()) {
+                YT_LOG_DEBUG("Working in testing mode, sleeping (BuildSnapshotDelay: %v)", BuildSnapshotDelay_);
+                TDelayedExecutor::WaitForDuration(BuildSnapshotDelay_);
+            }
+
             Owner_->BuildingSnapshot_.store(false);
             LockAcquired_ = false;
 
