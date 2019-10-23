@@ -1871,7 +1871,7 @@ Y_UNIT_TEST_SUITE(Operations)
     template<typename TUrlRow, typename TGoodUrl, typename THostRow, class TMapper, class TReducer>
     void TestMapReduceMapOutput()
     {
-        TTestFixture fixture;
+       TTestFixture fixture;
         auto client = fixture.GetClient();
         auto workingDir = fixture.GetWorkingDir();
         {
@@ -3994,37 +3994,6 @@ Y_UNIT_TEST_SUITE(Operations)
                 new TSleepingMapper(TDuration::Seconds(3))),
             TOperationFailedError,
             "Job time limit exceeded");
-    }
-
-    Y_UNIT_TEST(NoLocalModeOptimization)
-    {
-        TConfigSaverGuard configGuard;
-        TConfig::Get()->EnableLocalModeOptimization = false;
-
-        TTestFixture fixture;
-        auto client = fixture.GetClient();
-        auto workingDir = fixture.GetWorkingDir();
-
-        auto inputTable = TRichYPath(workingDir + "/input");
-        auto outputTable = TRichYPath(workingDir + "/output");
-        {
-            auto writer = client->CreateTableWriter<TNode>(inputTable);
-            writer->AddRow(TNode()("IntField", 33));
-            writer->AddRow(TNode()("IntField", 34));
-            writer->Finish();
-        }
-
-        client->Map(
-            new TIdMapper,
-            Structured<TNode>(inputTable),
-            Structured<TNode>(outputTable));
-
-        TVector<TNode> expected = {
-            TNode()("IntField", 33),
-            TNode()("IntField", 34),
-        };
-        auto actual = ReadTable(client, outputTable.Path_);
-        UNIT_ASSERT_VALUES_EQUAL(expected, actual);
     }
 
 } // Y_UNIT_TEST_SUITE(Operations)
