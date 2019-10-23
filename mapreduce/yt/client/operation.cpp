@@ -1103,6 +1103,9 @@ void BuildCommonUserOperationPart(const TSpec& baseSpec, TNode* spec)
     if (baseSpec.WaitingJobTimeout_.Defined()) {
         (*spec)["waiting_job_timeout"] = baseSpec.WaitingJobTimeout_->MilliSeconds();
     }
+    if (baseSpec.Title_.Defined()) {
+        (*spec)["title"] = *baseSpec.Title_;
+    }
 }
 
 template <typename TSpec>
@@ -1273,7 +1276,7 @@ template <typename T>
 TOperationId DoExecuteMap(
     TOperationPreparer& preparer,
     const TSimpleOperationIo& operationIo,
-    const TMapOperationSpecBase<T>& spec,
+    TMapOperationSpecBase<T> spec,
     const IJob& mapper,
     const TOperationOptions& options)
 {
@@ -1314,7 +1317,8 @@ TOperationId DoExecuteMap(
     if (!TConfig::Get()->TableWriter.Empty()) {
         specNode["spec"]["job_io"]["table_writer"] = TConfig::Get()->TableWriter;
     }
-    specNode["spec"]["title"] = TNode(map.GetClassName());
+
+    spec.Title_ = spec.Title_.GetOrElse(map.GetClassName());
 
     BuildCommonUserOperationPart(spec, &specNode["spec"]);
     BuildJobCountOperationPart(spec, &specNode["spec"]);
@@ -1366,7 +1370,7 @@ template <typename T>
 TOperationId DoExecuteReduce(
     TOperationPreparer& preparer,
     const TSimpleOperationIo& operationIo,
-    const TReduceOperationSpecBase<T>& spec,
+    TReduceOperationSpecBase<T> spec,
     const IJob& reducer,
     const TOperationOptions& options)
 {
@@ -1414,9 +1418,10 @@ TOperationId DoExecuteReduce(
                 fluent.Item("table_writer").Value(TConfig::Get()->TableWriter);
             })
         .EndMap()
-        .Item("title").Value(reduce.GetClassName())
         .Do(std::bind(BuildCommonOperationPart<T>, spec, options, std::placeholders::_1))
     .EndMap().EndMap();
+
+    spec.Title_ = spec.Title_.GetOrElse(reduce.GetClassName());
 
     BuildCommonUserOperationPart(spec, &specNode["spec"]);
     BuildJobCountOperationPart(spec, &specNode["spec"]);
@@ -1468,7 +1473,7 @@ template <typename T>
 TOperationId DoExecuteJoinReduce(
     TOperationPreparer& preparer,
     const TSimpleOperationIo& operationIo,
-    const TJoinReduceOperationSpecBase<T>& spec,
+    TJoinReduceOperationSpecBase<T> spec,
     const IJob& reducer,
     const TOperationOptions& options)
 {
@@ -1509,9 +1514,10 @@ TOperationId DoExecuteJoinReduce(
                 fluent.Item("table_writer").Value(TConfig::Get()->TableWriter);
             })
         .EndMap()
-        .Item("title").Value(reduce.GetClassName())
         .Do(std::bind(BuildCommonOperationPart<T>, spec, options, std::placeholders::_1))
     .EndMap().EndMap();
+
+    spec.Title_ = spec.Title_.GetOrElse(reduce.GetClassName());
 
     BuildCommonUserOperationPart(spec, &specNode["spec"]);
     BuildJobCountOperationPart(spec, &specNode["spec"]);
@@ -1563,7 +1569,7 @@ template <typename T>
 TOperationId DoExecuteMapReduce(
     TOperationPreparer& preparer,
     const TMapReduceOperationIo& operationIo,
-    const TMapReduceOperationSpecBase<T>& spec,
+    TMapReduceOperationSpecBase<T> spec,
     const IJob* mapper,
     const IJob* reduceCombiner,
     const IJob& reducer,
@@ -1677,9 +1683,10 @@ TOperationId DoExecuteMapReduce(
                 fluent.Item("table_writer").Value(TConfig::Get()->TableWriter);
             })
         .EndMap()
-        .Item("title").Value(title + "reducer:" + reduce.GetClassName())
         .Do(std::bind(BuildCommonOperationPart<T>, spec, options, std::placeholders::_1))
     .EndMap().EndMap();
+
+    spec.Title_ = spec.Title_.GetOrElse(title + "reducer:" + reduce.GetClassName());
 
     if (spec.Ordered_) {
         specNode["spec"]["ordered"] = *spec.Ordered_;
