@@ -277,7 +277,7 @@ private:
 
     NScheduler::TJobResources ApplyMemoryReserve(const NScheduler::TExtendedJobResources& jobResources) const;
 
-    void UpdateMaximumUsedTmpfsSizes(const NJobTrackerClient::TStatistics& statistics);
+    void UpdateMaximumUsedTmpfsSizes(const TStatistics& statistics);
 
     void AbortJobViaScheduler(TJobId jobId, EAbortReason reason);
 };

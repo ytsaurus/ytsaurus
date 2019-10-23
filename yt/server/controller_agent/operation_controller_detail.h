@@ -32,13 +32,9 @@
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/public.h>
 
-#include <yt/client/object_client/helpers.h>
-
 #include <yt/ytlib/cypress_client/public.h>
 
 #include <yt/ytlib/file_client/file_ypath_proxy.h>
-
-#include <yt/ytlib/job_tracker_client/statistics.h>
 
 #include <yt/ytlib/node_tracker_client/helpers.h>
 #include <yt/ytlib/node_tracker_client/public.h>
@@ -54,6 +50,8 @@
 #include <yt/client/table_client/unversioned_row.h>
 #include <yt/client/table_client/value_consumer.h>
 
+#include <yt/client/object_client/helpers.h>
+
 #include <yt/core/actions/cancelable_context.h>
 
 #include <yt/core/concurrency/fair_share_invoker_pool.h>
@@ -68,6 +66,7 @@
 #include <yt/core/misc/optional.h>
 #include <yt/core/misc/ref_tracked.h>
 #include <yt/core/misc/safe_assert.h>
+#include <yt/core/misc/statistics.h>
 
 #include <yt/core/ytree/ypath_client.h>
 
@@ -966,7 +965,7 @@ private:
     TIdGenerator JobIndexGenerator;
 
     //! Aggregates job statistics.
-    NJobTrackerClient::TStatistics JobStatistics;
+    TStatistics JobStatistics;
 
     TSpinLock JobMetricsDeltaPerTreeLock_;
     //! Delta of job metrics that was not reported to scheduler.
@@ -1102,10 +1101,10 @@ private:
 
     void BuildAndSaveProgress();
 
-    void UpdateMemoryDigests(const TJobletPtr& joblet, const NJobTrackerClient::TStatistics& statistics, bool resourceOverdraft = false);
+    void UpdateMemoryDigests(const TJobletPtr& joblet, const TStatistics& statistics, bool resourceOverdraft = false);
 
     void InitializeHistograms();
-    void UpdateActualHistogram(const NJobTrackerClient::TStatistics& statistics);
+    void UpdateActualHistogram(const TStatistics& statistics);
 
     void InitializeSecurityTags();
 

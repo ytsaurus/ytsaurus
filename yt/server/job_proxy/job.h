@@ -14,7 +14,6 @@
 #include <yt/ytlib/job_proxy/job_spec_helper.h>
 
 #include <yt/ytlib/job_tracker_client/public.h>
-#include <yt/ytlib/job_tracker_client/statistics.h>
 
 #include <yt/ytlib/job_prober_client/job_probe.h>
 
@@ -25,6 +24,8 @@
 #include <yt/core/logging/log.h>
 
 #include <yt/core/rpc/public.h>
+
+#include <yt/core/misc/statistics.h>
 
 namespace NYT::NJobProxy {
 
@@ -96,7 +97,7 @@ struct IJob
 
     virtual std::optional<NJobAgent::TJobProfile> GetProfile() = 0;
 
-    virtual NJobTrackerClient::TStatistics GetStatistics() const = 0;
+    virtual TStatistics GetStatistics() const = 0;
 
     virtual const NCoreDump::TCoreInfos& GetCoreInfos() const = 0;
 

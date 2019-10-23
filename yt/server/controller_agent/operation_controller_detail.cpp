@@ -37,6 +37,8 @@
 
 #include <yt/ytlib/event_log/event_log.h>
 
+#include <yt/ytlib/job_tracker_client/statistics.h>
+
 #include <yt/ytlib/node_tracker_client/node_directory_builder.h>
 
 #include <yt/ytlib/query_client/column_evaluator.h>
@@ -54,8 +56,6 @@
 #include <yt/ytlib/table_client/data_slice_fetcher.h>
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/schema.h>
-
-#include <yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/ytlib/transaction_client/action.h>
@@ -76,6 +76,7 @@
 #include <yt/client/table_client/table_consumer.h>
 
 #include <yt/client/tablet_client/public.h>
+#include <yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/client/transaction_client/timestamp_provider.h>
 

@@ -29,13 +29,15 @@
 #include <yt/ytlib/chunk_client/input_data_slice.h>
 
 #include <yt/ytlib/job_tracker_client/helpers.h>
+#include <yt/ytlib/job_tracker_client/statistics.h>
 
 #include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/chunk_slice_fetcher.h>
-#include <yt/client/table_client/row_buffer.h>
 #include <yt/ytlib/table_client/samples_fetcher.h>
-#include <yt/client/table_client/unversioned_row.h>
 #include <yt/ytlib/table_client/schemaless_block_writer.h>
+
+#include <yt/client/table_client/row_buffer.h>
+#include <yt/client/table_client/unversioned_row.h>
 
 #include <yt/core/ytree/permission.h>
 
@@ -58,6 +60,7 @@ using namespace NCypressClient;
 using namespace NSecurityClient;
 using namespace NNodeTrackerClient;
 using namespace NChunkClient::NProto;
+using namespace NJobTrackerClient;
 using namespace NJobTrackerClient::NProto;
 using namespace NConcurrency;
 using namespace NChunkClient;
@@ -2168,7 +2171,7 @@ protected:
         return CreateSortedChunkPool(chunkPoolOptions, nullptr /* chunkSliceFetcher */, IntermediateInputStreamDirectory);
     }
 
-    void AccountRows(const std::optional<NJobTrackerClient::TStatistics>& statistics)
+    void AccountRows(const std::optional<TStatistics>& statistics)
     {
         YT_VERIFY(statistics);
         TotalOutputRowCount += GetTotalOutputDataStatistics(*statistics).row_count();
