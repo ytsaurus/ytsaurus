@@ -6,6 +6,7 @@
 #include <yt/core/skiff/skiff_schema.h>
 #include <yt/core/yson/pull_parser.h>
 #include <yt/core/yson/parser.h>
+#include <yt/core/yson/token_writer.h>
 
 #include <util/stream/zerocopy.h>
 
@@ -1081,23 +1082,24 @@ public:
         : Descriptor_(std::move(descriptor))
     {}
 
-    Y_FORCE_INLINE void operator () (NSkiff::TCheckedInDebugSkiffParser* parser, NYson::IYsonConsumer* consumer)
+    Y_FORCE_INLINE void operator () (TCheckedInDebugSkiffParser* parser, TCheckedInDebugYsonTokenWriter* writer)
     {
         if constexpr (wireType == EWireType::Int64) {
-            consumer->OnInt64Scalar(parser->ParseInt64());
+            writer->WriteBinaryInt64(parser->ParseInt64());
         } else if constexpr (wireType == EWireType::Uint64) {
-            consumer->OnUint64Scalar(parser->ParseUint64());
+            writer->WriteBinaryUint64(parser->ParseUint64());
         } else if constexpr (wireType == EWireType::Boolean) {
-            consumer->OnBooleanScalar(parser->ParseBoolean());
+            writer->WriteBinaryBoolean(parser->ParseBoolean());
         } else if constexpr (wireType == EWireType::Double) {
-            consumer->OnDoubleScalar(parser->ParseDouble());
+            writer->WriteBinaryDouble(parser->ParseDouble());
         } else if constexpr (wireType == EWireType::String32) {
-            consumer->OnStringScalar(parser->ParseString32());
+            writer->WriteBinaryString(parser->ParseString32());
         } else if constexpr (wireType == EWireType::Yson32) {
-            auto yson = parser->ParseYson32();
-            ParseYsonStringBuffer(yson, EYsonType::Node, consumer);
+            TMemoryInput inputStream(parser->ParseYson32());
+            TYsonPullParser pullParser(&inputStream, EYsonType::Node);
+            TYsonPullParserCursor(&pullParser).TransferComplexValue(writer);
         } else if constexpr (wireType == EWireType::Nothing) {
-            consumer->OnEntity();
+            writer->WriteEntity();
         } else {
             static_assert(wireType == EWireType::Int64);
         }
@@ -1160,20 +1162,20 @@ public:
         YT_VERIFY(ysonNesting <= skiffNesting + 1);
     }
 
-    void operator () (TCheckedInDebugSkiffParser* parser, IYsonConsumer* consumer)
+    void operator () (TCheckedInDebugSkiffParser* parser, TCheckedInDebugYsonTokenWriter* writer)
     {
         for (int i = 0; i < OuterFill_; ++i) {
-            consumer->OnBeginList();
+            writer->WriteBeginList();
         }
 
         int outerOptionalsFilled = 0;
         for (; outerOptionalsFilled < OuterTranslate_; ++outerOptionalsFilled) {
             auto tag = parser->ParseVariant8Tag();
             if (tag == 0) {
-                consumer->OnEntity();
+                writer->WriteEntity();
                 goto write_list_ends;
             } else if (tag == 1) {
-                consumer->OnBeginList();
+                writer->WriteBeginList();
             } else {
                 ThrowUnexpectedVariant8Tag(tag);
             }
@@ -1182,18 +1184,18 @@ public:
         if (InnerTranslate_) {
             auto tag = parser->ParseVariant8Tag();
             if (tag == 0) {
-                consumer->OnEntity();
+                writer->WriteEntity();
                 goto write_list_ends;
             } else if (tag != 1) {
                 ThrowUnexpectedVariant8Tag(tag);
             }
         }
-        InnerConverter_(parser, consumer);
+        InnerConverter_(parser, writer);
 
 write_list_ends:
         const int toClose = outerOptionalsFilled + OuterFill_;
         for (int i = 0; i < toClose; ++i) {
-            consumer->OnEndList();
+            writer->WriteEndList();
         }
     }
 
@@ -1238,30 +1240,30 @@ public:
         YT_VERIFY(ysonNesting <= skiffNesting + 1);
     }
 
-    void operator () (TCheckedInDebugSkiffParser* parser, IYsonConsumer* consumer)
+    void operator () (TCheckedInDebugSkiffParser* parser, TCheckedInDebugYsonTokenWriter* writer)
     {
         for (int i = 0; i < OuterFill_; ++i) {
-            consumer->OnBeginList();
+            writer->WriteBeginList();
         }
 
         int outerOptionalsFilled = 0;
         for (; outerOptionalsFilled < OuterTranslate_; ++outerOptionalsFilled) {
             auto tag = parser->ParseVariant8Tag();
             if (tag == 0) {
-                consumer->OnEntity();
+                writer->WriteEntity();
                 goto write_list_ends;
             } else if (tag == 1) {
-                consumer->OnBeginList();
+                writer->WriteBeginList();
             } else {
                 ThrowUnexpectedVariant8Tag(tag);
             }
         }
-        consumer->OnEntity();
+        writer->WriteEntity();
 
 write_list_ends:
         const int toClose = outerOptionalsFilled + OuterFill_;
         for (int i = 0; i < toClose; ++i) {
-            consumer->OnEndList();
+            writer->WriteEndList();
         }
     }
 
@@ -1323,8 +1325,8 @@ TSkiffToYsonConverter CreateListSkiffToYsonConverter(
     auto match = MatchListTypes(descriptor, skiffSchema);
     auto innerConverter = CreateSkiffToYsonConverterImpl(std::move(match.first), match.second, context, config);
 
-    return [innerConverter = innerConverter, descriptor=std::move(descriptor)](TCheckedInDebugSkiffParser* parser, IYsonConsumer* consumer) {
-        consumer->OnBeginList();
+    return [innerConverter = innerConverter, descriptor=std::move(descriptor)](TCheckedInDebugSkiffParser* parser, TCheckedInDebugYsonTokenWriter* writer) {
+        writer->WriteBeginList();
         while (true) {
             auto tag = parser->ParseVariant8Tag();
             if (tag == EndOfSequenceTag<ui8>()) {
@@ -1336,10 +1338,10 @@ TSkiffToYsonConverter CreateListSkiffToYsonConverter(
                     EndOfSequenceTag<ui8>(),
                     tag);
             }
-            consumer->OnListItem();
-            innerConverter(parser, consumer);
+            innerConverter(parser, writer);
+            writer->WriteItemSeparator();
         }
-        consumer->OnEndList();
+        writer->WriteEndList();
     };
 }
 
@@ -1349,8 +1351,8 @@ TSkiffToYsonConverter CreateStructSkiffToYsonConverter(
     const TConverterCreationContext& context,
     const TSkiffToYsonConverterConfig& config)
 {
-    const auto insertEntity = [](TCheckedInDebugSkiffParser* /*parser*/, IYsonConsumer* consumer) {
-        consumer->OnEntity();
+    const auto insertEntity = [](TCheckedInDebugSkiffParser* /*parser*/, TCheckedInDebugYsonTokenWriter* writer) {
+        writer->WriteEntity();
     };
 
     auto structMatch = MatchStructTypes(descriptor, skiffSchema);
@@ -1370,12 +1372,13 @@ TSkiffToYsonConverter CreateStructSkiffToYsonConverter(
         }
     }
 
-    return [converterList = converterList](TCheckedInDebugSkiffParser* parser, IYsonConsumer* consumer) {
-        consumer->OnBeginList();
+    return [converterList = converterList](TCheckedInDebugSkiffParser* parser, TCheckedInDebugYsonTokenWriter* writer) {
+        writer->WriteBeginList();
         for (const auto& converter : converterList) {
-            converter(parser, consumer);
+            converter(parser, writer);
+            writer->WriteItemSeparator();
         }
-        consumer->OnEndList();
+        writer->WriteEndList();
     };
 }
 
@@ -1390,12 +1393,13 @@ TSkiffToYsonConverter CreateTupleSkiffToYsonConverter(
     for (const auto& [fieldDescriptor, fieldSkiffSchema] : tupleMatch) {
         converterList.emplace_back(CreateSkiffToYsonConverterImpl(fieldDescriptor, fieldSkiffSchema, context, config));
     }
-    return [converterList = converterList](TCheckedInDebugSkiffParser* parser, IYsonConsumer* consumer) {
-        consumer->OnBeginList();
+    return [converterList = converterList](TCheckedInDebugSkiffParser* parser, TCheckedInDebugYsonTokenWriter* writer) {
+        writer->WriteBeginList();
         for (const auto& converter : converterList) {
-            converter(parser, consumer);
+            converter(parser, writer);
+            writer->WriteItemSeparator();
         }
-        consumer->OnEndList();
+        writer->WriteEndList();
     };
 }
 
@@ -1408,7 +1412,7 @@ public:
         , Descriptor_(std::move(descriptor))
     { }
 
-    void operator () (TCheckedInDebugSkiffParser* parser, IYsonConsumer* consumer)
+    void operator () (TCheckedInDebugSkiffParser* parser, TCheckedInDebugYsonTokenWriter* writer)
     {
         int tag;
         if constexpr (wireType == EWireType::Variant8) {
@@ -1424,12 +1428,12 @@ public:
                 wireType,
                 ConverterList_.size());
         }
-        consumer->OnBeginList();
-        consumer->OnListItem();
-        consumer->OnInt64Scalar(tag);
-        consumer->OnListItem();
-        ConverterList_[tag](parser, consumer);
-        consumer->OnEndList();
+        writer->WriteBeginList();
+        writer->WriteBinaryInt64(tag);
+        writer->WriteItemSeparator();
+        ConverterList_[tag](parser, writer);
+        writer->WriteItemSeparator();
+        writer->WriteEndList();
     }
 
 private:
@@ -1478,8 +1482,8 @@ TSkiffToYsonConverter CreateDictSkiffToYsonConverter(
         keyConverter = std::move(keyConverter),
         valueConverter = std::move(valueConverter),
         descriptor=std::move(descriptor)
-    ] (TCheckedInDebugSkiffParser* parser, IYsonConsumer* consumer) {
-        consumer->OnBeginList();
+    ] (TCheckedInDebugSkiffParser* parser, TCheckedInDebugYsonTokenWriter* writer) {
+        writer->WriteBeginList();
         while (true) {
             auto tag = parser->ParseVariant8Tag();
             if (tag == EndOfSequenceTag<ui8>()) {
@@ -1491,18 +1495,17 @@ TSkiffToYsonConverter CreateDictSkiffToYsonConverter(
                     EndOfSequenceTag<ui8>(),
                     tag);
             }
-            consumer->OnListItem();
-            consumer->OnBeginList();
+            writer->WriteBeginList();
             {
-                consumer->OnListItem();
-                keyConverter(parser, consumer);
-
-                consumer->OnListItem();
-                valueConverter(parser, consumer);
+                keyConverter(parser, writer);
+                writer->WriteItemSeparator();
+                valueConverter(parser, writer);
+                writer->WriteItemSeparator();
             }
-            consumer->OnEndList();
+            writer->WriteEndList();
+            writer->WriteItemSeparator();
         }
-        consumer->OnEndList();
+        writer->WriteEndList();
     };
 }
 

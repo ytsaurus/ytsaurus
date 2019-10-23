@@ -15,6 +15,7 @@
 #include <yt/core/concurrency/coroutine.h>
 
 #include <yt/core/yson/parser.h>
+#include <yt/core/yson/token_writer.h>
 
 #include <util/generic/strbuf.h>
 #include <util/stream/zerocopy.h>
@@ -136,9 +137,9 @@ public:
         Buffer_.Clear();
         {
             TBufferOutput out(Buffer_);
-            NYson::TBufferedBinaryYsonWriter ysonWriter(&out);
-            Converter_(parser, &ysonWriter);
-            ysonWriter.Flush();
+            NYson::TCheckedInDebugYsonTokenWriter ysonTokenWriter(&out);
+            Converter_(parser, &ysonTokenWriter);
+            ysonTokenWriter.Finish();
         }
         auto value = TStringBuf(Buffer_.Data(), Buffer_.Size());
         const auto entity = AsStringBuf("#");
