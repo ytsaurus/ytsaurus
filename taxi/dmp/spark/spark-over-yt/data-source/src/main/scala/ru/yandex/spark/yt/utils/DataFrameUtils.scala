@@ -68,9 +68,9 @@ object DataFrameUtils {
                      outputSchema: StructType): DataFrame = {
       import df.sparkSession.implicits._
 
-      df.
-        groupByKey(_.getAs[String](groupBy)).
-        mapGroups { case (id, rows) =>
+      df
+        .groupByKey(_.getAs[String](groupBy))
+        .mapGroups { case (id, rows) =>
           val collected = rows.toList
 
           Row.fromSeq(

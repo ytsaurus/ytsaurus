@@ -70,6 +70,7 @@ worker_main_class = "ru.yandex.spark.launcher.WorkerLauncher"
 file_paths = ["{0}/{1}.tgz".format(spark_base_path, spark_name),
               "{0}/{1}".format(spark_base_path, spark_launcher_jar)]
 
+# layer_paths = ["//home/sashbel/delta/jdk/layer_with_jdk-2019-10-22-18.13.06.tar.gz",
 layer_paths = ["//porto_layers/delta/jdk/layer_with_jdk_lastest.tar.gz",
                "//porto_layers/base/xenial/porto_layer_search_ubuntu_xenial_app_lastest.tar.gz"]
 
@@ -81,6 +82,7 @@ worker_command = "{0} && {1} {2} --id {3} --cores {4} --memory {5} " \
     .format(unpack_tar, run_launcher, worker_main_class, id, worker_cores, worker_memory, worker_ops, start_port)
 
 environment = {
+    # "JAVA_HOME": "/opt/jdk8",
     "JAVA_HOME": "/opt/jdk11",
     "SPARK_HOME": spark_name,
     "YT_PROXY": proxy,
