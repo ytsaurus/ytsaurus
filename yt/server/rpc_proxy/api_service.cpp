@@ -919,6 +919,9 @@ private:
         if (request->has_ignore_existing()) {
             options.IgnoreExisting = request->ignore_existing();
         }
+        if (request->has_lock_existing()) {
+            options.LockExisting = request->lock_existing();
+        }
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }
@@ -1101,6 +1104,9 @@ private:
         if (request->has_ignore_existing()) {
             options.IgnoreExisting = request->ignore_existing();
         }
+        if (request->has_lock_existing()) {
+            options.LockExisting = request->lock_existing();
+        }
         if (request->has_force()) {
             options.Force = request->force();
         }
@@ -1229,6 +1235,9 @@ private:
         }
         if (request->has_ignore_existing()) {
             options.IgnoreExisting = request->ignore_existing();
+        }
+        if (request->has_lock_existing()) {
+            options.LockExisting = request->lock_existing();
         }
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());

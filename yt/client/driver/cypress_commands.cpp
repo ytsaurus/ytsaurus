@@ -156,6 +156,8 @@ TCreateNodeCommand::TCreateNodeCommand()
         .Optional();
     RegisterParameter("ignore_existing", Options.IgnoreExisting)
         .Optional();
+    RegisterParameter("lock_existing", Options.LockExisting)
+        .Optional();
     RegisterParameter("force", Options.Force)
         .Optional();
 }
@@ -283,6 +285,8 @@ TCopyCommand::TCopyCommand()
         .Optional();
     RegisterParameter("ignore_existing", Options.IgnoreExisting)
         .Optional();
+    RegisterParameter("lock_existing", Options.LockExisting)
+        .Optional();
     RegisterParameter("force", Options.Force)
         .Optional();
     RegisterParameter("preserve_account", Options.PreserveAccount)
@@ -378,6 +382,8 @@ TLinkCommand::TLinkCommand()
     RegisterParameter("recursive", Options.Recursive)
         .Optional();
     RegisterParameter("ignore_existing", Options.IgnoreExisting)
+        .Optional();
+    RegisterParameter("lock_existing", Options.LockExisting)
         .Optional();
     RegisterParameter("force", Options.Force)
         .Optional();

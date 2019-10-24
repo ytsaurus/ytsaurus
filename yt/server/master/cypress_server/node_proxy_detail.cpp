@@ -1376,6 +1376,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     DeclareMutating();
     auto type = EObjectType(request->type());
     auto ignoreExisting = request->ignore_existing();
+    auto lockExisting = request->lock_existing();
     auto recursive = request->recursive();
     auto force = request->force();
     const auto& path = GetRequestTargetYPath(context->RequestHeader());
@@ -1387,14 +1388,19 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         Transaction_,
         {{"type", FormatEnum(type)}});
 
-    context->SetRequestInfo("Type: %v, IgnoreExisting: %v, Recursive: %v, Force: %v",
+    context->SetRequestInfo("Type: %v, IgnoreExisting: %v, LockExisting: %v, Recursive: %v, Force: %v",
         type,
         ignoreExisting,
+        lockExisting,
         recursive,
         force);
 
     if (ignoreExisting && force) {
         THROW_ERROR_EXCEPTION("Cannot specify both \"ignore_existing\" and \"force\" options simultaneously");
+    }
+
+    if (!ignoreExisting && lockExisting) {
+        THROW_ERROR_EXCEPTION("Cannot specify \"lock_existing\" without \"ignore_existing\"");
     }
 
     bool replace = path.empty();
@@ -1412,6 +1418,11 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
                 impl->GetType(),
                 type);
         }
+
+        if (lockExisting) {
+            LockThisImpl();
+        }
+
         ToProto(response->mutable_node_id(), impl->GetId());
         response->set_cell_tag(impl->GetExternalCellTag() == NotReplicatedCellTag
             ? Bootstrap_->GetMulticellManager()->GetCellTag()
@@ -1518,8 +1529,13 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     const auto& sourcePath = ypathExt.additional_paths_size() == 1
         ? ypathExt.additional_paths(0)
         : request->source_path();
-    bool ignoreExisting = request->ignore_existing();
+    auto ignoreExisting = request->ignore_existing();
+    auto lockExisting = request->lock_existing();
     auto mode = CheckedEnumCast<ENodeCloneMode>(request->mode());
+
+    if (!ignoreExisting && lockExisting) {
+        THROW_ERROR_EXCEPTION("Cannot specify \"lock_existing\" without \"ignore_existing\"");
+    }
 
     if (ignoreExisting && mode == ENodeCloneMode::Move) {
         THROW_ERROR_EXCEPTION("Cannot specify \"ignore_existing\" for move operation");
@@ -1687,6 +1703,7 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
     bool preserveAcl = request->preserve_acl();
     auto recursive = request->recursive();
     auto ignoreExisting = request->ignore_existing();
+    auto lockExisting = request->lock_existing();
     auto force = request->force();
     auto pessimisticQuotaCheck = request->pessimistic_quota_check();
 
@@ -1699,7 +1716,8 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
 
     context->SetRequestInfo("TransactionId: %v "
         "PreserveAccount: %v, PreserveCreationTime: %v, PreserveModificationTime: %v, PreserveExpirationTime: %v, "
-        "PreserveOwner: %v, PreserveAcl: %v, Recursive: %v, IgnoreExisting: %v, Force: %v, PessimisticQuotaCheck: %v",
+        "PreserveOwner: %v, PreserveAcl: %v, Recursive: %v, IgnoreExisting: %v,  LockExisting: %v, "
+        "Force: %v, PessimisticQuotaCheck: %v",
         NObjectServer::GetObjectId(Transaction_),
         preserveAccount,
         preserveCreationTime,
@@ -1709,6 +1727,7 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
         preserveAcl,
         recursive,
         ignoreExisting,
+        lockExisting,
         force,
         pessimisticQuotaCheck);
 
@@ -1717,6 +1736,11 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
         if (!ignoreExisting) {
             ThrowAlreadyExists(this);
         }
+
+        if (lockExisting) {
+            LockThisImpl();
+        }
+
         ToProto(response->mutable_node_id(), TrunkNode_->GetId());
         context->SetResponseInfo("ExistingNodeId: %v",
             TrunkNode_->GetId());
