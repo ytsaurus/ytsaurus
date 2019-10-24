@@ -43,7 +43,8 @@ std::vector<TSubquery> BuildSubqueries(
     EPoolKind poolKind,
     int jobCount,
     std::optional<double> samplingRate,
-    const DB::Context& context);
+    const DB::Context& context,
+    const TSubqueryConfigPtr& config);
 
 ////////////////////////////////////////////////////////////////////////////////
 
