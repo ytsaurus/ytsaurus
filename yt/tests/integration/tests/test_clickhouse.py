@@ -587,7 +587,12 @@ class TestClickHouseCommon(ClickHouseTestBase):
         value1 = 1
         value2 = [1, 2]
         value3 = {"key": "value"}
-        write_table("//tmp/table", [{"i": value1, "fmt": "binary"}, {"i": value2, "fmt": "pretty"}, {"i": value3, "fmt": "text"}])
+        write_table("//tmp/table", [
+            {"i": value1, "fmt": "binary"},
+            {"i": value2, "fmt": "pretty"},
+            {"i": value3, "fmt": "text"},
+            {"i": None, "fmt": "text"}
+        ])
         with Clique(1) as clique:
             value = {"key": [1, 2]}
             func = "ConvertYson('" + yson.dumps(value, yson_format='text') + "', 'pretty')"
@@ -598,12 +603,16 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert clique.make_query("select " + func + " from \"//tmp/table\"") == [
                 {func: yson.dumps(value1, yson_format='text')},
                 {func: yson.dumps(value2, yson_format='text')},
-                {func: yson.dumps(value3, yson_format='text')}]
+                {func: yson.dumps(value3, yson_format='text')},
+                {func: None}]
             func = "ConvertYson(i, fmt)"
             assert clique.make_query("select " + func + " from \"//tmp/table\"") == [
                 {func: yson.dumps(value1, yson_format='binary')},
                 {func: yson.dumps(value2, yson_format='pretty')},
-                {func: yson.dumps(value3, yson_format='text')}]
+                {func: yson.dumps(value3, yson_format='text')},
+                {func: None}]
+            with pytest.raises(YtError):
+                clique.make_query("select ConvertYson('{key=[1;2]}', NULL)")
             with pytest.raises(YtError):
                 clique.make_query("select ConvertYson('{key=[1;2]}', 'xxx')")
             with pytest.raises(YtError):
@@ -958,7 +967,10 @@ class TestCompositeTypes(ClickHouseTestBase):
     def setup(self):
         self._setup()
 
-        create("table", "//tmp/t", attributes={"schema": [{"name": "i", "type": "int64"}, {"name": "v", "type": "any"}]})
+        create("table", "//tmp/t", attributes={"schema": [
+            {"name": "i", "type": "int64"},
+            {"name": "v", "type": "any"},
+            {"name": "key", "type": "string"}]})
         write_table("//tmp/t", [
             {
                 "i": 0,
@@ -976,12 +988,14 @@ class TestCompositeTypes(ClickHouseTestBase):
                     "arr_dbl": [-1.1, 2.71],
                     "arr_bool": [False, True, False],
                 },
+                "key": "/arr_i64/0"
             },
             {
                 "i": 1,
                 "v": {
                     "i64": "xyz",  # Wrong type.
                 },
+                "key": "/i64"
             },
             {
                 "i": 2,
@@ -998,7 +1012,13 @@ class TestCompositeTypes(ClickHouseTestBase):
                 "v": {
                     "i64": 57,
                 },
-            }
+                "key": None,
+            },
+            {
+                "i": 5,
+                "v": None,
+                "key": "/unknown"
+            },
         ])
 
     @authors("max42")
@@ -1025,7 +1045,7 @@ class TestCompositeTypes(ClickHouseTestBase):
             result = clique.make_query("select YPathUInt64Strict(v, '/subnode/i64') from \"//tmp/t\" where i = 0")
             assert result[0].popitem()[1] == 123
 
-    @authors("max42")
+    @authors("max42", "dakovalkov")
     def test_read_int64_non_strict(self):
         with Clique(1) as clique:
             query = "select YPathInt64(v, '/i64') from \"//tmp/t\""
@@ -1035,6 +1055,8 @@ class TestCompositeTypes(ClickHouseTestBase):
                     assert item.popitem()[1] == -42
                 elif i == 4:
                     assert item.popitem()[1] == 57
+                elif i == 5:
+                    assert item.popitem()[1] == None
                 else:
                     assert item.popitem()[1] == 0
 
@@ -1086,12 +1108,21 @@ class TestCompositeTypes(ClickHouseTestBase):
             result = clique.make_query("select YPathString('{a=[1;2;{b=xyz}]}', '/a/2/b') as str")
         assert result == [{"str": "xyz"}]
 
-    @authors("max42")
+    @authors("max42", "dakovalkov")
     def test_nulls(self):
         with Clique(1) as clique:
             result = clique.make_query("select YPathString(NULL, NULL) as a, YPathString(NULL, '/x') as b, "
                                        "YPathString('{a=1}', NULL) as c")
-        assert result == [{"a": None, "b": None, "c": None}]
+            assert result == [{"a": None, "b": None, "c": None}]
+
+            result = clique.make_query("select YPathInt64(v, key) from \"//tmp/t\"")
+            for i, item in enumerate(result):
+                if i == 0:
+                    assert item.popitem()[1] == -1
+                elif i == 1:
+                    assert item.popitem()[1] == 0
+                else:
+                    assert item.popitem()[1] == None
 
     # CHYT-157.
     @authors("max42")
