@@ -1,0 +1,10 @@
+syntax = "proto2";
+
+package NYsonGen.NExamples;
+
+option go_package = "a.yandex-team.ru/yp/go/yson/internal/proto-yson-gen/tests";
+
+enum ProtoEnum {
+  PE_FOO = 1;
+  PE_BAR = 2;
+}

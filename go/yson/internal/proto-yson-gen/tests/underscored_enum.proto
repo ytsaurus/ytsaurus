@@ -1,0 +1,14 @@
+syntax = "proto2";
+
+package NYsonGen.NExamples;
+
+option go_package = "a.yandex-team.ru/yp/go/yson/internal/proto-yson-gen/tests";
+
+import "yt/core/yson/proto/protobuf_interop.proto";
+
+option (NYT.NYson.NProto.derive_underscore_case_names) = true;
+
+enum UnderscoredEnum {
+  UE_FOO = 1;
+  UE_BAR = 2;
+}

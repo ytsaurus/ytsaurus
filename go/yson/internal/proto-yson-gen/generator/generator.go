@@ -1378,7 +1378,7 @@ func (g *Generator) generateEnum(enum *EnumDescriptor) {
 				duplicate = "// Duplicate:"
 			}
 			g.P(duplicate, "case", " ", e.Number, ": ")
-			g.P(duplicate, "return ", strconv.Quote(enumValue(e)))
+			g.P(duplicate, "return ", strconv.Quote(g.enumValue(e)))
 			generated[*e.Number] = true
 		}
 		g.P("default:")
@@ -1416,7 +1416,7 @@ func (g *Generator) generateEnum(enum *EnumDescriptor) {
 			if _, present := generated[*e.Name]; present {
 				duplicate = "// Duplicate:"
 			}
-			g.P(duplicate, "case ", strconv.Quote(enumValue(e)), ": ")
+			g.P(duplicate, "case ", strconv.Quote(g.enumValue(e)), ": ")
 			g.P(duplicate, "*x = ", e.Number)
 			generated[*e.Name] = true
 		}
@@ -1443,7 +1443,7 @@ func (g *Generator) generateEnum(enum *EnumDescriptor) {
 			if _, present := generated[*e.Name]; present {
 				duplicate = "// Duplicate:"
 			}
-			g.P(duplicate, "case ", strconv.Quote(enumValue(e)), ": ")
+			g.P(duplicate, "case ", strconv.Quote(g.enumValue(e)), ": ")
 			g.P(duplicate, "*x = ", e.Number)
 			generated[*e.Name] = true
 		}
@@ -2407,6 +2407,28 @@ func (g *Generator) isValidatableField(field *descriptor.FieldDescriptorProto) b
 	return field.GetType() == descriptor.FieldDescriptorProto_TYPE_MESSAGE
 }
 
+// Returns enum value with YSON extension respects
+func (g *Generator) enumValue(field *descriptor.EnumValueDescriptorProto) string {
+	// First of all - let's check enum_value_name option
+	// Reference: https://a.yandex-team.ru/arc/trunk/arcadia/yt/19_4/yt/core/yson/protobuf_interop.cpp?rev=5763748#L188-192
+	if ext, err := proto.GetExtension(field.Options, yson.E_EnumValueName); err == nil {
+		if v, ok := ext.(*string); ok {
+			return *v
+		}
+	}
+
+	// Then derive_underscore_case_names
+	// Reference: https://a.yandex-team.ru/arc/trunk/arcadia/yt/19_4/yt/core/yson/protobuf_interop.cpp?rev=5763748#L121-128
+	if ext, err := proto.GetExtension(g.file.Options, yson.E_DeriveUnderscoreCaseNames); err == nil {
+		if v, ok := ext.(*bool); ok && *v {
+			return SnakeCase(field.GetName())
+		}
+	}
+
+	// In other cases - use proto enum value name
+	return field.GetName()
+}
+
 var escapeChars = [256]byte{
 	'a': '\a', 'b': '\b', 'f': '\f', 'n': '\n', 'r': '\r', 't': '\t', 'v': '\v', '\\': '\\', '"': '"', '\'': '\'', '?': '?',
 }
@@ -2475,9 +2497,37 @@ func isASCIILower(c byte) bool {
 	return 'a' <= c && c <= 'z'
 }
 
+// Is c an ASCII upper-case letter?
+func isASCIIUpper(c byte) bool {
+	return 'A' <= c && c <= 'Z'
+}
+
 // Is c an ASCII digit?
 func isASCIIDigit(c byte) bool {
 	return '0' <= c && c <= '9'
+}
+
+// SnakeCase returns the snake cased name.
+// Implementation reference: https://a.yandex-team.ru/arc/trunk/arcadia/yt/19_4/yt/core/yson/protobuf_interop.cpp?rev=5763748#L105-119
+// In short, MFieldName_2 becomes m_field_name_2.
+func SnakeCase(s string) string {
+	if s == "" {
+		return ""
+	}
+	t := make([]byte, 0, 32)
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if isASCIIUpper(c) {
+			if len(t) > 0 && t[len(t)-1] != '_' {
+				t = append(t, '_')
+			}
+
+			t = append(t, c+'a'-'A')
+		} else {
+			t = append(t, c)
+		}
+	}
+	return string(t)
 }
 
 // CamelCase returns the CamelCased name.
@@ -2512,6 +2562,7 @@ func CamelCase(s string) string {
 			t = append(t, c)
 			continue
 		}
+
 		// Assume we have a letter now - if not, it's a bogus identifier.
 		// The next word is a sequence of characters that must start upper case.
 		if isASCIILower(c) {
@@ -2542,17 +2593,6 @@ func isRequired(field *descriptor.FieldDescriptorProto) bool {
 // Is this field repeated?
 func isRepeated(field *descriptor.FieldDescriptorProto) bool {
 	return field.Label != nil && *field.Label == descriptor.FieldDescriptorProto_LABEL_REPEATED
-}
-
-// Returns enum value with YSON extension respects
-func enumValue(field *descriptor.EnumValueDescriptorProto) string {
-	if ext, err := proto.GetExtension(field.Options, yson.E_EnumValueName); err == nil {
-		if v, ok := ext.(*string); ok {
-			return *v
-		}
-	}
-
-	return field.GetName()
 }
 
 func isYsonMap(field *descriptor.FieldDescriptorProto) bool {

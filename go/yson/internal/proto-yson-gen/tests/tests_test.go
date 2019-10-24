@@ -48,6 +48,44 @@ func TestEnum(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, expectedObj, jsonObj)
 	})
+
+	t.Run("proto_enum_values", func(t *testing.T) {
+		require.Equal(t, "PE_FOO", tests.ProtoEnum_PE_FOO.String())
+		require.Equal(t, "PE_BAR", tests.ProtoEnum_PE_BAR.String())
+
+		var (
+			jsonObj     tests.ProtoEnum
+			ysonObj     tests.ProtoEnum
+			expectedObj = tests.ProtoEnum_PE_BAR
+		)
+
+		err := yson.Unmarshal([]byte(`PE_BAR`), &ysonObj)
+		require.NoError(t, err)
+		require.Equal(t, expectedObj, ysonObj)
+
+		err = json.Unmarshal([]byte(`"PE_BAR"`), &jsonObj)
+		require.NoError(t, err)
+		require.Equal(t, expectedObj, jsonObj)
+	})
+
+	t.Run("yson_underscored_enum_values", func(t *testing.T) {
+		require.Equal(t, "u_e_f_o_o", tests.UnderscoredEnum_UE_FOO.String())
+		require.Equal(t, "u_e_b_a_r", tests.UnderscoredEnum_UE_BAR.String())
+
+		var (
+			jsonObj     tests.UnderscoredEnum
+			ysonObj     tests.UnderscoredEnum
+			expectedObj = tests.UnderscoredEnum_UE_BAR
+		)
+
+		err := yson.Unmarshal([]byte(`u_e_b_a_r`), &ysonObj)
+		require.NoError(t, err)
+		require.Equal(t, expectedObj, ysonObj)
+
+		err = json.Unmarshal([]byte(`"u_e_b_a_r"`), &jsonObj)
+		require.NoError(t, err)
+		require.Equal(t, expectedObj, jsonObj)
+	})
 }
 
 func TestSimple(t *testing.T) {
