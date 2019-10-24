@@ -144,7 +144,7 @@ protected:
     {
     public:
         explicit TPermissionValidator(TIntrusivePtr<TObjectProxyBase> proxy)
-            : Proxy_(std::move(proxy))
+            : Proxy_(proxy)
         { }
 
         virtual void ValidatePermission(
@@ -152,18 +152,22 @@ protected:
             NYTree::EPermission permission,
             const TString& user = {}) override
         {
-            Proxy_->ValidatePermission(scope, permission, user);
+            if (auto proxy = Proxy_.Lock()) {
+                proxy->ValidatePermission(scope, permission, user);
+            }
         }
 
         virtual void ValidatePermission(
             TObject* object,
             NYTree::EPermission permission) override
         {
-            Proxy_->ValidatePermission(object, permission);
+            if (auto proxy = Proxy_.Lock()) {
+                proxy->ValidatePermission(object, permission);
+            }
         }
 
     private:
-        TIntrusivePtr<TObjectProxyBase> Proxy_;
+        TWeakPtr<TObjectProxyBase> Proxy_;
     };
 
     std::unique_ptr<IPermissionValidator> CreatePermissionValidator();
