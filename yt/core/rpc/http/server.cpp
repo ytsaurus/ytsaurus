@@ -42,7 +42,7 @@ TString ToHttpContentType(EMessageFormat format)
         case EMessageFormat::Protobuf:
             return "application/x-protobuf";
         case EMessageFormat::Json:
-            return "application/json";
+            return "application/json;charset=utf8";
         case EMessageFormat::Yson:
             return "application/x-yson";
         default:
@@ -54,7 +54,7 @@ std::optional<EMessageFormat> FromHttpContentType(TStringBuf contentType)
 {
     if (contentType == "application/x-protobuf") {
         return EMessageFormat::Protobuf;
-    } else if (contentType == "application/json") {
+    } else if (contentType.StartsWith("application/json")) {
         return EMessageFormat::Json;
     } else if (contentType == "application/x-yson") {
         return EMessageFormat::Yson;
