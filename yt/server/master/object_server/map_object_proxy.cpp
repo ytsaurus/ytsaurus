@@ -21,6 +21,9 @@
 
 namespace NYT::NObjectServer {
 
+using namespace NCypressClient;
+using namespace NYTree;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TObject>
@@ -29,22 +32,23 @@ TNonversionedMapObjectProxyBase<TObject>::TNonversionedMapObjectProxyBase(
     TObjectTypeMetadata* metadata,
     TObject* object)
     : TBase(bootstrap, metadata, object)
+    , THierarchicPermissionValidator<TObject>(TBase::CreatePermissionValidator())
 { }
 
 template <class TObject>
-TIntrusivePtr<const NYTree::ICompositeNode> TNonversionedMapObjectProxyBase<TObject>::AsComposite() const
+TIntrusivePtr<const ICompositeNode> TNonversionedMapObjectProxyBase<TObject>::AsComposite() const
 {
     return this;
 }
 
 template <class TObject>
-TIntrusivePtr<NYTree::ICompositeNode> TNonversionedMapObjectProxyBase<TObject>::AsComposite()
+TIntrusivePtr<ICompositeNode> TNonversionedMapObjectProxyBase<TObject>::AsComposite()
 {
     return this;
 }
 
 template <class TObject>
-NYTree::TYPath TNonversionedMapObjectProxyBase<TObject>::GetPath() const
+TYPath TNonversionedMapObjectProxyBase<TObject>::GetPath() const
 {
     SmallVector<TString, 32> tokens;
 
@@ -69,7 +73,7 @@ NYTree::TYPath TNonversionedMapObjectProxyBase<TObject>::GetPath() const
 }
 
 template <class TObject>
-NYTree::ICompositeNodePtr TNonversionedMapObjectProxyBase<TObject>::GetParent() const
+ICompositeNodePtr TNonversionedMapObjectProxyBase<TObject>::GetParent() const
 {
     return DoGetParent();
 }
@@ -82,7 +86,7 @@ TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>> TNonversionedMapObjectPr
 }
 
 template <class TObject>
-void TNonversionedMapObjectProxyBase<TObject>::SetParent(const NYTree::ICompositeNodePtr& parent)
+void TNonversionedMapObjectProxyBase<TObject>::SetParent(const ICompositeNodePtr& parent)
 {
     Y_UNREACHABLE();
 }
@@ -101,8 +105,8 @@ bool TNonversionedMapObjectProxyBase<TObject>::DoInvoke(const NRpc::IServiceCont
 }
 
 template <class TObject>
-NYTree::IYPathService::TResolveResult TNonversionedMapObjectProxyBase<TObject>::ResolveRecursive(
-    const NYPath::TYPath& path,
+IYPathService::TResolveResult TNonversionedMapObjectProxyBase<TObject>::ResolveRecursive(
+    const TYPath& path,
     const NRpc::IServiceContextPtr& context)
 {
     return TMapNodeMixin::ResolveRecursive(path, context);
@@ -137,7 +141,7 @@ void TNonversionedMapObjectProxyBase<TObject>::SetSelf(
 
 template <class TObject>
 void TNonversionedMapObjectProxyBase<TObject>::SetRecursive(
-    const NYPath::TYPath& path,
+    const TYPath& path,
     TReqSet* request,
     TRspSet* response,
     const TCtxSetPtr& context)
@@ -152,10 +156,10 @@ int TNonversionedMapObjectProxyBase<TObject>::GetChildCount() const
 }
 
 template <class TObject>
-std::vector<std::pair<TString, NYTree::INodePtr>> TNonversionedMapObjectProxyBase<TObject>::GetChildren() const
+std::vector<std::pair<TString, INodePtr>> TNonversionedMapObjectProxyBase<TObject>::GetChildren() const
 {
     const auto& keyToChild = TBase::GetThisImpl()->KeyToChild();
-    std::vector<std::pair<TString, NYTree::INodePtr>> result;
+    std::vector<std::pair<TString, INodePtr>> result;
     result.reserve(keyToChild.size());
     for (const auto& [key, child] : keyToChild) {
         result.emplace_back(key, GetProxy(child));
@@ -172,7 +176,7 @@ std::vector<TString> TNonversionedMapObjectProxyBase<TObject>::GetKeys() const
 }
 
 template <class TObject>
-NYTree::INodePtr TNonversionedMapObjectProxyBase<TObject>::FindChild(const TString& key) const
+INodePtr TNonversionedMapObjectProxyBase<TObject>::FindChild(const TString& key) const
 {
     auto* child = TBase::GetThisImpl()->FindChild(key);
     return child
@@ -182,7 +186,7 @@ NYTree::INodePtr TNonversionedMapObjectProxyBase<TObject>::FindChild(const TStri
 
 template <class TObject>
 std::optional<TString> TNonversionedMapObjectProxyBase<TObject>::FindChildKey(
-    const NYTree::IConstNodePtr& child)
+    const IConstNodePtr& child)
 {
     auto childProxy = FromNode(child);
     const auto* childImpl = childProxy->GetThisImpl();
@@ -192,7 +196,7 @@ std::optional<TString> TNonversionedMapObjectProxyBase<TObject>::FindChildKey(
 template <class TObject>
 bool TNonversionedMapObjectProxyBase<TObject>::AddChild(
     const TString& key,
-    const NYTree::INodePtr& child)
+    const INodePtr& child)
 {
     THROW_ERROR_EXCEPTION("Use TNonversionedMapObjectFactoryBase::AttachChild() instead");
 }
@@ -223,14 +227,14 @@ void TNonversionedMapObjectProxyBase<TObject>::ValidateAfterAttachChild(
 
 template <class TObject>
 void TNonversionedMapObjectProxyBase<TObject>::ReplaceChild(
-    const NYTree::INodePtr& /*oldChild*/,
-    const NYTree::INodePtr& /*newChild*/)
+    const INodePtr& /*oldChild*/,
+    const INodePtr& /*newChild*/)
 {
     Y_UNREACHABLE();
 }
 
 template <class TObject>
-void TNonversionedMapObjectProxyBase<TObject>::RemoveChild(const NYTree::INodePtr& child)
+void TNonversionedMapObjectProxyBase<TObject>::RemoveChild(const INodePtr& child)
 {
     YT_VERIFY(child);
     auto childProxy = FromNode(child);
@@ -310,7 +314,7 @@ void TNonversionedMapObjectProxyBase<TObject>::DetachChild(
 }
 
 template <class TObject>
-std::unique_ptr<NYTree::ITransactionalNodeFactory>
+std::unique_ptr<ITransactionalNodeFactory>
 TNonversionedMapObjectProxyBase<TObject>::CreateFactory() const
 {
     THROW_ERROR_EXCEPTION("CreateFactory() method is not supported for nonversioned map objects");
@@ -338,43 +342,39 @@ void TNonversionedMapObjectProxyBase<TObject>::Clear()
 
 template <class TObject>
 void TNonversionedMapObjectProxyBase<TObject>::ValidatePermission(
-    NYTree::EPermissionCheckScope scope,
-    NYTree::EPermission permission,
+    EPermissionCheckScope scope,
+    EPermission permission,
     const TString& /* user */)
 {
     ValidatePermission(TBase::GetThisImpl(), scope, permission);
 }
 
-// YYY(kiselyovp) deduplicate this! (ValidatePermissionInScope??)
 template <class TObject>
-void TNonversionedMapObjectProxyBase<TObject>::ValidatePermission(
-    TObject* object,
-    NYTree::EPermissionCheckScope scope,
-    NYTree::EPermission permission)
+TSharedRange<TObject*> TNonversionedMapObjectProxyBase<TObject>::ListDescendants(
+    TObject* object)
 {
-    if (Any(scope & NYTree::EPermissionCheckScope::This)) {
-        TBase::ValidatePermission(object, permission);
-    }
+    std::vector<TObject*> result;
+    ListDescendants(object, &result);
+    return MakeSharedRange(std::move(result));
+}
 
-    if (Any(scope & NYTree::EPermissionCheckScope::Parent) && TBase::GetThisImpl()->GetParent()) {
-        TBase::ValidatePermission(object->GetParent(), permission);
-    }
-
-    if (Any(scope & NYTree::EPermissionCheckScope::Descendants)) {
-        for (const auto& [_, child] : object->KeyToChild()) {
-            ValidatePermission(
-                child,
-                NYTree::EPermissionCheckScope::This | NYTree::EPermissionCheckScope::Descendants,
-                permission);
-        }
+template <class TObject>
+void TNonversionedMapObjectProxyBase<TObject>::ListDescendants(
+    TObject* object,
+    std::vector<TObject*>* descendants)
+{
+    YT_VERIFY(object);
+    descendants->push_back(object);
+    for (const auto& [_, child] : object->KeyToChild()) {
+        ListDescendants(child, descendants);
     }
 }
 
 template <class TObject>
 void TNonversionedMapObjectProxyBase<TObject>::ListSystemAttributes(
-    std::vector<NYTree::ISystemAttributeProvider::TAttributeDescriptor>* descriptors)
+    std::vector<ISystemAttributeProvider::TAttributeDescriptor>* descriptors)
 {
-    using TAttributeDescriptor = NYTree::ISystemAttributeProvider::TAttributeDescriptor;
+    using TAttributeDescriptor = ISystemAttributeProvider::TAttributeDescriptor;
 
     TObjectProxyBase::ListSystemAttributes(descriptors);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Name)
@@ -389,7 +389,7 @@ void TNonversionedMapObjectProxyBase<TObject>::ListSystemAttributes(
 
 template <class TObject>
 bool TNonversionedMapObjectProxyBase<TObject>::GetBuiltinAttribute(
-    NYTree::TInternedAttributeKey key,
+    TInternedAttributeKey key,
     NYson::IYsonConsumer* consumer)
 {
     const auto* impl = TBase::GetThisImpl();
@@ -397,7 +397,7 @@ bool TNonversionedMapObjectProxyBase<TObject>::GetBuiltinAttribute(
     switch (key) {
         case EInternedAttributeKey::Name: {
             auto name = impl->GetName();
-            NYTree::BuildYsonFluently(consumer)
+            BuildYsonFluently(consumer)
                 .Value(name);
             return true;
         }
@@ -408,13 +408,13 @@ bool TNonversionedMapObjectProxyBase<TObject>::GetBuiltinAttribute(
                 return false;
             }
             auto parentName = parent->GetName();
-            NYTree::BuildYsonFluently(consumer)
+            BuildYsonFluently(consumer)
                 .Value(parentName);
             return true;
         }
 
         case EInternedAttributeKey::Path:
-            NYTree::BuildYsonFluently(consumer)
+            BuildYsonFluently(consumer)
                 .Value(GetPath());
             return true;
 
@@ -457,12 +457,12 @@ void TNonversionedMapObjectProxyBase<TObject>::DoRenameSelf(const TString& newNa
 
 template <class TObject>
 bool TNonversionedMapObjectProxyBase<TObject>::SetBuiltinAttribute(
-    NYTree::TInternedAttributeKey key,
+    TInternedAttributeKey key,
     const NYson::TYsonString& value)
 {
     switch (key) {
         case EInternedAttributeKey::Name: {
-            auto newName = NYTree::ConvertTo<TString>(value);
+            auto newName = ConvertTo<TString>(value);
             RenameSelf(newName);
             return true;
         }
@@ -474,14 +474,14 @@ bool TNonversionedMapObjectProxyBase<TObject>::SetBuiltinAttribute(
                     << TErrorAttribute("id", impl->GetId());
             }
 
-            auto newParentName = NYTree::ConvertTo<TString>(value);
+            auto newParentName = ConvertTo<TString>(value);
             auto newParent = ResolveNameOrThrow(newParentName);
             auto name = impl->GetName();
 
-            auto req = NCypressClient::TCypressYPathProxy::Copy("/" + name);
+            auto req = TCypressYPathProxy::Copy("/" + name);
             req->set_source_path(GetShortPath());
-            req->set_mode(static_cast<int>(NCypressClient::ENodeCloneMode::Move));
-            NYTree::SyncExecuteVerb(newParent, req);
+            req->set_mode(static_cast<int>(ENodeCloneMode::Move));
+            SyncExecuteVerb(newParent, req);
             return true;
         }
 
@@ -519,7 +519,7 @@ TString TNonversionedMapObjectProxyBase<TObject>::GetShortPath() const
 
 template <class TObject>
 NObjectServer::TObject* TNonversionedMapObjectProxyBase<TObject>::ResolvePathToNonversionedObject(
-    const NYPath::TYPath& path) const
+    const TYPath& path) const
 {
     // XXX(kiselyovp) Using this crutch because it's easier than fixing
     // TObjectManager::ResolvePathToObject() for map objects.
@@ -592,7 +592,7 @@ void TNonversionedMapObjectProxyBase<TObject>::ValidateChildNameAvailability(con
 
 template <class TObject>
 TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>> TNonversionedMapObjectProxyBase<TObject>::FromNode(
-    const NYTree::INodePtr& node)
+    const INodePtr& node)
 {
     auto* result = dynamic_cast<TSelf*>(node.Get());
     YT_ASSERT(result);
@@ -601,7 +601,7 @@ TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>> TNonversionedMapObjectPr
 
 template <class TObject>
 TIntrusivePtr<const TNonversionedMapObjectProxyBase<TObject>> TNonversionedMapObjectProxyBase<TObject>::FromNode(
-    const NYTree::IConstNodePtr& node)
+    const IConstNodePtr& node)
 {
     const auto* result = dynamic_cast<const TSelf*>(node.Get());
     YT_ASSERT(result);
@@ -621,11 +621,11 @@ TIntrusivePtr<TNonversionedMapObjectTypeHandlerBase<TObject>>
 template <class TObject>
 void TNonversionedMapObjectProxyBase<TObject>::SetImmediateChild(
     TNonversionedMapObjectFactoryBase<TObject>* factory,
-    const NYPath::TYPath& path,
+    const TYPath& path,
     const TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>>& child)
 {
     const auto& [key, _] = PrepareSetChild(
-        NYTree::GetFaultyNodeFactory(),
+        GetFaultyNodeFactory(),
         path,
         child,
         false /* recursive */);
@@ -637,7 +637,7 @@ template <class TObject>
 TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>> TNonversionedMapObjectProxyBase<TObject>::Create(
     EObjectType type,
     const TString& path,
-    NYTree::IAttributeDictionary* attributes)
+    IAttributeDictionary* attributes)
 {
     TObjectProxyBase::DeclareMutating();
 
@@ -650,16 +650,7 @@ TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>> TNonversionedMapObjectPr
         ThrowAlreadyExists(this);
     }
 
-    ValidatePermission(
-        NYTree::EPermissionCheckScope::This,
-        NSecurityServer::EPermission::Write | NSecurityServer::EPermission::ModifyChildren);
-
-    // YYY(kiselyovp) deduplicate this! (ValidateCreatePermissions??)
-    if (attributes && (attributes->Contains("acl") || attributes->Contains("inherit_acl"))) {
-        ValidatePermission(
-            NYTree::EPermissionCheckScope::This,
-            NSecurityServer::EPermission::Administer);
-    }
+    this->ValidateCreatePermissions(false /* replace */, attributes);
 
     auto factory = CreateObjectFactory();
     auto* object = factory->CreateObject(attributes);
@@ -676,11 +667,11 @@ DEFINE_YPATH_SERVICE_METHOD(TNonversionedMapObjectProxyBase<TObject>, Create)
     auto ignoreExisting = request->ignore_existing();
     auto recursive = request->recursive();
     auto force = request->force();
-    const auto& path = NYTree::GetRequestTargetYPath(context->RequestHeader());
+    const auto& path = GetRequestTargetYPath(context->RequestHeader());
 
-    std::unique_ptr<NYTree::IAttributeDictionary> explicitAttributes;
+    std::unique_ptr<IAttributeDictionary> explicitAttributes;
     if (request->has_node_attributes()) {
-        explicitAttributes = NYTree::FromProto(request->node_attributes());
+        explicitAttributes = FromProto(request->node_attributes());
     }
 
     if (recursive) {
@@ -721,11 +712,11 @@ DEFINE_YPATH_SERVICE_METHOD(TNonversionedMapObjectProxyBase<TObject>, Copy)
         ? ypathExt.additional_paths(0)
         : request->source_path();
 
-    auto mode = CheckedEnumCast<NCypressClient::ENodeCloneMode>(request->mode());
+    auto mode = CheckedEnumCast<ENodeCloneMode>(request->mode());
     auto recursive = request->recursive();
     auto ignoreExisting = request->ignore_existing();
     auto force = request->force();
-    auto targetPath = NYTree::GetRequestTargetYPath(context->RequestHeader());
+    auto targetPath = GetRequestTargetYPath(context->RequestHeader());
     auto* impl = TBase::GetThisImpl();
 
     auto* sourceObject = ResolvePathToNonversionedObject(sourcePath);
@@ -741,7 +732,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNonversionedMapObjectProxyBase<TObject>, Copy)
     if (force) {
         THROW_ERROR_EXCEPTION("\"force\" option is not supported for nonversioned map objects");
     }
-    if (ignoreExisting && mode == NCypressClient::ENodeCloneMode::Move) {
+    if (ignoreExisting && mode == ENodeCloneMode::Move) {
         THROW_ERROR_EXCEPTION("Cannot specify \"ignore_existing\" for move operation");
     }
 
@@ -773,35 +764,17 @@ DEFINE_YPATH_SERVICE_METHOD(TNonversionedMapObjectProxyBase<TObject>, Copy)
         }
     }
 
-    // YYY(kiselyovp) deduplicate this!
-    ValidatePermission(
-        NYTree::EPermissionCheckScope::This,
-        NSecurityServer::EPermission::Write | NSecurityServer::EPermission::ModifyChildren);
-
-    ValidatePermission(
-        sourceImpl,
-        NYTree::EPermissionCheckScope::This | NYTree::EPermissionCheckScope::Descendants,
-        NSecurityServer::EPermission::Read);
+    this->ValidateCopyPermissions(sourceImpl, mode, replace);
 
     auto sourceParent = sourceProxy->DoGetParent();
-    if (mode == NCypressClient::ENodeCloneMode::Move) {
-        if (!sourceParent) {
-            NYTree::ThrowCannotRemoveNode(sourceProxy);
-        }
-        ValidatePermission(
-            sourceImpl,
-            NYTree::EPermissionCheckScope::This | NYTree::EPermissionCheckScope::Descendants,
-            NSecurityServer::EPermission::Remove);
-        ValidatePermission(
-            sourceImpl,
-            NYTree::EPermissionCheckScope::Parent,
-            NSecurityServer::EPermission::Write | NSecurityServer::EPermission::ModifyChildren);
+    if (!sourceParent && mode == ENodeCloneMode::Move) {
+        ThrowCannotRemoveNode(sourceProxy);
     }
 
     auto factory = CreateObjectFactory();
 
     TSelfPtr clonedProxy;
-    if (mode == NCypressClient::ENodeCloneMode::Move) {
+    if (mode == ENodeCloneMode::Move) {
         factory->DetachChild(sourceParent, sourceProxy);
         clonedProxy = sourceProxy;
     } else {
@@ -823,7 +796,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNonversionedMapObjectProxyBase<TObject>, Copy)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TObject>
-TObject* TNonversionedMapObjectFactoryBase<TObject>::CreateObject(NYTree::IAttributeDictionary* attributes)
+TObject* TNonversionedMapObjectFactoryBase<TObject>::CreateObject(IAttributeDictionary* attributes)
 {
     auto* object = DoCreateObject(attributes);
     CreatedObjects_.push_back(object);

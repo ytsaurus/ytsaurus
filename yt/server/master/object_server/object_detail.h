@@ -4,6 +4,7 @@
 #include "object.h"
 #include "object_manager.h"
 #include "object_proxy.h"
+#include "permission_validator.h"
 
 #include <yt/server/master/cell_master/public.h>
 
@@ -138,6 +139,35 @@ protected:
         TObject* object,
         NYTree::EPermission permission);
 
+    class TPermissionValidator
+        : public IPermissionValidator
+    {
+    public:
+        explicit TPermissionValidator(TIntrusivePtr<TObjectProxyBase> proxy)
+            : Proxy_(std::move(proxy))
+        { }
+
+        virtual void ValidatePermission(
+            NYTree::EPermissionCheckScope scope,
+            NYTree::EPermission permission,
+            const TString& user = {}) override
+        {
+            Proxy_->ValidatePermission(scope, permission, user);
+        }
+
+        virtual void ValidatePermission(
+            TObject* object,
+            NYTree::EPermission permission) override
+        {
+            Proxy_->ValidatePermission(object, permission);
+        }
+
+    private:
+        TIntrusivePtr<TObjectProxyBase> Proxy_;
+    };
+
+    std::unique_ptr<IPermissionValidator> CreatePermissionValidator();
+
     void ValidateAnnotation(const TString& annotation);
 
     bool IsRecovery() const;
@@ -200,7 +230,6 @@ protected:
 
     virtual TVersionedObjectId GetVersionedId() const override;
     virtual NSecurityServer::TAccessControlDescriptor* FindThisAcd() override;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

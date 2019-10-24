@@ -87,5 +87,3 @@ private:
 #define OBJECT_PART_COW_PTR_INL_H_
 #include "object_part_cow_ptr-inl.h"
 #undef OBJECT_PART_COW_PTR_INL_H_
-
-
