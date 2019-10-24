@@ -275,6 +275,14 @@ public:
             return lhs.Cookie < rhs.Cookie;
         });
 
+        std::sort(cliqueNodes.begin(), cliqueNodes.end(), [] (const IClusterNodePtr& lhs, const IClusterNodePtr& rhs) {
+            return lhs->IsLocal() > rhs->IsLocal();
+        });
+
+        for (const auto& cliqueNode : cliqueNodes) {
+            YT_LOG_DEBUG("Clique node (Host: %v, Port: %v, IsLocal: %v)", cliqueNode->GetName().Host, cliqueNode->GetName().Port, cliqueNode->IsLocal());
+        }
+
         int subqueryCount = std::min(Subqueries_.size(), cliqueNodes.size());
         for (int index = 0; index < subqueryCount; ++index) {
             int firstSubqueryIndex = index * Subqueries_.size() / subqueryCount;
@@ -419,9 +427,10 @@ private:
             inputStripeList,
             analyzerResult.KeyColumnCount,
             analyzerResult.PoolKind,
-            subqueryCount * context.getSettings().max_threads,
+            std::max<int>(1, subqueryCount * context.getSettings().max_threads),
             samplingRate,
-            context);
+            context,
+            queryContext->Bootstrap->GetConfig()->Engine->Subquery);
     }
 };
 
