@@ -2,7 +2,6 @@ package ru.yandex.yt.ytclient.proxy;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -40,7 +39,7 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
     final private RpcOptions options;
     final private DataCenter localDataCenter;
 
-    final private LinkedList<CompletableFuture<Void>> waiting = new LinkedList<>();
+    final private CompletableFuture<Void> waiting = new CompletableFuture<>();
     final private ConcurrentHashMap<PeriodicDiscoveryListener, Boolean> discoveriesFailed = new ConcurrentHashMap<>();
 
 
@@ -101,8 +100,10 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
                 final PeriodicDiscoveryListener listener = new PeriodicDiscoveryListener() {
                     @Override
                     public void onProxiesAdded(Set<RpcClient> proxies) {
-                        dc.addProxies(proxies);
-                        wakeUp();
+                        if (!proxies.isEmpty()) {
+                            dc.addProxies(proxies);
+                            wakeUp();
+                        }
                     }
 
                     @Override
@@ -175,42 +176,26 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
         this(connector, clusterName, credentials, new RpcOptions());
     }
 
-    private void wakeUp()
-    {
-        synchronized (waiting) {
-            while (!waiting.isEmpty()) {
-                waiting.pop().complete(null);
-            }
-        }
+    private void wakeUp() {
+        waiting.complete(null);
     }
 
     private void wakeUp(Throwable e) {
-        synchronized (waiting) {
-            while (!waiting.isEmpty()) {
-                waiting.pop().completeExceptionally(e);
-            }
-        }
+        waiting.completeExceptionally(e);
     }
 
     public CompletableFuture<Void> waitProxies() {
-        CompletableFuture<Void> future = new CompletableFuture<>();
-        synchronized (waiting) {
-            // TODO: fix posible memleak here
-            waiting.push(future);
-        }
-
         int proxies = 0;
-        for (DataCenter dataCenter: dataCenters) {
+        for (DataCenter dataCenter : dataCenters) {
             proxies += dataCenter.getAliveDestinations().size();
         }
         if (proxies > 0) {
             return CompletableFuture.completedFuture(null);
         } else if (discoveriesFailed.size() == dataCenters.length) {
-            future = new CompletableFuture<>();
-            future.completeExceptionally(new IllegalStateException("cannot initialize proxies"));
-            return future;
+            waiting.completeExceptionally(new IllegalStateException("cannot initialize proxies"));
+            return waiting;
         } else {
-            return future;
+            return waiting;
         }
     }
 

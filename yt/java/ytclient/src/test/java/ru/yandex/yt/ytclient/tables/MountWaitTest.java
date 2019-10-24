@@ -5,6 +5,10 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import io.netty.channel.nio.NioEventLoopGroup;
 import org.junit.Assert;
@@ -49,20 +53,20 @@ public class MountWaitTest {
                 new RpcCredentials(user, token),
                 new RpcOptions()
         );
+    }
+
+    @Test
+    public void createMountAndWait() {
 
         yt.waitProxies().join();
 
-        while(!yt.getNode("//sys/tablet_cell_bundles/default/@health").join().stringValue().equals("good")) {
+        while (!yt.getNode("//sys/tablet_cell_bundles/default/@health").join().stringValue().equals("good")) {
             try {
                 Thread.sleep(100);
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
         }
-    }
-
-    @Test
-    public void createMountAndWait() {
 
         String path = "//tmp/mount-table-and-wait-test" + UUID.randomUUID().toString();
 
@@ -91,5 +95,45 @@ public class MountWaitTest {
         }
 
         Assert.assertTrue(allTabletsReady);
+    }
+
+    @Test
+    public void waitProxiesMultithreaded() throws InterruptedException {
+        final int threads = 20;
+        final Object startLock = new Object();
+
+        AtomicInteger startedWaits = new AtomicInteger();
+        AtomicInteger joinedThreads = new AtomicInteger();
+
+        ExecutorService executorService = Executors.newFixedThreadPool(threads);
+        for (int i = 0; i < threads; i++) {
+            executorService.submit(() -> {
+                CompletableFuture<Void> waitProxiesFuture;
+                synchronized (startLock) {
+                    waitProxiesFuture = yt.waitProxies();
+                    startedWaits.getAndIncrement();
+                }
+                while (startedWaits.get() < threads) {
+                    try {
+                        synchronized (startLock) {
+                            startLock.wait();
+                        }
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+
+                // startedWaits == threads
+                synchronized (startLock) {
+                    startLock.notifyAll();
+                }
+                waitProxiesFuture.join();
+
+                joinedThreads.getAndIncrement();
+            });
+        }
+        executorService.shutdown();
+        executorService.awaitTermination(30, TimeUnit.SECONDS);
+        Assert.assertEquals(startedWaits.get(), joinedThreads.get());
     }
 }
