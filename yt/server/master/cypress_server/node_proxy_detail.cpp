@@ -1537,6 +1537,10 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
         ? LockImpl(trunkSourceNode, ELockMode::Exclusive, true)
         : cypressManager->GetVersionedNode(trunkSourceNode, Transaction_);
 
+    if (trunkSourceNode == TrunkNode_) {
+        THROW_ERROR_EXCEPTION("Cannot copy or move a node to itself");
+    }
+
     if (IsAncestorOf(trunkSourceNode, TrunkNode_)) {
         THROW_ERROR_EXCEPTION("Cannot copy or move a node to its descendant");
     }
