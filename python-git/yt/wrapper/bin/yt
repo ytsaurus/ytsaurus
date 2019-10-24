@@ -499,6 +499,7 @@ def add_create_parser(add_parser):
     add_ypath_argument(parser, "path", hybrid=True, group_required=False)
     parser.add_argument("-r", "--recursive", action="store_true")
     parser.add_argument("-i", "--ignore-existing", action="store_true")
+    parser.add_argument("-l", "--lock-existing", action="store_true")
     parser.add_argument("-f", "--force", action="store_true")
     add_structured_argument(parser, "--attributes")
 
@@ -568,6 +569,7 @@ def add_copy_parser(add_parser):
                         help="preserve acl of copied nodes")
     parser.add_argument("-r", "--recursive", action="store_true")
     parser.add_argument("-i", "--ignore-existing", action="store_true")
+    parser.add_argument("-l", "--lock-existing", action="store_true")
     parser.add_argument("-f", "--force", action="store_true")
     parser.add_argument("--no-pessimistic-quota-check", dest="pessimistic_quota_check", action="store_false")
 
@@ -596,6 +598,7 @@ def add_link_parser(add_parser):
 
     parser.add_argument("-r", "--recursive", action="store_true", help="create parent nodes recursively")
     parser.add_argument("-i", "--ignore-existing", action="store_true")
+    parser.add_argument("-l", "--lock-existing", action="store_true")
     parser.add_argument("-f", "--force", action="store_true", help="force create link even if destination already exists "
                                                                    "(supported only on cluster with 19+ version)")
     add_structured_argument(parser, "--attributes")
