@@ -275,8 +275,9 @@ public:
             return lhs.Cookie < rhs.Cookie;
         });
 
+        // NB: this is important for queries to distribute deterministically across cluster.
         std::sort(cliqueNodes.begin(), cliqueNodes.end(), [] (const IClusterNodePtr& lhs, const IClusterNodePtr& rhs) {
-            return lhs->IsLocal() > rhs->IsLocal();
+            return lhs->GetName().ToString() < rhs->GetName().ToString();
         });
 
         for (const auto& cliqueNode : cliqueNodes) {
