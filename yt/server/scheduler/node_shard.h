@@ -256,8 +256,8 @@ private:
         THashMap<TJobId, TJobPtr> Jobs;
         THashSet<TJobId> JobsToSubmitToStrategy;
         THashSet<TJobId> RecentlyFinishedJobIds;
-        //! Used only to decrease logging size.
-        THashSet<TJobId> SkippedJobIds;
+        //! Used only to avoid multiple log messages per job about 'operation is not ready'.
+        THashSet<TJobId> OperationUnreadyLoggedJobIds;
         IOperationControllerPtr Controller;
         bool Terminated = false;
         //! Raised to prevent races between suspension and scheduler strategy scheduling new jobs.
