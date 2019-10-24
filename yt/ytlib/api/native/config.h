@@ -118,6 +118,9 @@ public:
     TDuration UploadTransactionTimeout;
     TDuration HiveSyncRpcTimeout;
 
+    //! Is visible in profiling as tag `connection_name`.
+    TString Name;
+
     TConnectionConfig();
 };
 
