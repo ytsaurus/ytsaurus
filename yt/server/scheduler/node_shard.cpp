@@ -42,7 +42,6 @@ using namespace NChunkClient;
 using namespace NCypressClient;
 using namespace NConcurrency;
 using namespace NJobProberClient;
-using namespace NJobTrackerClient::NProto;
 using namespace NJobTrackerClient;
 using namespace NControllerAgent;
 using namespace NNodeTrackerClient;
@@ -52,6 +51,7 @@ using namespace NShell;
 using namespace NYTree;
 using namespace NYson;
 
+using NJobTrackerClient::TReleaseJobFlags;
 using NNodeTrackerClient::TNodeId;
 using NScheduler::NProto::TSchedulerJobResultExt;
 
@@ -1181,7 +1181,7 @@ void TNodeShard::FailJob(TJobId jobId)
     job->SetFailRequested(true);
 }
 
-void TNodeShard::ReleaseJob(TJobId jobId, bool archiveJobSpec, bool archiveStderr, bool archiveFailContext, bool archiveProfile)
+void TNodeShard::ReleaseJob(TJobId jobId, TReleaseJobFlags releaseFlags)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
     YT_VERIFY(Connected_);
@@ -1194,21 +1194,12 @@ void TNodeShard::ReleaseJob(TJobId jobId, bool archiveJobSpec, bool archiveStder
         execNode->GetMasterState() == NNodeTrackerClient::ENodeState::Online &&
         execNode->GetSchedulerState() == ENodeState::Online)
     {
-        YT_LOG_DEBUG("Job released and will be reremoved (JobId: %v, NodeId: %v, NodeAddress: %v, ArchiveJobSpec: %v, ArchiveStderr: %v, ArchiveFailContext: %v, ArchiveProfile: %v)",
+        YT_LOG_DEBUG("Job released and will be reremoved (JobId: %v, NodeId: %v, NodeAddress: %v, %v)",
             jobId,
             nodeId,
             execNode->GetDefaultAddress(),
-            archiveJobSpec,
-            archiveStderr,
-            archiveFailContext,
-            archiveProfile);
-        execNode->JobsToRemove().push_back({
-            jobId,
-            archiveJobSpec,
-            archiveStderr,
-            archiveFailContext,
-            archiveProfile,
-        });
+            releaseFlags);
+        execNode->JobsToRemove().push_back({jobId, releaseFlags});
     } else {
         YT_LOG_DEBUG("Execution node was unregistered for a job that should be removed (JobId: %v, NodeId: %v)",
             jobId,
@@ -1648,14 +1639,11 @@ void TNodeShard::ProcessHeartbeatJobs(
     {
         for (const auto& jobToRemove : node->JobsToRemove()) {
             YT_LOG_DEBUG("Requesting node to remove job "
-                "(JobId: %v, NodeId: %v, NodeAddress: %v, ArchiveJobSpec: %v, ArchiveStderr: %v, ArchiveFailContext: %v, ArchiveProfile: %v)",
+                "(JobId: %v, NodeId: %v, NodeAddress: %v, %v)",
                 jobToRemove.JobId,
                 nodeId,
                 nodeAddress,
-                jobToRemove.ArchiveJobSpec,
-                jobToRemove.ArchiveStderr,
-                jobToRemove.ArchiveFailContext,
-                jobToRemove.ArchiveProfile);
+                jobToRemove.ReleaseFlags);
             RemoveRecentlyFinishedJob(jobToRemove.JobId);
             ToProto(response->add_jobs_to_remove(), jobToRemove);
         }

@@ -23,6 +23,15 @@ message TJobResult
     extensions 100 to max;
 }
 
+// Describes release job flags.
+message TReleaseJobFlags
+{
+    required bool archive_job_spec = 1;
+    required bool archive_stderr = 2;
+    required bool archive_fail_context = 3;
+    required bool archive_profile = 4;
+};
+
 // Describes the current job status.
 message TJobStatus
 {

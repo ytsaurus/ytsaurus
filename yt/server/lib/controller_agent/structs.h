@@ -8,6 +8,8 @@
 
 #include <yt/ytlib/chunk_client/public.h>
 
+#include <yt/ytlib/job_tracker_client/helpers.h>
+
 #include <yt/core/misc/phoenix.h>
 
 #include <yt/core/misc/statistics.h>
@@ -51,10 +53,7 @@ struct TJobSummary
 
     bool LogAndProfile = false;
 
-    bool ArchiveJobSpec = false;
-    bool ArchiveStderr = false;
-    bool ArchiveFailContext = false;
-    bool ArchiveProfile = false;
+    NJobTrackerClient::TReleaseJobFlags ReleaseFlags;
 };
 
 struct TCompletedJobSummary

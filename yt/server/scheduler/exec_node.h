@@ -13,8 +13,9 @@
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
+#include <yt/ytlib/job_tracker_client/helpers.h>
+
 #include <yt/ytlib/scheduler/proto/scheduler_service.pb.h>
-#include <yt/ytlib/scheduler/job.h>
 #include <yt/ytlib/scheduler/job_resources.h>
 
 #include <yt/core/concurrency/lease_manager.h>
@@ -103,7 +104,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TRecentlyFinishedJobIdToInfo, RecentlyFinishedJobs);
 
     //! Jobs that are to be removed with a next heartbeat response.
-    DEFINE_BYREF_RW_PROPERTY(std::vector<TJobToRelease>, JobsToRemove);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<NJobTrackerClient::TJobToRelease>, JobsToRemove);
 
     DEFINE_BYVAL_RO_PROPERTY(double, IOWeight);
 
