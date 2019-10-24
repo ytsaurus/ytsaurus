@@ -222,9 +222,7 @@ void TBlockFetcher::DecompressBlocks(
         UncompressedDataSize_ += uncompressedBlock.Size();
         CompressedDataSize_ += compressedBlock.Size();
 
-        if (Codec_->GetId() != NCompression::ECodec::None) {
-            BlockCache_->Put(blockId, EBlockType::UncompressedData, TBlock(uncompressedBlock), std::nullopt);
-        }
+        BlockCache_->Put(blockId, EBlockType::UncompressedData, TBlock(uncompressedBlock), std::nullopt);
     }
 }
 
