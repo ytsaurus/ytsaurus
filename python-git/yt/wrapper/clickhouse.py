@@ -130,6 +130,7 @@ def get_clickhouse_clique_spec_builder(instance_count,
                                        core_dump_destination=None,
                                        description=None,
                                        operation_alias=None,
+                                       uncompressed_block_cache_size=None,
                                        spec=None):
     """Returns a spec builder for the clickhouse clique consisting of a given number of instances.
 
@@ -210,7 +211,7 @@ def get_clickhouse_clique_spec_builder(instance_count,
                 .job_count(instance_count) \
                 .file_paths(file_paths) \
                 .command(command) \
-                .memory_limit(memory_limit + memory_footprint) \
+                .memory_limit(memory_limit + memory_footprint + uncompressed_block_cache_size) \
                 .cpu_limit(cpu_limit) \
                 .max_stderr_size(1024 * 1024 * 1024) \
                 .port_count(4) \
@@ -418,6 +419,7 @@ def start_clickhouse_clique(instance_count,
                                                           cypress_geodata_path=cypress_geodata_path,
                                                           operation_alias=operation_alias,
                                                           description=description,
+                                                          uncompressed_block_cache_size=uncompressed_block_cache_size,
                                                           spec=spec,
                                                           defaults=defaults,
                                                           **kwargs),
