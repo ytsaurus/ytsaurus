@@ -815,7 +815,7 @@ enum EWorkloadState {
     EWorkloadState_INIT_PROCESSES = 11 [(NYT.NYson.NProto.enum_value_name) = "init_processes"];
 
     // Процесс start завершился (сам, либо был убит) и будет перезапущен
-    EWorkloadState_DEAD = 12;
+    EWorkloadState_DEAD = 12 [(NYT.NYson.NProto.enum_value_name) = "dead"];
 }
 
 // Описание результата выполнения хука
