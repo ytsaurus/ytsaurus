@@ -26,6 +26,7 @@ class TNonversionedMapObjectTypeHandlerBase;
 template <class TObject>
 class TNonversionedMapObjectProxyBase
     : public TNonversionedObjectProxyBase<TObject>
+    , public THierarchicPermissionValidator<TObject>
     , public virtual NYTree::TMapNodeMixin
     , public virtual NYTree::TNodeBase
 {
@@ -106,15 +107,15 @@ protected:
 
     virtual TSelfPtr ResolveNameOrThrow(const TString& name) = 0;
 
+    virtual TSharedRange<TObject*> ListDescendants(TObject* object) override;
+    void ListDescendants(TObject* object, std::vector<TObject*>* descendants);
+
     virtual void ValidatePermission(
         NYTree::EPermissionCheckScope scope,
         NYTree::EPermission permission,
         const TString& user = "") override;
 
-    void ValidatePermission(
-        TObject* object,
-        NYTree::EPermissionCheckScope scope,
-        NYTree::EPermission permission);
+    using THierarchicPermissionValidator<TObject>::ValidatePermission;
 
     virtual void ValidateBeforeAttachChild(
         const TString& key,
