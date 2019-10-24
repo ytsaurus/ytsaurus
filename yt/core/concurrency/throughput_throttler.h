@@ -59,7 +59,7 @@ struct IThroughputThrottler
     /*!
      *  \note Thread affinity: any
      */
-    virtual bool IsOverdraft() const = 0;
+    virtual bool IsOverdraft() = 0;
 
     //! Returns total byte count of all waiting requests.
     /*!

@@ -140,7 +140,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    virtual bool IsOverdraft() const override
+    virtual bool IsOverdraft() override
     {
         YT_UNIMPLEMENTED();
     }
