@@ -30,6 +30,7 @@ BUNDLED_DEFAULTS = {
     "clickhouse_config": {},
     "max_failed_job_count": 10 * 1000,
     "use_exact_thread_count": True,
+    "uncompressed_block_cache_size": 20 * 1000*3,
 }
 
 
@@ -99,14 +100,14 @@ def _build_description(cypress_ytserver_clickhouse_path=None, operation_alias=No
         description["previous_operation_url"] = _format_url(get_operation_url(prev_operation_id, client=client))
 
     cluster = _determine_cluster(client=client)
-    
+
     # Put link to yql query. It is currently possible to add it only when alias is specified, otherwise we do not have access to operation id.
     # TODO(max42): YT-11115.
     if cluster is not None and operation_alias is not None:
         description["yql_url"] = _format_url(
             "https://yql.yandex-team.ru/?query=use%20chyt.{}/{}%3B%0A%0Aselect%201%3B&query_type=CLICKHOUSE"
                 .format(cluster, operation_alias[1:]))
-       
+
     # Put link to monitoring.
     if cluster is not None and operation_alias is not None and enable_monitoring:
         description["monitoring_url"] = _format_url(
@@ -236,6 +237,7 @@ def prepare_clickhouse_config(instance_count,
                               memory_footprint=None,
                               use_exact_thread_count=None,
                               operation_alias=None,
+                              uncompressed_block_cache_size=None,
                               client=None):
     """Merges a document pointed by `config_template_cypress_path`,  and `config` and uploads the
     result as a config.yson file suitable for specifying as a config file for clickhouse clique.
@@ -246,6 +248,8 @@ def prepare_clickhouse_config(instance_count,
     :type clickhouse_config: dict or None
     :param enable_monitoring: (only for development use) option that makes clickhouse bind monitoring port to 10042.
     :type enable_monitoring: bool or None
+    :param uncompressed_block_cache_size: size of uncompressed block cache at each instance.
+    :type int
     """
 
     require(cpu_limit is not None, lambda: YtError("Cpu limit should be set to prepare the ClickHouse config"))
@@ -270,6 +274,13 @@ def prepare_clickhouse_config(instance_count,
         },
         "discovery": {
             "directory": "//sys/clickhouse/cliques",
+        },
+        "cluster_connection": {
+            "block_cache": {
+                "uncompressed_data": {
+                    "capacity": uncompressed_block_cache_size,
+                },
+            },
         },
     }
 
@@ -299,6 +310,7 @@ def start_clickhouse_clique(instance_count,
                             dump_tables=None,
                             operation_alias=None,
                             spec=None,
+                            uncompressed_block_cache_size=None,
                             client=None,
                             **kwargs):
     """Starts a clickhouse clique consisting of a given number of instances.
@@ -369,8 +381,8 @@ def start_clickhouse_clique(instance_count,
                 else:
                     logger.info("Table %s does not exist, not dumping anything", table_path)
         else:
-            logger.info("There was no operation with alias %s; not dumping anything", operation_alias) 
-        
+            logger.info("There was no operation with alias %s; not dumping anything", operation_alias)
+
     prev_operation_id = prev_operation["id"] if prev_operation is not None else None
 
     if cypress_ytserver_clickhouse_path is None and host_ytserver_clickhouse_path is None:
@@ -386,6 +398,7 @@ def start_clickhouse_clique(instance_count,
                                                     memory_limit=memory_limit,
                                                     defaults=defaults,
                                                     operation_alias=operation_alias,
+                                                    uncompressed_block_cache_size=uncompressed_block_cache_size,
                                                     client=client)
 
     description = update(description, _build_description(cypress_ytserver_clickhouse_path=cypress_ytserver_clickhouse_path,
