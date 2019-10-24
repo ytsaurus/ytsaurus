@@ -562,6 +562,8 @@ def add_copy_parser(add_parser):
                         help="preserve expiration time of copied nodes")
     parser.add_argument("--preserve-creation-time", action="store_true",
                         help="preserve creation time of copied nodes")
+    parser.add_argument("--preserve-owner", action="store_true",
+                        help="preserve owner of copied nodes")
     parser.add_argument("-r", "--recursive", action="store_true")
     parser.add_argument("-i", "--ignore-existing", action="store_true")
     parser.add_argument("-f", "--force", action="store_true")
@@ -578,6 +580,8 @@ def add_move_parser(add_parser):
     preserve_account_parser.add_argument("--no-preserve-account", dest="preserve_account", default=None, action="store_false")
     parser.add_argument("--preserve-expiration-time", action="store_true",
                         help="preserve expiration time of moved nodes")
+    parser.add_argument("--preserve-owner", action="store_true",
+                        help="preserve owner of copied nodes")
     parser.add_argument("-r", "--recursive", action="store_true")
     parser.add_argument("-f", "--force", action="store_true")
     parser.add_argument("--no-pessimistic-quota-check", dest="pessimistic_quota_check", action="store_false")
