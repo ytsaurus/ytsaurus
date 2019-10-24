@@ -33,6 +33,7 @@ DEFAULTS = {
     "cpu_limit": 1,
     "enable_monitoring": False,
     "clickhouse_config": {},
+    "uncompressed_block_cache_size": 0,
 }
 
 QUERY_TYPES_WITH_OUTPUT = ("describe", "select", "show")
