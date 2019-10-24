@@ -757,6 +757,7 @@ message TReqCreateNode
     optional bool recursive = 4 [default = false];
     optional bool force = 5 [default = false];
     optional bool ignore_existing = 6 [default = false];
+    optional bool lock_existing = 7 [default = false];
 
     optional TTransactionalOptions transactional_options = 100;
     optional TPrerequisiteOptions prerequisite_options = 101;
@@ -858,6 +859,7 @@ message TReqCopyNode
     optional bool preserve_owner = 11 [default = false];
     optional bool preserve_acl = 12 [default = false];
     optional bool ignore_existing = 8 [default = false];
+    optional bool lock_existing = 13 [default = false];
     optional bool pessimistic_quota_check = 9 [default = true];
 
     optional TTransactionalOptions transactional_options = 100;
@@ -906,6 +908,7 @@ message TReqLinkNode
     optional bool recursive = 3 [default = false];
     optional bool force = 4 [default = false];
     optional bool ignore_existing = 5 [default = false];
+    optional bool lock_existing = 6 [default = false];
 
     optional TTransactionalOptions transactional_options = 100;
     optional TPrerequisiteOptions prerequisite_options = 101;

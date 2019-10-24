@@ -524,6 +524,7 @@ struct TCreateNodeOptions
 {
     bool Recursive = false;
     bool IgnoreExisting = false;
+    bool LockExisting = false;
     bool Force = false;
 };
 
@@ -573,6 +574,7 @@ struct TCopyNodeOptions
     : public TCopyNodeOptionsBase
 {
     bool IgnoreExisting = false;
+    bool LockExisting = false;
 };
 
 struct TMoveNodeOptions
@@ -589,6 +591,7 @@ struct TLinkNodeOptions
     std::shared_ptr<const NYTree::IAttributeDictionary> Attributes;
     bool Recursive = false;
     bool IgnoreExisting = false;
+    bool LockExisting = false;
     bool Force = false;
 };
 

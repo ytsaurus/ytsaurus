@@ -2458,6 +2458,34 @@ class TestCypress(YTEnvSetup):
         with pytest.raises(YtError):
             copy("//tmp/t1", "//tmp/test/t2", preserve_acl=True, authenticated_user="u")
 
+    @authors("avmatrosov")
+    def test_lock_existing_create(self):
+        tx = start_transaction()
+        create("table", "//tmp/x")
+        create("table", "//tmp/x", tx=tx, ignore_existing=True, lock_existing=True)
+        assert len(get("//tmp/x/@locks")) == 1
+        commit_transaction(tx)
+        assert len(get("//tmp/x/@locks")) == 0
+
+    @authors("avmatrosov")
+    def test_lock_existing_copy(self):
+        tx = start_transaction()
+        create("table", "//tmp/x")
+        create("table", "//tmp/m")
+        copy("//tmp/m", "//tmp/x", tx=tx, ignore_existing=True, lock_existing=True)
+        assert len(get("//tmp/x/@locks")) == 1
+        commit_transaction(tx)
+        assert len(get("//tmp/x/@locks")) == 0
+
+    @authors("avmatrosov")
+    def test_lock_existing_errors(self):
+        create("table", "//tmp/x")
+        create("table", "//tmp/x1")
+        with pytest.raises(YtError):
+            create("map_node", "//tmp/x", lock_existing=True)
+        with pytest.raises(YtError):
+            move("//tmp/x", "//tmp/x1", ignore_existing=True, lock_existing=True)
+
 ##################################################################
 
 class TestCypressMulticell(TestCypress):
