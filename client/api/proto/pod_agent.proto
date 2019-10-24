@@ -783,36 +783,39 @@ enum EBoxState {
 enum EWorkloadState {
     EWorkloadState_UNKNOWN = 0 [(NYT.NYson.NProto.enum_value_name) = "unknown"];
 
-    // Соответсвует ожиданию готовности Box
+    // Ожидание готовности box
     EWorkloadState_WAITING_FOR_BOX = 1 [(NYT.NYson.NProto.enum_value_name) = "waiting_for_box"];
 
-    // readiness сообщает, что Workload не готов
+    // Процесс start активен и последний запуск readiness завершился ошибкой
     EWorkloadState_SEMI_FAILURE = 2 [(NYT.NYson.NProto.enum_value_name) = "semi_failure"];
 
-    // start hook запущен и status еще ни разу не завершился
+    // Процесс start активен и readiness еще ни разу не завершился
     EWorkloadState_ACTIVATING = 3 [(NYT.NYson.NProto.enum_value_name) = "activating"];
 
-    // Соответствует запущенному start hook при условии что хотябы единожды status завершился успешно
+    // Процесс start активен и последний запуск readiness завершился успешно
     EWorkloadState_ACTIVE = 4 [(NYT.NYson.NProto.enum_value_name) = "active"];
 
-    // Соотвестует остановке start hook и работе stop hook
+    // Остановка процесса start - работа stop policy
     EWorkloadState_DEACTIVATING = 5 [(NYT.NYson.NProto.enum_value_name) = "deactivating"];
 
-    // Соотвествует процессу удаления workload
+    // Удаление workload - работа destroy policy
     EWorkloadState_REMOVING = 6 [(NYT.NYson.NProto.enum_value_name) = "removing"];
 
-    // Соотвестует удалённому worload
+    // Workload удален
     EWorkloadState_REMOVED = 7 [(NYT.NYson.NProto.enum_value_name) = "removed"];
 
-    // Workload находится в не валидном состоянии и значит будет полнотью пересобран
+    // Workload находится в невалидном состоянии и будет полностью пересобран
     EWorkloadState_INVALID = 8 [(NYT.NYson.NProto.enum_value_name) = "invalid"];
 
     // Workload был убит из-за неудачного завершения liveness
     EWorkloadState_DEACTIVATED_BY_LIVENESS = 9 [(NYT.NYson.NProto.enum_value_name) = "deactivated_by_liveness"];
 
-    // Workload выполняет init команды
+    // Выполняются init команды
     EWorkloadState_INIT_PROCESESS = 10 [(NYT.NYson.NProto.enum_value_name) = "init_procesess"];  // deprecated DEPLOY-1102
     EWorkloadState_INIT_PROCESSES = 11 [(NYT.NYson.NProto.enum_value_name) = "init_processes"];
+
+    // Процесс start завершился (сам, либо был убит) и будет перезапущен
+    EWorkloadState_DEAD = 12;
 }
 
 // Описание результата выполнения хука
