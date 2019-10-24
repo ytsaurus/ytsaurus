@@ -4627,7 +4627,7 @@ void TOperationControllerBase::SuppressLivePreviewIfNeeded()
         {
             suppressionErrors.emplace_back(TError(
                 "User %v belongs to legacy live preview suppression blacklist; in order "
-                "to overcome this suppression reason, explicitly specify use_legacy_live_preview = %%true "
+                "to overcome this suppression reason, explicitly specify enable_legacy_live_preview = %%true "
                 "in operation spec", AuthenticatedUser)
                     << TErrorAttribute(
                         "legacy_live_preview_blacklist_regex",
