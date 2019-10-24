@@ -125,7 +125,6 @@ using namespace NFormats;
 using namespace NJobProxy;
 using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
-using namespace NJobTrackerClient::NProto;
 using namespace NCoreDump::NProto;
 using namespace NConcurrency;
 using namespace NApi;
@@ -143,6 +142,7 @@ using namespace NTabletClient;
 using NYT::FromProto;
 using NYT::ToProto;
 
+using NJobTrackerClient::NProto::TJobSpec;
 using NNodeTrackerClient::TNodeId;
 using NProfiling::CpuInstantToInstant;
 using NProfiling::TCpuInstant;
@@ -2362,7 +2362,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
            JobSpecCompletedArchiveCount_ < Config->MaxArchivedJobSpecCountPerOperation)
         {
             ++JobSpecCompletedArchiveCount_;
-            jobSummary->ArchiveJobSpec = true;
+            jobSummary->ReleaseFlags.ArchiveJobSpec = true;
         }
     }
 
@@ -2443,7 +2443,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
         JobSplitter_->OnJobFailed(*jobSummary);
     }
 
-    jobSummary->ArchiveJobSpec = true;
+    jobSummary->ReleaseFlags.ArchiveJobSpec = true;
 
     ProcessFinishedJobResult(std::move(jobSummary), /* requestJobNodeCreation */ true);
 
@@ -4503,24 +4503,24 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
         (stderrChunkId && StderrCount_ < Spec_->MaxStderrCount);
 
     if (stderrChunkId && shouldCreateJobNode) {
-        summary->ArchiveStderr = true;
+        summary->ReleaseFlags.ArchiveStderr = true;
         // Job spec is necessary for ACL checks for stderr.
-        summary->ArchiveJobSpec = true;
+        summary->ReleaseFlags.ArchiveJobSpec = true;
     }
     if (failContextChunkId && shouldCreateJobNode) {
-        summary->ArchiveFailContext = true;
+        summary->ReleaseFlags.ArchiveFailContext = true;
         // Job spec is necessary for ACL checks for fail context.
-        summary->ArchiveJobSpec = true;
+        summary->ReleaseFlags.ArchiveJobSpec = true;
     }
 
-    summary->ArchiveProfile = true;
+    summary->ReleaseFlags.ArchiveProfile = true;
 
     auto finishedJob = New<TFinishedJobInfo>(joblet, std::move(*summary));
     // NB: we do not want these values to get into the snapshot as they may be pretty large.
     finishedJob->Summary.StatisticsYson = TYsonString();
     finishedJob->Summary.Statistics.reset();
 
-    if (finishedJob->Summary.ArchiveJobSpec || finishedJob->Summary.ArchiveStderr || finishedJob->Summary.ArchiveFailContext || finishedJob->Summary.ArchiveProfile) {
+    if (finishedJob->Summary.ReleaseFlags.IsNonTrivial()) {
         FinishedJobs_.insert(std::make_pair(jobId, finishedJob));
     }
 
@@ -7328,21 +7328,14 @@ void TOperationControllerBase::ReleaseJobs(const std::vector<TJobId>& jobIds)
     jobsToRelease.reserve(jobIds.size());
 
     for (auto jobId : jobIds) {
-        bool archiveJobSpec = false;
-        bool archiveStderr = false;
-        bool archiveFailContext = false;
-        bool archiveProfile = false;
-
+        TReleaseJobFlags releaseFlags;
         auto it = FinishedJobs_.find(jobId);
         if (it != FinishedJobs_.end()) {
             const auto& jobSummary = it->second->Summary;
-            archiveJobSpec = jobSummary.ArchiveJobSpec;
-            archiveStderr = jobSummary.ArchiveStderr;
-            archiveFailContext = jobSummary.ArchiveFailContext;
-            archiveProfile = jobSummary.ArchiveProfile;
+            releaseFlags = jobSummary.ReleaseFlags;
             FinishedJobs_.erase(it);
         }
-        jobsToRelease.emplace_back(TJobToRelease{jobId, archiveJobSpec, archiveStderr, archiveFailContext, archiveProfile});
+        jobsToRelease.emplace_back(TJobToRelease{jobId, releaseFlags});
     }
     Host->ReleaseJobs(jobsToRelease);
 }
