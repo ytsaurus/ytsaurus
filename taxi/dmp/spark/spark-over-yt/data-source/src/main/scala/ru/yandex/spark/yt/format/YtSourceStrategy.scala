@@ -11,7 +11,7 @@ import org.apache.spark.sql.execution.{FileSourceScanExec, SparkPlan}
 import org.apache.spark.sql.{Strategy, YtSourceScanExec, execution}
 import org.apache.spark.util.collection.BitSet
 
-object YtSourceStrategy extends Strategy with Logging {
+class YtSourceStrategy extends Strategy with Logging {
 
   // should prune buckets iff num buckets is greater than 1 and there is only one bucket column
   private def shouldPruneBuckets(bucketSpec: Option[BucketSpec]): Boolean = {

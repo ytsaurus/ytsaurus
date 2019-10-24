@@ -21,12 +21,12 @@ object Dependencies {
   lazy val spark = Seq(
     "org.apache.spark" %% "spark-core",
     "org.apache.spark" %% "spark-sql"
-  ).map(_ % sparkVersion % Provided)
+  ).map(_ % sparkVersion % Provided).excludeLogging
 
   lazy val yandexIceberg = Seq(
     "ru.yandex" % "iceberg-inside-yt" % yandexIcebergVersion excludeAll
       ExclusionRule(organization = "com.fasterxml.jackson.core")
-  )
+  ).excludeLogging
 
   lazy val grpc = Seq(
     "io.grpc" % "grpc-netty" % scalapb.compiler.Version.grpcJavaVersion,
@@ -41,4 +41,8 @@ object Dependencies {
     "org.slf4j" % "slf4j-log4j12" % "1.7.28",
     "org.slf4j" % "slf4j-api" % "1.7.28"
   )
+
+  implicit class RichDependencies(deps: Seq[ModuleID]) {
+    def excludeLogging: Seq[ModuleID] = deps.map(_.excludeAll(ExclusionRule(organization = "org.slf4j")))
+  }
 }

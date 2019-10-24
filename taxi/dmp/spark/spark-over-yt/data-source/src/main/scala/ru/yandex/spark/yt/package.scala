@@ -9,12 +9,10 @@ import ru.yandex.spark.yt.serializers.SchemaConverter
 import ru.yandex.spark.yt.utils.DefaultRpcCredentials
 
 package object yt {
-  def createSparkSession(user: String, token: String, conf: SparkConf): SparkSession = {
+  def createSparkSession(conf: SparkConf = new SparkConf()): SparkSession = {
     SparkSession.builder()
       .config(conf)
-      .config("spark.yt.user", user)
-      .config("spark.yt.token", token)
-      .withExtensions(_.injectPlannerStrategy(_ => YtSourceStrategy))
+      .withExtensions(_.injectPlannerStrategy(_ => new YtSourceStrategy))
       .getOrCreate()
   }
 
@@ -25,7 +23,11 @@ package object yt {
   def restartSparkWithExtensions(spark: SparkSession): SparkSession = {
     val conf = spark.conf
     spark.stop()
-    createSparkSession(DefaultRpcCredentials.user, DefaultRpcCredentials.token, new SparkConf().setAll(conf.getAll))
+    val sparkConf = new SparkConf()
+      .setAll(conf.getAll)
+      .set("spark.yt.user", DefaultRpcCredentials.user)
+      .set("spark.yt.token", DefaultRpcCredentials.token)
+    createSparkSession(sparkConf)
   }
 
   implicit class YtReader(reader: DataFrameReader) {

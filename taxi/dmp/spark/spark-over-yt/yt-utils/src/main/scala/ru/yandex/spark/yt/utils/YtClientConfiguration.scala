@@ -1,6 +1,5 @@
 package ru.yandex.spark.yt.utils
 
-import org.apache.log4j.Logger
 import ru.yandex.yt.ytclient.rpc.RpcCredentials
 
 case class YtClientConfiguration(proxy: String, user: String, token: String, timeout: Int) {
@@ -10,8 +9,6 @@ case class YtClientConfiguration(proxy: String, user: String, token: String, tim
 }
 
 object YtClientConfiguration {
-  private val log = Logger.getLogger(getClass)
-
   def apply(getByName: String => Option[String]): YtClientConfiguration = {
     YtClientConfiguration(
       getByName("proxy").orElse(sys.env.get("YT_PROXY")).getOrElse(throw new IllegalArgumentException("Proxy must be specified")),

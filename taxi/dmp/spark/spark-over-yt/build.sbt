@@ -7,8 +7,7 @@ lazy val `data-source` = (project in file("data-source"))
     libraryDependencies ++= testDeps,
     libraryDependencies ++= spark,
     libraryDependencies ++= yandexIceberg,
-//    libraryDependencies ++= logging.map(_ % Provided),
-//    excludeDependencies += ExclusionRule(organization = "org.slf4j"),
+    libraryDependencies ++= logging.map(_ % Provided),
     test in assembly := {},
     assemblyOption in assembly := (assemblyOption in assembly).value.copy(includeScala = false)
   )
@@ -44,7 +43,7 @@ lazy val `test-job` = (project in file("test-job"))
 lazy val `yt-utils` = (project in file("yt-utils"))
   .settings(
     libraryDependencies ++= yandexIceberg,
-    libraryDependencies ++= logging
+    libraryDependencies ++= logging.map(_ % Provided)
   )
 
 lazy val root = (project in file("."))
