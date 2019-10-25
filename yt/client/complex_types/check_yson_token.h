@@ -11,17 +11,12 @@ namespace NYT::NComplexTypes {
 
 Y_FORCE_INLINE void EnsureYsonToken(
     const NTableClient::TComplexTypeFieldDescriptor& descriptor,
-    NYson::EYsonItemType actual,
-    NYson::EYsonItemType expected);
-
-Y_FORCE_INLINE void EnsureYsonToken(
-    const NTableClient::TComplexTypeFieldDescriptor& descriptor,
     const NYson::TYsonPullParserCursor& cursor,
     NYson::EYsonItemType expected);
 
 void ThrowUnexpectedYsonTokenException(
     const NTableClient::TComplexTypeFieldDescriptor& descriptor,
-    NYson::EYsonItemType actual,
+    const NYson::TYsonPullParserCursor& cursor,
     const std::vector<NYson::EYsonItemType>& expected);
 
 ////////////////////////////////////////////////////////////////////////////////

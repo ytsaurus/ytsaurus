@@ -14,20 +14,12 @@ namespace NYT::NComplexTypes {
 
 Y_FORCE_INLINE void EnsureYsonToken(
     const NTableClient::TComplexTypeFieldDescriptor& descriptor,
-    NYson::EYsonItemType actual,
-    NYson::EYsonItemType expected)
-{
-    if (expected != actual) {
-        ThrowUnexpectedYsonTokenException(descriptor, actual, {expected});
-    }
-}
-
-Y_FORCE_INLINE void EnsureYsonToken(
-    const NTableClient::TComplexTypeFieldDescriptor& descriptor,
     const NYson::TYsonPullParserCursor& cursor,
     NYson::EYsonItemType expected)
 {
-    return EnsureYsonToken(descriptor, cursor->GetType(), expected);
+    if (expected != cursor->GetType()) {
+        ThrowUnexpectedYsonTokenException(descriptor, cursor, {expected});
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
