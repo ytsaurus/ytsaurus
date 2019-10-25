@@ -610,6 +610,11 @@ struct TExternalizeNodeOptions
     , public TTransactionalOptions
 { };
 
+struct TInternalizeNodeOptions
+    : public TTimeoutOptions
+    , public TTransactionalOptions
+{ };
+
 struct TFileReaderOptions
     : public TTransactionalOptions
     , public TSuppressableAccessTrackingOptions
@@ -1111,6 +1116,10 @@ struct IClientBase
         const NYPath::TYPath& path,
         NObjectClient::TCellTag cellTag,
         const TExternalizeNodeOptions& options = {}) = 0;
+
+    virtual TFuture<void> InternalizeNode(
+        const NYPath::TYPath& path,
+        const TInternalizeNodeOptions& options = {}) = 0;
 
 
     // Objects

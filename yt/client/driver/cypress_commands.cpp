@@ -446,4 +446,21 @@ void TExternalizeCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TInternalizeCommand::TInternalizeCommand()
+{
+    RegisterParameter("path", Path);
+}
+
+void TInternalizeCommand::DoExecute(ICommandContextPtr context)
+{
+    auto asyncResult = context->GetClient()->InternalizeNode(
+        Path,
+        Options);
+
+    WaitFor(asyncResult)
+        .ThrowOnError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NDriver

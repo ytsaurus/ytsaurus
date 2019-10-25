@@ -427,6 +427,10 @@ public:
         TCellTag cellTag,
         const TExternalizeNodeOptions& options),
         (path, cellTag, options))
+    DELEGATE_TRANSACTIONAL_METHOD(TFuture<void>, InternalizeNode, (
+        const TYPath& path,
+        const TInternalizeNodeOptions& options),
+        (path, options))
     DELEGATE_TRANSACTIONAL_METHOD(TFuture<bool>, NodeExists, (
         const TYPath& path,
         const TNodeExistsOptions& options),
