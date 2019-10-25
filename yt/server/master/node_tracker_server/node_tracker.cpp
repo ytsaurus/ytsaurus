@@ -1086,6 +1086,16 @@ private:
         NodeMap_.LoadValues(context);
         RackMap_.LoadValues(context);
         DataCenterMap_.LoadValues(context);
+
+        // COMPAT(babenko)
+        if (context.GetVersion() < EMasterReign::FixClusterNodeForeignFlag) {
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            for (auto [nodeId, node] : NodeMap_) {
+                if (node->GetNativeCellTag() != multicellManager->GetCellTag()) {
+                    node->SetForeign();
+                }
+            }
+        }
     }
 
 
@@ -1315,6 +1325,11 @@ private:
 
         // Make the fake reference.
         YT_VERIFY(node->RefObject() == 1);
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (node->GetNativeCellTag() != multicellManager->GetCellTag()) {
+            node->SetForeign();
+        }
 
         InitializeNodeStates(node);
 
