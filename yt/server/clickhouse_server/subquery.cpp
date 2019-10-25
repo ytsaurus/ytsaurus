@@ -538,6 +538,7 @@ std::vector<TSubquery> BuildSubqueries(
         }
         auto& subquery = subqueries.emplace_back();
         subquery.StripeList = chunkPool->GetStripeList(cookie);
+        subquery.Cookie = cookie;
         if (poolKind == EPoolKind::Sorted) {
             auto limits = static_cast<ISortedChunkPool*>(chunkPool.get())->GetLimits(cookie);
             subquery.Limits.first = TUnversionedOwningRow(limits.first);
