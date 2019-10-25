@@ -991,12 +991,16 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
 
     if (options.FailOnIncompleteResult) {
         if (statistics.IncompleteInput) {
-            THROW_ERROR_EXCEPTION("Query terminated prematurely due to excessive input; consider rewriting your query or changing input limit")
-                    << TErrorAttribute("input_row_limit", inputRowLimit);
+            THROW_ERROR_EXCEPTION(
+                NTabletClient::EErrorCode::QueryInputRowCountLimitExceeded,
+                "Query terminated prematurely due to excessive input; consider rewriting your query or changing input limit")
+                << TErrorAttribute("input_row_limit", inputRowLimit);
         }
         if (statistics.IncompleteOutput) {
-            THROW_ERROR_EXCEPTION("Query terminated prematurely due to excessive output; consider rewriting your query or changing output limit")
-                    << TErrorAttribute("output_row_limit", outputRowLimit);
+            THROW_ERROR_EXCEPTION(
+                NTabletClient::EErrorCode::QueryOutputRowCountLimitExceeded,
+                "Query terminated prematurely due to excessive output; consider rewriting your query or changing output limit")
+                << TErrorAttribute("output_row_limit", outputRowLimit);
         }
     }
 

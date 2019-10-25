@@ -37,15 +37,17 @@ DEFINE_ENUM(ETableReplicaMode,
 );
 
 DEFINE_ENUM(EErrorCode,
-    ((TransactionLockConflict)  (1700))
-    ((NoSuchTablet)             (1701))
-    ((TabletNotMounted)         (1702))
-    ((AllWritesDisabled)        (1703))
-    ((InvalidMountRevision)     (1704))
-    ((TableReplicaAlreadyExists)(1705))
-    ((InvalidTabletState)       (1706))
-    ((TableMountInfoNotReady)   (1707))
-    ((TabletSnapshotExpired)    (1708))
+    ((TransactionLockConflict)          (1700))
+    ((NoSuchTablet)                     (1701))
+    ((TabletNotMounted)                 (1702))
+    ((AllWritesDisabled)                (1703))
+    ((InvalidMountRevision)             (1704))
+    ((TableReplicaAlreadyExists)        (1705))
+    ((InvalidTabletState)               (1706))
+    ((TableMountInfoNotReady)           (1707))
+    ((TabletSnapshotExpired)            (1708))
+    ((QueryInputRowCountLimitExceeded)  (1709))
+    ((QueryOutputRowCountLimitExceeded) (1710))
 );
 
 DEFINE_ENUM(EInMemoryMode,
