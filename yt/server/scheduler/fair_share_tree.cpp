@@ -469,7 +469,7 @@ TPoolsUpdateResult TFairShareTree::UpdatePools(const INodePtr& poolsNode)
         poolToParentMap[poolId] = pool->GetParent()->GetId();
     }
 
-    TPoolsConfigParser poolsConfigParser(poolToParentMap, RootElement_->GetId());
+    TPoolsConfigParser poolsConfigParser(poolToParentMap);
 
     TError parseResult = poolsConfigParser.TryParse(poolsNode);
     if (!parseResult.IsOK()) {
@@ -479,69 +479,62 @@ TPoolsUpdateResult TFairShareTree::UpdatePools(const INodePtr& poolsNode)
         return {wrappedError, false};
     }
 
-    const auto& parsedPoolMap = poolsConfigParser.GetPoolConfigMap();
+    // Parsing is succeeded. Applying new structure.
+    for (const auto& updatePoolAction : poolsConfigParser.GetOrderedUpdatePoolActions()) {
+        switch (updatePoolAction.Type) {
+            case EUpdatePoolActionType::Create: {
+                auto pool = New<TPool>(
+                    Host_,
+                    this,
+                    updatePoolAction.Name,
+                    updatePoolAction.PoolConfig,
+                    /* defaultConfigured */ false,
+                    Config_,
+                    GetPoolProfilingTag(updatePoolAction.Name),
+                    TreeId_,
+                    Logger);
+                const auto& parent = updatePoolAction.ParentName == RootPoolName
+                    ? static_cast<TCompositeSchedulerElementPtr>(RootElement_)
+                    : GetPool(updatePoolAction.ParentName);
 
-    for (const auto& poolId: poolsConfigParser.GetNewPoolsByInOrderTraversal()) {
-        auto it = parsedPoolMap.find(poolId);
-        YT_VERIFY(it != parsedPoolMap.end());
-        auto parsedPool = it->second;
-        auto pool = New<TPool>(
-            Host_,
-            this,
-            poolId,
-            parsedPool.PoolConfig,
-            /* defaultConfigured */ false,
-            Config_,
-            GetPoolProfilingTag(poolId),
-            TreeId_,
-            Logger);
-        const auto& parent = parsedPool.ParentId == RootPoolName
-            ? static_cast<TCompositeSchedulerElementPtr>(RootElement_)
-            : GetPool(parsedPool.ParentId);
-
-        RegisterPool(pool, parent);
-    }
-
-    for (const auto& [poolId, parsedPool] : parsedPoolMap) {
-        if (parsedPool.IsNew) {
-            continue;
-        }
-        auto pool = GetPool(poolId);
-        if (pool->GetUserName()) {
-            const auto& userName = pool->GetUserName().value();
-            if (pool->IsEphemeralInDefaultParentPool()) {
-                YT_VERIFY(UserToEphemeralPoolsInDefaultPool_[userName].erase(pool->GetId()) == 1);
+                RegisterPool(pool, parent);
+                break;
             }
-            pool->SetUserName(std::nullopt);
-        }
-        ReconfigurePool(pool, parsedPool.PoolConfig);
-        if (parsedPool.ParentIsChanged) {
-            const auto& parent = parsedPool.ParentId == RootPoolName
-                ? static_cast<TCompositeSchedulerElementPtr>(RootElement_)
-                : GetPool(parsedPool.ParentId);
-            pool->ChangeParent(parent.Get());
-        }
-    }
+            case EUpdatePoolActionType::Erase: {
+                auto pool = GetPool(updatePoolAction.Name);
+                if (pool->IsEmpty()) {
+                    UnregisterPool(pool);
+                } else {
+                    pool->SetDefaultConfig();
 
-    std::vector<TPoolPtr> erasedPools;
-    for (const auto& [poolId, pool] : Pools_) {
-        if (!parsedPoolMap.contains(poolId)) {
-            erasedPools.push_back(pool);
-        }
-    }
-
-    for (const auto& pool : erasedPools) {
-        if (pool->IsEmpty()) {
-            UnregisterPool(pool);
-        } else {
-            pool->SetDefaultConfig();
-
-            auto defaultParent = GetDefaultParentPool();
-            if (pool->GetId() == defaultParent->GetId()) {  // Someone is deleting default pool
-                defaultParent = RootElement_;
+                    auto defaultParent = GetDefaultParentPool();
+                    if (pool->GetId() == defaultParent->GetId()) {  // Someone is deleting default pool.
+                        defaultParent = RootElement_;
+                    }
+                    if (pool->GetParent()->GetId() != defaultParent->GetId()) {
+                        pool->ChangeParent(defaultParent.Get());
+                    }
+                }
+                break;
             }
-            if (pool->GetParent()->GetId() != defaultParent->GetId()) {
-                pool->ChangeParent(defaultParent.Get());
+            case EUpdatePoolActionType::Move:
+            case EUpdatePoolActionType::Keep: {
+                auto pool = GetPool(updatePoolAction.Name);
+                if (pool->GetUserName()) {
+                    const auto& userName = pool->GetUserName().value();
+                    if (pool->IsEphemeralInDefaultParentPool()) {
+                        YT_VERIFY(UserToEphemeralPoolsInDefaultPool_[userName].erase(pool->GetId()) == 1);
+                    }
+                    pool->SetUserName(std::nullopt);
+                }
+                ReconfigurePool(pool, updatePoolAction.PoolConfig);
+                if (updatePoolAction.Type == EUpdatePoolActionType::Move) {
+                    const auto& parent = updatePoolAction.ParentName == RootPoolName
+                        ? static_cast<TCompositeSchedulerElementPtr>(RootElement_)
+                        : GetPool(updatePoolAction.ParentName);
+                    pool->ChangeParent(parent.Get());
+                }
+                break;
             }
         }
     }
