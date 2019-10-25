@@ -166,17 +166,19 @@ private:
             {
                 YT_LOG_INFO("Creating tablet trim transaction");
 
-                TTransactionStartOptions options;
-                options.AutoAbort = false;
-                auto attributes = CreateEphemeralAttributes();
-                attributes->Set("title", Format("Tablet trim: table %v, tablet %v",
+                auto transactionAttributes = CreateEphemeralAttributes();
+                transactionAttributes->Set("title", Format("Tablet trim: table %v, tablet %v",
                     tablet->GetTablePath(),
                     tabletId));
-                options.Attributes = std::move(attributes);
 
                 auto asyncTransaction = Bootstrap_->GetMasterClient()->StartNativeTransaction(
                     NTransactionClient::ETransactionType::Master,
-                    options);
+                    TTransactionStartOptions{
+                        .AutoAbort = false,
+                        .Attributes = std::move(transactionAttributes),
+                        .CoordinatorMasterCellTag = CellTagFromId(tablet->GetId()),
+                        .ReplicateToMasterCellTags = TCellTagList()
+                    });
                 transaction = WaitFor(asyncTransaction)
                     .ValueOrThrow();
 
