@@ -504,10 +504,10 @@ public:
         const TRootFS& rootFS,
         const TString& user) override
     {
-        auto instance = CreateSetupInstance(slotIndex, jobId, rootFS, user);
-
-        return BIND([instance, commands] {
+        return BIND([this_ = MakeStrong(this), slotIndex, jobId, commands, rootFS, user] {
             for (const auto& command : commands) {
+                YT_LOG_DEBUG("Running setup command; path: %v args: %v", command->Path, command->Args);
+                auto instance = this_->CreateSetupInstance(slotIndex, jobId, rootFS, user);
                 auto process = CreateSetupProcess(instance, command);
                 WaitFor(process->Spawn()).ThrowOnError();
             }

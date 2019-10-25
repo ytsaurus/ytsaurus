@@ -1730,7 +1730,12 @@ private:
         };
 
         addIfPresent(Config_->JobController->JobSetupCommand);
-        addIfPresent(Config_->JobController->GpuManager->JobSetupCommand);
+
+        bool needGpu = GetResourceUsage().gpu() > 0 || Config_->JobController->TestGpuSetupCommands;
+        if (needGpu) {
+            auto gpu_commands = Bootstrap_->GetGpuManager()->GetSetupCommands();
+            result.insert(result.end(), gpu_commands.begin(), gpu_commands.end());
+        }
 
         return result;
     }
