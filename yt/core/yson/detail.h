@@ -89,12 +89,13 @@ public:
         }
     }
 
-    friend TError operator << (TError error, const TPositionInfo<true>& info)
+    std::vector<TErrorAttribute> GetErrorAttributes() const
     {
-        return error
-            << TErrorAttribute("offset", info.Offset)
-            << TErrorAttribute("line", info.Line)
-            << TErrorAttribute("column", info.Column);
+        return {
+            TErrorAttribute("offset", Offset),
+            TErrorAttribute("line", Line),
+            TErrorAttribute("column", Column),
+        };
     }
 };
 
@@ -114,12 +115,19 @@ public:
         Offset += end - begin;
     }
 
-    friend TError operator << (TError error, const TPositionInfo<false>& info)
+    std::vector<TErrorAttribute> GetErrorAttributes() const
     {
-        return error
-            << TErrorAttribute("offset", info.Offset);
+        return {
+            TErrorAttribute("offset", Offset),
+        };
     }
 };
+
+template <bool EnableLinePositionInfo>
+TError operator << (TError error, const TPositionInfo<EnableLinePositionInfo>& info)
+{
+    return error << info.GetErrorAttributes();
+}
 
 template <class T, size_t Capacity>
 class TStaticRingQueue
@@ -208,7 +216,7 @@ public:
     }
 
     // Return pair <context, context_position>.
-    std::pair<TString, size_t> GetContextFromCheckpoint()
+    std::pair<TString, size_t> GetContextFromCheckpoint() const
     {
         TString result(MaxContextSize, '\0');
         size_t size, position;
@@ -341,6 +349,7 @@ public:
     {
         return TBlockStream::End() - TBlockStream::Current();
     }
+
 };
 
 template <class TBaseStream>

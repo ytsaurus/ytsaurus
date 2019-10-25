@@ -114,6 +114,9 @@ public:
 
     ui64 GetTotalReadSize() const;
 
+    // Return error attributes about yson context that is being parsed.
+    std::vector<TErrorAttribute> GetErrorAttributes() const;
+
 private:
     Y_FORCE_INLINE TYsonItem NextImpl();
 
@@ -143,6 +146,9 @@ public:
 
     Y_FORCE_INLINE void Next();
 
+    // Return error attributes about current yson context.
+    std::vector<TErrorAttribute> GetErrorAttributes() const;
+
     // If cursor is positioned over simple value  (i.e. just integer) cursor is moved one element further.
     // If cursor is positioned over start of list/map cursor will be moved to the first item after
     // current list/map.
@@ -150,7 +156,7 @@ public:
     // owns these attributes will be skipped as well.
     void SkipComplexValue();
 
-   // Transfer complex value is similar to SkipComplexValue except it feeds passed consumer with skipped value.
+    // Transfer complex value is similar to SkipComplexValue except it feeds passed consumer with skipped value.
     void TransferComplexValue(IYsonConsumer* consumer);
 
 private:
