@@ -27,7 +27,6 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TChildToKey, ChildToKey);
 
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
-    // YYY(kiselyovp) consider having a "custom root name" property here
 
 public:
     explicit TNonversionedMapObjectBase(TObjectId id);
@@ -52,11 +51,15 @@ public:
     //! Returns the key for a given child, which must be present.
     TString GetChildKey(const TSelf* child) const noexcept;
 
-    //! Return object's child key or its id preceded by a hash if it has no parent.
+    //! Returns object's child key or the result of GetRootName() if it has no parent.
     TString GetName() const;
 
     virtual void Save(NCellMaster::TSaveContext& context) const;
     virtual void Load(NCellMaster::TLoadContext& context);
+
+protected:
+    //! Returns the name of a parentless object (id preceeded by a hash by default).
+    virtual TString GetRootName() const;
 
 private:
     TSelf* GetSelf();
