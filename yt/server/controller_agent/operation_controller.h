@@ -67,6 +67,7 @@ struct TOperationControllerPrepareResult
 struct TOperationControllerMaterializeResult
 {
     bool Suspend = false;
+    TJobResources InitialNeededResources;
 };
 
 struct TOperationControllerReviveResult
@@ -87,6 +88,7 @@ struct TOperationControllerReviveResult
     bool RevivedFromSnapshot = false;
     std::vector<TRevivedJob> RevivedJobs;
     THashSet<TString> RevivedBannedTreeIds;
+    TJobResources NeededResources;
 };
 
 struct TOperationControllerUnregisterResult

@@ -309,6 +309,11 @@ public:
     //! Limit on the number of concurrent calls to ScheduleJob of single controller.
     std::optional<int> MaxConcurrentControllerScheduleJobCalls;
 
+    //! If set and several regular pool trees have been specified, then the scheduler will choose
+    //! one of those trees based on some heuristic, and all jobs will be scheduled only in the chosen tree.
+    //! This option can't be used simultaneously with TentativePoolTrees or UseDefaulTentativePoolTrees;
+    bool ScheduleInSingleTree;
+
     //! Tentative pool trees to schedule operation in.
     //! Operation's job will be scheduled to these pool trees as long as they're
     //! not much slower than those in other (non-tentative) trees.

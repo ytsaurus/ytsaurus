@@ -1460,6 +1460,8 @@ TStrategyOperationSpec::TStrategyOperationSpec()
     RegisterParameter("max_concurrent_schedule_job_calls", MaxConcurrentControllerScheduleJobCalls)
         .Alias("max_concurrent_controller_schedule_job_calls")
         .Default();
+    RegisterParameter("schedule_in_single_tree", ScheduleInSingleTree)
+        .Default(false);
     RegisterParameter("tentative_pool_trees", TentativePoolTrees)
         .Default();
     RegisterParameter("use_default_tentative_pool_trees", UseDefaultTentativePoolTrees)
@@ -1476,6 +1478,15 @@ TStrategyOperationSpec::TStrategyOperationSpec()
         .Default(10);
     RegisterParameter("preemption_mode", PreemptionMode)
         .Default(EPreemptionMode::Normal);
+
+    RegisterPostprocessor([&] {
+        if (ScheduleInSingleTree && (TentativePoolTrees || UseDefaultTentativePoolTrees)) {
+            THROW_ERROR_EXCEPTION("%Qv option cannot be used simultaneously with tentative pool trees (check %Qv and %Qv)",
+                "schedule_in_single_tree",
+                "tentative_pool_trees",
+                "use_default_tentative_pool_trees");
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -153,10 +153,12 @@ TFairShareTree::TFairShareTreeSnapshot::TFairShareTreeSnapshot(
     TFairShareTreePtr tree,
     TFairShareTree::TRootElementSnapshotPtr rootElementSnapshot,
     TSchedulingTagFilter nodesFilter,
+    TJobResources totalResourceLimits,
     const NLogging::TLogger& logger)
     : Tree_(std::move(tree))
     , RootElementSnapshot_(std::move(rootElementSnapshot))
     , NodesFilter_(std::move(nodesFilter))
+    , TotalResourceLimits_(std::move(totalResourceLimits))
     , Logger(logger)
 { }
 
@@ -227,6 +229,22 @@ bool TFairShareTree::TFairShareTreeSnapshot::IsOperationDisabled(TOperationId op
 const TSchedulingTagFilter& TFairShareTree::TFairShareTreeSnapshot::GetNodesFilter() const
 {
     return NodesFilter_;
+}
+
+TJobResources TFairShareTree::TFairShareTreeSnapshot::GetTotalResourceLimits() const
+{
+    return TotalResourceLimits_;
+}
+
+std::optional<TSchedulerElementStateSnapshot> TFairShareTree::TFairShareTreeSnapshot::GetMaybeStateSnapshotForPool(const TString& poolId) const
+{
+    if (auto* element = RootElementSnapshot_->FindPool(poolId)) {
+        return TSchedulerElementStateSnapshot{
+            element->ResourceDemand(),
+            element->GetMinShareResources()};
+    }
+
+    return std::nullopt;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1017,7 +1035,12 @@ std::pair<IFairShareTreeSnapshotPtr, TError> TFairShareTree::DoFairShareUpdateAt
 
     RootElementSnapshot_ = rootElementSnapshot;
 
-    auto treeSnapshot = New<TFairShareTreeSnapshot>(this, std::move(rootElementSnapshot), GetNodesFilter(), Logger);
+    auto treeSnapshot = New<TFairShareTreeSnapshot>(
+        this,
+        std::move(rootElementSnapshot),
+        GetNodesFilter(),
+        Host_->GetResourceLimits(GetNodesFilter()),
+        Logger);
     return std::make_pair(treeSnapshot, error);
 }
 

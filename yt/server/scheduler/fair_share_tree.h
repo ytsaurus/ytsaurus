@@ -22,6 +22,8 @@ struct IFairShareTreeSnapshot
     virtual void ApplyJobMetricsDelta(TOperationId operationId, const TJobMetrics& jobMetricsDelta) = 0;
     virtual void ProfileFairShare() const = 0;
     virtual const TSchedulingTagFilter& GetNodesFilter() const = 0;
+    virtual TJobResources GetTotalResourceLimits() const = 0;
+    virtual std::optional<TSchedulerElementStateSnapshot> GetMaybeStateSnapshotForPool(const TString& poolId) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IFairShareTreeSnapshot);
@@ -259,6 +261,7 @@ private:
             TFairShareTreePtr tree,
             TRootElementSnapshotPtr rootElementSnapshot,
             TSchedulingTagFilter nodesFilter,
+            TJobResources totalResourceLimits,
             const NLogging::TLogger& logger);
 
         virtual TFuture<void> ScheduleJobs(const ISchedulingContextPtr& schedulingContext) override;
@@ -279,10 +282,15 @@ private:
 
         virtual const TSchedulingTagFilter& GetNodesFilter() const override;
 
+        virtual TJobResources GetTotalResourceLimits() const override;
+
+        virtual std::optional<TSchedulerElementStateSnapshot> GetMaybeStateSnapshotForPool(const TString& poolId) const override;
+
     private:
         const TIntrusivePtr<TFairShareTree> Tree_;
         const TRootElementSnapshotPtr RootElementSnapshot_;
         const TSchedulingTagFilter NodesFilter_;
+        const TJobResources TotalResourceLimits_;
         const NLogging::TLogger Logger;
     };
 
