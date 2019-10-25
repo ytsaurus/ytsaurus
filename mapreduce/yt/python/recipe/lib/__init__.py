@@ -1,5 +1,9 @@
 from mapreduce.yt.python.yt_stuff import YtStuff, YtConfig
 
+import yt.yson as yson
+
+from yt.common import update, get_value
+
 from library.python.testing.recipe import set_env
 
 import yatest.common
@@ -8,20 +12,34 @@ import argparse
 import os
 import json
 
-recipe_info_json_file = "yt_recipe_info.json"
+RECIPE_INFO_FILE = "yt_recipe_info.json"
 
 
-def start(argv, yt_config=None):
-    args = parse_args(argv)
+class ParseStructuredArgument(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        # Multiple times specified arguments are merged into single dict.
+        old_value = get_value(getattr(namespace, self.dest), {})
+        new_value = update(old_value, yson._loads_from_native_str(values))
+        setattr(namespace, self.dest, new_value)
 
-    if yt_config is None:
-        yt_config = YtConfig()
+def start(args):
+    parser = argparse.ArgumentParser()
+    local_cypress_dir_parser = parser.add_mutually_exclusive_group()
+    local_cypress_dir_parser.add_argument("--local-cypress-dir-in-source-path")
+    local_cypress_dir_parser.add_argument("--local-cypress-dir-in-work-path")
+    parser.add_argument("--wait-tablet-cell-initialization", action="store_true")
+    parser.add_argument("--node-config", action=ParseStructuredArgument)
+    parsed_args, _ = parser.parse_known_args(args)
 
-    if args.local_cypress_source_dir is not None:
-        yt_config.local_cypress_dir = yatest.common.test_source_path(args.local_cypress_source_dir)
-    if args.local_cypress_work_dir is not None:
-        yt_config.local_cypress_dir = yatest.common.work_path(args.local_cypress_work_dir)
+    config_args = dict((key, value) for key, value in vars(parsed_args).items() if value is not None)
+    if "local_cypress_dir_in_source_path" in config_args:
+        config_args["local_cypress_dir"] = yatest.common.test_source_path(config_args["local_cypress_dir_in_source_path"])
+        del config_args["local_cypress_dir_in_source_path"]
+    if "local_cypress_dir_in_work_path" in config_args:
+        config_args["local_cypress_dir"] = yatest.common.work_path(config_args["local_cypress_dir_in_work_path"])
+        del config_args["local_cypress_dir_in_work_path"]
 
+    yt_config = YtConfig(**config_args)
     yt_stuff = YtStuff(yt_config)
     yt_stuff.start_local_yt()
 
@@ -31,7 +49,7 @@ def start(argv, yt_config=None):
         "yt_local_exec": yt_stuff.yt_local_exec,
     }
 
-    with open(recipe_info_json_file, "w") as fout:
+    with open(RECIPE_INFO_FILE, "w") as fout:
         json.dump(recipe_info, fout)
 
     os.symlink(
@@ -47,24 +65,11 @@ def start(argv, yt_config=None):
     return yt_stuff
 
 
-def parse_args(argv):
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--local-cypress-work-dir", dest="local_cypress_work_dir",
-        default=None, help="Set local cypress dir at test work path"
-    )
-    parser.add_argument(
-        "--local-cypress-source-dir", dest="local_cypress_source_dir",
-        default=None, help="Set local cypress dir at test source path"
-    )
-    return parser.parse_known_args(argv)[0]
-
-
 def stop(args):
-    if not os.path.exists(recipe_info_json_file):
+    if not os.path.exists(RECIPE_INFO_FILE):
         return
 
-    with open(recipe_info_json_file) as fin:
+    with open(RECIPE_INFO_FILE) as fin:
         recipe_info = json.load(fin)
 
     yatest.common.execute(
