@@ -48,7 +48,7 @@ def run_pytest(python_version):
     if os.path.exists(conftest_path):
         os.remove(conftest_path)
 
-    path = arcadia_interop.prepare_yt_environment(build_dir, use_ytserver_all=True)
+    path = arcadia_interop.prepare_yt_environment(build_dir, use_ytserver_all=True, copy_ytserver_all=True)
     if "PATH" in os.environ:
         path = os.pathsep.join([path, os.environ["PATH"]])
 
