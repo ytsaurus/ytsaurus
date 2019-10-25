@@ -40,7 +40,7 @@ class YsonString(binary_type, YsonType):
         # COMPAT: With implicit promotion of str to unicode it can make sense
         # to compare binary YsonString to unicode string.
         if not isinstance(other, (binary_type, text_type)):
-            return False
+            return NotImplemented
         return binary_type(self) == binary_type(other) and YsonType.__eq__(self, other)
 
     def __ne__(self, other):
@@ -55,7 +55,7 @@ class YsonString(binary_type, YsonType):
 class YsonUnicode(text_type, YsonType):
     def __eq__(self, other):
         if not isinstance(other, text_type):
-            return False
+            return NotImplemented
         return text_type(self) == text_type(other) and YsonType.__eq__(self, other)
 
     def __ne__(self, other):
@@ -75,7 +75,7 @@ else:
 class YsonIntegerBase(_YsonIntegerBase, YsonType):
     def __eq__(self, other):
         if not isinstance(other, integer_types):
-            return False
+            return NotImplemented
         return _YsonIntegerBase(self) == _YsonIntegerBase(other) and YsonType.__eq__(self, other)
 
     def __ne__(self, other):
@@ -99,7 +99,7 @@ class YsonUint64(YsonIntegerBase):
 class YsonDouble(float, YsonType):
     def __eq__(self, other):
         if not isinstance(other, float):
-            return False
+            return NotImplemented
         return float(self) == float(other) and YsonType.__eq__(self, other)
 
     def __ne__(self, other):
@@ -117,7 +117,7 @@ class YsonDouble(float, YsonType):
 class YsonBoolean(int, YsonType):
     def __eq__(self, other):
         if not isinstance(other, int):
-            return False
+            return NotImplemented
         return (int(self) == 0) == (int(other) == 0) and YsonType.__eq__(self, other)
 
     def __ne__(self, other):
@@ -138,7 +138,7 @@ class YsonBoolean(int, YsonType):
 class YsonList(list, YsonType):
     def __eq__(self, other):
         if not isinstance(other, list):
-            return False
+            return NotImplemented
         return list(self) == list(other) and YsonType.__eq__(self, other)
 
     def __ne__(self, other):
@@ -156,7 +156,7 @@ class YsonList(list, YsonType):
 class YsonMap(dict, YsonType):
     def __eq__(self, other):
         if not isinstance(other, dict):
-            return False
+            return NotImplemented
         return dict(self) == dict(other) and YsonType.__eq__(self, other)
 
     def __ne__(self, other):
@@ -178,7 +178,9 @@ class YsonEntity(YsonType):
     def __eq__(self, other):
         if other is None and not self.attributes:
             return True
-        return isinstance(other, YsonEntity) and YsonType.__eq__(self, other)
+        if not isinstance(other, YsonEntity):
+            return NotImplemented
+        return YsonType.__eq__(self, other)
 
     def __ne__(self, other):
         return not (self == other)
