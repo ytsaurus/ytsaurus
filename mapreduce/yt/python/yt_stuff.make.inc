@@ -9,5 +9,9 @@ DEPENDS(
     yt/python/yt/local/bin/yt_local_make
 )
 
+REQUIREMENTS(
+    ram_disk:4
+)
+
 INCLUDE(${ARCADIA_ROOT}/yt/python/yt/environment/ya_programs.make.inc)
 
