@@ -5,6 +5,7 @@
 #include <util/stream/input.h>
 #include <util/stream/output.h>
 #include <util/stream/str.h>
+#include <util/stream/zerocopy_output.h>
 
 #include <Objects.hxx> // pycxx
 
@@ -15,6 +16,8 @@ namespace NYT::NPython {
 std::unique_ptr<IInputStream> CreateInputStreamWrapper(const Py::Object& pythonInputStream, bool wrapPythonExceptions = false);
 
 std::unique_ptr<IOutputStream> CreateOutputStreamWrapper(const Py::Object& pythonOutputStream, bool addBuffering);
+
+std::unique_ptr<IZeroCopyOutput> CreateZeroCopyOutputStreamWrapper(const Py::Object& pythonOutputStream);
 
 ////////////////////////////////////////////////////////////////////////////////
 

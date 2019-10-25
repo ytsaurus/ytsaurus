@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/core/misc/zerocopy_output_writer.h>
+
 #include <util/generic/buffer.h>
 
 #include <util/stream/input.h>
@@ -99,11 +101,10 @@ private:
 ////////////////////////////////////////////////////////////////////
 
 class TUncheckedSkiffWriter
-    : private IOutputStream
 {
 public:
-    explicit TUncheckedSkiffWriter(IOutputStream* underlying);
-    TUncheckedSkiffWriter(const TSkiffSchemaPtr& schema, IOutputStream* underlying);
+    explicit TUncheckedSkiffWriter(IZeroCopyOutput* underlying);
+    TUncheckedSkiffWriter(const TSkiffSchemaPtr& schema, IZeroCopyOutput* underlying);
 
     ~TUncheckedSkiffWriter();
 
@@ -120,21 +121,16 @@ public:
     void WriteVariant8Tag(ui8 tag);
     void WriteVariant16Tag(ui16 tag);
 
-    using IOutputStream::Flush;
+    void Flush();
     void Finish();
 
 private:
-    void DoWrite(const void* data, size_t size) override final;
-    void DoFlush() override final;
 
     template <typename T>
     void WriteSimple(T data);
 
 private:
-    IOutputStream* const Underlying_;
-    TBuffer Buffer_;
-    size_t RemainingBytes_;
-    char* Position_;
+    TZeroCopyOutputStreamWriter Underlying_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -142,7 +138,7 @@ private:
 class TCheckedSkiffWriter
 {
 public:
-    TCheckedSkiffWriter(const TSkiffSchemaPtr& schema, IOutputStream* underlying);
+    TCheckedSkiffWriter(const TSkiffSchemaPtr& schema, IZeroCopyOutput* underlying);
 
     ~TCheckedSkiffWriter();
 

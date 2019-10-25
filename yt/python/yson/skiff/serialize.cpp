@@ -143,9 +143,9 @@ Py::Object DumpSkiff(Py::Tuple& args, Py::Dict& kwargs)
     }
     auto streams = Py::List(streamsArg);
 
-    std::vector<std::unique_ptr<IOutputStream>> outputStreams;
+    std::vector<std::unique_ptr<IZeroCopyOutput>> outputStreams;
     for (const auto& stream : streams) {
-        outputStreams.push_back(CreateOutputStreamWrapper(stream, /* addBuffering */ true));
+        outputStreams.push_back(CreateZeroCopyOutputStreamWrapper(stream));
     }
 
     auto schemasArg = ExtractArgument(args, kwargs, "schemas");

@@ -218,35 +218,20 @@ ui64 TCheckedSkiffParser::GetReadBytesCount()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUncheckedSkiffWriter::TUncheckedSkiffWriter(IOutputStream* underlying)
+TUncheckedSkiffWriter::TUncheckedSkiffWriter(IZeroCopyOutput* underlying)
     : Underlying_(underlying)
-    , Buffer_(1_KB)
-    , RemainingBytes_(Buffer_.Capacity())
-    , Position_(Buffer_.Data())
 { }
 
-TUncheckedSkiffWriter::TUncheckedSkiffWriter(const TSkiffSchemaPtr& /*schema*/, IOutputStream* underlying)
+TUncheckedSkiffWriter::TUncheckedSkiffWriter(const TSkiffSchemaPtr& /*schema*/, IZeroCopyOutput* underlying)
     : TUncheckedSkiffWriter(underlying)
 { }
 
 TUncheckedSkiffWriter::~TUncheckedSkiffWriter()
 {
     try {
-        DoFlush();
+        Flush();
     } catch (...) {
     }
-}
-
-template <typename T>
-void TUncheckedSkiffWriter::WriteSimple(T value)
-{
-    if (RemainingBytes_ < sizeof(T)) {
-        DoFlush();
-        YT_ASSERT(RemainingBytes_ >= sizeof(T));
-    }
-    *reinterpret_cast<T*>(Position_) = value;
-    Position_ += sizeof(T);
-    RemainingBytes_ -= sizeof(T);
 }
 
 void TUncheckedSkiffWriter::WriteInt64(i64 value)
@@ -272,13 +257,13 @@ void TUncheckedSkiffWriter::WriteBoolean(bool value)
 void TUncheckedSkiffWriter::WriteString32(TStringBuf value)
 {
     WriteSimple<ui32>(value.size());
-    TUncheckedSkiffWriter::DoWrite(value.data(), value.size());
+    Underlying_.Write(value.data(), value.size());
 }
 
 void TUncheckedSkiffWriter::WriteYson32(TStringBuf value)
 {
     WriteSimple<ui32>(value.size());
-    TUncheckedSkiffWriter::DoWrite(value.data(), value.size());
+    Underlying_.Write(value.data(), value.size());
 }
 
 void TUncheckedSkiffWriter::WriteVariant8Tag(ui8 tag)
@@ -291,35 +276,25 @@ void TUncheckedSkiffWriter::WriteVariant16Tag(ui16 tag)
     WriteSimple<ui16>(tag);
 }
 
-void TUncheckedSkiffWriter::DoFlush()
+void TUncheckedSkiffWriter::Flush()
 {
-    Underlying_->Write(Buffer_.Data(), Position_ - Buffer_.Data());
-    Position_ = Buffer_.Data();
-    RemainingBytes_ = Buffer_.Capacity();
+    Underlying_.UndoRemaining();
 }
 
-void TUncheckedSkiffWriter::DoWrite(const void* data, size_t size)
+template <typename T>
+Y_FORCE_INLINE void TUncheckedSkiffWriter::WriteSimple(T value)
 {
-    if (size > RemainingBytes_) {
-        DoFlush();
-        if (size >= RemainingBytes_) {
-            Underlying_->Write(data, size);
-            return;
-        }
-    }
-    memcpy(Position_, data, size);
-    Position_ += size;
-    RemainingBytes_ -= size;
+    Underlying_.Write(&value, sizeof(T));
 }
 
 void TUncheckedSkiffWriter::Finish()
 {
-    IOutputStream::Flush();
+    Flush();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCheckedSkiffWriter::TCheckedSkiffWriter(const TSkiffSchemaPtr& schema, IOutputStream* underlying)
+TCheckedSkiffWriter::TCheckedSkiffWriter(const TSkiffSchemaPtr& schema, IZeroCopyOutput* underlying)
     : Writer_(underlying)
     , Validator_(std::make_unique<TSkiffValidator>(schema))
 { }
