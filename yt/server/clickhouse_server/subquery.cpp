@@ -566,7 +566,7 @@ std::vector<TSubquery> BuildSubqueries(
     LogSubqueryDebugInfo(subqueries, "AfterPool", Logger);
 
     if (samplingRate && *samplingRate != 1.0) {
-        double sampledSubqueryCount = std::round(*samplingRate) * subqueries.size();
+        double sampledSubqueryCount = std::round(*samplingRate * subqueries.size());
         YT_LOG_INFO("Leaving random subqueries to perform sampling (SubqueryCount: %v, SampledSubqueryCount: %v)", subqueries.size(), sampledSubqueryCount);
         std::mt19937 gen;
         std::shuffle(subqueries.begin(), subqueries.end(), gen);
