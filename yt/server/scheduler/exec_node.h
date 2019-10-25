@@ -33,6 +33,7 @@ struct TRecentlyFinishedJobInfo
 {
     TOperationId OperationId;
     NProfiling::TCpuInstant EvictionDeadline;
+    std::optional<NJobTrackerClient::TReleaseJobFlags> ReleaseFlags;
 };
 
 //! Scheduler-side representation of an execution node.
@@ -102,9 +103,6 @@ public:
     //! that no job is stored infinitely.
     using TRecentlyFinishedJobIdToInfo = THashMap<TJobId, TRecentlyFinishedJobInfo>;
     DEFINE_BYREF_RW_PROPERTY(TRecentlyFinishedJobIdToInfo, RecentlyFinishedJobs);
-
-    //! Jobs that are to be removed with a next heartbeat response.
-    DEFINE_BYREF_RW_PROPERTY(std::vector<NJobTrackerClient::TJobToRelease>, JobsToRemove);
 
     DEFINE_BYVAL_RO_PROPERTY(double, IOWeight);
 

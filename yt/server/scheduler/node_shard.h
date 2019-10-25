@@ -318,6 +318,7 @@ private:
 
     TJobPtr ProcessJobHeartbeat(
         const TExecNodePtr& node,
+        const THashSet<TJobId>& recentlyFinishedJobIdsToRemove,
         NJobTrackerClient::NProto::TRspHeartbeat* response,
         TJobStatus* jobStatus);
 
