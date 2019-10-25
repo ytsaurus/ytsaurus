@@ -898,6 +898,8 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
         InitIntermediateChunkScraper();
 
         UpdateMinNeededJobResources();
+        // NB(eshcherbin): This update is done to ensure that needed resources amount is computed.
+        UpdateAllTasks();
 
         CheckTimeLimitExecutor->Start();
         ProgressBuildExecutor_->Start();
@@ -929,6 +931,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
     }
 
     result.Suspend = Spec_->SuspendOperationAfterMaterialization;
+    result.InitialNeededResources = GetNeededResources();
 
     YT_LOG_INFO("Materialization finished");
 
@@ -1005,6 +1008,10 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     }
 
     UpdateMinNeededJobResources();
+    // NB(eshcherbin): This update is done to ensure that needed resources amount is computed.
+    UpdateAllTasks();
+
+    result.NeededResources = GetNeededResources();
 
     ReinstallLivePreview();
 

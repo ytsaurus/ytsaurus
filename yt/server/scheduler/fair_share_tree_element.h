@@ -172,6 +172,14 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSchedulerElementStateSnapshot
+{
+    TJobResources ResourceDemand;
+    TJobResources MinShareResources;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 const int UnassignedTreeIndex = -1;
 const int EmptySchedulingTagFilterIndex = -1;
 

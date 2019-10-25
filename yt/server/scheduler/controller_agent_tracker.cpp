@@ -221,7 +221,7 @@ public:
         ToProto(req->mutable_operation_id(), OperationId_);
         return InvokeAgent<TControllerAgentServiceProxy::TRspMaterializeOperation>(req).Apply(
             BIND([] (const TControllerAgentServiceProxy::TRspMaterializeOperationPtr& rsp) {
-                return TOperationControllerMaterializeResult{rsp->suspend()};
+                return TOperationControllerMaterializeResult{rsp->suspend(), FromProto<TJobResources>(rsp->initial_needed_resources())};
             }));
     }
 
@@ -266,6 +266,7 @@ public:
                     result.RevivedJobs.push_back(job);
                 }
                 result.RevivedBannedTreeIds = FromProto<THashSet<TString>>(rsp->revived_banned_tree_ids());
+                result.NeededResources = FromProto<TJobResources>(rsp->needed_resources());
                 return result;
             }));
     }

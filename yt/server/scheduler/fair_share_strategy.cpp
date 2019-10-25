@@ -197,7 +197,7 @@ public:
 
         const auto& state = GetOperationState(operationId);
         if (!state->TreeIdToPoolNameMap().contains(treeId)) {
-            YT_LOG_INFO("Operation to be removed from a tentative tree was not found in that tree (OperationId: %v, TreeId: %v)",
+            YT_LOG_INFO("Operation to be removed from a tree was not found in that tree (OperationId: %v, TreeId: %v)",
                 operationId,
                 treeId);
             return;
@@ -207,7 +207,7 @@ public:
 
         state->EraseTree(treeId);
 
-        YT_LOG_INFO("Operation removed from a tentative tree (OperationId: %v, TreeId: %v)", operationId, treeId);
+        YT_LOG_INFO("Operation removed from a tree (OperationId: %v, TreeId: %v)", operationId, treeId);
     }
 
     void DoUnregisterOperationFromTree(const TFairShareStrategyOperationStatePtr& operationState, const TString& treeId)
@@ -831,6 +831,55 @@ public:
             THROW_ERROR_EXCEPTION("Node belongs to more than one fair-share tree")
                 << TErrorAttribute("matched_trees", trees);
         }
+    }
+
+    virtual TString ChooseBestSingleTreeForOperation(TOperationId operationId, TJobResources neededResources) override
+    {
+        THashMap<TString, IFairShareTreeSnapshotPtr> snapshots;
+        {
+            TReaderGuard guard(TreeIdToSnapshotLock_);
+            snapshots = TreeIdToSnapshot_;
+        }
+
+        // NB(eshcherbin):
+        // 1) currentDemand and minShareResources are the current resource demand and guarantee in the given pool.
+        // 2) newDemand is the demand of the given operation.
+        // 3) fullDemandRatio and minShareRatio are the dominant resource ratios of (currentDemand + newDemand) and minShareResources correspondingly.
+        // 4) regularizedDemandToMinShareRatio := fullDemandRatio / (1 + minShareRatio).
+        // We search for the tree with the minimal regularizedDemandToMinShareRatio.
+        TString bestTree;
+        auto bestRegularizedDemandToMinShareRatio = std::numeric_limits<double>::max();
+        for (const auto& [treeId, poolName] : GetOperationState(operationId)->TreeIdToPoolNameMap()) {
+            YT_VERIFY(snapshots.contains(treeId));
+            auto snapshot = snapshots[treeId];
+
+            double regularizedDemandToMinShareRatio;
+            auto totalResourceLimits = snapshot->GetTotalResourceLimits();
+            // If pool is not present in the snapshot (e.g. due to poor timings or if it is an ephemeral pool),
+            // then its demand and min share resources are considered to be zero.
+            if (auto poolStateSnapshot = snapshot->GetMaybeStateSnapshotForPool(poolName.GetPool()))
+            {
+                auto fullDemandRatio = GetMaxResourceRatio(neededResources + poolStateSnapshot->ResourceDemand, totalResourceLimits);
+                auto minShareRatio = GetMaxResourceRatio(poolStateSnapshot->MinShareResources, totalResourceLimits);
+                regularizedDemandToMinShareRatio = fullDemandRatio / (1.0 + minShareRatio);
+            } else {
+                regularizedDemandToMinShareRatio = GetMaxResourceRatio(neededResources, totalResourceLimits);
+            }
+
+            if (regularizedDemandToMinShareRatio < bestRegularizedDemandToMinShareRatio)
+            {
+                bestTree = treeId;
+                bestRegularizedDemandToMinShareRatio = regularizedDemandToMinShareRatio;
+            }
+        }
+
+        YT_VERIFY(bestTree);
+        YT_LOG_DEBUG("Chose best single tree for operation (OperationId: %v, BestTree: %v, BestRegularizedDemandToMinShareRatio: %v)",
+            operationId,
+            bestTree,
+            bestRegularizedDemandToMinShareRatio);
+
+        return bestTree;
     }
 
 private:

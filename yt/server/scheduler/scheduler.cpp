@@ -1085,29 +1085,80 @@ public:
                 if (operation->GetState() != expectedState) {
                     return;
                 }
-                if (operation->Spec()->TestingOperationOptions->DelayInsideMaterialize) {
-                    TDelayedExecutor::WaitForDuration(*operation->Spec()->TestingOperationOptions->DelayInsideMaterialize);
-                }
-                operation->SetStateAndEnqueueEvent(EOperationState::Running);
-                Strategy_->EnableOperation(operation.Get());
+
+                std::optional<TOperationControllerMaterializeResult> maybeMaterializeResult;
                 if (asyncMaterializeResult) {
                     // Async materialize result is ready here as the combined future already has finished.
                     YT_VERIFY(asyncMaterializeResult.IsSet());
-                    auto materializeResult = asyncMaterializeResult
-                        .Get()
-                        .ValueOrThrow();
-                    if (materializeResult.Suspend) {
-                        DoSuspendOperation(
-                            operation,
-                            TError("Operation suspended due to suspend_operation_after_materialization spec option"),
-                            /* abortRunningJobs */ false,
-                            /* setAlert */ false);
-                    }
+
+                    // asyncMaterializeResult contains no error, otherwise the |!error.IsOk()| check would trigger.
+                    maybeMaterializeResult = asyncMaterializeResult.Get().Value();
                 }
-                LogEventFluently(ELogEventType::OperationMaterialized)
-                    .Item("operation_id").Value(operation->GetId());
+
+                FinishMaterializeOperation(operation, maybeMaterializeResult);
             })
             .Via(operation->GetCancelableControlInvoker()));
+    }
+
+
+    void FinishMaterializeOperation(
+        const TOperationPtr& operation,
+        std::optional<TOperationControllerMaterializeResult> maybeMaterializeResult)
+    {
+        bool shouldSuspend = false;
+        TJobResources neededResources;
+        if (maybeMaterializeResult) {
+            // Operation was materialized from scratch.
+            shouldSuspend = maybeMaterializeResult->Suspend;
+            neededResources = maybeMaterializeResult->InitialNeededResources;
+        } else {
+            // Operation was revived from snapshot.
+            // NB(eshcherbin): NeededResources was set in DoReviveOperation().
+            neededResources = operation->GetRuntimeData()->GetNeededResources();
+        }
+
+        // NB(eshcherbin): if ErasedTrees is empty then
+        // (a) only one tree was specified for operation, or
+        // (b) scheduler failed/disconnected before persisting ErasedTrees to master,
+        //     in which case it's safe to choose the tree once again.
+        if (operation->Spec()->ScheduleInSingleTree && operation->ErasedTrees().empty()) {
+            auto chosenTree = Strategy_->ChooseBestSingleTreeForOperation(operation->GetId(), neededResources);
+
+            for (const auto& [treeId, treeRuntimeParameters] : operation->GetRuntimeParameters()->SchedulingOptionsPerPoolTree) {
+                YT_VERIFY(!treeRuntimeParameters->Tentative);
+                if (treeId != chosenTree) {
+                    Strategy_->UnregisterOperationFromTree(operation->GetId(), treeId);
+                }
+            }
+
+            auto expectedState = operation->GetState();
+            // NB(eshcherbin): Persist info about erased trees to master. This flush is safe because nothing should
+            // happen to |operation| until its state is set to EOperationState::Running. The only possible exception
+            // would be the case when materialization fails and the operation is terminated, but we've already checked for any fail beforehand.
+            // Result is ignored since failure causes scheduler disconnection.
+            Y_UNUSED(WaitFor(MasterConnector_->FlushOperationNode(operation)));
+            if (operation->GetState() != expectedState) {
+                return;
+            }
+        }
+
+        if (operation->Spec()->TestingOperationOptions->DelayInsideMaterialize) {
+            TDelayedExecutor::WaitForDuration(*operation->Spec()->TestingOperationOptions->DelayInsideMaterialize);
+        }
+        YT_LOG_DEBUG("LORDF_DEBUG: Just before enabling the operation");
+        operation->SetStateAndEnqueueEvent(EOperationState::Running);
+        Strategy_->EnableOperation(operation.Get());
+
+        if (shouldSuspend) {
+            DoSuspendOperation(
+                operation,
+                TError("Operation suspended due to suspend_operation_after_materialization spec option"),
+                /* abortRunningJobs */ false,
+                /* setAlert */ false);
+        }
+
+        LogEventFluently(ELogEventType::OperationMaterialized)
+            .Item("operation_id").Value(operation->GetId());
     }
 
     virtual std::vector<TNodeId> GetExecNodeIds(const TSchedulingTagFilter& filter) const override
@@ -2452,6 +2503,8 @@ private:
                     // So in case of an unfortunate scheduler failure, these jobs will continue running.
                     Strategy_->UnregisterOperationFromTree(operation->GetId(), bannedTreeId);
                 }
+                // NB(eshcherbin): RuntimeData is used to pass NeededResources to MaterializeOperation().
+                operation->GetRuntimeData()->SetNeededResources(result.NeededResources);
             }
 
             ValidateOperationState(operation, EOperationState::Reviving);
