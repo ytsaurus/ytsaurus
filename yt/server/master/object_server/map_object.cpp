@@ -89,8 +89,13 @@ TString TNonversionedMapObjectBase<TSelf>::GetChildKey(const TSelf* child) const
 template <class TSelf>
 TString TNonversionedMapObjectBase<TSelf>::GetName() const
 {
-    // XXX7(kiselyovp) this doesn't return RootAccountName for actual root account
-    return Parent_ ? Parent_->GetChildKey(GetSelf()) : NObjectClient::FromObjectId(GetId());
+    return Parent_ ? Parent_->GetChildKey(GetSelf()) : GetRootName();
+}
+
+template <class TSelf>
+TString TNonversionedMapObjectBase<TSelf>::GetRootName() const
+{
+    return NObjectClient::FromObjectId(GetId());
 }
 
 template <class TSelf>
