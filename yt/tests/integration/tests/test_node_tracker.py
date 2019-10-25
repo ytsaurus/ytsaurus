@@ -147,6 +147,7 @@ class TestNodeTrackerMulticell(TestNodeTracker):
 class TestRemoveClusterNodes(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
+    NUM_SECONDARY_MASTER_CELLS = 2
 
     DELTA_NODE_CONFIG = {
         "data_node": {
