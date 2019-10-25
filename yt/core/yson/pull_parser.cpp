@@ -148,19 +148,30 @@ TYsonItem TYsonPullParser::Next()
         Lexer_.CheckpointContext();
         return NextImpl();
     } catch (const std::exception& ex) {
-        auto [context, contextPosition] = Lexer_.GetContextFromCheckpoint();
-        TStringStream markedContext;
-        markedContext << EscapeC(context.substr(0, contextPosition)) << "  ERROR>>>  " << EscapeC(context.substr(contextPosition));
         THROW_ERROR_EXCEPTION("Error occurred while parsing YSON")
-            << Lexer_
-            << TErrorAttribute("context", EscapeC(context))
-            << TErrorAttribute("context_pos", contextPosition)
-            << TErrorAttribute("marked_context", markedContext.Str())
+            << GetErrorAttributes()
             << ex;
     }
 }
 
+std::vector<TErrorAttribute> TYsonPullParser::GetErrorAttributes() const
+{
+    auto result = Lexer_.GetErrorAttributes();
+    auto [context, contextPosition] = Lexer_.GetContextFromCheckpoint();
+    TStringStream markedContext;
+    markedContext << EscapeC(context.substr(0, contextPosition)) << "  ERROR>>>  " << EscapeC(context.substr(contextPosition));
+    result.emplace_back("context", EscapeC(context));
+    result.emplace_back("context_pos", contextPosition);
+    result.emplace_back("marked_context", markedContext.Str());
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
+
+std::vector<TErrorAttribute> TYsonPullParserCursor::GetErrorAttributes() const
+{
+    return Parser_->GetErrorAttributes();
+}
 
 void TYsonPullParserCursor::SkipComplexValue()
 {
