@@ -266,3 +266,21 @@ class TestSchedulePod(object):
                 workload_status.get("state") == "active"
 
         wait(is_workload_active, iter=300, sleep_backoff=1)
+
+        expected_spec_timestamp = yp_client.get_object(
+            "pod",
+            pod_id,
+            selectors=["/status/master_spec_timestamp"],
+        )[0]
+        assert expected_spec_timestamp > 0
+
+        def is_spec_applied():
+            pod_agent_status = yp_client.get_object(
+                "pod",
+                pod_id,
+                selectors=["/status/agent"],
+            )[0]
+            return pod_agent_status.get("current_spec_timestamp") == expected_spec_timestamp \
+                and "current_spec_applied" in pod_agent_status
+
+        wait(is_spec_applied, iter=300, sleep_backoff=1)

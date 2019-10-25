@@ -33,10 +33,10 @@ REQUIREMENTS(
 )
 
 DATA(
-    sbr://876952231 # yp_tests_iss_local_qemu.img
-    sbr://876951675 # yp_tests_pod_agent_rootfs.tar.gz
-    sbr://876951930 # yp_tests_pod_agent
-    sbr://876952869 # yp_tests_workload_rootfs.tar.gz
+    sbr://1183503665 # yp_tests_iss_local_qemu.img
+    sbr://876951675  # yp_tests_pod_agent_rootfs.tar.gz
+    sbr://876951930  # yp_tests_pod_agent
+    sbr://876952869  # yp_tests_workload_rootfs.tar.gz
 )
 
 SIZE(LARGE)

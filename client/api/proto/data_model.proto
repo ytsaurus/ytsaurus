@@ -1116,6 +1116,13 @@ message TPodStatus
 
         // The instant the last heartbeat from agent containing the status of this pod was received.
         optional uint64 last_heartbeat_time = 7 [(NYP.NClient.NApi.NProto.etc) = true];
+
+        // Pod spec timestamp currently considered as a target by the agent.
+        optional uint64 current_spec_timestamp = 11 [(NYP.NClient.NApi.NProto.etc) = true];
+
+        // Describes pod spec currently considered as a target by the agent.
+        // Indicates whether the spec is completely applied.
+        optional TCondition current_spec_applied = 12 [(NYP.NClient.NApi.NProto.etc) = true];
     }
     optional TAgent agent = 2;
 
@@ -1284,7 +1291,7 @@ message TPodStatus
     // Timestamp of the last spec update.
     optional uint64 master_spec_timestamp = 11;
 
-    // Timestamp of the spec as reported by agent.
+    // Timestamp of the last known spec reported by the agent.
     optional uint64 agent_spec_timestamp = 12;
 
     // Materialized view of dynamic attributes to be pushed to agent.

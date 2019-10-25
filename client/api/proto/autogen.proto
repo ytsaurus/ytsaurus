@@ -11,6 +11,7 @@ option java_outer_classname = "Autogen";
 
 option go_package = "a.yandex-team.ru/yp/go/proto/api";
 
+
 import "yp/client/api/proto/data_model.proto";
 import "yp/client/api/proto/replica_set.proto";
 import "yp/client/api/proto/multi_cluster_replica_set.proto";
@@ -23,6 +24,7 @@ import "yt/core/misc/proto/error.proto";
 import "yt/core/ytree/proto/attributes.proto";
 import "yt/core/yson/proto/protobuf_interop.proto";
 import "yp/client/api/proto/enums.proto";
+import "yp/client/api/proto/conditions.proto";
 
 
 ////////////////////////////////////////////////////////////////////////////////

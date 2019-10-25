@@ -100,6 +100,7 @@ import "yt/core/misc/proto/error.proto";
 import "yt/core/ytree/proto/attributes.proto";
 import "yt/core/yson/proto/protobuf_interop.proto";
 import "yp/client/api/proto/enums.proto";
+import "yp/client/api/proto/conditions.proto";
 """
 
 

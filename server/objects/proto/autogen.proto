@@ -17,6 +17,7 @@ import "yt/core/misc/proto/error.proto";
 import "yt/core/ytree/proto/attributes.proto";
 import "yt/core/yson/proto/protobuf_interop.proto";
 import "yp/client/api/proto/enums.proto";
+import "yp/client/api/proto/conditions.proto";
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -72,6 +73,8 @@ message TPodAgentStatusEtc
     uint64 failed_install_attempt_spec_timestamp = 10;
     repeated string validation_failures = 8;
     uint64 last_heartbeat_time = 7;
+    uint64 current_spec_timestamp = 11;
+    NYP.NClient.NApi.NProto.TCondition current_spec_applied = 12;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

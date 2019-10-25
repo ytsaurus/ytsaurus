@@ -370,6 +370,9 @@ public:
                     pod->Status().Agent().Etc()->set_last_heartbeat_time(ToProto<ui64>(Now()));
 
                     pod->Status().AgentSpecTimestamp() = agentTimestamp;
+
+                    pod->Status().Agent().Etc()->set_current_spec_timestamp(podEntry.current_spec_timestamp());
+                    *pod->Status().Agent().Etc()->mutable_current_spec_applied() = podEntry.current_spec_applied();
                 }
             }
         }
