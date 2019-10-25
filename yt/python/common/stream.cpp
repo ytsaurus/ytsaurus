@@ -127,7 +127,7 @@ private:
 };
 
 class TBufferedStreamWrapper
-    : public IOutputStream
+    : public IZeroCopyOutput
 {
 public:
     explicit TBufferedStreamWrapper(std::unique_ptr<IOutputStream> outputStreamHolder)
@@ -138,6 +138,16 @@ public:
     void DoWrite(const void* buf, size_t len)
     {
         BufferedOutputStream_.Write(buf, len);
+    }
+
+    size_t DoNext(void** ptr)
+    {
+        return BufferedOutputStream_.Next(ptr);
+    }
+
+    void DoUndo(size_t len)
+    {
+        BufferedOutputStream_.Undo(len);
     }
 
 private:
@@ -165,6 +175,11 @@ std::unique_ptr<IOutputStream> CreateOutputStreamWrapper(const Py::Object& pytho
     // additional buferring here.
     return std::unique_ptr<TOutputStreamForwarder>(new TOutputStreamForwarder(pythonOutputStream));
 #endif
+}
+
+std::unique_ptr<IZeroCopyOutput> CreateZeroCopyOutputStreamWrapper(const Py::Object& pythonOutputStream)
+{
+    return std::make_unique<TBufferedStreamWrapper>(CreateOutputStreamWrapper(pythonOutputStream, false));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

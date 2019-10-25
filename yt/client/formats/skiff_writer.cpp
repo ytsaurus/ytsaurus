@@ -639,6 +639,12 @@ private:
         TryFlushBuffer(true);
     }
 
+    TFuture<void> Close() override
+    {
+        SkiffWriter_->Flush();
+        return TSchemalessFormatWriterBase::Close();
+    }
+
 private:
     using TSkiffEncodingInfoList = std::vector<TSkiffEncodingInfo>;
 
