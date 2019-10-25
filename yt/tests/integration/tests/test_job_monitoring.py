@@ -14,7 +14,7 @@ import yt_proto.yt.core.profiling.proto.profiling_pb2 as profiling_pb2
 
 ##################################################################
 
-class TestMonitoring(YTEnvSetup):
+class TestJobMonitoring(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
