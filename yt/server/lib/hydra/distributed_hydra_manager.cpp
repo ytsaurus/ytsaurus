@@ -141,7 +141,9 @@ public:
             controlInvoker,
             THydraServiceProxy::GetDescriptor(),
             NLogging::TLogger(HydraLogger)
-                .AddTag("CellId: %v", cellManager->GetCellId()),
+                .AddTag("CellId: %v, SelfPeerId: %v",
+                    cellManager->GetCellId(),
+                    cellManager->GetSelfPeerId()),
             cellManager->GetCellId())
         , Config_(config)
         , RpcServer_(rpcServer)
@@ -1263,11 +1265,11 @@ private:
 
         StartLeading_.Fire();
 
-        epochContext->LeaseTracker->SetAlivePeers(GetAllPeers());
-        epochContext->LeaseTracker->Start();
-
         SwitchTo(epochContext->EpochControlInvoker);
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        epochContext->LeaseTracker->SetAlivePeers(GetAllPeers());
+        epochContext->LeaseTracker->Start();
 
         RecoverLeader();
     }

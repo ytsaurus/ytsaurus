@@ -79,8 +79,6 @@ private:
     void OnLeaseCheck();
     TFuture<void> FireLeaseCheck();
 
-    bool IsPeerAlive(TPeerId peerId) const;
-
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
 };
