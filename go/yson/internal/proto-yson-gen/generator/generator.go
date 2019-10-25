@@ -412,24 +412,25 @@ type Generator struct {
 
 	Pkg map[string]string // The names under which we import support packages
 
-	outputImportPath GoImportPath                   // Package we're generating code for.
-	allFiles         []*FileDescriptor              // All files in the tree
-	allFilesByName   map[string]*FileDescriptor     // All files by filename.
-	genFiles         []*FileDescriptor              // Those files we will generate output for.
-	file             *FileDescriptor                // The file we are compiling now.
-	packageNames     map[GoImportPath]GoPackageName // Imported package names in the current file.
-	usedPackages     map[GoImportPath]bool          // Packages used in current file.
-	usedPackageNames map[GoPackageName]bool         // Package names used in the current file.
-	addedImports     map[GoImportPath]bool          // Additional imports to emit.
-	customPackages   map[string]GoImportPath        // Custom packages
-	typeNameToObject map[string]Object              // Key is a fully-qualified name in input syntax.
-	customTypes      map[string]ReplacedObject
-	init             []string // Lines to emit in the init function.
-	indent           string
-	pathType         pathType // How to generate output filenames.
-	writeOutput      bool
-	annotateCode     bool                                       // whether to store annotations
-	annotations      []*descriptor.GeneratedCodeInfo_Annotation // annotations to store
+	outputImportPath     GoImportPath                   // Package we're generating code for.
+	allFiles             []*FileDescriptor              // All files in the tree
+	allFilesByName       map[string]*FileDescriptor     // All files by filename.
+	genFiles             []*FileDescriptor              // Those files we will generate output for.
+	file                 *FileDescriptor                // The file we are compiling now.
+	packageNames         map[GoImportPath]GoPackageName // Imported package names in the current file.
+	usedPackages         map[GoImportPath]bool          // Packages used in current file.
+	usedPackageNames     map[GoPackageName]bool         // Package names used in the current file.
+	addedImports         map[GoImportPath]bool          // Additional imports to emit.
+	customPackages       map[string]GoImportPath        // Custom packages
+	typeNameToObject     map[string]Object              // Key is a fully-qualified name in input syntax.
+	customTypes          map[string]ReplacedObject
+	init                 []string // Lines to emit in the init function.
+	indent               string
+	pathType             pathType // How to generate output filenames.
+	writeOutput          bool
+	annotateCode         bool                                       // whether to store annotations
+	requireEnumValueName bool                                       // requires NYT.NYson.NProto.enum_value_name extension for enums
+	annotations          []*descriptor.GeneratedCodeInfo_Annotation // annotations to store
 }
 
 type pathType int
@@ -537,6 +538,10 @@ func (g *Generator) CommandLineParameters(parameter string) {
 		case "annotate_code":
 			if v == "true" {
 				g.annotateCode = true
+			}
+		case "require_enum_value_name":
+			if v == "true" {
+				g.requireEnumValueName = true
 			}
 		default:
 			if len(k) > 0 && k[0] == 'M' {
@@ -753,6 +758,7 @@ func (g *Generator) WrapTypes() {
 	for _, n := range g.Request.FileToGenerate {
 		genFileNames[n] = true
 	}
+
 	for _, f := range g.Request.ProtoFile {
 		fd := &FileDescriptor{
 			FileDescriptorProto: f,
@@ -791,7 +797,13 @@ func (g *Generator) WrapTypes() {
 		extractComments(fd)
 		g.allFiles = append(g.allFiles, fd)
 		g.allFilesByName[f.GetName()] = fd
+
+		if genFileNames[f.GetName()] {
+			// do validation for generated files
+			g.validateEnums(fd)
+		}
 	}
+
 	for _, fd := range g.allFiles {
 		fd.imp = wrapImported(fd, g)
 	}
@@ -2405,6 +2417,32 @@ func (g *Generator) isValidatableField(field *descriptor.FieldDescriptorProto) b
 	}
 
 	return field.GetType() == descriptor.FieldDescriptorProto_TYPE_MESSAGE
+}
+
+func (g *Generator) validateEnums(file *FileDescriptor) {
+	if !g.requireEnumValueName {
+		return
+	}
+
+	for _, enum := range file.enum {
+		for _, val := range enum.Value {
+			ext, err := proto.GetExtension(val.Options, yson.E_EnumValueName)
+			if err != nil {
+				g.Fail(
+					"NYT.NYson.NProto.enum_value_name extension is required for enum, but doesn't set for",
+					fmt.Sprintf("%s: %s.%s", file.GetName(), enum.GetName(), val.GetName()),
+				)
+			}
+
+			valName := ext.(*string)
+			if len(*valName) == 0 {
+				g.Fail(
+					"NYT.NYson.NProto.enum_value_name extension is required for enum, but have empty value",
+					fmt.Sprintf("%s: %s.%s", file.GetName(), enum.GetName(), val.GetName()),
+				)
+			}
+		}
+	}
 }
 
 // Returns enum value with YSON extension respects
