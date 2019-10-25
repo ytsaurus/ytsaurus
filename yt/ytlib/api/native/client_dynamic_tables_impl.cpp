@@ -946,8 +946,8 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         if (query->JoinClauses[index]->ForeignKeyPrefix == 0 && !options.AllowJoinWithoutIndex) {
             const auto& ast = std::get<NAst::TQuery>(parsedQuery->AstHead.Ast);
             THROW_ERROR_EXCEPTION("Foreign table key is not used in the join clause; "
-                                  "the query is inefficient, consider rewriting it")
-                    << TErrorAttribute("source", NAst::FormatJoin(ast.Joins[index]));
+                "the query is inefficient, consider rewriting it")
+                << TErrorAttribute("source", NAst::FormatJoin(ast.Joins[index]));
         }
     }
 
