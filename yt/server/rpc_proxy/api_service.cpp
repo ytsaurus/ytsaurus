@@ -1306,6 +1306,27 @@ private:
             client->ExternalizeNode(path, cellTag, options));
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, InternalizeNode)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        const auto& path = request->path();
+
+        TInternalizeNodeOptions options;
+        SetTimeoutOptions(&options, context.Get());
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
+
+        context->SetRequestInfo("Path: %v",
+            path);
+
+        CompleteCallWith(
+            client,
+            context,
+            client->InternalizeNode(path, options));
+    }
+
     ////////////////////////////////////////////////////////////////////////////////
     // TABLES (NON-TRANSACTIONAL)
     ////////////////////////////////////////////////////////////////////////////////

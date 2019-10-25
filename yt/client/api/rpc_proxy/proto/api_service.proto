@@ -948,6 +948,19 @@ message TRspExternalizeNode
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqInternalizeNode
+{
+    required string path = 1; // YPath
+
+    optional TTransactionalOptions transactional_options = 100;
+}
+
+message TRspInternalizeNode
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqAttachTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
