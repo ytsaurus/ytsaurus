@@ -32,12 +32,12 @@ public:
                 descriptor=std::move(descriptor),
                 applier=std::move(applier)
             ] (TYsonPullParserCursor* cursor, TArgs... args) {
-                auto ysonType = (*cursor)->GetType();
+                const auto ysonType = (*cursor)->GetType();
                 if (ysonType == EYsonItemType::EntityValue) {
                     applier.OnEmptyOptional(args...);
                     cursor->Next();
                 } else if (ysonType != EYsonItemType::BeginList) {
-                    ThrowUnexpectedYsonTokenException(descriptor, ysonType, {EYsonItemType::EntityValue, EYsonItemType::BeginList});
+                    ThrowUnexpectedYsonTokenException(descriptor, *cursor, {EYsonItemType::EntityValue, EYsonItemType::BeginList});
                 } else {
                     cursor->Next();
                     applier.OnFilledOptional(element, cursor, args...);

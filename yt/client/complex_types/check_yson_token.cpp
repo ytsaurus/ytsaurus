@@ -4,11 +4,14 @@
 
 namespace NYT::NComplexTypes {
 
+using namespace NYson;
+using namespace NTableClient;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void ThrowUnexpectedYsonTokenException(
     const NTableClient::TComplexTypeFieldDescriptor& descriptor,
-    NYson::EYsonItemType actual,
+    const TYsonPullParserCursor& cursor,
     const std::vector<NYson::EYsonItemType>& expected)
 {
     YT_VERIFY(expected.size() > 0);
@@ -28,7 +31,8 @@ void ThrowUnexpectedYsonTokenException(
     THROW_ERROR_EXCEPTION("Cannot parse %Qv; expected: %v; actual: %Qlv",
         descriptor.GetDescription(),
         expectedString,
-        actual);
+        cursor->GetType())
+        << cursor.GetErrorAttributes();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
