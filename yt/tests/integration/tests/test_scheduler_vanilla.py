@@ -402,7 +402,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         assert op.get_job_count("failed", from_orchid=False) == 0
 
     @authors("gritukan")
-    def test_set_final_job_state_metrics(self):
+    def DISABLED_test_set_final_job_state_metrics(self):
         nodes = ls("//sys/nodes")
 
         op = run_test_vanilla("sleep 1")
