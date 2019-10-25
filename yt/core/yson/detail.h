@@ -66,17 +66,11 @@ template <>
 class TPositionInfo<true>
 {
 private:
-    i64 Offset;
-    int Line;
-    int Column;
+    i64 Offset = 0;
+    int Line = 1;
+    int Column = 1;
 
 public:
-    TPositionInfo()
-        : Offset(0)
-        , Line(1)
-        , Column(1)
-    { }
-
     void OnRangeConsumed(const char* begin, const char* end)
     {
         Offset += end - begin;
@@ -89,12 +83,14 @@ public:
         }
     }
 
-    std::vector<TErrorAttribute> GetErrorAttributes() const
+    std::vector<TErrorAttribute> GetErrorAttributes(const char* begin, const char* current) const
     {
+        auto other = *this;
+        other.OnRangeConsumed(begin, current);
         return {
-            TErrorAttribute("offset", Offset),
-            TErrorAttribute("line", Line),
-            TErrorAttribute("column", Column),
+            TErrorAttribute("offset", other.Offset),
+            TErrorAttribute("line", other.Line),
+            TErrorAttribute("column", other.Column),
         };
     }
 };
@@ -103,31 +99,23 @@ template <>
 class TPositionInfo<false>
 {
 private:
-    i64 Offset;
+    i64 Offset = 0;
 
 public:
-    TPositionInfo()
-        : Offset(0)
-    { }
-
     void OnRangeConsumed(const char* begin, const char* end)
     {
         Offset += end - begin;
     }
 
-    std::vector<TErrorAttribute> GetErrorAttributes() const
+    std::vector<TErrorAttribute> GetErrorAttributes(const char* begin, const char* current) const
     {
+        auto other = *this;
+        other.OnRangeConsumed(begin, current);
         return {
-            TErrorAttribute("offset", Offset),
+            TErrorAttribute("offset", other.Offset),
         };
     }
 };
-
-template <bool EnableLinePositionInfo>
-TError operator << (TError error, const TPositionInfo<EnableLinePositionInfo>& info)
-{
-    return error << info.GetErrorAttributes();
-}
 
 template <class T, size_t Capacity>
 class TStaticRingQueue
@@ -314,6 +302,7 @@ public:
     void Refresh()
     {
         while (IsEmpty() && !TBlockStream::IsFinished()) {
+            TPositionBase::OnRangeConsumed(TBlockStream::Begin(), TBlockStream::Current());
             TBlockStream::RefreshBlock();
         }
         if (IsEmpty() && TBlockStream::IsFinished() && !AllowFinish) {
@@ -344,7 +333,6 @@ public:
 
     void Advance(size_t bytes)
     {
-        TPositionBase::OnRangeConsumed(TBlockStream::Current(), TBlockStream::Current() + bytes);
         TBlockStream::Advance(bytes);
     }
 
@@ -353,6 +341,15 @@ public:
         return TBlockStream::End() - TBlockStream::Current();
     }
 
+    std::vector<TErrorAttribute> GetErrorAttributes() const
+    {
+        return TPositionBase::GetErrorAttributes(TBlockStream::Begin(), TBlockStream::Current());
+    }
+
+    friend TError operator << (const TError& error, const TCharStream<TBlockStream, TPositionBase>& stream)
+    {
+        return error << stream.GetErrorAttributes();
+    }
 };
 
 template <class TBaseStream>
