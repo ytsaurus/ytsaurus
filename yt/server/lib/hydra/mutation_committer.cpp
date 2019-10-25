@@ -8,6 +8,7 @@
 #include "serialize.h"
 
 #include <yt/ytlib/election/cell_manager.h>
+#include <yt/ytlib/election/config.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
 
@@ -45,7 +46,9 @@ TCommitterBase::TCommitterBase(
     , DecoratedAutomaton_(std::move(decoratedAutomaton))
     , EpochContext_(epochContext)
     , Logger(NLogging::TLogger(HydraLogger)
-        .AddTag("CellId: %v", CellManager_->GetCellId()))
+        .AddTag("CellId: %v, SelfPeerId: %v",
+            CellManager_->GetCellId(),
+            CellManager_->GetSelfPeerId()))
     , Profiler(HydraProfiler.AddTags(Options_.ProfilingTagIds))
 {
     YT_VERIFY(Config_);
@@ -252,12 +255,16 @@ private:
 
         const auto& rsp = rspOrError.Value();
         if (rsp->logged()) {
-            YT_LOG_DEBUG("Mutations are logged by follower (PeerId: %v, StartVersion: %v, MutationCount: %v, WallTime: %v)",
+            auto voting = owner->CellManager_->GetPeerConfig(followerId).Voting;
+            YT_LOG_DEBUG("Mutations are logged by follower (PeerId: %v, Voting: %v, StartVersion: %v, MutationCount: %v, WallTime: %v)",
                 followerId,
                 GetStartVersion(),
                 GetMutationCount(),
-                time);
-            OnSuccessfulFlush(owner);
+                time,
+                voting);
+            if (voting) {
+                OnSuccessfulFlush(owner);
+            }
         } else {
             YT_LOG_DEBUG("Mutations are acknowledged by follower (PeerId: %v, StartVersion: %v, MutationCount: %v, WallTime: %v)",
                 followerId,

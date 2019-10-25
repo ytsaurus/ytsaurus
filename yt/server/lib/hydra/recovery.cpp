@@ -46,7 +46,9 @@ TRecoveryBase::TRecoveryBase(
     , EpochContext_(epochContext)
     , SyncVersion_(syncVersion)
     , Logger(NLogging::TLogger(HydraLogger)
-        .AddTag("CellId: %v", CellManager_->GetCellId()))
+        .AddTag("CellId: %v, SelfPeerId: %v",
+            CellManager_->GetCellId(),
+            CellManager_->GetSelfPeerId()))
 {
     YT_VERIFY(Config_);
     YT_VERIFY(CellManager_);

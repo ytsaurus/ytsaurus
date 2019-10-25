@@ -27,7 +27,9 @@ TCellManager::TCellManager(
     , ChannelFactory_(std::move(channelFactory))
     , SelfId_(selfId)
     , Logger(NLogging::TLogger(ElectionLogger)
-        .AddTag("CellId: %v", Config_->CellId))
+        .AddTag("CellId: %v, SelfPeerId: %v",
+            Config_->CellId,
+            selfId))
 {
     TotalPeerCount_ = config->Peers.size();
     VotingPeerCount_ = Config_->CountVotingPeers();

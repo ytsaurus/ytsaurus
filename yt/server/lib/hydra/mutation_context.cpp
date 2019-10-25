@@ -24,6 +24,7 @@ TMutationContext::TMutationContext(
     , Version_(version)
     , Request_(request)
     , Timestamp_(timestamp)
+    , RandomSeed_(randomSeed)
     , RandomGenerator_(randomSeed)
 { }
 
@@ -40,6 +41,11 @@ const TMutationRequest& TMutationContext::Request() const
 TInstant TMutationContext::GetTimestamp() const
 {
     return Timestamp_;
+}
+
+ui64 TMutationContext::GetRandomSeed() const
+{
+    return RandomSeed_;
 }
 
 TRandomGenerator& TMutationContext::RandomGenerator()

@@ -56,6 +56,7 @@ public:
     TVersion GetVersion() const;
     const TMutationRequest& Request() const;
     TInstant GetTimestamp() const;
+    ui64 GetRandomSeed() const;
     TRandomGenerator& RandomGenerator();
 
     void SetResponseData(TSharedRefArray data);
@@ -71,6 +72,7 @@ private:
     const TInstant Timestamp_;
 
     TSharedRefArray ResponseData_;
+    ui64 RandomSeed_;
     TRandomGenerator RandomGenerator_;
     bool ResponseKeeperSuppressed_ = false;
 };
