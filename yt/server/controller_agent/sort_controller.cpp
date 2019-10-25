@@ -2432,7 +2432,7 @@ private:
 
     void PreparePartitionTask()
     {
-        if (Partitions.size() == 1) {
+        if (SimpleSort) {
             // Choose sort job count and initialize the pool.
             auto jobSizeConstraints = CreateSimpleSortJobSizeConstraints(
                 Spec,
