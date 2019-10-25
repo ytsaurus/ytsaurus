@@ -199,8 +199,6 @@ public:
     void CheckpointContext()
     {
         Checkpoint = TBlockStream::Current();
-        ContextSize = 0;
-        ContextPosition = 0;
     }
 
     // Return pair <context, context_position>.
