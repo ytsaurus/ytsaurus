@@ -585,7 +585,7 @@ private:
                     .ThrowOnError();
             } catch (const TErrorException& ex) {
                 // If container doesn't exist it's ok.
-                if (!ex.Error().FindMatching(EContainerErrorCode::ContainerDoesNotExist)) {
+                if (!ex.Error().FindMatching(EPortoErrorCode::ContainerDoesNotExist)) {
                     throw;
                 }
             }

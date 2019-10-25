@@ -5,6 +5,7 @@
 #include <yt/server/node/cell_node/config.h>
 
 #include <yt/server/node/data_node/master_connector.h>
+#include <yt/server/node/data_node/helpers.h>
 
 #include <yt/server/lib/job_agent/gpu_helpers.h>
 
@@ -13,25 +14,18 @@
 #include <yt/core/concurrency/periodic_executor.h>
 
 #include <yt/core/misc/finally.h>
+
 #include <yt/core/misc/proc.h>
+
 #include <yt/library/process/subprocess.h>
+
 
 #include <yt/ytlib/api/native/client.h>
 
-#include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/data_source.h>
-#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
-
-#include <yt/ytlib/cypress_client/rpc_helpers.h>
-
-#include <yt/ytlib/file_client/file_ypath_proxy.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/ytlib/object_client/helpers.h>
-
-#include <yt/client/object_client/helpers.h>
-
-#include <util/folder/iterator.h>
 
 #include <util/string/strip.h>
 
@@ -50,8 +44,6 @@ using namespace NDataNode;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = JobAgentServerLogger;
-
-static constexpr int MaxChunksPerLocateRequest = 10000;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -201,96 +193,18 @@ void TGpuManager::FetchDriverLayerInfo()
 
 void TGpuManager::DoFetchDriverLayerInfo()
 {
-    TUserObject userObject(DriverLayerPath_);
-
-    {
-        YT_LOG_INFO("Fetching GPU layer basic attributes");
-
-        GetUserObjectBasicAttributes(
-            Bootstrap_->GetMasterClient(),
-            {&userObject},
-            NullTransactionId,
-            Logger,
-            EPermission::Read,
-            TGetUserObjectBasicAttributesOptions{
-                .SuppressAccessTracking = true,
-                .ChannelKind = EMasterChannelKind::Cache,
-            }
-        );
-
-        if (userObject.Type != EObjectType::File) {
-            THROW_ERROR_EXCEPTION("Invalid type of GPU layer object %v: expected %Qlv, actual %Qlv",
-                DriverLayerPath_,
-                EObjectType::File,
-                userObject.Type)
-                << TErrorAttribute("path", DriverLayerPath_)
-                << TErrorAttribute("expected", EObjectType::File)
-                << TErrorAttribute("actual", userObject.Type);
-        }
-    }
-
-    {
-        YT_LOG_INFO("Requesting GPU layer revision");
-
-        auto channel = Bootstrap_->GetMasterClient()->GetMasterChannelOrThrow(
-            EMasterChannelKind::Cache,
-            userObject.ExternalCellTag);
-        TObjectServiceProxy proxy(channel);
-
-        auto req = TYPathProxy::Get(userObject.GetObjectIdPath() + "/@");
-        ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
-            "revision"
-        });
-        SetSuppressAccessTracking(req, true);
-
-        auto rspOrError = WaitFor(proxy.Execute(req));
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting GPU layer revision");
-        const auto& rsp = rspOrError.Value();
-
-        auto attributes = ConvertToAttributes(NYson::TYsonString(rsp->value()));
-        auto revision = attributes->Get<NHydra::TRevision>("revision", NHydra::NullRevision);
-        if (revision == DriverLayerRevision_) {
-            YT_LOG_INFO("GPU layer revision not changed, using cached");
-            return;
-        }
-    }
-
-    YT_LOG_INFO("Fetching GPU layer chunk specs");
-
-    auto channel = Bootstrap_->GetMasterClient()->GetMasterChannelOrThrow(
+    auto fetchedArtifactKey = FetchLayerArtifactKeyIfRevisionChanged(
+        DriverLayerPath_,
+        DriverLayerRevision_,
+        Bootstrap_,
         EMasterChannelKind::Cache,
-        userObject.ExternalCellTag);
-    TObjectServiceProxy proxy(channel);
+        Logger);
 
-    auto req = TFileYPathProxy::Fetch(userObject.GetObjectIdPath());
-    AddCellTagToSyncWith(req, userObject.ObjectId);
-    ToProto(req->mutable_ranges(), std::vector<TReadRange>{ {} });
-    SetSuppressAccessTracking(req, true);
-    req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-
-    auto rspOrError = WaitFor(proxy.Execute(req));
-    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching chunks for GPU layer %v", DriverLayerPath_);
-    const auto& rsp = rspOrError.Value();
-
-    std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs;
-    ProcessFetchResponse(
-        Bootstrap_->GetMasterClient(),
-        rsp,
-        userObject.ExternalCellTag,
-        Bootstrap_->GetNodeDirectory(),
-        MaxChunksPerLocateRequest,
-        std::nullopt,
-        Logger,
-        &chunkSpecs);
-
-    TArtifactKey layerKey;
-    ToProto(layerKey.mutable_chunk_specs(), chunkSpecs);
-    layerKey.mutable_data_source()->set_type(static_cast<int>(EDataSourceType::File));
-    layerKey.mutable_data_source()->set_path(DriverLayerPath_);
-
-    {
+    if (!DriverLayerRevision_ || fetchedArtifactKey.ContentRevision != *DriverLayerRevision_) {
+        YT_VERIFY(fetchedArtifactKey.ArtifactKey);
         auto guard = Guard(SpinLock_);
-        DriverLayerKey_ = std::move(layerKey);
+        DriverLayerRevision_ = fetchedArtifactKey.ContentRevision;
+        DriverLayerKey_ = std::move(*fetchedArtifactKey.ArtifactKey);
     }
 }
 

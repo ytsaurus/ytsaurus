@@ -53,6 +53,7 @@ struct IInstance
     virtual void Kill(int signal) = 0;
     virtual void Stop() = 0;
     virtual void Destroy() = 0;
+    virtual TString GetRoot() = 0;
     virtual TUsage GetResourceUsage(const std::vector<EStatField>& fields) const = 0;
     virtual TResourceLimits GetResourceLimits() const = 0;
     virtual TResourceLimits GetResourceLimitsRecursive() const = 0;

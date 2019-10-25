@@ -286,6 +286,11 @@ void TSlotManager::BuildOrchidYson(TFluentMap fluent) const
        })
        .DoIf(static_cast<bool>(PersistentAlert_), [&] (auto fluentMap) {
            fluentMap.Item("persistent_alert").Value(*PersistentAlert_);
+       })
+       .DoIf(static_cast<bool>(RootVolumeManager_), [&] (auto fluentMap) {
+           fluentMap.Item("root_volume_manager").DoMap(BIND(
+               &IVolumeManager::BuildOrchidYson,
+               RootVolumeManager_));
        });
 }
 

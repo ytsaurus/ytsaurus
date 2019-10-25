@@ -624,6 +624,7 @@ void TChunkStore::OnProfiling()
         }
         auto& performanceCounters = location->GetPerformanceCounters();
         profiler.Update(performanceCounters.AvailableSpace, location->GetAvailableSpace());
+        profiler.Update(performanceCounters.UsedSpace, location->GetUsedSpace());
         profiler.Update(performanceCounters.Full, location->IsFull() ? 1 : 0);
     }
 }

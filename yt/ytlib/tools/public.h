@@ -23,6 +23,8 @@ DECLARE_REFCOUNTED_CLASS(TFSQuotaConfig)
 
 DECLARE_REFCOUNTED_CLASS(TChownChmodConfig)
 
+DECLARE_REFCOUNTED_CLASS(TCopyDirectoryContentConfig)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

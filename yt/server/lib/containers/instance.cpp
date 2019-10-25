@@ -217,6 +217,38 @@ public:
             .ThrowOnError();
     }
 
+    virtual TString GetRoot() override
+    {
+        auto getRoot = [&] (TString name) {
+            auto properties = WaitFor(Executor_->GetProperties(
+                name,
+                std::vector<TString>{"root"}))
+                .ValueOrThrow();
+
+            return properties.at("root")
+                .ValueOrThrow();
+        };
+
+        static const TString Prefix("/porto");
+
+        TString root = "/";
+        auto absoluteName = GetAbsoluteName();
+        while (true) {
+            YT_VERIFY(absoluteName.length() >= Prefix.length());
+            if (absoluteName == Prefix) {
+                return root;
+            }
+
+            root = getRoot(absoluteName);
+            if (root != "/") {
+                return root;
+            }
+
+            auto slashPosition = absoluteName.rfind('/');
+            absoluteName = absoluteName.substr(0, slashPosition);
+        }
+    }
+
     virtual TUsage GetResourceUsage(const std::vector<EStatField>& fields) const override
     {
         std::vector<TString> properties;

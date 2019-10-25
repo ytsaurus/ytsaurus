@@ -180,4 +180,18 @@ i64 TGetDirectorySizeAsRootTool::operator()(const TString& path) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TCopyDirectoryContentTool::operator()(TCopyDirectoryContentConfigPtr config) const
+{
+    SafeSetUid(0);
+
+    execl("/usr/bin/rsync", "/usr/bin/rsync", "-q", "--perms", "--recursive", "--specials", "--links", config->Source.c_str(), config->Destination.c_str(), (void*)nullptr);;
+
+    THROW_ERROR_EXCEPTION("Failed to copy directory %Qv to %Qv: execl failed",
+        config->Source,
+        config->Destination)
+        << TError::FromSystem();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTools

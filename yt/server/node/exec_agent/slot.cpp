@@ -144,7 +144,7 @@ public:
     virtual TFuture<void> FinalizePreparation() override
     {
         return RunPrepareAction<void>([&] {
-                return Location_->FinalizeSanboxPreparation(
+                return Location_->FinalizeSandboxPreparation(
                     SlotIndex_,
                     JobEnvironment_->GetUserId(SlotIndex_));
             },

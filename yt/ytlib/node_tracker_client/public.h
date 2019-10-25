@@ -47,6 +47,7 @@ DEFINE_ENUM(EMemoryCategory,
     ((VersionedChunkMeta)          (7))
     ((SystemJobs)                  (8))
     ((Query)                       (9))
+    ((TmpfsLayers)                (11))
 );
 
 DEFINE_ENUM(ENodeState,

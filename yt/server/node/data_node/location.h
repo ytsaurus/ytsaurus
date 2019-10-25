@@ -72,6 +72,7 @@ struct TLocationPerformanceCounters
 
     TEnumIndexedVector<ESessionType, NProfiling::TSimpleGauge> SessionCount;
 
+    NProfiling::TAggregateGauge UsedSpace;
     NProfiling::TAggregateGauge AvailableSpace;
     NProfiling::TSimpleGauge Full;
 };
