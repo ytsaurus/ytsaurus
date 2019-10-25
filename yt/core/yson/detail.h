@@ -330,6 +330,9 @@ public:
     template <bool AllowFinish>
     char GetChar()
     {
+        if (!IsEmpty()) {
+            return *TBlockStream::Current();
+        }
         Refresh<AllowFinish>();
         return !IsEmpty() ? *TBlockStream::Current() : '\0';
     }
