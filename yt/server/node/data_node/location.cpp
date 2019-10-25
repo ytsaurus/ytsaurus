@@ -102,6 +102,8 @@ TLocation::TLocation(
         };
         PerformanceCounters_.SessionCount[type] = {"/session_count", tagIds};
     }
+
+    PerformanceCounters_.UsedSpace = {"/used_space", {}, NProfiling::EAggregateMode::All};
     PerformanceCounters_.AvailableSpace = {"/available_space", {}, NProfiling::EAggregateMode::All};
     PerformanceCounters_.Full = {"/full"};
 

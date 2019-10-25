@@ -61,7 +61,7 @@ public:
         bool executable);
 
     // Set quota, permissions, etc. Must be called when all files are prepared.
-    TFuture<void> FinalizeSanboxPreparation(
+    TFuture<void> FinalizeSandboxPreparation(
         int slotIndex,
         int userId);
 

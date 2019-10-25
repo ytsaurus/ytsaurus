@@ -435,6 +435,33 @@ DEFINE_REFCOUNTED_TYPE(TLayerLocationConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTmpfsLayerCacheConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    i64 Capacity;
+    std::optional<TString> LayersDirectoryPath;
+    TDuration LayersUpdatePeriod;
+
+    TTmpfsLayerCacheConfig()
+    {
+        RegisterParameter("capacity", Capacity)
+            .Default(10 * 1_GB)
+            .GreaterThan(0);
+
+        RegisterParameter("layers_directory_path", LayersDirectoryPath)
+            .Default(std::nullopt);
+
+        RegisterParameter("layers_update_period", LayersUpdatePeriod)
+            .Default(TDuration::Minutes(3))
+            .GreaterThan(TDuration::Zero());
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TTmpfsLayerCacheConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TVolumeManagerConfig
     : public NYTree::TYsonSerializable
 {
@@ -444,6 +471,8 @@ public:
     TDuration PortoPollPeriod;
     double CacheCapacityFraction;
     int LayerImportConcurrency;
+
+    TTmpfsLayerCacheConfigPtr TmpfsLayerCache;
 
     TVolumeManagerConfig()
     {
@@ -466,6 +495,9 @@ public:
             .Default(2)
             .GreaterThan(0)
             .LessThanOrEqual(10);
+
+        RegisterParameter("tmpfs_layer_cache", TmpfsLayerCache)
+            .DefaultNew();
     }
 };
 

@@ -384,7 +384,7 @@ TFuture<void> TSlotLocation::MakeSandboxFile(
         destinationName);
 }
 
-TFuture<void> TSlotLocation::FinalizeSanboxPreparation(
+TFuture<void> TSlotLocation::FinalizeSandboxPreparation(
     int slotIndex,
     int userId)
 {

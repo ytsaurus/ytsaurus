@@ -76,7 +76,7 @@ private:
     bool Disabled_ = false;
 
     NYPath::TYPath DriverLayerPath_;
-    NHydra::TRevision DriverLayerRevision_ = NHydra::NullRevision;
+    std::optional<NHydra::TRevision> DriverLayerRevision_;
     std::optional<NDataNode::TArtifactKey> DriverLayerKey_;
     NConcurrency::TPeriodicExecutorPtr FetchDriverLayerExecutor_;
     TString DriverVersionString_;
