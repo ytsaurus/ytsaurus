@@ -1889,7 +1889,20 @@ class TestSchedulerPoolsReconfiguration(YTEnvSetup):
         wait(lambda: self.get_pool_parent("test_pool") == "<Root>")
 
     @authors("renadeen")
-    def test_parent_child_swap_is_forbidden(self):
+    def test_remove_big_hierarchy(self):
+        # Test bug when some pools weren't removed due to wrong removal order and inability to remove nonempty pools
+        path = "//sys/pools"
+        for i in range(10):
+            path = path + "/pool" + str(i)
+            create("map_node", path)
+
+        self.wait_pool_exists("pool9")
+
+        remove("//sys/pools/pool0")
+        wait(lambda: len(ls(self.orchid_pools)) == 1)  # only <Root> must remain
+
+    @authors("renadeen")
+    def test_parent_child_swap_is_allowed(self):
         set("//sys/pools/test_parent", {"test_pool": {}})
         self.wait_pool_exists("test_pool")
         wait(lambda: self.get_pool_parent("test_pool") == "test_parent")
@@ -1899,10 +1912,8 @@ class TestSchedulerPoolsReconfiguration(YTEnvSetup):
         move("//sys/pools/test_parent", "//sys/pools/test_pool/test_parent", tx=tx)
         commit_transaction(tx)
 
-        wait(lambda: get("//sys/scheduler/@alerts"))
-        alert_message = get("//sys/scheduler/@alerts")[0]["inner_errors"][0]["inner_errors"][0]["message"]
-        assert "Path to pool \"test_parent\" changed in more than one place; make pool tree changes more gradually" == alert_message
-        wait(lambda: self.get_pool_parent("test_pool") == "test_parent")
+        wait(lambda: self.get_pool_parent("test_parent") == "test_pool")
+        assert get("//sys/scheduler/@alerts") == []
 
     @authors("renadeen")
     def test_duplicate_pools_are_forbidden(self):
