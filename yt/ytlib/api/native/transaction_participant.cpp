@@ -103,9 +103,10 @@ public:
 
     virtual TFuture<void> CheckAvailability() override
     {
-        return GetChannel().Apply(BIND([=] (const NRpc::IChannelPtr& channel) {
+        return GetChannel().Apply(BIND([=, this_ = MakeStrong(this)] (const NRpc::IChannelPtr& channel) {
             THydraServiceProxy proxy(channel);
             auto req = proxy.Poke();
+            PrepareRequest(req);
             return req->Invoke().template As<void>();
         }));
     }
@@ -113,15 +114,15 @@ public:
     // COMPAT(savrus) Compatibility with pre 19.6 participants.
     virtual TFuture<void> CheckAvailabilityPre196() override
     {
-        return GetChannel().Apply(BIND([=] (const NRpc::IChannelPtr& channel) {
+        return GetChannel().Apply(BIND([=, this_ = MakeStrong(this)] (const NRpc::IChannelPtr& channel) {
             THydraServiceProxy proxy(channel);
             auto req = proxy.CommitMutation();
             req->set_type(HeartbeatMutationType);
-            req->Attachments().push_back(TSharedRef());
+            req->Attachments().emplace_back();
+            PrepareRequest(req);
             return req->Invoke().template As<void>();
         }));
     }
-
 
 private:
     const TCellDirectoryPtr CellDirectory_;
