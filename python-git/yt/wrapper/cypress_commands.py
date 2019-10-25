@@ -369,6 +369,17 @@ def externalize(path, cell_tag, client=None):
     }
     return _make_transactional_request("externalize", params, client=client)
 
+def internalize(path, client=None):
+    """Internalize cypress node
+
+    :param path: path.
+    :type path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
+    """
+    params = {
+        "path": YPath(path, client=client)
+    }
+    return _make_transactional_request("internalize", params, client=client)
+
 def mkdir(path, recursive=None, client=None):
     """Makes directory (Cypress node of map_node type).
 
