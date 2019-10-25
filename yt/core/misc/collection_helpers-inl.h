@@ -111,7 +111,7 @@ template <class TMap, class TKey>
 const auto& FindOrCrash(const TMap& map, const TKey& key)
 {
     auto it = map.find(key);
-    YT_VERIFY(it);
+    YT_VERIFY(it != map.end());
     return it->second;
 }
 
