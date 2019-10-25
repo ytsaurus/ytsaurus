@@ -57,9 +57,7 @@ TFairShareStrategyOperationState::TFairShareStrategyOperationState(IOperationStr
 
 TPoolName TFairShareStrategyOperationState::GetPoolNameByTreeId(const TString& treeId) const
 {
-    auto it = TreeIdToPoolNameMap_.find(treeId);
-    YT_VERIFY(it != TreeIdToPoolNameMap_.end());
-    return it->second;
+    return FindOrCrash(TreeIdToPoolNameMap_, treeId);
 }
 
 void TFairShareStrategyOperationState::EraseTree(const TString& treeId)
