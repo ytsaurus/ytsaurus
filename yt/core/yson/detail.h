@@ -370,8 +370,14 @@ private:
         return reinterpret_cast<const ui8*>(TBaseStream::End());
     }
 
+    void ThrowCannotParseVarint()
+    {
+        THROW_ERROR_EXCEPTION("Error parsing varint value")
+            << *this;
+    }
+
     // Following functions is an adaptation Protobuf code from coded_stream.cc
-    bool ReadVarint32FromArray(ui32* value)
+    ui32 ReadVarint32FromArray()
     {
         // Fast path:  We have enough bytes left in the buffer to guarantee that
         // this read won't cross the end, so we can skip the checks.
@@ -394,44 +400,36 @@ private:
 
         // We have overrun the maximum size of a Varint (10 bytes).  Assume
         // the data is corrupt.
-        return false;
+        ThrowCannotParseVarint();
 
     done:
         TBaseStream::Advance(ptr - BeginByte());
-        *value = result;
-        return true;
+        return result;
     }
 
-    bool ReadVarint32Fallback(ui32* value)
+    ui32 ReadVarint32Fallback()
     {
         if (BeginByte() + MaxVarintBytes <= EndByte() ||
             // Optimization:  If the Varint ends at exactly the end of the buffer,
             // we can detect that and still use the fast path.
             (BeginByte() < EndByte() && !(EndByte()[-1] & 0x80)))
         {
-            return ReadVarint32FromArray(value);
+            return ReadVarint32FromArray();
         } else {
             // Really slow case: we will incur the cost of an extra function call here,
             // but moving this out of line reduces the size of this function, which
             // improves the common case. In micro benchmarks, this is worth about 10-15%
-            return ReadVarint32Slow(value);
+            return ReadVarint32Slow();
         }
     }
 
-    bool ReadVarint32Slow(ui32* value)
+    ui32 ReadVarint32Slow()
     {
-        ui64 result;
-        // Directly invoke ReadVarint64Fallback, since we already tried to optimize
-        // for one-byte Varints.
-        if (ReadVarint64Fallback(&result)) {
-            *value = static_cast<ui32>(result);
-            return true;
-        } else {
-            return false;
-        }
+        ui32 result = ReadVarint64();
+        return static_cast<ui32>(result);
     }
 
-    bool ReadVarint64Slow(ui64* value)
+    ui64 ReadVarint64Slow()
     {
         // Slow path:  This read might cross the end of the buffer, so we
         // need to check and refresh the buffer if and when it does.
@@ -442,7 +440,7 @@ private:
 
         do {
             if (count == MaxVarintBytes) {
-                return false;
+                ThrowCannotParseVarint();
             }
             while (BeginByte() == EndByte()) {
                 TBaseStream::Refresh();
@@ -453,11 +451,15 @@ private:
             ++count;
         } while (b & 0x80);
 
-        *value = result;
-        return true;
+        return result;
     }
 
-    Y_FORCE_INLINE bool ReadVarint64Fallback(ui64* value)
+public:
+    TCodedStream(const TBaseStream& baseStream)
+        : TBaseStream(baseStream)
+    { }
+
+    Y_FORCE_INLINE ui64 ReadVarint64()
     {
         if (BeginByte() + MaxVarintBytes <= EndByte() ||
             // Optimization:  If the Varint ends at exactly the end of the buffer,
@@ -484,41 +486,24 @@ private:
 
             // We have overrun the maximum size of a Varint (10 bytes).  The data
             // must be corrupt.
-            return false;
+            ThrowCannotParseVarint();
 
         done:
             TBaseStream::Advance(ptr - BeginByte());
-            *value = result;
-            return true;
+            return result;
         } else {
-            return ReadVarint64Slow(value);
+            return ReadVarint64Slow();
         }
     }
 
-public:
-    TCodedStream(const TBaseStream& baseStream)
-        : TBaseStream(baseStream)
-    { }
-
-    Y_FORCE_INLINE bool ReadVarint64(ui64* value)
+    ui32 ReadVarint32()
     {
         if (BeginByte() < EndByte() && *BeginByte() < 0x80) {
-            *value = *BeginByte();
+            ui32 result = *BeginByte();
             TBaseStream::Advance(1);
-            return true;
+            return result;
         } else {
-            return ReadVarint64Fallback(value);
-        }
-    }
-
-    bool ReadVarint32(ui32* value)
-    {
-        if (BeginByte() < EndByte() && *BeginByte() < 0x80) {
-            *value = *BeginByte();
-            TBaseStream::Advance(1);
-            return true;
-        } else {
-            return ReadVarint32Fallback(value);
+            return ReadVarint32Fallback();
         }
     }
 };
@@ -720,11 +705,7 @@ public:
 
     TStringBuf ReadBinaryString()
     {
-        ui32 ulength = 0;
-        if (!TBaseStream::ReadVarint32(&ulength)) {
-            THROW_ERROR_EXCEPTION("Error parsing varint value")
-                << *this;
-        }
+        ui32 ulength = TBaseStream::ReadVarint32();
 
         i32 length = ZigZagDecode32(ulength);
         if (length < 0) {
@@ -796,22 +777,13 @@ public:
 
     i64 ReadBinaryInt64()
     {
-        ui64 uvalue;
-        if (!TBaseStream::ReadVarint64(&uvalue)) {
-            THROW_ERROR_EXCEPTION("Error parsing varint value")
-                << *this;
-        }
+        ui64 uvalue = TBaseStream::ReadVarint64();
         return ZigZagDecode64(uvalue);
     }
 
     ui64 ReadBinaryUint64()
     {
-        ui64 uvalue;
-        if (!TBaseStream::ReadVarint64(&uvalue)) {
-            THROW_ERROR_EXCEPTION("Error parsing varint value")
-                << *this;
-        }
-        return uvalue;
+        return TBaseStream::ReadVarint64();
     }
 
     double ReadBinaryDouble()
