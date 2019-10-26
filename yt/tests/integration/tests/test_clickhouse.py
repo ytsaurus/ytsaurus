@@ -777,7 +777,7 @@ class TestJobInput(ClickHouseTestBase):
             assert result == [{"a": 42}, {"a": 42}]
 
     @authors("max42")
-    def test_min_data_weight_per_thread(self):
+    def DISABLED_test_min_data_weight_per_thread(self):
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "string"}]})
         write_table("//tmp/t", [{"a": "x" * 100} for i in range(30)])
 
