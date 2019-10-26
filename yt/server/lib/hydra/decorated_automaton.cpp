@@ -1277,9 +1277,15 @@ void TDecoratedAutomaton::MaybeStartSnapshotBuilder()
         return;
     }
 
-    auto builder = Options_.UseFork
-       ? TIntrusivePtr<TSnapshotBuilderBase>(New<TForkSnapshotBuilder>(this, SnapshotVersion_, Config_->BuildSnapshotDelay))
-       : TIntrusivePtr<TSnapshotBuilderBase>(New<TNoForkSnapshotBuilder>(this, SnapshotVersion_, Config_->BuildSnapshotDelay));
+    auto builder =
+        // XXX(babenko): ASAN + fork = possible deadlock; cf. https://st.yandex-team.ru/DEVTOOLS-5425
+#ifdef _asan_enabled_
+        false
+#else
+        Options_.UseFork
+#endif
+        ? TIntrusivePtr<TSnapshotBuilderBase>(New<TForkSnapshotBuilder>(this, SnapshotVersion_, Config_->BuildSnapshotDelay))
+        : TIntrusivePtr<TSnapshotBuilderBase>(New<TNoForkSnapshotBuilder>(this, SnapshotVersion_, Config_->BuildSnapshotDelay));
 
     auto buildResult = builder->Run();
     buildResult.Subscribe(
