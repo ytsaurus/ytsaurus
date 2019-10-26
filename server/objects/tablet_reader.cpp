@@ -31,7 +31,7 @@ TString GetReadQueryString(
     const TYPath& tablePath,
     i64 tabletIndex,
     i64 rowOffset,
-    TRange<const TDBField*> fields,
+    const std::vector<const TDBField*>& fields,
     TTimestamp timestamp,
     std::optional<i64> rowCountLimit)
 {
@@ -176,7 +176,7 @@ void TTabletReader::ScheduleSearchOffsetImpl(
 }
 
 void TTabletReader::ScheduleRead(
-    TRange<const TDBField*> fields,
+    const std::vector<const TDBField*>& fields,
     std::function<void(const IUnversionedRowsetPtr&)> handler,
     std::optional<i64> rowCountLimit)
 {

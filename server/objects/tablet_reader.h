@@ -23,7 +23,7 @@ public:
     bool HasMoreRows() const;
 
     void ScheduleRead(
-        TRange<const TDBField*> fields,
+        const std::vector<const TDBField*>& fields,
         std::function<void(const NYT::NApi::IUnversionedRowsetPtr&)> handler,
         std::optional<i64> rowCountLimit);
 

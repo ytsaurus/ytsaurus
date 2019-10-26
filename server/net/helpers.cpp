@@ -1,6 +1,6 @@
 #include "helpers.h"
 
-#include <yp/client/api/public.h>
+#include <yp/client/api/misc/public.h>
 
 #include <yt/core/net/address.h>
 

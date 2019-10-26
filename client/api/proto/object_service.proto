@@ -467,6 +467,9 @@ message TSelectObjectsOptions
 
     // Maximum number of results to fetch.
     optional int32 limit = 4;
+
+    // Continuation token indicates the next record to be fetched. Opaque for the client.
+    optional string continuation_token = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -511,6 +514,10 @@ message TRspSelectObjects
     // If TReqSelectObjects.timestamp is missing, then this contains the actual timestamp
     // used for reading the DB; otherwise this is just the copy of TReqSelectObjects.timestamp.
     optional uint64 timestamp = 2;
+
+    // Continuation token should be sent in subsequent requests to fetch the next batch
+    // of objects. Opaque for the client.
+    optional string continuation_token = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -682,7 +689,7 @@ message TRspGetUserAccessAllowedTo
         // Ids of objects to which user is granted permission.
         repeated string object_ids = 1;
 
-        // Continuation token - should be sent in subsequent requests to fetch the next batch
+        // Continuation token should be sent in subsequent requests to fetch the next batch
         // of objects. Opaque for the client.
         optional string continuation_token = 2;
     }

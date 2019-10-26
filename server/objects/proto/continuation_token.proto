@@ -1,11 +1,16 @@
-package NYP.NServer.NApi.NProto;
+package NYP.NServer.NObjects.NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TGetUserAccessAllowedToContinuationToken
+message TSelectObjectsContinuationToken
 {
-    // The first object returned will have ObjectId strictly greater than this.
-    optional string object_id = 1;
+    // Indicates version of token field values.
+    optional int32 version = 1;
+
+    // The first object returned will have db key strictly greater than
+    // the key produced by a combination of the following fields.
+    optional string parent_id = 3;
+    optional string object_id = 2;
 }
 
 message TSelectObjectHistoryContinuationToken

@@ -1,9 +1,6 @@
 #include "object_service.h"
 
-#include "helpers.h"
 #include "private.h"
-
-#include <yp/server/api/proto/continuation_token.pb.h>
 
 #include <yp/server/master/bootstrap.h>
 #include <yp/server/master/yt_connector.h>
@@ -22,7 +19,7 @@
 
 #include <yp/server/lib/objects/object_filter.h>
 
-#include <yp/client/api/object_service_proxy.h>
+#include <yp/client/api/native/object_service_proxy.h>
 
 #include <yt/ytlib/auth/authentication_manager.h>
 
@@ -55,7 +52,7 @@ public:
     explicit TObjectService(TBootstrap* bootstrap)
         : TServiceBase(
             bootstrap,
-            NClient::NApi::TObjectServiceProxy::GetDescriptor(),
+            NClient::NApi::NNative::TObjectServiceProxy::GetDescriptor(),
             NApi::Logger,
             bootstrap->GetAuthenticationManager()->GetRpcAuthenticator())
     {
@@ -808,47 +805,41 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NClient::NApi::NProto, WatchObjects)
     {
         auto objectType = CheckedEnumCastToObjectType(request->object_type());
-        auto startTimestamp = request->start_timestamp();
-        auto timestamp = request->timestamp();
-        auto continuationToken = request->continuation_token();
-
-        context->SetRequestInfo("ObjectType: %v, Timestamp: %llx, StartTimestamp: %llx, ContinuationToken: %v",
-            objectType,
-            timestamp,
-            startTimestamp,
-            continuationToken);
-
-        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context);
 
         TWatchQueryOptions options;
+        if (request->has_timestamp()) {
+            options.Timestamp = request->timestamp();
+        }
         if (request->has_start_timestamp()) {
             options.StartTimestamp = request->start_timestamp();
         }
-        if (request->has_timestamp()) {
-            options.Timestamp = request->timestamp();
+        if (request->has_continuation_token()) {
+            options.ContinuationToken = request->continuation_token();
         }
         if (request->has_event_count_limit()) {
             options.EventCountLimit = request->event_count_limit();
         }
         if (request->has_time_limit()) {
-            const auto& timeLimit = request->time_limit();
-            // TODO(avitella): Add TDuration::NanoSeconds to util.
-            options.TimeLimit = TDuration::Seconds(timeLimit.seconds()) + TDuration::MicroSeconds(timeLimit.nanos() / 1000);
-        }
-        if (request->has_continuation_token()) {
-            DeserializeContinuationToken(request->continuation_token(), &(options.ContinuationToken.emplace()));
+            const auto& protoTimeLimit = request->time_limit();
+            options.TimeLimit = TDuration::Seconds(protoTimeLimit.seconds()) +
+                TDuration::MicroSeconds(protoTimeLimit.nanos() / 1000);
         }
 
-        // TODO(avitella): Only session object required. Drop dependency from full transaction.
+        context->SetRequestInfo("ObjectType: %v, Options: %v",
+            objectType,
+            options);
+
+        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context);
+
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        auto transaction = WaitFor(transactionManager->StartReadOnlyTransaction(timestamp))
+        auto transaction = WaitFor(transactionManager->StartReadOnlyTransaction(
+            options.Timestamp.value_or(NullTimestamp)))
             .ValueOrThrow();
 
         const auto executor = New<TWatchQueryExecutor>(Bootstrap_, transaction->GetSession());
-        const auto result = executor->ExecuteWatchQuery(objectType, options);
+        auto result = executor->ExecuteWatchQuery(objectType, options);
 
         response->set_timestamp(result.Timestamp);
-        response->set_continuation_token(SerializeContinuationToken(result.ContinuationToken));
 
         response->mutable_events()->Reserve(result.Events.size());
         for (const auto& event : result.Events) {
@@ -858,17 +849,19 @@ private:
             protoEvent->set_event_type(static_cast<NClient::NApi::NProto::EEventType>(event.Type));
         }
 
-        context->SetResponseInfo("Count: %v, Timestamp: %llx, ContinuationToken: %v",
-            result.Events.size(),
-            result.Timestamp,
-            result.ContinuationToken);
+        response->set_continuation_token(std::move(result.ContinuationToken));
+
+        context->SetResponseInfo("Count: %v, Timestamp: %llx, ContinuationToken: %Qv",
+            response->events_size(),
+            response->timestamp(),
+            response->continuation_token());
         context->Reply();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NClient::NApi::NProto, SelectObjects)
     {
-        auto objectType = CheckedEnumCastToObjectType(request->object_type());
         auto timestamp = request->timestamp();
+        auto objectType = CheckedEnumCastToObjectType(request->object_type());
 
         auto filter = request->has_filter()
             ? std::make_optional(TObjectFilter{request->filter().query()})
@@ -888,13 +881,12 @@ private:
             options.Limit = request->limit().value();
         }
 
-        context->SetRequestInfo("ObjectType: %v, Timestamp: %llx, Filter: %v, Selector: %v, Offset: %v, Limit: %v",
-            objectType,
+        context->SetRequestInfo("Timestamp: %llx, ObjectType: %v, Filter: %v, Selector: %v, Options: %v",
             timestamp,
+            objectType,
             filter,
             selector,
-            options.Offset,
-            options.Limit);
+            options);
 
         auto format = request->format();
         if (format == NClient::NApi::NProto::PF_NONE) {
@@ -921,9 +913,14 @@ private:
 
         response->set_timestamp(transaction->GetStartTimestamp());
 
-        context->SetResponseInfo("Count: %v, Timestamp: %llx",
-            result.Objects.size(),
-            transaction->GetStartTimestamp());
+        if (result.ContinuationToken) {
+            response->set_continuation_token(std::move(*result.ContinuationToken));
+        }
+
+        context->SetResponseInfo("Count: %v, Timestamp: %llx, ContinuationToken: %Qv",
+            response->results_size(),
+            response->timestamp(),
+            response->continuation_token());
         context->Reply();
     }
 
@@ -1067,29 +1064,28 @@ private:
             auto objectType = CheckedEnumCastToObjectType(subrequest.object_type());
             auto permission = CheckedEnumCast<NAccessControl::EAccessControlPermission>(
                 subrequest.permission());
+
             NYP::NServer::NAccessControl::TGetUserAccessAllowedToOptions options;
             if (subrequest.has_continuation_token()) {
-                NProto::TGetUserAccessAllowedToContinuationToken token;
-                DeserializeContinuationToken(subrequest.continuation_token(), &token);
-                options.ContinuationId = std::move(token.object_id());
+                options.ContinuationToken = subrequest.continuation_token();
             }
             if (subrequest.has_limit()) {
                 options.Limit = subrequest.limit();
             }
-            auto objectIds = accessControlManager->GetUserAccessAllowedTo(
+
+            auto result = accessControlManager->GetUserAccessAllowedTo(
                 subrequest.user_id(),
                 objectType,
                 permission,
                 options);
+
             auto subresponse = response->add_subresponses();
-            if (!objectIds.empty()) {
-                NProto::TGetUserAccessAllowedToContinuationToken token;
-                ToProto(token.mutable_object_id(), objectIds.back());
-                subresponse->set_continuation_token(SerializeContinuationToken(token));
-            }
-            ToProto(subresponse->mutable_object_ids(), objectIds);
+            ToProto(subresponse->mutable_object_ids(), result.ObjectIds);
+            subresponse->set_continuation_token(std::move(result.ContinuationToken));
         }
 
+        context->SetResponseInfo("SubresponseCount: %v",
+            response->subresponses_size());
         context->Reply();
     }
 
@@ -1098,40 +1094,20 @@ private:
         auto objectType = CheckedEnumCastToObjectType(request->object_type());
         const auto& objectId = request->object_id();
 
-        TSelectObjectHistoryOptions options;
-
         TAttributeSelector attributeSelector{
             FromProto<std::vector<TString>>(request->selector().paths())
         };
 
+        TSelectObjectHistoryOptions options;
         if (request->has_options()) {
-            const auto& requestOptions = request->options();
-
-            if (requestOptions.has_uuid()) {
-                options.Uuid = requestOptions.uuid();
-            }
-
-            if (requestOptions.has_limit()) {
-                options.Limit = requestOptions.limit();
-            }
-
-            if (requestOptions.has_continuation_token()) {
-                NProto::TSelectObjectHistoryContinuationToken token;
-                DeserializeContinuationToken(requestOptions.continuation_token(), &token);
-                options.Offset = token.offset();
-            }
-
-            if (requestOptions.has_interval()) {
-                FromProto(&options.TimeInterval, requestOptions.interval());
-            }
+            FromProto(&options, request->options());
         }
 
-       context->SetRequestInfo("ObjectType: %v, ObjectId: %v, Selector: %v, Offset: %v, Limit: %v",
+        context->SetRequestInfo("ObjectType: %v, ObjectId: %v, Selector: %v, Options: %v",
             objectType,
             objectId,
             attributeSelector,
-            options.Offset,
-            options.Limit);
+            options);
 
         auto format = request->format();
         if (format == NClient::NApi::NProto::PF_NONE) {
@@ -1156,12 +1132,12 @@ private:
             ToProto(event->mutable_history_enabled_attributes(), resultEvent.HistoryEnabledAttributes);
         }
 
-        NProto::TSelectObjectHistoryContinuationToken continuationToken;
-        continuationToken.set_offset(options.Offset.value_or(0) + result.Events.size());
-        response->set_continuation_token(SerializeContinuationToken(continuationToken));
+        response->set_continuation_token(std::move(result.ContinuationToken));
 
-        context->SetResponseInfo("Timestamp: %llx",
-            transaction->GetStartTimestamp());
+        context->SetResponseInfo("Timestamp: %llx, EventCount: %v, ContinuationToken: %Qv",
+            transaction->GetStartTimestamp(),
+            response->events_size(),
+            response->continuation_token());
         context->Reply();
     }
 };

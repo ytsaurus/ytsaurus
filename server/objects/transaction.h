@@ -2,6 +2,8 @@
 
 #include "persistence.h"
 
+#include <yp/client/api/proto/object_service.pb.h>
+
 #include <yt/client/api/public.h>
 
 #include <yt/core/actions/future.h>
@@ -11,7 +13,6 @@
 #include <yt/core/misc/variant.h>
 
 #include <yt/core/concurrency/async_semaphore.h>
-#include <yp/client/api/proto/object_service.pb.h>
 
 namespace NYP::NServer::NObjects {
 
@@ -138,21 +139,28 @@ struct TGetQueryResult
 
 struct TSelectQueryOptions
 {
-    std::optional<i64> Offset;
-    std::optional<i64> Limit;
     bool FetchValues = true;
     bool FetchTimestamps = false;
+    std::optional<i64> Offset;
+    std::optional<i64> Limit;
+    std::optional<TString> ContinuationToken;
 };
 
 void FromProto(
     TSelectQueryOptions* options,
     const NClient::NApi::NProto::TSelectObjectsOptions& protoOptions);
 
+void FormatValue(
+    TStringBuilderBase* builder,
+    const TSelectQueryOptions& options,
+    TStringBuf format);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSelectQueryResult
 {
     std::vector<TAttributeValueList> Objects;
+    std::optional<TString> ContinuationToken;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -167,15 +175,31 @@ void FromProto(
     TTimeInterval* timeInterval,
     const NClient::NApi::NProto::TTimeInterval& protoTimeInterval);
 
+void FormatValue(
+    TStringBuilderBase* builder,
+    const TTimeInterval& timeInterval,
+    TStringBuf format);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSelectObjectHistoryOptions
 {
     std::optional<TString> Uuid;
-    TTimeInterval TimeInterval;
     std::optional<int> Limit;
-    std::optional<int> Offset;
+    std::optional<TString> ContinuationToken;
+    TTimeInterval TimeInterval;
 };
+
+void FromProto(
+    TSelectObjectHistoryOptions* options,
+    const NClient::NApi::NProto::TSelectObjectHistoryOptions& protoOptions);
+
+void FormatValue(
+    TStringBuilderBase* builder,
+    const TSelectObjectHistoryOptions& options,
+    TStringBuf format);
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct THistoryEvent
 {
@@ -189,6 +213,7 @@ struct THistoryEvent
 struct TSelectObjectHistoryResult
 {
     std::vector<THistoryEvent> Events;
+    TString ContinuationToken;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

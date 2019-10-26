@@ -3,6 +3,7 @@
 #include "account.h"
 #include "attribute_schema.h"
 #include "config.h"
+#include "continuation_token.h"
 #include "db_schema.h"
 #include "dns_record_set.h"
 #include "geometric_2d_set_cover.h"
@@ -24,6 +25,8 @@
 #include "user.h"
 #include "virtual_service.h"
 #include "watch_manager.h"
+
+#include <yp/server/objects/proto/continuation_token.pb.h>
 
 #include <yp/server/master/bootstrap.h>
 #include <yp/server/master/yt_connector.h>
@@ -112,14 +115,17 @@ void FromProto(
     TSelectQueryOptions* options,
     const NClient::NApi::NProto::TSelectObjectsOptions& protoOptions)
 {
+    options->FetchValues = protoOptions.fetch_values();
+    options->FetchTimestamps = protoOptions.fetch_timestamps();
     if (protoOptions.has_offset()) {
         options->Offset = protoOptions.offset();
     }
     if (protoOptions.has_limit()) {
         options->Limit = protoOptions.limit();
     }
-    options->FetchValues = protoOptions.fetch_values();
-    options->FetchTimestamps = protoOptions.fetch_timestamps();
+    if (protoOptions.has_continuation_token()) {
+        options->ContinuationToken = protoOptions.continuation_token();
+    }
 }
 
 void FromProto(
@@ -139,6 +145,27 @@ void FromProto(
     }
 }
 
+void FromProto(
+    TSelectObjectHistoryOptions* options,
+    const NClient::NApi::NProto::TSelectObjectHistoryOptions& protoOptions)
+{
+    if (protoOptions.has_uuid()) {
+        options->Uuid = protoOptions.uuid();
+    }
+
+    if (protoOptions.has_limit()) {
+        options->Limit = protoOptions.limit();
+    }
+
+    if (protoOptions.has_continuation_token()) {
+        options->ContinuationToken = protoOptions.continuation_token();
+    }
+
+    if (protoOptions.has_interval()) {
+        FromProto(&options->TimeInterval, protoOptions.interval());
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TString ToString(const TAttributeSelector& selector)
@@ -154,6 +181,41 @@ TString ToString(const TAttributeGroupingExpressions& groupByExpressions)
 TString ToString(const TAttributeAggregateExpressions& aggregators)
 {
     return Format("{Expressions: %v}", aggregators.Expressions);
+}
+
+void FormatValue(
+    TStringBuilderBase* builder,
+    const TSelectQueryOptions& options,
+    TStringBuf /*format*/)
+{
+    builder->AppendFormat("{FetchValues: %v, FetchTimestamps: %v, Offset: %v, Limit: %v, ContinuationToken: %Qv}",
+        options.FetchValues,
+        options.FetchTimestamps,
+        options.Offset,
+        options.Limit,
+        options.ContinuationToken);
+}
+
+void FormatValue(
+    TStringBuilderBase* builder,
+    const TTimeInterval& timeInterval,
+    TStringBuf /*format*/)
+{
+    builder->AppendFormat("{Begin: %v, End: %v}",
+        timeInterval.Begin,
+        timeInterval.End);
+}
+
+void FormatValue(
+    TStringBuilderBase* builder,
+    const TSelectObjectHistoryOptions& options,
+    TStringBuf /*format*/)
+{
+    builder->AppendFormat("{Uuid: %v, Limit: %v, ContinuationToken: %Qv, TimeInterval: %v}",
+        options.Uuid,
+        options.Limit,
+        options.ContinuationToken,
+        options.TimeInterval);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -540,12 +602,33 @@ public:
             THROW_ERROR_EXCEPTION("Negative offset value");
         }
 
-        if (offset) {
-            if (limit) {
-                limit = *limit + *offset;
-            } else {
-                limit = Config_->InputRowLimit;
-            }
+        std::optional<NProto::TSelectObjectsContinuationToken> continuationToken;
+        if (options.ContinuationToken) {
+            DeserializeContinuationToken(*options.ContinuationToken, &continuationToken.emplace());
+        }
+
+        static constexpr int ContinuationTokenVersion = DBVersion;
+        if (continuationToken && continuationToken->version() != ContinuationTokenVersion) {
+            THROW_ERROR_EXCEPTION(NClient::NApi::EErrorCode::ContinuationTokenVersionMismatch,
+                "Incorrect continuation token version: expected %v, but got %v",
+                ContinuationTokenVersion,
+                continuationToken->version());
+        }
+
+        if (offset && continuationToken) {
+            THROW_ERROR_EXCEPTION("Offset and continuation token cannot be both specified");
+        }
+
+        const bool inContinuation = (limit && !offset) || continuationToken;
+        const bool needSortedOutput = offset || inContinuation;
+
+        if (offset && limit) {
+            limit = *limit + *offset;
+        }
+
+        // NB! Limit in query guarantees sortedness.
+        if (needSortedOutput && !limit) {
+            limit = Config_->InputRowLimit;
         }
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -570,12 +653,35 @@ public:
             &queryContext,
             resolveResults);
 
-        auto predicateExpr = BuildAndExpression(
+        auto filterExpression = BuildAndExpression(
             filter
             ? BuildFilterExpression(&queryContext, *filter)
             : nullptr,
             BuildObjectFilterByRemovalTime());
-        query->WherePredicate = {std::move(predicateExpr)};
+
+        if (continuationToken) {
+            std::vector<TString> keyLowerBound;
+            if (typeHandler->GetParentType() == EObjectType::Null) {
+                if (continuationToken->parent_id()) {
+                    THROW_ERROR_EXCEPTION(NClient::NApi::EErrorCode::InvalidContinuationToken,
+                        "Invalid continuation token: expected an empty parent id, but got %Qv",
+                        continuationToken->parent_id());
+                }
+            } else {
+                keyLowerBound.push_back(continuationToken->parent_id());
+            }
+            keyLowerBound.push_back(continuationToken->object_id());
+
+            auto continuationTokenExpression = BuildObjectFilterByKeyLowerBound(
+                typeHandler,
+                std::move(keyLowerBound));
+
+            filterExpression = BuildAndExpression(
+                filterExpression,
+                std::move(continuationTokenExpression));
+        }
+
+        query->WherePredicate = {std::move(filterExpression)};
         query->Limit = limit;
 
         auto queryString = FormatQuery(*query);
@@ -596,7 +702,7 @@ public:
             }
         }
 
-        // NB: Avoid instantiating objects unless needed.
+        // NB! Avoid instantiating objects unless needed.
         std::vector<TObject*> rowObjects;
         if (options.FetchTimestamps) {
             rowObjects = fetcherContext.GetObjects(Owner_, rows);
@@ -627,6 +733,24 @@ public:
             }
         }
 
+        if (inContinuation) {
+            NProto::TSelectObjectsContinuationToken newContinuationToken;
+            if (rows.Size() > 0) {
+                newContinuationToken.set_version(ContinuationTokenVersion);
+
+                auto lastRow = rows[rows.Size() - 1];
+                newContinuationToken.set_parent_id(fetcherContext.GetParentId(lastRow));
+                newContinuationToken.set_object_id(fetcherContext.GetObjectId(lastRow));
+            } else {
+                if (continuationToken) {
+                    newContinuationToken.CopyFrom(*continuationToken);
+                } else {
+                    newContinuationToken.set_version(ContinuationTokenVersion);
+                }
+            }
+            result.ContinuationToken = SerializeContinuationToken(newContinuationToken);
+        }
+
         return result;
     }
 
@@ -637,6 +761,11 @@ public:
         const TAttributeSelector& attributeSelector,
         TSelectObjectHistoryOptions options)
     {
+        std::optional<NProto::TSelectObjectHistoryContinuationToken> continuationToken;
+        if (options.ContinuationToken) {
+            DeserializeContinuationToken(*options.ContinuationToken, &continuationToken.emplace());
+        }
+
         constexpr i64 MaximumEventsLimit = 100'000;
 
         if (options.Limit && *options.Limit > MaximumEventsLimit) {
@@ -648,7 +777,12 @@ public:
             options.Limit = MaximumEventsLimit + 1;
         }
 
-        auto query = GetObjectHistorySelectionQuery(objectType, objectId, options);
+        auto query = GetObjectHistorySelectionQuery(
+            objectType,
+            objectId,
+            options,
+            continuationToken);
+
         YT_LOG_DEBUG("Selecting object history (Query: %v)",
             query);
 
@@ -682,6 +816,13 @@ public:
                     event.Attributes.Values.emplace_back(ConvertToYsonString(GetEphemeralNodeFactory()->CreateEntity()));
                 }
             }
+        }
+
+        {
+            NProto::TSelectObjectHistoryContinuationToken newContinuationToken;
+            auto previousOffset = continuationToken ? continuationToken->offset() : 0;
+            newContinuationToken.set_offset(previousOffset + result.Events.size());
+            result.ContinuationToken = SerializeContinuationToken(newContinuationToken);
         }
 
         return result;
@@ -2857,16 +2998,48 @@ private:
     }
 
 
+    static TReferenceExpressionPtr BuildPrimaryTableFieldReference(const TDBField* field)
+    {
+        return New<TReferenceExpression>(
+            TSourceLocation(),
+            TReference(field->Name, PrimaryTableAlias));
+    }
+
+    static TExpressionPtr BuildObjectFilterByKeyLowerBound(
+        IObjectTypeHandler* typeHandler,
+        std::vector<TString> keyLowerBound)
+    {
+        TExpressionList keyLowerBoundExpression;
+        TExpressionList keyExpression;
+
+        keyLowerBoundExpression.reserve(keyLowerBound.size());
+        keyExpression.reserve(keyLowerBound.size());
+
+        const auto& keyFields = typeHandler->GetTable()->Key;
+        YT_VERIFY(keyFields.size() == keyLowerBound.size());
+
+        for (size_t i = 0; i < keyLowerBound.size(); ++i) {
+            keyLowerBoundExpression.push_back(New<TLiteralExpression>(
+                TSourceLocation(),
+                TLiteralValue(std::move(keyLowerBound[i]))));
+
+            keyExpression.push_back(BuildPrimaryTableFieldReference(keyFields[i]));
+        }
+
+        return New<TBinaryOpExpression>(
+            TSourceLocation(),
+            EBinaryOp::Greater,
+            std::move(keyExpression),
+            std::move(keyLowerBoundExpression));
+    }
+
     static TExpressionPtr BuildObjectFilterByRemovalTime()
     {
         return New<TFunctionExpression>(
             TSourceLocation(),
             "is_null",
             TExpressionList{
-                New<TReferenceExpression>(
-                    TSourceLocation(),
-                    TReference(ObjectsTable.Fields.Meta_RemovalTime.Name, PrimaryTableAlias)
-                )
+                BuildPrimaryTableFieldReference(&ObjectsTable.Fields.Meta_RemovalTime)
             });
     }
 
@@ -3046,7 +3219,8 @@ private:
     TString GetObjectHistorySelectionQuery(
         EObjectType objectType,
         const TObjectId& objectId,
-        const TSelectObjectHistoryOptions& options)
+        const TSelectObjectHistoryOptions& options,
+        const std::optional<NProto::TSelectObjectHistoryContinuationToken>& continuationToken)
     {
         TStringBuilder queryBuilder;
         queryBuilder.AppendFormat("[%v], [%v], [%v], [%v], [%v]",
@@ -3082,9 +3256,9 @@ private:
         queryBuilder.AppendFormat(" order by [%v]",
             HistoryEventsTable.Fields.Time.Name);
 
-        if (options.Offset) {
+        if (continuationToken) {
             queryBuilder.AppendFormat(" offset %v",
-                *options.Offset);
+                continuationToken->offset());
         }
 
         // YT requires limit for queries with ORDER BY

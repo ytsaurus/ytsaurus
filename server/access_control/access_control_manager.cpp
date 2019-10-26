@@ -1,10 +1,14 @@
 #include "access_control_manager.h"
+
 #include "config.h"
 #include "private.h"
+
+#include <yp/server/access_control/proto/continuation_token.pb.h>
 
 #include <yp/server/master/bootstrap.h>
 #include <yp/server/master/yt_connector.h>
 
+#include <yp/server/objects/continuation_token.h>
 #include <yp/server/objects/db_schema.h>
 #include <yp/server/objects/helpers.h>
 #include <yp/server/objects/object.h>
@@ -840,7 +844,7 @@ public:
         return result;
     }
 
-    std::vector<TObjectId> GetUserAccessAllowedTo(
+    TGetUserAccessAllowedToResult GetUserAccessAllowedTo(
         const NObjects::TObjectId& userId,
         NObjects::EObjectType objectType,
         EAccessControlPermission permission,
@@ -848,6 +852,11 @@ public:
     {
         if (options.Limit && *options.Limit < 0) {
             THROW_ERROR_EXCEPTION("Limit must be non-negative");
+        }
+
+        std::optional<NProto::TGetUserAccessAllowedToContinuationToken> continuationToken;
+        if (options.ContinuationToken) {
+            DeserializeContinuationToken(*options.ContinuationToken, &continuationToken.emplace());
         }
 
         auto clusterObjectSnapshot = GetClusterObjectSnapshot();
@@ -861,24 +870,27 @@ public:
 
         auto clusterSubjectSnapshot = GetClusterSubjectSnapshot();
 
-        // NB: If options.ContinuationId is empty, then beginIt = objects.begin().
-        auto beginIt = std::upper_bound(
-            objects.begin(),
-            objects.end(),
-            options.ContinuationId,
-            [] (const TObjectId& upperBound, TObject* object) {
-                return upperBound < object->Id();
-            });
+        auto beginIt = objects.begin();
+        if (continuationToken) {
+            beginIt = std::upper_bound(
+                objects.begin(),
+                objects.end(),
+                continuationToken->object_id(),
+                [] (const TObjectId& upperBound, TObject* object) {
+                    return upperBound < object->Id();
+                });
+        }
 
-        std::vector<TObjectId> objectIds;
+        TGetUserAccessAllowedToResult result;
+
         int maxObjectCount = options.Limit
             ? std::min(*options.Limit, static_cast<int>(objects.size()))
             : static_cast<int>(objects.size());
-        objectIds.reserve(maxObjectCount);
+        result.ObjectIds.reserve(maxObjectCount);
 
         for (auto it = beginIt; it != objects.end(); ++it) {
             auto* object = *it;
-            if (options.Limit && static_cast<int>(objectIds.size()) >= *options.Limit) {
+            if (options.Limit && static_cast<int>(result.ObjectIds.size()) >= *options.Limit) {
                 break;
             }
             auto permissionCheckResult = CheckPermissionImpl(
@@ -888,11 +900,17 @@ public:
                 clusterSubjectSnapshot,
                 snapshotAccessControlHierarchy);
             if (permissionCheckResult.Action == EAccessControlAction::Allow) {
-                objectIds.push_back(object->Id());
+                result.ObjectIds.push_back(object->Id());
             }
         }
 
-        return objectIds;
+        if (!result.ObjectIds.empty()) {
+            NProto::TGetUserAccessAllowedToContinuationToken newContinuationToken;
+            ToProto(newContinuationToken.mutable_object_id(), result.ObjectIds.back());
+            result.ContinuationToken = SerializeContinuationToken(newContinuationToken);
+        }
+
+        return result;
     }
 
     void SetAuthenticatedUser(const TObjectId& userId)
@@ -1321,7 +1339,7 @@ TUserIdList TAccessControlManager::GetObjectAccessAllowedFor(
         permission);
 }
 
-std::vector<TObjectId> TAccessControlManager::GetUserAccessAllowedTo(
+TGetUserAccessAllowedToResult TAccessControlManager::GetUserAccessAllowedTo(
     const NObjects::TObjectId& userId,
     NObjects::EObjectType objectType,
     EAccessControlPermission permission,

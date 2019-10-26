@@ -1,8 +1,15 @@
 from .conftest import Cli
 
-from yp.local import ACTUAL_DB_VERSION, INITIAL_DB_VERSION
+from yp.local import (
+    ACTUAL_DB_VERSION,
+    INITIAL_DB_VERSION,
+)
 
-from yp.common import YtError, wait
+from yp.common import (
+    YpContinuationTokenVersionMismatchError,
+    YtError,
+    wait,
+)
 
 from yt.wrapper import ypath_join
 from yt.wrapper.errors import YtTabletNotMounted
@@ -23,7 +30,7 @@ def get_yt_proxy_address(yp_env):
     return yp_env.yp_instance.yt_instance.get_proxy_address()
 
 
-ADMIN_CLI_TESTS_LOCAL_YT_OPTIONS = dict(start_proxy=True)
+ADMIN_CLI_TESTS_LOCAL_YT_OPTIONS = dict(http_proxy_count=1)
 
 
 @pytest.mark.usefixtures("yp_env_configurable")

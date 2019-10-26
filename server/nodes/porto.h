@@ -5,7 +5,7 @@
 #include <yp/server/objects/public.h>
 #include <yp/server/objects/proto/autogen.pb.h>
 
-#include <yp/client/api/public.h>
+#include <yp/client/api/misc/public.h>
 
 namespace NYP::NServer::NNodes {
 

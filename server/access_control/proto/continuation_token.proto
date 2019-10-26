@@ -1,0 +1,11 @@
+package NYP.NServer.NAccessControl.NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TGetUserAccessAllowedToContinuationToken
+{
+    // The first object returned will have object id strictly greater than this.
+    optional string object_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

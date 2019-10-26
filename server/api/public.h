@@ -3,7 +3,7 @@
 // This header is the first intentionally.
 #include <yp/server/lib/misc/public.h>
 
-#include <yp/client/api/public.h>
+#include <yp/client/api/misc/public.h>
 
 namespace NYP::NServer::NApi {
 

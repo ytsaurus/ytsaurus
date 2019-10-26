@@ -23,7 +23,7 @@ DEFAULT_YP_MASTER_OPTIONS = {
 
 DEFAULT_LOCAL_YT_OPTIONS = {
     "fqdn": "127.0.0.1",
-    "start_proxy": True,
+    "http_proxy_count": 1,
 }
 
 

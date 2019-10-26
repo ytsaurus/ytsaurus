@@ -1,22 +1,27 @@
-#include "helpers.h"
-#include "private.h"
+#include "continuation_token.h"
 
-#include <library/string_utils/base64/base64.h>
+#include <yp/client/api/misc/public.h>
+
+#include <yt/core/misc/error.h>
 
 #include <contrib/libs/protobuf/message.h>
 
-namespace NYP::NServer::NApi {
+#include <library/string_utils/base64/base64.h>
+
+namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString SerializeContinuationToken(const google::protobuf::Message& message)
+TString SerializeContinuationToken(
+    const google::protobuf::Message& message)
 {
     return Base64Encode(message.SerializeAsString());
 }
 
-void DeserializeContinuationToken(const TString& token, google::protobuf::Message* message)
+void DeserializeContinuationToken(
+    const TString& token,
+    google::protobuf::Message* message)
 {
-    // TODO(avitella): Do it without exceptions in Base64Decode.
     try {
         if (!message->ParseFromString(Base64StrictDecode(token))) {
             THROW_ERROR_EXCEPTION(
@@ -33,5 +38,4 @@ void DeserializeContinuationToken(const TString& token, google::protobuf::Messag
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYP::NServer::NApi
-
+} // namespace NYP::NServer::NObjects

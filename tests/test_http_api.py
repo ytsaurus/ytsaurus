@@ -1,14 +1,23 @@
+from __future__ import print_function
+
 from yp_proto.yp.client.api.proto.object_service_pb2 import TReqCreateObject, TRspCreateObject
 from yp.data_model import EObjectType
 
 import yt.yson as yson
 
 import yt.packages.requests as requests
+from yt.packages.six import PY3
 
 import pytest
 
+import sys
 import json
 
+def raise_for_status(rsp):
+    if rsp.status_code != 200:
+        print("HTTP request failed (response_body: {}, response_headers: {})".format(rsp.content, str(rsp.headers)),
+              file=sys.stderr)
+    rsp.raise_for_status()
 
 class CustomSession(requests.Session):
     def __init__(self, *args, **kwargs):
@@ -39,7 +48,7 @@ class TestHttpApi(object):
             data=req.SerializeToString(),
             headers={"Accept": "application/x-protobuf"})
 
-        rsp.raise_for_status()
+        raise_for_status(rsp)
         assert rsp.headers["Content-Type"] == "application/x-protobuf"
 
         reply = TRspCreateObject()
@@ -61,7 +70,7 @@ class TestHttpApi(object):
                 "Content-Type": "application/x-yson",
                 "Accept": "application/x-yson",
             })
-        rsp.raise_for_status()
+        raise_for_status(rsp)
         assert rsp.headers["Content-Type"] == "application/x-yson"
 
         yson.loads(rsp.content)
@@ -82,10 +91,62 @@ class TestHttpApi(object):
                 "Content-Type": "application/json",
                 "Accept": "application/json",
             })
-        rsp.raise_for_status()
-        assert rsp.headers["Content-Type"] == "application/json"
+        raise_for_status(rsp)
+        assert rsp.headers["Content-Type"].startswith("application/json")
 
         json.loads(rsp.text)
+
+    def test_json_utf8(self, yp_env):
+        utf8_value = b"\xCE\x94" # latin delta
+        if PY3:
+            utf8_value = utf8_value.decode("utf-8")
+
+        # Create pod_set with annotation in utf-8.
+        rsp = requests.post("http://" + yp_env.yp_instance.yp_http_address + "/ObjectService/CreateObject",
+            data=json.dumps({
+                "object_type": "pod_set",
+                "attributes": {
+                    "meta": {
+                        "id": "my_pod",
+                    },
+                    "annotations": {
+                        "key": utf8_value,
+                    }
+                }
+            }),
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "X-YT-Request-Format-Options": "{encode_utf8=%false}",
+                "X-YT-Response-Format-Options": "{encode_utf8=%false}",
+            })
+        raise_for_status(rsp)
+        assert rsp.headers["Content-Type"].startswith("application/json")
+        json.loads(rsp.text)
+
+        # Request this pod_set.
+        rsp = requests.post("http://" + yp_env.yp_instance.yp_http_address + "/ObjectService/GetObject",
+            data=json.dumps({
+                "object_type": "pod_set",
+                "object_id": "my_pod",
+                "selector": {"paths": ["/annotations/key"]},
+            }),
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "X-YT-Request-Format-Options": "{encode_utf8=%false}",
+                "X-YT-Response-Format-Options": "{encode_utf8=%false}",
+            })
+        raise_for_status(rsp)
+        assert rsp.headers["Content-Type"].startswith("application/json")
+        if PY3:
+            # Check that charset is detected correctly.
+            assert rsp.text == rsp.content.encode("utf-8")
+            result_value = json.loads(rsp.text)["result"]["values"][0]
+            assert result_value == utf8_value
+        else:
+            result_value = json.loads(rsp.content)["result"]["values"][0]
+            assert result_value.encode("utf-8") == utf8_value
 
     def _test_client(self, client):
         ts1 = client.generate_timestamp()

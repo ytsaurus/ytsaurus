@@ -4,8 +4,8 @@ from yp.common import (
     YP_NO_SUCH_OBJECT_ERROR_CODE,
     YpAuthorizationError,
     YpClientError,
+    YpInvalidContinuationTokenError,
     YpNoSuchObjectError,
-    YpInvalidContinuationToken,
     YtResponseError,
     validate_error_recursively,
 )
@@ -499,7 +499,7 @@ class TestAcls(object):
 
         with pytest.raises(YtResponseError):
             get_objects(-200, None)
-        with pytest.raises(YpInvalidContinuationToken):
+        with pytest.raises(YpInvalidContinuationTokenError):
             get_objects(10, "foobar")
 
         for limit in (1, 7, 10):

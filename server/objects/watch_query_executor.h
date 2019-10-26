@@ -2,8 +2,6 @@
 
 #include "tablet_reader.h"
 
-#include <yp/server/api/proto/continuation_token.pb.h>
-
 #include <yp/server/master/public.h>
 
 #include <yt/client/api/public.h>
@@ -23,12 +21,17 @@ struct TWatchQueryEvent
 
 struct TWatchQueryOptions
 {
-    std::optional<TTimestamp> StartTimestamp;
-    std::optional<NApi::NProto::TWatchQueryContinuationToken> ContinuationToken;
     std::optional<TTimestamp> Timestamp;
+    std::optional<TTimestamp> StartTimestamp;
+    std::optional<TString> ContinuationToken;
     std::optional<i64> EventCountLimit;
     std::optional<TDuration> TimeLimit;
 };
+
+void FormatValue(
+    TStringBuilderBase* builder,
+    const TWatchQueryOptions& options,
+    TStringBuf format);
 
 struct TWatchQueryResult
 {
@@ -41,7 +44,7 @@ struct TWatchQueryResult
 
     TTimestamp Timestamp;
     std::vector<TWatchQueryEvent> Events;
-    NApi::NProto::TWatchQueryContinuationToken ContinuationToken;
+    TString ContinuationToken;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -66,7 +69,7 @@ public:
 
     std::vector<TWatchQueryEvent> Read(
         std::optional<i64> eventCountLimit);
-    
+
 private:
     const TTimestamp Timestamp_;
     ISession* const Session_;

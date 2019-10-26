@@ -9,8 +9,8 @@ from .conftest import (
 from yp.local import DbManager
 
 from yp.common import (
-    YpInvalidContinuationToken,
-    YpRowsAlreadyTrimmed,
+    YpInvalidContinuationTokenError,
+    YpRowsAlreadyTrimmedError,
     YtResponseError,
     wait,
 )
@@ -260,7 +260,7 @@ class TestWatches(object):
             event_count_limit=4,
             enable_structured_response=True)
 
-        with pytest.raises(YpInvalidContinuationToken):
+        with pytest.raises(YpInvalidContinuationTokenError):
             yp_client.watch_objects(
                 "pod_set",
                 continuation_token="42",
@@ -365,7 +365,7 @@ class TestTrimmedWatchLog(object):
 
         yt_client.trim_rows("//yp/db/pod_sets_watch_log", 0, barrier_row_index + 1)
 
-        with pytest.raises(YpRowsAlreadyTrimmed):
+        with pytest.raises(YpRowsAlreadyTrimmedError):
             yp_client.watch_objects(
                 "pod_set",
                 start_timestamp=last_timestamp + 1,
@@ -379,13 +379,13 @@ class TestTrimmedWatchLog(object):
 
         yt_client.trim_rows("//yp/db/pod_sets_watch_log", 0, barrier_row_index + 2)
 
-        with pytest.raises(YpRowsAlreadyTrimmed):
+        with pytest.raises(YpRowsAlreadyTrimmedError):
             yp_client.watch_objects(
                 "pod_set",
                 start_timestamp=last_timestamp + 1,
                 timestamp=end_timestamp)
 
-        with pytest.raises(YpRowsAlreadyTrimmed):
+        with pytest.raises(YpRowsAlreadyTrimmedError):
             yp_client.watch_objects(
                 "pod_set",
                 continuation_token=result["continuation_token"],

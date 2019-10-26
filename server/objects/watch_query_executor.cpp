@@ -1,23 +1,25 @@
 #include "watch_query_executor.h"
+
+#include "continuation_token.h"
+#include "db_schema.h"
+#include "helpers.h"
 #include "object_manager.h"
+#include "private.h"
 #include "tablet_reader.h"
 #include "watch_manager.h"
-#include "private.h"
-#include "db_schema.h"
-#include "object_manager.h"
-#include "helpers.h"
+
+#include <yp/server/objects/proto/continuation_token.pb.h>
 
 #include <yp/server/master/bootstrap.h>
 #include <yp/server/master/yt_connector.h>
 
-#include <yp/client/api/public.h>
+#include <yt/ytlib/api/native/client.h>
 
 #include <yt/client/api/client.h>
 #include <yt/client/api/rowset.h>
-
 #include <yt/client/table_client/helpers.h>
 
-#include <yt/ytlib/api/native/client.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
 namespace NYP::NServer::NObjects {
 
@@ -129,6 +131,23 @@ void SetTabletReadersOffset(const std::vector<TWatchQueryEvent>& events, std::ve
 
 } // namespace
 
+////////////////////////////////////////////////////////////////////////////////
+
+void FormatValue(
+    TStringBuilderBase* builder,
+    const TWatchQueryOptions& options,
+    TStringBuf /*format*/)
+{
+    builder->AppendFormat("{Timestamp: %llx, StartTimestamp: %llx, ContinuationToken: %Qv, EventCountLimit: %v, TimeLimit: %v}",
+        options.Timestamp,
+        options.StartTimestamp,
+        options.ContinuationToken,
+        options.EventCountLimit,
+        options.TimeLimit);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TWatchLogReader::TWatchLogReader(
     TTimestamp timestamp,
     const TDBTable* table,
@@ -216,11 +235,12 @@ std::vector<TWatchQueryEvent> TWatchLogReader::Read(std::optional<i64> eventCoun
             };
 
             TabletReaders_[tabletIndex]->ScheduleRead(
-                MakeArray(
+                {
                     &WatchLogSchema.Key.RowIndex,
                     &WatchLogSchema.Fields.Timestamp,
                     &WatchLogSchema.Fields.ObjectId,
-                    &WatchLogSchema.Fields.EventType),
+                    &WatchLogSchema.Fields.EventType
+                },
                 std::move(handler),
                 perTabletLimit);
         }
@@ -259,6 +279,11 @@ public:
         EObjectType objectType,
         const TWatchQueryOptions& options) const
     {
+        std::optional<NProto::TWatchQueryContinuationToken> continuationToken;
+        if (options.ContinuationToken) {
+            DeserializeContinuationToken(*options.ContinuationToken, &continuationToken.emplace());
+        }
+
         const auto& watchManager = Bootstrap_->GetWatchManager();
         if (!watchManager->Enabled()) {
             THROW_ERROR_EXCEPTION("Watch logs are disabled now");
@@ -266,11 +291,10 @@ public:
 
         auto reader = CreateWatchLogReader(objectType, options.Timestamp, options.TimeLimit);
 
-        if (options.ContinuationToken && options.StartTimestamp) {
+        if (continuationToken && options.StartTimestamp) {
             THROW_ERROR_EXCEPTION("Start timestamp and continuation token cannot be specified both");
-
-        } else if (options.ContinuationToken) {
-            const auto tabletOffsets = NYT::FromProto<std::vector<i64>>(options.ContinuationToken->row_offsets());
+        } else if (continuationToken) {
+            const auto tabletOffsets = NYT::FromProto<std::vector<i64>>(continuationToken->row_offsets());
             const auto tabletCount = watchManager->GetTabletCount(objectType);
 
             if (static_cast<int>(tabletOffsets.size()) != tabletCount) {
@@ -279,13 +303,11 @@ public:
                     "Incorrect number of tablets in continuation token: expected %v, got %v",
                     tabletCount,
                     tabletOffsets.size());
-
             }
-            reader->ScheduleRead(tabletOffsets);
 
+            reader->ScheduleRead(tabletOffsets);
         } else if (options.StartTimestamp) {
             reader->ScheduleRead(*options.StartTimestamp);
-
         } else {
             THROW_ERROR_EXCEPTION("Either start timestamp or continuation token should be specified");
         }
@@ -295,7 +317,12 @@ public:
         TWatchQueryResult result;
         result.Timestamp = reader->GetTimestamp();
         result.Events = reader->Read(options.EventCountLimit);
-        ToProto(result.ContinuationToken.mutable_row_offsets(), reader->GetTabletOffsets());
+
+        {
+            NProto::TWatchQueryContinuationToken newContinuationToken;
+            ToProto(newContinuationToken.mutable_row_offsets(), reader->GetTabletOffsets());
+            result.ContinuationToken = SerializeContinuationToken(newContinuationToken);
+        }
 
         const auto tabletInfos = Bootstrap_->GetWatchManager()->GetTabletInfos(objectType);
         for (size_t tabletIndex = 0; tabletIndex < tabletInfos.size(); ++tabletIndex) {
@@ -355,6 +382,8 @@ private:
         }
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 TWatchQueryExecutor::TWatchQueryExecutor(NMaster::TBootstrap* bootstrap, ISession* session)
     : Impl_(New<TImpl>(bootstrap, session))

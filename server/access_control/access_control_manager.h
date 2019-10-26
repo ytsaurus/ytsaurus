@@ -61,8 +61,14 @@ private:
 
 struct TGetUserAccessAllowedToOptions
 {
-    NObjects::TObjectId ContinuationId;
+    std::optional<TString> ContinuationToken;
     std::optional<int> Limit;
+};
+
+struct TGetUserAccessAllowedToResult
+{
+    std::vector<NObjects::TObjectId> ObjectIds;
+    TString ContinuationToken;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -86,7 +92,7 @@ public:
         NObjects::TObject* object,
         EAccessControlPermission permission);
 
-    std::vector<NObjects::TObjectId> GetUserAccessAllowedTo(
+    TGetUserAccessAllowedToResult GetUserAccessAllowedTo(
         const NObjects::TObjectId& userId,
         NObjects::EObjectType objectType,
         EAccessControlPermission permission,

@@ -2,9 +2,14 @@ import yp_proto.yp.client.api.proto.object_service_pb2 as object_service_pb2
 
 import yp.data_model as data_model
 
-from yp.common import YtResponseError
+from yp.common import (
+    YpInvalidContinuationTokenError,
+    YtResponseError,
+)
 
 from yt.yson import YsonEntity
+
+from yt.packages.six.moves import xrange
 
 import pytest
 
@@ -84,3 +89,171 @@ class TestObjectService(object):
         rsp = object_stub.CreateObjects(req)
 
         assert len(rsp.subresponses[0].object_id) > 0
+
+    def test_select_objects_continuation(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        def validate_batches(batches, expected_ids, expected_limit):
+            found_ids = set()
+
+            for i in xrange(len(batches)):
+                if i > 0 and len(batches[i]) > 0:
+                    assert len(batches[i - 1]) > 0
+                    assert batches[i][0] > batches[i - 1][-1]
+
+                batch = batches[i]
+
+                for j in xrange(len(batch)):
+                    if j > 0:
+                        assert batch[j] > batch[j - 1]
+
+                    # NB! In the test /meta/id is always the last field in selector.
+                    object_id = batch[j][-1]
+                    assert object_id not in found_ids
+                    found_ids.add(object_id)
+
+                assert len(batch) <= expected_limit
+                if len(batch) < expected_limit:
+                    assert i + 1 == len(batches)
+
+            assert expected_ids == found_ids
+
+        object_count = 100
+
+        def impl(object_type, ids, selectors):
+            for limit in (11, 5, 3, 1, object_count + 3):
+                timestamp = yp_client.generate_timestamp()
+
+                id_upper_bound = "scheduling"
+                batches = []
+
+                continuation_token = None
+                while True:
+                    options = dict(limit=limit)
+                    if continuation_token is not None:
+                        options["continuation_token"] = continuation_token
+
+                    response = yp_client.select_objects(
+                        object_type,
+                        filter="[/meta/id] < \"{}\"".format(id_upper_bound),
+                        selectors=selectors,
+                        options=options,
+                        enable_structured_response=True,
+                        timestamp=timestamp,
+                    )
+
+                    continuation_token = response["continuation_token"]
+
+                    def subresponse_values(subresponse):
+                        return list(map(lambda subresponse_field: subresponse_field["value"], subresponse))
+                    batches.append(list(map(subresponse_values, response["results"])))
+
+                    if len(batches[-1]) < limit:
+                        break
+
+                expected_ids = set(filter(lambda object_id: object_id < id_upper_bound, ids))
+                assert len(expected_ids) > 0
+                validate_batches(batches, expected_ids, limit)
+
+        # Pod set has simple db key.
+        ids = []
+        for _ in xrange(object_count):
+            ids.append(yp_client.create_object("pod_set"))
+        impl("pod_set", ids, ["/meta/id"])
+
+        # Pod has more complex db key.
+        ids = []
+        pod_set_id = yp_client.create_object("pod_set")
+        for _ in xrange(object_count):
+            ids.append(yp_client.create_object(
+                "pod",
+                attributes=dict(meta=dict(pod_set_id=pod_set_id)),
+            ))
+        impl("pod", ids, ["/meta/pod_set_id", "/meta/id"])
+
+    def test_select_objects_continuation_token_of_empty_response(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        def select(**options):
+            return yp_client.select_objects(
+                "pod_set",
+                selectors=["/meta/id"],
+                options=options,
+                enable_structured_response=True,
+            )
+
+        response = select(limit=1)
+        assert len(response["results"]) == 0
+        continuation_token = response["continuation_token"]
+        assert len(continuation_token) > 0
+
+        response = select(continuation_token=continuation_token)
+        assert len(response["results"]) == 0
+        assert continuation_token == response["continuation_token"]
+
+        ids = []
+        for _ in xrange(10):
+            ids.append(yp_client.create_object("pod_set"))
+
+        response = select(continuation_token=continuation_token)
+        assert set(ids) == set(map(lambda subresponse: subresponse[0]["value"], response["results"]))
+        assert continuation_token != response["continuation_token"]
+        continuation_token = response["continuation_token"]
+        assert len(continuation_token) > 0
+
+        response = select(continuation_token=continuation_token)
+        assert len(response["results"]) == 0
+        assert continuation_token == response["continuation_token"]
+
+    def test_select_objects_continuation_token_and_offset(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        continuation_token = yp_client.select_objects(
+            "pod_set",
+            selectors=["/meta/id"],
+            options=dict(limit=1),
+            enable_structured_response=True,
+        )["continuation_token"]
+
+        # Works without offset.
+        yp_client.select_objects(
+            "pod_set",
+            selectors=["/meta/id"],
+            options=dict(continuation_token=continuation_token),
+        )
+
+        with pytest.raises(YtResponseError):
+            yp_client.select_objects(
+                "pod_set",
+                selectors=["/meta/id"],
+                options=dict(offset=1, continuation_token=continuation_token),
+            )
+
+    def test_select_objects_invalid_continuation_token(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        with pytest.raises(YpInvalidContinuationTokenError):
+            yp_client.select_objects(
+                "pod_set",
+                selectors=["/meta/id"],
+                options=dict(continuation_token="abracadabra"),
+            )
+
+    def test_select_objects_continuation_token_presence(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        def select(options):
+            return yp_client.select_objects(
+                "account",
+                selectors=["/meta/id"],
+                options=options,
+                enable_structured_response=True,
+            )
+
+        for options in (dict(), dict(offset=1), dict(offset=1, limit=10)):
+            response = select(options)
+            assert "continuation_token" not in response, "Options {}".format(options)
+
+        for options in (dict(limit=100500), dict(limit=1)):
+            response = select(options)
+            assert len(response["continuation_token"]) > 0, "Options {}".format(options)
