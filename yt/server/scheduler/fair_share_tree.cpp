@@ -622,11 +622,14 @@ TError TFairShareTree::CheckOperationUnschedulable(
     if (activationTime + safeTimeout < now &&
         element->GetLastScheduleJobSuccessTime() + safeTimeout < now &&
         element->GetLastNonStarvingTime() + safeTimeout < now &&
+        element->GetRunningJobCount() == 0 &&
         deactivationCount > minScheduleJobCallAttempts)
     {
         return TError("Operation has no successfull scheduled jobs for a long period")
             << TErrorAttribute("period", safeTimeout)
-            << TErrorAttribute("deactivation_count", deactivationCount);
+            << TErrorAttribute("deactivation_count", deactivationCount)
+            << TErrorAttribute("last_schedule_job_success_time", element->GetLastScheduleJobSuccessTime())
+            << TErrorAttribute("last_non_starving_time", element->GetLastNonStarvingTime());
     }
 
     return TError();
