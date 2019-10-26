@@ -48,6 +48,7 @@ DEFINE_ENUM(EErrorCode,
     ((TabletSnapshotExpired)            (1708))
     ((QueryInputRowCountLimitExceeded)  (1709))
     ((QueryOutputRowCountLimitExceeded) (1710))
+    ((QueryExpressionDepthLimitExceeded)(1711))
 );
 
 DEFINE_ENUM(EInMemoryMode,
