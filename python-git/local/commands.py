@@ -236,7 +236,7 @@ _START_DEFAULTS = {
     "node_chunk_store_quota": 7 * GB
 }
 
-def start(master_count=None, node_count=None, scheduler_count=None, start_proxy=None, start_rpc_proxy=None, rpc_proxy_count=0,
+def start(master_count=None, node_count=None, scheduler_count=None, rpc_proxy_count=0,
           master_config=None, node_config=None, scheduler_config=None, proxy_config=None, controller_agent_config=None,
           proxy_port=None, http_proxy_ports=None, http_proxy_count=None, id=None, local_cypress_dir=None,
           enable_debug_logging=False, tmpfs_path=None, port_range_start=None, fqdn=None, path=None,
@@ -244,16 +244,10 @@ def start(master_count=None, node_count=None, scheduler_count=None, start_proxy=
           node_chunk_store_quota=None, allow_chunk_storage_in_tmpfs=True, wait_tablet_cell_initialization=False,
           meta_files_suffix=None, set_pdeath_sig=False, watcher_config=None, cell_tag=0):
 
-    # TODO(max42): start_proxy, start_rpc_proxy and proxy_port are legacy options. Get rid of them in Arcadia.
+    # TODO(max42): proxy_port are legacy options. Get rid of them in Arcadia.
     if proxy_port is not None:
         logger.warn("proxy_port keyword argument is deprecated and will be removed soon. Use http_proxy_ports = [...] instead.")
         http_proxy_ports = [proxy_port]
-    if start_proxy is not None:
-        logger.warn("start_proxy keyword argument is deprecated and will be removed soon. Use http_proxy_count = 1 instead.")
-        http_proxy_count = 1 if start_proxy else 0
-    if start_rpc_proxy is not None:
-        logger.warn("start_rpc_proxy keyword argument is deprecated and will be removed soon. Use rpc_proxy_count = 1 instead.")
-        rpc_proxy_count = 1 if start_rpc_proxy else 0
 
     options = {}
     for name in _START_DEFAULTS:

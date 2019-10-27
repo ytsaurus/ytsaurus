@@ -210,8 +210,7 @@ class TestTableCommands(object):
         client = yt.YtClient(config=config)
         with client.TempTable() as table:
             assert client.exists(table)
-            time.sleep(5.5)
-            assert not client.exists(table)
+            wait(lambda: not client.exists(table))
 
     def test_write_many_chunks(self):
         with set_config_option("write_retries/chunk_size", 1):
@@ -663,8 +662,8 @@ class TestTableCommands(object):
                 path=dir,
                 id=id,
                 node_count=10,
-                start_proxy=(yt.config["backend"] != "native"),
-                start_rpc_proxy=(yt.config["backend"] == "rpc"),
+                http_proxy_count=1 if (yt.config["backend"] != "native") else 0,
+                rpc_proxy_count=1 if  (yt.config["backend"] == "rpc") else 0,
                 enable_debug_logging=True)
             client = instance.create_client()
             client.config["driver_config"] = instance.configs["rpc_driver"] if yt.config["backend"] == "rpc" else instance.configs["driver"]

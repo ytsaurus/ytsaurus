@@ -1,13 +1,15 @@
 from __future__ import print_function
 
-from yt.common import makedirp
+from yt.common import makedirp, get_value, update
 from yt.wrapper.common import DoNotReplaceAction, chunk_iter_stream, MB
 from yt.wrapper.file_commands import _get_remote_temp_files_directory
 import yt.logger as logger
+import yt.yson as yson
 import yt.wrapper as yt
 
 from yt.packages.six.moves import xrange
 
+import argparse
 import collections
 import json
 import os
@@ -51,6 +53,13 @@ def shellquote(s):
 def make_environment_string(environment):
     return ''.join("export {var}={value}\n".format(var=var, value=shellquote(environment[var]))
                    for var in environment)
+
+class ParseStructuredArgument(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        # Multiple times specified arguments are merged into single dict.
+        old_value = get_value(getattr(namespace, self.dest), {})
+        new_value = update(old_value, yson.loads(values))
+        setattr(namespace, self.dest, new_value)
 
 def get_output_descriptor_list(output_table_count, use_yamr_descriptors):
     if use_yamr_descriptors:
@@ -135,12 +144,12 @@ def download_table(path, destination_path):
         for r in yt.read_table(path, format=path.attributes["format"], raw=True):
             f.write(r)
 
-def run_job(job_path):
+def run_job(job_path, env=None):
     if not os.path.exists(job_path):
         raise yt.YtError("Job path {0} does not exist".format(job_path))
 
     run_script = os.path.join(job_path, "run.sh")
-    p = subprocess.Popen([run_script], close_fds=False)
+    p = subprocess.Popen([run_script], env=env, close_fds=False)
     sys.exit(p.wait())
 
 def download_job_input(operation_id, job_id, job_input_path, mode):
@@ -319,3 +328,4 @@ def create_job_tool_parser(parser):
 
     run_job_parser = subparsers.add_parser("run-job", help="runs job binary")
     add_hybrid_argument(run_job_parser, "job_path", help="path to prepared job environment")
+    run_job_parser.add_argument("--env", action=ParseStructuredArgument, help="enviroment to use in script run in YSON format")

@@ -9,7 +9,7 @@ import yatest.common
 import imp
 import os
 
-YT_ABI = "19_4"
+YT_ROOT, PYTHON_ROOT, _ = arcadia_interop.get_root_paths()
 
 def build_bindings(build_dir, python_version):
     ya = yatest.common.source_path("ya")
@@ -19,20 +19,20 @@ def build_bindings(build_dir, python_version):
         "--results-root", build_dir,
         "-DUSE_SYSTEM_PYTHON=" + python_version, "-DPYTHON_CONFIG=python{}-config".format(python_version), "-DPYTHON_BIN=python" + python_version,
         "-C", "tools/fix_elf",
-        "-C", "yt/{}/yt/python/yson_shared".format(YT_ABI),
-        "-C", "yt/{}/yt/python/driver/native_shared".format(YT_ABI),
-        "-C", "yt/{}/yt/python/driver/rpc_shared".format(YT_ABI)
+        "-C", "{}yt/python/yson_shared".format(YT_ROOT),
+        "-C", "{}yt/python/driver/native_shared".format(YT_ROOT),
+        "-C", "{}yt/python/driver/rpc_shared".format(YT_ROOT)
     ]
     yatest.common.execute(args, stdout="ya_make.out", stderr="ya_make.err")
 
 def prepare_python_packages():
-    python_root = yatest.common.source_path("yt/python")
-    yt_root = yatest.common.source_path()  # arcadia root
-
-    prepare_source_tree = imp.load_source("prepare_source_tree", os.path.join(python_root, "prepare_source_tree.py"))
+    prepare_source_tree = imp.load_source("prepare_source_tree", os.path.join(yatest.common.source_path(), PYTHON_ROOT, "prepare_source_tree.py"))
     prepare_source_tree.prepare_python_source_tree(
-        python_root,
-        yt_root,
+        python_root=os.path.join(yatest.common.source_path(), PYTHON_ROOT),
+        # TODO(ignat): improve prepare_source_tree.
+        # yt_root is actually a root to yt repo (we use both bindings and contrib from it).
+        # os.path.join(yatest.common.source_path(), YT_ROOT),
+        yt_root=yatest.common.source_path(),
         prepare_binary_symlinks=False,
         prepare_bindings=False)
 
@@ -44,7 +44,9 @@ def run_pytest(python_version):
 
     prepare_python_packages()
 
-    os.remove(os.path.join(yatest.common.source_path(), "yt", "python", "conftest.py"))
+    conftest_path = os.path.join(yatest.common.source_path(), PYTHON_ROOT, "conftest.py")
+    if os.path.exists(conftest_path):
+        os.remove(conftest_path)
 
     path = arcadia_interop.prepare_yt_environment(build_dir, use_ytserver_all=True, copy_ytserver_all=True)
     if "PATH" in os.environ:
@@ -54,11 +56,11 @@ def run_pytest(python_version):
     env = {
         "PATH": path,
         "PYTHONPATH": os.pathsep.join([
-            os.path.join(yatest.common.source_path(), "yt", "python"),
-            os.path.join(yatest.common.source_path(), "yt", YT_ABI, "yt", "python"),
-            os.path.join(bindings_build_dir, "yt", YT_ABI, "yt", "python", "yson_shared"),
-            os.path.join(bindings_build_dir, "yt", YT_ABI, "yt", "python", "driver", "native_shared"),
-            os.path.join(bindings_build_dir, "yt", YT_ABI, "yt", "python", "driver", "rpc_shared")
+            os.path.join(yatest.common.source_path(), PYTHON_ROOT),
+            os.path.join(yatest.common.source_path(), YT_ROOT, "yt", "python"),
+            os.path.join(bindings_build_dir, YT_ROOT, "yt", "python", "yson_shared"),
+            os.path.join(bindings_build_dir, YT_ROOT, "yt", "python", "driver", "native_shared"),
+            os.path.join(bindings_build_dir, YT_ROOT, "yt", "python", "driver", "rpc_shared")
         ]),
         "TESTS_SANDBOX": sandbox_dir,
         "TESTS_JOB_CONTROL": "1",
@@ -67,10 +69,10 @@ def run_pytest(python_version):
     }
 
     test_files = [
-        yatest.common.source_path("yt/python/yt/wrapper/tests/test_operations_pickling.py"),
+        os.path.join(yatest.common.source_path(), PYTHON_ROOT, "yt/wrapper/tests/test_operations_pickling.py"),
         # User statistics uses cgroups that available only in FAT tests.
-        yatest.common.source_path("yt/python/yt/wrapper/tests/test_user_statistics.py"),
-        yatest.common.source_path("yt/python/yt/wrapper/tests/test_tmpfs.py"),
+        os.path.join(yatest.common.source_path(), PYTHON_ROOT, "yt/wrapper/tests/test_user_statistics.py"),
+        os.path.join(yatest.common.source_path(), PYTHON_ROOT, "yt/wrapper/tests/test_tmpfs.py"),
     ]
 
     cgroup = None

@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-from .helpers import (TEST_DIR, set_config_option, get_tests_sandbox, check, get_test_file_path, get_test_dir_path,
+from .helpers import (TEST_DIR, set_config_option, get_tests_sandbox, check, get_test_file_path, get_test_files_dir_path,
                       build_python_egg, get_python, dumps_yt_config, run_python_script_with_check, get_operation_path)
 
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
@@ -379,7 +379,7 @@ class Mapper(object):
     def test_relative_imports_with_run_module(self, yt_env):
         yt.write_table("//tmp/input_table", [{"value": 0}])
         subprocess.check_call([sys.executable, "-m", "test_rel_import_module.run"],
-                               cwd=get_test_dir_path(), env=self.env)
+                               cwd=get_test_files_dir_path(), env=self.env)
         check(yt.read_table("//tmp/output_table"), [{"value": 0, "constant": 10}])
 
     def test_run_standalone_binary(self):
