@@ -208,6 +208,7 @@ def get_git_depth(options):
 def ya_make_env(options):
     return {
         "YA_CACHE_DIR": get_ya_cache_dir(options),
+        "SVN_SSH": "ssh -v",
     }
 
 def ya_make_definition_args(options):
