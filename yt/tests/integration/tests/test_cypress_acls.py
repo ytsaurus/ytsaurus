@@ -99,7 +99,7 @@ class CheckPermissionBase(YTEnvSetup):
                 {"name": "b", "type": "string"},
                 {"name": "c", "type": "string"}
             ]},
-               recursive=True)
+           recursive=True)
 
         set(acl_path + "/@acl", [
             make_ace("deny", "u1", "read", columns="a"),
@@ -127,6 +127,29 @@ class CheckPermissionBase(YTEnvSetup):
 
         response4 = check_permission("u4", "read", "//tmp/dir/t", columns=["a", "b", "c"])
         assert response4["action"] == "deny"
+
+    @authors("babenko")
+    def test_inaccessible_columns_yt_11619(self):
+        create_user("u")
+
+        create("table", "//tmp/t", attributes={
+            "schema": [
+                {"name": "a", "type": "string"},
+                {"name": "b", "type": "string"},
+                {"name": "c", "type": "string"}
+            ],
+            "acl": [
+                make_ace("deny", "u", "read", columns="a"),
+                make_ace("deny", "u", "read", columns="b"),
+            ]},
+            recursive=True)
+
+        write_table("//tmp/t", [{"a": "a", "b": "b", "c": "c"}])
+
+        response_parameters = {}
+        rows = read_table("//tmp/t{a,b,c}", omit_inaccessible_columns=True, response_parameters=response_parameters, authenticated_user="u")
+        assert rows == [{"c": "c"}]
+        assert_items_equal(response_parameters["omitted_inaccessible_columns"], ["a", "b"])
 
 class TestCypressAcls(CheckPermissionBase):
     NUM_SCHEDULERS = 1
