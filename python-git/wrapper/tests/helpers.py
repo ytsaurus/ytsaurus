@@ -8,10 +8,9 @@ from yt.test_helpers.job_events import JobEvents
 
 import yt.yson as yson
 import yt.subprocess_wrapper as subprocess
+import yt.environment.arcadia_interop as arcadia_interop
 
 from yt.wrapper.errors import YtRetriableError
-import yt.wrapper.heavy_commands as heavy_commands
-import yt.wrapper.transaction_commands as transaction_commands
 import yt.wrapper as yt
 
 try:
@@ -58,11 +57,27 @@ def get_tests_sandbox():
         os.mkdir(path)
     return path
 
-def get_test_dir_path():
+def get_test_files_dir_path():
     return os.path.join(get_tests_location(), "files")
 
-def get_test_file_path(name):
-    return os.path.join(get_test_dir_path(), name)
+def get_test_file_path(name, use_files=True):
+    if yatest_common is not None:
+        import library.python.resource
+        file_path = os.path.join(yatest_common.work_path(), "tmp_files", name)
+        dir_path = os.path.dirname(file_path)
+        if not os.path.exists(dir_path):
+            os.makedirs(dir_path)
+        with open(file_path, "wb") as fout:
+            files_dir = "files/" if use_files else ""
+            resource_path = "resfs/file/yt_python_test/../" + files_dir + name
+            fout.write(library.python.resource.find(resource_path))
+        os.chmod(file_path, 0o744)
+        return file_path
+    else:
+        if use_files:
+            return os.path.join(get_tests_location(), "files", name)
+        else:
+            return os.path.join(get_tests_location(),  name)
 
 def get_tmpfs_path():
     if yatest_common is not None and yatest_common.get_param("ram_drive_path") is not None:
@@ -82,7 +97,8 @@ def get_python():
     if yatest_common is None:
         return sys.executable
     else:
-        return yatest_common.binary_path("yt/python/yt/wrapper/tests/yt_python/yt-python")
+        _, python_root, _ = arcadia_interop.get_root_paths()
+        return yatest_common.binary_path(python_root + "/yt/wrapper/tests/yt_python/yt-python")
 
 @contextmanager
 def set_config_option(name, value, final_action=None):
@@ -143,20 +159,24 @@ def _filter_simple_types(obj):
     return None
 
 def get_environment_for_binary_test(yt_env):
+    binaries_dir = os.path.join(os.path.dirname(get_tests_location()), "bin")
+
     if yatest_common is None:
         python_binary = sys.executable
+        yt_binary = os.path.join(binaries_dir, "yt")
+        mapreduce_binary = os.path.join(binaries_dir, "mapreduce-yt")
     else:
         python_binary = get_python()
-
-    binaries_dir = os.path.join(os.path.dirname(get_tests_location()), "bin")
+        yt_binary = get_test_file_path("../bin/yt", use_files=False)
+        mapreduce_binary = get_test_file_path("../bin/mapreduce-yt", use_files=False)
 
     env = {
         "PYTHON_BINARY": python_binary,
         "YT_USE_TOKEN": "0",
         "YT_VERSION": yt.config["api_version"],
         "YT_PRINT_BACKTRACE": "1",
-        "YT_SCRIPT_PATH": os.path.join(binaries_dir, "yt"),
-        "MAPREDUCE_YT_SCRIPT_PATH": os.path.join(binaries_dir, "mapreduce-yt")
+        "YT_SCRIPT_PATH": yt_binary,
+        "MAPREDUCE_YT_SCRIPT_PATH": mapreduce_binary,
     }
     if yatest_common is None:
         env["PYTHONPATH"] = os.environ["PYTHONPATH"]

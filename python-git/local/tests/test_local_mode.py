@@ -7,6 +7,7 @@ from yt.common import remove_file, is_process_alive
 from yt.wrapper.common import generate_uuid
 from yt.environment.helpers import is_dead_or_zombie
 import yt.subprocess_wrapper as subprocess
+import yt.environment.arcadia_interop as arcadia_interop
 
 from yt.packages.six.moves import map as imap, xrange
 from yt.packages.six import iteritems
@@ -33,7 +34,8 @@ import random
 
 def _get_tests_location():
     if yatest_common is not None:
-        return yatest_common.source_path("yt/python/yt/local/tests")
+        _, python_root, _ = arcadia_interop.get_root_paths()
+        return yatest_common.source_path(python_root + "/yt/local/tests")
     return os.path.dirname(os.path.abspath(__file__))
 
 def _get_tests_sandbox():
@@ -50,7 +52,8 @@ def _get_local_mode_tests_sandbox():
 
 def _get_yt_local_binary():
     if yatest_common is not None:
-        return yatest_common.binary_path("yt/python/yt/local/bin/yt_local_make/yt_local")
+        _, python_root, _ = arcadia_interop.get_root_paths()
+        return yatest_common.binary_path(python_root + "/yt/local/bin/yt_local_make/yt_local")
     return os.path.join(os.path.dirname(_get_tests_location()), "bin", "yt_local")
 
 def _get_instance_path(instance_id):
@@ -169,7 +172,7 @@ class TestLocalMode(object):
         scheduler_count = 4
 
         with local_yt(id=_get_id("test_logging"), master_count=master_count, node_count=node_count,
-                      scheduler_count=scheduler_count, start_proxy=True) as lyt:
+                      scheduler_count=scheduler_count, http_proxy_count=1) as lyt:
             path = lyt.path
             logs_path = lyt.logs_path
 
@@ -268,7 +271,7 @@ class TestLocalMode(object):
             assert len(environment.configs["master"]) == 3
 
         with local_yt(id=_get_id("test_start_no_proxy_many_schedulers"),
-                      node_count=5, scheduler_count=2, start_proxy=False) as environment:
+                      node_count=5, scheduler_count=2, http_proxy_count=0) as environment:
             assert len(environment.configs["node"]) == 5
             assert len(environment.configs["scheduler"]) == 2
             assert len(environment.configs["master"]) == 1
@@ -288,7 +291,7 @@ class TestLocalMode(object):
                 assert len(_read_pids_file(environment.id)) == 5
 
         with local_yt(id=_get_id("test_start_masters_only"), node_count=0,
-                      scheduler_count=0, start_proxy=False) as environment:
+                      scheduler_count=0, http_proxy_count=0) as environment:
             assert len(_read_pids_file(environment.id)) == 2
 
     def test_use_local_yt(self):
@@ -506,7 +509,7 @@ class TestLocalMode(object):
             assert client.get("//sys/tablet_cells/{0}/@health".format(tablet_cells[0])) == "good"
 
     def test_rpc_proxy_is_starting(self):
-        with local_yt(id=_get_id("test_rpc_proxy_is_starting"), start_rpc_proxy=True) as environment:
+        with local_yt(id=_get_id("test_rpc_proxy_is_starting"), rpc_proxy_count=1) as environment:
             client = environment.create_client()
 
             for _ in range(6):

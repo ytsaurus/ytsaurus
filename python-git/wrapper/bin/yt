@@ -562,6 +562,8 @@ def add_copy_parser(add_parser):
                         help="preserve expiration time of copied nodes")
     parser.add_argument("--preserve-creation-time", action="store_true",
                         help="preserve creation time of copied nodes")
+    parser.add_argument("--preserve-owner", action="store_true",
+                        help="preserve owner of copied nodes")
     parser.add_argument("-r", "--recursive", action="store_true")
     parser.add_argument("-i", "--ignore-existing", action="store_true")
     parser.add_argument("-f", "--force", action="store_true")
@@ -578,6 +580,8 @@ def add_move_parser(add_parser):
     preserve_account_parser.add_argument("--no-preserve-account", dest="preserve_account", default=None, action="store_false")
     parser.add_argument("--preserve-expiration-time", action="store_true",
                         help="preserve expiration time of moved nodes")
+    parser.add_argument("--preserve-owner", action="store_true",
+                        help="preserve owner of copied nodes")
     parser.add_argument("-r", "--recursive", action="store_true")
     parser.add_argument("-f", "--force", action="store_true")
     parser.add_argument("--no-pessimistic-quota-check", dest="pessimistic_quota_check", action="store_false")
@@ -967,6 +971,9 @@ def add_start_clickhouse_clique_parser(add_parser):
     parser.add_argument("--enable-monitoring", action="store_true", default=False,
                         help="(only for development use) bind monitoring port to 10142")
     parser.add_argument("--cypress-geodata-path")
+    parser.add_argument("--operation-alias", help="Alias for clique")
+    parser.add_argument("--abort-existing", action="store_true", help="Abort existing operation under same alias")
+    parser.add_argument("--uncompressed-block-cache-size", type=int, help="Size of uncompressed block cache")
     add_structured_argument(parser, "--spec")
     add_structured_argument(parser, "--clickhouse-config", "ClickHouse configuration patch")
 

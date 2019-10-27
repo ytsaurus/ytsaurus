@@ -1,13 +1,33 @@
+from __future__ import print_function
+
+import yt.logger as yt_logger
+
 import os
 import fcntl
 import time
 import shutil
+import logging
 
 try:
     import yatest.common as yatest_common
 except ImportError:
     yatest_common = None
 
+def is_inside_arcadia(inside_arcadia):
+    if inside_arcadia is None:
+        inside_arcadia = int(yatest_common.get_param("inside_arcadia", True))
+    return inside_arcadia
+
+def get_root_paths(source_prefix="", inside_arcadia=None):
+    if is_inside_arcadia(inside_arcadia):
+        yt_root = source_prefix + "yt/19_4/"
+        python_root = source_prefix + "yt/python/"
+        global_root = source_prefix
+    else:
+        yt_root = ""
+        python_root = "python/"
+        global_root = ""
+    return yt_root, python_root, global_root
 
 def prepare_yt_binaries(destination, source_prefix="", arcadia_root=None, inside_arcadia=True, use_ytserver_all=False, use_from_package=False, copy_ytserver_all=False):
     def get_binary_path(path):
@@ -16,14 +36,7 @@ def prepare_yt_binaries(destination, source_prefix="", arcadia_root=None, inside
         else:
             return os.path.join(arcadia_root, path)
 
-    if inside_arcadia:
-        yt_root = source_prefix + "yt/19_4/"
-        python_root = source_prefix + "yt/python/"
-        global_root = source_prefix
-    else:
-        yt_root = ""
-        python_root = "python/"
-        global_root = ""
+    yt_root, python_root, global_root = get_root_paths(source_prefix=source_prefix, inside_arcadia=inside_arcadia)
 
     if use_ytserver_all:
         if use_from_package:
@@ -83,6 +96,11 @@ def prepare_yt_environment(destination, **kwargs):
 
     with open(prepared_path, "w"):
         pass
+
+    if yatest_common is not None and not int(yatest_common.get_param("inside_arcadia", True)):
+        yt_logger.LOGGER = logging.getLogger()
+        yt_logger.LOGGER.setLevel(logging.DEBUG)
+        yt_logger.set_formatter(yt_logger.BASIC_FORMATTER)
 
     return bin_dir
 

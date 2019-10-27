@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-from .helpers import (TEST_DIR, get_tests_sandbox, get_tests_location, wait,
+from .helpers import (TEST_DIR, get_tests_sandbox, get_test_file_path, wait,
                       get_environment_for_binary_test, check, set_config_options, set_config_option)
 
 from yt.wrapper.errors import YtRetriableError
@@ -126,8 +126,8 @@ class TestYtBinary(object):
         sandbox_dir = os.path.join(get_tests_sandbox(), "TestYtBinary_" + uuid.uuid4().hex[:8])
         makedirp(sandbox_dir)
 
-        test_binary = os.path.join(get_tests_location(), "test_yt.sh")
-        proc = subprocess.Popen([test_binary], env=env, cwd=sandbox_dir)
+        test_binary = get_test_file_path("test_yt.sh", use_files=False)
+        proc = subprocess.Popen([test_binary], env=env, stderr=sys.stderr, cwd=sandbox_dir)
         proc.communicate()
         assert proc.returncode == 0
 

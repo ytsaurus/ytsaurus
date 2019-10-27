@@ -351,6 +351,537 @@ class TestOperations(object):
         check(op)
 
     @add_failed_operation_stderrs_to_error_message
+    def test_many_output_tables(self):
+        table = TEST_DIR + "/table"
+        output_tables = []
+        for i in xrange(10):
+            output_tables.append(TEST_DIR + "/temp%d" % i)
+        append_table = TEST_DIR + "/temp_special"
+        yt.write_table(table, [{"x": "1", "y": "1"}])
+        yt.write_table(append_table, [{"x": "1", "y": "1"}])
+
+        yt.run_map("PYTHONPATH=. {} many_output.py yt".format(get_python()),
+                   table,
+                   output_tables + [TablePath(append_table, append=True)],
+                   local_files=get_test_file_path("many_output.py"),
+                   format=yt.DsvFormat())
+
+        for table in output_tables:
+            assert yt.row_count(table) == 1
+        check([{"x": "1", "y": "1"}, {"x": "10", "y": "10"}], yt.read_table(append_table), ordered=False)
+
+    def test_attached_mode_simple(self):
+        table = TEST_DIR + "/table"
+
+        yt.config["detached"] = 0
+        try:
+            yt.write_table(table, [{"x": 1}])
+            yt.run_map("cat", table, table)
+            check(yt.read_table(table), [{"x": 1}])
+            yt.run_merge(table, table)
+            check(yt.read_table(table), [{"x": 1}])
+        finally:
+            yt.config["detached"] = 1
+
+    def test_attached_mode_op_aborted(self, yt_env_with_rpc):
+        script = """
+from __future__ import print_function
+
+import yt.wrapper as yt
+import sys
+
+input, output = sys.argv[1:3]
+yt.config["proxy"]["request_timeout"] = 5000
+yt.config["proxy"]["retries"]["count"] = 1
+yt.config["detached"] = False
+op = yt.run_map("sleep 1000", input, output, format="json", sync=False)
+print(op.id)
+"""
+        dir_ = yt_env_with_rpc.env.path
+        with tempfile.NamedTemporaryFile(mode="w", dir=dir_, prefix="mapper", delete=False) as file:
+            file.write(script)
+
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": 1}])
+
+        op_id = subprocess.check_output([get_python(), file.name, table, table],
+                                        env=self.env, stderr=sys.stderr).strip()
+        wait(lambda: yt.get(get_operation_path(op_id) + "/@state") == "aborted")
+
+    def test_abort_operation(self):
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": 1}])
+        op = yt.run_map("sleep 15; cat", table, table, sync=False)
+        op.abort()
+        assert op.get_state() == "aborted"
+
+    def test_complete_operation(self):
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": 1}])
+        op = yt.run_map("sleep 15; cat", table, table, sync=False)
+        while not op.get_state().is_running():
+            time.sleep(0.2)
+        op.complete()
+        assert op.get_state() == "completed"
+        op.complete()
+
+    def test_suspend_resume(self):
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"key": 1}])
+        try:
+            op = yt.run_map_reduce(
+                "sleep 0.5; cat",
+                "sleep 0.5; cat",
+                table,
+                table,
+                sync=False,
+                reduce_by=["key"],
+                spec={"map_locality_timeout": 0, "reduce_locality_timeout": 0})
+
+            wait(lambda: op.get_state() == "running")
+
+            op.suspend()
+            assert op.get_state() == "running"
+            time.sleep(2.5)
+            assert op.get_state() == "running"
+            op.resume()
+            op.wait(timeout=60 * 1000)
+            assert op.get_state() == "completed"
+        finally:
+            if op.get_state() not in ["completed", "failed", "aborted"]:
+                op.abort()
+
+    def test_reduce_combiner(self):
+        table = TEST_DIR + "/table"
+        output_table = TEST_DIR + "/output_table"
+        yt.write_table(table, [{"x": 1}, {"y": 2}])
+
+        yt.run_map_reduce(mapper=None, reduce_combiner="cat", reducer="cat", reduce_by=["x"],
+                          source_table=table, destination_table=output_table)
+        check([{"x": 1}, {"y": 2}], list(yt.read_table(table)))
+
+    def test_reduce_differently_sorted_table(self):
+        table = TEST_DIR + "/table"
+        other_table = TEST_DIR + "/other_table"
+        yt.create("table", table)
+        yt.run_sort(table, sort_by=["a", "b"])
+
+        with pytest.raises(yt.YtError):
+            # No reduce_by
+            yt.run_reduce("cat", source_table=table, destination_table=other_table, sort_by=["a"])
+
+        with pytest.raises(yt.YtError):
+            yt.run_reduce("cat", source_table=table, destination_table=other_table, reduce_by=["c"])
+
+    def test_reduce_sort_by(self):
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": 1, "y": 1}])
+        yt.run_sort(table, sort_by=["x", "y"])
+        op = yt.run_reduce("cat", table, table, format=yt.JsonFormat(), reduce_by=["x"], sort_by=["x", "y"])
+        assert "sort_by" in op.get_attributes()["spec"]
+
+    def test_remote_copy(self):
+        mode = yt.config["backend"]
+        if mode == "http":
+            mode = yt.config["api_version"]
+
+        test_name = "TestYtWrapper" + mode.capitalize()
+        dir = os.path.join(get_tests_sandbox(), test_name)
+        id = "run_" + uuid.uuid4().hex[:8]
+        instance = None
+        try:
+            instance = start(path=dir, id=id, node_count=3, enable_debug_logging=True, cell_tag=1)
+            second_cluster_client = instance.create_client()
+            second_cluster_connection = second_cluster_client.get("//sys/@cluster_connection")
+            second_cluster_client.create("map_node", TEST_DIR)
+            table = TEST_DIR + "/test_table"
+
+            second_cluster_client.write_table(table, [{"a": 1, "b": 2, "c": 3}])
+            yt.run_remote_copy(table, table, cluster_connection=second_cluster_connection)
+            assert list(yt.read_table(table)) == [{"a": 1, "b": 2, "c": 3}]
+
+            second_cluster_client.write_table(table, [{"a": 1, "b": True, "c": "abacaba"}])
+            yt.run_remote_copy(table, table, cluster_connection=second_cluster_connection)
+            assert list(yt.read_table(table)) == [{"a": 1, "b": True, "c": "abacaba"}]
+
+            second_cluster_client.write_table(table, [])
+            yt.run_remote_copy(table, table, cluster_connection=second_cluster_connection)
+            assert list(yt.read_table(table)) == []
+
+            second_cluster_client.remove(table)
+            second_cluster_client.create("table", table, attributes={"compression_codec": "zlib_6"})
+
+            second_cluster_client.write_table(table, [{"a": [i, 2, 3]} for i in xrange(100)])
+            yt.run_remote_copy(table, table, cluster_connection=second_cluster_connection)
+            assert list(yt.read_table(table)) == [{"a": [i, 2, 3]} for i in xrange(100)]
+            assert second_cluster_client.get(table + "/@compressed_data_size") == \
+                   yt.get(table + "/@compressed_data_size")
+
+        finally:
+            if instance is not None:
+                stop(instance.id, path=dir)
+
+    @add_failed_operation_stderrs_to_error_message
+    def test_shuffle(self):
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": 0}, {"x": 1}, {"x": 2}])
+        yt.shuffle_table(table)
+        assert len(list(yt.read_table(table))) == 3
+
+        table = TEST_DIR + "/table"
+        yt.remove(table)
+        yt.create("table", table, attributes={"schema": [{"name": "x", "type": "int64", "sort_order": "ascending", "required": True}]})
+        yt.write_table(table, [{"x": 0}, {"x": 1}, {"x": 2}])
+        yt.shuffle_table(table)
+        assert len(list(yt.read_table(table))) == 3
+
+    def test_stderr_decoding(self):
+        input_table = TEST_DIR + "/input"
+        output_table = TEST_DIR + "/output"
+        yt.write_table(input_table, [{"x": 0}, {"x": 1}, {"x": 2}])
+        with set_config_option("operation_tracker/stderr_encoding", "latin1"):
+            op = yt.run_map("echo -e -n '\\xF1\\xF2\\xF3\\xF4' >&2; cat", input_table, output_table)
+            job_infos = op.get_jobs_with_error_or_stderr()
+            assert len(job_infos) == 1
+            assert job_infos[0]["stderr"] == "\xF1\xF2\xF3\xF4"
+
+    def test_operation_alert(self):
+        try:
+            config_patch = {
+                "operation_alerts": {
+                    "operation_too_long_alert_min_wall_time": 0,
+                    "operation_too_long_alert_estimate_duration_threshold": 5000
+                }
+            }
+
+            path = "//sys/controller_agents/instances"
+            children = yt.list(path)
+            assert len(children) == 1
+            path = "//sys/controller_agents/instances/{}/orchid/controller_agent/config".format(children[0])
+
+            old_config = yt.get(path)
+
+            yt.set("//sys/controller_agents/config", config_patch)
+
+            wait(lambda: yt.get(path) != old_config)
+
+            input_table = TEST_DIR + "/input"
+            output_table = TEST_DIR + "/output"
+            yt.write_table(input_table, [{"x": i} for i in xrange(100)])
+
+            op = yt.run_map("cat; sleep 120", input_table, output_table, spec={"data_size_per_job": 1}, sync=False)
+            wait(lambda: op.get_attributes(fields=["alerts"]).get("alerts", {}))
+        finally:
+            yt.remove("//sys/controller_agents/config", recursive=True, force=True)
+
+
+    def test_operations_spec(self):
+        input_table = TEST_DIR + "/input"
+        output_table = TEST_DIR + "/output"
+        yt.write_table(input_table, [{"x": 1}])
+
+        op = yt.run_map("cat; sleep 120", input_table, output_table, spec={"asdfghjkl" : 1234567890}, sync=False)
+        wait(lambda: op.get_attributes(fields=["unrecognized_spec"]).get("unrecognized_spec", {}))
+
+    def test_map_without_output(self, tmpdir):
+        input_table = TEST_DIR + "/input"
+        yt.write_table(input_table, [{"x": 1}, {"x": 2}, {"x": 3}])
+        first_file = str(tmpdir.join("first.txt"))
+        second_file = str(tmpdir.join("second.txt"))
+
+        def mapper_without_output(row):
+            with open(first_file, "a+") as f:
+                f.write("{}\n".format(row["x"]))
+
+        def mapper_with_output(row):
+            with open(second_file, "a+") as f:
+                f.write("{}\n".format(row["x"]))
+            yield 10
+            yield 20
+            yield 30
+
+        for path, mapper in zip([first_file, second_file], [mapper_without_output, mapper_with_output]):
+            open(path, "w").close()
+            os.chmod(path, 0o666)
+            yt.run_map(mapper, input_table)
+            with open(path, "r") as f:
+                data = f.read()
+            assert set(data.split()) == {"1", "2", "3"}
+
+    def test_reduce_without_output(self, tmpdir):
+        input_table = TEST_DIR + "/input"
+        yt.write_table(input_table, [
+            {"x": 1, "y": 150},
+            {"x": 1, "y": 250},
+            {"x": 1, "y": 300},
+        ])
+        yt.run_sort(input_table, input_table, sort_by=["x"])
+        first_file = str(tmpdir.join("first.txt"))
+        second_file = str(tmpdir.join("second.txt"))
+
+        def reducer_without_output(key, rows):
+            y = sum(row["y"] for row in rows)
+            with open(first_file, "a") as f:
+                f.write("{}\n".format(y))
+
+        def reducer_with_output(key, rows):
+            y = sum(row["y"] for row in rows)
+            with open(second_file, "a") as f:
+                f.write("{}\n".format(y))
+            yield 10
+            yield 20
+            yield 30
+
+        for path, reducer in zip([first_file, second_file], [reducer_without_output, reducer_with_output]):
+            open(path, "w").close()
+            os.chmod(path, 0o666)
+            yt.run_reduce(reducer, input_table, reduce_by="x")
+            with open(path, "r") as f:
+                data = f.read()
+            assert int(data.strip()) == 700
+
+    def test_retrying_operation_count_limit_exceeded(self):
+        # TODO(ignat): Rewrite test without sleeps.
+        old_value = yt.config["start_operation_request_timeout"]
+        yt.config["start_operation_request_timeout"] = 2000
+
+        yt.create("map_node", "//sys/pools/with_operation_count_limit", attributes={"max_operation_count": 1})
+        time.sleep(1)
+
+        try:
+            table = TEST_DIR + "/table"
+            yt.write_table(table, [{"x": 1}, {"x": 2}])
+
+            def run_operation(index):
+                return yt.run_map(
+                    "cat; sleep 5",
+                    table,
+                    TEST_DIR + "/output_" + str(index),
+                    # File is used to test toucher.
+                    local_files=get_test_file_path("capitalize_b.py"),
+                    sync=False,
+                    spec={"pool": "with_operation_count_limit"})
+
+            ops = []
+            start_time = time.time()
+            ops.append(run_operation(1))
+            assert time.time() - start_time < 5.0
+            ops.append(run_operation(2))
+            assert time.time() - start_time > 5.0
+
+            for op in ops:
+                op.wait()
+
+            assert time.time() - start_time > 10.0
+
+        finally:
+            yt.config["start_operation_request_timeout"] = old_value
+
+    def test_enable_logging_failed_operation(self):
+        tableX = TEST_DIR + "/tableX"
+        tableY = TEST_DIR + "/tableY"
+        yt.write_table(tableX, [{"x": 1}])
+        with set_config_option("operation_tracker/enable_logging_failed_operation", True):
+            with pytest.raises(yt.YtError):
+                yt.run_map("cat; echo 'Hello %username%!' >&2; exit 1", tableX, tableY)
+
+    def test_get_operation_command(self):
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": 1}, {"x": 2}])
+
+        with set_config_option("enable_operations_api", True):
+            op = yt.run_map("cat; echo 'AAA' >&2", table, table)
+            check([{"x": 1}, {"x": 2}], list(yt.read_table(table)), ordered=False)
+
+            assert op.get_state() == "completed"
+
+            assert op.get_progress()["total"] == 1
+            assert op.get_progress()["completed"] == 1
+
+            op.get_job_statistics()
+
+            job_infos = op.get_jobs_with_error_or_stderr()
+            assert len(job_infos) == 1
+            assert job_infos[0]["stderr"] == "AAA\n"
+
+    def test_list_operations(self):
+        if yt.config["backend"] == "rpc":
+            pytest.skip()
+
+        assert yt.list_operations()["operations"] == []
+
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": "0"}])
+        yt.run_map("cat; echo 'AAA' >&2", table, table)
+
+        operations = yt.list_operations()["operations"]
+        assert len(operations) == 1
+
+        operation = operations[0]
+        assert operation["state"] == "completed"
+        assert operation["type"] == "map"
+
+    def test_iterate_operations(self):
+        if yt.config["backend"] == "rpc":
+            pytest.skip()
+
+        assert list(yt.iterate_operations()) == []
+
+        table = "//tmp/table"
+        operation_count = 12
+        table_paths = [0] * operation_count
+        for i in xrange(operation_count):
+            table_paths[i] = table + '_' + str(i)
+
+        for i in xrange(operation_count):
+            yt.write_table(table_paths[i], [{"x": "0"}])
+
+        ops = [0] * operation_count
+        for i in xrange(operation_count):
+            ops[i] = yt.run_map("cat", table_paths[i], table_paths[i], sync=False, format="yson")
+        start_times = [0] * operation_count
+        for i in xrange(operation_count):
+            ops[i].wait()
+            start_times[i] = ops[i].get_attributes(["start_time"])["start_time"]
+        start_times.sort()
+
+        operations = list(yt.iterate_operations(limit_per_request=5))
+        assert len(operations) == operation_count
+
+        past_to_future = list(yt.iterate_operations(from_time=start_times[0], to_time=start_times[-1], cursor_direction="future"))
+        future_to_past = list(yt.iterate_operations(from_time=start_times[0], to_time=start_times[-1], cursor_direction="past"))
+
+        assert past_to_future == future_to_past[::-1]
+        assert future_to_past == operations[1:]
+
+    def test_empty_job_command(self):
+        table = TEST_DIR + "/table"
+        output_table = TEST_DIR + "/output_table"
+        yt.write_table(table, [{"x": 1}, {"y": 2}])
+
+        spec = {"mapper": {"copy_files": True}, "reduce_combiner": {"copy_files": True}}
+        yt.run_map_reduce(mapper=None, reduce_combiner="cat", reducer="cat", reduce_by=["x"],
+                          source_table=table, destination_table=output_table, spec=spec)
+        check([{"x": 1}, {"y": 2}], list(yt.read_table(table)))
+        yt.run_map_reduce(mapper=None, reducer="cat", reduce_by=["x"],
+                          source_table=table, destination_table=output_table, spec=spec)
+        check([{"x": 1}, {"y": 2}], list(yt.read_table(table)))
+
+    def test_update_operation_parameters(self):
+        if "update_op_parameters" not in yt.driver.get_command_list():
+            pytest.skip()
+
+        table = TEST_DIR + "/table"
+        output_table = TEST_DIR + "/output_table"
+        yt.write_table(table, [{"x": 1}, {"y": 2}])
+
+        op = yt.run_map("cat; sleep 100", table, output_table, spec={"weight": 5.0}, format="json", sync=False)
+        wait(lambda: op.get_state() == "running")
+        yt.update_operation_parameters(op.id, {"scheduling_options_per_pool_tree": {"default": {"weight": 10.0}}})
+        wait(lambda: are_almost_equal(
+            yt.get_operation(op.id, include_scheduler=True)["progress"]["scheduling_info_per_pool_tree"]["default"]["weight"],
+            10.0))
+
+
+@pytest.mark.usefixtures("yt_env_with_rpc")
+class TestOperationsFormat(object):
+    def setup(self):
+        yt.config["tabular_data_format"] = yt.format.JsonFormat()
+        self.env = {
+            "YT_CONFIG_PATCHES": dumps_yt_config(),
+            "PYTHONPATH": os.environ.get("PYTHONPATH", "")
+        }
+
+    def teardown(self):
+        yt.config["tabular_data_format"] = None
+        yt.remove("//tmp/yt_wrapper/file_storage", recursive=True, force=True)
+
+    @add_failed_operation_stderrs_to_error_message
+    def test_yamred_dsv(self):
+        def foo(rec):
+            yield rec
+
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": "1", "y": "2"}])
+
+        yt.run_map(foo, table, table,
+                   input_format=yt.create_format("<key_column_names=[\"y\"]>yamred_dsv"),
+                   output_format=yt.YamrFormat(has_subkey=False, lenval=False))
+        check([{"key": "2", "value": "x=1"}], list(yt.read_table(table)))
+
+    def test_schemaful_dsv(self):
+        def foo(rec):
+            yield rec
+
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [b"x=1\ty=2\n", b"x=\\n\tz=3\n"], raw=True, format=yt.DsvFormat())
+        check([b"1\n", b"\\n\n"],
+              sorted(list(yt.read_table(table, format=yt.SchemafulDsvFormat(columns=["x"]), raw=True))))
+
+        yt.run_map(foo, table, table, format=yt.SchemafulDsvFormat(columns=["x"]))
+        check([b"x=1\n", b"x=\\n\n"], sorted(list(yt.read_table(table, format=yt.DsvFormat(), raw=True))))
+
+    @add_failed_operation_stderrs_to_error_message
+    def test_schemaful_dsv_several_output_tables(self):
+        def mapper(row):
+            row["@table_index"] = int(row["x"])
+            yield row
+
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": "0"}, {"x": "1"}, {"x": "2"}])
+
+        output_tables = [TEST_DIR + "/output_" + str(i) for i in xrange(4)]
+
+        yt.run_map(mapper, table, output_tables,
+                   format=yt.SchemafulDsvFormat(columns=["x"], enable_table_index=True),
+                   spec={"mapper": {"enable_input_table_index": True}})
+
+        assert list(yt.read_table(output_tables[0])) == [{"x": "0"}]
+        assert list(yt.read_table(output_tables[1])) == [{"x": "1"}]
+        assert list(yt.read_table(output_tables[2])) == [{"x": "2"}]
+        assert list(yt.read_table(output_tables[3])) == []
+
+        yt.write_table(table, [{"x": "0"}, {"x": "5"}, {"x": "6"}])
+        with pytest.raises(yt.YtError):
+            yt.run_map(mapper, table, output_tables,
+                       format=yt.SchemafulDsvFormat(columns=["x"], enable_table_index=True),
+                       spec={"mapper": {"enable_input_table_index": True}})
+
+    def test_lazy_yson(self):
+        def mapper(row):
+            assert not isinstance(row, (YsonMap, dict))
+            row["z"] = row["y"] + 1
+            yield row
+
+        def reducer(key, rows):
+            result = {"x": key["x"], "res": 0}
+            for row in rows:
+                assert not isinstance(row, (YsonMap, dict))
+                result["res"] += row["z"]
+            yield result
+
+        table = TEST_DIR + "/table"
+        output_table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": 1, "y": 2}, {"x": 1, "y": 3}, {"x": 3, "y": 4}])
+        yt.run_map_reduce(mapper, reducer, table, output_table, format="<lazy=%true>yson", reduce_by="x")
+
+        assert list(yt.read_table(output_table)) == [{"x": 1, "res": 7}, {"x": 3, "res": 5}]
+
+
+@pytest.mark.usefixtures("yt_env_with_rpc")
+class TestPythonOperations(object):
+    def setup(self):
+        yt.config["tabular_data_format"] = yt.format.JsonFormat()
+        self.env = {
+            "YT_CONFIG_PATCHES": dumps_yt_config(),
+            "PYTHONPATH": os.environ.get("PYTHONPATH", "")
+        }
+
+    def teardown(self):
+        yt.config["tabular_data_format"] = None
+        yt.remove("//tmp/yt_wrapper/file_storage", recursive=True, force=True)
+
+    @add_failed_operation_stderrs_to_error_message
     def test_python_operations_common(self):
         def change_x(rec):
             if "x" in rec:
@@ -542,153 +1073,6 @@ class TestOperations(object):
             with pytest.raises(yt.YtError):
                 yt.run_map(mapper, table, table)
 
-    @add_failed_operation_stderrs_to_error_message
-    def test_many_output_tables(self):
-        table = TEST_DIR + "/table"
-        output_tables = []
-        for i in xrange(10):
-            output_tables.append(TEST_DIR + "/temp%d" % i)
-        append_table = TEST_DIR + "/temp_special"
-        yt.write_table(table, [{"x": "1", "y": "1"}])
-        yt.write_table(append_table, [{"x": "1", "y": "1"}])
-
-        yt.run_map("PYTHONPATH=. {} many_output.py yt".format(get_python()),
-                   table,
-                   output_tables + [TablePath(append_table, append=True)],
-                   local_files=get_test_file_path("many_output.py"),
-                   format=yt.DsvFormat())
-
-        for table in output_tables:
-            assert yt.row_count(table) == 1
-        check([{"x": "1", "y": "1"}, {"x": "10", "y": "10"}], yt.read_table(append_table), ordered=False)
-
-    def test_attached_mode_simple(self):
-        table = TEST_DIR + "/table"
-
-        yt.config["detached"] = 0
-        try:
-            yt.write_table(table, [{"x": 1}])
-            yt.run_map("cat", table, table)
-            check(yt.read_table(table), [{"x": 1}])
-            yt.run_merge(table, table)
-            check(yt.read_table(table), [{"x": 1}])
-        finally:
-            yt.config["detached"] = 1
-
-    def test_attached_mode_op_aborted(self, yt_env_with_rpc):
-        script = """
-from __future__ import print_function
-
-import yt.wrapper as yt
-import sys
-
-input, output = sys.argv[1:3]
-yt.config["proxy"]["request_timeout"] = 5000
-yt.config["proxy"]["retries"]["count"] = 1
-yt.config["detached"] = False
-op = yt.run_map("sleep 1000", input, output, format="json", sync=False)
-print(op.id)
-"""
-        dir_ = yt_env_with_rpc.env.path
-        with tempfile.NamedTemporaryFile(mode="w", dir=dir_, prefix="mapper", delete=False) as file:
-            file.write(script)
-
-        table = TEST_DIR + "/table"
-        yt.write_table(table, [{"x": 1}])
-
-        op_id = subprocess.check_output([get_python(), file.name, table, table],
-                                        env=self.env, stderr=sys.stderr).strip()
-        wait(lambda: yt.get(get_operation_path(op_id) + "/@state") == "aborted")
-
-    def test_abort_operation(self):
-        table = TEST_DIR + "/table"
-        yt.write_table(table, [{"x": 1}])
-        op = yt.run_map("sleep 15; cat", table, table, sync=False)
-        op.abort()
-        assert op.get_state() == "aborted"
-
-    def test_complete_operation(self):
-        table = TEST_DIR + "/table"
-        yt.write_table(table, [{"x": 1}])
-        op = yt.run_map("sleep 15; cat", table, table, sync=False)
-        while not op.get_state().is_running():
-            time.sleep(0.2)
-        op.complete()
-        assert op.get_state() == "completed"
-        op.complete()
-
-    def test_suspend_resume(self):
-        table = TEST_DIR + "/table"
-        yt.write_table(table, [{"key": 1}])
-        try:
-            op = yt.run_map_reduce(
-                "sleep 0.5; cat",
-                "sleep 0.5; cat",
-                table,
-                table,
-                sync=False,
-                reduce_by=["key"],
-                spec={"map_locality_timeout": 0, "reduce_locality_timeout": 0})
-
-            wait(lambda: op.get_state() == "running")
-
-            op.suspend()
-            assert op.get_state() == "running"
-            time.sleep(2.5)
-            assert op.get_state() == "running"
-            op.resume()
-            op.wait(timeout=60 * 1000)
-            assert op.get_state() == "completed"
-        finally:
-            if op.get_state() not in ["completed", "failed", "aborted"]:
-                op.abort()
-
-    def test_reduce_combiner(self):
-        table = TEST_DIR + "/table"
-        output_table = TEST_DIR + "/output_table"
-        yt.write_table(table, [{"x": 1}, {"y": 2}])
-
-        yt.run_map_reduce(mapper=None, reduce_combiner="cat", reducer="cat", reduce_by=["x"],
-                          source_table=table, destination_table=output_table)
-        check([{"x": 1}, {"y": 2}], list(yt.read_table(table)))
-
-    def test_reduce_differently_sorted_table(self):
-        table = TEST_DIR + "/table"
-        other_table = TEST_DIR + "/other_table"
-        yt.create("table", table)
-        yt.run_sort(table, sort_by=["a", "b"])
-
-        with pytest.raises(yt.YtError):
-            # No reduce_by
-            yt.run_reduce("cat", source_table=table, destination_table=other_table, sort_by=["a"])
-
-        with pytest.raises(yt.YtError):
-            yt.run_reduce("cat", source_table=table, destination_table=other_table, reduce_by=["c"])
-
-    @add_failed_operation_stderrs_to_error_message
-    def test_yamred_dsv(self):
-        def foo(rec):
-            yield rec
-
-        table = TEST_DIR + "/table"
-        yt.write_table(table, [{"x": "1", "y": "2"}])
-
-        yt.run_map(foo, table, table,
-                   input_format=yt.create_format("<key_column_names=[\"y\"]>yamred_dsv"),
-                   output_format=yt.YamrFormat(has_subkey=False, lenval=False))
-        check([{"key": "2", "value": "x=1"}], list(yt.read_table(table)))
-
-    def test_schemaful_dsv(self):
-        def foo(rec):
-            yield rec
-
-        table = TEST_DIR + "/table"
-        yt.write_table(table, [b"x=1\ty=2\n", b"x=\\n\tz=3\n"], raw=True, format=yt.DsvFormat())
-        check([b"1\n", b"\\n\n"],
-              sorted(list(yt.read_table(table, format=yt.SchemafulDsvFormat(columns=["x"]), raw=True))))
-
-        yt.run_map(foo, table, table, format=yt.SchemafulDsvFormat(columns=["x"]))
-        check([b"x=1\n", b"x=\\n\n"], sorted(list(yt.read_table(table, format=yt.DsvFormat(), raw=True))))
 
     @add_failed_operation_stderrs_to_error_message
     def test_reduce_aggregator(self):
@@ -812,43 +1196,6 @@ print(op.id)
         assert not yt.is_inside_job()
         assert list(yt.read_table(table)) == [{"flag": "true"}]
 
-    def test_retrying_operation_count_limit_exceeded(self):
-        # TODO(ignat): Rewrite test without sleeps.
-        old_value = yt.config["start_operation_request_timeout"]
-        yt.config["start_operation_request_timeout"] = 2000
-
-        yt.create("map_node", "//sys/pools/with_operation_count_limit", attributes={"max_operation_count": 1})
-        time.sleep(1)
-
-        try:
-            table = TEST_DIR + "/table"
-            yt.write_table(table, [{"x": 1}, {"x": 2}])
-
-            def run_operation(index):
-                return yt.run_map(
-                    "cat; sleep 5",
-                    table,
-                    TEST_DIR + "/output_" + str(index),
-                    # File is used to test toucher.
-                    local_files=get_test_file_path("capitalize_b.py"),
-                    sync=False,
-                    spec={"pool": "with_operation_count_limit"})
-
-            ops = []
-            start_time = time.time()
-            ops.append(run_operation(1))
-            assert time.time() - start_time < 5.0
-            ops.append(run_operation(2))
-            assert time.time() - start_time > 5.0
-
-            for op in ops:
-                op.wait()
-
-            assert time.time() - start_time > 10.0
-
-        finally:
-            yt.config["start_operation_request_timeout"] = old_value
-
     @add_failed_operation_stderrs_to_error_message
     def test_reduce_key_modification(self):
         def reducer(key, recs):
@@ -923,12 +1270,59 @@ print(op.id)
             {"table_index": 1, "row_index": 0, "x": 2}
         ] == result
 
-    def test_reduce_sort_by(self):
-        table = TEST_DIR + "/table"
-        yt.write_table(table, [{"x": 1, "y": 1}])
-        yt.run_sort(table, sort_by=["x", "y"])
-        op = yt.run_reduce("cat", table, table, format=yt.JsonFormat(), reduce_by=["x"], sort_by=["x", "y"])
-        assert "sort_by" in op.get_attributes()["spec"]
+    @add_failed_operation_stderrs_to_error_message
+    def test_functions_with_context(self):
+        @yt.with_context
+        def mapper(row, context):
+            yield {"row_index": context.row_index}
+
+        @yt.with_context
+        def reducer(key, rows, context):
+            for row in rows:
+                yield {"row_index": context.row_index}
+
+        @yt.with_context
+        def mapper_table_index(row, context):
+            yield {"table_index": context.table_index}
+
+        input = TEST_DIR + "/input"
+        input2 = TEST_DIR + "/input2"
+        output = TEST_DIR + "/output"
+        yt.write_table(input, [{"x": 1, "y": "a"}, {"x": 1, "y": "b"}, {"x": 2, "y": "b"}])
+        yt.run_map(mapper, input, output,
+                   format=yt.YsonFormat(),
+                   spec={"job_io": {"control_attributes": {"enable_row_index": True}}})
+
+        check(yt.read_table(output), [{"row_index": index} for index in xrange(3)])
+
+        yt.run_sort(input, input, sort_by=["x"])
+        yt.run_reduce(reducer, input, output,
+                      reduce_by=["x"],
+                      format=yt.YsonFormat(),
+                      spec={"job_io": {"control_attributes": {"enable_row_index": True}}})
+        check(yt.read_table(output), [{"row_index": index} for index in xrange(3)])
+
+        yt.write_table(input, [{"x": 1, "y": "a"}])
+        yt.run_map(mapper_table_index, input, output, format=yt.YsonFormat(control_attributes_mode="iterator"))
+        check(yt.read_table(output), [{"table_index": 0}])
+
+        yt.write_table(input2, [{"x": 1, "y": "a"}])
+        yt.run_map(mapper_table_index, [input, input2], output, format=yt.YsonFormat(control_attributes_mode="iterator"))
+        check(yt.read_table(output), [{"table_index": 0}, {"table_index": 1}], ordered=False)
+
+
+@pytest.mark.usefixtures("yt_env_with_rpc")
+class TestOperationsTracker(object):
+    def setup(self):
+        yt.config["tabular_data_format"] = yt.format.JsonFormat()
+        self.env = {
+            "YT_CONFIG_PATCHES": dumps_yt_config(),
+            "PYTHONPATH": os.environ.get("PYTHONPATH", "")
+        }
+
+    def teardown(self):
+        yt.config["tabular_data_format"] = None
+        yt.remove("//tmp/yt_wrapper/file_storage", recursive=True, force=True)
 
     def test_reduce_with_foreign_tables_and_disabled_key_guarantee(self):
         table1 = TEST_DIR + "/table1"
@@ -1219,6 +1613,19 @@ print(op.id)
         finally:
             logger.LOGGER.setLevel(old_level)
 
+@pytest.mark.usefixtures("yt_env_with_rpc")
+class TestOperationsTmpfs(object):
+    def setup(self):
+        yt.config["tabular_data_format"] = yt.format.JsonFormat()
+        self.env = {
+            "YT_CONFIG_PATCHES": dumps_yt_config(),
+            "PYTHONPATH": os.environ.get("PYTHONPATH", "")
+        }
+
+    def teardown(self):
+        yt.config["tabular_data_format"] = None
+        yt.remove("//tmp/yt_wrapper/file_storage", recursive=True, force=True)
+
     @add_failed_operation_stderrs_to_error_message
     def test_mount_tmpfs_in_sandbox(self, yt_env_with_rpc):
         if not ENABLE_JOB_CONTROL:
@@ -1266,46 +1673,6 @@ print(op.id)
             assert memory_limit - tmpfs_size == 512 * 1024 * 1024
             assert get_spec_option(op.id, "mapper/tmpfs_path") == "."
 
-    @add_failed_operation_stderrs_to_error_message
-    def test_functions_with_context(self):
-        @yt.with_context
-        def mapper(row, context):
-            yield {"row_index": context.row_index}
-
-        @yt.with_context
-        def reducer(key, rows, context):
-            for row in rows:
-                yield {"row_index": context.row_index}
-
-        @yt.with_context
-        def mapper_table_index(row, context):
-            yield {"table_index": context.table_index}
-
-        input = TEST_DIR + "/input"
-        input2 = TEST_DIR + "/input2"
-        output = TEST_DIR + "/output"
-        yt.write_table(input, [{"x": 1, "y": "a"}, {"x": 1, "y": "b"}, {"x": 2, "y": "b"}])
-        yt.run_map(mapper, input, output,
-                   format=yt.YsonFormat(),
-                   spec={"job_io": {"control_attributes": {"enable_row_index": True}}})
-
-        check(yt.read_table(output), [{"row_index": index} for index in xrange(3)])
-
-        yt.run_sort(input, input, sort_by=["x"])
-        yt.run_reduce(reducer, input, output,
-                      reduce_by=["x"],
-                      format=yt.YsonFormat(),
-                      spec={"job_io": {"control_attributes": {"enable_row_index": True}}})
-        check(yt.read_table(output), [{"row_index": index} for index in xrange(3)])
-
-        yt.write_table(input, [{"x": 1, "y": "a"}])
-        yt.run_map(mapper_table_index, input, output, format=yt.YsonFormat(control_attributes_mode="iterator"))
-        check(yt.read_table(output), [{"table_index": 0}])
-
-        yt.write_table(input2, [{"x": 1, "y": "a"}])
-        yt.run_map(mapper_table_index, [input, input2], output, format=yt.YsonFormat(control_attributes_mode="iterator"))
-        check(yt.read_table(output), [{"table_index": 0}, {"table_index": 1}], ordered=False)
-
     def test_download_job_stderr_messages(self):
         def mapper(row):
             sys.stderr.write("Job with stderr")
@@ -1342,7 +1709,7 @@ print(op.id)
         time.sleep(0.5)
         os.kill(process.pid, signal.SIGINT)
 
-        timeout = 3.0
+        timeout = 5.0
         start_time = time.time()
         while time.time() - start_time < timeout:
             if process.poll() is not None:
@@ -1367,46 +1734,18 @@ print(op.id)
         yt.run_map(mapper, table, table, local_files=['<file_name="cool_name.dat">' + f.name])
         check(yt.read_table(table), [{"k": "etwas"}])
 
-    def test_remote_copy(self):
-        mode = yt.config["backend"]
-        if mode == "http":
-            mode = yt.config["api_version"]
+@pytest.mark.usefixtures("yt_env_with_rpc")
+class TestOperationsSeveralOutputTables(object):
+    def setup(self):
+        yt.config["tabular_data_format"] = yt.format.JsonFormat()
+        self.env = {
+            "YT_CONFIG_PATCHES": dumps_yt_config(),
+            "PYTHONPATH": os.environ.get("PYTHONPATH", "")
+        }
 
-        test_name = "TestYtWrapper" + mode.capitalize()
-        dir = os.path.join(get_tests_sandbox(), test_name)
-        id = "run_" + uuid.uuid4().hex[:8]
-        instance = None
-        try:
-            instance = start(path=dir, id=id, node_count=3, enable_debug_logging=True, cell_tag=1)
-            second_cluster_client = instance.create_client()
-            second_cluster_connection = second_cluster_client.get("//sys/@cluster_connection")
-            second_cluster_client.create("map_node", TEST_DIR)
-            table = TEST_DIR + "/test_table"
-
-            second_cluster_client.write_table(table, [{"a": 1, "b": 2, "c": 3}])
-            yt.run_remote_copy(table, table, cluster_connection=second_cluster_connection)
-            assert list(yt.read_table(table)) == [{"a": 1, "b": 2, "c": 3}]
-
-            second_cluster_client.write_table(table, [{"a": 1, "b": True, "c": "abacaba"}])
-            yt.run_remote_copy(table, table, cluster_connection=second_cluster_connection)
-            assert list(yt.read_table(table)) == [{"a": 1, "b": True, "c": "abacaba"}]
-
-            second_cluster_client.write_table(table, [])
-            yt.run_remote_copy(table, table, cluster_connection=second_cluster_connection)
-            assert list(yt.read_table(table)) == []
-
-            second_cluster_client.remove(table)
-            second_cluster_client.create("table", table, attributes={"compression_codec": "zlib_6"})
-
-            second_cluster_client.write_table(table, [{"a": [i, 2, 3]} for i in xrange(100)])
-            yt.run_remote_copy(table, table, cluster_connection=second_cluster_connection)
-            assert list(yt.read_table(table)) == [{"a": [i, 2, 3]} for i in xrange(100)]
-            assert second_cluster_client.get(table + "/@compressed_data_size") == \
-                   yt.get(table + "/@compressed_data_size")
-
-        finally:
-            if instance is not None:
-                stop(instance.id, path=dir)
+    def teardown(self):
+        yt.config["tabular_data_format"] = None
+        yt.remove("//tmp/yt_wrapper/file_storage", recursive=True, force=True)
 
     @add_failed_operation_stderrs_to_error_message
     def test_yson_several_output_tables(self):
@@ -1505,129 +1844,6 @@ print(op.id)
         with pytest.raises(yt.YtError):
             yt.run_map(second_mapper, table, output_tables, format=yt.YamrFormat())
 
-    @add_failed_operation_stderrs_to_error_message
-    def test_schemaful_dsv_several_output_tables(self):
-        def mapper(row):
-            row["@table_index"] = int(row["x"])
-            yield row
-
-        table = TEST_DIR + "/table"
-        yt.write_table(table, [{"x": "0"}, {"x": "1"}, {"x": "2"}])
-
-        output_tables = [TEST_DIR + "/output_" + str(i) for i in xrange(4)]
-
-        yt.run_map(mapper, table, output_tables,
-                   format=yt.SchemafulDsvFormat(columns=["x"], enable_table_index=True),
-                   spec={"mapper": {"enable_input_table_index": True}})
-
-        assert list(yt.read_table(output_tables[0])) == [{"x": "0"}]
-        assert list(yt.read_table(output_tables[1])) == [{"x": "1"}]
-        assert list(yt.read_table(output_tables[2])) == [{"x": "2"}]
-        assert list(yt.read_table(output_tables[3])) == []
-
-        yt.write_table(table, [{"x": "0"}, {"x": "5"}, {"x": "6"}])
-        with pytest.raises(yt.YtError):
-            yt.run_map(mapper, table, output_tables,
-                       format=yt.SchemafulDsvFormat(columns=["x"], enable_table_index=True),
-                       spec={"mapper": {"enable_input_table_index": True}})
-
-    def test_enable_logging_failed_operation(self):
-        tableX = TEST_DIR + "/tableX"
-        tableY = TEST_DIR + "/tableY"
-        yt.write_table(tableX, [{"x": 1}])
-        with set_config_option("operation_tracker/enable_logging_failed_operation", True):
-            with pytest.raises(yt.YtError):
-                yt.run_map("cat; echo 'Hello %username%!' >&2; exit 1", tableX, tableY)
-
-    def test_get_operation_command(self):
-        table = TEST_DIR + "/table"
-        yt.write_table(table, [{"x": 1}, {"x": 2}])
-
-        with set_config_option("enable_operations_api", True):
-            op = yt.run_map("cat; echo 'AAA' >&2", table, table)
-            check([{"x": 1}, {"x": 2}], list(yt.read_table(table)), ordered=False)
-
-            assert op.get_state() == "completed"
-
-            assert op.get_progress()["total"] == 1
-            assert op.get_progress()["completed"] == 1
-
-            op.get_job_statistics()
-
-            job_infos = op.get_jobs_with_error_or_stderr()
-            assert len(job_infos) == 1
-            assert job_infos[0]["stderr"] == "AAA\n"
-
-    def test_list_operations(self):
-        if yt.config["backend"] == "rpc":
-            pytest.skip()
-
-        assert yt.list_operations()["operations"] == []
-
-        table = TEST_DIR + "/table"
-        yt.write_table(table, [{"x": "0"}])
-        yt.run_map("cat; echo 'AAA' >&2", table, table)
-
-        operations = yt.list_operations()["operations"]
-        assert len(operations) == 1
-
-        operation = operations[0]
-        assert operation["state"] == "completed"
-        assert operation["type"] == "map"
-
-    def test_iterate_operations(self):
-        if yt.config["backend"] == "rpc":
-            pytest.skip()
-
-        assert list(yt.iterate_operations()) == []
-
-        table = "//tmp/table"
-        operation_count = 12
-        table_paths = [0] * operation_count
-        for i in xrange(operation_count):
-            table_paths[i] = table + '_' + str(i)
-
-        for i in xrange(operation_count):
-            yt.write_table(table_paths[i], [{"x": "0"}])
-
-        ops = [0] * operation_count
-        for i in xrange(operation_count):
-            ops[i] = yt.run_map("cat", table_paths[i], table_paths[i], sync=False, format="yson")
-        start_times = [0] * operation_count
-        for i in xrange(operation_count):
-            ops[i].wait()
-            start_times[i] = ops[i].get_attributes(["start_time"])["start_time"]
-        start_times.sort()
-
-        operations = list(yt.iterate_operations(limit_per_request=5))
-        assert len(operations) == operation_count
-
-        past_to_future = list(yt.iterate_operations(from_time=start_times[0], to_time=start_times[-1], cursor_direction="future"))
-        future_to_past = list(yt.iterate_operations(from_time=start_times[0], to_time=start_times[-1], cursor_direction="past"))
-
-        assert past_to_future == future_to_past[::-1]
-        assert future_to_past == operations[1:]
-
-    def test_lazy_yson(self):
-        def mapper(row):
-            assert not isinstance(row, (YsonMap, dict))
-            row["z"] = row["y"] + 1
-            yield row
-
-        def reducer(key, rows):
-            result = {"x": key["x"], "res": 0}
-            for row in rows:
-                assert not isinstance(row, (YsonMap, dict))
-                result["res"] += row["z"]
-            yield result
-
-        table = TEST_DIR + "/table"
-        output_table = TEST_DIR + "/table"
-        yt.write_table(table, [{"x": 1, "y": 2}, {"x": 1, "y": 3}, {"x": 3, "y": 4}])
-        yt.run_map_reduce(mapper, reducer, table, output_table, format="<lazy=%true>yson", reduce_by="x")
-
-        assert list(yt.read_table(output_table)) == [{"x": 1, "res": 7}, {"x": 3, "res": 5}]
-
     def test_multiple_mapper_output_tables_in_mapreduce(self):
         input_table = TEST_DIR + "/table"
         mapper_output_table = TEST_DIR + "/mapper_output_table"
@@ -1658,33 +1874,18 @@ print(op.id)
         check([{"c": "d"}], list(yt.read_table(mapper_output_table)))
         check([{"a": "b"}], list(yt.read_table(output_table)))
 
-    def test_empty_job_command(self):
-        table = TEST_DIR + "/table"
-        output_table = TEST_DIR + "/output_table"
-        yt.write_table(table, [{"x": 1}, {"y": 2}])
+@pytest.mark.usefixtures("yt_env_with_rpc")
+class TestOperationsSkiffFormat(object):
+    def setup(self):
+        yt.config["tabular_data_format"] = yt.format.JsonFormat()
+        self.env = {
+            "YT_CONFIG_PATCHES": dumps_yt_config(),
+            "PYTHONPATH": os.environ.get("PYTHONPATH", "")
+        }
 
-        spec = {"mapper": {"copy_files": True}, "reduce_combiner": {"copy_files": True}}
-        yt.run_map_reduce(mapper=None, reduce_combiner="cat", reducer="cat", reduce_by=["x"],
-                          source_table=table, destination_table=output_table, spec=spec)
-        check([{"x": 1}, {"y": 2}], list(yt.read_table(table)))
-        yt.run_map_reduce(mapper=None, reducer="cat", reduce_by=["x"],
-                          source_table=table, destination_table=output_table, spec=spec)
-        check([{"x": 1}, {"y": 2}], list(yt.read_table(table)))
-
-    def test_update_operation_parameters(self):
-        if "update_op_parameters" not in yt.driver.get_command_list():
-            pytest.skip()
-
-        table = TEST_DIR + "/table"
-        output_table = TEST_DIR + "/output_table"
-        yt.write_table(table, [{"x": 1}, {"y": 2}])
-
-        op = yt.run_map("cat; sleep 100", table, output_table, spec={"weight": 5.0}, format="json", sync=False)
-        wait(lambda: op.get_state() == "running")
-        yt.update_operation_parameters(op.id, {"scheduling_options_per_pool_tree": {"default": {"weight": 10.0}}})
-        wait(lambda: are_almost_equal(
-            yt.get_operation(op.id, include_scheduler=True)["progress"]["scheduling_info_per_pool_tree"]["default"]["weight"],
-            10.0))
+    def teardown(self):
+        yt.config["tabular_data_format"] = None
+        yt.remove("//tmp/yt_wrapper/file_storage", recursive=True, force=True)
 
     @add_failed_operation_stderrs_to_error_message
     def test_skiff(self):
@@ -1935,121 +2136,3 @@ print(op.id)
         yt.run_map(mapper2, TablePath(input_table, attributes={"rename_columns": {"x": "z"}}), output_table3)
         assert list(yt.read_table(output_table3)) == [{"y": 9}, {"y": 25}, {"y": 0}]
 
-    @add_failed_operation_stderrs_to_error_message
-    def test_shuffle(self):
-        table = TEST_DIR + "/table"
-        yt.write_table(table, [{"x": 0}, {"x": 1}, {"x": 2}])
-        yt.shuffle_table(table)
-        assert len(list(yt.read_table(table))) == 3
-
-        table = TEST_DIR + "/table"
-        yt.remove(table)
-        yt.create("table", table, attributes={"schema": [{"name": "x", "type": "int64", "sort_order": "ascending", "required": True}]})
-        yt.write_table(table, [{"x": 0}, {"x": 1}, {"x": 2}])
-        yt.shuffle_table(table)
-        assert len(list(yt.read_table(table))) == 3
-
-    def test_stderr_decoding(self):
-        input_table = TEST_DIR + "/input"
-        output_table = TEST_DIR + "/output"
-        yt.write_table(input_table, [{"x": 0}, {"x": 1}, {"x": 2}])
-        with set_config_option("operation_tracker/stderr_encoding", "latin1"):
-            op = yt.run_map("echo -e -n '\\xF1\\xF2\\xF3\\xF4' >&2; cat", input_table, output_table)
-            job_infos = op.get_jobs_with_error_or_stderr()
-            assert len(job_infos) == 1
-            assert job_infos[0]["stderr"] == "\xF1\xF2\xF3\xF4"
-
-    def test_operation_alert(self):
-        try:
-            config_patch = {
-                "operation_alerts": {
-                    "operation_too_long_alert_min_wall_time": 0,
-                    "operation_too_long_alert_estimate_duration_threshold": 5000
-                }
-            }
-
-            path = "//sys/controller_agents/instances"
-            children = yt.list(path)
-            assert len(children) == 1
-            path = "//sys/controller_agents/instances/{}/orchid/controller_agent/config".format(children[0])
-
-            old_config = yt.get(path)
-
-            yt.set("//sys/controller_agents/config", config_patch)
-
-            wait(lambda: yt.get(path) != old_config)
-
-            input_table = TEST_DIR + "/input"
-            output_table = TEST_DIR + "/output"
-            yt.write_table(input_table, [{"x": i} for i in xrange(100)])
-
-            op = yt.run_map("cat; sleep 120", input_table, output_table, spec={"data_size_per_job": 1}, sync=False)
-            wait(lambda: op.get_attributes(fields=["alerts"]).get("alerts", {}))
-        finally:
-            yt.remove("//sys/controller_agents/config", recursive=True, force=True)
-
-
-    def test_operations_spec(self):
-        input_table = TEST_DIR + "/input"
-        output_table = TEST_DIR + "/output"
-        yt.write_table(input_table, [{"x": 1}])
-
-        op = yt.run_map("cat; sleep 120", input_table, output_table, spec={"asdfghjkl" : 1234567890}, sync=False)
-        wait(lambda: op.get_attributes(fields=["unrecognized_spec"]).get("unrecognized_spec", {}))
-
-    def test_map_without_output(self, tmpdir):
-        input_table = TEST_DIR + "/input"
-        yt.write_table(input_table, [{"x": 1}, {"x": 2}, {"x": 3}])
-        first_file = str(tmpdir.join("first.txt"))
-        second_file = str(tmpdir.join("second.txt"))
-
-        def mapper_without_output(row):
-            with open(first_file, "a+") as f:
-                f.write("{}\n".format(row["x"]))
-
-        def mapper_with_output(row):
-            with open(second_file, "a+") as f:
-                f.write("{}\n".format(row["x"]))
-            yield 10
-            yield 20
-            yield 30
-
-        for path, mapper in zip([first_file, second_file], [mapper_without_output, mapper_with_output]):
-            open(path, "w").close()
-            os.chmod(path, 0o666)
-            yt.run_map(mapper, input_table)
-            with open(path, "r") as f:
-                data = f.read()
-            assert set(data.split()) == {"1", "2", "3"}
-
-    def test_reduce_without_output(self, tmpdir):
-        input_table = TEST_DIR + "/input"
-        yt.write_table(input_table, [
-            {"x": 1, "y": 150},
-            {"x": 1, "y": 250},
-            {"x": 1, "y": 300},
-        ])
-        yt.run_sort(input_table, input_table, sort_by=["x"])
-        first_file = str(tmpdir.join("first.txt"))
-        second_file = str(tmpdir.join("second.txt"))
-
-        def reducer_without_output(key, rows):
-            y = sum(row["y"] for row in rows)
-            with open(first_file, "a") as f:
-                f.write("{}\n".format(y))
-
-        def reducer_with_output(key, rows):
-            y = sum(row["y"] for row in rows)
-            with open(second_file, "a") as f:
-                f.write("{}\n".format(y))
-            yield 10
-            yield 20
-            yield 30
-
-        for path, reducer in zip([first_file, second_file], [reducer_without_output, reducer_with_output]):
-            open(path, "w").close()
-            os.chmod(path, 0o666)
-            yt.run_reduce(reducer, input_table, reduce_by="x")
-            with open(path, "r") as f:
-                data = f.read()
-            assert int(data.strip()) == 700
