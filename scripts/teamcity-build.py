@@ -1221,6 +1221,10 @@ def log_sandbox_upload(options, build_context, task_id):
         "resources": resources,
     }
 
+    # Publish YT_BINARIES resource id to build status.
+    status = "Package: {0}; YT_BINARIES: {1}; {{build.status.text}}".format(build_context["yt_version"], resources["YT_BINARIES"])
+    teamcity_interact("buildStatus", text=status)
+
     # Add to locke.
     yt_wrapper = build_context["yt.wrapper"]
     yt_wrapper.config["proxy"]["url"] = "locke"
