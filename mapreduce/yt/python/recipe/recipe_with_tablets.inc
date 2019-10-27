@@ -4,6 +4,10 @@ DEPENDS(
     contrib/tools/python
 )
 
+REQUIREMENTS(
+    ram_disk:4
+)
+
 USE_RECIPE(
     mapreduce/yt/python/recipe/yt_recipe --wait-tablet-cell-initialization --node-config "{bus_server={bind_retry_count=1};tablet_node={hydra_manager={leader_lease_timeout=100000}}}"
 )
