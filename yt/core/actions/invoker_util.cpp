@@ -175,7 +175,7 @@ void TCurrentInvokerGuard::Restore()
         return;
     }
     Active_ = false;
-    CurrentInvoker.Swap(SavedInvoker_);
+    CurrentInvoker = std::move(SavedInvoker_);
 }
 
 TCurrentInvokerGuard::~TCurrentInvokerGuard()
