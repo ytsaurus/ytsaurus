@@ -96,6 +96,7 @@ class TestHttpApi(object):
 
         json.loads(rsp.text)
 
+    @pytest.mark.skipif("True", reason="Does not work properly until YT-11604")
     def test_json_utf8(self, yp_env):
         utf8_value = b"\xCE\x94" # latin delta
         if PY3:
