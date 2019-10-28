@@ -490,8 +490,8 @@ public:
     //! Allowed resources overcommit duration before scheduler initiate job abortions.
     TDuration AllowedNodeResourcesOvercommitDuration;
 
-    //! Path to cypress root node with pool tree and pool configs.
-    //! Can be path to simple map node or special virtual map node.
+    //! Path to Cypress root node with pool tree and pool configs.
+    //! Can be a path to simple map node or special virtual map node.
     TString PoolTreesRoot;
 
     //! Period of scanning node infos to check that it belongs to some fair share tree.
