@@ -60,7 +60,7 @@ void AppendYPathLiteral(TStringBuilderBase* builder, TStringBuf value)
 {
     builder->Preallocate(value.length() + 16);
     for (unsigned char ch : value) {
-        if (ch == '\\' || ch == '/' || ch == '@' || ch == '*' || ch == '&' || ch == '[' || ch == '{') {
+        if (IsSpecialSymbol(ch)) {
             builder->AppendChar('\\');
             builder->AppendChar(ch);
         } else if (ch < 32 || ch > 127) {
@@ -76,6 +76,11 @@ void AppendYPathLiteral(TStringBuilderBase* builder, TStringBuf value)
 void AppendYPathLiteral(TStringBuilderBase* builder, i64 value)
 {
     builder->AppendFormat("%v", value);
+}
+
+bool IsSpecialSymbol(char ch)
+{
+    return ch == '\\' || ch == '/' || ch == '@' || ch == '*' || ch == '&' || ch == '[' || ch == '{';
 }
 
 ////////////////////////////////////////////////////////////////////////////////
