@@ -1462,7 +1462,7 @@ class TestControllerAgentZombieOrchids(YTEnvSetup):
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "zombie_operation_orchids": {
-                "clear_period": 10 * 1000,
+                "clean_period": 10 * 1000,
             },
         }
     }

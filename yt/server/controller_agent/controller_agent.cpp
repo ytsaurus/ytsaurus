@@ -154,22 +154,22 @@ public:
         return IdToOrchid_;
     }
 
-    void Clear()
+    void Clean()
     {
         IdToOrchid_.clear();
         Queue_ = {};
     }
 
-    void StartPeriodicClearing(const IInvokerPtr& clearInvoker)
+    void StartPeriodicCleaning(const IInvokerPtr& invoker)
     {
         if (!Config_->Enable) {
             return;
         }
-        ClearExecutor_ = New<TPeriodicExecutor>(
-            clearInvoker,
-            BIND(&TZombieOperationOrchids::ClearOldOrchids, MakeWeak(this), Config_->ClearPeriod),
-            Config_->ClearPeriod);
-        ClearExecutor_->Start();
+        CleanExecutor_ = New<TPeriodicExecutor>(
+            invoker,
+            BIND(&TZombieOperationOrchids::CleanOldOrchids, MakeWeak(this), Config_->CleanPeriod),
+            Config_->CleanPeriod);
+        CleanExecutor_->Start();
     }
 
 private:
@@ -177,12 +177,12 @@ private:
     TOperationIdToOrchidMap IdToOrchid_;
     std::queue<std::pair<TInstant, TMapIterator>> Queue_;
 
-    TPeriodicExecutorPtr ClearExecutor_;
+    TPeriodicExecutorPtr CleanExecutor_;
 
-    void ClearOldOrchids(TDuration maxAge)
+    void CleanOldOrchids(TDuration maxAge)
     {
         auto now = TInstant::Now();
-        while (!Queue_.empty() && now - Queue_.front().first > maxAge) {
+        while (!Queue_.empty() && now > Queue_.front().first + maxAge) {
             QueuePop();
         }
     }
@@ -639,7 +639,7 @@ public:
                     auto producer = TYsonProducer(BIND([yson = std::move(yson)] (IYsonConsumer* consumer) {
                         consumer->OnRaw(yson);
                     }));
-                    orchid = IYPathService::FromProducer(std::move(producer), /* cachePeriod */ TDuration())
+                    orchid = IYPathService::FromProducer(std::move(producer))
                         ->Via(this_->GetControllerThreadPoolInvoker());
                 }
                 controller->Commit();
@@ -1001,8 +1001,8 @@ private:
             Config_->SchedulerHeartbeatPeriod);
         HeartbeatExecutor_->Start();
 
-        ZombieOperationOrchids_->Clear();
-        ZombieOperationOrchids_->StartPeriodicClearing(CancelableControlInvoker_);
+        ZombieOperationOrchids_->Clean();
+        ZombieOperationOrchids_->StartPeriodicCleaning(CancelableControlInvoker_);
 
         SchedulerConnected_.Fire();
     }
@@ -1521,7 +1521,7 @@ private:
         : public TVirtualMapBase
     {
     public:
-        TOperationsService(const TControllerAgent::TImpl* controllerAgent)
+        explicit TOperationsService(const TControllerAgent::TImpl* controllerAgent)
             : TVirtualMapBase(nullptr /* owningNode */)
             , ControllerAgent_(controllerAgent)
         { }
@@ -1541,11 +1541,12 @@ private:
                 }
                 keys.emplace_back(ToString(operationId));
             }
-            for (const auto& pair : ControllerAgent_->ZombieOperationOrchids_->GetOperationIdToOrchidMap()) {
+            const auto& zombieOperationOrchids = ControllerAgent_->ZombieOperationOrchids_->GetOperationIdToOrchidMap();
+            for (const auto& [operationId, orchid] : zombieOperationOrchids) {
                 if (static_cast<i64>(keys.size()) >= limit) {
                     break;
                 }
-                keys.emplace_back(ToString(pair.first));
+                keys.emplace_back(ToString(operationId));
             }
             return keys;
         }

@@ -2697,7 +2697,7 @@ void TOperationControllerBase::BuildFinishedJobAttributes(
 {
     auto stderrSize = hasStderr
         // Report nonzero stderr size as we are sure it is saved.
-        ? std::max(job->StderrSize, i64(1))
+        ? std::max(job->StderrSize, static_cast<i64>(1))
         : 0;
 
     i64 failContextSize = hasFailContext ? 1 : 0;
@@ -7260,12 +7260,9 @@ void TOperationControllerBase::BuildJobsYson(TFluentMap fluent) const
 
 void TOperationControllerBase::BuildRetainedFinishedJobsYson(TFluentMap fluent) const
 {
-    for (const auto& job : RetainedFinishedJobs_) {
+    for (const auto& [jobId, attributes] : RetainedFinishedJobs_) {
         fluent
-            .Item(ToString(job.first))
-            .Do([&] (TFluentAny fluentAny) {
-                fluentAny.GetConsumer()->OnRaw(job.second);
-            });
+            .Item(ToString(jobId)).Value(attributes);
     }
 }
 
