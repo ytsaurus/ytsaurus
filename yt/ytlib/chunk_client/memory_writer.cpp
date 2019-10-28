@@ -73,7 +73,7 @@ TChunkReplicaWithMediumList TMemoryWriter::GetWrittenChunkReplicas() const
     YT_UNIMPLEMENTED();
 }
 
-bool TMemoryWriter::HasSickReplicas() const
+bool TMemoryWriter::IsCloseDemanded() const
 {
     YT_UNIMPLEMENTED();
 }

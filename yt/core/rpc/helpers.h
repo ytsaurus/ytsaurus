@@ -12,6 +12,8 @@
 #include <yt/core/rpc/public.h>
 #include <yt/core/rpc/proto/rpc.pb.h>
 
+#include <yt/core/actions/bind.h>
+
 #include <yt/core/tracing/trace_context.h>
 
 namespace NYT::NRpc {
@@ -62,11 +64,12 @@ IChannelFactoryPtr CreateRealmChannelFactory(
 
 //! Returns a wrapper that informs about channel failures.
 /*!
- *  Channel failures are being detected via NRpc::IsChannelFailureError.
+ *  Channel failures are being detected via provided filter.
  */
 IChannelPtr CreateFailureDetectingChannel(
     IChannelPtr underlyingChannel,
-    TCallback<void(IChannelPtr)> onFailure);
+    TCallback<void(IChannelPtr)> onFailure,
+    TCallback<bool(const TError&)> isError = BIND(IsChannelFailureError));
 
 NTracing::TSpanContext GetSpanContext(const NProto::TRequestHeader& header);
 NTracing::TTraceContextPtr GetOrCreateTraceContext(const NProto::TRequestHeader& header);

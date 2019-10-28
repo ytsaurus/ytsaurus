@@ -17,6 +17,8 @@
 
 #include <yt/ytlib/node_tracker_client/node_directory_builder.h>
 
+#include <yt/ytlib/job_tracker_client/statistics.h>
+
 #include <yt/core/concurrency/throughput_throttler.h>
 
 namespace NYT::NControllerAgent {
@@ -910,7 +912,7 @@ TJobResources TTask::ApplyMemoryReserve(const TExtendedJobResources& jobResource
     return result;
 }
 
-void TTask::UpdateMaximumUsedTmpfsSizes(const NJobTrackerClient::TStatistics& statistics)
+void TTask::UpdateMaximumUsedTmpfsSizes(const TStatistics& statistics)
 {
     if (!IsSimpleTask()) {
         return;

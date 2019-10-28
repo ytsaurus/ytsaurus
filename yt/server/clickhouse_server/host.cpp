@@ -31,10 +31,14 @@
 #include <yt/client/misc/discovery.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
+
 #include <yt/core/profiling/profile_manager.h>
+
 #include <yt/core/misc/proc.h>
-#include <yt/core/logging/log_manager.h>
+#include <yt/core/misc/ref_counted_tracker.h>
 #include <yt/core/misc/crash_handler.h>
+
+#include <yt/core/logging/log_manager.h>
 
 #include <yt/core/rpc/bus/channel.h>
 #include <yt/core/rpc/caching_channel_factory.h>
@@ -314,7 +318,7 @@ public:
         for (const auto& [_, attributes] : nodeList) {
             auto host = attributes.at("host")->AsString()->GetValue();
             auto tcpPort = attributes.at("tcp_port")->AsUint64()->GetValue();
-            result.push_back(CreateClusterNode(TClusterNodeName{host, tcpPort}, Context->getSettingsRef(), tcpPort));
+            result.push_back(CreateClusterNode(TClusterNodeName{host, tcpPort}, Context->getSettingsRef(), TcpPort_));
         }
         return result;
     }
@@ -575,6 +579,8 @@ private:
             YT_LOG_ERROR("We are close to OOM, printing query digest codicils and killing ourselves");
             NYT::NLogging::TLogManager::Get()->Shutdown();
             Bootstrap_->GetQueryRegistry()->WriteStateToStderr();
+            Cerr << "*** RefCountedTracker ***\n" << Endl;
+            Cerr << TRefCountedTracker::Get()->GetDebugInfo(2 /* sortByColumn */) << Endl;
             _exit(MemoryLimitExceededExitCode);
         }
     }

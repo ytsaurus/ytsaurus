@@ -5,6 +5,7 @@
 #include <yt/client/table_client/schemaful_reader_adapter.h>
 
 #include <yt/ytlib/scheduler/proto/job.pb.h>
+#include <yt/ytlib/table_client/partitioner.h>
 
 namespace NYT::NJobProxy {
 
@@ -17,6 +18,8 @@ void RunQuery(
     const std::optional<TString>& udfDirectory);
 
 std::vector<NChunkClient::TDataSliceDescriptor> UnpackDataSliceDescriptors(const NScheduler::NProto::TTableInputSpec& inputTableSpec);
+
+NTableClient::IPartitionerPtr CreatePartitioner(const NScheduler::NProto::TPartitionJobSpecExt& partitionJobSpecExt);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -26,6 +26,13 @@ struct TCypressShardAccountStatistics
 
 void Serialize(const TCypressShardAccountStatistics& statistics, NYson::IYsonConsumer* consumer);
 
+TCypressShardAccountStatistics& operator +=(
+    TCypressShardAccountStatistics& lhs,
+    const TCypressShardAccountStatistics& rhs);
+TCypressShardAccountStatistics operator +(
+    const TCypressShardAccountStatistics& lhs,
+    const TCypressShardAccountStatistics& rhs);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A shard is effectively a Cypress subtree.
@@ -44,7 +51,9 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TString, Name);
 
 public:
-    explicit TCypressShard(const TLockId& id);
+    using TNonversionedObjectBase::TNonversionedObjectBase;
+
+    TCypressShardAccountStatistics ComputeTotalAccountStatistics() const;
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);

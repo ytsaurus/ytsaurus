@@ -10,8 +10,6 @@
 #include <yt/ytlib/scheduler/job_resources.h>
 #include <yt/ytlib/scheduler/proto/scheduler_service.pb.h>
 
-#include <yt/ytlib/job_tracker_client/statistics.h>
-
 #include <yt/ytlib/api/native/public.h>
 
 #include <yt/client/api/public.h>

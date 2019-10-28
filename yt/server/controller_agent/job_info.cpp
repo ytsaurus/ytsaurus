@@ -69,7 +69,7 @@ TJobMetrics TJoblet::UpdateJobMetrics(const TJobSummary& jobSummary)
         return TJobMetrics();
     }
 
-    const auto jobMetrics = TJobMetrics::FromJobTrackerStatistics(
+    const auto jobMetrics = TJobMetrics::FromJobStatistics(
         *jobSummary.Statistics,
         jobSummary.State,
         Task->GetTaskHost()->GetConfig()->CustomJobMetrics);

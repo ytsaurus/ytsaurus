@@ -256,6 +256,15 @@ void TDynamicChannelPool::SetAddressList(const TErrorOr<std::vector<TString>>& a
                     if (strongSlot) {
                         strongSlot->SeemsBroken = true;
                     }
+                }),
+                BIND([] (const TError& error) {
+                    if (IsChannelFailureError(error)) {
+                        return true;
+                    }
+
+                    auto code = error.GetCode();
+                    return code == NYT::EErrorCode::Timeout ||
+                           code == EErrorCode::ProxyBanned;
                 }));
 
             replaced[i]->Channel.TrySet(channel);

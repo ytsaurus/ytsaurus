@@ -237,6 +237,10 @@ public:
         NObjectClient::TCellTag cellTag,
         const TExternalizeNodeOptions& options),
         (path, cellTag, options))
+    IMPLEMENT_METHOD(void, InternalizeNode, (
+        const NYPath::TYPath& path,
+        const TInternalizeNodeOptions& options),
+        (path, options))
     IMPLEMENT_METHOD(bool, NodeExists, (
         const NYPath::TYPath& path,
         const TNodeExistsOptions& options),
@@ -670,6 +674,9 @@ private:
         const NYPath::TYPath& path,
         NObjectClient::TCellTag cellTag,
         TExternalizeNodeOptions options);
+    void DoInternalizeNode(
+        const NYPath::TYPath& path,
+        TInternalizeNodeOptions options);
     bool DoNodeExists(
         const NYPath::TYPath& path,
         const TNodeExistsOptions& options);

@@ -52,6 +52,7 @@ using namespace NScheduler;
 using namespace NConcurrency;
 using namespace NYTree;
 using namespace NChunkClient;
+using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
 using namespace NEventLog;
 using namespace NProfiling;
@@ -1011,17 +1012,8 @@ private:
                 if (!event.Error.IsOK()) {
                     ToProto(protoEvent->mutable_error(), event.Error);
                 }
-                if (event.ArchiveJobSpec) {
-                    protoEvent->set_archive_job_spec(*event.ArchiveJobSpec);
-                }
-                if (event.ArchiveStderr) {
-                    protoEvent->set_archive_stderr(*event.ArchiveStderr);
-                }
-                if (event.ArchiveFailContext) {
-                    protoEvent->set_archive_fail_context(*event.ArchiveFailContext);
-                }
-                if (event.ArchiveProfile) {
-                    protoEvent->set_archive_profile(*event.ArchiveProfile);
+                if (event.ReleaseFlags) {
+                    ToProto(protoEvent->mutable_release_job_flags(), *event.ReleaseFlags);
                 }
             });
 

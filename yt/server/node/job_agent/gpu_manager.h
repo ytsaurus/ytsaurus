@@ -57,6 +57,7 @@ public:
     using TGpuSlotPtr = std::unique_ptr<TGpuSlot, std::function<void(TGpuSlot*)>>;
     TGpuSlotPtr AcquireGpuSlot();
 
+    std::vector<TShellCommandConfigPtr> GetSetupCommands();
     std::vector<NDataNode::TArtifactKey> GetToppingLayers();
     void VerifyToolkitDriverVersion(const TString& toolkitVersion);
 

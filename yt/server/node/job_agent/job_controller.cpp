@@ -17,7 +17,6 @@
 #include <yt/ytlib/job_tracker_client/proto/job.pb.h>
 #include <yt/ytlib/job_tracker_client/job_spec_service_proxy.h>
 #include <yt/ytlib/job_tracker_client/helpers.h>
-#include <yt/ytlib/job_tracker_client/statistics.h>
 
 #include <yt/ytlib/node_tracker_client/helpers.h>
 
@@ -38,6 +37,7 @@
 
 #include <yt/core/misc/fs.h>
 #include <yt/core/misc/proc.h>
+#include <yt/core/misc/statistics.h>
 
 #include <yt/core/net/helpers.h>
 
@@ -51,7 +51,6 @@ using namespace NRpc;
 using namespace NObjectClient;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
-using namespace NJobTrackerClient::NProto;
 using namespace NJobTrackerClient;
 using namespace NYson;
 using namespace NYTree;
@@ -60,6 +59,10 @@ using namespace NConcurrency;
 using namespace NProfiling;
 using namespace NScheduler;
 using namespace NNet;
+
+using NJobTrackerClient::NProto::TJobResult;
+using NJobTrackerClient::NProto::TJobSpec;
+using NJobTrackerClient::NProto::TJobStatus;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -193,10 +196,7 @@ private:
      */
     void RemoveJob(
         const IJobPtr& job,
-        bool archiveJobSpec,
-        bool archiveStderr,
-        bool archiveFailContext,
-        bool archiveProfile);
+        const TReleaseJobFlags& releaseFlags);
 
     std::vector<IJobPtr> GetRunningSchedulerJobsSortedByStartTime() const;
 
@@ -857,20 +857,17 @@ void TJobController::TImpl::InterruptJob(const IJobPtr& job)
 
 void TJobController::TImpl::RemoveJob(
     const IJobPtr& job,
-    bool archiveJobSpec,
-    bool archiveStderr,
-    bool archiveFailContext,
-    bool archiveProfile)
+    const TReleaseJobFlags& releaseFlags)
 {
     YT_VERIFY(job->GetPhase() >= EJobPhase::Cleanup);
     YT_VERIFY(job->GetResourceUsage() == ZeroNodeResources());
 
-    if (archiveJobSpec) {
+    if (releaseFlags.ArchiveJobSpec) {
         YT_LOG_INFO("Archivind job spec (JobId: %v)", job->GetId());
         job->ReportSpec();
     }
 
-    if (archiveStderr) {
+    if (releaseFlags.ArchiveStderr) {
         YT_LOG_INFO("Archiving stderr (JobId: %v)", job->GetId());
         job->ReportStderr();
     } else {
@@ -879,17 +876,17 @@ void TJobController::TImpl::RemoveJob(
         job->SetStderrSize(0);
     }
 
-    if (archiveFailContext) {
+    if (releaseFlags.ArchiveFailContext) {
         YT_LOG_INFO("Archiving fail context (JobId: %v)", job->GetId());
         job->ReportFailContext();
     }
 
-    if (archiveProfile) {
+    if (releaseFlags.ArchiveProfile) {
         YT_LOG_INFO("Archiving profile (JobId: %v)", job->GetId());
         job->ReportProfile();
     }
 
-    bool shouldSave = archiveJobSpec || archiveStderr;
+    bool shouldSave = releaseFlags.ArchiveJobSpec || releaseFlags.ArchiveStderr;
     if (shouldSave) {
         YT_LOG_INFO("Job saved to recently finished jobs (JobId: %v)", job->GetId());
         RecentlyRemovedJobMap_.emplace(job->GetId(), TRecentlyRemovedJobRecord{job, TInstant::Now()});
@@ -1154,7 +1151,7 @@ void TJobController::TImpl::ProcessHeartbeatResponse(
 
         auto job = FindJob(jobId);
         if (job) {
-            RemoveJob(job, jobToRemove.ArchiveJobSpec, jobToRemove.ArchiveStderr, jobToRemove.ArchiveFailContext, jobToRemove.ArchiveProfile);
+            RemoveJob(job, jobToRemove.ReleaseFlags);
         } else {
             YT_LOG_WARNING("Requested to remove a non-existent job (JobId: %v)",
                 jobId);

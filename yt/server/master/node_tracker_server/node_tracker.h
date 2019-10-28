@@ -29,7 +29,6 @@ public:
     TNodeTracker(
         TNodeTrackerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
-    ~TNodeTracker();
 
     void Initialize();
 
@@ -111,6 +110,9 @@ public:
         IncrementalHeartbeat);
 
 
+    //! Constructs the full object id from a (short) node id.
+    NObjectClient::TObjectId ObjectIdFromNodeId(TNodeId nodeId);
+
     //! Returns a node with a given id (|nullptr| if none).
     TNode* FindNode(TNodeId id);
 
@@ -167,12 +169,6 @@ public:
     //! Sets the flag disabling tablet cells at the node.
     void SetDisableTabletCells(TNode* node, bool value);
 
-    //! Creates a new rack with a given name. Throws on name conflict.
-    TRack* CreateRack(const TString& name);
-
-    //! Destroys an existing rack.
-    void DestroyRack(TRack* rack);
-
     //! Renames an existing racks. Throws on name conflict.
     void RenameRack(TRack* rack, const TString& newName);
 
@@ -188,9 +184,6 @@ public:
 
     //! Creates a new data center with a given name. Throws on name conflict.
     TDataCenter* CreateDataCenter(const TString& name);
-
-    //! Destroys an existing data center.
-    void DestroyDataCenter(TDataCenter* dc);
 
     //! Renames an existing data center. Throws on name conflict.
     void RenameDataCenter(TDataCenter* dc, const TString& newName);
@@ -210,12 +203,19 @@ public:
 
 private:
     class TImpl;
-    class TClusterNodeTypeHandler;
-    class TRackTypeHandler;
-    class TDataCenterTypeHandler;
-
     const TIntrusivePtr<TImpl> Impl_;
 
+    friend class TNodeTypeHandler;
+    friend class TRackTypeHandler;
+    friend class TDataCenterTypeHandler;
+
+    void ZombifyNode(TNode* node);
+
+    TRack* CreateRack(const TString& name, NObjectClient::TObjectId hintId);
+    void ZombifyRack(TRack* rack);
+
+    TDataCenter* CreateDataCenter(const TString& name, NObjectClient::TObjectId hintId);
+    void ZombifyDataCenter(TDataCenter* dc);
 };
 
 DEFINE_REFCOUNTED_TYPE(TNodeTracker)

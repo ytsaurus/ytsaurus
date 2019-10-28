@@ -152,6 +152,7 @@ message TRspMaterializeOperation
 {
     // Set to true if suspend_operation_after_materialization is set.
     optional bool suspend = 1;
+    optional NScheduler.NProto.TJobResources initial_needed_resources = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -180,6 +181,7 @@ message TRspReviveOperation
     required bool revived_from_snapshot = 2;
     repeated TRevivedJob revived_jobs = 3;
     repeated string revived_banned_tree_ids = 4;
+    optional NScheduler.NProto.TJobResources needed_resources = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

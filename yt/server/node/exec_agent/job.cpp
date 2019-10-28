@@ -50,6 +50,7 @@
 #include <yt/core/logging/log_manager.h>
 
 #include <yt/core/misc/proc.h>
+#include <yt/core/misc/statistics.h>
 
 #include <yt/core/rpc/dispatcher.h>
 
@@ -1136,7 +1137,7 @@ private:
         YT_VERIFY(JobResult_);
 
         // Copy info from traffic meter to statistics.
-        auto deserializedStatistics = ConvertTo<NJobTrackerClient::TStatistics>(Statistics_);
+        auto deserializedStatistics = ConvertTo<TStatistics>(Statistics_);
         FillTrafficStatistics(ExecAgentTrafficStatisticsPrefix, deserializedStatistics, TrafficMeter_);
         Statistics_ = ConvertToYsonString(deserializedStatistics);
 
@@ -1671,7 +1672,7 @@ private:
 
     TYsonString EnrichStatisticsWithGpuInfo(const TYsonString& statisticsYson)
     {
-        auto statistics = ConvertTo<NJobTrackerClient::TStatistics>(statisticsYson);
+        auto statistics = ConvertTo<TStatistics>(statisticsYson);
 
         i64 totalUtilizationGpu = 0;
         i64 totalUtilizationMemory = 0;
@@ -1729,7 +1730,12 @@ private:
         };
 
         addIfPresent(Config_->JobController->JobSetupCommand);
-        addIfPresent(Config_->JobController->GpuManager->JobSetupCommand);
+
+        bool needGpu = GetResourceUsage().gpu() > 0 || Config_->JobController->TestGpuSetupCommands;
+        if (needGpu) {
+            auto gpu_commands = Bootstrap_->GetGpuManager()->GetSetupCommands();
+            result.insert(result.end(), gpu_commands.begin(), gpu_commands.end());
+        }
 
         return result;
     }

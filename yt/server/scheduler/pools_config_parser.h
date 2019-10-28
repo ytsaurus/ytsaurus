@@ -9,47 +9,53 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EUpdatePoolActionType,
+    (Keep)
+    (Create)
+    (Move)
+    (Erase)
+)
+
+// The purpose of this class is not only to parse and validate config
+// but also to generate ordered sequence of primitive actions on existent pool tree structure.
+// This sequence must provide safe transition to new tree structure where all intermediate states are consistent.
+// See https://wiki.yandex-team.ru/yt/internal/Update-pools-config-algorithm/ for details.
 class TPoolsConfigParser
 {
 public:
-    struct TParsePoolResult
+    struct TUpdatePoolAction
     {
-        TString ParentId = nullptr;
+        TString Name = nullptr;
+        TString ParentName = nullptr;
         TPoolConfigPtr PoolConfig = nullptr;
-        bool IsNew = false;
-        bool ParentIsChanged = false;
+        EUpdatePoolActionType Type = EUpdatePoolActionType::Keep;
     };
 
-    TPoolsConfigParser(THashMap<TString, TString> poolToParentMap, TString rootElementId)
+    explicit TPoolsConfigParser(THashMap<TString, TString> poolToParentMap)
         : OldPoolToParentMap_(std::move(poolToParentMap))
-        , RootElementId_(std::move(rootElementId))
     { }
 
     TError TryParse(const NYTree::INodePtr& rootNode)
     {
-        TryParse(rootNode, RootElementId_, /* pathToRootChanged */ false);
+        if (TryParse(rootNode, RootPoolName, /* isFifo */ false)) {
+            ProcessErasedPools();
+        }
         return Error_;
     }
 
-    const THashMap<TString, TParsePoolResult>& GetPoolConfigMap()
+    const std::vector<TUpdatePoolAction>& GetOrderedUpdatePoolActions()
     {
-        return PoolConfigMap_;
-    }
-
-    const std::vector<TString>& GetNewPoolsByInOrderTraversal()
-    {
-        return NewPools_;
+        return UpdatePoolActions;
     }
 
 private:
-    THashMap<TString, TString> OldPoolToParentMap_;
-    TString RootElementId_;
+    const THashMap<TString, TString> OldPoolToParentMap_;
 
-    THashMap <TString, TParsePoolResult> PoolConfigMap_;
-    std::vector<TString> NewPools_;
+    THashSet<TString> ParsedPoolNames_;
+    std::vector<TUpdatePoolAction> UpdatePoolActions;
     TError Error_;
 
-    bool TryParse(const NYTree::INodePtr& configNode, const TString& parentId, bool pathToRootChanged)
+    bool TryParse(const NYTree::INodePtr& configNode, const TString& parentName, bool isFifo)
     {
         auto nodeType = configNode->GetType();
         if (nodeType != NYTree::ENodeType::Map) {
@@ -57,64 +63,103 @@ private:
             return false;
         }
 
-        for (const auto& [childId, childNode] : configNode->AsMap()->GetChildren()) {
-            if (childId == RootPoolName) {
+        auto children = configNode->AsMap()->GetChildren();
+
+        if (isFifo && !children.empty()) {
+            Error_ = TError("Pool %Qv cannot have subpools since it is in fifo mode", parentName);
+            return false;
+        }
+
+        for (const auto& [childName, childNode] : children) {
+            if (childName == RootPoolName) {
                 Error_ = TError("Use of root element id is forbidden");
                 return false;
             }
 
-            if (PoolConfigMap_.contains(childId)) {
-                Error_ = TError("Duplicate poolId %v found in new configuration", childId);
+            if (ParsedPoolNames_.contains(childName)) {
+                Error_ = TError("Duplicate poolId %v found in new configuration", childName);
                 return false;
             }
 
-            TParsePoolResult parsePoolResult;
-            parsePoolResult.ParentId = parentId;
+            TUpdatePoolAction updatePoolAction;
+            updatePoolAction.Name = childName;
+            updatePoolAction.ParentName = parentName;
             try {
-                parsePoolResult.PoolConfig = NYTree::ConvertTo<TPoolConfigPtr>(childNode->Attributes());
-                parsePoolResult.PoolConfig->Validate();
+                updatePoolAction.PoolConfig = NYTree::ConvertTo<TPoolConfigPtr>(childNode->Attributes());
+                updatePoolAction.PoolConfig->Validate();
             } catch (const std::exception& ex) {
-                Error_ = TError("Parsing configuration of pool %Qv failed", childId)
+                Error_ = TError("Parsing configuration of pool %Qv failed", childName)
                     << ex;
                 return false;
             }
 
-            auto oldParentIt = OldPoolToParentMap_.find(childId);
+            auto oldParentIt = OldPoolToParentMap_.find(childName);
             if (oldParentIt != OldPoolToParentMap_.end()) {
-                parsePoolResult.IsNew = false;
-
-                if (parentId == oldParentIt->second) {
-                    parsePoolResult.ParentIsChanged = false;
+                if (parentName == oldParentIt->second) {
+                    updatePoolAction.Type = EUpdatePoolActionType::Keep;
                 } else {
-                    if (pathToRootChanged) {
-                        Error_ = TError("Path to pool %Qv changed in more than one place; make pool tree changes more gradually",
-                            childId);
-                        return false;
-                    }
-                    pathToRootChanged = true;
-                    parsePoolResult.ParentIsChanged = true;
+                    updatePoolAction.Type = EUpdatePoolActionType::Move;
                 }
             } else {
-                parsePoolResult.IsNew = true;
-                parsePoolResult.ParentIsChanged = false;
-                NewPools_.push_back(childId);
+                updatePoolAction.Type = EUpdatePoolActionType::Create;
             }
 
-            if (parentId != RootElementId_) {
-                auto it = PoolConfigMap_.find(parentId);
-                YT_VERIFY(it != PoolConfigMap_.end());
-                if (it->second.PoolConfig->Mode == ESchedulingMode::Fifo) {
-                    Error_ = TError("Pool %Qv cannot have subpools since it is in fifo mode", parentId);
-                    return false;
-                }
-            }
 
-            PoolConfigMap_.emplace(childId, std::move(parsePoolResult));
-            if (!TryParse(childNode, childId, pathToRootChanged)) {
+            bool childIsFifo = updatePoolAction.PoolConfig->Mode == ESchedulingMode::Fifo;
+            UpdatePoolActions.push_back(std::move(updatePoolAction));
+            YT_VERIFY(ParsedPoolNames_.insert(childName).second);
+
+            if (!TryParse(childNode, childName, childIsFifo)) {
                 return false;
             }
         }
         return true;
+    }
+
+    void ProcessErasedPools()
+    {
+        THashMap<TString, TString> erasingPoolToParent;
+        for (const auto& [poolName, parent] : OldPoolToParentMap_) {
+            if (!ParsedPoolNames_.contains(poolName)) {
+                erasingPoolToParent.emplace(poolName, parent);
+            }
+        }
+        THashMap<TString, int> parentReferenceCount;
+        for (const auto& [poolName, parent] : erasingPoolToParent) {
+            if (erasingPoolToParent.contains(parent)) {
+                ++parentReferenceCount[parent];
+            }
+        }
+        std::vector<TString> candidates;
+        for (const auto& [poolName, _] : erasingPoolToParent) {
+            if (!parentReferenceCount.contains(poolName)) {
+                candidates.push_back(poolName);
+            }
+        }
+        int eraseActionCount = 0;
+        while (!candidates.empty()) {
+            auto poolName = std::move(candidates.back());
+            candidates.pop_back();
+
+            TUpdatePoolAction eraseAction {
+                .Name = poolName,
+                .Type = EUpdatePoolActionType::Erase
+            };
+            UpdatePoolActions.emplace_back(eraseAction);
+            ++eraseActionCount;
+
+            auto parentIt = OldPoolToParentMap_.find(poolName);
+            YT_VERIFY(parentIt);
+            auto it = parentReferenceCount.find(parentIt->second);
+            if (it != parentReferenceCount.end()) {
+                --it->second;
+                if (it->second == 0) {
+                    candidates.push_back(it->first);
+                    parentReferenceCount.erase(it);
+                }
+            }
+        }
+        YT_VERIFY(eraseActionCount == erasingPoolToParent.size());
     }
 };
 

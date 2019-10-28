@@ -997,6 +997,37 @@ class TestSchedulerSortCommands(YTEnvSetup):
                 out="//tmp/t2",
                 spec={"input_query": "a where a > 0"})
 
+    @authors("gritukan")
+    def test_pivot_keys(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+
+        rows = [{"key": "%02d" % key} for key in range(50)]
+        shuffle(rows)
+        write_table("//tmp/t1", rows)
+
+        sort(in_="//tmp/t1",
+             out="//tmp/t2",
+             sort_by="key",
+             spec={"pivot_keys": [["01"], ["43"]]})
+        assert_items_equal(read_table("//tmp/t2"), sorted(rows))
+        chunk_ids = get("//tmp/t2/@chunk_ids")
+        assert sorted([get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]) == [1, 7, 42]
+
+    @authors("gritukan")
+    def test_pivot_keys_incorrect_options(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+
+        rows = [{"key": "%02d" % i, "value": i} for i in range(50)]
+        write_table("//tmp/t1", rows)
+
+        with pytest.raises(YtError):
+            sort(in_="//tmp/t1",
+                 out="//tmp/t2",
+                 sort_by="key",
+                 spec={"pivot_keys": [["73"], ["37"]]})
+
 ##################################################################
 
 class TestSchedulerSortCommandsMulticell(TestSchedulerSortCommands):

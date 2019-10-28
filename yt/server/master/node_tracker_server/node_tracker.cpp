@@ -2,11 +2,11 @@
 #include "private.h"
 #include "config.h"
 #include "node.h"
-#include "node_proxy.h"
 #include "rack.h"
-#include "rack_proxy.h"
 #include "data_center.h"
-#include "data_center_proxy.h"
+#include "node_type_handler.h"
+#include "rack_type_handler.h"
+#include "data_center_type_handler.h"
 
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/hydra_facade.h>
@@ -23,7 +23,6 @@
 
 #include <yt/server/master/object_server/attribute_set.h>
 #include <yt/server/master/object_server/object_manager.h>
-#include <yt/server/master/object_server/type_handler_detail.h>
 
 #include <yt/server/master/transaction_server/transaction.h>
 #include <yt/server/master/transaction_server/transaction_manager.h>
@@ -88,138 +87,6 @@ static NProfiling::TAggregateGauge NodeDisposeTimeCounter("/node_dispose_time");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNodeTracker::TClusterNodeTypeHandler
-    : public TObjectTypeHandlerBase<TNode>
-{
-public:
-    explicit TClusterNodeTypeHandler(TImpl* owner);
-
-    virtual ETypeFlags GetFlags() const override
-    {
-        return
-            ETypeFlags::ReplicateDestroy |
-            ETypeFlags::ReplicateAttributes |
-            ETypeFlags::Removable;
-    }
-
-    virtual EObjectType GetType() const override
-    {
-        return EObjectType::ClusterNode;
-    }
-
-    virtual TObject* FindObject(TObjectId id) override;
-
-private:
-    TImpl* const Owner_;
-
-    virtual TCellTagList DoGetReplicationCellTags(const TNode* node) override
-    {
-        return AllSecondaryCellTags();
-    }
-
-    virtual TString DoGetName(const TNode* node) override
-    {
-        return Format("node %v", node->GetDefaultAddress());
-    }
-
-    virtual IObjectProxyPtr DoGetProxy(TNode* node, TTransaction* transaction) override;
-
-    virtual void DoZombifyObject(TNode* node) override;
-    virtual void DoDestroyObject(TNode* node) override;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TNodeTracker::TRackTypeHandler
-    : public TObjectTypeHandlerWithMapBase<TRack>
-{
-public:
-    explicit TRackTypeHandler(TImpl* owner);
-
-    virtual ETypeFlags GetFlags() const override
-    {
-        return
-            ETypeFlags::ReplicateCreate |
-            ETypeFlags::ReplicateDestroy |
-            ETypeFlags::ReplicateAttributes |
-            ETypeFlags::Creatable |
-            ETypeFlags::Removable;
-    }
-
-    virtual EObjectType GetType() const override
-    {
-        return EObjectType::Rack;
-    }
-
-    virtual TObject* CreateObject(
-        TObjectId hintId,
-        IAttributeDictionary* attributes) override;
-
-private:
-    TImpl* const Owner_;
-
-    virtual TCellTagList DoGetReplicationCellTags(const TRack* /*rack*/) override
-    {
-        return AllSecondaryCellTags();
-    }
-
-    virtual TString DoGetName(const TRack* rack) override
-    {
-        return Format("rack %Qv", rack->GetName());
-    }
-
-    virtual IObjectProxyPtr DoGetProxy(TRack* rack, TTransaction* transaction) override;
-
-    virtual void DoZombifyObject(TRack* rack) override;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TNodeTracker::TDataCenterTypeHandler
-    : public TObjectTypeHandlerWithMapBase<TDataCenter>
-{
-public:
-    explicit TDataCenterTypeHandler(TImpl* owner);
-
-    virtual ETypeFlags GetFlags() const override
-    {
-        return
-            ETypeFlags::ReplicateCreate |
-            ETypeFlags::ReplicateDestroy |
-            ETypeFlags::ReplicateAttributes |
-            ETypeFlags::Creatable |
-            ETypeFlags::Removable;
-    }
-
-    virtual EObjectType GetType() const override
-    {
-        return EObjectType::DataCenter;
-    }
-
-    virtual TObject* CreateObject(
-        TObjectId hintId,
-        IAttributeDictionary* attributes) override;
-
-private:
-    TImpl* const Owner_;
-
-    virtual TCellTagList DoGetReplicationCellTags(const TDataCenter* /*dc*/) override
-    {
-        return AllSecondaryCellTags();
-    }
-
-    virtual TString DoGetName(const TDataCenter* dc) override
-    {
-        return Format("DC %Qv", dc->GetName());
-    }
-
-    virtual IObjectProxyPtr DoGetProxy(TDataCenter* dc, TTransaction* transaction) override;
-
-    virtual void DoZombifyObject(TDataCenter* dc) override;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TNodeTracker::TImpl
     : public TMasterAutomatonPart
 {
@@ -268,9 +135,9 @@ public:
         transactionManager->SubscribeTransactionAborted(BIND(&TImpl::OnTransactionFinished, MakeWeak(this)));
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        objectManager->RegisterHandler(New<TClusterNodeTypeHandler>(this));
-        objectManager->RegisterHandler(New<TRackTypeHandler>(this));
-        objectManager->RegisterHandler(New<TDataCenterTypeHandler>(this));
+        objectManager->RegisterHandler(CreateNodeTypeHandler(Bootstrap_, &NodeMap_));
+        objectManager->RegisterHandler(CreateRackTypeHandler(Bootstrap_, &RackMap_));
+        objectManager->RegisterHandler(CreateDataCenterTypeHandler(Bootstrap_, &DataCenterMap_));
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster()) {
@@ -369,22 +236,7 @@ public:
     DEFINE_SIGNAL(void(TDataCenter*), DataCenterDestroyed);
 
 
-    const TDynamicNodeTrackerConfigPtr& GetDynamicConfig()
-    {
-        return Bootstrap_->GetConfigManager()->GetConfig()->NodeTracker;
-    }
-
-    void OnDynamicConfigChanged()
-    {
-        RebuildNodeGroups();
-        RecomputePendingRegisterNodeMutationCounters();
-        ReconfigureGossipPeriods();
-        ReconfigureNodeSemaphores();
-        RebuildTotalNodeStatistics();
-    }
-
-
-    void DestroyNode(TNode* node)
+    void ZombifyNode(TNode* node)
     {
         auto nodeMapProxy = GetNodeMap();
         auto nodeNodeProxy = nodeMapProxy->FindChild(ToString(node->GetDefaultAddress()));
@@ -402,6 +254,13 @@ public:
         RemoveFromAddressMaps(node);
 
         RecomputePendingRegisterNodeMutationCounters();
+    }
+
+    TObjectId ObjectIdFromNodeId(TNodeId nodeId)
+    {
+        return NNodeTrackerClient::ObjectIdFromNodeId(
+            nodeId,
+            Bootstrap_->GetMulticellManager()->GetPrimaryCellTag());
     }
 
     TNode* FindNode(TNodeId id)
@@ -624,7 +483,7 @@ public:
         return rack;
     }
 
-    void DestroyRack(TRack* rack)
+    void ZombifyRack(TRack* rack)
     {
         // Unbind nodes from this rack.
         for (auto* node : GetRackNodes(rack)) {
@@ -741,7 +600,7 @@ public:
         return dc;
     }
 
-    void DestroyDataCenter(TDataCenter* dc)
+    void ZombifyDataCenter(TDataCenter* dc)
     {
         // Unbind racks from this DC.
         for (auto* rack : GetDataCenterRacks(dc)) {
@@ -822,10 +681,6 @@ public:
     }
 
 private:
-    friend class TClusterNodeTypeHandler;
-    friend class TRackTypeHandler;
-    friend class TDataCenterTypeHandler;
-
     const TNodeTrackerConfigPtr Config_;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
@@ -891,13 +746,6 @@ private:
             }
         }
         return id;
-    }
-
-    TObjectId ObjectIdFromNodeId(TNodeId nodeId)
-    {
-        return NNodeTrackerClient::ObjectIdFromNodeId(
-            nodeId,
-            Bootstrap_->GetMulticellManager()->GetPrimaryCellTag());
     }
 
 
@@ -1160,6 +1008,7 @@ private:
                 *response->mutable_resource_limits_overrides() = node->ResourceLimitsOverrides();
                 response->set_disable_scheduler_jobs(node->GetDisableSchedulerJobs());
                 response->set_disable_write_sessions(node->GetDisableWriteSessions());
+                response->set_decommissioned(node->GetDecommissioned());
             }
 
             IncrementalHeartbeat_.Fire(node, request, response);
@@ -1237,6 +1086,16 @@ private:
         NodeMap_.LoadValues(context);
         RackMap_.LoadValues(context);
         DataCenterMap_.LoadValues(context);
+
+        // COMPAT(babenko)
+        if (context.GetVersion() < EMasterReign::FixClusterNodeForeignFlag) {
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            for (auto [nodeId, node] : NodeMap_) {
+                if (node->GetNativeCellTag() != multicellManager->GetCellTag()) {
+                    node->SetForeign();
+                }
+            }
+        }
     }
 
 
@@ -1466,6 +1325,11 @@ private:
 
         // Make the fake reference.
         YT_VERIFY(node->RefObject() == 1);
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (node->GetNativeCellTag() != multicellManager->GetCellTag()) {
+            node->SetForeign();
+        }
 
         InitializeNodeStates(node);
 
@@ -1956,6 +1820,21 @@ private:
             NProfiling::GetCpuInstant() +
             DurationToCpuDuration(GetDynamicConfig()->TotalNodeStatisticsUpdatePeriod);
     }
+
+
+    const TDynamicNodeTrackerConfigPtr& GetDynamicConfig()
+    {
+        return Bootstrap_->GetConfigManager()->GetConfig()->NodeTracker;
+    }
+
+    void OnDynamicConfigChanged()
+    {
+        RebuildNodeGroups();
+        RecomputePendingRegisterNodeMutationCounters();
+        ReconfigureGossipPeriods();
+        ReconfigureNodeSemaphores();
+        RebuildTotalNodeStatistics();
+    }
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker::TImpl, Node, TNode, NodeMap_)
@@ -1975,7 +1854,10 @@ void TNodeTracker::Initialize()
     Impl_->Initialize();
 }
 
-TNodeTracker::~TNodeTracker() = default;
+TObjectId TNodeTracker::ObjectIdFromNodeId(TNodeId nodeId)
+{
+    return Impl_->ObjectIdFromNodeId(nodeId);
+}
 
 TNode* TNodeTracker::FindNode(TNodeId id)
 {
@@ -2058,16 +1940,6 @@ std::unique_ptr<TMutation> TNodeTracker::CreateUpdateNodeResourcesMutation(
     return Impl_->CreateUpdateNodeResourcesMutation(request);
 }
 
-TRack* TNodeTracker::CreateRack(const TString& name)
-{
-    return Impl_->CreateRack(name, NullObjectId);
-}
-
-void TNodeTracker::DestroyRack(TRack* rack)
-{
-    Impl_->DestroyRack(rack);
-}
-
 void TNodeTracker::RenameRack(TRack* rack, const TString& newName)
 {
     Impl_->RenameRack(rack, newName);
@@ -2086,16 +1958,6 @@ TRack* TNodeTracker::GetRackByNameOrThrow(const TString& name)
 void TNodeTracker::SetRackDataCenter(TRack* rack, TDataCenter* dc)
 {
     return Impl_->SetRackDataCenter(rack, dc);
-}
-
-TDataCenter* TNodeTracker::CreateDataCenter(const TString& name)
-{
-    return Impl_->CreateDataCenter(name, NullObjectId);
-}
-
-void TNodeTracker::DestroyDataCenter(TDataCenter* dc)
-{
-    Impl_->DestroyDataCenter(dc);
 }
 
 void TNodeTracker::RenameDataCenter(TDataCenter* dc, const TString& newName)
@@ -2140,6 +2002,31 @@ int TNodeTracker::GetOnlineNodeCount()
     return Impl_->GetOnlineNodeCount();
 }
 
+void TNodeTracker::ZombifyNode(TNode* node)
+{
+    Impl_->ZombifyNode(node);
+}
+
+TRack* TNodeTracker::CreateRack(const TString& name, TObjectId hintId)
+{
+    return Impl_->CreateRack(name, hintId);
+}
+
+void TNodeTracker::ZombifyRack(TRack* rack)
+{
+    Impl_->ZombifyRack(rack);
+}
+
+TDataCenter* TNodeTracker::CreateDataCenter(const TString& name, TObjectId hintId)
+{
+    return Impl_->CreateDataCenter(name, hintId);
+}
+
+void TNodeTracker::ZombifyDataCenter(TDataCenter* dc)
+{
+    Impl_->ZombifyDataCenter(dc);
+}
+
 DELEGATE_ENTITY_MAP_ACCESSORS(TNodeTracker, Node, TNode, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TNodeTracker, Rack, TRack, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TNodeTracker, DataCenter, TDataCenter, *Impl_)
@@ -2158,106 +2045,6 @@ DELEGATE_SIGNAL(TNodeTracker, void(TNode*, TReqIncrementalHeartbeat*, TRspIncrem
 DELEGATE_SIGNAL(TNodeTracker, void(TDataCenter*), DataCenterCreated, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TDataCenter*), DataCenterRenamed, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TDataCenter*), DataCenterDestroyed, *Impl_);
-
-////////////////////////////////////////////////////////////////////////////////
-
-TNodeTracker::TClusterNodeTypeHandler::TClusterNodeTypeHandler(TImpl* owner)
-    : TObjectTypeHandlerBase(owner->Bootstrap_)
-    , Owner_(owner)
-{ }
-
-TObject* TNodeTracker::TClusterNodeTypeHandler::FindObject(TObjectId id)
-{
-    auto* node = Owner_->FindNode(NodeIdFromObjectId(id));
-    if (!node) {
-        return nullptr;
-    }
-    if (Owner_->ObjectIdFromNodeId(node->GetId()) != id) {
-        return  nullptr;
-    }
-    return node;
-}
-
-IObjectProxyPtr TNodeTracker::TClusterNodeTypeHandler::DoGetProxy(
-    TNode* node,
-    TTransaction* /*transaction*/)
-{
-    return CreateClusterNodeProxy(Owner_->Bootstrap_, &Metadata_, node);
-}
-
-void TNodeTracker::TClusterNodeTypeHandler::DoZombifyObject(TNode* node)
-{
-    TObjectTypeHandlerBase::DoZombifyObject(node);
-    // NB: Destroy the node right away and do not wait for GC to prevent
-    // dangling links from occurring in //sys/cluster_nodes.
-    Owner_->DestroyNode(node);
-}
-
-void TNodeTracker::TClusterNodeTypeHandler::DoDestroyObject(TNode* node)
-{
-    TObjectTypeHandlerBase::DoDestroyObject(node);
-    // Remove the object from the map but keep it alive.
-    Owner_->NodeMap_.Release(node->TObject::GetId()).release();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TNodeTracker::TRackTypeHandler::TRackTypeHandler(TImpl* owner)
-    : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->RackMap_)
-    , Owner_(owner)
-{ }
-
-TObject* TNodeTracker::TRackTypeHandler::CreateObject(
-    TObjectId hintId,
-    IAttributeDictionary* attributes)
-{
-    auto name = attributes->GetAndRemove<TString>("name");
-
-    return Owner_->CreateRack(name, hintId);
-}
-
-IObjectProxyPtr TNodeTracker::TRackTypeHandler::DoGetProxy(
-    TRack* rack,
-    TTransaction* /*transaction*/)
-{
-    return CreateRackProxy(Owner_->Bootstrap_, &Metadata_, rack);
-}
-
-void TNodeTracker::TRackTypeHandler::DoZombifyObject(TRack* rack)
-{
-    TObjectTypeHandlerWithMapBase::DoZombifyObject(rack);
-    Owner_->DestroyRack(rack);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TNodeTracker::TDataCenterTypeHandler::TDataCenterTypeHandler(TImpl* owner)
-    : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->DataCenterMap_)
-    , Owner_(owner)
-{ }
-
-TObject* TNodeTracker::TDataCenterTypeHandler::CreateObject(
-    TObjectId hintId,
-    IAttributeDictionary* attributes)
-{
-    auto name = attributes->Get<TString>("name");
-    attributes->Remove("name");
-
-    return Owner_->CreateDataCenter(name, hintId);
-}
-
-IObjectProxyPtr TNodeTracker::TDataCenterTypeHandler::DoGetProxy(
-    TDataCenter* dc,
-    TTransaction* /*transaction*/)
-{
-    return CreateDataCenterProxy(Owner_->Bootstrap_, &Metadata_, dc);
-}
-
-void TNodeTracker::TDataCenterTypeHandler::DoZombifyObject(TDataCenter* dc)
-{
-    TObjectTypeHandlerWithMapBase::DoZombifyObject(dc);
-    Owner_->DestroyDataCenter(dc);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

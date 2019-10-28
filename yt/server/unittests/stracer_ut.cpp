@@ -1,10 +1,10 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/core/misc/stracer.h>
+#include <yt/ytlib/tools/stracer.h>
 
 #include <util/system/thread.h>
 
-namespace NYT {
+namespace NYT::NTools {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -49,5 +49,6 @@ TEST(TStracer, Basic)
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
-} // namespace NYT
+} // namespace NYT::NTools

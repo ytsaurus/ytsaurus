@@ -64,19 +64,26 @@ private:
 
     mutable bool Sealed_ = false;
 
+    struct TReadBlockRangeSession
+        : public TReadSessionBase
+    {
+        int FirstBlockIndex;
+        int BlockCount;
+        TPromise<std::vector<NChunkClient::TBlock>> Promise;
+    };
 
-    NChunkClient::TRefCountedChunkMetaPtr DoReadMeta(const std::optional<std::vector<int>>& extensionTags);
+    using TReadBlockRangeSessionPtr = TIntrusivePtr<TReadBlockRangeSession>;
+
+
+    NChunkClient::TRefCountedChunkMetaPtr DoReadMeta(
+        const TReadMetaSessionPtr& session,
+        const std::optional<std::vector<int>>& extensionTags);
 
     void UpdateCachedParams() const;
 
     virtual TFuture<void> AsyncRemove() override;
 
-    void DoReadBlockRange(
-        int firstBlockIndex,
-        int blockCount,
-        NChunkClient::TChunkReaderStatisticsPtr chunkReaderStatistics,
-        TPromise<std::vector<NChunkClient::TBlock>> promise);
-
+    void DoReadBlockRange(const TReadBlockRangeSessionPtr& session);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJournalChunk)

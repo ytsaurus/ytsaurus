@@ -3159,7 +3159,7 @@ const TSchedulingTagFilter& TRootElement::GetSchedulingTagFilter() const
 
 TString TRootElement::GetId() const
 {
-    return TString(RootPoolName);
+    return RootPoolName;
 }
 
 std::optional<double> TRootElement::GetSpecifiedWeight() const

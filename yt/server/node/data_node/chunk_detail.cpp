@@ -177,7 +177,33 @@ TRefCountedChunkMetaPtr TChunkBase::FilterMeta(
 {
     return extensionTags
         ? New<TRefCountedChunkMeta>(FilterChunkMetaByExtensionTags(*meta, extensionTags))
-        : meta;
+        : std::move(meta);
+}
+
+void TChunkBase::StartReadSession(
+    const TReadSessionBasePtr& session,
+    const TBlockReadOptions& options)
+{
+    session->Options = options;
+    session->ReadGuard = TChunkReadGuard::AcquireOrThrow(this);
+}
+
+void TChunkBase::ProfileReadBlockSetLatency(const TReadSessionBasePtr& session)
+{
+    const auto& locationProfiler = Location_->GetProfiler();
+    auto& performanceCounters = Location_->GetPerformanceCounters();
+    locationProfiler.Update(
+        performanceCounters.BlobBlockReadLatencies[session->Options.WorkloadDescriptor.Category],
+        session->SessionTimer.GetElapsedValue());
+}
+
+void TChunkBase::ProfileReadMetaLatency(const TReadSessionBasePtr& session)
+{
+    const auto& locationProfiler = Location_->GetProfiler();
+    auto& performanceCounters = Location_->GetPerformanceCounters();
+    locationProfiler.Update(
+        performanceCounters.BlobChunkMetaReadLatencies[session->Options.WorkloadDescriptor.Category],
+        session->SessionTimer.GetElapsedValue());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

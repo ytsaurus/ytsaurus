@@ -208,6 +208,7 @@ def get_git_depth(options):
 def ya_make_env(options):
     return {
         "YA_CACHE_DIR": get_ya_cache_dir(options),
+        "SVN_SSH": "ssh -v",
     }
 
 def ya_make_definition_args(options):
@@ -1219,6 +1220,10 @@ def log_sandbox_upload(options, build_context, task_id):
         "ubuntu_codename": options.codename,
         "resources": resources,
     }
+
+    # Publish YT_BINARIES resource id to build status.
+    status = "Package: {0}; YT_BINARIES: {1}; {{build.status.text}}".format(build_context["yt_version"], resources["YT_BINARIES"])
+    teamcity_interact("buildStatus", text=status)
 
     # Add to locke.
     yt_wrapper = build_context["yt.wrapper"]

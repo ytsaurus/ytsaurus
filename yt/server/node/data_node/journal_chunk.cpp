@@ -82,17 +82,26 @@ TChunkInfo TJournalChunk::GetInfo() const
 }
 
 TFuture<TRefCountedChunkMetaPtr> TJournalChunk::ReadMeta(
-    const TBlockReadOptions& /*options*/,
+    const TBlockReadOptions& options,
     const std::optional<std::vector<int>>& extensionTags)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return BIND(&TJournalChunk::DoReadMeta, MakeStrong(this), extensionTags)
+    auto session = New<TReadMetaSession>();
+    try {
+        StartReadSession(session, options);
+    } catch (const std::exception& ex) {
+        return MakeFuture<TRefCountedChunkMetaPtr>(ex);
+    }
+
+    return BIND(&TJournalChunk::DoReadMeta, MakeStrong(this), session, extensionTags)
         .AsyncVia(Bootstrap_->GetControlInvoker())
         .Run();
 }
 
-TRefCountedChunkMetaPtr TJournalChunk::DoReadMeta(const std::optional<std::vector<int>>& extensionTags)
+TRefCountedChunkMetaPtr TJournalChunk::DoReadMeta(
+    const TReadMetaSessionPtr& session,
+    const std::optional<std::vector<int>>& extensionTags)
 {
     UpdateCachedParams();
 
@@ -102,6 +111,8 @@ TRefCountedChunkMetaPtr TJournalChunk::DoReadMeta(const std::optional<std::vecto
     miscExt.set_compressed_data_size(CachedDataSize_);
     miscExt.set_sealed(Sealed_);
     SetProtoExtension(Meta_->mutable_extensions(), miscExt);
+
+    ProfileReadMetaLatency(session);
 
     return FilterMeta(Meta_, extensionTags);
 }
@@ -137,30 +148,45 @@ TFuture<std::vector<TBlock>> TJournalChunk::ReadBlockRange(
         return MakeFuture(std::vector<TBlock>());
     }
 
-    auto promise = NewPromise<std::vector<TBlock>>();
-    TJournalChunk::DoReadBlockRange(firstBlockIndex, blockCount, options.ChunkReaderStatistics, promise);
-    return promise;
+    auto session = New<TReadBlockRangeSession>();
+    try {
+        StartReadSession(session, options);
+        session->FirstBlockIndex = firstBlockIndex;
+        session->BlockCount = blockCount;
+        session->Promise = NewPromise<std::vector<TBlock>>();
+    } catch (const std::exception& ex) {
+        return MakeFuture<std::vector<TBlock>>(ex);
+    }
+
+    auto callback = BIND(
+        &TJournalChunk::DoReadBlockRange,
+        MakeStrong(this),
+        session);
+
+    Bootstrap_
+        ->GetStorageHeavyInvoker()
+        ->Invoke(std::move(callback), options.WorkloadDescriptor.GetPriority());
+
+    return session->Promise;
 }
 
-void TJournalChunk::DoReadBlockRange(
-    int firstBlockIndex,
-    int blockCount,
-    NChunkClient::TChunkReaderStatisticsPtr chunkReaderStatistics,
-    TPromise<std::vector<TBlock>> promise)
+void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
 {
     auto config = Bootstrap_->GetConfig()->DataNode;
     const auto& dispatcher = Bootstrap_->GetJournalDispatcher();
 
     try {
-        auto readGuard = TChunkReadGuard::TryAcquire(this);
-
         auto changelog = WaitFor(dispatcher->OpenChangelog(StoreLocation_, Id_))
             .ValueOrThrow();
+
+        int firstBlockIndex = session->FirstBlockIndex;
+        int lastBlockIndex = session->FirstBlockIndex + session->BlockCount - 1; // inclusive
+        int blockCount = session->BlockCount;
 
         YT_LOG_DEBUG("Started reading journal chunk blocks (BlockIds: %v:%v-%v, LocationId: %v)",
             Id_,
             firstBlockIndex,
-            firstBlockIndex + blockCount - 1,
+            lastBlockIndex,
             Location_->GetId());
 
         TWallTimer timer;
@@ -184,13 +210,13 @@ void TJournalChunk::DoReadBlockRange(
         const auto& blocks = blocksOrError.Value();
         int blocksRead = static_cast<int>(blocks.size());
         i64 bytesRead = GetByteSize(blocks);
-        chunkReaderStatistics->DataBytesReadFromDisk += bytesRead;
+        session->Options.ChunkReaderStatistics->DataBytesReadFromDisk += bytesRead;
 
         YT_LOG_DEBUG("Finished reading journal chunk blocks (BlockIds: %v:%v-%v, LocationId: %v, BlocksReadActually: %v, "
             "BytesReadActually: %v, Time: %v)",
             Id_,
             firstBlockIndex,
-            firstBlockIndex + blockCount - 1,
+            lastBlockIndex,
             Location_->GetId(),
             blocksRead,
             bytesRead,
@@ -204,9 +230,11 @@ void TJournalChunk::DoReadBlockRange(
         locationProfiler.Increment(performanceCounters.JournalBlockReadBytes, bytesRead);
         DataNodeProfiler.Increment(DiskJournalReadByteCounter, bytesRead);
 
-        promise.Set(TBlock::Wrap(blocks));
+        ProfileReadBlockSetLatency(session);
+
+        session->Promise.Set(TBlock::Wrap(blocks));
     } catch (const std::exception& ex) {
-        promise.Set(TError(ex));
+        session->Promise.Set(TError(ex));
     }
 }
 

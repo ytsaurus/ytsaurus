@@ -123,7 +123,9 @@ private:
     NProfiling::TMonotonicCounter ScheduledPartitioningsCounter_;
     NProfiling::TMonotonicCounter ScheduledCompactionsCounter_;
     const NProfiling::TTagId CompactionTag_ = NProfiling::TProfileManager::Get()->RegisterTag("method", "compaction");
+    const NProfiling::TTagId CompactionFailedTag_ = NProfiling::TProfileManager::Get()->RegisterTag("method", "compaction_failed");
     const NProfiling::TTagId PartitioningTag_ = NProfiling::TProfileManager::Get()->RegisterTag("method", "partitioning");
+    const NProfiling::TTagId PartitioningFailedTag_ = NProfiling::TProfileManager::Get()->RegisterTag("method", "partitioning_failed");
 
     struct TTask
     {
@@ -816,6 +818,14 @@ private:
 
         eden->CheckedSetState(EPartitionState::Normal, EPartitionState::Partitioning);
 
+        std::vector<IVersionedMultiChunkWriterPtr> writers;
+        IVersionedReaderPtr reader;
+
+        auto readerProfiler = New<TReaderProfiler>();
+        auto writerProfiler = New<TWriterProfiler>();
+
+        bool failed = false;
+
         try {
             i64 dataSize = 0;
             for (const auto& store : stores) {
@@ -847,7 +857,7 @@ private:
                 currentTimestamp,
                 ConvertTo<TRetentionConfigPtr>(tabletSnapshot->Config));
 
-            auto reader = CreateVersionedTabletReader(
+            reader = CreateVersionedTabletReader(
                 tabletSnapshot,
                 std::vector<ISortedStorePtr>(stores.begin(), stores.end()),
                 tablet->GetPivotKey(),
@@ -897,7 +907,6 @@ private:
                 .AsyncVia(ThreadPool_->GetInvoker())
                 .Run();
 
-            std::vector<IVersionedMultiChunkWriterPtr> writers;
             int rowCount;
             std::tie(writers, rowCount) = WaitFor(asyncResult)
                 .ValueOrThrow();
@@ -932,20 +941,7 @@ private:
                 }
 
                 tabletSnapshot->PerformanceCounters->PartitioningDataWeightCount += writer->GetDataStatistics().data_weight();
-
-                ProfileChunkWriter(
-                    tabletSnapshot,
-                    writer->GetDataStatistics(),
-                    writer->GetCompressionStatistics(),
-                    PartitioningTag_);
             }
-
-            ProfileChunkReader(
-                tabletSnapshot,
-                reader->GetDataStatistics(),
-                reader->GetDecompressionStatistics(),
-                blockReadOptions.ChunkReaderStatistics,
-                PartitioningTag_);
 
             YT_LOG_INFO("Eden partitioning completed (RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v, WallTime: %v)",
                 rowCount,
@@ -977,7 +973,17 @@ private:
             for (const auto& store : stores) {
                 storeManager->BackoffStoreCompaction(store);
             }
+            failed = true;
         }
+
+        for (const auto& writer : writers) {
+            writerProfiler->Update(writer);
+        }
+
+        auto tag = failed ? PartitioningFailedTag_ : PartitioningTag_;
+        readerProfiler->Update(reader, blockReadOptions.ChunkReaderStatistics);
+        writerProfiler->Profile(tabletSnapshot, tag);
+        readerProfiler->Profile(tabletSnapshot, tag);
 
         eden->CheckedSetState(EPartitionState::Partitioning, EPartitionState::Normal);
     }
@@ -1242,6 +1248,14 @@ private:
 
         partition->CheckedSetState(EPartitionState::Normal, EPartitionState::Compacting);
 
+        IVersionedReaderPtr reader;
+        IVersionedMultiChunkWriterPtr writer;
+
+        auto writerProfiler = New<TWriterProfiler>();
+        auto readerProfiler = New<TReaderProfiler>();
+
+        bool failed = false;
+
         try {
             i64 inputDataSize = 0;
             i64 inputRowCount = 0;
@@ -1285,7 +1299,7 @@ private:
                 retainedTimestamp,
                 ConvertTo<TRetentionConfigPtr>(tabletSnapshot->Config));
 
-            auto reader = CreateVersionedTabletReader(
+            reader = CreateVersionedTabletReader(
                 tabletSnapshot,
                 std::vector<ISortedStorePtr>(stores.begin(), stores.end()),
                 tablet->GetPivotKey(),
@@ -1333,7 +1347,6 @@ private:
                 .AsyncVia(ThreadPool_->GetInvoker())
                 .Run();
 
-            IVersionedMultiChunkWriterPtr writer;
             i64 outputRowCount;
             i64 outputDataSize;
             std::tie(writer, outputRowCount, outputDataSize) = WaitFor(asyncResult)
@@ -1371,19 +1384,6 @@ private:
 
             tabletSnapshot->PerformanceCounters->CompactionDataWeightCount += writer->GetDataStatistics().data_weight();
 
-            ProfileChunkWriter(
-                tabletSnapshot,
-                writer->GetDataStatistics(),
-                writer->GetCompressionStatistics(),
-                CompactionTag_);
-
-            ProfileChunkReader(
-                tabletSnapshot,
-                reader->GetDataStatistics(),
-                reader->GetDecompressionStatistics(),
-                blockReadOptions.ChunkReaderStatistics,
-                CompactionTag_);
-
             YT_LOG_INFO("Partition compaction completed (RowCount: %v, CompressedDataSize: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v, WallTime: %v)",
                 outputRowCount,
                 outputDataSize,
@@ -1415,7 +1415,14 @@ private:
             for (const auto& store : stores) {
                 storeManager->BackoffStoreCompaction(store);
             }
+            failed = true;
         }
+
+        auto tag = failed ? CompactionFailedTag_ : CompactionTag_;
+        writerProfiler->Update(writer);
+        readerProfiler->Update(reader, blockReadOptions.ChunkReaderStatistics);
+        writerProfiler->Profile(tabletSnapshot, tag);
+        readerProfiler->Profile(tabletSnapshot, tag);
 
         partition->CheckedSetState(EPartitionState::Compacting, EPartitionState::Normal);
     }

@@ -67,10 +67,8 @@ message TAgentToSchedulerJobEvent
     // for Interrupted
     optional int32 interrupt_reason = 4; // EInterruptReason
 
-    optional bool archive_job_spec = 5;
-    optional bool archive_stderr = 6;
-    optional bool archive_fail_context = 7;
-    optional bool archive_profile = 8;
+    // for Release
+    optional NYT.NJobTrackerClient.NProto.TReleaseJobFlags release_job_flags = 9;
 }
 
 message TSchedulerToAgentJobEvent

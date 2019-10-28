@@ -129,7 +129,10 @@ void TTableNodeProxy::GetBasicAttributes(TGetBasicAttributesContext* context)
                 const auto& result = (*checkResponse.Columns)[index];
                 if (result.Action == ESecurityAction::Deny) {
                     if (context->OmitInaccessibleColumns) {
-                        context->OmittedInaccessibleColumns.emplace().push_back(column);
+                        if (!context->OmittedInaccessibleColumns) {
+                            context->OmittedInaccessibleColumns.emplace();
+                        }
+                        context->OmittedInaccessibleColumns->push_back(column);
                     } else {
                         TPermissionCheckTarget target;
                         target.Object = Object_;

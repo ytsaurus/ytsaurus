@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import gdb
 # import json
 
@@ -18,45 +20,66 @@ def strip_refs_typedefs_and_qualifiers(ty, val):
             break
     return ty, val
 
+SIGNATURES = {
+    "UnversionedValue": "NYT::NTableClient::TUnversionedValue",
+    "UnversionedRow": "NYT::NTableClient::TUnversionedRow",
+    "UnversionedRowHeader": "NYT::NTableClient::TUnversionedRowHeader",
+    "UnversionedOwningRow": "NYT::NTableClient::TUnversionedOwningRow",
+    "VersionedValue": "NYT::NTableClient::TVersionedValue",
+    "VersionedRow": "NYT::NTableClient::TVersionedRow",
+    "VersionedRowHeader": "NYT::NTableClient::TVersionedRowHeader",
+    "VersionedOwningRow": "NYT::NTableClient::TVersionedOwningRow",
+    "Timestamp": "NYT::NTransactionClient::TTimestamp",
+}
+
 def strip_typedefs_and_qualifiers(ty):
     return ty.unqualified().strip_typedefs()
 
 def get_unversioned_value_type():
-    return lookup_type("NYT::NTableClient::TUnversionedValue")
+    global SIGNATURES
+    return lookup_type(SIGNATURES["UnversionedValue"])
 
 
 def get_unversioned_row_type():
-    return lookup_type("NYT::NTableClient::TUnversionedRow")
+    global SIGNATURES
+    return lookup_type(SIGNATURES["UnversionedRow"])
 
 
 def get_unversioned_row_header_type_ptr():
-    header_type = lookup_type("NYT::NTableClient::TUnversionedRowHeader")
+    global SIGNATURES
+    header_type = lookup_type(SIGNATURES["UnversionedRowHeader"])
     return None if header_type is None else header_type.pointer()
 
 
 def get_unversioned_owning_row_type():
-    return lookup_type("NYT::NTableClient::TUnversionedOwningRow")
+    global SIGNATURES
+    return lookup_type(SIGNATURES["UnversionedOwningRow"])
 
 
 def get_versioned_value_type():
-    return lookup_type("NYT::NTableClient::TVersionedValue")
+    global SIGNATURES
+    return lookup_type(SIGNATURES["VersionedValue"])
 
 
 def get_versioned_row_type():
-    return lookup_type("NYT::NTableClient::TVersionedRow")
+    global SIGNATURES
+    return lookup_type(SIGNATURES["VersionedRow"])
 
 
 def get_versioned_row_header_type_ptr():
-    header_type = lookup_type("NYT::NTableClient::TVersionedRowHeader")
+    global SIGNATURES
+    header_type = lookup_type(SIGNATURES["VersionedRowHeader"])
     return None if header_type is None else header_type.pointer()
 
 
 def get_versioned_owning_row_type():
-    return lookup_type("NYT::NTableClient::TVersionedOwningRow")
+    global SIGNATURES
+    return lookup_type(SIGNATURES["VersionedOwningRow"])
 
 
 def get_timestamp_type():
-    return lookup_type("NYT::NTransactionClient::TTimestamp")
+    global SIGNATURES
+    return lookup_type(SIGNATURES["Timestamp"])
 
 
 def unpack_as_unversioned_value(val):
@@ -109,10 +132,19 @@ def format_unversioned_value(val):
         value_data = "{" + value_data + "}"
     return "#%-2d  %-7s  %s" % (value_id, value_type, value_data)
 
-def print_unversioned_value(val):
-    print format_unversioned_value(val)
+def format_lines(lines, compact):
+    if not compact:
+        return "\n".join(lines)
+    else:
+        result_with_spaces = " ".join(lines)
+        # AA section problem :) let's remove all double-spaces
+        result = ""
+        for c in result_with_spaces:
+            if c != " " or len(result) == 0 or result[-1] != " ":
+                result += c
+        return result
 
-def print_unversioned_row_with_header(val, val_name):
+def format_unversioned_row_with_header(val, val_name, compact):
     assert strip_typedefs_and_qualifiers(val.type) == get_unversioned_row_header_type_ptr()
 
     row_header = val  # for clarity.
@@ -120,24 +152,25 @@ def print_unversioned_row_with_header(val, val_name):
     value_count = int(row_header["Count"])
     value_array = (row_header + 1).cast(get_unversioned_value_type().pointer())
 
-    print "{} &{} {{".format(val_name, row_header.dereference().address)
+    lines = []
+    lines.append("{} &{} {{".format(val_name, row_header.dereference().address))
     for i in range(value_count):
-        print "  {}".format(format_unversioned_value(value_array[i]))
-    print "}"
+        lines.append("  {}".format(format_unversioned_value(value_array[i])))
+    lines.append("}")
+    return format_lines(lines, compact)
 
-
-def print_unversioned_row(val):
+def format_unversioned_row(val, compact):
     assert strip_typedefs_and_qualifiers(val.type) == get_unversioned_row_type()
     row_header = val["Header_"]
     row_header = row_header.cast(get_unversioned_row_header_type_ptr())
-    return print_unversioned_row_with_header(row_header, "TUnversionedRow")
+    return format_unversioned_row_with_header(row_header, "TUnversionedRow", compact)
 
 
-def print_unversioned_owning_row(val):
+def format_unversioned_owning_row(val, compact):
     assert strip_typedefs_and_qualifiers(val.type) == get_unversioned_owning_row_type()
     row_header = val["RowData_"]["Data_"]
     row_header = row_header.cast(get_unversioned_row_header_type_ptr())
-    return print_unversioned_row_with_header(row_header, "TUnversionedOwningRow")
+    return format_unversioned_row_with_header(row_header, "TUnversionedOwningRow", compact)
 
 
 def format_versioned_value(val):
@@ -147,10 +180,7 @@ def format_versioned_value(val):
         value_data = "{" + value_data + "}"
     return "#%-2d  %-7s  @%s %s" % (value_id, value_type, value_timestamp, value_data)
 
-def print_versioned_value(val):
-    print format_versioned_value(val)
-
-def print_versioned_row_with_header(val, val_name):
+def format_versioned_row_with_header(val, val_name, compact):
     assert strip_typedefs_and_qualifiers(val.type) == get_versioned_row_header_type_ptr()
 
     row_header = val  # for clarity.
@@ -165,33 +195,57 @@ def print_versioned_row_with_header(val, val_name):
     key_array = (delete_timestamp_array + delete_timestamp_count).cast(get_unversioned_value_type().pointer())
     value_array = (key_array + key_count).cast(get_versioned_value_type().pointer())
 
-    print "{} &{} {{".format(val_name, row_header.dereference().address)
+    lines = []
+    lines.append(("{} &{} {{".format(val_name, row_header.dereference().address)))
     s = ", ".join(str(write_timestamp_array[i]) for i in range(write_timestamp_count))
-    print "  WriteTimestamps [{}]".format(s)
+    lines.append("  WriteTimestamps [{}]".format(s))
     s = ", ".join(str(delete_timestamp_array[i]) for i in range(delete_timestamp_count))
-    print "  DeleteTimestamps [{}]".format(s)
-    print "  Keys ["
+    lines.append("  DeleteTimestamps [{}]".format(s))
+    lines.append("  Keys [")
     for i in range(key_count):
-        print "    {}".format(format_unversioned_value(key_array[i]))
-    print "  ]"
-    print "  Values ["
+        lines.append("    {}".format(format_unversioned_value(key_array[i])))
+    lines.append("  ]")
+    lines.append("  Values [")
     for i in range(value_count):
-        print "    {}".format(format_versioned_value(value_array[i]))
-    print "  ]"
-    print "}"
+        lines.append("    {}".format(format_versioned_value(value_array[i])))
+    lines.append("  ]")
+    lines.append("}")
+    return format_lines(lines, compact)
 
 
-def print_versioned_row(val):
+def format_versioned_row(val, compact):
     assert strip_typedefs_and_qualifiers(val.type) == get_versioned_row_type()
     row_header = val["Header_"]
-    return print_versioned_row_with_header(row_header, "TVersionedRow")
+    return format_versioned_row_with_header(row_header, "TVersionedRow", compact)
 
 
-def print_versioned_owning_row(val):
+def format_versioned_owning_row(val, compact):
     assert strip_typedefs_and_qualifiers(val.type) == get_versioned_owning_row_type()
     row_header = val["RowData_"]["Data_"]
     row_header = row_header.cast(get_versioned_row_header_type_ptr())
-    return print_versioned_row_with_header(row_header, "TVersionedOwningRow")
+    return format_versioned_row_with_header(row_header, "TVersionedOwningRow", compact)
+
+def do_format(val, compact):
+    ty, val = strip_refs_typedefs_and_qualifiers(val.type, val)
+    if ty == get_unversioned_row_type():
+        return format_unversioned_row(val, compact)
+    elif ty == get_unversioned_owning_row_type():
+        return format_unversioned_owning_row(val, compact)
+    elif ty == get_unversioned_row_header_type_ptr():
+        return format_unversioned_row_with_header(val, "TUnversionedRow", compact)
+    elif ty == get_versioned_row_type():
+        return format_versioned_row(val, compact)
+    elif ty == get_versioned_owning_row_type():
+        return format_versioned_owning_row(val, compact)
+    elif ty == get_versioned_row_header_type_ptr():
+        return format_versioned_row_with_header(val, "TVersionedRow", compact)
+    elif ty == get_unversioned_value_type():
+        return format_unversioned_value(val, compact)
+    elif ty == get_versioned_value_type():
+        return format_versioned_value(val, compact)
+    else:
+        print("Value has type " + str(ty) + " that has no special way of printing")
+
 
 class YtPrintRow(gdb.Command):
     def __init__(self):
@@ -199,24 +253,23 @@ class YtPrintRow(gdb.Command):
 
     def invoke(self, arg, _from_tty):
         val = gdb.parse_and_eval(arg)
-        ty, val = strip_refs_typedefs_and_qualifiers(val.type, val)
-        if ty == get_unversioned_row_type():
-            print_unversioned_row(val)
-        elif ty == get_unversioned_owning_row_type():
-            print_unversioned_owning_row(val)
-        elif ty == get_unversioned_row_header_type_ptr():
-            print_unversioned_row_with_header(val, "TUnversionedRow")
-        elif ty == get_versioned_row_type():
-            print_versioned_row(val)
-        elif ty == get_versioned_owning_row_type():
-            print_versioned_owning_row(val)
-        elif ty == get_versioned_row_header_type_ptr():
-            print_versioned_row_with_header(val, "TVersionedRow")
-        elif ty == get_unversioned_value_type():
-            print_unversioned_value(val)
-        elif ty == get_versioned_value_type():
-            print_versioned_value(val)
-        else:
-            print "Value has type " + str(ty) + " that has no special way of printing"
+        print(do_format(val, False))
 
 YtPrintRow()
+
+class YtPrettyPrinter:
+    def __init__(self, value):
+        self.value = value
+
+    def to_string(self):
+        return do_format(self.value, True)
+
+def ya_printer():
+    pp = gdb.printing.RegexpCollectionPrettyPrinter("yt_table_client")
+    for name, signature in SIGNATURES.items():
+        pp.add_printer(name, r"^{}$".format(signature), YtPrettyPrinter)
+    return pp
+
+
+def ya_register(obj):
+    gdb.printing.register_pretty_printer(obj, ya_printer())

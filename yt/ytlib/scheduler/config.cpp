@@ -968,11 +968,22 @@ TSortOperationSpecBase::TSortOperationSpecBase()
         .Default(true);
     RegisterParameter("enable_intermediate_output_recalculation", EnableIntermediateOutputRecalculation)
         .Default(true);
+    RegisterParameter("pivot_keys", PivotKeys)
+        .Default();
 
     RegisterPostprocessor([&] () {
         NTableClient::ValidateKeyColumns(SortBy);
 
         InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
+
+        // Validate pivot_keys.
+        for (int index = 1; index < PivotKeys.size(); ++index) {
+            if (PivotKeys[index] < PivotKeys[index - 1]) {
+                THROW_ERROR_EXCEPTION("Pivot keys should be sorted")
+                    << TErrorAttribute("previous_key", PivotKeys[index - 1])
+                    << TErrorAttribute("current_key", PivotKeys[index]);
+            }
+        }
     });
 }
 
@@ -1449,6 +1460,8 @@ TStrategyOperationSpec::TStrategyOperationSpec()
     RegisterParameter("max_concurrent_schedule_job_calls", MaxConcurrentControllerScheduleJobCalls)
         .Alias("max_concurrent_controller_schedule_job_calls")
         .Default();
+    RegisterParameter("schedule_in_single_tree", ScheduleInSingleTree)
+        .Default(false);
     RegisterParameter("tentative_pool_trees", TentativePoolTrees)
         .Default();
     RegisterParameter("use_default_tentative_pool_trees", UseDefaultTentativePoolTrees)
@@ -1465,6 +1478,15 @@ TStrategyOperationSpec::TStrategyOperationSpec()
         .Default(10);
     RegisterParameter("preemption_mode", PreemptionMode)
         .Default(EPreemptionMode::Normal);
+
+    RegisterPostprocessor([&] {
+        if (ScheduleInSingleTree && (TentativePoolTrees || UseDefaultTentativePoolTrees)) {
+            THROW_ERROR_EXCEPTION("%Qv option cannot be used simultaneously with tentative pool trees (check %Qv and %Qv)",
+                "schedule_in_single_tree",
+                "tentative_pool_trees",
+                "use_default_tentative_pool_trees");
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,17 +1,19 @@
 #include <yt/ytlib/program/program.h>
 #include <yt/ytlib/program/configure_singletons.h>
 
-#include <yt/core/tools/registry.h>
-#include <yt/core/tools/tools.h>
-#include <yt/core/misc/fs.h>
-#include <yt/core/misc/proc.h>
-#include <yt/core/misc/stracer.h>
-#include <yt/core/misc/signaler.h>
+#include <yt/ytlib/tools/registry.h>
+#include <yt/ytlib/tools/tools.h>
+#include <yt/ytlib/tools/proc.h>
+#include <yt/ytlib/tools/stracer.h>
+#include <yt/ytlib/tools/signaler.h>
 
 #include <yt/ytlib/cgroup/cgroup.h>
 
 namespace NYT {
 
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NTools {
 REGISTER_TOOL(TStraceTool)
 REGISTER_TOOL(TSignalerTool)
 REGISTER_TOOL(TKillAllByUidTool)
@@ -23,6 +25,7 @@ REGISTER_TOOL(TSetThreadPriorityAsRootTool)
 REGISTER_TOOL(TFSQuotaTool)
 REGISTER_TOOL(TChownChmodTool)
 REGISTER_TOOL(TGetDirectorySizeAsRootTool)
+} // namespace NTools
 
 namespace NCGroup {
 REGISTER_TOOL(TKillProcessGroupTool)

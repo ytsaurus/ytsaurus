@@ -29,13 +29,15 @@
 #include <yt/ytlib/chunk_client/input_data_slice.h>
 
 #include <yt/ytlib/job_tracker_client/helpers.h>
+#include <yt/ytlib/job_tracker_client/statistics.h>
 
 #include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/chunk_slice_fetcher.h>
-#include <yt/client/table_client/row_buffer.h>
 #include <yt/ytlib/table_client/samples_fetcher.h>
-#include <yt/client/table_client/unversioned_row.h>
 #include <yt/ytlib/table_client/schemaless_block_writer.h>
+
+#include <yt/client/table_client/row_buffer.h>
+#include <yt/client/table_client/unversioned_row.h>
 
 #include <yt/core/ytree/permission.h>
 
@@ -58,6 +60,7 @@ using namespace NCypressClient;
 using namespace NSecurityClient;
 using namespace NNodeTrackerClient;
 using namespace NChunkClient::NProto;
+using namespace NJobTrackerClient;
 using namespace NJobTrackerClient::NProto;
 using namespace NConcurrency;
 using namespace NChunkClient;
@@ -2168,7 +2171,7 @@ protected:
         return CreateSortedChunkPool(chunkPoolOptions, nullptr /* chunkSliceFetcher */, IntermediateInputStreamDirectory);
     }
 
-    void AccountRows(const std::optional<NJobTrackerClient::TStatistics>& statistics)
+    void AccountRows(const std::optional<TStatistics>& statistics)
     {
         YT_VERIFY(statistics);
         TotalOutputRowCount += GetTotalOutputDataStatistics(*statistics).row_count();
@@ -2192,6 +2195,37 @@ protected:
                 "intermediate data or split operation into several smaller ones")
                 << TErrorAttribute("merge_data_slice_count", dataSliceCount)
                 << TErrorAttribute("max_merge_data_slice_count", Spec->MaxMergeDataSliceCount));
+        }
+    }
+
+    std::vector<TPartitionKey> BuildPartitionKeysByPivotKeys()
+    {
+        std::vector<TPartitionKey> partitionKeys;
+        partitionKeys.reserve(Spec->PivotKeys.size());
+
+        for (const auto& key : Spec->PivotKeys) {
+            partitionKeys.emplace_back(RowBuffer->Capture(key));
+        }
+
+        return partitionKeys;
+    }
+
+    void CreatePartitionsByPartitionKeys(const std::vector<TPartitionKey>& partitionKeys)
+    {
+        Partitions.reserve(partitionKeys.size() + 1);
+
+        // Create the leftmost partition.
+        Partitions.push_back(New<TPartition>(this, 0, MinKey()));
+
+        for (int index = 0; index < partitionKeys.size(); ++index) {
+            YT_LOG_DEBUG("Partition %v has starting key %v",
+                index + 1,
+                partitionKeys[index].Key);
+            Partitions.push_back(New<TPartition>(this, index + 1, partitionKeys[index].Key));
+            if (partitionKeys[index].Maniac) {
+                YT_LOG_DEBUG("Partition %v is a maniac", index + 1);
+                Partitions.back()->Maniac = true;
+            }
         }
     }
 
@@ -2263,6 +2297,7 @@ private:
     TSortOperationSpecPtr Spec;
 
     IFetcherChunkScraperPtr FetcherChunkScraper;
+    TSamplesFetcherPtr SamplesFetcher;
 
     // Custom bits of preparation pipeline.
 
@@ -2339,98 +2374,22 @@ private:
                 << TErrorAttribute("max_input_data_weight", Spec->MaxInputDataWeight);
         }
 
-        TSamplesFetcherPtr samplesFetcher;
-
-        TFuture<void> asyncSamplesResult;
-        PROFILE_TIMING ("/input_processing_time") {
-            int sampleCount = SuggestPartitionCount() * Spec->SamplesPerPartition;
-
-            FetcherChunkScraper = CreateFetcherChunkScraper();
-
-            auto samplesRowBuffer = New<TRowBuffer>(
-                TRowBufferTag(),
-                Config->ControllerRowBufferChunkSize);
-
-            samplesFetcher = New<TSamplesFetcher>(
-                Config->Fetcher,
-                ESamplingPolicy::Sorting,
-                sampleCount,
-                Spec->SortBy,
-                Options->MaxSampleSize,
-                InputNodeDirectory_,
-                GetCancelableInvoker(),
-                samplesRowBuffer,
-                FetcherChunkScraper,
-                Host->GetClient(),
-                Logger);
-
-            for (const auto& chunk : CollectPrimaryUnversionedChunks()) {
-                samplesFetcher->AddChunk(chunk);
-            }
-            for (const auto& chunk : CollectPrimaryVersionedChunks()) {
-                samplesFetcher->AddChunk(chunk);
-            }
-
-            asyncSamplesResult = samplesFetcher->Fetch();
-        }
-
-        WaitFor(asyncSamplesResult)
-            .ThrowOnError();
-
-        FetcherChunkScraper.Reset();
-
         InitJobIOConfigs();
 
-        PROFILE_TIMING ("/samples_processing_time") {
-            auto sortedSamples = SortSamples(samplesFetcher->GetSamples());
-            BuildPartitions(sortedSamples);
-        }
+        std::vector<TPartitionKey> partitionKeys;
 
-        InitJobSpecTemplates();
-    }
+        if (Spec->PivotKeys.empty()) {
+            auto samples = FetchSamples();
 
-    std::vector<const TSample*> SortSamples(const std::vector<TSample>& samples)
-    {
-        int sampleCount = static_cast<int>(samples.size());
-        YT_LOG_INFO("Sorting %v samples", sampleCount);
+            // Use partition count provided by user, if given.
+            // Otherwise use size estimates.
+            int partitionCount = SuggestPartitionCount();
+            YT_LOG_INFO("Suggested partition count %v, samples count %v", partitionCount, samples.size());
 
-        std::vector<const TSample*> sortedSamples;
-        sortedSamples.reserve(sampleCount);
-        try {
-            for (const auto& sample : samples) {
-                ValidateClientKey(sample.Key);
-                sortedSamples.push_back(&sample);
-            }
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error validating table samples") << ex;
-        }
+            // Don't create more partitions than we have samples (plus one).
+            partitionCount = std::min(partitionCount, static_cast<int>(samples.size()) + 1);
+            SimpleSort = (partitionCount == 1);
 
-        std::sort(
-            sortedSamples.begin(),
-            sortedSamples.end(),
-            [] (const TSample* lhs, const TSample* rhs) {
-                return *lhs < *rhs;
-            });
-
-        return sortedSamples;
-    }
-
-    void BuildPartitions(const std::vector<const TSample*>& sortedSamples)
-    {
-        // Use partition count provided by user, if given.
-        // Otherwise use size estimates.
-        int partitionCount = SuggestPartitionCount();
-        YT_LOG_INFO("Suggested partition count %v, samples count %v", partitionCount, sortedSamples.size());
-
-        // Don't create more partitions than we have samples (plus one).
-        partitionCount = std::min(partitionCount, static_cast<int>(sortedSamples.size()) + 1);
-
-        YT_VERIFY(partitionCount > 0);
-        SimpleSort = (partitionCount == 1);
-
-        if (SimpleSort) {
-            BuildSinglePartition();
-        } else {
             auto partitionJobSizeConstraints = CreatePartitionJobSizeConstraints(
                 Spec,
                 Options,
@@ -2448,154 +2407,131 @@ private:
 
             YT_LOG_INFO("Adjusted partition count %v", partitionCount);
 
-            BuildMulitplePartitions(sortedSamples, partitionCount, partitionJobSizeConstraints);
-        }
-    }
+            YT_LOG_INFO("Building partition keys");
 
-    void BuildSinglePartition()
-    {
-        // Choose sort job count and initialize the pool.
-        auto jobSizeConstraints = CreateSimpleSortJobSizeConstraints(
-            Spec,
-            Options,
-            Logger,
-            TotalEstimatedInputDataWeight);
-
-        std::vector<TChunkStripePtr> stripes;
-
-        auto partition = New<TPartition>(this, 0);
-        Partitions.push_back(partition);
-        // Create the fake partition.
-        InitSimpleSortPool(jobSizeConstraints);
-        partition->ChunkPoolOutput = SimpleSortPool.get();
-        partition->SortedMergeTask->SetInputVertex(FormatEnum(GetIntermediateSortJobType()));
-        ProcessInputs(partition->SortTask, jobSizeConstraints);
-
-        FinishTaskInput(partition->SortTask);
-
-        // NB: Cannot use TotalEstimatedInputDataWeight due to slicing and rounding issues.
-        SortDataWeightCounter->Increment(SimpleSortPool->GetTotalDataWeight());
-
-        YT_LOG_INFO("Sorting without partitioning (SortJobCount: %v, DataWeightPerJob: %v)",
-            jobSizeConstraints->GetJobCount(),
-            jobSizeConstraints->GetDataWeightPerJob());
-
-        // Kick-start the sort task.
-        SortStartThresholdReached = true;
-    }
-
-    void AddPartition(TKey key)
-    {
-        int index = static_cast<int>(Partitions.size());
-        YT_LOG_DEBUG("Partition %v has starting key %v",
-            index,
-            key);
-
-        YT_VERIFY(CompareRows(Partitions.back()->Key, key) < 0);
-        Partitions.push_back(New<TPartition>(this, index, key));
-    }
-
-    void BuildMulitplePartitions(
-        const std::vector<const TSample*>& sortedSamples,
-        int partitionCount,
-        const IJobSizeConstraintsPtr& partitionJobSizeConstraints)
-    {
-        YT_LOG_INFO("Building partition keys");
-
-        i64 totalSamplesWeight = 0;
-        for (const auto* sample : sortedSamples) {
-            totalSamplesWeight += sample->Weight;
-        }
-
-        // Select samples evenly wrt weights.
-        std::vector<const TSample*> selectedSamples;
-        selectedSamples.reserve(partitionCount - 1);
-
-        double weightPerPartition = (double)totalSamplesWeight / partitionCount;
-        i64 processedWeight = 0;
-        for (const auto* sample : sortedSamples) {
-            processedWeight += sample->Weight;
-            if (processedWeight / weightPerPartition > selectedSamples.size() + 1) {
-                selectedSamples.push_back(sample);
-            }
-            if (selectedSamples.size() == partitionCount - 1) {
-                // We need exactly partitionCount - 1 partition keys.
-                break;
-            }
-        }
-
-        // Construct the leftmost partition.
-        Partitions.push_back(New<TPartition>(this, 0, MinKey()));
-
-        // Invariant:
-        //   lastPartition = Partitions.back()
-        //   lastKey = Partition.back()->Key
-        //   lastPartition receives keys in [lastKey, ...)
-        //
-        // Initially Partitions consists of the leftmost partition are empty so lastKey is assumed to be -inf.
-
-        int sampleIndex = 0;
-        while (sampleIndex < selectedSamples.size()) {
-            auto* sample = selectedSamples[sampleIndex];
-            // Check for same keys.
-            if (CompareRows(sample->Key, Partitions.back()->Key) != 0) {
-                AddPartition(RowBuffer->Capture(sample->Key));
-                ++sampleIndex;
-            } else {
-                // Skip same keys.
-                int skippedCount = 0;
-                while (sampleIndex < selectedSamples.size() &&
-                    CompareRows(selectedSamples[sampleIndex]->Key, Partitions.back()->Key) == 0)
-                {
-                    ++sampleIndex;
-                    ++skippedCount;
-                }
-
-                auto* lastManiacSample = selectedSamples[sampleIndex - 1];
-                auto lastPartition = Partitions.back();
-
-                if (!lastManiacSample->Incomplete) {
-                    YT_LOG_DEBUG("Partition %v is a maniac, skipped %v samples",
-                        lastPartition->Index,
-                        skippedCount);
-
-                    lastPartition->Maniac = true;
-                    YT_VERIFY(skippedCount >= 1);
-
-                    // NB: in partitioner we compare keys with the whole rows,
-                    // so key prefix successor in required here.
-                    auto successorKey = GetKeyPrefixSuccessor(sample->Key, Spec->SortBy.size(), RowBuffer);
-                    AddPartition(successorKey);
-                } else {
-                    // If sample keys are incomplete, we cannot use UnorderedMerge,
-                    // because full keys may be different.
-                    YT_LOG_DEBUG("Partition %v is oversized, skipped %v samples",
-                        lastPartition->Index,
-                        skippedCount);
-                    AddPartition(RowBuffer->Capture(selectedSamples[sampleIndex]->Key));
-                    ++sampleIndex;
+            PROFILE_TIMING ("/samples_processing_time") {
+                if (!SimpleSort) {
+                    partitionKeys = BuildPartitionKeysBySamples(
+                        samples,
+                        partitionCount,
+                        partitionJobSizeConstraints,
+                        static_cast<int>(Spec->SortBy.size()),
+                        RowBuffer);
                 }
             }
+        } else {
+            partitionKeys = BuildPartitionKeysByPivotKeys();
         }
 
-        InitShufflePool();
+        CreatePartitionsByPartitionKeys(partitionKeys);
 
-        std::vector<TChunkStripePtr> stripes;
+        PreparePartitionTask();
 
-        TEdgeDescriptor shuffleEdgeDescriptor = GetIntermediateEdgeDescriptorTemplate();
-        shuffleEdgeDescriptor.DestinationPool = ShufflePoolInput.get();
-        shuffleEdgeDescriptor.ChunkMapping = ShuffleChunkMapping_;
-        shuffleEdgeDescriptor.TableWriterOptions->ReturnBoundaryKeys = false;
-        PartitionTask = New<TPartitionTask>(this, std::vector<TEdgeDescriptor> {shuffleEdgeDescriptor});
-        InitPartitionPool(partitionJobSizeConstraints, nullptr, false /* ordered */);
-        RegisterTask(PartitionTask);
-        ProcessInputs(PartitionTask, partitionJobSizeConstraints);
-        FinishTaskInput(PartitionTask);
+        InitJobSpecTemplates();
+    }
 
-        YT_LOG_INFO("Sorting with partitioning (PartitionCount: %v, PartitionJobCount: %v, DataWeightPerPartitionJob: %v)",
-            partitionCount,
-            partitionJobSizeConstraints->GetJobCount(),
-            partitionJobSizeConstraints->GetDataWeightPerJob());
+    void PreparePartitionTask()
+    {
+        if (SimpleSort) {
+            // Choose sort job count and initialize the pool.
+            auto jobSizeConstraints = CreateSimpleSortJobSizeConstraints(
+                Spec,
+                Options,
+                Logger,
+                TotalEstimatedInputDataWeight);
+
+            std::vector<TChunkStripePtr> stripes;
+
+            InitSimpleSortPool(jobSizeConstraints);
+            auto& partition = Partitions[0];
+            partition->ChunkPoolOutput = SimpleSortPool.get();
+            partition->SortedMergeTask->SetInputVertex(FormatEnum(GetIntermediateSortJobType()));
+            ProcessInputs(partition->SortTask, jobSizeConstraints);
+
+            FinishTaskInput(partition->SortTask);
+
+            // NB: Cannot use TotalEstimatedInputDataWeight due to slicing and rounding issues.
+            SortDataWeightCounter->Increment(SimpleSortPool->GetTotalDataWeight());
+
+            YT_LOG_INFO("Sorting without partitioning (SortJobCount: %v, DataWeightPerJob: %v)",
+                jobSizeConstraints->GetJobCount(),
+                jobSizeConstraints->GetDataWeightPerJob());
+
+            // Kick-start the sort task.
+            SortStartThresholdReached = true;
+        } else {
+            InitShufflePool();
+
+            auto partitionJobSizeConstraints = CreatePartitionJobSizeConstraints(
+                Spec,
+                Options,
+                Logger,
+                TotalEstimatedInputUncompressedDataSize,
+                TotalEstimatedInputDataWeight,
+                TotalEstimatedInputRowCount,
+                InputCompressionRatio);
+            std::vector<TChunkStripePtr> stripes;
+
+            TEdgeDescriptor shuffleEdgeDescriptor = GetIntermediateEdgeDescriptorTemplate();
+            shuffleEdgeDescriptor.DestinationPool = ShufflePoolInput.get();
+            shuffleEdgeDescriptor.ChunkMapping = ShuffleChunkMapping_;
+            shuffleEdgeDescriptor.TableWriterOptions->ReturnBoundaryKeys = false;
+            PartitionTask = New<TPartitionTask>(this, std::vector<TEdgeDescriptor> {shuffleEdgeDescriptor});
+            InitPartitionPool(partitionJobSizeConstraints, nullptr, false /* ordered */);
+            RegisterTask(PartitionTask);
+            ProcessInputs(PartitionTask, partitionJobSizeConstraints);
+            FinishTaskInput(PartitionTask);
+
+            YT_LOG_INFO("Sorting with partitioning (PartitionCount: %v, PartitionJobCount: %v, DataWeightPerPartitionJob: %v)",
+                Partitions.size(),
+                partitionJobSizeConstraints->GetJobCount(),
+                partitionJobSizeConstraints->GetDataWeightPerJob());
+        }
+    }
+
+    std::vector<TSample> FetchSamples()
+    {
+        TFuture<void> asyncSamplesResult;
+        PROFILE_TIMING ("/input_processing_time") {
+            int sampleCount = SuggestPartitionCount() * Spec->SamplesPerPartition;
+
+            FetcherChunkScraper = CreateFetcherChunkScraper();
+
+            auto samplesRowBuffer = New<TRowBuffer>(
+                TRowBufferTag(),
+                Config->ControllerRowBufferChunkSize);
+
+            SamplesFetcher = New<TSamplesFetcher>(
+                Config->Fetcher,
+                ESamplingPolicy::Sorting,
+                sampleCount,
+                Spec->SortBy,
+                Options->MaxSampleSize,
+                InputNodeDirectory_,
+                GetCancelableInvoker(),
+                samplesRowBuffer,
+                FetcherChunkScraper,
+                Host->GetClient(),
+                Logger);
+
+            for (const auto& chunk : CollectPrimaryUnversionedChunks()) {
+                SamplesFetcher->AddChunk(chunk);
+            }
+            for (const auto& chunk : CollectPrimaryVersionedChunks()) {
+                SamplesFetcher->AddChunk(chunk);
+            }
+
+            asyncSamplesResult = SamplesFetcher->Fetch();
+        }
+
+        WaitFor(asyncSamplesResult)
+            .ThrowOnError();
+
+        FetcherChunkScraper.Reset();
+
+        PROFILE_TIMING ("/samples_processing_time") {
+            return SamplesFetcher->GetSamples();
+        }
     }
 
     void InitJobIOConfigs()
@@ -3113,15 +3049,6 @@ private:
         InitJobIOConfigs();
         InitEdgeDescriptors();
 
-        PROFILE_TIMING ("/input_processing_time") {
-            BuildPartitions();
-        }
-
-        InitJobSpecTemplates();
-    }
-
-    void BuildPartitions()
-    {
         // Use partition count provided by user, if given.
         // Otherwise use size estimates.
         int partitionCount = SuggestPartitionCount();
@@ -3144,17 +3071,21 @@ private:
             PartitionJobIOConfig->TableWriter);
         YT_LOG_INFO("Adjusted partition count %v", partitionCount);
 
-        BuildMultiplePartitions(partitionCount, partitionJobSizeConstraints);
-    }
-
-    void BuildMultiplePartitions(
-        int partitionCount,
-        const IJobSizeConstraintsPtr& partitionJobSizeConstraints)
-    {
-        for (int index = 0; index < partitionCount; ++index) {
-            Partitions.push_back(New<TPartition>(this, index));
+        PROFILE_TIMING ("/input_processing_time") {
+            if (Spec->PivotKeys.empty()) {
+                BuildHashReducePartition(partitionCount);
+            } else {
+                CreatePartitionsByPartitionKeys(BuildPartitionKeysByPivotKeys());
+            }
         }
 
+        PreparePartitionTask(partitionJobSizeConstraints);
+
+        InitJobSpecTemplates();
+    }
+
+    void PreparePartitionTask(const IJobSizeConstraintsPtr& partitionJobSizeConstraints)
+    {
         InitShufflePool();
 
         std::vector<TChunkStripePtr> stripes;
@@ -3187,9 +3118,16 @@ private:
         FinishTaskInput(PartitionTask);
 
         YT_LOG_INFO("Map-reducing with partitioning (PartitionCount: %v, PartitionJobCount: %v, PartitionDataWeightPerJob: %v)",
-            partitionCount,
+            Partitions.size(),
             partitionJobSizeConstraints->GetJobCount(),
             partitionJobSizeConstraints->GetDataWeightPerJob());
+    }
+
+    void BuildHashReducePartition(int partitionCount)
+    {
+        for (int index = 0; index < partitionCount; ++index) {
+            Partitions.push_back(New<TPartition>(this, index));
+        }
     }
 
     void InitJobIOConfigs()
@@ -3265,6 +3203,18 @@ private:
             auto* partitionJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
             partitionJobSpecExt->set_partition_count(Partitions.size());
             partitionJobSpecExt->set_reduce_key_column_count(Spec->ReduceBy.size());
+            if (!Spec->PivotKeys.empty()) {
+                auto keySetWriter = New<TKeySetWriter>();
+                for (const auto& partition : Partitions) {
+                    auto key = partition->Key;
+                    if (key && key != MinKey()) {
+                        keySetWriter->WriteKey(key);
+                    }
+                }
+                auto data = keySetWriter->Finish();
+                partitionJobSpecExt->set_wire_partition_keys(ToString(data));
+            }
+
             ToProto(partitionJobSpecExt->mutable_sort_key_columns(), Spec->SortBy);
 
             if (Spec->HasNontrivialMapper()) {

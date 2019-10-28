@@ -563,6 +563,7 @@ struct TCopyNodeOptionsBase
     bool PreserveAccount = false;
     bool PreserveCreationTime = false;
     bool PreserveModificationTime = false;
+    bool PreserveOwner = false;
     bool PreserveExpirationTime = false;
     bool PessimisticQuotaCheck = true;
 };
@@ -605,6 +606,11 @@ struct TNodeExistsOptions
 { };
 
 struct TExternalizeNodeOptions
+    : public TTimeoutOptions
+    , public TTransactionalOptions
+{ };
+
+struct TInternalizeNodeOptions
     : public TTimeoutOptions
     , public TTransactionalOptions
 { };
@@ -1110,6 +1116,10 @@ struct IClientBase
         const NYPath::TYPath& path,
         NObjectClient::TCellTag cellTag,
         const TExternalizeNodeOptions& options = {}) = 0;
+
+    virtual TFuture<void> InternalizeNode(
+        const NYPath::TYPath& path,
+        const TInternalizeNodeOptions& options = {}) = 0;
 
 
     // Objects

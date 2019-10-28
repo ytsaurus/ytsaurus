@@ -1,8 +1,9 @@
+from __future__ import print_function
+
 import argparse
 import gdb
 import re
 import shlex
-
 
 def extract_from_vector(vector):
     start = vector["_M_impl"]["_M_start"]
@@ -152,16 +153,16 @@ class YtRefCountedTracker(gdb.Command):
         fmt = left_fmt + right_fmt
         dmt = "-" * (left_width + 1) + "+" + "-" * right_width
 
-        print fmt.format(ty="", objects_val="Objects {}".format(key_hdr), bytes_val="Bytes {}".format(key_hdr))
-        print dmt
-        print fmt.format(ty="Total", objects_val=total_by_objects, bytes_val=total_by_bytes)
-        print dmt
+        print(fmt.format(ty="", objects_val="Objects {}".format(key_hdr), bytes_val="Bytes {}".format(key_hdr)))
+        print(dmt)
+        print(fmt.format(ty="Total", objects_val=total_by_objects, bytes_val=total_by_bytes))
+        print(dmt)
         for row in result:
             ty = row[0]
             occupied_lines = 1 + len(ty) / left_width
             for i in range(occupied_lines - 1):
-                print fmt.format(ty=ty[i * left_width:(i + 1) * left_width], objects_val="", bytes_val="")
-            print fmt.format(ty=ty[(occupied_lines - 1) * left_width:],
-                             objects_val=objects_fn(row), bytes_val=bytes_fn(row))
+                print(fmt.format(ty=ty[i * left_width:(i + 1) * left_width], objects_val="", bytes_val=""))
+            print(fmt.format(ty=ty[(occupied_lines - 1) * left_width:],
+                             objects_val=objects_fn(row), bytes_val=bytes_fn(row)))
 
 YtRefCountedTracker()

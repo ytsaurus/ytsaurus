@@ -4,34 +4,28 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
-namespace NYT {
+namespace NYT::NTools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSignalerArg
+struct TSignalerConfig
     : public NYTree::TYsonSerializable
 {
     std::vector<int> Pids;
     TString SignalName;
 
-    TSignalerArg();
+    TSignalerConfig();
 };
 
-DEFINE_REFCOUNTED_TYPE(TSignalerArg)
-
-////////////////////////////////////////////////////////////////////////////////
-
-void SendSignal(const std::vector<int>& pids, const TString& signalName);
-std::optional<int> FindSignalIdBySignalName(const TString& signalName);
-void ValidateSignalName(const TString& signalName);
+DEFINE_REFCOUNTED_TYPE(TSignalerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSignalerTool
 {
-    void operator()(const TSignalerArgPtr& arg) const;
+    void operator()(const TSignalerConfigPtr& arg) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NTools

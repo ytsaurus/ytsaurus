@@ -154,6 +154,8 @@ TConnectionConfig::TConnectionConfig()
         .Default(TDuration::Seconds(15));
     RegisterParameter("hive_sync_rpc_timeout", HiveSyncRpcTimeout)
         .Default(TDuration::Seconds(30));
+    RegisterParameter("name", Name)
+        .Default("default");
 
     RegisterPreprocessor([&] () {
         FunctionImplCache->Capacity = 100;

@@ -40,6 +40,15 @@ class TYsonProducer;
 class TYsonInput;
 class TYsonOutput;
 
+class TUncheckedYsonTokenWriter;
+class TCheckedYsonTokenWriter;
+
+#ifdef NDEBUG
+using TCheckedInDebugYsonTokenWriter = TUncheckedYsonTokenWriter;
+#else
+using TCheckedInDebugYsonTokenWriter = TCheckedYsonTokenWriter;
+#endif
+
 class TTokenizer;
 
 class TProtobufMessageType;
