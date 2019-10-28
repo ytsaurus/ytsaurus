@@ -295,6 +295,8 @@ TCopyCommand::TCopyCommand()
         .Optional();
     RegisterParameter("preserve_expiration_time", Options.PreserveExpirationTime)
         .Optional();
+    RegisterParameter("preserve_owner", Options.PreserveOwner)
+        .Optional();
     RegisterParameter("pessimistic_quota_check", Options.PessimisticQuotaCheck)
         .Optional();
 }
@@ -328,6 +330,8 @@ TMoveCommand::TMoveCommand()
     RegisterParameter("preserve_modifcation_time", Options.PreserveModificationTime)
         .Optional();
     RegisterParameter("preserve_expiration_time", Options.PreserveExpirationTime)
+        .Optional();
+    RegisterParameter("preserve_owner", Options.PreserveOwner)
         .Optional();
     RegisterParameter("pessimistic_quota_check", Options.PessimisticQuotaCheck)
         .Optional();
@@ -436,6 +440,23 @@ void TExternalizeCommand::DoExecute(ICommandContextPtr context)
     auto asyncResult = context->GetClient()->ExternalizeNode(
         Path,
         CellTag,
+        Options);
+
+    WaitFor(asyncResult)
+        .ThrowOnError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TInternalizeCommand::TInternalizeCommand()
+{
+    RegisterParameter("path", Path);
+}
+
+void TInternalizeCommand::DoExecute(ICommandContextPtr context)
+{
+    auto asyncResult = context->GetClient()->InternalizeNode(
+        Path,
         Options);
 
     WaitFor(asyncResult)

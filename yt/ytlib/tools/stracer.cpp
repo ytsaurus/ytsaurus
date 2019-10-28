@@ -1,6 +1,5 @@
 #include "stracer.h"
-
-#include <yt/core/concurrency/action_queue.h>
+#include "registry.h"
 
 #include <yt/core/concurrency/thread_pool.h>
 
@@ -8,12 +7,7 @@
 #include <yt/core/misc/proc.h>
 #include <yt/core/misc/finally.h>
 
-#include <yt/core/tools/registry.h>
-#include <yt/core/tools/tools.h>
-
-#include <yt/core/ytree/fluent.h>
-
-namespace NYT {
+namespace NYT::NTools {
 
 using namespace NYTree;
 using namespace NConcurrency;
@@ -136,5 +130,4 @@ TStracerResultPtr Strace(const std::vector<int>& pids)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
-} // namespace NYT
+} // namespace NYT::NTools

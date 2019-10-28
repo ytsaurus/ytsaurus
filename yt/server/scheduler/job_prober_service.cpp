@@ -3,16 +3,13 @@
 #include "scheduler.h"
 #include "bootstrap.h"
 
-#include <yt/client/api/client.h>
-
-#include <yt/ytlib/scheduler/helpers.h>
 #include <yt/ytlib/scheduler/job_prober_service_proxy.h>
 
 #include <yt/core/rpc/service_detail.h>
 
 #include <yt/core/ytree/permission.h>
 
-#include <yt/core/misc/signaler.h>
+#include <yt/core/misc/proc.h>
 
 namespace NYT::NScheduler {
 
@@ -31,7 +28,7 @@ class TJobProberService
     : public TServiceBase
 {
 public:
-    TJobProberService(TBootstrap* bootstrap)
+    explicit TJobProberService(TBootstrap* bootstrap)
         : TServiceBase(
             bootstrap->GetControlInvoker(EControlQueue::UserRequest),
             TJobProberServiceProxy::GetDescriptor(),
@@ -70,7 +67,9 @@ private:
     {
         auto jobId = FromProto<TJobId>(request->job_id());
         auto requiredPermissions = EPermissionSet(request->required_permissions());
-        context->SetRequestInfo("JobId: %v, RequiredPermissions: %v", jobId, requiredPermissions);
+        context->SetRequestInfo("JobId: %v, RequiredPermissions: %v",
+            jobId,
+            requiredPermissions);
 
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
@@ -142,7 +141,9 @@ private:
         auto interruptTimeout = request->has_interrupt_timeout()
             ? std::make_optional(FromProto<TDuration>(request->interrupt_timeout()))
             : std::nullopt;
-        context->SetRequestInfo("JobId: %v, InterruptTimeout: %v", jobId, interruptTimeout);
+        context->SetRequestInfo("JobId: %v, InterruptTimeout: %v",
+            jobId,
+            interruptTimeout);
 
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();

@@ -152,6 +152,10 @@ struct ISchedulerStrategy
     //! Register jobs that are already created somewhere outside strategy.
     virtual void RegisterJobsFromRevivedOperation(TOperationId operationId, const std::vector<TJobPtr>& job) = 0;
 
+    //! Out of the pool trees specified for the operation, choose one most suitable tree
+    //! depending on the operation's demand and current resource usage in each tree.
+    virtual TString ChooseBestSingleTreeForOperation(TOperationId operationId, TJobResources neededResources) = 0;
+
     virtual void ProcessJobUpdates(
         const std::vector<TJobUpdate>& jobUpdates,
         std::vector<std::pair<TOperationId, TJobId>>* successfullyUpdatedJobs,

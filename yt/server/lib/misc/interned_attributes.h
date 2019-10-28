@@ -128,7 +128,7 @@
     XX(Index, index) \
     XX(InheritAcl, inherit_acl) \
     XX(IOWeights, io_weights) \
-    XX(JobId, job_id)                \
+    XX(Job, job)                \
     XX(KeepFinished, keep_finished) \
     XX(Key, key) \
     XX(KeyColumns, key_columns) \
@@ -280,6 +280,7 @@
     XX(Timeout, timeout) \
     XX(Timestamp, timestamp) \
     XX(Title, title) \
+    XX(TotalAccountStatistics, total_account_statistics) \
     XX(TotalCommittedResourceUsage, total_committed_resource_usage) \
     XX(TotalResourceLimits, total_resource_limits) \
     XX(TotalResourceUsage, total_resource_usage) \

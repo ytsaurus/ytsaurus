@@ -193,13 +193,13 @@ public:
         return result;
     }
 
-    virtual bool HasSickReplicas() const override
+    virtual bool IsCloseDemanded() const override
     {
-        bool hasSickReplicas = false;
+        bool isCloseDemanded = false;
         for (const auto& writer : Writers_) {
-            hasSickReplicas |= writer->HasSickReplicas();
+            isCloseDemanded |= writer->IsCloseDemanded();
         }
-        return hasSickReplicas;
+        return isCloseDemanded;
     }
 
     virtual TFuture<void> Close(const TRefCountedChunkMetaPtr& chunkMeta) override;

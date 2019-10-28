@@ -29,7 +29,7 @@ public:
 
     void Start();
     TFuture<void> Stop();
-    void FillStatistics(NJobTrackerClient::TStatistics& statistics) const;
+    void FillStatistics(TStatistics& statistics) const;
 
 private:
     NScheduler::TJobCpuMonitorConfigPtr Config_;

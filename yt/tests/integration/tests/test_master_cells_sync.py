@@ -182,6 +182,7 @@ class TestMasterCellsSync(YTEnvSetup):
         remove("#{0}".format(cell_id))
 
         config_version = get("#{0}/@config_version".format(cell_id), read_from="leader")
+        wait_for_cells()
         assert config_version > 2
 
         def check(driver):

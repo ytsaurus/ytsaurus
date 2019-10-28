@@ -37,6 +37,8 @@
 
 #include <yt/ytlib/event_log/event_log.h>
 
+#include <yt/ytlib/job_tracker_client/statistics.h>
+
 #include <yt/ytlib/node_tracker_client/node_directory_builder.h>
 
 #include <yt/ytlib/query_client/column_evaluator.h>
@@ -54,8 +56,6 @@
 #include <yt/ytlib/table_client/data_slice_fetcher.h>
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/schema.h>
-
-#include <yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/ytlib/transaction_client/action.h>
@@ -76,6 +76,7 @@
 #include <yt/client/table_client/table_consumer.h>
 
 #include <yt/client/tablet_client/public.h>
+#include <yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/client/transaction_client/timestamp_provider.h>
 
@@ -124,7 +125,6 @@ using namespace NFormats;
 using namespace NJobProxy;
 using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
-using namespace NJobTrackerClient::NProto;
 using namespace NCoreDump::NProto;
 using namespace NConcurrency;
 using namespace NApi;
@@ -142,6 +142,7 @@ using namespace NTabletClient;
 using NYT::FromProto;
 using NYT::ToProto;
 
+using NJobTrackerClient::NProto::TJobSpec;
 using NNodeTrackerClient::TNodeId;
 using NProfiling::CpuInstantToInstant;
 using NProfiling::TCpuInstant;
@@ -897,6 +898,8 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
         InitIntermediateChunkScraper();
 
         UpdateMinNeededJobResources();
+        // NB(eshcherbin): This update is done to ensure that needed resources amount is computed.
+        UpdateAllTasks();
 
         CheckTimeLimitExecutor->Start();
         ProgressBuildExecutor_->Start();
@@ -928,6 +931,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
     }
 
     result.Suspend = Spec_->SuspendOperationAfterMaterialization;
+    result.InitialNeededResources = GetNeededResources();
 
     YT_LOG_INFO("Materialization finished");
 
@@ -1004,6 +1008,10 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     }
 
     UpdateMinNeededJobResources();
+    // NB(eshcherbin): This update is done to ensure that needed resources amount is computed.
+    UpdateAllTasks();
+
+    result.NeededResources = GetNeededResources();
 
     ReinstallLivePreview();
 
@@ -2361,7 +2369,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
            JobSpecCompletedArchiveCount_ < Config->MaxArchivedJobSpecCountPerOperation)
         {
             ++JobSpecCompletedArchiveCount_;
-            jobSummary->ArchiveJobSpec = true;
+            jobSummary->ReleaseFlags.ArchiveJobSpec = true;
         }
     }
 
@@ -2442,7 +2450,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
         JobSplitter_->OnJobFailed(*jobSummary);
     }
 
-    jobSummary->ArchiveJobSpec = true;
+    jobSummary->ReleaseFlags.ArchiveJobSpec = true;
 
     ProcessFinishedJobResult(std::move(jobSummary), /* requestJobNodeCreation */ true);
 
@@ -4502,24 +4510,24 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
         (stderrChunkId && StderrCount_ < Spec_->MaxStderrCount);
 
     if (stderrChunkId && shouldCreateJobNode) {
-        summary->ArchiveStderr = true;
+        summary->ReleaseFlags.ArchiveStderr = true;
         // Job spec is necessary for ACL checks for stderr.
-        summary->ArchiveJobSpec = true;
+        summary->ReleaseFlags.ArchiveJobSpec = true;
     }
     if (failContextChunkId && shouldCreateJobNode) {
-        summary->ArchiveFailContext = true;
+        summary->ReleaseFlags.ArchiveFailContext = true;
         // Job spec is necessary for ACL checks for fail context.
-        summary->ArchiveJobSpec = true;
+        summary->ReleaseFlags.ArchiveJobSpec = true;
     }
 
-    summary->ArchiveProfile = true;
+    summary->ReleaseFlags.ArchiveProfile = true;
 
     auto finishedJob = New<TFinishedJobInfo>(joblet, std::move(*summary));
     // NB: we do not want these values to get into the snapshot as they may be pretty large.
     finishedJob->Summary.StatisticsYson = TYsonString();
     finishedJob->Summary.Statistics.reset();
 
-    if (finishedJob->Summary.ArchiveJobSpec || finishedJob->Summary.ArchiveStderr || finishedJob->Summary.ArchiveFailContext || finishedJob->Summary.ArchiveProfile) {
+    if (finishedJob->Summary.ReleaseFlags.IsNonTrivial()) {
         FinishedJobs_.insert(std::make_pair(jobId, finishedJob));
     }
 
@@ -4626,7 +4634,7 @@ void TOperationControllerBase::SuppressLivePreviewIfNeeded()
         {
             suppressionErrors.emplace_back(TError(
                 "User %v belongs to legacy live preview suppression blacklist; in order "
-                "to overcome this suppression reason, explicitly specify use_legacy_live_preview = %%true "
+                "to overcome this suppression reason, explicitly specify enable_legacy_live_preview = %%true "
                 "in operation spec", AuthenticatedUser)
                     << TErrorAttribute(
                         "legacy_live_preview_blacklist_regex",
@@ -6790,7 +6798,7 @@ void TOperationControllerBase::Dispose()
         }
 
         YT_LOG_DEBUG(
-            "Adding total time per tree to residual job metrics on controller disposal (FinalState: %Qlv, TotalTimePerTree: %v)",
+            "Adding total time per tree to residual job metrics on controller disposal (FinalState: %v, TotalTimePerTree: %v)",
             State.load(),
             TotalTimePerTree_);
     }
@@ -7327,21 +7335,14 @@ void TOperationControllerBase::ReleaseJobs(const std::vector<TJobId>& jobIds)
     jobsToRelease.reserve(jobIds.size());
 
     for (auto jobId : jobIds) {
-        bool archiveJobSpec = false;
-        bool archiveStderr = false;
-        bool archiveFailContext = false;
-        bool archiveProfile = false;
-
+        TReleaseJobFlags releaseFlags;
         auto it = FinishedJobs_.find(jobId);
         if (it != FinishedJobs_.end()) {
             const auto& jobSummary = it->second->Summary;
-            archiveJobSpec = jobSummary.ArchiveJobSpec;
-            archiveStderr = jobSummary.ArchiveStderr;
-            archiveFailContext = jobSummary.ArchiveFailContext;
-            archiveProfile = jobSummary.ArchiveProfile;
+            releaseFlags = jobSummary.ReleaseFlags;
             FinishedJobs_.erase(it);
         }
-        jobsToRelease.emplace_back(TJobToRelease{jobId, archiveJobSpec, archiveStderr, archiveFailContext, archiveProfile});
+        jobsToRelease.emplace_back(TJobToRelease{jobId, releaseFlags});
     }
     Host->ReleaseJobs(jobsToRelease);
 }

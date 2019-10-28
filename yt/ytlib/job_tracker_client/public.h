@@ -16,8 +16,6 @@ class TJobStatus;
 
 } // namespace NProto
 
-class TStatistics;
-
 DEFINE_ENUM(EJobPhase,
     ((Missing)                      (100))
 

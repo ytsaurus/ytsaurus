@@ -52,7 +52,6 @@ using namespace NTableClient;
 using namespace NApi;
 using namespace NErasure;
 
-using NJobTrackerClient::TStatistics;
 using NChunkClient::TDataSliceDescriptor;
 using NChunkClient::TChunkReaderStatistics;
 

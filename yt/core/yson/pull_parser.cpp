@@ -104,75 +104,6 @@ ui64 TZeroCopyInputStreamReader::GetTotalReadSize() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonSyntaxChecker::TYsonSyntaxChecker(EYsonType ysonType)
-{
-    StateStack_.push_back(EYsonState::Terminated);
-    switch (ysonType) {
-        case EYsonType::Node:
-            StateStack_.push_back(EYsonState::ExpectValue);
-            break;
-        case EYsonType::ListFragment:
-            StateStack_.push_back(EYsonState::InsideListFragmentExpectValue);
-            break;
-        case EYsonType::MapFragment:
-            StateStack_.push_back(EYsonState::InsideMapFragmentExpectKey);
-            break;
-        default:
-            YT_ABORT();
-    }
-}
-
-TStringBuf TYsonSyntaxChecker::StateExpectationString(EYsonState state)
-{
-    switch (state) {
-        case EYsonState::Terminated:
-            return "no further tokens (yson is completed)";
-
-        case EYsonState::ExpectValue:
-        case EYsonState::ExpectAttributelessValue:
-        case EYsonState::InsideListFragmentExpectAttributelessValue:
-        case EYsonState::InsideListFragmentExpectValue:
-        case EYsonState::InsideMapFragmentExpectAttributelessValue:
-        case EYsonState::InsideMapFragmentExpectValue:
-        case EYsonState::InsideMapExpectAttributelessValue:
-        case EYsonState::InsideMapExpectValue:
-        case EYsonState::InsideAttributeMapExpectAttributelessValue:
-        case EYsonState::InsideAttributeMapExpectValue:
-        case EYsonState::InsideListExpectAttributelessValue:
-        case EYsonState::InsideListExpectValue:
-            return "value";
-
-        case EYsonState::InsideMapFragmentExpectKey:
-        case EYsonState::InsideMapExpectKey:
-            return "key";
-        case EYsonState::InsideAttributeMapExpectKey:
-            return "attribute key";
-
-        case EYsonState::InsideMapFragmentExpectEquality:
-        case EYsonState::InsideMapExpectEquality:
-        case EYsonState::InsideAttributeMapExpectEquality:
-            return "=";
-
-        case EYsonState::InsideListFragmentExpectSeparator:
-        case EYsonState::InsideMapFragmentExpectSeparator:
-        case EYsonState::InsideMapExpectSeparator:
-        case EYsonState::InsideListExpectSeparator:
-        case EYsonState::InsideAttributeMapExpectSeparator:
-            return ";";
-    }
-    YT_VERIFY(false);
-}
-
-void TYsonSyntaxChecker::ThrowUnexpectedToken(TStringBuf token)
-{
-    THROW_ERROR_EXCEPTION("Unexpected %Qv, expected %Qv",
-        token,
-        StateExpectationString(StateStack_.back()))
-        << TErrorAttribute("yson_parser_state", StateStack_.back());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -217,19 +148,30 @@ TYsonItem TYsonPullParser::Next()
         Lexer_.CheckpointContext();
         return NextImpl();
     } catch (const std::exception& ex) {
-        auto [context, contextPosition] = Lexer_.GetContextFromCheckpoint();
-        TStringStream markedContext;
-        markedContext << EscapeC(context.substr(0, contextPosition)) << "  ERROR>>>  " << EscapeC(context.substr(contextPosition));
         THROW_ERROR_EXCEPTION("Error occurred while parsing YSON")
-            << Lexer_
-            << TErrorAttribute("context", EscapeC(context))
-            << TErrorAttribute("context_pos", contextPosition)
-            << TErrorAttribute("marked_context", markedContext.Str())
+            << GetErrorAttributes()
             << ex;
     }
 }
 
+std::vector<TErrorAttribute> TYsonPullParser::GetErrorAttributes() const
+{
+    auto result = Lexer_.GetErrorAttributes();
+    auto [context, contextPosition] = Lexer_.GetContextFromCheckpoint();
+    TStringStream markedContext;
+    markedContext << EscapeC(context.substr(0, contextPosition)) << "  ERROR>>>  " << EscapeC(context.substr(contextPosition));
+    result.emplace_back("context", EscapeC(context));
+    result.emplace_back("context_pos", contextPosition);
+    result.emplace_back("marked_context", markedContext.Str());
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
+
+std::vector<TErrorAttribute> TYsonPullParserCursor::GetErrorAttributes() const
+{
+    return Parser_->GetErrorAttributes();
+}
 
 void TYsonPullParserCursor::SkipComplexValue()
 {

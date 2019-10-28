@@ -60,18 +60,27 @@ public:
 
     virtual DataTypePtr getReturnTypeImpl(const DataTypes& arguments) const override
     {
-        if (!isString(removeNullable(arguments[0]))) {
+        if (!isString(removeNullable(arguments[0])) && !WhichDataType(removeNullable(arguments[0])).isNothing()) {
             throw Exception(
                 "Illegal type " + arguments[0]->getName() + " of first argument of function " + getName(),
                 ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
         }
-        if (!isString(removeNullable(arguments[1]))) {
+        if (!isString(removeNullable(arguments[1])) && !WhichDataType(removeNullable(arguments[1])).isNothing()) {
             throw Exception(
                 "Illegal type " + arguments[1]->getName() + " of second argument of function " + getName(),
                 ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
         }
 
-        return OutputDataType_;
+        if (OutputDataType_->canBeInsideNullable() && (arguments[0]->isNullable() || arguments[1]->isNullable())) {
+            return makeNullable(OutputDataType_);
+        } else {
+            return OutputDataType_;
+        }
+    }
+
+    virtual bool useDefaultImplementationForNulls() const override
+    {
+        return false;
     }
 
     virtual bool useDefaultImplementationForConstants() const override
@@ -81,65 +90,60 @@ public:
 
     void executeImpl(Block& block, const ColumnNumbers& arguments, size_t result, size_t inputRowCount) override
     {
-        const IColumn* columnYson = block.getByPosition(arguments[0]).column.get();
-        const IColumn* columnPath = block.getByPosition(arguments[1]).column.get();
-        const ColumnUInt8* nullMap = nullptr;
-        if (checkColumn<ColumnString>(columnYson) || checkColumnConst<ColumnString>(columnYson)) {
-            // Everything is just fine.
-        } else if (auto* nullableColumnYson = checkAndGetColumn<ColumnNullable>(columnYson)) {
-            nullMap = &nullableColumnYson->getNullMapColumn();
+        const IColumn* columnYsonOrNull = block.getByPosition(arguments[0]).column.get();
+        const IColumn* columnYson = columnYsonOrNull;
+        if (auto* nullableColumnYson = checkAndGetColumn<ColumnNullable>(columnYson)) {
             columnYson = &nullableColumnYson->getNestedColumn();
-        } else {
-            throw Exception(
-                "Illegal column " + block.getByPosition(arguments[0]).column->getName() + " of first argument of function " + getName(),
-                ErrorCodes::ILLEGAL_COLUMN);
         }
 
-        auto columnTo = OutputDataType_->createColumn();
+        const IColumn* columnPathOrNull = block.getByPosition(arguments[1]).column.get();
+        const IColumn* columnPath = columnPathOrNull;
+        if (auto* nullableColumnPath = checkAndGetColumn<ColumnNullable>(columnPath)) {
+            columnPath = &nullableColumnPath->getNestedColumn();
+        }
+
+        MutableColumnPtr columnTo;
+        if (OutputDataType_->canBeInsideNullable() && (columnYsonOrNull->isNullable() || columnPathOrNull->isNullable())) {
+            columnTo = makeNullable(OutputDataType_)->createColumn();
+        } else {
+            columnTo = OutputDataType_->createColumn();
+        }
         columnTo->reserve(inputRowCount);
 
         for (size_t i = 0; i < inputRowCount; ++i) {
+            if (columnYsonOrNull->isNullAt(i) || columnPathOrNull->isNullAt(i)) {
+                // Default is Null if columnTo is nullable, default type value otherwise.
+                columnTo->insertDefault();
+                continue;
+            }
+
             const auto& yson = columnYson->getDataAt(i);
             const auto& path = columnPath->getDataAt(i);
             auto node = ConvertToNode(TYsonString(yson.data, yson.size));
 
             INodePtr subNode = nullptr;
             if constexpr (Strict) {
-                if (!nullMap || nullMap->getUInt(i) == 0) {
-                    subNode = GetNodeByYPath(node, TString(path.data, path.size));
-                } else {
-                    THROW_ERROR_EXCEPTION("Cannot apply ypath function to null value");
-                }
+                subNode = GetNodeByYPath(node, TString(path.data, path.size));
             } else {
-                if (!nullMap || nullMap->getUInt(i) == 0) {
-                    subNode = FindNodeByYPath(node, TString(path.data, path.size));
-                }
-                if (!subNode) {
-                    columnTo->insertDefault();
-                    continue;
-                }
+                subNode = FindNodeByYPath(node, TString(path.data, path.size));
             }
 
-            Field field;
             if constexpr (std::is_fundamental_v<TYTOutputType> || std::is_same_v<TYTOutputType, TString>) {
                 // For primitive types we simply call GetValue<TYTOutputType>().
-                TYTOutputType value;
+                TYTOutputType value = TYTOutputType();
                 if constexpr (Strict) {
                     value = subNode->GetValue<TYTOutputType>();
                 } else {
-                    if (!NYTree::NDetail::TScalarTypeTraits<TYTOutputType>::GetValueSupportedTypes.contains(
-                        subNode->GetType()))
+                    if (subNode &&
+                        NYTree::NDetail::TScalarTypeTraits<TYTOutputType>::GetValueSupportedTypes
+                            .contains(subNode->GetType()))
                     {
-                        columnTo->insertDefault();
-                        continue;
-                    }
-
-                    try {
-                        value = subNode->GetValue<TYTOutputType>();
-                    } catch (const std::exception& /* ex */) {
-                        // Just ignore the exception.
-                        columnTo->insertDefault();
-                        continue;
+                        try {
+                            value = subNode->GetValue<TYTOutputType>();
+                        } catch (const std::exception& /* ex */) {
+                            // Just ignore the exception.
+                            value = TYTOutputType();
+                        }
                     }
                 }
                 columnTo->insert(toField(value));
@@ -150,11 +154,12 @@ public:
                     value = ConvertTo<TYTOutputType>(subNode);
                 } else {
                     try {
-                        value = ConvertTo<TYTOutputType>(subNode);
+                        if (subNode) {
+                            value = ConvertTo<TYTOutputType>(subNode);
+                        }
                     } catch (const std::exception& /* ex */) {
                         // Just ignore the exception.
-                        columnTo->insertDefault();
-                        continue;
+                        value = TYTOutputType();
                     }
                 }
                 columnTo->insertData(reinterpret_cast<char*>(value.data()), value.size() * sizeof(value[0]));
@@ -178,11 +183,6 @@ public:
         this->OutputDataType_ = std::make_shared<TCHOutputDataType>();
     }
 
-    virtual bool useDefaultImplementationForNulls() const override
-    {
-        return true;
-    }
-
     static FunctionPtr create(const Context& /* context */)
     {
         return std::make_shared<TScalarYPathFunction>();
@@ -197,11 +197,6 @@ public:
     TArrayYPathFunction()
     {
         this->OutputDataType_ = std::make_shared<DataTypeArray>(std::make_shared<TCHOutputElementDataType>());
-    }
-
-    virtual bool useDefaultImplementationForNulls() const override
-    {
-        return false;
     }
 
     static FunctionPtr create(const Context& /* context */)
@@ -282,9 +277,19 @@ public:
         return 2;
     }
 
+    virtual bool useDefaultImplementationForNulls() const override
+    {
+        return false;
+    }
+
+    virtual bool useDefaultImplementationForConstants() const override
+    {
+        return true;
+    }
+
     DataTypePtr getReturnTypeImpl(const DataTypes & arguments) const override
     {
-        if (!isString(removeNullable(arguments[0]))) {
+        if (!isString(removeNullable(arguments[0])) && !WhichDataType(removeNullable(arguments[0])).isNothing()) {
             throw Exception(
                 "Illegal type " + arguments[0]->getName() + " of first argument of function " + getName(),
                 ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
@@ -295,40 +300,51 @@ public:
                 ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
         }
 
-        return std::make_shared<DataTypeString>();
+        if (arguments[0]->isNullable()) {
+            return makeNullable(std::make_shared<DataTypeString>());
+        } else {
+            return std::make_shared<DataTypeString>();
+        }
     }
 
     void executeImpl(Block & block, const ColumnNumbers & arguments, size_t result, size_t inputRowCount) override
     {
-        const IColumn* columnYson = block.getByPosition(arguments[0]).column.get();
-        const IColumn* columnFormat = block.getByPosition(arguments[1]).column.get();
-        const ColumnUInt8* nullMap = nullptr;
-        if (checkColumn<ColumnString>(columnYson) || checkColumnConst<ColumnString>(columnYson)) {
-            // Everything is just fine.
-        } else if (auto* nullableColumnYson = checkAndGetColumn<ColumnNullable>(columnYson)) {
-            nullMap = &nullableColumnYson->getNullMapColumn();
+        const IColumn* columnYsonOrNull = block.getByPosition(arguments[0]).column.get();
+        const IColumn* columnYson = columnYsonOrNull;
+        if (auto* nullableColumnYson = checkAndGetColumn<ColumnNullable>(columnYson)) {
             columnYson = &nullableColumnYson->getNestedColumn();
-        } else {
-            throw Exception(
-                "Illegal column " + block.getByPosition(arguments[0]).column->getName() + " of first argument of function " + getName(),
-                ErrorCodes::ILLEGAL_COLUMN);
         }
 
-        auto columnTo = DataTypeString().createColumn();
+        const IColumn* columnFormatOrNull = block.getByPosition(arguments[1]).column.get();
+        const IColumn* columnFormat = columnFormatOrNull;
+        if (auto* nullableColumnFormat = checkAndGetColumn<ColumnNullable>(columnFormat)) {
+            columnFormat = &nullableColumnFormat->getNestedColumn();
+        }
+        
+        MutableColumnPtr columnTo;
+        if (columnYsonOrNull->isNullable()) {
+            columnTo = makeNullable(std::make_shared<DataTypeString>())->createColumn();
+        } else {
+            columnTo = DataTypeString().createColumn();   
+        }
         columnTo->reserve(inputRowCount);
 
         for (size_t i = 0; i < inputRowCount; ++i) {
+            if (columnYsonOrNull->isNullAt(i)) {
+                // Default is Null.
+                columnTo->insertDefault();
+                continue;
+            }
+            if (columnFormatOrNull->isNullAt(i)) {
+                THROW_ERROR_EXCEPTION("Yson format should be not null");
+            }
             const auto& yson = columnYson->getDataAt(i);
             const auto& format = columnFormat->getDataAt(i);
 
             NYson::EYsonFormat ysonFormat = ConvertTo<NYson::EYsonFormat>(TString(format.data, format.size));
             auto ysonString = TYsonString(yson.data, yson.size);
 
-            if (!nullMap || nullMap->getUInt(i) == 0) {
-                columnTo->insert(toField(ConvertToYsonString(ysonString, ysonFormat).GetData()));
-            } else {
-                columnTo->insertDefault();
-            }
+            columnTo->insert(toField(ConvertToYsonString(ysonString, ysonFormat).GetData()));
         }
 
         block.getByPosition(result).column = std::move(columnTo);

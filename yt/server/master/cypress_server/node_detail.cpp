@@ -229,15 +229,19 @@ void TNontemplateCypressNodeTypeHandlerBase::LoadInplace(
         clonedAccount,
         /* transaction */ nullptr);
 
-    // Set owner.
-    auto* user = securityManager->GetAuthenticatedUser();
-    trunkNode->Acd().SetOwner(user);
-
     // Copy ACD, but only in move and not for portal exits.
     auto sourceAcd = Load<TAccessControlDescriptor>(*context);
     if (context->GetMode() == ENodeCloneMode::Move && trunkNode->GetType() != EObjectType::PortalExit) {
         trunkNode->Acd().SetInherit(sourceAcd.GetInherit());
         trunkNode->Acd().SetEntries(sourceAcd.Acl());
+    }
+
+    // Set owner.
+    if (factory->ShouldPreserveOwner()) {
+        trunkNode->Acd().SetOwner(sourceAcd.GetOwner());
+    } else {
+        auto* user = securityManager->GetAuthenticatedUser();
+        trunkNode->Acd().SetOwner(user);
     }
 
     // Copy opaque.

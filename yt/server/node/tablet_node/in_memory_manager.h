@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "tablet_profiling.h"
 
 #include <yt/server/node/cell_node/public.h>
 
@@ -36,6 +37,7 @@ struct TInMemoryChunkData
     NTabletClient::EInMemoryMode InMemoryMode = NTabletClient::EInMemoryMode::None;
 
     std::vector<NChunkClient::TBlock> Blocks;
+    int StartBlockIndex;
     NTableClient::TCachedVersionedChunkMetaPtr ChunkMeta;
     NTableClient::IChunkLookupHashTablePtr LookupHashTable;
     NCellNode::TNodeMemoryTrackerGuard MemoryTrackerGuard;
@@ -87,7 +89,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     const NNodeTrackerClient::TNodeMemoryTrackerPtr& memoryTracker,
     const IInvokerPtr& compressionInvoker,
     const NConcurrency::IThroughputThrottlerPtr& throttler,
-    NProfiling::TTagId preloadTag);
+    const TReaderProfilerPtr& readerProfiler);
 
 ////////////////////////////////////////////////////////////////////////////////
 

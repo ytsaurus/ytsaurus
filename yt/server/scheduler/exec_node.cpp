@@ -21,7 +21,6 @@ TExecNode::TExecNode(
     , MasterState_(NNodeTrackerClient::ENodeState::Offline)
     , SchedulerState_(state)
     , HasOngoingHeartbeat_(false)
-    , HasOngoingJobsScheduling_(false)
     , HasPendingUnregistration_(false)
 { }
 

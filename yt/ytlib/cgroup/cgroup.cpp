@@ -3,8 +3,9 @@
 
 #include <yt/core/misc/fs.h>
 #include <yt/core/misc/proc.h>
-#include <yt/core/tools/registry.h>
-#include <yt/core/tools/tools.h>
+
+#include <yt/ytlib/tools/registry.h>
+#include <yt/ytlib/tools/tools.h>
 
 #include <yt/core/ytree/fluent.h>
 

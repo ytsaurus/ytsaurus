@@ -27,32 +27,32 @@
 
 #include <yt/ytlib/file_client/file_chunk_output.h>
 
-#include <yt/client/formats/parser.h>
-
 #include <yt/ytlib/job_proxy/user_job_read_controller.h>
 
 #include <yt/ytlib/job_prober_client/job_probe.h>
-
-#include <yt/ytlib/job_tracker_client/statistics.h>
 
 #include <yt/ytlib/query_client/evaluator.h>
 #include <yt/ytlib/query_client/query.h>
 #include <yt/ytlib/query_client/public.h>
 #include <yt/ytlib/query_client/functions_cache.h>
 
-#include <yt/client/query_client/query_statistics.h>
-
-#include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/unversioned_writer.h>
-
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
 
+#include <yt/ytlib/transaction_client/public.h>
+
+#include <yt/ytlib/tools/signaler.h>
+#include <yt/ytlib/tools/tools.h>
+
+#include <yt/client/formats/parser.h>
+
+#include <yt/client/query_client/query_statistics.h>
+
+#include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/unversioned_writer.h>
 #include <yt/client/table_client/schemaful_reader_adapter.h>
 #include <yt/client/table_client/table_consumer.h>
-
-#include <yt/ytlib/transaction_client/public.h>
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/delayed_executor.h>
@@ -67,13 +67,12 @@
 #include <yt/core/misc/process.h>
 #include <yt/core/misc/public.h>
 #include <yt/core/misc/subprocess.h>
-#include <yt/core/misc/signaler.h>
+
+#include <yt/core/misc/statistics.h>
 
 #include <yt/core/net/connection.h>
 
 #include <yt/core/rpc/server.h>
-
-#include <yt/core/tools/tools.h>
 
 #include <yt/core/ypath/tokenizer.h>
 
@@ -1210,13 +1209,12 @@ private:
                 auto asyncError = action
                     .AsyncVia(invoker)
                     .Run();
-                asyncError.Subscribe(onError);
-                result.emplace_back(std::move(asyncError));
+                result.emplace_back(asyncError.Apply(onError));
             }
             return result;
         };
 
-        ProcessFinished_.Subscribe(onProcessFinished);
+        auto processFinished = ProcessFinished_.Apply(onProcessFinished);
 
         // Wait until executor opens and dup named pipes,
         // satellite calls waitpid()
@@ -1254,9 +1252,8 @@ private:
         // Then, wait for job process to finish.
         // Theoretically, process could have explicitely closed its output pipes
         // but still be doing some computations.
-        auto jobExitError = WaitFor(ProcessFinished_);
-        YT_LOG_INFO(jobExitError, "Job process finished");
-        onIOError.Run(jobExitError);
+        YT_VERIFY(WaitFor(processFinished).IsOK());
+        YT_LOG_INFO("Job process finished (Error: %v)", JobErrorPromise_.ToFuture().TryGet());
 
         // Abort input pipes unconditionally.
         // If the job didn't read input to the end, pipe writer could be blocked,

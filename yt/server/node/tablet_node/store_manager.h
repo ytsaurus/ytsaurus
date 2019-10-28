@@ -1,6 +1,7 @@
 #pragma once
 
 #include "dynamic_store_bits.h"
+#include "tablet_profiling.h"
 
 #include <yt/server/node/cell_node/public.h>
 
@@ -22,7 +23,8 @@ using TStoreFlushResult = std::vector<NTabletNode::NProto::TAddStoreDescriptor>;
 using TStoreFlushCallback = TCallback<TStoreFlushResult(
     NApi::ITransactionPtr transaction,
     NConcurrency::IThroughputThrottlerPtr,
-    TTimestamp currentTimestamp)>;
+    TTimestamp currentTimestamp,
+    TWriterProfilerPtr writerProfiler)>;
 
 //! Provides a facade for modifying data within a given tablet.
 /*!

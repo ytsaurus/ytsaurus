@@ -1601,6 +1601,7 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
     bool preserveCreationTime = request->preserve_creation_time();
     bool preserveModificationTime = request->preserve_modification_time();
     bool preserveExpirationTime = request->preserve_expiration_time();
+    bool preserveOwner = request->preserve_owner();
     auto recursive = request->recursive();
     auto ignoreExisting = request->ignore_existing();
     auto force = request->force();
@@ -1615,12 +1616,13 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
 
     context->SetRequestInfo("TransactionId: %v "
         "PreserveAccount: %v, PreserveCreationTime: %v, PreserveModificationTime: %v, PreserveExpirationTime: %v, "
-        "Recursive: %v, IgnoreExisting: %v, Force: %v, PessimisticQuotaCheck: %v",
+        "PreserveOwner: %v, Recursive: %v, IgnoreExisting: %v, Force: %v, PessimisticQuotaCheck: %v",
         NObjectServer::GetObjectId(Transaction_),
         preserveAccount,
         preserveCreationTime,
         preserveModificationTime,
         preserveExpirationTime,
+        preserveOwner,
         recursive,
         ignoreExisting,
         force,
@@ -1660,6 +1662,7 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
         .PreserveCreationTime = preserveCreationTime,
         .PreserveModificationTime = preserveModificationTime,
         .PreserveExpirationTime = preserveExpirationTime,
+        .PreserveOwner = preserveOwner,
         .PessimisticQuotaCheck = pessimisticQuotaCheck
     });
 

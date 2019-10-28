@@ -816,9 +816,9 @@ private:
         suspendableStripe.SetExtractedCookie(extractedStripeList->Cookie);
         AddStripeToList(
             suspendableStripe.GetStripe(),
+            extractedStripeList->StripeList,
             std::min(stat.DataWeight, JobSizeConstraints_->GetMaxDataWeightPerJob() - 1),
-            stat.RowCount,
-            extractedStripeList->StripeList);
+            stat.RowCount);
 
         JobCounter->Increment(1);
 
@@ -895,9 +895,9 @@ private:
             suspendableStripe.SetExtractedCookie(extractedStripeList->Cookie);
             AddStripeToList(
                 suspendableStripe.GetStripe(),
+                list,
                 stat.DataWeight,
                 stat.RowCount,
-                list,
                 nodeId);
         }
         size_t newSize = list->Stripes.size();

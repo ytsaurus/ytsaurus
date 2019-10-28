@@ -68,6 +68,7 @@ void SetCloneNodeBaseRequestParameters(
     req->set_preserve_creation_time(options.PreserveCreationTime);
     req->set_preserve_modification_time(options.PreserveModificationTime);
     req->set_preserve_expiration_time(options.PreserveExpirationTime);
+    req->set_preserve_owner(options.PreserveOwner);
     req->set_recursive(options.Recursive);
     req->set_force(options.Force);
     req->set_pessimistic_quota_check(options.PessimisticQuotaCheck);
@@ -368,6 +369,9 @@ public:
             Options_);
         RequestRootEffectiveAcl();
         BeginCopy(Path_, GetOptions());
+        if (TypeFromId(SrcNodeId_) != EObjectType::MapNode) {
+            THROW_ERROR_EXCEPTION("%v is not a map node", Path_);
+        }
         CreatePortal();
         SyncExitCellWithEntranceCell();
         EndCopy(Path_, GetOptions(), true);
@@ -391,6 +395,7 @@ private:
         options.PreserveCreationTime = true;
         options.PreserveModificationTime = true;
         options.PreserveExpirationTime = true;
+        options.PreserveOwner = true;
         options.Force = true;
         return options;
     }
@@ -418,9 +423,8 @@ private:
         TCreateNodeOptions options;
         options.Attributes = std::move(attributes);
         options.Force = true;
-        options.TransactionId = Transaction_->GetId();
 
-        auto nodeIdOrError = WaitFor(Client_->CreateNode(
+        auto nodeIdOrError = WaitFor(Transaction_->CreateNode(
             Path_,
             EObjectType::PortalEntrance,
             options));
@@ -435,13 +439,81 @@ private:
 
         const auto& connection = Client_->GetNativeConnection();
         auto future = connection->SyncHiveCellWithOthers(
-            {connection->GetMasterCellId(CellTagFromId(DstNodeId_))},
+            {connection->GetMasterCellId(CellTagFromId(SrcNodeId_))},
             connection->GetMasterCellId(CellTag_));
 
         auto error = WaitFor(future);
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error synchronizing exit cell with entrance cell");
 
         YT_LOG_DEBUG("Exit cell synchronized with entrance cell");
+    }
+};
+
+class TNodeInternalizer
+    : public TCrossCellExecutor
+{
+public:
+    TNodeInternalizer(
+        TClientPtr client,
+        TYPath path,
+        const TInternalizeNodeOptions& options,
+        NLogging::TLogger logger)
+        : TCrossCellExecutor(
+            std::move(client),
+            logger.AddTag("Path: %v",
+                path))
+        , Path_(std::move(path))
+        , Options_(options)
+    { }
+
+    void Run()
+    {
+        YT_LOG_DEBUG("Node internalization started");
+        StartTransaction(
+            Format("Internalize %v", Path_),
+            Options_);
+        BeginCopy(Path_, GetOptions());
+        if (TypeFromId(SrcNodeId_) != EObjectType::PortalExit) {
+            THROW_ERROR_EXCEPTION("%v is not a portal", Path_);
+        }
+        CreateMapNode();
+        EndCopy(Path_ + "&", GetOptions(), true);
+        SyncExternalCellsWithClonedNodeCell();
+        CommitTransaction();
+        YT_LOG_DEBUG("Node internalization completed");
+    }
+
+private:
+    const TYPath Path_;
+    const TInternalizeNodeOptions Options_;
+
+
+    static TMoveNodeOptions GetOptions()
+    {
+        TMoveNodeOptions options;
+        options.PreserveAccount = true;
+        options.PreserveCreationTime = true;
+        options.PreserveModificationTime = true;
+        options.PreserveExpirationTime = true;
+        options.PreserveOwner = true;
+        options.Force = true;
+        return options;
+    }
+
+    void CreateMapNode()
+    {
+        YT_LOG_DEBUG("Creating map node");
+
+        TCreateNodeOptions options;
+        options.Force = true;
+
+        auto nodeIdOrError = WaitFor(Transaction_->CreateNode(
+            Path_ + "&",
+            EObjectType::MapNode,
+            options));
+        THROW_ERROR_EXCEPTION_IF_FAILED(nodeIdOrError, "Error creating map node");
+
+        YT_LOG_DEBUG("Map node created");
     }
 };
 
@@ -1156,6 +1228,18 @@ void TClient::DoExternalizeNode(
         options,
         Logger);
     return externalizer.Run();
+}
+
+void TClient::DoInternalizeNode(
+    const TYPath& path,
+    TInternalizeNodeOptions options)
+{
+    TNodeInternalizer internalizer(
+        this,
+        path,
+        options,
+        Logger);
+    return internalizer.Run();
 }
 
 TObjectId TClient::DoCreateObject(

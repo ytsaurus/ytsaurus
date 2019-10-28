@@ -167,11 +167,11 @@ class FiberBtCmd(gdb.Command):
 
         print("Unwinding stack...")
         try:
-            while from_vpp(fp) != 0L:
+            while from_vpp(fp) != 0:
                 sp = to_vpp((fp + 0).dereference())
                 pc = to_vpp((fp + 1).dereference())
 
-                if from_vpp(sp) != 0L:
+                if from_vpp(sp) != 0:
                     name = get_pretty_name(pc)
                     addr, location = get_pretty_location(pc)
                     print("#%-3d sp=%-14s  at  pc=0x%x %s in %s" % (
@@ -182,7 +182,7 @@ class FiberBtCmd(gdb.Command):
                 else:
                     fp = to_vpp(0)
                     no = 0
-        except gdb.MemoryError, e:
+        except gdb.MemoryError as e:
             print("Unwinding failed: %s" % e)
 
 

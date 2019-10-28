@@ -422,9 +422,7 @@ public:
     {
         const auto& jobSpec = JobSpecHelper_->GetJobSpec();
         const auto& jobSpecExt = jobSpec.GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
-        auto partitioner = CreateHashPartitioner(
-            jobSpecExt.partition_count(),
-            jobSpecExt.reduce_key_column_count());
+        auto partitioner = CreatePartitioner(jobSpecExt);
         auto keyColumns = FromProto<TKeyColumns>(jobSpecExt.sort_key_columns());
 
         auto nameTable = TNameTable::FromKeyColumns(keyColumns);

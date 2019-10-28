@@ -348,6 +348,15 @@ TGpuManager::TGpuSlotPtr TGpuManager::AcquireGpuSlot()
     return slot;
 }
 
+std::vector<TShellCommandConfigPtr> TGpuManager::GetSetupCommands()
+{
+    if (Config_->JobSetupCommand) {
+        return {*Config_->JobSetupCommand};
+    }
+
+    return {};
+}
+
 std::vector<TArtifactKey> TGpuManager::GetToppingLayers()
 {
     auto guard = Guard(SpinLock_);

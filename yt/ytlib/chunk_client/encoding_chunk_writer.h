@@ -43,7 +43,7 @@ public:
     NProto::TDataStatistics GetDataStatistics() const;
     TCodecStatistics GetCompressionStatistics() const;
 
-    bool HasSickReplicas() const;
+    bool IsCloseDemanded() const;
 
 private:
     const IChunkWriterPtr ChunkWriter_;

@@ -21,6 +21,9 @@
 
 #include <yt/ytlib/chunk_client/public.h>
 
+#include <yt/ytlib/tools/tools.h>
+#include <yt/ytlib/tools/proc.h>
+
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/async_semaphore.h>
 
@@ -31,8 +34,6 @@
 #include <yt/core/misc/fs.h>
 #include <yt/core/misc/finally.h>
 #include <yt/core/misc/proc.h>
-
-#include <yt/core/tools/tools.h>
 
 namespace NYT::NDataNode {
 
@@ -52,7 +53,7 @@ static const TString MountSuffix = "mount";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TPortoVolumeManager);
+DECLARE_REFCOUNTED_CLASS(TPortoVolumeManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 

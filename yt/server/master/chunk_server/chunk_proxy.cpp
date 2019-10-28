@@ -163,7 +163,7 @@ private:
         descriptors->push_back(EInternedAttributeKey::ScanFlags);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CreationTime)
             .SetPresent(miscExt.has_creation_time()));
-        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::JobId)
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Job)
             .SetPresent(!isForeign && chunk->IsJobScheduled())
             .SetOpaque(true));
     }
@@ -680,14 +680,23 @@ private:
                     });
                 return true;
 
-            case EInternedAttributeKey::JobId: {
+            case EInternedAttributeKey::Job: {
                 auto job = chunk->GetJob();
                 if (isForeign || !job) {
                     break;
                 }
                 RequireLeader();
                 BuildYsonFluently(consumer)
-                    .Value(job->GetJobId());
+                    .BeginMap()
+                        .Item("job")
+                        .BeginMap()
+                            .Item("id").Value(job->GetJobId())
+                            .Item("type").Value(job->GetType())
+                            .Item("start_time").Value(job->GetStartTime())
+                            .Item("address").Value(job->GetNode()->GetDefaultAddress())
+                            .Item("state").Value(job->GetState())
+                        .EndMap()
+                    .EndMap();
                 return true;
             }
 

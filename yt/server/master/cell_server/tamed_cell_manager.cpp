@@ -1342,8 +1342,10 @@ private:
             CleanupExecutor_.Reset();
         }
 
-        CellStatusGossipExecutor_->Stop();
-        CellStatusGossipExecutor_.Reset();
+        if (CellStatusGossipExecutor_) {
+            CellStatusGossipExecutor_->Stop();
+            CellStatusGossipExecutor_.Reset();
+        }
     }
 
     void ReconfigureCell(TCellBase* cell)

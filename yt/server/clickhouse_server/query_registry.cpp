@@ -262,7 +262,7 @@ public:
         }
         // Skip one more zero to keep previous string readable.
         ++StatePointer_;
-        YT_LOG_DEBUG("Skipped previous string (StatePointer: %v)");
+        YT_LOG_DEBUG("Skipped previous string (StatePointer: %v)", StatePointer_);
         TStringStream stream;
         TYsonWriter writer(&stream, EYsonFormat::Pretty);
         BuildYson(&writer);

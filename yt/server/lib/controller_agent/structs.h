@@ -6,9 +6,13 @@
 
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 
-#include <yt/ytlib/job_tracker_client/statistics.h>
+#include <yt/ytlib/chunk_client/public.h>
+
+#include <yt/ytlib/job_tracker_client/helpers.h>
 
 #include <yt/core/misc/phoenix.h>
+
+#include <yt/core/misc/statistics.h>
 
 namespace NYT::NControllerAgent {
 
@@ -44,15 +48,12 @@ struct TJobSummary
     std::optional<TDuration> PrepareRootFSDuration;
 
     // NB: The Statistics field will be set inside the controller in ParseStatistics().
-    std::optional<NJobTrackerClient::TStatistics> Statistics;
+    std::optional<TStatistics> Statistics;
     NYson::TYsonString StatisticsYson;
 
     bool LogAndProfile = false;
 
-    bool ArchiveJobSpec = false;
-    bool ArchiveStderr = false;
-    bool ArchiveFailContext = false;
-    bool ArchiveProfile = false;
+    NJobTrackerClient::TReleaseJobFlags ReleaseFlags;
 };
 
 struct TCompletedJobSummary

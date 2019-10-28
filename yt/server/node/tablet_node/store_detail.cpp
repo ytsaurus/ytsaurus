@@ -434,8 +434,9 @@ public:
     {
         if (type == GetSupportedBlockTypes()) {
             YT_ASSERT(id.ChunkId == ChunkId_);
-            YT_ASSERT(id.BlockIndex >= 0 && id.BlockIndex < ChunkData_->Blocks.size());
-            return ChunkData_->Blocks[id.BlockIndex];
+            int blockIndex = id.BlockIndex - ChunkData_->StartBlockIndex;
+            YT_ASSERT(blockIndex >= 0 && blockIndex < ChunkData_->Blocks.size());
+            return ChunkData_->Blocks[blockIndex];
         } else {
             return UnderlyingCache_->Find(id, type);
         }

@@ -2414,6 +2414,32 @@ class TestCypress(YTEnvSetup):
         # Must not throw.
         lock("//tmp/d1/d2/dst/t", tx=tx2, mode="snapshot", authenticated_user="u")
 
+    @authors("avmatrosov")
+    def test_preserve_owner(self):
+        create("map_node", "//tmp/x")
+        create_user("u1")
+        create("table", "//tmp/x/1", authenticated_user="u1")
+
+        copy("//tmp/x/1", "//tmp/x/2", preserve_owner=True)
+        assert get("//tmp/x/1/@owner") == "u1"
+        assert get("//tmp/x/2/@owner") == "u1"
+
+        move("//tmp/x/1", "//tmp/x/3", preserve_owner=True)
+        assert get("//tmp/x/3/@owner") == "u1"
+
+    @authors("avmatrosov")
+    def test_preserve_owner_transaction(self):
+        create("map_node", "//tmp/x")
+        create_user("u1")
+        create("table", "//tmp/x/1", authenticated_user="u1")
+        tx = start_transaction()
+
+        copy("//tmp/x/1", "//tmp/x/2", tx=tx, preserve_owner=True)
+        assert get("//tmp/x/2/@owner", tx=tx) == "u1"
+
+        commit_transaction(tx)
+        assert get("//tmp/x/2/@owner") == "u1"
+
 ##################################################################
 
 class TestCypressMulticell(TestCypress):
@@ -2435,22 +2461,18 @@ class TestCypressPortal(TestCypressMulticell):
 
     @authors("avmatrosov")
     def test_annotation_portal(self):
-        set("//@annotation", "test")
-        assert get("//tmp/@annotation") == ""
+        set("//tmp/@annotation", "test")
 
-        create("portal_entrance", "//p1", attributes={"exit_cell_tag": 1})
-        create("map_node", "//p1/test")
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 2})
+        create("map_node", "//tmp/p/test")
 
-        assert get("//@annotation") == "test"
-        assert get("//p1/test/@annotation") == "test"
+        assert get("//tmp/p/test/@annotation") == "test"
 
-        remove("//@annotation")
-        assert get("//p1/test/@annotation") == "test"
+        set("//tmp/@annotation", "")
+        assert get("//tmp/p/test/@annotation") == "test"
 
         with pytest.raises(YtError):
             remove("//tmp/@annotation")
-
-        remove("//p1")
 
     @authors("avmatrosov")
     def test_annotation_attribute(self):
@@ -2459,6 +2481,16 @@ class TestCypressPortal(TestCypressMulticell):
     @authors("avmatrosov")
     def test_annotation_errors(self):
         pass
+
+    @authors("avmatrosov")
+    def test_preserve_owner(self):
+        create_user("u1")
+        create("document", "//tmp/doc", authenticated_user="u1")
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 2})
+
+        # test cross-cell copy
+        copy("//tmp/doc", "//tmp/p/doc", preserve_owner=True)
+        assert get("//tmp/doc/@owner") == get("//tmp/p/doc/@owner") == "u1"
 
 ##################################################################
 

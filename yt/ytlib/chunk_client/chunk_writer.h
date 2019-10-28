@@ -66,8 +66,8 @@ struct IChunkWriter
     //! Returns the erasure codec of the chunk being written.
     virtual NErasure::ECodec GetErasureCodecId() const = 0;
 
-    //! Returns true if one of the replicas is reported to be sick.
-    virtual bool HasSickReplicas() const = 0;
+    //! Returns true if one of the replicas demanded transmission close.
+    virtual bool IsCloseDemanded() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkWriter)

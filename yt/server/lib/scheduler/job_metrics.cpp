@@ -10,6 +10,7 @@
 #include <yt/core/ytree/fluent.h>
 
 #include <yt/core/misc/protobuf_helpers.h>
+#include <yt/core/misc/statistics.h>
 
 #include <util/generic/cast.h>
 
@@ -81,8 +82,8 @@ void Deserialize(TCustomJobMetricDescription& customJobMetricDescription, NYTree
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobMetrics TJobMetrics::FromJobTrackerStatistics(
-    const NJobTrackerClient::TStatistics& statistics,
+TJobMetrics TJobMetrics::FromJobStatistics(
+    const TStatistics& statistics,
     EJobState jobState,
     const std::vector<TCustomJobMetricDescription>& customJobMetricDescriptions)
 {

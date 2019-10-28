@@ -3398,10 +3398,18 @@ private:
         Profiler.Enqueue("/quorum_missing_chunk_count", QuorumMissingChunks().size(), EMetricType::Gauge);
         Profiler.Enqueue("/unsafely_placed_chunk_count", UnsafelyPlacedChunks().size(), EMetricType::Gauge);
 
-        const auto& jobCounters = ChunkReplicator_->JobCounters();
+        const auto& jobCounters = ChunkReplicator_->RunningJobs();
+        const auto& jobsStarted = ChunkReplicator_->JobsStarted();
+        const auto& jobsCompleted = ChunkReplicator_->JobsCompleted();
+        const auto& jobsFailed = ChunkReplicator_->JobsFailed();
+        const auto& jobsAborted = ChunkReplicator_->JobsAborted();
         for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
             if (jobType >= NJobTrackerClient::FirstMasterJobType && jobType <= NJobTrackerClient::LastMasterJobType) {
-                Profiler.Enqueue("/job_count", jobCounters[jobType], EMetricType::Gauge, {JobTypeToTag_[jobType]});
+                Profiler.Enqueue("/running_job_count", jobCounters[jobType], EMetricType::Gauge, {JobTypeToTag_[jobType]});
+                Profiler.Enqueue("/jobs_started", jobsStarted[jobType], EMetricType::Counter, {JobTypeToTag_[jobType]});
+                Profiler.Enqueue("/jobs_completed", jobsCompleted[jobType], EMetricType::Counter, {JobTypeToTag_[jobType]});
+                Profiler.Enqueue("/jobs_failed", jobsFailed[jobType], EMetricType::Counter, {JobTypeToTag_[jobType]});
+                Profiler.Enqueue("/jobs_aborted", jobsAborted[jobType], EMetricType::Counter, {JobTypeToTag_[jobType]});
             }
         }
 

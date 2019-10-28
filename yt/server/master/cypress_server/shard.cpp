@@ -35,11 +35,34 @@ void Serialize(const TCypressShardAccountStatistics& statistics, IYsonConsumer* 
         .EndMap();
 }
 
+TCypressShardAccountStatistics& operator +=(
+    TCypressShardAccountStatistics& lhs,
+    const TCypressShardAccountStatistics& rhs)
+{
+    lhs.NodeCount += rhs.NodeCount;
+    return lhs;
+}
+
+TCypressShardAccountStatistics operator +(
+    const TCypressShardAccountStatistics& lhs,
+    const TCypressShardAccountStatistics& rhs)
+{
+    TCypressShardAccountStatistics result;
+    result += lhs;
+    result += rhs;
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TCypressShard::TCypressShard(const TLockId& id)
-    : TNonversionedObjectBase(id)
-{ }
+TCypressShardAccountStatistics TCypressShard::ComputeTotalAccountStatistics() const
+{
+    TCypressShardAccountStatistics result;
+    for (const auto& [account, statistics] : AccountStatistics_) {
+        result += statistics;
+    }
+    return result;
+}
 
 void TCypressShard::Save(NCellMaster::TSaveContext& context) const
 {

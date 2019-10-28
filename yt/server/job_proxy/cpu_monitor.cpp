@@ -35,7 +35,7 @@ TFuture<void> TCpuMonitor::Stop()
     return MonitoringExecutor_->Stop();
 }
 
-void TCpuMonitor::FillStatistics(NJobTrackerClient::TStatistics& statistics) const
+void TCpuMonitor::FillStatistics(TStatistics& statistics) const
 {
     if (SmoothedUsage_) {
         statistics.AddSample("/job_proxy/smoothed_cpu_usage_x100", static_cast<i64>(*SmoothedUsage_ * 100));

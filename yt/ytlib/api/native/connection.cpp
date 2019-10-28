@@ -17,7 +17,7 @@
 #include <yt/ytlib/hive/cell_tracker.h>
 #include <yt/ytlib/hive/cluster_directory.h>
 #include <yt/ytlib/hive/cluster_directory_synchronizer.h>
-    #include <yt/ytlib/hive/hive_service_proxy.h>
+#include <yt/ytlib/hive/hive_service_proxy.h>
 
 #include <yt/ytlib/query_client/column_evaluator.h>
 #include <yt/ytlib/query_client/evaluator.h>
@@ -38,6 +38,9 @@
 #include <yt/client/api/sticky_transaction_pool.h>
 
 #include <yt/client/object_client/helpers.h>
+
+#include <yt/core/profiling/profiler.h>
+#include <yt/core/profiling/profile_manager.h>
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/thread_pool.h>
@@ -60,6 +63,7 @@ using namespace NQueryClient;
 using namespace NHydra;
 using namespace NNodeTrackerClient;
 using namespace NScheduler;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -73,11 +77,13 @@ public:
         : Config_(std::move(config))
         , Options_(options)
         , Logger(NLogging::TLogger(ApiLogger)
-            .AddTag("PrimaryCellTag: %v, ConnectionId: %",
+            .AddTag("PrimaryCellTag: %v, ConnectionId: %v, ConnectionName: %v",
                 CellTagFromId(Config_->PrimaryMaster->CellId),
-                TGuid::Create()))
+                TGuid::Create(),
+                Config_->Name))
         , CachingChannelFactory_(CreateCachingChannelFactory(NRpc::NBus::CreateBusChannelFactory(Config_->BusClient)))
         , ChannelFactory_(CachingChannelFactory_)
+        , Profiler_("/connection", {TProfileManager::Get()->RegisterTag("connection_name", Config_->Name)})
     { }
 
     void Initialize()
@@ -149,7 +155,8 @@ public:
 
         BlockCache_ = CreateClientBlockCache(
             Config_->BlockCache,
-            EBlockType::CompressedData|EBlockType::UncompressedData);
+            EBlockType::CompressedData|EBlockType::UncompressedData,
+            Profiler_.AppendPath("/block_cache"));
 
         TableMountCache_ = CreateNativeTableMountCache(
             Config_->TableMountCache,
@@ -424,6 +431,8 @@ private:
     TNodeDirectorySynchronizerPtr NodeDirectorySynchronizer_;
 
     TThreadPoolPtr ThreadPool_;
+
+    TProfiler Profiler_;
 
     std::atomic<bool> Terminated_ = {false};
 };

@@ -187,6 +187,7 @@ public:
     bool TestGpuResource;
 
     bool TestGpuLayers;
+    bool TestGpuSetupCommands;
 
     TGpuManagerConfigPtr GpuManager;
 
@@ -240,6 +241,9 @@ public:
             .Default(false);
 
         RegisterParameter("test_gpu_layers", TestGpuLayers)
+            .Default(false);
+
+        RegisterParameter("test_gpu_setup_commands", TestGpuSetupCommands)
             .Default(false);
 
         RegisterParameter("gpu_manager", GpuManager)

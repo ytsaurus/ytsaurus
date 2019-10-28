@@ -42,7 +42,6 @@ using namespace NChunkClient;
 using namespace NCypressClient;
 using namespace NConcurrency;
 using namespace NJobProberClient;
-using namespace NJobTrackerClient::NProto;
 using namespace NJobTrackerClient;
 using namespace NControllerAgent;
 using namespace NNodeTrackerClient;
@@ -52,6 +51,7 @@ using namespace NShell;
 using namespace NYTree;
 using namespace NYson;
 
+using NJobTrackerClient::TReleaseJobFlags;
 using NNodeTrackerClient::TNodeId;
 using NScheduler::NProto::TSchedulerJobResultExt;
 
@@ -287,7 +287,7 @@ void TNodeShard::StartOperationRevival(TOperationId operationId)
     auto& operationState = GetOperationState(operationId);
     operationState.JobsReady = false;
     operationState.ForbidNewJobs = false;
-    operationState.SkippedJobIds = THashSet<TJobId>();
+    operationState.OperationUnreadyLoggedJobIds = THashSet<TJobId>();
 
     YT_LOG_DEBUG("Operation revival started at node shard (OperationId: %v, JobCount: %v)",
         operationId,
@@ -326,7 +326,7 @@ void TNodeShard::FinishOperationRevival(TOperationId operationId, const std::vec
     operationState.JobsReady = true;
     operationState.ForbidNewJobs = false;
     operationState.Terminated = false;
-    operationState.SkippedJobIds = THashSet<TJobId>();
+    operationState.OperationUnreadyLoggedJobIds = THashSet<TJobId>();
 
     for (const auto& job : jobs) {
         auto node = GetOrRegisterNode(
@@ -360,7 +360,7 @@ void TNodeShard::ResetOperationRevival(TOperationId operationId)
     operationState.JobsReady = true;
     operationState.ForbidNewJobs = false;
     operationState.Terminated = false;
-    operationState.SkippedJobIds = THashSet<TJobId>();
+    operationState.OperationUnreadyLoggedJobIds = THashSet<TJobId>();
 
     YT_LOG_DEBUG("Operation revival state reset at node shard (OperationId: %v)",
         operationId);
@@ -577,9 +577,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         }
 
         PROFILE_AGGREGATED_TIMING (ScheduleTimeCounter) {
-            node->SetHasOngoingJobsScheduling(true);
             Y_UNUSED(WaitFor(Host_->GetStrategy()->ScheduleJobs(schedulingContext)));
-            node->SetHasOngoingJobsScheduling(false);
         }
 
         const auto& statistics = schedulingContext->GetSchedulingStatistics();
@@ -1183,7 +1181,7 @@ void TNodeShard::FailJob(TJobId jobId)
     job->SetFailRequested(true);
 }
 
-void TNodeShard::ReleaseJob(TJobId jobId, bool archiveJobSpec, bool archiveStderr, bool archiveFailContext, bool archiveProfile)
+void TNodeShard::ReleaseJob(TJobId jobId, TReleaseJobFlags releaseFlags)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
     YT_VERIFY(Connected_);
@@ -1196,21 +1194,21 @@ void TNodeShard::ReleaseJob(TJobId jobId, bool archiveJobSpec, bool archiveStder
         execNode->GetMasterState() == NNodeTrackerClient::ENodeState::Online &&
         execNode->GetSchedulerState() == ENodeState::Online)
     {
-        YT_LOG_DEBUG("Job released and will be reremoved (JobId: %v, NodeId: %v, NodeAddress: %v, ArchiveJobSpec: %v, ArchiveStderr: %v, ArchiveFailContext: %v, ArchiveProfile: %v)",
-            jobId,
-            nodeId,
-            execNode->GetDefaultAddress(),
-            archiveJobSpec,
-            archiveStderr,
-            archiveFailContext,
-            archiveProfile);
-        execNode->JobsToRemove().push_back({
-            jobId,
-            archiveJobSpec,
-            archiveStderr,
-            archiveFailContext,
-            archiveProfile,
-        });
+        auto it = execNode->RecentlyFinishedJobs().find(jobId);
+        if (it == execNode->RecentlyFinishedJobs().end()) {
+            YT_LOG_DEBUG("Job release skipped since job has been removed already (JobId: %v, NodeId: %v, NodeAddress: %v)",
+                jobId,
+                nodeId,
+                execNode->GetDefaultAddress());
+        } else {
+            YT_LOG_DEBUG("Job released and will be removed (JobId: %v, NodeId: %v, NodeAddress: %v, %v)",
+                jobId,
+                nodeId,
+                execNode->GetDefaultAddress(),
+                releaseFlags);
+            auto& recentlyFinishedJobInfo = it->second;
+            recentlyFinishedJobInfo.ReleaseFlags = releaseFlags;
+        }
     } else {
         YT_LOG_DEBUG("Execution node was unregistered for a job that should be removed (JobId: %v, NodeId: %v)",
             jobId,
@@ -1647,37 +1645,30 @@ void TNodeShard::ProcessHeartbeatJobs(
         YT_VERIFY(!checkMissingJobs || !job->GetFoundOnNode());
     }
 
-    {
-        for (const auto& jobToRemove : node->JobsToRemove()) {
-            YT_LOG_DEBUG("Requesting node to remove job "
-                "(JobId: %v, NodeId: %v, NodeAddress: %v, ArchiveJobSpec: %v, ArchiveStderr: %v, ArchiveFailContext: %v, ArchiveProfile: %v)",
-                jobToRemove.JobId,
-                nodeId,
-                nodeAddress,
-                jobToRemove.ArchiveJobSpec,
-                jobToRemove.ArchiveStderr,
-                jobToRemove.ArchiveFailContext,
-                jobToRemove.ArchiveProfile);
-            RemoveRecentlyFinishedJob(jobToRemove.JobId);
-            ToProto(response->add_jobs_to_remove(), jobToRemove);
-        }
-        node->JobsToRemove().clear();
-    }
-
+    THashSet<TJobId> recentlyFinishedJobIdsToRemove;
     {
         auto now = GetCpuInstant();
-        std::vector<TJobId> recentlyFinishedJobsToRemove;
         for (const auto& [jobId, jobInfo] : node->RecentlyFinishedJobs()) {
-            if (now > jobInfo.EvictionDeadline) {
-                YT_LOG_DEBUG("Removing job from recently completed due to timeout for release "
+            if (jobInfo.ReleaseFlags){
+                YT_LOG_DEBUG("Requesting node to remove released job "
+                    "(JobId: %v, NodeId: %v, NodeAddress: %v, %v)",
+                    jobId,
+                    nodeId,
+                    nodeAddress,
+                    *jobInfo.ReleaseFlags);
+                recentlyFinishedJobIdsToRemove.insert(jobId);
+                ToProto(response->add_jobs_to_remove(), TJobToRelease{jobId, *jobInfo.ReleaseFlags});
+            } else if (now > jobInfo.EvictionDeadline) {
+                YT_LOG_DEBUG("Removing job from recently finished due to timeout for release "
                     "(JobId: %v, NodeId: %v, NodeAddress: %v)",
                     jobId,
                     nodeId,
                     nodeAddress);
-                recentlyFinishedJobsToRemove.push_back(jobId);
+                recentlyFinishedJobIdsToRemove.insert(jobId);
+                ToProto(response->add_jobs_to_remove(), TJobToRelease{jobId});
             }
         }
-        for (auto jobId : recentlyFinishedJobsToRemove) {
+        for (auto jobId : recentlyFinishedJobIdsToRemove) {
             RemoveRecentlyFinishedJob(jobId);
         }
     }
@@ -1695,6 +1686,7 @@ void TNodeShard::ProcessHeartbeatJobs(
 
         auto job = ProcessJobHeartbeat(
             node,
+            recentlyFinishedJobIdsToRemove,
             response,
             &jobStatus);
         if (job) {
@@ -1717,7 +1709,7 @@ void TNodeShard::ProcessHeartbeatJobs(
             auto jobId = FromProto<TJobId>(jobStatus.job_id());
             auto operationId = FromProto<TOperationId>(jobStatus.operation_id());
             auto operation = FindOperationState(operationId);
-            if (!(operation && operation->SkippedJobIds.contains(jobId))
+            if (!(operation && operation->OperationUnreadyLoggedJobIds.contains(jobId))
                 && node->RecentlyFinishedJobs().contains(jobId))
             {
                 recentlyFinishedJobIdsToLog.push_back(jobId);
@@ -1792,6 +1784,7 @@ NLogging::TLogger TNodeShard::CreateJobLogger(
 
 TJobPtr TNodeShard::ProcessJobHeartbeat(
     const TExecNodePtr& node,
+    const THashSet<TJobId>& recentlyFinishedJobIdsToRemove,
     NJobTrackerClient::NProto::TRspHeartbeat* response,
     TJobStatus* jobStatus)
 {
@@ -1809,15 +1802,14 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
         // TJob structures of the operation are materialized. Also we should
         // not remove the completed jobs that were not saved to the snapshot.
         if (operation && !operation->JobsReady) {
-            auto jobIt = operation->SkippedJobIds.find(jobId);
-            if (jobIt == operation->SkippedJobIds.end()) {
+            if (!operation->OperationUnreadyLoggedJobIds.contains(jobId)) {
                 YT_LOG_DEBUG("Job is skipped since operation jobs are not ready yet");
-                operation->SkippedJobIds.insert(jobId);
+                operation->OperationUnreadyLoggedJobIds.insert(jobId);
             }
             return nullptr;
         }
 
-        if (node->RecentlyFinishedJobs().contains(jobId)) {
+        if (node->RecentlyFinishedJobs().contains(jobId) || recentlyFinishedJobIdsToRemove.contains(jobId)) {
             // NB(eshcherbin): This event is logged one level above.
             return nullptr;
         }
@@ -1825,16 +1817,19 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
         switch (state) {
             case EJobState::Completed:
                 YT_LOG_DEBUG("Unknown job has completed, removal scheduled");
+                // COMPAT: make ArchiveJobSpec optional and remove.
                 ToProto(response->add_jobs_to_remove(), {jobId, false /* ArchiveJobSpec */});
                 break;
 
             case EJobState::Failed:
                 YT_LOG_DEBUG("Unknown job has failed, removal scheduled");
+                // COMPAT: make ArchiveJobSpec optional and remove.
                 ToProto(response->add_jobs_to_remove(), {jobId, false /* ArchiveJobSpec */});
                 break;
 
             case EJobState::Aborted:
                 YT_LOG_DEBUG(FromProto<TError>(jobStatus->result().error()), "Job aborted, removal scheduled");
+                // COMPAT: make ArchiveJobSpec optional and remove.
                 ToProto(response->add_jobs_to_remove(), {jobId, false /* ArchiveJobSpec */});
                 break;
 

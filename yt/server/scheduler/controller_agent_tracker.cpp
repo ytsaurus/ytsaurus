@@ -37,6 +37,8 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NControllerAgent;
 
+using NJobTrackerClient::TReleaseJobFlags;
+
 using std::placeholders::_1;
 
 using NYT::FromProto;
@@ -219,7 +221,7 @@ public:
         ToProto(req->mutable_operation_id(), OperationId_);
         return InvokeAgent<TControllerAgentServiceProxy::TRspMaterializeOperation>(req).Apply(
             BIND([] (const TControllerAgentServiceProxy::TRspMaterializeOperationPtr& rsp) {
-                return TOperationControllerMaterializeResult{rsp->suspend()};
+                return TOperationControllerMaterializeResult{rsp->suspend(), FromProto<TJobResources>(rsp->initial_needed_resources())};
             }));
     }
 
@@ -264,6 +266,7 @@ public:
                     result.RevivedJobs.push_back(job);
                 }
                 result.RevivedBannedTreeIds = FromProto<THashSet<TString>>(rsp->revived_banned_tree_ids());
+                result.NeededResources = FromProto<TJobResources>(rsp->needed_resources());
                 return result;
             }));
     }
@@ -1149,10 +1152,6 @@ public:
                         auto jobId = FromProto<TJobId>(protoEvent->job_id());
                         auto error = FromProto<TError>(protoEvent->error());
                         auto interruptReason = static_cast<EInterruptReason>(protoEvent->interrupt_reason());
-                        auto archiveJobSpec = protoEvent->archive_job_spec();
-                        auto archiveStderr = protoEvent->archive_stderr();
-                        auto archiveFailContext = protoEvent->archive_fail_context();
-                        auto archiveProfile = protoEvent->archive_profile();
                         switch (eventType) {
                             case EAgentToSchedulerJobEventType::Interrupted:
                                 nodeShard->InterruptJob(jobId, interruptReason);
@@ -1164,7 +1163,7 @@ public:
                                 nodeShard->FailJob(jobId);
                                 break;
                             case EAgentToSchedulerJobEventType::Released:
-                                nodeShard->ReleaseJob(jobId, archiveJobSpec, archiveStderr, archiveFailContext, archiveProfile);
+                                nodeShard->ReleaseJob(jobId, FromProto<TReleaseJobFlags>(protoEvent->release_job_flags()));
                                 break;
                             default:
                                 YT_ABORT();
