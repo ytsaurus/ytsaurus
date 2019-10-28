@@ -12,7 +12,6 @@
 
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/exception_helpers.h>
-#include <yt/core/ytree/faulty_node_factory.h>
 #include <yt/core/ytree/helpers.h>
 
 #include <yt/server/lib/misc/interned_attributes.h>
@@ -625,7 +624,7 @@ void TNonversionedMapObjectProxyBase<TObject>::SetImmediateChild(
     const TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>>& child)
 {
     const auto& [key, _] = PrepareSetChild(
-        GetFaultyNodeFactory(),
+        nullptr,
         path,
         child,
         false /* recursive */);

@@ -40,12 +40,15 @@ void TNonversionedMapObjectTypeHandlerBase<TObject>::ValidateObjectName(const TS
     if (name.empty()) {
         THROW_ERROR_EXCEPTION("Name cannot be empty");
     }
-    if (name.find("/") != TString::npos) {
-        THROW_ERROR_EXCEPTION("Name cannot contain slashes");
-    }
     if (name.StartsWith(NObjectClient::ObjectIdPathPrefix)) {
         THROW_ERROR_EXCEPTION("Name cannot start with %Qv",
             NObjectClient::ObjectIdPathPrefix);
+    }
+    for (auto ch : name) {
+        if (NYPath::IsSpecialSymbol(ch)) {
+            THROW_ERROR_EXCEPTION("Name cannot contain %Qv symbol",
+                ch);
+        }
     }
 }
 

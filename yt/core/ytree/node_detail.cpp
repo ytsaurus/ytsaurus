@@ -356,6 +356,8 @@ std::pair<TString, INodePtr> TMapNodeMixin::PrepareSetChild(
     INodePtr child,
     bool recursive)
 {
+    YT_VERIFY(factory || !recursive);
+
     NYPath::TTokenizer tokenizer(path);
     if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
         tokenizer.ThrowUnexpected();
