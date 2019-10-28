@@ -210,14 +210,14 @@ TYsonSerializableLite::IParameterPtr TYsonSerializableLite::GetParameter(const T
     auto it = Parameters.find(keyOrAlias);
     if (it != Parameters.end()) {
         return it->second;
-    } else {
-        for (const auto& [_, parameter] : Parameters) {
-            if (Count(parameter->GetAliases(), keyOrAlias) > 0) {
-                return parameter;
-            }
-        }
-        THROW_ERROR_EXCEPTION("Key or alias %Qv not found in yson serializable", keyOrAlias);
     }
+
+    for (const auto& [_, parameter] : Parameters) {
+        if (Count(parameter->GetAliases(), keyOrAlias) > 0) {
+            return parameter;
+        }
+    }
+    THROW_ERROR_EXCEPTION("Key or alias %Qv not found in yson serializable", keyOrAlias);
 }
 
 int TYsonSerializableLite::GetParameterCount() const
