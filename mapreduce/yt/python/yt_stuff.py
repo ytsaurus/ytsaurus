@@ -277,7 +277,7 @@ class YtStuff(object):
 
         prepare_yt_binaries(self.yt_bins_path, source_prefix, use_ytserver_all=True, use_from_package=True)
 
-        self.yt_local_exec = [yatest.common.binary_path(source_prefix + "result/yt_local")]
+        self.yt_local_exec = [yatest.common.binary_path(source_prefix + "yt_local")]
 
         user_yt_work_dir_base = self.config.yt_work_dir or yatest.common.get_param("yt_work_dir")
         if user_yt_work_dir_base:
