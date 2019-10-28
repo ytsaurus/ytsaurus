@@ -1221,16 +1221,12 @@ public:
 
     const TLogicalTypePtr& GetSimpleType(ESimpleLogicalValueType type)
     {
-        auto it = SimpleTypeMap_.find(type);
-        YT_VERIFY(it != SimpleTypeMap_.end());
-        return it->second;
+        return GetOrCrash(SimpleTypeMap_, type);
     }
 
     const TLogicalTypePtr& GetOptionalType(ESimpleLogicalValueType type)
     {
-        auto it = OptionalTypeMap_.find(type);
-        YT_VERIFY(it != OptionalTypeMap_.end());
-        return it->second;
+        return GetOrCrash(OptionalTypeMap_, type);
     }
 
 private:

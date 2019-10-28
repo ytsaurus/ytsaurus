@@ -44,11 +44,9 @@ public:
 
     virtual Poco::AutoPtr<Poco::Util::AbstractConfiguration> load(const std::string& configFile, const std::string & /* preprocessed_dir = "" */) const override
     {
-        auto it = Dictionaries_.find(configFile);
-        YT_VERIFY(it != Dictionaries_.end());
         return ConvertToPocoConfig(NYTree::BuildYsonNodeFluently()
             .BeginMap()
-                .Item("dictionary").Value(it->second)
+                .Item("dictionary").Value(GetOrCrash(Dictionaries_, configFile))
             .EndMap());
     }
 

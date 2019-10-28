@@ -1664,9 +1664,7 @@ private:
 
     TCellCommitSessionPtr GetCommitSession(TCellId cellId)
     {
-        auto it = CellIdToSession_.find(cellId);
-        YT_VERIFY(it != CellIdToSession_.end());
-        return it->second;
+        return GetOrCrash(CellIdToSession_, cellId);
     }
 
 

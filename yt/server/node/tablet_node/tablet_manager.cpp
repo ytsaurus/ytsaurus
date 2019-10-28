@@ -1690,11 +1690,6 @@ private:
         auto registerBackingStore = [&] (const IStorePtr& store) {
             YT_VERIFY(idToBackingStore.insert(std::make_pair(store->GetId(), store->AsDynamic())).second);
         };
-        auto getBackingStore = [&] (TStoreId id) {
-            auto it = idToBackingStore.find(id);
-            YT_VERIFY(it != idToBackingStore.end());
-            return it->second;
-        };
 
         if (!IsRecovery()) {
             for (const auto& descriptor : request->stores_to_add()) {
@@ -1732,7 +1727,7 @@ private:
             TStoreId backingStoreId;
             if (!IsRecovery() && descriptor.has_backing_store_id() && IsBackingStoreRequired(tablet)) {
                 backingStoreId = FromProto<TStoreId>(descriptor.backing_store_id());
-                auto backingStore = getBackingStore(backingStoreId);
+                const auto& backingStore = GetOrCrash(idToBackingStore, backingStoreId);
                 SetBackingStore(tablet, store, backingStore);
             }
 

@@ -139,10 +139,7 @@ private:
             return;
         }
 
-        auto it = ChunkMap_.find(chunkId);
-        YT_VERIFY(it != ChunkMap_.end());
-
-        auto& description = it->second;
+        auto& description = GetOrCrash(ChunkMap_, chunkId);
         YT_VERIFY(!description.ChunkSpecs.empty());
 
         if (!description.IsWaiting)

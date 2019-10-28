@@ -265,9 +265,7 @@ private:
 
     TCellBase* GetCell(int index)
     {
-        auto it = IndexToCell_.find(index);
-        YT_VERIFY(it != IndexToCell_.end());
-        return it->second;
+        return GetOrCrash(IndexToCell_, index);
     }
 
     const TNode* GetNode(const TString& name, bool create = true)

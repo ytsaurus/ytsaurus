@@ -220,9 +220,7 @@ private:
 
     TVersion GetFirstRelevantVersion(TChunkId chunkId)
     {
-        auto it = ChunkIdToFirstRelevantVersion_.find(chunkId);
-        YT_VERIFY(it != ChunkIdToFirstRelevantVersion_.end());
-        return it->second;
+        return GetOrCrash(ChunkIdToFirstRelevantVersion_, chunkId);
     }
 
     void ScanChangelog(
@@ -574,9 +572,7 @@ public:
     {
         YT_LOG_INFO("Multiplexed changelog will be marked as clean (ChangelogId: %v)", changelogId);
 
-        auto curResultIt = MultiplexedChangelogIdToCleanResult_.find(changelogId);
-        YT_VERIFY(curResultIt != MultiplexedChangelogIdToCleanResult_.end());
-        auto curResult = curResultIt->second;
+        auto curResult = GetOrCrash(MultiplexedChangelogIdToCleanResult_, changelogId);
 
         auto prevResultIt = MultiplexedChangelogIdToCleanResult_.find(changelogId - 1);
         auto prevResult = prevResultIt == MultiplexedChangelogIdToCleanResult_.end()

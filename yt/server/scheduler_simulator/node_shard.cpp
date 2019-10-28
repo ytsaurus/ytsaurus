@@ -162,10 +162,7 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeShardEvent& event)
 
     // Create events for all started jobs.
     for (const auto& job : context->StartedJobs()) {
-        const auto& durations = context->GetStartedJobsDurations();
-        auto it = durations.find(job->GetId());
-        YT_VERIFY(it != durations.end());
-        const auto& duration = it->second;
+        const auto& duration = GetOrCrash(context->GetStartedJobsDurations(), job->GetId());
 
         // Notify scheduler.
         job->SetState(EJobState::Running);

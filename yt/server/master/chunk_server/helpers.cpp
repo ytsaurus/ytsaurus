@@ -49,10 +49,7 @@ namespace {
 
 int GetChildIndex(TChunkList* parentChunkList, TChunkTree* child)
 {
-    const auto& childToIndex = parentChunkList->ChildToIndex();
-    auto indexIt = childToIndex.find(child);
-    YT_VERIFY(indexIt != childToIndex.end());
-    return indexIt->second;
+    return GetOrCrash(parentChunkList->ChildToIndex(), child);
 }
 
 } // namespace

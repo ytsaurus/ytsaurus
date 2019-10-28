@@ -2796,10 +2796,7 @@ void TOperationControllerBase::SafeOnInputChunkLocated(TChunkId chunkId, const T
             UnavailableInputChunkCount);
     }
 
-    auto it = InputChunkMap.find(chunkId);
-    YT_VERIFY(it != InputChunkMap.end());
-
-    auto& descriptor = it->second;
+    auto& descriptor = GetOrCrash(InputChunkMap, chunkId);
     YT_VERIFY(!descriptor.InputChunks.empty());
     auto& chunkSpec = descriptor.InputChunks.front();
     auto codecId = NErasure::ECodec(chunkSpec->GetErasureCodec());
@@ -2917,9 +2914,7 @@ void TOperationControllerBase::OnInputChunkUnavailable(TChunkId chunkId, TInputC
 
 bool TOperationControllerBase::OnIntermediateChunkUnavailable(TChunkId chunkId)
 {
-    auto it = ChunkOriginMap.find(chunkId);
-    YT_VERIFY(it != ChunkOriginMap.end());
-    auto& completedJob = it->second;
+    auto& completedJob = GetOrCrash(ChunkOriginMap, chunkId);
 
     // If completedJob->Restartable == false, that means that source pool/task don't support lost jobs
     // and we have to use scraper to find new replicas of intermediate chunks.
@@ -2964,9 +2959,7 @@ bool TOperationControllerBase::OnIntermediateChunkUnavailable(TChunkId chunkId)
 
 void TOperationControllerBase::OnIntermediateChunkAvailable(TChunkId chunkId, const TChunkReplicaList& replicas)
 {
-    auto it = ChunkOriginMap.find(chunkId);
-    YT_VERIFY(it != ChunkOriginMap.end());
-    auto& completedJob = it->second;
+    auto& completedJob = GetOrCrash(ChunkOriginMap, chunkId);
 
     if (completedJob->Restartable || !completedJob->Suspended) {
         // Job will either be restarted or all chunks are fine.
@@ -4153,9 +4146,7 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
 
 bool TOperationControllerBase::IsTreeTentative(const TString& treeId) const
 {
-    auto it = PoolTreeControllerSettingsMap_.find(treeId);
-    YT_VERIFY(it != PoolTreeControllerSettingsMap_.end());
-    return it->second.Tentative;
+    return GetOrCrash(PoolTreeControllerSettingsMap_, treeId).Tentative;
 }
 
 void TOperationControllerBase::MaybeBanInTentativeTree(const TString& treeId)
@@ -6366,9 +6357,7 @@ void TOperationControllerBase::ExtractInterruptDescriptor(TCompletedJobSummary& 
         chunkSliceList.reserve(dataSliceDescriptor.ChunkSpecs.size());
         for (const auto& protoChunkSpec : dataSliceDescriptor.ChunkSpecs) {
             auto chunkId = FromProto<TChunkId>(protoChunkSpec.chunk_id());
-            auto it = InputChunkMap.find(chunkId);
-            YT_VERIFY(it != InputChunkMap.end());
-            const auto& inputChunks = it->second.InputChunks;
+            const auto& inputChunks = GetOrCrash(InputChunkMap, chunkId).InputChunks;
             auto chunkIt = std::find_if(
                 inputChunks.begin(),
                 inputChunks.end(),
@@ -6682,10 +6671,7 @@ void TOperationControllerBase::RegisterInputStripe(const TChunkStripePtr& stripe
                 continue;
             }
 
-            auto chunkDescriptorIt = InputChunkMap.find(chunkId);
-            YT_VERIFY(chunkDescriptorIt != InputChunkMap.end());
-
-            auto& chunkDescriptor = chunkDescriptorIt->second;
+            auto& chunkDescriptor = GetOrCrash(InputChunkMap, chunkId);
             chunkDescriptor.InputStripes.push_back(stripeDescriptor);
 
             if (chunkDescriptor.State == EInputChunkState::Waiting) {
@@ -7704,9 +7690,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
 const std::vector<TUserFile>& TOperationControllerBase::GetUserFiles(const TUserJobSpecPtr& userJobSpec) const
 {
-    auto it = UserJobFiles_.find(userJobSpec);
-    YT_VERIFY(it != UserJobFiles_.end());
-    return it->second;
+    return GetOrCrash(UserJobFiles_, userJobSpec);
 }
 
 void TOperationControllerBase::InitUserJobSpec(
