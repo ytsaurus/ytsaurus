@@ -87,7 +87,7 @@ using NYT::ToProto;
 static const auto& Logger = SecurityServerLogger;
 static const auto& Profiler = SecurityServerProfiler;
 
-static const auto ProfilingPeriod = TDuration::MilliSeconds(100);
+static const auto ProfilingPeriod = TDuration::MilliSeconds(10000);
 
 ////////////////////////////////////////////////////////////////////////////////
 
