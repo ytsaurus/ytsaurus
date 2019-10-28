@@ -95,8 +95,8 @@ void TRequestTracker::DoChargeUser(
     const TUserWorkload& workload)
 {
     auto& statistics = user->Statistics()[workload.Type];
-    statistics.RequestCount = workload.RequestCount;
-    statistics.RequestTime = workload.RequestTime;
+    statistics.RequestCount += workload.RequestCount;
+    statistics.RequestTime += workload.RequestTime;
 }
 
 TFuture<void> TRequestTracker::ThrottleUserRequest(TUser* user, int requestCount, EUserWorkloadType workloadType)
