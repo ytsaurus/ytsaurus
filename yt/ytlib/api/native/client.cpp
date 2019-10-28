@@ -4016,8 +4016,8 @@ std::optional<TJob> TClient::DoGetJobFromArchive(
     // NB: We need a separate function for |TInstant| because it has type "int64" in table
     // but |FromUnversionedValue<TInstant>| expects it to be "uint64".
     auto findInstant = [&] (int columnIndex) -> std::optional<TInstant> {
-        if (auto micros = FindValue<i64>(row, columnFilter, columnIndex)) {
-            return TInstant::MicroSeconds(*micros);
+        if (auto microseconds = FindValue<i64>(row, columnFilter, columnIndex)) {
+            return TInstant::MicroSeconds(*microseconds);
         }
         return {};
     };

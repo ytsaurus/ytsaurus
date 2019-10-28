@@ -418,10 +418,10 @@ public:
     //! Maximum number of retained orchids.
     int Limit;
 
-    //! Period for clearing old orchids.
-    TDuration ClearPeriod;
+    //! Period for cleaning old orchids.
+    TDuration CleanPeriod;
 
-    //! Is zombie saving and cleaning enabled?
+    //! Is orchid saving and cleaning enabled?
     bool Enable;
 
     TZombieOperationOrchidsConfig()
@@ -430,7 +430,7 @@ public:
             .Default(10000)
             .GreaterThanOrEqual(0);
 
-        RegisterParameter("clear_period", ClearPeriod)
+        RegisterParameter("clean_period", CleanPeriod)
             .Default(TDuration::Minutes(1));
 
         RegisterParameter("enable", Enable)
