@@ -1145,7 +1145,6 @@ public:
         if (operation->Spec()->TestingOperationOptions->DelayInsideMaterialize) {
             TDelayedExecutor::WaitForDuration(*operation->Spec()->TestingOperationOptions->DelayInsideMaterialize);
         }
-        YT_LOG_DEBUG("LORDF_DEBUG: Just before enabling the operation");
         operation->SetStateAndEnqueueEvent(EOperationState::Running);
         Strategy_->EnableOperation(operation.Get());
 
