@@ -180,9 +180,7 @@ const TString& GetDefaultAddress(const TAddressMap& addresses)
     if (addresses.empty()) {
         return NullNodeAddress();
     }
-    auto it = addresses.find(DefaultNetworkName);
-    YT_VERIFY(it != addresses.end());
-    return it->second;
+    return GetOrCrash(addresses, DefaultNetworkName);
 }
 
 const TString& GetDefaultAddress(const NProto::TAddressMap& addresses)

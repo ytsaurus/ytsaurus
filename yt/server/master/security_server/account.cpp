@@ -143,9 +143,7 @@ bool TAccount::IsTabletStaticMemoryLimitViolated() const
 
 TAccountStatistics* TAccount::GetCellStatistics(NObjectClient::TCellTag cellTag)
 {
-    auto it = MulticellStatistics_.find(cellTag);
-    YT_VERIFY(it != MulticellStatistics_.end());
-    return &it->second;
+    return &GetOrCrash(MulticellStatistics_, cellTag);
 }
 
 void TAccount::RecomputeClusterStatistics()

@@ -57,7 +57,7 @@ TFairShareStrategyOperationState::TFairShareStrategyOperationState(IOperationStr
 
 TPoolName TFairShareStrategyOperationState::GetPoolNameByTreeId(const TString& treeId) const
 {
-    return FindOrCrash(TreeIdToPoolNameMap_, treeId);
+    return GetOrCrash(TreeIdToPoolNameMap_, treeId);
 }
 
 void TFairShareStrategyOperationState::EraseTree(const TString& treeId)
@@ -1551,17 +1551,15 @@ void TFairShareTree::UnregisterPool(const TPoolPtr& pool)
 
 bool TFairShareTree::TryAllocatePoolSlotIndex(const TString& poolName, int slotIndex)
 {
-    auto minUnusedIndexIt = PoolToMinUnusedSlotIndex_.find(poolName);
-    YT_VERIFY(minUnusedIndexIt != PoolToMinUnusedSlotIndex_.end());
-
+    auto& minUnusedIndex = GetOrCrash(PoolToMinUnusedSlotIndex_, poolName);
     auto& spareSlotIndices = PoolToSpareSlotIndices_[poolName];
 
-    if (slotIndex >= minUnusedIndexIt->second) {
-        for (int index = minUnusedIndexIt->second; index < slotIndex; ++index) {
+    if (slotIndex >= minUnusedIndex) {
+        for (int index = minUnusedIndex; index < slotIndex; ++index) {
             spareSlotIndices.insert(index);
         }
 
-        minUnusedIndexIt->second = slotIndex + 1;
+        minUnusedIndex = slotIndex + 1;
 
         return true;
     } else {

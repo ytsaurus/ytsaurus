@@ -645,10 +645,7 @@ private:
                 const auto& subresponse = rsp->subresponses(index);
 
                 auto chunkId = FromProto<TChunkId>(subrequest);
-
-                auto storeIt = storeMap.find(chunkId);
-                YT_VERIFY(storeIt != storeMap.end());
-                const auto& store = storeIt->second;
+                const auto& store = GetOrCrash(storeMap, chunkId);
 
                 NChunkClient::NProto::TChunkSpec chunkSpec;
                 ToProto(chunkSpec.mutable_chunk_id(), chunkId);

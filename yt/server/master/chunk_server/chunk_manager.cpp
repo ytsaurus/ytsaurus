@@ -1932,9 +1932,7 @@ private:
 
     TTagId GetDataCenterTag(const TDataCenter* dataCenter, THashMap<const TDataCenter*, TTagId>& dataCenterToTag)
     {
-        auto it = dataCenterToTag.find(dataCenter);
-        YT_VERIFY(it != dataCenterToTag.end());
-        return it->second;
+        return GetOrCrash(dataCenterToTag, dataCenter);
     }
 
     TTagId GetSourceDataCenterTag(const TDataCenter* dataCenter)
@@ -2120,10 +2118,8 @@ private:
         }
 
         return [remoteToLocalIndexMap = std::move(remoteToLocalIndexMap)] (TChunkRequisitionIndex remoteIndex) {
-            auto it = remoteToLocalIndexMap.find(remoteIndex);
             // The remote side must provide a dictionary entry for every index it sends us.
-            YT_VERIFY(it != remoteToLocalIndexMap.end());
-            return it->second;
+            return GetOrCrash(remoteToLocalIndexMap, remoteIndex);
         };
     }
 

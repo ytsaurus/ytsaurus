@@ -170,10 +170,8 @@ public:
 
         for (const auto& [treeId, poolName] : state->TreeIdToPoolNameMap()) {
             auto tree = GetTree(treeId);
-            auto paramsIt = runtimeParameters->SchedulingOptionsPerPoolTree.find(treeId);
-            YT_VERIFY(paramsIt != runtimeParameters->SchedulingOptionsPerPoolTree.end());
-
-            if (tree->RegisterOperation(state, spec, paramsIt->second)) {
+            const auto& treeParams = GetOrCrash(runtimeParameters->SchedulingOptionsPerPoolTree, treeId);
+            if (tree->RegisterOperation(state, spec, treeParams)) {
                 ActivateOperations({operation->GetId()});
             }
         }
@@ -451,18 +449,15 @@ public:
         }
 
         for (const auto& [treeId, oldPool] : state->TreeIdToPoolNameMap()) {
-            auto newPoolIt = newPools.find(treeId);
-            YT_VERIFY(newPoolIt != newPools.end());
-
+            const auto& newPool = GetOrCrash(newPools, treeId);
             auto tree = GetTree(treeId);
-            if (oldPool.GetPool() != newPoolIt->second.GetPool()) {
-                tree->ChangeOperationPool(operation->GetId(), state, newPoolIt->second);
+            if (oldPool.GetPool() != newPool.GetPool()) {
+                tree->ChangeOperationPool(operation->GetId(), state, newPool);
                 ActivateOperations(tree->RunWaitingOperations());
             }
 
-            auto it = runtimeParameters->SchedulingOptionsPerPoolTree.find(treeId);
-            YT_VERIFY(it != runtimeParameters->SchedulingOptionsPerPoolTree.end());
-            tree->UpdateOperationRuntimeParameters(operation->GetId(), it->second);
+            const auto& treeParams = GetOrCrash(runtimeParameters->SchedulingOptionsPerPoolTree, treeId);
+            tree->UpdateOperationRuntimeParameters(operation->GetId(), treeParams);
         }
         state->TreeIdToPoolNameMap() = newPools;
     }
@@ -556,13 +551,10 @@ public:
             .OptionalItem("default_fair_share_tree", DefaultTreeId_)
             .Item("scheduling_info_per_pool_tree").DoMapFor(IdToTree_, [&] (TFluentMap fluent, const auto& pair) {
                 const auto& [treeId, tree] = pair;
-
-                auto it = descriptorsPerPoolTree.find(treeId);
-                YT_VERIFY(it != descriptorsPerPoolTree.end());
-
+                const auto& treeNodeDescriptor = GetOrCrash(descriptorsPerPoolTree, treeId);
                 fluent
                     .Item(treeId).BeginMap()
-                        .Do(BIND(&TFairShareStrategy::BuildTreeOrchid, tree, it->second))
+                        .Do(BIND(&TFairShareStrategy::BuildTreeOrchid, tree, treeNodeDescriptor))
                     .EndMap();
             });
     }
@@ -1063,9 +1055,7 @@ private:
 
     TFairShareStrategyOperationStatePtr GetOperationState(TOperationId operationId) const
     {
-        auto it = OperationIdToOperationState_.find(operationId);
-        YT_VERIFY(it != OperationIdToOperationState_.end());
-        return it->second;
+        return GetOrCrash(OperationIdToOperationState_, operationId);
     }
 
     TFairShareTreePtr FindTree(const TString& id) const
@@ -1265,9 +1255,8 @@ private:
                 GetTree(treeId)->UnregisterOperation(state);
                 YT_VERIFY(state->TreeIdToPoolNameMap().erase(treeId) == 1);
 
-                auto treeSetIt = operationIdToTreeSet.find(operationId);
-                YT_VERIFY(treeSetIt != operationIdToTreeSet.end());
-                YT_VERIFY(treeSetIt->second.erase(treeId) == 1);
+                auto& treeSet = GetOrCrash(operationIdToTreeSet, operationId);
+                YT_VERIFY(treeSet.erase(treeId) == 1);
             }
         }
 

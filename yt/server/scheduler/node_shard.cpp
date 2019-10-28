@@ -2451,9 +2451,8 @@ void TNodeShard::SetOperationJobsReleaseDeadline(TOperationState* operationState
         auto node = FindNodeByJob(jobId);
         YT_VERIFY(node);
 
-        auto it = node->RecentlyFinishedJobs().find(jobId);
-        YT_VERIFY(it != node->RecentlyFinishedJobs().end());
-        it->second.EvictionDeadline = storingEvictionDeadline;
+        auto& finishedJobInfo = GetOrCrash(node->RecentlyFinishedJobs(), jobId);
+        finishedJobInfo.EvictionDeadline = storingEvictionDeadline;
     }
 
     operationState->RecentlyFinishedJobIds.clear();
@@ -2558,9 +2557,7 @@ TNodeShard::TOperationState* TNodeShard::FindOperationState(TOperationId operati
 
 TNodeShard::TOperationState& TNodeShard::GetOperationState(TOperationId operationId)
 {
-    auto it = IdToOpertionState_.find(operationId);
-    YT_VERIFY(it != IdToOpertionState_.end());
-    return it->second;
+    return GetOrCrash(IdToOpertionState_, operationId);
 }
 
 void TNodeShard::BuildNodeYson(const TExecNodePtr& node, TFluentMap fluent)

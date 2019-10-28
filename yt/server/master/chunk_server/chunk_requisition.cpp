@@ -761,28 +761,26 @@ void TChunkRequisitionRegistry::Erase(
 
 void TChunkRequisitionRegistry::Ref(TChunkRequisitionIndex index)
 {
-    auto it = IndexToItem_.find(index);
-    YT_VERIFY(it != IndexToItem_.end());
-    ++it->second.RefCount;
+    auto& item = GetOrCrash(IndexToItem_, index);
+    ++item.RefCount;
     YT_LOG_TRACE("Requisition referenced (RequisitionIndex: %v, RefCount: %v)",
         index,
-        it->second.RefCount);
+        item.RefCount);
 }
 
 void TChunkRequisitionRegistry::Unref(
     TChunkRequisitionIndex index,
     const NObjectServer::TObjectManagerPtr& objectManager)
 {
-    auto it = IndexToItem_.find(index);
-    YT_VERIFY(it != IndexToItem_.end());
-    YT_VERIFY(it->second.RefCount != 0);
-    --it->second.RefCount;
+    auto& item = GetOrCrash(IndexToItem_, index);
+    YT_VERIFY(item.RefCount != 0);
+    --item.RefCount;
 
     YT_LOG_TRACE("Requisition unreferenced (RequisitionIndex: %v, RefCount: %v)",
         index,
-        it->second.RefCount);
+        item.RefCount);
 
-    if (it->second.RefCount == 0) {
+    if (item.RefCount == 0) {
         Erase(index, objectManager);
     }
 }
@@ -840,9 +838,7 @@ void Serialize(const TSerializableChunkRequisitionRegistry& serializer, NYson::I
 
 const TChunkRequisition& TEphemeralRequisitionRegistry::GetRequisition(TChunkRequisitionIndex index) const
 {
-    auto it = IndexToRequisition_.find(index);
-    YT_VERIFY(it != IndexToRequisition_.end());
-    return it->second;
+    return GetOrCrash(IndexToRequisition_, index);
 }
 
 TChunkRequisitionIndex TEphemeralRequisitionRegistry::GetOrCreateIndex(const TChunkRequisition& requisition)

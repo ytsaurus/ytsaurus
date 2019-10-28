@@ -275,10 +275,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInser
 
     value->Cache_ = MakeWeak(this);
 
-    auto it = ItemMap_.find(key);
-    YT_VERIFY(it != ItemMap_.end());
-
-    auto* item = it->second;
+    auto* item = GetOrCrash(ItemMap_, key);
     item->Value = value;
     auto promise = item->ValuePromise;
 

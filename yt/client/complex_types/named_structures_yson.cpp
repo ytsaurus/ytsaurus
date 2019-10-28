@@ -24,9 +24,7 @@ public:
 
     bool IsTrivial(const TLogicalTypePtr& logicalType) const
     {
-        auto it = Cache_.find(logicalType.Get());
-        YT_VERIFY(it != Cache_.end());
-        return it->second;
+        return GetOrCrash(Cache_, logicalType.Get());
     }
 
 private:
