@@ -7,7 +7,6 @@ import org.apache.hadoop.fs._
 import org.apache.hadoop.fs.permission.FsPermission
 import org.apache.hadoop.util.Progressable
 import org.apache.log4j.Logger
-import ru.yandex.spark.yt.YtTableUtils._
 import ru.yandex.spark.yt.{YtClientConfigurationConverter, YtClientProvider, YtTableUtils}
 import ru.yandex.yt.ytclient.proxy.YtClient
 
@@ -15,13 +14,15 @@ class YtFileSystem extends FileSystem {
   private val log = Logger.getLogger(getClass)
   private var _uri: URI = _
   private var _workingDirectory: Path = new Path("/")
-  private var yt: YtClient = _
+  private var conf: Configuration = _
 
   override def initialize(uri: URI, conf: Configuration): Unit = {
     super.initialize(uri, conf)
-    yt = YtClientProvider.ytClient(YtClientConfigurationConverter(conf))
+    this.conf = conf
     _uri = uri
   }
+
+  def yt: YtClient = YtClientProvider.ytClient(YtClientConfigurationConverter(conf))
 
   override def getUri: URI = _uri
 
@@ -29,21 +30,50 @@ class YtFileSystem extends FileSystem {
     YtTableUtils.downloadFile(ytPath(f))(yt)
 
   override def create(f: Path, permission: FsPermission, overwrite: Boolean, bufferSize: Int,
-                      replication: Short, blockSize: Long, progress: Progressable): FSDataOutputStream = ???
+                      replication: Short, blockSize: Long, progress: Progressable): FSDataOutputStream = {
+    implicit val ytClient: YtClient = yt
+    val path = ytPath(f)
+    val transaction = GlobalTableOptions.getTransaction(path)
+    YtTableUtils.createFile(path, transaction)
+    statistics.incrementWriteOps(1)
+    new FSDataOutputStream(YtTableUtils.writeToFile(path, transaction), statistics)
+  }
 
   override def append(f: Path, bufferSize: Int, progress: Progressable): FSDataOutputStream = ???
 
-  override def rename(src: Path, dst: Path): Boolean = ???
+  override def rename(src: Path, dst: Path): Boolean = {
+    val transaction = GlobalTableOptions.getTransaction(ytPath(src))
+    YtTableUtils.rename(ytPath(src), ytPath(dst), transaction)(yt)
+    true
+  }
 
   override def delete(f: Path, recursive: Boolean): Boolean = {
-    removeTable(ytPath(f))(yt)
+    YtTableUtils.removeTable(ytPath(f))(yt)
     true
   }
 
   override def listStatus(f: Path): Array[FileStatus] = {
     implicit val ytClient: YtClient = yt
     val path = ytPath(f)
+
     val transaction = GlobalTableOptions.getTransaction(path)
+    val pathType = YtTableUtils.getType(path, transaction)
+
+    pathType match {
+      case PathType.Table => listTableAsFiles(f, path, transaction)
+      case PathType.Directory => listYtDirectory(f, path, transaction)
+      case _ => throw new IllegalArgumentException(s"Can't list $pathType")
+    }
+  }
+
+  private def listYtDirectory(f: Path, path: String, transaction: Option[String])
+                             (implicit yt: YtClient): Array[FileStatus] = {
+    YtTableUtils.listDirectory(path, transaction)
+      .map(name => getFileStatus(new Path(f, name)))
+  }
+
+  private def listTableAsFiles(f: Path, path: String, transaction: Option[String])
+                              (implicit yt: YtClient): Array[FileStatus] = {
     val rowCount = YtTableUtils.tableAttribute(path, "row_count", transaction).longValue()
     val chunksCount = GlobalTableOptions.getFilesCount(path).getOrElse(
       YtTableUtils.tableAttribute(path, "chunk_count", transaction).longValue().toInt
@@ -82,7 +112,8 @@ class YtFileSystem extends FileSystem {
           val pathType = YtTableUtils.getType(path, transaction)
           pathType match {
             case PathType.Table => new FileStatus(0, true, 1, 0, 0, f)
-            case PathType.File => new FileStatus(0, false, 1, 0, 0, f)
+            case PathType.File => new FileStatus(YtTableUtils.fileSize(path, transaction), false, 1, 0, 0, f)
+            case PathType.Directory => new FileStatus(0, true, 1, 0, 0, f)
             case PathType.None => null
           }
         }

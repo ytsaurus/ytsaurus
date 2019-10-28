@@ -1,6 +1,9 @@
 package ru.yandex.spark.yt
 
-import org.apache.hadoop.fs.{FSDataInputStream, FSInputStream}
+import java.io.OutputStream
+import java.util.concurrent.CompletableFuture
+
+import org.apache.hadoop.fs.FSDataInputStream
 import org.apache.spark.sql.types.StructType
 import org.joda.time.Duration
 import ru.yandex.bolts.collection.{Option => YOption}
@@ -10,11 +13,14 @@ import ru.yandex.inside.yt.kosher.common.GUID
 import ru.yandex.inside.yt.kosher.impl.rpc.TransactionManager
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
-import ru.yandex.spark.yt.format.{FileIterator, PathType, TableIterator}
+import ru.yandex.spark.yt.format.{FileIterator, PathType, TableIterator, YtFileOutputStream}
 import ru.yandex.spark.yt.serializers.SchemaConverter
+import ru.yandex.yt.rpcproxy.TRspWriteFile
 import ru.yandex.yt.ytclient.`object`.WireRowDeserializer
-import ru.yandex.yt.ytclient.proxy.YtClient
+import ru.yandex.yt.ytclient.proxy.{ApiService, FileWriter, YtClient}
+import ru.yandex.yt.ytclient.proxy.internal.FileWriterImpl
 import ru.yandex.yt.ytclient.proxy.request._
+import ru.yandex.yt.ytclient.rpc.{RpcClientRequestBuilder, RpcClientResponse}
 
 object YtTableUtils {
   private val tableOptions = Set("optimize_for", "schema")
@@ -60,6 +66,7 @@ object YtTableUtils {
     objectType match {
       case "file" => PathType.File
       case "table" => PathType.Table
+      case "map_node" => PathType.Directory
       case _ => PathType.None
     }
   }
@@ -152,5 +159,49 @@ object YtTableUtils {
   def downloadFile(path: String, transaction: Option[String] = None)(implicit yt: YtClient): FSDataInputStream = {
     val fileReader = yt.readFile(new ReadFile(formatPath(path))).join()
     new FSDataInputStream(new FileIterator(fileReader))
+  }
+
+  def listDirectory(path: String, transaction: Option[String] = None)(implicit yt: YtClient): Array[String] = {
+    val response = yt.listNode(new ListNode(formatPath(path)).optionalTransaction(transaction)).join().asList()
+    val array = new Array[String](response.length())
+    response.zipWithIndex().forEach((t: YTreeNode, i: java.lang.Integer) => {
+      array(i) = t.stringValue()
+    })
+    array
+  }
+
+  def createFile(path: String, transaction: Option[String] = None)(implicit yt: YtClient): Unit = {
+    val request = new CreateNode(formatPath(path), ObjectType.File)
+    transaction.foreach(t => request.setTransactionalOptions(new TransactionalOptions(GUID.valueOf(t))))
+    yt.createNode(request).join()
+  }
+
+  def writeToFile(path: String, transaction: Option[String] = None)(implicit yt: YtClient): OutputStream = {
+    val request = new WriteFile(formatPath(path))
+      .setWindowSize(10000000L)
+      .setPacketSize(1000000L)
+
+    transaction.foreach(t => request.setTransactionalOptions(new TransactionalOptions(GUID.valueOf(t))))
+
+    val writer = writeFile(request).join()
+
+    new YtFileOutputStream(writer)
+  }
+
+  def writeFile(req: WriteFile)(implicit yt: YtClient): CompletableFuture[FileWriter] = {
+    val builder = yt.getService.writeFile
+    builder.setTimeout(java.time.Duration.ofDays(7))
+    req.writeTo(builder.body)
+    new FileWriterImpl(builder.startStream(yt.selectDestinations()), req.getWindowSize, req.getPacketSize).startUpload
+  }
+
+  def rename(src: String, dst: String, transaction: Option[String] = None)(implicit yt: YtClient): Unit = {
+    val request = new MoveNode(formatPath(src), formatPath(dst))
+    transaction.foreach(t => request.setTransactionalOptions(new TransactionalOptions(GUID.valueOf(t))))
+    yt.moveNode(request).join()
+  }
+
+  def fileSize(path: String, transaction: Option[String] = None)(implicit yt: YtClient): Long = {
+    tableAttribute(path, "compressed_data_size", transaction).longValue()
   }
 }
