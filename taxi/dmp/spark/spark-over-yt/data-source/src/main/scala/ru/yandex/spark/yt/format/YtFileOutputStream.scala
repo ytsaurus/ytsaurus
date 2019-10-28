@@ -1,0 +1,33 @@
+package ru.yandex.spark.yt.format
+
+import java.io.OutputStream
+
+import ru.yandex.yt.ytclient.proxy.FileWriter
+
+import scala.annotation.tailrec
+
+class YtFileOutputStream(writer: FileWriter) extends OutputStream {
+
+  override def write(b: Int): Unit = {
+    write(Array(b.toByte), 0, 1)
+  }
+
+  @tailrec
+  override final def write(b: Array[Byte], off: Int, len: Int): Unit = {
+    if (!writer.write(b, off, len)) {
+      writer.readyEvent().join()
+      write(b, off, len)
+    }
+  }
+
+  override def write(b: Array[Byte]): Unit = {
+    write(b, 0, b.length)
+  }
+
+  override def flush(): Unit = {
+  }
+
+  override def close(): Unit = {
+    writer.close().join()
+  }
+}

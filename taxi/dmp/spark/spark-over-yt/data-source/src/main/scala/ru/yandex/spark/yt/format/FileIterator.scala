@@ -1,16 +1,17 @@
 package ru.yandex.spark.yt.format
 
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.{CancellationException, TimeUnit}
 
 import org.apache.hadoop.fs.FSInputStream
 import org.apache.log4j.Logger
-import ru.yandex.spark.yt._
 import ru.yandex.yt.ytclient.proxy.FileReader
+import ru.yandex.yt.ytclient.proxy.internal.FileReaderImpl
 
 class FileIterator(reader: FileReader) extends FSInputStream {
   private val log = Logger.getLogger(getClass)
   private var chunk: Iterator[Byte] = _
   private var pos: Long = 0
+  private var closed: Boolean = false
 
   override def seek(pos: Long): Unit = ???
 
@@ -66,7 +67,7 @@ class FileIterator(reader: FileReader) extends FSInputStream {
     if (!hasNext) {
       -1
     } else {
-      (0 until len).map { index =>
+      (0 until len).view.map { index =>
         val hasNextValue = hasNext
         val byte = if (hasNextValue) next() else (-1).toByte
         b(off + index) = byte
@@ -76,8 +77,13 @@ class FileIterator(reader: FileReader) extends FSInputStream {
   }
 
   override def close(): Unit = {
-    log.debugLazy("Close reader")
-    reader.close().get(30, TimeUnit.SECONDS)
-    log.debugLazy("Reader closed")
+    if (!closed) {
+      closed = true
+      if (reader.canRead) {
+        reader.asInstanceOf[FileReaderImpl].cancel()
+      } else {
+        reader.close().get(30, TimeUnit.SECONDS)
+      }
+    }
   }
 }
