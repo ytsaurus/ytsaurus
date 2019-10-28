@@ -29,6 +29,12 @@ def start(args):
     local_cypress_dir_parser.add_argument("--local-cypress-dir-in-work-path")
     parser.add_argument("--wait-tablet-cell-initialization", action="store_true")
     parser.add_argument("--node-config", action=ParseStructuredArgument)
+    parser.add_argument("--master-config", action=ParseStructuredArgument)
+    parser.add_argument("--proxy-config", action=ParseStructuredArgument)
+    parser.add_argument("--scheduler-config", action=ParseStructuredArgument)
+    parser.add_argument("--controller-agent-config", action=ParseStructuredArgument)
+    parser.add_argument("--job-controller-resource-limits", action=ParseStructuredArgument)
+    parser.add_argument("--node-chunk-store-quota", type=int)
     parsed_args, _ = parser.parse_known_args(args)
 
     config_args = dict((key, value) for key, value in vars(parsed_args).items() if value is not None)
