@@ -19,13 +19,18 @@ object SparkLauncher {
 
   private var sparkProcess: Process = _
 
-  def startMaster(port: Int, webUiPort: Int): Address = {
+  def startMaster(port: Int, webUiPort: Int, opts: Option[String]): Address = {
+    val env = Map(
+      "SPARK_MASTER_OPTS" -> opts,
+      "SPARK_PRINT_LAUNCH_COMMAND" -> Some("true")
+    ).flatMap { case (k, v) => v.map(vv => k -> vv.toString) }
+
     val host = InetAddress.getLocalHost.getHostName
     runSparkThread(masterClass, Map(
       "host" -> host,
       "port" -> port.toString,
       "webui-port" -> webUiPort.toString
-    ), Nil, Map())
+    ), Nil, env)
 
     val boundPorts = readPorts()
     log.info(s"Ports from file: $boundPorts")
@@ -95,11 +100,11 @@ object SparkLauncher {
     sparkProcess.destroy()
   }
 
-  def startSlave(master: Address,
-                 port: Option[Int], webUiPort: Int,
-                 cores: Int, memory: String, ops: Option[String]): Unit = {
+  def startWorker(master: Address,
+                  port: Option[Int], webUiPort: Int,
+                  cores: Int, memory: String, opts: Option[String]): Unit = {
     val env = Map(
-      "SPARK_WORKER_OPTS" -> ops.map(_.drop(1).dropRight(1)),
+      "SPARK_WORKER_OPTS" -> opts,
     ).flatMap { case (k, v) => v.map(vv => k -> vv.toString) }
 
     log.info(s"Env: $env")

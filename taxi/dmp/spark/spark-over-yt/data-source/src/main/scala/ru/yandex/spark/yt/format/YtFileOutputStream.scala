@@ -7,6 +7,7 @@ import ru.yandex.yt.ytclient.proxy.FileWriter
 import scala.annotation.tailrec
 
 class YtFileOutputStream(writer: FileWriter) extends OutputStream {
+  private var closed = false
 
   override def write(b: Int): Unit = {
     write(Array(b.toByte), 0, 1)
@@ -28,6 +29,9 @@ class YtFileOutputStream(writer: FileWriter) extends OutputStream {
   }
 
   override def close(): Unit = {
-    writer.close().join()
+    if (!closed) {
+      writer.close().join()
+      closed = true
+    }
   }
 }

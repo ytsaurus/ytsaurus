@@ -81,8 +81,8 @@ class CypressDiscoveryService(config: YtClientConfiguration,
     maybeAddress match {
       case Some(address) if isAlive(address.hostAndPort) => maybeAddress
       case _ =>
-        log.info("Sleep 200 milliseconds before next retry")
-        Thread.sleep(200)
+        log.info("Sleep 500 milliseconds before next retry")
+        Thread.sleep(500)
         log.info(s"Retry ($retryCount)")
         if (timeout > 0) {
           waitAddress(id, timeout - (System.currentTimeMillis() - start), retryCount + 1)

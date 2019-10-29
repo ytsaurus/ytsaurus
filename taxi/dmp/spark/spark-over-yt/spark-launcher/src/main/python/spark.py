@@ -2,10 +2,10 @@ import argparse
 import os
 import re
 
+from yt.wrapper.cypress_commands import create, exists, list
 from yt.wrapper.operation_commands import TimeWatcher, process_operation_unsuccesful_finish_state
 from yt.wrapper.run_operation_commands import run_operation
 from yt.wrapper.spec_builders import VanillaSpecBuilder
-from yt.wrapper.cypress_commands import create, exists, list
 
 units = {"gb": 1024 * 1024 * 1024, "mb": 1024 * 1024, "kb": 1024, "bb": 1, "b": 1}
 
@@ -21,13 +21,20 @@ def parse_memory(memory_str):
     return value * units[unit]
 
 
+def jmx_opts(port):
+    return "-Dcom.sun.management.jmxremote " \
+           "-Dcom.sun.management.jmxremote.port={} " \
+           "-Dcom.sun.management.jmxremote.authenticate=false " \
+           "-Dcom.sun.management.jmxremote.ssl=false".format(port)
+
+
 parser = argparse.ArgumentParser(description="Spark over YT")
 parser.add_argument("--id", required=True)
 parser.add_argument("--worker-cores", required=True, type=int)
 parser.add_argument("--worker-memory", required=True)
 parser.add_argument("--worker-num", required=True, type=int)
-parser.add_argument("--worker-ops", required=False)
-parser.add_argument("--master-ops", required=False)
+parser.add_argument("--worker-opts", required=False)
+parser.add_argument("--master-opts", required=False)
 parser.add_argument("--proxy", required=False)
 parser.add_argument("--version", required=False)
 parser.add_argument("--working-dir", required=False)
@@ -41,29 +48,29 @@ proxy = args.proxy or os.getenv("YT_PROXY")
 spark_version = args.version or "2.4.4-bin-custom-spark"
 spark_launcher_jar = "spark-yt-spark-launcher-assembly-0.0.1-SNAPSHOT.jar"
 spark_base_path = "//home/sashbel/data"
-worker_cores = args.worker_cores
 worker_memory = args.worker_memory
 worker_num = args.worker_num
 start_port = 27001
 port_max_retries = 200
-worker_ops = args.worker_ops or "-Dspark.worker.cleanup.enabled=true " \
-                                "-Dspark.shuffle.service.enabled=true " \
-                                "-Dfs.yt.impl=ru.yandex.spark.yt.format.YtFileSystem " \
-                                "-Dhadoop.fs.yt.impl=ru.yandex.spark.yt.format.YtFileSystem " \
-                                "-Dspark.hadoop.fs.yt.impl=ru.yandex.spark.yt.format.YtFileSystem " \
-                                "-Dspark.port.maxRetries={0} " \
-                                "-Dspark.shuffle.service.port=27000".format(port_max_retries)
-master_ops = args.master_ops or "-Dspark.port.maxRetries={0} " \
-                                "-Dhadoop.fs.yt.impl=ru.yandex.spark.yt.format.YtFileSystem " \
-                                "-Dspark.hadoop.fs.yt.impl=ru.yandex.spark.yt.format.YtFileSystem " \
-                                "-Dfs.yt.impl=ru.yandex.spark.yt.format.YtFileSystem ".format(port_max_retries)
+recovery_opts = "-Dspark.deploy.recoveryMode=CUSTOM " \
+                "-Dspark.deploy.recoveryMode.factory=org.apache.spark.deploy.master.YtRecoveryModeFactory " \
+                "-Dspark.deploy.yt.path=/home/sashbel/master"
+worker_opts = args.worker_opts or "-Dspark.worker.cleanup.enabled=true " \
+                                  "-Dspark.shuffle.service.enabled=true " \
+                                  "-Dspark.hadoop.fs.yt.impl=ru.yandex.spark.yt.format.YtFileSystem " \
+                                  "-Dspark.port.maxRetries={0} " \
+                                  "-Dspark.shuffle.service.port=27000".format(port_max_retries)
+master_opts = args.master_opts or "-Dspark.port.maxRetries={0} " \
+                                  "-Dspark.hadoop.fs.yt.impl=ru.yandex.spark.yt.format.YtFileSystem " \
+    .format(port_max_retries)
+
 working_dir = args.working_dir or "//home/{0}/spark-tmp".format(user)
 master_memory_limit = parse_memory(args.master_memory_limit) or 2 * 1024 * 1024 * 1024
 worker_memory_add = 2 * 1024 * 1024 * 1024
 
 spark_name = "spark-{0}".format(spark_version)
 unpack_tar = "tar --warning=no-unknown-keyword -xvf {0}.tgz".format(spark_name)
-run_launcher = "/opt/jdk11/bin/java -cp {0}".format(spark_launcher_jar)
+run_launcher = "/opt/jdk11/bin/java -Xmx512m -cp {0}".format(spark_launcher_jar)
 master_main_class = "ru.yandex.spark.launcher.MasterLauncher"
 worker_main_class = "ru.yandex.spark.launcher.WorkerLauncher"
 
@@ -74,12 +81,13 @@ file_paths = ["{0}/{1}.tgz".format(spark_base_path, spark_name),
 layer_paths = ["//porto_layers/delta/jdk/layer_with_jdk_lastest.tar.gz",
                "//porto_layers/base/xenial/porto_layer_search_ubuntu_xenial_app_lastest.tar.gz"]
 
-master_command = "{0} && {1} {2} --id {3} --operation-id $YT_OPERATION_ID --port {4} --web-ui-port {4}" \
-    .format(unpack_tar, run_launcher, master_main_class, id, start_port)
+master_command = "{0} && {1} {2} --id {3} --operation-id $YT_OPERATION_ID " \
+                 "--port {4} --web-ui-port {4} --opts \"'{5}'\"" \
+    .format(unpack_tar, run_launcher, master_main_class, id, start_port, master_opts)
 
 worker_command = "{0} && {1} {2} --id {3} --cores {4} --memory {5} " \
-                 "--port {7} --web-ui-port {7} --ops \"'{6}'\"" \
-    .format(unpack_tar, run_launcher, worker_main_class, id, worker_cores, worker_memory, worker_ops, start_port)
+                 "--port {7} --web-ui-port {7} --opts \"'{6}'\"" \
+    .format(unpack_tar, run_launcher, worker_main_class, id, args.worker_cores, worker_memory, worker_opts, start_port)
 
 environment = {
     # "JAVA_HOME": "/opt/jdk8",

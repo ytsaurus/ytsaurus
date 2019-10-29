@@ -20,10 +20,10 @@ object WorkerLauncher extends App {
       .getOrElse(throw new IllegalStateException(s"Unknown master id: ${workerArgs.id}"))
 
     log.info(s"Starting worker for master $masterAddress")
-    log.info(s"Worker ops: ${workerArgs.ops}")
+    log.info(s"Worker opts: ${workerArgs.opts}")
     log.info(s"Worker args: ${args.mkString(" ")}")
-    SparkLauncher.startSlave(masterAddress, workerArgs.port, workerArgs.webUiPort,
-      workerArgs.cores, workerArgs.memory, workerArgs.ops)
+    SparkLauncher.startWorker(masterAddress, workerArgs.port, workerArgs.webUiPort,
+      workerArgs.cores, workerArgs.memory, workerArgs.opts)
     discoveryService.checkPeriodically(masterAddress.webUiHostAndPort)
   } finally {
     discoveryService.close()
@@ -36,7 +36,7 @@ case class WorkerLauncherArgs(id: String,
                               webUiPort: Int,
                               cores: Int,
                               memory: String,
-                              ops: Option[String],
+                              opts: Option[String],
                               ytConfig: YtClientConfiguration,
                               discoveryPath: String)
 
@@ -47,7 +47,7 @@ object WorkerLauncherArgs {
     args.optional("web-ui-port").map(_.toInt).getOrElse(8081),
     args.required("cores").toInt,
     args.required("memory"),
-    args.optional("ops"),
+    args.optional("opts").map(_.drop(1).dropRight(1)),
     YtClientConfiguration(args.optional),
     args.optional("discovery-path").getOrElse(sys.env("SPARK_DISCOVERY_PATH")),
   )

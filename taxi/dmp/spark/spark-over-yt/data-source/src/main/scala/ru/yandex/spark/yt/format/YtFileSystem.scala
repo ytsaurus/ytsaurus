@@ -26,8 +26,9 @@ class YtFileSystem extends FileSystem {
 
   override def getUri: URI = _uri
 
-  override def open(f: Path, bufferSize: Int): FSDataInputStream =
-    YtTableUtils.downloadFile(ytPath(f))(yt)
+  override def open(f: Path, bufferSize: Int): FSDataInputStream = {
+    new FSDataInputStream(YtTableUtils.readFile(ytPath(f))(yt))
+  }
 
   override def create(f: Path, permission: FsPermission, overwrite: Boolean, bufferSize: Int,
                       replication: Short, blockSize: Long, progress: Progressable): FSDataOutputStream = {
@@ -48,7 +49,7 @@ class YtFileSystem extends FileSystem {
   }
 
   override def delete(f: Path, recursive: Boolean): Boolean = {
-    YtTableUtils.removeTable(ytPath(f))(yt)
+    YtTableUtils.remove(ytPath(f))(yt)
     true
   }
 

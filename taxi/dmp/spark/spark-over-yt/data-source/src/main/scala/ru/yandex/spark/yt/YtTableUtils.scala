@@ -1,9 +1,8 @@
 package ru.yandex.spark.yt
 
-import java.io.OutputStream
+import java.io.{InputStream, OutputStream}
 import java.util.concurrent.CompletableFuture
 
-import org.apache.hadoop.fs.FSDataInputStream
 import org.apache.spark.sql.types.StructType
 import org.joda.time.Duration
 import ru.yandex.bolts.collection.{Option => YOption}
@@ -15,12 +14,10 @@ import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.format.{FileIterator, PathType, TableIterator, YtFileOutputStream}
 import ru.yandex.spark.yt.serializers.SchemaConverter
-import ru.yandex.yt.rpcproxy.TRspWriteFile
 import ru.yandex.yt.ytclient.`object`.WireRowDeserializer
-import ru.yandex.yt.ytclient.proxy.{ApiService, FileWriter, YtClient}
 import ru.yandex.yt.ytclient.proxy.internal.FileWriterImpl
 import ru.yandex.yt.ytclient.proxy.request._
-import ru.yandex.yt.ytclient.rpc.{RpcClientRequestBuilder, RpcClientResponse}
+import ru.yandex.yt.ytclient.proxy.{FileWriter, YtClient}
 
 object YtTableUtils {
   private val tableOptions = Set("optimize_for", "schema")
@@ -51,13 +48,13 @@ object YtTableUtils {
     yt.createNode(request).join()
   }
 
-  def removeTable(path: String)(implicit yt: YtClient): Unit = {
+  def remove(path: String)(implicit yt: YtClient): Unit = {
     yt.removeNode(formatPath(path)).join()
   }
 
-  def removeTableIfExists(path: String)(implicit yt: YtClient): Unit = {
+  def removeIfExists(path: String)(implicit yt: YtClient): Unit = {
     if (exists(path)) {
-      removeTable(path)
+      remove(path)
     }
   }
 
@@ -112,8 +109,8 @@ object YtTableUtils {
     }
   }
 
-  def createDir(path: String)(implicit yt: YtClient): Unit = {
-    yt.createNode(formatPath(path), ObjectType.MapNode).join()
+  def createDir(path: String, ignoreExisting: Boolean = false)(implicit yt: YtClient): Unit = {
+    yt.createNode(new CreateNode(formatPath(path), ObjectType.MapNode).setIgnoreExisting(ignoreExisting)).join()
   }
 
   def removeDir(path: String, recursive: Boolean)(implicit yt: YtClient): Unit = {
@@ -156,9 +153,9 @@ object YtTableUtils {
     }
   }
 
-  def downloadFile(path: String, transaction: Option[String] = None)(implicit yt: YtClient): FSDataInputStream = {
+  def readFile(path: String, transaction: Option[String] = None)(implicit yt: YtClient): InputStream = {
     val fileReader = yt.readFile(new ReadFile(formatPath(path))).join()
-    new FSDataInputStream(new FileIterator(fileReader))
+    new FileIterator(fileReader)
   }
 
   def listDirectory(path: String, transaction: Option[String] = None)(implicit yt: YtClient): Array[String] = {
