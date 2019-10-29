@@ -567,6 +567,19 @@ class TestLocks(YTEnvSetup):
         assert get("//tmp/t/@lock_mode") == "none"
         assert get("//tmp/t/@lock_count") == 0
 
+    @authors("shakurov")
+    def test_unlock_unbranches_nodes_with_other_locks(self):
+        tx = start_transaction()
+
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2", tx=tx)
+
+        lock("//tmp/t1", mode="exclusive", tx=tx)
+
+        unlock("//tmp/t1", tx=tx)
+        # Must not be crashed YT_LOG_ALERT.
+        abort_transaction(tx)
+
     @authors("babenko", "ignat")
     def test_remove_map_subtree_lock(self):
         set("//tmp/a", {"b" : 1})
