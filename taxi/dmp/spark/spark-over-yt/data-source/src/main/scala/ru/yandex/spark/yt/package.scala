@@ -31,7 +31,7 @@ package object yt {
   }
 
   implicit class YtReader(reader: DataFrameReader) {
-    def yt(path: String): DataFrame = reader.format("yt").load(path)
+    def yt(paths: String*): DataFrame = reader.format("yt").load(paths:_*)
 
     def yt(path: String, filesCount: Int): DataFrame = {
       GlobalTableOptions.setFilesCount(path, filesCount)

@@ -1,6 +1,7 @@
 package ru.yandex.spark.yt.format
 
 import org.apache.hadoop.conf.Configuration
+import org.apache.spark.SparkConf
 import org.apache.spark.sql.SQLContext
 
 import scala.util.Try
@@ -28,6 +29,12 @@ object SparkYtOptions {
 
     def setYtConf(name: String, value: Any): Unit = {
       sqlContext.setConf(s"$configurationPrefix.$name", value.toString)
+    }
+  }
+
+  implicit class YtOptionsSparkConf(sparkConf: SparkConf) {
+    def getYtConf(name: String): Option[String] = {
+      sparkConf.getOption(s"$configurationPrefix.$name")
     }
   }
 

@@ -17,11 +17,11 @@ trait TmpTable extends Suite with BeforeAndAfterEach with BeforeAndAfterAll with
 
   override protected def beforeEach(): Unit = {
     super.beforeEach()
-    YtTableUtils.removeTableIfExists(tmpPath)
+    YtTableUtils.removeIfExists(tmpPath)
   }
 
   override protected def afterEach(): Unit = {
-    YtTableUtils.removeTableIfExists(tmpPath)
+    YtTableUtils.removeIfExists(tmpPath)
     super.afterEach()
   }
 

@@ -15,7 +15,7 @@ object MasterLauncher extends App {
 
   try {
     log.info("Start master")
-    val masterAddress = SparkLauncher.startMaster(masterArgs.port, masterArgs.webUiPort)
+    val masterAddress = SparkLauncher.startMaster(masterArgs.port, masterArgs.webUiPort, masterArgs.opts)
     discoveryService.waitAlive(masterAddress.hostAndPort, (5 minutes).toMillis)
     log.info(s"Master started at port ${masterAddress.port}")
 
@@ -38,7 +38,8 @@ case class MasterLauncherArgs(id: String,
                               webUiPort: Int,
                               ytConfig: YtClientConfiguration,
                               discoveryPath: String,
-                              operationId: String)
+                              operationId: String,
+                              opts: Option[String])
 
 object MasterLauncherArgs {
   def apply(args: Args): MasterLauncherArgs = MasterLauncherArgs(
@@ -47,7 +48,8 @@ object MasterLauncherArgs {
     args.optional("web-ui-port").map(_.toInt).getOrElse(8080),
     YtClientConfiguration(args.optional),
     args.optional("discovery-path").getOrElse(sys.env("SPARK_DISCOVERY_PATH")),
-    args.required("operation-id")
+    args.required("operation-id"),
+    args.optional("opts").map(_.drop(1).dropRight(1))
   )
 
   def apply(args: Array[String]): MasterLauncherArgs = MasterLauncherArgs(Args(args))

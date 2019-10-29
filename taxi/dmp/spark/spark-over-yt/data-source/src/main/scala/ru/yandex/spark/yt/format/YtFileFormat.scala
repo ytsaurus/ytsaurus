@@ -23,13 +23,11 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
   override def inferSchema(sparkSession: SparkSession,
                            options: Map[String, String],
                            files: Seq[FileStatus]): Option[StructType] = {
-    files match {
-      case fileStatus :: _ =>
-        val schemaHint = SchemaConverter.schemaHint(options)
-        implicit val client: YtClient = YtClientProvider.ytClient(YtClientConfigurationConverter(sparkSession))
-        val schemaTree = YtTableUtils.tableAttribute(fileStatus.getPath.asInstanceOf[YtPath].stringPath , "schema")
-        Some(SchemaConverter.sparkSchema(schemaTree, schemaHint))
-      case Nil => None
+    files.headOption.map { fileStatus =>
+      val schemaHint = SchemaConverter.schemaHint(options)
+      implicit val client: YtClient = YtClientProvider.ytClient(YtClientConfigurationConverter(sparkSession))
+      val schemaTree = YtTableUtils.tableAttribute(fileStatus.getPath.asInstanceOf[YtPath].stringPath, "schema")
+      SchemaConverter.sparkSchema(schemaTree, schemaHint)
     }
   }
 
