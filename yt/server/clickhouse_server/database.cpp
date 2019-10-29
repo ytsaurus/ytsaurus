@@ -120,7 +120,7 @@ StoragePtr TDatabase::GetTable(
 
     auto table = FetchClickHouseTableFromCache(
         queryContext->Bootstrap,
-        queryContext->Client()->GetOptions().GetUser(),
+        queryContext->Client(),
         TRichYPath::Parse(TString(path)),
         queryContext->Logger);
 

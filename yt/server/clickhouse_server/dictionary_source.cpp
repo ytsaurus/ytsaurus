@@ -55,9 +55,7 @@ public:
 
         YT_LOG_INFO("Reloading dictionary (Revision: %v)", RevisionTracker_.GetRevision());
 
-        // We have no information about the user here. It may be a weak point.
-        // Anyway, only table's schema is used here, no other information is under threat.
-        auto table = FetchClickHouseTableFromCache(Bootstrap_, /* user */ std::nullopt, Path_, Logger);
+        auto table = FetchClickHouseTableFromCache(Bootstrap_, Bootstrap_->GetRootClient(), Path_, Logger);
         if (!table) {
             THROW_ERROR_EXCEPTION("Underlying dictionary table %v does not exist", Path_);
         }

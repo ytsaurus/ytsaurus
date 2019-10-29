@@ -132,25 +132,14 @@ void ConvertToUnversionedValue(const DB::Field& field, TUnversionedValue* value)
 
 TClickHouseTablePtr FetchClickHouseTableFromCache(
     TBootstrap* bootstrap,
-    std::optional<TString> user,
+    const NNative::IClientPtr& client,
     const TRichYPath& path,
     const TLogger& Logger)
 {
     try {
-
         YT_LOG_DEBUG("Fetching clickhouse table");
 
-        auto attributesFuture = bootstrap->GetHost()->GetTableAttributeCache()->Get(path.GetPath());
-
-        if (user) {
-            WaitFor(bootstrap->GetHost()->GetPermissionsCache()->Get({
-                path.GetPath(),
-                user.value(),
-                EPermission::Read}))
-                .ThrowOnError();
-        }
-
-        auto attributes = WaitFor(attributesFuture)
+        auto attributes = bootstrap->GetHost()->CheckPermissionsAndGetCachedObjectAttributes({path.GetPath()}, client)[0]
             .ValueOrThrow();
 
         return std::make_shared<TClickHouseTable>(path, ConvertTo<TTableSchema>(attributes.at("schema")));
