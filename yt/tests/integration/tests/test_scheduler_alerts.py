@@ -81,8 +81,10 @@ class TestSchedulerAlerts(YTEnvSetup):
 
     @authors("ignat")
     def test_nodes_without_pool_tree_alert(self):
-        nodes = ls("//sys/nodes")
-        set("//sys/nodes/{}/@user_tags".format(nodes[0]), ["my_tag"])
+        nodes = ls("//sys/cluster_nodes")
+        assert len(nodes) > 0
+
+        set("//sys/cluster_nodes/{}/@user_tags".format(nodes[0]), ["my_tag"])
         set("//sys/pool_trees/default/@nodes_filter", "my_tag")
 
         wait(lambda: len(get("//sys/scheduler/@alerts")) == 1)
