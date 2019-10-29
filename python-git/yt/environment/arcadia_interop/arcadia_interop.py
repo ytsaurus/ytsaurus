@@ -29,7 +29,7 @@ def get_root_paths(source_prefix="", inside_arcadia=None):
         global_root = ""
     return yt_root, python_root, global_root
 
-def prepare_yt_binaries(destination, source_prefix="", arcadia_root=None, inside_arcadia=True, use_ytserver_all=False, use_from_package=False, copy_ytserver_all=False):
+def prepare_yt_binaries(destination, source_prefix="", arcadia_root=None, inside_arcadia=None, use_ytserver_all=False, use_from_package=False, copy_ytserver_all=False):
     def get_binary_path(path):
         if arcadia_root is None:
             return yatest_common.binary_path(path)
