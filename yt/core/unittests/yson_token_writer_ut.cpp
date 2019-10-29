@@ -68,7 +68,7 @@ void IntListTest(EYsonFormat format, size_t stringBufferSize)
         }
         writer.WriteEndList();
 
-        writer.Flush();
+        writer.Finish();
     }
 
     {
@@ -113,7 +113,7 @@ TEST(TYsonTokenWriterTest, BinaryString)
         TSimpleStringOutput outStream(out, bufferSize);
         TCheckedYsonTokenWriter writer(&outStream);
         writer.WriteBinaryString("Hello, world!");
-        writer.Flush();
+        writer.Finish();
 
         EXPECT_EQ(out, "\1\x1AHello, world!");
     }
@@ -126,7 +126,7 @@ TEST(TYsonTokenWriterTest, TextString)
         TSimpleStringOutput outStream(out, bufferSize);
         TCheckedYsonTokenWriter writer(&outStream);
         writer.WriteTextString("Hello, world!");
-        writer.Flush();
+        writer.Finish();
 
         EXPECT_EQ(out, "\"Hello, world!\"");
     }
@@ -161,7 +161,7 @@ TEST(TYsonTokenWriterTest, DifferentTypesBinaryMap)
         writer.WriteItemSeparator();
         writer.WriteEndMap();
 
-        writer.Flush();
+        writer.Finish();
 
         EXPECT_EQ(out, "<\1\x08type=\1\6map;>{\1\014double=\3\x90\xF7\xAA\x95\t\xBF\5@;\1\016boolean=\5;\1\014entity=#;}");
     }
@@ -196,7 +196,7 @@ TEST(TYsonTokenWriterTest, DifferentTypesTextMap)
         writer.WriteItemSeparator();
         writer.WriteEndMap();
 
-        writer.Flush();
+        writer.Finish();
 
         EXPECT_EQ(out, "<\"type\"=\"map\";>{\"double\"=2.71828;\"boolean\"=%true;\"entity\"=#;}");
     }

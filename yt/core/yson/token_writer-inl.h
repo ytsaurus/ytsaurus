@@ -169,6 +169,11 @@ void TUncheckedYsonTokenWriter::WriteSpace(char value)
     WriteSimple(value);
 }
 
+void TUncheckedYsonTokenWriter::Finish()
+{
+    Flush();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYson
