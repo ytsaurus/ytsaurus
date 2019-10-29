@@ -199,24 +199,10 @@ private:
             }
         }
 
-        auto permissionsFuture = Bootstrap_->GetHost()->GetPermissionsCache()->CheckPermissions(
-            paths,
-            Client_->GetOptions().GetUser(),
-            EPermission::Read);
-
-        auto attributeOrErrors = WaitFor(Bootstrap_->GetHost()->GetTableAttributeCache()->Get(paths))
-            .ValueOrThrow();
-
-        auto permissionOrErrors = WaitFor(permissionsFuture)
-            .ValueOrThrow();
+        auto attributeOrErrors = Bootstrap_->GetHost()->CheckPermissionsAndGetCachedObjectAttributes(paths, Client_);
 
         std::vector<TError> errors;
 
-        for (const auto& permission : permissionOrErrors) {
-            if (!permission.IsOK()) {
-                errors.push_back(permission);
-            }
-        }
         for (const auto& attribute : attributeOrErrors) {
             if (!attribute.IsOK()) {
                 errors.push_back(attribute);
