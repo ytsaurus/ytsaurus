@@ -1336,9 +1336,11 @@ class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
     def test_scheduler_preempt_overdraft_resources(self):
         set("//sys/scheduler/config", {"job_interrupt_timeout": 1000})
 
-        nodes = ls("//sys/nodes")
-        set("//sys/nodes/{}/@resource_limits_overrides".format(nodes[0]), {"cpu": 0})
-        wait(lambda: get("//sys/nodes/{}/orchid/job_controller/resource_limits/cpu".format(nodes[0])) == 0.0)
+        nodes = ls("//sys/cluster_nodes")
+        assert len(nodes) > 0
+
+        set("//sys/cluster_nodes/{}/@resource_limits_overrides".format(nodes[0]), {"cpu": 0})
+        wait(lambda: get("//sys/cluster_nodes/{}/orchid/job_controller/resource_limits/cpu".format(nodes[0])) == 0.0)
 
         create("table", "//tmp/t_in")
         for i in xrange(1):
@@ -1363,15 +1365,15 @@ class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
 
         wait(lambda: op1.get_job_count("running") == 1)
         wait(lambda: op2.get_job_count("running") == 1)
-        wait(lambda: get("//sys/nodes/{}/orchid/job_controller/resource_usage/cpu".format(nodes[1])) == 2.0)
+        wait(lambda: get("//sys/cluster_nodes/{}/orchid/job_controller/resource_usage/cpu".format(nodes[1])) == 2.0)
 
         # TODO(ignat): add check that jobs are not preemptable.
 
-        set("//sys/nodes/{}/@resource_limits_overrides".format(nodes[0]), {"cpu": 2})
-        wait(lambda: get("//sys/nodes/{}/orchid/job_controller/resource_limits/cpu".format(nodes[0])) == 2.0)
+        set("//sys/cluster_nodes/{}/@resource_limits_overrides".format(nodes[0]), {"cpu": 2})
+        wait(lambda: get("//sys/cluster_nodes/{}/orchid/job_controller/resource_limits/cpu".format(nodes[0])) == 2.0)
 
-        set("//sys/nodes/{}/@resource_limits_overrides".format(nodes[1]), {"cpu": 0})
-        wait(lambda: get("//sys/nodes/{}/orchid/job_controller/resource_limits/cpu".format(nodes[1])) == 0.0)
+        set("//sys/cluster_nodes/{}/@resource_limits_overrides".format(nodes[1]), {"cpu": 0})
+        wait(lambda: get("//sys/cluster_nodes/{}/orchid/job_controller/resource_limits/cpu".format(nodes[1])) == 0.0)
 
         wait(lambda: op1.get_job_count("aborted") == 1)
         wait(lambda: op2.get_job_count("aborted") == 1)
@@ -1381,9 +1383,11 @@ class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
 
     @authors("ignat")
     def test_scheduler_force_abort(self):
-        nodes = ls("//sys/nodes")
-        set("//sys/nodes/{}/@disable_scheduler_jobs".format(nodes[0]), True)
-        wait(lambda: get("//sys/nodes/{}/orchid/job_controller/resource_limits/user_slots".format(nodes[0])) == 0)
+        nodes = ls("//sys/cluster_nodes")
+        assert len(nodes) >= 2
+
+        set("//sys/cluster_nodes/{}/@disable_scheduler_jobs".format(nodes[0]), True)
+        wait(lambda: get("//sys/cluster_nodes/{}/orchid/job_controller/resource_limits/user_slots".format(nodes[0])) == 0)
 
         create("table", "//tmp/t_in")
         for i in xrange(1):
@@ -1405,15 +1409,15 @@ class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
 
         wait(lambda: op1.get_job_count("running") == 1)
         wait(lambda: op2.get_job_count("running") == 1)
-        wait(lambda: get("//sys/nodes/{}/orchid/job_controller/resource_usage/user_slots".format(nodes[1])) == 2)
+        wait(lambda: get("//sys/cluster_nodes/{}/orchid/job_controller/resource_usage/user_slots".format(nodes[1])) == 2)
 
         # TODO(ignat): add check that jobs are not preemptable.
 
-        set("//sys/nodes/{}/@disable_scheduler_jobs".format(nodes[0]), False)
-        wait(lambda: get("//sys/nodes/{}/orchid/job_controller/resource_limits/user_slots".format(nodes[0])) == 2)
+        set("//sys/cluster_nodes/{}/@disable_scheduler_jobs".format(nodes[0]), False)
+        wait(lambda: get("//sys/cluster_nodes/{}/orchid/job_controller/resource_limits/user_slots".format(nodes[0])) == 2)
 
-        set("//sys/nodes/{}/@disable_scheduler_jobs".format(nodes[1]), True)
-        wait(lambda: get("//sys/nodes/{}/orchid/job_controller/resource_limits/user_slots".format(nodes[1])) == 0)
+        set("//sys/cluster_nodes/{}/@disable_scheduler_jobs".format(nodes[1]), True)
+        wait(lambda: get("//sys/cluster_nodes/{}/orchid/job_controller/resource_limits/user_slots".format(nodes[1])) == 0)
 
         wait(lambda: op1.get_job_count("aborted") == 1)
         wait(lambda: op2.get_job_count("aborted") == 1)

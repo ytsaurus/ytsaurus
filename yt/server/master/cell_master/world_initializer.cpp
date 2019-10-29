@@ -317,7 +317,7 @@ private:
                     .EndMap());
 
             ScheduleCreateNode(
-                "//sys/nodes",
+                "//sys/cluster_nodes",
                 transactionId,
                 EObjectType::ClusterNodeMap,
                 BuildYsonStringFluently()
@@ -327,12 +327,12 @@ private:
 
             // COMPAT(babenko): YT-4558
             ScheduleCreateNode(
-                "//sys/cluster_nodes",
+                "//sys/nodes",
                 transactionId,
                 EObjectType::Link,
                 BuildYsonStringFluently()
                     .BeginMap()
-                        .Item("target_path").Value("//sys/nodes")
+                        .Item("target_path").Value("//sys/cluster_nodes")
                     .EndMap());
 
             ScheduleCreateNode(
