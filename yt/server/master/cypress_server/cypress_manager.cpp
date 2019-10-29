@@ -1215,11 +1215,13 @@ public:
         auto strongestLockModeBefore = ELockMode::None;
         auto strongestLockModeAfter = ELockMode::None;
         for (auto* lock : transaction->Locks()) {
-            if (lock->GetState() != ELockState::Acquired) {
+            YT_ASSERT(lock->GetTransaction() == transaction);
+
+            if (lock->GetTrunkNode() != trunkNode) {
                 continue;
             }
 
-            if (lock->GetTransaction() != transaction) {
+            if (lock->GetState() != ELockState::Acquired) {
                 continue;
             }
 
