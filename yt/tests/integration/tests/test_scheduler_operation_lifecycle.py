@@ -1462,7 +1462,7 @@ class TestControllerAgentZombieOrchids(YTEnvSetup):
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "zombie_operation_orchids": {
-                "clean_period": 10 * 1000,
+                "clean_period": 15 * 1000,
             },
         }
     }
@@ -1486,7 +1486,7 @@ class TestControllerAgentZombieOrchids(YTEnvSetup):
             out="//tmp/t_out")
 
         orchid_path = self._get_operation_orchid_path(op)
-        assert exists(orchid_path)
+        wait(lambda: exists(orchid_path))
         assert get(orchid_path + "/state") == "completed"
         wait(lambda: not exists(orchid_path))
 
