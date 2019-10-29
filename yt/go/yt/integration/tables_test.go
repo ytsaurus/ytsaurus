@@ -147,3 +147,39 @@ func TestTables(t *testing.T) {
 		require.Equal(t, 0, count)
 	})
 }
+
+func TestHighLevelTableWriter(t *testing.T) {
+	t.Parallel()
+
+	env, cancel := yttest.NewEnv(t)
+	defer cancel()
+
+	checkTable := func(t *testing.T, path ypath.Path, rowCount int, expectedSchema schema.Schema) {
+		t.Helper()
+
+		var realRowCount int
+		require.NoError(t, env.YT.GetNode(env.Ctx, path.Attr("row_count"), &realRowCount, nil))
+		require.Equal(t, rowCount, realRowCount, "table size differs from number of written rows")
+
+		var realSchema schema.Schema
+		require.NoError(t, env.YT.GetNode(env.Ctx, path.Attr("schema"), &realSchema, nil))
+		require.True(t, expectedSchema.Equal(realSchema), expectedSchema, realSchema)
+	}
+
+	t.Run("BigWrite", func(t *testing.T) {
+		tmpTableName := tmpPath()
+
+		w, err := yt.WriteTable(env.Ctx, env.YT, tmpTableName, yt.WithBatchSize(100))
+		require.NoError(t, err)
+		defer func() { _ = w.Rollback() }()
+
+		const testSize = 1024
+		for i := 0; i < testSize; i++ {
+			require.NoError(t, w.Write(exampleRow{"foo", 1}))
+		}
+
+		require.NoError(t, w.Commit())
+
+		checkTable(t, tmpTableName, testSize, schema.MustInfer(&exampleRow{}))
+	})
+}

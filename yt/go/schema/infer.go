@@ -103,7 +103,6 @@ func parseTag(fieldName string, typ reflect.Type, tag reflect.StructTag) (c *Col
 // Go type string is mapped to YT type utf8.
 //
 // Go types implementing encoding.TextMarshaler interface are mapped to YT type utf8.
-//
 func Infer(value interface{}) (s Schema, err error) {
 	v, err := reflectValueOfType(value, reflect.Struct)
 	if err != nil {

@@ -393,6 +393,20 @@ func (e *Encoder) GetFileFromCache(
 	return
 }
 
+func (e *Encoder) WriteTableRaw(
+	ctx context.Context,
+	path ypath.YPath,
+	options *yt.WriteTableOptions,
+	body *bytes.Buffer,
+) (err error) {
+	call := e.newCall(NewWriteTableParams(path, options))
+	call.YSONValue = body.Bytes()
+	err = e.do(ctx, call, func(res *CallResult) error {
+		return nil
+	})
+	return
+}
+
 func (e *Encoder) WriteTable(
 	ctx context.Context,
 	path ypath.YPath,

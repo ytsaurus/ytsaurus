@@ -481,6 +481,8 @@ type ReadTableOptions struct {
 }
 
 type TableClient interface {
+	// WriteTable opens low-level table writer. Use yt.WriteTable() function instead of calling this method directly.
+	//
 	// http:verb:"write_table"
 	// http:params:"path"
 	WriteTable(
@@ -770,6 +772,8 @@ type LookupRowsOptions struct {
 }
 
 type InsertRowsOptions struct {
+	Atomicity *string `http:"atomicity,omitnil"`
+
 	*TransactionOptions
 }
 
