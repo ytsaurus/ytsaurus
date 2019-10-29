@@ -23,6 +23,7 @@ ROWS = [
         "variant_tuple_column": [0, "bar"],
         "struct_column": {"a": False, "b": yson.YsonUint64(1), "c": "flame", "d": yson.YsonEntity()},
         "non_utf_string_column": b"\xFF\xFE\xFD\xFC",
+        "list_optional_int64_column": [21, 22, 23],
     },
     {
         "string32_column": "abcd",
@@ -35,6 +36,7 @@ ROWS = [
         "variant_tuple_column": [1, [7, 8]],
         "struct_column": {"a": True, "b": yson.YsonUint64(12), "c": "hey", "d": [yson.YsonEntity()]},
         "non_utf_string_column": b"ab\xFAcd",
+        "list_optional_int64_column": [100, yson.YsonEntity(), 200],
     }
 ]
 
@@ -117,6 +119,16 @@ SCHEMA_BASE = [
         "name": "non_utf_string_column",
         "type": "string"
     },
+    {
+        "name": "list_optional_int64_column",
+        "type_v2" : {
+            "metatype": "list",
+            "element": {
+                "metatype": "optional",
+                "element": "int64"
+            }
+        }
+    },
 ]
 
 DYNAMIC_ORDERED_TABLE_SYSTEM_COLUMN_NAMES = [
@@ -171,7 +183,12 @@ EXPECTED_OUTPUT_BASE = {
             "non_utf_string_column": {
                 "$type": "string",
                 "$value": u"\xFF\xFE\xFD\xFC"
-            }
+            },
+            "list_optional_int64_column": {
+                "$type": "any",
+                "$value": "",
+                "$incomplete": True,
+            },
         },
         {
             "string32_column": {
@@ -213,7 +230,12 @@ EXPECTED_OUTPUT_BASE = {
             "non_utf_string_column": {
                 "$type": "string",
                 "$value": u"ab\xFAcd"
-            }
+            },
+            "list_optional_int64_column": {
+                "$type": "any",
+                "$value": "",
+                "$incomplete": True,
+            },
         },
     ],
     "incomplete_columns": "false",
@@ -250,27 +272,27 @@ def get_output_yql_rows(value_format, field_weight_limit):
     return [
         {
             "string32_column": [
-                make_string_entry("abcdefghij"),
+                [make_string_entry("abcdefghij")],
                 ["OptionalType", ["DataType", "String"]]
             ],
             "yson32_column": [
-                make_string_entry("[110;\"xxx\";{\"foo\"=\"bar\";};]"),
+                [make_string_entry("[110;\"xxx\";{\"foo\"=\"bar\";};]")],
                 ["OptionalType", ["DataType", "Yson"]]
             ],
             "int64_column": [
-                "-42",
+                ["-42"],
                 ["OptionalType", ["DataType", "Int64"]]
             ],
             "uint64_column": [
-                "25",
+                ["25"],
                 ["OptionalType", ["DataType", "Uint64"]]
             ],
             "double_column": [
-                "3.14",
+                ["3.14"],
                 ["OptionalType", ["DataType", "Double"]]
             ],
             "boolean_column": [
-                True,
+                [True],
                 ["OptionalType", ["DataType", "Boolean"]]
             ],
             "optional_list_int64_column": [
@@ -286,33 +308,37 @@ def get_output_yql_rows(value_format, field_weight_limit):
                 struct_type
             ],
             "non_utf_string_column": [
-                make_base64_encoded_string_entry(b"\xFF\xFE\xFD\xFC"),
+                [make_base64_encoded_string_entry(b"\xFF\xFE\xFD\xFC")],
                 ["OptionalType", ["DataType", "String"]]
+            ],
+            "list_optional_int64_column": [
+                [["21"], ["22"], ["23"]],
+                ["ListType", ["OptionalType", ["DataType", "Int64"]]],
             ],
         },
         {
             "string32_column": [
-                "abcd",
+                ["abcd"],
                 ["OptionalType", ["DataType", "String"]]
             ],
             "yson32_column": [
-                make_string_entry("{\"f\"=\"b\";}"),
+                [make_string_entry("{\"f\"=\"b\";}")],
                 ["OptionalType", ["DataType", "Yson"]]
             ],
             "int64_column": [
-                "-42",
+                ["-42"],
                 ["OptionalType", ["DataType", "Int64"]]
             ],
             "uint64_column": [
-                "25",
+                ["25"],
                 ["OptionalType", ["DataType", "Uint64"]]
             ],
             "double_column": [
-                "3.14",
+                ["3.14"],
                 ["OptionalType", ["DataType", "Double"]]
             ],
             "boolean_column": [
-                True,
+                [True],
                 ["OptionalType", ["DataType", "Boolean"]]
             ],
             "optional_list_int64_column": [
@@ -331,8 +357,12 @@ def get_output_yql_rows(value_format, field_weight_limit):
                 struct_type
             ],
             "non_utf_string_column": [
-                make_base64_encoded_string_entry(b"ab\xFAcd"),
+                [make_base64_encoded_string_entry(b"ab\xFAcd")],
                 ["OptionalType", ["DataType", "String"]]
+            ],
+            "list_optional_int64_column": [
+                [["100"], yson.YsonEntity(), ["200"]],
+                ["ListType", ["OptionalType", ["DataType", "Int64"]]],
             ],
         },
     ]
@@ -385,7 +415,9 @@ def _assert_yql_row_match(actual_row, expected_row, type_registry):
         assert len(entry) == 2
         actual_value, actual_type_index_str = entry
         expected_value, expected_type = expected_row[key]
-        if expected_type in (["OptionalType", ["DataType", "Double"]], ["DataType", "Double"]):
+        if expected_type == ["OptionalType", ["DataType", "Double"]]:
+            assert abs(float(expected_value[0]) - float(actual_value[0])) < 1e-6
+        elif expected_type == ["DataType", "Double"]:
             assert abs(float(expected_value) - float(actual_value)) < 1e-6
         else:
             assert expected_value == actual_value
