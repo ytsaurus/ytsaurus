@@ -3,6 +3,7 @@ package ypath
 import (
 	"github.com/mitchellh/copystructure"
 
+	"a.yandex-team.ru/library/go/ptr"
 	"a.yandex-team.ru/yt/go/schema"
 	"a.yandex-team.ru/yt/go/yson"
 )
@@ -135,8 +136,7 @@ func (r *Rich) SetSortedBy(keysColumns []string) *Rich {
 
 // SetAppend sets append attribute of p.
 func (r *Rich) SetAppend() *Rich {
-	appendAttr := true
-	r.Append = &appendAttr
+	r.Append = ptr.Bool(true)
 	return r
 }
 

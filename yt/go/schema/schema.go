@@ -87,6 +87,8 @@ type Column struct {
 
 // Schema describe schema of YT table.
 //
+// Schema is strict by default.
+//
 // See https://wiki.yandex-team.ru/yt/userdoc/tables/#sxema
 type Schema struct {
 	// Schema is strict by default. Change this option only if you know that you are doing.

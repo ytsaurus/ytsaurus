@@ -640,6 +640,10 @@ func writeInsertRowsOptions(w *yson.Writer, o *yt.InsertRowsOptions) {
 	if o == nil {
 		return
 	}
+	if o.Atomicity != nil {
+		w.MapKeyString("atomicity")
+		w.Any(o.Atomicity)
+	}
 	writeTransactionOptions(w, o.TransactionOptions)
 }
 
