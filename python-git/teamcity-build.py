@@ -47,6 +47,7 @@ def get_ya_cache_dir(options):
 def ya_make_env(options):
     return {
         "YA_CACHE_DIR": get_ya_cache_dir(options),
+        "SVN_SSH": "ssh -v -l robot-yt-openstack ",
     }
 
 def ya_make_args(options):
