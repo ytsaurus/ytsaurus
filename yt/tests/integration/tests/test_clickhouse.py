@@ -1757,7 +1757,7 @@ class TestJoinAndIn(ClickHouseTestBase):
                                         print_debug(char + " " + row)
                                     assert False
 
-class TestHttpProxy(ClickHouseTestBase):
+class TestClickHouseHttpProxy(ClickHouseTestBase):
     def setup(self):
         self._setup()
         create_user("yt-clickhouse")
@@ -1783,6 +1783,8 @@ class TestHttpProxy(ClickHouseTestBase):
             clique.resize(1)
 
             proxy_response = requests.post(url, data="select * from system.clique format JSON")
+            print_debug(proxy_response)
+            print_debug(proxy_response.text)
             response = clique.make_query("select * from system.clique")
             assert len(response) == 1
             assert proxy_response.json()["data"] == response
