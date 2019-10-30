@@ -976,6 +976,9 @@ std::pair<IFairShareTreeSnapshotPtr, TError> TFairShareTree::DoFairShareUpdateAt
     updateContext.Now = now;
 
     auto rootElement = RootElement_->Clone();
+    PROFILE_AGGREGATED_TIMING(FairShareUpdateTimeCounter_) {
+        rootElement->PreUpdate(&dynamicAttributes, &updateContext);
+    }
     auto asyncUpdate = BIND([&]
         {
             PROFILE_AGGREGATED_TIMING(FairShareUpdateTimeCounter_) {

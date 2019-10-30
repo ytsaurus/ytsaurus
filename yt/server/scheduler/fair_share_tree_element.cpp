@@ -264,14 +264,6 @@ void TSchedulerElement::UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& 
     TreeConfig_ = config;
 }
 
-void TSchedulerElement::Update(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
-{
-    YT_VERIFY(Mutable_);
-
-    UpdateBottomUp(dynamicAttributesList, context);
-    UpdateTopDown(dynamicAttributesList, context);
-}
-
 void TSchedulerElement::UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
 {
     YT_VERIFY(Mutable_);
@@ -3135,7 +3127,7 @@ void TRootElement::UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& confi
     Attributes_.AdjustedFairSharePreemptionTimeout = GetFairSharePreemptionTimeout();
 }
 
-void TRootElement::Update(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
+void TRootElement::PreUpdate(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
 {
     YT_VERIFY(Mutable_);
 
@@ -3144,7 +3136,18 @@ void TRootElement::Update(TDynamicAttributesList* dynamicAttributesList, TUpdate
     DisableNonAliveElements();
     TreeSize_ = TCompositeSchedulerElement::EnumerateElements(0, context);
     dynamicAttributesList->assign(TreeSize_, TDynamicAttributes());
-    TCompositeSchedulerElement::Update(dynamicAttributesList, context);
+    
+    UpdateBottomUp(dynamicAttributesList, context);
+}
+
+void TRootElement::Update(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
+{
+    YT_VERIFY(Mutable_);
+
+    VERIFY_INVOKER_AFFINITY(Host_->GetFairShareUpdateInvoker());
+    TForbidContextSwitchGuard contextSwitchGuard;
+
+    UpdateTopDown(dynamicAttributesList, context);
 }
 
 bool TRootElement::IsRoot() const

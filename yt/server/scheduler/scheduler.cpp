@@ -1193,9 +1193,7 @@ public:
 
     virtual IInvokerPtr GetFairShareUpdateInvoker() const override
     {
-        return GetControlInvoker(EControlQueue::FairShareStrategy);
-        // TODO(ignat): make tree thread-safe and enable this separate thread for fair share updates.
-        // return FairShareUpdateActionQueue_->GetInvoker();
+        return FairShareUpdateActionQueue_->GetInvoker();
     }
 
     virtual IYsonConsumer* GetEventLogConsumer() override

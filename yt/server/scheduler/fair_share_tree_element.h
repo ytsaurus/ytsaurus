@@ -252,8 +252,6 @@ public:
 
     virtual void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config);
 
-    virtual void Update(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context);
-
     //! Updates attributes that need to be computed from leafs up to root.
     //! For example: |parent->ResourceDemand = Sum(child->ResourceDemand)|.
     virtual void UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context);
@@ -963,7 +961,10 @@ public:
         const NLogging::TLogger& logger);
     TRootElement(const TRootElement& other);
 
-    virtual void Update(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
+    //! Computes various lightweight attributes in the tree. Thread-unsafe.
+    void PreUpdate(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context);
+    //! Computes min share ratio and fair share ratio in the tree. Thread-safe.
+    void Update(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context);
 
     virtual void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config) override;
 
