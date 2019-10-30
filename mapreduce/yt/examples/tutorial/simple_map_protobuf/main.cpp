@@ -14,8 +14,8 @@ class TComputeEmailsMapper
 public:
     virtual void Do(TReader* reader, TWriter* writer) override
     {
-        for (; reader->IsValid(); reader->Next()) {
-            const auto& loginRecord = reader->GetRow();
+        for (auto& cursor : *reader) {
+            const auto& loginRecord = cursor.GetRow();
 
             TEmailRecord emailRecord;
             emailRecord.SetName(loginRecord.GetName());

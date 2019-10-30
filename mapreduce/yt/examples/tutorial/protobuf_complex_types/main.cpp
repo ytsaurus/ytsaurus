@@ -16,8 +16,8 @@ public:
     virtual void Do(TReader* reader, TWriter* writer) override
     {
         TDoc doc;
-        for (; reader->IsValid(); reader->Next()) {
-            auto entry = reader->MoveRow();
+        for (auto& cursor : *reader) {
+            auto entry = cursor.MoveRow();
             if (!doc.HasTitle()) {
                 doc.SetTitle(entry.GetDocTitle());
             }

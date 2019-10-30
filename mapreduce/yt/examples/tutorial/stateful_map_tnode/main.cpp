@@ -22,8 +22,8 @@ public:
 
 
     void Do(TReader* reader, TWriter* writer) override {
-        for (; reader->IsValid(); reader->Next()) {
-            const auto& row = reader->GetRow();
+        for (auto& cursor : *reader) {
+            const auto& row = cursor.GetRow();
             const auto& name = row["name"].AsString();
             if (NHunting::LevensteinDistance(name, Pattern_) <= MaxDistance_) {
                 writer->AddRow(row);

@@ -12,8 +12,8 @@ class TComputeEmailsMapper
             // Соберём несколько интересных статистик по сотрудникам
             i64 fortyTwoCount = 0;
             i64 shortLoginCount = 0;
-            for (; reader->IsValid(); reader->Next()) {
-                const auto& row = reader->GetRow();
+            for (const auto& cursor : *reader) {
+                const auto& row = cursor.GetRow();
                 auto login = row["login"].AsString();
                 TNode outRow;
                 outRow["name"] = row["name"];

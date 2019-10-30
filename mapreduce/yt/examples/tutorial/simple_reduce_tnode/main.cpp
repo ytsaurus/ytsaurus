@@ -16,7 +16,7 @@ public:
         const auto name = row["name"];
 
         ui32 count = 0;
-        for (; reader->IsValid(); reader->Next()) {
+        for ([[maybe_unused]] auto& cursor : *reader) {
             ++count;
         }
 

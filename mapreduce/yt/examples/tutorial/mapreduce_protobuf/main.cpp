@@ -21,8 +21,8 @@ class TNormalizeNameMapper
 public:
     virtual void Do(TReader* reader, TWriter* writer) override
     {
-        for (; reader->IsValid(); reader->Next()) {
-            auto row = reader->GetRow();
+        for (auto& cursor : *reader) {
+            auto row = cursor.GetRow();
             row.SetName(ToLowerUTF8(row.GetName()));
             writer->AddRow(row);
         }
@@ -39,8 +39,8 @@ public:
     virtual void Do(TReader* reader, TWriter* writer) override
     { TNameStatistics result;
         ui64 count = 0;
-        for (; reader->IsValid(); reader->Next()) {
-            const auto& row = reader->GetRow();
+        for (auto& cursor : *reader) {
+            const auto& row = cursor.GetRow();
             if (!result.HasName()) {
                 result.SetName(row.GetName());
             }

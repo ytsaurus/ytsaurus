@@ -22,12 +22,12 @@ public:
     void Do(TReader* reader, TWriter* writer) override {
         NData::TUserRecord userRecord;
         bool isRobot = false;
-        for (; reader->IsValid(); reader->Next()) {
-            auto tableIndex = reader->GetTableIndex();
+        for (auto& cursor : *reader) {
+            auto tableIndex = cursor.GetTableIndex();
             if (tableIndex == 0) {
-                userRecord = reader->GetRow<NData::TUserRecord>();
+                userRecord = cursor.GetRow<NData::TUserRecord>();
             } else if (tableIndex == 1) {
-                const auto& isRobotRecord = reader->GetRow<NData::TIsRobotRecord>();
+                const auto& isRobotRecord = cursor.GetRow<NData::TIsRobotRecord>();
                 isRobot = isRobotRecord.GetIsRobot();
             } else {
                 Y_FAIL();
