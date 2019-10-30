@@ -1877,6 +1877,7 @@ message TJob
     optional bytes brief_statistics = 12; // YSON
     optional bytes input_paths = 13; // YSON
     optional bytes core_infos = 14; // YSON
+    optional NYT.NProto.TGuid operation_id = 15;
 }
 
 message TListJobsStatistics

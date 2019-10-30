@@ -1504,6 +1504,7 @@ class TestControllerAgentZombieOrchids(YTEnvSetup):
             })
 
         orchid_path = self._get_operation_orchid_path(op)
+        wait(lambda: exists(orchid_path))
         retained_finished_jobs = get(orchid_path + "/retained_finished_jobs")
         assert len(retained_finished_jobs) == 1
         (job_id, attributes), = retained_finished_jobs.items()
