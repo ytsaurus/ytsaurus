@@ -3078,6 +3078,11 @@ void TOperationElement::MarkOperationRunningInPool()
     YT_LOG_INFO("Operation is running in pool (Pool: %v)", Parent_->GetId());
 }
 
+bool TOperationElement::IsOperationRunningInPool()
+{
+    return RunningInThisPoolTree_;
+}
+
 TFairShareStrategyPackingConfigPtr TOperationElement::GetPackingConfig() const
 {
     return TreeConfig_->Packing;

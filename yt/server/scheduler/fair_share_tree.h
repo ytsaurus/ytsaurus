@@ -39,6 +39,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(IOperationStrategyHost*, Host);
     DEFINE_BYVAL_RO_PROPERTY(TFairShareStrategyOperationControllerPtr, Controller);
     DEFINE_BYREF_RW_PROPERTY(TTreeIdToPoolNameMap, TreeIdToPoolNameMap);
+    DEFINE_BYVAL_RW_PROPERTY(bool, Enabled);
 
 public:
     explicit TFairShareStrategyOperationState(IOperationStrategyHost* host);
@@ -184,6 +185,7 @@ public:
     TPoolName CreatePoolName(const std::optional<TString>& poolFromSpec, const TString& user);
 
     bool HasOperation(TOperationId operationId);
+    bool HasRunningOperation(TOperationId operationId);
 
     virtual TResourceTree* GetResourceTree() override;
 

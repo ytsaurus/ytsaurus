@@ -925,6 +925,14 @@ bool TFairShareTree::HasOperation(TOperationId operationId)
     return static_cast<bool>(FindOperationElement(operationId));
 }
 
+bool TFairShareTree::HasRunningOperation(TOperationId operationId)
+{
+    if (auto element = FindOperationElement(operationId)) {
+        return element->IsOperationRunningInPool();
+    }
+    return false;
+}
+
 TResourceTree* TFairShareTree::GetResourceTree()
 {
     return ResourceTree_.Get();

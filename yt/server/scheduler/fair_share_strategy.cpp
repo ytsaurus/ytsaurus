@@ -171,8 +171,9 @@ public:
         for (const auto& [treeId, poolName] : state->TreeIdToPoolNameMap()) {
             auto tree = GetTree(treeId);
             const auto& treeParams = GetOrCrash(runtimeParameters->SchedulingOptionsPerPoolTree, treeId);
+
             if (tree->RegisterOperation(state, spec, treeParams)) {
-                ActivateOperations({operation->GetId()});
+                OnOperationReadyInTree(operation->GetId(), tree);
             }
         }
     }
@@ -212,17 +213,25 @@ public:
     {
         auto tree = GetTree(treeId);
         tree->UnregisterOperation(operationState);
-        ActivateOperations(tree->RunWaitingOperations());
+        for (auto operationId : tree->RunWaitingOperations()) {
+            OnOperationReadyInTree(operationId, tree);
+        }
     }
 
     virtual void DisableOperation(IOperationStrategyHost* operation) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        const auto& state = GetOperationState(operation->GetId());
+        auto operationId = operation->GetId();
+        const auto& state = GetOperationState(operationId);
         for (const auto& [treeId, poolName] : state->TreeIdToPoolNameMap()) {
-            GetTree(treeId)->DisableOperation(state);
+            if (auto tree = GetTree(treeId);
+                tree->HasRunningOperation(operationId))
+            {
+                tree->DisableOperation(state);
+            }
         }
+        state->SetEnabled(false);
     }
 
     virtual void UpdatePoolTrees(const INodePtr& poolTreesNode) override
@@ -453,7 +462,9 @@ public:
             auto tree = GetTree(treeId);
             if (oldPool.GetPool() != newPool.GetPool()) {
                 tree->ChangeOperationPool(operation->GetId(), state, newPool);
-                ActivateOperations(tree->RunWaitingOperations());
+                for (auto operationId : tree->RunWaitingOperations()) {
+                    OnOperationReadyInTree(operationId, tree);
+                }
             }
 
             const auto& treeParams = GetOrCrash(runtimeParameters->SchedulingOptionsPerPoolTree, treeId);
@@ -796,8 +807,13 @@ public:
     {
         auto operationId = host->GetId();
         const auto& state = GetOperationState(operationId);
+        state->SetEnabled(true);
         for (const auto& [treeId, poolName] : state->TreeIdToPoolNameMap()) {
-            GetTree(treeId)->EnableOperation(state);
+            if (auto tree = GetTree(treeId);
+                tree->HasRunningOperation(operationId))
+            {
+                tree->EnableOperation(state);
+            }
         }
         if (host->IsSchedulable()) {
             state->GetController()->UpdateMinNeededJobResources();
@@ -1091,13 +1107,15 @@ private:
                 });
     }
 
-    void ActivateOperations(const std::vector<TOperationId>& operationIds) const
+    void OnOperationReadyInTree(TOperationId operationId, const TFairShareTreePtr& tree) const
     {
-        for (auto operationId : operationIds) {
-            const auto& state = GetOperationState(operationId);
-            if (!state->GetHost()->GetActivated()) {
-                Host->ActivateOperation(operationId);
-            }
+        YT_VERIFY(tree->HasRunningOperation(operationId));
+
+        auto state = GetOperationState(operationId);
+        if (!state->GetHost()->GetActivated()) {
+            Host->ActivateOperation(operationId);
+        } else if (state->GetEnabled()) {
+            tree->EnableOperation(state);
         }
     }
 
