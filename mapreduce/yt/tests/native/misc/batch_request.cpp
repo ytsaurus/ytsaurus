@@ -53,9 +53,15 @@ public:
 
     ~TLowerRequestLimit()
     {
-        Client_->Set("//sys/users/root/@read_request_rate_limit", ReadRequestRateLimit_);
-        Client_->Set("//sys/users/root/@write_request_rate_limit", WriteRequestRateLimit_);
-        Client_->Set("//sys/users/root/@request_queue_size_limit", RequestQueueSizeLimit_);
+        try {
+            Client_->Set("//sys/users/root/@read_request_rate_limit", ReadRequestRateLimit_);
+            Client_->Set("//sys/users/root/@write_request_rate_limit", WriteRequestRateLimit_);
+            Client_->Set("//sys/users/root/@request_queue_size_limit", RequestQueueSizeLimit_);
+        } catch (const std::exception& ex) {
+            Y_FAIL("%s", ex.what());
+        } catch (...) {
+            Y_FAIL();
+        }
     }
 
 private:
@@ -777,6 +783,7 @@ Y_UNIT_TEST_SUITE(BatchRequestSuite)
         TLowerRequestLimit lrl(client, 100);
         TConfig::Get()->RetryInterval = TDuration();
         TConfig::Get()->RateLimitExceededRetryInterval = TDuration();
+        TConfig::Get()->RetryCount = 1000;
 
         client->Set(workingDir + "/node", 5);
         auto batchRequest = client->CreateBatchRequest();
