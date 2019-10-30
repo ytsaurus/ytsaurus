@@ -82,10 +82,6 @@ public:
 
     virtual i64 GetInputSliceDataWeight() const override
     {
-        if (JobCount_ == 0 || InitialInputDataWeight_ == 0) {
-            return 1;
-        }
-
         auto dataWeightPerJob = (SamplingConfig_ && SamplingConfig_->SamplingRate)
             ? GetSamplingDataWeightPerJob()
             : GetDataWeightPerJob();
