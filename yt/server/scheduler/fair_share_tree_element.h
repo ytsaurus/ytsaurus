@@ -886,6 +886,7 @@ public:
     void DetachParent();
 
     void MarkOperationRunningInPool();
+    bool IsOperationRunningInPool();
 
     void UpdateAncestorsAttributes(TFairShareContext* context);
 

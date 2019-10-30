@@ -761,6 +761,35 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         for op in ops:
             op.abort()
 
+    @authors("eshcherbin")
+    def test_enabling_operation_separately_in_each_tree(self):
+        nodes = ls("//sys/cluster_nodes")
+        for node in nodes[:-1]:
+            set("//sys/cluster_nodes/{0}/@user_tags".format(node), ["other"])
+        set("//sys/pool_trees/default/@nodes_filter", "!other")
+        create("map_node", "//sys/pool_trees/other", attributes={"nodes_filter": "other", "max_running_operation_count_per_pool": 1})
+        time.sleep(0.5)
+
+        blocking_op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"pool_trees": ["other"]})
+        wait_breakpoint()
+
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=2, spec={"pool_trees": ["default", "other"]})
+
+        time.sleep(3)
+        # NB(eshcherbin): There are 2 nodes in tree "other" and 1 node in tree "default".
+        # Both trees have "max_running_operation_count_per_pool" set to 1.
+        # At this moment operation `blocking_op` is running in tree "other", so operation `op` can only run in tree "default",
+        # where it can have only 1 out of the 2 desired jobs.
+        # Thus, if everything is correct, op should be enabled only in tree "default".
+        assert op.get_job_count("running") == 1
+
+        release_breakpoint()
+        blocking_op.track()
+        op.track()
+
+        remove("//sys/pool_trees/other")
+        set("//sys/pool_trees/default/@nodes_filter", "")
+
     @authors("mrkastep")
     def test_ignoring_tentative_pool_operation_limit(self):
         nodes = ls("//sys/cluster_nodes")
@@ -3268,7 +3297,7 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
         for tree in ["default", "nirvana", "cloud"]:
             if tree != "default":
                 create("map_node", "//sys/pool_trees/" + tree,
-                       attributes={"nodes_filter": tree + "_tag", "max_running_operation_count_per_pool": 1})
+                       attributes={"nodes_filter": tree + "_tag"})
             create("map_node", "//sys/pool_trees/{}/research".format(tree))
             wait(lambda: exists(pool_orchid.format(tree), verbose_error=True))
 
