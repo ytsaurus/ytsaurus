@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 
+from yt import yson
+
 import collections
+import copy
 import json
 import logging
 import uuid
@@ -76,6 +79,53 @@ class YpSchedulerObjects(YpSchedulerObjectsBase):
 
     def get_by_type(self, type_):
         return getattr(self, type_ + "s")
+
+    def select_object_attributes(self, object_type_to_attributes):
+        # Only leave object attributes present in `object_type_to_attributes` map.
+        # E.g. object_type_to_attributes = {
+        #    "node": ["/meta/id", "/spec"],
+        #    "pod": ...
+        #    ...
+        # }
+        logging.info("Selecting object attributes")
+        result = {}
+        for field_name in self._fields:
+            filtered_objects = []
+            attrs = object_type_to_attributes[field_name[:-1]]
+            for obj in getattr(self, field_name):
+                filtered_objects.append(extract_attributes(obj, attrs))
+            result[field_name] = filtered_objects
+        return YpSchedulerObjects(**result)
+
+    def drop_none_attributes(self):
+        def drop_nones(obj):
+            del_list = []
+            for key, value in obj.iteritems():
+                if value is None or isinstance(key, yson.YsonEntity):
+                    del_list.append(key)
+                elif isinstance(value, dict):
+                    drop_nones(value)
+            for key in del_list:
+                del obj[key]
+
+        for field_name in self._fields:
+            for obj in getattr(self, field_name, []):
+                drop_nones(obj)
+
+
+def extract_attributes(obj, attrs):
+    new = {}
+    for attr in attrs:
+        parts = [p for p in attr.split("/") if p]
+        old_subobj = obj
+        new_subobj = new
+        for part in parts[:-1]:
+            if part not in new_subobj:
+                new_subobj[part] = {}
+            new_subobj = new_subobj[part]
+            old_subobj = old_subobj[part]
+        new_subobj[parts[-1]] = copy.deepcopy(old_subobj.get(parts[-1]))
+    return new
 
 
 def read_yp_scheduler_objects(yp_scheduler_objects_file_path):

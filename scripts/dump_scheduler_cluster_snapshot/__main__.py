@@ -9,6 +9,7 @@ from yt.yson.convert import yson_to_json
 import argparse
 import json
 import logging
+import sys
 
 
 def configure_logger():
@@ -31,8 +32,8 @@ def main(arguments):
     configure_logger()
     yp_client = YpClient(address=arguments.cluster, config=dict(token=find_token()))
     snapshot = load_scheduler_cluster_snapshot(yp_client, arguments.node_segment_id)
-    objects = snapshot.pods + snapshot.resources
-    print(json.dumps(yson_to_json(objects), indent=4))
+    objects = snapshot.pods + snapshot.resources + snapshot.pod_sets + snapshot.nodes
+    json.dump(yson_to_json(objects), sys.stdout, indent=4)
 
 
 if __name__ == "__main__":

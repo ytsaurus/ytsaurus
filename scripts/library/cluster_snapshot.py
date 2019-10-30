@@ -13,7 +13,22 @@ logger = logging.getLogger(__name__)
 FILTER_BATCH_SIZE = 30  # batch_size > 30 exceeds maximum expression depth.
 SELECT_BATCH_SIZE = 1000
 
-SchedulerCluster = namedtuple("SchedulerClusterSnapshot", ["pods", "resources"])
+SchedulerClusterBase = namedtuple("SchedulerClusterBase",
+                                  ["pods", "resources", "nodes", "pod_sets", "internet_addresses"])
+
+
+class SchedulerCluster(SchedulerClusterBase):
+    @classmethod
+    def get_object_types(cls):
+        return [type_[:-1] if type_ != "internet_addresses" else type_[:-2]
+                for type_ in cls._fields]
+
+
+POD_SET_SELECTORS = [
+    "/meta",
+    "/spec",
+    "/labels",
+]
 
 POD_SELECTORS = [
     "/meta",
@@ -32,12 +47,27 @@ POD_SELECTORS = [
     "/status/gpu_allocations",
     "/status/eviction",
     "/status/scheduling",
+    "/labels",
+]
+
+NODE_SELECTORS = [
+    "/meta",
+    "/spec",
+    "/labels",
 ]
 
 RESOURCE_SELECTORS = [
     "/meta",
     "/spec",
     "/status",
+    "/labels",
+]
+
+INTERNET_ADDRESS_SELECTORS = [
+    "/meta/id",
+    "/meta/type",
+    "/spec",
+    "/labels",
 ]
 
 KEY_COLUMNS_PER_OBJECT_TYPE = {
@@ -53,6 +83,10 @@ KEY_COLUMNS_PER_OBJECT_TYPE = {
         "/meta/id",
     ],
     "node": [
+        "/meta/id",
+    ],
+    "internet_address": [
+        "/meta/ip4_address_pool_id",
         "/meta/id",
     ],
 }
@@ -71,7 +105,6 @@ def reconstruct_object(field_values, field_paths):
                 subobj[token] = {}
             subobj = subobj[token]
             assert isinstance(subobj, dict)
-        assert tokens[-1] not in subobj
         subobj[tokens[-1]] = value
     return obj
 
@@ -163,18 +196,26 @@ def select_with_multiple_filters(yp_client, object_type, filters, selectors, tim
     return result
 
 
-def load_scheduler_cluster_snapshot(yp_client, node_segment_id):
-    timestamp = yp_client.generate_timestamp()
+def select_pod_sets_and_pods(yp_client, timestamp, node_segment_id, pod_set_selectors,
+                             pod_selectors):
+    assert pod_set_selectors or pod_selectors
 
     logging.info("Selecting pod sets")
-    pod_set_ids = [r[0] for r in batch_select(
+    pod_set_selectors_with_id = ["/meta/id"] + pod_set_selectors
+    pod_sets_fields = batch_select(
         yp_client,
         "pod_set",
         filter="[/spec/node_segment_id] = \"{}\"".format(node_segment_id),
-        selectors=["/meta/id"],
+        selectors=pod_set_selectors_with_id,
         timestamp=timestamp,
-    )]
-    logging.info("Got %s pod sets", len(pod_set_ids))
+    )
+    pod_sets = [reconstruct_object(fields, pod_set_selectors_with_id) for fields in pod_sets_fields]
+    logging.info("Got %s pod sets", len(pod_sets))
+
+    if not pod_selectors:
+        return pod_sets, None
+
+    pod_set_ids = [ps["meta"]["id"] for ps in pod_sets]
 
     def filter_pod_by_pod_set_id(pod_set_id):
         return "[/meta/pod_set_id] = \"{}\"".format(pod_set_id)
@@ -185,20 +226,35 @@ def load_scheduler_cluster_snapshot(yp_client, node_segment_id):
         "pod",
         timestamp=timestamp,
         filters=[filter_pod_by_pod_set_id(pod_set_id) for pod_set_id in pod_set_ids],
-        selectors=POD_SELECTORS,
+        selectors=pod_selectors,
     )
     pods = [reconstruct_object(fields, POD_SELECTORS) for fields in pods_fields]
     logging.info("Got %s pods", len(pods))
 
+    if pod_set_selectors:
+        return pod_sets, pods
+    else:
+        return None, pods
+
+
+def select_nodes_and_resources(yp_client, timestamp, node_segment_id, node_selectors,
+                               resource_selectors):
     logging.info("Selecting nodes")
-    node_ids = [r[0] for r in batch_select(
+    node_selectors_with_id = ["/meta/id"] + node_selectors
+    nodes_fields = batch_select(
         yp_client,
         "node",
         filter="[/labels/segment] = \"{}\"".format(node_segment_id),
-        selectors=["/meta/id"],
+        selectors=node_selectors_with_id,
         timestamp=timestamp,
-    )]
-    logging.info("Got %s nodes", len(node_ids))
+    )
+    nodes = [reconstruct_object(fields, node_selectors_with_id) for fields in nodes_fields]
+    logging.info("Got %s nodes", len(nodes))
+
+    if not resource_selectors:
+        return nodes, None
+
+    node_ids = [n["meta"]["id"] for n in nodes]
 
     def filter_resource_by_node_id(node_id):
         return "[/meta/node_id] = \"{}\"".format(node_id)
@@ -214,4 +270,63 @@ def load_scheduler_cluster_snapshot(yp_client, node_segment_id):
     resources = [reconstruct_object(fields, RESOURCE_SELECTORS) for fields in resources_fields]
     logging.info("Got %s resources", len(resources))
 
-    return SchedulerCluster(pods=pods, resources=resources)
+    if node_selectors:
+        return nodes, resources
+    else:
+        return None, resources
+
+
+def load_scheduler_cluster_snapshot(yp_client, node_segment_id=None, object_types=None):
+    if object_types is None:
+        object_types = SchedulerCluster.get_object_types()
+
+    timestamp = yp_client.generate_timestamp()
+
+    if "pod_set" in object_types or "pod" in object_types:
+        if "pod_set" in object_types:
+            pod_set_selectors = POD_SET_SELECTORS
+        else:
+            pod_set_selectors = []
+        if "pod" in object_types:
+            pod_selectors = POD_SELECTORS
+        else:
+            pod_selectors = []
+
+        pod_sets, pods = select_pod_sets_and_pods(yp_client, timestamp, node_segment_id,
+                                                  pod_set_selectors, pod_selectors)
+    else:
+        pod_sets = None
+        pods = None
+
+    if "node" in object_types or "resource" in object_types:
+        if "node" in object_types:
+            node_selectors = NODE_SELECTORS
+        else:
+            node_selectors = ["/meta/id"]
+        if "resource" in object_types:
+            resource_selectors = RESOURCE_SELECTORS
+        else:
+            resource_selectors = []
+
+        nodes, resources = select_nodes_and_resources(yp_client, timestamp, node_segment_id,
+                                                      node_selectors, resource_selectors)
+    else:
+        nodes = None
+        resources = None
+
+    if "internet_address" in object_types:
+        logging.info("Selecting internet addresses")
+        internet_address_fields = batch_select(
+            yp_client,
+            "internet_address",
+            filter="%true",
+            selectors=INTERNET_ADDRESS_SELECTORS,
+            timestamp=timestamp,
+        )
+        internet_addresses = [reconstruct_object(fields, INTERNET_ADDRESS_SELECTORS)
+                              for fields in internet_address_fields]
+    else:
+        internet_addresses = None
+
+    return SchedulerCluster(pod_sets=pod_sets, pods=pods, nodes=nodes, resources=resources,
+                            internet_addresses=internet_addresses)
