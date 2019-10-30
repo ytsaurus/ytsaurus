@@ -115,6 +115,20 @@ REGISTER_MAPPER(TIdMapper);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TRangeBasedTIdMapper : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
+{
+public:
+    void Do(TReader* reader, TWriter* writer)
+    {
+        for (const auto& cursor : *reader) {
+            writer->AddRow(cursor.GetRow());
+        }
+    }
+};
+REGISTER_MAPPER(TRangeBasedTIdMapper);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TIdReducer : public IReducer<TTableReader<TNode>, TTableWriter<TNode>>
 {
 public:
@@ -966,6 +980,39 @@ Y_UNIT_TEST_SUITE(Operations)
             auto spec = client->GetOperation(op->GetId()).Spec;
             UNIT_ASSERT_STRING_CONTAINS((*spec)["title"].AsString(), "TIdMapper");
         }
+    }
+
+    Y_UNIT_TEST(RangeBasedReader)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        TVector<TNode> data = {
+            TNode()("foo", "bar"),
+            TNode()("foo", "baz"),
+            TNode()("foo", "qux")
+        };
+        {
+            auto writer = client->CreateTableWriter<TNode>(workingDir + "/input");
+            for (const auto& row : data) {
+                writer->AddRow(row);
+            }
+            writer->Finish();
+        }
+
+        auto outputTable = workingDir + "/output";
+        client->Map(
+            TMapOperationSpec()
+                .AddInput<TNode>(workingDir + "/input")
+                .AddOutput<TNode>(outputTable),
+            new TRangeBasedTIdMapper);
+        auto reader = client->CreateTableReader<TNode>(outputTable);
+
+        TVector<TNode> result;
+        for (const auto& cursor : *reader) {
+            result.push_back(cursor.GetRow());
+        }
+        UNIT_ASSERT_VALUES_EQUAL(data, result);
     }
 
     Y_UNIT_TEST(MaxFailedJobCount)
