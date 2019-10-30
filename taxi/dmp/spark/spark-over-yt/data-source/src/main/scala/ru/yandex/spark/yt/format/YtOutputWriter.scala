@@ -12,6 +12,7 @@ import org.apache.spark.sql.execution.datasources.OutputWriter
 import org.apache.spark.sql.types.StructType
 import ru.yandex.inside.yt.kosher.common.GUID
 import ru.yandex.spark.yt._
+import ru.yandex.spark.yt.conf.SparkYtWriteConfiguration
 import ru.yandex.spark.yt.serializers.InternalRowSerializer
 import ru.yandex.spark.yt.utils.YtClientConfiguration
 import ru.yandex.yt.ytclient.proxy.TableWriter
@@ -23,17 +24,15 @@ import scala.concurrent.{Await, Future}
 class YtOutputWriter(path: String,
                      schema: StructType,
                      ytClientConfiguration: YtClientConfiguration,
-                     miniBatchSize: Int,
-                     batchSize: Int,
-                     timeoutSeconds: Int,
+                     writeConfiguration: SparkYtWriteConfiguration,
                      transactionGuid: String,
                      options: Map[String, String]) extends OutputWriter {
+
+  import writeConfiguration._
 
   private val log = Logger.getLogger(getClass)
 
   private val client = YtClientProvider.ytClient(ytClientConfiguration)
-//  YtTableUtils.createTable(path, client, schema, options)
-
   private val requestPath = s"""<"append"=true>/${new Path(path).toUri}"""
 
   private var writers = Seq(initializeWriter())
@@ -45,7 +44,7 @@ class YtOutputWriter(path: String,
   private var batchCount = 0
 
   YtMetricsRegister.register()
-  GlobalTableOptions.setTransaction(path, transactionGuid)
+  GlobalTableSettings.setTransaction(path, transactionGuid)
 
   override def write(record: InternalRow): Unit = {
     try {

@@ -35,7 +35,7 @@ class YtPersistenceEngine(baseDir: String,
     log.info(s"Create file $path")
     YtTableUtils.createFile(path)
     log.info(s"Write to file $path")
-    val fileOut = YtTableUtils.writeToFile(path)
+    val fileOut = YtTableUtils.writeToFile(path, java.time.Duration.ofMinutes(5))
     var out: SerializationStream = null
     Utils.tryWithSafeFinally {
       out = serializer.newInstance().serializeStream(fileOut)

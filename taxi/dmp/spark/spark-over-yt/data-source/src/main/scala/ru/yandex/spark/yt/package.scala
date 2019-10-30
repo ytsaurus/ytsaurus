@@ -4,11 +4,15 @@ import org.apache.log4j.Logger
 import org.apache.spark.SparkConf
 import org.apache.spark.sql._
 import org.apache.spark.sql.types._
-import ru.yandex.spark.yt.format.{GlobalTableOptions, YtSourceStrategy}
+import ru.yandex.spark.yt.conf.YtTableSettings
+import ru.yandex.spark.yt.format.{GlobalTableSettings, YtSourceStrategy}
 import ru.yandex.spark.yt.serializers.SchemaConverter
 import ru.yandex.spark.yt.utils.DefaultRpcCredentials
+import ru.yandex.yt.ytclient.proxy.YtClient
 
 package object yt {
+  lazy val yt: YtClient = YtClientProvider.ytClient(YtClientConfigurationConverter(SparkSession.getDefaultSession.get))
+
   def createSparkSession(conf: SparkConf = new SparkConf()): SparkSession = {
     SparkSession.builder()
       .config(conf)
@@ -34,7 +38,7 @@ package object yt {
     def yt(paths: String*): DataFrame = reader.format("yt").load(paths:_*)
 
     def yt(path: String, filesCount: Int): DataFrame = {
-      GlobalTableOptions.setFilesCount(path, filesCount)
+      GlobalTableSettings.setFilesCount(path, filesCount)
       yt(path)
     }
 
@@ -58,7 +62,11 @@ package object yt {
     def yt(path: String): Unit = writer.format("yt").save(path)
 
     def optimizeFor(optimizeMode: OptimizeMode): DataFrameWriter[T] = {
-      writer.option("optimize_for", optimizeMode.name)
+      writer.option(YtTableSettings.OptimizeFor.name, optimizeMode.name)
+    }
+
+    def sortedBy(cols: String*): DataFrameWriter[T] = {
+      writer.option(YtTableSettings.SortColumns.name, cols.mkString(","))
     }
   }
 

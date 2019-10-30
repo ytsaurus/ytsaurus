@@ -36,7 +36,7 @@ object YtClientProvider {
 
 object YtClientConfigurationConverter {
 
-  import ru.yandex.spark.yt.format.SparkYtOptions._
+  import ru.yandex.spark.yt.conf._
 
   def apply(spark: SparkSession): YtClientConfiguration = {
     YtClientConfiguration(spark.sqlContext.getYtConf(_))

@@ -7,7 +7,7 @@ import org.apache.spark.unsafe.types.UTF8String
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.IndexedDataType
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.IndexedDataType.StructFieldMeta
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
-import ru.yandex.yt.ytclient.tables.{ColumnSchema, ColumnValueType, TableSchema}
+import ru.yandex.yt.ytclient.tables.{ColumnSchema, ColumnSortOrder, ColumnValueType, TableSchema}
 
 import scala.collection.immutable.ListMap
 
@@ -92,17 +92,23 @@ object SchemaConverter {
     })
   }
 
-  def ytSchema(sparkSchema: StructType): YTreeNode = {
-    tableSchema(sparkSchema).toYTree
+  def ytSchema(sparkSchema: StructType, sortColumns: Seq[String]): YTreeNode = {
+    tableSchema(sparkSchema, sortColumns).toYTree
   }
 
-  def tableSchema(sparkSchema: StructType): TableSchema = {
+  def tableSchema(sparkSchema: StructType, sortColumns: Seq[String]): TableSchema = {
     val builder = new TableSchema.Builder()
       .setStrict(true)
       .setUniqueKeys(false)
 
+    sortColumns.foreach { name =>
+      val sparkField = sparkSchema(name)
+      builder.add(new ColumnSchema(name, ytType(sparkField.dataType), ColumnSortOrder.ASCENDING))
+    }
     sparkSchema.foreach { field =>
-      builder.add(new ColumnSchema(field.name, ytType(field.dataType)))
+      if (!sortColumns.contains(field.name)) {
+        builder.add(new ColumnSchema(field.name, ytType(field.dataType)))
+      }
     }
 
     builder.build()

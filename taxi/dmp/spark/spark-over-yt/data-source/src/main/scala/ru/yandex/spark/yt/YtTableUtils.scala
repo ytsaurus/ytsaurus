@@ -1,18 +1,22 @@
 package ru.yandex.spark.yt
 
 import java.io.{InputStream, OutputStream}
+import java.time.{Duration => JavaDuration}
 import java.util.concurrent.CompletableFuture
 
-import org.apache.spark.sql.types.StructType
-import org.joda.time.Duration
-import ru.yandex.bolts.collection.{Option => YOption}
+import org.joda.time.{Duration => JodaDuration}
+import ru.yandex.bolts.collection.impl.DefaultListF
+import ru.yandex.bolts.collection.{ListF, Option => YOption}
 import ru.yandex.bolts.function
 import ru.yandex.inside.yt.kosher.Yt
 import ru.yandex.inside.yt.kosher.common.GUID
 import ru.yandex.inside.yt.kosher.impl.rpc.TransactionManager
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
+import ru.yandex.inside.yt.kosher.operations.Operation
+import ru.yandex.inside.yt.kosher.operations.specs.{MergeMode, MergeSpec}
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
-import ru.yandex.spark.yt.format.{FileIterator, PathType, TableIterator, YtFileOutputStream}
+import ru.yandex.spark.yt.conf.YtTableSettings
+import ru.yandex.spark.yt.format._
 import ru.yandex.spark.yt.serializers.SchemaConverter
 import ru.yandex.yt.ytclient.`object`.WireRowDeserializer
 import ru.yandex.yt.ytclient.proxy.internal.FileWriterImpl
@@ -20,20 +24,17 @@ import ru.yandex.yt.ytclient.proxy.request._
 import ru.yandex.yt.ytclient.proxy.{FileWriter, YtClient}
 
 object YtTableUtils {
-  private val tableOptions = Set("optimize_for", "schema")
-
   def createTable(path: String,
-                  schema: StructType,
-                  options: Map[String, String],
+                  options: YtTableSettings,
                   transaction: String)
                  (implicit yt: YtClient): Unit = {
 
     import scala.collection.JavaConverters._
-    val ytOptions = options.collect { case (key, value) if tableOptions.contains(key) =>
+    val ytOptions = options.all.map { case (key, value) =>
       val builder = new YTreeBuilder()
       builder.onString(value)
       key -> builder.build()
-    } + ("schema" -> SchemaConverter.ytSchema(schema))
+    } + ("schema" -> SchemaConverter.ytSchema(options.schema, options.sortColumns))
 
     createTable(path, ytOptions.asJava, transaction)
   }
@@ -81,45 +82,39 @@ object YtTableUtils {
 
   def formatPath(path: String): String = "/" + path
 
-  def mergeTables(srcDir: String, dstTable: String)(implicit yt: YtClient, ytHttp: Yt): Unit = {
-    val srcList = yt
-      .listNode(formatPath(srcDir))
-      .join().asList()
-      .map(new function.Function[YTreeNode, String] {
-        override def apply(t: YTreeNode): String = {
-          formatPath(s"$srcDir/${t.stringValue()}")
-        }
-      })
-
-    val dstExists = exists(dstTable)
-
-    val mergeList = if (dstExists) srcList.plus1(formatPath(dstTable)) else srcList
-
-    if (!dstExists) {
-      val options = tableAttribute(srcList.first().drop(1), "").asMap()
-        .filterKeys(key => tableOptions.contains(key))
-      createTable(dstTable, options, "")
-    }
-
-    val guid = ytHttp.operations().merge(mergeList, formatPath(dstTable))
-    val operation = ytHttp.operations().getOperation(guid)
-    while (!operation.getStatus.isFinished) {}
-    if (!operation.getStatus.isSuccess) {
-      throw new IllegalStateException("Merge failed")
-    }
+  def mergeTables(srcDir: String, dstTable: String,
+                  sorted: Boolean,
+                  transaction: Option[String] = None)
+                 (implicit yt: YtClient, ytHttp: Yt): Unit = {
+    import scala.collection.JavaConverters._
+    val srcList = formatPath(dstTable) +: listDirectory(srcDir, transaction).map(name => formatPath(s"$srcDir/$name"))
+    ytHttp.operations().mergeAndGetOp(
+      toYOption(transaction.map(GUID.valueOf)),
+      false,
+      new MergeSpec(
+        DefaultListF.wrap(seqAsJavaList(srcList)), formatPath(dstTable)
+      ).mergeMode(if (sorted) MergeMode.SORTED else MergeMode.UNORDERED)
+    ).awaitAndThrowIfNotSuccess()
   }
 
-  def createDir(path: String, ignoreExisting: Boolean = false)(implicit yt: YtClient): Unit = {
-    yt.createNode(new CreateNode(formatPath(path), ObjectType.MapNode).setIgnoreExisting(ignoreExisting)).join()
+  def createDir(path: String, transaction: Option[String] = None, ignoreExisting: Boolean = false)
+               (implicit yt: YtClient): Unit = {
+    yt.createNode(
+      new CreateNode(formatPath(path), ObjectType.MapNode)
+        .setIgnoreExisting(ignoreExisting)
+        .optionalTransaction(transaction)
+    ).join()
   }
 
-  def removeDir(path: String, recursive: Boolean)(implicit yt: YtClient): Unit = {
-    yt.removeNode(new RemoveNode(formatPath(path)).setRecursive(true)).join()
+  def removeDir(path: String, recursive: Boolean, transaction: Option[String] = None)
+               (implicit yt: YtClient): Unit = {
+    yt.removeNode(new RemoveNode(formatPath(path)).setRecursive(true).optionalTransaction(transaction)).join()
   }
 
-  def removeDirIfExists(path: String, recursive: Boolean)(implicit yt: YtClient): Unit = {
+  def removeDirIfExists(path: String, recursive: Boolean, transaction: Option[String] = None)
+                       (implicit yt: YtClient): Unit = {
     if (exists(path)) {
-      removeDir(path, recursive)
+      removeDir(path, recursive, transaction)
     }
   }
 
@@ -134,7 +129,11 @@ object YtTableUtils {
   def createTransaction(parent: Option[String])(implicit yt: YtClient): GUID = {
     val parentGuid = parent.map(GUID.valueOf)
     val tm = new TransactionManager(yt)
-    tm.start(YOption.when(parentGuid.nonEmpty, () => parentGuid.get), false, Duration.standardSeconds(300)).join()
+    tm.start(toYOption(parentGuid), false, JodaDuration.standardSeconds(300)).join()
+  }
+
+  private def toYOption[T](x: Option[T]): YOption[T] = {
+    YOption.when(x.nonEmpty, () => x.get)
   }
 
   def abortTransaction(guid: String)(implicit yt: YtClient): Unit = {
@@ -145,9 +144,17 @@ object YtTableUtils {
     yt.commitTransaction(GUID.valueOf(guid), true).join()
   }
 
-  implicit class RichRequest[T <: GetLikeReq[_]](val request: T) {
+  implicit class RichGetLikeRequest[T <: GetLikeReq[_]](val request: T) {
     def optionalTransaction(transaction: Option[String]): T = {
-      transaction.map{t =>
+      transaction.map { t =>
+        request.setTransactionalOptions(new TransactionalOptions(GUID.valueOf(t))).asInstanceOf[T]
+      }.getOrElse(request)
+    }
+  }
+
+  implicit class RichMutateNodeRequest[T <: MutateNode[_]](val request: T) {
+    def optionalTransaction(transaction: Option[String]): T = {
+      transaction.map { t =>
         request.setTransactionalOptions(new TransactionalOptions(GUID.valueOf(t))).asInstanceOf[T]
       }.getOrElse(request)
     }
@@ -168,33 +175,31 @@ object YtTableUtils {
   }
 
   def createFile(path: String, transaction: Option[String] = None)(implicit yt: YtClient): Unit = {
-    val request = new CreateNode(formatPath(path), ObjectType.File)
-    transaction.foreach(t => request.setTransactionalOptions(new TransactionalOptions(GUID.valueOf(t))))
+    val request = new CreateNode(formatPath(path), ObjectType.File).optionalTransaction(transaction)
     yt.createNode(request).join()
   }
 
-  def writeToFile(path: String, transaction: Option[String] = None)(implicit yt: YtClient): OutputStream = {
+  def writeToFile(path: String, timeout: JavaDuration, transaction: Option[String] = None)
+                 (implicit yt: YtClient): OutputStream = {
     val request = new WriteFile(formatPath(path))
       .setWindowSize(10000000L)
       .setPacketSize(1000000L)
 
     transaction.foreach(t => request.setTransactionalOptions(new TransactionalOptions(GUID.valueOf(t))))
 
-    val writer = writeFile(request).join()
-
+    val writer = writeFile(request, timeout).join()
     new YtFileOutputStream(writer)
   }
 
-  def writeFile(req: WriteFile)(implicit yt: YtClient): CompletableFuture[FileWriter] = {
+  def writeFile(req: WriteFile, timeout: JavaDuration)(implicit yt: YtClient): CompletableFuture[FileWriter] = {
     val builder = yt.getService.writeFile
-    builder.setTimeout(java.time.Duration.ofDays(7))
+    builder.setTimeout(timeout)
     req.writeTo(builder.body)
     new FileWriterImpl(builder.startStream(yt.selectDestinations()), req.getWindowSize, req.getPacketSize).startUpload
   }
 
   def rename(src: String, dst: String, transaction: Option[String] = None)(implicit yt: YtClient): Unit = {
-    val request = new MoveNode(formatPath(src), formatPath(dst))
-    transaction.foreach(t => request.setTransactionalOptions(new TransactionalOptions(GUID.valueOf(t))))
+    val request = new MoveNode(formatPath(src), formatPath(dst)).optionalTransaction(transaction)
     yt.moveNode(request).join()
   }
 

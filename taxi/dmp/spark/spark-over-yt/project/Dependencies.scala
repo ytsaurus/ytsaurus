@@ -5,6 +5,7 @@ object Dependencies {
   lazy val scalatestVersion = "3.0.8"
   lazy val sparkVersion = "2.4.4"
   lazy val yandexIcebergVersion = "5822869"
+  lazy val slf4jVersion = "1.7.28"
 
   lazy val circe = Seq(
     "io.circe" %% "circe-core",
@@ -38,9 +39,10 @@ object Dependencies {
   )
 
   lazy val logging = Seq(
-    "org.slf4j" % "slf4j-log4j12" % "1.7.28",
-    "org.slf4j" % "slf4j-api" % "1.7.28"
-  )
+    "org.slf4j" % "slf4j-log4j12",
+    "org.slf4j" % "slf4j-api",
+    "org.slf4j" % "jul-to-slf4j"
+  ).map(_ % slf4jVersion)
 
   implicit class RichDependencies(deps: Seq[ModuleID]) {
     def excludeLogging: Seq[ModuleID] = deps.map(_.excludeAll(ExclusionRule(organization = "org.slf4j")))
