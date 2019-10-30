@@ -105,7 +105,7 @@ class YsonRowConverter(schema: StructType) extends YTreeSerializer[Row] {
     new GenericRowWithSchema(values, schema)
   }
 
-  private val tableSchema = SchemaConverter.tableSchema(schema)
+  private val tableSchema = SchemaConverter.tableSchema(schema, Nil)
 
   @tailrec
   final def writeRows(writer: TableWriter[Row], rows: Seq[Row]): Unit = {

@@ -269,11 +269,16 @@ class YtFileFormatTest extends FlatSpec with Matchers with TmpTable {
     spark.sqlContext.setConf("spark.yt.timeout", "5")
     spark.sqlContext.setConf("spark.yt.write.timeout", "0")
 
-    a[SparkException] shouldBe thrownBy {
-      Seq(1, 2, 3).toDS.coalesce(1).write.yt(tmpPath)
-    }
+    try {
+      a[SparkException] shouldBe thrownBy {
+        Seq(1, 2, 3).toDS.coalesce(1).write.yt(tmpPath)
+      }
 
-    YtTableUtils.exists(s"$tmpPath-tmp") shouldEqual false
+      YtTableUtils.exists(s"$tmpPath-tmp") shouldEqual false
+    } finally {
+      spark.sqlContext.setConf("spark.yt.timeout", "300")
+      spark.sqlContext.setConf("spark.yt.write.timeout", "120")
+    }
   }
 
   it should "delete failed task results" ignore {
@@ -303,6 +308,11 @@ class YtFileFormatTest extends FlatSpec with Matchers with TmpTable {
       val tmpFilePath = "/tmp/retry"
       Files.deleteIfExists(Paths.get(tmpFilePath))
     }.show()
+  }
+
+  it should "write sorted table" in {
+    import spark.implicits._
+    (1 to 9).toDF.coalesce(3).write.mode(SaveMode.Overwrite).option("sort_columns", "value").yt("/home/sashbel/data/sort")
   }
 }
 

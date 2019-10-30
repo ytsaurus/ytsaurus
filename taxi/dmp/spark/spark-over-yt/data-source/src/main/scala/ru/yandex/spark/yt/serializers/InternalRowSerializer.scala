@@ -21,7 +21,7 @@ import scala.concurrent.{ExecutionContext, Future}
 class InternalRowSerializer(schema: StructType) extends WireRowSerializer[InternalRow] {
   private val log = Logger.getLogger(getClass)
 
-  private val tableSchema = SchemaConverter.tableSchema(schema)
+  private val tableSchema = SchemaConverter.tableSchema(schema, Nil)
 
   override def getSchema: TableSchema = tableSchema
 

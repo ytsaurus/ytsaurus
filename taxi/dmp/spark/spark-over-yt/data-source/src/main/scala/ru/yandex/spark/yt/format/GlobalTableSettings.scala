@@ -1,11 +1,8 @@
 package ru.yandex.spark.yt.format
 
-import org.apache.spark.sql.types.StructType
-
 import scala.collection.mutable
 
-object GlobalTableOptions {
-  private val jobSchemas = mutable.HashMap.empty[String, StructType]
+object GlobalTableSettings {
   private val filesCount = mutable.HashMap.empty[String, Int]
   private val _transactions = new ThreadLocal[mutable.HashMap[String, String]]
 
@@ -13,13 +10,6 @@ object GlobalTableOptions {
     _transactions.set(mutable.HashMap.empty[String, String])
     _transactions.get()
   }
-
-  def getSchema(jobId: String): StructType = jobSchemas(jobId)
-
-  def setSchema(jobId: String, schema: StructType): Unit = jobSchemas += (jobId -> schema)
-
-  def removeSchema(jobId: String): Unit = jobSchemas.remove(jobId)
-
 
   def setTransaction(path: String, transaction: String): Unit = transactions += path -> transaction
 

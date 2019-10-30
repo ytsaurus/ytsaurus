@@ -23,6 +23,6 @@ object LocalSpark {
     .config("spark.yt.write.step", "10")
     .config("spark.sql.sources.commitProtocolClass", "ru.yandex.spark.yt.format.YtOutputCommitter")
     .config("spark.task.maxFailures", "4")
-    .withExtensions(_.injectPlannerStrategy(_ => YtSourceStrategy))
+    .withExtensions(_.injectPlannerStrategy(_ => new YtSourceStrategy))
     .getOrCreate()
 }

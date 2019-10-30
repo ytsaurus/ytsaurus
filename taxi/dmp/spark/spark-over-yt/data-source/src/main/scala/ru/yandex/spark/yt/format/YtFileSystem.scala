@@ -34,16 +34,16 @@ class YtFileSystem extends FileSystem {
                       replication: Short, blockSize: Long, progress: Progressable): FSDataOutputStream = {
     implicit val ytClient: YtClient = yt
     val path = ytPath(f)
-    val transaction = GlobalTableOptions.getTransaction(path)
+    val transaction = GlobalTableSettings.getTransaction(path)
     YtTableUtils.createFile(path, transaction)
     statistics.incrementWriteOps(1)
-    new FSDataOutputStream(YtTableUtils.writeToFile(path, transaction), statistics)
+    new FSDataOutputStream(YtTableUtils.writeToFile(path, java.time.Duration.ofDays(7), transaction), statistics)
   }
 
   override def append(f: Path, bufferSize: Int, progress: Progressable): FSDataOutputStream = ???
 
   override def rename(src: Path, dst: Path): Boolean = {
-    val transaction = GlobalTableOptions.getTransaction(ytPath(src))
+    val transaction = GlobalTableSettings.getTransaction(ytPath(src))
     YtTableUtils.rename(ytPath(src), ytPath(dst), transaction)(yt)
     true
   }
@@ -57,7 +57,7 @@ class YtFileSystem extends FileSystem {
     implicit val ytClient: YtClient = yt
     val path = ytPath(f)
 
-    val transaction = GlobalTableOptions.getTransaction(path)
+    val transaction = GlobalTableSettings.getTransaction(path)
     val pathType = YtTableUtils.getType(path, transaction)
 
     pathType match {
@@ -76,10 +76,10 @@ class YtFileSystem extends FileSystem {
   private def listTableAsFiles(f: Path, path: String, transaction: Option[String])
                               (implicit yt: YtClient): Array[FileStatus] = {
     val rowCount = YtTableUtils.tableAttribute(path, "row_count", transaction).longValue()
-    val chunksCount = GlobalTableOptions.getFilesCount(path).getOrElse(
+    val chunksCount = GlobalTableSettings.getFilesCount(path).getOrElse(
       YtTableUtils.tableAttribute(path, "chunk_count", transaction).longValue().toInt
     )
-    GlobalTableOptions.removeFilesCount(path)
+    GlobalTableSettings.removeFilesCount(path)
     val result = new Array[FileStatus](chunksCount)
     for (chunkIndex <- 0 until chunksCount) {
       val chunkStart = chunkIndex * rowCount / chunksCount
@@ -101,7 +101,7 @@ class YtFileSystem extends FileSystem {
   override def getFileStatus(f: Path): FileStatus = {
     implicit val ytClient: YtClient = yt
     val path = ytPath(f)
-    val transaction = GlobalTableOptions.getTransaction(path)
+    val transaction = GlobalTableSettings.getTransaction(path)
 
     f match {
       case yp: YtPath =>
