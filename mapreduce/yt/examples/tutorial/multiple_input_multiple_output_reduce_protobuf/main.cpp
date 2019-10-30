@@ -19,14 +19,14 @@ public:
     void Do(TReader* reader, TWriter* writer) override {
         TUserRecord userRecord;
         bool isRobot = false;
-        for (; reader->IsValid(); reader->Next()) {
-            auto tableIndex = reader->GetTableIndex();
+        for (auto& cursor : *reader) {
+            auto tableIndex = cursor.GetTableIndex();
             // Мы знаем номер таблицы и поэтому мы можем запросить конкретный тип protobuf'а в этом месте.
             // Тип protobuf сообщения передаётся шаблонным аргументом к методу `GetRow()'.
             if (tableIndex == 0) {
-                userRecord = reader->GetRow<TUserRecord>();
+                userRecord = cursor.GetRow<TUserRecord>();
             } else if (tableIndex == 1) {
-                const auto& isRobotRecord = reader->GetRow<TIsRobotRecord>();
+                const auto& isRobotRecord = cursor.GetRow<TIsRobotRecord>();
                 isRobot = isRobotRecord.GetIsRobot();
             } else {
                 Y_FAIL();

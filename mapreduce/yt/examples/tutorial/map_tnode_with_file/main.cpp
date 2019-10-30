@@ -16,15 +16,15 @@ public:
         TIFStream stream("is_robot_unsorted");
         auto isRobotReader = CreateTableReader<TNode>(&stream);
         THashSet<i64> robotIds;
-        for (; isRobotReader->IsValid(); isRobotReader->Next()) {
-            const auto& curRow = isRobotReader->GetRow();
+        for (auto& cursor : *isRobotReader) {
+            const auto& curRow = cursor.GetRow();
             if (curRow["is_robot"].AsBool()) {
                 robotIds.insert(curRow["uid"].AsInt64());
             }
         }
 
-        for (; loginReader->IsValid(); loginReader->Next()) {
-            const auto& curRow = loginReader->GetRow();
+        for (auto& cursor : *loginReader) {
+            const auto& curRow = cursor.GetRow();
             if (robotIds.contains(curRow["uid"].AsInt64())) {
                 writer->AddRow(curRow);
             }

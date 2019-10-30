@@ -15,9 +15,9 @@ public:
         // Так же как и с обычным Reducer'ом в каждый вызов метода Do
         // придут записи с общим JoinBy ключом.
         TMaybe<TRegExMatch> regex;
-        for (; reader->IsValid(); reader->Next()) {
-            auto row = reader->GetRow();
-            if (reader->GetTableIndex() == 0) { // таблица с хостами
+        for (auto& cursor : *reader) {
+            auto row = cursor.GetRow();
+            if (cursor.GetTableIndex() == 0) { // таблица с хостами
                 const auto videoRegexp = row["video_regexp"].AsString();
 
                 // Дебажная печать, stderr можно будет посмотреть в web интерфейсе

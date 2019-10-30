@@ -12,10 +12,10 @@ public:
     void Do(TReader* reader, TWriter* writer) override {
         TNode loginRow;
         bool isRobot = false;
-        for (; reader->IsValid(); reader->Next()) {
-            const auto& curRow = reader->GetRow();
+        for (auto& cursor : *reader) {
+            const auto& curRow = cursor.GetRow();
 
-            auto tableIndex = reader->GetTableIndex();
+            auto tableIndex = cursor.GetTableIndex();
             if (tableIndex == 0) {
                 loginRow = curRow;
             } else if (tableIndex == 1) {

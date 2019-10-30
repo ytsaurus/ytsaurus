@@ -45,8 +45,8 @@ int main(int argc, const char** argv) {
         // Читаем всю таблицу
         auto reader = client->CreateTableReader<TNode>(table);
         Cout << "*** ALL TABLE ***" << Endl;
-        for (; reader->IsValid(); reader->Next()) { // reader имеет тот же самый интерфейс, что и reader в джобах
-            auto& row = reader->GetRow();
+        for (auto& cursor : *reader) { // reader имеет тот же самый интерфейс, что и reader в джобах
+            auto& row = cursor.GetRow();
             Cout << "russian: " << row["russian"].AsString() << "; " << "english: " << row["english"].AsString() << Endl;
         }
         Cout << Endl;
@@ -59,8 +59,8 @@ int main(int argc, const char** argv) {
                     .UpperLimit(TReadLimit().RowIndex(2)))); // читаем с 0й по 2ю строки, 2я невключительно
 
         Cout << "*** FIRST TWO ROWS ***" << Endl;
-        for (; reader->IsValid(); reader->Next()) {
-            auto& row = reader->GetRow();
+        for (auto& cursor : *reader) {
+            auto& row = cursor.GetRow();
             Cout << "russian: " << row["russian"].AsString() << "; " << "english: " << row["english"].AsString() << Endl;
         }
         Cout << Endl;
@@ -80,8 +80,8 @@ int main(int argc, const char** argv) {
                                                            // только для сортированных таблиц.
 
         Cout << "*** EXACT KEY ***" << Endl;
-        for (; reader->IsValid(); reader->Next()) {
-            auto& row = reader->GetRow();
+        for (auto& cursor : *reader) {
+            auto& row = cursor.GetRow();
             Cout << "russian: " << row["russian"].AsString() << "; " << "english: " << row["english"].AsString() << Endl;
         }
         Cout << Endl;

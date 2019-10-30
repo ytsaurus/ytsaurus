@@ -19,8 +19,8 @@ public:
         // Есть функция CreateTableReader<>, которая умеет создавать читателя из любого IInputStream'а.
         // Созданный читатель имеет интерфейс аналогичный другим читателям.
         auto reader = CreateTableReader<TNode>(&tableDump);
-        for (; reader->IsValid(); reader->Next()) {
-            const auto& curRow = reader->GetRow();
+        for (auto& cursor : *reader) {
+            const auto& curRow = cursor.GetRow();
             if (curRow["is_robot"].AsBool()) {
                 RobotUids.insert(curRow["uid"].AsInt64());
             }
@@ -28,8 +28,8 @@ public:
     }
 
     void Do(TReader* reader, TWriter* writer) override {
-        for (; reader->IsValid(); reader->Next()) {
-            const auto& curRow = reader->GetRow();
+        for (auto& cursor : *reader) {
+            const auto& curRow = cursor.GetRow();
             if (RobotUids.contains(curRow["uid"].AsInt64())) {
                 writer->AddRow(curRow);
             }
