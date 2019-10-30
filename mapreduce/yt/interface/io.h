@@ -124,6 +124,63 @@ public:
     void Next();
 };
 
+// This is iterator for use in range-based-for
+// Now you can do:
+// for (const auto& cursor : *reader) {
+//     writer->AddRow(cursor.GetRow());
+// }
+template <class T>
+class TTableReaderIterator
+{
+public:
+    explicit TTableReaderIterator<T>(TTableReader<T>* reader)
+        : Reader_(reader)
+    { }
+
+    bool operator==(const TTableReaderIterator& it) const
+    {
+        return Reader_ == it.Reader_;
+    }
+
+    bool operator!=(const TTableReaderIterator& it) const
+    {
+        return Reader_ != it.Reader_;
+    }
+
+    TTableReader<T>& operator*()
+    {
+        return *Reader_;
+    }
+
+    const TTableReader<T>& operator*() const
+    {
+        return *Reader_;
+    }
+
+    TTableReaderIterator& operator++()
+    {
+        Reader_->Next();
+        if (!Reader_->IsValid()) {
+            Reader_ = nullptr;
+        }
+        return *this;
+    }
+private:
+    TTableReader<T>* Reader_;
+};
+
+template <class T>
+TTableReaderIterator<T> begin(TTableReader<T>& reader)
+{
+    return TTableReaderIterator<T>(&reader);
+}
+
+template <class T>
+TTableReaderIterator<T> end(TTableReader<T>&)
+{
+    return TTableReaderIterator<T>(nullptr);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T, class>
