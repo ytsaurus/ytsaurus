@@ -5,7 +5,6 @@ import (
 	"io"
 
 	"a.yandex-team.ru/library/go/core/log"
-	"a.yandex-team.ru/yt/go/yt"
 )
 
 type loggingReader struct {
@@ -97,14 +96,4 @@ func (l *LoggingInterceptor) Write(ctx context.Context, call *Call, invoke Write
 
 	w = &loggingWriter{w: w, call: call, log: l.Structured}
 	return
-}
-
-func (l *LoggingInterceptor) ReadRow(ctx context.Context, call *Call, invoke ReadRowInvoker) (r yt.TableReader, err error) {
-	l.logStart(call)
-	return invoke(ctx, call)
-}
-
-func (l *LoggingInterceptor) WriteRow(ctx context.Context, call *Call, invoke WriteRowInvoker) (w yt.TableWriter, err error) {
-	l.logStart(call)
-	return invoke(ctx, call)
 }
