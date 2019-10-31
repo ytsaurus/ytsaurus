@@ -29,24 +29,24 @@ message TRowVer2 {
 }
 
 message TRowFieldSerializationOption {
-    optional TUrlRow UrlRow_1 = 1 [(NYT.serialization_mode) = YT];
+    optional TUrlRow UrlRow_1 = 1 [(NYT.flags) = EXPERIMENTAL_SERIALIZATION_YT];
     optional TUrlRow UrlRow_2 = 2;
 }
 
 message TRowMessageSerializationOption {
-    option (NYT.field_serialization_mode) = YT;
+    option (NYT.default_field_flags) = EXPERIMENTAL_SERIALIZATION_YT;
     optional TUrlRow UrlRow_1 = 1;
     optional TUrlRow UrlRow_2 = 2;
 }
 
 message TRowMixedSerializationOptions {
-    option (NYT.field_serialization_mode) = YT;
+    option (NYT.default_field_flags) = EXPERIMENTAL_SERIALIZATION_YT;
     optional TUrlRow UrlRow_1 = 1;
-    optional TUrlRow UrlRow_2 = 2 [(NYT.serialization_mode) = PROTOBUF];
+    optional TUrlRow UrlRow_2 = 2 [(NYT.flags) = SERIALIZATION_PROTOBUF];
 }
 
 message TRowSerializedRepeatedFields {
-    option (NYT.field_serialization_mode) = YT;
+    option (NYT.default_field_flags) = EXPERIMENTAL_SERIALIZATION_YT;
     repeated int64 Ints = 1;
     repeated TUrlRow UrlRows = 2;
 }
@@ -58,9 +58,9 @@ message TUrlRowWithColumnNames {
 }
 
 message TRowMixedSerializationOptions_ColumnNames {
-    option (NYT.field_serialization_mode) = YT;
+    option (NYT.default_field_flags) = EXPERIMENTAL_SERIALIZATION_YT;
     optional TUrlRowWithColumnNames UrlRow_1 = 1;
-    optional TUrlRowWithColumnNames UrlRow_2 = 2 [(NYT.serialization_mode) = PROTOBUF];
+    optional TUrlRowWithColumnNames UrlRow_2 = 2 [(NYT.flags) = SERIALIZATION_PROTOBUF];
 }
 
 message TBadProtobufSerializedRow {
@@ -68,3 +68,26 @@ message TBadProtobufSerializedRow {
     repeated int64 Ints = 1;
 }
 
+message TRowWithTypeOptions
+{
+    enum Color
+    {
+        WHITE = 0;
+        BLUE = 1;
+        RED = -1;
+    }
+
+    message Embedded
+    {
+        optional Color ColorIntField = 1 [(NYT.flags) = ENUM_INT];
+        optional Color ColorStringField = 2 [(NYT.flags) = ENUM_STRING];
+        optional bytes AnyField = 3 [(NYT.flags) = ANY];
+    }
+
+    optional Color ColorIntField = 1 [(NYT.flags) = ENUM_INT];
+    optional Color ColorStringField = 2 [(NYT.flags) = ENUM_STRING];
+    optional bytes AnyField = 3 [(NYT.flags) = ANY];
+    optional bytes OtherColumnsField = 4 [(NYT.flags) = OTHER_COLUMNS];
+    optional Embedded EmbeddedField = 5 [(NYT.flags) = EXPERIMENTAL_SERIALIZATION_YT];
+    repeated Color RepeatedEnumIntField = 6 [(NYT.flags) = EXPERIMENTAL_SERIALIZATION_YT, (NYT.flags) = ENUM_INT];
+}

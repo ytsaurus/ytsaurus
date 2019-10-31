@@ -49,13 +49,28 @@ TFormat TFormat::Protobuf() {
     return TFormat::Protobuf({T::descriptor()});
 }
 
+TTableSchema CreateTableSchema(
+    const ::google::protobuf::Descriptor& messageDescriptor,
+    bool keepFieldsWithoutExtension);
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GetColumnName(const ::google::protobuf::FieldDescriptor& fieldDescriptor);
+enum class EProtobufType
+{
+    EnumInt       /* "enum_int" */,
+    EnumString    /* "enum_string" */,
+    Any           /* "any" */,
+    OtherColumns  /* "other_columns" */,
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT

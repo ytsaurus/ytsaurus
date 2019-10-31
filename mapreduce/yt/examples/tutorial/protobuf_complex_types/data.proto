@@ -14,19 +14,19 @@ message TDoc {
     // Помечаем, что поля данного сообщения будут сериализоваться
     // в YT-режиме. Это означает, что им сопоставлены колонки таблицы
     // с соответствующими (возможно, сложными) типами.
-    option (NYT.field_serialization_mode) = YT;
+    option (NYT.default_field_flags) = EXPERIMENTAL_SERIALIZATION_YT;
 
     optional string Title = 1           [(NYT.key_column_name) = "Title"];
     repeated TUrl Links = 2             [(NYT.column_name) = "Links"];
     repeated uint32 OccurenceCounts = 3 [(NYT.column_name) = "UpdateTimes"];
 
     // Данное поле специально помечено как сериализуемое в бинарном (PROTOBUF) режиме.
-    // В таблице эта  колонка будет иметь тип "string".
-    optional TExtraInfo ExtraInfo = 4   [(NYT.column_name) = "ExtraInfo", (NYT.serialization_mode) = PROTOBUF];
+    // В таблице эта колонка будет иметь тип "string".
+    optional TExtraInfo ExtraInfo = 4   [(NYT.column_name) = "ExtraInfo", (NYT.flags) = SERIALIZATION_PROTOBUF];
 }
 
 message TLinkEntry {
-    option (NYT.field_serialization_mode) = YT;
+    option (NYT.default_field_flags) = EXPERIMENTAL_SERIALIZATION_YT;
     optional string DocTitle = 1       [(NYT.column_name) = "DocTitle"];
     optional TUrl Link = 2             [(NYT.column_name) = "Link"];
     optional uint32 OccurenceCount = 3 [(NYT.column_name) = "OccurenceCount"];

@@ -232,14 +232,14 @@ public:
 };
 
 TTableSchema CreateTableSchema(
-    const ::google::protobuf::Descriptor& proto,
+    const ::google::protobuf::Descriptor& messageDescriptor,
     const TKeyColumns& keyColumns = TKeyColumns(),
-    const bool keepFieldsWithoutExtension = true);
+    bool keepFieldsWithoutExtension = true);
 
 template<class TProtoType>
 inline TTableSchema CreateTableSchema(
     const TKeyColumns& keyColumns = TKeyColumns(),
-    const bool keepFieldsWithoutExtension = true)
+    bool keepFieldsWithoutExtension = true)
 {
     static_assert(
         std::is_base_of_v<::google::protobuf::Message, TProtoType>,
