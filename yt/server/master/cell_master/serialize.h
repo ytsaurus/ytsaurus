@@ -101,6 +101,7 @@ DEFINE_ENUM(EMasterReign,
     ((DropUserStatistics)                                            (919))  // babenko
     ((FixClusterNodeForeignFlag)                                     (920))  // babenko
     ((CellServer)                                                   (1000))  // savrus
+    ((BranchedAndLockedNodeCountMismatchFix)                        (1001))  // shakurov
 );
 
 ////////////////////////////////////////////////////////////////////////////////
