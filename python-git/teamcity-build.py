@@ -20,7 +20,7 @@ from teamcity.helpers import (mkdirp, run, run_captured, cwd, rm_content,
 
 from teamcity.pytest_helpers import (
     copy_artifacts,
-    find_core_dumps_with_report,
+    archive_core_dumps_if_any,
     copy_failed_tests_and_report_stderrs,
     prepare_python_bindings,
     clean_failed_tests_directory)
@@ -285,11 +285,13 @@ def _run_tests(options, python_version):
             options.yt_build_directory, os.path.join(options.archive_path, "artifacts"))
 
     archive_path = os.path.join(options.archive_path, python_version)
-    find_core_dumps_with_report(interpreter, [sandbox_directory, options.core_path],
-                                options.artifacts, archive_path)
+    cores_found = archive_core_dumps_if_any(
+        core_dump_search_dir_list=[sandbox_directory, options.core_path],
+        working_directory=options.working_directory,
+        archive_dir=archive_path)
 
     try:
-        if failed:
+        if failed or cores_found:
             copy_failed_tests_and_report_stderrs([sandbox_directory], archive_path)
             raise StepFailedWithNonCriticalError("Tests failed")
     finally:
