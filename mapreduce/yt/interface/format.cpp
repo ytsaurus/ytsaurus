@@ -8,6 +8,8 @@
 #include <contrib/libs/protobuf/google/protobuf/descriptor.pb.h>
 #include <contrib/libs/protobuf/messagext.h>
 
+#include <util/stream/output.h>
+
 namespace NYT {
 
 using ::google::protobuf::Message;
@@ -20,14 +22,162 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString FormatName(const TFormat& format)
-{
-    if (!format.Config.IsString()) {
-        Y_VERIFY(format.Config.IsUndefined());
-        return "<undefined>";
+using NDetail::EProtobufType;
+
+TString GetColumnName(const FieldDescriptor& field) {
+    const auto& options = field.options();
+    const auto columnName = options.GetExtension(column_name);
+    if (!columnName.empty()) {
+        return columnName;
     }
-    return format.Config.AsString();
+    const auto keyColumnName = options.GetExtension(key_column_name);
+    if (!keyColumnName.empty()) {
+        return keyColumnName;
+    }
+    return field.name();
 }
+
+enum class EProtobufSerializationMode
+{
+    Protobuf,
+    Yt,
+};
+
+struct TProtobufFieldOptions
+{
+    TMaybe<EProtobufType> Type;
+    EProtobufSerializationMode SerializationMode = EProtobufSerializationMode::Protobuf;
+};
+
+using TOption = TVariant<EProtobufType, EProtobufSerializationMode>;
+
+TOption FieldFlagToOption(EWrapperFieldFlag::Enum flag)
+{
+    using EFlag = EWrapperFieldFlag;
+    switch (flag) {
+        case EFlag::SERIALIZATION_PROTOBUF:
+            return EProtobufSerializationMode::Protobuf;
+        case EFlag::EXPERIMENTAL_SERIALIZATION_YT:
+            return EProtobufSerializationMode::Yt;
+        case EFlag::ANY:
+            return EProtobufType::Any;
+        case EFlag::OTHER_COLUMNS:
+            return EProtobufType::OtherColumns;
+        case EFlag::ENUM_INT:
+            return EProtobufType::EnumInt;
+        case EFlag::ENUM_STRING:
+            return EProtobufType::EnumString;
+    }
+    Y_FAIL();
+}
+
+EWrapperFieldFlag::Enum OptionToFieldFlag(TOption option)
+{
+    using EFlag = EWrapperFieldFlag;
+    struct TVisitor
+    {
+        EFlag::Enum operator() (EProtobufType type)
+        {
+            switch (type) {
+                case EProtobufType::Any:
+                    return EFlag::ANY;
+                case EProtobufType::OtherColumns:
+                    return EFlag::OTHER_COLUMNS;
+                case EProtobufType::EnumInt:
+                    return EFlag::ENUM_INT;
+                case EProtobufType::EnumString:
+                    return EFlag::ENUM_STRING;
+            }
+            Y_FAIL();
+        }
+        EFlag::Enum operator() (EProtobufSerializationMode serializationMode)
+        {
+            switch (serializationMode) {
+                case EProtobufSerializationMode::Yt:
+                    return EFlag::EXPERIMENTAL_SERIALIZATION_YT;
+                case EProtobufSerializationMode::Protobuf:
+                    return EFlag::SERIALIZATION_PROTOBUF;
+            }
+            Y_FAIL();
+        }
+    };
+
+    return Visit(TVisitor(), option);
+}
+
+class TParseProtobufFieldOptionsVisitor
+{
+public:
+    void operator() (EProtobufType type)
+    {
+        SetOption(Type, type);
+    }
+
+    void operator() (EProtobufSerializationMode serializationMode)
+    {
+        SetOption(SerializationMode, serializationMode);
+    }
+
+    template <typename T>
+    void SetOption(TMaybe<T>& option, T newOption) {
+        if (option) {
+            if (*option == newOption) {
+                ythrow yexception() << "Duplicate protobuf field flag " << OptionToFieldFlag(newOption);
+            } else {
+                ythrow yexception() << "Incompatible protobuf field flags " <<
+                    OptionToFieldFlag(*option) << " and " << OptionToFieldFlag(newOption);
+            }
+        }
+        option = newOption;
+    };
+
+public:
+    TMaybe<EProtobufType> Type;
+    TMaybe<EProtobufSerializationMode> SerializationMode;
+};
+
+void ParseProtobufFieldOptions(
+    const ::google::protobuf::RepeatedField<EWrapperFieldFlag::Enum>& flags,
+    TProtobufFieldOptions* fieldOptions)
+{
+    TParseProtobufFieldOptionsVisitor visitor;
+    for (auto flag : flags) {
+        Visit(visitor, FieldFlagToOption(flag));
+    }
+    if (visitor.Type) {
+        fieldOptions->Type = *visitor.Type;
+    }
+    if (visitor.SerializationMode) {
+        fieldOptions->SerializationMode = *visitor.SerializationMode;
+    }
+}
+
+void ValidateProtobufType(const FieldDescriptor& fieldDescriptor, EProtobufType protobufType)
+{
+    const auto fieldType = fieldDescriptor.type();
+    auto ensureType = [&] (FieldDescriptor::Type expectedType) {
+        Y_ENSURE(fieldType == expectedType,
+            "Type of field " << fieldDescriptor.name() << "does not match specified field flag " << OptionToFieldFlag(protobufType) << ": "
+            "expected " << FieldDescriptor::TypeName(expectedType) << ", got " << FieldDescriptor::TypeName(fieldType));
+    };
+    switch (protobufType) {
+        case EProtobufType::Any:
+            ensureType(FieldDescriptor::TYPE_BYTES);
+            return;
+        case EProtobufType::OtherColumns:
+            ensureType(FieldDescriptor::TYPE_BYTES);
+            return;
+        case EProtobufType::EnumInt:
+            ensureType(FieldDescriptor::TYPE_ENUM);
+            return;
+        case EProtobufType::EnumString:
+            ensureType(FieldDescriptor::TYPE_ENUM);
+            return;
+    }
+    Y_FAIL();
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 TNode MakeEnumerationConfig(const ::google::protobuf::EnumDescriptor* enumDescriptor)
 {
@@ -38,6 +188,31 @@ TNode MakeEnumerationConfig(const ::google::protobuf::EnumDescriptor* enumDescri
     return config;
 }
 
+TString DeduceProtobufType(
+    const FieldDescriptor* fieldDescriptor,
+    const TProtobufFieldOptions& options)
+{
+    if (options.Type) {
+        ValidateProtobufType(*fieldDescriptor, *options.Type);
+        return ::ToString(*options.Type);
+    }
+    switch (fieldDescriptor->type()) {
+        case FieldDescriptor::TYPE_ENUM:
+            return ::ToString(EProtobufType::EnumString);
+        case FieldDescriptor::TYPE_MESSAGE:
+            switch (options.SerializationMode) {
+                case EProtobufSerializationMode::Protobuf:
+                    return fieldDescriptor->type_name();
+                case EProtobufSerializationMode::Yt:
+                    return "structured_message";
+            }
+            Y_FAIL();
+        default:
+            return fieldDescriptor->type_name();
+    }
+    Y_FAIL();
+}
+
 TNode MakeProtoFormatMessageFieldsConfig(
     const Descriptor* descriptor,
     TNode* enumerations);
@@ -45,37 +220,37 @@ TNode MakeProtoFormatMessageFieldsConfig(
 TNode MakeProtoFormatFieldConfig(
     const FieldDescriptor* fieldDescriptor,
     TNode* enumerations,
-    ESerializationMode::Enum messageSerializationMode)
+    const TProtobufFieldOptions& defaultOptions)
 {
     auto fieldConfig = TNode::CreateMap();
     fieldConfig["field_number"] = fieldDescriptor->number();
-    fieldConfig["name"] = NDetail::GetColumnName(*fieldDescriptor);
+    fieldConfig["name"] = GetColumnName(*fieldDescriptor);
 
-    auto fieldSerializationMode = messageSerializationMode;
-    if (fieldDescriptor->options().HasExtension(serialization_mode)) {
-        fieldSerializationMode = fieldDescriptor->options().GetExtension(serialization_mode);
-    }
+    const auto& options = fieldDescriptor->options();
+
+    auto fieldOptions = defaultOptions;
+    ParseProtobufFieldOptions(options.GetRepeatedExtension(flags), &fieldOptions);
 
     if (fieldDescriptor->is_repeated()) {
-        Y_ENSURE_EX(fieldSerializationMode == ESerializationMode::YT,
-            TApiUsageError() << "Repeated fields are allowed only for YT serialization mode");
+        Y_ENSURE_EX(fieldOptions.SerializationMode == EProtobufSerializationMode::Yt,
+            TApiUsageError() << "Repeated field " << fieldDescriptor->full_name() << ' ' <<
+            "must have flag" << EWrapperFieldFlag::EXPERIMENTAL_SERIALIZATION_YT);
     }
     fieldConfig["repeated"] = fieldDescriptor->is_repeated();
+
+    fieldConfig["proto_type"] = DeduceProtobufType(fieldDescriptor, fieldOptions);
 
     if (fieldDescriptor->type() == FieldDescriptor::TYPE_ENUM) {
         auto* enumeration = fieldDescriptor->enum_type();
         (*enumerations)[enumeration->name()] = MakeEnumerationConfig(enumeration);
-        fieldConfig["proto_type"] = "enum_string";
         fieldConfig["enumeration_name"] = enumeration->name();
     } else if (
         fieldDescriptor->type() == FieldDescriptor::TYPE_MESSAGE &&
-        fieldSerializationMode == ESerializationMode::YT)
+        fieldOptions.SerializationMode == EProtobufSerializationMode::Yt)
     {
-        fieldConfig["proto_type"] = "structured_message";
         fieldConfig["fields"] = MakeProtoFormatMessageFieldsConfig(fieldDescriptor->message_type(), enumerations);
-    } else {
-        fieldConfig["proto_type"] = fieldDescriptor->type_name();
     }
+
     return fieldConfig;
 }
 
@@ -84,13 +259,14 @@ TNode MakeProtoFormatMessageFieldsConfig(
     TNode* enumerations)
 {
     TNode fields = TNode::CreateList();
-    auto messageSerializationMode = descriptor->options().GetExtension(field_serialization_mode);
+    TProtobufFieldOptions fieldOptions;
+    ParseProtobufFieldOptions(descriptor->options().GetRepeatedExtension(default_field_flags), &fieldOptions);
     for (int fieldIndex = 0; fieldIndex < descriptor->field_count(); ++fieldIndex) {
         auto* fieldDesc = descriptor->field(fieldIndex);
         fields.Add(MakeProtoFormatFieldConfig(
             fieldDesc,
             enumerations,
-            messageSerializationMode));
+            fieldOptions));
     }
     return fields;
 }
@@ -113,7 +289,168 @@ TNode MakeProtoFormatConfig(const TVector<const Descriptor*>& descriptors)
     return config;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+struct TOtherColumns
+{ };
+
+static TVariant<EValueType, TOtherColumns> GetScalarFieldType(
+    const FieldDescriptor& fieldDescriptor,
+    const TProtobufFieldOptions& options)
+{
+    if (options.Type) {
+        switch (*options.Type) {
+            case EProtobufType::EnumInt:
+                return EValueType::VT_INT64;
+            case EProtobufType::EnumString:
+                return EValueType::VT_STRING;
+            case EProtobufType::Any:
+                return EValueType::VT_ANY;
+            case EProtobufType::OtherColumns:
+                return TOtherColumns{};
+        }
+        Y_FAIL();
+    }
+
+    switch (fieldDescriptor.cpp_type()) {
+        case FieldDescriptor::CPPTYPE_INT32:
+            return EValueType::VT_INT32;
+        case FieldDescriptor::CPPTYPE_INT64:
+            return EValueType::VT_INT64;
+        case FieldDescriptor::CPPTYPE_UINT32:
+            return EValueType::VT_UINT32;
+        case FieldDescriptor::CPPTYPE_UINT64:
+            return EValueType::VT_UINT64;
+        case FieldDescriptor::CPPTYPE_FLOAT:
+        case FieldDescriptor::CPPTYPE_DOUBLE:
+            return EValueType::VT_DOUBLE;
+        case FieldDescriptor::CPPTYPE_BOOL:
+            return EValueType::VT_BOOLEAN;
+        case FieldDescriptor::CPPTYPE_STRING:
+        case FieldDescriptor::CPPTYPE_MESSAGE:
+        case FieldDescriptor::CPPTYPE_ENUM:
+            return EValueType::VT_STRING;
+        default:
+            ythrow yexception() <<
+                "Unexpected field type '" << fieldDescriptor.cpp_type_name() << "' " <<
+                "for field " << fieldDescriptor.name();
+    }
+}
+
+bool HasNameExtension(const FieldDescriptor& fieldDescriptor)
+{
+    const auto& options = fieldDescriptor.options();
+    return options.HasExtension(column_name) || options.HasExtension(key_column_name);
+}
+
+TVariant<TNode, TOtherColumns> CreateFieldRawTypeV2(
+    const FieldDescriptor& fieldDescriptor,
+    const TProtobufFieldOptions& defaultOptions)
+{
+    auto options = defaultOptions;
+    ParseProtobufFieldOptions(
+        fieldDescriptor.options().GetRepeatedExtension(flags),
+        &options);
+
+    if (options.Type) {
+        ValidateProtobufType(fieldDescriptor, *options.Type);
+    }
+
+    TNode type;
+    if (fieldDescriptor.type() == FieldDescriptor::TYPE_MESSAGE &&
+        options.SerializationMode == EProtobufSerializationMode::Yt)
+    {
+        const auto& messageDescriptor = *fieldDescriptor.message_type();
+        auto fields = TNode::CreateList();
+        for (int fieldIndex = 0; fieldIndex < messageDescriptor.field_count(); ++fieldIndex) {
+            const auto& innerFieldDescriptor = *messageDescriptor.field(fieldIndex);
+            auto type = CreateFieldRawTypeV2(
+                innerFieldDescriptor,
+                options);
+
+            if (HoldsAlternative<TOtherColumns>(type)) {
+                ythrow TApiUsageError() <<
+                    "Could not deduce YT type for field " << innerFieldDescriptor.name() << " of " <<
+                    "embedded message field " << fieldDescriptor.name() << " " <<
+                    "(note that " << EWrapperFieldFlag::OTHER_COLUMNS << " fields " <<
+                    "are not allowed inside embedded messages)";
+            } else if (HoldsAlternative<TNode>(type)) {
+                fields.Add(TNode()
+                    ("name", GetColumnName(innerFieldDescriptor))
+                    ("type", Get<TNode>(type)));
+            } else {
+                Y_FAIL();
+            }
+        }
+        type = TNode()
+            ("metatype", "struct")
+            ("fields", std::move(fields));
+    } else {
+        auto scalarType = GetScalarFieldType(fieldDescriptor, options);
+        if (HoldsAlternative<TOtherColumns>(scalarType)) {
+            return TOtherColumns{};
+        } else if (HoldsAlternative<EValueType>(scalarType)) {
+            type = NDetail::ToString(Get<EValueType>(scalarType));
+        } else {
+            Y_FAIL();
+        }
+    }
+
+    switch (fieldDescriptor.label()) {
+        case FieldDescriptor::Label::LABEL_REPEATED:
+            Y_ENSURE(options.SerializationMode == EProtobufSerializationMode::Yt,
+                "Repeated fields are supported only for YT serialization mode");
+            return TNode()
+                ("metatype", "list")
+                ("element", std::move(type));
+        case FieldDescriptor::Label::LABEL_OPTIONAL:
+            return TNode()
+                ("metatype", "optional")
+                ("element", std::move(type));
+        case FieldDescriptor::LABEL_REQUIRED:
+            return type;
+    }
+    Y_FAIL();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTableSchema CreateTableSchema(
+    const Descriptor& messageDescriptor,
+    bool keepFieldsWithoutExtension)
+{
+    TTableSchema result;
+
+    TProtobufFieldOptions defaultOptions;
+    ParseProtobufFieldOptions(
+        messageDescriptor.options().GetRepeatedExtension(default_field_flags),
+        &defaultOptions);
+    for (int fieldIndex = 0; fieldIndex < messageDescriptor.field_count(); ++fieldIndex) {
+        const auto& fieldDescriptor = *messageDescriptor.field(fieldIndex);
+        if (!keepFieldsWithoutExtension && !HasNameExtension(fieldDescriptor)) {
+            continue;
+        }
+
+        auto type = CreateFieldRawTypeV2(fieldDescriptor, defaultOptions);
+        if (HoldsAlternative<TOtherColumns>(type)) {
+            result.Strict(false);
+            continue;
+        } else if (HoldsAlternative<TNode>(type)) {
+            TColumnSchema column;
+            column.Name(GetColumnName(fieldDescriptor));
+            column.RawTypeV2(std::move(Get<TNode>(type)));
+            result.AddColumn(std::move(column));
+        } else {
+            Y_FAIL();
+        }
+    }
+
+    return result;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -173,6 +510,15 @@ bool TFormat::IsYamredDsv() const
     return Config.IsString() && Config.AsString() == "yamred_dsv";
 }
 
+static TString FormatName(const TFormat& format)
+{
+    if (!format.Config.IsString()) {
+        Y_VERIFY(format.Config.IsUndefined());
+        return "<undefined>";
+    }
+    return format.Config.AsString();
+}
+
 TYamredDsvAttributes TFormat::GetYamredDsvAttributes() const
 {
     if (!IsYamredDsv()) {
@@ -210,25 +556,15 @@ TYamredDsvAttributes TFormat::GetYamredDsvAttributes() const
     return attributes;
 }
 
-namespace NDetail {
-
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GetColumnName(const ::google::protobuf::FieldDescriptor& field) {
-    const auto& options = field.options();
-    const auto columnName = options.GetExtension(column_name);
-    if (!columnName.empty()) {
-        return columnName;
-    }
-    const auto keyColumnName = options.GetExtension(key_column_name);
-    if (!keyColumnName.empty()) {
-        return keyColumnName;
-    }
-    return field.name();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NDetail
 } // namespace NYT
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <>
+void Out<NYT::EWrapperFieldFlag::Enum>(IOutputStream& stream, NYT::EWrapperFieldFlag::Enum value)
+{
+    stream << NYT::EWrapperFieldFlag_Enum_Name(value);
+}
 

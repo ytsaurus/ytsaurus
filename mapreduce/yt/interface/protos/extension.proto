@@ -4,23 +4,32 @@ package NYT;
 
 option go_package = "a.yandex-team.ru/mapreduce/yt/interface/protos";
 
-// Declare the actual enum inside a message to restrict visibility of names.
-message ESerializationMode {
+message EWrapperFieldFlag
+{
     enum Enum
     {
-        PROTOBUF = 0;
-        YT = 1;
+        ANY = 0;
+        OTHER_COLUMNS = 1;
+        ENUM_INT = 2;
+        ENUM_STRING = 3;
+
+        // WARNING! The underlying format of data stored in YT tables is
+        // currently subject to change.
+        // It is not advised to use this feature in production.
+        EXPERIMENTAL_SERIALIZATION_YT = 4;
+
+        SERIALIZATION_PROTOBUF = 5;
     }
 }
 
 extend google.protobuf.FieldOptions
 {
-    optional ESerializationMode.Enum serialization_mode = 56788;
+    repeated EWrapperFieldFlag.Enum flags = 56788;
     optional string column_name = 56789;
     optional string key_column_name = 56790;
 }
 
 extend google.protobuf.MessageOptions
 {
-    optional ESerializationMode.Enum field_serialization_mode = 56788 [default = PROTOBUF];
+    repeated EWrapperFieldFlag.Enum default_field_flags = 56789;
 }

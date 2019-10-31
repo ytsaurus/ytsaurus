@@ -60,6 +60,12 @@ TNode GetRowSchema<TUrlRowWithColumnNames>()
     return schema;
 }
 
+template <>
+void Out<TRowWithTypeOptions_Color>(IOutputStream& o, TRowWithTypeOptions_Color color)
+{
+    o << TRowWithTypeOptions::Color_Name(color);
+}
+
 Y_UNIT_TEST_SUITE(TableIo) {
 
 #define INSTANTIATE_NODE_READER_TESTS(test) \
@@ -588,22 +594,23 @@ Y_UNIT_TEST_SUITE(TableIo) {
     }
 
     template <typename TRow, typename TElement>
-    void TestProtobufSerializationModes(ESerializationMode::Enum mode1, ESerializationMode::Enum mode2)
+    void TestProtobufSerializationModes(EWrapperFieldFlag::Enum mode1, EWrapperFieldFlag::Enum mode2)
     {
         TTestFixture fixture;
         auto client = fixture.GetClient();
         auto workingDir = fixture.GetWorkingDir();
 
-        auto setType = [] (ESerializationMode::Enum mode, TColumnSchema& column) {
+        auto setType = [] (EWrapperFieldFlag::Enum mode, TColumnSchema& column) {
             switch (mode) {
-                case ESerializationMode::YT:
+                case EWrapperFieldFlag::EXPERIMENTAL_SERIALIZATION_YT:
                     column.RawTypeV2(GetRowSchema<TElement>());
                     return;
-                case ESerializationMode::PROTOBUF:
+                case EWrapperFieldFlag::SERIALIZATION_PROTOBUF:
                     column.Type(EValueType::VT_STRING);
                     return;
+                default:
+                    Y_FAIL();
             }
-            Y_FAIL();
         };
 
         auto schema = TTableSchema();
@@ -649,17 +656,18 @@ Y_UNIT_TEST_SUITE(TableIo) {
             writer->Finish();
         }
 
-        auto checkValue = [&] (const TNode& value, ESerializationMode::Enum mode, int rowIndex, int valueIndex) {
+        auto checkValue = [&] (const TNode& value, EWrapperFieldFlag::Enum mode, int rowIndex, int valueIndex) {
             switch (mode) {
-                case ESerializationMode::YT:
+                case EWrapperFieldFlag::EXPERIMENTAL_SERIALIZATION_YT:
                     UNIT_ASSERT_VALUES_EQUAL(value, nodeSerializedValues[rowIndex][valueIndex]);
                     return;
-                case ESerializationMode::PROTOBUF:
+                case EWrapperFieldFlag::SERIALIZATION_PROTOBUF:
                     UNIT_ASSERT_VALUES_EQUAL(value.GetType(), TNode::EType::String);
                     UNIT_ASSERT_VALUES_EQUAL(value.AsString(), protobufSerializedValues[rowIndex][valueIndex]);
                     return;
+                default:
+                    Y_FAIL();
             }
-            Y_FAIL();
         };
 
         // Check that all the values were written correctly.
@@ -701,29 +709,29 @@ Y_UNIT_TEST_SUITE(TableIo) {
     Y_UNIT_TEST(ProtobufSerializationMode_FieldOption)
     {
         TestProtobufSerializationModes<TRowFieldSerializationOption, TUrlRow>(
-            ESerializationMode::YT,
-            ESerializationMode::PROTOBUF);
+            EWrapperFieldFlag::EXPERIMENTAL_SERIALIZATION_YT,
+            EWrapperFieldFlag::SERIALIZATION_PROTOBUF);
     }
 
     Y_UNIT_TEST(ProtobufSerializationMode_MessageOption)
     {
         TestProtobufSerializationModes<TRowMessageSerializationOption, TUrlRow>(
-            ESerializationMode::YT,
-            ESerializationMode::YT);
+            EWrapperFieldFlag::EXPERIMENTAL_SERIALIZATION_YT,
+            EWrapperFieldFlag::EXPERIMENTAL_SERIALIZATION_YT);
     }
 
     Y_UNIT_TEST(ProtobufSerializationMode_MixedOptions)
     {
         TestProtobufSerializationModes<TRowMixedSerializationOptions, TUrlRow>(
-            ESerializationMode::YT,
-            ESerializationMode::PROTOBUF);
+            EWrapperFieldFlag::EXPERIMENTAL_SERIALIZATION_YT,
+            EWrapperFieldFlag::SERIALIZATION_PROTOBUF);
     }
 
     Y_UNIT_TEST(ProtobufSerializationMode_MixedOptions_ColumnNames)
     {
         TestProtobufSerializationModes<TRowMixedSerializationOptions_ColumnNames, TUrlRowWithColumnNames>(
-            ESerializationMode::YT,
-            ESerializationMode::PROTOBUF);
+            EWrapperFieldFlag::EXPERIMENTAL_SERIALIZATION_YT,
+            EWrapperFieldFlag::SERIALIZATION_PROTOBUF);
     }
 
     Y_UNIT_TEST(ProtobufRepeatedSerialization)
@@ -856,7 +864,186 @@ Y_UNIT_TEST_SUITE(TableIo) {
             client->CreateTableWriter<TBadProtobufSerializedRow>(
                 TRichYPath(workingDir + "/table").Schema(schema)),
             TApiUsageError,
-            "Repeated fields are allowed only for YT serialization mode");
+            "Repeated fields are allowed only for EXPERIMENTAL_SERIALIZATION_YT mode");
+    }
+
+    Y_UNIT_TEST(ProtobufWithTypeOption)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        auto schema = TTableSchema()
+            .Strict(false)
+            .AddColumn(TColumnSchema()
+                .Name("ColorIntField").Type(EValueType::VT_INT64))
+            .AddColumn(TColumnSchema()
+                .Name("ColorStringField").Type(EValueType::VT_STRING))
+            .AddColumn(TColumnSchema()
+                .Name("AnyField").Type(EValueType::VT_ANY))
+            .AddColumn(TColumnSchema()
+                .Name("EmbeddedField").RawTypeV2(TNode()
+                    ("metatype", "optional")
+                    ("element", TNode()
+                        ("metatype", "struct")
+                        ("fields", TNode()
+                            .Add(TNode()
+                                ("name", "ColorIntField")
+                                ("type", "int64"))
+                            .Add(TNode()
+                                ("name", "ColorStringField")
+                                ("type", "string"))
+                            .Add(TNode()
+                                ("name", "AnyField")
+                                ("type", TNode()
+                                    ("metatype", "optional")
+                                    ("element", "any")))))))
+            .AddColumn(TColumnSchema()
+                .Name("RepeatedEnumIntField").RawTypeV2(TNode()
+                    ("metatype", "list")
+                    ("element", "int64")))
+            .AddColumn(TColumnSchema()
+                .Name("UnknownSchematizedColumn").Type(EValueType::VT_BOOLEAN));
+
+        auto node1 = TNode()("x", TNode()("y", 12));
+        auto node2 = TNode()("key", "value");
+        auto node3 = TNode().Add(1).Add("string").Add(true);
+        auto node4 = TNode("hooray");
+
+        {
+            auto writer = client->CreateTableWriter<TRowWithTypeOptions>(
+                TRichYPath(workingDir + "/table").Schema(schema));
+            {
+                TRowWithTypeOptions row;
+                row.SetColorIntField(TRowWithTypeOptions::RED);
+                row.SetColorStringField(TRowWithTypeOptions::BLUE);
+                row.SetAnyField(NodeToYsonString(node1));
+                row.SetOtherColumnsField(NodeToYsonString(
+                    TNode()
+                        ("UnknownSchematizedColumn", true)
+                        ("UnknownUnschematizedColumn", 1234)));
+                auto& embedded = *row.MutableEmbeddedField();
+                embedded.SetColorIntField(TRowWithTypeOptions::WHITE);
+                embedded.SetColorStringField(TRowWithTypeOptions::RED);
+                embedded.SetAnyField(NodeToYsonString(node2));
+                row.AddRepeatedEnumIntField(TRowWithTypeOptions::WHITE);
+                row.AddRepeatedEnumIntField(TRowWithTypeOptions::BLUE);
+                row.AddRepeatedEnumIntField(TRowWithTypeOptions::RED);
+                writer->AddRow(row);
+            }
+            {
+                TRowWithTypeOptions row;
+                row.SetColorIntField(TRowWithTypeOptions::WHITE);
+                row.SetColorStringField(TRowWithTypeOptions::RED);
+                row.SetAnyField(NodeToYsonString(node3));
+                row.SetOtherColumnsField(NodeToYsonString(
+                    TNode()
+                        ("UnknownSchematizedColumn", false)
+                        ("UnknownUnschematizedColumn", "some-string")));
+                auto& embedded = *row.MutableEmbeddedField();
+                embedded.SetColorIntField(TRowWithTypeOptions::RED);
+                embedded.SetColorStringField(TRowWithTypeOptions::WHITE);
+                embedded.SetAnyField(NodeToYsonString(node4));
+                row.AddRepeatedEnumIntField(TRowWithTypeOptions::BLUE);
+                writer->AddRow(row);
+            }
+            writer->Finish();
+        }
+
+        {
+            auto reader = client->CreateTableReader<TNode>(workingDir + "/table");
+            UNIT_ASSERT(reader->IsValid());
+            UNIT_ASSERT_VALUES_EQUAL(
+                reader->GetRow(),
+                TNode()
+                    ("ColorIntField", -1)
+                    ("ColorStringField", "BLUE")
+                    ("AnyField", node1)
+                    ("UnknownSchematizedColumn", true)
+                    ("UnknownUnschematizedColumn", 1234)
+                    ("EmbeddedField", TNode()
+                        .Add(0)
+                        .Add("RED")
+                        .Add(node2))
+                    ("RepeatedEnumIntField", TNode()
+                        .Add(0)
+                        .Add(1)
+                        .Add(-1)));
+            reader->Next();
+            UNIT_ASSERT(reader->IsValid());
+            UNIT_ASSERT_VALUES_EQUAL(
+                reader->GetRow(),
+                TNode()
+                    ("ColorIntField", 0)
+                    ("ColorStringField", "RED")
+                    ("AnyField", node3)
+                    ("UnknownSchematizedColumn", false)
+                    ("UnknownUnschematizedColumn", "some-string")
+                    ("EmbeddedField", TNode()
+                        .Add(-1)
+                        .Add("WHITE")
+                        .Add(node4))
+                    ("RepeatedEnumIntField", TNode().Add(1)));
+            reader->Next();
+            UNIT_ASSERT(!reader->IsValid());
+        }
+
+        auto reader = client->CreateTableReader<TRowWithTypeOptions>(workingDir + "/table");
+        UNIT_ASSERT(reader->IsValid());
+        {
+            const auto& row = reader->GetRow();
+            UNIT_ASSERT_VALUES_EQUAL(row.GetColorIntField(), TRowWithTypeOptions::RED);
+            UNIT_ASSERT_VALUES_EQUAL(row.GetColorStringField(), TRowWithTypeOptions::BLUE);
+            UNIT_ASSERT_VALUES_EQUAL(NodeFromYsonString(row.GetAnyField()), node1);
+            auto otherColumns = NodeFromYsonString(row.GetOtherColumnsField());
+            UNIT_ASSERT(otherColumns.HasKey("UnknownSchematizedColumn"));
+            UNIT_ASSERT_VALUES_EQUAL(otherColumns["UnknownSchematizedColumn"], true);
+            UNIT_ASSERT(otherColumns.HasKey("UnknownUnschematizedColumn"));
+            UNIT_ASSERT_VALUES_EQUAL(otherColumns["UnknownUnschematizedColumn"], 1234);
+            const auto& embedded = row.GetEmbeddedField();
+            UNIT_ASSERT_VALUES_EQUAL(embedded.GetColorIntField(), TRowWithTypeOptions::WHITE);
+            UNIT_ASSERT_VALUES_EQUAL(embedded.GetColorStringField(), TRowWithTypeOptions::RED);
+            UNIT_ASSERT_VALUES_EQUAL(NodeFromYsonString(embedded.GetAnyField()), node2);
+
+            TVector<TRowWithTypeOptions::Color> colors;
+            for (auto intColor : row.GetRepeatedEnumIntField()) {
+                colors.push_back(static_cast<TRowWithTypeOptions::Color>(intColor));
+            }
+            UNIT_ASSERT_VALUES_EQUAL(
+                colors,
+                (TVector<TRowWithTypeOptions::Color>{
+                    TRowWithTypeOptions::WHITE,
+                    TRowWithTypeOptions::BLUE,
+                    TRowWithTypeOptions::RED,
+                }));
+        }
+        reader->Next();
+        UNIT_ASSERT(reader->IsValid());
+        {
+            const auto& row = reader->GetRow();
+            UNIT_ASSERT_VALUES_EQUAL(row.GetColorIntField(), TRowWithTypeOptions::WHITE);
+            UNIT_ASSERT_VALUES_EQUAL(row.GetColorStringField(), TRowWithTypeOptions::RED);
+            UNIT_ASSERT_VALUES_EQUAL(NodeFromYsonString(row.GetAnyField()), node3);
+            auto otherColumns = NodeFromYsonString(row.GetOtherColumnsField());
+            UNIT_ASSERT(otherColumns.HasKey("UnknownSchematizedColumn"));
+            UNIT_ASSERT_VALUES_EQUAL(otherColumns["UnknownSchematizedColumn"], false);
+            UNIT_ASSERT(otherColumns.HasKey("UnknownUnschematizedColumn"));
+            UNIT_ASSERT_VALUES_EQUAL(otherColumns["UnknownUnschematizedColumn"], "some-string");
+            const auto& embedded = row.GetEmbeddedField();
+            UNIT_ASSERT_VALUES_EQUAL(embedded.GetColorIntField(), TRowWithTypeOptions::RED);
+            UNIT_ASSERT_VALUES_EQUAL(embedded.GetColorStringField(), TRowWithTypeOptions::WHITE);
+            UNIT_ASSERT_VALUES_EQUAL(NodeFromYsonString(embedded.GetAnyField()), node4);
+
+            TVector<TRowWithTypeOptions::Color> colors;
+            for (auto intColor : row.GetRepeatedEnumIntField()) {
+                colors.push_back(static_cast<TRowWithTypeOptions::Color>(intColor));
+            }
+            UNIT_ASSERT_VALUES_EQUAL(
+                colors,
+                (TVector<TRowWithTypeOptions::Color>{TRowWithTypeOptions::BLUE}));
+        }
+        reader->Next();
+        UNIT_ASSERT(!reader->IsValid());
     }
 
     Y_UNIT_TEST(ErrorInTableWriter)

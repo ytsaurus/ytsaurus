@@ -460,6 +460,29 @@ REGISTER_MAPPER(TComplexTypesProtobufMapper);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TProtobufMapperTypeOptions
+    : public IMapper<TTableReader<Message>, TTableWriter<Message>>
+{
+public:
+    void Do(TReader* reader, TWriter* writer) override
+    {
+        for (; reader->IsValid(); reader->Next()) {
+            auto row = reader->MoveRow<TRowWithTypeOptions>();
+            auto any = NodeFromYsonString(row.GetAnyField());
+            any["new"] = "delete";
+            row.SetAnyField(NodeToYsonString(any));
+            row.AddRepeatedEnumIntField(TRowWithTypeOptions::BLUE);
+            auto otherColumns = NodeFromYsonString(row.GetOtherColumnsField());
+            otherColumns["NewColumn"] = "BrandNew";
+            row.SetOtherColumnsField(NodeToYsonString(otherColumns));
+            writer->AddRow(row);
+        }
+    }
+};
+REGISTER_MAPPER(TProtobufMapperTypeOptions);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TYdlMapper : public IMapper<TTableReader<NYdlRows::TRow>, TYdlTableWriter>
 {
 public:
@@ -1554,7 +1577,7 @@ Y_UNIT_TEST_SUITE(Operations)
         MapWithProtobuf(true, true);
     }
 
-    Y_UNIT_TEST(MapWithProtobuf_ComplexTypes)
+    Y_UNIT_TEST(ProtobufMap_ComplexTypes)
     {
         TTestFixture fixture;
         auto client = fixture.GetClient();
@@ -1666,6 +1689,120 @@ Y_UNIT_TEST_SUITE(Operations)
         UNIT_ASSERT_VALUES_EQUAL(expectedContent2, actualContent2);
     }
 
+    Y_UNIT_TEST(ProtobufMap_TypeOptions)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        auto schema = TTableSchema()
+            .Strict(false)
+            .AddColumn(TColumnSchema()
+                .Name("ColorIntField").Type(EValueType::VT_INT64))
+            .AddColumn(TColumnSchema()
+                .Name("ColorStringField").Type(EValueType::VT_STRING))
+            .AddColumn(TColumnSchema()
+                .Name("AnyField").Type(EValueType::VT_ANY))
+            .AddColumn(TColumnSchema()
+                .Name("EmbeddedField").RawTypeV2(TNode()
+                    ("metatype", "optional")
+                    ("element", TNode()
+                        ("metatype", "struct")
+                        ("fields", TNode()
+                            .Add(TNode()
+                                ("name", "ColorIntField")
+                                ("type", "int64"))
+                            .Add(TNode()
+                                ("name", "ColorStringField")
+                                ("type", "string"))
+                            .Add(TNode()
+                                ("name", "AnyField")
+                                ("type", TNode()
+                                    ("metatype", "optional")
+                                    ("element", "any")))))))
+            .AddColumn(TColumnSchema()
+                .Name("RepeatedEnumIntField").RawTypeV2(TNode()
+                    ("metatype", "list")
+                    ("element", "int64")))
+            .AddColumn(TColumnSchema()
+                .Name("UnknownSchematizedColumn").Type(EValueType::VT_BOOLEAN));
+
+        auto inputTable = TRichYPath(workingDir + "/input").Schema(schema);
+        auto outputTable = TRichYPath(workingDir + "/output").Schema(schema);
+
+        {
+            auto writer = client->CreateTableWriter<TNode>(inputTable);
+            writer->AddRow(TNode()
+                ("ColorIntField", -1)
+                ("ColorStringField", "BLUE")
+                ("AnyField", TNode()("x", TNode()("y", 12)))
+                ("UnknownSchematizedColumn", true)
+                ("UnknownUnschematizedColumn", 1234)
+                ("EmbeddedField", TNode()
+                    .Add(0)
+                    .Add("RED")
+                    .Add(TNode()("key", "value")))
+                ("RepeatedEnumIntField", TNode().Add(0).Add(1).Add(-1)));
+            writer->AddRow(TNode()
+                ("ColorIntField", 0)
+                ("ColorStringField", "RED")
+                ("AnyField", TNode()("z", 0))
+                ("UnknownSchematizedColumn", false)
+                ("UnknownUnschematizedColumn", "some-string")
+                ("EmbeddedField", TNode()
+                    .Add(-1)
+                    .Add("WHITE")
+                    .Add("hooray"))
+                ("RepeatedEnumIntField", TNode().Add(1)));
+            writer->Finish();
+        }
+
+        client->Map(
+            TMapOperationSpec()
+                .AddInput<TRowWithTypeOptions>(inputTable)
+                .AddOutput<TRowWithTypeOptions>(outputTable),
+            new TProtobufMapperTypeOptions);
+
+        auto actualRows = ReadTable(client, outputTable.Path_);
+        UNIT_ASSERT_VALUES_EQUAL(actualRows.size(), 2);
+        {
+            const auto& row = actualRows[0];
+            UNIT_ASSERT_VALUES_EQUAL(row["ColorIntField"], -1);
+            UNIT_ASSERT_VALUES_EQUAL(row["ColorStringField"], "BLUE");
+            UNIT_ASSERT_VALUES_EQUAL(
+                row["AnyField"],
+                TNode()
+                    ("x", TNode()("y", 12))
+                    ("new", "delete"));
+            UNIT_ASSERT_VALUES_EQUAL(row["UnknownSchematizedColumn"], true);
+            UNIT_ASSERT_VALUES_EQUAL(row["UnknownUnschematizedColumn"], 1234);
+            UNIT_ASSERT_VALUES_EQUAL(
+                row["EmbeddedField"],
+                TNode()
+                    .Add(0)
+                    .Add("RED")
+                    .Add(TNode()("key", "value")));
+            UNIT_ASSERT_VALUES_EQUAL(row["RepeatedEnumIntField"], TNode().Add(0).Add(1).Add(-1).Add(1));
+            UNIT_ASSERT_VALUES_EQUAL(row["NewColumn"], "BrandNew");
+        }
+        {
+            const auto& row = actualRows[1];
+            UNIT_ASSERT_VALUES_EQUAL(row["ColorIntField"], 0);
+            UNIT_ASSERT_VALUES_EQUAL(row["ColorStringField"], "RED");
+            UNIT_ASSERT_VALUES_EQUAL(
+                row["AnyField"],
+                TNode()
+                    ("z", 0)
+                    ("new", "delete"));
+            UNIT_ASSERT_VALUES_EQUAL(row["UnknownSchematizedColumn"], false);
+            UNIT_ASSERT_VALUES_EQUAL(row["UnknownUnschematizedColumn"], "some-string");
+            UNIT_ASSERT_VALUES_EQUAL(row["EmbeddedField"], TNode()
+                .Add(-1)
+                .Add("WHITE")
+                .Add("hooray"));
+            UNIT_ASSERT_VALUES_EQUAL(row["RepeatedEnumIntField"], TNode().Add(1).Add(1));
+        }
+    }
     Y_UNIT_TEST(YdlMap)
     {
         TTestFixture fixture;

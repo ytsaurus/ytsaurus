@@ -91,109 +91,17 @@ TNode TTableSchema::ToNode() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static EValueType GetScalarFieldType(const FieldDescriptor& fieldDescriptor)
-{
-    switch (fieldDescriptor.cpp_type()) {
-    case FieldDescriptor::CPPTYPE_INT32:
-        return EValueType::VT_INT32;
-    case FieldDescriptor::CPPTYPE_INT64:
-        return EValueType::VT_INT64;
-    case FieldDescriptor::CPPTYPE_UINT32:
-        return EValueType::VT_UINT32;
-    case FieldDescriptor::CPPTYPE_UINT64:
-        return EValueType::VT_UINT64;
-    case FieldDescriptor::CPPTYPE_FLOAT:
-    case FieldDescriptor::CPPTYPE_DOUBLE:
-        return EValueType::VT_DOUBLE;
-    case FieldDescriptor::CPPTYPE_BOOL:
-        return EValueType::VT_BOOLEAN;
-    case FieldDescriptor::CPPTYPE_STRING:
-    case FieldDescriptor::CPPTYPE_MESSAGE:
-    case FieldDescriptor::CPPTYPE_ENUM:
-        return EValueType::VT_STRING;
-    default:
-        ythrow yexception() << "Unexpected field type '" << fieldDescriptor.cpp_type_name() << "' for field " << fieldDescriptor.name();
-    }
-}
-
-static bool HasExtension(const FieldDescriptor& fieldDescriptor)
-{
-    const auto& options = fieldDescriptor.options();
-    return options.HasExtension(column_name) || options.HasExtension(key_column_name);
-}
-
-static TNode CreateFieldRawTypeV2(
-    const FieldDescriptor& fieldDescriptor,
-    ESerializationMode::Enum messageSerializationMode)
-{
-    auto fieldSerializationMode = messageSerializationMode;
-    if (fieldDescriptor.options().HasExtension(serialization_mode)) {
-        fieldSerializationMode = fieldDescriptor.options().GetExtension(serialization_mode);
-    }
-
-    TNode type;
-    if (fieldDescriptor.type() == FieldDescriptor::TYPE_MESSAGE &&
-        fieldSerializationMode == ESerializationMode::YT)
-    {
-        const auto& messageDescriptor = *fieldDescriptor.message_type();
-        auto fields = TNode::CreateList();
-        for (int fieldIndex = 0; fieldIndex < messageDescriptor.field_count(); ++fieldIndex) {
-            const auto& innerFieldDescriptor = *messageDescriptor.field(fieldIndex);
-            fields.Add(TNode()
-                ("name", NDetail::GetColumnName(innerFieldDescriptor))
-                ("type", CreateFieldRawTypeV2(
-                    innerFieldDescriptor,
-                    messageDescriptor.options().GetExtension(field_serialization_mode))));
-        }
-        type = TNode()
-            ("metatype", "struct")
-            ("fields", std::move(fields));
-    } else {
-        type = NDetail::ToString(GetScalarFieldType(fieldDescriptor));
-    }
-
-    switch (fieldDescriptor.label()) {
-        case FieldDescriptor::Label::LABEL_REPEATED:
-            Y_ENSURE(fieldSerializationMode == ESerializationMode::YT,
-                "Repeated fields are supported only for YT serialization mode");
-            return TNode()
-                ("metatype", "list")
-                ("element", std::move(type));
-        case FieldDescriptor::Label::LABEL_OPTIONAL:
-            return TNode()
-                ("metatype", "optional")
-                ("element", std::move(type));
-        case FieldDescriptor::LABEL_REQUIRED:
-            return type;
-    }
-    Y_FAIL();
-}
-
 TTableSchema CreateTableSchema(
     const Descriptor& messageDescriptor,
     const TKeyColumns& keyColumns,
     bool keepFieldsWithoutExtension)
 {
-    TTableSchema result;
-    auto messageSerializationMode = messageDescriptor.options().GetExtension(field_serialization_mode);
-    for (int fieldIndex = 0; fieldIndex < messageDescriptor.field_count(); ++fieldIndex) {
-        const auto& fieldDescriptor = *messageDescriptor.field(fieldIndex);
-        if (!keepFieldsWithoutExtension && !HasExtension(fieldDescriptor)) {
-            continue;
-        }
-        TColumnSchema column;
-        column.Name(NDetail::GetColumnName(fieldDescriptor));
-        column.RawTypeV2(CreateFieldRawTypeV2(fieldDescriptor, messageSerializationMode));
-        result.AddColumn(std::move(column));
-    }
-
+    auto result = CreateTableSchema(messageDescriptor, keepFieldsWithoutExtension);
     if (!keyColumns.Parts_.empty()) {
         result.SortBy(keyColumns.Parts_);
     }
-
     return result;
 }
-////////////////////////////////////////////////////////////////////////////////
 
 TTableSchema CreateTableSchema(NTi::TType::TPtr type)
 {
