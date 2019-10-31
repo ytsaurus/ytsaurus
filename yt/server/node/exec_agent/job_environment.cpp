@@ -641,6 +641,12 @@ private:
                     "cpu_guarantee",
                     "0.05c"))
                     .ThrowOnError();
+
+                WaitFor(PortoExecutor_->SetProperty(
+                    GetFullSlotMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex),
+                    "controllers",
+                    "freezer;cpu;cpuacct;cpuset"))
+                    .ThrowOnError();
             }
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Failed to create meta containers for jobs")
