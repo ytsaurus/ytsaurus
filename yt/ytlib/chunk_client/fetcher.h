@@ -13,6 +13,8 @@
 
 #include <yt/core/rpc/public.h>
 
+#include <yt/core/actions/public.h>
+
 namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -42,6 +44,7 @@ struct IFetcher
 {
     virtual void AddChunk(TInputChunkPtr chunk) = 0;
     virtual int GetChunkCount() const = 0;
+    virtual void SetCancelableContext(TCancelableContextPtr cancelableContext) = 0;
     virtual TFuture<void> Fetch() = 0;
 };
 
@@ -61,7 +64,14 @@ public:
 
     virtual void AddChunk(TInputChunkPtr chunk) override;
     virtual int GetChunkCount() const override;
+
     virtual TFuture<void> Fetch() override;
+
+    //! Set cancelable context for the fetcher.
+    //! NB: if invoker is cancelable, do not ever forget to provide its cancelable context;
+    //! otherwise internal promise inside fetcher may never be set and WaitFor on the fetch future
+    //! will never succeed, leading to fiber leak (refer to YT-11643 for example).
+    virtual void SetCancelableContext(TCancelableContextPtr cancelableContext) override;
 
 protected:
     const TFetcherConfigPtr Config_;
@@ -101,7 +111,9 @@ private:
     THashSet<NNodeTrackerClient::TNodeId> DeadNodes_;
 
     //! |(nodeId, chunkId)| pairs for which an error was returned from the node.
-    std::set< std::pair<NNodeTrackerClient::TNodeId, TChunkId> > DeadChunks_;
+    std::set<std::pair<NNodeTrackerClient::TNodeId, TChunkId>> DeadChunks_;
+
+    TCancelableContextPtr CancelableContext_;
 
     TPromise<void> Promise_ = NewPromise<void>();
 

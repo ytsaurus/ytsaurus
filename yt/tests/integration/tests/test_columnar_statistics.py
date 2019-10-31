@@ -18,6 +18,7 @@ class TestColumnarStatistics(YTEnvSetup):
                     "use_columnar_statistics" : True,
                 },
             },
+            "tagged_memory_statistics_update_period": 100,
         },
     }
 
@@ -266,6 +267,35 @@ class TestColumnarStatistics(YTEnvSetup):
         sync_compact_table("//tmp/t")
 
         self._expect_statistics(None, None, "key,value", [80, 20160], expected_timestamp_weight=(8 * 30))
+
+    @authors("max42")
+    def test_fetch_cancelation(self):
+        create("table", "//tmp/t", attributes={"optimize_for": "scan"})
+        create("table", "//tmp/d")
+        for i in range(10):
+            write_table("<append=%true>//tmp/t", [{"a": 'x' * 90, "b": 'y' * 10} for j in range(100)])
+
+        controller_agents = ls("//sys/controller_agents/instances")
+        assert len(controller_agents) == 1
+        controller_agent_orchid = "//sys/controller_agents/instances/{}/orchid/controller_agent".format(controller_agents[0])
+
+        op = map(dont_track=True,
+                 in_="//tmp/t{b}",
+                 out="//tmp/d",
+                 spec={"data_weight_per_job": 1000,
+                       "testing": {"cancellation_stage": "columnar_statistics_fetch"}},
+                 command="echo '{a=1}'")
+
+        with raises_yt_error("Test operation failure"):
+            op.track()
+
+        def operation_disposed():
+            entry = get(controller_agent_orchid + "/tagged_memory_statistics/0")
+            if entry["operation_id"] != op.id:
+                return False
+            return not entry["alive"]
+
+        wait(operation_disposed)
 
 ##################################################################
 

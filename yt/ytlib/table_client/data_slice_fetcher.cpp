@@ -52,6 +52,11 @@ std::vector<TInputDataSlicePtr> TDataSliceFetcher::GetDataSlices()
     return CombineVersionedChunkSlices(ChunkSliceFetcher_->GetChunkSlices());
 }
 
+void TDataSliceFetcher::SetCancelableContext(TCancelableContextPtr cancelableContext)
+{
+    ChunkSliceFetcher_->SetCancelableContext(std::move(cancelableContext));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient

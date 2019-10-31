@@ -94,15 +94,13 @@ public:
         {
             NProfiling::TWallTimer timer;
             auto memoryUsageBefore = GetMemoryUsageForTag(memoryTag);
-            auto controllerRefCount = underlying->GetRefCount();
-            YT_LOG_INFO("Started destructing operation controller (MemoryUsageBefore: %v, ControllerRefCount: %v)",
-                memoryUsageBefore,
-                controllerRefCount);
-            if (controllerRefCount != 1) {
-                YT_LOG_WARNING("Controller refcount is different from 1 right before the moment of expected destruction (ControllerRefCount: %v)",
-                    controllerRefCount);
+            YT_LOG_INFO("Started destructing operation controller (MemoryUsageBefore: %v)", memoryUsageBefore);
+            if (auto refCount = ResetAndGetResidualRefCount(underlying)) {
+                YT_LOG_WARNING(
+                    "Controller is going to be removed, but it has residual reference count; memory leak is possible "
+                    "(RefCount: %v)",
+                    refCount);
             }
-            underlying.Reset();
             auto memoryUsageAfter = GetMemoryUsageForTag(memoryTag);
             YT_LOG_INFO("Finished destructing operation controller (Elapsed: %v, MemoryUsageAfter: %v, MemoryUsageDecrease: %v)",
                 timer.GetElapsedTime(),

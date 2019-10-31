@@ -526,9 +526,19 @@ public:
         YT_VERIFY(Connected_);
 
         auto operation = GetOperationOrThrow(operationId);
-        const auto& controller = operation->GetController();
+        auto controller = operation->GetController();
         if (controller) {
             controller->Cancel();
+
+            // We carefully destroy controller and log warning if we detect that controller is actually leaked.
+            operation->SetController(nullptr);
+            auto refCount = ResetAndGetResidualRefCount(controller);
+            if (refCount > 0) {
+                YT_LOG_WARNING(
+                    "Operation is going to be unregistered, but its controller has non-zero residual refcount; memory leak is possible "
+                    "(RefCount: %v)",
+                    refCount);
+            }
         }
 
         YT_VERIFY(IdToOperation_.erase(operationId) == 1);

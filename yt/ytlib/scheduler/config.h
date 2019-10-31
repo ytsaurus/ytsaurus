@@ -396,8 +396,11 @@ DEFINE_ENUM(EDelayInsideOperationCommitStage,
     (Stage7)
 );
 
+DEFINE_ENUM(ECancelationStage,
+    (ColumnarStatisticsFetch)
+);
+
 DEFINE_ENUM(EControllerFailureType,
-    (None)
     (AssertionFailureInPrepare)
     (ExceptionThrownInOnJobCompleted)
 )
@@ -423,7 +426,9 @@ public:
     std::optional<i64> AllocationSize;
 
     //! Intentionally fails the operation controller. Used only for testing purposes.
-    EControllerFailureType ControllerFailure;
+    std::optional<EControllerFailureType> ControllerFailure;
+
+    std::optional<ECancelationStage> CancelationStage;
 
     bool FailGetJobSpec;
 
