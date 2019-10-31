@@ -749,9 +749,10 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
 
     // Testing purpose code.
     if (Config->EnableControllerFailureSpecOption &&
-        Spec_->TestingOperationOptions)
+        Spec_->TestingOperationOptions &&
+        Spec_->TestingOperationOptions->ControllerFailure)
     {
-        YT_VERIFY(Spec_->TestingOperationOptions->ControllerFailure !=
+        YT_VERIFY(*Spec_->TestingOperationOptions->ControllerFailure !=
             EControllerFailureType::AssertionFailureInPrepare);
     }
 
@@ -2274,7 +2275,8 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
 
     // Testing purpose code.
     if (Config->EnableControllerFailureSpecOption && Spec_->TestingOperationOptions &&
-        Spec_->TestingOperationOptions->ControllerFailure == EControllerFailureType::ExceptionThrownInOnJobCompleted)
+        Spec_->TestingOperationOptions->ControllerFailure &&
+        *Spec_->TestingOperationOptions->ControllerFailure == EControllerFailureType::ExceptionThrownInOnJobCompleted)
     {
         THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::TestingError, "Testing exception");
     }
@@ -4296,6 +4298,7 @@ void TOperationControllerBase::UpdateMinNeededJobResources()
 
 void TOperationControllerBase::FlushOperationNode(bool checkFlushResult)
 {
+    YT_LOG_DEBUG("Flushing operation node");
     // Some statistics are reported only on operation end so
     // we need to synchronously check everything and set
     // appropriate alerts before flushing operation node.
@@ -4331,7 +4334,9 @@ void TOperationControllerBase::OnOperationCompleted(bool interrupted)
 
 void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush)
 {
-    VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
+    VERIFY_INVOKER_POOL_AFFINITY(InvokerPool);
+
+    YT_LOG_DEBUG("Operation controller failed (Error: %v, Flush: %v)", error, flush);
 
     // During operation failing job aborting can lead to another operation fail, we don't want to invoke it twice.
     if (IsFinished()) {
@@ -4349,7 +4354,9 @@ void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush
 
     Error_ = error;
 
+    YT_LOG_DEBUG("Notifying host about operation controller failure");
     Host->OnOperationFailed(error);
+    YT_LOG_DEBUG("Host notified about operation controller failure");
 }
 
 void TOperationControllerBase::OnOperationAborted(const TError& error)
@@ -4932,6 +4939,8 @@ void TOperationControllerBase::FetchInputTables()
     if (columnarStatisticsFetcher->GetChunkCount() > 0) {
         YT_LOG_INFO("Fetching chunk columnar statistics for tables with column selectors (ChunkCount: %v)",
             columnarStatisticsFetcher->GetChunkCount());
+        MaybeCancel(ECancelationStage::ColumnarStatisticsFetch);
+        columnarStatisticsFetcher->SetCancelableContext(GetCancelableContext());
         WaitFor(columnarStatisticsFetcher->Fetch())
             .ThrowOnError();
         YT_LOG_INFO("Columnar statistics fetched");
@@ -5628,6 +5637,7 @@ void TOperationControllerBase::ValidateUserFileSizes()
     if (columnarStatisticsFetcher->GetChunkCount() > 0) {
         YT_LOG_INFO("Fetching columnar statistics for table files with column selectors (ChunkCount: %v)",
             columnarStatisticsFetcher->GetChunkCount());
+        columnarStatisticsFetcher->SetCancelableContext(GetCancelableContext());
         WaitFor(columnarStatisticsFetcher->Fetch())
             .ThrowOnError();
         columnarStatisticsFetcher->ApplyColumnSelectivityFactors();
@@ -6178,6 +6188,7 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersione
                 fetcher->AddChunk(chunk);
             }
 
+            fetcher->SetCancelableContext(GetCancelableContext());
             asyncResults.emplace_back(fetcher->Fetch());
             fetchers.emplace_back(std::move(fetcher));
         }
@@ -7144,6 +7155,8 @@ void TOperationControllerBase::BuildBriefProgress(TFluentMap fluent) const
 
 void TOperationControllerBase::BuildAndSaveProgress()
 {
+    YT_LOG_DEBUG("Building and saving progress");
+
     auto progressString = BuildYsonStringFluently()
         .BeginMap()
         .Do([=] (TFluentMap fluent) {
@@ -7174,10 +7187,12 @@ void TOperationControllerBase::BuildAndSaveProgress()
             !BriefProgressString_ || BriefProgressString_ != briefProgressString)
         {
             ShouldUpdateProgressInCypress_.store(true);
+            YT_LOG_DEBUG("New progress is different from previous one, should update progress in Cypress");
         }
         ProgressString_ = progressString;
         BriefProgressString_ = briefProgressString;
     }
+    YT_LOG_DEBUG("Progress built and saved");
 }
 
 TYsonString TOperationControllerBase::GetProgress() const
@@ -8444,6 +8459,18 @@ void TOperationControllerBase::AnalyzeProcessingUnitUsage(
     }
 
     SetOperationAlert(alertType, error);
+}
+
+void TOperationControllerBase::MaybeCancel(ECancelationStage cancelationStage)
+{
+    if (Spec_->TestingOperationOptions && Spec_->TestingOperationOptions->CancelationStage &&
+        cancelationStage == *Spec_->TestingOperationOptions->CancelationStage)
+    {
+        YT_LOG_INFO("Making test operation failure (CancelationStage: %v)", cancelationStage);
+        GetInvoker()->Invoke(BIND(&TOperationControllerBase::OnOperationFailed, MakeWeak(this), TError("Test operation failure"), false /* flush */));
+        YT_LOG_INFO("Making test cancelation (CancelationStage: %v)", cancelationStage);
+        Cancel();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

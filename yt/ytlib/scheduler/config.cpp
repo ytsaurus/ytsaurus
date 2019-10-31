@@ -164,7 +164,7 @@ TTestingOperationOptions::TTestingOperationOptions()
     RegisterParameter("delay_inside_operation_commit_stage", DelayInsideOperationCommitStage)
         .Default();
     RegisterParameter("controller_failure", ControllerFailure)
-        .Default(EControllerFailureType::None);
+        .Default();
     RegisterParameter("fail_get_job_spec", FailGetJobSpec)
         .Default(false);
     RegisterParameter("register_speculative_job_on_job_scheduled", RegisterSpeculativeJobOnJobScheduled)
@@ -172,6 +172,8 @@ TTestingOperationOptions::TTestingOperationOptions()
     RegisterParameter("allocation_size", AllocationSize)
         .GreaterThanOrEqual(0)
         .LessThanOrEqual(1_GB)
+        .Default();
+    RegisterParameter("cancellation_stage", CancelationStage)
         .Default();
 }
 

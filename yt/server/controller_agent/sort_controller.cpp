@@ -2511,6 +2511,7 @@ private:
                 SamplesFetcher->AddChunk(chunk);
             }
 
+            SamplesFetcher->SetCancelableContext(GetCancelableContext());
             asyncSamplesResult = SamplesFetcher->Fetch();
         }
 
