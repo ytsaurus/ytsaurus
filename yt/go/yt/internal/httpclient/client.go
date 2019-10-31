@@ -272,7 +272,7 @@ func (c *httpClient) doWriteRow(ctx context.Context, call *internal.Call) (w yt.
 	var ww io.WriteCloser
 
 	ctx, cancelFunc := context.WithCancel(ctx)
-	ww, err = c.doWrite(ctx, call)
+	ww, err = c.InvokeWrite(ctx, call)
 	if err != nil {
 		cancelFunc()
 		return
@@ -284,7 +284,7 @@ func (c *httpClient) doWriteRow(ctx context.Context, call *internal.Call) (w yt.
 
 func (c *httpClient) doReadRow(ctx context.Context, call *internal.Call) (r yt.TableReader, err error) {
 	var rr io.ReadCloser
-	rr, err = c.doRead(ctx, call)
+	rr, err = c.InvokeRead(ctx, call)
 	if err != nil {
 		return
 	}
@@ -369,9 +369,7 @@ func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 		Wrap(client.readRetrier.Intercept)
 
 	client.Encoder.InvokeRead = client.Encoder.InvokeRead.Wrap(client.requestLogger.Read)
-	client.Encoder.InvokeReadRow = client.Encoder.InvokeReadRow.Wrap(client.requestLogger.ReadRow)
 	client.Encoder.InvokeWrite = client.Encoder.InvokeWrite.Wrap(client.requestLogger.Write)
-	client.Encoder.InvokeWriteRow = client.Encoder.InvokeWriteRow.Wrap(client.requestLogger.WriteRow)
 
 	if c.Token != "" {
 		client.credentials = &yt.TokenCredentials{Token: c.Token}
