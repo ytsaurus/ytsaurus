@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"a.yandex-team.ru/library/go/ptr"
 	"a.yandex-team.ru/yt/go/schema"
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yt"
@@ -163,7 +164,7 @@ func TestHighLevelTableWriter(t *testing.T) {
 
 		var realSchema schema.Schema
 		require.NoError(t, env.YT.GetNode(env.Ctx, path.Attr("schema"), &realSchema, nil))
-		require.True(t, expectedSchema.Equal(realSchema), expectedSchema, realSchema)
+		require.Truef(t, expectedSchema.Equal(realSchema), "%v != %v", expectedSchema, realSchema)
 	}
 
 	t.Run("BigWrite", func(t *testing.T) {
@@ -181,5 +182,47 @@ func TestHighLevelTableWriter(t *testing.T) {
 		require.NoError(t, w.Commit())
 
 		checkTable(t, tmpTableName, testSize, schema.MustInfer(&exampleRow{}))
+	})
+
+	t.Run("EagerCreate", func(t *testing.T) {
+		tmpTableName := tmpPath()
+
+		w, err := yt.WriteTable(env.Ctx, env.YT, tmpTableName,
+			yt.WithCreateOptions(yt.WithInferredSchema(&exampleRow{})))
+		require.NoError(t, err)
+		defer func() { _ = w.Rollback() }()
+
+		checkTable(t, tmpTableName, 0, schema.MustInfer(&exampleRow{}))
+
+		const testSize = 1024
+		for i := 0; i < testSize; i++ {
+			require.NoError(t, w.Write(exampleRow{"foo", 1}))
+		}
+
+		require.NoError(t, w.Commit())
+
+		checkTable(t, tmpTableName, testSize, schema.MustInfer(&exampleRow{}))
+	})
+
+	t.Run("ExistingTable", func(t *testing.T) {
+		tmpTableName := tmpPath()
+
+		_, err := yt.CreateTable(env.Ctx, env.YT, tmpTableName)
+		require.NoError(t, err)
+
+		w, err := yt.WriteTable(env.Ctx, env.YT, tmpTableName, yt.WithExistingTable())
+		require.NoError(t, err)
+		defer func() { _ = w.Rollback() }()
+
+		checkTable(t, tmpTableName, 0, schema.Schema{Strict: ptr.Bool(false)})
+
+		const testSize = 1024
+		for i := 0; i < testSize; i++ {
+			require.NoError(t, w.Write(exampleRow{"foo", 1}))
+		}
+
+		require.NoError(t, w.Commit())
+
+		checkTable(t, tmpTableName, testSize, schema.Schema{Strict: ptr.Bool(false)})
 	})
 }

@@ -55,6 +55,18 @@ func WithInferredSchema(row interface{}) CreateTableOption {
 	}
 }
 
+func WithForce() CreateTableOption {
+	return func(options *CreateNodeOptions) {
+		options.Force = true
+	}
+}
+
+func WithRecursive() CreateTableOption {
+	return func(options *CreateNodeOptions) {
+		options.Recursive = true
+	}
+}
+
 func CreateTable(ctx context.Context, yc CypressClient, path ypath.Path, opts ...CreateTableOption) (id NodeID, err error) {
 	var createOptions CreateNodeOptions
 	for _, opt := range opts {

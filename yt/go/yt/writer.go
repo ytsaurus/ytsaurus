@@ -22,6 +22,25 @@ func WithBatchSize(batchSize int) WriteTableOption {
 	}
 }
 
+// WithCreateOptions disables default behavior of creating table on first Write().
+//
+// Instead, table is created when WriteTable() is called.
+func WithCreateOptions(opts ...CreateTableOption) WriteTableOption {
+	return func(w *tableWriter) {
+		w.eagerCreate = true
+		w.lazyCreate = false
+		w.createOptions = opts
+	}
+}
+
+// WithExisting table disables automatic table creation.
+func WithExistingTable() WriteTableOption {
+	return func(w *tableWriter) {
+		w.lazyCreate = false
+		w.eagerCreate = false
+	}
+}
+
 type (
 	WriteTableOption func(*tableWriter)
 
@@ -40,8 +59,9 @@ type (
 		rawWriter rawTableWriter
 		path      *ypath.Rich
 
-		batchSize   int
-		createTable bool
+		createOptions           []CreateTableOption
+		batchSize               int
+		lazyCreate, eagerCreate bool
 
 		encoder *yson.Writer
 		buffer  *bytes.Buffer
@@ -54,13 +74,17 @@ func (w *tableWriter) Write(value interface{}) error {
 		return w.err
 	}
 
-	if w.createTable {
-		_, w.err = CreateTable(w.ctx, w.yc, w.path.Path, WithInferredSchema(value))
+	if w.lazyCreate {
+		_, w.err = CreateTable(
+			w.ctx,
+			w.yc,
+			w.path.Path,
+			WithInferredSchema(value))
 		if w.err != nil {
 			return w.err
 		}
 
-		w.createTable = false
+		w.lazyCreate = false
 	}
 
 	w.encoder.Any(value)
@@ -129,17 +153,24 @@ var _ TableWriter = (*tableWriter)(nil)
 
 // WriteTable creates high level table writer.
 //
-// WriteTable automatically creates table with schema inferred from the first row.
+// By default, WriteTable overrides existing table, automatically creating table with schema inferred
+// from the first row.
 func WriteTable(ctx context.Context, yc Client, path ypath.Path, opts ...WriteTableOption) (TableWriter, error) {
 	w := &tableWriter{
-		ctx:         ctx,
-		yc:          yc,
-		batchSize:   defaultBatchSize,
-		createTable: true,
+		ctx:        ctx,
+		yc:         yc,
+		batchSize:  defaultBatchSize,
+		lazyCreate: true,
 	}
 
 	for _, opt := range opts {
 		opt(w)
+	}
+
+	if w.eagerCreate {
+		if _, err := CreateTable(ctx, yc, path, w.createOptions...); err != nil {
+			return nil, err
+		}
 	}
 
 	var ok bool
