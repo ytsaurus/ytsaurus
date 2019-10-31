@@ -6,11 +6,12 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/golang/protobuf/proto"
+
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/yt/go/guid"
 	"a.yandex-team.ru/yt/go/proto/core/misc"
 	"a.yandex-team.ru/yt/go/proto/core/rpc"
-	"github.com/golang/protobuf/proto"
 )
 
 type clientReq struct {
@@ -128,7 +129,7 @@ func (c *ClientConn) runSender() {
 			}
 
 		case <-c.stop:
-			break
+			return
 		}
 	}
 }
