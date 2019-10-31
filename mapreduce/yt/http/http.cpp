@@ -369,7 +369,7 @@ void TConnectionPool::Invalidate(
     auto range = Connections_.equal_range(hostName);
     for (auto it = range.first; it != range.second; ++it) {
         if (it->second == connection) {
-            LOG_DEBUG("Connection #%u invalidated",
+            LOG_DEBUG("Closing connection #%u",
                 connection->Id);
             Connections_.erase(it);
             return;
@@ -658,13 +658,25 @@ void THttpRequest::Connect(TString hostName, TDuration socketTimeout)
         Connection->Id);
 }
 
+static TString GetParametersDebugString(const THttpHeader& header)
+{
+    const auto& parameters = header.GetParameters();
+    if (parameters.Empty()) {
+        return "<empty>";
+    } else {
+        return NodeToYsonString(parameters);
+    }
+}
+
 THttpOutput* THttpRequest::StartRequestImpl(const THttpHeader& header, bool includeParameters)
 {
     auto strHeader = header.GetHeader(HostName, RequestId, includeParameters);
     Url_ = header.GetUrl();
-    LOG_DEBUG("REQ %s - %s",
+    LOG_DEBUG("REQ %s - method: \"%s\" ; X-YT-Parameters (sent in %s): %s",
         RequestId.data(),
-        Url_.data());
+        Url_.data(),
+        includeParameters ? "header" : "body",
+        GetParametersDebugString(header).data());
 
     auto outputFormat = header.GetOutputFormat();
     if (outputFormat && outputFormat->IsTextYson()) {
@@ -686,13 +698,6 @@ THttpOutput* THttpRequest::StartRequestImpl(const THttpHeader& header, bool incl
 
 THttpOutput* THttpRequest::StartRequest(const THttpHeader& header)
 {
-    auto parameters = header.GetParameters();
-    if (!parameters.Empty()) {
-        auto parametersStr = NodeToYsonString(parameters);
-        LOG_DEBUG("REQ %s - X-YT-Parameters: %s",
-            RequestId.data(),
-            parametersStr.data());
-    }
     return StartRequestImpl(header, true);
 }
 
@@ -708,14 +713,8 @@ void THttpRequest::FinishRequest()
 void THttpRequest::SmallRequest(const THttpHeader& header, TMaybe<TStringBuf> body)
 {
     if (!body && (header.GetMethod() == "PUT" || header.GetMethod() == "POST")) {
-        auto parameters = header.GetParameters();
+        const auto& parameters = header.GetParameters();
         auto parametersStr = NodeToYsonString(parameters);
-        if (!parameters.Empty()) {
-            // Want to log parameters before request.
-            LOG_DEBUG("REQ %s - parameters (in body): %s",
-                RequestId.data(),
-                parametersStr.data());
-        }
         auto* output = StartRequestImpl(header, false);
         output->Write(parametersStr);
         FinishRequest();
@@ -748,19 +747,19 @@ TString THttpRequest::GetResponse()
     TString result = GetResponseStream()->ReadAll();
 
     if (LogResponse) {
-        const size_t sizeLimit = 2 << 10;
+        const size_t sizeLimit = 1 << 7;
         if (result.size() > sizeLimit) {
-            LOG_DEBUG("RSP %s - %s...truncated - %" PRISZT " bytes total",
+            LOG_DEBUG("RSP %s - received response: %s...truncated - %" PRISZT " bytes total",
                 RequestId.data(),
                 result.substr(0, sizeLimit).data(),
                 result.size());
         } else {
-            LOG_DEBUG("RSP %s - %s",
+            LOG_DEBUG("RSP %s - received response: %s",
                 RequestId.data(),
-                result.data());
+                result.empty() ? "<empty>" : result.data());
         }
     } else {
-        LOG_DEBUG("RSP %s - %" PRISZT " bytes",
+        LOG_DEBUG("RSP %s - received response of %" PRISZT " bytes",
             RequestId.data(),
             result.size());
     }
