@@ -9,7 +9,9 @@ object Test extends SparkApp {
   override def run(spark: SparkSession): Unit = {
     val user = spark.read.yt("/home/sashbel/data/user")
 
-    user.groupBy("application_platform").count().sort(desc("count"))
-      .coalesce(1).write.mode(SaveMode.Overwrite).yt("/home/sashbel/data/test")
+    user
+      .groupBy("application_platform").count().sort("count").coalesce(1)
+      .write.mode(SaveMode.Overwrite).sortedBy("count").optimizeFor(OptimizeMode.Scan)
+      .yt("/home/sashbel/data/test")
   }
 }

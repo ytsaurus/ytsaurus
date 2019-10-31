@@ -162,7 +162,7 @@ object YtTableUtils {
 
   def readFile(path: String, transaction: Option[String] = None)(implicit yt: YtClient): InputStream = {
     val fileReader = yt.readFile(new ReadFile(formatPath(path))).join()
-    new FileIterator(fileReader)
+    new YtFileInputStream(fileReader)
   }
 
   def listDirectory(path: String, transaction: Option[String] = None)(implicit yt: YtClient): Array[String] = {

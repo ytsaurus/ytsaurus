@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
-import os
 import argparse
+import os
 from yt.wrapper.cypress_commands import list
 
 parser = argparse.ArgumentParser(description="Spark Submit")
@@ -18,7 +18,7 @@ working_dir = args.working_dir or "//home/{0}/spark-tmp".format(user)
 spark_home = os.getenv("SPARK_HOME")
 master = list("{0}/instances/{1}/address".format(working_dir, id))[0]
 
-spark_args = ["spark-shell", "--master", "spark://{0}".format(master)]
+spark_args = ["spark-submit", "--master", "spark://{0}".format(master)]
 spark_env = os.environ.copy()
 
 if args.auto_auth:

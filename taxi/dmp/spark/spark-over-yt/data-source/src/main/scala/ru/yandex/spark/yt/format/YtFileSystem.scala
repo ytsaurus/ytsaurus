@@ -124,4 +124,9 @@ class YtFileSystem extends FileSystem {
   private def ytPath(f: Path): String = {
     f.toUri.getPath
   }
+
+  override def close(): Unit = {
+    log.info("YtFileSystem closed")
+    super.close()
+  }
 }

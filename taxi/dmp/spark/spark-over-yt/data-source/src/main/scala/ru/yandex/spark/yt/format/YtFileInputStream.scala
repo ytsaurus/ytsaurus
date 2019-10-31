@@ -1,13 +1,13 @@
 package ru.yandex.spark.yt.format
 
-import java.util.concurrent.{CancellationException, TimeUnit}
+import java.util.concurrent.TimeUnit
 
 import org.apache.hadoop.fs.FSInputStream
 import org.apache.log4j.Logger
 import ru.yandex.yt.ytclient.proxy.FileReader
 import ru.yandex.yt.ytclient.proxy.internal.FileReaderImpl
 
-class FileIterator(reader: FileReader) extends FSInputStream {
+class YtFileInputStream(reader: FileReader) extends FSInputStream {
   private val log = Logger.getLogger(getClass)
   private var chunk: Iterator[Byte] = _
   private var pos: Long = 0
