@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 
-import os
 import argparse
+import os
 from yt.wrapper.cypress_commands import list
 
 parser = argparse.ArgumentParser(description="Spark Shell")
 parser.add_argument("--id", required=True)
 parser.add_argument("--working-dir", required=False)
+parser.add_argument("--auto-auth", required=False, default=True, type=bool)
 
 args, unknown_args = parser.parse_known_args()
 
@@ -17,7 +18,16 @@ working_dir = args.working_dir or "//home/{0}/spark-tmp".format(user)
 spark_home = os.getenv("SPARK_HOME")
 master = list("{0}/instances/{1}/address".format(working_dir, id))[0]
 
-print(spark_home)
+spark_args = ["spark-shell", "--master", "spark://{0}".format(master)]
+spark_env = os.environ.copy()
 
-os.execv("{0}/bin/spark-shell".format(spark_home),
-         ["spark-shell", "--master", "spark://{0}".format(master)] + unknown_args)
+if args.auto_auth:
+    with open("{0}/.yt/token".format(os.getenv("HOME"))) as f:
+        token = f.readline().strip()
+    spark_args.append("--conf")
+    spark_args.append("spark.yt.user={}".format(user))
+    spark_args.append("--conf")
+    spark_args.append("spark.yt.token={}".format(token))
+    spark_env["SPARK_USER"] = user
+
+os.execve("{0}/bin/spark-shell".format(spark_home), spark_args + unknown_args, spark_env)
