@@ -562,6 +562,11 @@ message TBox {
     // На файловой системе box'а обязательно наличие директории /yt
     // Эту директорию можно добавить с помощью небольшого слоя sbr:1014359696
 
+    // Если в аннотациях пода есть флаг: pod.rbind.basesearch: true
+    // То pod_agent создает bind volume из <pod_chroot>/basesearch в <box_chroot>/basesearch
+    // На файловой системе box'а обязательно наличие директории /basesearch
+    // Эту директорию можно добавить с помощью небольшого слоя sbr:1193357615
+
     // Ограничения на meta контейнер Box
     TComputeResources compute_resources = 12;
 
