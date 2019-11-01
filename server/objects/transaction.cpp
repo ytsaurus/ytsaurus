@@ -3505,6 +3505,11 @@ TPodDisruptionBudget* TTransaction::GetPodDisruptionBudget(const TObjectId& id)
     return Impl_->GetPodDisruptionBudget(id);
 }
 
+TIP4AddressPool* TTransaction::GetIP4AddressPool(const TObjectId& id)
+{
+    return Impl_->GetIP4AddressPool(id);
+}
+
 TFuture<TTransactionCommitResult> TTransaction::Commit()
 {
     return Impl_->Commit();

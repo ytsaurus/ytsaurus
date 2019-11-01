@@ -1263,18 +1263,31 @@ class TestSchedulerEveryNodeSelectionStrategy(object):
         assert candidate != self._get_default_node_configuration()["vlan_id"]
         return candidate
 
-    def _test_scheduling_error(self, yp_env_configurable, pod_spec, status_check):
+    def _create_default_nodes(self, yp_env_configurable, config=dict()):
         yp_client = yp_env_configurable.yp_client
         default_config = self._get_default_node_configuration()
+        default_config.update(config)
         create_nodes(yp_client, node_count=self._NODE_COUNT, **default_config)
-        pod_set_id = create_pod_set_with_quota(
+
+    def _create_default_pod_set(self, yp_env_configurable):
+        yp_client = yp_env_configurable.yp_client
+        return create_pod_set_with_quota(
             yp_client,
             cpu_quota=2 ** 60,
             memory_quota=2 ** 60,
             bandwidth_quota=2 ** 60,
             disk_quota=dict(hdd=dict(capacity=2 ** 60)))[0]
-        pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, pod_spec)
+
+    def _validate_scheduling_error(self, yp_env_configurable, pod_id, status_check):
+        yp_client = yp_env_configurable.yp_client
         wait(lambda: status_check(get_pod_scheduling_status(yp_client, pod_id)))
+
+    def _test_scheduling_error(self, yp_env_configurable, pod_spec, status_check):
+        yp_client = yp_env_configurable.yp_client
+        self._create_default_nodes(yp_env_configurable)
+        pod_set_id = self._create_default_pod_set(yp_env_configurable)
+        pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, pod_spec)
+        self._validate_scheduling_error(yp_env_configurable, pod_id, status_check)
 
     def _error_status_check(self, allocation_error_string, status):
         return is_error_pod_scheduling_status(status) and \
@@ -1287,7 +1300,7 @@ class TestSchedulerEveryNodeSelectionStrategy(object):
                 return False
         return True
 
-    def test_ip6_address_internet_scheduling_error(self, yp_env_configurable):
+    def test_ip6_address_internet_scheduling_unknown_module_error(self, yp_env_configurable):
         pod_spec = dict(
             enable_scheduling=True,
             ip6_address_requests=[
@@ -1298,8 +1311,84 @@ class TestSchedulerEveryNodeSelectionStrategy(object):
                 ),
             ],
         )
-        status_check = partial(self._error_status_check, "IP6AddressIP4Tunnel")
+        status_check = partial(self._error_status_check, "IP6AddressIP4TunnelUnknownNetworkModule")
         self._test_scheduling_error(yp_env_configurable, pod_spec, status_check)
+
+    def test_ip6_address_internet_scheduling_capacity_error(self, yp_env_configurable):
+        yp_client = yp_env_configurable.yp_client
+
+        user_name = "root"
+        network_module_id = "EKB-4.3.2"  # New empty network module.
+        vlan_id = self._get_default_node_configuration()["vlan_id"]
+
+        network_id = yp_client.create_object("network_project", attributes={
+            "spec": {
+                "project_id": 123,
+            },
+            "meta": {
+                "acl": [
+                    {
+                        "action": "allow",
+                        "permissions": [
+                            "use",
+                        ],
+                        "subjects": [
+                            user_name,
+                        ]
+                    }
+                ],
+            },
+        })
+
+        ip4_address_pool_id = yp_client.create_object("ip4_address_pool", attributes={
+            "meta": {
+                "acl": [
+                    {
+                        "action": "allow",
+                        "permissions": [
+                            "use",
+                        ],
+                        "subjects": [
+                            user_name,
+                        ]
+                    }
+                ],
+            },
+        })
+
+        # Populating the module with exactly one address.
+        yp_client.create_object("internet_address", attributes={
+            "meta": {
+                "ip4_address_pool_id": ip4_address_pool_id,
+            },
+            "spec": {
+                "ip4_address": "1.3.5.7",
+                "network_module_id": network_module_id,
+            },
+        })
+
+        pod_spec = dict(
+            enable_scheduling=True,
+            ip6_address_requests=[
+                dict(
+                    vlan_id=vlan_id,
+                    network_id=network_id,
+                    ip4_address_pool_id=ip4_address_pool_id,
+                ),
+            ],
+        )
+
+        self._create_default_nodes(yp_env_configurable, config=dict(network_module_id=network_module_id))
+        pod_set_id = self._create_default_pod_set(yp_env_configurable)
+
+        # Occupying the only ip4 address in network module.
+        first_pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, pod_spec)
+        wait(lambda: is_pod_assigned(yp_client, first_pod_id))
+
+        # Scheduling of the second pod should fail due to the lack of ip4 addresses in network module.
+        second_pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, pod_spec)
+        status_check = partial(self._error_status_check, "IP6AddressIP4TunnelCapacity")
+        self._validate_scheduling_error(yp_env_configurable, second_pod_id, status_check)
 
     def test_ip6_address_vlan_scheduling_error(self, yp_env_configurable):
         pod_spec = dict(

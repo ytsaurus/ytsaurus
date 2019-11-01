@@ -3,7 +3,7 @@ import pytest
 from .conftest import ZERO_RESOURCE_REQUESTS
 
 from yp.common import YtResponseError, YpInvalidObjectTypeError
-from yp.local import OBJECT_TYPES
+from yp.local import DEFAULT_IP4_ADDRESS_POOL_ID, OBJECT_TYPES
 
 from yp.data_model import TPodSetMeta, TPodSetSpec, TPodSet
 
@@ -336,7 +336,7 @@ class TestObjects(object):
         _check("group")
         _check("ip4_address_pool", attributes={"meta": {"acl": []}})
         _check("internet_address", attributes={
-            "meta": {"ip4_address_pool_id": "default_ip4_address_pool"},
+            "meta": {"ip4_address_pool_id": DEFAULT_IP4_ADDRESS_POOL_ID},
             "spec": {"ip4_address": "1.2.3.4", "network_module_id": "xyz"}
         })
         _check("dns_record_set")

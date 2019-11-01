@@ -29,8 +29,6 @@ public:
         const NObjects::TTransactionPtr& transaction,
         NObjects::TPod* pod);
 
-    static NObjects::TObjectId GetDefaultIP4AddressPoolId();
-
 private:
     std::optional<NObjects::TObjectId> TakeInternetAddress(
         const NObjects::TObjectId& ip4AddressPoolId,

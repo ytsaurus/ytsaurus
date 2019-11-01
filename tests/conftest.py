@@ -190,6 +190,7 @@ def create_nodes(
         gpu_specs=None,
         vlan_id="backbone",
         subnet="1:2:3:4::/64",
+        network_module_id=None,
         node_ids=None,
         labels=None):
     disk_spec_defaults = dict(
@@ -222,14 +223,21 @@ def create_nodes(
                 dc="butovo",
             ),
         )
+        node_spec = {
+            "ip6_subnets": [
+                {
+                    "vlan_id": vlan_id,
+                    "subnet": subnet,
+                },
+            ],
+        }
+        if network_module_id is not None:
+            node_spec["network_module_id"] = network_module_id
+
         current_labels = update(base_labels, get_value(labels, {}))
         node_id = yp_client.create_object("node", attributes={
                 "meta": node_meta,
-                "spec": {
-                    "ip6_subnets": [
-                        {"vlan_id": vlan_id, "subnet": subnet}
-                    ]
-                },
+                "spec": node_spec,
                 "labels" : current_labels,
             })
         yp_client.update_hfsm_state(node_id, hfsm_state, "Test")

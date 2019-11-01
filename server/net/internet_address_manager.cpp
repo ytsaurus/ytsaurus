@@ -1,8 +1,9 @@
 #include "internet_address_manager.h"
 
+#include <yp/server/objects/internet_address.h>
+#include <yp/server/objects/ip4_address_pool.h>
 #include <yp/server/objects/node.h>
 #include <yp/server/objects/pod.h>
-#include <yp/server/objects/internet_address.h>
 #include <yp/server/objects/transaction.h>
 
 namespace NYP::NServer::NNet {
@@ -48,7 +49,7 @@ void TInternetAddressManager::AssignInternetAddressesToPod(
 
         NObjects::TObjectId ip4AddressPoolId;
         if (ip6AddressRequest.ip4_address_pool_id().empty()) {
-            ip4AddressPoolId = GetDefaultIP4AddressPoolId();
+            ip4AddressPoolId = NObjects::DefaultIP4AddressPoolId;
         } else {
             ip4AddressPoolId = ip6AddressRequest.ip4_address_pool_id();
         }
@@ -90,11 +91,6 @@ void TInternetAddressManager::RevokeInternetAddressesFromPod(
             FreeAddresses_[std::make_pair(ip4AddressPool, addressSpec.network_module_id())].push(addressId);
         }
     }
-}
-
-NObjects::TObjectId TInternetAddressManager::GetDefaultIP4AddressPoolId()
-{
-    return "default_ip4_address_pool";
 }
 
 ////////////////////////////////////////////////////////////////////////////////

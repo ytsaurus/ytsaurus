@@ -21,10 +21,10 @@ public:
         : NetworkModule_(networkModule)
     { }
 
-    bool TryAllocate(int allocationSize)
+    bool TryAllocate(int allocationSize, TAllocatorDiagnostics* diagnostics)
     {
         ReleaseAddresses();
-        return TryAcquireAddresses(allocationSize);
+        return TryAcquireAddresses(allocationSize, diagnostics);
     }
 
     void Commit()
@@ -53,7 +53,7 @@ private:
         }
     }
 
-    bool TryAcquireAddresses(int allocationSize)
+    bool TryAcquireAddresses(int allocationSize, TAllocatorDiagnostics* diagnostics)
     {
         YT_VERIFY(allocationSize >= 0);
 
@@ -62,10 +62,12 @@ private:
         }
 
         if (!NetworkModule_) {
+            diagnostics->RegisterUnsatisfiedConstraint(EAllocatorConstraintKind::IP6AddressIP4TunnelUnknownNetworkModule);
             return false;
         }
 
         if (NetworkModule_->AllocatedInternetAddressCount() + allocationSize > NetworkModule_->InternetAddressCount()) {
+            diagnostics->RegisterUnsatisfiedConstraint(EAllocatorConstraintKind::IP6AddressIP4TunnelCapacity);
             return false;
         }
 
@@ -106,8 +108,7 @@ public:
                 ++internetAddressCount;
             }
         }
-        if (!InternetAddressAllocationContext_.TryAllocate(internetAddressCount)) {
-            diagnostics->RegisterUnsatisfiedConstraint(EAllocatorConstraintKind::IP6AddressIP4Tunnel);
+        if (!InternetAddressAllocationContext_.TryAllocate(internetAddressCount, diagnostics)) {
             result = false;
         }
         return result;

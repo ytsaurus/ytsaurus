@@ -1,14 +1,16 @@
 #include "pod_type_handler.h"
-#include "type_handler_detail.h"
-#include "pod.h"
+
+#include "account.h"
+#include "config.h"
+#include "db_schema.h"
+#include "ip4_address_pool.h"
+#include "network_project.h"
 #include "node.h"
 #include "node_segment.h"
-#include "pod_set.h"
-#include "account.h"
-#include "network_project.h"
+#include "pod.h"
 #include "pod_disruption_budget.h"
-#include "db_schema.h"
-#include "config.h"
+#include "pod_set.h"
+#include "type_handler_detail.h"
 
 #include <yp/server/net/internet_address_manager.h>
 #include <yp/server/net/net_manager.h>
@@ -547,10 +549,14 @@ private:
 
     void ValidateNetworkRequests(TTransaction* transaction, TPod* pod)
     {
+        auto validateUsePermission = [&] (TObject* object) {
+            const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
+            accessControlManager->ValidatePermission(object, EAccessControlPermission::Use);
+        };
+
         auto validateNetworkProject = [&] (const TObjectId& networkProjectId) {
             auto* networkProject = transaction->GetNetworkProject(networkProjectId);
-            const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
-            accessControlManager->ValidatePermission(networkProject, EAccessControlPermission::Use);
+            validateUsePermission(networkProject);
         };
 
         for (const auto& request : pod->Spec().Etc().Load().ip6_address_requests()) {
@@ -558,6 +564,14 @@ private:
 
             for (const auto& virtualServiceId : request.virtual_service_ids()) {
                 ValidateObjectId(EObjectType::VirtualService, virtualServiceId);
+            }
+
+            if (const auto& poolId = request.ip4_address_pool_id(); !poolId.empty()) {
+                auto* pool = transaction->GetIP4AddressPool(poolId);
+                validateUsePermission(pool);
+            } else if (request.enable_internet()) {
+                auto* pool = transaction->GetIP4AddressPool(DefaultIP4AddressPoolId);
+                validateUsePermission(pool);
             }
         }
 

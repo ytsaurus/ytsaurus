@@ -1,5 +1,7 @@
 from .conftest import ZERO_RESOURCE_REQUESTS
 
+from yp.local import DEFAULT_IP4_ADDRESS_POOL_ID
+
 from yp.common import wait, YtResponseError
 
 from yt.yson import YsonEntity
@@ -47,10 +49,10 @@ class TestInternetAddresses(object):
 
         return pod_set_id
 
-    def _create_inet_addr(self, yp_client, network_module_id, addr):
+    def _create_inet_addr(self, yp_client, network_module_id, addr, ip4_address_pool_id=DEFAULT_IP4_ADDRESS_POOL_ID):
         inet_addr_id = yp_client.create_object("internet_address", attributes={
                 "meta": {
-                    "ip4_address_pool_id": "default_ip4_address_pool"
+                    "ip4_address_pool_id": ip4_address_pool_id,
                 },
                 "spec": {
                     "ip4_address": addr,
@@ -102,7 +104,7 @@ class TestInternetAddresses(object):
             object_type="internet_address",
             attributes={
                 "meta": {
-                    "ip4_address_pool_id": "default_ip4_address_pool",
+                    "ip4_address_pool_id": DEFAULT_IP4_ADDRESS_POOL_ID,
                     "id": "inet_addr",
                 },
                 "spec": {

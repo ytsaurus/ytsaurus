@@ -183,11 +183,14 @@ extern const TObjectId SuperusersGroupId;
 // Built-in accounts.
 extern const TObjectId TmpAccountId;
 
-//Built-in node segments.
+// Built-in node segments.
 extern const TObjectId DefaultNodeSegmentId;
 
 // Pseudo-subjects.
 extern const TObjectId EveryoneSubjectId;
+
+// Built-in pool of ip4 addresses .
+extern const TObjectId DefaultIP4AddressPoolId;
 
 ////////////////////////////////////////////////////////////////////////////////
 

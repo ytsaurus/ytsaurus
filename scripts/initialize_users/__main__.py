@@ -433,7 +433,8 @@ def initialize_users(cluster):
         set_schema_permissions(client, "account", "robot-rsc", right_u)
         set_schema_permissions(client, "account", "robot-vmagent-rtc", right_u)
 
-        set_schema_permissions(client, "internet_address", "robot-yp-inet-mng", right_crwu)
+        set_schema_permissions(client, "internet_address", "robot-yp-inet-mngr", right_crwu)
+        set_schema_permissions(client, "ip4_address_pool", "robot-yp-inet-mngr", right_crwu)
 
         set_schema_permissions(client, "endpoint_set", "robot-srv-ctl", right_rw)
 
