@@ -387,17 +387,20 @@ TGrpcPemKeyCertPair LoadPemKeyCertPair(const TSslPemKeyCertPairConfigPtr& config
 TGrpcChannelCredentialsPtr LoadChannelCredentials(const TChannelCredentialsConfigPtr& config)
 {
     auto rootCerts = config->PemRootCerts ? config->PemRootCerts->LoadBlob() : TString();
-    auto keyCertPair = LoadPemKeyCertPair(config->PemKeyCertPair);
+    std::optional<TGrpcPemKeyCertPair> keyCertPair;
+    if (config->PemKeyCertPair) {
+        keyCertPair.emplace(LoadPemKeyCertPair(config->PemKeyCertPair));
+    }
     return TGrpcChannelCredentialsPtr(grpc_ssl_credentials_create(
         rootCerts ? rootCerts.c_str() : nullptr,
-        keyCertPair.Unwrap(),
+        keyCertPair ? keyCertPair->Unwrap() : nullptr,
         nullptr,
         nullptr));
 }
 
 TGrpcServerCredentialsPtr LoadServerCredentials(const TServerCredentialsConfigPtr& config)
 {
-    auto rootCerts = config->PemRootCerts? config->PemRootCerts->LoadBlob() : TString();
+    auto rootCerts = config->PemRootCerts ? config->PemRootCerts->LoadBlob() : TString();
     std::vector<TGrpcPemKeyCertPair> keyCertPairs;
     std::vector<grpc_ssl_pem_key_cert_pair> nativeKeyCertPairs;
     for (const auto& pairConfig : config->PemKeyCertPairs) {
