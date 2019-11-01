@@ -23,6 +23,11 @@ class SchedulerCluster(SchedulerClusterBase):
         return [type_[:-1] if type_ != "internet_addresses" else type_[:-2]
                 for type_ in cls._fields]
 
+    def iter_pods_with_pod_set(self):
+        id_to_pod_set = {pod_set["meta"]["id"]: pod_set for pod_set in self.pod_sets}
+        for pod in self.pods:
+            yield pod, id_to_pod_set[pod["meta"]["pod_set_id"]]
+
 
 POD_SET_SELECTORS = [
     "/meta",
