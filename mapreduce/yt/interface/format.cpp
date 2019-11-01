@@ -234,7 +234,7 @@ TNode MakeProtoFormatFieldConfig(
     if (fieldDescriptor->is_repeated()) {
         Y_ENSURE_EX(fieldOptions.SerializationMode == EProtobufSerializationMode::Yt,
             TApiUsageError() << "Repeated field " << fieldDescriptor->full_name() << ' ' <<
-            "must have flag" << EWrapperFieldFlag::EXPERIMENTAL_SERIALIZATION_YT);
+            "must have flag " << EWrapperFieldFlag::EXPERIMENTAL_SERIALIZATION_YT);
     }
     fieldConfig["repeated"] = fieldDescriptor->is_repeated();
 

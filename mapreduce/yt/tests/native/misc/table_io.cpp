@@ -864,7 +864,7 @@ Y_UNIT_TEST_SUITE(TableIo) {
             client->CreateTableWriter<TBadProtobufSerializedRow>(
                 TRichYPath(workingDir + "/table").Schema(schema)),
             TApiUsageError,
-            "Repeated fields are allowed only for EXPERIMENTAL_SERIALIZATION_YT mode");
+            "Repeated field NYT.NTesting.TBadProtobufSerializedRow.Ints must have flag EXPERIMENTAL_SERIALIZATION_YT");
     }
 
     Y_UNIT_TEST(ProtobufWithTypeOption)
