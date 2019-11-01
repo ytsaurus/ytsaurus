@@ -25,6 +25,7 @@ import uuid
 from copy import deepcopy
 import shutil
 import logging
+import socket
 import pytest
 
 def pytest_ignore_collect(path, config):
@@ -193,7 +194,6 @@ class YtTestEnvironment(object):
         self.config["read_parallel"]["max_thread_count"] = 10
 
         self.config["enable_token"] = False
-        self.config["is_local_mode"] = False
         self.config["pickling"]["enable_tmpfs_archive"] = ENABLE_JOB_CONTROL
         self.config["pickling"]["module_filter"] = lambda module: hasattr(module, "__file__") and not "driver_lib" in module.__file__
         if config["backend"] != "rpc":
@@ -201,6 +201,13 @@ class YtTestEnvironment(object):
         self.config["local_temp_directory"] = local_temp_directory
         self.config["enable_logging_for_params_changes"] = True
         self.config["allow_fallback_to_native_driver"] = False
+
+        # NB: temporary hack
+        if arcadia_interop.yatest_common is not None:
+            self.config["is_local_mode"] = True
+        else:
+            self.config["is_local_mode"] = False
+
         self.reload_global_configuration()
 
         os.environ["PATH"] = ".:" + os.environ["PATH"]
@@ -210,6 +217,10 @@ class YtTestEnvironment(object):
             del os.environ["YT_PROXY"]
 
         os.environ["YT_LOCAL_PORT_LOCKS_PATH"] = get_port_locks_path()
+
+        # NB: temporary hack
+        if arcadia_interop.yatest_common is not None:
+            self.env._create_cluster_client().set("//sys/@local_mode_fqdn", socket.getfqdn())
 
         # Resolve indeterminacy in sys.modules due to presence of lazy imported modules.
         for module in list(itervalues(sys.modules)):
