@@ -201,7 +201,9 @@ const TDynamicCypressManagerConfigPtr& TExpirationTracker::GetDynamicConfig()
 
 void TExpirationTracker::OnDynamicConfigChanged()
 {
-    CheckExecutor_->SetPeriod(GetDynamicConfig()->ExpirationCheckPeriod);
+    if (CheckExecutor_) {
+        CheckExecutor_->SetPeriod(GetDynamicConfig()->ExpirationCheckPeriod);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
