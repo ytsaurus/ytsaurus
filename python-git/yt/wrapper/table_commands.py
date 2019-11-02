@@ -1,5 +1,6 @@
 from .common import (flatten, require, update, get_value, set_param, datetime_to_string,
                      MB, chunk_iter_stream, deprecated)
+from .compression import try_enable_parallel_write_gzip
 from .config import get_config, get_option
 from .cypress_commands import (exists, remove, get_attribute, copy,
                                move, mkdir, find_free_subpath, create, get, has_attribute)
@@ -192,10 +193,14 @@ def write_table(table, input_stream, format=None, table_writer=None,
     if get_config(client)["write_retries"]["enable"] and not can_split_input:
         logger.warning("Cannot split input into rows. Write is processing by one request.")
 
-    enable_parallel_writing = get_config(client)["write_parallel"]["enable"] and \
+    config_enable_parallel_write = get_config(client)["write_parallel"]["enable"]
+    enable_parallel_write = \
+        config_enable_parallel_write and \
         can_split_input and \
         not is_stream_compressed and \
         "sorted_by" not in table.attributes
+    if enable_parallel_write and get_config(client)["proxy"]["content_encoding"] == "gzip":
+        enable_parallel_write = try_enable_parallel_write_gzip(config_enable_parallel_write)
 
     chunk_size = get_config(client)["write_retries"]["chunk_size"]
     if chunk_size is None:
@@ -205,11 +210,11 @@ def write_table(table, input_stream, format=None, table_writer=None,
         input_stream,
         format,
         raw,
-        split_rows=(enable_retries or enable_parallel_writing),
+        split_rows=(enable_retries or enable_parallel_write),
         chunk_size=chunk_size,
         rows_chunk_size=get_config(client)["write_retries"]["rows_chunk_size"])
 
-    if enable_parallel_writing:
+    if enable_parallel_write:
         force_create = True
         table = _with_schema_if_exists(table, client=client)
         make_parallel_write_request(
