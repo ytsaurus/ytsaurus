@@ -44,6 +44,8 @@
 
 #include <yt/core/misc/public.h>
 
+#include <yt/core/profiling/profiler.h>
+
 namespace NYT::NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -95,6 +97,7 @@ public:
     const NHiveServer::THiveManagerPtr& GetHiveManager() const;
     const NHiveClient::TCellDirectoryPtr& GetCellDirectory() const;
     const IInvokerPtr& GetControlInvoker() const;
+    const IInvokerPtr& GetProfilerInvoker() const;
     const NNodeTrackerClient::INodeChannelFactoryPtr& GetNodeChannelFactory() const;
 
     void Initialize();
@@ -146,10 +149,14 @@ private:
     NHiveClient::TCellDirectoryPtr CellDirectory_;
     NHiveServer::TCellDirectorySynchronizerPtr CellDirectorySynchronizer_;
     NConcurrency::TActionQueuePtr ControlQueue_;
+    NConcurrency::TActionQueuePtr ProfilerQueue_;
     ICoreDumperPtr CoreDumper_;
     TAnnotationSetterPtr AnnotationSetter_;
 
     NNodeTrackerClient::INodeChannelFactoryPtr NodeChannelFactory_;
+
+    NProfiling::TProfiler Profiler_;
+    NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
 
     static NElection::TPeerId ComputePeerId(
         NElection::TCellConfigPtr config,
@@ -157,6 +164,9 @@ private:
 
     NObjectClient::TCellTagList GetKnownParticipantCellTags() const;
     NApi::NNative::IConnectionPtr CreateClusterConnection() const;
+
+    void OnProfiling();
+
     void DoInitialize();
     void DoRun();
     void DoLoadSnapshot(const TString& fileName, bool dump);
