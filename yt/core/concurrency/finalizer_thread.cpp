@@ -116,9 +116,10 @@ public:
                     Sleep(TDuration::MilliSeconds(1));
                 }
                 if (Refs_ != 1) {
-                    // Things gone really bad.
+                    // Things have gone really bad.
+                    fprintf(stderr, "Hung during FinalizerThread shutdown\n");
                     TRefCountedTrackerFacade::Dump();
-                    YT_VERIFY(false && "Hung during ShutdownFinalizerThread");
+                    _exit(100);
                 }
             }
 
