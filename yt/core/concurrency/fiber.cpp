@@ -50,8 +50,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef DEBUG
-
 class TFiberRegistry
 {
 public:
@@ -85,8 +83,6 @@ TFiberRegistry* GetFiberRegistry()
     return FiberRegistry;
 }
 
-#endif
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TFiber::TFiber(TClosure callee, EExecutionStackKind stackKind)
@@ -97,9 +93,7 @@ TFiber::TFiber(TClosure callee, EExecutionStackKind stackKind)
         TArrayRef(static_cast<char*>(Stack_->GetStack()), Stack_->GetSize())})
 {
     RegenerateId();
-#ifdef DEBUG
     Iterator_ = GetFiberRegistry()->Register(this);
-#endif
 
     PushContextHandler(
         [this] () noexcept {
@@ -115,9 +109,7 @@ TFiber::TFiber(TClosure callee, EExecutionStackKind stackKind)
 TFiber::~TFiber()
 {
     YT_VERIFY(IsTerminated());
-#ifdef DEBUG
     GetFiberRegistry()->Unregister(Iterator_);
-#endif
 }
 
 TFiberId TFiber::GetId() const
