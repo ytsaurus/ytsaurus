@@ -102,6 +102,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixClusterNodeForeignFlag)                                     (920))  // babenko
     ((BranchedAndLockedNodeCountMismatchFix)                         (921))  // shakurov
     ((CellServer)                                                   (1000))  // savrus
+    ((EnableDelayedMembershipClosureRecomputationByDefault)         (1001))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////
