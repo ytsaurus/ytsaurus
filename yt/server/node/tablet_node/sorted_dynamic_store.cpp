@@ -275,15 +275,13 @@ protected:
                     list,
                     latestDeleteTimestamp,
                     latestWriteTimestamp,
-                        [&] (const TDynamicValue& value) {
-                        VersionedValues_.push_back(TVersionedValue());
-                        ProduceVersionedValue(&VersionedValues_.back(), index, value);
+                    [&] (const TDynamicValue& value) {
+                        ProduceVersionedValue(&VersionedValues_.emplace_back(), index, value);
                     });
             } else {
                 const auto* value = SearchByTimestamp(list, latestWriteTimestamp);
                 if (value && Store_->TimestampFromRevision(value->Revision) > latestDeleteTimestamp) {
-                    VersionedValues_.push_back(TVersionedValue());
-                    ProduceVersionedValue(&VersionedValues_.back(), index, *value);
+                    ProduceVersionedValue(&VersionedValues_.emplace_back(), index, *value);
                 }
             }
         };
@@ -1704,6 +1702,7 @@ void TSortedDynamicStore::LoadRow(
             for (ui32 revision : revisions) {
                 AddWriteRevision(lock, revision);
             }
+            lock.LastCommitTimestamp = TimestampFromRevision(revisions.back());
         }
     }
 
