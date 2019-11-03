@@ -197,7 +197,11 @@ TSortedChunkStore::TSortedChunkStore(
     ReadRange_ = MakeSingletonRowRange(lowerBound, upperBound);
 
     YT_LOG_DEBUG("Sorted chunk store created (Id: %v, ChunkId: %v, Type: %v, LowerBound: %v, UpperBound: %v)",
-        id, ChunkId_, TypeFromId(id), lowerBound, upperBound);
+        id,
+        ChunkId_,
+        TypeFromId(id),
+        lowerBound,
+        upperBound);
 }
 
 TSortedChunkStore::~TSortedChunkStore()
