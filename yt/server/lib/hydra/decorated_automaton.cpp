@@ -734,10 +734,15 @@ void TDecoratedAutomaton::LoadSnapshot(
         try {
             AutomatonVersion_ = CommittedVersion_ = TVersion(-1, -1);
             Automaton_->LoadSnapshot(reader);
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR(ex, "Snapshot load failed; clearing state");
+            Automaton_->Clear();
+            throw;
+        } catch (const TFiberCanceledException&) {
+            YT_LOG_INFO("Snapshot load fiber was canceled");
+            throw;
         } catch (...) {
-            // Don't leave the state corrupted.
-            // NB: We could be in an arbitrary thread here.
-            AutomatonInvoker_->Invoke(BIND(&IAutomaton::Clear, Automaton_));
+            YT_LOG_ERROR("Snapshot load failed with an unknown error");
             throw;
         }
     }
