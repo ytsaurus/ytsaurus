@@ -372,31 +372,37 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+TProtobufFormatConfigPtr ParseAndValidateConfig(const INodePtr& node, std::vector<TTableSchema> schemas = {})
+{
+    auto config = ParseFormatConfigFromNode(node);
+    if (schemas.empty()) {
+        schemas.resize(config->Tables.size());
+    }
+    New<TProtobufFormatDescription>()->Init(config, schemas, false);
+    return config;
+}
+
+} // namespace
+
 TEST(TProtobufFormat, TestConfigParsing)
 {
-    auto parseAndValidateConfig = [] (const auto& node, std::vector<TTableSchema> schemas = {}) {
-        auto config = ParseFormatConfigFromNode(node);
-        if (schemas.empty()) {
-            schemas.resize(config->Tables.size());
-        }
-        New<TProtobufFormatDescription>()->Init(config, schemas, false);
-        return config;
-    };
     // Empty config.
     EXPECT_THROW_WITH_SUBSTRING(
-        parseAndValidateConfig(ParseYson("{}")),
+        ParseAndValidateConfig(ParseYson("{}")),
         "\"tables\" attribute is not specified in protobuf format");
 
     // Broken protobuf.
     EXPECT_THROW_WITH_SUBSTRING(
-        parseAndValidateConfig(ParseYson(R"({file_descriptor_set="dfgxx"; file_indices=[0]; message_indices=[0]})")),
+        ParseAndValidateConfig(ParseYson(R"({file_descriptor_set="dfgxx"; file_indices=[0]; message_indices=[0]})")),
         "Error parsing \"file_descriptor_set\" in protobuf config");
 
-    EXPECT_NO_THROW(parseAndValidateConfig(
+    EXPECT_NO_THROW(ParseAndValidateConfig(
         CreateAllFieldsFileDescriptorConfig()->Attributes().ToMap()
     ));
 
-    EXPECT_NO_THROW(parseAndValidateConfig(
+    EXPECT_NO_THROW(ParseAndValidateConfig(
         CreateAllFieldsSchemaConfig()->Attributes().ToMap()
     ));
 
@@ -426,7 +432,7 @@ TEST(TProtobufFormat, TestConfigParsing)
         .EndMap();
 
     EXPECT_THROW_WITH_SUBSTRING(
-        parseAndValidateConfig(multipleOtherColumnsConfig),
+        ParseAndValidateConfig(multipleOtherColumnsConfig),
         "Multiple \"other_columns\" in protobuf config are not allowed");
 
     auto duplicateColumnNamesConfig = BuildYsonNodeFluently()
@@ -455,7 +461,7 @@ TEST(TProtobufFormat, TestConfigParsing)
         .EndMap();
 
     EXPECT_THROW_WITH_SUBSTRING(
-        parseAndValidateConfig(duplicateColumnNamesConfig),
+        ParseAndValidateConfig(duplicateColumnNamesConfig),
         "Multiple fields with same column name \"SomeColumn\" are forbidden in protobuf format");
 
     auto anyCorrespondsToStruct = BuildYsonNodeFluently()
@@ -482,7 +488,7 @@ TEST(TProtobufFormat, TestConfigParsing)
     });
 
     EXPECT_THROW_WITH_SUBSTRING(
-        parseAndValidateConfig(duplicateColumnNamesConfig, {schema}),
+        ParseAndValidateConfig(duplicateColumnNamesConfig, {schema}),
         "Schema and protobuf config mismatch");
 }
 
