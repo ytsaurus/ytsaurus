@@ -1426,7 +1426,7 @@ TString ToString(TUnversionedRow row)
 {
     return row
         ? "[" + JoinToString(row.Begin(), row.End()) + "]"
-        : "<std::nullopt>";
+        : "<null>";
 }
 
 TString ToString(TMutableUnversionedRow row)
