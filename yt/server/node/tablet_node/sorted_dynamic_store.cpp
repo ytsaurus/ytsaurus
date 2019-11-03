@@ -1702,7 +1702,6 @@ void TSortedDynamicStore::LoadRow(
             for (ui32 revision : revisions) {
                 AddWriteRevision(lock, revision);
             }
-            lock.LastCommitTimestamp = TimestampFromRevision(revisions.back());
         }
     }
 
