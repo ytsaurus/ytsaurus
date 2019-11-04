@@ -153,11 +153,6 @@ public:
         return std::nullopt;
     }
 
-    virtual bool ExternalJobMemory() const override
-    {
-        return false;
-    }
-
     virtual TFuture<void> RunSetupCommands(
         int /*slotIndex*/,
         TJobId /*jobId*/,
@@ -492,11 +487,6 @@ public:
         return CpuLimit_;
     }
 
-    virtual bool ExternalJobMemory() const override
-    {
-        return Config_->ExternalJobContainer.operator bool();
-    }
-
     virtual TFuture<void> RunSetupCommands(
         int slotIndex,
         TJobId jobId,
@@ -600,29 +590,25 @@ private:
         PortoExecutor_->SubscribeFailed(portoFatalErrorHandler);
 
         auto getMetaContainer = [&] () -> IInstancePtr {
-            if (Config_->ExternalJobContainer) {
-                return GetPortoInstance(PortoExecutor_, *Config_->ExternalJobContainer);
-            } else {
-                auto self = GetSelfPortoInstance(PortoExecutor_);
-                auto metaInstanceName = Format("%v/%v", self->GetAbsoluteName(), GetDefaultJobsMetaContainerName());
+            auto self = GetSelfPortoInstance(PortoExecutor_);
+            auto metaInstanceName = Format("%v/%v", self->GetAbsoluteName(), GetDefaultJobsMetaContainerName());
 
-                try {
-                    WaitFor(PortoExecutor_->DestroyContainer(metaInstanceName))
-                        .ThrowOnError();
-                } catch (const TErrorException& ex) {
-                    // If container doesn't exist it's ok.
-                    if (!ex.Error().FindMatching(EPortoErrorCode::ContainerDoesNotExist)) {
-                        throw;
-                    }
+            try {
+                WaitFor(PortoExecutor_->DestroyContainer(metaInstanceName))
+                    .ThrowOnError();
+            } catch (const TErrorException& ex) {
+                // If container doesn't exist it's ok.
+                if (!ex.Error().FindMatching(EContainerErrorCode::ContainerDoesNotExist)) {
+                    throw;
                 }
-
-                auto instance = CreatePortoInstance(
-                    metaInstanceName,
-                    PortoExecutor_);
-                instance->SetIOWeight(Config_->JobsIOWeight);
-                instance->SetCpuLimit(jobsCpuLimit);
-                return instance;
             }
+
+            auto instance = CreatePortoInstance(
+                metaInstanceName,
+                PortoExecutor_);
+            instance->SetIOWeight(Config_->JobsIOWeight);
+            instance->SetCpuLimit(jobsCpuLimit);
+            return instance;
         };
 
         MetaInstance_ = getMetaContainer();
@@ -676,19 +662,6 @@ private:
             JobProxyInstances_[slotIndex] = CreatePortoInstance(
                 GetFullSlotMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex) + "/jp_" + ToString(jobId),
                 PortoExecutor_);
-
-            //TODO: remove because of deprecation
-            if (Config_->ExternalJobRootVolume) {
-                TRootFS rootFS;
-                rootFS.RootPath = *Config_->ExternalJobRootVolume;
-                rootFS.IsRootReadOnly = false;
-
-                for (const auto& pair : Config_->ExternalBinds) {
-                    rootFS.Binds.push_back(TBind{pair.first, pair.second, false});
-                }
-
-                JobProxyInstances_[slotIndex]->SetRoot(rootFS);
-            }
         }
     }
 
@@ -701,11 +674,7 @@ private:
     void UpdateLimits()
     {
         try {
-            auto container = Config_->ExternalJobContainer
-                ? MetaInstance_
-                : GetSelfPortoInstance(PortoExecutor_);
-
-            auto limits = container->GetResourceLimitsRecursive();
+            auto limits = MetaInstance_->GetResourceLimitsRecursive();
 
             auto newCpuLimit = std::max<double>(limits.Cpu - Config_->NodeDedicatedCpu, 0);
             bool cpuLimitChanged = false;
@@ -727,7 +696,7 @@ private:
             }
 
             guard.Release();
-            if (!Config_->ExternalJobContainer && cpuLimitChanged) {
+            if (cpuLimitChanged) {
                 MetaInstance_->SetCpuLimit(newCpuLimit);
             }
         } catch (const std::exception& ex) {
