@@ -721,13 +721,17 @@ print row + table_index
         wait_breakpoint(job_count=5)
 
         for n in get("//sys/cluster_nodes"):
-            job_controller = get("//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler".format(n))
-            for job_id, values in job_controller.items():
+            scheduler_jobs = get("//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler".format(n))
+            for job_id, values in scheduler_jobs.items():
                 assert "start_time" in values
                 assert "operation_id" in values
                 assert "statistics" in values
                 assert "job_type" in values
                 assert "duration" in values
+
+            slot_manager = get("//sys/cluster_nodes/{0}/orchid/job_controller/slot_manager".format(n))
+            assert 'free_slot_count' in slot_manager
+            assert 'slot_count' in slot_manager
 
         op.abort()
 
