@@ -1,6 +1,22 @@
-#ifdef __linux__
-
 #include "volume_manager.h"
+
+#ifndef __linux__
+
+// (psushin) Just a stub for Mac-lovers.
+
+namespace NYT::NDataNode {
+
+IVolumeManagerPtr CreatePortoVolumeManager(
+    TVolumeManagerConfigPtr config,
+    NCellNode::TBootstrap* bootstrap)
+{
+    THROW_ERROR_EXCEPTION("Volume manager is not supported");
+}
+
+} // namespace NYT::NDataNode
+
+#else
+
 #include "disk_location.h"
 
 #include "artifact.h"
