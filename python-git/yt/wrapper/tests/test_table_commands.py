@@ -479,31 +479,32 @@ class TestTableCommands(object):
         def foo(rec):
             yield rec
 
-        client = yt.YtClient(config=yt.config.config)
+        with set_config_option("is_local_mode", False):
+            client = yt.YtClient(config=yt.config.config)
 
-        new_temp_dir = tempfile.mkdtemp(dir=yt.config["local_temp_directory"])
-        client.config["local_temp_directory"] = new_temp_dir
+            new_temp_dir = tempfile.mkdtemp(dir=yt.config["local_temp_directory"])
+            client.config["local_temp_directory"] = new_temp_dir
 
-        assert os.listdir(client.config["local_temp_directory"]) == []
+            assert os.listdir(client.config["local_temp_directory"]) == []
 
-        params = OperationParameters(input_format=None, output_format=None, operation_type="map", job_type="mapper", group_by=None)
-        with pytest.raises(AttributeError):
+            params = OperationParameters(input_format=None, output_format=None, operation_type="map", job_type="mapper", group_by=None)
+            with pytest.raises(AttributeError):
+                with py_wrapper.TempfilesManager(remove_temp_files=True, directory=py_wrapper.get_local_temp_directory(client)) as tempfiles_manager:
+                    py_wrapper.wrap(function=foo,
+                                    file_manager=None,
+                                    tempfiles_manager=tempfiles_manager,
+                                    params=params,
+                                    local_mode=False,
+                                    client=client)
+
             with py_wrapper.TempfilesManager(remove_temp_files=True, directory=py_wrapper.get_local_temp_directory(client)) as tempfiles_manager:
                 py_wrapper.wrap(function=foo,
-                                file_manager=None,
+                                file_manager=FakeFileManager(client),
                                 tempfiles_manager=tempfiles_manager,
                                 params=params,
                                 local_mode=False,
                                 client=client)
-
-        with py_wrapper.TempfilesManager(remove_temp_files=True, directory=py_wrapper.get_local_temp_directory(client)) as tempfiles_manager:
-            py_wrapper.wrap(function=foo,
-                            file_manager=FakeFileManager(client),
-                            tempfiles_manager=tempfiles_manager,
-                            params=params,
-                            local_mode=False,
-                            client=client)
-        assert os.listdir(client.config["local_temp_directory"]) == []
+            assert os.listdir(client.config["local_temp_directory"]) == []
 
     def test_write_compressed_table_data(self):
         fd, filename = tempfile.mkstemp()
