@@ -1370,6 +1370,9 @@ void TJobController::TImpl::BuildOrchid(IYsonConsumer* consumer) const
                         .EndMap();
                 }
             )
+            .Item("slot_manager").DoMap(BIND(
+                &NExecAgent::TSlotManager::BuildOrchidYson,
+                Bootstrap_->GetExecSlotManager()))
 
         .EndMap();
 }

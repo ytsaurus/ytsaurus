@@ -16,6 +16,8 @@
 #include <yt/core/misc/optional.h>
 #include <yt/core/misc/fs.h>
 
+#include <yt/core/ytree/fluent.h>
+
 namespace NYT::NExecAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -51,6 +53,8 @@ public:
     void OnJobFinished(EJobState jobState);
 
     void Disable(const TError& error );
+
+    void BuildOrchidYson(NYTree::TFluentMap fluent) const;
 
 private:
     const TSlotManagerConfigPtr Config_;

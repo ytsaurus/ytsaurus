@@ -276,6 +276,19 @@ void TSlotManager::PopulateAlerts(std::vector<TError>* alerts)
     }
 }
 
+void TSlotManager::BuildOrchidYson(TFluentMap fluent) const
+{
+    fluent
+       .Item("slot_count").Value(SlotCount_)
+       .Item("free_slot_count").Value(FreeSlots_.size())
+       .DoIf(static_cast<bool>(TransientAlert_), [&] (auto fluentMap) {
+           fluentMap.Item("transient_alert").Value(*TransientAlert_);
+       })
+       .DoIf(static_cast<bool>(PersistentAlert_), [&] (auto fluentMap) {
+           fluentMap.Item("persistent_alert").Value(*PersistentAlert_);
+       });
+}
+
 NNodeTrackerClient::NProto::TDiskResources TSlotManager::GetDiskInfo()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
