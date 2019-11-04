@@ -41,8 +41,6 @@ struct IJobEnvironment
 
     virtual bool IsEnabled() const = 0;
 
-    virtual TFuture<NDataNode::IVolumePtr> PrepareRootVolume(const std::vector<NDataNode::TArtifactKey>& layers) = 0;
-
     virtual std::optional<i64> GetMemoryLimit() const = 0;
 
     virtual std::optional<double> GetCpuLimit() const = 0;

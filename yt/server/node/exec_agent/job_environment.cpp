@@ -9,7 +9,6 @@
 
 #include <yt/server/node/data_node/config.h>
 #include <yt/server/node/data_node/master_connector.h>
-#include <yt/server/node/data_node/volume_manager.h>
 
 #include <yt/server/lib/misc/public.h>
 
@@ -135,12 +134,6 @@ public:
     virtual bool IsEnabled() const override
     {
         return Enabled_;
-    }
-
-    virtual TFuture<IVolumePtr> PrepareRootVolume(const std::vector<TArtifactKey>& /*layers*/) override
-    {
-        THROW_ERROR_EXCEPTION("Custom rootfs is not supported by %Qlv environment",
-            BasicConfig_->Type);
     }
 
     virtual std::optional<i64> GetMemoryLimit() const override
@@ -470,11 +463,6 @@ public:
         return CreatePortoJobDirectoryManager(Bootstrap_->GetConfig()->DataNode->VolumeManager, path);
     }
 
-    virtual TFuture<IVolumePtr> PrepareRootVolume(const std::vector<TArtifactKey>& layers) override
-    {
-        return RootVolumeManager_->PrepareVolume(layers);
-    }
-
     virtual std::optional<i64> GetMemoryLimit() const override
     {
         auto guard = Guard(LimitsLock_);
@@ -518,7 +506,6 @@ private:
     std::optional<i64> MemoryLimit_;
 
     TPeriodicExecutorPtr LimitsUpdateExecutor_;
-    IVolumeManagerPtr RootVolumeManager_;
 
     TString GetAbsoluteName(const TString& name)
     {
@@ -640,12 +627,6 @@ private:
         }
 
         TProcessJobEnvironmentBase::DoInit(slotCount, jobsCpuLimit);
-
-        // To these moment all old processed must have been killed, so we can safely clean up old volumes
-        // during root volume manager initialization.
-        RootVolumeManager_ = CreatePortoVolumeManager(
-            Bootstrap_->GetConfig()->DataNode->VolumeManager,
-            Bootstrap_);
 
         if (Config_->ResourceLimitsUpdatePeriod) {
             LimitsUpdateExecutor_ = New<TPeriodicExecutor>(

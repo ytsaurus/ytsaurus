@@ -102,6 +102,14 @@ void TSlotManager::Initialize()
         }
     }
 
+    // To this moment all old processed must have been killed, so we can safely clean up old volumes
+    // during root volume manager initialization.
+    if (environmentConfig->Type == EJobEnvironmentType::Porto) {
+        RootVolumeManager_ = CreatePortoVolumeManager(
+            Bootstrap_->GetConfig()->DataNode->VolumeManager,
+            Bootstrap_);
+    }
+
     if (Config_->JobProxySocketNameDirectory) {
         try {
             // Create for each slot a file containing the name of Unix Domain Socket
@@ -164,7 +172,7 @@ ISlotPtr TSlotManager::AcquireSlot(i64 diskSpaceRequest)
     int slotIndex = *FreeSlots_.begin();
     FreeSlots_.erase(slotIndex);
 
-    return CreateSlot(slotIndex, std::move(bestLocation), JobEnvironment_, NodeTag_);
+    return CreateSlot(slotIndex, std::move(bestLocation), JobEnvironment_, RootVolumeManager_, NodeTag_);
 }
 
 void TSlotManager::ReleaseSlot(int slotIndex)

@@ -88,6 +88,7 @@ ISlotPtr CreateSlot(
     int slotIndex,
     TSlotLocationPtr location,
     IJobEnvironmentPtr environment,
+    NDataNode::IVolumeManagerPtr volumeManager,
     const TString& nodeTag);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -4,6 +4,8 @@
 
 #include <yt/server/node/cell_node/public.h>
 
+#include <yt/server/node/data_node/public.h>
+
 #include <yt/server/node/job_agent/job.h>
 
 #include <yt/core/actions/public.h>
@@ -55,6 +57,8 @@ private:
     NCellNode::TBootstrap* const Bootstrap_;
     const int SlotCount_;
     const TString NodeTag_;
+
+    NDataNode::IVolumeManagerPtr RootVolumeManager_;
 
     std::vector<TSlotLocationPtr> Locations_;
     std::vector<TSlotLocationPtr> AliveLocations_;
