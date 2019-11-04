@@ -507,7 +507,7 @@ class TestScheduler(object):
         for pod_id in pod_ids:
             yp_client.acknowledge_pod_eviction(pod_id, "Test")
 
-        wait(lambda: all(x[0] == YsonEntity() for x in yp_client.select_objects("pod", selectors=["/status/scheduling/node_id"])))
+        wait(lambda: all(x[0] == "" for x in yp_client.select_objects("pod", selectors=["/status/scheduling/node_id"])))
         assert all(x[0] == "none" for x in yp_client.select_objects("pod", selectors=["/status/eviction/state"]))
 
         wait(lambda: yp_client.get_object("node", node_id, selectors=["/status/maintenance/state"])[0] == "acknowledged")
@@ -878,7 +878,7 @@ class TestScheduler(object):
         yp_client.update_hfsm_state(node_id, "prepare_maintenance", "test")
         wait(lambda: yp_client.get_object("pod", pod_id, selectors=["/status/eviction/state"])[0] == "requested")
         yp_client.acknowledge_pod_eviction(pod_id, "test")
-        wait(lambda: yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/node_id"])[0] == YsonEntity())
+        wait(lambda: yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/node_id"])[0] == "")
 
         scheduled_allocations, disk_allocations, gpu_allocations = get_allocations()
         assert scheduled_allocations == YsonEntity()

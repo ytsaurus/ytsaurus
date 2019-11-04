@@ -57,6 +57,22 @@ public:
 
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TAgent, Agent);
 
+        class TScheduling
+        {
+        public:
+            explicit TScheduling(TPod* pod);
+
+            using TEtc = NProto::TPodStatusSchedulingEtc;
+
+            static const TScalarAttributeSchema<TPod, TObjectId> NodeIdSchema;
+            DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TObjectId>, NodeId);
+
+            static const TScalarAttributeSchema<TPod, TEtc> EtcSchema;
+            DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TEtc>, Etc);
+        };
+
+        DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScheduling, Scheduling);
+
         static const TScalarAttributeSchema<TPod, ui64> GenerationNumberSchema;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<ui64>, GenerationNumber);
 

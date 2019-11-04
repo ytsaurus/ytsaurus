@@ -61,7 +61,6 @@ message TPodStatusEtc
     repeated NYP.NClient.NApi.NProto.TPodStatus.TGpuAllocation gpu_allocations = 16;
     NYP.NClient.NApi.NProto.TPodStatus.TDns dns = 7;
     NYP.NClient.NApi.NProto.TPodStatus.TEviction eviction = 8;
-    NYP.NClient.NApi.NProto.TPodStatus.TScheduling scheduling = 9;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -75,6 +74,16 @@ message TPodAgentStatusEtc
     uint64 last_heartbeat_time = 7;
     uint64 current_spec_timestamp = 11;
     NYP.NClient.NApi.NProto.TCondition current_spec_applied = 12;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TPodStatusSchedulingEtc
+{
+    NYP.NClient.NApi.NProto.ESchedulingState state = 1;
+    uint64 last_updated = 3;
+    string message = 4;
+    NYT.NProto.TError error = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

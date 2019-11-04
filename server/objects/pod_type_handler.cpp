@@ -89,6 +89,14 @@ public:
                             ->SetAttribute(TPod::TStatus::TAgent::EtcSchema)
                     }),
 
+                MakeAttributeSchema("scheduling")
+                    ->AddChildren({
+                        MakeAttributeSchema("node_id")
+                            ->SetAttribute(TPod::TStatus::TScheduling::NodeIdSchema),
+                        MakeEtcAttributeSchema()
+                            ->SetAttribute(TPod::TStatus::TScheduling::EtcSchema)
+                    }),
+
                 MakeAttributeSchema("generation_number")
                     ->SetAttribute(TPod::TStatus::GenerationNumberSchema),
 

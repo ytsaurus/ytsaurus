@@ -105,7 +105,7 @@ def are_assigned_pod_scheduling_statuses(scheduling_statuses):
 def is_error_pod_scheduling_status(scheduling_status):
     return "error" in scheduling_status and \
         scheduling_status.get("state", None) != "assigned" and \
-        scheduling_status.get("node_id", None) is None
+        scheduling_status.get("node_id", "") == ""
 
 
 def are_error_pod_scheduling_statuses(scheduling_statuses):

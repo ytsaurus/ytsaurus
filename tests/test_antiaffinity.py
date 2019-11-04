@@ -35,7 +35,7 @@ class TestAntiaffinity(object):
                     selectors=["/status/scheduling/node_id"],
                 )
             )
-            used_node_ids = list(filter(lambda node_id: node_id != YsonEntity(), used_node_ids))
+            used_node_ids = list(filter(lambda node_id: node_id != "", used_node_ids))
             used_rack_ids = list(
                 response[0]
                 for response in yp_client.get_objects(

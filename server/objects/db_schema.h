@@ -170,6 +170,8 @@ extern const struct TPodsTable
         TDBField Status_Agent_State{"status.agent.state", NTableClient::EValueType::Int64};
         TDBField Status_Agent_IssPayload{"status.agent.iss_payload", NTableClient::EValueType::String};
         TDBField Status_Agent_PodAgentPayload{"status.agent.pod_agent_payload", NTableClient::EValueType::Any};
+        TDBField Status_Scheduling_Etc{"status.scheduling.etc", NTableClient::EValueType::Any};
+        TDBField Status_Scheduling_NodeId{"status.scheduling.node_id", NTableClient::EValueType::String};
         TDBField Status_DynamicResources{"status.dynamic_resources", NTableClient::EValueType::Any};
         TDBField Status_Agent_Etc{"status.agent.etc", NTableClient::EValueType::Any};
         TDBField Status_Etc{"status.etc", NTableClient::EValueType::Any};

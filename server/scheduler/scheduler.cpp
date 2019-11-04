@@ -748,7 +748,7 @@ private:
                         continue;
                     }
 
-                    ToProto(transactionPod->Status().Etc()->mutable_scheduling()->mutable_error(), failure.Error);
+                    ToProto(transactionPod->Status().Scheduling().Etc()->mutable_error(), failure.Error);
                 }
                 WaitFor(transaction->Commit())
                     .ThrowOnError();

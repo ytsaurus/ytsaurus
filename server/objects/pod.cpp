@@ -49,6 +49,23 @@ TPod::TStatus::TStatus::TAgent::TAgent(TPod* pod)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const TScalarAttributeSchema<TPod, TObjectId> TPod::TStatus::TScheduling::NodeIdSchema{
+    &PodsTable.Fields.Status_Scheduling_NodeId,
+    [] (TPod* pod) { return &pod->Status().Scheduling().NodeId(); }
+};
+
+const TScalarAttributeSchema<TPod, TPod::TStatus::TScheduling::TEtc> TPod::TStatus::TScheduling::EtcSchema{
+    &PodsTable.Fields.Status_Scheduling_Etc,
+    [] (TPod* pod) { return &pod->Status().Scheduling().Etc(); }
+};
+
+TPod::TStatus::TStatus::TScheduling::TScheduling(TPod* pod)
+    : NodeId_(pod, &NodeIdSchema)
+    , Etc_(pod, &EtcSchema)
+{ }
+
+///////////////////////////////////////////////////////////////////////////////
+
 const TScalarAttributeSchema<TPod, ui64> TPod::TStatus::GenerationNumberSchema{
     &PodsTable.Fields.Status_GenerationNumber,
     [] (TPod* pod) { return &pod->Status().GenerationNumber(); }
@@ -66,6 +83,7 @@ const TScalarAttributeSchema<TPod, TPod::TStatus::TEtc> TPod::TStatus::EtcSchema
 
 TPod::TStatus::TStatus(TPod* pod)
     : Agent_(pod)
+    , Scheduling_(pod)
     , GenerationNumber_(pod, &GenerationNumberSchema)
     , AgentSpecTimestamp_(pod, &AgentSpecTimestampSchema)
     , DynamicResources_(pod, &DynamicResourcesSchema)
@@ -209,16 +227,13 @@ void TPod::UpdateSchedulingStatus(
     const TString& message,
     const TObjectId& nodeId)
 {
-    auto* scheduling = Status().Etc()->mutable_scheduling();
-    scheduling->set_state(static_cast<NClient::NApi::NProto::ESchedulingState>(state));
-    scheduling->set_message(message);
-    if (nodeId) {
-        scheduling->set_node_id(nodeId);
-    } else {
-        scheduling->clear_node_id();
-    }
-    scheduling->set_last_updated(ToProto<ui64>(TInstant::Now()));
-    scheduling->clear_error();
+    Status().Scheduling().NodeId() = nodeId;
+
+    auto* schedulingEtc = Status().Scheduling().Etc().Get();
+    schedulingEtc->set_state(static_cast<NClient::NApi::NProto::ESchedulingState>(state));
+    schedulingEtc->set_message(message);
+    schedulingEtc->set_last_updated(ToProto<ui64>(TInstant::Now()));
+    schedulingEtc->clear_error();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

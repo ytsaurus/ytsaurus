@@ -1277,13 +1277,15 @@ message TPodStatus
 
     message TScheduling
     {
-        optional ESchedulingState state = 1;
+        option (NYP.NClient.NApi.NProto.etc_type_name) = "TPodStatusSchedulingEtc";
+
+        optional ESchedulingState state = 1 [(NYP.NClient.NApi.NProto.etc) = true];
         optional string node_id = 2;
-        optional uint64 last_updated = 3;
-        optional string message = 4;
-        optional NYT.NProto.TError error = 5;
+        optional uint64 last_updated = 3 [(NYP.NClient.NApi.NProto.etc) = true];
+        optional string message = 4 [(NYP.NClient.NApi.NProto.etc) = true];
+        optional NYT.NProto.TError error = 5 [(NYP.NClient.NApi.NProto.etc) = true];
     }
-    optional TScheduling scheduling = 9 [(NYP.NClient.NApi.NProto.etc) = true];
+    optional TScheduling scheduling = 9;
 
     // Increased each time the pod is being assigned to another node.
     optional uint64 generation_number = 10;
