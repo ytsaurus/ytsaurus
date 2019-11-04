@@ -44,8 +44,6 @@ public:
 
     std::optional<double> GetCpuLimit() const;
 
-    bool ExternalJobMemory() const;
-
     NNodeTrackerClient::NProto::TDiskResources GetDiskInfo();
 
     void OnJobFinished(EJobState jobState);

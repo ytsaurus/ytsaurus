@@ -163,8 +163,6 @@ private:
     THashSet<TJobId> JobIdsToConfirm_;
     TInstant LastStoredJobsSendTime_;
 
-    TNodeMemoryTrackerPtr ExternalMemoryUsageTracker_;
-
     THashSet<int> FreePorts_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
@@ -233,13 +231,6 @@ private:
 
     void AdjustResources();
 
-    const TNodeMemoryTrackerPtr& GetUserMemoryUsageTracker();
-    const TNodeMemoryTrackerPtr& GetSystemMemoryUsageTracker();
-    const TNodeMemoryTrackerPtr& GetUserMemoryUsageTracker() const;
-    const TNodeMemoryTrackerPtr& GetSystemMemoryUsageTracker() const;
-
-    i64 GetUserJobsFreeMemoryWatermark() const;
-
     TEnumIndexedVector<EJobOrigin, std::vector<IJobPtr>> GetJobsByOrigin() const;
 
     void CleanRecentlyRemovedJobs();
@@ -279,16 +270,7 @@ void TJobController::TImpl::Initialize()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    if (Bootstrap_->GetExecSlotManager()->ExternalJobMemory()) {
-        YT_LOG_INFO("Using external user job memory");
-        ExternalMemoryUsageTracker_ = New<TNodeMemoryTracker>(
-            0,
-            std::vector<std::pair<EMemoryCategory, i64>>{},
-            Logger,
-            TProfiler("/exec_agent/external_memory_usage"));
-    }
-
-    GetUserMemoryUsageTracker()->SetCategoryLimit(
+    Bootstrap_->GetMemoryUsageTracker()->SetCategoryLimit(
         EMemoryCategory::UserJobs,
         Config_->ResourceLimits->UserMemory);
 
@@ -418,14 +400,14 @@ TNodeResources TJobController::TImpl::GetResourceLimits() const
         result.set_gpu(Bootstrap_->GetGpuManager()->GetTotalGpuCount());
     }
 
-    const auto& userTracker = GetUserMemoryUsageTracker();
+    const auto& userTracker = Bootstrap_->GetMemoryUsageTracker();
     result.set_user_memory(std::min(
         userTracker->GetLimit(EMemoryCategory::UserJobs),
         // NB: The sum of per-category limits can be greater than the total memory limit.
         // Therefore we need bound memory limit by actually available memory.
-        userTracker->GetUsed(EMemoryCategory::UserJobs) + userTracker->GetTotalFree() - GetUserJobsFreeMemoryWatermark()));
+        userTracker->GetUsed(EMemoryCategory::UserJobs) + userTracker->GetTotalFree() - Config_->FreeMemoryWatermark));
 
-    const auto& systemTracker = GetSystemMemoryUsageTracker();
+    const auto& systemTracker = Bootstrap_->GetMemoryUsageTracker();
     result.set_system_memory(std::min(
         systemTracker->GetLimit(EMemoryCategory::SystemJobs),
         systemTracker->GetUsed(EMemoryCategory::SystemJobs) + systemTracker->GetTotalFree() - Config_->FreeMemoryWatermark));
@@ -463,7 +445,7 @@ void TJobController::TImpl::AdjustResources()
 {
     auto optionalMemoryLimit = Bootstrap_->GetExecSlotManager()->GetMemoryLimit();
     if (optionalMemoryLimit) {
-        const auto& memoryTracker = GetUserMemoryUsageTracker();
+        const auto& memoryTracker = Bootstrap_->GetMemoryUsageTracker();
         memoryTracker->SetTotalLimit(*optionalMemoryLimit);
     }
 
@@ -597,15 +579,15 @@ void TJobController::TImpl::SetResourceLimitsOverrides(const TNodeResourceLimits
 
     ResourceLimitsOverrides_ = resourceLimits;
     if (ResourceLimitsOverrides_.has_user_memory()) {
-        GetUserMemoryUsageTracker()->SetCategoryLimit(EMemoryCategory::UserJobs, ResourceLimitsOverrides_.user_memory());
+        Bootstrap_->GetMemoryUsageTracker()->SetCategoryLimit(EMemoryCategory::UserJobs, ResourceLimitsOverrides_.user_memory());
     } else {
-        GetUserMemoryUsageTracker()->SetCategoryLimit(
+        Bootstrap_->GetMemoryUsageTracker()->SetCategoryLimit(
             EMemoryCategory::UserJobs,
             Config_->ResourceLimits->UserMemory);
     }
 
     if (ResourceLimitsOverrides_.has_system_memory()) {
-        GetSystemMemoryUsageTracker()->SetCategoryLimit(EMemoryCategory::SystemJobs, ResourceLimitsOverrides_.system_memory());
+        Bootstrap_->GetMemoryUsageTracker()->SetCategoryLimit(EMemoryCategory::SystemJobs, ResourceLimitsOverrides_.system_memory());
     }
 }
 
@@ -641,15 +623,15 @@ void TJobController::TImpl::StartWaitingJobs()
     {
         auto usedResources = GetResourceUsage();
 
-        auto memoryToRelease = GetUserMemoryUsageTracker()->GetUsed(EMemoryCategory::UserJobs) - usedResources.user_memory();
+        auto memoryToRelease = Bootstrap_->GetMemoryUsageTracker()->GetUsed(EMemoryCategory::UserJobs) - usedResources.user_memory();
         if (memoryToRelease > 0) {
-            GetUserMemoryUsageTracker()->Release(EMemoryCategory::UserJobs, memoryToRelease);
+            Bootstrap_->GetMemoryUsageTracker()->Release(EMemoryCategory::UserJobs, memoryToRelease);
             resourcesUpdated = true;
         }
 
-        memoryToRelease = GetSystemMemoryUsageTracker()->GetUsed(EMemoryCategory::SystemJobs) - usedResources.system_memory();
+        memoryToRelease = Bootstrap_->GetMemoryUsageTracker()->GetUsed(EMemoryCategory::SystemJobs) - usedResources.system_memory();
         if (memoryToRelease > 0) {
-            GetSystemMemoryUsageTracker()->Release(EMemoryCategory::SystemJobs, memoryToRelease);
+            Bootstrap_->GetMemoryUsageTracker()->Release(EMemoryCategory::SystemJobs, memoryToRelease);
             resourcesUpdated = true;
         }
     }
@@ -676,13 +658,13 @@ void TJobController::TImpl::StartWaitingJobs()
         }
 
         if (jobResources.user_memory() > 0) {
-            bool reachedWatermark = GetUserMemoryUsageTracker()->GetTotalFree() <= GetUserJobsFreeMemoryWatermark();
+            bool reachedWatermark = Bootstrap_->GetMemoryUsageTracker()->GetTotalFree() <= Config_->FreeMemoryWatermark;
             if (reachedWatermark) {
                 YT_LOG_DEBUG("Not enough memory to start waiting job; reached free memory watermark");
                 continue;
             }
 
-            auto error = GetUserMemoryUsageTracker()->TryAcquire(EMemoryCategory::UserJobs, jobResources.user_memory());
+            auto error = Bootstrap_->GetMemoryUsageTracker()->TryAcquire(EMemoryCategory::UserJobs, jobResources.user_memory());
             if (!error.IsOK()) {
                 YT_LOG_DEBUG(error, "Not enough memory to start waiting job");
                 continue;
@@ -690,13 +672,13 @@ void TJobController::TImpl::StartWaitingJobs()
         }
 
         if (jobResources.system_memory() > 0) {
-            bool reachedWatermark = GetSystemMemoryUsageTracker()->GetTotalFree() <= Config_->FreeMemoryWatermark;
+            bool reachedWatermark = Bootstrap_->GetMemoryUsageTracker()->GetTotalFree() <= Config_->FreeMemoryWatermark;
             if (reachedWatermark) {
                 YT_LOG_DEBUG("Not enough memory to start waiting job; reached free memory watermark");
                 continue;
             }
 
-            auto error = GetSystemMemoryUsageTracker()->TryAcquire(EMemoryCategory::SystemJobs, jobResources.system_memory());
+            auto error = Bootstrap_->GetMemoryUsageTracker()->TryAcquire(EMemoryCategory::SystemJobs, jobResources.system_memory());
             if (!error.IsOK()) {
                 YT_LOG_DEBUG(error, "Not enough memory to start waiting job");
                 continue;
@@ -959,12 +941,12 @@ bool TJobController::TImpl::CheckMemoryOverdraft(const TNodeResources& delta)
     // Others are not reported by job proxy (see TSupervisorService::UpdateResourceUsage).
 
     if (delta.user_memory() > 0) {
-        bool reachedWatermark = GetUserMemoryUsageTracker()->GetTotalFree() <= GetUserJobsFreeMemoryWatermark();
+        bool reachedWatermark = Bootstrap_->GetMemoryUsageTracker()->GetTotalFree() <= Config_->FreeMemoryWatermark;
         if (reachedWatermark) {
             return false;
         }
 
-        auto error = GetUserMemoryUsageTracker()->TryAcquire(EMemoryCategory::UserJobs, delta.user_memory());
+        auto error = Bootstrap_->GetMemoryUsageTracker()->TryAcquire(EMemoryCategory::UserJobs, delta.user_memory());
         if (!error.IsOK()) {
             return false;
         }
@@ -1433,41 +1415,6 @@ void TJobController::TImpl::OnProfiling()
         }
         ProfileGpuInfo(GpuUtilizationProfiler_, gpuInfo, {deviceNumberTag, nameTag});
     }
-}
-
-const TNodeMemoryTrackerPtr& TJobController::TImpl::GetUserMemoryUsageTracker()
-{
-    if (Bootstrap_->GetExecSlotManager()->ExternalJobMemory()) {
-        return ExternalMemoryUsageTracker_;
-    } else {
-        return Bootstrap_->GetMemoryUsageTracker();
-    }
-}
-
-const TNodeMemoryTrackerPtr& TJobController::TImpl::GetSystemMemoryUsageTracker()
-{
-    return Bootstrap_->GetMemoryUsageTracker();
-}
-
-const TNodeMemoryTrackerPtr& TJobController::TImpl::GetUserMemoryUsageTracker() const
-{
-    if (Bootstrap_->GetExecSlotManager()->ExternalJobMemory()) {
-        return ExternalMemoryUsageTracker_;
-    } else {
-        return Bootstrap_->GetMemoryUsageTracker();
-    }
-}
-
-const TNodeMemoryTrackerPtr& TJobController::TImpl::GetSystemMemoryUsageTracker() const
-{
-    return Bootstrap_->GetMemoryUsageTracker();
-}
-
-i64 TJobController::TImpl::GetUserJobsFreeMemoryWatermark() const
-{
-    return Bootstrap_->GetExecSlotManager()->ExternalJobMemory()
-        ? 0
-        : Config_->FreeMemoryWatermark;
 }
 
 TMonotonicCounter* TJobController::TImpl::GetJobFinalStateCounter(EJobState state, EJobOrigin origin)

@@ -47,8 +47,6 @@ struct IJobEnvironment
 
     virtual std::optional<double> GetCpuLimit() const = 0;
 
-    virtual bool ExternalJobMemory() const = 0;
-
     virtual TFuture<void> RunSetupCommands(
         int slotIndex,
         TJobId jobId,

@@ -230,13 +230,6 @@ std::optional<double> TSlotManager::GetCpuLimit() const
        : std::nullopt;
 }
 
-bool TSlotManager::ExternalJobMemory() const
-{
-    return JobEnvironment_ && JobEnvironment_->IsEnabled()
-       ? JobEnvironment_->ExternalJobMemory()
-       : false;
-}
-
 void TSlotManager::OnJobFinished(EJobState jobState)
 {
     if (jobState == EJobState::Aborted) {

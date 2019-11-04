@@ -95,8 +95,6 @@ public:
     bool UseResourceLimits;
 
     std::optional<TDuration> ResourceLimitsUpdatePeriod;
-    std::optional<TString> ExternalJobContainer;
-    std::optional<TString> ExternalJobRootVolume;
 
     THashMap<TString, TString> ExternalBinds;
 
@@ -115,10 +113,6 @@ public:
             .Default(false);
 
         RegisterParameter("resource_limits_update_period", ResourceLimitsUpdatePeriod)
-            .Default();
-        RegisterParameter("external_job_container", ExternalJobContainer)
-            .Default();
-        RegisterParameter("external_job_root_volume", ExternalJobRootVolume)
             .Default();
         RegisterParameter("external_binds", ExternalBinds)
             .Default();
