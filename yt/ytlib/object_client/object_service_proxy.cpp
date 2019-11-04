@@ -267,7 +267,7 @@ void TObjectServiceProxy::TReqExecuteBatch::InvokeNextBatch()
             subbatchReq->GetSize());
     }
 
-    CurrentReqFuture_.Apply(BIND(&TObjectServiceProxy::TReqExecuteBatch::OnSubbatchResponse, MakeStrong(this)));
+    CurrentReqFuture_.Subscribe(BIND(&TObjectServiceProxy::TReqExecuteBatch::OnSubbatchResponse, MakeStrong(this)));
 }
 
 TObjectServiceProxy::TRspExecuteBatchPtr TObjectServiceProxy::TReqExecuteBatch::GetFullResponse()
