@@ -451,21 +451,29 @@ NNative::IConnectionPtr TBootstrap::CreateClusterConnection() const
 
 void TBootstrap::OnProfiling()
 {
-    auto snapshotsStorageDiskSpaceStatistics = NFS::GetDiskSpaceStatistics(Config_->Snapshots->Path);
-    Profiler_.Enqueue("/snapshots/free_space",
-        snapshotsStorageDiskSpaceStatistics.FreeSpace,
-        EMetricType::Gauge);
-    Profiler_.Enqueue("/snapshots/available_space",
-        snapshotsStorageDiskSpaceStatistics.AvailableSpace,
-        EMetricType::Gauge);
+    try {
+        auto snapshotsStorageDiskSpaceStatistics = NFS::GetDiskSpaceStatistics(Config_->Snapshots->Path);
+        Profiler_.Enqueue("/snapshots/free_space",
+            snapshotsStorageDiskSpaceStatistics.FreeSpace,
+            EMetricType::Gauge);
+        Profiler_.Enqueue("/snapshots/available_space",
+            snapshotsStorageDiskSpaceStatistics.AvailableSpace,
+            EMetricType::Gauge);
+    } catch (const std::exception& ex) {
+        YT_LOG_DEBUG(ex, "Failed to profile snapshots storage disk space");
+    }
 
-    auto changelogsStorageDiskSpaceStatistics = NFS::GetDiskSpaceStatistics(Config_->Changelogs->Path);
-    Profiler_.Enqueue("/changelogs/free_space",
-        changelogsStorageDiskSpaceStatistics.FreeSpace,
-        EMetricType::Gauge);
-    Profiler_.Enqueue("/changelogs/available_space",
-        changelogsStorageDiskSpaceStatistics.AvailableSpace,
-        EMetricType::Gauge);
+    try {
+        auto changelogsStorageDiskSpaceStatistics = NFS::GetDiskSpaceStatistics(Config_->Changelogs->Path);
+        Profiler_.Enqueue("/changelogs/free_space",
+            changelogsStorageDiskSpaceStatistics.FreeSpace,
+            EMetricType::Gauge);
+        Profiler_.Enqueue("/changelogs/available_space",
+            changelogsStorageDiskSpaceStatistics.AvailableSpace,
+            EMetricType::Gauge);
+    } catch (const std::exception& ex) {
+        YT_LOG_DEBUG(ex, "Failed to profile changelogs storage disk space");
+    }
 }
 
 void TBootstrap::DoInitialize()
