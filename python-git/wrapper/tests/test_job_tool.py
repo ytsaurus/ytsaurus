@@ -224,7 +224,9 @@ class TestJobTool(object):
             op = yt.run_map(command, table, TEST_DIR + "/output", format=self.TEXT_YSON, yt_files=[file_cypress_path])
             job_id = yt.list(get_operation_path(op.id) + "/jobs")[0]
             path = self._prepare_job_environment(yt_env_job_archive, op.id, job_id, full=True)
-            p = subprocess.Popen([os.path.join(path, "run.sh")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            env = os.environ.copy()
+            env["PATH"] = "/bin:/usr/bin:" + env.get("PATH")
+            p = subprocess.Popen([os.path.join(path, "run.sh")], stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
             _, p_stderr = p.communicate()
             assert p_stderr == file_content
 

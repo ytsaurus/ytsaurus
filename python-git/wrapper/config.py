@@ -61,6 +61,7 @@ class Config(types.ModuleType, client_state.ClientState):
             if not key.startswith(prefix):
                 continue
 
+            key = key[len(prefix):]
             if key == "TRACE":
                 self.COMMAND_PARAMS["trace"] = bool(value)
             elif key == "TRANSACTION":

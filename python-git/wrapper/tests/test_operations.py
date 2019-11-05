@@ -952,33 +952,6 @@ class TestPythonOperations(object):
         yt.run_map(sum_x_raw, table, table, format=yt.DsvFormat())
         check(yt.read_table(table), [{"sum": "9"}])
 
-    # Remove flaky after YT-10347.
-    @flaky(max_runs=5)
-    @add_failed_operation_stderrs_to_error_message
-    def test_python_operations_and_file_cache(self):
-        def func(row):
-            yield row
-
-        input = TEST_DIR + "/input"
-        output = TEST_DIR + "/output"
-        yt.write_table(input, [{"x": 1}, {"y": 2}])
-
-        # Some strange things are happen.
-        # Sometimes in the first iteration some modules occurred to be unimported (like yt_env.pyc).
-        # So we only tests that regularly operation files are the same in sequential runs.
-        failures = 0
-        for i in xrange(5):
-            yt.run_map(func, input, output)
-            files_in_cache = list(yt.search("//tmp/yt_wrapper/file_storage", node_type="file"))
-            assert len(files_in_cache) > 0
-
-            yt.run_map(func, input, output)
-            files_in_cache_again = list(yt.search("//tmp/yt_wrapper/file_storage", node_type="file"))
-            if sorted(files_in_cache) != sorted(files_in_cache_again):
-                failures += 1
-
-        assert failures <= 2
-
     @add_failed_operation_stderrs_to_error_message
     def test_python_operations_with_local_python(self):
         def func(row):

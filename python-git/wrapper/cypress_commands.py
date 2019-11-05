@@ -96,7 +96,7 @@ def set(path, value, format=None, recursive=False, force=None, client=None):
         client=client)
 
 def copy(source_path, destination_path,
-         recursive=None, ignore_existing=None, preserve_account=None,
+         recursive=None, ignore_existing=None, lock_existing=None, preserve_account=None, preserve_acl=None,
          preserve_expiration_time=None, preserve_creation_time=None,
          preserve_owner=None, force=None, pessimistic_quota_check=None, client=None):
     """Copies Cypress node.
@@ -107,7 +107,9 @@ def copy(source_path, destination_path,
     :type destination_path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
     :param bool recursive: ``yt.wrapper.config["yamr_mode"]["create_recursive"]`` by default.
     :param bool ignore_existing: ignore existing.
+    :param bool lock_existing: lock existing node.
     :param bool preserve_account: preserve account.
+    :param bool preserve_acl: preserve acl.
     :param bool preserve_expiration_time: preserve expiration time.
     :param bool preserve_creation_time: preserve creation time.
     :param bool preserve_owner: preserve owner.
@@ -122,8 +124,10 @@ def copy(source_path, destination_path,
     recursive = get_value(recursive, get_config(client)["yamr_mode"]["create_recursive"])
     set_param(params, "recursive", recursive)
     set_param(params, "ignore_existing", ignore_existing)
+    set_param(params, "lock_existing", lock_existing)
     set_param(params, "force", force)
     set_param(params, "preserve_account", preserve_account)
+    set_param(params, "preserve_acl", preserve_acl)
     set_param(params, "preserve_expiration_time", preserve_expiration_time)
     set_param(params, "preserve_creation_time", preserve_creation_time)
     set_param(params, "preserve_owner", preserve_owner)
@@ -206,7 +210,8 @@ def concatenate(source_paths, destination_path, client=None):
     retrier.run()
 
 
-def link(target_path, link_path, recursive=False, ignore_existing=False, force=False, attributes=None, client=None):
+def link(target_path, link_path, recursive=False, ignore_existing=False, lock_existing=None,
+         force=False, attributes=None, client=None):
     """Makes link to Cypress node.
 
     :param target_path: target path.
@@ -214,7 +219,9 @@ def link(target_path, link_path, recursive=False, ignore_existing=False, force=F
     :param link_path: link path.
     :type link_path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
     :param bool recursive: recursive.
+
     :param bool ignore_existing: ignore existing.
+    :param bool lock_existing: lock existing node.
 
     .. seealso:: `link on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#link>`_
     """
@@ -224,6 +231,7 @@ def link(target_path, link_path, recursive=False, ignore_existing=False, force=F
     }
     set_param(params, "recursive", recursive)
     set_param(params, "ignore_existing", ignore_existing)
+    set_param(params, "lock_existing", lock_existing)
     set_param(params, "force", force)
     set_param(params, "attributes", attributes)
     return _make_formatted_transactional_request(
@@ -322,12 +330,14 @@ def remove(path, recursive=False, force=False, client=None):
     set_param(params, "force", force)
     return _make_transactional_request("remove", params, client=client)
 
-def create(type, path=None, recursive=False, ignore_existing=False, force=None, attributes=None, client=None):
+def create(type, path=None, recursive=False, ignore_existing=False, lock_existing=None,
+           force=None, attributes=None, client=None):
     """Creates Cypress node.
 
     :param str type: one of ["table", "file", "map_node", "list_node", ...].
     :param path: path.
     :type path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
+    :param bool lock_existing: lock existing node.
     :param bool recursive: ``yt.wrapper.config["yamr_mode"]["create_recursive"]`` by default.
     :param dict attributes: attributes.
 
@@ -339,6 +349,7 @@ def create(type, path=None, recursive=False, ignore_existing=False, force=None, 
     }
     set_param(params, "recursive", recursive)
     set_param(params, "ignore_existing", ignore_existing)
+    set_param(params, "lock_existing", lock_existing)
     set_param(params, "attributes", attributes)
     set_param(params, "force", force)
     if path is not None:

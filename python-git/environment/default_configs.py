@@ -152,6 +152,7 @@ b"""
         account_statistics_gossip_period = 150;
         user_statistics_flush_period = 50;
         request_rate_smoothing_period = 60000;
+        enable_delayed_membership_closure_recomputation = %false;
     };
 
     cypress_manager = {

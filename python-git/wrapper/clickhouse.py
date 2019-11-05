@@ -268,7 +268,7 @@ def prepare_clickhouse_config(instance_count,
             },
         },
         "memory_watchdog": {
-            "memory_limit": memory_limit + memory_footprint,
+            "memory_limit": memory_limit + uncompressed_block_cache_size + memory_footprint,
         },
         "profile_manager": {
             "global_tags": {"operation_alias": operation_alias} if operation_alias is not None else {},

@@ -380,29 +380,6 @@ class TestTableCommands(object):
         with set_config_option("read_parallel/enable", True):
             self.test_read_with_table_path(yt_env)
 
-    def test_huge_table(self):
-        table = TEST_DIR + "/table"
-        power = 3
-        format = yt.JsonFormat()
-        records = imap(format.dumps_row, ({"k": i, "s": i * i, "v": "long long string with strange symbols"
-                                                                    " #*@*&^$#%@(#!@:L|L|KL..,,.~`"}
-                       for i in xrange(10 ** power)))
-        yt.write_table(table, yt.StringIterIO(records), format=format, raw=True)
-
-        assert yt.row_count(table) == 10 ** power
-
-        row_count = 0
-        for _ in yt.read_table(table):
-            row_count += 1
-        assert row_count == 10 ** power
-
-    def test_read_parallel_huge_table(self, yt_env_with_rpc):
-        if yt_env_with_rpc.version <= "19.6" and yt.config["backend"] == "rpc":
-            pytest.skip()
-
-        with set_config_option("read_parallel/enable", True):
-            self.test_huge_table()
-
     def test_remove_locks(self):
         from yt.wrapper.table_helpers import _remove_locks
         table = TEST_DIR + "/table"
@@ -479,31 +456,32 @@ class TestTableCommands(object):
         def foo(rec):
             yield rec
 
-        client = yt.YtClient(config=yt.config.config)
+        with set_config_option("is_local_mode", False):
+            client = yt.YtClient(config=yt.config.config)
 
-        new_temp_dir = tempfile.mkdtemp(dir=yt.config["local_temp_directory"])
-        client.config["local_temp_directory"] = new_temp_dir
+            new_temp_dir = tempfile.mkdtemp(dir=yt.config["local_temp_directory"])
+            client.config["local_temp_directory"] = new_temp_dir
 
-        assert os.listdir(client.config["local_temp_directory"]) == []
+            assert os.listdir(client.config["local_temp_directory"]) == []
 
-        params = OperationParameters(input_format=None, output_format=None, operation_type="map", job_type="mapper", group_by=None)
-        with pytest.raises(AttributeError):
+            params = OperationParameters(input_format=None, output_format=None, operation_type="map", job_type="mapper", group_by=None)
+            with pytest.raises(AttributeError):
+                with py_wrapper.TempfilesManager(remove_temp_files=True, directory=py_wrapper.get_local_temp_directory(client)) as tempfiles_manager:
+                    py_wrapper.wrap(function=foo,
+                                    file_manager=None,
+                                    tempfiles_manager=tempfiles_manager,
+                                    params=params,
+                                    local_mode=False,
+                                    client=client)
+
             with py_wrapper.TempfilesManager(remove_temp_files=True, directory=py_wrapper.get_local_temp_directory(client)) as tempfiles_manager:
                 py_wrapper.wrap(function=foo,
-                                file_manager=None,
+                                file_manager=FakeFileManager(client),
                                 tempfiles_manager=tempfiles_manager,
                                 params=params,
                                 local_mode=False,
                                 client=client)
-
-        with py_wrapper.TempfilesManager(remove_temp_files=True, directory=py_wrapper.get_local_temp_directory(client)) as tempfiles_manager:
-            py_wrapper.wrap(function=foo,
-                            file_manager=FakeFileManager(client),
-                            tempfiles_manager=tempfiles_manager,
-                            params=params,
-                            local_mode=False,
-                            client=client)
-        assert os.listdir(client.config["local_temp_directory"]) == []
+            assert os.listdir(client.config["local_temp_directory"]) == []
 
     def test_write_compressed_table_data(self):
         fd, filename = tempfile.mkstemp()
@@ -744,6 +722,8 @@ class TestTableCommands(object):
 
         check(rows, yt.read_table(table_path))
 
+@pytest.mark.usefixtures("yt_env_with_rpc")
+class TestTableCommandsHuge(object):
     @pytest.mark.parametrize("parallel,progress_bar", [(False, False), (True, False), (False, True),
                                                        (True, True)])
     def test_write_big_table_retries(self, parallel, progress_bar):
@@ -773,3 +753,27 @@ class TestTableCommands(object):
                         yt.write_table(table_path, rows_generator)
 
                     check(rows, yt.read_table(table_path))
+
+    def test_huge_table(self):
+        table = TEST_DIR + "/table"
+        power = 3
+        format = yt.JsonFormat()
+        records = imap(format.dumps_row, ({"k": i, "s": i * i, "v": "long long string with strange symbols"
+                                                                    " #*@*&^$#%@(#!@:L|L|KL..,,.~`"}
+                       for i in xrange(10 ** power)))
+        yt.write_table(table, yt.StringIterIO(records), format=format, raw=True)
+
+        assert yt.row_count(table) == 10 ** power
+
+        row_count = 0
+        for _ in yt.read_table(table):
+            row_count += 1
+        assert row_count == 10 ** power
+
+    def test_read_parallel_huge_table(self, yt_env_with_rpc):
+        if yt_env_with_rpc.version <= "19.6" and yt.config["backend"] == "rpc":
+            pytest.skip()
+
+        with set_config_option("read_parallel/enable", True):
+            self.test_huge_table()
+

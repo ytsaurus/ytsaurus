@@ -1,11 +1,28 @@
-from yt.wrapper.common import YtError, GB, chunk_iter_string
+from yt.wrapper.common import YtError, GB, chunk_iter_string, is_arcadia_python
+import yt.logger as logger
 
-from yt.packages.six import binary_type
+from yt.packages.six import binary_type, PY3
 
 try:
     import zlib_fork_safe as zlib
+    _ZLIB_FORK_SAFE = True
 except ImportError:
     import zlib
+    _ZLIB_FORK_SAFE = False
+
+def is_zlib_parallel():
+    # NB: zlib in non-Arcadia Python 2.7 is single-threaded.
+    return PY3 or is_arcadia_python() or _ZLIB_FORK_SAFE
+
+def try_enable_parallel_write_gzip(config_enable):
+    enable = config_enable
+    if enable is None:
+        enable = is_zlib_parallel()
+        if not enable:
+            logger.debug("Parallel write is disabled because zlib is not parallel")
+    elif enable and not is_zlib_parallel():
+        logger.warning("Parallel write may be ineffective because zlib is not parallel")
+    return enable
 
 _CODECS = {}
 
