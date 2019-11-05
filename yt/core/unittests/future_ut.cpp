@@ -788,7 +788,7 @@ TEST_W(TFutureTest, Holder)
     {
         TFutureHolder<void> holder(future);
     }
-    EXPECT_FALSE(future.IsSet());
+    EXPECT_TRUE(future.IsSet());
     EXPECT_TRUE(promise.IsCanceled());
 }
 
