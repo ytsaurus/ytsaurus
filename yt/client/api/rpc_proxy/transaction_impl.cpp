@@ -51,7 +51,6 @@ TTransaction::TTransaction(
     , Timeout_(timeout)
     , PingPeriod_(pingPeriod)
     , Sticky_(sticky)
-    , ModifyRowsRequestSequenceCounter_(0)
 {
     // TODO(babenko): "started" is only correct as long as we do not support attaching to existing transactions
     YT_LOG_DEBUG("Transaction started (TransactionId: %v, Type: %v, StartTimestamp: %llx, Atomicity: %v, "

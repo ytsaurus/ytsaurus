@@ -190,7 +190,7 @@ private:
     // COMPAT(kiselyovp) remove Sticky_ (YT-10654)
     const bool Sticky_;
 
-    std::atomic<i64> ModifyRowsRequestSequenceCounter_;
+    std::atomic<i64> ModifyRowsRequestSequenceCounter_ = {0};
     std::vector<TFuture<void>> AsyncResults_;
     TApiServiceProxy::TReqBatchModifyRowsPtr BatchModifyRowsRequest_;
 
