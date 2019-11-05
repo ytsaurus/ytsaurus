@@ -13,11 +13,13 @@ import java.util.function.Consumer;
 
 import io.netty.channel.nio.NioEventLoopGroup;
 
+import ru.yandex.bolts.collection.Cf;
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
 import ru.yandex.yt.ytclient.bus.DefaultBusFactory;
 import ru.yandex.yt.ytclient.proxy.ApiServiceClient;
 import ru.yandex.yt.ytclient.proxy.YtClient;
+import ru.yandex.yt.ytclient.proxy.YtCluster;
 import ru.yandex.yt.ytclient.rpc.DefaultRpcBusClient;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcCompression;
@@ -141,7 +143,14 @@ public final class ExamplesUtil {
     public static void runExampleWithBalancing(Consumer<YtClient> consumer) {
         YtClient client = null;
         try (BusConnector connector = createConnector()) {
-            client = new YtClient(connector, "hahn", getCredentials());
+            client = new YtClient(
+                    connector,
+                    Cf.list(new YtCluster("hume")),
+                    "dc",
+                    null,
+                    getCredentials(),
+                    new RpcCompression(Compression.Lz4),
+                    new RpcOptions());
             client.waitProxies().join();
             consumer.accept(client);
         } catch (Throwable e) {

@@ -24,7 +24,7 @@ public class ReadTableExample {
     }
 
     private static void mainUnsafe(String[] args) {
-        ExamplesUtil.runExample(client -> {
+        ExamplesUtil.runExampleWithBalancing(client -> {
             try {
                 logger.info("Read table");
                 TableReader<UnversionedRow> reader = client.readTable(

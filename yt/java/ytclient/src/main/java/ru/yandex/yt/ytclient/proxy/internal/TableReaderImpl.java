@@ -19,6 +19,7 @@ import ru.yandex.yt.ytclient.proxy.TableReader;
 import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
 import ru.yandex.yt.ytclient.rpc.RpcMessageParser;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
+import ru.yandex.yt.ytclient.rpc.internal.Compression;
 import ru.yandex.yt.ytclient.rpc.internal.RpcServiceMethodDescriptor;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 import ru.yandex.yt.ytclient.wire.WireProtocolReader;
@@ -188,7 +189,7 @@ public class TableReaderImpl<T> extends StreamReaderImpl<TRspReadTable> implemen
     public CompletableFuture<TableReader<T>> waitMetadata() {
         TableReaderImpl<T> self = this;
         return readHead().thenApply((data) -> {
-            self.metadata = RpcUtil.parseMessageBodyWithCompression(data, metaParser, compression);
+            self.metadata = RpcUtil.parseMessageBodyWithCompression(data, metaParser, Compression.None);
             return self;
         });
     }
