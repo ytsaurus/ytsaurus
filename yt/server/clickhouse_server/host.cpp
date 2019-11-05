@@ -250,6 +250,10 @@ public:
         WaitFor(Discovery_->Enter(InstanceId_, attributes))
             .ThrowOnError();
 
+        // Update after entering the group guarantees that we will notify all
+        // alive instances via gossip about new one.
+        Discovery_->UpdateList();
+
         ProfilingExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(),
             BIND(&TImpl::OnProfiling, MakeWeak(this)),
