@@ -221,7 +221,7 @@ private:
                         attrs.at("external_cell_tag")->GetValue<ui64>() : CellTagFromId(table.ObjectId);
                     table.ChunkCount = attrs.at("chunk_count")->GetValue<i64>();
                     table.IsDynamic = attrs.at("dynamic")->GetValue<bool>();
-                    table.Schema = ConvertTo<TTableSchema>(attrs.at("schema"));
+                    table.Schema = AdaptSchemaToClickHouse(ConvertTo<TTableSchema>(attrs.at("schema")));
                 } else {
                     errors.emplace_back("Object %v has invalid type: expected %Qlv, actual %Qlv",
                         table.Path.GetPath(),
@@ -254,9 +254,16 @@ private:
             }
         }
 
-        KeyColumnCount_ = representativeTable.Schema.GetKeyColumnCount();
-        KeyColumns_ = representativeTable.Schema.GetKeyColumns();
-        KeyColumnDataTypes_ = TClickHouseTableSchema::From(TClickHouseTable("", representativeTable.Schema)).GetKeyDataTypes();
+        TTableSchema commonSchema;
+        if (TableSchemas_.size() == 1) {
+            commonSchema = TableSchemas_.front();
+        } else {
+            commonSchema = GetCommonSchema(TableSchemas_);
+        }
+
+        KeyColumnCount_ = commonSchema.GetKeyColumnCount();
+        KeyColumns_ = commonSchema.GetKeyColumns();
+        KeyColumnDataTypes_ = TClickHouseTableSchema::From(TClickHouseTable("", commonSchema)).GetKeyDataTypes();
     }
 
     void FetchChunks()

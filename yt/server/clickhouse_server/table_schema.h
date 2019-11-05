@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include <yt/client/table_client/public.h>
+
 #include <Core/NamesAndTypes.h>
 #include <Core/SortDescription.h>
 
@@ -32,6 +34,7 @@ public:
     DB::DataTypes GetKeyDataTypes() const;
 
     static TClickHouseTableSchema From(const TClickHouseTable& table);
+    static TClickHouseTableSchema From(const NTableClient::TTableSchema& schema);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -510,84 +510,6 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::pair<TTableSchema, TClickHouseTableSchema> GetCommonSchema(const std::vector<TClickHouseTablePtr>& tables)
-{
-    // TODO(max42): code below looks like a good programming contest code, but seems strange as a production code.
-    // Maybe rewrite it simpler?
-
-    THashMap<TString, TClickHouseColumn> nameToColumn;
-    THashMap<TString, int> nameToOccurrenceCount;
-    for (const auto& tableColumn : tables[0]->Columns) {
-        auto column = tableColumn;
-        nameToColumn[column.Name] = column;
-    }
-
-    for (const auto& table : tables) {
-        for (const auto& tableColumn : table->Columns) {
-            auto column = tableColumn;
-
-            bool columnTaken = false;
-            auto it = nameToColumn.find(column.Name);
-            if (it != nameToColumn.end()) {
-                if (it->second == column) {
-                    columnTaken = true;
-                } else {
-                    // There are at least two different variations of given column among provided tables,
-                    // so we are not going to take it.
-                }
-            }
-
-            if (columnTaken) {
-                ++nameToOccurrenceCount[column.Name];
-            }
-        }
-    }
-
-    for (const auto& [name, occurrenceCount] : nameToOccurrenceCount) {
-        if (occurrenceCount != static_cast<int>(tables.size())) {
-            auto it = nameToColumn.find(name);
-            YT_VERIFY(it != nameToColumn.end());
-            nameToColumn.erase(it);
-        }
-    }
-
-    if (nameToColumn.empty()) {
-        THROW_ERROR_EXCEPTION("Requested tables do not have any common column");
-    }
-
-    std::vector<TClickHouseColumn> remainingColumns = tables[0]->Columns;
-    remainingColumns.erase(std::remove_if(remainingColumns.begin(), remainingColumns.end(), [&] (const TClickHouseColumn& column) {
-        return !nameToColumn.contains(column.Name);
-    }), remainingColumns.end());
-
-    // TODO(max42): extract as helper (there are two occurrences of this boilerplate code).
-    const auto& dataTypes = DB::DataTypeFactory::instance();
-    DB::NamesAndTypesList columns;
-    DB::NamesAndTypesList keyColumns;
-    DB::Names primarySortColumns;
-    std::vector<TColumnSchema> columnSchemas;
-
-    for (const auto& column : remainingColumns) {
-        auto dataType = dataTypes.get(GetTypeName(column));
-        if (column.IsNullable()) {
-            dataType = DB::makeNullable(dataType);
-        }
-        columns.emplace_back(column.Name, dataType);
-        auto& columnSchema = columnSchemas.emplace_back(tables[0]->TableSchema.GetColumn(column.Name));
-
-        if (column.IsSorted()) {
-            keyColumns.emplace_back(column.Name, dataType);
-            primarySortColumns.emplace_back(column.Name);
-        } else {
-            columnSchema.SetSortOrder(std::nullopt);
-        }
-    }
-
-    return {TTableSchema(std::move(columnSchemas)), TClickHouseTableSchema(std::move(columns), std::move(keyColumns), std::move(primarySortColumns))};
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 DB::StoragePtr CreateStorageDistributor(std::vector<TClickHouseTablePtr> tables)
 {
     if (tables.empty()) {
@@ -597,11 +519,19 @@ DB::StoragePtr CreateStorageDistributor(std::vector<TClickHouseTablePtr> tables)
     TTableSchema schema;
     TClickHouseTableSchema clickHouseSchema;
     if (tables.size() > 1) {
-        std::tie(schema, clickHouseSchema) = GetCommonSchema(tables);
+        std::vector<TTableSchema> schemas;
+        schemas.reserve(tables.size());
+        for (const auto& table : tables) {
+            schemas.push_back(table->TableSchema);
+        }
+        schema = GetCommonSchema(schemas);
+        if (schema.Columns().empty()) {
+            THROW_ERROR_EXCEPTION("Requested tables do not have any common column");
+        }
     } else {
         schema = tables.front()->TableSchema;
-        clickHouseSchema = TClickHouseTableSchema::From(*tables.front());
     }
+    clickHouseSchema = TClickHouseTableSchema::From(schema);
 
     std::vector<TRichYPath> paths;
     for (const auto& table : tables) {
