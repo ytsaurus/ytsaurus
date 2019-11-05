@@ -311,23 +311,21 @@ def _run_tests_for_python_version(options, python_version):
     prepare_python_bindings(options.checkout_directory, options.yt_build_directory, bindings_version)
     _run_tests(options, python_version)
 
-def _run_ya_tests(options, python_version):
-    if python_version == "2":
-        targets = [
-            "yt/local/tests",
-            "yt/skiff/tests",
-            "yt/yson/tests/py2",
-            "yt/wrapper/tests/py2",
-            "yt/wrapper/system_python_tests/py2",
-        ]
-    elif python_version == "3":
-        targets = [
-            "yt/yson/tests/py3",
-            "yt/wrapper/tests/py3",
-            "yt/wrapper/system_python_tests/py3",
-        ]
+@build_step
+@skip_if_ya_tests_disabled
+def run_python_ya_tests(options):
+    targets = [
+        "yt/local/tests",
+        "yt/skiff/tests",
+        "yt/yson/tests/py2",
+        "yt/yson/tests/py3",
+        "yt/wrapper/tests/py2",
+        "yt/wrapper/tests/py3",
+        # "yt/wrapper/system_python_tests/py2",
+        # "yt/wrapper/system_python_tests/py3",
+    ]
 
-    archive_dir = os.path.join(options.archive_path, "ya_python_" + python_version)
+    archive_dir = os.path.join(options.archive_path, "ya_python")
     mkdirp(archive_dir)
 
     junit_output = os.path.join(options.working_directory, "junit_yatest.xml")
@@ -343,11 +341,9 @@ def _run_ya_tests(options, python_version):
         "-ttt",
     ]
     args += ya_make_args(options)
-
     args += targets
 
     error = None
-
     try:
         run(args, env=env, cwd=os.path.join(options.yt_source_directory, "python"))
     except ChildHasNonZeroExitCode as err:
@@ -357,16 +353,6 @@ def _run_ya_tests(options, python_version):
         shutil.rmtree(archive_dir)
     else:
         raise StepFailedWithNonCriticalError("Tests failed: " + str(error))
-
-@build_step
-@skip_if_ya_tests_disabled
-def run_python_2_ya_tests(options):
-    _run_ya_tests(options, "2")
-
-@build_step
-@skip_if_ya_tests_disabled
-def run_python_3_ya_tests(options):
-    _run_ya_tests(options, "3")
 
 @build_step
 def run_python_2_7_tests(options):
