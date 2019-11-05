@@ -309,4 +309,51 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T, class TAllocator = std::allocator<T>>
+class TRingQueueIterableWrapper
+{
+public:
+    using TContainer = TRingQueue<T, TAllocator>;
+    using TBaseIterator = typename TContainer::TIterator;
+
+    class TIterator
+        : public TBaseIterator
+    {
+    public:
+        TIterator(TBaseIterator baseIterator, TContainer& container)
+            : TBaseIterator(std::move(baseIterator))
+            , Container_(container)
+        { }
+
+        void operator++()
+        {
+            Container_.move_forward(*this);
+        }
+
+    private:
+        TRingQueue<T, TAllocator>& Container_;
+    };
+
+    TIterator begin() const
+    {
+        auto& container = const_cast<TContainer&>(Container_);
+        return TIterator(container.begin(), container);
+    }
+
+    TIterator end() const
+    {
+        auto& container = const_cast<TContainer&>(Container_);
+        return TIterator(container.end(), container);
+    }
+
+    TRingQueueIterableWrapper(TContainer& container)
+        : Container_(container)
+    { }
+
+private:
+    TContainer& Container_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
