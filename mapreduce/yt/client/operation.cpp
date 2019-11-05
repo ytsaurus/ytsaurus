@@ -820,11 +820,23 @@ TVector<TFailedJobInfo> GetFailedJobInfo(
         info.JobId = *job.Id;
         info.Error = job.Error.GetOrElse(TYtError(TString("unknown error")));
         if (job.StderrSize.GetOrElse(0) != 0) {
-            info.Stderr = GetJobStderrWithRetries(
-                clientRetryPolicy->CreatePolicyForGenericRequest(),
-                auth,
-                operationId,
-                *job.Id);
+            try {
+                info.Stderr = GetJobStderrWithRetries(
+                    clientRetryPolicy->CreatePolicyForGenericRequest(),
+                    auth,
+                    operationId,
+                    *job.Id);
+            } catch (const TErrorResponse& e) {
+                // There are cases when due to bad luck we cannot read stderr even if
+                // list_jobs reports that stderr_size > 0.
+                //
+                // Such errors don't have special error code
+                // so we ignore all errors and try our luck on other jobs.
+                LOG_ERROR("Cannot get job stderr OperationId: %s JobId: %s Error: %s",
+                    GetGuidAsString(operationId).c_str(),
+                    GetGuidAsString(*job.Id).c_str(),
+                    e.what());
+            }
             if (info.Stderr.size() > stderrTailSize) {
                 info.Stderr = info.Stderr.substr(info.Stderr.size() - stderrTailSize, stderrTailSize);
             }
