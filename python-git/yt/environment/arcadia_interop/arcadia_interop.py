@@ -40,7 +40,7 @@ def prepare_yt_binaries(destination, source_prefix="", arcadia_root=None, inside
 
     if use_ytserver_all:
         if use_from_package:
-            ytserver_all = yatest_common.binary_path("yt/packages/19_4/result/ytserver-all")
+            ytserver_all = yatest_common.binary_path("yt/packages/19_4/ytserver-all")
         else:
             ytserver_all = get_binary_path("{0}yt/server/all/ytserver-all".format(yt_root))
         if copy_ytserver_all:
