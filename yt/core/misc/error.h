@@ -79,6 +79,8 @@ public:
     TErrorCode GetCode() const;
     TError& SetCode(TErrorCode code);
 
+    TErrorCode GetNonTrivialCode() const;
+
     const TString& GetMessage() const;
     TError& SetMessage(const TString& message);
 
