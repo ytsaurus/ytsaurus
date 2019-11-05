@@ -1,11 +1,8 @@
 from .helpers import TEST_DIR, get_environment_for_binary_test
 
-import yt.wrapper as yt
+import yt.environment.arcadia_interop as arcadia_interop
 
-try:
-    import yatest.common as yatest_common
-except ImportError:
-    yatest_common = None
+import yt.wrapper as yt
 
 import pytest
 import tempfile
@@ -13,14 +10,15 @@ import tempfile
 @pytest.mark.usefixtures("yt_env")
 class TestIPython(object):
     def test_run_operation(self, yt_env):
-        if yatest_common is None:
+        if arcadia_interop.yatest_common is None:
             pytest.skip()
 
         input_table = TEST_DIR + "/input_table"
         output_table = TEST_DIR + "/output_table"
         yt.write_table(input_table, [{"x": 1}])
 
-        ipython = yatest_common.binary_path("yt/python/yt/wrapper/tests/yt_ipython/yt_ipython")
+        _, python_root, _ = arcadia_interop.get_root_paths()
+        ipython = arcadia_interop.yatest_common.binary_path(python_root + "/yt/wrapper/tests/yt_ipython/yt_ipython")
         _, script_filename = tempfile.mkstemp(dir=yt_env.env.path, suffix=".py")
         with open(script_filename, "w") as fout:
             fout.write(
@@ -32,7 +30,7 @@ class TestIPython(object):
                     output=output_table)
             )
 
-        yatest_common.execute(
+        arcadia_interop.yatest_common.execute(
             [ipython, script_filename],
             env=get_environment_for_binary_test(yt_env),
             stdout="ipython.out",

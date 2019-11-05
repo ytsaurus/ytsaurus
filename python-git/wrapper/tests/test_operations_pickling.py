@@ -6,6 +6,7 @@ from .helpers import (TEST_DIR, set_config_option, get_tests_sandbox, check, get
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
 from yt.wrapper.spec_builders import VanillaSpecBuilder, MapSpecBuilder
 import yt.subprocess_wrapper as subprocess
+from yt.packages.six.moves import xrange
 
 # Necessary for tests.
 try:
@@ -16,8 +17,10 @@ except ImportError:
 
 import yt.wrapper as yt
 
-import tempfile
+from flaky import flaky
 import pytest
+
+import tempfile
 import sys
 import time
 import os
@@ -26,6 +29,7 @@ import os
 class TestOperationsPickling(object):
     def setup(self):
         yt.config["tabular_data_format"] = yt.format.JsonFormat()
+        yt.config["is_local_mode"] = False
         self.env = {
             "YT_CONFIG_PATCHES": dumps_yt_config(),
             "PYTHONPATH": os.environ["PYTHONPATH"]
@@ -431,3 +435,57 @@ class Mapper(object):
             assert modules_file_count >= 1
         finally:
             yt.config["pickling"]["modules_bypass_artifacts_cache"] = None
+
+    # Remove flaky after YT-10347.
+    @flaky(max_runs=5)
+    @add_failed_operation_stderrs_to_error_message
+    def test_python_operations_and_file_cache(self):
+        def func(row):
+            yield row
+
+        input = TEST_DIR + "/input"
+        output = TEST_DIR + "/output"
+        yt.write_table(input, [{"x": 1}, {"y": 2}])
+
+        # Some strange things are happen.
+        # Sometimes in the first iteration some modules occurred to be unimported (like yt_env.pyc).
+        # So we only tests that regularly operation files are the same in sequential runs.
+        failures = 0
+        for i in xrange(5):
+            yt.run_map(func, input, output)
+            files_in_cache = list(yt.search("//tmp/yt_wrapper/file_storage", node_type="file"))
+            assert len(files_in_cache) > 0
+
+            yt.run_map(func, input, output)
+            files_in_cache_again = list(yt.search("//tmp/yt_wrapper/file_storage", node_type="file"))
+            if sorted(files_in_cache) != sorted(files_in_cache_again):
+                failures += 1
+
+        assert failures <= 2
+
+        failures = 0
+        for _ in xrange(3):
+            spec_builder = MapSpecBuilder() \
+                .begin_mapper() \
+                    .command(func) \
+                    .format("json") \
+                .end_mapper() \
+                .input_table_paths(input) \
+                .output_table_paths(output)
+            yt.run_operation(spec_builder)
+            files_in_cache = list(yt.search("//tmp/yt_wrapper/file_storage", node_type="file"))
+            assert len(files_in_cache) > 0
+
+            spec_builder = MapSpecBuilder() \
+                .begin_mapper() \
+                    .command(func) \
+                    .format("json") \
+                .end_mapper() \
+                .input_table_paths(input) \
+                .output_table_paths(output)
+            yt.run_operation(spec_builder)
+            files_in_cache_again = list(yt.search("//tmp/yt_wrapper/file_storage", node_type="file"))
+            if sorted(files_in_cache) != sorted(files_in_cache_again):
+                failures += 1
+
+        assert failures <= 1

@@ -1,16 +1,12 @@
 from .helpers import TEST_DIR, check, get_test_file_path, set_config_option, get_python
 
 from yt.wrapper.common import update
-from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
 from yt.wrapper.spec_builders import (ReduceSpecBuilder, MergeSpecBuilder, SortSpecBuilder,
                                       MapReduceSpecBuilder, MapSpecBuilder, VanillaSpecBuilder)
 
 import yt.wrapper as yt
 
-from yt.packages.six.moves import xrange
-
 import pytest
-from flaky import flaky
 
 from copy import deepcopy
 
@@ -207,47 +203,6 @@ class TestSpecBuilders(object):
 
         yt.run_operation(spec_builder)
         check([{"x": 1}, {"y": 2}], list(yt.read_table(table)))
-
-    # Remove flaky after YT-10347.
-    @flaky(max_runs=5)
-    @add_failed_operation_stderrs_to_error_message
-    def test_python_operations_and_file_cache(self):
-        def func(row):
-            yield row
-
-        input = TEST_DIR + "/input"
-        output = TEST_DIR + "/output"
-        yt.write_table(input, [{"x": 1}, {"y": 2}])
-
-        # Some strange things are happen.
-        # Sometimes in the first iteration some modules occurred to be unimported (like yt_env.pyc).
-        # So we only tests that regularly operation files are the same in sequential runs.
-        failures = 0
-        for _ in xrange(3):
-            spec_builder = MapSpecBuilder() \
-                .begin_mapper() \
-                    .command(func) \
-                    .format("json") \
-                .end_mapper() \
-                .input_table_paths(input) \
-                .output_table_paths(output)
-            yt.run_operation(spec_builder)
-            files_in_cache = list(yt.search("//tmp/yt_wrapper/file_storage", node_type="file"))
-            assert len(files_in_cache) > 0
-
-            spec_builder = MapSpecBuilder() \
-                .begin_mapper() \
-                    .command(func) \
-                    .format("json") \
-                .end_mapper() \
-                .input_table_paths(input) \
-                .output_table_paths(output)
-            yt.run_operation(spec_builder)
-            files_in_cache_again = list(yt.search("//tmp/yt_wrapper/file_storage", node_type="file"))
-            if sorted(files_in_cache) != sorted(files_in_cache_again):
-                failures += 1
-
-        assert failures <= 1
 
     def test_preserve_user_spec_between_invocations(self):
         input_ = TEST_DIR + "/input"

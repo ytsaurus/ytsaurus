@@ -1,6 +1,7 @@
 import yt.logger as logger
 from .config import get_config, get_option
 from .common import require, parse_bool, set_param, get_value, get_disk_size, MB, chunk_iter_stream, update
+from .compression import try_enable_parallel_write_gzip
 from .driver import _create_http_client_from_rpc, get_command_list
 from .errors import YtError, YtResponseError, YtCypressTransactionLockConflict
 from .heavy_commands import make_write_request, make_read_request
@@ -236,11 +237,16 @@ def write_file(destination, stream,
     if not is_one_small_blob and is_stream_compressed:
         enable_retries = False
 
-    enable_parallel_write = get_config(client)["write_parallel"]["enable"]
-    if enable_parallel_write is None:
-        enable_parallel_write = size_hint is not None \
-                and size_hint >= 2 * (get_config(client)["write_retries"]["chunk_size"] \
-                                      or DEFAULT_WRITE_CHUNK_SIZE)
+    config_enable_parallel_write = get_config(client)["write_parallel"]["enable"]
+    enable_parallel_write = \
+        config_enable_parallel_write == to_yson_type(True) \
+        or (config_enable_parallel_write is None \
+            and size_hint is not None \
+            and size_hint >= 2 * (get_config(client)["write_retries"]["chunk_size"] \
+                                  or DEFAULT_WRITE_CHUNK_SIZE)
+        )
+    if enable_parallel_write and get_config(client)["proxy"]["content_encoding"] == "gzip":
+        enable_parallel_write = try_enable_parallel_write_gzip(config_enable_parallel_write)
 
     if enable_parallel_write and not is_stream_compressed and not compute_md5:
         force_create = True
