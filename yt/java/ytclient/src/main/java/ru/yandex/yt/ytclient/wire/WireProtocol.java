@@ -4,7 +4,7 @@ public class WireProtocol {
     public static final int WIRE_FORMAT_VERSION = 1;
     public static final int MAX_KEY_COLUMN_COUNT = 32;
     public static final int MAX_VALUES_PER_ROW = 1024;
-    public static final int MAX_ROWS_PER_ROWSET = 1024 * 1024;
+    public static final int MAX_ROWS_PER_ROWSET = 5 * 1024 * 1024;
     public static final int MAX_STRING_VALUE_LENGTH = 16 * 1024 * 1024;
     public static final int MAX_ANY_VALUE_LENGTH = 16 * 1024 * 1024;
     public static final int SERIALIZATION_ALIGNMENT = 8;
