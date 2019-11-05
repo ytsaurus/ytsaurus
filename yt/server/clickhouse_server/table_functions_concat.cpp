@@ -125,7 +125,8 @@ std::vector<TClickHouseTablePtr> FetchClickHouseTables(TQueryContext* queryConte
                     << TErrorAttribute("path", path));
             }
         } else {
-            tables.emplace_back(std::make_shared<TClickHouseTable>(path, ConvertTo<TTableSchema>(attrOrError.Value().at("schema"))));
+            tables.emplace_back(std::make_shared<TClickHouseTable>(path,
+                AdaptSchemaToClickHouse(ConvertTo<TTableSchema>(attrOrError.Value().at("schema")))));
         }
     }
     if (!errors.empty()) {

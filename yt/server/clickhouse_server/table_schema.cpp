@@ -61,6 +61,11 @@ TClickHouseTableSchema TClickHouseTableSchema::From(const TClickHouseTable& tabl
         std::move(primarySortColumns));
 }
 
+TClickHouseTableSchema TClickHouseTableSchema::From(const NTableClient::TTableSchema& schema)
+{
+    return From(TClickHouseTable("", schema));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClickHouseServer
