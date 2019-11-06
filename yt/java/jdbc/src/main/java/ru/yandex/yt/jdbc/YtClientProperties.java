@@ -6,6 +6,7 @@ import java.util.Properties;
 import ru.yandex.misc.io.InputStreamSourceUtils2;
 import ru.yandex.yt.ytclient.rpc.internal.Compression;
 
+import static ru.yandex.yt.jdbc.YtClientParameters.ALLOW_JOIN_WITHOUT_INDEX;
 import static ru.yandex.yt.jdbc.YtClientParameters.COMPRESSION;
 import static ru.yandex.yt.jdbc.YtClientParameters.DEBUG_OUTPUT;
 import static ru.yandex.yt.jdbc.YtClientParameters.HOME;
@@ -24,6 +25,7 @@ public class YtClientProperties {
     private final int maxInputLimit;
     private final String home;
     private final boolean scanRecursive;
+    private final boolean allowJoinWithoutIndex;
 
     YtClientProperties(String proxy, Properties properties) {
         this.proxy = Objects.requireNonNull(proxy, "'proxy' is mandatory");
@@ -34,6 +36,7 @@ public class YtClientProperties {
         this.maxInputLimit = Integer.parseInt(MAX_INPUT_LIMIT.readValue(properties));
         this.home = HOME.readValue(properties);
         this.scanRecursive = Boolean.parseBoolean(SCAN_RECURSIVE.readValue(properties));
+        this.allowJoinWithoutIndex = Boolean.parseBoolean(ALLOW_JOIN_WITHOUT_INDEX.readValue(properties));
     }
 
     String getProxy() {
@@ -68,6 +71,10 @@ public class YtClientProperties {
         return scanRecursive;
     }
 
+    boolean isAllowJoinWithoutIndex() {
+        return allowJoinWithoutIndex;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -80,6 +87,7 @@ public class YtClientProperties {
         return debugOutput == that.debugOutput &&
                 maxInputLimit == that.maxInputLimit &&
                 scanRecursive == that.scanRecursive &&
+                allowJoinWithoutIndex == that.allowJoinWithoutIndex &&
                 Objects.equals(proxy, that.proxy) &&
                 Objects.equals(username, that.username) &&
                 Objects.equals(token, that.token) &&
@@ -89,7 +97,8 @@ public class YtClientProperties {
 
     @Override
     public int hashCode() {
-        return Objects.hash(proxy, username, token, compression, debugOutput, maxInputLimit, home, scanRecursive);
+        return Objects.hash(proxy, username, token, compression, debugOutput, maxInputLimit, home, scanRecursive,
+                allowJoinWithoutIndex);
     }
 
     @Override
@@ -102,6 +111,7 @@ public class YtClientProperties {
                 ", maxInputLimit=" + maxInputLimit +
                 ", home='" + home + '\'' +
                 ", scanRecursive=" + scanRecursive +
+                ", allowJoinWithoutIndex=" + allowJoinWithoutIndex +
                 '}';
     }
 
