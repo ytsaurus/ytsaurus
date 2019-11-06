@@ -45,6 +45,7 @@ type ControlAttributes struct {
 
 type JobIO struct {
 	TableReader       interface{}        `yson:"table_reader,omitempty"`
+	TableWriter       interface{}        `yson:"table_writer,omitempty"`
 	ControlAttributes *ControlAttributes `yson:"control_attributes,omitempty"`
 }
 
@@ -74,7 +75,7 @@ type Spec struct {
 	SortBy    []string        `yson:"sort_by,omitempty"`
 	PivotKeys [][]interface{} `yson:"pivot_keys,omitempty"`
 
-	MergeMode      string   `yson:"merge_mode,omitempty"`
+	MergeMode      string   `yson:"mode,omitempty"`
 	MergeBy        []string `yson:"merge_by,omitempty"`
 	CombineChunks  bool     `yson:"combine_chunks,omitempty"`
 	ForceTransform bool     `yson:"force_transform,omitempty"`
