@@ -27,6 +27,7 @@ public class YtStatement extends AbstractWrapper implements Statement {
     private final YtConnection connection;
     private final YtClient client;
     private final int inputLimit;
+    private final boolean allowJoinWithoutIndex;
 
     private boolean closed;
     private int maxRows = 10_000;
@@ -38,8 +39,13 @@ public class YtStatement extends AbstractWrapper implements Statement {
 
     YtStatement(YtConnection connection) {
         this.connection = connection;
-        this.client = connection.getWrapper().getClient();
-        this.inputLimit = connection.getWrapper().getProperties().getMaxInputLimit();
+
+        final YtClientWrapper wrapper = connection.getWrapper();
+        this.client = wrapper.getClient();
+
+        final YtClientProperties props = wrapper.getProperties();
+        this.inputLimit = props.getMaxInputLimit();
+        this.allowJoinWithoutIndex = props.isAllowJoinWithoutIndex();
     }
 
     YtConnection getYtConnection() {
@@ -63,7 +69,8 @@ public class YtStatement extends AbstractWrapper implements Statement {
         final SelectRowsRequest request = SelectRowsRequest.of(sql)
                 .setInputRowsLimit(inputLimit)
                 .setOutputRowsLimit(maxRows)
-                .setFailOnIncompleteResult(false);
+                .setFailOnIncompleteResult(false)
+                .setAllowJoinWithoutIndex(allowJoinWithoutIndex);
 
         this.future = client.selectRows(request);
         final UnversionedRowset rowSet;
