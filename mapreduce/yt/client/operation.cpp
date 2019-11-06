@@ -600,6 +600,11 @@ private:
     TString UploadToRandomPath(const IItemToUpload& itemToUpload) const
     {
         TString uniquePath = AddPathPrefix(TStringBuilder() << GetFileStorage() << "/cpp_" << CreateGuidAsString());
+        LOG_INFO("Uploading file to random cypress path (FileName: %s; CypressPath: %s; PreparationId: %s)",
+            itemToUpload.GetDescription().c_str(),
+            uniquePath.c_str(),
+            OperationPreparer_.GetPreparationId().c_str());
+
         Create(
             OperationPreparer_.GetClientRetryPolicy()->CreatePolicyForGenericRequest(),
             OperationPreparer_.GetAuth(),
@@ -636,11 +641,17 @@ private:
             GetCachePath(),
             TGetFileFromCacheOptions());
         if (maybePath) {
-            LOG_DEBUG("File is already in cache: %s", itemToUpload.GetDescription().c_str());
+            LOG_DEBUG("File is already in cache (FileName: %s)",
+                itemToUpload.GetDescription().c_str(),
+                maybePath->c_str());
             return *maybePath;
         }
 
         TString uniquePath = AddPathPrefix(TStringBuilder() << GetFileStorage() << "/cpp_" << CreateGuidAsString());
+        LOG_INFO("File not found in cache; uploading to cypress (FileName: %s; CypressPath: %s; PreparationId: %s)",
+            itemToUpload.GetDescription().c_str(),
+            uniquePath.c_str(),
+            OperationPreparer_.GetPreparationId().c_str());
 
         Create(
             OperationPreparer_.GetClientRetryPolicy()->CreatePolicyForGenericRequest(),
@@ -685,9 +696,13 @@ private:
 
     TString UploadToCache(const IItemToUpload& itemToUpload) const
     {
-        LOG_INFO("Uploading file (FileName: %s)", itemToUpload.GetDescription().c_str());
+        LOG_INFO("Uploading file (FileName: %s; PreparationId: %s)",
+            itemToUpload.GetDescription().c_str(),
+            OperationPreparer_.GetPreparationId().c_str());
         TFinallyGuard g([&] {
-            LOG_INFO("Complete uploading file (FileName: %s)", itemToUpload.GetDescription().c_str());
+            LOG_INFO("Complete uploading file (FileName: %s; PreparationId: %s)",
+                itemToUpload.GetDescription().c_str(),
+                OperationPreparer_.GetPreparationId().c_str());
         });
         switch (Options_.FileCacheMode_) {
             case TOperationOptions::EFileCacheMode::ApiCommandBased:
@@ -1267,7 +1282,8 @@ TOperationId ExecuteMap(
     const IStructuredJob& mapper,
     const TOperationOptions& options)
 {
-    LOG_DEBUG("Starting map operation");
+    LOG_DEBUG("Starting map operation (PreparationId: %s)",
+        preparer.GetPreparationId().c_str());
     return DoExecuteMap(
         preparer,
         CreateSimpleOperationIo(mapper, preparer, spec, options, /* allowSkiff = */ true),
@@ -1282,7 +1298,8 @@ TOperationId ExecuteRawMap(
     const IRawJob& mapper,
     const TOperationOptions& options)
 {
-    LOG_DEBUG("Starting raw map operation");
+    LOG_DEBUG("Starting raw map operation (PreparationId: %s)",
+        preparer.GetPreparationId().c_str());
     return DoExecuteMap(
         preparer,
         CreateSimpleOperationIo(preparer, spec),
@@ -1370,7 +1387,8 @@ TOperationId ExecuteReduce(
     const IStructuredJob& reducer,
     const TOperationOptions& options)
 {
-    LOG_DEBUG("Starting reduce operation");
+    LOG_DEBUG("Starting reduce operation (PreparationId: %s)",
+        preparer.GetPreparationId().c_str());
     return DoExecuteReduce(
         preparer,
         CreateSimpleOperationIo(reducer, preparer, spec, options, /* allowSkiff = */ false),
@@ -1385,7 +1403,8 @@ TOperationId ExecuteRawReduce(
     const IRawJob& reducer,
     const TOperationOptions& options)
 {
-    LOG_DEBUG("Starting raw reduce operation");
+    LOG_DEBUG("Starting raw reduce operation (PreparationId: %s)",
+        preparer.GetPreparationId().c_str());
     return DoExecuteReduce(
         preparer,
         CreateSimpleOperationIo(preparer, spec),
@@ -1466,7 +1485,8 @@ TOperationId ExecuteJoinReduce(
     const IStructuredJob& reducer,
     const TOperationOptions& options)
 {
-    LOG_DEBUG("Starting join reduce operation");
+    LOG_DEBUG("Starting join reduce operation (PreparationId: %s)",
+        preparer.GetPreparationId().c_str());
     return DoExecuteJoinReduce(
         preparer,
         CreateSimpleOperationIo(reducer, preparer, spec, options, /* allowSkiff = */ false),
@@ -1481,7 +1501,8 @@ TOperationId ExecuteRawJoinReduce(
     const IRawJob& reducer,
     const TOperationOptions& options)
 {
-    LOG_DEBUG("Starting raw join reduce operation");
+    LOG_DEBUG("Starting raw join reduce operation (PreparationId: %s)",
+        preparer.GetPreparationId().c_str());
     return DoExecuteJoinReduce(
         preparer,
         CreateSimpleOperationIo(preparer, spec),
@@ -1646,7 +1667,8 @@ TOperationId ExecuteMapReduce(
     const IStructuredJob& reducer,
     const TOperationOptions& options)
 {
-    LOG_DEBUG("Starting map-reduce operation");
+    LOG_DEBUG("Starting map-reduce operation (PreparationId: %s)",
+        preparer.GetPreparationId().c_str());
     TMapReduceOperationSpec spec = spec_;
 
     TMapReduceOperationIo operationIo;
@@ -1873,7 +1895,8 @@ TOperationId ExecuteRawMapReduce(
     const IRawJob& reducer,
     const TOperationOptions& options)
 {
-    LOG_DEBUG("Starting raw map-reduce operation");
+    LOG_DEBUG("Starting raw map-reduce operation (PreparationId: %s)",
+        preparer.GetPreparationId().c_str());
     TMapReduceOperationIo operationIo;
     operationIo.Inputs = CanonizePaths(preparer.GetAuth(), spec.GetInputs());
     operationIo.MapOutputs = CanonizePaths(preparer.GetAuth(), spec.GetMapOutputs());
@@ -1920,7 +1943,8 @@ TOperationId ExecuteSort(
     const TSortOperationSpec& spec,
     const TOperationOptions& options)
 {
-    LOG_DEBUG("Starting sort operation");
+    LOG_DEBUG("Starting sort operation (PreparationId: %s)",
+        preparer.GetPreparationId().c_str());
     auto inputs = CanonizePaths(preparer.GetAuth(), spec.Inputs_);
     auto output = CanonizePath(preparer.GetAuth(), spec.Output_);
 
@@ -1959,7 +1983,8 @@ TOperationId ExecuteMerge(
     const TMergeOperationSpec& spec,
     const TOperationOptions& options)
 {
-    LOG_DEBUG("Starting merge operation");
+    LOG_DEBUG("Starting merge operation (PreparationId: %s)",
+        preparer.GetPreparationId().c_str());
     auto inputs = CanonizePaths(preparer.GetAuth(), spec.Inputs_);
     auto output = CanonizePath(preparer.GetAuth(), spec.Output_);
 
@@ -1999,7 +2024,8 @@ TOperationId ExecuteErase(
     const TEraseOperationSpec& spec,
     const TOperationOptions& options)
 {
-    LOG_DEBUG("Starting erase operation");
+    LOG_DEBUG("Starting erase operation (PreparationId: %s)",
+        preparer.GetPreparationId().c_str());
     auto tablePath = CanonizePath(preparer.GetAuth(), spec.TablePath_);
 
     TNode specNode = BuildYsonNodeFluently()
@@ -2026,7 +2052,8 @@ TOperationId ExecuteRemoteCopy(
     const TRemoteCopyOperationSpec& spec,
     const TOperationOptions& options)
 {
-    LOG_DEBUG("Starting remote copy operation");
+    LOG_DEBUG("Starting remote copy operation (PreparationId: %s)",
+        preparer.GetPreparationId().c_str());
     auto inputs = CanonizePaths(preparer.GetAuth(), spec.Inputs_);
     auto output = CanonizePath(preparer.GetAuth(), spec.Output_);
 
@@ -2072,7 +2099,8 @@ TOperationId ExecuteVanilla(
     const TVanillaOperationSpec& spec,
     const TOperationOptions& options)
 {
-    LOG_DEBUG("Starting vanilla operation");
+    LOG_DEBUG("Starting vanilla operation (PreparationId: %s)",
+        preparer.GetPreparationId().c_str());
 
     auto addTask = [&](TFluentMap fluent, const TVanillaTask& task) {
         Y_VERIFY(task.Job_.Get());
@@ -2681,6 +2709,7 @@ TOperationPreparer::TOperationPreparer(TClientPtr client, TTransactionId transac
     , TransactionId_(transactionId)
     , FileTransaction_(new TPingableTransaction(Client_->GetAuth(), TransactionId_))
     , ClientRetryPolicy_(Client_->GetRetryPolicy())
+    , PreparationId_(CreateGuidAsString())
 { }
 
 const TAuth& TOperationPreparer::GetAuth() const
@@ -2691,6 +2720,11 @@ const TAuth& TOperationPreparer::GetAuth() const
 TTransactionId TOperationPreparer::GetTransactionId() const
 {
     return TransactionId_;
+}
+
+const TString& TOperationPreparer::GetPreparationId() const
+{
+    return PreparationId_;
 }
 
 const IClientRetryPolicyPtr& TOperationPreparer::GetClientRetryPolicy() const
@@ -2789,6 +2823,9 @@ TOperationId TOperationPreparer::StartOperation(
         header,
         ysonSpec);
     TOperationId operationId = ParseGuidFromResponse(responseInfo.Response);
+    LOG_DEBUG("Operation started (OperationId: %s; PreparationId: %s)",
+        GetGuidAsString(operationId).c_str(),
+        GetPreparationId().c_str());
 
     LOG_INFO("Operation %s started (%s): http://%s/#page=operation&mode=detail&id=%s&tab=details",
         GetGuidAsString(operationId).data(), operationType.data(), GetAuth().ServerName.data(), GetGuidAsString(operationId).data());
