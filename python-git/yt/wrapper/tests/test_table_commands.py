@@ -108,7 +108,7 @@ class TestTableCommands(object):
                         for _ in iterator:
                             pass
 
-    def test_table_path(self, yt_env):
+    def test_table_path(self, yt_env_with_rpc):
         path = yt.TablePath("//path/to/table", attributes={"my_attr": 10})
         assert path.attributes["my_attr"] == 10
         assert str(path) == "//path/to/table"
@@ -322,7 +322,7 @@ class TestTableCommands(object):
         yt.run_erase(TablePath(table, start_index=0, end_index=5))
         assert yt.row_count(table) == 0
 
-    def test_read_with_table_path(self, yt_env):
+    def test_read_with_table_path(self, yt_env_with_rpc):
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"y": "w3"}, {"x": "b", "y": "w1"}, {"x": "a", "y": "w2"}])
         yt.run_sort(table, sort_by=["x", "y"])
@@ -376,9 +376,9 @@ class TestTableCommands(object):
         with pytest.raises(yt.YtError):
             TablePath("abc")
 
-    def test_read_parallel_with_table_path(self, yt_env):
+    def test_read_parallel_with_table_path(self, yt_env_with_rpc):
         with set_config_option("read_parallel/enable", True):
-            self.test_read_with_table_path(yt_env)
+            self.test_read_with_table_path(yt_env_with_rpc)
 
     def test_remove_locks(self):
         from yt.wrapper.table_helpers import _remove_locks
