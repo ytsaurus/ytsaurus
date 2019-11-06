@@ -978,7 +978,7 @@ def run_ya_tests(options, build_context):
     args = [
         os.path.join(options.checkout_directory, "ya"),
         "make",
-        "--dist", "--new-dist",
+        "--dist",
         "-E", "--output", sandbox_storage,
         "--junit", junit_output,
         "-ttt",
