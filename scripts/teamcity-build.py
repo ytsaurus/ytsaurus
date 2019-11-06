@@ -960,16 +960,11 @@ def run_unit_tests(options, build_context):
         process_core_dumps(options, "unit_tests", sandbox_current)
         rmtree(sandbox_current)
 
-
-@build_step
-@only_for_projects("yt")
-def run_ya_tests(options, build_context):
+def run_ya_tests(options, suite_name, test_paths):
     # NB: tests are disabled under ASAN because random hangups in python, see YT-11297.
     if options.disable_tests or options.use_asan:
         teamcity_message("Skipping ya make tests since tests are disabled")
         return
-
-    suite_name = "ya_integration"
 
     _, sandbox_storage = get_sandbox_dirs(options, suite_name)
     junit_output = os.path.join(options.working_directory, "junit_yatest.xml")
@@ -981,10 +976,11 @@ def run_ya_tests(options, build_context):
         "--dist",
         "-E", "--output", sandbox_storage,
         "--junit", junit_output,
+        "--test-param", "inside_arcadia=0",
         "-ttt",
         "--dont-merge-split-tests",
-        "yt/tests",
     ]
+    args += test_paths
     args += ya_make_args(options)
     args += ya_make_definition_args(options)
     if options.use_asan:
@@ -1001,6 +997,10 @@ def run_ya_tests(options, build_context):
         if os.path.exists(sandbox_storage):
             sudo_rmtree(sandbox_storage)
 
+@build_step
+@only_for_projects("yt")
+def run_ya_integration_tests(options, build_context):
+    run_ya_tests(options, "ya_integration", ["yt/tests"])
 
 def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None, python_version=None):
     yt_processes_cleanup()
@@ -1148,6 +1148,19 @@ def run_yp_integration_tests(options, build_context):
 
 @build_step
 @only_for_projects("yt")
+def run_ya_python_tests(options, build_context):
+    targets = [
+        "python/yt/local/tests",
+        "python/yt/skiff/tests",
+        "python/yt/yson/tests/py2",
+        "python/yt/yson/tests/py3",
+        "python/yt/wrapper/tests/py2",
+        "python/yt/wrapper/tests/py3",
+    ]
+    run_ya_tests(options, "ya_python", targets)
+
+@build_step
+@only_for_projects("yt")
 def run_python_libraries_tests(options, build_context):
     if options.disable_tests:
         teamcity_message("Python tests are skipped since all tests are disabled")
@@ -1160,6 +1173,10 @@ def run_python_libraries_tests(options, build_context):
     if options.enable_parallel_testing:
         pytest_args.extend(["--process-count", str(PYTHON_TESTS_PARALLELISM)])
 
+    test_paths_filename = os.path.join(options.checkout_directory, "python/yt/wrapper/system_python_tests/test_paths.txt")
+    test_names = open(test_paths_filename).read().split()
+    pytest_args += [os.path.join(options.checkout_directory, "python/yt/wrapper/tests", name)
+                    for name in test_names]
     run_pytest(options,
                "python_libraries",
                "{0}/python".format(options.checkout_directory),
