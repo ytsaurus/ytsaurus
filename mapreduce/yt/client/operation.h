@@ -60,6 +60,8 @@ public:
     const TAuth& GetAuth() const;
     TTransactionId GetTransactionId() const;
 
+    const TString& GetPreparationId() const;
+
     void LockFiles(
         TVector<TRichYPath>* paths,
         TVector<TString> lockedFileSignatures,
@@ -79,6 +81,7 @@ private:
     TVector<TString> LockedFileSignatures_;
     TYPath CachePath_;
     IClientRetryPolicyPtr ClientRetryPolicy_;
+    const TString PreparationId_;
 
 private:
     void CheckValidity() const;
