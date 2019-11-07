@@ -306,6 +306,7 @@ private:
     TFairShareSchedulingStage PreemptiveSchedulingStage_;
     TFairShareSchedulingStage PackingFallbackSchedulingStage_;
 
+    NProfiling::TAggregateGauge FairSharePreUpdateTimeCounter_;
     NProfiling::TAggregateGauge FairShareUpdateTimeCounter_;
     NProfiling::TAggregateGauge FairShareLogTimeCounter_;
     NProfiling::TAggregateGauge AnalyzePreemptableJobsTimeCounter_;
