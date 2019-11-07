@@ -271,6 +271,7 @@ TFairShareTree::TFairShareTree(
     , PackingFallbackSchedulingStage_(
         /* nameInLogs */ "Packing fallback",
         TScheduleJobsProfilingCounters("/packing_fallback", {TreeIdProfilingTag_}))
+    , FairSharePreUpdateTimeCounter_("/fair_share_preupdate_time", {TreeIdProfilingTag_})
     , FairShareUpdateTimeCounter_("/fair_share_update_time", {TreeIdProfilingTag_})
     , FairShareLogTimeCounter_("/fair_share_log_time", {TreeIdProfilingTag_})
     , AnalyzePreemptableJobsTimeCounter_("/analyze_preemptable_jobs_time", {TreeIdProfilingTag_})
@@ -984,7 +985,7 @@ std::pair<IFairShareTreeSnapshotPtr, TError> TFairShareTree::DoFairShareUpdateAt
     updateContext.Now = now;
 
     auto rootElement = RootElement_->Clone();
-    PROFILE_AGGREGATED_TIMING(FairShareUpdateTimeCounter_) {
+    PROFILE_AGGREGATED_TIMING(FairSharePreUpdateTimeCounter_) {
         rootElement->PreUpdate(&dynamicAttributes, &updateContext);
     }
     auto asyncUpdate = BIND([&]
