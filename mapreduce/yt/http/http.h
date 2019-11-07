@@ -195,6 +195,8 @@ private:
     TString HostName;
     TString RequestId;
     TString Url_;
+    TInstant StartTime_;
+    TString LoggedAttributes_;
 
     TConnectionPtr Connection;
 
