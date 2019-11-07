@@ -220,14 +220,14 @@ TFuture<std::vector<TBlock>> TFileReader::DoReadBlocks(
 
     if (!blocksExt) {
         return DoReadMeta(options, std::nullopt, std::nullopt)
-            .ToUncancelable()
             .Apply(BIND([=, this_ = MakeStrong(this)] (const TRefCountedChunkMetaPtr& meta) {
                 auto loadedBlocksExt = New<TRefCountedBlocksExt>(GetProtoExtension<NProto::TBlocksExt>(meta->extensions()));
                 if (BlocksExtCache_) {
                     BlocksExtCache_->Put(meta, loadedBlocksExt);
                 }
                 return DoReadBlocks(options, firstBlockIndex, blockCount, loadedBlocksExt, dataFile);
-            }));
+            }))
+            .ToUncancelable();
     }
 
     if (!dataFile) {
