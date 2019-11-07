@@ -292,6 +292,8 @@ TValue MakeAnyValue(TStringBuf value, int id = 0, bool aggregate = false)
     return result;
 }
 
+[[ noreturn ]] void ThrowUnexpectedValueType(EValueType valueType);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient

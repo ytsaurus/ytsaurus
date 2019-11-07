@@ -665,7 +665,7 @@ public:
              keyColumnIndex < KeyColumnReaders_.size();
              ++keyColumnIndex)
         {
-            auto columnReader = CreateUnversionedNullColumnReader(
+            auto columnReader = CreateBlocklessUnversionedNullColumnReader(
                 keyColumnIndex,
                 keyColumnIndex);
             KeyColumnReaders_[keyColumnIndex] = columnReader.get();

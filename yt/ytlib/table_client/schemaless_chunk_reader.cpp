@@ -1276,7 +1276,7 @@ private:
         }
 
         for (int keyIndex = minKeyColumnCount; keyIndex < KeyColumns_.size(); ++keyIndex) {
-            auto columnReader = CreateUnversionedNullColumnReader(
+            auto columnReader = CreateBlocklessUnversionedNullColumnReader(
                 keyIndex,
                 keyIndex);
             KeyColumnReaders_.emplace_back(columnReader.get());
@@ -1593,7 +1593,7 @@ private:
             Columns_.emplace_back(std::move(columnReader), keyColumnIndex);
         }
         for (int keyColumnIndex = chunkSchema.GetKeyColumnCount(); keyColumnIndex < KeyColumns_.size(); ++keyColumnIndex) {
-            auto columnReader = CreateUnversionedNullColumnReader(
+            auto columnReader = CreateBlocklessUnversionedNullColumnReader(
                 keyColumnIndex,
                 keyColumnIndex);
 

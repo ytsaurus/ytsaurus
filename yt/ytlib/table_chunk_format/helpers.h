@@ -107,6 +107,9 @@ int CompareValues(const NTableClient::TUnversionedValue& lhs, const NTableClient
         return CompareTypedValues<bool>(lhs, rhs);
     } else if constexpr (valueType == EValueType::Any) {
         return CompareRowValues(lhs, rhs);
+    } else if constexpr (valueType == EValueType::Null) {
+        // Nulls are always equal
+        return 0;
     } else {
         // Poor man static_assert(false, ...).
         static_assert(valueType == EValueType::Int64, "Unexpected value type");

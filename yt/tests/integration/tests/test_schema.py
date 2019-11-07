@@ -334,7 +334,8 @@ class TestComplexTypes(YTEnvSetup):
         test_table.check_bad_value([2, None])
 
     @authors("ermolovd")
-    def test_null_type(self):
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_null_type(self, optimize_for):
         def check_schema():
             column_schema = get("//tmp/table/@schema/0")
             assert column_schema["required"] == False
@@ -362,7 +363,8 @@ class TestComplexTypes(YTEnvSetup):
                 "name": "column",
                 "type": "null",
                 "required": False,
-            }])
+            }]),
+            "optimize_for": optimize_for,
         })
         check_schema()
 
