@@ -997,6 +997,9 @@ def run_ya_tests(options, build_context):
         # In case of yatest artifacts are rebuilded in dist build and included to the sandbox.
         save_failed_test(options, suite_name, save_artifacts=False)
         raise StepFailedWithNonCriticalError(str(err))
+    finally:
+        if os.path.exists(sandbox_storage):
+            sudo_rmtree(sandbox_storage)
 
 
 def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None, python_version=None):
