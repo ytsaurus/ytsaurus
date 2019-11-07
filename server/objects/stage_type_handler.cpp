@@ -165,11 +165,18 @@ void ValidateTvmConfig(const NClient::NApi::NProto::TTvmConfig& config)
 void ValidateStageAndDeployUnitId(const TObjectId& id, const TString& description)
 {
     static const re2::RE2 stageIdPattern("[A-Za-z0-9-_]+");
+    static const size_t idLengthLimit = 40;
     if (!re2::RE2::FullMatch(id, stageIdPattern)) {
         THROW_ERROR_EXCEPTION("%v %Qv must match regexp %Qv",
             description,
             id,
             stageIdPattern.Pattern());
+    }
+    if (id.length() > idLengthLimit) {
+        THROW_ERROR_EXCEPTION("%v %Qv length exceeds limit %lu",
+            description,
+            id,
+            idLengthLimit);
     }
 }
 
@@ -288,11 +295,18 @@ void ValidatePodAgentSpec(const NInfra::NPodAgent::API::TPodAgentSpec& spec)
 void ValidatePodAgentObjectId(const TString& id, const TString& description)
 {
     static const re2::RE2 podAgentObjectIdPattern("[a-zA-Z0-9\\-\\_\\@\\:\\.]+");
+    static const size_t idLengthLimit = 64;
     if (!re2::RE2::FullMatch(id, podAgentObjectIdPattern)) {
         THROW_ERROR_EXCEPTION("%v %Qv must match regexp %Qv",
             description,
             id,
             podAgentObjectIdPattern.Pattern());
+    }
+    if (id.length() > idLengthLimit) {
+        THROW_ERROR_EXCEPTION("%v %Qv length exceeds limit %lu",
+            description,
+            id,
+            idLengthLimit);
     }
 }
 

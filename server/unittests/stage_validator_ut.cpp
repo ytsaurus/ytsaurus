@@ -89,6 +89,12 @@ TEST(StageValidator, ValidateStageDeployUnitIdTest)
     ValidateStageAndDeployUnitId("valid", "Stage id");
 }
 
+TEST(StageValidator, ValidateStageIdLengthTest)
+{
+    TObjectId id = TString("a") * 45;
+    ASSERT_THROW(ValidateStageAndDeployUnitId(id, "Stage id"), TErrorException);
+}
+
 TEST(StageValidator, ValidateTvmConfigTest)
 {
     NClient::NApi::NProto::TTvmConfig config;
@@ -110,6 +116,12 @@ TEST(StageValidator, ValidatePodAgentObjectIdTest)
     ASSERT_THROW(ValidatePodAgentObjectId("box/workload_id", "Workload id"), TErrorException);
 
     ValidatePodAgentObjectId("workload1_-@:.", "Workload id");
+}
+
+TEST(StageValidator, ValidatePodAgentObjectIdLengthTest)
+{
+    TObjectId id = TString("a") * 75;
+    ASSERT_THROW(ValidatePodAgentObjectId(id, "Workload id"), TErrorException);
 }
 
 TEST(StageValidator, ValidatePodAgentObjectEnvTest)
