@@ -42,7 +42,7 @@ private:
 
         TDuration GetAverageWaitTime() const
         {
-            YT_ABORT();
+            YT_UNIMPLEMENTED();
         }
 
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
