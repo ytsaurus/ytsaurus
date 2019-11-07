@@ -48,6 +48,36 @@ void AppendVector(std::vector<T>* data, const std::vector<T> toAppend)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSingleColumnWriter
+{
+public:
+    using TWriterCreatorFunc = std::function<std::unique_ptr<IValueColumnWriter>(TDataBlockWriter*)>;
+    explicit TSingleColumnWriter(TWriterCreatorFunc writerCreator);
+    std::pair<TSharedRef, NProto::TColumnMeta> WriteSingleSegmentBlock(const std::vector<NTableClient::TUnversionedOwningRow>& rows);
+
+private:
+    TDataBlockWriter BlockWriter_;
+    std::unique_ptr<IValueColumnWriter> ValueColumnWriter_;
+    i64 RowCount_ = 0;
+    i64 BlockIndex_ = 0;
+};
+
+class TSingleColumnReader
+{
+public:
+    using TReaderCreatorFunc = std::function<
+        std::unique_ptr<IUnversionedColumnReader>(const NProto::TColumnMeta&, int, int)
+    >;
+    explicit TSingleColumnReader(TReaderCreatorFunc readerCreator);
+
+    std::vector<NTableClient::TUnversionedOwningRow> ReadBlock(const TSharedRef& data, const NProto::TColumnMeta& meta, ui16 columnId);
+
+private:
+    TReaderCreatorFunc ReaderCreatorFunc_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TVersionedColumnTestBase
     : public ::testing::Test
 {

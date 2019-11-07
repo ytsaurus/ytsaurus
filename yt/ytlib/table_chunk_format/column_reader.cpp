@@ -1,9 +1,10 @@
 #include "column_reader.h"
 
-#include "integer_column_reader.h"
-#include "double_column_reader.h"
-#include "string_column_reader.h"
 #include "boolean_column_reader.h"
+#include "double_column_reader.h"
+#include "integer_column_reader.h"
+#include "null_column_reader.h"
+#include "string_column_reader.h"
 
 #include <yt/client/table_client/schema.h>
 
@@ -39,9 +40,15 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedColumnReader(
         case EValueType::Any:
             return CreateUnversionedAnyColumnReader(meta, columnIndex, columnId);
 
-        default:
-            YT_ABORT();
+        case EValueType::Null:
+            return CreateUnversionedNullColumnReader(meta, columnIndex, columnId);
+
+        case EValueType::Min:
+        case EValueType::Max:
+        case EValueType::TheBottom:
+            break;
     }
+    ThrowUnexpectedValueType(schema.GetPhysicalType());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -86,6 +86,64 @@ std::vector<std::pair<ui32, ui32>> GetTimestampIndexRanges(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TSingleColumnWriter::TSingleColumnWriter(TWriterCreatorFunc writerCreator)
+    : ValueColumnWriter_(writerCreator(&BlockWriter_))
+{ }
+
+std::pair<TSharedRef, NProto::TColumnMeta> TSingleColumnWriter::WriteSingleSegmentBlock(
+    const std::vector<TUnversionedOwningRow>& rows)
+{
+    std::vector<TUnversionedRow> nonOwningRows;
+    nonOwningRows.reserve(rows.size());
+
+    for (const auto& r : rows) {
+        nonOwningRows.emplace_back(r);
+    }
+
+    ValueColumnWriter_->WriteUnversionedValues(nonOwningRows);
+    ValueColumnWriter_->FinishCurrentSegment();
+    RowCount_ += rows.size();
+
+    auto block = BlockWriter_.DumpBlock(BlockIndex_, RowCount_);
+    auto* codec = NCompression::GetCodec(NCompression::ECodec::None);
+    const auto data = codec->Compress(block.Data);
+    auto columnMeta = ValueColumnWriter_->ColumnMeta();
+
+    return std::pair(data, columnMeta);
+}
+
+TSingleColumnReader::TSingleColumnReader(TReaderCreatorFunc readerCreator)
+     : ReaderCreatorFunc_(readerCreator)
+{ }
+
+std::vector<TUnversionedOwningRow> TSingleColumnReader::ReadBlock(const TSharedRef& data, const NProto::TColumnMeta& meta, ui16 columnId)
+{
+    auto reader = ReaderCreatorFunc_(meta, 0, columnId);
+    reader->ResetBlock(data, 0);
+    i64 totalRowCount = 0;
+    for (const auto& segment : meta.segments()) {
+        totalRowCount += segment.row_count();
+    }
+
+    TChunkedMemoryPool pool;
+    std::vector<TMutableUnversionedRow> mutableRows;
+    mutableRows.reserve(totalRowCount);
+    for (auto i = 0; i < totalRowCount; ++i) {
+        mutableRows.push_back(TMutableUnversionedRow::Allocate(&pool, 1));
+    }
+
+    reader->ReadValues(TMutableRange(mutableRows));
+
+    std::vector<TUnversionedOwningRow> rows;
+    rows.reserve(mutableRows.size());
+    for (const auto& r : mutableRows) {
+        rows.emplace_back(r);
+    }
+    return rows;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TVersionedColumnTestBase::SetUp()
 {
     TDataBlockWriter blockWriter;

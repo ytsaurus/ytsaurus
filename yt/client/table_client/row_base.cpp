@@ -156,4 +156,12 @@ TString ToString(const TColumnFilter& columnFilter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+[[ noreturn ]] void ThrowUnexpectedValueType(EValueType valueType)
+{
+    THROW_ERROR_EXCEPTION("Unexpected EValueType value: %Qv",
+        valueType);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTableClient
