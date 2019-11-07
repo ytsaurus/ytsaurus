@@ -81,6 +81,8 @@ private:
     NAuth::ICookieAuthenticatorPtr CookieAuthenticator_;
     THttpAuthenticatorPtr HttpAuthenticator_;
 
+    NRpc::IServerPtr RpcServer_;
+
     NHttp::IServerPtr ApiHttpServer_;
     NHttp::IServerPtr ApiHttpsServer_;
     TApiPtr Api_;
