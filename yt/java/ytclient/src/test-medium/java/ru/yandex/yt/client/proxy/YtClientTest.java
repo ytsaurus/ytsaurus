@@ -1,5 +1,7 @@
 package ru.yandex.yt.client.proxy;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -23,9 +25,12 @@ import org.junit.runners.Parameterized;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import ru.yandex.bolts.collection.Cf;
 import ru.yandex.inside.yt.kosher.cypress.CypressNodeType;
+import ru.yandex.inside.yt.kosher.cypress.RangeLimit;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
+import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
@@ -36,10 +41,14 @@ import ru.yandex.yt.ytclient.proxy.ApiServiceTransaction;
 import ru.yandex.yt.ytclient.proxy.ApiServiceTransactionOptions;
 import ru.yandex.yt.ytclient.proxy.MappedModifyRowsRequest;
 import ru.yandex.yt.ytclient.proxy.SelectRowsRequest;
+import ru.yandex.yt.ytclient.proxy.TableReader;
+import ru.yandex.yt.ytclient.proxy.TableWriter;
 import ru.yandex.yt.ytclient.proxy.YtClient;
 import ru.yandex.yt.ytclient.proxy.YtCluster;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
+import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.RemoveNode;
+import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 import ru.yandex.yt.ytclient.rpc.RpcCompression;
 import ru.yandex.yt.ytclient.rpc.RpcCredentials;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
@@ -65,16 +74,20 @@ public class YtClientTest {
     public static String getProxy() {
         return Objects.requireNonNull(System.getenv().get("YT_PROXY"), "Env variable YT_PROXY is required");
     }
+
     public static String getUsername() {
         return Objects.requireNonNull(System.getenv().getOrDefault("YT_USERNAME", "root"));
     }
+
     public static String getToken() {
         return Objects.requireNonNull(System.getenv().getOrDefault("YT_TOKEN", ""));
     }
+
     public static String getPathPrefix() {
         return Objects.requireNonNull(System.getenv().getOrDefault("YT_PATH",
                 "//home/" + System.getProperty("user.name")));
     }
+
     public static String getPath() {
         return StringUtils.removeEnd(getPathPrefix(), "/") + "/ytclient-junit/" + UUID.randomUUID().toString();
     }
@@ -148,7 +161,7 @@ public class YtClientTest {
                 new MappedObject(1, "test1"),
                 new MappedObject(2, "test2"));
 
-        this.insertData(client, table1, objects, serializer);
+        insertData(client, table1, objects, serializer);
 
         final List<UnversionedRow> rows = client.selectRows(query).join().getRows();
         final List<MappedObject> mappedRows = client.selectRows(SelectRowsRequest.of(query), serializer).join();
@@ -165,6 +178,59 @@ public class YtClientTest {
         ), rows);
     }
 
+    @Test(timeout = 10000)
+    public void readTable() throws Exception {
+        final String dir1 = path + "/dir1";
+        final String table2 = dir1 + "/table2";
+
+        final String path = YPath.simple(table2).toString();
+
+        readTableImpl(dir1, table2, path, new MappedObject(1, "test1"), new MappedObject(2, "test2"));
+    }
+
+    @Test(timeout = 10000)
+    public void readTableWithRange() throws Exception {
+        final String dir1 = path + "/dir1";
+        final String table3 = dir1 + "/table3";
+
+        final String path = YPath.simple(table3)
+                .withColumns("k1", "v1")
+                .withExact(new RangeLimit(
+                        Cf.list(new YTreeBuilder().value(1).build()),
+                        -1,
+                        -1))
+                .toString();
+
+        readTableImpl(dir1, table3, path, new MappedObject(1, "test1"));
+    }
+
+    private void readTableImpl(String dir, String table, String path, MappedObject... expect) throws Exception {
+        createDirectory(client, dir);
+        createTable(client, table, false);
+
+        final YTreeObjectSerializer<MappedObject> serializer =
+                (YTreeObjectSerializer<MappedObject>) YTreeObjectSerializerFactory.forClass(MappedObject.class);
+
+        final Collection<MappedObject> objects = Arrays.asList(
+                new MappedObject(1, "test1"),
+                new MappedObject(2, "test2"));
+
+        insertData(client, table, objects, serializer, false);
+
+        LOGGER.info("Reading table from {}", path);
+
+        final List<MappedObject> actual = new ArrayList<>();
+        final TableReader<MappedObject> reader = client.readTable(new ReadTable<>(path, serializer)).join();
+        while (reader.canRead()) {
+            final List<MappedObject> read = reader.read();
+            if (read != null && !read.isEmpty()) { // Could be null
+                actual.addAll(read);
+            }
+        }
+
+        Assert.assertEquals(List.of(expect), actual);
+    }
+
     public static void deleteDirectory(YtClient client, String path) {
         client.removeNode(new RemoveNode(path)).join();
     }
@@ -177,8 +243,12 @@ public class YtClientTest {
     }
 
     public static void createTable(YtClient client, String table) {
+        createTable(client, table, true);
+    }
+
+    public static void createTable(YtClient client, String table, boolean dynamic) {
         final Map<String, YTreeNode> attrs = YTree.mapBuilder()
-                .key("dynamic").value(YTree.booleanNode(true))
+                .key("dynamic").value(YTree.booleanNode(dynamic))
                 .key("schema").value(YTree.builder()
                         .beginAttributes()
                         .key("unique_keys").value(true)
@@ -208,18 +278,26 @@ public class YtClientTest {
                 .setRecursive(false)
                 .setIgnoreExisting(false)).join();
 
-        while (true) {
-            try {
-                client.mountTable(table).join();
-                return; // ---
-            } catch (RuntimeException e) {
-                LOGGER.info("Unable to mount table {}, will retry in a bit", table);
-                ThreadUtils.sleep(500, TimeUnit.MILLISECONDS);
+        if (dynamic) {
+            while (true) {
+                try {
+                    client.mountTable(table).join();
+                    return; // ---
+                } catch (RuntimeException e) {
+                    LOGGER.info("Unable to mount table {}, will retry in a bit", table);
+                    ThreadUtils.sleep(500, TimeUnit.MILLISECONDS);
+                }
             }
         }
     }
 
-    public static <T> void insertData(YtClient client, String table, Collection<T> objects, YTreeObjectSerializer<T> serializer) {
+    public static <T> void insertData(YtClient client, String table, Collection<T> objects,
+                                      YTreeObjectSerializer<T> serializer) {
+        insertData(client, table, objects, serializer, true);
+    }
+
+    public static <T> void insertData(YtClient client, String table, Collection<T> objects,
+                                      YTreeObjectSerializer<T> serializer, boolean dynamic) {
         final MappedModifyRowsRequest<T> request = new MappedModifyRowsRequest<>(table, serializer);
         request.addUpdates(objects);
 
@@ -227,8 +305,17 @@ public class YtClientTest {
                 new ApiServiceTransactionOptions(ETransactionType.TT_MASTER).setSticky(true);
 
         try (ApiServiceTransaction tx = client.startTransaction(options).join()) {
-            tx.modifyRows(request).join();
+            if (dynamic) {
+                tx.modifyRows(request).join();
+            } else {
+                final TableWriter<T> writer = tx.writeTable(new WriteTable<T>(table, serializer)).join();
+                writer.write(new ArrayList<>(objects));
+                writer.readyEvent().join();
+                writer.close().join();
+            }
             tx.commit().join();
+        } catch (IOException e) {
+            throw new RuntimeException("Unable to write", e);
         }
     }
 
