@@ -22,6 +22,21 @@
 
 namespace NYT {
 
+static TString TruncateForLogs(const TString& text, size_t maxSize)
+{
+    Y_VERIFY(maxSize > 10);
+    if (text.empty()) {
+        static TString empty = "empty";
+        return empty;
+    } else if (text.size() > maxSize) {
+        TStringStream out;
+        out << text.substr(0, maxSize) + "... ("  << text.size() << " bytes total)";
+        return out.Str();
+    } else {
+        return text;
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class THttpRequest::TDebugRequestTracer
@@ -651,6 +666,7 @@ void THttpRequest::Connect(TString hostName, TDuration socketTimeout)
         RequestId.data(),
         HostName.data());
 
+    StartTime_ = TInstant::Now();
     Connection = TConnectionPool::Get()->Connect(HostName, socketTimeout);
 
     LOG_DEBUG("REQ %s - connection #%u",
@@ -672,11 +688,20 @@ THttpOutput* THttpRequest::StartRequestImpl(const THttpHeader& header, bool incl
 {
     auto strHeader = header.GetHeader(HostName, RequestId, includeParameters);
     Url_ = header.GetUrl();
-    LOG_DEBUG("REQ %s - method: \"%s\" ; X-YT-Parameters (sent in %s): %s",
+
+    const auto parametersDebugString = GetParametersDebugString(header);
+    auto getLoggedAttributes = [&] (size_t sizeLimit) {
+        TStringStream out;
+        out << "HostName: " << HostName << "; "
+            << "Method: " << Url_ << "; "
+            << "X-YT-Parameters (sent in " << (includeParameters ? "header" : "body") << "): " << TruncateForLogs(parametersDebugString, sizeLimit);
+        return out.Str();
+    };
+    LOG_DEBUG("REQ %s - sending request (%s)",
         RequestId.data(),
-        Url_.data(),
-        includeParameters ? "header" : "body",
-        GetParametersDebugString(header).data());
+        getLoggedAttributes(Max<size_t>()).c_str());
+
+    LoggedAttributes_ = getLoggedAttributes(128);
 
     auto outputFormat = header.GetOutputFormat();
     if (outputFormat && outputFormat->IsTextYson()) {
@@ -746,22 +771,20 @@ TString THttpRequest::GetResponse()
 {
     TString result = GetResponseStream()->ReadAll();
 
+    TStringStream loggedAttributes;
+    loggedAttributes << "Time: " << TInstant::Now() - StartTime_ << "; " << LoggedAttributes_;
+
     if (LogResponse) {
-        const size_t sizeLimit = 1 << 7;
-        if (result.size() > sizeLimit) {
-            LOG_DEBUG("RSP %s - received response: %s...truncated - %" PRISZT " bytes total",
-                RequestId.data(),
-                result.substr(0, sizeLimit).data(),
-                result.size());
-        } else {
-            LOG_DEBUG("RSP %s - received response: %s",
-                RequestId.data(),
-                result.empty() ? "<empty>" : result.data());
-        }
+        constexpr auto sizeLimit = 1 << 7;
+        LOG_DEBUG("RSP %s - received response (Response: '%s'; %s)",
+            RequestId.c_str(),
+            TruncateForLogs(result, sizeLimit).c_str(),
+            loggedAttributes.Str().c_str());
     } else {
-        LOG_DEBUG("RSP %s - received response of %" PRISZT " bytes",
+        LOG_DEBUG("RSP %s - received response of %" PRISZT " bytes (%s)",
             RequestId.data(),
-            result.size());
+            result.size(),
+            loggedAttributes.Str().c_str());
     }
     return result;
 }
