@@ -1,6 +1,7 @@
 package ru.yandex.yt.ytclient.proxy;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Objects;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
@@ -14,6 +15,7 @@ import ru.yandex.yt.rpcproxy.ETransactionType;
 public class ApiServiceTransactionOptions {
     private final ETransactionType type;
     private Duration timeout;
+    private Instant deadline = null;
     private GUID id;
     private GUID parentId;
     private Boolean autoAbort;
@@ -34,6 +36,10 @@ public class ApiServiceTransactionOptions {
 
     public Duration getTimeout() {
         return timeout;
+    }
+
+    public Instant getDeadline() {
+        return deadline;
     }
 
     public GUID getId() {
@@ -74,6 +80,11 @@ public class ApiServiceTransactionOptions {
 
     public ApiServiceTransactionOptions setTimeout(Duration timeout) {
         this.timeout = timeout;
+        return this;
+    }
+
+    public ApiServiceTransactionOptions setDeadline(Instant deadline) {
+        this.deadline = deadline;
         return this;
     }
 

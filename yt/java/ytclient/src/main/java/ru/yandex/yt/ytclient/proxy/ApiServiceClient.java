@@ -1,6 +1,7 @@
 package ru.yandex.yt.ytclient.proxy;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -242,6 +243,10 @@ public class ApiServiceClient implements TransactionalClient {
         Duration timeout = options.getTimeout();
         if (timeout != null) {
             builder.body().setTimeout(ApiServiceUtil.durationToYtMicros(timeout));
+        }
+        Instant deadline = options.getDeadline();
+        if (deadline != null) {
+            builder.body().setDeadline(deadline.toEpochMilli());
         }
         if (options.getId() != null && !options.getId().isEmpty()) {
             builder.body().setId(RpcUtil.toProto(options.getId()));
