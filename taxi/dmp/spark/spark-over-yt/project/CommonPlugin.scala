@@ -26,6 +26,14 @@ object CommonPlugin extends AutoPlugin {
         .inLibrary("com.google.code.findbugs" % "annotations" % "2.0.3"),
       ShadeRule.zap("META-INF.org.apache.logging.log4j.core.config.plugins.Log4j2Plugins.dat")
         .inLibrary("org.apache.logging.log4j" % "log4j-core" % "2.11.0")
-    )
+    ),
+    publishTo := {
+      val nexus = "http://artifactory.yandex.net/artifactory/"
+      if (isSnapshot.value)
+        Some("snapshots" at nexus + "yandex_spark_snapshots")
+      else
+        Some("releases"  at nexus + "yandex_spark_releases")
+    },
+    credentials += Credentials(Path.userHome / ".sbt" / ".credentials")
   )
 }
