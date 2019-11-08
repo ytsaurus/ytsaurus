@@ -191,6 +191,23 @@ func (id *MutationID) UnmarshalYSON(data []byte) (err error) {
 	return
 }
 
+type JobID guid.GUID
+
+func (id JobID) String() string {
+	return guid.GUID(id).String()
+}
+
+func (id JobID) MarshalYSON(w *yson.Writer) error {
+	return guid.GUID(id).MarshalYSON(w)
+}
+
+func (id *JobID) UnmarshalYSON(data []byte) (err error) {
+	var g guid.GUID
+	err = g.UnmarshalYSON(data)
+	*id = JobID(g)
+	return
+}
+
 type LockMode string
 
 const (
@@ -204,5 +221,44 @@ func (m LockMode) MarshalText() ([]byte, error) {
 
 func (m *LockMode) UnmarshalText(b []byte) error {
 	*m = LockMode(b)
+	return nil
+}
+
+type JobSortField string
+
+const (
+	NoneSortField       JobSortField = "none"
+	TypeSortField       JobSortField = "type"
+	StateSortField      JobSortField = "state"
+	StartTimeSortField  JobSortField = "start_time"
+	FinishTimeSortField JobSortField = "finish_time"
+	AddressSortField    JobSortField = "address"
+	DurationSortField   JobSortField = "duration"
+	ProgressSortField   JobSortField = "progress"
+	IDSortField         JobSortField = "id"
+)
+
+func (m JobSortField) MarshalText() ([]byte, error) {
+	return []byte(m), nil
+}
+
+func (m *JobSortField) UnmarshalText(b []byte) error {
+	*m = JobSortField(b)
+	return nil
+}
+
+type JobSortOrder string
+
+const (
+	Ascending  JobSortOrder = "ascending"
+	Descending JobSortOrder = "descending"
+)
+
+func (m JobSortOrder) MarshalText() ([]byte, error) {
+	return []byte(m), nil
+}
+
+func (m *JobSortOrder) UnmarshalText(b []byte) error {
+	*m = JobSortOrder(b)
 	return nil
 }

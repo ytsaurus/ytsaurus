@@ -350,6 +350,32 @@ func (e *Encoder) ListOperations(
 	return
 }
 
+func (e *Encoder) ListJobs(
+	ctx context.Context,
+	opID yt.OperationID,
+	options *yt.ListJobsOptions,
+) (r *yt.ListJobsResult, err error) {
+	call := e.newCall(NewListJobsParams(opID, options))
+	err = e.do(ctx, call, func(res *CallResult) error {
+		return res.decode(&r)
+	})
+	return
+}
+
+func (e *Encoder) GetJobStderr(
+	ctx context.Context,
+	opID yt.OperationID,
+	jobID yt.JobID,
+	options *yt.GetJobStderrOptions,
+) (r []byte, err error) {
+	call := e.newCall(NewGetJobStderrParams(opID, jobID, options))
+	err = e.do(ctx, call, func(res *CallResult) error {
+		r = res.YSONValue
+		return nil
+	})
+	return
+}
+
 func (e *Encoder) WriteFile(
 	ctx context.Context,
 	path ypath.YPath,

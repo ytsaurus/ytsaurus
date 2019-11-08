@@ -36,9 +36,9 @@ import (
 	"context"
 	"io"
 
-	"a.yandex-team.ru/yt/go/yterrors"
-
 	"a.yandex-team.ru/yt/go/schema"
+
+	"a.yandex-team.ru/yt/go/yterrors"
 
 	"a.yandex-team.ru/yt/go/guid"
 	"a.yandex-team.ru/yt/go/yson"
@@ -528,6 +528,38 @@ type ListOperationsOptions struct {
 	*ReadRetryOptions
 }
 
+type ListJobsOptions struct {
+	JobType         *OperationType  `http:"job_type,omitnil"`
+	JobState        *OperationState `http:"job_state,omitnil"`
+	Address         *string         `http:"address,omitnil"`
+	WithStderr      *bool           `http:"with_stderr,omitnil"`
+	WithFailContext *bool           `http:"with_fail_context,omitnil"`
+	SortField       *JobSortField   `http:"sort_field,omitnil"`
+	SortOrder       *JobSortOrder   `http:"sort_order,omitnil"`
+	Limit           *int            `http:"limit,omitnil"`
+	Offset          *int            `http:"offset,omitnil"`
+	DataSource      *string         `http:"data_source,omitnil"`
+}
+
+type JobStatus struct {
+	ID              JobID          `yson:"id"`
+	Type            string         `yson:"type"`
+	State           string         `yson:"state"`
+	Address         string         `yson:"address"`
+	StartTime       yson.Time      `yson:"start_time"`
+	FinishTime      yson.Time      `yson:"finish_time,omitempty"`
+	FailContextSize int            `yson:"fail_context_size,omitempty"`
+	Error           yterrors.Error `yson:"error,omitempty"`
+	Progress        float64        `yson:"progress,omitempty"`
+}
+
+type ListJobsResult struct {
+	Jobs []JobStatus `yson:"jobs"`
+}
+
+type GetJobStderrOptions struct {
+}
+
 type GetOperationOptions struct {
 	Attributes     []string `http:"attributes,omitnil"`
 	IncludeRuntime *bool    `http:"include_runtime,omitnil"`
@@ -618,6 +650,23 @@ type LowLevelSchedulerClient interface {
 		ctx context.Context,
 		options *ListOperationsOptions,
 	) (operations []*OperationStatus, err error)
+
+	// http:verb:"list_jobs"
+	// http:params:"operation_id"
+	ListJobs(
+		ctx context.Context,
+		opID OperationID,
+		options *ListJobsOptions,
+	) (r *ListJobsResult, err error)
+
+	// http:verb:"get_job_stderr"
+	// http:params:"operation_id","job_id"
+	GetJobStderr(
+		ctx context.Context,
+		opID OperationID,
+		jobID JobID,
+		options *GetJobStderrOptions,
+	) (r []byte, err error)
 }
 
 type AddMemberOptions struct {

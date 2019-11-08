@@ -23,6 +23,8 @@ const (
 
 	VerbStartOperation Verb = "start_operation"
 	VerbGetOperation   Verb = "get_operation"
+	VerbListJobs       Verb = "list_jobs"
+	VerbJobStderr      Verb = "get_job_stderr"
 
 	VerbStartTransaction  Verb = "start_transaction"
 	VerbPingTransaction   Verb = "ping_transaction"
@@ -72,7 +74,7 @@ func (v Verb) IsHeavy() bool {
 
 func (v Verb) volatile() bool {
 	switch v {
-	case VerbGet, VerbList, VerbExists, VerbReadFile, VerbReadTable, VerbGetOperation, VerbGetFileFromCache:
+	case VerbGet, VerbList, VerbExists, VerbReadFile, VerbReadTable, VerbGetOperation, VerbGetFileFromCache, VerbListJobs, VerbJobStderr:
 		return false
 
 	case VerbSelectRows, VerbLookupRows:
