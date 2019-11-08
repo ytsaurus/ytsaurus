@@ -586,6 +586,12 @@ TEST_F(TQueryPrepareTest, OrderByPrimaryKeyPrefix)
     }
 
     {
+        TString queryString = "* from [//t] order by hash, a offset 5 limit 5";
+        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
+        EXPECT_FALSE(query->OrderClause);
+    }
+
+    {
         TString queryString = "* from [//t] order by a, b limit 10";
         auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
         EXPECT_TRUE(query->OrderClause);
