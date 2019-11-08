@@ -405,10 +405,10 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
     def test_set_final_job_state_metrics(self):
         nodes = ls("//sys/cluster_nodes")
 
-        metric = Metric.at_node(nodes[0], "job_controller/job_final_state")
+        metrics = [Metric.at_node(node, "job_controller/job_final_state") for node in nodes]
         op = run_test_vanilla("sleep 1")
 
-        wait(lambda: metric.update().get(verbose=True) > 0)
+        wait(lambda: any(metric.update().get(verbose=True) > 0 for metric in metrics))
 
         op.track()
 
