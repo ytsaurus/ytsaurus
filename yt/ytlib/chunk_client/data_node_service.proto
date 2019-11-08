@@ -259,9 +259,10 @@ message TReqGetTableSamples
     repeated string key_columns = 2;
     required int32 max_sample_size = 3;
     required NYT.NProto.TWorkloadDescriptor workload_descriptor = 4;
-    required int32 sampling_policy = 5;
+    required int32 sampling_policy = 5; // ESamplingPolicy
 
-    reserved 6;
+    // COMPAT(babenko)
+    optional bool keys_in_attachment = 6;
 }
 
 message TRspGetTableSamples
@@ -304,7 +305,8 @@ message TReqGetChunkSlices
     required bool slice_by_keys = 4;
     required NYT.NProto.TWorkloadDescriptor workload_descriptor = 5;
 
-    reserved 6;
+    // COMPAT(babenko)
+    optional bool keys_in_attachment = 6;
 }
 
 message TRspGetChunkSlices

@@ -120,6 +120,8 @@ private:
         ToProto(req->mutable_key_columns(), KeyColumns_);
         // TODO(babenko): make configurable
         ToProto(req->mutable_workload_descriptor(), TWorkloadDescriptor(EWorkloadCategory::UserBatch));
+        // COMPAT(babenko)
+        req->set_keys_in_attachment(true);
 
         std::vector<int> requestedChunkIndexes;
         int keyColumnCount = KeyColumns_.size();
