@@ -14,6 +14,7 @@ DEFINE_ENUM(EDnsResourceRecordType,
     ((A)         (1))
     ((PTR)      (12))
     ((AAAA)     (28))
+    ((SRV)      (33))
 );
 
 class TDnsRecordSet

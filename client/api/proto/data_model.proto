@@ -1599,6 +1599,9 @@ message TDnsRecordSetSpec
 
             AAAA = 28
             [(NYT.NYson.NProto.enum_value_name) = "AAAA"];
+
+            SRV = 33
+            [(NYT.NYson.NProto.enum_value_name) = "SRV"];
         }
         optional EType type = 3;
         optional string data = 4;

@@ -16,6 +16,7 @@ class TestDnsRecordsSet(object):
                     "records": [
                        {"ttl": 100, "class": "IN", "type": "PTR", "data": "some_data"},
                        {"ttl": 200, "class": "IN", "type": "AAAA", "data": "another_data"},
+                       {"ttl": 300, "class": "IN", "type": "SRV", "data": "srv_data"},
                     ],
                 }
             }
@@ -31,3 +32,7 @@ class TestDnsRecordsSet(object):
         assert result[1]["records"][1]["class"] == "IN"
         assert result[1]["records"][1]["type"] == "AAAA"
         assert result[1]["records"][1]["data"] == "another_data"
+        assert result[1]["records"][2]["ttl"] == 300
+        assert result[1]["records"][2]["class"] == "IN"
+        assert result[1]["records"][2]["type"] == "SRV"
+        assert result[1]["records"][2]["data"] == "srv_data"
