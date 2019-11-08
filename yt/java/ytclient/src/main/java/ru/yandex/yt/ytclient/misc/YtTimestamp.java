@@ -1,18 +1,10 @@
 package ru.yandex.yt.ytclient.misc;
 
-import java.time.Instant;
-
 /**
- * Timestamp is a cluster-wide unique monotonically increasing number used to implement the MVCC paradigm.
- * <p>
- * Timestamp is a 64-bit unsigned integer of the following structure:
- * bits  0-29:  auto-incrementing counter (allowing up to ~10^9 timestamps per second)
- * bits 30-61:  Unix time in seconds (from 1 Jan 1970)
- * bits 62-63:  reserved
+ * @deprecated Use {@link ru.yandex.inside.yt.kosher.common.YtTimestamp}.
  */
-public class YtTimestamp {
-    public static final int COUNTER_BITS = 30;
-    public static final long COUNTER_MASK = (1L << COUNTER_BITS) - 1;
+@Deprecated
+public class YtTimestamp extends ru.yandex.inside.yt.kosher.common.YtTimestamp {
 
     /**
      * Minimum valid (non-sentinel) timestamp.
@@ -41,46 +33,8 @@ public class YtTimestamp {
      */
     public static final YtTimestamp ASYNC_LAST_COMMITTED = new YtTimestamp(0x3fffffffffffff04L);
 
-    private final long value;
-
     private YtTimestamp(long value) {
-        this.value = value;
-    }
-
-    public long getValue() {
-        return value;
-    }
-
-    public Instant getInstant() {
-        return Instant.ofEpochSecond(value >>> COUNTER_BITS);
-    }
-
-    public long getCounter() {
-        return value & COUNTER_MASK;
-    }
-
-    @Override
-    public String toString() {
-        return getInstant() + "/" + getCounter();
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (!(o instanceof YtTimestamp)) {
-            return false;
-        }
-
-        YtTimestamp that = (YtTimestamp) o;
-
-        return value == that.value;
-    }
-
-    @Override
-    public int hashCode() {
-        return (int) (value ^ (value >>> 32));
+        super(value);
     }
 
     public static YtTimestamp valueOf(long value) {
