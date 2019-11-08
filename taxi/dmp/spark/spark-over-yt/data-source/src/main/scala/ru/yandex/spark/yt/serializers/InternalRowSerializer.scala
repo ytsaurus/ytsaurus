@@ -96,17 +96,19 @@ object InternalRowSerializer {
                       rows: java.util.ArrayList[InternalRow],
                       timeout: Int): Future[Unit] = {
     Future {
-      writeRowsI(writer, rows, timeout)
+      writeRowsRecursive(writer, rows, timeout)
     }(context)
   }
 
   @tailrec
-  final def writeRowsI(writer: TableWriter[InternalRow], rows: java.util.ArrayList[InternalRow], timeout: Int): Unit = {
+  private def writeRowsRecursive(writer: TableWriter[InternalRow],
+                                 rows: java.util.ArrayList[InternalRow],
+                                 timeout: Int): Unit = {
     if (!writer.write(rows)) {
       YtMetricsRegister.time(writeReadyEventTime, writeReadyEventTimeSum) {
         writer.readyEvent().get(timeout, TimeUnit.SECONDS)
       }
-      writeRowsI(writer, rows, timeout)
+      writeRowsRecursive(writer, rows, timeout)
     }
   }
 }

@@ -6,13 +6,11 @@ import java.util.concurrent.CompletableFuture
 
 import org.joda.time.{Duration => JodaDuration}
 import ru.yandex.bolts.collection.impl.DefaultListF
-import ru.yandex.bolts.collection.{ListF, Option => YOption}
-import ru.yandex.bolts.function
+import ru.yandex.bolts.collection.{Option => YOption}
 import ru.yandex.inside.yt.kosher.Yt
 import ru.yandex.inside.yt.kosher.common.GUID
 import ru.yandex.inside.yt.kosher.impl.rpc.TransactionManager
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
-import ru.yandex.inside.yt.kosher.operations.Operation
 import ru.yandex.inside.yt.kosher.operations.specs.{MergeMode, MergeSpec}
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.conf.YtTableSettings
