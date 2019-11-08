@@ -122,6 +122,8 @@ TFuture<void> TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector
     ToProto(req->mutable_key_columns(), KeyColumns_);
     req->set_max_sample_size(MaxSampleSize_);
     req->set_sampling_policy(static_cast<int>(SamplingPolicy_));
+    // COMPAT(babenko)
+    req->set_keys_in_attachment(true);
     // TODO(babenko): make configurable
     ToProto(req->mutable_workload_descriptor(), TWorkloadDescriptor(EWorkloadCategory::UserBatch));
 
