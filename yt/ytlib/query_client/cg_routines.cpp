@@ -1298,7 +1298,7 @@ void AllocatePermanentRow(TExecutionContext* context, TExpressionContext* buffer
     *row = buffer->AllocateUnversioned(valueCount).Begin();
 }
 
-void AddRow(TTopCollector* topCollector, TValue* row)
+void AddRowToCollector(TTopCollector* topCollector, TValue* row)
 {
     topCollector->AddRow(row);
 }
@@ -2153,7 +2153,7 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(TransformTuple);
     REGISTER_ROUTINE(SimpleHash);
     REGISTER_ROUTINE(FarmHashUint64);
-    REGISTER_ROUTINE(AddRow);
+    REGISTER_ROUTINE(AddRowToCollector);
     REGISTER_ROUTINE(OrderOpHelper);
     REGISTER_ROUTINE(ThrowException);
     REGISTER_ROUTINE(ThrowQueryException);
