@@ -1975,6 +1975,26 @@ TCodegenExpression MakeCodegenTransformExpr(
 void CodegenEmptyOp(TCGOperatorContext& builder)
 { }
 
+TLlvmClosure MakeConsumer(TCGOperatorContext& builder, llvm::Twine name, size_t consumerSlot)
+{
+    return MakeClosure<void(TExpressionContext*, TValue**, i64)>(builder, name,
+        [&] (
+            TCGOperatorContext& builder,
+            Value* buffer,
+            Value* rows,
+            Value* size
+        ) {
+            TCGContext innerBuilder(builder, buffer);
+            CodegenForEachRow(
+                innerBuilder,
+                rows,
+                size,
+                builder[consumerSlot]);
+
+            innerBuilder->CreateRetVoid();
+        });
+}
+
 size_t MakeCodegenScanOp(
     TCodegenSource* codegenSource,
     size_t* slotCount)
@@ -1987,16 +2007,7 @@ size_t MakeCodegenScanOp(
     ] (TCGOperatorContext& builder) {
         codegenSource(builder);
 
-        auto consume = MakeClosure<void(TExpressionContext*, TValue**, i64)>(builder, "ScanOpInner", [&] (
-            TCGOperatorContext& builder,
-            Value* buffer,
-            Value* rows,
-            Value* size
-        ) {
-            TCGContext innerBulder(builder, buffer);
-            CodegenForEachRow(innerBulder, rows, size, builder[consumerSlot]);
-            innerBulder->CreateRetVoid();
-        });
+        auto consume = MakeConsumer(builder, "ScanOpInner", consumerSlot);
 
         builder->CreateCall(
             builder.Module->GetRoutine("ScanOpHelper"),
@@ -2167,21 +2178,7 @@ size_t MakeCodegenJoinOp(
             builder->CreateRetVoid();
         });
 
-        auto consumeJoinedRows = MakeClosure<void(TExpressionContext*, TValue**, i64)>(builder, "ConsumeJoinedRows", [&] (
-            TCGOperatorContext& builder,
-            Value* buffer,
-            Value* joinedRows,
-            Value* size
-        ) {
-            TCGContext innerBuilder(builder, buffer);
-            CodegenForEachRow(
-                innerBuilder,
-                joinedRows,
-                size,
-                builder[consumerSlot]);
-
-            innerBuilder->CreateRetVoid();
-        });
+        auto consumeJoinedRows = MakeConsumer(builder, "ConsumeJoinedRows", consumerSlot);
 
         const auto& module = builder.Module;
 
@@ -2330,21 +2327,7 @@ size_t MakeCodegenMultiJoinOp(
             builder->CreateRetVoid();
         });
 
-        auto consumeJoinedRows = MakeClosure<void(TExpressionContext*, TValue**, i64)>(builder, "ConsumeJoinedRows", [&] (
-            TCGOperatorContext& builder,
-            Value* buffer,
-            Value* joinedRows,
-            Value* size
-        ) {
-            TCGContext innerBuilder(builder, buffer);
-            CodegenForEachRow(
-                innerBuilder,
-                joinedRows,
-                size,
-                builder[consumerSlot]);
-
-            innerBuilder->CreateRetVoid();
-        });
+        auto consumeJoinedRows = MakeConsumer(builder, "ConsumeJoinedRows", consumerSlot);
 
         const auto& module = builder.Module;
 
@@ -2689,13 +2672,13 @@ size_t MakeCodegenMergeOp(
 size_t MakeCodegenOnceOp(
     TCodegenSource* codegenSource,
     size_t* slotCount,
-    size_t sourceSlot)
+    size_t producerSlot)
 {
     size_t consumerSlot = (*slotCount)++;
 
     *codegenSource = [
         consumerSlot,
-        sourceSlot,
+        producerSlot,
         codegenSource = std::move(*codegenSource)
     ] (TCGOperatorContext& builder) {
 
@@ -2710,7 +2693,7 @@ size_t MakeCodegenOnceOp(
             innerBuilder->CreateRetVoid();
         });
 
-        builder[sourceSlot] = [&] (TCGContext& builder, Value* values) {
+        builder[producerSlot] = [&] (TCGContext& builder, Value* values) {
             builder->CreateCall(
                 onceWrapper.Function,
                 {
@@ -2886,39 +2869,9 @@ std::pair<size_t, size_t> MakeCodegenGroupOp(
             builder->CreateRetVoid();
         });
 
-        typedef void TConsumer(TExpressionContext*, TValue**, i64);
+        auto boundaryConsume = MakeConsumer(builder, "ConsumeGroupedRows", boundaryConsumerSlot);
 
-        auto boundaryConsume = MakeClosure<TConsumer>(builder, "ConsumeGroupedRows", [&] (
-            TCGOperatorContext& builder,
-            Value* buffer,
-            Value* finalGroupedRows,
-            Value* size
-        ) {
-            TCGContext innerBuilder(builder, buffer);
-            CodegenForEachRow(
-                innerBuilder,
-                finalGroupedRows,
-                size,
-                builder[boundaryConsumerSlot]);
-
-            innerBuilder->CreateRetVoid();
-        });
-
-        auto innerConsume = MakeClosure<TConsumer>(builder, "ConsumeGroupedRows", [&] (
-            TCGOperatorContext& builder,
-            Value* buffer,
-            Value* finalGroupedRows,
-            Value* size
-        ) {
-            TCGContext innerBuilder(builder, buffer);
-            CodegenForEachRow(
-                innerBuilder,
-                finalGroupedRows,
-                size,
-                builder[innerConsumerSlot]);
-
-            innerBuilder->CreateRetVoid();
-        });
+        auto innerConsume = MakeConsumer(builder, "ConsumeGroupedRows", innerConsumerSlot);
 
         builder->CreateCall(
             builder.Module->GetRoutine("GroupOpHelper"),
@@ -3052,7 +3005,7 @@ size_t MakeCodegenOrderOp(
                 }
 
                 builder->CreateCall(
-                    builder.Module->GetRoutine("AddRow"),
+                    builder.Module->GetRoutine("AddRowToCollector"),
                     {
                         topCollectorRef,
                         newValuesRef
@@ -3064,22 +3017,7 @@ size_t MakeCodegenOrderOp(
             builder->CreateRetVoid();
         });
 
-        auto consumeOrderedRows = MakeClosure<void(TExpressionContext*, TValue**, i64)>(builder, "ConsumeOrderedRows",
-        [&] (
-            TCGOperatorContext& builder,
-            Value* buffer,
-            Value* orderedRows,
-            Value* size
-        ) {
-            TCGContext innerBuilder(builder, buffer);
-            CodegenForEachRow(
-                innerBuilder,
-                orderedRows,
-                size,
-                builder[consumerSlot]);
-
-            builder->CreateRetVoid();
-        });
+        auto consumeOrderedRows = MakeConsumer(builder, "ConsumeOrderedRows", consumerSlot);
 
         auto comparator = comparerManager->CodegenOrderByComparerFunction(
             orderColumnTypes,
