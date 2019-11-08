@@ -474,6 +474,58 @@ func writeListOperationsOptions(w *yson.Writer, o *yt.ListOperationsOptions) {
 	writeReadRetryOptions(w, o.ReadRetryOptions)
 }
 
+func writeListJobsOptions(w *yson.Writer, o *yt.ListJobsOptions) {
+	if o == nil {
+		return
+	}
+	if o.JobType != nil {
+		w.MapKeyString("job_type")
+		w.Any(o.JobType)
+	}
+	if o.JobState != nil {
+		w.MapKeyString("job_state")
+		w.Any(o.JobState)
+	}
+	if o.Address != nil {
+		w.MapKeyString("address")
+		w.Any(o.Address)
+	}
+	if o.WithStderr != nil {
+		w.MapKeyString("with_stderr")
+		w.Any(o.WithStderr)
+	}
+	if o.WithFailContext != nil {
+		w.MapKeyString("with_fail_context")
+		w.Any(o.WithFailContext)
+	}
+	if o.SortField != nil {
+		w.MapKeyString("sort_field")
+		w.Any(o.SortField)
+	}
+	if o.SortOrder != nil {
+		w.MapKeyString("sort_order")
+		w.Any(o.SortOrder)
+	}
+	if o.Limit != nil {
+		w.MapKeyString("limit")
+		w.Any(o.Limit)
+	}
+	if o.Offset != nil {
+		w.MapKeyString("offset")
+		w.Any(o.Offset)
+	}
+	if o.DataSource != nil {
+		w.MapKeyString("data_source")
+		w.Any(o.DataSource)
+	}
+}
+
+func writeGetJobStderrOptions(w *yson.Writer, o *yt.GetJobStderrOptions) {
+	if o == nil {
+		return
+	}
+}
+
 func writeGetOperationOptions(w *yson.Writer, o *yt.GetOperationOptions) {
 	if o == nil {
 		return
@@ -1947,6 +1999,82 @@ func (p *ListOperationsParams) MasterReadOptions() **yt.MasterReadOptions {
 
 func (p *ListOperationsParams) ReadRetryOptions() **yt.ReadRetryOptions {
 	return &p.options.ReadRetryOptions
+}
+
+type ListJobsParams struct {
+	verb    Verb
+	opID    yt.OperationID
+	options *yt.ListJobsOptions
+}
+
+func NewListJobsParams(
+	opID yt.OperationID,
+	options *yt.ListJobsOptions,
+) *ListJobsParams {
+	if options == nil {
+		options = &yt.ListJobsOptions{}
+	}
+	return &ListJobsParams{
+		Verb("list_jobs"),
+		opID,
+		options,
+	}
+}
+
+func (p *ListJobsParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *ListJobsParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("opID", p.opID),
+	}
+}
+
+func (p *ListJobsParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("operation_id")
+	w.Any(p.opID)
+	writeListJobsOptions(w, p.options)
+}
+
+type GetJobStderrParams struct {
+	verb    Verb
+	opID    yt.OperationID
+	jobID   yt.JobID
+	options *yt.GetJobStderrOptions
+}
+
+func NewGetJobStderrParams(
+	opID yt.OperationID,
+	jobID yt.JobID,
+	options *yt.GetJobStderrOptions,
+) *GetJobStderrParams {
+	if options == nil {
+		options = &yt.GetJobStderrOptions{}
+	}
+	return &GetJobStderrParams{
+		Verb("get_job_stderr"),
+		opID,
+		jobID,
+		options,
+	}
+}
+
+func (p *GetJobStderrParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *GetJobStderrParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("opID", p.opID),
+		log.Any("jobID", p.jobID),
+	}
+}
+
+func (p *GetJobStderrParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("operation_id")
+	w.Any(p.opID)
+	w.MapKeyString("job_id")
+	w.Any(p.jobID)
+	writeGetJobStderrOptions(w, p.options)
 }
 
 type AddMemberParams struct {
