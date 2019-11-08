@@ -102,20 +102,26 @@ TProtoTableWriter::TProtoTableWriter(
 TProtoTableWriter::~TProtoTableWriter()
 { }
 
-size_t TProtoTableWriter::GetStreamCount() const
+size_t TProtoTableWriter::GetTableCount() const
 {
-    return NodeWriter_->GetStreamCount();
+    return NodeWriter_->GetTableCount();
 }
 
-IOutputStream* TProtoTableWriter::GetStream(size_t tableIndex) const
+void TProtoTableWriter::FinishTable(size_t tableIndex)
 {
-    return NodeWriter_->GetStream(tableIndex);
+    NodeWriter_->FinishTable(tableIndex);
 }
 
 void TProtoTableWriter::AddRow(const Message& row, size_t tableIndex)
 {
     NodeWriter_->AddRow(MakeNodeFromMessage(row), tableIndex);
 }
+
+void TProtoTableWriter::AddRow(Message&& row, size_t tableIndex)
+{
+    TProtoTableWriter::AddRow(row, tableIndex);
+}
+
 
 void TProtoTableWriter::Abort()
 {
@@ -134,14 +140,14 @@ TLenvalProtoTableWriter::TLenvalProtoTableWriter(
 TLenvalProtoTableWriter::~TLenvalProtoTableWriter()
 { }
 
-size_t TLenvalProtoTableWriter::GetStreamCount() const
+size_t TLenvalProtoTableWriter::GetTableCount() const
 {
     return Output_->GetStreamCount();
 }
 
-IOutputStream* TLenvalProtoTableWriter::GetStream(size_t tableIndex) const
+void TLenvalProtoTableWriter::FinishTable(size_t tableIndex)
 {
-    return Output_->GetStream(tableIndex);
+    Output_->GetStream(tableIndex)->Finish();
 }
 
 void TLenvalProtoTableWriter::AddRow(const Message& row, size_t tableIndex)
@@ -152,12 +158,17 @@ void TLenvalProtoTableWriter::AddRow(const Message& row, size_t tableIndex)
         "Message has unknown fields. This probably means bug in client code.\n"
         "Message: %s", row.DebugString().data());
 
-    auto* stream = GetStream(tableIndex);
+    auto* stream = Output_->GetStream(tableIndex);
     i32 size = row.ByteSize();
     stream->Write(&size, sizeof(size));
     bool serializedOk = row.SerializeToStream(stream);
     Y_ENSURE(serializedOk, "Failed to serialize protobuf message");
     Output_->OnRowFinished(tableIndex);
+}
+
+void TLenvalProtoTableWriter::AddRow(Message&& row, size_t tableIndex)
+{
+    TLenvalProtoTableWriter::AddRow(row, tableIndex);
 }
 
 void TLenvalProtoTableWriter::Abort()

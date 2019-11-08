@@ -13,19 +13,18 @@ TYaMRTableWriter::TYaMRTableWriter(THolder<TProxyOutput> output)
 TYaMRTableWriter::~TYaMRTableWriter()
 { }
 
-size_t TYaMRTableWriter::GetStreamCount() const
+size_t TYaMRTableWriter::GetTableCount() const
 {
     return Output_->GetStreamCount();
 }
 
-IOutputStream* TYaMRTableWriter::GetStream(size_t tableIndex) const
-{
-    return Output_->GetStream(tableIndex);
+void TYaMRTableWriter::FinishTable(size_t tableIndex) {
+    Output_->GetStream(tableIndex)->Finish();
 }
 
 void TYaMRTableWriter::AddRow(const TYaMRRow& row, size_t tableIndex)
 {
-    auto* stream = GetStream(tableIndex);
+    auto* stream = Output_->GetStream(tableIndex);
 
     auto writeField = [&stream] (const TStringBuf& field) {
         i32 length = static_cast<i32>(field.length());
@@ -38,6 +37,10 @@ void TYaMRTableWriter::AddRow(const TYaMRRow& row, size_t tableIndex)
     writeField(row.Value);
 
     Output_->OnRowFinished(tableIndex);
+}
+
+void TYaMRTableWriter::AddRow(TYaMRRow&& row, size_t tableIndex) {
+    TYaMRTableWriter::AddRow(row, tableIndex);
 }
 
 void TYaMRTableWriter::Abort()

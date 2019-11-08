@@ -10,19 +10,24 @@ TNodeYdlTableWriter::TNodeYdlTableWriter(THolder<TProxyOutput> output, TVector<u
     , TypeHashes_(std::move(hashes))
 { }
 
-size_t TNodeYdlTableWriter::GetStreamCount() const
+size_t TNodeYdlTableWriter::GetTableCount() const
 {
-    return NodeWriter_->GetStreamCount();
+    return NodeWriter_->GetTableCount();
 }
 
-IOutputStream* TNodeYdlTableWriter::GetStream(size_t tableIndex) const
+void TNodeYdlTableWriter::FinishTable(size_t tableIndex)
 {
-    return NodeWriter_->GetStream(tableIndex);
+    NodeWriter_->FinishTable(tableIndex);
 }
 
 void TNodeYdlTableWriter::AddRow(const TNode& row, size_t tableIndex)
 {
     NodeWriter_->AddRow(row, tableIndex);
+}
+
+void TNodeYdlTableWriter::AddRow(TNode&& row, size_t tableIndex)
+{
+    NodeWriter_->AddRow(std::move(row), tableIndex);
 }
 
 void TNodeYdlTableWriter::VerifyRowType(ui64 rowTypeHash, size_t tableIndex) const

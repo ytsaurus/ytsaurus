@@ -24,14 +24,13 @@ TNodeTableWriter::TNodeTableWriter(THolder<TProxyOutput> output, EYsonFormat for
 TNodeTableWriter::~TNodeTableWriter()
 { }
 
-size_t TNodeTableWriter::GetStreamCount() const
+size_t TNodeTableWriter::GetTableCount() const
 {
     return Output_->GetStreamCount();
 }
 
-IOutputStream* TNodeTableWriter::GetStream(size_t tableIndex) const
-{
-    return Output_->GetStream(tableIndex);
+void TNodeTableWriter::FinishTable(size_t tableIndex) {
+    Output_->GetStream(tableIndex)->Finish();
 }
 
 void TNodeTableWriter::AddRow(const TNode& row, size_t tableIndex)
@@ -57,6 +56,10 @@ void TNodeTableWriter::AddRow(const TNode& row, size_t tableIndex)
     visitor.Visit(*outRow);
 
     Output_->OnRowFinished(tableIndex);
+}
+
+void TNodeTableWriter::AddRow(TNode&& row, size_t tableIndex) {
+    AddRow(row, tableIndex);
 }
 
 void TNodeTableWriter::Abort()

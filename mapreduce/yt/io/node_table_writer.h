@@ -18,9 +18,10 @@ public:
     ~TNodeTableWriter() override;
 
     void AddRow(const TNode& row, size_t tableIndex) override;
+    void AddRow(TNode&& row, size_t tableIndex) override;
 
-    size_t GetStreamCount() const override;
-    IOutputStream* GetStream(size_t tableIndex) const override;
+    size_t GetTableCount() const override;
+    void FinishTable(size_t) override;
     void Abort() override;
 
 private:

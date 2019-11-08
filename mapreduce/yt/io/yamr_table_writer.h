@@ -16,9 +16,10 @@ public:
     ~TYaMRTableWriter() override;
 
     void AddRow(const TYaMRRow& row, size_t tableIndex) override;
+    void AddRow(TYaMRRow&& row, size_t tableIndex) override;
 
-    size_t GetStreamCount() const override;
-    IOutputStream* GetStream(size_t tableIndex) const override;
+    size_t GetTableCount() const override;
+    void FinishTable(size_t) override;
     void Abort() override;
 
 private:
