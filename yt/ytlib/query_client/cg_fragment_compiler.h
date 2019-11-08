@@ -134,7 +134,7 @@ TCodegenExpression MakeCodegenTransformExpr(
 
 void CodegenEmptyOp(TCGOperatorContext& builder);
 
-std::tuple<size_t, size_t> MakeCodegenSplitOp(
+std::tuple<size_t, size_t> MakeCodegenDuplicateOp(
     TCodegenSource* codegenSource,
     size_t* slotCount,
     size_t slot);
@@ -144,6 +144,11 @@ size_t MakeCodegenMergeOp(
     size_t* slotCount,
     size_t firstSlot,
     size_t secondSlot);
+
+size_t MakeCodegenOnceOp(
+    TCodegenSource* codegenSource,
+    size_t* slotCount,
+    size_t sourceSlot);
 
 size_t MakeCodegenScanOp(
     TCodegenSource* codegenSource,
