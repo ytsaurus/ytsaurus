@@ -2176,8 +2176,9 @@ private:
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         for (auto* lock : lockingState.PendingLocks) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Lock orphaned (LockId: %v)",
-                lock->GetId());
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Lock orphaned due to node removal (LockId: %v, NodeId: %v)",
+                lock->GetId(),
+                trunkNode->GetId());
             lock->SetTrunkNode(nullptr);
             auto* transaction = lock->GetTransaction();
             YT_VERIFY(transaction->Locks().erase(lock) == 1);
