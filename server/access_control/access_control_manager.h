@@ -102,6 +102,7 @@ public:
     void ResetAuthenticatedUser();
     bool HasAuthenticatedUser();
     NObjects::TObjectId GetAuthenticatedUser();
+    NObjects::TObjectId TryGetAuthenticatedUser();
 
     void ValidatePermission(
         NObjects::TObject* object,

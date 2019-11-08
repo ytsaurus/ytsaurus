@@ -95,7 +95,8 @@ public:
                             ->SetAttribute(TPod::TStatus::TScheduling::NodeIdSchema),
                         MakeEtcAttributeSchema()
                             ->SetAttribute(TPod::TStatus::TScheduling::EtcSchema)
-                    }),
+                    })
+                    ->SetHistoryFilter<TPod>(std::bind(&TPodTypeHandler::StatusSchedulingHistoryFilter, this, _1)),
 
                 MakeAttributeSchema("generation_number")
                     ->SetAttribute(TPod::TStatus::GenerationNumberSchema),
@@ -668,6 +669,24 @@ private:
     {
         auto attributes = BuildPodDynamicAttributes(pod);
         WriteProtobufMessage(consumer, attributes);
+    }
+
+
+    bool StatusSchedulingHistoryFilter(TPod* pod)
+    {
+        if (pod->Status().Scheduling().Etc().Load().state() != pod->Status().Scheduling().Etc().LoadOld().state()) {
+            return true;
+        }
+
+        if (pod->Status().Scheduling().Etc().Load().has_error() != pod->Status().Scheduling().Etc().LoadOld().has_error()) {
+            return true;
+        }
+
+        if (pod->Status().Scheduling().NodeId().Load() != pod->Status().Scheduling().NodeId().LoadOld()) {
+            return true;
+        }
+
+        return false;
     }
 };
 

@@ -579,6 +579,16 @@ TTimestamp TAttributeSchema::RunTimestampGetter(TTransaction* transaction, TObje
     return TimestampGetter_(transaction, object, path);
 }
 
+bool TAttributeSchema::HasHistoryFilter() const
+{
+    return HistoryFilter_.operator bool();
+}
+
+bool TAttributeSchema::RunHistoryFilter(TObject* object) const
+{
+    return HistoryFilter_(object);
+}
+
 TAttributeSchema* TAttributeSchema::SetMandatory()
 {
     Mandatory_ = true;
@@ -612,17 +622,6 @@ bool TAttributeSchema::IsEtc() const
     return Etc_;
 }
 
-TAttributeSchema* TAttributeSchema::SetHistoryEnabled()
-{
-    HistoryEnabled_ = true;
-    return this;
-}
-
-bool TAttributeSchema::IsHistoryEnabled() const
-{
-    return HistoryEnabled_;
-}
-
 std::vector<TYPath> TAttributeSchema::GetHistoryEnabledAttributePaths() const
 {
     std::vector<TYPath> result;
@@ -645,7 +644,7 @@ bool TAttributeSchema::HasStoreScheduledHistoryEnabledAttributes(TObject* object
 
 void TAttributeSchema::GetHistoryEnabledAttributePathsImpl(std::vector<TYPath>* result) const
 {
-    if (IsHistoryEnabled()) {
+    if (HasHistoryFilter()) {
         result->push_back(GetPath());
     }
 
@@ -665,11 +664,7 @@ void TAttributeSchema::GetHistoryEnabledAttributesImpl(
     TObject* object,
     bool hasParentHistoryEnabledAttribute) const
 {
-    if (hasParentHistoryEnabledAttribute) {
-        YT_VERIFY(!IsHistoryEnabled());
-    }
-
-    hasParentHistoryEnabledAttribute |= IsHistoryEnabled();
+    hasParentHistoryEnabledAttribute |= (HasHistoryFilter() && RunHistoryFilter(object));
 
     if (IsComposite()) {
         if (EtcChild_) {
@@ -689,7 +684,9 @@ void TAttributeSchema::GetHistoryEnabledAttributesImpl(
             pathTokens->pop_back();
         }
     } else if (hasParentHistoryEnabledAttribute && HasValueGetter()) {
-        SetNodeByYPath(result, GetPath(), RunValueGetter(object));
+        const TString path = GetPath();
+        ForceYPath(result, path);
+        SetNodeByYPath(result, path, RunValueGetter(object));
     }
 }
 
@@ -697,7 +694,7 @@ bool TAttributeSchema::HasStoreScheduledHistoryEnabledAttributesImpl(
     TObject* object,
     bool hasParentHistoryEnabledAttribute) const
 {
-    hasParentHistoryEnabledAttribute |= IsHistoryEnabled();
+    hasParentHistoryEnabledAttribute |= (HasHistoryFilter() && RunHistoryFilter(object));
 
     if (hasParentHistoryEnabledAttribute && HasStoreScheduledGetter() && RunStoreScheduledGetter(object)) {
         return true;

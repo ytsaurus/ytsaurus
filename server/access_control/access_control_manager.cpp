@@ -962,6 +962,16 @@ public:
         return *userId;
     }
 
+    TObjectId TryGetAuthenticatedUser()
+    {
+        auto userId = *AuthenticatedUserId_;
+        if (!userId) {
+            return {};
+        }
+
+        return *userId;
+    }
+
     void ValidatePermission(NObjects::TObject* object, EAccessControlPermission permission)
     {
         auto userId = GetAuthenticatedUser();
@@ -1365,6 +1375,11 @@ void TAccessControlManager::ResetAuthenticatedUser()
 TObjectId TAccessControlManager::GetAuthenticatedUser()
 {
     return Impl_->GetAuthenticatedUser();
+}
+
+TObjectId TAccessControlManager::TryGetAuthenticatedUser()
+{
+    return Impl_->TryGetAuthenticatedUser();
 }
 
 bool TAccessControlManager::HasAuthenticatedUser()

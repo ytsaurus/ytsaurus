@@ -42,7 +42,7 @@ public:
                     ->SetUpdatable()
             })
             ->SetExtensible()
-            ->SetHistoryEnabled();
+            ->SetHistoryFilter<TMultiClusterReplicaSet>();
 
         StatusAttributeSchema_
             ->SetAttribute(TMultiClusterReplicaSet::StatusSchema)

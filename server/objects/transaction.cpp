@@ -2328,6 +2328,7 @@ private:
             } else {
                 historyEnabledAttributes = object->GetHistoryEnabledAttributes();
             }
+
             storeContext.WriteRow(
                 &HistoryEventsTable,
                 ToUnversionedValues(
@@ -2345,7 +2346,7 @@ private:
                 ToUnversionedValues(
                     storeContext.GetRowBuffer(),
                     eventType,
-                    Owner_->Bootstrap_->GetAccessControlManager()->GetAuthenticatedUser(),
+                    Owner_->Bootstrap_->GetAccessControlManager()->TryGetAuthenticatedUser(),
                     historyEnabledAttributes,
                     object->GetTypeHandler()->GetHistoryEnabledAttributePaths())
             );

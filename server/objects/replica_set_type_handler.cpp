@@ -43,7 +43,7 @@ public:
                     ->SetUpdatable()
             })
             ->SetExtensible()
-            ->SetHistoryEnabled();
+            ->SetHistoryFilter<TReplicaSet>();
 
         StatusAttributeSchema_
             ->SetAttribute(TReplicaSet::StatusSchema)

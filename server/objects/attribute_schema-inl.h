@@ -224,6 +224,28 @@ TAttributeSchema* TAttributeSchema::SetEvaluator(std::function<void(
     return this;
 }
 
+template <class TTypedObject>
+TAttributeSchema* TAttributeSchema::SetHistoryFilter(std::function<bool(
+    TTypedObject* object)> historyFilter)
+{
+    HistoryFilter_ =
+        [=] (TObject* object) -> bool {
+            auto* typedObject = object->template As<TTypedObject>();
+            return historyFilter(typedObject);
+        };
+    return this;
+}
+
+template <class TTypedObject>
+TAttributeSchema* TAttributeSchema::SetHistoryFilter()
+{
+    HistoryFilter_ =
+        [=] (TObject* /* object */) -> bool {
+            return true;
+        };
+    return this;
+}
+
 template <class TTypedObject, class TTypedValue>
 TAttributeSchema* TAttributeSchema::SetAttribute(const TScalarAttributeSchema<TTypedObject, TTypedValue>& schema)
 {

@@ -62,8 +62,6 @@ public:
     TAttributeSchema* SetEtc();
     bool IsEtc() const;
 
-    TAttributeSchema* SetHistoryEnabled();
-    bool IsHistoryEnabled() const;
     std::vector<NYT::NYPath::TYPath> GetHistoryEnabledAttributePaths() const;
     NYT::NYTree::IMapNodePtr GetHistoryEnabledAttributes(TObject* object) const;
     bool HasStoreScheduledHistoryEnabledAttributes(TObject* object) const;
@@ -203,6 +201,14 @@ public:
         TObject* object,
         const NYT::NYPath::TYPath& path);
 
+    template <class TTypedObject>
+    TAttributeSchema* SetHistoryFilter(std::function<bool(
+        TTypedObject* object)> historyFilter);
+    template <class TTypedObject>
+    TAttributeSchema* SetHistoryFilter();
+    bool HasHistoryFilter() const;
+    bool RunHistoryFilter(TObject* object) const;
+
 private:
     IObjectTypeHandler* const TypeHandler_;
     TObjectManager* const ObjectManager_;
@@ -226,6 +232,7 @@ private:
     std::function<void(TTransaction*, TObject*, NYson::IYsonConsumer*)> Evaluator_;
     std::function<void(TTransaction*, TObject*, const NYT::NYPath::TYPath&)> TimestampPregetter_;
     std::function<TTimestamp(TTransaction*, TObject*, const NYT::NYPath::TYPath&)> TimestampGetter_;
+    std::function<bool(TObject*)> HistoryFilter_;
 
     bool Composite_ = false;
     bool Extensible_ = false;
@@ -235,7 +242,6 @@ private:
     bool Opaque_ = false;
     bool Control_ = false;
     bool Etc_ = false;
-    bool HistoryEnabled_ = false;
     NAccessControl::EAccessControlPermission ReadPermission_ = NAccessControl::EAccessControlPermission::None;
 
     using TPathValidator = std::function<void(

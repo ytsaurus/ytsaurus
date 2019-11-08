@@ -1,8 +1,20 @@
+from .conftest import (
+    DEFAULT_POD_SET_SPEC,
+    assert_over_time,
+    create_nodes,
+    create_pod_set_with_quota,
+    create_pod_with_boilerplate,
+    get_pod_scheduling_status,
+    is_assigned_pod_scheduling_status,
+    is_error_pod_scheduling_status,
+)
+
+from yp.common import wait
+
 from yt.yson import YsonEntity
 
 import pytest
 import time
-
 
 @pytest.mark.usefixtures("yp_env")
 class TestHistoryApi(object):
@@ -153,3 +165,70 @@ class TestHistoryApi(object):
         history_events = yp_client.select_object_history("stage", stage_id, ["/spec"], {"uuid": "b"})["events"]
         assert len(history_events) == 0
 
+    def test_pod_status_scheduling_filter(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        pod_set_id = create_pod_set_with_quota(
+            yp_client,
+            bandwidth_quota=2 ** 60)[0]
+
+        pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, {
+            "resource_requests": {
+                "network_bandwidth_guarantee": 2 ** 29,
+                "network_bandwidth_limit": 2 ** 32,
+            },
+            "enable_scheduling": True
+        })
+
+        wait(lambda: is_error_pod_scheduling_status(get_pod_scheduling_status(yp_client, pod_id)))
+        assert len(yp_client.select_object_history("pod", pod_id, ["/status/scheduling"])["events"]) == 2
+        assert_over_time(lambda: len(yp_client.select_object_history("pod", pod_id, ["/status/scheduling"])["events"]) == 2)
+        events = yp_client.select_object_history("pod", pod_id, ["/status/scheduling"])["events"]
+        assert not events[0]["results"][0]["value"]["node_id"]
+        assert "error" not in events[0]["results"][0]["value"]
+        assert events[0]["results"][0]["value"]["state"] == "pending"
+        assert not events[1]["results"][0]["value"]["node_id"]
+        assert "error" in events[1]["results"][0]["value"]
+        assert events[1]["results"][0]["value"]["state"] == "pending"
+
+    def test_pod_status_scheduling_history(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": DEFAULT_POD_SET_SPEC})
+        create_nodes(yp_client, 2)
+
+        pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, {
+            "resource_requests": {
+                "vcpu_guarantee": 1
+            },
+            "enable_scheduling": True
+        })
+
+        wait(lambda: is_assigned_pod_scheduling_status(get_pod_scheduling_status(yp_client, pod_id)))
+
+        assert(len(yp_client.select_object_history("pod", pod_id, ["/status/scheduling"])["events"]) == 2)
+        generation_number = yp_client.get_object("pod", pod_id, ["/status/generation_number"])[0]
+
+        transaction_id = yp_client.start_transaction()
+        yp_client.request_pod_eviction(pod_id, "Test", transaction_id=transaction_id)
+        yp_client.acknowledge_pod_eviction(pod_id, "Test", transaction_id=transaction_id)
+        yp_client.commit_transaction(transaction_id)
+
+        wait(lambda: yp_client.get_object("pod", pod_id, ["/status/generation_number"])[0] != generation_number)
+
+        wait(lambda: is_assigned_pod_scheduling_status(get_pod_scheduling_status(yp_client, pod_id)))
+
+        events = yp_client.select_object_history("pod", pod_id, ["/status/scheduling"])["events"]
+        assert len(events) == 4
+        assert not events[0]["results"][0]["value"]["node_id"]
+        assert "error" not in events[0]["results"][0]["value"]
+        assert events[0]["results"][0]["value"]["state"] == "pending"
+        assert events[1]["results"][0]["value"]["node_id"]
+        assert "error" not in events[1]["results"][0]["value"]
+        assert events[1]["results"][0]["value"]["state"] == "assigned"
+        assert not events[2]["results"][0]["value"]["node_id"]
+        assert "error" not in events[2]["results"][0]["value"]
+        assert events[2]["results"][0]["value"]["state"] == "pending"
+        assert events[3]["results"][0]["value"]["node_id"]
+        assert "error" not in events[3]["results"][0]["value"]
+        assert events[3]["results"][0]["value"]["state"] == "assigned"
