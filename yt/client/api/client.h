@@ -524,6 +524,7 @@ struct TCreateNodeOptions
     , public TTransactionalOptions
 {
     bool Recursive = false;
+    bool LockExisting = false;
     bool Force = false;
 };
 
@@ -565,6 +566,7 @@ struct TCopyNodeOptionsBase
     bool PreserveModificationTime = false;
     bool PreserveOwner = false;
     bool PreserveExpirationTime = false;
+    bool PreserveAcl = false;
     bool PessimisticQuotaCheck = true;
 };
 
@@ -572,6 +574,7 @@ struct TCopyNodeOptions
     : public TCopyNodeOptionsBase
 {
     bool IgnoreExisting = false;
+    bool LockExisting = false;
 };
 
 struct TMoveNodeOptions
@@ -588,6 +591,7 @@ struct TLinkNodeOptions
     std::shared_ptr<const NYTree::IAttributeDictionary> Attributes;
     bool Recursive = false;
     bool IgnoreExisting = false;
+    bool LockExisting = false;
     bool Force = false;
 };
 
@@ -968,6 +972,7 @@ struct TListOperationsResult
 struct TJob
 {
     NJobTrackerClient::TJobId Id;
+    NJobTrackerClient::TJobId OperationId;
     std::optional<NJobTrackerClient::EJobType> Type;
     std::optional<NJobTrackerClient::EJobState> State;
     std::optional<TInstant> StartTime;
@@ -979,9 +984,13 @@ struct TJob
     std::optional<bool> HasSpec;
     NYson::TYsonString Error;
     NYson::TYsonString BriefStatistics;
+    NYson::TYsonString Statistics;
     NYson::TYsonString InputPaths;
     NYson::TYsonString CoreInfos;
+    NYson::TYsonString Events;
 };
+
+void Serialize(const TJob& job, NYson::IYsonConsumer* consumer, TStringBuf idKey);
 
 struct TListJobsStatistics
 {

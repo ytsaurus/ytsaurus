@@ -142,6 +142,9 @@ private:
     void BuildPivotKeysBeforeGiantTabletProblem(
         std::vector<TOwningKey>* pivotKeys,
         const std::vector<TBoundaryDescriptor>& chunkBoundaries);
+    void BuildPivotKeysBeforeChunkViewsForPivots(
+        std::vector<TOwningKey>* pivotKeys,
+        const std::vector<TBoundaryDescriptor>& chunkBoundaries);
     void BuildPivotKeys(
         std::vector<TOwningKey>* pivotKeys,
         const std::vector<TBoundaryDescriptor>& chunkBoundaries);

@@ -169,6 +169,7 @@ public:
         std::vector<IValueConsumer*> valueConsumers,
         int tableIndex)
         : TableConsumer_(new TTableConsumer(
+            format.Attributes().Get("complex_type_mode", EComplexTypeMode::Named),
             valueConsumers,
             tableIndex))
         , Parser_(CreateParserForFormat(
@@ -370,7 +371,7 @@ ISchemalessFormatWriterPtr CreateStaticTableWriterForFormat(
                 enableContextSaving,
                 controlAttributesConfig,
                 keyColumnCount);
-            adapter->Init(format);
+            adapter->Init(tableSchemas, format);
             return adapter;
     }
 }

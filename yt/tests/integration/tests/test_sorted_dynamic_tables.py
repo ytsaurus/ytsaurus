@@ -2111,9 +2111,9 @@ class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
         self._wait_preload(LARGE)
         check_lookup(LARGE, *large_data)
 
-        for node in ls("//sys/nodes"):
-            get("//sys/nodes/{}/@".format(node))
-            get("//sys/nodes/{}/orchid/@".format(node))
+        for node in ls("//sys/cluster_nodes"):
+            get("//sys/cluster_nodes/{}/@".format(node))
+            get("//sys/cluster_nodes/{}/orchid/@".format(node))
 
         # mount small table, preload must fail
         sync_mount_table(SMALL)

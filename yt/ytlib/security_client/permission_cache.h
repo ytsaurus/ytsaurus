@@ -31,7 +31,7 @@ struct TPermissionKey
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPermissionCache
-    : public TAsyncExpiringCache<TPermissionKey, void>
+    : public TAsyncExpiringCache<TPermissionKey, void, NApi::NNative::IClientPtr>
 {
 public:
     TPermissionCache(
@@ -39,15 +39,23 @@ public:
         NApi::NNative::IClientPtr client,
         NProfiling::TProfiler profiler = {});
 
-    TFuture<std::vector<TError>> CheckPermissions(const std::vector<NYTree::TYPath>& paths, const TString& user, NYTree::EPermission permission);
+    TFuture<std::vector<TError>> CheckPermissions(
+        const std::vector<NYTree::TYPath>& paths,
+        const TString& user,
+        NYTree::EPermission permission,
+        const NApi::NNative::IClientPtr& = nullptr);
 
 private:
     NApi::NNative::IClientPtr Client_;
     TPermissionCacheConfigPtr Config_;
 
-    virtual TFuture<void> DoGet(const TPermissionKey& key) override;
+    virtual TFuture<void> DoGet(
+        const TPermissionKey& key,
+        const NApi::NNative::IClientPtr& client) override;
 
-    virtual TFuture<std::vector<TError>> DoGetMany(const std::vector<TPermissionKey>& keys) override;
+    virtual TFuture<std::vector<TError>> DoGetMany(
+        const std::vector<TPermissionKey>& keys, 
+        const NApi::NNative::IClientPtr& client) override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TPermissionCache)

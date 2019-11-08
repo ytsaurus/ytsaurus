@@ -100,9 +100,8 @@ public:
         auto blocksFuture = UnderlyingReader_->ReadBlocks(BlockReadOptions_, indexesToRead);
         return blocksFuture.Apply(BIND([=, this_ = MakeStrong(this)] (const std::vector<TBlock>& blocks) mutable {
             for (int index = 0; index < blocks.size(); ++index) {
-                auto it = blockIndexToSavedBlocksIndex.find(index);
-                YT_VERIFY(it != blockIndexToSavedBlocksIndex.end());
-                SavedBlocks_[it->second] = blocks[index];
+                int savedBlocksIndex = GetOrCrash(blockIndexToSavedBlocksIndex, index);
+                SavedBlocks_[savedBlocksIndex] = blocks[index];
             }
         }));
     }

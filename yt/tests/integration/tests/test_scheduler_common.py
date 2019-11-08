@@ -4781,17 +4781,17 @@ class TestNodeDoubleRegistration(YTEnvSetup):
 
     @authors("ignat")
     def test_remove(self):
-        nodes = ls("//sys/nodes")
+        nodes = ls("//sys/cluster_nodes")
         assert len(nodes) == 1
         node = nodes[0]
 
         wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "online")
 
         with Restarter(self.Env, NODES_SERVICE):
-            wait(lambda: get("//sys/nodes/{}/@state".format(node)) == "offline")
+            wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "offline")
             wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)) == "offline")
             wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "offline")
-            remove("//sys/nodes/" + node)
+            remove("//sys/cluster_nodes/" + node)
 
         wait(lambda: exists("//sys/scheduler/orchid/scheduler/nodes/{}".format(node)))
         wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)) == "online")
@@ -4800,7 +4800,7 @@ class TestNodeDoubleRegistration(YTEnvSetup):
     # It is disabled since Restarter await node to become online, this wait fails for banned node.
     @authors("ignat")
     def disabled_test_remove_banned(self):
-        nodes = ls("//sys/nodes")
+        nodes = ls("//sys/cluster_nodes")
         assert len(nodes) == 1
         node = nodes[0]
 
@@ -4809,7 +4809,7 @@ class TestNodeDoubleRegistration(YTEnvSetup):
         wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "online")
 
         with Restarter(self.Env, NODES_SERVICE):
-            wait(lambda: get("//sys/nodes/{}/@state".format(node)) == "offline")
+            wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "offline")
             wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)) == "offline")
             wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "offline")
 
@@ -4865,7 +4865,7 @@ class TestNodeMultipleUnregistrations(YTEnvSetup):
 
     @authors("ignat")
     def test_scheduler_node_removal(self):
-        nodes = ls("//sys/nodes")
+        nodes = ls("//sys/cluster_nodes")
         assert len(nodes) == 2
 
         node = "localhost:" + str(self.Env.configs["node"][0]["rpc_port"])
@@ -4895,7 +4895,7 @@ class TestNodeMultipleUnregistrations(YTEnvSetup):
 
         op = start_op()
         with Restarter(self.Env, NODES_SERVICE, [0]):
-            wait(lambda: get("//sys/nodes/{}/@state".format(node)) == "offline")
+            wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "offline")
             wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)) == "offline")
             wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "offline")
             release_breakpoint(op.tag)
@@ -4903,7 +4903,7 @@ class TestNodeMultipleUnregistrations(YTEnvSetup):
 
         op = start_op()
         with Restarter(self.Env, NODES_SERVICE, [0]):
-            wait(lambda: get("//sys/nodes/{}/@state".format(node)) == "offline")
+            wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "offline")
             wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)) == "offline")
             wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "offline")
             release_breakpoint(op.tag)
@@ -4912,7 +4912,7 @@ class TestNodeMultipleUnregistrations(YTEnvSetup):
         op = start_op()
         set("//sys/scheduler/config/max_offline_node_age", 20000)
         with Restarter(self.Env, NODES_SERVICE, [0]):
-            wait(lambda: get("//sys/nodes/{}/@state".format(node)) == "offline")
+            wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "offline")
             wait(lambda: not exists("//sys/scheduler/orchid/scheduler/nodes/{}".format(node)))
             release_breakpoint(op.tag)
             wait(lambda: get(op.get_path() + "/@state") == "completed")

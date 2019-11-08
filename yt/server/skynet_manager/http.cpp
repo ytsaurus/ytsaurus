@@ -91,7 +91,8 @@ public:
 
     virtual const TTableSchema& GetSchema() const override
     {
-        YT_ABORT();
+        static const TTableSchema schema;
+        return schema;
     }
 
     virtual const TNameTablePtr& GetNameTable() const override
@@ -266,7 +267,7 @@ std::vector<TTableShard> ReadSkynetMetaFromTable(
     auto startRowIndex = responseAttributes->AsMap()->GetChild("start_row_index")->AsInt64()->GetValue();
 
     TSkynetTableValueConsumer consumer{startRowIndex, keyColumns, progressCallback};
-    TTableConsumer tableConsumer{&consumer};
+    TTableConsumer tableConsumer(NFormats::EComplexTypeMode::Named, &consumer);
     ParseYson(input, &tableConsumer);
 
     CheckTrailers(response);

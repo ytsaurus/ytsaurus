@@ -212,6 +212,12 @@ void TCheckedYsonTokenWriter::WriteSpace(char value)
     UncheckedWriter_.WriteSpace(value);
 }
 
+void TCheckedYsonTokenWriter::Finish()
+{
+    Checker_.OnFinish();
+    UncheckedWriter_.Finish();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYson

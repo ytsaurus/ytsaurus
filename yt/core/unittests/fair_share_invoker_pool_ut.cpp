@@ -8,7 +8,7 @@
 #include <yt/core/concurrency/scheduler.h>
 #include <yt/core/concurrency/thread_pool.h>
 
-#include <yt/core/actions/invoker_util.h>
+#include <yt/core/misc/collection_helpers.h>
 
 #include <yt/core/misc/lazy_ptr.h>
 
@@ -111,9 +111,7 @@ protected:
 
     int GetInvokerIndex(IInvoker* invokerAddress) const
     {
-        auto it = InvokerToIndex_.find(invokerAddress);
-        YT_VERIFY(it != InvokerToIndex_.end());
-        return it->second;
+        return GetOrCrash(InvokerToIndex_, invokerAddress);
     }
 
     int GetCurrentInvokerIndex() const

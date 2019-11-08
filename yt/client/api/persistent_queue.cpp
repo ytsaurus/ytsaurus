@@ -294,9 +294,7 @@ private:
         }
 
         for (const auto& row : stateRows) {
-            auto tabletIt = state->TabletMap.find(row.TabletIndex);
-            YT_VERIFY(tabletIt != state->TabletMap.end());
-            auto& tablet = tabletIt->second;
+            auto& tablet = GetOrCrash(state->TabletMap, row.TabletIndex);
 
             tablet.ConsumedRowIndexes.insert(row.RowIndex);
             tablet.MaxConsumedRowIndex = std::max(tablet.MaxConsumedRowIndex, row.RowIndex);
@@ -365,9 +363,7 @@ private:
             return;
         }
 
-        auto tabletIt = state->TabletMap.find(tabletIndex);
-        YT_VERIFY(tabletIt != state->TabletMap.end());
-        auto& tablet = tabletIt->second;
+        auto& tablet = GetOrCrash(state->TabletMap, tabletIndex);
 
         auto rowLimit = Config_->MaxRowsPerFetch;
         {
@@ -762,9 +758,8 @@ private:
             for (const auto& pair : tabletStatisticsMap) {
                 int tabletIndex = pair.first;
                 const auto& statistics = pair.second;
-                auto tabletIt = state->TabletMap.find(tabletIndex);
-                YT_VERIFY(tabletIt != state->TabletMap.end());
-                tabletIt->second.LastTrimmedRowIndex = statistics.LastTrimmedRowIndex;
+                auto& tablet = GetOrCrash(state->TabletMap, tabletIndex);
+                tablet.LastTrimmedRowIndex = statistics.LastTrimmedRowIndex;
             }
         }
 
@@ -816,9 +811,7 @@ private:
                         stateTrimRowIndex);
                 }
 
-                auto tabletInfoIt = tabletIndexToInfo.find(tabletIndex);
-                YT_VERIFY(tabletInfoIt != tabletIndexToInfo.end());
-                const auto& tabletInfo = tabletInfoIt->second;
+                const auto& tabletInfo = GetOrCrash(tabletIndexToInfo, tabletIndex);
                 if (stateTrimRowIndex - tabletInfo->TrimmedRowCount >= Config_->UntrimmedDataRowsHigh) {
                     statistics.TrimmedRowCountRequest = stateTrimRowIndex - Config_->UntrimmedDataRowsLow;
                     YT_LOG_DEBUG("Tablet data trim scheduled (TabletIndex: %v, TrimmedRowCount: %v)",

@@ -35,9 +35,12 @@ void MergeFrom(TTarget* target, const TSource& source);
 ///    YT_VERIFY(it != map.end());
 ///    use it->second;
 // with
-///    use FindOrCrash(map, key);
+///    use GetOrCrash(map, key);
 template <class TMap, class TKey>
-const auto& FindOrCrash(const TMap& map, const TKey& key);
+const auto& GetOrCrash(const TMap& map, const TKey& key);
+
+template <class TMap, class TKey>
+auto& GetOrCrash(TMap& map, const TKey& key);
 
 template <class... Ts>
 auto MakeArray(
@@ -66,4 +69,3 @@ std::vector<std::pair<typename T::key_type, typename T::mapped_type>> SortHashMa
 #define COLLECTION_HELPERS_INL_H_
 #include "collection_helpers-inl.h"
 #undef COLLECTION_HELPERS_INL_H_
-

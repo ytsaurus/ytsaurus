@@ -952,15 +952,20 @@ private:
         NScheduler::TOperationId operationId,
         TInstant deadline,
         const TListJobsOptions& options);
-    TFuture<std::pair<std::vector<TJob>, int>> DoListJobsFromControllerAgentAsync(
+
+    struct TListJobsFromControllerAgentResult
+    {
+        std::vector<TJob> FinishedJobs;
+        int TotalFinishedJobCount = 0;
+        std::vector<TJob> InProgressJobs;
+        int TotalInProgressJobCount = 0;
+    };
+
+    TFuture<TListJobsFromControllerAgentResult> DoListJobsFromControllerAgentAsync(
         NScheduler::TOperationId operationId,
         const std::optional<TString>& controllerAgentAddress,
         TInstant deadline,
         const TListJobsOptions& options);
-
-    static std::function<bool(const TJob&, const TJob&)> GetJobsComparator(EJobSortField sortField, EJobSortDirection sortOrder);
-
-    static void UpdateJobsList(std::vector<TJob> delta, std::vector<TJob>* origin, bool ignoreNewJobs);
 
     TListJobsResult DoListJobs(
         NScheduler::TOperationId operationId,
@@ -974,12 +979,25 @@ private:
         const NTableClient::TColumnFilter& columnFilter,
         int columnIndex);
 
-   static std::vector<TString> MakeJobArchiveAttributes(const THashSet<TString>& attributes);
+    static std::vector<TString> MakeJobArchiveAttributes(const THashSet<TString>& attributes);
 
+    std::optional<TJob> DoGetJobFromArchive(
+        NScheduler::TOperationId operationId,
+        NScheduler::TJobId jobId,
+        TInstant deadline,
+        const THashSet<TString>& attributes,
+        const TGetJobOptions& options);
+    std::optional<TJob> DoGetJobFromControllerAgent(
+        NScheduler::TOperationId operationId,
+        NScheduler::TJobId jobId,
+        TInstant deadline,
+        const THashSet<TString>& attributes,
+        const TGetJobOptions& options);
     NYson::TYsonString DoGetJob(
         NScheduler::TOperationId operationId,
         NScheduler::TJobId jobId,
         const TGetJobOptions& options);
+
     NYson::TYsonString DoStraceJob(
         NScheduler::TJobId jobId,
         const TStraceJobOptions& options);

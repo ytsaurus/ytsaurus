@@ -690,9 +690,7 @@ private:
 
     TMasterEntry* GetMasterEntry(TCellTag cellTag)
     {
-        auto it = RegisteredMasterMap_.find(cellTag);
-        YT_VERIFY(it != RegisteredMasterMap_.end());
-        return &it->second;
+        return &GetOrCrash(RegisteredMasterMap_, cellTag);
     }
 
     TMailbox* FindMasterMailbox(TCellTag cellTag)

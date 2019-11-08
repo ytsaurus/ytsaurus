@@ -105,12 +105,12 @@ TYPath GetSchedulerOrchidAliasPath(const TString& alias)
 }
 
 TYPath GetControllerAgentOrchidOperationPath(
-    const TString& controllerAgentAddress,
+    TStringBuf controllerAgentAddress,
     TOperationId operationId)
 {
     return
         "//sys/controller_agents/instances/" +
-        controllerAgentAddress +
+        ToYPathLiteral(controllerAgentAddress) +
         "/orchid/controller_agent/operations/" +
         ToYPathLiteral(ToString(operationId));
 }

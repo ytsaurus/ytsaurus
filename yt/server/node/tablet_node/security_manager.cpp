@@ -187,7 +187,7 @@ public:
         }
 
         TPermissionKey key{path, *optionalUser, permission};
-        return PermissionCache_->Get(key);
+        return PermissionCache_->Get(key, /* GetInfo */ nullptr);
     }
 
     void ValidatePermission(

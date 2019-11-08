@@ -403,11 +403,11 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
 
     @authors("gritukan")
     def DISABLED_test_set_final_job_state_metrics(self):
-        nodes = ls("//sys/nodes")
-
-        op = run_test_vanilla("sleep 1")
+        nodes = ls("//sys/cluster_nodes")
 
         metric = Metric.at_node(nodes[0], "job_controller/job_final_state")
+        op = run_test_vanilla("sleep 1")
+
         wait(lambda: metric.update().get(verbose=True) > 0)
 
         op.track()

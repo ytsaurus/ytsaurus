@@ -1,5 +1,7 @@
 #include "phoenix.h"
 
+#include "collection_helpers.h"
+
 namespace NYT::NPhoenix {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -19,16 +21,12 @@ ui32 TRegistry::GetTag(const std::type_info& typeInfo)
 
 const TRegistry::TEntry& TRegistry::GetEntry(ui32 tag)
 {
-    auto it = TagToEntry_.find(tag);
-    YT_VERIFY(it != TagToEntry_.end());
-    return it->second;
+    return GetOrCrash(TagToEntry_, tag);
 }
 
 const TRegistry::TEntry& TRegistry::GetEntry(const std::type_info& typeInfo)
 {
-    auto it = TypeInfoToEntry_.find(&typeInfo);
-    YT_VERIFY(it != TypeInfoToEntry_.end());
-    return *it->second;
+    return *GetOrCrash(TypeInfoToEntry_, &typeInfo);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -78,9 +76,7 @@ void TLoadContext::RegisterObject(ui32 id, void* basePtr)
 
 void* TLoadContext::GetObject(ui32 id) const
 {
-    auto it = IdToPtr_.find(id);
-    YT_VERIFY(it != IdToPtr_.end());
-    return it->second;
+    return GetOrCrash(IdToPtr_, id);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

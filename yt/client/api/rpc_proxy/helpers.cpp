@@ -715,6 +715,9 @@ void ToProto(NProto::TJob* protoJob, const NApi::TJob& job)
     if (job.Id) {
         ToProto(protoJob->mutable_id(), job.Id);
     }
+    if (job.OperationId) {
+        ToProto(protoJob->mutable_operation_id(), job.OperationId);
+    }
     if (job.Type) {
         protoJob->set_type(ConvertJobTypeToProto(*job.Type));
     }
@@ -765,6 +768,11 @@ void FromProto(NApi::TJob* job, const NProto::TJob& protoJob)
         FromProto(&job->Id, protoJob.id());
     } else {
         job->Id = {};
+    }
+    if (protoJob.has_operation_id()) {
+        FromProto(&job->OperationId, protoJob.operation_id());
+    } else {
+        job->OperationId = {};
     }
     if (protoJob.has_type()) {
         job->Type = ConvertJobTypeFromProto(protoJob.type());

@@ -17,7 +17,6 @@
 #include <yt/server/master/cell_master/multicell_manager.h>
 #include <yt/server/master/cell_master/serialize.h>
 #include <yt/server/master/cell_master/config.h>
-#include <yt/server/master/cell_master/config_manager.h>
 
 #include <yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/server/master/chunk_server/chunk_requisition.h>
@@ -87,7 +86,7 @@ using NYT::ToProto;
 static const auto& Logger = SecurityServerLogger;
 static const auto& Profiler = SecurityServerProfiler;
 
-static const auto ProfilingPeriod = TDuration::MilliSeconds(100);
+static const auto ProfilingPeriod = TDuration::MilliSeconds(10000);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1401,7 +1400,6 @@ public:
         return SecurityTagsRegistry_;
     }
 
-
     DEFINE_SIGNAL(void(TUser*, const TUserWorkload&), UserCharged);
 
 private:
@@ -1936,6 +1934,24 @@ private:
             }  // Else this'll be done later when the chunk is confirmed/sealed.
         }
 
+        auto resourceUsageMatch = [&] (
+            TAccount* account,
+            const TClusterResources& accountUsage,
+            const TClusterResources& expectedUsage)
+        {
+            if (accountUsage == expectedUsage) {
+                return true;
+            }
+            if (account != SysAccount_) {
+                return false;
+            }
+
+            // Root node requires special handling (unless resource usage have previously been recomputed).
+            auto accountUsageCopy = accountUsage;
+            ++accountUsageCopy.NodeCount;
+            return accountUsageCopy == expectedUsage;
+        };
+
         for (auto [accountId, account] : Accounts()) {
             if (!IsObjectAlive(account)) {
                 continue;
@@ -1943,38 +1959,27 @@ private:
 
             // NB: statMap may contain no entry for an account if it has no nodes or chunks.
             const auto& stat = statMap[account];
-            bool log = false;
+            auto& actualUsage = account->LocalStatistics().ResourceUsage;
+            auto& actualCommittedUsage = account->LocalStatistics().CommittedResourceUsage;
             const auto& expectedUsage = stat.NodeUsage;
             const auto& expectedCommittedUsage = stat.NodeCommittedUsage;
             if (ValidateAccountResourceUsage_) {
-                if (account->LocalStatistics().ResourceUsage != expectedUsage) {
-                    YT_LOG_ERROR("XXX %v account usage mismatch",
-                              account->GetName());
-                    log = true;
+                if (!resourceUsageMatch(account, actualUsage, expectedUsage)) {
+                    YT_LOG_ERROR("%v account usage mismatch, snapshot usage: %v, recomputed usage: %v",
+                        account->GetName(),
+                        actualUsage,
+                        expectedUsage);
                 }
-                if (account->LocalStatistics().CommittedResourceUsage != expectedCommittedUsage) {
-                    YT_LOG_ERROR("XXX %v account committed usage mismatch",
-                              account->GetName());
-                    log = true;
-                }
-                if (log) {
-                    YT_LOG_ERROR("XXX %v account usage %v",
-                              account->GetName(),
-                              account->LocalStatistics().ResourceUsage);
-                    YT_LOG_ERROR("XXX %v account committed usage %v",
-                              account->GetName(),
-                              account->LocalStatistics().CommittedResourceUsage);
-                    YT_LOG_ERROR("XXX %v node usage %v",
-                              account->GetName(),
-                              stat.NodeUsage);
-                    YT_LOG_ERROR("XXX %v node committed usage %v",
-                              account->GetName(),
-                              stat.NodeCommittedUsage);
+                if (!resourceUsageMatch(account, actualCommittedUsage, expectedCommittedUsage)) {
+                    YT_LOG_ERROR("%v account committed usage mismatch, snapshot usage: %v, recomputed usage: %v",
+                        account->GetName(),
+                        actualCommittedUsage,
+                        expectedCommittedUsage);
                 }
             }
             if (RecomputeAccountResourceUsage_) {
-                account->LocalStatistics().ResourceUsage = expectedUsage;
-                account->LocalStatistics().CommittedResourceUsage = expectedCommittedUsage;
+                actualUsage = expectedUsage;
+                actualCommittedUsage = expectedCommittedUsage;
 
                 const auto& multicellManager = Bootstrap_->GetMulticellManager();
                 if (multicellManager->IsPrimaryMaster()) {

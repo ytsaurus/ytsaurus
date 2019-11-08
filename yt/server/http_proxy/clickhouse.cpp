@@ -183,8 +183,17 @@ public:
         YT_LOG_DEBUG("Querying instance (Url: %v, RetryIndex: %v)", ProxiedRequestUrl_, retryIndex);
         auto responseOrError = WaitFor(HttpClient_->Post(ProxiedRequestUrl_, ProxiedRequestBody_, ProxiedRequestHeaders_));
 
-        if (responseOrError.IsOK() && responseOrError.Value()->GetStatusCode() == EStatusCode::MovedPermanently) {
-            responseOrError = TError("Instance moved, request rejected");
+        if (responseOrError.IsOK()) {
+            if (!responseOrError.Value()->GetHeaders()->Find("X-ClickHouse-Server-Display-Name")) {
+                // We got the response, but not from clickhouse instance.
+                // Probably the instance had died and another service was started at the same host:port.
+                // We can safely retry such requests.
+                responseOrError = TError("The requested server is not a clickhouse instance");
+            } else if (responseOrError.Value()->GetStatusCode() == EStatusCode::MovedPermanently) {
+                // Special status code which means that the instance is stopped by signal or clique-id in header isn't correct.
+                // It is guaranteed that this instance didn't start to invoke the request, so we can retry it.
+                responseOrError = TError("Instance moved, request rejected");
+            }
         }
 
         if (responseOrError.IsOK()) {

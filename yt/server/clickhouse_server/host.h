@@ -4,6 +4,8 @@
 #include "query_context.h"
 #include "private.h"
 
+#include <yt/ytlib/api/native/public.h>
+
 #include <yt/ytlib/object_client/public.h>
 
 #include <yt/ytlib/security_client/public.h>
@@ -41,8 +43,9 @@ public:
     TFuture<void> StopDiscovery();
     void StopTcpServers();
 
-    NObjectClient::TObjectAttributeCachePtr GetTableAttributeCache();
-    NSecurityClient::TPermissionCachePtr GetPermissionsCache();
+    std::vector<TErrorOr<NYTree::TAttributeMap>> CheckPermissionsAndGetCachedObjectAttributes(
+        const std::vector<NYPath::TYPath>& paths,
+        const NApi::NNative::IClientPtr& client);
 
     const IInvokerPtr& GetControlInvoker() const;
 

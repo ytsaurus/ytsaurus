@@ -199,6 +199,7 @@ class TComplexTypeFieldDescriptor
 {
 public:
     explicit TComplexTypeFieldDescriptor(TLogicalTypePtr type);
+    explicit TComplexTypeFieldDescriptor(const TColumnSchema& column);
     TComplexTypeFieldDescriptor(TString columnName, TLogicalTypePtr type);
 
     TComplexTypeFieldDescriptor OptionalElement() const;

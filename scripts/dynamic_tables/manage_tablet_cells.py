@@ -105,9 +105,18 @@ def remove(args):
         print "Remove: ", config
     elif args.bundle:
         cells = yt.get("//sys/tablet_cell_bundles/{0}/@tablet_cell_ids".format(args.bundle))
-    else:
+    elif args.all:
         cells = yt.get("//sys/tablet_cells")
-    remove_tablet_cells(cells)
+    else:
+        print "Nothing selected for removal. Use either --config, --bundle or --all options to specify what to remove"
+        return
+    print "Selected {} tablet cells for removal".format(len(cells))
+    if args.yes_i_really_want_to_remove_tablet_cells:
+        remove_tablet_cells(cells)
+        print "Removed selected cells. Note that it can take a few minutes until cells are disappeared."
+    else:
+        print "This is a safe run, not going to remove anything. To enable tablet cell removal use --yes-i-really-want-to-remove-tablet-cells option"
+
 
 def create(args):
     if args.config is None:
@@ -121,10 +130,14 @@ def main2():
                         help="YSON-serialized map bundle -> tablet_cell_count")
     parser.add_argument("--bundle", type=str, default=None,
                         help="Tablet cell bundle name")
+    parser.add_argument("--all", action="store_true", default=None,
+                        help="Use this to remove all tablet cell bundles")
     parser.add_argument("--file", "--f", type=str, default=None,
                         help="File to save/restore config")
     parser.add_argument("--force", action="store_true", default=None,
                         help="File to save/restore config")
+    parser.add_argument("--yes-i-really-want-to-remove-tablet-cells", action="store_true", default=None,
+                        help="Safety guard")
     args = parser.parse_args()
 
     if args.action == "show":

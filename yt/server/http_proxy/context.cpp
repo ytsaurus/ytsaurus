@@ -747,7 +747,7 @@ void TContext::Finalize()
             DriverRequest_.AuthenticatedUser,
             DriverRequest_.CommandName,
             Response_->GetStatus(),
-            Error_.GetCode(),
+            Error_.GetNonTrivialCode(),
             Duration_,
             Request_->GetReadByteCount(),
             Response_->GetWriteByteCount());

@@ -219,13 +219,13 @@ class TestSkiffFormat(YTEnvSetup):
                 "list_of_strings": ["foo", "bar", "baz"],
                 "optional_list_of_strings": None,
                 "optional_optional_boolean": [False],
-                "struct": ["qux", [[1, 4], [5, 4]]],
+                "struct": {"key": "qux", "points": [{"x": 1, "y": 4}, {"x": 5, "y": 4}]},
             },
             {
                 "list_of_strings": ["a", "bc"],
                 "optional_list_of_strings": ["defg", "hi"],
                 "optional_optional_boolean": [None],
-                "struct": ["lol", []],
+                "struct": {"key": "lol", "points": []},
             }
         ])
 
@@ -298,13 +298,13 @@ class TestSkiffFormat(YTEnvSetup):
                 "list_of_strings": ["foo", "bar", "baz"],
                 "optional_list_of_strings": None,
                 "optional_optional_boolean": [False],
-                "struct": ["qux", [[1, 4], [5, 4]]],
+                "struct": {"key": "qux", "points": [{"x": 1, "y": 4}, {"x": 5, "y": 4}]},
             },
             {
                 "list_of_strings": ["a", "bc"],
                 "optional_list_of_strings": ["defg", "hi"],
                 "optional_optional_boolean": [None],
-                "struct": ["lol", []],
+                "struct": {"key": "lol", "points": []},
             }
         ])
 

@@ -51,30 +51,37 @@ TPermissionCache::TPermissionCache(
     , Config_(std::move(config))
 { }
 
-TFuture<std::vector<TError>> TPermissionCache::CheckPermissions(const std::vector<TYPath>& paths, const TString& user, EPermission permission)
+TFuture<std::vector<TError>> TPermissionCache::CheckPermissions(
+    const std::vector<TYPath>& paths,
+    const TString& user,
+    EPermission permission,
+    const IClientPtr& client)
 {
     std::vector<TPermissionKey> keys;
     keys.reserve(paths.size());
     for (const auto& path : paths) {
         keys.push_back({path, user, permission});
     }
-    return Get(keys);
+    return Get(keys, client);
 }
 
-TFuture<void> TPermissionCache::DoGet(const TPermissionKey& key)
+TFuture<void> TPermissionCache::DoGet(const TPermissionKey& key, const IClientPtr& client)
 {
-    return DoGetMany({key}).Apply(BIND([] (const std::vector<TError>& responses) {
+    return DoGetMany({key}, client)
+        .Apply(BIND([] (const std::vector<TError>& responses) {
             responses[0].ThrowOnError();
         }));
 }
 
-TFuture<std::vector<TError>> TPermissionCache::DoGetMany(const std::vector<TPermissionKey>& keys)
+TFuture<std::vector<TError>> TPermissionCache::DoGetMany(
+    const std::vector<TPermissionKey>& keys,
+    const IClientPtr& client)
 {
     if (keys.empty()) {
-        return {};
+        return MakeFuture(std::vector<TError>());
     }
 
-    TObjectServiceProxy proxy(Client_->GetMasterChannelOrThrow(Config_->ReadFrom));
+    TObjectServiceProxy proxy((client ? client : Client_)->GetMasterChannelOrThrow(Config_->ReadFrom));
     auto batchReq = proxy.ExecuteBatch();
     for (const auto& key : keys) {
         auto req = TObjectYPathProxy::CheckPermission(key.Object);

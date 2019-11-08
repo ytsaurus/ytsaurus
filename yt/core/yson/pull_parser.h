@@ -158,6 +158,7 @@ public:
 
     // Transfer complex value is similar to SkipComplexValue except it feeds passed consumer with skipped value.
     void TransferComplexValue(IYsonConsumer* consumer);
+    void TransferComplexValue(TCheckedInDebugYsonTokenWriter* writer);
 
 private:
     TYsonItem Current_;

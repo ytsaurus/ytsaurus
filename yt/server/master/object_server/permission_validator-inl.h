@@ -41,7 +41,7 @@ void THierarchicPermissionValidator<TObject>::ValidateCreatePermissions(
     bool replace,
     const NYTree::IAttributeDictionary* attributes)
 {
-    ValidateAddChildPermissions(replace);
+    ValidateAddChildPermissions(replace, false /* validateAdminister */);
 
     if (attributes && (attributes->Contains("acl") || attributes->Contains("inherit_acl"))) {
         Underlying_->ValidatePermission(
@@ -54,10 +54,11 @@ template <class TObject>
 void THierarchicPermissionValidator<TObject>::ValidateCopyPermissions(
     TObject* sourceImpl,
     NCypressClient::ENodeCloneMode mode,
-    bool replace)
+    bool replace,
+    bool validateAdminister)
 {
     ValidateCopyPermissionsSource(sourceImpl, mode);
-    ValidateCopyPermissionsDestination(replace);
+    ValidateCopyPermissionsDestination(replace, validateAdminister);
 }
 
 template <class TObject>
@@ -83,13 +84,17 @@ void THierarchicPermissionValidator<TObject>::ValidateCopyPermissionsSource(
 }
 
 template <class TObject>
-void THierarchicPermissionValidator<TObject>::ValidateCopyPermissionsDestination(bool replace)
+void THierarchicPermissionValidator<TObject>::ValidateCopyPermissionsDestination(
+    bool replace,
+    bool validateAdminister)
 {
-    ValidateAddChildPermissions(replace);
+    ValidateAddChildPermissions(replace, validateAdminister);
 }
 
 template <class TObject>
-void THierarchicPermissionValidator<TObject>::ValidateAddChildPermissions(bool replace)
+void THierarchicPermissionValidator<TObject>::ValidateAddChildPermissions(
+    bool replace,
+    bool validateAdminister)
 {
     if (replace) {
         Underlying_->ValidatePermission(
@@ -98,10 +103,16 @@ void THierarchicPermissionValidator<TObject>::ValidateAddChildPermissions(bool r
         Underlying_->ValidatePermission(
             NYTree::EPermissionCheckScope::Parent,
             NYTree::EPermission::Write | NYTree::EPermission::ModifyChildren);
+        if (validateAdminister) {
+            Underlying_->ValidatePermission(NYTree::EPermissionCheckScope::Parent, NYTree::EPermission::Administer);
+        }
     } else {
         Underlying_->ValidatePermission(
             NYTree::EPermissionCheckScope::This,
             NYTree::EPermission::Write | NYTree::EPermission::ModifyChildren);
+        if (validateAdminister) {
+            Underlying_->ValidatePermission(NYTree::EPermissionCheckScope::This, NYTree::EPermission::Administer);
+        }
     }
 }
 

@@ -165,8 +165,7 @@ void TCompetitiveJobManager::OnJobFinished(const TJobletPtr& joblet)
 
 std::optional<EAbortReason> TCompetitiveJobManager::ShouldAbortJob(const TJobletPtr& joblet) const
 {
-    YT_VERIFY(CookieToCompetition_.contains(joblet->OutputCookie));
-    const auto& competition = CookieToCompetition_.find(joblet->OutputCookie)->second;
+    const auto& competition = GetOrCrash(CookieToCompetition_, joblet->OutputCookie);
     if (competition.Status == ECompetitionStatus::CompetitionCompleted) {
         return joblet->Speculative
             ? EAbortReason::SpeculativeRunLost

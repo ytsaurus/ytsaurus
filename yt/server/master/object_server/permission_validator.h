@@ -47,14 +47,15 @@ protected:
     void ValidateCopyPermissions(
         TObject* sourceImpl,
         NCypressClient::ENodeCloneMode mode,
-        bool replace);
+        bool replace,
+        bool validateAdminister);
     void ValidateCopyPermissionsSource(TObject* sourceImpl, NCypressClient::ENodeCloneMode mode);
-    void ValidateCopyPermissionsDestination(bool replace);
+    void ValidateCopyPermissionsDestination(bool replace, bool validateAdminister);
 
 private:
     std::unique_ptr<IPermissionValidator> Underlying_;
 
-    void ValidateAddChildPermissions(bool replace);
+    void ValidateAddChildPermissions(bool replace, bool validateAdminister);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

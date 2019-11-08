@@ -588,9 +588,7 @@ protected:
 
     const TNodeDescriptor& GetPeerDescriptor(const TString& address)
     {
-        auto it = Peers_.find(address);
-        YT_VERIFY(it != Peers_.end());
-        return it->second.NodeDescriptor;
+        return GetOrCrash(Peers_, address).NodeDescriptor;
     }
 
     //! Register peer and install into the peer queue if neccessary.
@@ -625,19 +623,14 @@ protected:
             return;
         }
 
-        auto it = Peers_.find(address);
-        YT_VERIFY(it != Peers_.end());
-
         YT_LOG_DEBUG("Reinstall peer into peer queue (Address: %v)", address);
-        PeerQueue_.push(TPeerQueueEntry(it->second, reader->GetBanCount(address)));
+        const auto& peer = GetOrCrash(Peers_, address);
+        PeerQueue_.push(TPeerQueueEntry(peer, reader->GetBanCount(address)));
     }
 
     bool IsSeed(const TString& address)
     {
-        auto it = Peers_.find(address);
-        YT_VERIFY(it != Peers_.end());
-
-        return it->second.Type == EPeerType::Seed;
+        return GetOrCrash(Peers_, address).Type == EPeerType::Seed;
     }
 
     bool IsPeerBanned(const TString& address)
@@ -1112,9 +1105,7 @@ private:
 
     bool HasUnfetchedBlocks(const TString& address, const std::vector<int>& indexesToFetch) const
     {
-        auto it = PeerBlocksMap_.find(address);
-        YT_VERIFY(it != PeerBlocksMap_.end());
-        const auto& peerBlockIndexes = it->second;
+        const auto& peerBlockIndexes = GetOrCrash(PeerBlocksMap_, address);
 
         for (int blockIndex : indexesToFetch) {
             if (peerBlockIndexes.find(blockIndex) != peerBlockIndexes.end()) {

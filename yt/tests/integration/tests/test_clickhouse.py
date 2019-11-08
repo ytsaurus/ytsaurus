@@ -1032,6 +1032,20 @@ class TestMutations(ClickHouseTestBase):
             assert get_schema(clique.make_query('describe "//tmp/t"')) == [{"name": "b", "type": "Nullable(String)"}]
 
 
+class TestClickHouseNoCache(ClickHouseTestBase):
+    def setup(self):
+        self._setup()
+        remove_user("yt-clickhouse-cache")
+
+    @authors("dakovalkov")
+    def test_no_clickhouse_cache(self):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        write_table("//tmp/t", [{"a": 123}])
+        with Clique(1) as clique:
+            for i in range(4):
+                clique.make_query("select * from \"//tmp/t\"") == [{"a": 123}]
+
+
 class TestCompositeTypes(ClickHouseTestBase):
     def setup(self):
         self._setup()
@@ -1757,7 +1771,7 @@ class TestJoinAndIn(ClickHouseTestBase):
                                         print_debug(char + " " + row)
                                     assert False
 
-class TestHttpProxy(ClickHouseTestBase):
+class TestClickHouseHttpProxy(ClickHouseTestBase):
     def setup(self):
         self._setup()
         create_user("yt-clickhouse")
@@ -1783,6 +1797,8 @@ class TestHttpProxy(ClickHouseTestBase):
             clique.resize(1)
 
             proxy_response = requests.post(url, data="select * from system.clique format JSON")
+            print_debug(proxy_response)
+            print_debug(proxy_response.text)
             response = clique.make_query("select * from system.clique")
             assert len(response) == 1
             assert proxy_response.json()["data"] == response

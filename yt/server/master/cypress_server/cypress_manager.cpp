@@ -225,6 +225,11 @@ public:
         return Options_.PreserveOwner;
     }
 
+    virtual bool ShouldPreserveAcl() const override
+    {
+        return Options_.PreserveAcl;
+    }
+
     virtual TAccount* GetNewNodeAccount() const override
     {
         return Account_;
@@ -1215,11 +1220,13 @@ public:
         auto strongestLockModeBefore = ELockMode::None;
         auto strongestLockModeAfter = ELockMode::None;
         for (auto* lock : transaction->Locks()) {
-            if (lock->GetState() != ELockState::Acquired) {
+            YT_ASSERT(lock->GetTransaction() == transaction);
+
+            if (lock->GetTrunkNode() != trunkNode) {
                 continue;
             }
 
-            if (lock->GetTransaction() != transaction) {
+            if (lock->GetState() != ELockState::Acquired) {
                 continue;
             }
 

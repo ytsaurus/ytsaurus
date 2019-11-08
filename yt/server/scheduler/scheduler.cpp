@@ -1145,7 +1145,6 @@ public:
         if (operation->Spec()->TestingOperationOptions->DelayInsideMaterialize) {
             TDelayedExecutor::WaitForDuration(*operation->Spec()->TestingOperationOptions->DelayInsideMaterialize);
         }
-        YT_LOG_DEBUG("LORDF_DEBUG: Just before enabling the operation");
         operation->SetStateAndEnqueueEvent(EOperationState::Running);
         Strategy_->EnableOperation(operation.Get());
 
@@ -1179,9 +1178,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto it = NodeIdToInfo_.find(nodeId);
-        YT_VERIFY(it != NodeIdToInfo_.end());
-        return it->second.Address;
+        return GetOrCrash(NodeIdToInfo_, nodeId).Address;
     }
 
     virtual IInvokerPtr GetControlInvoker(EControlQueue queue) const override
@@ -1196,9 +1193,7 @@ public:
 
     virtual IInvokerPtr GetFairShareUpdateInvoker() const override
     {
-        return GetControlInvoker(EControlQueue::FairShareStrategy);
-        // TODO(ignat): make tree thread-safe and enable this separate thread for fair share updates.
-        // return FairShareUpdateActionQueue_->GetInvoker();
+        return FairShareUpdateActionQueue_->GetInvoker();
     }
 
     virtual IYsonConsumer* GetEventLogConsumer() override
@@ -1273,9 +1268,7 @@ public:
                     truncated = true;
                     break;
                 }
-                auto nodeIt = NodeIdToInfo_.find(nodeId);
-                YT_VERIFY(nodeIt != NodeIdToInfo_.end());
-                nodeAddresses.push_back(nodeIt->second.Address);
+                nodeAddresses.push_back(GetOrCrash(NodeIdToInfo_, nodeId).Address);
             }
 
             SetSchedulerAlert(
@@ -2663,13 +2656,12 @@ private:
         YT_VERIFY(IdToOperation_.erase(operation->GetId()) == 1);
         YT_VERIFY(IdToOperationService_.erase(operation->GetId()) == 1);
         if (operation->Alias()) {
-            auto it = OperationAliases_.find(*operation->Alias());
-            YT_VERIFY(it != OperationAliases_.end());
+            auto& alias = GetOrCrash(OperationAliases_, *operation->Alias());
             YT_LOG_DEBUG("Alias now corresponds to an unregistered operation (Alias: %v, OperationId: %v)",
                 *operation->Alias(),
                 operation->GetId());
-            YT_VERIFY(it->second.Operation == operation);
-            it->second.Operation = nullptr;
+            YT_VERIFY(alias.Operation == operation);
+            alias.Operation = nullptr;
         }
 
         const auto& controller = operation->GetController();

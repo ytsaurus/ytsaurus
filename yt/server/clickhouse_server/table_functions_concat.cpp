@@ -110,14 +110,13 @@ std::vector<TClickHouseTablePtr> FetchClickHouseTables(TQueryContext* queryConte
         paths.emplace_back(path.GetPath());
     }
 
-    auto attributes = WaitFor(queryContext->Bootstrap->GetHost()->GetTableAttributeCache()->Get(paths))
-        .ValueOrThrow();
+    auto attributeOrErrors = queryContext->Bootstrap->GetHost()->CheckPermissionsAndGetCachedObjectAttributes(paths, queryContext->Client());
 
     std::vector<TClickHouseTablePtr> tables;
     std::vector<TError> errors;
     for (int index = 0; index < static_cast<int>(richPaths.size()); ++index) {
         const auto& path = richPaths[index];
-        const auto& attrOrError = attributes[index];
+        const auto& attrOrError = attributeOrErrors[index];
 
         if (!attrOrError.IsOK()) {
             // We intentionally skip missing tables.
@@ -231,7 +230,11 @@ public:
         YT_LOG_INFO("Listing directory (Path: %v)", directory);
 
         TListNodeOptions options;
-        options.Attributes = {"type", "path", "dynamic"};
+        options.Attributes = {
+            "type",
+            "path",
+            "dynamic",
+        };
         options.SuppressAccessTracking = true;
 
         auto items = WaitFor(queryContext->Client()->ListNode(directory.GetPath(), options))

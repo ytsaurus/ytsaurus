@@ -42,6 +42,7 @@ struct TNodeFactoryOptions
     bool PreserveModificationTime = false;
     bool PreserveExpirationTime = false;
     bool PreserveOwner = false;
+    bool PreserveAcl = false;
     bool PessimisticQuotaCheck = true;
 };
 

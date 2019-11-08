@@ -26,6 +26,12 @@ public:
         NLogging::TLogger logger = {},
         NProfiling::TProfiler profiler = {});
 
+    // Gets attributes from master via provided client.
+    // It doesn't change the cache.
+    TFuture<std::vector<TErrorOr<NYTree::TAttributeMap>>> GetFromClient(
+        const std::vector<NYPath::TYPath>& paths,
+        const NApi::NNative::IClientPtr& client) const;
+
 protected:
     virtual TFuture<NYTree::TAttributeMap> DoGet(const NYPath::TYPath& path) override;
     virtual TFuture<std::vector<TErrorOr<NYTree::TAttributeMap>>> DoGetMany(

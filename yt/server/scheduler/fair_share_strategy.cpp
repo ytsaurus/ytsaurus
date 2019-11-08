@@ -170,11 +170,10 @@ public:
 
         for (const auto& [treeId, poolName] : state->TreeIdToPoolNameMap()) {
             auto tree = GetTree(treeId);
-            auto paramsIt = runtimeParameters->SchedulingOptionsPerPoolTree.find(treeId);
-            YT_VERIFY(paramsIt != runtimeParameters->SchedulingOptionsPerPoolTree.end());
+            const auto& treeParams = GetOrCrash(runtimeParameters->SchedulingOptionsPerPoolTree, treeId);
 
-            if (tree->RegisterOperation(state, spec, paramsIt->second)) {
-                ActivateOperations({operation->GetId()});
+            if (tree->RegisterOperation(state, spec, treeParams)) {
+                OnOperationReadyInTree(operation->GetId(), tree);
             }
         }
     }
@@ -214,17 +213,25 @@ public:
     {
         auto tree = GetTree(treeId);
         tree->UnregisterOperation(operationState);
-        ActivateOperations(tree->RunWaitingOperations());
+        for (auto operationId : tree->RunWaitingOperations()) {
+            OnOperationReadyInTree(operationId, tree);
+        }
     }
 
     virtual void DisableOperation(IOperationStrategyHost* operation) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        const auto& state = GetOperationState(operation->GetId());
+        auto operationId = operation->GetId();
+        const auto& state = GetOperationState(operationId);
         for (const auto& [treeId, poolName] : state->TreeIdToPoolNameMap()) {
-            GetTree(treeId)->DisableOperation(state);
+            if (auto tree = GetTree(treeId);
+                tree->HasRunningOperation(operationId))
+            {
+                tree->DisableOperation(state);
+            }
         }
+        state->SetEnabled(false);
     }
 
     virtual void UpdatePoolTrees(const INodePtr& poolTreesNode) override
@@ -451,18 +458,17 @@ public:
         }
 
         for (const auto& [treeId, oldPool] : state->TreeIdToPoolNameMap()) {
-            auto newPoolIt = newPools.find(treeId);
-            YT_VERIFY(newPoolIt != newPools.end());
-
+            const auto& newPool = GetOrCrash(newPools, treeId);
             auto tree = GetTree(treeId);
-            if (oldPool.GetPool() != newPoolIt->second.GetPool()) {
-                tree->ChangeOperationPool(operation->GetId(), state, newPoolIt->second);
-                ActivateOperations(tree->RunWaitingOperations());
+            if (oldPool.GetPool() != newPool.GetPool()) {
+                tree->ChangeOperationPool(operation->GetId(), state, newPool);
+                for (auto operationId : tree->RunWaitingOperations()) {
+                    OnOperationReadyInTree(operationId, tree);
+                }
             }
 
-            auto it = runtimeParameters->SchedulingOptionsPerPoolTree.find(treeId);
-            YT_VERIFY(it != runtimeParameters->SchedulingOptionsPerPoolTree.end());
-            tree->UpdateOperationRuntimeParameters(operation->GetId(), it->second);
+            const auto& treeParams = GetOrCrash(runtimeParameters->SchedulingOptionsPerPoolTree, treeId);
+            tree->UpdateOperationRuntimeParameters(operation->GetId(), treeParams);
         }
         state->TreeIdToPoolNameMap() = newPools;
     }
@@ -556,13 +562,10 @@ public:
             .OptionalItem("default_fair_share_tree", DefaultTreeId_)
             .Item("scheduling_info_per_pool_tree").DoMapFor(IdToTree_, [&] (TFluentMap fluent, const auto& pair) {
                 const auto& [treeId, tree] = pair;
-
-                auto it = descriptorsPerPoolTree.find(treeId);
-                YT_VERIFY(it != descriptorsPerPoolTree.end());
-
+                const auto& treeNodeDescriptor = GetOrCrash(descriptorsPerPoolTree, treeId);
                 fluent
                     .Item(treeId).BeginMap()
-                        .Do(BIND(&TFairShareStrategy::BuildTreeOrchid, tree, it->second))
+                        .Do(BIND(&TFairShareStrategy::BuildTreeOrchid, tree, treeNodeDescriptor))
                     .EndMap();
             });
     }
@@ -804,8 +807,13 @@ public:
     {
         auto operationId = host->GetId();
         const auto& state = GetOperationState(operationId);
+        state->SetEnabled(true);
         for (const auto& [treeId, poolName] : state->TreeIdToPoolNameMap()) {
-            GetTree(treeId)->EnableOperation(state);
+            if (auto tree = GetTree(treeId);
+                tree->HasRunningOperation(operationId))
+            {
+                tree->EnableOperation(state);
+            }
         }
         if (host->IsSchedulable()) {
             state->GetController()->UpdateMinNeededJobResources();
@@ -904,6 +912,7 @@ private:
 
     std::optional<TString> DefaultTreeId_;
 
+    // TODO(eshcherbin): Use TAtomicObject here.
     TReaderWriterSpinLock TreeIdToSnapshotLock_;
     THashMap<TString, IFairShareTreeSnapshotPtr> TreeIdToSnapshot_;
 
@@ -1063,9 +1072,7 @@ private:
 
     TFairShareStrategyOperationStatePtr GetOperationState(TOperationId operationId) const
     {
-        auto it = OperationIdToOperationState_.find(operationId);
-        YT_VERIFY(it != OperationIdToOperationState_.end());
-        return it->second;
+        return GetOrCrash(OperationIdToOperationState_, operationId);
     }
 
     TFairShareTreePtr FindTree(const TString& id) const
@@ -1100,13 +1107,15 @@ private:
                 });
     }
 
-    void ActivateOperations(const std::vector<TOperationId>& operationIds) const
+    void OnOperationReadyInTree(TOperationId operationId, const TFairShareTreePtr& tree) const
     {
-        for (auto operationId : operationIds) {
-            const auto& state = GetOperationState(operationId);
-            if (!state->GetHost()->GetActivated()) {
-                Host->ActivateOperation(operationId);
-            }
+        YT_VERIFY(tree->HasRunningOperation(operationId));
+
+        auto state = GetOperationState(operationId);
+        if (!state->GetHost()->GetActivated()) {
+            Host->ActivateOperation(operationId);
+        } else if (state->GetEnabled()) {
+            tree->EnableOperation(state);
         }
     }
 
@@ -1265,9 +1274,8 @@ private:
                 GetTree(treeId)->UnregisterOperation(state);
                 YT_VERIFY(state->TreeIdToPoolNameMap().erase(treeId) == 1);
 
-                auto treeSetIt = operationIdToTreeSet.find(operationId);
-                YT_VERIFY(treeSetIt != operationIdToTreeSet.end());
-                YT_VERIFY(treeSetIt->second.erase(treeId) == 1);
+                auto& treeSet = GetOrCrash(operationIdToTreeSet, operationId);
+                YT_VERIFY(treeSet.erase(treeId) == 1);
             }
         }
 

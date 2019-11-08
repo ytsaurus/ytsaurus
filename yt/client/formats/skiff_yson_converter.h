@@ -15,7 +15,7 @@ NSkiff::EWireType GetSkiffTypeForSimpleLogicalType(NTableClient::ESimpleLogicalV
 ////////////////////////////////////////////////////////////////////////////////
 
 using TYsonToSkiffConverter = std::function<void(NYson::TYsonPullParserCursor*, NSkiff::TCheckedInDebugSkiffWriter*)>;
-using TSkiffToYsonConverter = std::function<void(NSkiff::TCheckedInDebugSkiffParser*, NYson::IYsonConsumer*)>;
+using TSkiffToYsonConverter = std::function<void(NSkiff::TCheckedInDebugSkiffParser*, NYson::TCheckedInDebugYsonTokenWriter*)>;
 
 struct TYsonToSkiffConverterConfig
 {

@@ -100,7 +100,7 @@ class TEventLogTableConsumer
 {
 public:
     explicit TEventLogTableConsumer(std::unique_ptr<TEventLogValueConsumer> valueConsumer)
-        : TTableConsumer(valueConsumer.get())
+        : TTableConsumer(NFormats::EComplexTypeMode::Named, valueConsumer.get())
         , ValueConsumer_(std::move(valueConsumer))
     { }
 

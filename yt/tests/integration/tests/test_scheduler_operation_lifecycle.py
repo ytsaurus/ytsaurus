@@ -1303,7 +1303,7 @@ class TestSchedulerReviveVanilla(SchedulerReviveBase):
         spec["tasks"] = {"main": {"command": command, "job_count": job_count}}
         return vanilla(spec=spec, **kwargs)
 
-class TestControllerAgent(YTEnvSetup):
+class TestControllerAgentReconnection(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -1451,6 +1451,65 @@ class TestControllerAgent(YTEnvSetup):
 
         op.abort()
         self._wait_for_state(op, "aborted")
+
+
+@authors("levysotsky")
+class TestControllerAgentZombieOrchids(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "zombie_operation_orchids": {
+                "clean_period": 15 * 1000,
+            },
+        }
+    }
+
+    def _create_table(self, table):
+        create("table", table, attributes={"replication_factor": 1})
+
+    def _get_operation_orchid_path(self, op):
+        controller_agent = get(op.get_path() + "/@controller_agent_address")
+        return "//sys/controller_agents/instances/{}/orchid/controller_agent/operations/{}"\
+            .format(controller_agent, op.id)
+
+    def test_zombie_operation_orchids(self):
+        self._create_table("//tmp/t_in")
+        self._create_table("//tmp/t_out")
+        write_table("//tmp/t_in", {"foo": "bar"})
+
+        op = map(
+            command="cat",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out")
+
+        orchid_path = self._get_operation_orchid_path(op)
+        wait(lambda: exists(orchid_path))
+        assert get(orchid_path + "/state") == "completed"
+        wait(lambda: not exists(orchid_path))
+
+    def test_retained_finished_jobs(self):
+        self._create_table("//tmp/t_in")
+        self._create_table("//tmp/t_out")
+        write_table("//tmp/t_in", [{"foo": "bar1"}, {"foo": "bar2"}])
+
+        op = map(
+            command='if [[ "$YT_JOB_INDEX" == "0" ]] ; then exit 1; fi; cat',
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out",
+            spec={
+                "data_size_per_job": 1,
+            })
+
+        orchid_path = self._get_operation_orchid_path(op)
+        wait(lambda: exists(orchid_path))
+        retained_finished_jobs = get(orchid_path + "/retained_finished_jobs")
+        assert len(retained_finished_jobs) == 1
+        (job_id, attributes), = retained_finished_jobs.items()
+        assert attributes["job_type"] == "map"
+        assert attributes["state"] == "failed"
 
 
 class TestSchedulerErrorTruncate(YTEnvSetup):
