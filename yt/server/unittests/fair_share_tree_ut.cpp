@@ -735,5 +735,78 @@ TEST_F(TFairShareTreeTest, DontSuggestMoreResourcesThanOperationNeeds)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST_F(TFairShareTreeTest, DoNotPreemptJobsIfFairShareRatioEqualToDemandRatio)
+{
+    TJobResourcesWithQuota nodeResources;
+    nodeResources.SetUserSlots(100);
+    nodeResources.SetCpu(100);
+    nodeResources.SetMemory(100);
+    nodeResources.SetDiskQuota(100);
+
+    auto execNode = CreateTestExecNode(static_cast<NNodeTrackerClient::TNodeId>(0), nodeResources);
+
+    auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(1, nodeResources));
+
+    // Create an operation with 4 jobs.
+    TJobResourcesWithQuota jobResources;
+    jobResources.SetCpu(10);
+    jobResources.SetMemory(10);
+    jobResources.SetDiskQuota(0);
+
+    auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
+    operationOptions->Weight = 1.0;
+    auto operation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList({}));
+
+    auto operationElement = CreateTestOperationElement(host.Get(), operationOptions, operation.Get());
+
+    // Root element.
+    auto rootElement = CreateTestRootElement(host.Get());
+    operationElement->AttachParent(rootElement.Get(), true);
+    operationElement->Enable();
+
+    std::vector<TJobId> jobIds;
+    for (int i = 0; i < 4; ++i) {
+        auto jobId = TGuid::Create();
+        jobIds.push_back(jobId);
+        operationElement->OnJobStarted(
+            jobId,
+            jobResources.ToJobResources(),
+            /* precommitedResources */ {});
+    }
+
+    auto dynamicAttributes = TDynamicAttributesList(2);
+
+    TUpdateFairShareContext updateContext;
+    rootElement->PreUpdate(&dynamicAttributes, &updateContext);
+    // We call UpdateTopDown() directly here, because Update() verifies current invoker.
+    rootElement->UpdateTopDown(&dynamicAttributes, &updateContext);
+
+    EXPECT_EQ(0.4, operationElement->Attributes().DemandRatio);
+    EXPECT_EQ(0.4, operationElement->Attributes().FairShareRatio);
+
+    for (int i = 0; i < 2; ++i) {
+        EXPECT_FALSE(operationElement->IsJobPreemptable(jobIds[i], true));
+    }
+    for (int i = 2; i < 4; ++i) {
+        EXPECT_FALSE(operationElement->IsJobPreemptable(jobIds[i], false));
+        EXPECT_TRUE(operationElement->IsJobPreemptable(jobIds[i], true));
+    }
+
+    TJobResources delta;
+    delta.SetCpu(10);
+    delta.SetMemory(10);
+    operationElement->IncreaseJobResourceUsage(jobIds[0], delta);
+
+    for (int i = 0; i < 1; ++i) {
+        EXPECT_FALSE(operationElement->IsJobPreemptable(jobIds[i], true));
+    }
+    for (int i = 1; i < 4; ++i) {
+        EXPECT_FALSE(operationElement->IsJobPreemptable(jobIds[i], false));
+        EXPECT_TRUE(operationElement->IsJobPreemptable(jobIds[i], true));
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYT::NScheduler

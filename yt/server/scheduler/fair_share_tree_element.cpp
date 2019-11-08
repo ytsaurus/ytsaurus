@@ -1946,7 +1946,7 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
             &AggressivelyPreemptableJobs_,
             &PreemptableJobs_,
             startNonPreemptableAndAggressivelyPreemptableResourceUsage_,
-            fairShareRatio * preemptionSatisfactionThreshold,
+            Preemptable_ ? fairShareRatio * preemptionSatisfactionThreshold : 1.0,
             setPreemptable,
             setAggressivelyPreemptable);
 
@@ -1957,6 +1957,11 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
         "Preemptable lists usage bounds after update (NonpreemptableResourceUsage: %v, AggressivelyPreemptableResourceUsage: %v)",
         FormatResources(NonpreemptableResourceUsage_),
         FormatResources(AggressivelyPreemptableResourceUsage_));
+}
+
+void TOperationElementSharedState::SetPreemptable(bool value)
+{
+    Preemptable_.store(value);
 }
 
 bool TOperationElementSharedState::IsJobKnown(TJobId jobId) const
@@ -2350,6 +2355,13 @@ void TOperationElement::UpdateTopDown(TDynamicAttributesList* dynamicAttributesL
     YT_VERIFY(Mutable_);
 
     TSchedulerElement::UpdateTopDown(dynamicAttributesList, context);
+    // If fair share ratio equals demand ratio then we want to explicitly disable preemption.
+    // It is necessary since some job's resource usage may increase before the next fair share update,
+    //  and in this case we don't want any jobs to become preemptable
+    bool isFairShareRatioEqualToDemandRatio =
+        std::abs(Attributes_.DemandRatio - GetFairShareRatio()) < RatioComparisonPrecision &&
+        Attributes_.DemandRatio > RatioComparisonPrecision;
+    OperationElementSharedState_->SetPreemptable(!isFairShareRatioEqualToDemandRatio);
 
     UpdatePreemptableJobsList();
 }
@@ -3141,7 +3153,7 @@ void TRootElement::PreUpdate(TDynamicAttributesList* dynamicAttributesList, TUpd
     DisableNonAliveElements();
     TreeSize_ = TCompositeSchedulerElement::EnumerateElements(0, context);
     dynamicAttributesList->assign(TreeSize_, TDynamicAttributes());
-    
+
     UpdateBottomUp(dynamicAttributesList, context);
 }
 
