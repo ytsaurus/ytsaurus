@@ -29,9 +29,11 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
 
 public:
-    explicit TNonversionedMapObjectBase(TObjectId id);
+    explicit TNonversionedMapObjectBase(TObjectId id, bool isRoot = false);
 
     void ResetParent();
+    //! Root objects cannot be attached to a parent but can have custom names.
+    bool IsRoot() const;
 
     // TODO(kiselyovp) de-virtualise methods of TNonversionedMapObjectBase,
     // TNonversionedMapObjectProxyBase and TNonversionedMapObjectTypeHandlerBase
@@ -46,19 +48,24 @@ public:
 
     //! Finds a child by key. Returns |nullptr| if there is no such key.
     TSelf* FindChild(const TString& key) const;
+    //! Finds a child by key. It must be present.
+    TSelf* GetChild(const TString& key) const noexcept;
     //! Returns the key for a given child, |std::nullopt| if there is no such child.
     std::optional<TString> FindChildKey(const TSelf* child) const noexcept;
     //! Returns the key for a given child, which must be present.
     TString GetChildKey(const TSelf* child) const noexcept;
 
-    //! Returns object's child key or the result of GetRootName() if it has no parent.
+    //! Returns object's child key if it has a parent, the result of GetRootName()
+    //! if it's a designated root or id preceeded by a hash otherwise.
     TString GetName() const;
 
-    virtual void Save(NCellMaster::TSaveContext& context) const;
-    virtual void Load(NCellMaster::TLoadContext& context);
+    void Save(NCellMaster::TSaveContext& context) const;
+    void Load(NCellMaster::TLoadContext& context);
 
 protected:
-    //! Returns the name of a parentless object (id preceeded by a hash by default).
+    bool IsRoot_ = false;
+
+    //! Returns the name of a designated root object (id preceeded by a hash by default).
     virtual TString GetRootName() const;
 
 private:

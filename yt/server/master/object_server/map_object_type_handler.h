@@ -10,9 +10,17 @@ namespace NYT::NObjectServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TObject>
+class TNonversionedMapObjectProxyBase;
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TObject>
 class TNonversionedMapObjectTypeHandlerBase
     : public TObjectTypeHandlerWithMapBase<TObject>
 {
+protected:
+    using TProxyPtr = TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>>;
+
 private:
     using TMapType = NHydra::TEntityMap<TObject>;
     using TBase = NObjectServer::TObjectTypeHandlerWithMapBase<TObject>;
@@ -22,23 +30,22 @@ public:
 
     virtual ETypeFlags GetFlags() const override;
 
-    virtual std::unique_ptr<NObjectServer::TObject> InstantiateObject(TObjectId id) override;
-
     virtual NObjectServer::TObject* DoGetParent(TObject* object) override;
 
-    virtual std::optional<TString> TryGetRootPath(const TObject* maybeRootObject) const = 0;
+    virtual TString GetRootPath(const TObject* rootObject) const;
 
     virtual void RegisterName(const TString& /* name */, TObject* /* object */) noexcept = 0;
     virtual void UnregisterName(const TString& /* name */, TObject* /* object */) noexcept = 0;
 
     virtual void ValidateObjectName(const TString& name);
-    // XXX(kiselyovp) we might want to move this to the proxy
-    virtual void ValidateAttachChildDepth(const TObject* parent, const TObject* child);
 
 protected:
+    virtual IObjectProxyPtr DoGetProxy(TObject* object, NTransactionServer::TTransaction* transaction) override;
     virtual TString DoGetName(const TObject* object) override;
     virtual NSecurityServer::TAccessControlDescriptor* DoFindAcd(TObject* object) override;
     virtual void DoZombifyObject(TObject* object) override;
+
+    virtual TProxyPtr GetMapObjectProxy(TObject* object) = 0;
 
     NObjectServer::TObject* CreateObjectImpl(
         const TString& name,
@@ -46,10 +53,8 @@ protected:
         NYTree::IAttributeDictionary* attributes);
 
     virtual std::optional<int> GetDepthLimit() const;
-    // XXX(kiselyovp) These methods have total complexity of O(depth_limit + subtree_size) and get called
-    // on each call of Create and Move verbs. Those calls are not expected to be common.
-    int GetDepth(const TObject* object) const;
-    void ValidateHeightLimit(const TObject* root, int heightLimit) const;
+
+    friend class TNonversionedMapObjectProxyBase<TObject>;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -88,6 +88,9 @@ public:
     //! Finds object by id, returns |nullptr| if nothing is found.
     TObject* FindObject(TObjectId id);
 
+    //! Finds object by type and attributes, returns |nullptr| if nothing is found.
+    TObject* FindObjectByAttributes(EObjectType type, const NYTree::IAttributeDictionary* attributes);
+
     //! Finds object by id, fails if nothing is found.
     TObject* GetObject(TObjectId id);
 
@@ -170,10 +173,6 @@ public:
         TObjectId hintId,
         EObjectType type,
         NYTree::IAttributeDictionary* attributes);
-
-    TObject* FindExistingObject(
-        EObjectType type,
-        const NYTree::IAttributeDictionary* attributes);
 
     //! Handles paths to versioned and most unversioned objects.
     //! Pretty slow.

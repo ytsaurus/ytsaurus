@@ -142,7 +142,6 @@ inline bool TObject::IsAlive() const
     return RefCounter_ > 0;
 }
 
-// XXX(kiselyovp) also looks like a crutch but seems necessary
 inline bool TObject::IsBeingRemoved() const
 {
     return LifeStage_ == EObjectLifeStage::RemovalStarted ||

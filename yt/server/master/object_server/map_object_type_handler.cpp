@@ -21,17 +21,17 @@ ETypeFlags TNonversionedMapObjectTypeHandlerBase<TObject>::GetFlags() const
 }
 
 template <class TObject>
-std::unique_ptr<NObjectServer::TObject>
-TNonversionedMapObjectTypeHandlerBase<TObject>::InstantiateObject(TObjectId id)
-{
-    return std::make_unique<TObject>(id);
-}
-
-template <class TObject>
 NObjectServer::TObject* TNonversionedMapObjectTypeHandlerBase<TObject>::DoGetParent(TObject* object)
 {
     auto* parent = object->GetParent();
     return parent ? parent : TObjectTypeHandlerBase<TObject>::DoGetParent(object);
+}
+
+template <class TObject>
+TString TNonversionedMapObjectTypeHandlerBase<TObject>::GetRootPath(const TObject* rootObject) const
+{
+    YT_VERIFY(rootObject && rootObject->IsRoot());
+    return NObjectClient::FromObjectId(rootObject->GetId());
 }
 
 template <class TObject>
@@ -45,7 +45,7 @@ void TNonversionedMapObjectTypeHandlerBase<TObject>::ValidateObjectName(const TS
             NObjectClient::ObjectIdPathPrefix);
     }
     for (auto ch : name) {
-        if (NYPath::IsSpecialSymbol(ch)) {
+        if (NYPath::IsSpecialCharacter(ch)) {
             THROW_ERROR_EXCEPTION("Name cannot contain %Qv symbol",
                 ch);
         }
@@ -53,22 +53,11 @@ void TNonversionedMapObjectTypeHandlerBase<TObject>::ValidateObjectName(const TS
 }
 
 template <class TObject>
-void TNonversionedMapObjectTypeHandlerBase<TObject>::ValidateAttachChildDepth(
-    const TObject* parent, const TObject* child)
+IObjectProxyPtr TNonversionedMapObjectTypeHandlerBase<TObject>::DoGetProxy(
+    TObject* object,
+    NTransactionServer::TTransaction* /* transaction */)
 {
-    auto depthLimit = GetDepthLimit();
-    if (!depthLimit) {
-        return;
-    }
-
-    auto heightLimit = *depthLimit - GetDepth(parent) - 1;
-    try {
-        ValidateHeightLimit(child, heightLimit);
-    } catch (const std::exception& ex) {
-        // XXX(kiselyovp) object name is capitalized here, fix this in YT-11362
-        THROW_ERROR_EXCEPTION("Cannot add a child to %v", parent->GetObjectName())
-            << ex;
-    }
+    return GetMapObjectProxy(object);
 }
 
 template <class TObject>
@@ -109,45 +98,16 @@ NObjectServer::TObject* TNonversionedMapObjectTypeHandlerBase<TObject>::CreateOb
     TObject* parent,
     NYTree::IAttributeDictionary* attributes)
 {
-    auto ancestorProxy = TNonversionedMapObjectProxyBase<TObject>::GetProxy(
-        TBase::Bootstrap_,
-        parent);
-    ancestorProxy->ValidateChildName(name);
-
+    ValidateObjectName(name);
+    auto ancestorProxy = GetMapObjectProxy(parent);
     auto objectProxy = ancestorProxy->Create(this->GetType(), "/" + name, attributes);
-    return objectProxy->GetObject()->template As<TObject>();
+    return objectProxy->GetObject();
 }
 
 template <class TObject>
 std::optional<int> TNonversionedMapObjectTypeHandlerBase<TObject>::GetDepthLimit() const
 {
     return std::nullopt;
-}
-
-template <class TObject>
-int TNonversionedMapObjectTypeHandlerBase<TObject>::GetDepth(const TObject* object) const
-{
-    YT_VERIFY(object);
-    auto depth = 0;
-    for (auto* current = object->GetParent(); current; current = current->GetParent()) {
-        ++depth;
-    }
-
-    return depth;
-}
-
-template <class TObject>
-void TNonversionedMapObjectTypeHandlerBase<TObject>::ValidateHeightLimit(
-    const TObject* root,
-    int heightLimit) const
-{
-    YT_VERIFY(root);
-    if (heightLimit < 0) {
-        THROW_ERROR_EXCEPTION("Tree height limit exceeded");
-    }
-    for (const auto& [child, _] : root->ChildToKey()) {
-        ValidateHeightLimit(child, heightLimit - 1);
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

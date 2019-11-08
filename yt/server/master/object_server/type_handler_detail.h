@@ -86,10 +86,10 @@ public:
         DoUnstageObject(object->As<TImpl>(), recursive);
     }
 
-    virtual TObject* FindExistingObject(
-        const NYTree::IAttributeDictionary* /*attributes*/) const override
+    virtual TObject* FindObjectByAttributes(
+        const NYTree::IAttributeDictionary* /*attributes*/) override
     {
-        THROW_ERROR_EXCEPTION("FindExistingObject() method is not supported for type %Qlv",
+        THROW_ERROR_EXCEPTION("Searching by attributes is not supported for type %Qlv",
             GetType());
     }
 

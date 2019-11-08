@@ -161,6 +161,10 @@ public:
     TObject* GetWeakGhostObject(TObjectId id);
     void RemoveObject(TObject* object);
 
+    TObject* FindObjectByAttributes(
+        EObjectType type,
+        const IAttributeDictionary* attributes);
+
     IYPathServicePtr CreateRemoteProxy(TObjectId id);
 
     IObjectProxyPtr GetProxy(
@@ -198,10 +202,6 @@ public:
         TObjectId hintId,
         EObjectType type,
         IAttributeDictionary* attributes);
-
-    TObject* FindExistingObject(
-        EObjectType type,
-        const IAttributeDictionary* attributes);
 
     TObject* ResolvePathToObject(
         const TYPath& path,
@@ -1297,7 +1297,7 @@ TObject* TObjectManager::TImpl::CreateObject(
     return object;
 }
 
-TObject* TObjectManager::TImpl::FindExistingObject(
+TObject* TObjectManager::TImpl::FindObjectByAttributes(
     EObjectType type,
     const IAttributeDictionary* attributes)
 {
@@ -1309,7 +1309,7 @@ TObject* TObjectManager::TImpl::FindExistingObject(
             type);
     }
 
-    return handler->FindExistingObject(attributes);
+    return handler->FindObjectByAttributes(attributes);
 }
 
 void TObjectManager::TImpl::ConfirmObjectLifeStageToPrimaryMaster(TObject* object)
@@ -2184,9 +2184,9 @@ TObject* TObjectManager::CreateObject(TObjectId hintId, EObjectType type, IAttri
     return Impl_->CreateObject(hintId, type, attributes);
 }
 
-TObject* TObjectManager::FindExistingObject(EObjectType type, const NYTree::IAttributeDictionary* attributes)
+TObject* TObjectManager::FindObjectByAttributes(EObjectType type, const NYTree::IAttributeDictionary* attributes)
 {
-    return Impl_->FindExistingObject(type, attributes);
+    return Impl_->FindObjectByAttributes(type, attributes);
 }
 
 TObject* TObjectManager::ResolvePathToObject(const TYPath& path, TTransaction* transaction)
