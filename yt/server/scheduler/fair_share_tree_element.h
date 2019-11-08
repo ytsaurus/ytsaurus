@@ -668,6 +668,8 @@ public:
         double aggressivePreemptionSatisfactionThreshold,
         int* moveCount);
 
+    void SetPreemptable(bool value);
+
     bool IsJobKnown(TJobId jobId) const;
 
     bool IsJobPreemptable(TJobId jobId, bool aggressivePreemptionEnabled) const;
@@ -709,6 +711,8 @@ private:
     TJobIdList NonpreemptableJobs_;
     TJobIdList AggressivelyPreemptableJobs_;
     TJobIdList PreemptableJobs_;
+
+    std::atomic<bool> Preemptable_ = {true};
 
     std::atomic<int> RunningJobCount_ = {0};
     TJobResources NonpreemptableResourceUsage_;
