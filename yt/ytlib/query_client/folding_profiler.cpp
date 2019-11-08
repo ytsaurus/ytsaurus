@@ -796,7 +796,7 @@ void TQueryProfiler::Profile(
 
             if (groupClause->TotalsMode != ETotalsMode::None) {
                 size_t totalsSlotNew;
-                std::tie(totalsSlotNew, newFinalSlot) = MakeCodegenSplitOp(
+                std::tie(totalsSlotNew, newFinalSlot) = MakeCodegenDuplicateOp(
                     codegenSource,
                     slotCount,
                     newFinalSlot);
@@ -889,6 +889,9 @@ void TQueryProfiler::Profile(
         intermediateSlot = dummySlot;
     }
 
+    intermediateSlot = MakeCodegenOnceOp(codegenSource, slotCount, intermediateSlot);
+    finalSlot = MakeCodegenOnceOp(codegenSource, slotCount, finalSlot);
+
     if (auto orderClause = query->OrderClause.Get()) {
         Fold(static_cast<int>(EFoldingObjectType::OrderOp));
 
@@ -937,6 +940,7 @@ void TQueryProfiler::Profile(
         auto projectFragmentsInfos = projectExprFragments.ToFragmentInfos("projectExpression");
         projectExprFragments.DumpArgs(projectExprIds);
 
+        // FIXME(lukyan): Do not generate ProjectOp two times.
         finalSlot = MakeCodegenProjectOp(codegenSource, slotCount, finalSlot, projectFragmentsInfos, projectExprIds);
         totalsSlot = MakeCodegenProjectOp(codegenSource, slotCount, totalsSlot, projectFragmentsInfos, projectExprIds);
 
@@ -974,6 +978,8 @@ void TQueryProfiler::Profile(
 
     size_t resultSlot = MakeCodegenMergeOp(codegenSource, slotCount, finalSlot, totalsSlot);
     resultSlot = MakeCodegenMergeOp(codegenSource, slotCount, resultSlot, intermediateSlot);
+
+    //resultSlot = MakeCodegenOnceOp(codegenSource, slotCount, resultSlot);
 
     bool considerLimit = query->IsOrdered() && !query->GroupClause;
     Fold(static_cast<int>(EFoldingObjectType::WriteOp));

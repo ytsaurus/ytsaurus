@@ -2638,7 +2638,7 @@ size_t MakeCodegenProjectOp(
     return consumerSlot;
 }
 
-std::tuple<size_t, size_t> MakeCodegenSplitOp(
+std::tuple<size_t, size_t> MakeCodegenDuplicateOp(
     TCodegenSource* codegenSource,
     size_t* slotCount,
     size_t producerSlot)
@@ -2679,6 +2679,46 @@ size_t MakeCodegenMergeOp(
     ] (TCGOperatorContext& builder) {
         builder[firstSlot] = builder[consumerSlot];
         builder[secondSlot] = builder[consumerSlot];
+
+        codegenSource(builder);
+    };
+
+    return consumerSlot;
+}
+
+size_t MakeCodegenOnceOp(
+    TCodegenSource* codegenSource,
+    size_t* slotCount,
+    size_t sourceSlot)
+{
+    size_t consumerSlot = (*slotCount)++;
+
+    *codegenSource = [
+        consumerSlot,
+        sourceSlot,
+        codegenSource = std::move(*codegenSource)
+    ] (TCGOperatorContext& builder) {
+
+        // TODO(lukyan): Return bool (is finished or limit reached)?
+        auto onceWrapper = MakeClosure<void(TExpressionContext*, TValue*)>(builder, "OnceWrapper", [&] (
+            TCGOperatorContext& builder,
+            Value* buffer,
+            Value* values
+        ) {
+            TCGContext innerBuilder(builder, buffer);
+            builder[consumerSlot](innerBuilder, values);
+            innerBuilder->CreateRetVoid();
+        });
+
+        builder[sourceSlot] = [&] (TCGContext& builder, Value* values) {
+            builder->CreateCall(
+                onceWrapper.Function,
+                {
+                    builder->ViaClosure(onceWrapper.ClosurePtr),
+                    builder.Buffer,
+                    values
+                });
+        };
 
         codegenSource(builder);
     };
