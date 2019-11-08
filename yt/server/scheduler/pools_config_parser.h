@@ -148,9 +148,8 @@ private:
             UpdatePoolActions.emplace_back(eraseAction);
             ++eraseActionCount;
 
-            auto parentIt = OldPoolToParentMap_.find(poolName);
-            YT_VERIFY(parentIt);
-            auto it = parentReferenceCount.find(parentIt->second);
+            const auto& parent = GetOrCrash(OldPoolToParentMap_, poolName);
+            auto it = parentReferenceCount.find(parent);
             if (it != parentReferenceCount.end()) {
                 --it->second;
                 if (it->second == 0) {

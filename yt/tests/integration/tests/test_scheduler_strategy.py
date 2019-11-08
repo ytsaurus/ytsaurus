@@ -761,6 +761,35 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         for op in ops:
             op.abort()
 
+    @authors("eshcherbin")
+    def test_enabling_operation_separately_in_each_tree(self):
+        nodes = ls("//sys/cluster_nodes")
+        for node in nodes[:-1]:
+            set("//sys/cluster_nodes/{0}/@user_tags".format(node), ["other"])
+        set("//sys/pool_trees/default/@nodes_filter", "!other")
+        create("map_node", "//sys/pool_trees/other", attributes={"nodes_filter": "other", "max_running_operation_count_per_pool": 1})
+        time.sleep(0.5)
+
+        blocking_op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"pool_trees": ["other"]})
+        wait_breakpoint()
+
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=2, spec={"pool_trees": ["default", "other"]})
+
+        time.sleep(3)
+        # NB(eshcherbin): There are 2 nodes in tree "other" and 1 node in tree "default".
+        # Both trees have "max_running_operation_count_per_pool" set to 1.
+        # At this moment operation `blocking_op` is running in tree "other", so operation `op` can only run in tree "default",
+        # where it can have only 1 out of the 2 desired jobs.
+        # Thus, if everything is correct, op should be enabled only in tree "default".
+        assert op.get_job_count("running") == 1
+
+        release_breakpoint()
+        blocking_op.track()
+        op.track()
+
+        remove("//sys/pool_trees/other")
+        set("//sys/pool_trees/default/@nodes_filter", "")
+
     @authors("mrkastep")
     def test_ignoring_tentative_pool_operation_limit(self):
         nodes = ls("//sys/cluster_nodes")
@@ -1307,9 +1336,11 @@ class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
     def test_scheduler_preempt_overdraft_resources(self):
         set("//sys/scheduler/config", {"job_interrupt_timeout": 1000})
 
-        nodes = ls("//sys/nodes")
-        set("//sys/nodes/{}/@resource_limits_overrides".format(nodes[0]), {"cpu": 0})
-        wait(lambda: get("//sys/nodes/{}/orchid/job_controller/resource_limits/cpu".format(nodes[0])) == 0.0)
+        nodes = ls("//sys/cluster_nodes")
+        assert len(nodes) > 0
+
+        set("//sys/cluster_nodes/{}/@resource_limits_overrides".format(nodes[0]), {"cpu": 0})
+        wait(lambda: get("//sys/cluster_nodes/{}/orchid/job_controller/resource_limits/cpu".format(nodes[0])) == 0.0)
 
         create("table", "//tmp/t_in")
         for i in xrange(1):
@@ -1334,15 +1365,15 @@ class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
 
         wait(lambda: op1.get_job_count("running") == 1)
         wait(lambda: op2.get_job_count("running") == 1)
-        wait(lambda: get("//sys/nodes/{}/orchid/job_controller/resource_usage/cpu".format(nodes[1])) == 2.0)
+        wait(lambda: get("//sys/cluster_nodes/{}/orchid/job_controller/resource_usage/cpu".format(nodes[1])) == 2.0)
 
         # TODO(ignat): add check that jobs are not preemptable.
 
-        set("//sys/nodes/{}/@resource_limits_overrides".format(nodes[0]), {"cpu": 2})
-        wait(lambda: get("//sys/nodes/{}/orchid/job_controller/resource_limits/cpu".format(nodes[0])) == 2.0)
+        set("//sys/cluster_nodes/{}/@resource_limits_overrides".format(nodes[0]), {"cpu": 2})
+        wait(lambda: get("//sys/cluster_nodes/{}/orchid/job_controller/resource_limits/cpu".format(nodes[0])) == 2.0)
 
-        set("//sys/nodes/{}/@resource_limits_overrides".format(nodes[1]), {"cpu": 0})
-        wait(lambda: get("//sys/nodes/{}/orchid/job_controller/resource_limits/cpu".format(nodes[1])) == 0.0)
+        set("//sys/cluster_nodes/{}/@resource_limits_overrides".format(nodes[1]), {"cpu": 0})
+        wait(lambda: get("//sys/cluster_nodes/{}/orchid/job_controller/resource_limits/cpu".format(nodes[1])) == 0.0)
 
         wait(lambda: op1.get_job_count("aborted") == 1)
         wait(lambda: op2.get_job_count("aborted") == 1)
@@ -1352,9 +1383,11 @@ class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
 
     @authors("ignat")
     def test_scheduler_force_abort(self):
-        nodes = ls("//sys/nodes")
-        set("//sys/nodes/{}/@disable_scheduler_jobs".format(nodes[0]), True)
-        wait(lambda: get("//sys/nodes/{}/orchid/job_controller/resource_limits/user_slots".format(nodes[0])) == 0)
+        nodes = ls("//sys/cluster_nodes")
+        assert len(nodes) >= 2
+
+        set("//sys/cluster_nodes/{}/@disable_scheduler_jobs".format(nodes[0]), True)
+        wait(lambda: get("//sys/cluster_nodes/{}/orchid/job_controller/resource_limits/user_slots".format(nodes[0])) == 0)
 
         create("table", "//tmp/t_in")
         for i in xrange(1):
@@ -1376,15 +1409,15 @@ class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
 
         wait(lambda: op1.get_job_count("running") == 1)
         wait(lambda: op2.get_job_count("running") == 1)
-        wait(lambda: get("//sys/nodes/{}/orchid/job_controller/resource_usage/user_slots".format(nodes[1])) == 2)
+        wait(lambda: get("//sys/cluster_nodes/{}/orchid/job_controller/resource_usage/user_slots".format(nodes[1])) == 2)
 
         # TODO(ignat): add check that jobs are not preemptable.
 
-        set("//sys/nodes/{}/@disable_scheduler_jobs".format(nodes[0]), False)
-        wait(lambda: get("//sys/nodes/{}/orchid/job_controller/resource_limits/user_slots".format(nodes[0])) == 2)
+        set("//sys/cluster_nodes/{}/@disable_scheduler_jobs".format(nodes[0]), False)
+        wait(lambda: get("//sys/cluster_nodes/{}/orchid/job_controller/resource_limits/user_slots".format(nodes[0])) == 2)
 
-        set("//sys/nodes/{}/@disable_scheduler_jobs".format(nodes[1]), True)
-        wait(lambda: get("//sys/nodes/{}/orchid/job_controller/resource_limits/user_slots".format(nodes[1])) == 0)
+        set("//sys/cluster_nodes/{}/@disable_scheduler_jobs".format(nodes[1]), True)
+        wait(lambda: get("//sys/cluster_nodes/{}/orchid/job_controller/resource_limits/user_slots".format(nodes[1])) == 0)
 
         wait(lambda: op1.get_job_count("aborted") == 1)
         wait(lambda: op2.get_job_count("aborted") == 1)
@@ -3268,7 +3301,7 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
         for tree in ["default", "nirvana", "cloud"]:
             if tree != "default":
                 create("map_node", "//sys/pool_trees/" + tree,
-                       attributes={"nodes_filter": tree + "_tag", "max_running_operation_count_per_pool": 1})
+                       attributes={"nodes_filter": tree + "_tag"})
             create("map_node", "//sys/pool_trees/{}/research".format(tree))
             wait(lambda: exists(pool_orchid.format(tree), verbose_error=True))
 

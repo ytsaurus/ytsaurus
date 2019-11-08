@@ -24,9 +24,7 @@ public:
 
     bool IsTrivial(const TLogicalTypePtr& logicalType) const
     {
-        auto it = Cache_.find(logicalType.Get());
-        YT_VERIFY(it != Cache_.end());
-        return it->second;
+        return GetOrCrash(Cache_, logicalType.Get());
     }
 
 private:
@@ -551,6 +549,16 @@ TYsonConverter CreateNamedToPositionalYsonConverter(const TComplexTypeFieldDescr
 {
     TTypeTrivialityCache cache(descriptor.GetType());
     return CreateYsonConverterImpl(descriptor, cache, TNamedToPositionalConfig());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ApplyYsonConverter(const TYsonConverter& converter, TStringBuf inputYson, NYson::IYsonConsumer* consumer)
+{
+    TMemoryInput in(inputYson);
+    TYsonPullParser parser(&in, EYsonType::Node);
+    TYsonPullParserCursor cursor(&parser);
+    converter(&cursor, consumer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

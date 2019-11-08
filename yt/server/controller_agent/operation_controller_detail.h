@@ -237,6 +237,7 @@ public:
     virtual void BuildBriefProgress(NYTree::TFluentMap fluent) const;
     virtual void BuildJobSplitterInfo(NYTree::TFluentMap fluent) const;
     virtual void BuildJobsYson(NYTree::TFluentMap fluent) const;
+    virtual void BuildRetainedFinishedJobsYson(NYTree::TFluentMap fluent) const;
 
     // NB(max42, babenko): this method should not be safe. Writing a core dump or trying to fail
     // operation from a forked process is a bad idea.
@@ -1027,12 +1028,13 @@ private:
 
     const NConcurrency::TPeriodicExecutorPtr CheckTentativeTreeEligibilityExecutor_;
 
-    int StderrCount_ = 0;
-    int JobNodeCount_ = 0;
+    int RetainedJobWithStderrCount_ = 0;
+    int RetainedJobCount_ = 0;
     int JobSpecCompletedArchiveCount_ = 0;
 
     // Containts finished jobs (right now it is used only for archive job spec flag).
     THashMap<TJobId, TFinishedJobInfoPtr> FinishedJobs_;
+    std::vector<std::pair<TJobId, NYson::TYsonString>> RetainedFinishedJobs_;
 
     class TSink;
     std::vector<std::unique_ptr<TSink>> Sinks_;
@@ -1165,11 +1167,14 @@ private:
         const TJobInfoPtr& job,
         EJobState state,
         bool outputStatistics,
+        i64 stderrSize,
         NYTree::TFluentMap fluent) const;
 
     void BuildFinishedJobAttributes(
         const TFinishedJobInfoPtr& job,
         bool outputStatistics,
+        bool hasStderr,
+        bool hasFailContext,
         NYTree::TFluentMap fluent) const;
 
     void AnalyzeBriefStatistics(

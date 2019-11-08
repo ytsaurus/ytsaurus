@@ -168,8 +168,6 @@ TDuration TTentativeTreeEligibility::GetTentativeTreeAverageJobDuration(const TS
             // COMPAT(ignat): for revived operations.
             tentativeCount += 1;
         } else {
-            YT_VERIFY(it != LastStartJobTimePerPoolTree_.end());
-
             tentativeCount += 1;
             tentativeDurationSum += TInstant::Now() - it->second;
         }
@@ -179,9 +177,8 @@ TDuration TTentativeTreeEligibility::GetTentativeTreeAverageJobDuration(const TS
         if (completedJobCount == tentativeCount) {
             return tentativeDurationSum / tentativeCount;
         } else { // Consider last job separately.
-            auto it = LastStartJobTimePerPoolTree_.find(treeId);
-            YT_VERIFY(it != LastStartJobTimePerPoolTree_.end());
-            auto lastJobDuration = TInstant::Now() - it->second;
+            const auto& lastStartJobTime = GetOrCrash(LastStartJobTimePerPoolTree_, treeId);
+            auto lastJobDuration = TInstant::Now() - lastStartJobTime;
 
             // Weight average duration with last job duration as if we run only sample jobs.
             tentativeDurationSum = (tentativeDurationSum / tentativeCount) * SampleJobCount_ + lastJobDuration;

@@ -2,6 +2,7 @@
 #include <yt/core/test_framework/yson_consumer_mock.h>
 
 #include <yt/core/yson/pull_parser.h>
+#include <yt/core/yson/token_writer.h>
 
 #include <yt/core/misc/error.h>
 
@@ -484,6 +485,62 @@ TEST(TYsonPullParserCursorTest, TestTransferValueBasicCases)
         cursor.TransferComplexValue(&mock);
     }
     EXPECT_EQ(cursor.GetCurrent(), TYsonItem::Int64(6));
+}
+
+TEST(TYsonPullParserCursorTest, TestTransferValueViaTokenWriterBasicCases)
+{
+    auto input = AsStringBuf("[ [ {foo=<attr=value>bar; qux=[-1; 2u; %false; 3.14; lol; # ]} ] ; 6 ]");
+    auto output1 = TString();
+    {
+        TStringOutput outputStream(output1);
+        TCheckedInDebugYsonTokenWriter tokenWriter(&outputStream);
+        auto cursor = TStringBufCursor(input);
+        EXPECT_EQ(cursor.GetCurrent(), TYsonItem::Simple(EYsonItemType::BeginList));
+        cursor.TransferComplexValue(&tokenWriter);
+    }
+    auto output2 = TString();
+    {
+        TStringOutput outputStream(output2);
+        TCheckedInDebugYsonTokenWriter tokenWriter(&outputStream);
+        tokenWriter.WriteBeginList();
+        tokenWriter.WriteBeginList();
+        tokenWriter.WriteBeginMap();
+        tokenWriter.WriteBinaryString("foo");
+        tokenWriter.WriteKeyValueSeparator();
+        tokenWriter.WriteBeginAttributes();
+        tokenWriter.WriteBinaryString("attr");
+        tokenWriter.WriteKeyValueSeparator();
+        tokenWriter.WriteBinaryString("value");
+        tokenWriter.WriteItemSeparator();
+        tokenWriter.WriteEndAttributes();
+        tokenWriter.WriteBinaryString("bar");
+        tokenWriter.WriteItemSeparator();
+        tokenWriter.WriteBinaryString("qux");
+        tokenWriter.WriteKeyValueSeparator();
+        tokenWriter.WriteBeginList();
+        tokenWriter.WriteBinaryInt64(-1);
+        tokenWriter.WriteItemSeparator();
+        tokenWriter.WriteBinaryUint64(2);
+        tokenWriter.WriteItemSeparator();
+        tokenWriter.WriteBinaryBoolean(false);
+        tokenWriter.WriteItemSeparator();
+        tokenWriter.WriteBinaryDouble(3.14);
+        tokenWriter.WriteItemSeparator();
+        tokenWriter.WriteBinaryString("lol");
+        tokenWriter.WriteItemSeparator();
+        tokenWriter.WriteEntity();
+        tokenWriter.WriteItemSeparator();
+        tokenWriter.WriteEndList();
+        tokenWriter.WriteItemSeparator();
+        tokenWriter.WriteEndMap();
+        tokenWriter.WriteItemSeparator();
+        tokenWriter.WriteEndList();
+        tokenWriter.WriteItemSeparator();
+        tokenWriter.WriteBinaryInt64(6);
+        tokenWriter.WriteItemSeparator();
+        tokenWriter.WriteEndList();
+    }
+    EXPECT_EQ(output1, output2);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

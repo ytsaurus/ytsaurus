@@ -2,6 +2,8 @@
 
 #include "consumer.h"
 
+#include "token_writer.h"
+
 namespace NYT::NYson {
 
 namespace NDetail {
@@ -87,6 +89,93 @@ static void TransferListImpl(TYsonPullParserCursor* cursor, IYsonConsumer* consu
     while (cursor->GetCurrent().GetType() != EYsonItemType::EndList) {
         consumer->OnListItem();
         TransferComplexValueImpl(cursor, consumer);
+    }
+    cursor->Next();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+static void TransferMapOrAttributesImpl(TYsonPullParserCursor* cursor, TCheckedInDebugYsonTokenWriter* writer);
+static void TransferListImpl(TYsonPullParserCursor* cursor, TCheckedInDebugYsonTokenWriter* writer);
+
+Y_FORCE_INLINE static void TransferComplexValueImpl(TYsonPullParserCursor* cursor, TCheckedInDebugYsonTokenWriter* writer)
+{
+    while (true) {
+        switch (cursor->GetCurrent().GetType()) {
+            case EYsonItemType::BeginAttributes:
+                writer->WriteBeginAttributes();
+                TransferMapOrAttributesImpl(cursor, writer);
+                writer->WriteEndAttributes();
+                continue;
+            case EYsonItemType::BeginList:
+                writer->WriteBeginList();
+                TransferListImpl(cursor, writer);
+                writer->WriteEndList();
+                return;
+            case EYsonItemType::BeginMap:
+                writer->WriteBeginMap();
+                TransferMapOrAttributesImpl(cursor, writer);
+                writer->WriteEndMap();
+                return;
+            case EYsonItemType::EntityValue:
+                writer->WriteEntity();
+                cursor->Next();
+                return;
+            case EYsonItemType::BooleanValue:
+                writer->WriteBinaryBoolean(cursor->GetCurrent().UncheckedAsBoolean());
+                cursor->Next();
+                return;
+            case EYsonItemType::Int64Value:
+                writer->WriteBinaryInt64(cursor->GetCurrent().UncheckedAsInt64());
+                cursor->Next();
+                return;
+            case EYsonItemType::Uint64Value:
+                writer->WriteBinaryUint64(cursor->GetCurrent().UncheckedAsUint64());
+                cursor->Next();
+                return;
+            case EYsonItemType::DoubleValue:
+                writer->WriteBinaryDouble(cursor->GetCurrent().UncheckedAsDouble());
+                cursor->Next();
+                return;
+            case EYsonItemType::StringValue:
+                writer->WriteBinaryString(cursor->GetCurrent().UncheckedAsString());
+                cursor->Next();
+                return;
+
+            case EYsonItemType::EndOfStream:
+            case EYsonItemType::EndAttributes:
+            case EYsonItemType::EndMap:
+            case EYsonItemType::EndList:
+                break;
+        }
+        YT_ABORT();
+    }
+}
+
+static void TransferMapOrAttributesImpl(TYsonPullParserCursor* cursor, TCheckedInDebugYsonTokenWriter* writer)
+{
+    YT_ASSERT(cursor->GetCurrent().GetType() == EYsonItemType::BeginAttributes ||
+        cursor->GetCurrent().GetType() == EYsonItemType::BeginMap);
+    cursor->Next();
+    while (cursor->GetCurrent().GetType() == EYsonItemType::StringValue) {
+        writer->WriteBinaryString(cursor->GetCurrent().UncheckedAsString());
+        writer->WriteKeyValueSeparator();
+        cursor->Next();
+        TransferComplexValueImpl(cursor, writer);
+        writer->WriteItemSeparator();
+    }
+    YT_ASSERT(cursor->GetCurrent().GetType() == EYsonItemType::EndAttributes ||
+             cursor->GetCurrent().GetType() == EYsonItemType::EndMap);
+    cursor->Next();
+}
+
+static void TransferListImpl(TYsonPullParserCursor* cursor, TCheckedInDebugYsonTokenWriter* writer)
+{
+    YT_ASSERT(cursor->GetCurrent().GetType() == EYsonItemType::BeginList);
+    cursor->Next();
+    while (cursor->GetCurrent().GetType() != EYsonItemType::EndList) {
+        TransferComplexValueImpl(cursor, writer);
+        writer->WriteItemSeparator();
     }
     cursor->Next();
 }
@@ -213,6 +302,11 @@ void TYsonPullParserCursor::SkipComplexValue()
 void TYsonPullParserCursor::TransferComplexValue(NYT::NYson::IYsonConsumer* consumer)
 {
     NDetail::TransferComplexValueImpl(this, consumer);
+}
+
+void TYsonPullParserCursor::TransferComplexValue(NYT::NYson::TCheckedInDebugYsonTokenWriter* writer)
+{
+    NDetail::TransferComplexValueImpl(this, writer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

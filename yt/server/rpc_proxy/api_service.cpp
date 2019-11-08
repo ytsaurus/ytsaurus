@@ -924,6 +924,9 @@ private:
         if (request->has_ignore_existing()) {
             options.IgnoreExisting = request->ignore_existing();
         }
+        if (request->has_lock_existing()) {
+            options.LockExisting = request->lock_existing();
+        }
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }
@@ -1106,6 +1109,9 @@ private:
         if (request->has_ignore_existing()) {
             options.IgnoreExisting = request->ignore_existing();
         }
+        if (request->has_lock_existing()) {
+            options.LockExisting = request->lock_existing();
+        }
         if (request->has_force()) {
             options.Force = request->force();
         }
@@ -1123,6 +1129,9 @@ private:
         }
         if (request->has_preserve_owner()) {
             options.PreserveOwner = request->preserve_owner();
+        }
+        if (request->has_preserve_acl()) {
+            options.PreserveAcl = request->preserve_acl();
         }
         if (request->has_pessimistic_quota_check()) {
             options.PessimisticQuotaCheck = request->pessimistic_quota_check();
@@ -1231,6 +1240,9 @@ private:
         }
         if (request->has_ignore_existing()) {
             options.IgnoreExisting = request->ignore_existing();
+        }
+        if (request->has_lock_existing()) {
+            options.LockExisting = request->lock_existing();
         }
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());

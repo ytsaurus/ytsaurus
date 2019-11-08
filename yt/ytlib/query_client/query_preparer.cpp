@@ -43,7 +43,9 @@ namespace {
 void CheckStackDepth()
 {
     if (!CheckFreeStackSpace(MinimumStackFreeSpace)) {
-        THROW_ERROR_EXCEPTION("Expression depth causes stack overflow");
+        THROW_ERROR_EXCEPTION(
+            NTabletClient::EErrorCode::QueryExpressionDepthLimitExceeded,
+            "Expression depth causes stack overflow");
     }
 }
 

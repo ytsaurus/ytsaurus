@@ -276,13 +276,12 @@ protected:
 
         YT_LOG_INFO(
             "Calculated operation parameters (JobCount: %v, DataWeightPerJob: %v, MaxDataWeightPerJob: %v, "
-            "InputSliceDataWeight: %v, IsExplicitJobCount: %v)",
+            "InputSliceDataWeight: %v, InputSliceRowCount: %v, IsExplicitJobCount: %v)",
             JobSizeConstraints_->GetJobCount(),
             JobSizeConstraints_->GetDataWeightPerJob(),
             JobSizeConstraints_->GetMaxDataWeightPerJob(),
             JobSizeConstraints_->GetInputSliceDataWeight(),
             JobSizeConstraints_->GetInputSliceRowCount(),
-            JobSizeConstraints_->GetInputSliceDataWeight(),
             JobSizeConstraints_->IsExplicitJobCount());
     }
 

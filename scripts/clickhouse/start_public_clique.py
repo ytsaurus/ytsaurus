@@ -18,10 +18,12 @@ def main():
     parser.add_argument("-g", "--graceful-preemption", action="store_true", help="Enable graceful preemption")
     args = parser.parse_args()
 
+    assert args.type in ("prestable", "datalens", "public")
+
     alias = "*ch_" + args.type
 
     yt.start_clickhouse_clique(
-        16,
+        16 if args.type != "prestable" else 4,
         cpu_limit=8,
         enable_monitoring=True,
         cypress_geodata_path="//sys/clickhouse/geodata/geodata.tgz",

@@ -152,11 +152,10 @@ protected:
             if (!value.data()) {
                 ids.push_back(0);
             } else {
-                auto it = Dictionary_.find(value);
-                YT_VERIFY(it != Dictionary_.end());
-                ids.push_back(it->second);
+                ui32 id = GetOrCrash(Dictionary_, value);
+                ids.push_back(id);
 
-                if (it->second > dictionarySize) {
+                if (id > dictionarySize) {
                     std::memcpy(
                         dictionaryData.Begin() + dictionaryOffset,
                         value.data(),
@@ -462,11 +461,10 @@ private:
             if (!value.data()) {
                 ids.push_back(0);
             } else {
-                auto it = Dictionary_.find(Values_[rowIndex]);
-                YT_VERIFY(it != Dictionary_.end());
-                ids.push_back(it->second);
+                ui32 id = GetOrCrash(Dictionary_, Values_[rowIndex]);
+                ids.push_back(id);
 
-                if (it->second > dictionarySize) {
+                if (id > dictionarySize) {
                     std::memcpy(
                         dictionaryData.Begin() + dictionaryOffset,
                         Values_[rowIndex].data(),

@@ -155,9 +155,7 @@ public:
 
         YT_VERIFY(Queries_.erase(queryContext));
 
-        auto it = UserToUserInfo_.find(queryContext->User);
-        YT_VERIFY(it != UserToUserInfo_.end());
-        auto& userInfo = it->second;
+        auto& userInfo = GetOrCrash(UserToUserInfo_, queryContext->User);
         switch (queryContext->QueryKind)
         {
             case EQueryKind::InitialQuery:

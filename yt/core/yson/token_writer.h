@@ -42,6 +42,7 @@ public:
     Y_FORCE_INLINE void WriteSpace(char value);
 
     Y_FORCE_INLINE void Flush();
+    Y_FORCE_INLINE void Finish();
 
 private:
     Y_FORCE_INLINE void Refill();
@@ -94,6 +95,7 @@ public:
     void WriteSpace(char value);
 
     void Flush();
+    void Finish();
 
 private:
     NDetail::TYsonSyntaxChecker Checker_;

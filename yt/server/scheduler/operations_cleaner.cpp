@@ -1099,9 +1099,7 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(GetInvoker());
 
-        auto it = OperationMap_.find(operationId);
-        YT_VERIFY(it != OperationMap_.end());
-        return it->second;
+        return GetOrCrash(OperationMap_, operationId);
     }
 
     void ProcessCleanedOperation(const std::vector<TOperationId>& cleanedOperationIds)

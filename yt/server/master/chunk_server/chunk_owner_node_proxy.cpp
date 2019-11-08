@@ -10,6 +10,7 @@
 
 #include <yt/server/master/cell_master/config.h>
 #include <yt/server/master/cell_master/multicell_manager.h>
+#include <yt/server/master/cell_master/hydra_facade.h>
 #include <yt/server/master/cell_master/config_manager.h>
 
 #include <yt/server/master/node_tracker_server/node_directory_builder.h>
@@ -22,6 +23,7 @@
 
 #include <yt/server/master/security_server/security_manager.h>
 #include <yt/server/master/security_server/security_tags.h>
+#include <yt/server/master/security_server/access_log.h>
 
 #include <yt/server/master/transaction_server/proto/transaction_manager.pb.h>
 
@@ -82,6 +84,16 @@ static const auto& Logger = ChunkServerLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
+
+bool IsAccessLoggedMethod(const TString& method)
+{
+    static const THashSet<TString> methodsForAccessLog = {
+        "Fetch",
+        "BeginUpload",
+        "EndUpload"
+    };
+    return methodsForAccessLog.contains(method);
+}
 
 //! Adds #cellTag into #cellTags if the former is not a sentinel.
 void InsertCellTag(TCellTagList* cellTags, TCellTag cellTag)
@@ -353,6 +365,7 @@ private:
         if (lowerLimit.HasRowIndex() && !upperLimit.HasRowIndex()) {
             chunkSpec->mutable_upper_limit()->set_row_index(upperRowLimit);
         }
+
         if (upperLimit.HasRowIndex() && !lowerLimit.HasRowIndex()) {
             chunkSpec->mutable_lower_limit()->set_row_index(lowerRowLimit);
         }
@@ -426,6 +439,12 @@ ENodeType TChunkOwnerNodeProxy::GetType() const
 
 bool TChunkOwnerNodeProxy::DoInvoke(const NRpc::IServiceContextPtr& context)
 {
+    YT_LOG_ACCESS_IF(
+        IsAccessLoggedMethod(context->GetMethod()),
+        context,
+        GetPath(),
+        Transaction_);
+
     DISPATCH_YPATH_SERVICE_METHOD(Fetch,
         .SetHeavy(true)
         .SetResponseCodec(NCompression::ECodec::Lz4));

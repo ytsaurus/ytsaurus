@@ -450,10 +450,7 @@ private:
     {
         TReaderGuard guard(InterceptedDataSpinLock_);
 
-        auto it = ChunkIdToData_.find(chunkId);
-        YT_VERIFY(it != ChunkIdToData_.end());
-
-        auto chunkData = it->second;
+        auto chunkData = GetOrCrash(ChunkIdToData_, chunkId);
         YT_VERIFY(chunkData->InMemoryMode == mode);
 
         return chunkData;

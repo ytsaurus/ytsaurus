@@ -1904,16 +1904,6 @@ protected:
             (i64) 4 * stat.RowCount;                         // SortedIndexes
     }
 
-    i64 GetRowCountEstimate(TPartitionPtr partition, i64 dataWeight) const
-    {
-        i64 totalDataWeight = partition->ChunkPoolOutput->GetTotalDataWeight();
-        if (totalDataWeight == 0) {
-            return 0;
-        }
-        i64 totalRowCount = partition->ChunkPoolOutput->GetTotalRowCount();
-        return static_cast<i64>((double) totalRowCount * dataWeight / totalDataWeight);
-    }
-
     void InitTemplatePartitionKeys(TPartitionJobSpecExt* partitionJobSpecExt)
     {
         auto keySetWriter = New<TKeySetWriter>();

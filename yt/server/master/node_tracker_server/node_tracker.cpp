@@ -751,8 +751,7 @@ private:
 
     static TYPath GetNodePath(const TString& address)
     {
-        // TODO(babenko): use GetClusterNodesPath
-        return "//sys/nodes/" + ToYPathLiteral(address);
+        return GetClusterNodesPath() + "/" + ToYPathLiteral(address);
     }
 
     static TYPath GetNodePath(TNode* node)
@@ -763,8 +762,7 @@ private:
     IMapNodePtr GetNodeMap()
     {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        // TODO(babenko): use GetClusterNodesPath
-        return cypressManager->ResolvePathToNodeProxy("//sys/nodes")->AsMap();
+        return cypressManager->ResolvePathToNodeProxy(GetClusterNodesPath())->AsMap();
     }
 
     void HydraRegisterNode(

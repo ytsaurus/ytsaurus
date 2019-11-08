@@ -130,6 +130,22 @@ TError& TError::SetCode(TErrorCode code)
     return *this;
 }
 
+TErrorCode TError::GetNonTrivialCode() const
+{
+    if (Code_ != NYT::EErrorCode::Generic) {
+        return Code_;
+    }
+
+    for (const auto& innerError : InnerErrors_) {
+        auto innerCode = innerError.GetNonTrivialCode();
+        if (innerCode != NYT::EErrorCode::Generic) {
+            return innerCode;
+        }
+    }
+
+    return Code_;
+}
+
 const TString& TError::GetMessage() const
 {
     return Message_;

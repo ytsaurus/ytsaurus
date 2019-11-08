@@ -688,9 +688,7 @@ IObjectProxyPtr TObjectManager::TImpl::GetSchemaProxy(EObjectType type)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto it = TypeToEntry_.find(type);
-    YT_VERIFY(it != TypeToEntry_.end());
-    const auto& entry = it->second;
+    const auto& entry = GetOrCrash(TypeToEntry_, type);
     YT_VERIFY(entry.SchemaProxy);
     return entry.SchemaProxy;
 }

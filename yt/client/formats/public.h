@@ -6,6 +6,11 @@ namespace NYT::NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EComplexTypeMode,
+    (Positional)
+    (Named)
+);
+
 DECLARE_REFCOUNTED_CLASS(TYsonFormatConfig)
 DECLARE_REFCOUNTED_CLASS(TTableFormatConfigBase)
 DECLARE_REFCOUNTED_CLASS(TYamrFormatConfig)

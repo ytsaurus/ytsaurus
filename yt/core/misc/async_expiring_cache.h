@@ -14,7 +14,9 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TKey, class TValue>
+// TGetInfo is added to Get and will be provided to DoGet and DoGetMany as is.
+// If DoGet or DoGetMany is called from periodic updater, TGetInfo will be set into default values.
+template <class TKey, class TValue, class... TGetInfo>
 class TAsyncExpiringCache
     : public virtual TRefCounted
 {
@@ -29,17 +31,25 @@ public:
         TAsyncExpiringCacheConfigPtr config,
         NProfiling::TProfiler profiler = {});
 
-    TFuture<TValue> Get(const TKey& key);
-    TExtendedGetResult GetExtended(const TKey& key);
-    TFuture<std::vector<TErrorOr<TValue>>> Get(const std::vector<TKey>& keys);
+    TFuture<TValue> Get(const TKey& key, const TGetInfo&... getInfo);
+    TExtendedGetResult GetExtended(const TKey& key, const TGetInfo&... getInfo);
+    TFuture<std::vector<TErrorOr<TValue>>> Get(const std::vector<TKey>& keys, const TGetInfo&... getInfo);
+
+    std::optional<TErrorOr<TValue>> Find(const TKey& key);
+    std::vector<std::optional<TErrorOr<TValue>>> Find(const std::vector<TKey>& keys);
 
     void Invalidate(const TKey& key);
+    void SetValue(const TKey& key, TErrorOr<TValue> valueOrError);
 
     void Clear();
 
 protected:
-    virtual TFuture<TValue> DoGet(const TKey& key) = 0;
-    virtual TFuture<std::vector<TErrorOr<TValue>>> DoGetMany(const std::vector<TKey>& keys);
+    virtual TFuture<TValue> DoGet(const TKey& key, const TGetInfo&... getInfo) = 0;
+
+    virtual TFuture<std::vector<TErrorOr<TValue>>> DoGetMany(
+        const std::vector<TKey>& keys,
+        const TGetInfo&... getInfo);
+
     virtual void OnErase(const TKey& key);
 
 private:
@@ -83,12 +93,14 @@ private:
     void InvokeGetMany(
         const std::vector<TWeakPtr<TEntry>>& entries,
         const std::vector<TKey>& keys,
-        bool isPeriodicUpdate = false);
+        bool isPeriodicUpdate,
+        const TGetInfo&... getInfo);
     
     void InvokeGet(
         const TWeakPtr<TEntry>& entry,
         const TKey& key,
-        bool checkExpired = false);
+        bool isPeriodicUpdate,
+        const TGetInfo&... getInfo);
 
     bool TryEraseExpired(
         const TWeakPtr<TEntry>& weakEntry,

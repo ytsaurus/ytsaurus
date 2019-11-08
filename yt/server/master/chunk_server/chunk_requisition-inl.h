@@ -334,16 +334,12 @@ inline size_t TChunkRequisition::GetHash() const
 
 inline const TChunkRequisition& TChunkRequisitionRegistry::GetRequisition(TChunkRequisitionIndex index) const
 {
-    auto it = IndexToItem_.find(index);
-    YT_VERIFY(it != IndexToItem_.end());
-    return it->second.Requisition;
+    return GetOrCrash(IndexToItem_, index).Requisition;
 }
 
 inline const TChunkReplication& TChunkRequisitionRegistry::GetReplication(TChunkRequisitionIndex index) const
 {
-    auto it = IndexToItem_.find(index);
-    YT_VERIFY(it != IndexToItem_.end());
-    return it->second.Replication;
+    return GetOrCrash(IndexToItem_, index).Replication;
 }
 
 inline TChunkRequisitionIndex TChunkRequisitionRegistry::GenerateIndex()

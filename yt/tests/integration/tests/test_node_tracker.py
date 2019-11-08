@@ -164,10 +164,10 @@ class TestRemoveClusterNodes(YTEnvSetup):
     def test_remove_nodes(self):
         for _ in xrange(10):
             with Restarter(self.Env, NODES_SERVICE):
-                for node in ls("//sys/nodes"):
-                    wait(lambda: get("//sys/nodes/{}/@state".format(node)) == "offline")
-                    id = get("//sys/nodes/{}/@id".format(node))
-                    remove("//sys/nodes/" + node)
+                for node in ls("//sys/cluster_nodes"):
+                    wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "offline")
+                    id = get("//sys/cluster_nodes/{}/@id".format(node))
+                    remove("//sys/cluster_nodes/" + node)
                     wait(lambda: not exists("#" + id))
 
             build_snapshot(cell_id=None)
@@ -234,6 +234,6 @@ class TestNodeUnrecognizedOptionsAlert(YTEnvSetup):
 
     @authors("gritukan")
     def test_node_unrecognized_options_alert(self):
-        nodes = ls("//sys/nodes")
-        alerts = get("//sys/nodes/{}/@alerts".format(nodes[0]))
+        nodes = ls("//sys/cluster_nodes")
+        alerts = get("//sys/cluster_nodes/{}/@alerts".format(nodes[0]))
         assert alerts[0]["code"] == UnrecognizedConfigOption

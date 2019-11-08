@@ -57,7 +57,7 @@ TFairShareStrategyOperationState::TFairShareStrategyOperationState(IOperationStr
 
 TPoolName TFairShareStrategyOperationState::GetPoolNameByTreeId(const TString& treeId) const
 {
-    return FindOrCrash(TreeIdToPoolNameMap_, treeId);
+    return GetOrCrash(TreeIdToPoolNameMap_, treeId);
 }
 
 void TFairShareStrategyOperationState::EraseTree(const TString& treeId)
@@ -925,6 +925,14 @@ bool TFairShareTree::HasOperation(TOperationId operationId)
     return static_cast<bool>(FindOperationElement(operationId));
 }
 
+bool TFairShareTree::HasRunningOperation(TOperationId operationId)
+{
+    if (auto element = FindOperationElement(operationId)) {
+        return element->IsOperationRunningInPool();
+    }
+    return false;
+}
+
 TResourceTree* TFairShareTree::GetResourceTree()
 {
     return ResourceTree_.Get();
@@ -976,6 +984,9 @@ std::pair<IFairShareTreeSnapshotPtr, TError> TFairShareTree::DoFairShareUpdateAt
     updateContext.Now = now;
 
     auto rootElement = RootElement_->Clone();
+    PROFILE_AGGREGATED_TIMING(FairShareUpdateTimeCounter_) {
+        rootElement->PreUpdate(&dynamicAttributes, &updateContext);
+    }
     auto asyncUpdate = BIND([&]
         {
             PROFILE_AGGREGATED_TIMING(FairShareUpdateTimeCounter_) {
@@ -1551,17 +1562,15 @@ void TFairShareTree::UnregisterPool(const TPoolPtr& pool)
 
 bool TFairShareTree::TryAllocatePoolSlotIndex(const TString& poolName, int slotIndex)
 {
-    auto minUnusedIndexIt = PoolToMinUnusedSlotIndex_.find(poolName);
-    YT_VERIFY(minUnusedIndexIt != PoolToMinUnusedSlotIndex_.end());
-
+    auto& minUnusedIndex = GetOrCrash(PoolToMinUnusedSlotIndex_, poolName);
     auto& spareSlotIndices = PoolToSpareSlotIndices_[poolName];
 
-    if (slotIndex >= minUnusedIndexIt->second) {
-        for (int index = minUnusedIndexIt->second; index < slotIndex; ++index) {
+    if (slotIndex >= minUnusedIndex) {
+        for (int index = minUnusedIndex; index < slotIndex; ++index) {
             spareSlotIndices.insert(index);
         }
 
-        minUnusedIndexIt->second = slotIndex + 1;
+        minUnusedIndex = slotIndex + 1;
 
         return true;
     } else {

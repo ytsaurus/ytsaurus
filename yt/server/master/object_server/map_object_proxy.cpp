@@ -763,7 +763,8 @@ TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>> TNonversionedMapObjectPr
         }
     }
 
-    this->ValidateCopyPermissions(sourceImpl, mode, replace);
+    // YYY(kiselyovp) false or true? What to do with preserveAcl in general?
+    this->ValidateCopyPermissions(sourceImpl, mode, replace, false /* validateAdminister */);
 
     auto sourceParent = sourceProxy->DoGetParent();
     if (!sourceParent && mode == ENodeCloneMode::Move) {

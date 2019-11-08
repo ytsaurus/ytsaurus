@@ -128,9 +128,7 @@ TFuture<TBlock> TBlockFetcher::FetchBlock(int blockIndex)
 {
     YT_VERIFY(HasMoreBlocks());
 
-    auto iterator = BlockIndexToWindowIndex_.find(blockIndex);
-    YT_VERIFY(iterator != BlockIndexToWindowIndex_.end());
-    int windowIndex = iterator->second;
+    int windowIndex = GetOrCrash(BlockIndexToWindowIndex_, blockIndex);
     auto& windowSlot = Window_[windowIndex];
 
     YT_VERIFY(windowSlot.RemainingFetches > 0);

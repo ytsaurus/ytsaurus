@@ -153,6 +153,7 @@ def wait_assert(check_fn, *args, **kwargs):
         except AssertionError as e:
             last_exception[:] = [e]
             last_exc_info[:] = [sys.exc_info()]
+            print_debug("Assertion failed, retrying.\n{}".format(e))
             return False
         return True
     try:

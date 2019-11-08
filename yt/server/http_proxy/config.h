@@ -126,7 +126,7 @@ public:
     TCliqueCacheConfig()
     {
         RegisterParameter("cache_base", CacheBase)
-            .DefaultNew();
+            .DefaultNew(/* capacity */ 1000);
         RegisterParameter("soft_age_threshold", SoftAgeThreshold)
             .Default(TDuration::Seconds(15));
         RegisterParameter("hard_age_threshold", HardAgeThreshold)

@@ -330,9 +330,7 @@ TJobFactory TJobController::TImpl::GetFactory(EJobType type) const
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    auto it = JobFactoryMap_.find(type);
-    YT_VERIFY(it != JobFactoryMap_.end());
-    return it->second;
+    return GetOrCrash(JobFactoryMap_, type);
 }
 
 IJobPtr TJobController::TImpl::FindJob(TJobId jobId) const

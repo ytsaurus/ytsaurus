@@ -770,9 +770,9 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         wait(lambda: get("//sys/tablet_cell_bundles/default/@health", driver=self.replica_driver) == "good")
 
-        nodes = ls("//sys/nodes", driver=self.replica_driver)
+        nodes = ls("//sys/cluster_nodes", driver=self.replica_driver)
         for node in nodes:
-            set("//sys/nodes/" + node + "/@banned", "true", driver=self.replica_driver)
+            set("//sys/cluster_nodes/" + node + "/@banned", "true", driver=self.replica_driver)
 
         wait(lambda: get("//sys/tablet_cell_bundles/default/@health", driver=self.replica_driver) != "good")
 
@@ -780,7 +780,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         wait(lambda: get("#{0}/@mode".format(replica_id2)) == "sync")
 
         for node in nodes:
-            set("//sys/nodes/" + node + "/@banned", "false", driver=self.replica_driver)
+            set("//sys/cluster_nodes/" + node + "/@banned", "false", driver=self.replica_driver)
 
         wait(lambda: get("//sys/tablet_cell_bundles/default/@health", driver=self.replica_driver) == "good")
 

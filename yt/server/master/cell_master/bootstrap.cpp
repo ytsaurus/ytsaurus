@@ -101,11 +101,14 @@
 #include <yt/core/bus/tcp/config.h>
 #include <yt/core/bus/tcp/server.h>
 
+#include <yt/core/concurrency/periodic_executor.h>
+
 #include <yt/core/net/local_address.h>
 
 #include <yt/core/http/server.h>
 
 #include <yt/core/misc/core_dumper.h>
+#include <yt/core/misc/fs.h>
 #include <yt/core/misc/ref_counted_tracker.h>
 #include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
 
@@ -164,6 +167,7 @@ using NTransactionServer::TTransactionManagerPtr;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const NLogging::TLogger Logger("Bootstrap");
+static constexpr auto ProfilingPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -356,6 +360,11 @@ const IInvokerPtr& TBootstrap::GetControlInvoker() const
     return ControlQueue_->GetInvoker();
 }
 
+const IInvokerPtr& TBootstrap::GetProfilerInvoker() const
+{
+    return ProfilerQueue_->GetInvoker();
+}
+
 const INodeChannelFactoryPtr& TBootstrap::GetNodeChannelFactory() const
 {
     return NodeChannelFactory_;
@@ -366,6 +375,7 @@ void TBootstrap::Initialize()
     srand(time(nullptr));
 
     ControlQueue_ = New<TActionQueue>("Control");
+    ProfilerQueue_ = New<TActionQueue>("Profiler");
 
     BIND(&TBootstrap::DoInitialize, this)
         .AsyncVia(GetControlInvoker())
@@ -437,6 +447,33 @@ NNative::IConnectionPtr TBootstrap::CreateClusterConnection() const
     config->UseTabletService = true;
 
     return NNative::CreateConnection(config);
+}
+
+void TBootstrap::OnProfiling()
+{
+    try {
+        auto snapshotsStorageDiskSpaceStatistics = NFS::GetDiskSpaceStatistics(Config_->Snapshots->Path);
+        Profiler_.Enqueue("/snapshots/free_space",
+            snapshotsStorageDiskSpaceStatistics.FreeSpace,
+            EMetricType::Gauge);
+        Profiler_.Enqueue("/snapshots/available_space",
+            snapshotsStorageDiskSpaceStatistics.AvailableSpace,
+            EMetricType::Gauge);
+    } catch (const std::exception& ex) {
+        YT_LOG_DEBUG(ex, "Failed to profile snapshots storage disk space");
+    }
+
+    try {
+        auto changelogsStorageDiskSpaceStatistics = NFS::GetDiskSpaceStatistics(Config_->Changelogs->Path);
+        Profiler_.Enqueue("/changelogs/free_space",
+            changelogsStorageDiskSpaceStatistics.FreeSpace,
+            EMetricType::Gauge);
+        Profiler_.Enqueue("/changelogs/available_space",
+            changelogsStorageDiskSpaceStatistics.AvailableSpace,
+            EMetricType::Gauge);
+    } catch (const std::exception& ex) {
+        YT_LOG_DEBUG(ex, "Failed to profile changelogs storage disk space");
+    }
 }
 
 void TBootstrap::DoInitialize()
@@ -702,6 +739,12 @@ void TBootstrap::DoInitialize()
     RpcServer_->Configure(Config_->RpcServer);
 
     AnnotationSetter_ = New<TAnnotationSetter>(this);
+
+    ProfilingExecutor_ = New<TPeriodicExecutor>(
+        GetProfilerInvoker(),
+        BIND(&TBootstrap::OnProfiling, this),
+        ProfilingPeriod);
+    ProfilingExecutor_->Start();
 }
 
 void TBootstrap::DoRun()

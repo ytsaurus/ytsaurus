@@ -260,9 +260,7 @@ public:
 
     TTabletSnapshotPtr GetCachedTabletSnapshot(TTabletId tabletId)
     {
-        auto it = Map_.find(tabletId);
-        YT_VERIFY(it != Map_.end());
-        return it->second;
+        return GetOrCrash(Map_, tabletId);
     }
 
 private:

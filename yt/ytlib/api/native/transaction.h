@@ -14,7 +14,7 @@ namespace NYT::NApi::NNative {
 struct TForeignTransactionStartOptions
     : public TTransactionStartOptions
 {
-    //! If |true| then the foreign transaction will use the start timestamp or its originator.
+    //! If |true| then the foreign transaction will use the start timestamp of its originator.
     //! If |false| then the foreign transaction will generate its own start timestamp.
     bool InheritStartTimestamp = true;
 };

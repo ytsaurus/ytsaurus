@@ -508,9 +508,7 @@ void TCompositeAutomaton::OnRecoveryComplete()
 
 TCompositeAutomaton::TMethodDescriptor* TCompositeAutomaton::GetMethodDescriptor(const TString& mutationType)
 {
-    auto it = MethodNameToDescriptor_.find(mutationType);
-    YT_VERIFY(it != MethodNameToDescriptor_.end());
-    return &it->second;
+    return &GetOrCrash(MethodNameToDescriptor_, mutationType);
 }
 
 std::vector<TCompositeAutomatonPartPtr> TCompositeAutomaton::GetParts()

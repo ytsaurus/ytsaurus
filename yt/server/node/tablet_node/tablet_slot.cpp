@@ -280,9 +280,6 @@ public:
                 "cell_id",
                 CellDescriptor_.CellId),
             NProfiling::TProfileManager::Get()->RegisterTag(
-                "peer_id",
-                PeerId_),
-            NProfiling::TProfileManager::Get()->RegisterTag(
                 "tablet_cell_bundle",
                 TabletCellBundle ? TabletCellBundle : UnknownProfilingTag)
         }
