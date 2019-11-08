@@ -673,8 +673,8 @@ private:
 struct IWriterImplBase
     : public TThrRefBase
 {
-    virtual size_t GetStreamCount() const = 0;
-    virtual IOutputStream* GetStream(size_t tableIndex) const = 0;
+    virtual size_t GetTableCount() const = 0;
+    virtual void FinishTable(size_t tableIndex) = 0;
     virtual void Abort()
     { }
 };
@@ -683,18 +683,21 @@ struct INodeWriterImpl
     : public IWriterImplBase
 {
     virtual void AddRow(const TNode& row, size_t tableIndex) = 0;
+    virtual void AddRow(TNode&& row, size_t tableIndex) = 0;
 };
 
 struct IYaMRWriterImpl
     : public IWriterImplBase
 {
     virtual void AddRow(const TYaMRRow& row, size_t tableIndex) = 0;
+    virtual void AddRow(TYaMRRow&& row, size_t tableIndex) = 0;
 };
 
 struct IYdlWriterImpl
     : public IWriterImplBase
 {
     virtual void AddRow(const TNode& row, size_t tableIndex) = 0;
+    virtual void AddRow(TNode&& row, size_t tableIndex) = 0;
     virtual void VerifyRowType(ui64 rowTypeHash, size_t tableIndex) const = 0;
 };
 
@@ -702,6 +705,7 @@ struct IProtoWriterImpl
     : public IWriterImplBase
 {
     virtual void AddRow(const Message& row, size_t tableIndex) = 0;
+    virtual void AddRow(Message&& row, size_t tableIndex) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -716,7 +720,7 @@ public:
 
     explicit TTableWriterBase(::TIntrusivePtr<IWriterImpl> writer)
         : Writer_(writer)
-        , Locks_(MakeAtomicShared<TVector<TMutex>>(writer->GetStreamCount()))
+        , Locks_(MakeAtomicShared<TVector<TMutex>>(writer->GetTableCount()))
     { }
 
     ~TTableWriterBase() override
@@ -735,12 +739,16 @@ public:
     {
         DoAddRow<T>(row, tableIndex);
     }
+    void AddRow(T&& row, size_t tableIndex = 0)
+    {
+        DoAddRow<T>(std::move(row), tableIndex);
+    }
 
     void Finish()
     {
-        for (size_t i = 0; i < Writer_->GetStreamCount(); ++i) {
+        for (size_t i = 0; i < Locks_->size(); ++i) {
             auto guard = Guard((*Locks_)[i]);
-            Writer_->GetStream(i)->Finish();
+            Writer_->FinishTable(i);
         }
     }
 
@@ -756,6 +764,18 @@ protected:
 
         auto guard = Guard((*Locks_)[tableIndex]);
         Writer_->AddRow(row, tableIndex);
+    }
+    template <class U>
+    void DoAddRow(U&& row, size_t tableIndex = 0)
+    {
+        if (tableIndex >= Locks_->size()) {
+            ythrow TIOException() <<
+                "Table index " << tableIndex <<
+                " is out of range [0, " << Locks_->size() << ")";
+        }
+
+        auto guard = Guard((*Locks_)[tableIndex]);
+        Writer_->AddRow(std::move(row), tableIndex);
     }
 
     ::TIntrusivePtr<IWriterImpl> GetWriterImpl()
