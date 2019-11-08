@@ -110,7 +110,7 @@ const char* TTokenizer::AdvanceEscaped(const char* current)
         THROW_ERROR_EXCEPTION("Unexpected end-of-string in YPath while parsing escape sequence");
     }
 
-    if (IsSpecialSymbol(*current)) {
+    if (IsSpecialCharacter(*current)) {
         LiteralValue_.append(*current);
         ++current;
     } else {

@@ -85,7 +85,7 @@ private:
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         if (ignoreExisting) {
-            if (auto* existingObject = objectManager->FindExistingObject(type, attributes.get())) {
+            if (auto* existingObject = objectManager->FindObjectByAttributes(type, attributes.get())) {
                 auto existingObjectId = existingObject->GetId();
                 ToProto(response->mutable_object_id(), existingObjectId);
 

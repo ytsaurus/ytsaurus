@@ -32,7 +32,7 @@ TStringBuf ExtractListIndex(TStringBuf token);
 int ParseListIndex(TStringBuf token);
 bool IsSpecialListKey(TStringBuf key);
 
-bool IsSpecialSymbol(char ch);
+bool IsSpecialCharacter(char ch);
 
 ////////////////////////////////////////////////////////////////////////////////
 

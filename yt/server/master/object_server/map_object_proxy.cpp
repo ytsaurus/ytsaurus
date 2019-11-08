@@ -56,9 +56,8 @@ TYPath TNonversionedMapObjectProxyBase<TObject>::GetPath() const
         tokens.emplace_back(currentObject->GetName());
     }
 
-    auto maybeRootPath = GetTypeHandler()->TryGetRootPath(currentObject);
-    auto rootPath = maybeRootPath
-        ? *maybeRootPath
+    auto rootPath = currentObject->IsRoot()
+        ? GetTypeHandler()->GetRootPath(currentObject)
         : NObjectClient::FromObjectId(currentObject->GetId());
 
     TStringBuilder builder;
@@ -213,6 +212,11 @@ void TNonversionedMapObjectProxyBase<TObject>::ValidateBeforeAttachChild(
             << TErrorAttribute("life_stage", impl->GetLifeStage())
             << TErrorAttribute("id", impl->GetId());
     }
+    auto* childImpl = childProxy->GetThisImpl();
+    if (childImpl->IsRoot()) {
+        THROW_ERROR_EXCEPTION("Root object cannot have a parent")
+            << TErrorAttribute("id", childImpl->GetId());
+    }
 
     ValidateChildName(key);
     ValidateAttachChildDepth(childProxy);
@@ -274,13 +278,9 @@ bool TNonversionedMapObjectProxyBase<TObject>::RemoveChild(const TString& key)
 template <class TObject>
 void TNonversionedMapObjectProxyBase<TObject>::RemoveChildren()
 {
-    auto children = GetChildren();
-    std::sort(children.begin(), children.end(), [] (const auto& lhs, const auto& rhs) {
-        return lhs.first < rhs.first;
-    });
-
-    for (const auto& [_, child] : children) {
-        DoRemoveChild(FromNode(child));
+    const auto& keyToChild = TBase::GetThisImpl()->KeyToChild();
+    for (const auto& [_, childImpl] : SortHashMapByKeys(keyToChild)) {
+        DoRemoveChild(GetProxy(childImpl));
     }
 }
 
@@ -322,13 +322,12 @@ TNonversionedMapObjectProxyBase<TObject>::CreateFactory() const
 template <class TObject>
 void TNonversionedMapObjectProxyBase<TObject>::Clear()
 {
-    auto keys = GetKeys();
-    std::sort(keys.begin(), keys.end());
+    const auto& sortedKeyToChild = SortHashMapByKeys(TBase::GetThisImpl()->KeyToChild());
 
     std::vector<TIntrusivePtr<TNonversionedMapObjectProxyBase>> children;
-    children.reserve(keys.size());
-    for (const auto& key : keys) {
-        children.emplace_back(FromNode(GetChild(key)));
+    children.reserve(sortedKeyToChild.size());
+    for (const auto& [_, childImpl] : sortedKeyToChild) {
+        children.emplace_back(GetProxy(childImpl));
     }
 
     for (const auto& child : children) {
@@ -378,12 +377,13 @@ void TNonversionedMapObjectProxyBase<TObject>::ListSystemAttributes(
     TObjectProxyBase::ListSystemAttributes(descriptors);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Name)
         .SetWritable(true)
-        .SetPresent(TBase::GetThisImpl()->GetParent()));
+        .SetReplicated(true)
+        .SetMandatory(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ParentName)
         .SetWritable(true)
+        .SetReplicated(true)
         .SetPresent(TBase::GetThisImpl()->GetParent()));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Path));
-    // YYY(kiselyovp)++ hm, how do i replicate the tree structure >_<
 }
 
 template <class TObject>
@@ -430,7 +430,8 @@ void TNonversionedMapObjectProxyBase<TObject>::RenameSelf(const TString& newName
     auto* impl = TBase::GetThisImpl();
     auto* parent = impl->GetParent();
     if (!parent) {
-        THROW_ERROR_EXCEPTION("Cannot rename root %Qlv", impl->GetType());
+        // XXX(kiselyovp) object name is capitalized here, fix this in YT-11362
+        THROW_ERROR_EXCEPTION("Cannot rename a parentless %v", impl->GetObjectName());
     }
     auto oldName = impl->GetName();
     if (oldName == newName) {
@@ -477,10 +478,11 @@ bool TNonversionedMapObjectProxyBase<TObject>::SetBuiltinAttribute(
             auto newParent = ResolveNameOrThrow(newParentName);
             auto name = impl->GetName();
 
-            auto req = TCypressYPathProxy::Copy("/" + name);
-            req->set_source_path(GetShortPath());
-            req->set_mode(static_cast<int>(ENodeCloneMode::Move));
-            SyncExecuteVerb(newParent, req);
+            newParent->Copy(
+                GetShortPath(),
+                "/" + name,
+                ENodeCloneMode::Move,
+                false /* ignoreExisting */);
             return true;
         }
 
@@ -492,22 +494,10 @@ bool TNonversionedMapObjectProxyBase<TObject>::SetBuiltinAttribute(
 }
 
 template <class TObject>
-/*static*/ TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>>
-TNonversionedMapObjectProxyBase<TObject>::GetProxy(NCellMaster::TBootstrap* bootstrap, TObject* object)
-{
-    const auto& objectManager = bootstrap->GetObjectManager();
-    auto proxy = objectManager->GetProxy(object, nullptr);
-    // XXX(kiselyovp) ugly as heck
-    auto* result = dynamic_cast<TSelf*>(proxy.Get());
-    YT_VERIFY(result);
-    return result;
-}
-
-template <class TObject>
 TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>>
 TNonversionedMapObjectProxyBase<TObject>::GetProxy(TObject* object) const
 {
-    return GetProxy(TBase::Bootstrap_, object);
+    return GetTypeHandler()->GetMapObjectProxy(object);
 }
 
 template <class TObject>
@@ -535,13 +525,52 @@ void TNonversionedMapObjectProxyBase<TObject>::ValidateAttachChildDepth(
     const TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>>& child)
 {
     YT_VERIFY(child);
-    GetTypeHandler()->ValidateAttachChildDepth(TBase::GetThisImpl(), child->GetThisImpl());
+    auto* impl = TBase::GetThisImpl();
+    auto depthLimit = GetTypeHandler()->GetDepthLimit();
+    if (!depthLimit) {
+        return;
+    }
+
+    auto heightLimit = *depthLimit - GetDepth(impl) - 1;
+    try {
+        ValidateHeightLimit(child->GetThisImpl(), heightLimit);
+    } catch (const std::exception& ex) {
+        // XXX(kiselyovp) object name is capitalized here, fix this in YT-11362
+        THROW_ERROR_EXCEPTION("Cannot add a child to %v", impl->GetObjectName())
+            << ex;
+    }
+}
+
+template <class TObject>
+int TNonversionedMapObjectProxyBase<TObject>::GetDepth(const TObject* object) const
+{
+    YT_VERIFY(object);
+    auto depth = 0;
+    for (auto* current = object->GetParent(); current; current = current->GetParent()) {
+        ++depth;
+    }
+
+    return depth;
+}
+
+template <class TObject>
+void TNonversionedMapObjectProxyBase<TObject>::ValidateHeightLimit(
+    const TObject* root,
+    int heightLimit) const
+{
+    YT_VERIFY(root);
+    if (heightLimit < 0) {
+        THROW_ERROR_EXCEPTION("Tree height limit exceeded");
+    }
+    for (const auto& [child, _] : root->ChildToKey()) {
+        ValidateHeightLimit(child, heightLimit - 1);
+    }
 }
 
 template <class TObject>
 void TNonversionedMapObjectProxyBase<TObject>::ValidateRemoval()
 {
-    auto* impl = TBase::GetObject();
+    auto* impl = TBase::GetThisImpl();
     if (impl->IsBeingRemoved()) {
         return;
     }
@@ -553,8 +582,8 @@ void TNonversionedMapObjectProxyBase<TObject>::ValidateRemoval()
             << TErrorAttribute("id", impl->GetId());
     }
 
-    for (const auto& [_, child] : GetChildren()) {
-        FromNode(child)->ValidateRemoval();
+    for (const auto& [_, childImpl] : impl->KeyToChild()) {
+        GetProxy(childImpl)->ValidateRemoval();
     }
 
     auto handler = GetTypeHandler();
@@ -701,23 +730,15 @@ DEFINE_YPATH_SERVICE_METHOD(TNonversionedMapObjectProxyBase<TObject>, Create)
 }
 
 template <class TObject>
-DEFINE_YPATH_SERVICE_METHOD(TNonversionedMapObjectProxyBase<TObject>, Copy)
+TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>> TNonversionedMapObjectProxyBase<TObject>::Copy(
+    const TString& sourcePath,
+    const TString& targetPath,
+    ENodeCloneMode mode,
+    bool ignoreExisting)
 {
     TObjectProxyBase::DeclareMutating();
 
-    const auto& ypathExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
-    // COMPAT(babenko)
-    const auto& sourcePath = ypathExt.additional_paths_size() == 1
-        ? ypathExt.additional_paths(0)
-        : request->source_path();
-
-    auto mode = CheckedEnumCast<ENodeCloneMode>(request->mode());
-    auto recursive = request->recursive();
-    auto ignoreExisting = request->ignore_existing();
-    auto force = request->force();
-    auto targetPath = GetRequestTargetYPath(context->RequestHeader());
     auto* impl = TBase::GetThisImpl();
-
     auto* sourceObject = ResolvePathToNonversionedObject(sourcePath);
     if (sourceObject->GetType() != TBase::GetObject()->GetType()) {
         THROW_ERROR_EXCEPTION("Cannot copy or move an object of the type %Qv, expected type %Qv",
@@ -725,33 +746,12 @@ DEFINE_YPATH_SERVICE_METHOD(TNonversionedMapObjectProxyBase<TObject>, Copy)
             impl->GetType());
     }
 
-    if (recursive) {
-        THROW_ERROR_EXCEPTION("\"recursive\" option is not supported for nonversioned map objects");
-    }
-    if (force) {
-        THROW_ERROR_EXCEPTION("\"force\" option is not supported for nonversioned map objects");
-    }
-    if (ignoreExisting && mode == ENodeCloneMode::Move) {
-        THROW_ERROR_EXCEPTION("Cannot specify \"ignore_existing\" for move operation");
-    }
-
-    context->SetRequestInfo("SourcePath: %v, Mode: %v, Recursive: %v, IgnoreExisting: %v, Force: %v",
-        sourcePath,
-        mode,
-        recursive,
-        ignoreExisting,
-        force);
-
     bool replace = targetPath.empty();
     if (replace) {
         if (!ignoreExisting) {
             ThrowAlreadyExists(this);
         }
-        ToProto(response->mutable_node_id(), impl->GetId());
-        context->SetResponseInfo("ExistingObjectId: %v",
-            impl->GetId());
-        context->Reply();
-        return;
+        return this;
     }
 
     auto* sourceImpl = sourceObject->template As<TObject>();
@@ -782,14 +782,58 @@ DEFINE_YPATH_SERVICE_METHOD(TNonversionedMapObjectProxyBase<TObject>, Copy)
     }
 
     SetImmediateChild(factory.get(), targetPath, clonedProxy);
-
     factory->Commit();
+
+    return clonedProxy;
+}
+
+template <class TObject>
+DEFINE_YPATH_SERVICE_METHOD(TNonversionedMapObjectProxyBase<TObject>, Copy)
+{
+    const auto& ypathExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+    // COMPAT(babenko)
+    const auto& sourcePath = ypathExt.additional_paths_size() == 1
+        ? ypathExt.additional_paths(0)
+        : request->source_path();
+
+    auto mode = CheckedEnumCast<ENodeCloneMode>(request->mode());
+    auto recursive = request->recursive();
+    auto ignoreExisting = request->ignore_existing();
+    auto force = request->force();
+    auto targetPath = GetRequestTargetYPath(context->RequestHeader());
+
+    if (recursive) {
+        THROW_ERROR_EXCEPTION("\"recursive\" option is not supported for nonversioned map objects");
+    }
+    if (force) {
+        THROW_ERROR_EXCEPTION("\"force\" option is not supported for nonversioned map objects");
+    }
+    if (ignoreExisting && mode == ENodeCloneMode::Move) {
+        THROW_ERROR_EXCEPTION("Cannot specify \"ignore_existing\" for move operation");
+    }
+
+    context->SetRequestInfo("SourcePath: %v, Mode: %v, Recursive: %v, IgnoreExisting: %v, Force: %v",
+        sourcePath,
+        mode,
+        recursive,
+        ignoreExisting,
+        force);
+
+    auto clonedProxy = Copy(sourcePath, targetPath, mode, ignoreExisting);
 
     ToProto(response->mutable_node_id(), clonedProxy->GetId());
 
-    context->SetResponseInfo("NodeId: %v", clonedProxy->GetId());
+    context->SetResponseInfo("%v: %v",
+        targetPath.empty() ? "ExistingObjectId" : "ObjectId",
+        clonedProxy->GetId());
 
     context->Reply();
+
+    if (TBase::Bootstrap_->IsPrimaryMaster()) {
+        TBase::ExternalizeToMasters(
+            context,
+            GetTypeHandler()->GetReplicationCellTags(TBase::GetThisImpl()));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -45,8 +45,6 @@ public:
         TObjectTypeMetadata* metadata,
         TObject* object);
 
-    static TSelfPtr GetProxy(NCellMaster::TBootstrap* bootstrap, TObject* object);
-
     TIntrusivePtr<const NYTree::ICompositeNode> AsComposite() const;
     TIntrusivePtr<NYTree::ICompositeNode> AsComposite();
 
@@ -91,6 +89,11 @@ public:
         EObjectType type,
         const TString& path,
         NYTree::IAttributeDictionary* attributes);
+    TSelfPtr Copy(
+        const TString& sourcePath,
+        const TString& targetPath,
+        NCypressClient::ENodeCloneMode mode,
+        bool ignoreExisting);
 
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Create);
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Copy);
@@ -126,6 +129,11 @@ protected:
     virtual void ValidateAttachChildDepth(const TSelfPtr& child);
     virtual void ValidateRemoval() override;
 
+    // XXX(kiselyovp) These methods have total complexity of O(depth_limit + subtree_size) and get called
+    // on each call of Create and Move verbs. Those calls are not expected to be common.
+    int GetDepth(const TObject* object) const;
+    void ValidateHeightLimit(const TObject* root, int heightLimit) const;
+
     virtual std::unique_ptr<TNonversionedMapObjectFactoryBase<TObject>> CreateObjectFactory() const = 0;
 
     void SetImmediateChild(
@@ -156,7 +164,6 @@ protected:
     virtual void DoRenameSelf(const TString& newName);
 
     friend class TNonversionedMapObjectFactoryBase<TObject>;
-    friend class TNonversionedMapObjectTypeHandlerBase<TObject>;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

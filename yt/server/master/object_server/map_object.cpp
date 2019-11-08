@@ -5,9 +5,10 @@ namespace NYT::NObjectServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TSelf>
-TNonversionedMapObjectBase<TSelf>::TNonversionedMapObjectBase(TObjectId id)
+TNonversionedMapObjectBase<TSelf>::TNonversionedMapObjectBase(TObjectId id, bool isRoot)
     : TNonversionedObjectBase(id)
     , Acd_(this)
+    , IsRoot_(isRoot)
 { }
 
 template <class TSelf>
@@ -27,6 +28,7 @@ void TNonversionedMapObjectBase<TSelf>::AttachChild(const TString& key, TSelf* c
 {
     YT_VERIFY(child);
     YT_VERIFY(!child->GetParent());
+    YT_VERIFY(!child->IsRoot());
     child->SetParent(GetSelf());
     YT_VERIFY(KeyToChild().emplace(key, child).second);
     YT_VERIFY(ChildToKey().emplace(child, key).second);
@@ -70,6 +72,14 @@ TSelf* TNonversionedMapObjectBase<TSelf>::FindChild(const TString& key) const
 }
 
 template <class TSelf>
+TSelf* TNonversionedMapObjectBase<TSelf>::GetChild(const TString& key) const noexcept
+{
+    auto* child = FindChild(key);
+    YT_VERIFY(child);
+    return child;
+}
+
+template <class TSelf>
 std::optional<TString> TNonversionedMapObjectBase<TSelf>::FindChildKey(const TSelf* child) const noexcept
 {
     auto it = ChildToKey().find(child);
@@ -89,12 +99,16 @@ TString TNonversionedMapObjectBase<TSelf>::GetChildKey(const TSelf* child) const
 template <class TSelf>
 TString TNonversionedMapObjectBase<TSelf>::GetName() const
 {
-    return Parent_ ? Parent_->GetChildKey(GetSelf()) : GetRootName();
+    if (Parent_) {
+        return Parent_->GetChildKey(GetSelf());
+    }
+    return IsRoot() ? GetRootName() : NObjectClient::FromObjectId(GetId());
 }
 
 template <class TSelf>
 TString TNonversionedMapObjectBase<TSelf>::GetRootName() const
 {
+    YT_VERIFY(IsRoot());
     return NObjectClient::FromObjectId(GetId());
 }
 
@@ -105,12 +119,19 @@ void TNonversionedMapObjectBase<TSelf>::ResetParent()
 }
 
 template <class TSelf>
+bool TNonversionedMapObjectBase<TSelf>::IsRoot() const
+{
+    return IsRoot_;
+}
+
+template <class TSelf>
 void TNonversionedMapObjectBase<TSelf>::Save(NCellMaster::TSaveContext& context) const
 {
     TNonversionedObjectBase::Save(context);
 
     using NYT::Save;
     Save(context, Acd_);
+    Save(context, IsRoot_);
     Save(context, Parent_);
     Save(context, KeyToChild_);
 }
@@ -122,6 +143,7 @@ void TNonversionedMapObjectBase<TSelf>::Load(NCellMaster::TLoadContext& context)
 
     using NYT::Load;
     Load(context, Acd_);
+    Load(context, IsRoot_);
     Load(context, Parent_);
     Load(context, KeyToChild_);
 

@@ -51,6 +51,9 @@ struct IObjectTypeHandler
     //! Finds object by id, returns |nullptr| if nothing is found.
     virtual TObject* FindObject(TObjectId id) = 0;
 
+    //! Finds an object by attributes intended for #CreateObject, returns |nullptr| if nothing is found.
+    virtual TObject* FindObjectByAttributes(const NYTree::IAttributeDictionary* attributes) = 0;
+
     //! Finds object by id, fails if nothing is found.
     TObject* GetObject(TObjectId id);
 
@@ -86,9 +89,6 @@ struct IObjectTypeHandler
      *  If #recursive is |true| then all child objects are also released.
      */
     virtual void UnstageObject(TObject* object, bool recursive) = 0;
-
-    //! Searches for an object by attributes intended for #CreateObject.
-    virtual TObject* FindExistingObject(const NYTree::IAttributeDictionary* attributes) const = 0;
 
     //! Returns the object ACD or |nullptr| if access is not controlled.
     virtual NSecurityServer::TAccessControlDescriptor* FindAcd(TObject* object) = 0;
