@@ -448,9 +448,6 @@ private:
         TPod* pod,
         const NClient::NApi::NProto::TPodControl_TRequestEviction& control)
     {
-        const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
-        accessControlManager->ValidateSuperuser("request pod eviction");
-
         if (GetEvictionState(pod) != NClient::NApi::NProto::ES_NONE) {
             THROW_ERROR_EXCEPTION("Cannot request pod eviction for pod %Qv since current eviction state is not none",
                 pod->GetId());
@@ -483,9 +480,6 @@ private:
         TPod* pod,
         const NClient::NApi::NProto::TPodControl_TAbortEviction& control)
     {
-        const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
-        accessControlManager->ValidateSuperuser("abort pod eviction");
-
         if (GetEvictionState(pod) != NClient::NApi::NProto::ES_REQUESTED) {
             THROW_ERROR_EXCEPTION("No eviction is currently requested for pod %Qv",
                 pod->GetId());

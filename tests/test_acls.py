@@ -1,4 +1,11 @@
-from .conftest import ZERO_RESOURCE_REQUESTS
+from .conftest import (
+    DEFAULT_POD_SET_SPEC,
+    ZERO_RESOURCE_REQUESTS,
+    create_nodes,
+    create_pod_set,
+    create_pod_with_boilerplate,
+    wait_pod_is_assigned,
+)
 
 from yp.common import (
     YP_NO_SUCH_OBJECT_ERROR_CODE,
@@ -950,6 +957,198 @@ class TestSeveralAccessControlParents(object):
                 assert self.result["action"] == "allow"
 
 
+@pytest.mark.usefixtures("yp_env")
+class TestAttributeAcls(object):
+    def test_simple(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        yp_client.create_object("user", attributes=dict(meta=dict(id="u1")))
+
+        create_nodes(yp_client, 1)
+        pod_set_id = yp_client.create_object(
+            "pod_set",
+            attributes=dict(
+                meta=dict(
+                    acl=[
+                        dict(
+                            action="allow",
+                            permissions=["write"],
+                            subjects=["u1"],
+                            attributes=["/control/request_eviction", "/spec"],
+                        ),
+                    ],
+                ),
+                spec=DEFAULT_POD_SET_SPEC,
+            ),
+        )
+        pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, spec=dict(enable_scheduling=True))
+        wait_pod_is_assigned(yp_client, pod_id)
+
+        yp_env.sync_access_control()
+
+        with yp_env.yp_instance.create_client(config=dict(user="u1")) as yp_client1:
+            with pytest.raises(YpAuthorizationError):
+                yp_client1.abort_pod_eviction(pod_id, "Test")
+
+            yp_client1.request_pod_eviction(pod_id, "Test")
+
+            yp_client1.update_object(
+                "pod",
+                pod_id,
+                set_updates=[
+                    dict(
+                        path="/spec/enable_scheduling",
+                        value=False,
+                    ),
+                ],
+            )
+
+            yp_client1.update_object(
+                "pod_set",
+                pod_set_id,
+                set_updates=[
+                    dict(
+                        path="/spec/node_filter",
+                        value="%true",
+                    )
+                ],
+            )
+
+            with pytest.raises(YpAuthorizationError):
+                yp_client1.update_object(
+                    "pod_set",
+                    pod_set_id,
+                    set_updates=[dict(path="/meta/acl", value=[])],
+                )
+
+    def test_invalid(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        yp_client.create_object("user", attributes=dict(meta=dict(id="u1")))
+
+        def create(attribute):
+            return yp_client.create_object(
+                "pod_set",
+                attributes=dict(
+                    meta=dict(
+                        acl=[
+                            dict(
+                                action="allow",
+                                permissions=["write"],
+                                subjects=["u1"],
+                                attributes=[attribute],
+                            ),
+                        ],
+                    ),
+                ),
+            )
+
+        for attribute in ("asdasd", "/spec/", "/", "/asd//"):
+            with pytest.raises(YtResponseError):
+                create(attribute)
+
+        create("/spec")
+
+    def test_object_access_allowed_for(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        for i in xrange(5):
+            yp_client.create_object("user", attributes=dict(meta=dict(id="u{}".format(i))))
+
+        yp_env.sync_access_control()
+
+        endpoint_set_id = yp_client.create_object(
+            "endpoint_set",
+            attributes=dict(meta=dict(acl=[
+                dict(action="allow", permissions=["write"], subjects=["u0"], attributes=["/spec"]),
+                dict(action="allow", permissions=["write"], subjects=["u1"], attributes=["/status"]),
+                dict(action="allow", permissions=["write"], subjects=["u2"]),
+                dict(action="allow", permissions=["write"], subjects=["u3"], attributes=[""]),
+                dict(action="allow", permissions=["write"], subjects=["u4"], attributes=["/spec/protocol"]),
+            ])),
+        )
+
+        def get(path):
+            response = yp_client.get_object_access_allowed_for([
+                dict(object_id=endpoint_set_id, object_type="endpoint_set", permission="write", attribute_path=path),
+            ])
+            return set(response[0]["user_ids"])
+
+        assert get("") == set(["u2", "u3", "root"])
+        assert get("/spec") == set(["u0", "u2", "u3", "root"])
+        assert get("/spec/protocol") == set(["u0", "u2", "u3", "u4", "root"])
+        assert get("/status") == set(["u1", "u2", "u3", "root"])
+
+    def test_get_user_access_allowed_to(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        yp_client.create_object("user", attributes=dict(meta=dict(id="u")))
+
+        def create(attributes):
+            ids = []
+            for _ in xrange(2):
+                ids.append(yp_client.create_object(
+                    "replica_set",
+                    attributes=dict(
+                        meta=dict(acl=[
+                            dict(action="allow", subjects=["u"], permissions=["write"], attributes=attributes),
+                        ]),
+                        spec=dict(account_id="tmp"),
+                    ),
+                ))
+            return set(ids)
+
+        ids0 = create(["/spec/deployment_strategy"])
+        ids1 = create(["/spec/constraints"])
+        ids2 = create(["/spec"])
+        ids3 = create(["/status"])
+
+        yp_env.sync_access_control()
+
+        def get(path):
+            response = yp_client.get_user_access_allowed_to([
+                dict(
+                    user_id="u",
+                    object_type="replica_set",
+                    permission="write",
+                    attribute_path=path,
+                ),
+            ])
+            return set(response[0]["object_ids"])
+
+        assert get("/spec/deployment_strategy/min_available") == ids0.union(ids2)
+        assert get("/spec") == ids2
+        assert get("/status") == ids3
+        assert get("") == set()
+        assert get("/spec/constraints") == ids1.union(ids2)
+
+    def test_check_permissions(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        yp_client.create_object("user", attributes=dict(meta=dict(id="u")))
+        yp_env.sync_access_control()
+
+        endpoint_set_id = yp_client.create_object("endpoint_set", attributes=dict(meta=dict(acl=[
+            dict(action="allow", subjects=["u"], permissions=["write"], attributes=["/spec"]),
+        ])))
+
+        assert \
+            yp_client.check_object_permissions([
+                dict(object_type="endpoint_set", object_id=endpoint_set_id, subject_id="u", permission="write", attribute_path=""),
+                dict(object_type="endpoint_set", object_id=endpoint_set_id, subject_id="u", permission="write", attribute_path="/status"),
+                dict(object_type="endpoint_set", object_id=endpoint_set_id, subject_id="u", permission="write", attribute_path="/spec"),
+                dict(object_type="endpoint_set", object_id=endpoint_set_id, subject_id="u", permission="write", attribute_path="/spec/unknown_attribute"),
+                dict(object_type="endpoint_set", object_id=endpoint_set_id, subject_id="u", permission="write", attribute_path="/spec/some_map/path/path/path"),
+            ]) == \
+            [
+                dict(action="deny"),
+                dict(action="deny"),
+                dict(action="allow", subject_id="u", object_type="endpoint_set", object_id=endpoint_set_id),
+                dict(action="allow", subject_id="u", object_type="endpoint_set", object_id=endpoint_set_id),
+                dict(action="allow", subject_id="u", object_type="endpoint_set", object_id=endpoint_set_id),
+            ]
+
+
 @pytest.mark.usefixtures("yp_env_configurable")
 class TestApiGetUserAccessAllowedTo(object):
     YP_MASTER_CONFIG = dict(
@@ -1025,3 +1224,4 @@ class TestApiGetUserAccessAllowedTo(object):
             ),
         ])
         assert response[0]["object_ids"] == [pod1]
+

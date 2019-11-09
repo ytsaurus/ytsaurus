@@ -1002,8 +1002,13 @@ private:
             const auto& subrequest = request->subrequests(index);
             const auto& subjectId = subrequest.subject_id();
             auto permission = CheckedEnumCast<EAccessControlPermission>(subrequest.permission());
+            const auto& attributePath = subrequest.attribute_path();
             auto* object = objects[index];
-            auto result = accessControlManager->CheckPermission(subjectId, object, permission);
+            auto result = accessControlManager->CheckPermission(
+                subjectId,
+                object,
+                permission,
+                attributePath);
             auto* subresponse = response->add_subresponses();
             subresponse->set_action(static_cast<NClient::NApi::NProto::EAccessControlAction>(result.Action));
             subresponse->set_object_id(result.ObjectId);
@@ -1042,8 +1047,12 @@ private:
         for (int index = 0; index < request->subrequests_size(); ++index) {
             const auto& subrequest = request->subrequests(index);
             auto permission = static_cast<EAccessControlPermission>(subrequest.permission());
+            const auto& attributePath = subrequest.attribute_path();
             auto* object = objects[index];
-            auto userIds = accessControlManager->GetObjectAccessAllowedFor(object, permission);
+            auto userIds = accessControlManager->GetObjectAccessAllowedFor(
+                object,
+                permission,
+                attributePath);
             auto* subresponse = response->add_subresponses();
             ToProto(subresponse->mutable_user_ids(), userIds);
         }
@@ -1064,6 +1073,7 @@ private:
             auto objectType = CheckedEnumCastToObjectType(subrequest.object_type());
             auto permission = CheckedEnumCast<NAccessControl::EAccessControlPermission>(
                 subrequest.permission());
+            const auto& attributePath = subrequest.attribute_path();
 
             NYP::NServer::NAccessControl::TGetUserAccessAllowedToOptions options;
             if (subrequest.has_continuation_token()) {
@@ -1077,6 +1087,7 @@ private:
                 subrequest.user_id(),
                 objectType,
                 permission,
+                attributePath,
                 options);
 
             auto subresponse = response->add_subresponses();

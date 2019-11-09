@@ -581,6 +581,9 @@ message TReqCheckObjectPermissions
 
         // Permission to check.
         required EAccessControlPermission permission = 4;
+
+        // Attribute path to check.
+        optional string attribute_path = 5;
     }
 
     // Subrequests to serve.
@@ -630,6 +633,9 @@ message TReqGetObjectAccessAllowedFor
 
         // Permission to check.
         required EAccessControlPermission permission = 4;
+
+        // Attribute path to check.
+        optional string attribute_path = 5;
     }
 
     // Subrequests to serve.
@@ -670,6 +676,9 @@ message TReqGetUserAccessAllowedTo
 
         // Permission to check.
         required EAccessControlPermission permission = 3;
+
+        // Attribute path to check.
+        optional string attribute_path = 6;
 
         // Continuation token indicates the next record to be fetched. Opaque for the client.
         optional string continuation_token = 4;

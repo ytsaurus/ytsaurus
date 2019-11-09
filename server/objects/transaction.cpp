@@ -220,6 +220,16 @@ void FormatValue(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NYPath::TYPath GetUpdateRequestPath(const TUpdateRequest& updateRequest)
+{
+    return Visit(updateRequest,
+        [] (const auto& request) {
+            return request.Path;
+        });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TChildrenAttributeHelper
 {
     static void Add(TChildrenAttributeBase* attribute, TObject* child)
@@ -418,7 +428,13 @@ public:
         IUpdateContext* context)
     {
         const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
-        accessControlManager->ValidatePermission(object, EAccessControlPermission::Write);
+
+        for (const auto& request : requests) {
+            accessControlManager->ValidatePermission(
+                object,
+                EAccessControlPermission::Write,
+                GetUpdateRequestPath(request));
+        }
 
         EnsureReadWrite();
         AbortOnException(

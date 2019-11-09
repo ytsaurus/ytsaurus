@@ -42,6 +42,8 @@ using TUpdateRequest = std::variant<
     TRemoveUpdateRequest
 >;
 
+NYPath::TYPath GetUpdateRequestPath(const TUpdateRequest& updateRequest);
+
 void FromProto(
     TRemoveUpdateRequest* request,
     const NClient::NApi::NProto::TRemoveUpdate& protoRequest);

@@ -99,6 +99,10 @@ message TAccessControlEntry
 
     // List of subjects (users and groups) this entry applies to.
     repeated string subjects = 3;
+
+    // List of attribute paths this entry applies to.
+    // If this list is not specified or empty, this entry is applied to the root attribute path.
+    repeated string attributes = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -10,17 +10,36 @@
 
 #include <yt/ytlib/query_client/ast.h>
 
+#include <yt/core/ypath/tokenizer.h>
+
 namespace NYP::NServer::NObjects {
 
 using namespace NAccessControl;
 
-using namespace NYT::NYson;
 using namespace NYT::NYTree;
+using namespace NYT::NYson;
 using namespace NYT::NQueryClient;
 using namespace NYT::NQueryClient::NAst;
 
 using std::placeholders::_1;
 using std::placeholders::_2;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+void ValidateAttributePath(const NYPath::TYPath& attributePath)
+{
+    NYPath::TTokenizer tokenizer(attributePath);
+
+    while (tokenizer.Advance() != NYPath::ETokenType::EndOfStream) {
+        tokenizer.Expect(NYPath::ETokenType::Slash);
+        tokenizer.Advance();
+        tokenizer.Expect(NYPath::ETokenType::Literal);
+    }
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -260,24 +279,29 @@ void TObjectTypeHandlerBase::ValidateAcl(TTransaction* transaction, TObject* obj
     const auto& oldAcl = object->Acl().LoadOld();
     const auto& acl = object->Acl().Load();
 
-    auto doPerSubject = [] (const auto& acl, const auto& callback) {
-        for (const auto& ace : acl) {
-            for (const auto& subjectId : ace.subjects()) {
-                callback(subjectId);
+    THashSet<TObjectId> oldSubjects;
+    THashSet<NYPath::TYPath> oldAttributes;
+    for (const auto& ace : oldAcl) {
+        for (const auto& subject : ace.subjects()) {
+            oldSubjects.insert(subject);
+        }
+        for (const auto& attribute : ace.attributes()) {
+            oldAttributes.insert(attribute);
+        }
+    }
+
+    for (const auto& ace : acl) {
+        for (const auto& subject : ace.subjects()) {
+            if (!oldSubjects.contains(subject)) {
+                ValidateSubjectExists(transaction, subject);
             }
         }
-    };
-
-    THashSet<TObjectId> oldSubjectIds;
-    doPerSubject(oldAcl, [&oldSubjectIds] (const TObjectId& subjectId) {
-        oldSubjectIds.insert(subjectId);
-    });
-
-    doPerSubject(acl, [&oldSubjectIds, transaction] (const TObjectId& subjectId) {
-        if (!oldSubjectIds.contains(subjectId)) {
-            ValidateSubjectExists(transaction, subjectId);
+        for (const auto& attribute : ace.attributes()) {
+            if (!oldAttributes.contains(attribute)) {
+                ValidateAttributePath(attribute);
+            }
         }
-    });
+    }
 }
 
 void TObjectTypeHandlerBase::EvaluateHistoryEnabledAttributePaths()
@@ -291,4 +315,3 @@ void TObjectTypeHandlerBase::EvaluateHistoryEnabledAttributePaths()
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYP::NServer::NObjects
-

@@ -117,48 +117,6 @@ class TestEviction(object):
     def _validate_none_eviction(self, yp_client, pod_id):
         self._validate_eviction(yp_client, pod_id, "none", "none")
 
-    def test_only_superuser_can_abort_pod_eviction(self, yp_env_configurable):
-        yp_client = yp_env_configurable.yp_client
-
-        _, pod_set_id, pod_id = prepare_objects(yp_client)
-
-        yp_client.create_object("user", attributes=dict(meta=dict(id="u")))
-        yp_env_configurable.sync_access_control()
-
-        yp_client.update_object(
-            "pod_set",
-            pod_set_id,
-            set_updates=[
-                dict(
-                    path="/meta/acl/end",
-                    value=dict(
-                        permissions=["write"],
-                        subjects=["u"],
-                        action="allow",
-                    ),
-                ),
-            ],
-        )
-        yp_env_configurable.sync_access_control()
-
-        yp_client.request_pod_eviction(pod_id, "Test")
-
-        with yp_env_configurable.yp_instance.create_client(config=dict(user="u")) as yp_client1:
-            with pytest.raises(YpAuthorizationError):
-                yp_client1.abort_pod_eviction(pod_id, "Test")
-            self._validate_requested_eviction(yp_client, pod_id)
-
-            yp_client.update_object("group", "superusers", set_updates=[
-                dict(
-                    path="/spec/members/end",
-                    value="u",
-                ),
-            ])
-            yp_env_configurable.sync_access_control()
-
-            yp_client1.abort_pod_eviction(pod_id, "Test")
-            self._validate_none_eviction(yp_client, pod_id)
-
     # Pod eviction state must be requested before the request.
     def test_abort_eviction_state_prerequisites(self, yp_env_configurable):
         yp_client = yp_env_configurable.yp_client
@@ -181,13 +139,13 @@ class TestEviction(object):
         with pytest.raises(YtResponseError):
             yp_client.abort_pod_eviction(pod_id, "Test", transaction_id=transaction_id)
 
-    def test_only_superuser_can_request_pod_eviction(self, yp_env_configurable):
+    def test_access_control(self, yp_env_configurable):
         yp_client = yp_env_configurable.yp_client
 
         _, pod_set_id, pod_id = prepare_objects(yp_client)
 
-        yp_client.create_object("user", attributes=dict(meta=dict(id="u")))
-        yp_env_configurable.sync_access_control()
+        yp_client.create_object("user", attributes=dict(meta=dict(id="u1")))
+        yp_client.create_object("user", attributes=dict(meta=dict(id="u2")))
 
         yp_client.update_object(
             "pod_set",
@@ -197,7 +155,7 @@ class TestEviction(object):
                     path="/meta/acl/end",
                     value=dict(
                         permissions=["write"],
-                        subjects=["u"],
+                        subjects=["u1"],
                         action="allow",
                     ),
                 ),
@@ -205,19 +163,24 @@ class TestEviction(object):
         )
         yp_env_configurable.sync_access_control()
 
-        with yp_env_configurable.yp_instance.create_client(config=dict(user="u")) as yp_client1:
-            with pytest.raises(YpAuthorizationError):
+        with yp_env_configurable.yp_instance.create_client(config=dict(user="u1")) as yp_client1:
+            with yp_env_configurable.yp_instance.create_client(config=dict(user="u2")) as yp_client2:
+                with pytest.raises(YpAuthorizationError):
+                    yp_client2.request_pod_eviction(pod_id, "Test")
                 yp_client1.request_pod_eviction(pod_id, "Test")
+                self._validate_requested_eviction(yp_client, pod_id)
 
-            yp_client.update_object("group", "superusers", set_updates=[
-                dict(
-                    path="/spec/members/end",
-                    value="u",
-                ),
-            ])
-            yp_env_configurable.sync_access_control()
+                with pytest.raises(YpAuthorizationError):
+                    yp_client2.abort_pod_eviction(pod_id, "Test")
+                self._validate_requested_eviction(yp_client, pod_id)
+                yp_client1.abort_pod_eviction(pod_id, "Test")
+                self._validate_none_eviction(yp_client, pod_id)
 
-            yp_client1.request_pod_eviction(pod_id, "Test")
+                yp_client1.request_pod_eviction(pod_id, "Test")
+                with pytest.raises(YpAuthorizationError):
+                    yp_client2.acknowledge_pod_eviction(pod_id, "Test")
+                self._validate_requested_eviction(yp_client, pod_id)
+                yp_client1.acknowledge_pod_eviction(pod_id, "Test")
 
     def test_request_and_acknowledge_eviction(self, yp_env_configurable):
         yp_client = yp_env_configurable.yp_client

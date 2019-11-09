@@ -43,7 +43,34 @@ using namespace NRpc;
 using namespace NTableClient;
 using namespace NConcurrency;
 
+////////////////////////////////////////////////////////////////////////////////
+
 using TAcl = NObjects::TObject::TAcl;
+
+template <class TFunction>
+void ForEachAttributeAce(
+    const TAcl& acl,
+    const NYPath::TYPath& attributePath,
+    TFunction&& function)
+{
+    for (const auto& ace : acl) {
+        const auto& attributes = ace.attributes();
+        bool shouldRun = false;
+        if (attributes.empty()) {
+            shouldRun = true;
+        } else {
+            for (const auto& attribute : attributes) {
+                if (attributePath.StartsWith(attribute)) {
+                    shouldRun = true;
+                    break;
+                }
+            }
+        }
+        if (shouldRun) {
+            function(ace);
+        }
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -286,19 +313,19 @@ public:
 
     std::optional<std::tuple<EAccessControlAction, TObjectId>> ApplyAcl(
         const std::vector<NClient::NApi::NProto::TAccessControlEntry>& acl,
+        const NYPath::TYPath& attributePath,
         EAccessControlPermission permission,
         const TObjectId& userId)
     {
         std::optional<std::tuple<EAccessControlAction, TObjectId>> result;
-        for (const auto& ace : acl) {
-            auto subresult = ApplyAce(ace, permission, userId);
-            if (subresult) {
-                if (std::get<0>(*subresult) == EAccessControlAction::Deny) {
-                    return subresult;
-                }
-                result = subresult;
+        ForEachAttributeAce(acl, attributePath, [&] (const auto& ace) {
+            if (result && std::get<0>(*result) == EAccessControlAction::Deny) {
+                return;
             }
-        }
+            if (auto subresult = ApplyAce(ace, permission, userId); subresult) {
+                result = std::move(subresult);
+            }
+        });
         return result;
     }
 
@@ -760,19 +787,22 @@ public:
     TPermissionCheckResult CheckPermission(
         const TObjectId& subjectId,
         NObjects::TObject* object,
-        EAccessControlPermission permission)
+        EAccessControlPermission permission,
+        const NYPath::TYPath& attributePath)
     {
         return CheckPermissionImpl(
             subjectId,
             object,
             permission,
+            attributePath,
             GetClusterSubjectSnapshot(),
             TTransactionAccessControlHierarchy());
     }
 
     TUserIdList GetObjectAccessAllowedFor(
-        NObjects::TObject* object,
-        EAccessControlPermission permission)
+        NObjects::TObject* rootObject,
+        EAccessControlPermission permission,
+        const NYPath::TYPath& attributePath)
     {
         auto snapshot = GetClusterSubjectSnapshot();
 
@@ -780,12 +810,12 @@ public:
         THashSet<TObjectId> deniedForUserIds;
         InvokeForAccessControlHierarchy(
             TTransactionAccessControlHierarchy(),
-            object,
+            rootObject,
             [&] (auto* object) {
                 const auto& acl = object->Acl().Load();
-                for (const auto& ace : acl) {
+                ForEachAttributeAce(acl, attributePath, [&] (const auto& ace) {
                     if (!ContainsPermission(ace, permission)) {
-                        continue;
+                        return;
                     }
 
                     auto handleUserId = [&] (const auto& userId) {
@@ -821,7 +851,7 @@ public:
                                 YT_ABORT();
                         }
                     }
-                }
+                });
                 return true;
             });
 
@@ -848,6 +878,7 @@ public:
         const NObjects::TObjectId& userId,
         NObjects::EObjectType objectType,
         EAccessControlPermission permission,
+        const NYPath::TYPath& attributePath,
         const TGetUserAccessAllowedToOptions& options)
     {
         if (options.Limit && *options.Limit < 0) {
@@ -897,6 +928,7 @@ public:
                 userId,
                 object,
                 permission,
+                attributePath,
                 clusterSubjectSnapshot,
                 snapshotAccessControlHierarchy);
             if (permissionCheckResult.Action == EAccessControlAction::Allow) {
@@ -972,10 +1004,13 @@ public:
         return *userId;
     }
 
-    void ValidatePermission(NObjects::TObject* object, EAccessControlPermission permission)
+    void ValidatePermission(
+        NObjects::TObject* object,
+        EAccessControlPermission permission,
+        const NYPath::TYPath& attributePath)
     {
         auto userId = GetAuthenticatedUser();
-        auto result = CheckPermission(userId, object, permission);
+        auto result = CheckPermission(userId, object, permission, attributePath);
         if (result.Action == EAccessControlAction::Deny) {
             TError error;
             if (result.ObjectId && result.SubjectId) {
@@ -1000,6 +1035,7 @@ public:
             error.Attributes().Set("user_id", userId);
             error.Attributes().Set("object_type", object->GetType());
             error.Attributes().Set("object_id", object->GetId());
+            error.Attributes().Set("attribute_path", attributePath);
             if (result.ObjectId) {
                 error.Attributes().Set("denied_by_id", result.ObjectId);
                 error.Attributes().Set("denied_by_type", result.ObjectType);
@@ -1059,8 +1095,9 @@ private:
     >
     TPermissionCheckResult CheckPermissionImpl(
         const TObjectId& subjectId,
-        TObject* object,
+        TObject* rootObject,
         EAccessControlPermission permission,
+        const NYPath::TYPath& attributePath,
         TClusterSubjectSnapshotPtr snapshot,
         const TAccessControlHierarchy& hierarchy)
     {
@@ -1074,10 +1111,14 @@ private:
 
         InvokeForAccessControlHierarchy(
             hierarchy,
-            object,
+            rootObject,
             [&] (auto* object) {
                 const auto& acl = TObjectTraits::GetAcl(object);
-                auto subresult = snapshot->ApplyAcl(acl, permission, subjectId);
+                auto subresult = snapshot->ApplyAcl(
+                    acl,
+                    attributePath,
+                    permission,
+                    subjectId);
                 if (subresult) {
                     result.ObjectId = TObjectTraits::GetId(object);
                     result.ObjectType = TObjectTraits::GetType(object);
@@ -1332,33 +1373,39 @@ void TAccessControlManager::Initialize()
 TPermissionCheckResult TAccessControlManager::CheckPermission(
     const TObjectId& subjectId,
     NObjects::TObject* object,
-    EAccessControlPermission permission)
+    EAccessControlPermission permission,
+    const NYPath::TYPath& attributePath)
 {
     return Impl_->CheckPermission(
         subjectId,
         object,
-        permission);
+        permission,
+        attributePath);
 }
 
 TUserIdList TAccessControlManager::GetObjectAccessAllowedFor(
     NObjects::TObject* object,
-    EAccessControlPermission permission)
+    EAccessControlPermission permission,
+    const NYPath::TYPath& attributePath)
 {
     return Impl_->GetObjectAccessAllowedFor(
         object,
-        permission);
+        permission,
+        attributePath);
 }
 
 TGetUserAccessAllowedToResult TAccessControlManager::GetUserAccessAllowedTo(
     const NObjects::TObjectId& userId,
     NObjects::EObjectType objectType,
     EAccessControlPermission permission,
+    const NYPath::TYPath& attributePath,
     const TGetUserAccessAllowedToOptions& options)
 {
     return Impl_->GetUserAccessAllowedTo(
         userId,
         objectType,
         permission,
+        attributePath,
         options);
 }
 
@@ -1389,9 +1436,13 @@ bool TAccessControlManager::HasAuthenticatedUser()
 
 void TAccessControlManager::ValidatePermission(
     NObjects::TObject* object,
-    EAccessControlPermission permission)
+    EAccessControlPermission permission,
+    const NYPath::TYPath& attributePath)
 {
-    Impl_->ValidatePermission(object, permission);
+    Impl_->ValidatePermission(
+        object,
+        permission,
+        attributePath);
 }
 
 void TAccessControlManager::ValidateSuperuser(TStringBuf doWhat)
@@ -1407,4 +1458,3 @@ NYTree::IYPathServicePtr TAccessControlManager::CreateOrchidService()
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYP::NServer::NAccessControl
-

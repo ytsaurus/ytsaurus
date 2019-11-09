@@ -86,17 +86,20 @@ public:
     TPermissionCheckResult CheckPermission(
         const NObjects::TObjectId& subjectId,
         NObjects::TObject* object,
-        EAccessControlPermission permission);
+        EAccessControlPermission permission,
+        const NYPath::TYPath& attributePath = "");
 
     TUserIdList GetObjectAccessAllowedFor(
         NObjects::TObject* object,
-        EAccessControlPermission permission);
+        EAccessControlPermission permission,
+        const NYPath::TYPath& attributePath = "");
 
     TGetUserAccessAllowedToResult GetUserAccessAllowedTo(
         const NObjects::TObjectId& userId,
         NObjects::EObjectType objectType,
         EAccessControlPermission permission,
-        const TGetUserAccessAllowedToOptions& options);
+        const NYPath::TYPath& attributePath = "",
+        const TGetUserAccessAllowedToOptions& options = TGetUserAccessAllowedToOptions());
 
     void SetAuthenticatedUser(const NObjects::TObjectId& userId);
     void ResetAuthenticatedUser();
@@ -106,7 +109,9 @@ public:
 
     void ValidatePermission(
         NObjects::TObject* object,
-        EAccessControlPermission permission);
+        EAccessControlPermission permission,
+        const NYPath::TYPath& attributePath = "");
+
     void ValidateSuperuser(TStringBuf doWhat);
 
     NYTree::IYPathServicePtr CreateOrchidService();
@@ -121,3 +126,4 @@ DEFINE_REFCOUNTED_TYPE(TAccessControlManager)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYP::NServer::NAccessControl
+
