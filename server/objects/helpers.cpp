@@ -525,6 +525,9 @@ TObjectId GenerateUuid()
 
 void ValidateSubjectExists(TTransaction* transaction, const TObjectId& subjectId)
 {
+    if (subjectId == EveryoneSubjectId) {
+        return;
+    }
     auto* user = transaction->GetUser(subjectId);
     if (user && user->DoesExist()) {
         return;
