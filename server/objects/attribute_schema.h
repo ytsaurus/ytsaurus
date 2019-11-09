@@ -268,7 +268,6 @@ private:
 
     void GetHistoryEnabledAttributesImpl(
         NYT::NYTree::IMapNodePtr result,
-        std::vector<NYT::NYPath::TYPath>* pathToRoot,
         TObject* object,
         bool hasParentHistoryEnabledAttribute) const;
 

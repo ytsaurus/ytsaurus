@@ -632,8 +632,7 @@ std::vector<TYPath> TAttributeSchema::GetHistoryEnabledAttributePaths() const
 IMapNodePtr TAttributeSchema::GetHistoryEnabledAttributes(TObject* object) const
 {
     auto result = GetEphemeralNodeFactory()->CreateMap();
-    std::vector<TYPath> pathTokens;
-    GetHistoryEnabledAttributesImpl(result, &pathTokens, object, false);
+    GetHistoryEnabledAttributesImpl(result, object, false);
     return result;
 }
 
@@ -660,7 +659,6 @@ void TAttributeSchema::GetHistoryEnabledAttributePathsImpl(std::vector<TYPath>* 
 
 void TAttributeSchema::GetHistoryEnabledAttributesImpl(
     IMapNodePtr result,
-    std::vector<TYPath>* pathTokens,
     TObject* object,
     bool hasParentHistoryEnabledAttribute) const
 {
@@ -670,18 +668,14 @@ void TAttributeSchema::GetHistoryEnabledAttributesImpl(
         if (EtcChild_) {
             EtcChild_->GetHistoryEnabledAttributesImpl(
                 result,
-                pathTokens,
                 object,
                 hasParentHistoryEnabledAttribute);
         }
         for (const auto& [key, child] : KeyToChild_) {
-            pathTokens->emplace_back(key);
             child->GetHistoryEnabledAttributesImpl(
                 result,
-                pathTokens,
                 object,
                 hasParentHistoryEnabledAttribute);
-            pathTokens->pop_back();
         }
     } else if (hasParentHistoryEnabledAttribute && HasValueGetter()) {
         const TString path = GetPath();
