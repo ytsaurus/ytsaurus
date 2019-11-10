@@ -54,7 +54,10 @@ def get_tests_sandbox():
         else:
             path = TESTS_SANDBOX
     if not os.path.exists(path):
-        os.mkdir(path)
+        try:
+            os.mkdir(path)
+        except OSError:  # Already exists.
+            pass
     return path
 
 def get_test_files_dir_path():
