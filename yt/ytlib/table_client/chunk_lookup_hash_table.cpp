@@ -66,8 +66,11 @@ class TSimpleBlockCache
     : public IBlockCache
 {
 public:
-    explicit TSimpleBlockCache(const std::vector<TBlock>& blocks)
-        : Blocks_(blocks)
+    TSimpleBlockCache(
+        int startBlockIndex,
+        const std::vector<TBlock>& blocks)
+        : StartBlockIndex_(startBlockIndex)
+        , Blocks_(blocks)
     { }
 
     virtual void Put(
@@ -84,8 +87,9 @@ public:
         EBlockType type) override
     {
         YT_ASSERT(type == EBlockType::UncompressedData);
-        YT_ASSERT(id.BlockIndex >= 0 && id.BlockIndex < Blocks_.size());
-        return Blocks_[id.BlockIndex];
+        return id.BlockIndex >= StartBlockIndex_ && id.BlockIndex < StartBlockIndex_ + static_cast<int>(Blocks_.size())
+            ? Blocks_[id.BlockIndex - StartBlockIndex_]
+            : TBlock();
     }
 
     virtual EBlockType GetSupportedBlockTypes() const override
@@ -94,15 +98,17 @@ public:
     }
 
 private:
+    const int StartBlockIndex_;
     const std::vector<TBlock>& Blocks_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 IChunkLookupHashTablePtr CreateChunkLookupHashTable(
+    int startBlockIndex,
     const std::vector<TBlock>& blocks,
-    TCachedVersionedChunkMetaPtr chunkMeta,
-    TKeyComparer keyComparer)
+    const TCachedVersionedChunkMetaPtr& chunkMeta,
+    const TKeyComparer& keyComparer)
 {
     if (chunkMeta->GetChunkFormat() != ETableChunkFormat::VersionedSimple &&
         chunkMeta->GetChunkFormat() != ETableChunkFormat::SchemalessHorizontal)
@@ -113,21 +119,20 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
         return nullptr;
     }
 
-    if (chunkMeta->BlockMeta()->blocks_size() > MaxBlockIndex) {
-        YT_LOG_INFO("Cannot create lookup hash table because chunk has too many blocks (ChunkId: %v, BlockCount: %v)",
+    int lastBlockIndex = startBlockIndex + static_cast<int>(blocks.size()) - 1;
+    if (lastBlockIndex > MaxBlockIndex) {
+        YT_LOG_INFO("Cannot create lookup hash table because chunk has too many blocks (ChunkId: %v, LastBlockIndex: %v)",
             chunkMeta->GetChunkId(),
-            chunkMeta->BlockMeta()->blocks_size());
+            lastBlockIndex);
         return nullptr;
     }
 
-    auto blockCache = New<TSimpleBlockCache>(blocks);
-    auto chunkSize = chunkMeta->BlockMeta()->blocks(chunkMeta->BlockMeta()->blocks_size() - 1).chunk_row_count();
+    auto blockCache = New<TSimpleBlockCache>(startBlockIndex, blocks);
 
+    auto chunkSize = chunkMeta->BlockMeta()->blocks(lastBlockIndex).chunk_row_count();
     auto hashTable = New<TChunkLookupHashTable>(chunkSize);
 
-    for (int blockIndex = 0; blockIndex < chunkMeta->BlockMeta()->blocks_size(); ++blockIndex) {
-        const auto& blockMeta = chunkMeta->BlockMeta()->blocks(blockIndex);
-
+    for (int blockIndex = startBlockIndex; blockIndex <= lastBlockIndex; ++blockIndex) {
         auto blockId = TBlockId(chunkMeta->GetChunkId(), blockIndex);
         auto uncompressedBlock = blockCache->Find(blockId, EBlockType::UncompressedData);
         if (!uncompressedBlock) {
@@ -137,9 +142,10 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
             return nullptr;
         }
 
-        std::unique_ptr<IVersionedBlockReader> blockReader;
+        const auto& blockMeta = chunkMeta->BlockMeta()->blocks(blockIndex);
 
-        switch(chunkMeta->GetChunkFormat()) {
+        std::unique_ptr<IVersionedBlockReader> blockReader;
+        switch (chunkMeta->GetChunkFormat()) {
             case ETableChunkFormat::VersionedSimple:
                 blockReader = std::make_unique<TSimpleVersionedBlockReader>(
                     uncompressedBlock.Data,
@@ -171,9 +177,9 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
         // Verify that row index fits into 32 bits.
         YT_VERIFY(sizeof(blockMeta.row_count()) <= sizeof(ui32));
 
-        for (int index = 0; index < blockMeta.row_count(); ++index) {
+        for (int rowIndex = 0; rowIndex < blockMeta.row_count(); ++rowIndex) {
             auto key = blockReader->GetKey();
-            hashTable->Insert(key, std::make_pair<ui16, ui32>(blockIndex, index));
+            hashTable->Insert(key, std::make_pair<ui16, ui32>(blockIndex, rowIndex));
             blockReader->NextRow();
         }
     }
