@@ -94,25 +94,30 @@ def _create_node_from_local_file(local_filename, dest_filename, meta_files_suffi
             logger.exception("Failed to load meta file for table {0}, skipping".format(local_filename))
             return
 
-        if meta["type"] != "table":
+        attributes = meta.get("attributes", {})
+
+        if meta["type"] == "table":
+            if "format" not in meta:
+                logger.warning("Found table {0} with unspecified format".format(local_filename))
+                return
+
+            sorted_by = attributes.pop("sorted_by", [])
+
+            client.create("table", dest_filename, attributes=attributes)
+            with open(local_filename, "rb") as table_file:
+                client.write_table(dest_filename, table_file, format=meta["format"], raw=True)
+
+            if sorted_by:
+                client.run_sort(dest_filename, sort_by=sorted_by)
+
+        elif meta["type"] == "file":
+            client.create("file", dest_filename, attributes=attributes)
+            with open(local_filename, "rb") as local_file:
+                client.write_file(dest_filename, local_file)
+
+        else:
             logger.warning("Found file {0} with currently unsupported type {1}" \
                            .format(local_filename, meta["type"]))
-            return
-
-        if "format" not in meta:
-            logger.warning("Found table {0} with unspecified format".format(local_filename))
-            return
-
-        attributes = meta.get("attributes", {})
-        sorted_by = attributes.pop("sorted_by", [])
-
-        client.create("table", dest_filename, attributes=attributes)
-
-        with open(local_filename, "rb") as table_file:
-            client.write_table(dest_filename, table_file, format=meta["format"], raw=True)
-
-        if sorted_by:
-            client.run_sort(dest_filename, sort_by=sorted_by)
 
 def _synchronize_cypress_with_local_dir(local_cypress_dir, meta_files_suffix, client):
     cypress_path_prefix = "//"
