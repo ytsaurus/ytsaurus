@@ -469,6 +469,11 @@ private:
                 EObjectType::GroupMap);
 
             ScheduleCreateNode(
+                "//sys/network_projects",
+                transactionId,
+                EObjectType::NetworkProjectMap);
+
+            ScheduleCreateNode(
                 "//sys/tablet_cell_bundles",
                 transactionId,
                 EObjectType::TabletCellBundleMap);

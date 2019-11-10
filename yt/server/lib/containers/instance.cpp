@@ -128,6 +128,21 @@ public:
         SetProperty("core_command", handler);
     }
 
+    virtual void SetNet(const TString& net) override
+    {
+        SetProperty("net", net);
+    }
+
+    virtual void SetIp(const TString& ip) override
+    {
+        SetProperty("ip", ip);
+    }
+
+    virtual void SetHostName(const TString& hostName) override
+    {
+        SetProperty("hostname", hostName);
+    }
+
     virtual void Kill(int signal) override
     {
         auto error = WaitFor(Executor_->Kill(Name_, signal));

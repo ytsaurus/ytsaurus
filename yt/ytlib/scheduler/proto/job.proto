@@ -139,6 +139,8 @@ message TUserJobSpec
     optional bool enable_gpu_layers = 45 [default = true];
 
     optional string cuda_toolkit_version = 46;
+
+    optional uint32 network_project_id = 47;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

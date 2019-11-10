@@ -7679,6 +7679,22 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         jobSpec->set_cuda_toolkit_version(*config->CudaToolkitVersion);
     }
 
+    if (config->NetworkProject) {
+        const auto& client = Host->GetClient();
+        const TString networkProjectPath = "//sys/network_projects/" + *config->NetworkProject;
+        auto checkPermissionRspOrError = client->CheckPermission(AuthenticatedUser,
+            networkProjectPath,
+            EPermission::Use).Get();
+        if (checkPermissionRspOrError.ValueOrThrow().Action == ESecurityAction::Deny) {
+            THROW_ERROR_EXCEPTION("User %Qv is not allowed to use network project %Qv",
+                AuthenticatedUser,
+                *config->NetworkProject);
+        }
+
+        auto getRspOrError = client->GetNode(networkProjectPath + "/@project_id").Get();
+        jobSpec->set_network_project_id(ConvertTo<ui32>(getRspOrError.ValueOrThrow()));
+    }
+
     auto fillEnvironment = [&] (THashMap<TString, TString>& env) {
         for (const auto& [key, value] : env) {
             jobSpec->add_environment(Format("%v=%v", key, value));

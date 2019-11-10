@@ -49,6 +49,8 @@
 
 #include <yt/core/logging/log_manager.h>
 
+#include <yt/core/net/address.h>
+
 #include <yt/core/misc/proc.h>
 #include <yt/core/misc/statistics.h>
 
@@ -78,6 +80,7 @@ using namespace NScheduler::NProto;
 using namespace NConcurrency;
 using namespace NApi;
 using namespace NCoreDump;
+using namespace NNet;
 
 using NNodeTrackerClient::TNodeDirectory;
 using NChunkClient::TDataSliceDescriptor;
@@ -162,6 +165,10 @@ public:
                         BIND(&TJob::OnJobPreparationTimeout, MakeWeak(this), prepareTimeLimit)
                             .Via(Invoker_),
                         prepareTimeLimit);
+                }
+
+                if (userJobSpec.has_network_project_id()) {
+                    NetworkProjectId_ = userJobSpec.network_project_id();
                 }
             }
 
@@ -731,6 +738,8 @@ private:
     std::vector<TGpuManager::TGpuSlotPtr> GpuSlots_;
     std::vector<TGpuStatistics> GpuStatistics_;
 
+    std::optional<ui32> NetworkProjectId_;
+
     ISlotPtr Slot_;
     std::vector<TString> TmpfsPaths_;
 
@@ -1293,6 +1302,23 @@ private:
 
         for (const auto& slot : GpuSlots_) {
             proxyConfig->GpuDevices.push_back(slot->GetDeviceName());
+        }
+
+        if (NetworkProjectId_.has_value()) {
+            if (!Config_->TestNetwork) {
+                const auto &nodeAddresses = Bootstrap_->GetResolvedNodeAddresses();
+                proxyConfig->NetworkAddresses.reserve(nodeAddresses.size());
+                for (const auto &address : nodeAddresses) {
+                    proxyConfig->NetworkAddresses.emplace_back(TMTNAddress{address}
+                        .SetProjectId(*NetworkProjectId_)
+                        .SetHost(Slot_->GetSlotIndex())
+                        .ToIP6Address());
+                }
+            }
+
+            proxyConfig->HostName = Format("slot_%v.%v",
+                Slot_->GetSlotIndex(),
+                Bootstrap_->GetConfig()->Addresses[0].second);
         }
 
         return proxyConfig;

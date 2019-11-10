@@ -580,6 +580,8 @@ TUserJobSpec::TUserJobSpec()
     RegisterParameter("job_speculation_timeout", JobSpeculationTimeout)
         .Default()
         .GreaterThan(TDuration::Zero());
+    RegisterParameter("network_project", NetworkProject)
+        .Default();
 
     RegisterPostprocessor([&] () {
         if ((TmpfsSize || TmpfsPath) && !TmpfsVolumes.empty()) {

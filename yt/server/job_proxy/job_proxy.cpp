@@ -442,7 +442,12 @@ TJobResult TJobProxy::DoRun()
             return rootFS;
         };
 
-        JobProxyEnvironment_ = CreateJobProxyEnvironment(Config_->JobEnvironment, createRootFS(), Config_->GpuDevices);
+        JobProxyEnvironment_ = CreateJobProxyEnvironment(
+            Config_->JobEnvironment,
+            createRootFS(),
+            Config_->GpuDevices,
+            Config_->NetworkAddresses,
+            Config_->HostName);
         LocalDescriptor_ = NNodeTrackerClient::TNodeDescriptor(Config_->Addresses, Config_->Rack, Config_->DataCenter);
 
         TrafficMeter_ = New<TTrafficMeter>(LocalDescriptor_.GetDataCenter());

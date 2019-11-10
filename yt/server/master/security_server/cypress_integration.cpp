@@ -2,6 +2,7 @@
 #include "account.h"
 #include "group.h"
 #include "user.h"
+#include "network_project.h"
 
 #include <yt/server/master/cell_master/bootstrap.h>
 
@@ -236,6 +237,58 @@ INodeTypeHandlerPtr CreateGroupMapTypeHandler(TBootstrap* bootstrap)
         EObjectType::GroupMap,
         BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualGroupMap>(bootstrap, owningNode);
+        }),
+        EVirtualNodeOptions::RedirectSelf);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVirtualNetworkProjectMap
+    : public TVirtualMapBase
+{
+public:
+    TVirtualNetworkProjectMap(TBootstrap* bootstrap, INodePtr owningNode)
+        : TVirtualMapBase(owningNode)
+        , Bootstrap_(bootstrap)
+    { }
+
+private:
+    TBootstrap* const Bootstrap_;
+
+    virtual std::vector<TString> GetKeys(i64 sizeLimit) const override
+    {
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        return ToNames(GetValues(securityManager->NetworkProjects(), sizeLimit));
+    }
+
+    virtual i64 GetSize() const override
+    {
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        return securityManager->NetworkProjects().GetSize();
+    }
+
+    virtual IYPathServicePtr FindItemService(TStringBuf key) const override
+    {
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto* networkProject = securityManager->FindNetworkProjectByName(static_cast<TString>(key));
+        if (!IsObjectAlive(networkProject)) {
+            return nullptr;
+        }
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        return objectManager->GetProxy(networkProject);
+    }
+};
+
+INodeTypeHandlerPtr CreateNetworkProjectMapTypeHandler(TBootstrap* bootstrap)
+{
+    YT_VERIFY(bootstrap);
+
+    return CreateVirtualTypeHandler(
+        bootstrap,
+        EObjectType::NetworkProjectMap,
+        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+            return New<TVirtualNetworkProjectMap>(bootstrap, owningNode);
         }),
         EVirtualNodeOptions::RedirectSelf);
 }
