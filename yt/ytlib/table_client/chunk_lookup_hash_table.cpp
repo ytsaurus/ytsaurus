@@ -113,7 +113,7 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
     if (chunkMeta->GetChunkFormat() != ETableChunkFormat::VersionedSimple &&
         chunkMeta->GetChunkFormat() != ETableChunkFormat::SchemalessHorizontal)
     {
-        YT_LOG_INFO("Cannot create lookup hash table for %Qlv chunk format (ChunkId: %v)",
+        YT_LOG_INFO("Cannot create lookup hash table for improper chunk format (ChunkId: %v, ChunkFormat: %v)",
             chunkMeta->GetChunkId(),
             chunkMeta->GetChunkFormat());
         return nullptr;
