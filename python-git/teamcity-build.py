@@ -140,6 +140,8 @@ def prepare(options):
     mkdirp(options.sandbox_directory)
 
     options.build_enable_ya_yt_store = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_YA_YT_STORE", "NO"))
+    if options.run_ya_tests is None:
+        options.run_ya_tests = parse_yes_no_bool(os.environ.get("RUN_YA_TESTS", "NO"))
 
     options.yt_source_directory = os.path.join(options.working_directory, "yt")
     options.yt_build_directory = os.path.join(options.working_directory, "build")
@@ -418,7 +420,7 @@ def main():
         type=parse_bool, action="store", default=False)
     parser.add_argument(
         "--run-ya-tests",
-        type=parse_bool, action="store", default=False)
+        type=parse_bool, action="store", default=None)
 
     parser.add_argument(
         "--cc",
