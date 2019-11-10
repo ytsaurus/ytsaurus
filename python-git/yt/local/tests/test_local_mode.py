@@ -368,7 +368,7 @@ class TestLocalMode(object):
             assert schema[0]["name"] == "x"
             assert schema[0]["required"] == False
 
-            assert client.read_file("//file").read() == "Test file.\n"
+            assert client.read_file("//file").read() == b"Test file.\n"
             assert client.get_attribute("//file", "myattr") == 4
 
     def test_preserve_state(self):
