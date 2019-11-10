@@ -1,9 +1,10 @@
 from __future__ import print_function
 
 from .configs_provider import init_logging, get_default_provision, create_configs_provider
-from .default_configs import get_watcher_config, get_dynamic_master_config
-from .helpers import read_config, write_config, is_dead_or_zombie, OpenPortIterator, wait_for_removing_file_lock, add_binary_path
+from .default_configs import get_dynamic_master_config
+from .helpers import read_config, write_config, is_dead_or_zombie, OpenPortIterator, wait_for_removing_file_lock, add_binary_path, get_value_from_config
 from .porto_helpers import PortoSubprocess, porto_avaliable
+from .watcher import ProcessWatcher
 
 from yt.common import YtError, remove_file, makedirp, set_pdeathsig, which
 from yt.wrapper.common import generate_uuid, flatten
@@ -96,15 +97,6 @@ def _is_ya_package(proxy_binary_path):
         os.path.dirname(os.path.dirname(proxy_binary_path)),
         "built_by_ya.txt")
     return os.path.exists(ytnode_node)
-
-def _config_safe_get(config, service_name, key):
-    d = config
-    parts = key.split("/")
-    for k in parts:
-        d = d.get(k)
-        if d is None:
-            raise YtError('Failed to get required key "{0}" from {1} config'.format(key, service_name))
-    return d
 
 def _configure_logger():
     logger.propagate = False
@@ -274,8 +266,6 @@ class YTInstance(object):
         self._wait_functions = []
         self.driver_backend = driver_backend
 
-        if watcher_config is None:
-            watcher_config = get_watcher_config()
         self._run_watcher = run_watcher
         self.watcher_config = watcher_config
 
@@ -585,13 +575,13 @@ class YTInstance(object):
     def get_http_proxy_addresses(self):
         if not self.has_http_proxy:
             raise YtError("Http proxies are not started")
-        return ["{0}:{1}".format(self._hostname, _config_safe_get(config, "http_proxy", "port")) for config in self.configs["http_proxy"]]
+        return ["{0}:{1}".format(self._hostname, get_value_from_config(config, "port", "http_proxy")) for config in self.configs["http_proxy"]]
 
     # XXX(kiselyovp) Only returns one GRPC proxy address even if multiple RPC proxy servers are launched.
     def get_grpc_proxy_address(self):
         if not self.has_rpc_proxy:
             raise YtError("Rpc proxies are not started")
-        addresses = _config_safe_get(self.configs["rpc_proxy"][0], "rpc_proxy", "grpc_server/addresses")
+        addresses = get_value_from_config(self.configs["rpc_proxy"][0], "grpc_server/addresses", "rpc_proxy")
         return addresses[0]["address"]
 
     def kill_cgroups(self):
@@ -810,6 +800,8 @@ class YTInstance(object):
             self._append_pid(p.pid)
 
             logger.debug("Process %s started (pid: %d)", name, p.pid)
+
+            return p
 
     def _run_yt_component(self, component, name=None, config_option=None):
         if name is None:
@@ -1382,79 +1374,34 @@ class YTInstance(object):
 
         raise error
 
-    def _get_watcher_path(self):
-        watcher_path = which("yt_env_watcher")
-        if watcher_path:
-            return watcher_path[0]
-
-        watcher_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "bin", "yt_env_watcher"))
-        if os.path.exists(watcher_path):
-            return watcher_path
-
-        raise YtError("Failed to find yt_env_watcher binary")
-
     def _start_watcher(self):
-        postrotate_commands = []
-        def send_sighup(pid):
-            return "\t/usr/bin/test -d /proc/{0} && kill -HUP {0} >/dev/null 2>&1 || true".format(pid)
+        log_paths = []
+        if self._enable_debug_logging:
+            def extract_debug_log_paths(service, config, result):
+                log_config_path = "logging/writers/debug/file_name"
+                result.append(get_value_from_config(config, log_config_path, service))
+                if service == "node":
+                    job_proxy_log_config_path = "exec_agent/job_proxy_logging/writers/debug/file_name"
+                    result.append(get_value_from_config(config, job_proxy_log_config_path, service))
 
-        for pid in self._pid_to_process.keys():
-            postrotate_commands.append(send_sighup(pid))
+            extract_debug_log_paths("driver", {"logging": self.driver_logging_config}, log_paths)
+            for service, configs in list(iteritems(self.configs)):
+                for config in flatten(configs):
+                    if service.startswith("driver") or service.startswith("rpc_driver") or service.startswith("clock_driver"):
+                        continue
 
-        logrotate_options = [
-            "rotate {0}".format(self.watcher_config["logs_rotate_max_part_count"]),
-            "size {0}".format(self.watcher_config["logs_rotate_size"]),
-            "missingok",
-            "copytruncate",
-            "nodelaycompress",
-            "nomail",
-            "noolddir",
-            "compress",
-            "create",
-            "postrotate",
-            "\n".join(postrotate_commands),
-            "endscript"
-        ]
-
-        config_path = os.path.join(self.configs_path, "logs_rotator")
-        with open(config_path, "w") as config_file:
-            if self._enable_debug_logging:
-                def emit_rotate_config(service, config):
-                    for log_type in ["debug", "info"]:
-                        log_config_path = "logging/writers/" + log_type + "/file_name"
-                        log_path = _config_safe_get(config, service, log_config_path)
-                        config_file.write("{0}\n{{\n{1}\n}}\n\n".format(log_path, "\n".join(logrotate_options)))
-
-                        if service == "node":
-                            job_proxy_log_config_path = "exec_agent/job_proxy_logging/writers/" + log_type + "/file_name"
-                            job_proxy_log_path = _config_safe_get(config, service, job_proxy_log_config_path)
-                            config_file.write("{0}\n{{\n{1}\n}}\n\n".format(job_proxy_log_path, "\n".join(logrotate_options)))
-
-                emit_rotate_config("driver", {"logging": self.driver_logging_config})
-                for service, configs in list(iteritems(self.configs)):
-                    for config in flatten(configs):
-                        if service.startswith("driver") or service.startswith("rpc_driver") or service.startswith("clock_driver"):
-                            continue
-
-                        emit_rotate_config(service, config)
-
-        logs_rotator_data_path = os.path.join(self.runtime_data_path, "logs_rotator")
-        makedirp(logs_rotator_data_path)
-        logrotate_state_file = os.path.join(logs_rotator_data_path, "state")
-
-        watcher_path = self._get_watcher_path()
+                    extract_debug_log_paths(service, config, log_paths)
 
         self._service_processes["watcher"].append(None)
 
-        self._run([watcher_path,
-                   "--lock-file-path", os.path.join(self.path, "lock_file"),
-                   "--logrotate-config-path", config_path,
-                   "--logrotate-state-file", logrotate_state_file,
-                   "--logrotate-interval", str(self.watcher_config["logs_rotate_interval"]),
-                   "--log-path", os.path.join(self.logs_path, "watcher.log")],
-                   "watcher")
+        self._watcher = ProcessWatcher(
+            self._pid_to_process.keys(),
+            log_paths,
+            lock_path=os.path.join(self.path, "lock_file"),
+            config_dir=self.configs_path,
+            logs_dir=self.logs_path,
+            runtime_dir=self.runtime_data_path,
+            process_runner=lambda args: self._run(args, "watcher"),
+            config=self.watcher_config)
 
-        def watcher_lock_created():
-            return os.path.exists(os.path.join(self.path, "lock_file"))
-
-        self._wait_for(watcher_lock_created, "watcher")
+        self._watcher.start()
