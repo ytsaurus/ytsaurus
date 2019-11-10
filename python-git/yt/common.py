@@ -514,6 +514,12 @@ def makedirp(path):
         if err.errno != errno.EEXIST:
             raise
 
+def touch(path):
+    if not os.path.exists(path):
+        makedirp(os.path.dirname(path))
+        with open(path, "w"):
+            pass
+
 def date_string_to_datetime(date):
     return datetime.strptime(date, YT_DATETIME_FORMAT_STRING)
 
