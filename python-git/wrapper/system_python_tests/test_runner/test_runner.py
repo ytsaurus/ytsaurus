@@ -69,11 +69,11 @@ def run_pytest(python_version):
         "YT_ENABLE_VERBOSE_LOGGING": "1",
     }
 
+    test_paths_file = os.path.join(yatest.common.source_path(), PYTHON_ROOT, "system_python_tests/test_paths.txt")
+    test_paths = open(test_paths_file).read().split()
     test_files = [
-        os.path.join(yatest.common.source_path(), PYTHON_ROOT, "yt/wrapper/tests/test_operations_pickling.py"),
-        # User statistics uses cgroups that available only in FAT tests.
-        os.path.join(yatest.common.source_path(), PYTHON_ROOT, "yt/wrapper/tests/test_user_statistics.py"),
-        os.path.join(yatest.common.source_path(), PYTHON_ROOT, "yt/wrapper/tests/test_tmpfs.py"),
+        os.path.join(yatest.common.source_path(), PYTHON_ROOT, "yt/wrapper/tests", name)
+        for name in test_paths
     ]
 
     cgroup = None

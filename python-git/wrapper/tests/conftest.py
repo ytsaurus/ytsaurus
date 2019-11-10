@@ -2,7 +2,7 @@ from __future__ import print_function
 
 from .helpers import (get_tests_location, TEST_DIR, get_tests_sandbox, ENABLE_JOB_CONTROL,
                       sync_create_cell, get_test_file_path, get_port_locks_path,
-                      yatest_common, create_job_events, wait, sync_create_cell)
+                      yatest_common, create_job_events, wait)
 
 from yt.environment import YTInstance
 from yt.wrapper.config import set_option
@@ -253,7 +253,7 @@ class YtTestEnvironment(object):
 
 def init_environment_for_test_session(mode, **kwargs):
     config = {"api_version": "v3"}
-    if mode in ("native", "native_v4"):
+    if mode in ("native_v3", "native_v4"):
         config["backend"] = "native"
         if mode == "native_v4":
             config["api_version"] = "v4"
@@ -272,7 +272,7 @@ def init_environment_for_test_session(mode, **kwargs):
         config,
         **kwargs)
 
-    if mode == "native":
+    if mode.startswith("native"):
         import yt_driver_bindings
         yt_driver_bindings.configure_logging(environment.env.driver_logging_config)
     else:
@@ -280,13 +280,13 @@ def init_environment_for_test_session(mode, **kwargs):
 
     return environment
 
-@pytest.fixture(scope="session", params=["v3", "v4", "native", "native_v4"])
+@pytest.fixture(scope="session", params=["v3", "v4", "native_v3", "native_v4"])
 def test_environment(request):
     environment = init_environment_for_test_session(request.param)
     request.addfinalizer(lambda: environment.cleanup())
     return environment
 
-@pytest.fixture(scope="session", params=["v3", "v4", "native", "native_v4", "rpc"])
+@pytest.fixture(scope="session", params=["v3", "v4", "native_v3", "native_v4", "rpc"])
 def test_environment_with_rpc(request):
     environment = init_environment_for_test_session(request.param)
     request.addfinalizer(lambda: environment.cleanup())
