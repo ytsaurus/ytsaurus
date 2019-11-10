@@ -7,9 +7,6 @@ from .conftest import (
 
 from yp.common import YtResponseError, YpNoSuchObjectError
 
-from yt.wrapper.errors import YtTabletTransactionLockConflict
-from yt.wrapper.retries import run_with_retries
-
 from yt.yson import YsonEntity, YsonUint64
 import yt.common
 
@@ -83,30 +80,6 @@ class TestPods(object):
             },
             "spec": merged_spec
         })
-
-    def _create_pod_with_boilerplate_and_retries(self, yp_client, pod_set_id, spec):
-        merged_spec = yt.common.update(
-            {
-                "resource_requests": ZERO_RESOURCE_REQUESTS
-            },
-            spec)
-
-        class DummyPodId(object):
-            def __init__(self):
-                self.pod_id = None
-
-            def try_create(self, yp_client, pod_set_id, merged_spec):
-                self.pod_id = yp_client.create_object("pod", attributes={
-                    "meta": {
-                        "pod_set_id": pod_set_id
-                    },
-                    "spec": merged_spec
-                })
-
-        pod_id = DummyPodId()
-        # Exceptions may happen if some creation can force resources or node_id
-        run_with_retries(lambda: pod_id.try_create(yp_client, pod_set_id, merged_spec), exceptions=(YtTabletTransactionLockConflict,))
-        return pod_id.pod_id
 
     def _create_node(self, yp_client, cpu_capacity=0, memory_capacity=0, hdd_capacity=0, hdd_volume_slots = 10, ssd_capacity=0, ssd_volume_slots=10):
         node_id = "test.yandex.net"
@@ -228,7 +201,7 @@ class TestPods(object):
 
         pod_set_id = yp_client.create_object("pod_set")
         node_id = self._create_node(yp_client, cpu_capacity=100, memory_capacity=2000)
-        pod_id = self._create_pod_with_boilerplate_and_retries(yp_client, pod_set_id, {
+        pod_id = self._create_pod_with_boilerplate(yp_client, pod_set_id, {
                 "resource_requests": {
                     "vcpu_guarantee": 100,
                     "memory_limit": 2000
@@ -248,7 +221,7 @@ class TestPods(object):
 
         pod_set_id = yp_client.create_object("pod_set")
         node_id = self._create_node(yp_client, hdd_capacity=1000, ssd_capacity=2000)
-        pod_id = self._create_pod_with_boilerplate_and_retries(yp_client, pod_set_id, {
+        pod_id = self._create_pod_with_boilerplate(yp_client, pod_set_id, {
                 "disk_volume_requests": [
                   {
                     "id": "hdd",
@@ -272,7 +245,7 @@ class TestPods(object):
 
         pod_set_id = yp_client.create_object("pod_set")
         node_id = self._create_node(yp_client, hdd_capacity=1000, ssd_capacity=2000)
-        pod_id = self._create_pod_with_boilerplate_and_retries(yp_client, pod_set_id, {
+        pod_id = self._create_pod_with_boilerplate(yp_client, pod_set_id, {
                 "disk_volume_requests": [
                   {
                     "id": "hdd",
@@ -308,7 +281,7 @@ class TestPods(object):
         hdd_resource_id = yp_client.select_objects("resource", filter='[/meta/kind] = "disk" and [/spec/disk/storage_class] = "hdd"', selectors=["/meta/id"])[0][0]
         ssd_resource_id = yp_client.select_objects("resource", filter='[/meta/kind] = "disk" and [/spec/disk/storage_class] = "ssd"', selectors=["/meta/id"])[0][0]
 
-        pod_id = self._create_pod_with_boilerplate_and_retries(yp_client, pod_set_id, {
+        pod_id = self._create_pod_with_boilerplate(yp_client, pod_set_id, {
                 "disk_volume_requests": [
                   {
                     "id": "hdd",
@@ -325,20 +298,18 @@ class TestPods(object):
           sorted([hdd_resource_id]) == \
           sorted([x["resource_id"] for x in yp_client.get_object("pod", pod_id, selectors=["/status/scheduled_resource_allocations"])[0]])
 
-        def try_update(yp_client, pod_id):
-            yp_client.update_object("pod", pod_id, set_updates=[
-                {
-                    "path": "/spec/disk_volume_requests/end",
-                    "value": {
-                        "id": "ssd",
-                        "storage_class": "ssd",
-                        "quota_policy": {
-                          "capacity": 600
-                        }
-                  }
-                }])
+        yp_client.update_object("pod", pod_id, set_updates=[
+            {
+                "path": "/spec/disk_volume_requests/end",
+                "value": {
+                    "id": "ssd",
+                    "storage_class": "ssd",
+                    "quota_policy": {
+                      "capacity": 600
+                    }
+              }
+            }])
 
-        run_with_retries(lambda: try_update(yp_client, pod_id))
 
         assert \
           sorted([hdd_resource_id, ssd_resource_id]) == \
@@ -350,7 +321,7 @@ class TestPods(object):
         pod_set_id = yp_client.create_object("pod_set")
         node_id = self._create_node(yp_client, hdd_capacity=1000)
 
-        self._create_pod_with_boilerplate_and_retries(yp_client, pod_set_id, {
+        self._create_pod_with_boilerplate(yp_client, pod_set_id, {
                 "disk_volume_requests": [
                   {
                     "id": "hdd",
@@ -429,7 +400,7 @@ class TestPods(object):
         with pytest.raises(YtResponseError):
             try_create_pod()
         yp_client.update_object("resource", hdd_resource_id, set_updates=[{"path": "/spec/disk/supported_policies", "value": ["quota"]}])
-        run_with_retries(try_create_pod, exceptions=(YtTabletTransactionLockConflict,))
+        try_create_pod()
 
     def test_disk_volume_request_ids(self, yp_env):
         yp_client = yp_env.yp_client
@@ -472,7 +443,7 @@ class TestPods(object):
         node_id = self._create_node(yp_client, hdd_capacity=1000)
         hdd_resource_id = yp_client.select_objects("resource", filter='[/meta/kind] = "disk" and [/spec/disk/storage_class] = "hdd"', selectors=["/meta/id"])[0][0]
 
-        pod_id = self._create_pod_with_boilerplate_and_retries(yp_client, pod_set_id, {
+        pod_id = self._create_pod_with_boilerplate(yp_client, pod_set_id, {
                 "disk_volume_requests": [
                   {
                     "id": "hdd1",
@@ -485,18 +456,15 @@ class TestPods(object):
 
         allocations1 = yp_client.get_object("resource", hdd_resource_id, selectors=["/status/scheduled_allocations"])[0]
 
-        def try_update(yp_client, pod_id):
-            yp_client.update_object("pod", pod_id, set_updates=[
-                {
-                    "path": "/spec/disk_volume_requests/end",
-                    "value": {
-                        "id": "hdd2",
-                        "storage_class": "hdd",
-                        "quota_policy": {"capacity": 100}
-                    }
-                }])
-
-        run_with_retries(lambda: try_update(yp_client, pod_id), exceptions=(YtTabletTransactionLockConflict,))
+        yp_client.update_object("pod", pod_id, set_updates=[
+            {
+                "path": "/spec/disk_volume_requests/end",
+                "value": {
+                    "id": "hdd2",
+                    "storage_class": "hdd",
+                    "quota_policy": {"capacity": 100}
+                }
+            }])
 
         allocations2 = yp_client.get_object("resource", hdd_resource_id, selectors=["/status/scheduled_allocations"])[0]
 
@@ -507,26 +475,24 @@ class TestPods(object):
                     "value": YsonUint64(555)
                 }])
 
-        def try_update_2(yp_client, pod_id, node_id):
-            yp_client.update_object("pod", pod_id, set_updates=[
-                {
-                    "path": "/spec/node_id",
-                    "value": ""
-                }])
+        yp_client.update_object("pod", pod_id, set_updates=[
+            {
+                "path": "/spec/node_id",
+                "value": ""
+            }])
 
-            yp_client.update_object("pod", pod_id, set_updates=[
-                {
-                    "path": "/spec/disk_volume_requests/0/quota_policy/capacity",
-                    "value": YsonUint64(555)
-                }])
+        yp_client.update_object("pod", pod_id, set_updates=[
+            {
+                "path": "/spec/disk_volume_requests/0/quota_policy/capacity",
+                "value": YsonUint64(555)
+            }])
 
-            yp_client.update_object("pod", pod_id, set_updates=[
-                {
-                    "path": "/spec/node_id",
-                    "value": node_id
-                }])
+        yp_client.update_object("pod", pod_id, set_updates=[
+            {
+                "path": "/spec/node_id",
+                "value": node_id
+            }])
 
-        run_with_retries(lambda: try_update_2(yp_client, pod_id, node_id), exceptions=(YtTabletTransactionLockConflict,))
 
         allocations3 = yp_client.get_object("resource", hdd_resource_id, selectors=["/status/scheduled_allocations"])[0]
 
@@ -583,7 +549,7 @@ class TestPods(object):
         node_id = self._create_node(yp_client, hdd_capacity=1000)
         hdd_resource_id = yp_client.select_objects("resource", filter='[/meta/kind] = "disk" and [/spec/disk/storage_class] = "hdd"', selectors=["/meta/id"])[0][0]
 
-        pod_id = self._create_pod_with_boilerplate_and_retries(yp_client, pod_set_id, {
+        pod_id = self._create_pod_with_boilerplate(yp_client, pod_set_id, {
                 "disk_volume_requests": [
                   {
                     "id": "some_id",
@@ -625,7 +591,7 @@ class TestPods(object):
                 })
 
         for i in xrange(5):
-            run_with_retries(create_pod, exceptions=(YtTabletTransactionLockConflict,))
+            create_pod()
 
         with pytest.raises(YtResponseError):
             create_pod()
@@ -787,7 +753,7 @@ class TestPods(object):
 
         node_id = self._create_node(yp_client)
         pod_set_id = yp_client.create_object(object_type="pod_set")
-        pod_id = self._create_pod_with_boilerplate_and_retries(yp_client, pod_set_id, {
+        pod_id = self._create_pod_with_boilerplate(yp_client, pod_set_id, {
                 "node_id": node_id
             })
 
@@ -804,7 +770,7 @@ class TestPods(object):
 
         node_id = self._create_node(yp_client)
         pod_set_id = yp_client.create_object(object_type="pod_set")
-        pod_id = self._create_pod_with_boilerplate_and_retries(yp_client, pod_set_id, {
+        pod_id = self._create_pod_with_boilerplate(yp_client, pod_set_id, {
                 "node_id": node_id
             })
 
