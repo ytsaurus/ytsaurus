@@ -110,6 +110,7 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS(Account, TAccount);
     DECLARE_ENTITY_MAP_ACCESSORS(User, TUser);
     DECLARE_ENTITY_MAP_ACCESSORS(Group, TGroup);
+    DECLARE_ENTITY_MAP_ACCESSORS(NetworkProject, TNetworkProject);
 
     //! Returns account with a id (throws if none).
     TAccount* GetAccountOrThrow(TAccountId id);
@@ -228,6 +229,13 @@ public:
 
     //! Updates the name of the subject.
     void RenameSubject(TSubject* subject, const TString& newName);
+
+
+    //! Returns network project with a given name (|nullptr| if none).
+    TNetworkProject* FindNetworkProjectByName(const TString& name);
+
+    //! Updates the name of the network project.
+    void RenameNetworkProject(TNetworkProject* networkProject, const TString& newName);
 
 
     //! Returns the object ACD or |nullptr| if access is not controlled.
@@ -361,6 +369,7 @@ private:
     class TAccountTypeHandler;
     class TUserTypeHandler;
     class TGroupTypeHandler;
+    class TNetworkProjectTypeHandler;
 
     const TIntrusivePtr<TImpl> Impl_;
 

@@ -693,3 +693,77 @@ class TestArtifactCacheBypass(YTEnvSetup):
             })
 
         assert read_table("//tmp/t_output") == [{"hello": "world"}]
+
+##################################################################
+
+@pytest.mark.skip_if('not porto_avaliable()')
+class TestNetworkIsolation(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "test_network": True,
+            "slot_manager": {
+                "job_environment" : {
+                    "type" : "porto",
+                },
+            }
+        }
+    }
+
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
+    USE_PORTO_FOR_SERVERS = True
+
+    @authors("gritukan")
+    def test_network_project_in_spec(self):
+        create_user("u1")
+        create_user("u2")
+        create_network_project("n")
+        set("//sys/network_projects/n/@project_id", 0xdeadbeef)
+        set("//sys/network_projects/n/@acl", [make_ace("allow", "u1", "use")])
+
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        # Non-existent network project. Job should fail.
+        with pytest.raises(YtError):
+            map(command="cat",
+                in_="//tmp/t_input",
+                out="//tmp/t_output",
+                spec={
+                    "mapper": {
+                        "network_project": "x"
+                    }
+                })
+
+        # User `u2` is not allowed to use `n`. Job should fail.
+        with pytest.raises(YtError):
+            map(command="cat",
+                in_="//tmp/t_input",
+                out="//tmp/t_output",
+                spec={
+                    "mapper": {
+                        "network_project": "n"
+                    }
+                },
+                authenticated_user="u2")
+
+        op = map(dont_track=True,
+                 command=with_breakpoint("echo $YT_NETWORK_PROJECT_ID >&2; hostname >&2; BREAKPOINT; cat"),
+                 in_="//tmp/t_input",
+                 out="//tmp/t_output",
+                 spec={
+                     "mapper": {
+                         "network_project": "n"
+                     }
+                 },
+                 authenticated_user="u1")
+
+        job_id = wait_breakpoint()[0]
+        network_project_id, hostname, _ = get_job_stderr(op.id, job_id).split('\n')
+        assert network_project_id == str(0xdeadbeef)
+        assert hostname.startswith("slot_")
+        release_breakpoint()
+        op.track()

@@ -103,6 +103,7 @@ DEFINE_ENUM(EMasterReign,
     ((BranchedAndLockedNodeCountMismatchFix)                         (921))  // shakurov
     ((CellServer)                                                   (1000))  // savrus
     ((EnableDelayedMembershipClosureRecomputationByDefault)         (1001))  // babenko
+    ((NetworkProject)                                               (1002))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

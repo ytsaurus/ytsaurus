@@ -1209,6 +1209,16 @@ def remove_member(member, group, **kwargs):
     kwargs["group"] = group
     execute_command("remove_member", kwargs)
 
+def create_network_project(name, **kwargs):
+    kwargs["type"] = "network_project"
+    if "attributes" not in kwargs:
+        kwargs["attributes"] = dict()
+    kwargs["attributes"]["name"] = name
+    execute_command("create", kwargs)
+
+def remove_network_project(name, **kwargs):
+    remove("//sys/network_projects/" + name, **kwargs)
+
 def create_tablet_cell(**kwargs):
     kwargs["type"] = "tablet_cell"
     if "attributes" not in kwargs:

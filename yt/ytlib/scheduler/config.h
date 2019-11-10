@@ -707,6 +707,9 @@ public:
     //! from TOperationBaseSpec.
     std::optional<TDuration> JobSpeculationTimeout;
 
+    //! Name of the network project to use in job.
+    std::optional<TString> NetworkProject;
+
     TUserJobSpec();
 
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig);

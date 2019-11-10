@@ -163,6 +163,7 @@ using namespace NHiveClient;
 using namespace NHiveServer;
 using namespace NObjectClient;
 using namespace NTableClient;
+using namespace NNet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -430,6 +431,16 @@ void TBootstrap::DoInitialize()
     RpcServer_->RegisterService(CreateInMemoryService(Config_->TabletNode->InMemoryManager, this));
 
     auto localAddress = GetDefaultAddress(localRpcAddresses);
+
+    {
+        auto* resolver = TAddressResolver::Get();
+        ResolvedNodeAddresses_.reserve(Config_->Addresses.size());
+        for (const auto& [addressName, address] : Config_->Addresses) {
+            auto resolvedAddress = resolver->Resolve(address).Get().ValueOrThrow();
+            YT_VERIFY(resolvedAddress.IsIP6());
+            ResolvedNodeAddresses_.emplace_back(resolvedAddress.ToIP6Address());
+        }
+    }
 
     JobProxyConfigTemplate_ = New<NJobProxy::TJobProxyConfig>();
 
@@ -1063,6 +1074,11 @@ TNetworkPreferenceList TBootstrap::GetLocalNetworks()
 std::optional<TString> TBootstrap::GetDefaultNetworkName()
 {
     return Config_->BusServer->DefaultNetwork;
+}
+
+const std::vector<TIP6Address>& TBootstrap::GetResolvedNodeAddresses() const
+{
+    return ResolvedNodeAddresses_;
 }
 
 TJobProxyConfigPtr TBootstrap::BuildJobProxyConfig() const

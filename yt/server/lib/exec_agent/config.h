@@ -319,6 +319,10 @@ public:
 
     TDuration JobAbortionTimeout;
 
+    //! Do not create L3 virtual interface in porto container.
+    //! This option is used for testing purposes only.
+    bool TestNetwork;
+
     TExecAgentConfig()
     {
         RegisterParameter("slot_manager", SlotManager)
@@ -365,6 +369,9 @@ public:
             .Default(100_MB);
         RegisterParameter("job_abortion_timeout", JobAbortionTimeout)
             .Default(TDuration::Minutes(15));
+
+        RegisterParameter("test_network", TestNetwork)
+            .Default(false);
     }
 };
 

@@ -1127,6 +1127,101 @@ void TAddressResolver::Configure(TAddressResolverConfigPtr config)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TMTNAddress::TMTNAddress(TIP6Address address)
+    : Address_(address)
+{ }
+
+ui64 TMTNAddress::GetPrefix() const
+{
+    return GetBytesRangeValue(PrefixOffsetInBytes, TotalLenInBytes);
+}
+
+TMTNAddress& TMTNAddress::SetPrefix(ui64 prefix)
+{
+    SetBytesRangeValue(PrefixOffsetInBytes, TotalLenInBytes, prefix);
+    return *this;
+}
+
+ui64 TMTNAddress::GetGeo() const
+{
+    return GetBytesRangeValue(GeoOffsetInBytes, PrefixOffsetInBytes);
+}
+
+TMTNAddress& TMTNAddress::SetGeo(ui64 geo)
+{
+    SetBytesRangeValue(GeoOffsetInBytes, PrefixOffsetInBytes, geo);
+    return *this;
+}
+
+ui64 TMTNAddress::GetProjectId() const
+{
+    return GetBytesRangeValue(ProjectIdOffsetInBytes, GeoOffsetInBytes);
+}
+
+TMTNAddress& TMTNAddress::SetProjectId(ui64 projectId)
+{
+    SetBytesRangeValue(ProjectIdOffsetInBytes, GeoOffsetInBytes, projectId);
+    return *this;
+}
+
+ui64 TMTNAddress::GetHost() const
+{
+    return GetBytesRangeValue(HostOffsetInBytes, ProjectIdOffsetInBytes);
+}
+
+TMTNAddress& TMTNAddress::SetHost(ui64 host)
+{
+    SetBytesRangeValue(HostOffsetInBytes, ProjectIdOffsetInBytes, host);
+    return *this;
+}
+
+const TIP6Address& TMTNAddress::ToIP6Address() const
+{
+    return Address_;
+}
+
+ui64 TMTNAddress::GetBytesRangeValue(int leftIndex, int rightIndex) const
+{
+    if (leftIndex > rightIndex) {
+        THROW_ERROR_EXCEPTION("Left index is greater than right index (LeftIndex: %v, RightIndex: %v)",
+            leftIndex,
+            rightIndex);
+    }
+
+    const auto* addressBytes = Address_.GetRawBytes();
+
+    ui64 result = 0;
+    for (int index = rightIndex - 1; index >= leftIndex; --index) {
+        result = (result << 8) | addressBytes[index];
+    }
+    return result;
+}
+
+void TMTNAddress::SetBytesRangeValue(int leftIndex, int rightIndex, ui64 value)
+{
+    if (leftIndex > rightIndex) {
+        THROW_ERROR_EXCEPTION("Left index is greater than right index (LeftIndex: %v, RightIndex: %v)",
+            leftIndex,
+            rightIndex);
+    }
+
+    auto bytesInRange = rightIndex - leftIndex;
+    if (value >= (1ull << (8 * bytesInRange))) {
+        THROW_ERROR_EXCEPTION("Value is too large to be set in [leftIndex; rightIndex) interval (LeftIndex: %v, RightIndex: %v, Value %v)",
+            leftIndex,
+            rightIndex,
+            value);
+    }
+
+    auto* addressBytes = Address_.GetRawBytes();
+    for (int index = leftIndex; index < rightIndex; ++index) {
+        addressBytes[index] = value & 255;
+        value >>= 8;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 REGISTER_SHUTDOWN_CALLBACK(2, TAddressResolver::StaticShutdown);
 
 ////////////////////////////////////////////////////////////////////////////////
