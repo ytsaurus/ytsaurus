@@ -368,6 +368,9 @@ class TestLocalMode(object):
             assert schema[0]["name"] == "x"
             assert schema[0]["required"] == False
 
+            assert client.read_file("//file").read() == "Test file.\n"
+            assert client.get_attribute("//file", "myattr") == 4
+
     def test_preserve_state(self):
         with local_yt(id=_get_id("test_preserve_state")) as environment:
             client = environment.create_client()
