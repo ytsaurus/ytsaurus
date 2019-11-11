@@ -3023,6 +3023,20 @@ class TestCustomControllerQueues(YTEnvSetup):
             out="//tmp/out",
             spec={"data_size_per_job": 1, "locality_timeout": 0})
 
+    @authors("eshcherbin")
+    def test_run_map_reduce(self):
+        data = [{"foo": i} for i in xrange(3)]
+        create("table", "//tmp/in")
+        create("table", "//tmp/out")
+        write_table("//tmp/in", data)
+
+        map_reduce(
+            mapper_command="cat",
+            reducer_command="cat",
+            in_="//tmp/in",
+            out="//tmp/out",
+            sort_by=["foo"])
+
 ##################################################################
 
 class TestSecureVault(YTEnvSetup):
