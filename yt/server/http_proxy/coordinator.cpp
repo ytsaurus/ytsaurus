@@ -359,9 +359,10 @@ void TCoordinator::UpdateState()
                 attributes->Set("remote_addresses",
                     NYT::GetLocalAddresses({{"default", Self_->GetHost()}}, Bootstrap_->GetConfig()->RpcPort));
                 options.Attributes = std::move(attributes);
-                WaitFor(Client_->CreateNode(selfPath + "/orchid", EObjectType::Orchid, options))
+                auto orchidPath = selfPath + "/orchid";
+                WaitFor(Client_->CreateNode(orchidPath, EObjectType::Orchid, options))
                     .ThrowOnError();
-                YT_LOG_INFO("Orchid node created (Path: %v)", selfPath + "/orchid");
+                YT_LOG_INFO("Orchid node created (Path: %v)", orchidPath);
             }
 
             WaitFor(Client_->SetNode(selfPath + "/@version", ConvertToYsonString(NYT::GetVersion())))
