@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yp/server/lib/cluster/config.h>
+
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/yson_serializable.h>
 
@@ -151,6 +153,7 @@ public:
     int AllocationCommitConcurrency;
     TGlobalResourceAllocatorConfigPtr GlobalResourceAllocator;
     TPodDisruptionBudgetControllerConfigPtr PodDisruptionBudgetController;
+    NCluster::TClusterConfigPtr Cluster;
 
     TSchedulerConfig()
     {
@@ -168,6 +171,8 @@ public:
         RegisterParameter("global_resource_allocator", GlobalResourceAllocator)
             .DefaultNew();
         RegisterParameter("pod_disruption_budget_controller", PodDisruptionBudgetController)
+            .DefaultNew();
+        RegisterParameter("cluster", Cluster)
             .DefaultNew();
     }
 };

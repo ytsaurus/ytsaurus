@@ -396,7 +396,7 @@ private:
         {
             YT_LOG_DEBUG("Started reconciling state");
 
-            Context_.Cluster->LoadSnapshot();
+            Context_.Cluster->LoadSnapshot(Context_.Config->Cluster);
 
             auto pods = Context_.Cluster->GetSchedulablePods();
             auto now = TInstant::Now();

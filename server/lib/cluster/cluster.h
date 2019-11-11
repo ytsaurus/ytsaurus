@@ -48,7 +48,7 @@ public:
 
     NObjects::TTimestamp GetSnapshotTimestamp() const;
 
-    void LoadSnapshot();
+    void LoadSnapshot(TClusterConfigPtr config);
 
 private:
     class TImpl;

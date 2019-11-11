@@ -3,6 +3,7 @@
 #include "account.h"
 #include "allocation_statistics.h"
 #include "cluster_reader.h"
+#include "config.h"
 #include "internet_address.h"
 #include "ip4_address_pool.h"
 #include "network_module.h"
@@ -124,7 +125,7 @@ public:
         return Timestamp_;
     }
 
-    void LoadSnapshot()
+    void LoadSnapshot(TClusterConfigPtr config)
     {
         try {
             YT_LOG_INFO("Started loading cluster snapshot");
@@ -199,7 +200,7 @@ public:
                     });
             }
 
-            InitializePodSets();
+            InitializePodSets(config->AntiaffinityConstraintsUniqueBucketLimit);
 
             PROFILE_TIMING("/time/read_pods") {
                 Reader_->ReadPods(
@@ -387,10 +388,21 @@ private:
         }
     }
 
-    void InitializePodSets()
+    void InitializePodSets(int antiaffinityConstraintsUniqueBucketLimit)
     {
         std::vector<TObjectId> invalidPodSetIds;
         for (const auto& [podSetId, podSet] : PodSetMap_) {
+            const int antiaffinityConstraintsUniqueBucketCount = GetAntiaffinityConstraintsUniqueBucketCount(
+                podSet->AntiaffinityConstraints());
+            if (antiaffinityConstraintsUniqueBucketCount > antiaffinityConstraintsUniqueBucketLimit) {
+                YT_LOG_WARNING("Pod set count of unique antiaffinity constraints buckets exceeds limit (PodSetId: %v, Count: %v, Limit: %v)",
+                    podSetId,
+                    antiaffinityConstraintsUniqueBucketCount,
+                    antiaffinityConstraintsUniqueBucketLimit);
+                invalidPodSetIds.push_back(podSetId);
+                continue;
+            }
+
             const auto& nodeSegmentId = podSet->NodeSegmentId();
             auto* nodeSegment = FindNodeSegment(nodeSegmentId);
             if (!nodeSegment) {
@@ -703,6 +715,18 @@ private:
         return it->second.get();
     }
 
+    int GetAntiaffinityConstraintsUniqueBucketCount(const std::vector<NClient::NApi::NProto::TAntiaffinityConstraint>& constraints)
+    {
+        using TAntiaffinityConstraintsBucket = std::tuple<TString, TString>;
+
+        THashSet<TAntiaffinityConstraintsBucket> buckets;
+        for (const auto& constraint : constraints) {
+            buckets.insert(std::make_tuple(constraint.key(), constraint.pod_group_id_path()));
+        }
+
+        return buckets.size();
+    }
+
 
     void Clear()
     {
@@ -831,9 +855,9 @@ TTimestamp TCluster::GetSnapshotTimestamp() const
     return Impl_->GetSnapshotTimestamp();
 }
 
-void TCluster::LoadSnapshot()
+void TCluster::LoadSnapshot(TClusterConfigPtr config)
 {
-    Impl_->LoadSnapshot();
+    Impl_->LoadSnapshot(std::move(config));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

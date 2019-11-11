@@ -36,6 +36,8 @@ extern const TString TopologyLabel;
 
 class TAntiaffinityVacancyAllocator;
 
+DECLARE_REFCOUNTED_CLASS(TClusterConfig);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 constexpr size_t MaxResourceDimensions = 3;

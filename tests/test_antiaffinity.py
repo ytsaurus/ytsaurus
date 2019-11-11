@@ -2,6 +2,7 @@ from .conftest import (
     DEFAULT_POD_SET_SPEC,
     are_pods_assigned,
     are_pods_touched_by_scheduler,
+    assert_over_time,
     create_nodes,
     create_pod_with_boilerplate,
     get_pod_scheduling_status,
@@ -478,3 +479,88 @@ class TestAntiaffinity(object):
         update_antiaffinity(max_pods=3)
 
         wait(lambda: is_pod_assigned(yp_client, new_pod_id))
+
+    def test_antiaffinity_constraints_unique_bucket_limit(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        antiaffinity_constraints_names = ["key", "max_pods", "pod_group_id_path"]
+        topology_zones = ["node", "rack", "dc"]
+
+        def prepare_objects_with_pod_group_id_paths(antiaffinity_constraints_buckets):
+            pod_group_ids = self._prepare_objects(
+                yp_client,
+                pod_per_group_count=pod_count,
+                antiaffinity_constraints=[
+                    dict(zip(antiaffinity_constraints_names, bucket))
+                    for bucket in antiaffinity_constraints_buckets
+                ],
+            )
+            return pod_group_ids
+
+        def is_pending_pod(pod_id):
+            scheduling_status = get_pod_scheduling_status(yp_client, pod_id)
+            return "error" not in scheduling_status and \
+                scheduling_status.get("state", None) == "pending" and \
+                scheduling_status.get("node_id", "") == ""
+
+        def are_pending_pods(pod_ids):
+            return all(map(is_pending_pod, pod_ids))
+
+        pod_count = 2
+        node_pod_limit = 1
+
+        create_nodes(yp_client, 2)
+
+        # Default AntiaffinityConstraintUniqueBucketLimit is 50
+        antiaffinity_constraints_unique_bucket_limit = 50
+
+        antiaffinity_constraints_buckets_over_limit = []
+
+        # Topology zone (key) = "node", group_id_path count exceeds limit
+        antiaffinity_constraints_buckets_over_limit.append(
+            [
+                ("node", node_pod_limit, "/labels/group_id_type_%d" % index)
+                for index in xrange(antiaffinity_constraints_unique_bucket_limit + 1)
+            ]
+        )
+
+        # Topology zone (key) has 3 types, group_id_path has (limit // 3) = 16 variants (and one empty variant).
+        # So antiaffinity constraints bucket count is 3 * (16 + 1) = 51 - exceeds limit,
+        # though every parameter count is under limit
+        antiaffinity_constraints_buckets_over_limit.append(
+            [
+                (topology_zone, node_pod_limit, "/labels/group_id_type_%d" % index)
+                for topology_zone in topology_zones
+                for index in xrange(antiaffinity_constraints_unique_bucket_limit // 3)
+            ] +
+            [
+                (topology_zone, node_pod_limit + 1)
+                for topology_zone in topology_zones
+            ]
+        )
+
+        # Take only antiaffinity_constraints_unique_bucket_limit buckets.
+        # So antiaffinity constraints bucket count in under limit
+        antiaffinity_constraints_buckets_under_limit = [
+            buckets_over_limit[:antiaffinity_constraints_unique_bucket_limit]
+            for buckets_over_limit in antiaffinity_constraints_buckets_over_limit
+        ]
+
+        assert all(map(lambda buckets: len(buckets) > antiaffinity_constraints_unique_bucket_limit,
+                       antiaffinity_constraints_buckets_over_limit))
+        assert all(map(lambda buckets: len(buckets) <= antiaffinity_constraints_unique_bucket_limit,
+                       antiaffinity_constraints_buckets_under_limit))
+
+        pod_ids_under_limit = flatten(
+            prepare_objects_with_pod_group_id_paths(antiaffinity_constraints_buckets)
+            for antiaffinity_constraints_buckets in antiaffinity_constraints_buckets_under_limit
+        )
+
+        pod_ids_over_limit = flatten(
+            prepare_objects_with_pod_group_id_paths(antiaffinity_constraints_buckets)
+            for antiaffinity_constraints_buckets in antiaffinity_constraints_buckets_over_limit
+        )
+
+        wait(lambda: are_pods_assigned(yp_client, pod_ids_under_limit))
+
+        assert_over_time(lambda: are_pending_pods(pod_ids_over_limit))
