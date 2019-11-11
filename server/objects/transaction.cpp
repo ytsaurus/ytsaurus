@@ -2135,15 +2135,13 @@ private:
                     continue;
                 }
 
-                if (RemovedObjects_[key.first].find(key.second) != RemovedObjects_[key.first].end()) {
-                    continue;
-                }
-
                 ++eventCount;
 
-                auto checker = std::make_unique<TObjectExistenceChecker>(object);
-                checker->ScheduleCheck();
-                checkers.push_back(std::move(checker));
+                if (RemovedObjects_[key.first].find(key.second) == RemovedObjects_[key.first].end()) {
+                    auto checker = std::make_unique<TObjectExistenceChecker>(object);
+                    checker->ScheduleCheck();
+                    checkers.push_back(std::move(checker));
+                }
 
                 auto* typeHandler = object->GetTypeHandler();
                 auto parentType = typeHandler->GetParentType();
@@ -2163,7 +2161,7 @@ private:
                     auto* object = checker->GetObject();
                     THROW_ERROR_EXCEPTION(
                         NClient::NApi::EErrorCode::DuplicateObjectId,
-                        "%v %v of already exists",
+                        "%v %v already exists",
                         GetCapitalizedHumanReadableTypeName(object->GetType()),
                         GetObjectDisplayName(object));
                 }
