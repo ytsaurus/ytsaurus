@@ -16,11 +16,12 @@ const (
 	// NodeFile is regular file. Used for artifacts and opaque blobs.
 	NodeFile NodeType = "file"
 	// NodeTable is table.
-	NodeTable   NodeType = "table"
-	NodeUser    NodeType = "user"
-	NodeGroup   NodeType = "group"
-	NodeAccount NodeType = "account"
-	NodeSys     NodeType = "sys_node"
+	NodeTable            NodeType = "table"
+	NodeUser             NodeType = "user"
+	NodeGroup            NodeType = "group"
+	NodeAccount          NodeType = "account"
+	NodeTabletCellBundle NodeType = "tablet_cell_bundle"
+	NodeSys              NodeType = "sys_node"
 )
 
 func (n NodeType) String() string {

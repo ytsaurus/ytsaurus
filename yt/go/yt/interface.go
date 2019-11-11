@@ -838,6 +838,9 @@ type SelectRowsOptions struct {
 
 type StartTabletTxOptions struct {
 	Atomicity *string `http:"atomicity,omitnil"`
+
+	Master        bool
+	CommitOptions *CommitTxOptions
 }
 
 type TabletClient interface {
