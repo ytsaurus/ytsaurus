@@ -58,7 +58,6 @@ def run_pytest(python_version):
         "PYTHONPATH": os.pathsep.join([
             os.path.join(yatest.common.source_path(), PYTHON_ROOT),
             os.path.join(yatest.common.source_path(), YT_ROOT, "yt", "python"),
-            os.path.join(yatest.common.source_path(), "contrib", "python", "flaky"),
             os.path.join(bindings_build_dir, YT_ROOT, "yt", "python", "yson_shared"),
             os.path.join(bindings_build_dir, YT_ROOT, "yt", "python", "driver", "native_shared"),
             os.path.join(bindings_build_dir, YT_ROOT, "yt", "python", "driver", "rpc_shared")
@@ -69,7 +68,7 @@ def run_pytest(python_version):
         "YT_ENABLE_VERBOSE_LOGGING": "1",
     }
 
-    test_paths_file = os.path.join(yatest.common.source_path(), PYTHON_ROOT, "system_python_tests/test_paths.txt")
+    test_paths_file = os.path.join(yatest.common.source_path(), PYTHON_ROOT, "yt/wrapper/system_python_tests/test_paths.txt")
     test_paths = open(test_paths_file).read().split()
     test_files = [
         os.path.join(yatest.common.source_path(), PYTHON_ROOT, "yt/wrapper/tests", name)

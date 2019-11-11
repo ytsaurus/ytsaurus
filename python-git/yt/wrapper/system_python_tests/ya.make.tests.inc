@@ -10,8 +10,8 @@ TAG(
     ya:privileged
 )
 
-# https://sandbox.yandex-team.ru/task/440379739
-REQUIREMENTS(container:973076293)
+# https://sandbox.yandex-team.ru/task/545558892
+REQUIREMENTS(container:1205365729)
 
 SIZE(LARGE)
 
@@ -28,7 +28,6 @@ DEPENDS(
 DATA(
     arcadia/ya
     arcadia/${YT_ROOT}/yt/python
-    arcadia/contrib/python/flaky
 )
 
 NO_LINT()
