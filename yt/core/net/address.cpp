@@ -1127,60 +1127,60 @@ void TAddressResolver::Configure(TAddressResolverConfigPtr config)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMTNAddress::TMTNAddress(TIP6Address address)
+TMtnAddress::TMtnAddress(TIP6Address address)
     : Address_(address)
 { }
 
-ui64 TMTNAddress::GetPrefix() const
+ui64 TMtnAddress::GetPrefix() const
 {
     return GetBytesRangeValue(PrefixOffsetInBytes, TotalLenInBytes);
 }
 
-TMTNAddress& TMTNAddress::SetPrefix(ui64 prefix)
+TMtnAddress& TMtnAddress::SetPrefix(ui64 prefix)
 {
     SetBytesRangeValue(PrefixOffsetInBytes, TotalLenInBytes, prefix);
     return *this;
 }
 
-ui64 TMTNAddress::GetGeo() const
+ui64 TMtnAddress::GetGeo() const
 {
     return GetBytesRangeValue(GeoOffsetInBytes, PrefixOffsetInBytes);
 }
 
-TMTNAddress& TMTNAddress::SetGeo(ui64 geo)
+TMtnAddress& TMtnAddress::SetGeo(ui64 geo)
 {
     SetBytesRangeValue(GeoOffsetInBytes, PrefixOffsetInBytes, geo);
     return *this;
 }
 
-ui64 TMTNAddress::GetProjectId() const
+ui64 TMtnAddress::GetProjectId() const
 {
     return GetBytesRangeValue(ProjectIdOffsetInBytes, GeoOffsetInBytes);
 }
 
-TMTNAddress& TMTNAddress::SetProjectId(ui64 projectId)
+TMtnAddress& TMtnAddress::SetProjectId(ui64 projectId)
 {
     SetBytesRangeValue(ProjectIdOffsetInBytes, GeoOffsetInBytes, projectId);
     return *this;
 }
 
-ui64 TMTNAddress::GetHost() const
+ui64 TMtnAddress::GetHost() const
 {
     return GetBytesRangeValue(HostOffsetInBytes, ProjectIdOffsetInBytes);
 }
 
-TMTNAddress& TMTNAddress::SetHost(ui64 host)
+TMtnAddress& TMtnAddress::SetHost(ui64 host)
 {
     SetBytesRangeValue(HostOffsetInBytes, ProjectIdOffsetInBytes, host);
     return *this;
 }
 
-const TIP6Address& TMTNAddress::ToIP6Address() const
+const TIP6Address& TMtnAddress::ToIP6Address() const
 {
     return Address_;
 }
 
-ui64 TMTNAddress::GetBytesRangeValue(int leftIndex, int rightIndex) const
+ui64 TMtnAddress::GetBytesRangeValue(int leftIndex, int rightIndex) const
 {
     if (leftIndex > rightIndex) {
         THROW_ERROR_EXCEPTION("Left index is greater than right index (LeftIndex: %v, RightIndex: %v)",
@@ -1197,7 +1197,7 @@ ui64 TMTNAddress::GetBytesRangeValue(int leftIndex, int rightIndex) const
     return result;
 }
 
-void TMTNAddress::SetBytesRangeValue(int leftIndex, int rightIndex, ui64 value)
+void TMtnAddress::SetBytesRangeValue(int leftIndex, int rightIndex, ui64 value)
 {
     if (leftIndex > rightIndex) {
         THROW_ERROR_EXCEPTION("Left index is greater than right index (LeftIndex: %v, RightIndex: %v)",

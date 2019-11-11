@@ -133,7 +133,7 @@ public:
         SetProperty("net", net);
     }
 
-    virtual void SetIp(const TString& ip) override
+    virtual void SetIP(const TString& ip) override
     {
         SetProperty("ip", ip);
     }

@@ -7681,17 +7681,17 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
     if (config->NetworkProject) {
         const auto& client = Host->GetClient();
-        const TString networkProjectPath = "//sys/network_projects/" + *config->NetworkProject;
-        auto checkPermissionRspOrError = client->CheckPermission(AuthenticatedUser,
+        const auto networkProjectPath = "//sys/network_projects/" + *config->NetworkProject;
+        auto checkPermissionRspOrError = WaitFor(client->CheckPermission(AuthenticatedUser,
             networkProjectPath,
-            EPermission::Use).Get();
+            EPermission::Use));
         if (checkPermissionRspOrError.ValueOrThrow().Action == ESecurityAction::Deny) {
             THROW_ERROR_EXCEPTION("User %Qv is not allowed to use network project %Qv",
                 AuthenticatedUser,
                 *config->NetworkProject);
         }
 
-        auto getRspOrError = client->GetNode(networkProjectPath + "/@project_id").Get();
+        auto getRspOrError = WaitFor(client->GetNode(networkProjectPath + "/@project_id"));
         jobSpec->set_network_project_id(ConvertTo<ui32>(getRspOrError.ValueOrThrow()));
     }
 
