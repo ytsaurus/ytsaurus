@@ -532,6 +532,8 @@ std::vector<TSubquery> BuildSubqueries(
         }
     }
 
+    // Pools not always produce suitable stripelists for further query
+    // analyzer business transform them to the proper state.
     if (poolKind == EPoolKind::Unordered) {
         // Stripe lists from unordered pool consist of lot of stripes; we expect a single
         // stripe with lots of data slices inside, so we flatten them.
@@ -545,6 +547,26 @@ std::vector<TSubquery> BuildSubqueries(
             auto flattenedStripeList = New<TChunkStripeList>();
             AddStripeToList(std::move(flattenedStripe), flattenedStripeList);
             subquery.StripeList.Swap(flattenedStripeList);
+        }
+    } else {
+        // Stripe lists from sorted pool sometimes miss stripes from certain inputs; we want
+        // empty stripes to be present in any case.
+        for (auto& subquery : subqueries) {
+            auto fullStripeList = New<TChunkStripeList>();
+            fullStripeList->Stripes.resize(inputStripeList->Stripes.size());
+            for (auto& stripe : subquery.StripeList->Stripes) {
+                size_t tableIndex = stripe->GetTableIndex();
+                YT_VERIFY(tableIndex >= 0);
+                YT_VERIFY(tableIndex < fullStripeList->Stripes.size());
+                YT_VERIFY(!fullStripeList->Stripes[tableIndex]);
+                fullStripeList->Stripes[tableIndex] = std::move(stripe);
+            }
+            for (auto& stripe : fullStripeList->Stripes) {
+                if (!stripe) {
+                    stripe = New<TChunkStripe>();
+                }
+            }
+            subquery.StripeList.Swap(fullStripeList);
         }
     }
 

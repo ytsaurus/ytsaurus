@@ -4734,7 +4734,6 @@ void TOperationControllerBase::CreateLivePreviewTables()
         for (int index = 0; index < OutputTables_.size(); ++index) {
             auto& table = OutputTables_[index];
             auto path = GetOperationPath(OperationId) + "/output_" + ToString(index);
-
             addRequest(
                 path,
                 table->ExternalCellTag,
