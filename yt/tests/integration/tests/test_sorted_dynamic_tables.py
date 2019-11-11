@@ -858,12 +858,14 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert lookup_rows("//tmp/t", keys) == rows
 
     @authors("ifsmirnov")
-    def test_preload_block_range(self):
+    @pytest.mark.parametrize("enable_lookup_hash_table", [True, False])
+    def test_preload_block_range(self, enable_lookup_hash_table):
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 3}})
         sync_create_cells(1, tablet_cell_bundle="b")
         self._create_simple_table("//tmp/t", tablet_cell_bundle="b")
         set("//tmp/t/@chunk_writer", {"block_size": 1024})
         set("//tmp/t/@in_memory_mode", "uncompressed")
+        set("//tmp/t/@enable_lookup_hash_table", enable_lookup_hash_table)
         sync_mount_table("//tmp/t")
 
         rows = [{"key": i, "value": str(i)} for i in range(1000)]
