@@ -158,11 +158,12 @@ TCGValue MakePhi(
     TCGIRBuilderPtr& builder,
     BasicBlock* thenBB,
     BasicBlock* elseBB,
-    BasicBlock* endBB,
     TCGValue thenValue,
     TCGValue elseValue,
     Twine name)
 {
+    BasicBlock* endBB = builder->GetInsertBlock();
+
     YT_VERIFY(thenValue.GetStaticType() == elseValue.GetStaticType());
     EValueType type = thenValue.GetStaticType();
 
@@ -242,12 +243,10 @@ Value* MakePhi(
     TCGIRBuilderPtr& builder,
     BasicBlock* thenBB,
     BasicBlock* elseBB,
-    BasicBlock* endBB,
     Value* thenValue,
     Value* elseValue,
     Twine name)
 {
-    builder->SetInsertPoint(endBB);
     PHINode* phiValue = builder->CreatePHI(thenValue->getType(), 2, name + ".phiValue");
     phiValue->addIncoming(thenValue, thenBB);
     phiValue->addIncoming(elseValue, elseBB);

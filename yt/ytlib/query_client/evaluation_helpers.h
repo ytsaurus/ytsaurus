@@ -28,9 +28,6 @@ constexpr size_t WriteRowsetSize = 64 * RowsetProcessingSize;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TInterruptedCompleteException
-{ };
-
 class TInterruptedIncompleteException
 { };
 
@@ -205,7 +202,7 @@ struct TMultiJoinClosure
     size_t PrimaryRowSize;
     size_t BatchSize;
     std::function<void(size_t)> ProcessSegment;
-    std::function<void()> ProcessJoinBatch;
+    std::function<bool()> ProcessJoinBatch;
 };
 
 struct TGroupByClosure
