@@ -14,6 +14,7 @@ type tabletTx struct {
 	coordinatorURL string
 	c              *httpClient
 	ctx            context.Context
+	commitOptions  *yt.CommitTxOptions
 }
 
 func (c *httpClient) BeginTabletTx(ctx context.Context, options *yt.StartTabletTxOptions) (yt.TabletTx, error) {
@@ -28,9 +29,17 @@ func (c *httpClient) BeginTabletTx(ctx context.Context, options *yt.StartTabletT
 	tx.Invoke = tx.do
 	tx.InvokeReadRow = tx.doReadRow
 	tx.InvokeWriteRow = tx.doWriteRow
+	if options != nil {
+		tx.commitOptions = options.CommitOptions
+	}
+
 	tx.c = c
 
 	txType := "tablet"
+	if options != nil && options.Master {
+		txType = "master"
+	}
+
 	startOptions := &yt.StartTxOptions{
 		Type:   &txType,
 		Sticky: true,
@@ -68,7 +77,13 @@ func (tx *tabletTx) doWriteRow(ctx context.Context, call *internal.Call) (r yt.T
 }
 
 func (tx *tabletTx) Commit() error {
-	return tx.CommitTx(tx.ctx, tx.txID, &yt.CommitTxOptions{Sticky: true})
+	var opts yt.CommitTxOptions
+	if tx.commitOptions != nil {
+		opts = *tx.commitOptions
+	}
+	opts.Sticky = true
+
+	return tx.CommitTx(tx.ctx, tx.txID, &opts)
 }
 
 func (tx *tabletTx) Abort() error {
