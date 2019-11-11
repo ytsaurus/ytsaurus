@@ -1771,6 +1771,21 @@ class TestJoinAndIn(ClickHouseTestBase):
                                         print_debug(char + " " + row)
                                     assert False
 
+    @authors("max42")
+    def test_tricky_join(self):
+        # CHYT-240.
+        create("table", "//tmp/t1", attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]})
+        create("table", "//tmp/t2", attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]})
+        write_table("//tmp/t1", [{"key": 0}, {"key": 1}])
+        write_table("<append=%true>//tmp/t1", [{"key": 2}, {"key": 3}])
+        write_table("//tmp/t2", [{"key": 0}, {"key": 1}])
+        write_table("<append=%true>//tmp/t2", [{"key": 4}, {"key": 5}])
+        write_table("<append=%true>//tmp/t2", [{"key": 6}, {"key": 7}])
+        write_table("<append=%true>//tmp/t2", [{"key": 8}, {"key": 9}])
+        with Clique(2, config_patch={"engine": {"subquery": {"min_data_weight_per_thread": 5000}}}) as clique:
+            assert clique.make_query("select * from \"//tmp/t1\" join \"//tmp/t2\" using key") == [{"key": 0}, {"key": 1}]
+
+
 class TestClickHouseHttpProxy(ClickHouseTestBase):
     def setup(self):
         self._setup()
