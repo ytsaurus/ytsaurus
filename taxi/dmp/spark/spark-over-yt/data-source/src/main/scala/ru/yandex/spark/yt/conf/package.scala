@@ -7,7 +7,6 @@ import org.apache.spark.sql.SQLContext
 import scala.util.Try
 
 package object conf {
-  private val configurationPrefix = "spark.yt"
 
   trait ConfProvider {
     def getYtConf(name: String): Option[String]
@@ -22,18 +21,24 @@ package object conf {
   }
 
   implicit class SparkYtSqlContext(sqlContext: SQLContext) extends ConfProvider {
+    private val configurationPrefix = "spark.yt"
+
     override def getYtConf(name: String): Option[String] = {
       Try(sqlContext.getConf(s"$configurationPrefix.$name")).toOption
     }
   }
 
   implicit class SparkYtSparkConf(sparkConf: SparkConf) extends ConfProvider {
+    private val configurationPrefix = "spark.yt"
+
     override def getYtConf(name: String): Option[String] = {
       sparkConf.getOption(s"$configurationPrefix.$name")
     }
   }
 
   implicit class SparkYtHadoopConfiguration(configuration: Configuration) extends ConfProvider {
+    private val configurationPrefix = "yt"
+
     override def getYtConf(name: String): Option[String] = {
       Option(configuration.get(s"$configurationPrefix.$name"))
     }
