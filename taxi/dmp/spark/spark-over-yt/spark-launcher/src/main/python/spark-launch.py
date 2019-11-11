@@ -119,6 +119,7 @@ spec_builder = \
             .file_paths(file_paths) \
             .command(master_command) \
             .memory_limit(master_memory_limit) \
+            .cpu_limit(2) \
             .environment(environment) \
             .layer_paths(layer_paths) \
             .spec(task_spec) \
@@ -128,6 +129,7 @@ spec_builder = \
             .file_paths(file_paths) \
             .command(worker_command) \
             .memory_limit(parse_memory(worker_memory) + worker_memory_add) \
+            .cpu_limit(args.worker_cores) \
             .environment(environment) \
             .layer_paths(layer_paths) \
             .spec(task_spec) \
