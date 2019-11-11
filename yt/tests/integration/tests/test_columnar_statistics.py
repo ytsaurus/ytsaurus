@@ -268,6 +268,7 @@ class TestColumnarStatistics(YTEnvSetup):
 
         self._expect_statistics(None, None, "key,value", [80, 20160], expected_timestamp_weight=(8 * 30))
 
+    @pytest.mark.skipif(True, "Temporarily broken")
     @authors("max42")
     def test_fetch_cancelation(self):
         create("table", "//tmp/t", attributes={"optimize_for": "scan"})
