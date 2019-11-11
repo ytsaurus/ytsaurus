@@ -2,6 +2,7 @@ import argparse
 import os
 import re
 
+import yt
 from yt.wrapper.cypress_commands import create, exists, list
 from yt.wrapper.operation_commands import TimeWatcher, process_operation_unsuccesful_finish_state
 from yt.wrapper.run_operation_commands import run_operation
@@ -70,15 +71,14 @@ worker_memory_add = 2 * 1024 * 1024 * 1024
 
 spark_name = "spark-{0}".format(spark_version)
 unpack_tar = "tar --warning=no-unknown-keyword -xvf {0}.tgz".format(spark_name)
-run_launcher = "/opt/jdk11/bin/java -Xmx512m -cp {0}".format(spark_launcher_jar)
+run_launcher = "/opt/jdk8/bin/java -Xmx512m -cp {0}".format(spark_launcher_jar)
 master_main_class = "ru.yandex.spark.launcher.MasterLauncher"
 worker_main_class = "ru.yandex.spark.launcher.WorkerLauncher"
 
 file_paths = ["{0}/{1}.tgz".format(spark_base_path, spark_name),
               "{0}/{1}".format(spark_base_path, spark_launcher_jar)]
 
-# layer_paths = ["//home/sashbel/delta/jdk/layer_with_jdk-2019-10-22-18.13.06.tar.gz",
-layer_paths = ["//porto_layers/delta/jdk/layer_with_jdk_lastest.tar.gz",
+layer_paths = ["//home/sashbel/delta/jdk/layer_with_jdk_lastest.tar.gz",
                "//porto_layers/base/xenial/porto_layer_search_ubuntu_xenial_app_lastest.tar.gz"]
 
 master_command = "{0} && {1} {2} --id {3} --operation-id $YT_OPERATION_ID " \
@@ -90,8 +90,7 @@ worker_command = "{0} && {1} {2} --id {3} --cores {4} --memory {5} " \
     .format(unpack_tar, run_launcher, worker_main_class, id, args.worker_cores, worker_memory, worker_opts, start_port)
 
 environment = {
-    # "JAVA_HOME": "/opt/jdk8",
-    "JAVA_HOME": "/opt/jdk11",
+    "JAVA_HOME": "/opt/jdk8",
     "SPARK_HOME": spark_name,
     "YT_PROXY": proxy,
     "SPARK_DISCOVERY_PATH": "{0}/instances".format(working_dir)
@@ -138,6 +137,7 @@ spec_builder = \
         .max_stderr_count(150) \
         .spec(operation_spec)
 
+yt.wrapper.config.config['proxy']['url'] = proxy
 create("map_node", "{0}/logs".format(working_dir), recursive=True, ignore_existing=True)
 op = run_operation(spec_builder, sync=False)
 
