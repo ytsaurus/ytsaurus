@@ -48,7 +48,7 @@ Value* CodegenAllocateValues(TCGIRBuilderPtr& builder, size_t valueCount)
     return newValues;
 }
 
-void CodegenForEachRow(
+Value* CodegenForEachRow(
     TCGContext& builder,
     Value* rows,
     Value* size,
@@ -76,13 +76,17 @@ void CodegenForEachRow(
     // row = rows[index]; consume(row);
     Value* stackState = builder->CreateStackSave("stackState");
     Value* row = builder->CreateLoad(builder->CreateGEP(rows, index, "rowPtr"), "row");
-    codegenConsumer(builder, row);
+    Value* finished = codegenConsumer(builder, row);
     builder->CreateStackRestore(stackState);
+    loopBB = builder->GetInsertBlock();
+
     // index = index + 1
     builder->CreateStore(builder->CreateAdd(index, builder->getInt64(1)), indexPtr);
-    builder->CreateBr(condBB);
+    builder->CreateCondBr(finished, endloopBB, condBB);
 
     builder->SetInsertPoint(endloopBB);
+
+    return MakePhi(builder, loopBB, condBB, builder->getTrue(), builder->getFalse(),"finishedPhi");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1977,7 +1981,7 @@ void CodegenEmptyOp(TCGOperatorContext& builder)
 
 TLlvmClosure MakeConsumer(TCGOperatorContext& builder, llvm::Twine name, size_t consumerSlot)
 {
-    return MakeClosure<void(TExpressionContext*, TValue**, i64)>(builder, name,
+    return MakeClosure<bool(TExpressionContext*, TValue**, i64)>(builder, name,
         [&] (
             TCGOperatorContext& builder,
             Value* buffer,
@@ -1985,13 +1989,18 @@ TLlvmClosure MakeConsumer(TCGOperatorContext& builder, llvm::Twine name, size_t 
             Value* size
         ) {
             TCGContext innerBuilder(builder, buffer);
-            CodegenForEachRow(
+            Value* more = CodegenForEachRow(
                 innerBuilder,
                 rows,
                 size,
                 builder[consumerSlot]);
 
-            innerBuilder->CreateRetVoid();
+            Value* casted = innerBuilder->CreateIntCast(
+                more,
+                innerBuilder->getInt8Ty(),
+                false);
+
+            innerBuilder->CreateRet(casted);
         });
 }
 
@@ -2039,11 +2048,24 @@ std::tuple<size_t, size_t, size_t> MakeCodegenSplitterOp(
         streamIndex,
         codegenSource = std::move(*codegenSource)
     ] (TCGOperatorContext& builder) {
+
+        Value* finalFinish = builder->CreateAlloca(builder->getInt1Ty());
+        Value* intermediateFinish = builder->CreateAlloca(builder->getInt1Ty());
+        Value* totalsFinish = builder->CreateAlloca(builder->getInt1Ty());
+
+        builder->CreateStore(builder->getFalse(), finalFinish);
+        builder->CreateStore(builder->getFalse(), intermediateFinish);
+        builder->CreateStore(builder->getFalse(), totalsFinish);
+
         builder[producerSlot] = [&] (TCGContext& builder, Value* values) {
             auto* ifFinalBB = builder->CreateBBHere("ifFinal");
             auto* ifIntermediateBB = builder->CreateBBHere("ifIntermediate");
             auto* ifTotalsBB = builder->CreateBBHere("ifTotals");
             auto* endIfBB = builder->CreateBBHere("endIf");
+
+            Value* finalFinishRef = builder->ViaClosure(finalFinish);
+            Value* intermediateFinishRef = builder->ViaClosure(intermediateFinish);
+            Value* totalsFinishRef = builder->ViaClosure(totalsFinish);
 
             auto streamIndexValue = TCGValue::CreateFromRowValues(
                 builder,
@@ -2059,18 +2081,30 @@ std::tuple<size_t, size_t, size_t> MakeCodegenSplitterOp(
             switcher->addCase(builder->getInt64(static_cast<ui64>(EStreamTag::Totals)), ifTotalsBB);
 
             builder->SetInsertPoint(ifFinalBB);
-            builder[finalConsumerSlot](builder, values);
+            builder->CreateStore(
+                builder[finalConsumerSlot](builder, values),
+                finalFinishRef);
             builder->CreateBr(endIfBB);
 
             builder->SetInsertPoint(ifIntermediateBB);
-            builder[intermediateConsumerSlot](builder, values);
+            builder->CreateStore(
+                builder[intermediateConsumerSlot](builder, values),
+                intermediateFinishRef);
             builder->CreateBr(endIfBB);
 
             builder->SetInsertPoint(ifTotalsBB);
-            builder[totalsConsumerSlot](builder, values);
+            builder->CreateStore(
+                builder[totalsConsumerSlot](builder, values),
+                totalsFinishRef);
             builder->CreateBr(endIfBB);
 
             builder->SetInsertPoint(endIfBB);
+
+            return builder->CreateAnd(
+                builder->CreateLoad(finalFinishRef),
+                builder->CreateAnd(
+                    builder->CreateLoad(intermediateFinishRef),
+                    builder->CreateLoad(totalsFinishRef)));
         };
 
         codegenSource(builder);
@@ -2126,14 +2160,14 @@ size_t MakeCodegenJoinOp(
                 nullptr,
                 "expressionClosurePtr");
 
-            builder[producerSlot] = [&] (TCGContext& builder, Value* row) {
+            builder[producerSlot] = [&] (TCGContext& builder, Value* values) {
                 Value* keyPtrRef = builder->ViaClosure(keyPtr);
                 Value* keyRef = builder->CreateLoad(keyPtrRef);
 
                 auto rowBuilder = TCGExprContext::Make(
                     builder,
                     *fragmentInfos,
-                    row,
+                    values,
                     builder.Buffer,
                     builder->ViaClosure(expressionClosurePtr));
 
@@ -2169,8 +2203,10 @@ size_t MakeCodegenJoinOp(
                         builder.GetExecutionContext(),
                         joinClosureRef,
                         keyPtrRef,
-                        row
+                        values
                     });
+
+                return builder->getFalse();
             };
 
             codegenSource(builder);
@@ -2262,14 +2298,14 @@ size_t MakeCodegenMultiJoinOp(
                 nullptr,
                 "expressionClosurePtr");
 
-            builder[producerSlot] = [&] (TCGContext& builder, Value* rowValues) {
+            builder[producerSlot] = [&] (TCGContext& builder, Value* values) {
                 Value* joinClosureRef = builder->ViaClosure(joinClosure);
                 Value* keyPtrsRef = builder->ViaClosure(keyPtrs);
 
                 auto rowBuilder = TCGExprContext::Make(
                     builder,
                     *fragmentInfos,
-                    rowValues,
+                    values,
                     builder.Buffer,
                     builder->ViaClosure(expressionClosurePtr));
 
@@ -2305,13 +2341,13 @@ size_t MakeCodegenMultiJoinOp(
                 for (size_t column = 0; column < primaryColumns.size(); ++column) {
                     TCGValue::CreateFromRowValues(
                         builder,
-                        rowValues,
+                        values,
                         primaryColumns[column].first,
                         primaryColumns[column].second)
                         .StoreToValues(builder, primaryValues, column);
                 }
 
-                builder->CreateCall(
+                Value* finished = builder->CreateCall(
                     builder.Module->GetRoutine("StorePrimaryRow"),
                     {
                         builder.GetExecutionContext(),
@@ -2320,6 +2356,7 @@ size_t MakeCodegenMultiJoinOp(
                         keyPtrsRef
                     });
 
+                return builder->CreateIsNotNull(finished);
             };
 
             codegenSource(builder);
@@ -2431,11 +2468,16 @@ size_t MakeCodegenFilterOp(
                 ifBB,
                 endIfBB);
 
+            auto* condBB = builder->GetInsertBlock();
+
             builder->SetInsertPoint(ifBB);
-            builder[consumerSlot](builder, values);
+            Value* result = builder[consumerSlot](builder, values);
+            ifBB = builder->GetInsertBlock();
             builder->CreateBr(endIfBB);
 
             builder->SetInsertPoint(endIfBB);
+
+            return MakePhi(builder, ifBB, condBB, result, builder->getFalse(), "finishedPhi");
         };
 
         codegenSource(builder);
@@ -2444,6 +2486,7 @@ size_t MakeCodegenFilterOp(
     return consumerSlot;
 }
 
+// Evaluate predicate over finalized row and call consumer over initial row.
 size_t MakeCodegenFilterFinalizedOp(
     TCodegenSource* codegenSource,
     size_t* slotCount,
@@ -2514,11 +2557,16 @@ size_t MakeCodegenFilterFinalizedOp(
                 ifBB,
                 endIfBB);
 
+            auto* condBB = builder->GetInsertBlock();
+
             builder->SetInsertPoint(ifBB);
-            builder[consumerSlot](builder, values);
+            Value* result = builder[consumerSlot](builder, values);
+            ifBB = builder->GetInsertBlock();
             builder->CreateBr(endIfBB);
 
             builder->SetInsertPoint(endIfBB);
+
+            return MakePhi(builder, ifBB, condBB, result, builder->getFalse(), "finishedPhi");
         };
 
         codegenSource(builder);
@@ -2564,7 +2612,7 @@ size_t MakeCodegenAddStreamOp(
                 "streamIndex")
                 .StoreToValues(builder, newValuesRef, rowSize);
 
-            builder[consumerSlot](builder, newValuesRef);
+            return builder[consumerSlot](builder, newValuesRef);
         };
 
         codegenSource(builder);
@@ -2612,7 +2660,7 @@ size_t MakeCodegenProjectOp(
                     .StoreToValues(innerBuilder, newValuesRef, index);
             }
 
-            builder[consumerSlot](builder, newValuesRef);
+            return builder[consumerSlot](builder, newValuesRef);
         };
 
         codegenSource(builder);
@@ -2635,9 +2683,10 @@ std::tuple<size_t, size_t> MakeCodegenDuplicateOp(
         producerSlot,
         codegenSource = std::move(*codegenSource)
     ] (TCGOperatorContext& builder) {
-        builder[producerSlot] = [&] (TCGContext& builder, Value* row) {
-            builder[firstSlot](builder, row);
-            builder[secondSlot](builder, row);
+        builder[producerSlot] = [&] (TCGContext& builder, Value* values) {
+            Value* finish1 = builder[firstSlot](builder, values);
+            Value* finish2 = builder[secondSlot](builder, values);
+            return builder->CreateAnd(finish1, finish2);
         };
 
         codegenSource(builder);
@@ -2682,19 +2731,18 @@ size_t MakeCodegenOnceOp(
         codegenSource = std::move(*codegenSource)
     ] (TCGOperatorContext& builder) {
 
-        // TODO(lukyan): Return bool (is finished or limit reached)?
-        auto onceWrapper = MakeClosure<void(TExpressionContext*, TValue*)>(builder, "OnceWrapper", [&] (
+        typedef NCodegen::TTypes::i<1> TBool;
+        auto onceWrapper = MakeClosure<TBool(TExpressionContext*, TValue*)>(builder, "OnceWrapper", [&] (
             TCGOperatorContext& builder,
             Value* buffer,
             Value* values
         ) {
             TCGContext innerBuilder(builder, buffer);
-            builder[consumerSlot](innerBuilder, values);
-            innerBuilder->CreateRetVoid();
+            innerBuilder->CreateRet(builder[consumerSlot](innerBuilder, values));
         });
 
         builder[producerSlot] = [&] (TCGContext& builder, Value* values) {
-            builder->CreateCall(
+            return builder->CreateCall(
                 onceWrapper.Function,
                 {
                     builder->ViaClosure(onceWrapper.ClosurePtr),
@@ -2862,6 +2910,8 @@ std::pair<size_t, size_t> MakeCodegenGroupOp(
                             .StoreToValues(builder, groupValues, keySize + index);
                     }
                 });
+
+                return stateTypes.empty() ? builder->CreateIsNull(groupValues) : builder->getFalse();
             };
 
             codegenSource(builder);
@@ -2932,7 +2982,7 @@ size_t MakeCodegenFinalizeOp(
                     .StoreToValues(builder, values, keySize + index);
             }
 
-            builder[consumerSlot](builder, values);
+            return builder[consumerSlot](builder, values);
         };
 
         codegenSource(builder);
@@ -3010,6 +3060,8 @@ size_t MakeCodegenOrderOp(
                         topCollectorRef,
                         newValuesRef
                     });
+
+                return builder->getFalse();
             };
 
             codegenSource(builder);
@@ -3059,11 +3111,14 @@ void MakeCodegenWriteOp(
             TCGOperatorContext& builder,
             Value* writeRowClosure
         ) {
-            builder[producerSlot] = [&] (TCGContext& builder, Value* row) {
+            builder[producerSlot] = [&] (TCGContext& builder, Value* values) {
                 Value* writeRowClosureRef = builder->ViaClosure(writeRowClosure);
-                builder->CreateCall(
+
+                Value* finished = builder->CreateCall(
                     builder.Module->GetRoutine("WriteRow"),
-                    {builder.GetExecutionContext(), writeRowClosureRef, row});
+                    {builder.GetExecutionContext(), writeRowClosureRef, values});
+
+                return builder->CreateIsNotNull(finished);
             };
 
             codegenSource(builder);
