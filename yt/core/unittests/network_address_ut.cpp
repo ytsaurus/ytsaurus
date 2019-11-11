@@ -261,9 +261,9 @@ TEST(TIP6AddressTest, ToStringFromStringRandom)
     }
 }
 
-TEST(TMTNAddressTest, SimpleTest)
+TEST(TMtnAddressTest, SimpleTest)
 {
-    TMTNAddress address(TIP6Address::FromString("1361:24ad:4326:bda1:8432:a3fe:3f6c:4b38"));
+    TMtnAddress address(TIP6Address::FromString("1361:24ad:4326:bda1:8432:a3fe:3f6c:4b38"));
     EXPECT_EQ(address.GetPrefix(), 0x136124ad43);
     EXPECT_EQ(address.GetGeo(), 0x26bda1);
     EXPECT_EQ(address.GetProjectId(), 0x8432a3fe);

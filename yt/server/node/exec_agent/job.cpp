@@ -1304,12 +1304,12 @@ private:
             proxyConfig->GpuDevices.push_back(slot->GetDeviceName());
         }
 
-        if (NetworkProjectId_.has_value()) {
+        if (NetworkProjectId_) {
             if (!Config_->TestNetwork) {
-                const auto &nodeAddresses = Bootstrap_->GetResolvedNodeAddresses();
+                const auto& nodeAddresses = Bootstrap_->GetResolvedNodeAddresses();
                 proxyConfig->NetworkAddresses.reserve(nodeAddresses.size());
-                for (const auto &address : nodeAddresses) {
-                    proxyConfig->NetworkAddresses.emplace_back(TMTNAddress{address}
+                for (const auto& address : nodeAddresses) {
+                    proxyConfig->NetworkAddresses.emplace_back(TMtnAddress{address}
                         .SetProjectId(*NetworkProjectId_)
                         .SetHost(Slot_->GetSlotIndex())
                         .ToIP6Address());

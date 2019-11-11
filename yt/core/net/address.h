@@ -207,24 +207,24 @@ private:
 //! Class repesenting IPv6 address in MTN model.
 //! Refer to (https://wiki.yandex-team.ru/noc/newnetwork/hbf/projectid/)
 //! for model description.
-class TMTNAddress
+class TMtnAddress
 {
 public:
-    TMTNAddress() = default;
+    TMtnAddress() = default;
 
-    TMTNAddress(TIP6Address address);
+    TMtnAddress(TIP6Address address);
 
     ui64 GetPrefix() const;
-    TMTNAddress& SetPrefix(ui64 prefix);
+    TMtnAddress& SetPrefix(ui64 prefix);
 
     ui64 GetGeo() const;
-    TMTNAddress& SetGeo(ui64 geo);
+    TMtnAddress& SetGeo(ui64 geo);
 
     ui64 GetProjectId() const;
-    TMTNAddress& SetProjectId(ui64 projectId);
+    TMtnAddress& SetProjectId(ui64 projectId);
 
     ui64 GetHost() const;
-    TMTNAddress& SetHost(ui64 host);
+    TMtnAddress& SetHost(ui64 host);
 
     const TIP6Address& ToIP6Address() const;
 

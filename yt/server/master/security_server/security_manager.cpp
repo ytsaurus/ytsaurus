@@ -886,7 +886,7 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::NetworkProject, hintId);
         auto* networkProject = DoCreateNetworkProject(id, name);
-        YT_LOG_DEBUG("Network project created (NetworkProject: %v)", name);
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Network project created (NetworkProject: %v)", name);
         LogStructuredEventFluently(Logger, ELogLevel::Info)
             .Item("event").Value(EAccessControlEvent::NetworkProjectCreated)
             .Item("name").Value(networkProject->GetName());
@@ -897,7 +897,8 @@ public:
     {
         YT_VERIFY(NetworkProjectNameMap_.erase(networkProject->GetName()) == 1);
 
-        YT_LOG_DEBUG("Network project destroyed (NetworkProject: %v)", networkProject->GetName());
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Network project destroyed (NetworkProject: %v)",
+            networkProject->GetName());
         LogStructuredEventFluently(Logger, ELogLevel::Info)
             .Item("event").Value(EAccessControlEvent::NetworkProjectDestroyed)
             .Item("name").Value(networkProject->GetName());
@@ -943,7 +944,7 @@ public:
         YT_VERIFY(NetworkProjectNameMap_.erase(networkProject->GetName()) == 1);
         YT_VERIFY(NetworkProjectNameMap_.emplace(newName, networkProject).second);
 
-        YT_LOG_DEBUG("Network project renamed (NetworkProject: %v, OldName: %v, NewName: %v",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Network project renamed (NetworkProject: %v, OldName: %v, NewName: %v",
             networkProject->GetId(),
             networkProject->GetName(),
             newName);

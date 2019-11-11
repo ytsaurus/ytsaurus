@@ -630,7 +630,7 @@ public:
                 }
                 ipProperty += "veth0 " + ToString(address);
             }
-            instance->SetIp(ipProperty);
+            instance->SetIP(ipProperty);
         }
 
         // Restrict access to devices, that are not explicitly granted.
