@@ -93,6 +93,7 @@ TControllerScheduleJobResultPtr TFairShareStrategyOperationController::ScheduleJ
     auto scheduleJobResultFuture = Controller_->ScheduleJob(context, availableResources, treeId);
 
     auto scheduleJobResultFutureWithTimeout = scheduleJobResultFuture
+        .ToUncancelable()
         .WithTimeout(timeLimit);
 
     auto scheduleJobResultWithTimeoutOrError = WaitFor(scheduleJobResultFutureWithTimeout);
