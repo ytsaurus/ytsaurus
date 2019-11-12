@@ -81,6 +81,8 @@ DECLARE_REFCOUNTED_CLASS(TTableReplicator)
 
 DECLARE_REFCOUNTED_CLASS(TStoreCompactor)
 
+DECLARE_REFCOUNTED_STRUCT(TRowCache)
+
 struct TSortedDynamicRowHeader;
 class TSortedDynamicRow;
 

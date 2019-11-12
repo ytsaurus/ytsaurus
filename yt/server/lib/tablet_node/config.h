@@ -109,6 +109,8 @@ public:
 
     bool EnableLookupHashTable;
 
+    int LookupCacheRowsPerTablet;
+
     TDuration MinReplicationLogTtl;
     int MaxTimestampsPerReplicationCommit;
     int MaxRowsPerReplicationCommit;
@@ -259,6 +261,9 @@ public:
 
         RegisterParameter("enable_lookup_hash_table", EnableLookupHashTable)
             .Default(false);
+
+        RegisterParameter("lookup_cache_rows_per_tablet", LookupCacheRowsPerTablet)
+            .Default(0);
 
         RegisterParameter("min_replication_log_ttl", MinReplicationLogTtl)
             .Default(TDuration::Minutes(5));
