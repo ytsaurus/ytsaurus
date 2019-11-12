@@ -118,6 +118,9 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
                     "supported_cgroups": ["blkio", "cpu", "cpuacct"],
                     "block_io_watchdog_period": 100
                 }
+            },
+            "job_controller": {
+                "get_job_specs_timeout": 30000
             }
         }
     }
@@ -150,14 +153,15 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
                 "low_cpu_usage_alert_min_average_job_time": 1,
                 "low_cpu_usage_alert_cpu_usage_threshold": 0.5,
                 "operation_too_long_alert_min_wall_time": 0,
-                "operation_too_long_alert_estimate_duration_threshold": 5000
+                "operation_too_long_alert_estimate_duration_threshold": 5000,
+                "queue_average_wait_time_threshold": 1000
             },
             "map_reduce_operation_options": {
                 "min_uncompressed_block_size": 1
             },
             "event_log": {
                 "flush_period": 1000
-            }
+            },
         }
     }
 
@@ -377,6 +381,21 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
                     return True
             return False
         wait(check)
+
+    @authors("eshcherbin")
+    def test_high_queue_average_wait_time(self):
+        op = run_test_vanilla(
+            command="echo 'pass' >/dev/null",
+            spec={
+                "testing": {
+                    "get_job_spec_delay": 5000,
+                }
+            },
+            job_count=6,
+            dont_track=False
+        )
+
+        wait(lambda: "high_queue_average_wait_time" in op.get_alerts())
 
     def wait_for_running_jobs(self, operation):
         wait(lambda: operation.get_job_count("running") >= 1)

@@ -165,6 +165,8 @@ TTestingOperationOptions::TTestingOperationOptions()
         .Default();
     RegisterParameter("controller_failure", ControllerFailure)
         .Default();
+    RegisterParameter("get_job_spec_delay", GetJobSpecDelay)
+        .Default();
     RegisterParameter("fail_get_job_spec", FailGetJobSpec)
         .Default(false);
     RegisterParameter("register_speculative_job_on_job_scheduled", RegisterSpeculativeJobOnJobScheduled)
