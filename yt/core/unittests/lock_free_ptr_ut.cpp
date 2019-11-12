@@ -10,8 +10,6 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#if 0
-
 class TSampleObject
 {
 public:
@@ -36,11 +34,9 @@ private:
 
 };
 
-struct TTestAllocator
+class TTestAllocator
 {
-    size_t AllocatedCount = 0;
-    size_t DeallocatedCount = 0;
-
+public:
     explicit TTestAllocator(IOutputStream* output)
         : Output_(output)
     { }
@@ -48,10 +44,9 @@ struct TTestAllocator
     void* Allocate(size_t size)
     {
         *Output_ << 'A';
+        ++AllocatedCount_;
+
         size += sizeof(void*);
-
-        ++AllocatedCount;
-
         auto ptr = NYTAlloc::Allocate(size);
         auto* header = static_cast<TTestAllocator**>(ptr);
         *header = this;
@@ -62,19 +57,22 @@ struct TTestAllocator
     {
         auto* header = static_cast<TTestAllocator**>(ptr) - 1;
         auto* allocator = *header;
-        *allocator->Output_ << 'F';
 
-        ++allocator->DeallocatedCount;
-        NYTAlloc::Free(ptr);
+        *allocator->Output_ << 'F';
+        ++allocator->DeallocatedCount_;
+
+        NYTAlloc::Free(header);
     }
 
     ~TTestAllocator()
     {
-        YT_VERIFY(AllocatedCount == DeallocatedCount);
+        YT_VERIFY(AllocatedCount_ == DeallocatedCount_);
     }
 
 private:
     IOutputStream* const Output_;
+    size_t AllocatedCount_ = 0;
+    size_t DeallocatedCount_ = 0;
 };
 
 TEST(TLockFreePtrTest, RefCountedPtrBehavior)
@@ -176,8 +174,6 @@ TEST(TLockFreePtrTest, CombinedLogic)
         EXPECT_STREQ("AC!DF", output.Str().c_str());
     }
 }
-
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
