@@ -2137,7 +2137,7 @@ private:
 
                 ++eventCount;
 
-                if (RemovedObjects_[key.first].find(key.second) == RemovedObjects_[key.first].end()) {
+                if (!RemovedObjects_[key.first].contains(key.second)) {
                     auto checker = std::make_unique<TObjectExistenceChecker>(object);
                     checker->ScheduleCheck();
                     checkers.push_back(std::move(checker));
