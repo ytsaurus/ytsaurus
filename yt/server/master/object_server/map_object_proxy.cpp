@@ -763,7 +763,7 @@ TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>> TNonversionedMapObjectPr
         }
     }
 
-    // YYY(kiselyovp) false or true? What to do with preserveAcl in general?
+    // XXX(kiselyovp) do we validate administer permission?
     this->ValidateCopyPermissions(sourceImpl, mode, replace, false /* validateAdminister */);
 
     auto sourceParent = sourceProxy->DoGetParent();
