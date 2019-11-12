@@ -105,9 +105,18 @@ void TCancelableContext::PropagateTo(const TCancelableContextPtr& context)
 {
     auto weakContext = MakeWeak(context);
 
-    {
+    bool canceled = [&] {
         TGuard<TSpinLock> guard(SpinLock_);
+        if (Canceled_) {
+            return true;
+        }
         PropagateToContexts_.insert(context);
+        return false;
+    } ();
+
+    if (canceled) {
+        context->Cancel();
+        return;
     }
 
     context->SubscribeCanceled(BIND([=, weakThis = MakeWeak(this)] {
@@ -120,9 +129,18 @@ void TCancelableContext::PropagateTo(const TCancelableContextPtr& context)
 
 void TCancelableContext::PropagateTo(const TFuture<void>& future)
 {
-    {
+    bool canceled = [&] {
         TGuard<TSpinLock> guard(SpinLock_);
+        if (Canceled_) {
+            return true;
+        }
         PropagateToFutures_.insert(future);
+        return false;
+    } ();
+
+    if (canceled) {
+        future.Cancel();
+        return;
     }
 
     future.Subscribe(BIND([=, weakThis = MakeWeak(this)] (const TError&) {
