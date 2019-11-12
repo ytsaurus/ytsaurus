@@ -323,7 +323,14 @@ private:
             auto mountRevision = request->mount_revisions(index);
             auto attachment = request->Attachments()[index];
 
-            auto callback = BIND([=, &profilerGuard] () -> TSharedRef {
+            if (auto tabletSnapshot = slotManager->FindTabletSnapshot(tabletId)) {
+                if (tabletSnapshot->IsProfilingEnabled() && profilerGuard.GetProfilerTags().empty()) {
+                    const auto& user = context->GetUser();
+                    profilerGuard.SetProfilerTags(AddUserTag(user, tabletSnapshot->ProfilerTags));
+                }
+            }
+
+            auto callback = BIND([=] () -> TSharedRef {
                 try {
                     return ExecuteRequestWithRetries<TSharedRef>(
                         Config_->MaxQueryRetries,
@@ -334,10 +341,6 @@ private:
                             TAuthenticatedUserGuard userGuard(securityManager, user);
 
                             auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
-
-                            if (tabletSnapshot->IsProfilingEnabled() && profilerGuard.GetProfilerTags().empty()) {
-                                profilerGuard.SetProfilerTags(AddUserTag(user, tabletSnapshot->ProfilerTags));
-                            }
 
                             slotManager->ValidateTabletAccess(
                                 tabletSnapshot,
