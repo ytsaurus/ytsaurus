@@ -372,6 +372,8 @@ TBuildSnapshotCommand::TBuildSnapshotCommand()
 
     RegisterParameter("set_read_only", SetReadOnly_)
         .Default(false);
+    RegisterParameter("wait_for_snapshot_completion", WaitForSnapshotCompletion_)
+        .Default(false);
 }
 
 void TBuildSnapshotCommand::DoExecute(ICommandContextPtr context)
@@ -387,6 +389,40 @@ void TBuildSnapshotCommand::DoExecute(ICommandContextPtr context)
         .BeginMap()
             .Item("snapshot_id").Value(snapshotId)
         .EndMap());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TBuildMasterSnapshotsCommand::TBuildMasterSnapshotsCommand()
+{
+    RegisterParameter("set_read_only", SetReadOnly_)
+        .Default(false);
+    RegisterParameter("wait_for_snapshot_completion", WaitForSnapshotCompletion_)
+        .Default(false);
+    RegisterParameter("retry", Retry_)
+        .Default(false);
+}
+
+void TBuildMasterSnapshotsCommand::DoExecute(ICommandContextPtr context)
+{
+    if (!ValidateSuperuserPermissions(context)) {
+        THROW_ERROR_EXCEPTION("User not authorized");
+    }
+
+    auto admin = context->GetDriver()->GetConnection()->CreateAdmin(TAdminOptions{});
+    auto snapshotOptions = TBuildMasterSnapshotsOptions({SetReadOnly_, WaitForSnapshotCompletion_, Retry_});
+    auto cellIdToSnapshotId = WaitFor(admin->BuildMasterSnapshots(snapshotOptions))
+        .ValueOrThrow();
+
+    context->ProduceOutputValue(BuildYsonStringFluently()
+        .DoListFor(cellIdToSnapshotId, [=] (TFluentList fluent, const auto& pair) {
+            fluent
+                .Item().BeginMap()
+                    .Item("cell_id").Value(pair.first)
+                    .Item("snapshot_id").Value(pair.second)
+                .EndMap();
+        })
+    );
 }
 
 ////////////////////////////////////////////////////////////////////////////////
