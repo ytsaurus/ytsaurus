@@ -642,6 +642,8 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             tabletSnapshot->Config->MergeRowsOnFlush,
             ConvertTo<TRetentionConfigPtr>(tabletSnapshot->Config));
 
+        const auto& rowCache = tabletSnapshot->RowCache;
+
         while (true) {
             // NB: Memory store reader is always synchronous.
             reader->Read(&rows);
@@ -659,6 +661,34 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
                     }
                 }
                 rows.resize(std::distance(rows.begin(), outputIt));
+            }
+
+            if (rowCache) {
+                auto accessor = rowCache->Cache.GetLookupAccessor();
+
+                for (auto& row : rows) {
+                    // TODO(lukyan): Get here address of cell and use it in update. Or use Update with callback.
+                    auto found = accessor.Lookup(row);
+
+                    if (found) {
+                        rowMerger.AddPartialRow(found->GetVersionedRow());
+                        rowMerger.AddPartialRow(row);
+
+                        row = rowMerger.BuildMergedRow();
+
+                        auto cachedRow = CachedRowFromVersionedRow(
+                            &rowCache->Allocator,
+                            row);
+
+                        bool updated = accessor.Update(cachedRow);
+
+                        if (updated) {
+                            YT_LOG_TRACE("Cache updated (Row: %v)", cachedRow->GetVersionedRow());
+                        } else {
+                            YT_LOG_TRACE("Cache update failed (Row: %v)", cachedRow->GetVersionedRow());
+                        }
+                    }
+                }
             }
 
             if (!tableWriter->Write(rows)) {

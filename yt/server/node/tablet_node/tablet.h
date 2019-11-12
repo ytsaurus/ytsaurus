@@ -5,6 +5,7 @@
 #include "partition.h"
 #include "public.h"
 #include "sorted_dynamic_comparer.h"
+#include "cached_row.h"
 
 #include <yt/ytlib/chunk_client/public.h>
 
@@ -21,10 +22,25 @@
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref_tracked.h>
 #include <yt/core/misc/atomic_object.h>
+#include <yt/core/misc/slab_allocator.h>
+#include <yt/core/misc/concurrent_cache.h>
 
 #include <atomic>
 
 namespace NYT::NTabletNode {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TRowCache
+    : public TRefCounted
+{
+    TSlabAllocator Allocator;
+    TConcurrentCache<TCachedRow, TSlabAllocator> Cache;
+
+    TRowCache(size_t elementCount, IMemoryUsageTrackerPtr memoryTracker);
+};
+
+DEFINE_REFCOUNTED_TYPE(TRowCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -165,6 +181,7 @@ struct TTabletSnapshot
 
     TLockManagerPtr LockManager;
     TLockManagerEpoch LockManagerEpoch;
+    TRowCachePtr RowCache;
 
     //! Returns a range of partitions intersecting with the range |[lowerBound, upperBound)|.
     std::pair<TPartitionListIterator, TPartitionListIterator> GetIntersectingPartitions(
@@ -242,6 +259,8 @@ struct ITabletContext
         const NTabletNode::NProto::TAddStoreDescriptor* descriptor) = 0;
     virtual TTransactionManagerPtr GetTransactionManager() = 0;
     virtual NRpc::IServerPtr GetLocalRpcServer() = 0;
+
+    virtual NNodeTrackerClient::TNodeMemoryTrackerPtr GetMemoryUsageTracker() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -336,6 +355,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NTabletClient::TTableReplicaId, UpstreamReplicaId);
 
     DEFINE_BYVAL_RO_PROPERTY(int, HashTableSize);
+    DEFINE_BYVAL_RO_PROPERTY(int, LookupCacheSize);
 
     DEFINE_BYVAL_RO_PROPERTY(int, OverlappingStoreCount);
     DEFINE_BYVAL_RO_PROPERTY(int, EdenOverlappingStoreCount);
@@ -502,6 +522,9 @@ private:
     ITabletContext* const Context_;
 
     NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;
+
+    TRowCachePtr RowCache_;
+
 
     i64 TabletLockCount_ = 0;
 

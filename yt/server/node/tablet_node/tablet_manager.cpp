@@ -600,6 +600,11 @@ private:
             return Owner_->Bootstrap_->GetRpcServer();
         }
 
+        virtual NNodeTrackerClient::TNodeMemoryTrackerPtr GetMemoryUsageTracker() override
+        {
+            return Owner_->Bootstrap_->GetMemoryUsageTracker();
+        }
+
     private:
         TImpl* const Owner_;
 
