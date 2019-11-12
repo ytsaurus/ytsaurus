@@ -73,6 +73,9 @@ public:
     IMPLEMENT_METHOD(int, BuildSnapshot, (
         const TBuildSnapshotOptions& options),
         (options))
+    IMPLEMENT_METHOD(TCellIdToSnapshotIdMap, BuildMasterSnapshots, (
+        const TBuildMasterSnapshotsOptions& options),
+        (options))
     IMPLEMENT_METHOD(void, GCCollect, (
         const TGCCollectOptions& options),
         (options))
@@ -128,6 +131,74 @@ private:
             .ValueOrThrow();
 
         return rsp->snapshot_id();
+    }
+
+    TCellIdToSnapshotIdMap DoBuildMasterSnapshots(const TBuildMasterSnapshotsOptions& options)
+    {
+        using TResponseFuture = TFuture<TIntrusivePtr<TTypedClientResponse<NHydra::NProto::TRspForceBuildSnapshot>>>;
+        struct TSnapshotRequest
+        {
+            TResponseFuture Future;
+            TCellId CellId;
+        };
+
+        auto constructRequest = [&] (TCellId cellId) {
+            auto channel = GetCellChannelOrThrow(cellId);
+            THydraServiceProxy proxy(channel);
+            auto req = proxy.ForceBuildSnapshot();
+            req->SetTimeout(TDuration::Hours(1));
+            req->set_set_read_only(options.SetReadOnly);
+            req->set_wait_for_snapshot_completion(options.WaitForSnapshotCompletion);
+            return req;
+        };
+
+        std::vector<TCellId> cellIds;
+
+        cellIds.push_back(Connection_->GetPrimaryMasterCellId());
+
+        for (auto cellTag : Connection_->GetSecondaryMasterCellTags()) {
+            cellIds.push_back(Connection_->GetMasterCellId(cellTag));
+        }
+
+        std::queue<TSnapshotRequest> requestQueue;
+        auto enqueueRequest = [&] (TCellId cellId) {
+            YT_LOG_INFO("Requesting cell to build a snapshot (CellId: %v)", cellId);
+            auto request = constructRequest(cellId);
+            requestQueue.push({request->Invoke(), cellId});
+        };
+
+        for (auto cellId : cellIds) {
+            enqueueRequest(cellId);
+        }
+
+        THashMap<TCellId, int> cellIdToSnapshotId;
+        while (!requestQueue.empty()) {
+            auto request = requestQueue.front();
+            requestQueue.pop();
+
+            auto cellId = request.CellId;
+            YT_LOG_INFO("Waiting for snapshot (CellId: %v)", cellId);
+            auto snapshotIdOrError = WaitFor(request.Future);
+            if (snapshotIdOrError.IsOK()) {
+                auto snapshotId = snapshotIdOrError.Value()->snapshot_id();
+                YT_LOG_INFO("Snapshot built successfully (CellId: %v, SnapshotId: %v)", cellId, snapshotId);
+                cellIdToSnapshotId[cellId] = snapshotId;
+            } else {
+                auto errorCode = snapshotIdOrError.GetCode();
+                if (errorCode == NHydra::EErrorCode::ReadOnlySnapshotBuilt) {
+                    YT_LOG_INFO("Skipping cell since it is already in read-only mode and has a valid snapshot (CellId: %v)", cellId);
+                    auto snapshotId = snapshotIdOrError.Attributes().Get<int>("snapshot_id");
+                    cellIdToSnapshotId[cellId] = snapshotId;
+                } else if (options.Retry && errorCode != NHydra::EErrorCode::ReadOnlySnapshotBuildFailed) {
+                    YT_LOG_INFO(snapshotIdOrError, "Failed to build snapshot; retrying (CellId: %v)", cellId);
+                    enqueueRequest(cellId);
+                } else {
+                    snapshotIdOrError.ThrowOnError();
+                }
+            }
+        }
+
+        return cellIdToSnapshotId;
     }
 
     void DoGCCollect(const TGCCollectOptions& options)

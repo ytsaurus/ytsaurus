@@ -183,6 +183,23 @@ public:
 private:
     NElection::TCellId CellId_;
     bool SetReadOnly_;
+    bool WaitForSnapshotCompletion_;
+
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TBuildMasterSnapshotsCommand
+        : public TCommandBase
+{
+public:
+    TBuildMasterSnapshotsCommand();
+
+private:
+    bool SetReadOnly_;
+    bool WaitForSnapshotCompletion_;
+    bool Retry_;
 
     virtual void DoExecute(ICommandContextPtr context) override;
 };

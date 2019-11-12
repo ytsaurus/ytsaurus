@@ -1130,7 +1130,10 @@ def remote_copy(**kwargs):
     return start_op("remote_copy", **kwargs)
 
 def build_snapshot(*args, **kwargs):
-    get_driver().build_snapshot(*args, **kwargs)
+    return get_driver().build_snapshot(*args, **kwargs)
+
+def build_master_snapshots(*args, **kwargs):
+    return get_driver().build_master_snapshots(*args, **kwargs)
 
 def get_version():
     return execute_command("get_version", {}, parse_yson=True)
