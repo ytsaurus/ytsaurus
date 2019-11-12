@@ -319,9 +319,11 @@ private:
 
         std::vector<TCallback<TFuture<TSharedRef>()>> batchCallbacks;
         for (size_t index = 0; index < batchCount; ++index) {
-            auto callback = BIND([&, index] () -> TSharedRef{
-                auto tabletId = tabletIds[index];
-                auto mountRevision = request->mount_revisions(index);
+            auto tabletId = tabletIds[index];
+            auto mountRevision = request->mount_revisions(index);
+            auto attachment = request->Attachments()[index];
+
+            auto callback = BIND([=, &profilerGuard] () -> TSharedRef {
                 try {
                     return ExecuteRequestWithRetries<TSharedRef>(
                         Config_->MaxQueryRetries,
@@ -343,7 +345,7 @@ private:
                                 timestamp);
                             tabletSnapshot->ValidateMountRevision(mountRevision);
 
-                            auto requestData = requestCodec->Decompress(request->Attachments()[index]);
+                            auto requestData = requestCodec->Decompress(attachment);
 
                             struct TLookupRowBufferTag { };
                             TWireProtocolReader reader(requestData, New<TRowBuffer>(TLookupRowBufferTag()));
