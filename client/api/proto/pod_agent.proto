@@ -127,6 +127,8 @@ message TComputeResources {
 
     // Если true иммигрирует кэш при незначительной ошибке страницы, по умолчанию: false.
     bool recharge_on_pgfault = 7;
+
+    uint64 thread_limit = 8;
 }
 
 // Проверки целостности ресурса
