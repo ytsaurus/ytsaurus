@@ -154,7 +154,7 @@ struct ISchedulerStrategy
 
     //! Out of the pool trees specified for the operation, choose one most suitable tree
     //! depending on the operation's demand and current resource usage in each tree.
-    virtual TString ChooseBestSingleTreeForOperation(TOperationId operationId, TJobResources neededResources) = 0;
+    virtual TString ChooseBestSingleTreeForOperation(TOperationId operationId, TJobResources newDemand) = 0;
 
     virtual void ProcessJobUpdates(
         const std::vector<TJobUpdate>& jobUpdates,
