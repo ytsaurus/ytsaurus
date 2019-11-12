@@ -83,7 +83,7 @@ private:
 class TNodeAllocationContext
 {
 public:
-    TNodeAllocationContext(TNode* node, TPod* pod, const TClusterPtr& cluster)
+    TNodeAllocationContext(TNode* node, TPod* pod)
         : CpuResource_(node->CpuResource())
         , MemoryResource_(node->MemoryResource())
         , NetworkResource_(node->NetworkResource())
@@ -92,22 +92,19 @@ public:
         , GpuResources_(node->GpuResources())
         , Node_(node)
         , Pod_(pod)
-        , InternetAddressAllocationContext_(cluster->FindNetworkModule(node->Spec().network_module_id()))
+        , InternetAddressAllocationContext_(Node_->GetNetworkModule())
     { }
 
     bool TryAcquireIP6Addresses(TAllocatorDiagnostics* diagnostics)
     {
         bool result = true;
-        int internetAddressCount = 0;
         for (const auto& addressRequest : Pod_->IP6AddressRequests()) {
             if (!Node_->HasIP6SubnetInVlan(addressRequest.vlan_id()) && result) {
                 diagnostics->RegisterUnsatisfiedConstraint(EAllocatorConstraintKind::IP6AddressVlan);
                 result = false;
             }
-            if (addressRequest.enable_internet() || !addressRequest.ip4_address_pool_id().empty()) {
-                ++internetAddressCount;
-            }
         }
+        auto internetAddressCount = Pod_->GetInternetAddressRequestCount();
         if (!InternetAddressAllocationContext_.TryAllocate(internetAddressCount, diagnostics)) {
             result = false;
         }
@@ -290,13 +287,9 @@ const TAllocatorConstraintCounters& TAllocatorDiagnostics::GetUnsatisfiedConstra
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAllocator::TAllocator(TClusterPtr cluster)
-    : Cluster_(std::move(cluster))
-{ }
-
 void TAllocator::Allocate(TNode* node, TPod* pod)
 {
-    TNodeAllocationContext allocationContext(node, pod, Cluster_);
+    TNodeAllocationContext allocationContext(node, pod);
     if (!TryAllocate(&allocationContext, pod, &Diagnostics_)) {
         THROW_ERROR_EXCEPTION("Could not allocate resources for pod %Qv on node %Qv",
             pod->GetId(),
@@ -307,7 +300,7 @@ void TAllocator::Allocate(TNode* node, TPod* pod)
 
 bool TAllocator::CanAllocate(TNode* node, TPod* pod)
 {
-    TNodeAllocationContext allocationContext(node, pod, Cluster_);
+    TNodeAllocationContext allocationContext(node, pod);
     return TryAllocate(&allocationContext, pod, &Diagnostics_);
 }
 

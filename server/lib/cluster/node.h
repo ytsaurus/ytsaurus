@@ -121,10 +121,11 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NObjects::EHfsmState, HfsmState);
     DEFINE_BYVAL_RO_PROPERTY(NObjects::ENodeMaintenanceState, MaintenanceState);
     DEFINE_BYVAL_RO_PROPERTY(bool, HasUnknownPods);
-    DEFINE_BYREF_RW_PROPERTY(NClient::NApi::NProto::TNodeSpec, Spec);
+    DEFINE_BYREF_RO_PROPERTY(NClient::NApi::NProto::TNodeSpec, Spec);
 
     DEFINE_BYREF_RW_PROPERTY(std::vector<TTopologyZone*>, TopologyZones);
     DEFINE_BYREF_RW_PROPERTY(THashSet<TPod*>, SchedulablePods);
+    DEFINE_BYVAL_RW_PROPERTY(TNetworkModule*, NetworkModule);
 
     DEFINE_BYREF_RW_PROPERTY(THomogeneousResource, CpuResource);
     DEFINE_BYREF_RW_PROPERTY(THomogeneousResource, MemoryResource);
@@ -140,6 +141,8 @@ public:
 
     bool IsSchedulable() const;
     bool HasIP6SubnetInVlan(const TString& vlanId) const;
+
+    ui64 GetDiskResourceTotalFreeCapacity(const TString& storageClass) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -40,8 +40,6 @@ private:
 class TAllocator
 {
 public:
-    explicit TAllocator(TClusterPtr cluster);
-
     //! Allocates node resources for pod or throws an error
     //! if any of the constraints is not satisfied.
     void Allocate(TNode* node, TPod* pod);
@@ -52,7 +50,6 @@ public:
     const TAllocatorDiagnostics& GetDiagnostics() const;
 
 private:
-    const TClusterPtr Cluster_;
     TAllocatorDiagnostics Diagnostics_;
 };
 

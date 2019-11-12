@@ -33,6 +33,8 @@ class TObjectFilterCache;
 DECLARE_REFCOUNTED_STRUCT(IClusterReader)
 
 extern const TString TopologyLabel;
+extern const TString SsdStorageClass;
+extern const TString HddStorageClass;
 
 class TAntiaffinityVacancyAllocator;
 

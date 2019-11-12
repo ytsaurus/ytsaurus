@@ -1,11 +1,26 @@
 from __future__ import print_function
 
-from yp.common import YtResponseError, wait, WaitFailed
-from yp.local import YpInstance, ACTUAL_DB_VERSION, reset_yp, unfreeze_yp
+from yp.local import (
+    ACTUAL_DB_VERSION,
+    YpInstance,
+    reset_yp,
+    unfreeze_yp,
+)
+
+from yp.local_heavy_scheduler import YpHeavySchedulerInstance
+
 from yp.logger import logger
 
-from yt.wrapper.common import generate_uuid
+from yp.common import (
+    WaitFailed,
+    YtResponseError,
+    wait,
+)
+
 from yt.wrapper.ypath import ypath_join
+
+from yt.wrapper.common import generate_uuid
+from yt.wrapper.retries import run_with_retries
 
 from yt.common import update, get_value
 
@@ -340,6 +355,33 @@ def create_pod_set_with_quota(yp_client, cpu_quota=1000, memory_quota=2**10, ban
     return pod_set_id, account_id, node_segment_id
 
 
+def run_eviction_acknowledger(yp_client, iteration_count=60, sleep_time=1):
+    for _ in xrange(iteration_count):
+        responses = yp_client.select_objects(
+            "pod",
+            filter="[/status/eviction/state] = \"requested\"",
+            selectors=["/meta/id"],
+        )
+        for response in responses:
+            pod_id = response[0]
+            yp_client.acknowledge_pod_eviction(pod_id, "Test")
+        time.sleep(sleep_time)
+
+
+def attach_pod_set_to_disruption_budget(yp_client, pod_set_id, pod_disruption_budget_id):
+    def impl():
+        yp_client.update_object(
+            "pod_set",
+            pod_set_id,
+            set_updates=[dict(
+                path="/spec/pod_disruption_budget_id",
+                value=pod_disruption_budget_id,
+            )],
+        )
+    # Bypass conflicts with pod disruption budget controller.
+    run_with_retries(impl, exceptions=(YtResponseError,))
+
+
 class Cli(object):
     def __init__(self, directory_path, yamake_subdirectory_name, binary_name):
         if yatest_common is not None:
@@ -449,21 +491,54 @@ class YpTestEnvironment(object):
                  enable_ssl=False,
                  start=True,
                  db_version=ACTUAL_DB_VERSION,
-                 local_yt_options=None):
+                 local_yt_options=None,
+                 start_yp_heavy_scheduler=False,
+                 yp_heavy_scheduler_config=None):
         yp_master_config = update(DEFAULT_YP_MASTER_CONFIG, get_value(yp_master_config, {}))
         self.test_sandbox_path = prepare_yp_test_sandbox()
         self.test_sandbox_base_path = os.path.dirname(self.test_sandbox_path)
 
-        self.yp_instance = YpInstance(self.test_sandbox_path,
-                                      yp_master_config=yp_master_config,
-                                      enable_ssl=enable_ssl,
-                                      db_version=db_version,
-                                      port_locks_path=os.path.join(self.test_sandbox_base_path, "ports"),
-                                      local_yt_options=local_yt_options)
+        self.yp_heavy_scheduler_instance = None
+        if start_yp_heavy_scheduler:
+            self.yp_heavy_scheduler_instance = YpHeavySchedulerInstance(
+                yt_root_path="//yp/heavy_scheduler",
+                working_directory_path=os.path.join(self.test_sandbox_path, "yp_heavy_scheduler"),
+                config_patch=yp_heavy_scheduler_config,
+            )
+
+            if local_yt_options is None:
+                local_yt_options = dict()
+            self._ensure_option_value_greater_or_equal(local_yt_options, "http_proxy_count", 1)
+            self._ensure_option_value_greater_or_equal(local_yt_options, "rpc_proxy_count", 1)
+
+        self._port_locks_path = os.path.join(self.test_sandbox_base_path, "ports")
+
+        self.yp_instance = YpInstance(
+            self.test_sandbox_path,
+            yp_master_config=yp_master_config,
+            enable_ssl=enable_ssl,
+            db_version=db_version,
+            port_locks_path=self._port_locks_path,
+            local_yt_options=local_yt_options,
+        )
 
         self._prepare()
         if start:
             self._start()
+
+    def _ensure_option_value_greater_or_equal(self, config, option_name, lower_bound):
+        if option_name in config:
+            if config[option_name] < lower_bound:
+                raise RuntimeError(
+                    "Incorrect value of option \"{}\": "
+                    "expected greater or equal to {}, but got {}".format(
+                        option_name,
+                        lower_bound,
+                        config[option_name],
+                    ),
+                )
+        else:
+            config[option_name] = lower_bound
 
     def _prepare(self):
         self.yp_instance.prepare()
@@ -486,6 +561,13 @@ class YpTestEnvironment(object):
             wait(touch_pod_set)
 
             self.sync_access_control()
+
+            if self.yp_heavy_scheduler_instance is not None:
+                self.yp_heavy_scheduler_instance.start(
+                    yt_http_proxy_address=self.yp_instance.yt_instance.get_http_proxy_address(),
+                    yp_master_grpc_address=self.yp_instance.yp_client_grpc_address,
+                    port_locks_path=self._port_locks_path,
+                )
         except:
             yatest_save_sandbox(self.test_sandbox_path)
             raise
@@ -547,6 +629,8 @@ class YpTestEnvironment(object):
 
     def cleanup(self):
         try:
+            if self.yp_heavy_scheduler_instance is not None:
+                self.yp_heavy_scheduler_instance.stop()
             if self.yp_client is not None:
                 self.yp_client.close()
             self.yp_instance.stop()
@@ -598,6 +682,8 @@ def test_environment_configurable(request):
         enable_ssl=getattr(request.cls, "ENABLE_SSL", False),
         local_yt_options=getattr(request.cls, "LOCAL_YT_OPTIONS", None),
         start=getattr(request.cls, "START", True),
+        start_yp_heavy_scheduler=getattr(request.cls, "START_YP_HEAVY_SCHEDULER", False),
+        yp_heavy_scheduler_config=getattr(request.cls, "YP_HEAVY_SCHEDULER_CONFIG", None),
     )
     request.addfinalizer(lambda: environment.cleanup())
     return environment

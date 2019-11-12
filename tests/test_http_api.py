@@ -142,7 +142,7 @@ class TestHttpApi(object):
         assert rsp.headers["Content-Type"].startswith("application/json")
         if PY3:
             # Check that charset is detected correctly.
-            assert rsp.text == rsp.content.encode("utf-8")
+            assert rsp.text == rsp.content.decode("utf-8")
             result_value = json.loads(rsp.text)["result"]["values"][0]
             assert result_value == utf8_value
         else:

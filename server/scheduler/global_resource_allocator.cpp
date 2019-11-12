@@ -212,7 +212,7 @@ public:
                 << TError(nodesOrError);
         }
 
-        TAllocator allocator(SharedState_.GetCluster());
+        TAllocator allocator;
         switch (NodeSelectionStrategy_) {
             case EAllocatorNodeSelectionStrategy::Random: {
                 const int SampleSize = 10;

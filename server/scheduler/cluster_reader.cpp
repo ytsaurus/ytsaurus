@@ -471,7 +471,7 @@ TString TClusterReader::GetObjectQueryString<TPod>()
 {
     const auto& ytConnector = Bootstrap_->GetYTConnector();
     return Format(
-        "[%v], [%v], [%v], [%v], [%v], [%v], [%v], [%v], [%v] from [%v] where is_null([%v])",
+        "[%v], [%v], [%v], [%v], [%v], [%v], [%v], [%v], [%v], [%v] from [%v] where is_null([%v])",
         PodsTable.Fields.Meta_Id.Name,
         PodsTable.Fields.Meta_PodSetId.Name,
         PodsTable.Fields.Meta_Etc.Name,
@@ -480,6 +480,7 @@ TString TClusterReader::GetObjectQueryString<TPod>()
         PodsTable.Fields.Spec_AccountId.Name,
         PodsTable.Fields.Spec_EnableScheduling.Name,
         PodsTable.Fields.Status_Etc.Name,
+        PodsTable.Fields.Status_Scheduling_Etc.Name,
         PodsTable.Fields.Labels.Name,
         ytConnector->GetTablePath(&PodsTable),
         ObjectsTable.Fields.Meta_RemovalTime.Name);
@@ -497,6 +498,7 @@ std::unique_ptr<TPod> TClusterReader::ParseObjectFromRow<TPod>(
     TObjectId accountId;
     bool enableScheduling;
     NServer::NObjects::NProto::TPodStatusEtc statusEtc;
+    NServer::NObjects::NProto::TPodStatusSchedulingEtc statusSchedulingEtc;
     TYsonString labels;
     FromUnversionedRow(
         row,
@@ -508,6 +510,7 @@ std::unique_ptr<TPod> TClusterReader::ParseObjectFromRow<TPod>(
         &accountId,
         &enableScheduling,
         &statusEtc,
+        &statusSchedulingEtc,
         &labels);
 
     return std::make_unique<TPod>(
@@ -525,7 +528,8 @@ std::unique_ptr<TPod> TClusterReader::ParseObjectFromRow<TPod>(
         specEtc.ip6_subnet_requests(),
         std::move(*specEtc.mutable_node_filter()),
         enableScheduling,
-        std::move(*statusEtc.mutable_eviction()));
+        std::move(*statusEtc.mutable_eviction()),
+        std::move(*statusSchedulingEtc.mutable_error()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

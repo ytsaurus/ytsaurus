@@ -6,6 +6,7 @@
 
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/property.h>
+#include <yt/core/misc/proto/error.pb.h>
 #include <yt/core/misc/ref_tracked.h>
 
 namespace NYP::NServer::NCluster {
@@ -34,7 +35,8 @@ public:
         const NObjects::TPodIP6SubnetRequests& ip6SubnetRequests,
         TString nodeFilter,
         bool enableScheduling,
-        NClient::NApi::NProto::TPodStatus_TEviction eviction);
+        NClient::NApi::NProto::TPodStatus_TEviction eviction,
+        NYT::NProto::TError schedulingError);
 
     DEFINE_BYREF_RO_PROPERTY(TObjectId, PodSetId);
     DEFINE_BYREF_RO_PROPERTY(TObjectId, NodeId);
@@ -54,14 +56,19 @@ public:
 
     // Status.
     DEFINE_BYREF_RO_PROPERTY(NClient::NApi::NProto::TPodStatus_TEviction, Eviction);
+    DEFINE_BYREF_RO_PROPERTY(NYT::NProto::TError, SchedulingError);
 
     DEFINE_BYVAL_RW_PROPERTY(TPodSet*, PodSet);
     DEFINE_BYVAL_RW_PROPERTY(TNode*, Node);
     DEFINE_BYVAL_RW_PROPERTY(TAccount*, Account);
 
     TAccount* GetEffectiveAccount() const;
-
     const TString& GetEffectiveNodeFilter() const;
+
+    TError ParseSchedulingError() const;
+
+    ui64 GetInternetAddressRequestCount() const;
+    ui64 GetDiskRequestTotalCapacity(const TString& storageClass) const;
 
     //! It is assumed to be called exactly once during cluster snapshot creation.
     void PostprocessAttributes();

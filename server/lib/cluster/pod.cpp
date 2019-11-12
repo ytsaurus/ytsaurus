@@ -1,7 +1,9 @@
 #include "pod.h"
 
 #include "pod_set.h"
+#include "resource_capacities.h"
 
+#include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/ypath/tokenizer.h>
 #include <yt/core/ytree/node.h>
 
@@ -64,7 +66,8 @@ TPod::TPod(
     const NObjects::TPodIP6SubnetRequests& ip6SubnetRequests,
     TString nodeFilter,
     bool enableScheduling,
-    NClient::NApi::NProto::TPodStatus_TEviction eviction)
+    NClient::NApi::NProto::TPodStatus_TEviction eviction,
+    NYT::NProto::TError schedulingError)
     : TObject(std::move(id), std::move(labels))
     , PodSetId_(std::move(podSetId))
     , NodeId_(std::move(nodeId))
@@ -78,6 +81,7 @@ TPod::TPod(
     , NodeFilter_(std::move(nodeFilter))
     , EnableScheduling_(enableScheduling)
     , Eviction_(std::move(eviction))
+    , SchedulingError_(std::move(schedulingError))
     , AntiaffinityGroupIdsOrError_(TError("Uninitialized pod antiaffinity group ids"))
 { }
 
@@ -91,6 +95,33 @@ const TString& TPod::GetEffectiveNodeFilter() const
 {
     YT_VERIFY(PodSet_);
     return !NodeFilter_.Empty() ? NodeFilter_ : PodSet_->NodeFilter();
+}
+
+TError TPod::ParseSchedulingError() const
+{
+    return FromProto<TError>(SchedulingError_);
+}
+
+ui64 TPod::GetInternetAddressRequestCount() const
+{
+    ui64 result = 0;
+    for (const auto& addressRequest : IP6AddressRequests_) {
+        if (addressRequest.enable_internet() || !addressRequest.ip4_address_pool_id().empty()) {
+            ++result;
+        }
+    }
+    return result;
+}
+
+ui64 TPod::GetDiskRequestTotalCapacity(const TString& storageClass) const
+{
+    ui64 result = 0;
+    for (const auto& request : DiskVolumeRequests_) {
+        if (request.storage_class() == storageClass) {
+            result += GetDiskCapacity(GetDiskVolumeRequestCapacities(request));
+        }
+    }
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

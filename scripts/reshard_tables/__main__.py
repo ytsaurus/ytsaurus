@@ -47,7 +47,7 @@ def pick_pivots_and_reshard(client, table_path, tablet_count, dry_run):
     )
 
     row_count = client.get(get_attribute_path(tmp_table_path, "row_count"))
-    sampling_rate = tablet_count * 100.0 / row_count
+    sampling_rate = min(tablet_count * 100.0 / row_count, 1.0)
 
     rows = [[]] + list(
         client.read_table(

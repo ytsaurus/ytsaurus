@@ -226,6 +226,7 @@ public:
             InitializeAccountPods();
             InitializeAntiaffinityVacancies();
             InitializeNetworkModules();
+            InitializeNodeNetworkModules();
 
             YT_LOG_INFO(
                 "Finished loading cluster snapshot ("
@@ -638,6 +639,18 @@ private:
             if (internetAddress->Status().has_pod_id()) {
                 ++networkModule->AllocatedInternetAddressCount();
             }
+        }
+    }
+
+    void InitializeNodeNetworkModules()
+    {
+        for (const auto& [nodeId, node] : NodeMap_) {
+            const auto& networkModuleId = node->Spec().network_module_id();
+            TNetworkModule* networkModule = nullptr;
+            if (networkModuleId) {
+                networkModule = FindNetworkModule(networkModuleId);
+            }
+            node->SetNetworkModule(networkModule);
         }
     }
 

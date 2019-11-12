@@ -4,6 +4,7 @@ from .conftest import (
     assert_over_time,
     create_nodes,
     create_pod_with_boilerplate,
+    attach_pod_set_to_disruption_budget,
 )
 
 from yp.common import YtResponseError, YpNoSuchObjectError, wait
@@ -297,20 +298,6 @@ def validate_controller_lifelessness(yp_client):
     pod_disruption_budget_id = yp_client.create_object("pod_disruption_budget")
     last_update_time = get_last_update_time(yp_client, pod_disruption_budget_id)
     assert_over_time(lambda: get_last_update_time(yp_client, pod_disruption_budget_id) == last_update_time)
-
-
-def attach_pod_set_to_disruption_budget(yp_client, pod_set_id, pod_disruption_budget_id):
-    def impl():
-        yp_client.update_object(
-            "pod_set",
-            pod_set_id,
-            set_updates=[dict(
-                path="/spec/pod_disruption_budget_id",
-                value=pod_disruption_budget_id,
-            )],
-        )
-    # Bypass conflicts with pod disruption budget controller.
-    run_with_retries(impl, exceptions=(YtResponseError,))
 
 
 def request_pod_eviction_forcefully(yp_client, pod_id, validate_disruption_budget=False):

@@ -28,8 +28,9 @@ TResourceCapacities TResourceBase::GetFreeCapacities() const
 {
     auto freeCapacities = TotalCapacities_;
     for (size_t index = 0; index < MaxResourceDimensions; ++index) {
-        YT_VERIFY(freeCapacities[index] >= AllocatedCapacities_[index]);
-        freeCapacities[index] -= AllocatedCapacities_[index];
+        freeCapacities[index] = (freeCapacities[index] >= AllocatedCapacities_[index])
+            ? freeCapacities[index] - AllocatedCapacities_[index]
+            : 0;
     }
     return freeCapacities;
 }
@@ -184,6 +185,17 @@ bool TNode::HasIP6SubnetInVlan(const TString& vlanId) const
         }
     }
     return false;
+}
+
+ui64 TNode::GetDiskResourceTotalFreeCapacity(const TString& storageClass) const
+{
+    ui64 result = 0;
+    for (const auto& resource : DiskResources_) {
+        if (resource.GetStorageClass() == storageClass) {
+            result += GetDiskCapacity(resource.GetFreeCapacities());
+        }
+    }
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

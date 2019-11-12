@@ -28,6 +28,7 @@ SET(YP_TEST_SRCS
     test_endpoints.py
     test_eviction.py
     test_grpc_stubs.py
+    test_heavy_scheduler.py
     test_history_api.py
     test_http_api.py
     test_ids.py
@@ -50,6 +51,7 @@ SET(YP_TEST_SRCS
     test_resources.py
     test_retries.py
     test_scheduler.py
+    test_scheduler_cluster.py
     test_scheduler_node_score.py
     test_schemas.py
     test_scripts.py
