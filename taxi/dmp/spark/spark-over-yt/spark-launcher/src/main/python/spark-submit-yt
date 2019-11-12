@@ -20,13 +20,16 @@ working_dir = args.working_dir or "//home/{0}/spark-tmp".format(user)
 spark_home = os.getenv("SPARK_HOME")
 
 yt.wrapper.config.config['proxy']['url'] = proxy
-master = list("{0}/instances/{1}/address".format(working_dir, id))[0]
+master = list("{0}/instances/{1}/rest".format(working_dir, id))[0]
 
 spark_args = ["spark-submit", "--master", "spark://{0}".format(master)]
 spark_env = os.environ.copy()
 
 spark_args.append("--conf")
 spark_args.append("spark.hadoop.yt.proxy={}".format(proxy))
+
+spark_args.append("--conf")
+spark_args.append("spark.master.rest.enabled=true")
 
 if args.auto_auth:
     with open("{0}/.yt/token".format(os.getenv("HOME"))) as f:

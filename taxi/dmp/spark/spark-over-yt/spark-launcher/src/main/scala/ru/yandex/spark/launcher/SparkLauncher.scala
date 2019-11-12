@@ -11,6 +11,11 @@ import scala.io.Source
 import scala.language.postfixOps
 import scala.sys.process._
 
+import io.circe._
+import io.circe.generic.auto._
+import io.circe.parser._
+import io.circe.syntax._
+
 object SparkLauncher {
   private val log = Logger.getLogger(getClass)
   private val sparkHome = sys.env("SPARK_HOME")
@@ -32,27 +37,26 @@ object SparkLauncher {
       "webui-port" -> webUiPort.toString
     ), Nil, env)
 
-    val boundPorts = readPorts()
-    log.info(s"Ports from file: $boundPorts")
+    val address = readAddress()
+    log.info(s"Address from file: $address")
 
-    Address(
-      host,
-      boundPorts.head,
-      boundPorts(1)
-    )
+    address
   }
 
   @tailrec
-  private def readPorts(): Seq[Int] = {
-    val successFlag = new File("ports_success")
-    val file = new File("ports")
+  private def readAddress(): Address = {
+    val successFlag = new File("master_address_success")
+    val file = new File("master_address")
     if (!successFlag.exists()) {
       Thread.sleep(100)
-      readPorts()
+      readAddress()
     } else {
       val source = Source.fromFile(file)
       try {
-        source.getLines().map(_.toInt).toList
+        decode[Address](source.mkString) match {
+          case Right(address) => address
+          case Left(error) => throw error
+        }
       } finally {
         source.close()
       }
