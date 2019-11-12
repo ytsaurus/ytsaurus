@@ -3384,8 +3384,9 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
     @authors("eshcherbin")
     def test_two_trees_with_unequal_demand(self):
         for busy_tree, expected_tree in [("default", "nirvana"), ("nirvana", "default")]:
+            wait(lambda: get_from_tree_orchid(expected_tree, "fair_share_info/pools/research/resource_demand/cpu") == 0.0)
             other_op = run_sleeping_vanilla(spec={"pool_trees": [busy_tree], "pool": "research"})
-            wait(lambda: other_op.get_running_jobs())
+            wait(lambda: get_from_tree_orchid(busy_tree, "fair_share_info/pools/research/resource_demand/cpu") > 0.0)
 
             spec = {
                 "pool_trees": ["default", "nirvana"],
@@ -3403,9 +3404,8 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
     @authors("eshcherbin")
     def test_two_trees_with_unequal_min_share_resources(self):
         for other_tree, expected_tree in [("default", "nirvana"), ("nirvana", "default")]:
-            set("//sys/pool_trees/{}/@min_share_resources".format(expected_tree), {"cpu": 1})
             set("//sys/pool_trees/{}/research/@min_share_resources".format(expected_tree), {"cpu": 1})
-            wait(lambda: get_from_tree_orchid(expected_tree, "fair_share_info/pools/research")["min_share_resources"]["cpu"] == 1.0)
+            wait(lambda: get_from_tree_orchid(expected_tree, "fair_share_info/pools/research/min_share_resources/cpu") == 1.0)
 
             spec = {
                 "pool_trees": ["default", "nirvana"],
@@ -3418,7 +3418,6 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
             self._run_vanilla_and_check_tree(spec, possible_trees)
 
             set("//sys/pool_trees/{}/research/@min_share_resources".format(expected_tree), {"cpu": 0})
-            set("//sys/pool_trees/{}/@min_share_resources".format(expected_tree), {"cpu": 0})
 
     @authors("eshcherbin")
     def test_two_trees_with_unequal_total_resources(self):
@@ -3442,9 +3441,8 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_two_trees_prefer_tree_with_guaranteed_resources(self):
-        set("//sys/pool_trees/nirvana/@min_share_resources", {"cpu": 3})
         set("//sys/pool_trees/nirvana/research/@min_share_resources", {"cpu": 3})
-        wait(lambda: get_from_tree_orchid("nirvana", "fair_share_info/pools/research")["min_share_resources"]["cpu"] == 3.0)
+        wait(lambda: get_from_tree_orchid("nirvana", "fair_share_info/pools/research/min_share_resources/cpu") == 3.0)
         other_op = run_sleeping_vanilla(spec={"pool_trees": ["nirvana"], "pool": "research"}, job_count=2)
 
         spec = {
@@ -3460,7 +3458,6 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
         other_op.abort()
         other_op.wait_for_state("aborted")
         set("//sys/pool_trees/nirvana/research/@min_share_resources", {"cpu": 0})
-        set("//sys/pool_trees/nirvana/@min_share_resources", {"cpu": 0})
 
     @authors("eshcherbin")
     def test_revive_scheduler(self):
@@ -3507,9 +3504,8 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
             erased_trees = get(op.get_path() + "/@erased_trees")
             assert len(possible_trees) == len(erased_trees) + 1
             for tree in erased_trees:
-                set("//sys/pool_trees/{}/@min_share_resources".format(tree), {"cpu": 3})
                 set("//sys/pool_trees/{}/research/@min_share_resources".format(tree), {"cpu": 3})
-                wait(lambda: get_from_tree_orchid(tree, "fair_share_info/pools/research")["min_share_resources"]["cpu"] == 3.0)
+                wait(lambda: get_from_tree_orchid(tree, "fair_share_info/pools/research/min_share_resources/cpu") == 3.0)
             time.sleep(0.5)
 
         wait(lambda: get("//sys/scheduler/orchid/scheduler/operations/{}/state".format(op.id), verbose_error=False) == "running")
@@ -3525,4 +3521,3 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
 
         for tree in erased_trees:
             set("//sys/pool_trees/{}/research/@min_share_resources".format(tree), {"cpu": 0})
-            set("//sys/pool_trees/{}/@min_share_resources".format(tree), {"cpu": 0})
