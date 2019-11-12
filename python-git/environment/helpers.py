@@ -288,3 +288,12 @@ def add_binary_path(relative_path):
 
     if not which(os.path.basename(binary_path)):
         os.environ["PATH"] = os.path.dirname(binary_path) + ":" + os.environ["PATH"]
+
+def get_value_from_config(config, key, name):
+    d = config
+    parts = key.split("/")
+    for k in parts:
+        d = d.get(k)
+        if d is None:
+            raise YtError('Failed to get required key "{0}" from {1} config'.format(key, name))
+    return d
