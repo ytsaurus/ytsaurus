@@ -374,12 +374,12 @@ message TTimeLimitStatus {
     uint32 consecutive_failures_counter = 3;
 }
 
-// Id секрета из TPodAgentRequest.Secrets
-// Alias секрета из TPodAgentRequest.Secrets
-// В момент обработки спеки будет добавлена переменная окружения с значением равным value секрета
+// Alias - имя (ключ в мапе) секрета в <pod>/spec/secrets (и TPodAgentRequest.Secrets)
+// Id - ключ в yav секрете
+// В момент обработки спеки будет добавлена переменная окружения с значением равным value yav секрета
 message SecretSelector {
-    string id = 1;
     string alias = 2;
+    string id = 1;
 }
 
 message LiteralEnvSelector {
