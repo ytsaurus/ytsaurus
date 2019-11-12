@@ -393,6 +393,7 @@ class TCompositeSchedulerElementFixedState
 public:
     DEFINE_BYREF_RW_PROPERTY(int, RunningOperationCount);
     DEFINE_BYREF_RW_PROPERTY(int, OperationCount);
+    DEFINE_BYREF_RW_PROPERTY(std::list<TOperationId>, WaitingOperationIds);
 
     DEFINE_BYREF_RO_PROPERTY(double, AdjustedFairShareStarvationToleranceLimit);
     DEFINE_BYREF_RO_PROPERTY(TDuration, AdjustedMinSharePreemptionTimeoutLimit);
@@ -471,6 +472,7 @@ public:
 
     virtual int GetMaxOperationCount() const = 0;
     virtual int GetMaxRunningOperationCount() const = 0;
+    int GetAvailableRunningOperationCount() const;
 
     virtual std::vector<EFifoSortParameter> GetFifoSortParameters() const = 0;
     virtual bool AreImmediateOperationsForbidden() const = 0;
@@ -894,9 +896,13 @@ public:
 
     void UpdateAncestorsAttributes(TFairShareContext* context);
 
+    void MarkWaitingFor(TCompositeSchedulerElement* violatedPool);
+
     DEFINE_BYVAL_RW_PROPERTY(TOperationFairShareTreeRuntimeParametersPtr, RuntimeParameters);
 
     DEFINE_BYVAL_RO_PROPERTY(TStrategyOperationSpecPtr, Spec);
+
+    DEFINE_BYREF_RW_PROPERTY(std::optional<TString>, WaitingForPool);
 
 private:
     const TOperationElementSharedStatePtr OperationElementSharedState_;

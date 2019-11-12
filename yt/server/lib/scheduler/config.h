@@ -383,6 +383,8 @@ public:
 
     TDuration TransientOperationQueueScanPeriod;
 
+    TDuration WaitingForPoolOperationScanPeriod;
+
     TDuration OperationToAgentAssignmentBackoff;
 
     //! Maximum number of jobs to start within a single heartbeat.
