@@ -77,6 +77,7 @@ DEPENDS(
     yp/python/yp/bin/yp_local_make
     yp/python/yp/bin/yp_make
     yp/scripts/touch_pod_master_spec_timestamps
+    yp/server/heavy_scheduler/bin
 )
 
 PEERDIR(

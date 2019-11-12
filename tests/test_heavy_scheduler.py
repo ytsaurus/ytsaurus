@@ -29,6 +29,7 @@ class TestHeavyScheduler(object):
         ),
     )
 
+    @pytest.mark.skipif("True", reason="Does not work properly until YT-11604")
     def test_yt_lock(self, yp_env_configurable):
         yt_client = yp_env_configurable.yt_client
 
