@@ -41,13 +41,8 @@ void THierarchicPermissionValidator<TObject>::ValidateCreatePermissions(
     bool replace,
     const NYTree::IAttributeDictionary* attributes)
 {
-    ValidateAddChildPermissions(replace, false /* validateAdminister */);
-
-    if (attributes && (attributes->Contains("acl") || attributes->Contains("inherit_acl"))) {
-        Underlying_->ValidatePermission(
-            replace ? NYTree::EPermissionCheckScope::Parent : NYTree::EPermissionCheckScope::This,
-            NYTree::EPermission::Administer);
-    }
+    bool validateAdminister = attributes && (attributes->Contains("acl") || attributes->Contains("inherit_acl"));
+    ValidateAddChildPermissions(replace, validateAdminister);
 }
 
 template <class TObject>
@@ -72,6 +67,9 @@ void THierarchicPermissionValidator<TObject>::ValidateCopyPermissionsSource(
         NYTree::EPermission::Read);
 
     if (mode == NCypressClient::ENodeCloneMode::Move) {
+        // NB(kiselyovp): passing a disjunction of check scopes to ValidatePermission makes it
+        // check multiple scopes but doing the same for permissions checks that at least one
+        // of them is valid.
         ValidatePermission(
             sourceImpl,
             NYTree::EPermissionCheckScope::This | NYTree::EPermissionCheckScope::Descendants,
