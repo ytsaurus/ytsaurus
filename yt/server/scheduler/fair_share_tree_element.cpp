@@ -1427,6 +1427,11 @@ bool TCompositeSchedulerElement::HasHigherPriorityInFifoMode(const TSchedulerEle
     return false;
 }
 
+int TCompositeSchedulerElement::GetAvailableRunningOperationCount() const
+{
+    return std::max(GetMaxRunningOperationCount() - RunningOperationCount_, 0);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TPoolFixedState::TPoolFixedState(const TString& id)
@@ -3086,6 +3091,7 @@ void TOperationElement::MarkOperationRunningInPool()
 {
     Parent_->IncreaseRunningOperationCount(1);
     RunningInThisPoolTree_ = true;
+    WaitingForPool_.reset();
 
     YT_LOG_INFO("Operation is running in pool (Pool: %v)", Parent_->GetId());
 }
@@ -3098,6 +3104,17 @@ bool TOperationElement::IsOperationRunningInPool()
 TFairShareStrategyPackingConfigPtr TOperationElement::GetPackingConfig() const
 {
     return TreeConfig_->Packing;
+}
+
+void TOperationElement::MarkWaitingFor(TCompositeSchedulerElement* violatedPool)
+{
+    violatedPool->WaitingOperationIds().push_back(OperationId_);
+    WaitingForPool_ = violatedPool->GetId();
+
+    YT_LOG_DEBUG("Operation is pending since max running operation count is violated (OperationId: %v, Pool: %v, Limit: %v)",
+        OperationId_,
+        violatedPool->GetId(),
+        violatedPool->GetMaxRunningOperationCount());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

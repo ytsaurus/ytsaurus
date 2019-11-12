@@ -213,7 +213,7 @@ public:
     {
         auto tree = GetTree(treeId);
         tree->UnregisterOperation(operationState);
-        for (auto operationId : tree->RunWaitingOperations()) {
+        for (auto operationId : tree->ExtractActivatableOperations()) {
             OnOperationReadyInTree(operationId, tree);
         }
     }
@@ -462,9 +462,6 @@ public:
             auto tree = GetTree(treeId);
             if (oldPool.GetPool() != newPool.GetPool()) {
                 tree->ChangeOperationPool(operation->GetId(), state, newPool);
-                for (auto operationId : tree->RunWaitingOperations()) {
-                    OnOperationReadyInTree(operationId, tree);
-                }
             }
 
             const auto& treeParams = GetOrCrash(runtimeParameters->SchedulingOptionsPerPoolTree, treeId);
@@ -888,6 +885,17 @@ public:
             bestRegularizedDemandToMinShareRatio);
 
         return bestTree;
+    }
+
+    virtual void ScanWaitingForPoolOperations() override
+    {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+
+        for (const auto& [_, tree] : IdToTree_) {
+            for (const auto& operationId : tree->TryRunAllWaitingOperations()) {
+                OnOperationReadyInTree(operationId, tree);
+            }
+        }
     }
 
 private:

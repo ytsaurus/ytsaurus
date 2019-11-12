@@ -213,6 +213,8 @@ struct ISchedulerStrategy
     virtual TPoolTreeControllerSettingsMap GetOperationPoolTreeControllerSettingsMap(TOperationId operationId) = 0;
 
     virtual std::vector<std::pair<TOperationId, TError>> GetUnschedulableOperations() = 0;
+
+    virtual void ScanWaitingForPoolOperations() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchedulerStrategy)
