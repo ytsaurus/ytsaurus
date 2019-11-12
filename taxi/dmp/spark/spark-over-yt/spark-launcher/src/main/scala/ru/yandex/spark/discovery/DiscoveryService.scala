@@ -16,14 +16,16 @@ trait DiscoveryService extends AutoCloseable {
   def checkPeriodically(hostPort: HostAndPort): Unit
 }
 
-case class Address(host: String, port: Int, webUiPort: Int) {
+case class Address(host: String, port: Int, webUiPort: Int, restPort: Int) {
   def hostAndPort: HostAndPort = HostAndPort.fromParts(host, port)
 
   def webUiHostAndPort: HostAndPort = HostAndPort.fromParts(host, webUiPort)
+
+  def restHostAndPort: HostAndPort = HostAndPort.fromParts(host, restPort)
 }
 
 object Address {
-  def apply(hostAndPort: HostAndPort, webUiHostAndPort: HostAndPort): Address = {
-    Address(hostAndPort.getHost, hostAndPort.getPort, webUiHostAndPort.getPort)
+  def apply(hostAndPort: HostAndPort, webUiHostAndPort: HostAndPort, restHostAndPort: HostAndPort): Address = {
+    Address(hostAndPort.getHost, hostAndPort.getPort, webUiHostAndPort.getPort, restHostAndPort.getPort)
   }
 }

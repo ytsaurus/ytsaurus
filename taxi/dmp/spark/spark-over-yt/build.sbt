@@ -15,6 +15,7 @@ lazy val `data-source` = (project in file("data-source"))
 lazy val `spark-launcher` = (project in file("spark-launcher"))
   .dependsOn(`yt-utils`)
   .settings(
+    libraryDependencies ++= circe,
     libraryDependencies ++= scaldingArgs,
     libraryDependencies ++= logging
   )

@@ -48,7 +48,7 @@ user = os.getenv("USER")
 proxy = args.proxy or os.getenv("YT_PROXY")
 spark_version = args.version or "2.4.4-bin-custom-spark"
 spark_launcher_jar = "spark-yt-spark-launcher-assembly-0.0.1-SNAPSHOT.jar"
-spark_base_path = "//home/sashbel/data"
+spark_base_path = "//home/sashbel/spark"
 worker_memory = args.worker_memory
 worker_num = args.worker_num
 start_port = 27001
@@ -63,7 +63,8 @@ worker_opts = args.worker_opts or "-Dspark.worker.cleanup.enabled=true " \
                                   "-Dspark.shuffle.service.port=27000".format(port_max_retries)
 master_opts = args.master_opts or "-Dspark.port.maxRetries={0} " \
                                   "-Dspark.hadoop.fs.yt.impl=ru.yandex.spark.yt.format.YtFileSystem " \
-    .format(port_max_retries)
+                                  "-Dspark.master.rest.enabled=true " \
+                                  "-Dspark.master.rest.port={1}".format(port_max_retries, start_port)
 
 working_dir = args.working_dir or "//home/{0}/spark-tmp".format(user)
 master_memory_limit = parse_memory(args.master_memory_limit) or 2 * 1024 * 1024 * 1024
