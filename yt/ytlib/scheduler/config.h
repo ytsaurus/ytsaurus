@@ -430,6 +430,8 @@ public:
 
     std::optional<ECancelationStage> CancelationStage;
 
+    std::optional<TDuration> GetJobSpecDelay;
+
     bool FailGetJobSpec;
 
     bool RegisterSpeculativeJobOnJobScheduled;

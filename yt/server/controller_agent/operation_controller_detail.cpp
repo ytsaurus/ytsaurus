@@ -3593,6 +3593,30 @@ void TOperationControllerBase::AnalyzeScheduleJobStatistics()
     SetOperationAlert(EOperationAlertType::ExcessiveJobSpecThrottling, error);
 }
 
+void TOperationControllerBase::AnalyzeQueueAverageWaitTime()
+{
+    THashMap<EOperationControllerQueue, TDuration> queueToAverageWaitTime;
+    for (auto queue : TEnumTraits<EOperationControllerQueue>::GetDomainValues()) {
+        auto invoker = GetCancelableInvoker(queue);
+        auto averageWaitTime = invoker->GetAverageWaitTime();
+        if (averageWaitTime > Config->OperationAlerts->QueueAverageWaitTimeThreshold) {
+            queueToAverageWaitTime.emplace(queue, averageWaitTime);
+        }
+    }
+
+    TError error;
+    if (!queueToAverageWaitTime.empty()) {
+        error = TError("Found action queues with high average wait time: %v",
+            MakeFormattableView(queueToAverageWaitTime, [] (auto* builder, const auto& pair) {
+                const auto& [queue, averageWaitTime] = pair;
+                builder->AppendFormat("%Qlv", queue);
+            }))
+            << TErrorAttribute("queues_with_high_average_wait_time", queueToAverageWaitTime);
+    }
+
+    SetOperationAlert(EOperationAlertType::HighQueueAverageWaitTime, error);
+}
+
 void TOperationControllerBase::AnalyzeOperationProgress()
 {
     VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
@@ -3608,6 +3632,7 @@ void TOperationControllerBase::AnalyzeOperationProgress()
     AnalyzeJobsDuration();
     AnalyzeOperationDuration();
     AnalyzeScheduleJobStatistics();
+    AnalyzeQueueAverageWaitTime();
 }
 
 void TOperationControllerBase::UpdateCachedMaxAvailableExecNodeResources()
@@ -7302,6 +7327,10 @@ TSharedRef TOperationControllerBase::SafeBuildJobSpecProto(const TJobletPtr& job
 TSharedRef TOperationControllerBase::ExtractJobSpec(TJobId jobId) const
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::GetJobSpec));
+
+    if (auto getJobSpecDelay = Spec_->TestingOperationOptions->GetJobSpecDelay) {
+        Sleep(*getJobSpecDelay);
+    }
 
     if (Spec_->TestingOperationOptions->FailGetJobSpec) {
         THROW_ERROR_EXCEPTION("Testing failure");

@@ -518,6 +518,7 @@ protected:
     void AnalyzeJobsDuration();
     void AnalyzeOperationDuration();
     void AnalyzeScheduleJobStatistics();
+    void AnalyzeQueueAverageWaitTime();
 
     void AnalyzeOperationProgress();
 

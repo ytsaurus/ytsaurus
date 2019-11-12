@@ -101,6 +101,9 @@ TOperationAlertsConfig::TOperationAlertsConfig()
             "completed",
             "running"
         });
+
+    RegisterParameter("queue_average_wait_time_threshold", QueueAverageWaitTimeThreshold)
+        .Default(TDuration::Minutes(1));
 }
 
 TJobSplitterConfig::TJobSplitterConfig()
