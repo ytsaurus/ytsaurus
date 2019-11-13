@@ -147,6 +147,51 @@ TEST_F(TTreeBuilderTest, MapWithAttributes)
     VisitTree(root, &Mock, false);
 }
 
+TEST_F(TTreeBuilderTest, SkipEntityMapChildren)
+{
+    InSequence dummy;
+    EXPECT_CALL(Mock, OnBeginMap());
+    EXPECT_CALL(Mock, OnKeyedItem("b"));
+    EXPECT_CALL(Mock, OnInt64Scalar(42));
+    EXPECT_CALL(Mock, OnKeyedItem("c"));
+        EXPECT_CALL(Mock, OnBeginAttributes());
+            EXPECT_CALL(Mock, OnKeyedItem("d"));
+            EXPECT_CALL(Mock, OnEntity());
+        EXPECT_CALL(Mock, OnEndAttributes());
+    EXPECT_CALL(Mock, OnInt64Scalar(42));
+    EXPECT_CALL(Mock, OnEndMap());
+
+    auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+
+    builder->BeginTree();
+        builder->OnBeginMap();
+
+        builder->OnKeyedItem("a");
+        builder->OnEntity();
+
+        builder->OnKeyedItem("b");
+        builder->OnInt64Scalar(42);
+
+        builder->OnKeyedItem("c");
+        builder->OnBeginAttributes();
+            builder->OnKeyedItem("d");
+            builder->OnEntity();
+        builder->OnEndAttributes();
+        builder->OnInt64Scalar(42);
+
+        builder->OnKeyedItem("f");
+        builder->OnBeginAttributes();
+            builder->OnKeyedItem("g");
+            builder->OnInt64Scalar(42);
+        builder->OnEndAttributes();
+        builder->OnEntity();
+
+        builder->OnEndMap();
+    auto root = builder->EndTree();
+
+    VisitTree(root, &Mock, false, std::nullopt, true);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
