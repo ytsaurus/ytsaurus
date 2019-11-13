@@ -15,6 +15,11 @@ REQUIREMENTS(container:1205365729)
 
 SIZE(LARGE)
 
+REQUIREMENTS(
+    ram_disk:32
+    cpu:8
+)
+
 PEERDIR(
     ${YT_PYTHON_ROOT}/python/yt/wrapper/system_python_tests/test_runner
 )
