@@ -1452,7 +1452,7 @@ private:
 
     THashMap<TSchedulingTagFilter, std::pair<TCpuInstant, TJobResources>> CachedResourceLimitsByTags_;
 
-    TEventLogWriterPtr EventLogWriter_;
+    IEventLogWriterPtr EventLogWriter_;
     std::unique_ptr<IYsonConsumer> EventLogWriterConsumer_;
 
     std::atomic<int> OperationArchiveVersion_ = {-1};

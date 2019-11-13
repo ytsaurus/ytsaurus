@@ -106,7 +106,9 @@ public:
                 timer.GetElapsedTime(),
                 memoryUsageAfter,
                 memoryUsageBefore - memoryUsageAfter);
-            memoryTagQueue->ReclaimTag(memoryTag);
+            if (memoryTagQueue) {
+                memoryTagQueue->ReclaimTag(memoryTag);
+            }
         }));
     }
 
@@ -346,6 +348,11 @@ public:
     virtual std::optional<int> GetRowCountLimitTableIndex() override
     {
         return Underlying_->GetRowCountLimitTableIndex();
+    }
+
+    virtual void LoadSnapshot(const TOperationSnapshot& snapshot) override
+    {
+        return Underlying_->LoadSnapshot(snapshot);
     }
 
 private:

@@ -406,7 +406,7 @@ public:
         return CoreSemaphore_;
     }
 
-    const TEventLogWriterPtr& GetEventLogWriter() const
+    const IEventLogWriterPtr& GetEventLogWriter() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -820,7 +820,7 @@ private:
     const IReconfigurableThroughputThrottlerPtr ReconfigurableJobSpecSliceThrottler_;
     const IThroughputThrottlerPtr JobSpecSliceThrottler_;
     const TAsyncSemaphorePtr CoreSemaphore_;
-    const TEventLogWriterPtr EventLogWriter_;
+    const IEventLogWriterPtr EventLogWriter_;
     const std::unique_ptr<TMasterConnector> MasterConnector_;
 
     bool Connected_= false;
@@ -1676,7 +1676,7 @@ const TAsyncSemaphorePtr& TControllerAgent::GetCoreSemaphore() const
     return Impl_->GetCoreSemaphore();
 }
 
-const TEventLogWriterPtr& TControllerAgent::GetEventLogWriter() const
+const IEventLogWriterPtr& TControllerAgent::GetEventLogWriter() const
 {
     return Impl_->GetEventLogWriter();
 }
