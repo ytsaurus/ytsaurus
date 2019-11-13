@@ -7,7 +7,7 @@ import (
 
 	"a.yandex-team.ru/yt/go/yterrors"
 
-	"github.com/gofrs/uuid/v3"
+	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 
 	"a.yandex-team.ru/yt/go/ypath"

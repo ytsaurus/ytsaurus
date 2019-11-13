@@ -7,7 +7,7 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/gofrs/uuid/v3"
+	"github.com/gofrs/uuid"
 	"golang.org/x/xerrors"
 
 	"a.yandex-team.ru/yt/go/yson"
