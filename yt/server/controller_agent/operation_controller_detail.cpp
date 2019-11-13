@@ -4738,7 +4738,6 @@ void TOperationControllerBase::CreateLivePreviewTables()
         attributes->Set("compression_codec", compressionCodec);
         if (cellTag == connection->GetPrimaryMasterCellTag()) {
             attributes->Set("external", false);
-            attributes->Set("external_cell_tag", cellTag);
         } else {
             attributes->Set("external", true);
             attributes->Set("external_cell_tag", cellTag);
