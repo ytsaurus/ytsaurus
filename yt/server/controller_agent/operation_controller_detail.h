@@ -361,6 +361,8 @@ public:
 
     virtual std::optional<int> GetRowCountLimitTableIndex() override;
 
+    virtual void LoadSnapshot(const TOperationSnapshot& snapshot) override;
+
     virtual TOutputTablePtr RegisterOutputTable(const NYPath::TRichYPath& outputTablePath) override;
 
     virtual void AbortJobViaScheduler(TJobId jobId, EAbortReason abortReason) override;

@@ -81,7 +81,7 @@ public:
     /*!
      *  \note Thread affinity: any
      */
-    const NEventLog::TEventLogWriterPtr& GetEventLogWriter() const;
+    const NEventLog::IEventLogWriterPtr& GetEventLogWriter() const;
 
     /*!
      * \note Thread affinity: any

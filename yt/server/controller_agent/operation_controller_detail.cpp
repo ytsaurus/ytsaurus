@@ -8361,6 +8361,11 @@ std::optional<int> TOperationControllerBase::GetRowCountLimitTableIndex()
     return RowCountLimitTableIndex;
 }
 
+void TOperationControllerBase::LoadSnapshot(const NYT::NControllerAgent::TOperationSnapshot& snapshot)
+{
+    DoLoadSnapshot(snapshot);
+}
+
 TOutputTablePtr TOperationControllerBase::RegisterOutputTable(const TRichYPath& outputTablePath)
 {
     auto it = PathToOutputTable_.find(outputTablePath.GetPath());
