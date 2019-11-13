@@ -1,13 +1,16 @@
 # -*- coding: utf-8 -*-
 
+from yp.common import YtResponseError
+
 import contextlib
 import logging
 
 
 class BatchYpCreator(object):
-    def __init__(self, yp_client, batch_size):
+    def __init__(self, yp_client, batch_size, retries_count=1):
         self._yp_client = yp_client
         self._batch_size = batch_size
+        self._retries_count = retries_count
         assert self._batch_size > 0
         self._batch = []
 
@@ -19,7 +22,18 @@ class BatchYpCreator(object):
     def commit(self):
         if len(self._batch) > 0:
             logging.info("Commiting YP creator batch")
-            self._yp_client.create_objects(self._batch)
+            for retry_number in range(self._retries_count):
+                if retry_number > 0:
+                    logging.warning("Retrying commit (retry number %d)", retry_number)
+                try:
+                    self._yp_client.create_objects(self._batch)
+                except YtResponseError:
+                    if retry_number < self._retries_count - 1:
+                        logging.exception("Commit failed")
+                    else:
+                        raise
+                else:
+                    break
             self._batch = []
 
 

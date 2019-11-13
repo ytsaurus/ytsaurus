@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from yp.scripts.library.batch_creator import create_batch_yp_creator
-from yp.scripts.library.scheduler_objects import read_yp_scheduler_objects
+from yp.scripts.library.scheduler_history import SchedulerObjectsHistory
 
 from yp.client import YpClient, find_token
 
@@ -38,7 +38,7 @@ def run_with_common_errors_retries(action):
 def main_impl(yp_client, arguments):
     configure_logging()
 
-    scheduler_objects = read_yp_scheduler_objects(arguments.scheduler_objects_file_path)
+    scheduler_objects = SchedulerObjectsHistory.load_from_path(arguments.scheduler_objects_file_path)
 
     scheduler_objects.set_pod_sets_node_segment(arguments.node_segment_id)
     scheduler_objects.set_pod_sets_account_id(arguments.account_id)
