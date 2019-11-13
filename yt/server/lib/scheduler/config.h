@@ -457,7 +457,7 @@ public:
 
     TTestingOptionsPtr TestingOptions;
 
-    NEventLog::TEvenTLogManagerConfigPtr EventLog;
+    NEventLog::TEventLogManagerConfigPtr EventLog;
 
     NYTree::IMapNodePtr SpecTemplate;
 

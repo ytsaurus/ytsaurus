@@ -89,13 +89,13 @@ class TEventLogWriter
 {
 public:
     TEventLogWriter(
-        const TEvenTLogManagerConfigPtr& config,
+        const TEventLogManagerConfigPtr& config,
         const NApi::NNative::IClientPtr& client,
         const IInvokerPtr& invoker);
 
     virtual std::unique_ptr<NYson::IYsonConsumer> CreateConsumer() override;
 
-    virtual void UpdateConfig(const TEvenTLogManagerConfigPtr& config) override;
+    virtual void UpdateConfig(const TEventLogManagerConfigPtr& config) override;
 
 private:
     class TImpl;

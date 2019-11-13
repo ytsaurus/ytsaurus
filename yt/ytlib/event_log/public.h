@@ -6,8 +6,8 @@ namespace NYT::NEventLog {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TEvenTLogManagerConfig)
-DECLARE_REFCOUNTED_CLASS(IEventLogWriter)
+DECLARE_REFCOUNTED_CLASS(TEventLogManagerConfig)
+DECLARE_REFCOUNTED_CLASS(TEventLogWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
