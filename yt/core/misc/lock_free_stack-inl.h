@@ -27,18 +27,18 @@ TIntrusiveLockFreeStack<TItem>::TIntrusiveLockFreeStack(TIntrusiveLockFreeStack<
 template <class TItem>
 TIntrusiveLockFreeStack<TItem>::~TIntrusiveLockFreeStack()
 {
-    YT_VERIFY(Head_.Pointer.load() == nullptr);
+    YT_VERIFY(IsEmpty());
 }
 
 template <class TItem>
 void TIntrusiveLockFreeStack<TItem>::Put(TItem* head, TItem* tail)
 {
-    auto taggedNext = AtomicHead_.load();
+    auto* current = Head_.Pointer.load();
+    auto popCount = Head_.PopCount;
+
     do {
-        tail->Next = taggedNext.Pointer;
-    } while (!AtomicHead_.compare_exchange_weak(
-        taggedNext,
-        TAtomicHead{head, taggedNext.PopCount}));
+        tail->Next = current;
+    } while (!CompareAndSet(&AtomicHead_, current, popCount, head, popCount));
 }
 
 template <class TItem>
@@ -50,22 +50,32 @@ void TIntrusiveLockFreeStack<TItem>::Put(TItem* item)
 template <class TItem>
 TItem* TIntrusiveLockFreeStack<TItem>::Extract()
 {
-    for (auto current = AtomicHead_.load(); current.Pointer;) {
-        if (AtomicHead_.compare_exchange_weak(
-            current,
-            TAtomicHead{current.Pointer->Next, current.PopCount + 1}))
-        {
-            current.Pointer->Next = nullptr;
-            return current.Pointer;
+    auto* current = Head_.Pointer.load();
+    auto popCount = Head_.PopCount;
+
+    while (current) {
+        if (CompareAndSet(&AtomicHead_, current, popCount, current->Next, popCount + 1)) {
+            current->Next = nullptr;
+            return current;
         }
     }
+
     return nullptr;
 }
 
 template <class TItem>
 TItem* TIntrusiveLockFreeStack<TItem>::ExtractAll()
 {
-    return AtomicHead_.exchange(TAtomicHead()).Pointer;
+    auto* current = Head_.Pointer.load();
+    auto popCount = Head_.PopCount;
+
+    while (current) {
+        if (CompareAndSet<TItem*, size_t>(&AtomicHead_, current, popCount, nullptr, popCount + 1)) {
+            return current;
+        }
+    }
+
+    return nullptr;
 }
 
 template <class TItem>
