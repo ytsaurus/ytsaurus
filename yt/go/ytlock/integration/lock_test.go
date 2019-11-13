@@ -12,7 +12,7 @@ import (
 	"a.yandex-team.ru/yt/go/ytlock"
 	"a.yandex-team.ru/yt/go/yttest"
 
-	"github.com/gofrs/uuid/v3"
+	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 )
 
