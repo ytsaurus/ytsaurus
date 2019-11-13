@@ -4,7 +4,7 @@ import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
 
-import ru.yandex.yt.ytclient.misc.YtTimestamp;
+import ru.yandex.inside.yt.kosher.common.YtTimestamp;
 
 public class SelectRowsRequest {
     private final String query;
