@@ -800,38 +800,39 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         wait(lambda: get("#{0}/@mode".format(replica_id1)) == "sync")
         wait(lambda: get("#{0}/@mode".format(replica_id2)) == "sync")
 
+    def _get_sync_replicas(self, replica_ids):
+        result = 0
+        for replica_id in replica_ids:
+            if get("#{0}/@mode".format(replica_id)) == "sync":
+                result = result + 1
+        return result
+        
     @authors("aozeritsky")
     def test_sync_replication_switch_with_min_max_sync_replica(self):
         self._create_cells()
         self._create_replicated_table("//tmp/t", SIMPLE_SCHEMA_SORTED, replicated_table_options={"enable_replicated_table_tracker": False})
-        replica_id = []
+        replica_ids = []
         for i in range(5):
-            table_path = "//tmp/r%d"%(i)
-            replica_id.append(create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, table_path, attributes={"mode": "async"}))
-            self._create_replica_table(table_path, replica_id[i])
-            sync_enable_table_replica(replica_id[i])
+            table_path = "//tmp/r{}".format(i)
+            replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, table_path, attributes={"mode": "async"})
+            self._create_replica_table(table_path, replica_id)
+            sync_enable_table_replica(replica_id)
+            replica_ids.append(replica_id)
 
         set("//tmp/t/@replicated_table_options", {"enable_replicated_table_tracker": True, "min_sync_replica_count": 2, "max_sync_replica_count": 4, "tablet_cell_bundle_name_failure_interval": 1000})
 
-        def sync_replicas():
-            result = 0
-            for i in range(5):
-                if get("#{0}/@mode".format(replica_id[i])) == "sync":
-                    result = result + 1
-            return result
-
-        wait(lambda: sync_replicas() == 4)
+        wait(lambda: self._get_sync_replicas(replica_ids) == 4)
 
         def brake_sync_replicas(count):
             result = []
             for i in range(5):
                 if count <= 0:
                     break
-                table_path = "//tmp/r%d"%(i)
-                if get("#{0}/@mode".format(replica_id[i])) == "sync" and exists(table_path, driver=self.replica_driver):
+                table_path = "//tmp/r{}".format(i)
+                if get("#{0}/@mode".format(replica_ids[i])) == "sync" and exists(table_path, driver=self.replica_driver):
                     remove(table_path, driver=self.replica_driver)
                     count = count - 1
-                    result.append(replica_id[i])
+                    result.append(replica_ids[i])
 
             return result
 
@@ -839,16 +840,47 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         broken_replicas = broken_replicas + brake_sync_replicas(1)
         for replica in broken_replicas:
             wait(lambda: get("#{0}/@mode".format(replica)) == "async")
-        wait(lambda: sync_replicas() == 4)
+        wait(lambda: self._get_sync_replicas(replica_ids) == 4)
 
         broken_replicas = broken_replicas + brake_sync_replicas(2)
         for replica in broken_replicas:
             wait(lambda: get("#{0}/@mode".format(replica)) == "async")
-        wait(lambda: sync_replicas() == 2)
+        wait(lambda: self._get_sync_replicas(replica_ids) == 2)
 
         broken_replicas = brake_sync_replicas(1)
         assert(len(broken_replicas) == 1)
-        wait(lambda: sync_replicas() == 2)
+        wait(lambda: self._get_sync_replicas(replica_ids) == 2)
+
+    @authors("ivanashevi")
+    def test_sync_replication_switch_with_not_enough_healthy_replicas(self):
+        DELTA_MASTER_CONFIG = {
+            "replicated_table_tracker": {
+                "check_period": 100
+            }
+        }
+
+        self._create_cells()
+        self._create_replicated_table("//tmp/t", SIMPLE_SCHEMA_SORTED, replicated_table_options={"enable_replicated_table_tracker": False})
+        replica_ids = []
+        for i in range(5):
+            table_path = "//tmp/r{}".format(i)
+            replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, table_path, attributes={"mode": "async"})
+            self._create_replica_table(table_path, replica_id)
+            sync_enable_table_replica(replica_id)
+            replica_ids.append(replica_id)
+
+        set("//tmp/t/@replicated_table_options", {"enable_replicated_table_tracker": True, "min_sync_replica_count": 3, "max_sync_replica_count": 4, "tablet_cell_bundle_name_failure_interval": 1000})
+
+        wait(lambda: self._get_sync_replicas(replica_ids) == 4)
+
+        for i in range(3):
+            remove("//tmp/r{}".format(i), driver=self.replica_driver)
+        wait(lambda: self._get_sync_replicas(replica_ids) == 3)
+
+        replica_modes = {replica_id: get("#{0}/@mode".format(replica_id)) for replica_id in replica_ids}
+        sleep(1.0)
+        for replica_id in replica_ids:
+            assert(get("#{0}/@mode".format(replica_id)) == replica_modes[replica_id])
 
     @authors("aozeritsky")
     def test_replicated_table_tracker_options(self):
