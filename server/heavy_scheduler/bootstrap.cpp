@@ -33,7 +33,9 @@ public:
     TImpl(TBootstrap* bootstrap, THeavySchedulerProgramConfigPtr config)
         : Bootstrap_(bootstrap)
         , Config_(std::move(config))
-    { }
+    {
+        WarnForUnrecognizedOptions(Logger, Config_);
+    }
 
     const IInvokerPtr& GetControlInvoker()
     {
