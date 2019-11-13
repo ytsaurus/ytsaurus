@@ -4736,8 +4736,13 @@ void TOperationControllerBase::CreateLivePreviewTables()
         attributes->Set("replication_factor", replicationFactor);
         // Does this affect anything or is this for viewing only? Should we set the 'media' ('primary_medium') property?
         attributes->Set("compression_codec", compressionCodec);
-        attributes->Set("external", true);
-        attributes->Set("external_cell_tag", cellTag);
+        if (cellTag == connection->GetPrimaryMasterCellTag()) {
+            attributes->Set("external", false);
+            attributes->Set("external_cell_tag", cellTag);
+        } else {
+            attributes->Set("external", true);
+            attributes->Set("external_cell_tag", cellTag);
+        }
         attributes->Set("acl", acl);
         attributes->Set("inherit_acl", false);
         if (schema) {
