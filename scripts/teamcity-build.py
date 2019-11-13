@@ -967,7 +967,7 @@ def run_ya_tests(options, suite_name, test_paths):
         return
 
     _, sandbox_storage = get_sandbox_dirs(options, suite_name)
-    junit_output = os.path.join(options.working_directory, "junit_yatest.xml")
+    junit_output = os.path.join(options.working_directory, "junit_yatest_{}.xml".format(suite_name))
 
     env = ya_make_env(options)
     args = [
