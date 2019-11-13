@@ -114,6 +114,7 @@ private:
             .BeginMap()
                 .Item("connection")
                     .BeginMap()
+                        .Item("secure").Value(false)
                         .Item("grpc_channel")
                             .BeginMap()
                                 .Item("address").Value(address)

@@ -27,6 +27,8 @@ class TConnectionConfig
     : public NYT::NRpc::TRetryingChannelConfig
 {
 public:
+    bool Secure;
+
     NYT::NRpc::NGrpc::TChannelConfigPtr GrpcChannel;
 
     TDuration DiscoveryPeriod;
