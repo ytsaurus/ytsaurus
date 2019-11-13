@@ -859,34 +859,48 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
     @authors("ifsmirnov")
     @pytest.mark.parametrize("enable_lookup_hash_table", [True, False])
-    def test_preload_block_range(self, enable_lookup_hash_table):
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_preload_block_range(self, enable_lookup_hash_table, optimize_for):
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 3}})
         sync_create_cells(1, tablet_cell_bundle="b")
         self._create_simple_table("//tmp/t", tablet_cell_bundle="b")
         set("//tmp/t/@chunk_writer", {"block_size": 1024})
         set("//tmp/t/@in_memory_mode", "uncompressed")
         set("//tmp/t/@enable_lookup_hash_table", enable_lookup_hash_table)
+        set("//tmp/t/@optimize_for", optimize_for)
         sync_mount_table("//tmp/t")
 
-        rows = [{"key": i, "value": str(i)} for i in range(1000)]
+        rows = [{"key": i, "value": str(i)} for i in range(10000)]
         insert_rows("//tmp/t", rows)
 
         sync_unmount_table("//tmp/t")
         memory_size = get("//tmp/t/@tablet_statistics/uncompressed_data_size")
 
-        sync_reshard_table("//tmp/t", [[], [500], [600]])
+        lower_bound = 3800
+        upper_bound = 5200
+        expected = rows[lower_bound:upper_bound]
+
+        sync_reshard_table("//tmp/t", [[], [lower_bound], [upper_bound]])
         sync_mount_table("//tmp/t", first_tablet_index=1, last_tablet_index=1)
         self._wait_for_in_memory_stores_preload("//tmp/t", first_tablet_index=1, last_tablet_index=1)
 
         node = get_tablet_leader_address(get("//tmp/t/@tablets/1/tablet_id"))
-        sleep(1)
-        memory_usage = get("//sys/cluster_nodes/{}/@statistics/memory/tablet_static/used".format(node))
-        assert 0 < memory_usage < memory_size
-        assert lookup_rows("//tmp/t", [{"key": i} for i in range(500, 600)]) == rows[500:600]
+
+        def _check_memory_usage():
+            memory_usage = get("//sys/cluster_nodes/{}/@statistics/memory/tablet_static/used".format(node))
+            return 0 < memory_usage < memory_size
+        if optimize_for == "lookup":
+            wait(_check_memory_usage)
+
+        assert lookup_rows("//tmp/t", [{"key": i} for i in range(lower_bound, upper_bound)]) == expected
         wait(lambda: lookup_rows("//tmp/t",
-            [{"key": i} for i in range(500, 600)],
+            [{"key": i} for i in range(lower_bound, upper_bound)],
             read_from="follower",
-            timestamp=AsyncLastCommittedTimestamp) == rows[500:600])
+            timestamp=AsyncLastCommittedTimestamp) == expected)
+
+        assert_items_equal(
+            select_rows("* from [//tmp/t] where key >= {} and key < {}".format(lower_bound, upper_bound)),
+            expected)
 
     @authors("savrus", "sandello")
     def test_lookup_hash_table(self):
