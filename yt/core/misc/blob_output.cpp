@@ -4,9 +4,6 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr size_t InitialBlobOutputCapacity = 16;
-static constexpr double BlobOutputCapacityMultiplier = 1.5;
-
 struct TBlobOutputTag { };
 
 TBlobOutput::TBlobOutput()
@@ -21,25 +18,6 @@ TBlobOutput::TBlobOutput(size_t capacity, size_t alignment)
 
 TBlobOutput::~TBlobOutput()
 { }
-
-size_t TBlobOutput::DoNext(void** ptr)
-{
-    if (Blob_.Size() == Blob_.Capacity()) {
-        if (Blob_.Capacity() >= InitialBlobOutputCapacity) {
-            Reserve(static_cast<size_t>(Blob_.Capacity() * BlobOutputCapacityMultiplier));
-        } else {
-            Reserve(InitialBlobOutputCapacity);
-        }
-    }
-    *ptr = Blob_.Begin() + Blob_.Size();
-    return Blob_.Capacity() - Blob_.Size();
-}
-
-void TBlobOutput::DoAdvance(size_t len)
-{
-    YT_ASSERT(Blob_.Size() + len <= Blob_.Capacity());
-    Blob_.Resize(Blob_.Size() + len, false);
-}
 
 void TBlobOutput::DoWrite(const void* buffer, size_t length)
 {
