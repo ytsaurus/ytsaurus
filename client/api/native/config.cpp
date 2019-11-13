@@ -4,6 +4,25 @@ namespace NYP::NClient::NApi::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+TString InferGrpcAddress(const TString& address)
+{
+    static const TString GrpcPort = "8090";
+    static const TString BalancerDomain = ".yp.yandex.net";
+    if (!address.Contains('.') &&
+        !address.Contains(':') &&
+        address != "localhost")
+    {
+        return address + BalancerDomain + ":" + GrpcPort;
+    }
+    return address;
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 TAuthenticationConfig::TAuthenticationConfig()
 {
     RegisterParameter("user", User);
@@ -24,6 +43,10 @@ TConnectionConfig::TConnectionConfig()
 
     RegisterParameter("authentication", Authentication)
         .DefaultNew();
+
+    RegisterPostprocessor([&] {
+        GrpcChannel->Address = InferGrpcAddress(GrpcChannel->Address);
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
