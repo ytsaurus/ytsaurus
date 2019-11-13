@@ -12,13 +12,15 @@ void VisitTree(
     INodePtr root,
     NYson::IYsonConsumer* consumer,
     bool stable,
-    const std::optional<std::vector<TString>>& attributeKeys = std::nullopt);
+    const std::optional<std::vector<TString>>& attributeKeys = std::nullopt,
+    bool skipEntityMapChildren = false);
 
 void VisitTree(
     INodePtr root,
     NYson::IAsyncYsonConsumer* consumer,
     bool stable,
-    const std::optional<std::vector<TString>>& attributeKeys = std::nullopt);
+    const std::optional<std::vector<TString>>& attributeKeys = std::nullopt,
+    bool skipEntityMapChildren = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 
