@@ -21,7 +21,14 @@ class TDispatcher::TImpl
 {
 public:
     TImpl()
-        : CompressionPoolInvoker_(BIND(&TImpl::CreateCompressionPoolInvoker, Unretained(this)))
+        : CompressionFairShareThreadPool_(BIND([] {
+            return CreateFairShareThreadPool(
+                TDispatcherConfig::DefaultCompressionPoolSize,
+                "FSCompression");
+        }))
+        , CompressionPoolInvoker_(BIND([this] {
+            return CreatePrioritizedInvoker(CompressionPool_->GetInvoker());
+        }))
     {
         NetworkNames_.push_back(DefaultNetworkName);
         for (auto band : TEnumTraits<EMultiplexingBand>::GetDomainValues()) {
@@ -113,7 +120,7 @@ public:
 
     const IFairShareThreadPoolPtr& GetCompressionFairShareThreadPool()
     {
-        return CompressionFairShareThreadPool_;
+        return CompressionFairShareThreadPool_.Value();
     }
 
     const IInvokerPtr& GetCompressionPoolInvoker()
@@ -125,7 +132,9 @@ public:
     {
         LightQueue_->Shutdown();
         HeavyPool_->Shutdown();
-        CompressionFairShareThreadPool_->Shutdown();
+        if (CompressionFairShareThreadPool_.HasValue()) {
+            CompressionFairShareThreadPool_->Shutdown();
+        }
         CompressionPool_->Shutdown();
     }
 
@@ -139,10 +148,7 @@ private:
     const TActionQueuePtr LightQueue_ = New<TActionQueue>("RpcLight");
     const TThreadPoolPtr HeavyPool_ = New<TThreadPool>(TDispatcherConfig::DefaultHeavyPoolSize, "RpcHeavy");
     const TThreadPoolPtr CompressionPool_ = New<TThreadPool>(TDispatcherConfig::DefaultCompressionPoolSize, "Compression");
-    const IFairShareThreadPoolPtr CompressionFairShareThreadPool_ = CreateFairShareThreadPool(
-
-        TDispatcherConfig::DefaultCompressionPoolSize,
-        "FSCompression");
+    TLazyIntrusivePtr<IFairShareThreadPool> CompressionFairShareThreadPool_;
     TLazyIntrusivePtr<IPrioritizedInvoker> CompressionPoolInvoker_;
 
     TReaderWriterSpinLock SpinLock_;
@@ -165,11 +171,6 @@ private:
             bandDescriptor.NetworkIdToTosLevel.resize(NetworkNames_.size(), bandDescriptor.DefaultTosLevel);
         }
         return id;
-    }
-
-    IPrioritizedInvokerPtr CreateCompressionPoolInvoker()
-    {
-        return CreatePrioritizedInvoker(CompressionPool_->GetInvoker());
     }
 };
 
