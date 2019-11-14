@@ -205,9 +205,13 @@ TSharedRefArray TObjectServiceProxy::TReqExecuteBatch::PatchForRetry(const TShar
 {
     NRpc::NProto::TRequestHeader header;
     YT_VERIFY(ParseRequestHeader(message, &header));
-    YT_VERIFY(!header.retry());
-    header.set_retry(true);
-    return SetRequestHeader(message, header);
+    if (header.retry()) {
+        // Already patched.
+        return message;
+    } else {
+        header.set_retry(true);
+        return SetRequestHeader(message, header);
+    }
 }
 
 TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> TObjectServiceProxy::TReqExecuteBatch::Invoke()
