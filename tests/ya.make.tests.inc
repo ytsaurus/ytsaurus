@@ -89,26 +89,16 @@ PEERDIR(
 )
 
 REQUIREMENTS(
-    # NB: cpu and ram_disk have different meaning for sandbox tasks.
-    # 'cpu:n' specifies number of cpus required for <i>one thread</i> of tests.
-    # 'ram_disk:m' specifies total volume of ram storage for <i>all test threads</i> (that run in parallel).
-    #
-    # How we get numbers below?
-    # We suppose that 4 GB of disk space is enough for one test.
-    # The best host in sandbox has 56 CPU, therefore we get no more than 14 test threads.
-    # Each of them requires 4 GB of disk space, so we need 56 GB of ram disk.
+    ram_disk:4
     cpu:4
-    ram_disk:56
 )
 
 SIZE(LARGE)
 
-TAG(ya:fat ya:force_sandbox)
-
+FORK_TESTS()
 FORK_TEST_FILES()
+SPLIT_FACTOR(6)
 
-# Bound the number of parallel tests due to limited space in ram drive.
-# !!! This option does not work with FORK_TEST_FILES :-(
-# SPLIT_FACTOR(4)
+TAG(ya:fat)
 
 NO_LINT()

@@ -28,24 +28,18 @@ import yt.subprocess_wrapper as subprocess
 
 from yt.packages.six.moves import xrange, map
 
-# TODO(ignat): avoid this hacks
-try:
-    import yatest.common as yatest_common
-except ImportError:
-    yatest_common = None
-
-if yatest_common is not None:
-    from yt.environment import arcadia_interop
+from yt.environment import arcadia_interop
 
 import pytest
 
 import copy
 import logging
 import os
-import shutil
 import sys
 import time
 import uuid
+
+yatest_common = arcadia_interop.yatest_common
 
 
 if yatest_common is None:
@@ -436,11 +430,10 @@ def _insert_environ_path(path):
 def prepare_test_sandbox(sandbox_name):
     test_sandbox_base_path = TESTS_SANDBOX
     if yatest_common is not None:
-        ram_drive_path = yatest_common.get_param("ram_drive_path")
-        if ram_drive_path is None:
+        if yatest_common.get_param("ram_drive_path") is None:
             test_sandbox_base_path = yatest_common.output_path()
         else:
-            test_sandbox_base_path = ram_drive_path
+            test_sandbox_base_path = arcadia_interop.yatest_common.output_ram_drive_path()
     test_sandbox_path = os.path.join(test_sandbox_base_path, sandbox_name + "_" + generate_uuid())
     os.makedirs(test_sandbox_path)
     return test_sandbox_path
