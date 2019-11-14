@@ -187,7 +187,7 @@ public:
         TTransaction* parent,
         std::vector<TTransaction*> prerequisiteTransactions,
         const TCellTagList& replicatedToCellTags,
-        const TCellTagList& replicateStartToCellTags,
+        bool replicateStart,
         std::optional<TDuration> timeout,
         std::optional<TInstant> deadline,
         const std::optional<TString>& title,
@@ -275,7 +275,7 @@ public:
 
         TransactionStarted_.Fire(transaction);
 
-        if (!replicateStartToCellTags.empty()) {
+        if (replicateStart && !replicatedToCellTags.empty()) {
             NTransactionServer::NProto::TReqStartTransaction startRequest;
             startRequest.set_dont_replicate(true);
             ToProto(startRequest.mutable_attributes(), attributes);
@@ -286,19 +286,18 @@ public:
             if (title) {
                 startRequest.set_title(*title);
             }
-            multicellManager->PostToMasters(startRequest, replicateStartToCellTags);
+            multicellManager->PostToMasters(startRequest, replicatedToCellTags);
         }
 
         auto time = timer.GetElapsedTime();
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, ParentId: %v, PrerequisiteTransactionIds: %v, "
-            "ReplicateStartToCellTags: %v, ReplicatedToCellTags: %v, Timeout: %v, Deadline: %v, User: %v, Title: %v, WallTime: %v)",
+            "ReplicatedToCellTags: %v, Timeout: %v, Deadline: %v, User: %v, Title: %v, WallTime: %v)",
             transactionId,
             GetObjectId(parent),
             MakeFormattableView(transaction->PrerequisiteTransactions(), [] (auto* builder, const auto* prerequisiteTransaction) {
                 FormatValue(builder, prerequisiteTransaction->GetId(), TStringBuf());
             }),
-            replicateStartToCellTags,
             replicatedToCellTags,
             transaction->GetTimeout(),
             transaction->GetDeadline(),
@@ -921,7 +920,7 @@ private:
             parent,
             prerequisiteTransactions,
             replicateToCellTags,
-            replicateToCellTags,
+            /* replicateStart */ true,
             timeout,
             deadline,
             title,
@@ -1245,7 +1244,7 @@ TTransaction* TTransactionManager::StartTransaction(
     TTransaction* parent,
     std::vector<TTransaction*> prerequisiteTransactions,
     const TCellTagList& replicatedToCellTags,
-    const TCellTagList& replicateStartToCellTags,
+    bool replicateStart,
     std::optional<TDuration> timeout,
     std::optional<TInstant> deadline,
     const std::optional<TString>& title,
@@ -1256,7 +1255,7 @@ TTransaction* TTransactionManager::StartTransaction(
         parent,
         std::move(prerequisiteTransactions),
         replicatedToCellTags,
-        replicateStartToCellTags,
+        replicateStart,
         timeout,
         deadline,
         title,
