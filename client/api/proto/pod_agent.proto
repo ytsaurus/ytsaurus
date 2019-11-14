@@ -1084,14 +1084,17 @@ enum ELayerState {
     // Готов к использованию
     ELayerState_READY = 4 [(NYT.NYson.NProto.enum_value_name) = "ready"];
 
-    // Соотвествует процессу удаления ресурса
+    // Соответствует процессу удаления ресурса
     ELayerState_REMOVING = 5 [(NYT.NYson.NProto.enum_value_name) = "removing"];
 
-    // Соотвестует удалённому ресурсу
+    // Соответствует удалённому ресурсу
     ELayerState_REMOVED = 6 [(NYT.NYson.NProto.enum_value_name) = "removed"];
 
     // Layer находится в невалидном состоянии и значит будет полнотью пересобран
     ELayerState_INVALID = 7 [(NYT.NYson.NProto.enum_value_name) = "invalid"];
+
+    // Соответствует процессу создания meta контейнера для загрузки ресурсов
+    ELayerState_WAITING_FOR_RESOURCE_GANG_META_CONTAINER = 8 [(NYT.NYson.NProto.enum_value_name) = "waiting_for_resource_gang_meta_container"];
 }
 
 // Статический ресурс при скачивании и проверке проиходит через несколько стадий
@@ -1104,10 +1107,10 @@ enum EStaticResourceState {
     // Проверка контрольной суммы
     EStaticResourceState_VERIFYING = 2 [(NYT.NYson.NProto.enum_value_name) = "verifying"];
 
-    // Соотвествует процессу удаления ресурса
+    // Соответствует процессу удаления ресурса
     EStaticResourceState_REMOVING = 3 [(NYT.NYson.NProto.enum_value_name) = "removing"];
 
-    // Соотвествует удалённому ресурсу
+    // Соответствует удалённому ресурсу
     EStaticResourceState_REMOVED = 4 [(NYT.NYson.NProto.enum_value_name) = "removed"];
 
     // Готов к использованию
@@ -1115,6 +1118,9 @@ enum EStaticResourceState {
 
     // Ресурс находится в невалидном состоянии
     EStaticResourceState_INVALID = 7 [(NYT.NYson.NProto.enum_value_name) = "invalid"];
+
+    // Соответствует процессу создания meta контейнера для загрузки ресурсов
+    EStaticResourceState_WAITING_FOR_RESOURCE_GANG_META_CONTAINER = 8 [(NYT.NYson.NProto.enum_value_name) = "waiting_for_resource_gang_meta_container"];
 }
 
 message TDownloadProgress {
