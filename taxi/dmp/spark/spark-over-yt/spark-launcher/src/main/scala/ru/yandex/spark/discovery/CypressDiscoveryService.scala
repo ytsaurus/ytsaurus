@@ -39,7 +39,6 @@ class CypressDiscoveryService(config: YtClientConfiguration,
         removeAddress(id)
       case _ =>
         log.info(s"Spark instance with id $id doesn't exist, registering new one")
-        removeAddress(id)
     }
 
     val tm = new TransactionManager(yt)
@@ -119,7 +118,7 @@ class CypressDiscoveryService(config: YtClientConfiguration,
   }
 
   override def removeAddress(id: String): Unit = {
-    val request = new RemoveNode(s"$discoveryPath/$id").setRecursive(true).setForce(true)
+    val request = new RemoveNode(s"$discoveryPath/$id").setRecursive(true)
     yt.removeNode(request).join()
   }
 

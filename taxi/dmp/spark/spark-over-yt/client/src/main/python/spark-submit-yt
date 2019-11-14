@@ -17,7 +17,6 @@ id = args.id
 user = os.getenv("USER")
 proxy = args.proxy or os.getenv("YT_PROXY")
 working_dir = args.working_dir or "//home/{0}/spark-tmp".format(user)
-spark_home = os.getenv("SPARK_HOME")
 
 yt.wrapper.config.config['proxy']['url'] = proxy
 master = list("{0}/instances/{1}/rest".format(working_dir, id))[0]
@@ -40,4 +39,4 @@ if args.auto_auth:
     spark_args.append("spark.hadoop.yt.token={}".format(token))
     spark_env["SPARK_USER"] = user
 
-os.execve("{0}/bin/spark-submit".format(spark_home), spark_args + unknown_args, spark_env)
+os.execve("/usr/local/bin/spark-submit", spark_args + unknown_args, spark_env)
