@@ -1,5 +1,7 @@
 #include "structs.h"
 
+#include <yt/core/ytree/fluent.h>
+
 namespace NYT::NScheduler {
 
 using namespace NControllerAgent;
@@ -69,6 +71,35 @@ void FromProto(
                 .Tentative = protoTreeSettings.tentative()
             });
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(NScheduler::NProto::TSchedulerToAgentJobEvent::TPreemptedFor* proto, const TPreemptedFor& preemptedFor)
+{
+    ToProto(proto->mutable_job_id(), preemptedFor.JobId);
+    ToProto(proto->mutable_operation_id(), preemptedFor.OperationId);
+}
+
+void FromProto(TPreemptedFor* preemptedFor, const NScheduler::NProto::TSchedulerToAgentJobEvent::TPreemptedFor& proto)
+{
+    FromProto(&preemptedFor->JobId, proto.job_id());
+    FromProto(&preemptedFor->OperationId, proto.operation_id());
+}
+
+void Serialize(const TPreemptedFor& preemptedFor, NYson::IYsonConsumer* consumer)
+{
+    NYTree::BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("job_id").Value(preemptedFor.JobId)
+            .Item("operation_id").Value(preemptedFor.OperationId)
+        .EndMap();
+}
+
+void Deserialize(TPreemptedFor& preemptedFor, const NYTree::INodePtr& node)
+{
+    Deserialize(preemptedFor.JobId, node->AsMap()->GetChild("job_id"));
+    Deserialize(preemptedFor.OperationId, node->AsMap()->GetChild("operation_id"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <yt/server/lib/scheduler/message_queue.h>
+#include <yt/server/lib/scheduler/structs.h>
 
 #include <yt/server/lib/controller_agent/public.h>
 
@@ -32,6 +33,7 @@ struct TSchedulerToAgentJobEvent
     std::optional<bool> Abandoned;
     std::optional<EInterruptReason> InterruptReason;
     std::optional<bool> AbortedByScheduler;
+    std::optional<TPreemptedFor> PreemptedFor;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

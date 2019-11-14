@@ -146,7 +146,11 @@ void TSchedulerStrategyHost::PreemptJob(const TJobPtr& job, bool shouldLogEvent)
     job->SetState(NJobTrackerClient::EJobState::Aborted);
 
     if (shouldLogEvent) {
-        LogFinishedJobFluently(ELogEventType::JobAborted, job);
+        auto fluent = LogFinishedJobFluently(ELogEventType::JobAborted, job);
+        if (auto preemptedFor = job->GetPreemptedFor()) {
+            fluent
+                .Item("preempted_for").Value(preemptedFor);
+        }
     }
 }
 
@@ -155,9 +159,9 @@ NYson::IYsonConsumer* TSchedulerStrategyHost::GetEventLogConsumer()
     return &Writer_;
 }
 
-void TSchedulerStrategyHost::LogFinishedJobFluently(ELogEventType eventType, TJobPtr job)
+NEventLog::TFluentLogEvent TSchedulerStrategyHost::LogFinishedJobFluently(ELogEventType eventType, TJobPtr job)
 {
-    LogEventFluently(eventType)
+    return LogEventFluently(eventType)
         .Item("job_id").Value(job->GetId())
         .Item("operation_id").Value(job->GetOperationId())
         .Item("start_time").Value(job->GetStartTime())
