@@ -286,6 +286,9 @@ public:
     //! Max sleep delay between two removal invocations.
     TDuration MaxRemovalSleepDelay;
 
+    //! Number of operations failed to archive to set scheduler alert.
+    int ArchivationFailuresCountForAlert;
+
     TOperationsCleanerConfig();
 };
 
