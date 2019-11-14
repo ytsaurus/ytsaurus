@@ -2531,8 +2531,12 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
 
     if (jobSummary->LogAndProfile) {
         FinalizeJoblet(joblet, jobSummary.get());
-        LogFinishedJobFluently(ELogEventType::JobAborted, joblet, *jobSummary)
+        auto fluent = LogFinishedJobFluently(ELogEventType::JobAborted, joblet, *jobSummary)
             .Item("reason").Value(abortReason);
+        if (jobSummary->PreemptedFor) {
+            fluent
+                .Item("preempted_for").Value(jobSummary->PreemptedFor);
+        }
         UpdateJobStatistics(joblet, *jobSummary);
     }
 

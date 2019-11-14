@@ -1334,6 +1334,11 @@ void TFairShareTree::DoScheduleJobsWithPreemption(
             job->SetPreemptionReason(Format("Preempted to start job %v of operation %v",
                 jobStartedUsingPreemption->GetId(),
                 jobStartedUsingPreemption->GetOperationId()));
+
+            job->SetPreemptedFor(TPreemptedFor{
+                .JobId = jobStartedUsingPreemption->GetId(),
+                .OperationId = jobStartedUsingPreemption->GetOperationId(),
+            });
         } else {
             job->SetPreemptionReason(Format("Node resource limits violated"));
         }

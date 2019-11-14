@@ -399,6 +399,8 @@ public:
         auto event = BuildEvent(ESchedulerToAgentJobEventType::Aborted, job, true, status);
         event.AbortReason = job->GetAbortReason();
         event.AbortedByScheduler = byScheduler;
+        event.PreemptedFor = job->GetPreemptedFor();
+
         auto result = EnqueueJobEvent(std::move(event));
         YT_LOG_DEBUG("Job abort notification %v (OperationId: %v, JobId: %v, ByScheduler: %v)",
             result ? "enqueued" : "buffered",
@@ -1067,6 +1069,9 @@ public:
                     }
                     if (event.AbortedByScheduler) {
                         protoEvent->set_aborted_by_scheduler(*event.AbortedByScheduler);
+                    }
+                    if (event.PreemptedFor) {
+                        ToProto(protoEvent->mutable_preempted_for(), *event.PreemptedFor);
                     }
                 });
 

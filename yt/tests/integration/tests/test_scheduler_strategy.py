@@ -980,6 +980,19 @@ class TestSchedulerPreemption(YTEnvSetup):
         "scheduler": {
             "fair_share_update_period": 100,
             "graceful_preemption_job_interrupt_timeout": 2000,
+            "event_log": {
+                "flush_period": 300,
+                "retry_backoff_time": 300
+            }
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "event_log": {
+                "flush_period": 300,
+                "retry_backoff_time": 300
+            }
         }
     }
 
@@ -1303,6 +1316,51 @@ class TestSchedulerPreemption(YTEnvSetup):
         })
 
         wait(lambda: len(op.get_running_jobs()) == 0)
+
+    @authors("mrkastep")
+    def test_preemptor_event_log(self):
+        set("//sys/pool_trees/default/@max_ephemeral_pools_per_user", 2)
+        create("map_node", "//sys/pools/pool1", attributes={"min_share_ratio": 1.0})
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out0")
+        create("table", "//tmp/t_out1")
+
+        for i in xrange(3):
+            write_table("<append=%true>//tmp/t_in", {"foo": "bar"})
+
+        op0 = map(
+            dont_track=True,
+            command=with_breakpoint("BREAKPOINT; sleep 1000; cat", breakpoint_name="b0"),
+            in_="//tmp/t_in",
+            out="//tmp/t_out0",
+            spec={"pool": "pool0", "job_count": 3})
+
+        wait_breakpoint(breakpoint_name="b0", job_count=3)
+        release_breakpoint(breakpoint_name="b0")
+
+        op1 = map(
+            dont_track=True,
+            command=with_breakpoint("cat; BREAKPOINT", breakpoint_name="b1"),
+            in_="//tmp/t_in",
+            out="//tmp/t_out1",
+            spec={"pool": "pool1", "job_count": 1})
+
+        preemptor_job_id = wait_breakpoint(breakpoint_name="b1")[0]
+        release_breakpoint(breakpoint_name="b1")
+
+        def check_events():
+            for row in read_table("//sys/scheduler/event_log"):
+                event_type = row["event_type"]
+                if event_type == "job_aborted" and row["operation_id"] == op0.id:
+                    assert row["preempted_for"]["operation_id"] == op1.id
+                    assert row["preempted_for"]["job_id"] == preemptor_job_id
+                    return True
+            return False
+        wait(lambda: check_events())
+
+        op0.abort()
+
 
 class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
     NUM_MASTERS = 1
