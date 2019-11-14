@@ -33,7 +33,7 @@ void PatchSecurityOptions(bool secure, const NRpc::NGrpc::TChannelConfigPtr& cha
         auto& credentials = channelConfig->Credentials;
         if (!credentials->PemRootCerts) {
             credentials->PemRootCerts = New<NCrypto::TPemBlobConfig>();
-            credentials->PemRootCerts->Value = NResource::Find("YandexInternalRootCA.crt");
+            credentials->PemRootCerts->Value = NResource::Find("yandex_internal.pem");
         }
     } else {
         if (channelConfig->Credentials) {
