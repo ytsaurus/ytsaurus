@@ -1400,14 +1400,17 @@ private:
                 auto controller = operation->GetController();
                 auto scheduleJobInvoker = controller->GetCancelableInvoker(Config_->ScheduleJobControllerQueue);
                 auto buildJobSpecInvoker = controller->GetCancelableInvoker(Config_->BuildJobSpecControllerQueue);
-                auto averageWaitTime = scheduleJobInvoker->GetAverageWaitTime() + buildJobSpecInvoker->GetAverageWaitTime();
-                if (averageWaitTime > Config_->ScheduleJobWaitTimeThreshold) {
+                auto scheduleJobWaitTime = scheduleJobInvoker->GetAverageWaitTime();
+                auto buildJobSpecWaitTime = buildJobSpecInvoker->GetAverageWaitTime();
+                if (scheduleJobWaitTime + buildJobSpecWaitTime > Config_->ScheduleJobWaitTimeThreshold) {
                     replyWithFailure(operationId, jobId, EScheduleJobFailReason::ControllerThrottling);
-                    YT_LOG_DEBUG("Schedule job skipped since average schedule job wait time is too large "
-                        "(OperationId: %v, JobId: %v, WaitTime: %v, Threshold: %v)",
+                    YT_LOG_DEBUG("Schedule job request skipped since average schedule job wait time is too large "
+                        "(OperationId: %v, JobId: %v, ScheduleJobWaitTime: %v, BuildJobSpecTime: %v, TotalWaitTime: %v, Threshold: %v)",
                         operationId,
                         jobId,
-                        averageWaitTime,
+                        scheduleJobWaitTime,
+                        buildJobSpecWaitTime,
+                        scheduleJobWaitTime + buildJobSpecWaitTime,
                         Config_->ScheduleJobWaitTimeThreshold);
                     return;
                 }
