@@ -243,6 +243,8 @@ TOperationsCleanerConfig::TOperationsCleanerConfig()
         .Default(TDuration::Minutes(30));
     RegisterParameter("max_removal_sleep_delay", MaxRemovalSleepDelay)
         .Default(TDuration::Seconds(5));
+    RegisterParameter("archivation_failures_count_for_alert", ArchivationFailuresCountForAlert)
+        .Default(500);
 
     RegisterPostprocessor([&] {
         if (MaxArchivationRetrySleepDelay <= MinArchivationRetrySleepDelay) {
