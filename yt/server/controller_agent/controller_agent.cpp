@@ -1375,7 +1375,7 @@ private:
             response.JobId = jobId;
             response.OperationId = operationId;
             response.Result = New<TControllerScheduleJobResult>();
-            response.Result->RecordFail(EScheduleJobFailReason::UnknownNode);
+            response.Result->RecordFail(reason);
             outbox->Enqueue(std::move(response));
         };
 
