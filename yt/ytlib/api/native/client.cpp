@@ -1129,13 +1129,13 @@ TYsonString TClient::DoGetOperation(
     getOperationFutures.push_back(cypressFuture);
 
     TFuture<TYsonString> archiveFuture = MakeFuture<TYsonString>(TYsonString());
+    // We request state to distinguish controller agent's archive entries
+    // from operation cleaner's ones (the latter must have "state" field).
+    auto archiveOptions = options;
+    if (archiveOptions.Attributes) {
+        archiveOptions.Attributes->insert("state");
+    }
     if (DoesOperationsArchiveExist()) {
-        // We request state to distinguish controller agent's archive entries
-        // from operation cleaner's ones (the latter must have "state" field).
-        auto archiveOptions = options;
-        if (archiveOptions.Attributes) {
-            archiveOptions.Attributes->insert("state");
-        }
         archiveFuture = BIND(&TClient::DoGetOperationFromArchive,
             MakeStrong(this),
             operationId,
@@ -1194,6 +1194,12 @@ TYsonString TClient::DoGetOperation(
         return cypressResult;
     }
 
+    // Check whether archive row was written by controller agent or operation cleaner.
+    // Here we assume that controller agent does not write "state" field to the archive.
+    auto isCompleteArchiveResult = [] (const TYsonString& archiveResult) {
+        return TryGetString(archiveResult.GetData(), "/state").has_value();
+    };
+
     if (archiveResult) {
         // We have a non-empty response from archive and an empty response from Cypress.
         // If the archive response is incomplete (i.e. written by controller agent),
@@ -1203,44 +1209,34 @@ TYsonString TClient::DoGetOperation(
         // ---------------------------------------------------> time
         //         |               |             |
         //    archive rsp.   archivation   cypress rsp.
-        //
-        // NB: Here we assume that controller agent
-        // does not write "state" field to the archive.
-        // Also this field must be removed if it was not requested.
-        auto isComplete = TryGetString(archiveResult.GetData(), "/state").has_value();
-        if (isComplete) {
-            if (!options.Attributes || options.Attributes->contains("state")) {
-                return archiveResult;
-            }
-            auto archiveResultNode = ConvertToNode(archiveResult);
-            YT_VERIFY(archiveResultNode->GetType() == ENodeType::Map);
-            archiveResultNode->AsMap()->RemoveChild("state");
-            return ConvertToYsonString(archiveResultNode);
+        if (!isCompleteArchiveResult(archiveResult)) {
+            archiveResult = DoGetOperationFromArchive(operationId, deadline, archiveOptions);
         }
-
-        archiveResult = DoGetOperationFromArchive(operationId, deadline, options);
-        if (archiveResult) {
-            return archiveResult;
-        }
-    }
-
-    if (!archiveResultOrError.IsOK()) {
+    } else if (!archiveResultOrError.IsOK()) {
         // The operation is missing from Cypress and the archive request finished with errors.
         // If it is timeout error, we retry without timeout.
         // Otherwise we throw the error as there is no hope.
         if (archiveResultOrError.GetCode() != NYT::EErrorCode::Timeout) {
             archiveResultOrError.ThrowOnError();
         }
-        archiveResult = DoGetOperationFromArchive(operationId, deadline, options);
-        if (archiveResult) {
-            return archiveResult;
-        }
+        archiveResult = DoGetOperationFromArchive(operationId, deadline, archiveOptions);
     }
 
-    THROW_ERROR_EXCEPTION(
-        NApi::EErrorCode::NoSuchOperation,
-        "No such operation %v",
-        operationId);
+    if (!archiveResult || !isCompleteArchiveResult(archiveResult)) {
+        THROW_ERROR_EXCEPTION(
+            NApi::EErrorCode::NoSuchOperation,
+            "No such operation %v",
+            operationId);
+    }
+
+    if (!options.Attributes || options.Attributes->contains("state")) {
+        return archiveResult;
+    }
+    // Remove "state" field if it was not requested.
+    auto archiveResultNode = ConvertToNode(archiveResult);
+    YT_VERIFY(archiveResultNode->GetType() == ENodeType::Map);
+    archiveResultNode->AsMap()->RemoveChild("state");
+    return ConvertToYsonString(archiveResultNode);
 }
 
 void TClient::DoDumpJobContext(
