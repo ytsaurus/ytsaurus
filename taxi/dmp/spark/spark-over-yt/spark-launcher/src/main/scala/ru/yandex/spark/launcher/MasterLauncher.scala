@@ -26,9 +26,11 @@ object MasterLauncher extends App {
     try {
       discoveryService.checkPeriodically(masterAddress.webUiHostAndPort)
     } finally {
+      log.info("Removing master address")
       discoveryService.removeAddress(masterArgs.id)
     }
   } finally {
+    log.info("Closing discovery service")
     discoveryService.close()
   }
 }

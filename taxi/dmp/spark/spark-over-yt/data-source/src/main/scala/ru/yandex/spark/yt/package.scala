@@ -35,11 +35,15 @@ package object yt {
   }
 
   implicit class YtReader(reader: DataFrameReader) {
-    def yt(paths: String*): DataFrame = reader.format("yt").load(paths:_*)
+    def yt(paths: String*): DataFrame = reader.format("yt").load(paths.map(normalizePath):_*)
 
     def yt(path: String, filesCount: Int): DataFrame = {
-      GlobalTableSettings.setFilesCount(path, filesCount)
-      yt(path)
+      GlobalTableSettings.setFilesCount(normalizePath(path), filesCount)
+      yt(normalizePath(path))
+    }
+
+    private def normalizePath(path: String): String = {
+      if (path.startsWith("//")) path.drop(1) else path
     }
 
     def schemaHint(schemaHint: StructType): DataFrameReader = {
