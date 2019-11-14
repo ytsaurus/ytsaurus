@@ -348,7 +348,7 @@ public:
             transaction->NestedTransactions().end());
         std::sort(nestedTransactions.begin(), nestedTransactions.end(), TObjectRefComparer::Compare);
         for (auto* nestedTransaction : nestedTransactions) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Aborting nested native transaction on parent commit (TransactionId: %v, ParentId: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Aborting nested transaction on parent commit (TransactionId: %v, ParentId: %v)",
                 nestedTransaction->GetId(),
                 transactionId);
             AbortTransaction(nestedTransaction, true);
