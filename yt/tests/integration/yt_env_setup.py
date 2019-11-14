@@ -443,16 +443,16 @@ class Restarter(object):
         self.start_dict = {SCHEDULERS_SERVICE: self.Env.start_schedulers,
                            CONTROLLER_AGENTS_SERVICE: self.Env.start_controller_agents,
                            NODES_SERVICE: self.Env.start_nodes,
-                           MASTER_CELL_SERVICE: self.Env.start_master_cell}
-        self.name_dict = {SCHEDULERS_SERVICE: "scheduler",
-                          CONTROLLER_AGENTS_SERVICE: "controller_agent",
-                          NODES_SERVICE: "node",
-                          MASTER_CELL_SERVICE: "master"}
+                           MASTER_CELL_SERVICE: lambda: self.Env.start_all_masters(True)}
+        self.kill_dict = {SCHEDULERS_SERVICE: lambda: self.Env.kill_service("scheduler", *self.kill_args, **self.kill_kwargs),
+                          CONTROLLER_AGENTS_SERVICE: lambda: self.Env.kill_service("controller_agent", *self.kill_args, **self.kill_kwargs),
+                          NODES_SERVICE: lambda: self.Env.kill_service("node", *self.kill_args, **self.kill_kwargs),
+                          MASTER_CELL_SERVICE: lambda: self.Env.kill_all_masters(*self.kill_args, **self.kill_kwargs)}
 
     def __enter__(self):
         for comp_name in self.components:
             try:
-                self.Env.kill_service(self.name_dict[comp_name], *self.kill_args, **self.kill_kwargs)
+                self.kill_dict[comp_name]()
             except KeyError:
                 logging.error("Failed to kill {}. No such component.".format(comp_name))
                 raise
@@ -475,7 +475,9 @@ class YTEnvSetup(object):
     NUM_NODES = 5
     DEFER_NODE_START = False
     NUM_SCHEDULERS = 0
+    DEFER_SCHEDULER_START = False
     NUM_CONTROLLER_AGENTS = None
+    DEFER_CONTROLLER_AGENT_START = False
     ENABLE_HTTP_PROXY = False
     NUM_HTTP_PROXIES = 1
     HTTP_PROXY_PORTS = None
@@ -574,7 +576,9 @@ class YTEnvSetup(object):
             node_count=cls.get_param("NUM_NODES", index),
             defer_node_start=cls.get_param("DEFER_NODE_START", index),
             scheduler_count=cls.get_param("NUM_SCHEDULERS", index),
+            defer_scheduler_start=cls.get_param("DEFER_SCHEDULER_START", index),
             controller_agent_count=cls.get_param("NUM_CONTROLLER_AGENTS", index),
+            defer_controller_agent_start=cls.get_param("DEFER_CONTROLLER_AGENT_START", index),
             http_proxy_count=cls.get_param("NUM_HTTP_PROXIES", index) if cls.get_param("ENABLE_HTTP_PROXY", index) else 0,
             http_proxy_ports=cls.get_param("HTTP_PROXY_PORTS", index),
             rpc_proxy_count=cls.get_param("NUM_RPC_PROXIES", index) if cls.get_param("ENABLE_RPC_PROXY", index) else 0,
@@ -699,7 +703,7 @@ class YTEnvSetup(object):
 
             sleep(1.0)
 
-        if yt_commands.is_multicell:
+        if yt_commands.is_multicell and cls.START_SECONDARY_MASTER_CELLS:
             yt_commands.remove("//sys/operations")
             yt_commands.create("portal_entrance", "//sys/operations", attributes={"exit_cell_tag": 1})
 
