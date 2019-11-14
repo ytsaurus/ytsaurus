@@ -232,16 +232,17 @@ TTableSchema GetCommonSchema(const std::vector<TTableSchema>& schemas)
 
     for (const auto& column : schemas[0].Columns()) {
         auto [it, _] = nameToColumn.emplace(column.Name(), column);
-        // We will set sorted order for key collumns later.
+        // We will set sorted order for key columns later.
         it->second.SetSortOrder(std::nullopt);
     }
 
-    for (const auto& schema: schemas) {
-        for (const auto& column: schema.Columns()) {
+    for (const auto& schema : schemas) {
+        for (const auto& column : schema.Columns()) {
             if (auto it = nameToColumn.find(column.Name()); it != nameToColumn.end()) {
                 if (it->second.SimplifiedLogicalType() == column.SimplifiedLogicalType()) {
                     ++nameCounter[column.Name()];
                     if (!column.Required() && it->second.Required()) {
+                        // If at least in one schema the column isn't required, the result common column isn't required too.
                         it->second.SetLogicalType(New<TOptionalLogicalType>(it->second.LogicalType()));
                     }
                 }
@@ -252,9 +253,7 @@ TTableSchema GetCommonSchema(const std::vector<TTableSchema>& schemas)
     std::vector<TColumnSchema> resultColumns;
     resultColumns.reserve(schemas[0].Columns().size());
     for (const auto& column : schemas[0].Columns()) {
-        if (auto it = nameCounter.find(column.Name());
-            it != nameCounter.end() && it->second == schemas.size())
-        {
+        if (nameCounter[column.Name()] == schemas.size()) {
             resultColumns.push_back(nameToColumn[column.Name()]);
         }
     }
@@ -273,6 +272,7 @@ TTableSchema GetCommonSchema(const std::vector<TTableSchema>& schemas)
             }
         }
         if (!isKeyColumn) {
+            // Key columns are the prefix of all columns, so all following collumns aren't key.
             break;
         }
         resultColumns[index].SetSortOrder(ESortOrder::Ascending);
