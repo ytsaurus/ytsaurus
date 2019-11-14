@@ -86,6 +86,7 @@ public class PeriodicDiscovery implements AutoCloseable, Closeable {
                 new DefaultAsyncHttpClientConfig.Builder()
                     .setThreadPoolName("YtClient-PeriodicDiscovery")
                     .setEventLoopGroup(connector.eventLoopGroup())
+                    .setHttpClientCodecMaxHeaderSize(65536)
                     .build()
         );
 
