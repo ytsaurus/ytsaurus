@@ -36,7 +36,7 @@ class ProcessWatcher(object):
         touch(self._lock_path)
         touch(self._state_path)
 
-        self.process = None
+        self._process = None
 
     def start(self):
         self._process = self._process_runner([
