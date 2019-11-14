@@ -228,7 +228,7 @@ public class YtClientTest {
             }
         }
 
-        Assert.assertEquals(List.of(expect), actual);
+        Assert.assertEquals(Arrays.asList(expect), actual);
     }
 
     public static void deleteDirectory(YtClient client, String path) {
