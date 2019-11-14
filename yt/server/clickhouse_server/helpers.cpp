@@ -142,6 +142,10 @@ TClickHouseTablePtr FetchClickHouseTableFromCache(
         auto attributes = bootstrap->GetHost()->CheckPermissionsAndGetCachedObjectAttributes({path.GetPath()}, client)[0]
             .ValueOrThrow();
 
+        if (ConvertTo<NObjectClient::EObjectType>(attributes.at("type")) != NObjectClient::EObjectType::Table) {
+            return nullptr;
+        }
+
         return std::make_shared<TClickHouseTable>(path, AdaptSchemaToClickHouse(ConvertTo<TTableSchema>(attributes.at("schema"))));
     } catch (TErrorException& ex) {
         if (ex.Error().FindMatching(NYTree::EErrorCode::ResolveError)) {

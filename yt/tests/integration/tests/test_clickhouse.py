@@ -36,7 +36,7 @@ DEFAULTS = {
     "uncompressed_block_cache_size": 0,
 }
 
-QUERY_TYPES_WITH_OUTPUT = ("describe", "select", "show")
+QUERY_TYPES_WITH_OUTPUT = ("describe", "select", "show", "exists")
 
 
 class Clique(object):
@@ -683,6 +683,16 @@ class TestClickHouseCommon(ClickHouseTestBase):
                                         "X-Clique-Id": clique.op.id})
             print_debug(result.text)
             assert result.status_code == 301
+
+    @authors("dakovalkov")
+    def test_exists_table(self):
+        create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        with Clique(1) as clique:
+            assert clique.make_query('exists table "//tmp/t1"') == [{"result": 1}]
+            # Table doesn't exist.
+            assert clique.make_query('exists table "//tmp/t123456"') == [{"result": 0}]
+            # Not a table.
+            assert clique.make_query('exists table "//sys"') == [{"result": 0}]
 
 class TestJobInput(ClickHouseTestBase):
     def setup(self):

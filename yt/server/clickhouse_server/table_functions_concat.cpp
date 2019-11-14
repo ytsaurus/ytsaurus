@@ -124,7 +124,7 @@ std::vector<TClickHouseTablePtr> FetchClickHouseTables(TQueryContext* queryConte
                 errors.emplace_back(attrOrError
                     << TErrorAttribute("path", path));
             }
-        } else {
+        } else if (ConvertTo<NObjectClient::EObjectType>(attrOrError.Value().at("type")) == NObjectClient::EObjectType::Table) {
             tables.emplace_back(std::make_shared<TClickHouseTable>(path,
                 AdaptSchemaToClickHouse(ConvertTo<TTableSchema>(attrOrError.Value().at("schema")))));
         }
