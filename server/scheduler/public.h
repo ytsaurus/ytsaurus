@@ -31,6 +31,7 @@ DECLARE_REFCOUNTED_CLASS(TNodeScoreFeatureConfig)
 DECLARE_REFCOUNTED_CLASS(TNodeScoreConfig)
 DECLARE_REFCOUNTED_CLASS(TGlobalResourceAllocatorConfig)
 DECLARE_REFCOUNTED_CLASS(TPodDisruptionBudgetControllerConfig)
+DECLARE_REFCOUNTED_CLASS(TSchedulePodsStageConfig)
 DECLARE_REFCOUNTED_CLASS(TSchedulerConfig)
 
 using NObjects::EResourceKind;

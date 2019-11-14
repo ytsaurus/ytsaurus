@@ -373,7 +373,7 @@ private:
             }
             if (shouldRunStage(ESchedulerLoopStage::SchedulePods)) {
                 PROFILE_TIMING("/time/schedule_pods") {
-                    SchedulePods();
+                    SchedulePods(Context_.Config->SchedulePodsStage);
                 }
             }
             PROFILE_TIMING("/time/commit") {
@@ -515,13 +515,27 @@ private:
             Context_.ScheduleQueue->Enqueue(podId, deadline);
         }
 
-        void SchedulePods()
+        void SchedulePods(const TSchedulePodsStageConfigPtr& config)
         {
             YT_LOG_DEBUG("Started scheduling pods");
 
-            auto now = TInstant::Now();
+            int podCountProcessed = 0;
+            auto startInstant = TInstant::Now();
+
             while (true) {
-                auto podId = Context_.ScheduleQueue->Dequeue(now);
+                if (podCountProcessed >= config->PodLimit) {
+                    YT_LOG_DEBUG("Count of pods for schedule stage exceeded limit; stage finished (PodLimit: %v)",
+                        config->PodLimit);
+                    break;
+                }
+
+                if (TInstant::Now() - startInstant > config->TimeLimit) {
+                    YT_LOG_DEBUG("Schedule pods stage exceeded time limit; stage finished (TimeLimit: %v)",
+                        config->TimeLimit);
+                    break;
+                }
+
+                auto podId = Context_.ScheduleQueue->Dequeue(startInstant);
                 if (!podId) {
                     break;
                 }
@@ -545,7 +559,7 @@ private:
                     auto* node = nodeOrError.Value();
                     if (node) {
                         YT_LOG_DEBUG("Node allocation succeeded (PodId: %v, NodeId: %v)",
-                            pod->GetId(),
+                            podId,
                             node->GetId());
                         AllocationPlan_.AssignPodToNode(pod, node);
                     } else {
@@ -555,10 +569,12 @@ private:
                     }
                 } else {
                     YT_LOG_DEBUG(nodeOrError, "Pod scheduling failure (PodId: %v)",
-                        pod->GetId());
+                        podId);
                     BackoffScheduling(pod);
                     AllocationPlan_.RecordComputeAllocationFailure(pod, nodeOrError);
                 }
+
+                ++podCountProcessed;
             }
             YT_LOG_DEBUG("Pods scheduled");
         }

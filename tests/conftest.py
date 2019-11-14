@@ -155,10 +155,11 @@ def wait_pod_is_assigned_to(yp_client, pod_id, node_id):
     assert actual_node_id == node_id
 
 
-def create_pod_set(yp_client):
+def create_pod_set(yp_client, transaction_id=None):
     return yp_client.create_object(
         "pod_set",
         attributes=dict(spec=DEFAULT_POD_SET_SPEC),
+        transaction_id=transaction_id,
     )
 
 

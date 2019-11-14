@@ -1224,6 +1224,7 @@ class TestScheduler(object):
         wait(lambda: sum(get_delta_profiling_values()) == 2)
         assert_over_time(lambda: sum(get_delta_profiling_values()) == 2)
 
+
 @pytest.mark.usefixtures("yp_env_configurable")
 class TestSchedulerEveryNodeSelectionStrategy(object):
     YP_MASTER_CONFIG = {
@@ -1578,6 +1579,70 @@ class TestSchedulerEveryNodeSelectionStrategy(object):
         resources = [pair.split(": ") for pair in error[error.find("{")+1 : error.find("}")].split(", ")]
         assert len(resources) == 1
         assert resources[0] == ["Cpu", "1"]
+
+
+@pytest.mark.usefixtures("yp_env_configurable")
+class TestSchedulePodsStageLimits(object):
+    SCHEDULE_PODS_STAGE_POD_LIMIT = 5
+    LOOP_PERIOD_SECONDS = 50
+
+    YP_MASTER_CONFIG = {
+        "scheduler": {
+            "loop_period": LOOP_PERIOD_SECONDS * 1000,
+            "failed_allocation_backoff_time": 1000,
+            "schedule_pods_stage": {
+                "pod_limit": SCHEDULE_PODS_STAGE_POD_LIMIT,
+            },
+        },
+    }
+
+    def test_pod_limit(self, yp_env_configurable):
+        yp_client = yp_env_configurable.yp_client
+
+        def get_assigned_pod_count_over_time(pod_ids, iterations, sleep_backoff):
+            assigned_pod_counts = []
+
+            for _ in xrange(iterations):
+                assigned_pod_counts.append(sum(map(
+                    lambda pod_id: is_pod_assigned(yp_client, pod_id),
+                    pod_ids)))
+                time.sleep(sleep_backoff)
+
+            return assigned_pod_counts
+
+        node_count = 1
+        pod_count = 20
+        create_nodes(yp_client, node_count)
+
+        transaction_id = yp_client.start_transaction()
+
+        pod_set_id = create_pod_set(yp_client, transaction_id=transaction_id)
+        pod_ids = [
+            create_pod_with_boilerplate(
+                yp_client,
+                pod_set_id,
+                spec=dict(enable_scheduling=True),
+                transaction_id=transaction_id,
+            )
+            for _ in xrange(pod_count)
+        ]
+
+        yp_client.commit_transaction(transaction_id)
+
+        sleep_backoff_seconds = 15
+        assert 2 * sleep_backoff_seconds < TestSchedulePodsStageLimits.LOOP_PERIOD_SECONDS
+
+        minimal_scheduler_iterations = (pod_count - 1) // TestSchedulePodsStageLimits.SCHEDULE_PODS_STAGE_POD_LIMIT + 1
+        minimal_scheduling_time = (minimal_scheduler_iterations - 1) * TestSchedulePodsStageLimits.LOOP_PERIOD_SECONDS
+        check_iterations = minimal_scheduling_time // sleep_backoff_seconds + 1
+
+        assigned_pod_counts = get_assigned_pod_count_over_time(pod_ids, check_iterations, sleep_backoff_seconds)
+
+        assert assigned_pod_counts[0] <= TestSchedulePodsStageLimits.SCHEDULE_PODS_STAGE_POD_LIMIT
+        for index in xrange(len(assigned_pod_counts) - 1):
+            assert assigned_pod_counts[index + 1] <= assigned_pod_counts[index] + TestSchedulePodsStageLimits.SCHEDULE_PODS_STAGE_POD_LIMIT
+
+        wait(lambda: are_pods_assigned(yp_client, pod_ids))
 
 
 def _stress_test_scheduler(yp_client, create_pods_in_one_transaction=False):

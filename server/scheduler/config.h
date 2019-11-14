@@ -142,6 +142,27 @@ DEFINE_REFCOUNTED_TYPE(TPodDisruptionBudgetControllerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSchedulePodsStageConfig
+    : public NYT::NYTree::TYsonSerializable
+{
+public:
+    TDuration TimeLimit;
+    int PodLimit;
+
+    TSchedulePodsStageConfig()
+    {
+        RegisterParameter("time_limit", TimeLimit)
+            .Default(TDuration::Seconds(10));
+        RegisterParameter("pod_limit", PodLimit)
+            .GreaterThan(0)
+            .Default(1000);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TSchedulePodsStageConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSchedulerConfig
     : public NYT::NYTree::TYsonSerializable
 {
@@ -154,6 +175,7 @@ public:
     TGlobalResourceAllocatorConfigPtr GlobalResourceAllocator;
     TPodDisruptionBudgetControllerConfigPtr PodDisruptionBudgetController;
     NCluster::TClusterConfigPtr Cluster;
+    TSchedulePodsStageConfigPtr SchedulePodsStage;
 
     TSchedulerConfig()
     {
@@ -173,6 +195,8 @@ public:
         RegisterParameter("pod_disruption_budget_controller", PodDisruptionBudgetController)
             .DefaultNew();
         RegisterParameter("cluster", Cluster)
+            .DefaultNew();
+        RegisterParameter("schedule_pods_stage", SchedulePodsStage)
             .DefaultNew();
     }
 };
