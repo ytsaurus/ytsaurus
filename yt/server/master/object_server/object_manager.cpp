@@ -1257,7 +1257,6 @@ TObject* TObjectManager::TImpl::CreateObject(
         object->SetForeign();
     }
 
-    // XXX(babenko): fix passing life stage when adding new cells 
     if (auto lifeStage = attributes->Find<EObjectLifeStage>("life_stage")) {
         attributes->Remove("life_stage");
         object->SetLifeStage(*lifeStage);
@@ -1286,7 +1285,22 @@ TObject* TObjectManager::TImpl::CreateObject(
         multicellManager->PostToMasters(replicationRequest, replicationCellTags);
     }
 
-    ConfirmObjectLifeStageToPrimaryMaster(object);
+    switch (object->GetLifeStage()) {
+        case EObjectLifeStage::RemovalPreCommitted:
+            object->SetLifeStage(EObjectLifeStage::RemovalStarted);
+            /* fallthrough */
+
+        case EObjectLifeStage::RemovalStarted:
+            CheckRemovingObjectRefCounter(object);
+            break;
+
+        case EObjectLifeStage::RemovalAwaitingCellsSync:
+            object->SetLifeStage(EObjectLifeStage::RemovalPreCommitted);
+            break;
+
+        default:
+            ConfirmObjectLifeStageToPrimaryMaster(object);
+    }
 
     return object;
 }
@@ -1856,7 +1870,7 @@ void TObjectManager::TImpl::CheckObjectLifeStageVoteCount(NYT::NObjectServer::TO
                 newLifeStage = EObjectLifeStage::CreationCommitted;
                 break;
             case EObjectLifeStage::RemovalStarted:
-                newLifeStage = EObjectLifeStage::RemovalPreCommitted;
+                YT_ABORT();
                 break;
             case EObjectLifeStage::RemovalPreCommitted:
                 newLifeStage = EObjectLifeStage::RemovalAwaitingCellsSync;
