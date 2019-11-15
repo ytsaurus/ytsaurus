@@ -55,6 +55,35 @@ void SetCurrentFiberId(TFiberId id)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static class TFiberIdGenerator
+{
+public:
+    TFiberIdGenerator()
+    {
+        Seed_.store(static_cast<TFiberId>(::time(nullptr)));
+    }
+
+    TFiberId Generate()
+    {
+        const TFiberId Factor = std::numeric_limits<TFiberId>::max() - 173864;
+        YT_ASSERT(Factor % 2 == 1); // Factor must be coprime with 2^n.
+
+        while (true) {
+            auto seed = Seed_++;
+            auto id = seed * Factor;
+            if (id != InvalidFiberId) {
+                return id;
+            }
+        }
+    }
+
+private:
+    std::atomic<TFiberId> Seed_;
+
+} FiberIdGenerator;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TFiberRegistry
 {
 public:
@@ -139,6 +168,11 @@ TFiber::~TFiber()
 TExceptionSafeContext* TFiber::GetContext()
 {
     return &Context_;
+}
+
+void TFiber::RegenerateId()
+{
+    Id_ = FiberIdGenerator.Generate();
 }
 
 void TFiber::InvokeContextOutHandlers()
