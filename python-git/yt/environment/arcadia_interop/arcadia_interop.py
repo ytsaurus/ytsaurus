@@ -147,6 +147,13 @@ def collect_cores(pids, working_directory, binaries, logger=None):
 def save_sandbox(sandbox_path, output_subpath):
     if yatest_common is None:
         return
+
     output_path = os.path.join(yatest_common.output_path(), output_subpath)
-    if output_path != sandbox_path:
-        shutil.move(sandbox_path, output_path)
+    if output_path == sandbox_path:
+        return
+
+    # Do not copy sandbox if it stored in output ram drive and consistent with output_subpath.
+    if sandbox_path.startswith(yatest_common.output_ram_drive_path()) and sandbox_path.strip("/").endswith(output_subpath.strip("/")):
+        return
+
+    shutil.move(sandbox_path, output_path)
