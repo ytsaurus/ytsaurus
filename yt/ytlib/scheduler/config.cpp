@@ -745,6 +745,8 @@ TOperationWithUserJobSpec::TOperationWithUserJobSpec()
         // TODO(babenko): deprecate this
         .Alias("core_table_writer_config")
         .DefaultNew();
+    RegisterParameter("write_sparse_core_dumps", WriteSparseCoreDumps)
+        .Default(true);
 
     RegisterParameter("job_cpu_monitor", JobCpuMonitor)
         .DefaultNew();

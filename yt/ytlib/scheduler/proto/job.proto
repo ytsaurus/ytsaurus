@@ -141,6 +141,8 @@ message TUserJobSpec
     optional string cuda_toolkit_version = 46;
 
     optional uint32 network_project_id = 47;
+
+    optional bool write_sparse_core_dumps = 48 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
