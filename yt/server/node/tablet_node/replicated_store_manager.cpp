@@ -156,6 +156,11 @@ void TReplicatedStoreManager::BulkAddStores(TRange<IStorePtr> stores, bool onMou
     YT_ABORT();
 }
 
+void TReplicatedStoreManager::DiscardAllStores()
+{
+    YT_ABORT();
+}
+
 void TReplicatedStoreManager::RemoveStore(IStorePtr store)
 {
     LogStoreManager_->RemoveStore(std::move(store));

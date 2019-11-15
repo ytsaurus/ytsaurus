@@ -1083,13 +1083,25 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
                     node->GetId());
             } else {
                 auto* oldChunkList = lockedNode->GetChunkList();
-                oldChunkList->RemoveOwningNode(lockedNode);
-                objectManager->UnrefObject(oldChunkList);
 
-                auto* newChunkList = chunkManager->CreateChunkList(EChunkListKind::Static);
+                YT_VERIFY(oldChunkList->GetKind() == EChunkListKind::Static ||
+                    oldChunkList->GetKind() == EChunkListKind::SortedDynamicRoot);
+
+                oldChunkList->RemoveOwningNode(lockedNode);
+
+                auto* newChunkList = chunkManager->CreateChunkList(oldChunkList->GetKind());
                 newChunkList->AddOwningNode(lockedNode);
                 lockedNode->SetChunkList(newChunkList);
                 objectManager->RefObject(newChunkList);
+
+                if (oldChunkList->GetKind() == EChunkListKind::SortedDynamicRoot) {
+                    for (int index = 0; index < oldChunkList->Children().size(); ++index) {
+                        auto* appendChunkList = chunkManager->CreateChunkList(EChunkListKind::SortedDynamicTablet);
+                        chunkManager->AttachToChunkList(newChunkList, appendChunkList);
+                    }
+                }
+
+                objectManager->UnrefObject(oldChunkList);
 
                 YT_LOG_DEBUG_UNLESS(
                     IsRecovery(),
@@ -1193,7 +1205,9 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, GetUploadParams)
         }
 
         for (auto* tabletList : chunkList->Children()) {
-            YT_VERIFY(tabletList->AsChunkList()->GetKind() == EChunkListKind::SortedDynamicSubtablet);
+            YT_VERIFY(
+                tabletList->AsChunkList()->GetKind() == EChunkListKind::SortedDynamicSubtablet ||
+                tabletList->AsChunkList()->GetKind() == EChunkListKind::SortedDynamicTablet);
             ToProto(response->add_tablet_chunk_list_ids(), tabletList->GetId());
         }
     } else {

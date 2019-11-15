@@ -21,6 +21,7 @@ DEFINE_ENUM(ETabletReign,
     ((BulkInsert)                    (100013)) // savrus
     ((GiantTabletProblem)            (100014)) // akozhikhov
     ((ChunkViewsForPivots)           (100015)) // akozhikhov
+    ((BulkInsertOverwrite)           (100016)) // ifsmirnov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

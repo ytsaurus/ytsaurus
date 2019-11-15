@@ -5235,11 +5235,6 @@ void TOperationControllerBase::GetOutputTablesSchema()
             0); // Here we assume zero row count, we will do additional check later.
 
         if (table->Dynamic) {
-            if (table->TableUploadOptions.UpdateMode != EUpdateMode::Append) {
-                THROW_ERROR_EXCEPTION("Dynamic table can be updated only in update mode")
-                    << TErrorAttribute("table_path", path);
-            }
-
             if (!table->TableUploadOptions.TableSchema.IsSorted()) {
                 THROW_ERROR_EXCEPTION("Only sorted dynamic table can be updated")
                     << TErrorAttribute("table_path", path);
