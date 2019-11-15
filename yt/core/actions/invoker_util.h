@@ -3,7 +3,7 @@
 #include "public.h"
 
 #include <yt/core/concurrency/public.h>
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/core/concurrency/fiber_api.h>
 
 namespace NYT {
 
@@ -35,6 +35,27 @@ void GuardedInvoke(
     const IInvokerPtr& invoker,
     TClosure onSuccess,
     TClosure onCancel);
+
+////////////////////////////////////////////////////////////////////////////////
+// Provides a way to work with the current invoker.
+
+IInvokerPtr GetCurrentInvoker();
+void SetCurrentInvoker(IInvokerPtr invoker);
+
+//! Swaps the current active invoker with a provided one.
+class TCurrentInvokerGuard
+    : NConcurrency::TContextSwitchGuard
+{
+public:
+    explicit TCurrentInvokerGuard(IInvokerPtr invoker);
+    ~TCurrentInvokerGuard();
+
+private:
+    void Restore();
+
+    bool Active_;
+    IInvokerPtr SavedInvoker_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
