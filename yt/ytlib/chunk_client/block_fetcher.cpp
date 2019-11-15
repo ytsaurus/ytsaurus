@@ -58,16 +58,13 @@ TBlockFetcher::TBlockFetcher(
     std::sort(
         BlockInfos_.begin(),
         BlockInfos_.end(),
-        [] (const TBlockInfo& lhs, const TBlockInfo& rhs) -> bool
-        {
+        [] (const TBlockInfo& lhs, const TBlockInfo& rhs) {
             if (lhs.Priority != rhs.Priority) {
                 return lhs.Priority < rhs.Priority;
             } else {
                 return lhs.Index < rhs.Index;
             }
         });
-
-    std::vector<int> blockIndexes;
 
     WindowSize_ = 1;
     for (int index = 0; index + 1 < static_cast<int>(BlockInfos_.size()); ++index) {
@@ -89,6 +86,7 @@ TBlockFetcher::TBlockFetcher(
     // [leftIndex, rightIndex) is a half-interval containing all blocks
     // equal to BlockInfos[leftIndex].
     // We also explicitly unique the elements of BlockInfos_.
+    std::vector<int> blockIndexes;
     for (int leftIndex = 0, rightIndex = 0; leftIndex != BlockInfos_.size(); leftIndex = rightIndex) {
         const auto& currentBlock = BlockInfos_[leftIndex];
         while (rightIndex != BlockInfos_.size() && BlockInfos_[rightIndex].Index == currentBlock.Index) {
