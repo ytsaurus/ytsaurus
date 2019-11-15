@@ -49,14 +49,14 @@ struct TContextSwitchHandlers
 
 DECLARE_REFCOUNTED_CLASS(TFiber)
 
+class TFiberRegistry;
+
 class TFiber
     : public TRefCounted
     , public ITrampoLine
 {
 public:
-    explicit TFiber(
-        TClosure callee,
-        EExecutionStackKind stackKind = EExecutionStackKind::Small);
+    TFiber(EExecutionStackKind stackKind = EExecutionStackKind::Small);
 
     ~TFiber();
 
@@ -70,26 +70,23 @@ public:
         return reinterpret_cast<char*>(Stack_->GetStack()) + space < __builtin_frame_address(0);
     }
 
-    // ITrampoLine implementation
-    virtual void DoRunNaked() override;
+    TExceptionSafeContext* GetContext();
 
 private:
     // Base fiber fields.
     TFiberId Id_;
 
-    TClosure Callee_;
     std::shared_ptr<TExecutionStack> Stack_;
     TExceptionSafeContext Context_;
 
-    bool Terminated = false;
-
-    friend TExceptionSafeContext* GetContext(const TFiberPtr& target);
+    // No way to select static/thread_local variable in GDB from particular shared library.
+    TFiberRegistry* const Registry_;
+    const std::list<TFiber*>::iterator Iterator_;
 
     void RegenerateId()
     {
         Id_ = FiberIdGenerator.Generate();
     }
-
 
 public:
     // User-defined context switch handlers (executed only during WaitFor).
@@ -123,21 +120,16 @@ private:
     NProfiling::TCpuInstant RunStartInstant_ = 0;
     NProfiling::TCpuDuration RunCpuTime_ = 0;
 
+protected:
     void OnStartRunning();
 
     void OnFinishRunning();
 
-
 public:
     // WaitFor and cancelation logic.
-    bool IsCanceled() const
-    {
-        return Canceled_.load(std::memory_order_relaxed);
-    }
-
-    void Cancel();
-
     void ResetForReuse();
+
+    bool IsCanceled() const;
 
     const TClosure& GetCanceler();
 
@@ -151,29 +143,13 @@ private:
 
     TSpinLock SpinLock_;
     TClosure Canceler_;
-    // TODO(lukyan): Use cancelation propagation callback instead of future
     TAwaitable Awaitable_;
 
-    void CancelEpoch(size_t epoch)
-    {
-        if (Epoch_.load() != epoch) {
-            return;
-        }
-
-        Cancel();
-    }
+    void CancelEpoch(size_t epoch);
 
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
 DEFINE_REFCOUNTED_TYPE(TFiber)
-
-extern thread_local TFiberPtr CurrentFiber;
-
-extern thread_local TClosure AfterSwitch;
-
-void SwitchToFiber(TFiberPtr target);
 
 ////////////////////////////////////////////////////////////////////////////////
 
