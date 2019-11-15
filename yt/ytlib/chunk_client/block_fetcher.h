@@ -116,6 +116,11 @@ private:
         const std::vector<int>& blockIndexes,
         i64 uncompressedSize);
 
+    void OnGotBlocks(
+        const std::vector<int>& windowIndexes,
+        const std::vector<int>& blockIndexes,
+        const TErrorOr<std::vector<TBlock>>& blocksOrError);
+
     void DecompressBlocks(
         const std::vector<int>& windowIndexes,
         const std::vector<TBlock>& compressedBlocks);
