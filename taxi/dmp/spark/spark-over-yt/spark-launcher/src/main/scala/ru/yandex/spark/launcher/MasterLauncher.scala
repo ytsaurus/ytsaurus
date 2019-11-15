@@ -1,10 +1,12 @@
 package ru.yandex.spark.launcher
 
+import com.google.common.net.HostAndPort
 import com.twitter.scalding.Args
 import org.apache.log4j.Logger
 import ru.yandex.spark.discovery.CypressDiscoveryService
 import ru.yandex.spark.yt.utils.YtClientConfiguration
 
+import scala.annotation.tailrec
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
@@ -15,16 +17,28 @@ object MasterLauncher extends App {
 
   try {
     log.info("Start master")
-    val masterAddress = SparkLauncher.startMaster(masterArgs.port, masterArgs.webUiPort, masterArgs.opts)
-    discoveryService.waitAlive(masterAddress.hostAndPort, (5 minutes).toMillis)
+    val (masterAddress, masterThread) = SparkLauncher.startMaster(masterArgs.port, masterArgs.webUiPort, masterArgs.opts)
+    val masterAlive = discoveryService.waitAlive(masterAddress.hostAndPort, (5 minutes).toMillis)
+    if (!masterAlive) {
+      throw new RuntimeException("Master is not started")
+    }
     log.info(s"Master started at port ${masterAddress.port}")
 
     log.info("Register master")
     discoveryService.register(masterArgs.id, masterArgs.operationId, masterAddress)
     log.info("Master registered")
 
+    @tailrec
+    def checkPeriodically(): Unit = {
+      if (masterThread.isAlive) {
+        Thread.sleep((10 seconds).toMillis)
+        checkPeriodically()
+      }
+    }
+
     try {
-      discoveryService.checkPeriodically(masterAddress.webUiHostAndPort)
+      checkPeriodically()
+      log.info("Master thread is not alive!")
     } finally {
       log.info("Removing master address")
       discoveryService.removeAddress(masterArgs.id)
@@ -32,6 +46,8 @@ object MasterLauncher extends App {
   } finally {
     log.info("Closing discovery service")
     discoveryService.close()
+    log.info("Discovery service closed")
+    log.info(s"Threads: ${Thread.activeCount()}")
   }
 }
 

@@ -1,0 +1,7 @@
+[DEFAULT]
+SparkYtBasePath = {{spark_yt_base_path}}
+SparkLauncherName = {{launcher_name}}
+SparkName = {{spark_name}}
+ShuffleServicePort = 27000
+StartPort = 27001
+PortMaxRetries = 200
