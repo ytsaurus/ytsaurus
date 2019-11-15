@@ -59,6 +59,9 @@ public:
     // Cluster reader.
     TClusterReaderConfigPtr ClusterReader;
 
+    // Node segment.
+    NCluster::TObjectId NodeSegment;
+
     // Task manager.
     TDuration TaskTimeLimit;
 

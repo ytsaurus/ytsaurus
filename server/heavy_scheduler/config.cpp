@@ -43,6 +43,9 @@ THeavySchedulerConfig::THeavySchedulerConfig()
     RegisterParameter("cluster_reader", ClusterReader)
         .DefaultNew();
 
+    RegisterParameter("node_segment", NodeSegment)
+        .Default("default");
+
     RegisterParameter("task_time_limit", TaskTimeLimit)
         .Default(TDuration::Minutes(30));
 

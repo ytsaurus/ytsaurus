@@ -10,6 +10,8 @@ from .conftest import (
     wait,
 )
 
+from yp.local import set_account_infinite_resource_limits
+
 from yt.wrapper.errors import YtCypressTransactionLockConflict
 
 from yt.packages.six import PY3
@@ -24,6 +26,7 @@ class TestHeavyScheduler(object):
 
     YP_HEAVY_SCHEDULER_CONFIG = dict(
         heavy_scheduler = dict(
+            node_segment = "test-segment",
             safe_suitable_node_count = 1,
             validate_pod_disruption_budget = False,
         ),
@@ -70,9 +73,7 @@ class TestHeavyScheduler(object):
         yt_client.create("map_node", "//yp/heavy_scheduler/leader")
         wait(is_leading)
 
-    def test_strategy(self, yp_env_configurable):
-        yp_client = yp_env_configurable.yp_client
-
+    def _prepare_strategy_test_segment(self, yp_client, node_segment_id):
         def create_pods(count, cpu, memory):
             pod_ids = []
             for _ in xrange(count):
@@ -89,7 +90,21 @@ class TestHeavyScheduler(object):
                 ))
             return pod_ids
 
-        pod_set_id = create_pod_set(yp_client)
+        yp_client.create_object(
+            "node_segment",
+            attributes=dict(
+                meta=dict(id=node_segment_id),
+                spec=dict(node_filter="[/labels/segment] = \"{}\"".format(node_segment_id)),
+            ),
+        )
+        node_labels = dict(segment=node_segment_id)
+
+        set_account_infinite_resource_limits(yp_client, "tmp", node_segment_id)
+
+        pod_set_id = yp_client.create_object(
+            "pod_set",
+            attributes=dict(spec=dict(node_segment_id=node_segment_id)),
+        )
 
         cpu = 100
         memory = 10 * (1024 ** 2)
@@ -107,6 +122,7 @@ class TestHeavyScheduler(object):
             node_count=batch_size,
             cpu_total_capacity=4 * cpu,
             memory_total_capacity=4 * memory,
+            labels=node_labels,
         )
 
         first_pod_ids = create_pods(batch_size, 4 * cpu, 2 * memory)
@@ -119,14 +135,31 @@ class TestHeavyScheduler(object):
             node_count=batch_size,
             cpu_total_capacity=6 * cpu,
             memory_total_capacity=3 * memory,
+            labels=node_labels,
         )
 
         second_pod_ids = create_pods(batch_size, 2 * cpu, 4 * memory)
 
         wait(lambda: are_error_pod_scheduling_statuses(get_pod_scheduling_statuses(yp_client, second_pod_ids)))
 
-        # Run eviction acknowledger and wait for Heavy Scheduler to schedule all pods.
-        time_per_pod = 30
-        run_eviction_acknowledger(yp_client, iteration_count=time_per_pod * batch_size, sleep_time=1)
+        return first_pod_ids + second_pod_ids
 
-        wait(lambda: are_pods_assigned(yp_client, first_pod_ids + second_pod_ids))
+    def test_strategy(self, yp_env_configurable):
+        yp_client = yp_env_configurable.yp_client
+
+        first_segment_pod_ids = self._prepare_strategy_test_segment(yp_client, "test-segment")
+        second_segment_pod_ids = self._prepare_strategy_test_segment(yp_client, "test-segment2")
+
+        time_per_pod = 10
+        wait_time = time_per_pod * (len(first_segment_pod_ids) + len(second_segment_pod_ids))
+
+        def are_none_eviction_states(pod_ids):
+            return all(map(
+                lambda response: response[0] == "none",
+                yp_client.get_objects("pod", pod_ids, selectors=["/status/eviction/state"]),
+            ))
+
+        assert_over_time(lambda: are_none_eviction_states(second_segment_pod_ids), iter=wait_time, sleep_backoff=1.0)
+
+        run_eviction_acknowledger(yp_client, iteration_count=wait_time, sleep_time=1.0)
+        wait(lambda: are_pods_assigned(yp_client, first_segment_pod_ids))

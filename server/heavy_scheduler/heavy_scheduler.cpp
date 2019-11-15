@@ -405,10 +405,24 @@ private:
             victimPod));
     }
 
+    std::vector<TPod*> GetNodeSegmentSchedulablePods() const
+    {
+        auto result = Cluster_->GetSchedulablePods();
+        result.erase(
+            std::remove_if(
+                result.begin(),
+                result.end(),
+                [&] (auto* pod) {
+                    return Config_->NodeSegment != pod->GetPodSet()->GetNodeSegment()->GetId();
+                }),
+            result.end());
+        return result;
+    }
+
     int GetPodEvictionCount() const
     {
         int result = 0;
-        for (const auto* pod : Cluster_->GetSchedulablePods()) {
+        for (const auto* pod : GetNodeSegmentSchedulablePods()) {
             if (pod->Eviction().state() != NProto::EEvictionState::ES_NONE) {
                 result += 1;
             }
@@ -433,7 +447,7 @@ private:
     std::vector<TPod*> FindStarvingPods() const
     {
         std::vector<TPod*> result;
-        for (auto* pod : Cluster_->GetSchedulablePods()) {
+        for (auto* pod : GetNodeSegmentSchedulablePods()) {
             if (pod->GetNode()) {
                 continue;
             }
@@ -455,7 +469,7 @@ private:
             starvingPodFilteredNodeSet.insert(node);
         }
 
-        std::vector<TPod*> victimCandidatePods = Cluster_->GetSchedulablePods();
+        std::vector<TPod*> victimCandidatePods = GetNodeSegmentSchedulablePods();
         victimCandidatePods.erase(
             std::remove_if(
                 victimCandidatePods.begin(),
