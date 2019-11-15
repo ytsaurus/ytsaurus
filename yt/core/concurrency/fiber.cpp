@@ -151,6 +151,9 @@ NProfiling::TCpuDuration TFiber::GetRunCpuTime() const
 
 void TFiber::OnStartRunning()
 {
+    auto isRunning = IsRunning_.exchange(true);
+    YT_VERIFY(!isRunning);
+
     YT_VERIFY(CurrentFiberId == InvalidFiberId);
     SetCurrentFiberId(Id_);
 
@@ -162,6 +165,9 @@ void TFiber::OnStartRunning()
 
 void TFiber::OnFinishRunning()
 {
+    auto isRunning = IsRunning_.exchange(false);
+    YT_VERIFY(isRunning);
+
     auto now = NProfiling::GetCpuInstant();
     SavedTraceContext_ = NTracing::UninstallTraceContext(now);
     RunCpuTime_ += std::max<NProfiling::TCpuDuration>(0, now - RunStartInstant_);
