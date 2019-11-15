@@ -333,7 +333,15 @@ public:
             transaction->ThrowInvalidState();
         }
 
-        SetTimestampHolderTimestamp(transaction->GetId(), commitTimestamp);
+        bool temporaryRefTimestampHolder = false;
+        if (!transaction->LockedDynamicTables().empty()) {
+            // Usually ref is held by chunk views in branched tables. However, if
+            // all tables are empty no natural ref exist, so we have to take it here.
+            temporaryRefTimestampHolder = true;
+            CreateOrRefTimestampHolder(transactionId);
+
+            SetTimestampHolderTimestamp(transactionId, commitTimestamp);
+        }
 
         SmallVector<TTransaction*, 16> nestedTransactions(
             transaction->NestedTransactions().begin(),
@@ -370,6 +378,10 @@ public:
         transaction->SetState(ETransactionState::Committed);
 
         TransactionCommitted_.Fire(transaction);
+
+        if (temporaryRefTimestampHolder) {
+            UnrefTimestampHolder(transactionId);
+        }
 
         RunCommitTransactionActions(transaction);
 

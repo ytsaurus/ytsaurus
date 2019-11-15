@@ -277,26 +277,37 @@ public:
 
         tabletSnapshot->TabletRuntimeData->ModificationTime = NProfiling::GetInstant();
 
-        while (!reader->IsFinished()) {
-            // NB: No yielding beyond this point.
-            // May access tablet and transaction.
-
+        auto actualizeTablet = [&] {
             if (!tablet) {
                 tablet = GetTabletOrThrow(tabletSnapshot->TabletId);
                 tablet->ValidateMountRevision(tabletSnapshot->MountRevision);
                 ValidateTabletMounted(tablet);
             }
+        };
+
+        actualizeTablet();
+
+        if (atomicity == EAtomicity::Full) {
+            const auto& lockManager = tablet->GetLockManager();
+            auto error = lockManager->ValidateTransactionConflict(transactionStartTimestamp);
+            if (!error.IsOK()) {
+                THROW_ERROR error
+                    << TErrorAttribute("tablet_id", tablet->GetId())
+                    << TErrorAttribute("transaction_id", transactionId);
+            }
+        }
+
+        while (!reader->IsFinished()) {
+            // NB: No yielding beyond this point.
+            // May access tablet and transaction.
+
+            actualizeTablet();
 
             ValidateTabletStoreLimit(tablet);
             ValidateMemoryLimit();
 
             auto tabletId = tablet->GetId();
             const auto& storeManager = tablet->GetStoreManager();
-
-            if (tablet->GetLockManager()->IsLocked()) {
-                THROW_ERROR_EXCEPTION("Tablet is locked by bulk insert")
-                    << TErrorAttribute("tablet_id", tabletId);
-            }
 
             TTransaction* transaction = nullptr;
             bool transactionIsFresh = false;
@@ -1178,6 +1189,7 @@ private:
         }
 
         auto transactionId = FromProto<TTabletId>(request->transaction_id());
+        auto updateMode = FromProto<EUpdateMode>(request->update_mode());
 
         const auto& storeManager = tablet->GetStoreManager();
 
@@ -1192,6 +1204,14 @@ private:
             storesToAdd.push_back(std::move(store));
         }
 
+        if (updateMode == EUpdateMode::Overwrite) {
+            YT_LOG_INFO_UNLESS(IsRecovery(),
+                "All stores of tablet are going to be discarded (%v)",
+                tablet->GetLoggingId());
+
+            storeManager->DiscardAllStores();
+        }
+
         storeManager->BulkAddStores(MakeRange(storesToAdd.begin(), storesToAdd.end()), /*onMount*/ false);
 
         const auto& lockManager = tablet->GetLockManager();
@@ -1199,14 +1219,19 @@ private:
         if (tablet->GetAtomicity() == EAtomicity::Full) {
             auto nextEpoch = lockManager->GetEpoch() + 1;
             UpdateTabletSnapshot(tablet, nextEpoch);
-            lockManager->Unlock(transactionId);
+
+            // COMPAT(ifsmirnov)
+            auto commitTimestamp = request->has_commit_timestamp()
+                ? ToProto<TTimestamp>(request->commit_timestamp())
+                : MinTimestamp;
+            lockManager->Unlock(commitTimestamp, transactionId);
         } else {
             UpdateTabletSnapshot(tablet);
         }
 
         YT_LOG_INFO_UNLESS(IsRecovery(),
-            "Tablet unlocked (TabletId: %v, TransactionId: %v, AddedStoreIds: %v, LockManagerEpoch: %v)",
-            tabletId,
+            "Tablet unlocked (%v, TransactionId: %v, AddedStoreIds: %v, LockManagerEpoch: %v)",
+            tablet->GetLoggingId(),
             transactionId,
             addedStoreIds,
             lockManager->GetEpoch());
@@ -2298,9 +2323,12 @@ private:
                 THROW_ERROR_EXCEPTION("Writing into replicated table requires 2PC");
             }
 
-            if (tablet->GetLockManager()->IsLocked()) {
-                THROW_ERROR_EXCEPTION("Tablet is locked by bulk insert")
-                    << TErrorAttribute("tablet_id", tablet->GetId());
+            // No bulk insert into replicated tables. Remove this check?
+            const auto& lockManager = tablet->GetLockManager();
+            if (auto error = lockManager->ValidateTransactionConflict(transaction->GetStartTimestamp());
+                !error.IsOK())
+            {
+                THROW_ERROR error << TErrorAttribute("tablet_id", tablet->GetId());
             }
 
             ValidateSyncReplicaSet(tablet, writeRecord.SyncReplicaIds);

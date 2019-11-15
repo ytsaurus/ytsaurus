@@ -169,6 +169,17 @@ void TStoreManagerBase::BulkAddStores(TRange<IStorePtr> stores, bool onMount)
     }
 }
 
+void TStoreManagerBase::DiscardAllStores()
+{
+    Rotate(/*createNewStore*/ true);
+
+    for (auto [id, store] : Tablet_->StoreIdMap()) {
+        if (store->GetStoreState() != EStoreState::ActiveDynamic) {
+            RemoveStore(store);
+        }
+    }
+}
+
 void TStoreManagerBase::RemoveStore(IStorePtr store)
 {
     YT_ASSERT(store->GetStoreState() != EStoreState::ActiveDynamic);

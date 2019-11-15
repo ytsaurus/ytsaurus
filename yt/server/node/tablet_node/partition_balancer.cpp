@@ -336,7 +336,7 @@ private:
         TPartition* partition,
         int splitFactor,
         TTablet* tablet,
-        TPartitionId partitonId,
+        TPartitionId partitionId,
         TTabletId tabletId,
         NLogging::TLogger Logger)
     {
@@ -500,7 +500,7 @@ private:
         TTabletSlotPtr slot,
         TPartition* partition,
         TTablet* tablet,
-        TPartitionId partitonId,
+        TPartitionId partitionId,
         TTabletId tabletId,
         NLogging::TLogger Logger)
     {
