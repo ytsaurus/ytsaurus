@@ -8,6 +8,12 @@ object CommonPlugin extends AutoPlugin {
 
   override def requires = JvmPlugin
 
+  object autoImport {
+    val publishYtTo = settingKey[String]("Yt publish path")
+  }
+
+  import autoImport._
+
   override def projectSettings: Seq[Def.Setting[_]] = Seq(
     resolvers += "Arcadia" at "http://artifactory.yandex.net/artifactory/yandex_media_releases",
     version := "0.0.1-SNAPSHOT",
@@ -32,8 +38,9 @@ object CommonPlugin extends AutoPlugin {
       if (isSnapshot.value)
         Some("snapshots" at nexus + "yandex_spark_snapshots")
       else
-        Some("releases"  at nexus + "yandex_spark_releases")
+        Some("releases" at nexus + "yandex_spark_releases")
     },
-    credentials += Credentials(Path.userHome / ".sbt" / ".credentials")
+    credentials += Credentials(Path.userHome / ".sbt" / ".credentials"),
+    publishYtTo := "//home/sashbel/spark-test"
   )
 }

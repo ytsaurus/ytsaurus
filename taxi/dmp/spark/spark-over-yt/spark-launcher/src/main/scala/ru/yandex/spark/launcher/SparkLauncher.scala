@@ -24,14 +24,14 @@ object SparkLauncher {
 
   private var sparkProcess: Process = _
 
-  def startMaster(port: Int, webUiPort: Int, opts: Option[String]): Address = {
+  def startMaster(port: Int, webUiPort: Int, opts: Option[String]): (Address, Thread) = {
     val env = Map(
       "SPARK_MASTER_OPTS" -> opts,
       "SPARK_PRINT_LAUNCH_COMMAND" -> Some("true")
     ).flatMap { case (k, v) => v.map(vv => k -> vv.toString) }
 
     val host = InetAddress.getLocalHost.getHostName
-    runSparkThread(masterClass, Map(
+    val thread = runSparkThread(masterClass, Map(
       "host" -> host,
       "port" -> port.toString,
       "webui-port" -> webUiPort.toString
@@ -40,7 +40,7 @@ object SparkLauncher {
     val address = readAddress()
     log.info(s"Address from file: $address")
 
-    address
+    (address, thread)
   }
 
   @tailrec
@@ -66,7 +66,7 @@ object SparkLauncher {
   private def runSparkThread(className: String,
                              namedArgs: Map[String, String],
                              positionalArgs: Seq[String],
-                             env: Map[String, String]): Unit = {
+                             env: Map[String, String]): Thread = {
     val thread = new Thread(() => {
       try {
         val log = Logger.getLogger(SparkLauncher.getClass)
@@ -81,6 +81,7 @@ object SparkLauncher {
     }, "Spark Thread")
     thread.setDaemon(true)
     thread.start()
+    thread
   }
 
   private def runSparkClass(className: String,

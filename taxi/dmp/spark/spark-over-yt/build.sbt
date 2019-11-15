@@ -1,5 +1,6 @@
 import Dependencies._
 import SparkPackagePlugin.autoImport._
+import YtPublishPlugin.autoImport._
 import com.typesafe.sbt.packager.linux.{LinuxPackageMapping, LinuxSymlink}
 
 lazy val `data-source` = (project in file("data-source"))
@@ -19,7 +20,9 @@ lazy val `spark-launcher` = (project in file("spark-launcher"))
   .settings(
     libraryDependencies ++= circe,
     libraryDependencies ++= scaldingArgs,
-    libraryDependencies ++= logging
+    libraryDependencies ++= logging,
+    assemblyJarName in assembly := s"${name.value}-${version.value}.jar",
+    publishYtArtifacts := Seq(assembly.value)
   )
 
 lazy val benchmark = (project in file("benchmark"))
@@ -76,7 +79,10 @@ lazy val `client` = (project in file("client"))
     ),
     sparkAdditionalJars := Seq(
       (assembly in `data-source`).value
-    )
+    ),
+    sparkLauncherName := (name in `spark-launcher`).value,
+    publishYtArtifacts += packageSparkTgz.value,
+    publishYtArtifacts ++= (publishYtArtifacts in `spark-launcher`).value
   )
 
 lazy val root = (project in file("."))
