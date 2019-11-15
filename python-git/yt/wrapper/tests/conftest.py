@@ -422,13 +422,6 @@ def test_method_teardown():
     _remove_operations()
     _remove_objects()
 
-def save_yatest_working_files(sandbox_path, output_subpath):
-    if yatest_common is None or yatest_common.get_param("ram_drive_path") is None:
-        return
-    shutil.copytree(
-        sandbox_path,
-        os.path.join(yatest_common.output_path(), output_subpath))
-
 @pytest.fixture(scope="function")
 def yt_env(request, test_environment):
     """ YT cluster fixture.
