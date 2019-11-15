@@ -1,17 +1,17 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
-import java.util.Optional;
-
 import com.google.protobuf.ByteString;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
+import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.rpcproxy.TReqAlterTable;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
 public class AlterTable extends TableReq<AlterTable> {
     private TableSchema schema;
-    private Optional<Boolean> dynamic;
+    private YTreeNode schemaNode;
+    private Boolean dynamic;
     private GUID upstreamReplicaId;
     private TransactionalOptions transactionalOptions;
 
@@ -24,8 +24,19 @@ public class AlterTable extends TableReq<AlterTable> {
         return this;
     }
 
+    /**
+     * Альтернативный способ задания схемы - по аналогии с {@link CreateNode}
+     *
+     * @param schema схема
+     * @return текущий объект
+     */
+    public AlterTable setSchema(YTreeNode schema) {
+        this.schemaNode = schema;
+        return this;
+    }
+
     public AlterTable setDynamic(boolean f) {
-        this.dynamic = Optional.of(f);
+        this.dynamic = f;
         return this;
     }
 
@@ -44,9 +55,13 @@ public class AlterTable extends TableReq<AlterTable> {
 
         if (schema != null) {
             builder.setSchema(ByteString.copyFrom(schema.toYTree().toBinary()));
+        } else if (schemaNode != null) {
+            builder.setSchema(ByteString.copyFrom(schemaNode.toBinary()));
         }
 
-        dynamic.ifPresent(x -> builder.setDynamic(x));
+        if (dynamic != null) {
+            builder.setDynamic(dynamic);
+        }
 
         if (upstreamReplicaId != null) {
             builder.setUpstreamReplicaId(RpcUtil.toProto(upstreamReplicaId));

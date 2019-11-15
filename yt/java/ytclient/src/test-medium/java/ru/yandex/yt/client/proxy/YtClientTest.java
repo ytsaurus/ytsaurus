@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import com.google.common.base.Charsets;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -45,6 +46,7 @@ import ru.yandex.yt.ytclient.proxy.TableReader;
 import ru.yandex.yt.ytclient.proxy.TableWriter;
 import ru.yandex.yt.ytclient.proxy.YtClient;
 import ru.yandex.yt.ytclient.proxy.YtCluster;
+import ru.yandex.yt.ytclient.proxy.request.AlterTable;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.RemoveNode;
@@ -204,6 +206,28 @@ public class YtClientTest {
         readTableImpl(dir1, table3, path, new MappedObject(1, "test1"));
     }
 
+    @Test(timeout = 10000)
+    public void alterTable() throws Exception {
+        final String dir1 = path + "/dir1";
+        final String table4 = dir1 + "/table4";
+
+        final String path = YPath.simple(table4).toString();
+
+        // Вставляем данные
+        readTableImpl(dir1, table4, path, new MappedObject(1, "test1"), new MappedObject(2, "test2"));
+
+        // Такая же схема - ничего не изменилось
+        client.alterTable(new AlterTable(table4).setSchema(schema())).join();
+
+        // Модифицируем - новый столбец
+        client.alterTable(new AlterTable(table4).setSchema(schema(b ->
+                b.beginMap()
+                        .key("name").value("v2")
+                        .key("type").value("string")
+                        .endMap())))
+                .join();
+    }
+
     private void readTableImpl(String dir, String table, String path, MappedObject... expect) throws Exception {
         createDirectory(client, dir);
         createTable(client, table, false);
@@ -246,32 +270,43 @@ public class YtClientTest {
         createTable(client, table, true);
     }
 
+    static YTreeNode schema() {
+        return schema(b -> {
+        });
+    }
+
+    static YTreeNode schema(Consumer<YTreeBuilder> additionalColumns) {
+        final YTreeBuilder builder = YTree.builder()
+                .beginAttributes()
+                .key("unique_keys").value(true)
+                .key("strict").value(true)
+                .endAttributes()
+
+                .beginList()
+
+                .beginMap()
+                .key("name").value("k1")
+                .key("required").value(true)
+                .key("type").value("int32")
+                .key("sort_order").value("ascending")
+                .endMap()
+
+                .beginMap()
+                .key("name").value("v1")
+                .key("type").value("string")
+                .endMap();
+
+        additionalColumns.accept(builder);
+
+        return builder
+                .endList()
+                .build();
+    }
+
     public static void createTable(YtClient client, String table, boolean dynamic) {
         final Map<String, YTreeNode> attrs = YTree.mapBuilder()
                 .key("dynamic").value(YTree.booleanNode(dynamic))
-                .key("schema").value(YTree.builder()
-                        .beginAttributes()
-                        .key("unique_keys").value(true)
-                        .key("strict").value(true)
-                        .endAttributes()
-
-                        .beginList()
-
-                        .beginMap()
-                        .key("name").value("k1")
-                        .key("required").value(true)
-                        .key("type").value("int32")
-                        .key("sort_order").value("ascending")
-                        .endMap()
-
-                        .beginMap()
-                        .key("name").value("v1")
-                        .key("type").value("string")
-                        .endMap()
-
-                        .endList()
-
-                        .build())
+                .key("schema").value(schema())
                 .buildMap().asMap();
 
         client.createNode(new CreateNode(YPath.simple(table), CypressNodeType.TABLE, attrs)
