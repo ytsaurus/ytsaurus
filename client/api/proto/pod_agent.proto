@@ -371,7 +371,8 @@ message TTimeLimit {
 }
 
 message TTimeLimitStatus {
-    google.protobuf.Timestamp last_call_time = 1;
+    google.protobuf.Timestamp last_call_time = 1; // deprecated DEPLOY-1153
+
     uint32 consecutive_successes_counter = 2;
     uint32 consecutive_failures_counter = 3;
 }
