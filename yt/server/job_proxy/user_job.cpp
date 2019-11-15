@@ -228,6 +228,7 @@ public:
             auto chunkList = FromProto<TChunkListId>(coreTableSpec.output_table_spec().chunk_list_id());
             auto blobTableWriterConfig = ConvertTo<TBlobTableWriterConfigPtr>(TYsonString(coreTableSpec.blob_table_writer_config()));
             auto debugTransactionId = FromProto<TTransactionId>(UserJobSpec_.debug_output_transaction_id());
+            auto writeSparseCoreDumps = UserJobSpec_.write_sparse_core_dumps();
 
             CoreProcessorService_ = New<TCoreProcessorService>(
                 Host_,
@@ -235,6 +236,7 @@ public:
                 tableWriterOptions,
                 debugTransactionId,
                 chunkList,
+                writeSparseCoreDumps,
                 AuxQueue_->GetInvoker(),
                 Config_->CoreForwarderTimeout);
 

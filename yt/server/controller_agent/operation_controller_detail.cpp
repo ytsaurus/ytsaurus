@@ -2108,6 +2108,12 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
                     req->set_value(ConvertToYsonString(GetPartSize(table->OutputType)).GetData());
                     batchReq->AddRequest(req);
                 }
+                if (table->OutputType == EOutputTableType::Core && GetWriteSparseCoreDumps()) {
+                    auto req = TYPathProxy::Set(table->GetObjectIdPath() + "/@sparse");
+                    SetTransactionId(req, GetTransactionForOutputTable(table)->GetId());
+                    req->set_value(ConvertToYsonString(true).GetData());
+                    batchReq->AddRequest(req);
+                }
             }
 
             asyncResults.push_back(batchReq->Invoke());
@@ -7746,6 +7752,8 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         jobSpec->set_network_project_id(ConvertTo<ui32>(getRspOrError.ValueOrThrow()));
     }
 
+    jobSpec->set_write_sparse_core_dumps(GetWriteSparseCoreDumps());
+
     auto fillEnvironment = [&] (THashMap<TString, TString>& env) {
         for (const auto& [key, value] : env) {
             jobSpec->add_environment(Format("%v=%v", key, value));
@@ -8230,6 +8238,11 @@ TBlobTableWriterConfigPtr TOperationControllerBase::GetCoreTableWriterConfig() c
 std::optional<TRichYPath> TOperationControllerBase::GetCoreTablePath() const
 {
     return std::nullopt;
+}
+
+bool TOperationControllerBase::GetWriteSparseCoreDumps() const
+{
+    return false;
 }
 
 void TOperationControllerBase::OnChunksReleased(int /* chunkCount */)
