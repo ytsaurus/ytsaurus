@@ -89,6 +89,35 @@ TFiberRegistry* GetFiberRegistry()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TFiberExecutionStackProfiler
+{
+public:
+    void StackAllocated(int stackSize)
+    {
+        Profiler_.Increment(BytesAllocated_, stackSize);
+        Profiler_.Increment(BytesAlive_, stackSize);
+    }
+
+    void StackFreed(int stackSize)
+    {
+        Profiler_.Increment(BytesFreed_, stackSize);
+        Profiler_.Increment(BytesAlive_, -stackSize);
+    }
+
+    static TFiberExecutionStackProfiler* Get()
+    {
+        return Singleton<TFiberExecutionStackProfiler>();
+    }
+
+private:
+    NProfiling::TProfiler Profiler_{"/fiber_execution_stack"};
+    NProfiling::TMonotonicCounter BytesAllocated_{"/bytes_allocated"};
+    NProfiling::TMonotonicCounter BytesFreed_{"/bytes_freed"};
+    NProfiling::TSimpleGauge BytesAlive_{"/bytes_alive"};
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TFiber::TFiber(EExecutionStackKind stackKind)
     : Stack_(CreateExecutionStack(stackKind))
     , Context_({
@@ -97,11 +126,13 @@ TFiber::TFiber(EExecutionStackKind stackKind)
     , Registry_(GetFiberRegistry())
     , Iterator_(Registry_->Register(this))
 {
+    TFiberExecutionStackProfiler::Get()->StackAllocated(Stack_->GetSize());
     RegenerateId();
 }
 
 TFiber::~TFiber()
 {
+    TFiberExecutionStackProfiler::Get()->StackFreed(Stack_->GetSize());
     GetFiberRegistry()->Unregister(Iterator_);
 }
 
