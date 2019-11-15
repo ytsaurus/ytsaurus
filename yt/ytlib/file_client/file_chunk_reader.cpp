@@ -72,8 +72,8 @@ public:
         }
 
         YT_LOG_INFO("Creating file chunk reader (StartOffset: %v, EndOffset: %v)",
-                startOffset,
-                endOffset);
+            startOffset,
+            endOffset);
 
         ReadyEvent_ = BIND(&TFileChunkReader::DoOpen, MakeWeak(this))
             .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
