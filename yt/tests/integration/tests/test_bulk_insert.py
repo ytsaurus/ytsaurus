@@ -776,6 +776,7 @@ class TestBulkInsert(DynamicTablesBase):
         with pytest.raises(YtError):
             _run("none" if atomicity == "full" else "full")
 
+    @pytest.mark.xfail(run=False, reason="A bit of race here, fix is to be discussed")
     def test_atomicity_none(self):
         sync_create_cells(1)
         create("table", "//tmp/t_input")
