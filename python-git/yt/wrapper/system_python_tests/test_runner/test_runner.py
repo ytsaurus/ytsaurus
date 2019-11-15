@@ -44,15 +44,11 @@ def run_pytest(python_version):
 
     prepare_python_packages()
 
-    conftest_path = os.path.join(yatest.common.source_path(), PYTHON_ROOT, "conftest.py")
-    if os.path.exists(conftest_path):
-        os.remove(conftest_path)
-
     path = arcadia_interop.prepare_yt_environment(build_dir, use_ytserver_all=True, copy_ytserver_all=True)
     if "PATH" in os.environ:
         path = os.pathsep.join([path, os.environ["PATH"]])
 
-    sandbox_dir = os.path.join(yatest.common.output_path(), "sandbox")
+    sandbox_dir = os.path.join(yatest.common.output_ram_drive_path(), "sandbox")
     env = {
         "PATH": path,
         "PYTHONPATH": os.pathsep.join([
@@ -78,7 +74,14 @@ def run_pytest(python_version):
     cgroup = None
     try:
         cgroup = cgroups.CGroup("test", subsystems=("cpuacct", "cpu", "blkio", "freezer")).create()
-        pytest_runner.run(test_files, python_path="/usr/bin/python" + python_version, env=env, pytest_args=["-v", "-s"], timeout=6000)
+        pytest_runner.run(
+            test_files,
+            python_path="/usr/bin/python" + python_version,
+            env=env,
+            pytest_args=["-v", "-s", "--process-count=10"],
+            # Default timeout for large tests is 1 hour.
+            # We use 50 minutes here as we need time to save results.
+            timeout=3000)
     finally:
         if cgroup is not None:
             cgroup.delete()
