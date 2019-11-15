@@ -1,120 +1,61 @@
 #include "fiber.h"
-#include "private.h"
-#include "action_queue.h"
-#include "atomic_flag_spinlock.h"
-#include "fls.h"
-#include "scheduler.h"
-#include "thread_affinity.h"
-
-#include <yt/core/ytalloc/memory_tag.h>
-
-#include <yt/core/profiling/timing.h>
-
-#include <util/generic/singleton.h>
 
 namespace NYT::NConcurrency {
 
-using namespace NTracing;
-using namespace NYTAlloc;
-
-////////////////////////////////////////////////////////////////////////////////
-
 static const auto& Logger = ConcurrencyLogger;
 
-static class TFiberIdGenerator
-{
-public:
-    TFiberIdGenerator()
-    {
-        Seed_.store(static_cast<TFiberId>(::time(nullptr)));
-    }
-
-    TFiberId Generate()
-    {
-        constexpr TFiberId Factor = std::numeric_limits<TFiberId>::max() - 173864;
-        static_assert(Factor % 2 == 1); // Factor must be coprime with 2^n.
-
-        while (true) {
-            auto seed = Seed_++;
-            auto id = seed * Factor;
-            if (id != InvalidFiberId) {
-                return id;
-            }
-        }
-    }
-
-private:
-    std::atomic<TFiberId> Seed_;
-
-} FiberIdGenerator;
-
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFiberRegistry
+TContextSwitchGuard::TContextSwitchGuard(std::function<void()> out, std::function<void()> in)
 {
-public:
-    std::list<TFiber*>::iterator Register(TFiber* fiber)
-    {
-        TGuard<std::atomic_flag> guard(Lock_);
-        return Fibers_.insert(Fibers_.begin(), fiber);
-    }
+    PushContextHandler(std::move(out), std::move(in));
+}
 
-    void Unregister(std::list<TFiber*>::iterator iterator)
-    {
-        TGuard<std::atomic_flag> guard(Lock_);
-        Fibers_.erase(iterator);
-    }
-
-private:
-    // TODO(sandello): Make it an intrusive list.
-    std::atomic_flag Lock_ = ATOMIC_FLAG_INIT;
-    std::list<TFiber*> Fibers_;
-
-};
-
-// Cache registry in static variable to simplify introspection.
-static TFiberRegistry* FiberRegistry;
-
-TFiberRegistry* GetFiberRegistry()
+TContextSwitchGuard::~TContextSwitchGuard()
 {
-    if (!FiberRegistry) {
-        FiberRegistry = Singleton<TFiberRegistry>();
-    }
-    return FiberRegistry;
+    PopContextHandler();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFiberExecutionStackProfiler
-{
-public:
-    void StackAllocated(int stackSize)
-    {
-        Profiler_.Increment(BytesAllocated_, stackSize);
-        Profiler_.Increment(BytesAlive_, stackSize);
-    }
-
-    void StackFreed(int stackSize)
-    {
-        Profiler_.Increment(BytesFreed_, stackSize);
-        Profiler_.Increment(BytesAlive_, -stackSize);
-    }
-
-    static TFiberExecutionStackProfiler* Get()
-    {
-        return Singleton<TFiberExecutionStackProfiler>();
-    }
-
-private:
-    NProfiling::TProfiler Profiler_{"/fiber_execution_stack"};
-    NProfiling::TMonotonicCounter BytesAllocated_{"/bytes_allocated"};
-    NProfiling::TMonotonicCounter BytesFreed_{"/bytes_freed"};
-    NProfiling::TSimpleGauge BytesAlive_{"/bytes_alive"};
-};
+TOneShotContextSwitchGuard::TOneShotContextSwitchGuard(std::function<void()> handler)
+    : TContextSwitchGuard(
+        [this, handler = std::move(handler)] () noexcept {
+            if (!Active_) {
+                return;
+            }
+            Active_ = false;
+            handler();
+        },
+        nullptr)
+    , Active_(true)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFiber::TFiber(TClosure callee, EExecutionStackKind stackKind)
+TForbidContextSwitchGuard::TForbidContextSwitchGuard()
+    : TOneShotContextSwitchGuard( [] { YT_ABORT(); })
+{ }
+
+thread_local TFiberId CurrentFiberId;
+
+//! Returns the current fiber id.
+TFiberId GetCurrentFiberId()
+{
+    return CurrentFiberId;
+}
+
+//! Sets the current fiber id.
+void SetCurrentFiberId(TFiberId id)
+{
+    CurrentFiberId = id;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFiber::TFiber(
+    TClosure callee,
+    EExecutionStackKind stackKind)
     : Callee_(std::move(callee))
     , Stack_(CreateExecutionStack(stackKind))
     , Context_({
@@ -123,94 +64,79 @@ TFiber::TFiber(TClosure callee, EExecutionStackKind stackKind)
 {
     TFiberExecutionStackProfiler::Get()->StackAllocated(Stack_->GetSize());
     RegenerateId();
-    Iterator_ = GetFiberRegistry()->Register(this);
-
-    PushContextHandler(
-        [this] () noexcept {
-             NYTAlloc::SetCurrentMemoryTag(MemoryTag_);
-             NYTAlloc::SetCurrentMemoryZone(MemoryZone_);
-        },
-        [this] () noexcept {
-            MemoryTag_ = NYTAlloc::GetCurrentMemoryTag();
-            MemoryZone_ = NYTAlloc::GetCurrentMemoryZone();
-        });
+    YT_LOG_DEBUG("Fiber created (Id: %llx)", Id_);
 }
 
 TFiber::~TFiber()
 {
-    TFiberExecutionStackProfiler::Get()->StackFreed(Stack_->GetSize());
-    YT_VERIFY(IsTerminated());
-    GetFiberRegistry()->Unregister(Iterator_);
+    YT_VERIFY(Terminated);
+    YT_LOG_DEBUG("Fiber destroyed (Id: %llx)", Id_);
 }
 
-TFiberId TFiber::GetId() const
+void TFiber::InvokeContextOutHandlers()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return Id_;
+    for (auto it = SwitchHandlers_.rbegin(); it != SwitchHandlers_.rend(); ++it) {
+        if (it->Out) {
+            it->Out();
+        }
+    }
 }
 
-TFiberId TFiber::RegenerateId()
+void TFiber::InvokeContextInHandlers()
 {
-    Id_ = FiberIdGenerator.Generate();
-    return Id_;
+    for (auto it = SwitchHandlers_.rbegin(); it != SwitchHandlers_.rend(); ++it) {
+        if (it->In) {
+            it->In();
+        }
+    }
 }
 
-EFiberState TFiber::GetState() const
+void TFiber::OnSwitchInto()
 {
-    // THREAD_AFFINITY(OwnerThread);
-    // NB: These annotations are fake since owner may change.
+    SetCurrentFiberId(Id_);
+    YT_LOG_TRACE("Switched into fiber (Id: %llx)", Id_);
 
-    return State_;
+    OnStartRunning();
+
+    NYTAlloc::SetCurrentMemoryTag(MemoryTag_);
+    NYTAlloc::SetCurrentMemoryZone(MemoryZone_);
 }
 
-void TFiber::SetRunning()
+void TFiber::OnSwitchOut()
 {
-    // THREAD_AFFINITY(OwnerThread);
+    OnFinishRunning();
 
-    TGuard<TSpinLock> guard(SpinLock_);
-    YT_ASSERT(State_ != EFiberState::Terminated);
-    State_ = EFiberState::Running;
-    Awaitable_.Reset();
+    MemoryTag_ = NYTAlloc::GetCurrentMemoryTag();
+    MemoryZone_ = NYTAlloc::GetCurrentMemoryZone();
+
+    YT_LOG_TRACE("Switching out fiber (Id: %llx)", Id_);
+    SetCurrentFiberId(InvalidFiberId);
+}
+
+NProfiling::TCpuDuration TFiber::GetRunCpuTime() const
+{
+    return RunCpuTime_ + std::max<NProfiling::TCpuDuration>(0, NProfiling::GetCpuInstant() - RunStartInstant_);
+}
+
+void TFiber::OnStartRunning()
+{
     RunStartInstant_ = NProfiling::GetCpuInstant();
     InstallTraceContext(RunStartInstant_, std::move(SavedTraceContext_));
 
     NDetail::SetCurrentFsdHolder(&FsdHolder_);
 }
 
-void TFiber::SetSleeping(TAwaitable awaitable)
+void TFiber::OnFinishRunning()
 {
-    // THREAD_AFFINITY(OwnerThread);
+    auto now = NProfiling::GetCpuInstant();
+    SavedTraceContext_ = NTracing::UninstallTraceContext(now);
+    RunCpuTime_ += std::max<NProfiling::TCpuDuration>(0, now - RunStartInstant_);
 
-    TGuard<TSpinLock> guard(SpinLock_);
-    UnwindIfCanceled();
-    FinishRunning();
-    YT_ASSERT(State_ != EFiberState::Terminated);
-    State_ = EFiberState::Sleeping;
-    YT_ASSERT(!Awaitable_);
-    Awaitable_ = std::move(awaitable);
-}
-
-void TFiber::SetSuspended()
-{
-    // THREAD_AFFINITY(OwnerThread);
-
-    TGuard<TSpinLock> guard(SpinLock_);
-    FinishRunning();
-    YT_ASSERT(State_ != EFiberState::Terminated);
-    State_ = EFiberState::Suspended;
-    Awaitable_.Reset();
-}
-
-TExceptionSafeContext* TFiber::GetContext()
-{
-    return &Context_;
+    NDetail::SetCurrentFsdHolder(nullptr);
 }
 
 void TFiber::Cancel()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
-
     bool expected = false;
     if (!Canceled_.compare_exchange_strong(expected, true, std::memory_order_relaxed)) {
         return;
@@ -232,133 +158,147 @@ void TFiber::Cancel()
     }
 }
 
+void TFiber::ResetForReuse()
+{
+    ++Epoch_;
+    Canceled_ = false;
+
+    {
+        TGuard<TSpinLock> guard(SpinLock_);
+        Canceler_.Reset();
+        Awaitable_.Reset();
+    }
+
+    RunCpuTime_ = 0;
+    RunStartInstant_ = NProfiling::GetCpuInstant();
+
+    auto oldId = Id_;
+    RegenerateId();
+    YT_LOG_DEBUG("Reusing fiber (Id: %llx -> %llx)", oldId, Id_);
+}
+
 const TClosure& TFiber::GetCanceler()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     TGuard<TSpinLock> guard(SpinLock_);
     if (!Canceler_) {
-        TMemoryTagGuard guard(NullMemoryTag);
-        Canceler_ = BIND_DONT_CAPTURE_TRACE_CONTEXT(&TFiber::Cancel, MakeWeak(this));
+        NYTAlloc::TMemoryTagGuard guard(NYTAlloc::NullMemoryTag);
+        Canceler_ = BIND_DONT_CAPTURE_TRACE_CONTEXT(&TFiber::CancelEpoch, MakeWeak(this), Epoch_.load());
     }
 
     return Canceler_;
 }
 
-bool TFiber::IsCancelable() const
+void TFiber::SetAwaitable(TAwaitable awaitable)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
-
     TGuard<TSpinLock> guard(SpinLock_);
-    return static_cast<bool>(Canceler_);
+    Awaitable_ = std::move(awaitable);
 }
 
-bool TFiber::IsCanceled() const
+void TFiber::ResetAwaitable()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return Canceled_.load(std::memory_order_relaxed);
-}
-
-void TFiber::UnwindIfCanceled() const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    if (IsCanceled()) {
-        YT_LOG_DEBUG("Throwing fiber cancelation exception");
-        throw TFiberCanceledException();
-    }
-}
-
-bool TFiber::IsTerminated() const
-{
-    // THREAD_AFFINITY(OwnerThread);
-
-    return State_ == EFiberState::Terminated;
+    TGuard<TSpinLock> guard(SpinLock_);
+    Awaitable_.Reset();
 }
 
 void TFiber::DoRunNaked()
 {
-    try {
-        Callee_.Run();
-    } catch (const TFiberCanceledException&) {
-        // Thrown intentionally, ignore.
-        YT_LOG_DEBUG("Fiber canceled");
+    if (!Canceled_.load(std::memory_order_relaxed)) {
+        OnStartRunning();
+
+        try {
+            Callee_.Run();
+        } catch (const TFiberCanceledException&) {
+            // Thrown intentionally, ignore.
+            YT_LOG_DEBUG("Fiber canceled");
+        }
+
+        OnFinishRunning();
+
+        // NB: All other uncaught exceptions will lead to std::terminate().
+        // This way we preserve the much-needed backtrace.
     }
-    // NB: All other uncaught exceptions will lead to std::terminate().
-    // This way we preserve the much-needed backtrace.
 
-    FinishRunning();
-    State_ = EFiberState::Terminated;
+    Terminated = true;
 
-    ReturnFromFiber();
+    SwitchToFiber(nullptr);
 
     YT_ABORT();
 }
 
-void TFiber::PushContextHandler(std::function<void()> out, std::function<void()> in)
+////////////////////////////////////////////////////////////////////////////////
+
+thread_local TFiberPtr CurrentFiber = nullptr;
+
+bool CheckFreeStackSpace(size_t space)
 {
-    SwitchHandlers_.push_back({std::move(out), std::move(in)});
+    return !CurrentFiber || CurrentFiber->CheckFreeStackSpace(space);
 }
 
-void TFiber::PopContextHandler()
+void PushContextHandler(std::function<void()> out, std::function<void()> in)
 {
-    YT_ASSERT(!SwitchHandlers_.empty());
-    SwitchHandlers_.pop_back();
-}
-
-void TFiber::InvokeContextOutHandlers()
-{
-    for (auto it = SwitchHandlers_.rbegin(); it != SwitchHandlers_.rend(); ++it) {
-        if (it->Out) {
-            it->Out();
-        }
-    }
-}
-
-void TFiber::InvokeContextInHandlers()
-{
-    for (auto it = SwitchHandlers_.rbegin(); it != SwitchHandlers_.rend(); ++it) {
-        if (it->In) {
-            it->In();
-        }
-    }
-}
-
-bool TFiber::CheckFreeStackSpace(size_t space) const
-{
-    return reinterpret_cast<char*>(Stack_->GetStack()) + space < __builtin_frame_address(0);
-}
-
-NProfiling::TCpuDuration TFiber::GetRunCpuTime() const
-{
-    // THREAD_AFFINITY(OwnerThread);
-    YT_ASSERT(State_ == EFiberState::Running);
-
-    return RunCpuTime_ + std::max<NProfiling::TCpuDuration>(0, NProfiling::GetCpuInstant() - RunStartInstant_);
-}
-
-void TFiber::FinishRunning()
-{
-    if (State_ != EFiberState::Running) {
+    const auto& this_ = CurrentFiber;
+    if (!this_) {
         return;
     }
-    auto now = NProfiling::GetCpuInstant();
-    SavedTraceContext_ = UninstallTraceContext(now);
-    RunCpuTime_ += std::max<NProfiling::TCpuDuration>(0, now - RunStartInstant_);
 
-    NDetail::SetCurrentFsdHolder(nullptr);
+    this_->SwitchHandlers_.push_back({std::move(out), std::move(in)});
 }
 
-////////////////////////////////////////////////////////////////////////////////
+void PopContextHandler()
+{
+    const auto& this_ = CurrentFiber;
+    if (!this_) {
+        return;
+    }
+    YT_VERIFY(!this_->SwitchHandlers_.empty());
+    this_->SwitchHandlers_.pop_back();
+}
+
+NProfiling::TCpuDuration GetCurrentFiberRunCpuTime()
+{
+    return CurrentFiber->GetRunCpuTime();
+}
 
 TClosure GetCurrentFiberCanceler()
 {
-    auto* fiber = TryGetCurrentFiber();
-    return fiber ? fiber->GetCanceler() : TClosure();
+    return CurrentFiber ? CurrentFiber->GetCanceler() : TClosure();
+}
+
+thread_local TExceptionSafeContext ThreadContext;
+
+TExceptionSafeContext* GetContext(const TFiberPtr& target)
+{
+    return target ? &target->Context_ : &ThreadContext;
+}
+
+thread_local TClosure AfterSwitch;
+
+void SwitchToFiber(TFiberPtr target)
+{
+    YT_VERIFY(CurrentFiber != target);
+
+    if (CurrentFiber) {
+        CurrentFiber->OnSwitchOut();
+    }
+
+    auto context = GetContext(CurrentFiber);
+    // Here current fiber could be destroyed. But it must be saved in AfterSwitch callback or other place.
+    YT_VERIFY(!CurrentFiber || CurrentFiber->GetRefCount() > 1);
+    CurrentFiber = std::move(target);
+    context->SwitchTo(GetContext(CurrentFiber));
+
+    // Allows set new AfterSwitch inside it.
+    if (auto afterSwitch = std::move(AfterSwitch)) {
+        afterSwitch.Run();
+    }
+
+    if (CurrentFiber) {
+        CurrentFiber->OnSwitchInto();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NConcurrency
-
+} //namespace NYT::NConcurrency
