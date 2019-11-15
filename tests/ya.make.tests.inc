@@ -82,6 +82,7 @@ DEPENDS(
 
 PEERDIR(
     yp/python
+    yp/tests/helpers
 
     ${YT_PYTHON_ROOT}/python/yt/environment/arcadia_interop
 
