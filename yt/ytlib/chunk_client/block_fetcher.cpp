@@ -148,12 +148,12 @@ TFuture<TBlock> TBlockFetcher::FetchBlock(int blockIndex)
             GetBlockPromise(windowSlot).Set(uncompressedBlock);
             TotalRemainingSize_ -= BlockInfos_[windowIndex].UncompressedDataSize;
         } else {
-            ReaderInvoker_->Invoke(
-                BIND(&TBlockFetcher::RequestBlocks,
-                    MakeWeak(this),
-                    std::vector<int> { windowIndex },
-                    std::vector<int> { blockIndex },
-                    static_cast<i64>(BlockInfos_[windowIndex].UncompressedDataSize)));
+            ReaderInvoker_->Invoke(BIND(
+                &TBlockFetcher::RequestBlocks,
+                MakeWeak(this),
+                std::vector{windowIndex},
+                std::vector{blockIndex},
+                static_cast<i64>(BlockInfos_[windowIndex].UncompressedDataSize)));
         }
     }
 
@@ -212,9 +212,7 @@ void TBlockFetcher::DecompressBlocks(
         GetBlockPromise(windowSlot).Set(TBlock(uncompressedBlock));
         if (windowSlot.RemainingFetches == 0) {
             ReaderInvoker_->Invoke(
-                BIND(&TBlockFetcher::ReleaseBlock,
-                    MakeWeak(this),
-                    windowIndex));
+                BIND(&TBlockFetcher::ReleaseBlock, MakeWeak(this), windowIndex));
         }
 
         UncompressedDataSize_ += uncompressedBlock.Size();
@@ -318,11 +316,25 @@ void TBlockFetcher::RequestBlocks(
 
     TotalRemainingSize_ -= uncompressedSize;
 
-    auto blocksOrError = WaitFor(ChunkReader_->ReadBlocks(
+    auto future = ChunkReader_->ReadBlocks(
         BlockReadOptions_,
         blockIndexes,
-        static_cast<i64>(uncompressedSize * CompressionRatio_)));
+        static_cast<i64>(uncompressedSize * CompressionRatio_));
 
+    // NB: Handling OnGotBlocks in an arbitrary thread seems OK.
+    future.Subscribe(
+        BIND(
+            &TBlockFetcher::OnGotBlocks,
+            MakeWeak(this),
+            windowIndexes,
+            blockIndexes));
+}
+
+void TBlockFetcher::OnGotBlocks(
+    const std::vector<int>& windowIndexes,
+    const std::vector<int>& blockIndexes,
+    const TErrorOr<std::vector<TBlock>>& blocksOrError)
+{
     if (!blocksOrError.IsOK()) {
         MarkFailedBlocks(windowIndexes, blocksOrError);
         return;
