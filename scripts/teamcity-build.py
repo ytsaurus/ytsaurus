@@ -1146,6 +1146,15 @@ def run_yp_integration_tests(options, build_context):
             python_version=python_version,
             pytest_args=pytest_args)
 
+@build_step
+@only_for_projects("yt")
+def run_ya_yp_tests(options, build_context):
+    targets = [
+        "yp/tests/py2",
+        "yp/tests/py3",
+    ]
+    run_ya_tests(options, "ya_yp", targets)
+
 # TODO(ignat): enable python dist tests after fixes YT-11716.
 #@build_step
 #@only_for_projects("yt")
