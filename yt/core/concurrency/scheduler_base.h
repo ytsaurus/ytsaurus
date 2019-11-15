@@ -19,28 +19,6 @@ class TSchedulerThreadBase
 public:
     ~TSchedulerThreadBase();
 
-    template <class TAction>
-    void CheckedAction(ui64 mask, TAction&& action)
-    {
-        bool alreadyDone = false;
-        ui64 epoch;
-        while (true) {
-            epoch = Epoch_.load(std::memory_order_acquire);
-            if (epoch & mask) {
-                // Action requested; await.
-                alreadyDone = true;
-                break;
-            }
-            if (Epoch_.compare_exchange_strong(epoch, epoch | mask, std::memory_order_release)) {
-                break;
-            }
-        }
-
-        if (!alreadyDone) {
-            action(epoch);
-        }
-    }
-
     // TODO: Start in constructor?
     void Start();
 
@@ -155,10 +133,6 @@ public:
 
     void Wait();
 
-    static void FiberMain();
-
-    static void DestroyIdleFibers();
-
     virtual bool OnLoop(TEventCount::TCookie* cookie) override;
 
     virtual TClosure BeginExecute() = 0;
@@ -166,7 +140,6 @@ public:
     virtual void EndExecute() = 0;
 
 private:
-    static thread_local TFiberReusingAdapter* ThreadThis_;
     std::optional<TEventCount::TCookie> Cookie_;
 
 };
