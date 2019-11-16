@@ -1,3 +1,9 @@
+try:
+    import yatest.common as yatest_common
+except ImportError:
+    yatest_common = None
+
+import os
 import time
 import inspect
 
@@ -98,3 +104,31 @@ def wait(predicate, error_message=None, iter=100, sleep_backoff=0.3, ignore_exce
         error_message = "Wait failed"
     error_message += " (timeout = {0})".format(iter * sleep_backoff)
     raise WaitFailed(error_message)
+
+# TODO(ignat): move it to arcadia_interop.
+def get_tmpfs_path():
+    if yatest_common is not None and yatest_common.get_param("ram_drive_path") is not None:
+        path = yatest_common.output_ram_drive_path()
+        if not os.path.exists(path):
+            os.makedirs(path)
+        return path
+    return None
+
+def get_tests_sandbox(non_arcadia_path):
+    path = os.environ.get("TESTS_SANDBOX")
+    tmpfs_path = get_tmpfs_path()
+    if path is None:
+        if yatest_common is not None:
+            if tmpfs_path is None:
+                path = os.path.join(yatest_common.output_path(), "sandbox")
+            else:
+                path = os.path.join(tmpfs_path, "sandbox")
+        else:
+            path = non_arcadia_path
+    if not os.path.exists(path):
+        try:
+            os.mkdir(path)
+        except OSError:  # Already exists.
+            pass
+    return path
+

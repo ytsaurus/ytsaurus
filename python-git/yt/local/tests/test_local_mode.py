@@ -6,6 +6,7 @@ from yt.wrapper import YtClient
 from yt.common import remove_file, is_process_alive
 from yt.wrapper.common import generate_uuid
 from yt.environment.helpers import is_dead_or_zombie
+from yt.test_helpers import get_tests_sandbox
 import yt.subprocess_wrapper as subprocess
 import yt.environment.arcadia_interop as arcadia_interop
 
@@ -32,6 +33,11 @@ import time
 import string
 import random
 
+
+TESTS_LOCATION = os.path.dirname(os.path.abspath(__file__))
+PYTHONPATH = os.path.abspath(os.path.join(TESTS_LOCATION, "../../../"))
+TESTS_SANDBOX = os.environ.get("TESTS_SANDBOX", TESTS_LOCATION + ".sandbox")
+
 def _get_tests_location():
     if yatest_common is not None:
         _, python_root, _ = arcadia_interop.get_root_paths()
@@ -39,13 +45,7 @@ def _get_tests_location():
     return os.path.dirname(os.path.abspath(__file__))
 
 def _get_tests_sandbox():
-    if "TESTS_SANDBOX" in os.environ:
-        return os.environ["TESTS_SANDBOX"]
-
-    if yatest_common is not None:
-        return os.path.join(yatest_common.output_path(), "sandbox")
-
-    return _get_tests_location() + ".sandbox"
+    return get_tests_sandbox(TESTS_SANDBOX)
 
 def _get_local_mode_tests_sandbox():
     return os.path.join(_get_tests_sandbox(), "TestLocalMode")
