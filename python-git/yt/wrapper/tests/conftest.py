@@ -22,6 +22,7 @@ import os
 import imp
 import sys
 import uuid
+import glob
 from copy import deepcopy
 import shutil
 import logging
@@ -229,9 +230,7 @@ class YtTestEnvironment(object):
     def cleanup(self):
         self.reload_global_configuration()
         self.env.stop()
-        for node_config in self.env.configs["node"]:
-            rmtree(node_config["data_node"]["store_locations"][0]["path"])
-            rmtree(node_config["data_node"]["cache_locations"][0]["path"])
+        self.env.remove_runtime_data()
         self.save_sandbox()
 
     def save_sandbox(self):

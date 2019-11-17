@@ -352,14 +352,15 @@ def _is_exists(id, path=None):
     sandbox_path = os.path.join(get_root_path(path), id)
     return os.path.isdir(sandbox_path)
 
-def stop(id, remove_working_dir=False, path=None, ignore_lock=False):
+def stop(id, remove_working_dir=False, remove_runtime_data=False, path=None, ignore_lock=False):
     require(_is_exists(id, path),
             lambda: yt.YtError("Local YT with id {0} not found".format(id)))
     require(ignore_lock or not _is_stopped(id, path),
             lambda: yt.YtError("Local YT with id {0} is already stopped".format(id)))
 
-    pids_file_path = os.path.join(get_root_path(path), id, "pids.txt")
-    main_process_pid_file = get_main_process_pid_file_path(os.path.join(get_root_path(path), id))
+    sandbox_dir = os.path.join(get_root_path(path), id)
+    pids_file_path = os.path.join(sandbox_dir, "pids.txt")
+    main_process_pid_file = get_main_process_pid_file_path(sandbox_dir)
 
     if os.path.exists(main_process_pid_file):
         pid = _read_pids_file(main_process_pid_file)[0]
@@ -388,6 +389,9 @@ def stop(id, remove_working_dir=False, path=None, ignore_lock=False):
 
     if remove_working_dir:
         delete(id, force=True, path=path)
+    elif remove_runtime_data:
+        runtime_data_path = os.path.join(sandbox_dir, "runtime_data")
+        shutil.rmtree(runtime_data_path, ignore_errors=True)
 
 def delete(id, force=False, path=None):
     require(_is_exists(id, path) or force,

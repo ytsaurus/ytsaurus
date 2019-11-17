@@ -519,7 +519,7 @@ print(op.id)
 
         finally:
             if instance is not None:
-                stop(instance.id, path=dir)
+                stop(instance.id, path=dir, remove_runtime_data=True)
 
     @add_failed_operation_stderrs_to_error_message
     def test_shuffle(self):
@@ -1364,7 +1364,7 @@ class TestOperationsTracker(object):
 
         finally:
             if instance is not None:
-                stop(instance.id, path=dir)
+                stop(instance.id, path=dir, remove_runtime_data=True)
 
     def test_operations_tracker(self):
         tracker = yt.OperationsTracker()
@@ -1509,7 +1509,7 @@ class TestOperationsTracker(object):
         finally:
             logger.LOGGER.setLevel(old_level)
             if instance is not None:
-                stop(instance.id, path=dir)
+                stop(instance.id, path=dir, remove_runtime_data=True)
 
     def test_pool_tracker(self):
         def create_spec_builder(binary, source_table, destination_table):
