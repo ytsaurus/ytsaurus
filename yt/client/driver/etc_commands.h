@@ -4,6 +4,8 @@
 
 #include <yt/client/ypath/rich.h>
 
+#include <yt/client/api/admin.h>
+
 #include <yt/core/ytree/permission.h>
 
 namespace NYT::NDriver {
@@ -175,28 +177,24 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBuildSnapshotCommand
-    : public TCommandBase
+    : public TTypedCommand<NApi::TBuildSnapshotOptions>
 {
 public:
     TBuildSnapshotCommand();
 
 private:
-    NApi::TBuildSnapshotOptions Options_;
-
     virtual void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBuildMasterSnapshotsCommand
-    : public TCommandBase
+    : public TTypedCommand<NApi::TBuildMasterSnapshotsOptions>
 {
 public:
     TBuildMasterSnapshotsCommand();
 
 private:
-    NApi::TBuildMasterSnapshotsOptions Options_;
-
     virtual void DoExecute(ICommandContextPtr context) override;
 };
 
