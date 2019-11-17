@@ -433,14 +433,14 @@ ESchedulableStatus TSchedulerElement::GetStatus() const
 
 bool TSchedulerElement::GetStarving() const
 {
-    return Starving_;
+    return PersistentAttributes_.Starving;
 }
 
 void TSchedulerElement::SetStarving(bool starving)
 {
     YT_VERIFY(Mutable_);
 
-    Starving_ = starving;
+    PersistentAttributes_.Starving = starving;
 }
 
 TJobResources TSchedulerElement::GetLocalResourceUsage() const
@@ -952,13 +952,14 @@ void TCompositeSchedulerElement::PrescheduleJob(TFairShareContext* context, bool
 
     attributes.Active = true;
 
+    auto starving = PersistentAttributes_.Starving;
     aggressiveStarvationEnabled = aggressiveStarvationEnabled || IsAggressiveStarvationEnabled();
-    if (Starving_ && aggressiveStarvationEnabled) {
+    if (starving && aggressiveStarvationEnabled) {
         context->SchedulingStatistics.HasAggressivelyStarvingElements = true;
     }
 
     // If pool is starving, any child will do.
-    bool starvingOnlyForChildren = Starving_ ? false : starvingOnly;
+    bool starvingOnlyForChildren = starving ? false : starvingOnly;
     for (const auto& child : EnabledChildren_) {
         child->PrescheduleJob(context, starvingOnlyForChildren, aggressiveStarvationEnabled);
     }
@@ -974,7 +975,7 @@ bool TCompositeSchedulerElement::HasAggressivelyStarvingElements(TFairShareConte
 {
     // TODO(ignat): eliminate copy/paste
     aggressiveStarvationEnabled = aggressiveStarvationEnabled || IsAggressiveStarvationEnabled();
-    if (Starving_ && aggressiveStarvationEnabled) {
+    if (PersistentAttributes_.Starving && aggressiveStarvationEnabled) {
         return true;
     }
 
@@ -2235,8 +2236,6 @@ void TOperationElement::FinishScheduleJob(
     if (enableBackoff) {
         Controller_->SetLastScheduleJobFailTime(now);
     }
-
-    LastScheduleJobSuccessTime_ = CpuInstantToInstant(now);
 }
 
 void TOperationElementSharedState::IncreaseJobResourceUsage(
@@ -2292,8 +2291,9 @@ TOperationElement::TOperationElement(
     , OperationElementSharedState_(New<TOperationElementSharedState>(spec->UpdatePreemptableJobsListLoggingPeriod, Logger))
     , Controller_(std::move(controller))
     , SchedulingTagFilter_(spec->SchedulingTagFilter)
-    , LastNonStarvingTime_(TInstant::Now())
-{ }
+{
+    PersistentAttributes_.LastNonStarvingTime = TInstant::Now();
+}
 
 TOperationElement::TOperationElement(
     const TOperationElement& other,
@@ -2305,7 +2305,6 @@ TOperationElement::TOperationElement(
     , OperationElementSharedState_(other.OperationElementSharedState_)
     , Controller_(other.Controller_)
     , SchedulingTagFilter_(other.SchedulingTagFilter_)
-    , LastNonStarvingTime_(other.LastNonStarvingTime_)
 { }
 
 double TOperationElement::GetFairShareStarvationTolerance() const
@@ -2443,7 +2442,7 @@ void TOperationElement::PrescheduleJob(TFairShareContext* context, bool starving
         return;
     }
 
-    if (starvingOnly && !Starving_) {
+    if (starvingOnly && !PersistentAttributes_.Starving) {
         onOperationDeactivated(EDeactivationReason::IsNotStarving);
         return;
     }
@@ -2703,7 +2702,7 @@ void TOperationElement::SetStarving(bool starving)
     YT_VERIFY(Mutable_);
 
     if (!starving) {
-        LastNonStarvingTime_ = TInstant::Now();
+        PersistentAttributes_.LastNonStarvingTime = TInstant::Now();
     }
 
     if (starving && !GetStarving()) {
@@ -2824,7 +2823,7 @@ TPreemptionStatusStatisticsVector TOperationElement::GetPreemptionStatusStatisti
 
 TInstant TOperationElement::GetLastNonStarvingTime() const
 {
-    return LastNonStarvingTime_;
+    return PersistentAttributes_.LastNonStarvingTime;
 }
 
 TInstant TOperationElement::GetLastScheduleJobSuccessTime() const
