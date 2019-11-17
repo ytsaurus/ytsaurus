@@ -16,6 +16,8 @@
 
 namespace NYT::NConcurrency {
 
+using namespace NProfiling;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFairShareCallbackQueue
@@ -58,7 +60,7 @@ public:
         return true;
     }
 
-    virtual void AccountCpuTime(int bucketIndex, NProfiling::TCpuDuration cpuTime) override
+    virtual void AccountCpuTime(int bucketIndex, TCpuDuration cpuTime) override
     {
         auto guard = Guard(Lock_);
 
@@ -71,11 +73,11 @@ private:
     TSpinLock Lock_;
 
     TBuckets Buckets_;
-    std::vector<NProfiling::TCpuDuration> ExcessTimes_;
+    std::vector<TCpuDuration> ExcessTimes_;
 
     std::optional<int> GetStarvingBucketIndex() const
     {
-        auto minExcessTime = std::numeric_limits<NProfiling::TCpuDuration>::max();
+        auto minExcessTime = std::numeric_limits<TCpuDuration>::max();
         std::optional<int> minBucketIndex;
         for (int index = 0; index < Buckets_.size(); ++index) {
             if (Buckets_[index].empty()) {
@@ -89,7 +91,7 @@ private:
         return minBucketIndex;
     }
 
-    void TruncateExcessTimes(NProfiling::TCpuDuration delta)
+    void TruncateExcessTimes(TCpuDuration delta)
     {
         for (int index = 0; index < Buckets_.size(); ++index) {
             if (ExcessTimes_[index] >= delta) {
@@ -132,7 +134,7 @@ public:
             Invokers_.push_back(New<TInvoker>(UnderlyingInvoker_, index, MakeWeak(this)));
         }
         TotalActionCounts_.resize(invokerCount);
-        TotalWaitTimes_.resize(invokerCount);
+        TotalWaitRecords_.resize(invokerCount);
     }
 
     virtual int GetSize() const override
@@ -143,7 +145,7 @@ public:
     void Enqueue(TClosure callback, int index)
     {
         Queue_->Enqueue(std::move(callback), index);
-        auto now = NProfiling::GetCpuInstant();
+        auto now = GetCpuInstant();
         UnderlyingInvoker_->Invoke(BIND(
             &TFairShareInvokerPool::Run,
             MakeStrong(this),
@@ -162,9 +164,18 @@ private:
 
     std::vector<IInvokerPtr> Invokers_;
 
+    struct TWaitRecord
+    {
+        TCpuInstant RecordTime;
+        TCpuDuration Duration;
+    };
+
+    const int MaxWaitRecordsPerBucket = 3;
+    const TCpuDuration MaxWaitRecordsStorageDuration = DurationToCpuDuration(TDuration::Minutes(2));
+
     NConcurrency::TReaderWriterSpinLock AverageWaitTimeLock_;
     std::vector<i64> TotalActionCounts_;
-    std::vector<NProfiling::TCpuDuration> TotalWaitTimes_;
+    std::vector<std::deque<TWaitRecord>> TotalWaitRecords_;
 
     IFairShareCallbackQueuePtr Queue_;
 
@@ -185,7 +196,7 @@ private:
                 return;
             }
             Accounted_ = true;
-            Queue_->AccountCpuTime(Index_, NProfiling::DurationToCpuDuration(Timer_.GetElapsedTime()));
+            Queue_->AccountCpuTime(Index_, DurationToCpuDuration(Timer_.GetElapsedTime()));
             Timer_.Stop();
         }
 
@@ -198,7 +209,7 @@ private:
         const int Index_;
         bool Accounted_ = false;
         IFairShareCallbackQueue* Queue_;
-        NProfiling::TWallTimer Timer_;
+        TWallTimer Timer_;
         TContextSwitchGuard ContextSwitchGuard_;
     };
 
@@ -224,11 +235,18 @@ private:
             if (auto strongParent = Parent_.Lock()) {
                 TReaderGuard guard(strongParent->AverageWaitTimeLock_);
 
-                auto totalActionCount = strongParent->TotalActionCounts_[Index_];
-                auto totalWaitTime = strongParent->TotalWaitTimes_[Index_];
-                return totalActionCount == 0
+                auto now = GetCpuInstant();
+                auto totalWaitTime = TCpuDuration();
+                int count = 0;
+                for (auto record : strongParent->TotalWaitRecords_[Index_]) {
+                    if (record.RecordTime + strongParent->MaxWaitRecordsStorageDuration >= now) {
+                        ++count;
+                        totalWaitTime += record.Duration;
+                    }
+                }
+                return count == 0
                     ? TDuration::Zero()
-                    : NProfiling::CpuDurationToDuration(totalWaitTime / totalActionCount);
+                    : CpuDurationToDuration(totalWaitTime / count);
             }
 
             return TDuration::Zero();
@@ -244,7 +262,7 @@ private:
         return 0 <= index && index < Invokers_.size();
     }
 
-    void Run(NProfiling::TCpuDuration enqueuedAt)
+    void Run(TCpuDuration enqueuedAt)
     {
         TClosure callback;
         int bucketIndex = -1;
@@ -256,9 +274,17 @@ private:
         {
             TWriterGuard guard(AverageWaitTimeLock_);
 
-            auto now = NProfiling::GetCpuInstant();
+            auto now = GetCpuInstant();
             ++TotalActionCounts_[bucketIndex];
-            TotalWaitTimes_[bucketIndex] += now - enqueuedAt;
+
+            auto& records = TotalWaitRecords_[bucketIndex];
+            records.push_back(TWaitRecord{
+                .RecordTime = now,
+                .Duration = now - enqueuedAt
+            });
+            if (records.size() > MaxWaitRecordsPerBucket) {
+                records.pop_front();
+            }
         }
 
         {
