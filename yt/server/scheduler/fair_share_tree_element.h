@@ -43,6 +43,8 @@ struct TSchedulableAttributes
 //! Attributes that persistent between fair share updates.
 struct TPersistentAttributes
 {
+    bool Starving = false;
+    TInstant LastNonStarvingTime;
     std::optional<TInstant> BelowFairShareSince;
     THistoricUsageAggregator HistoricUsageAggregator;
 };
@@ -206,8 +208,6 @@ protected:
     TFairShareStrategyTreeConfigPtr TreeConfig_;
 
     TCompositeSchedulerElement* Parent_ = nullptr;
-
-    bool Starving_ = false;
 
     TJobResources TotalResourceLimits_;
 
@@ -910,9 +910,6 @@ private:
 
     bool RunningInThisPoolTree_ = false;
     TSchedulingTagFilter SchedulingTagFilter_;
-
-    TInstant LastNonStarvingTime_;
-    TInstant LastScheduleJobSuccessTime_;
 
     bool HasJobsSatisfyingResourceLimits(const TFairShareContext& context) const;
 
