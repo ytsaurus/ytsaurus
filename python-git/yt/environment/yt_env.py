@@ -466,6 +466,10 @@ class YTInstance(object):
         else:
             self._wait_functions.append(function)
 
+    def remove_runtime_data(self):
+        if os.path.exists(self.runtime_data_path):
+            shutil.rmtree(self.runtime_data_path, ignore_errors=True)
+
     def start(self, start_secondary_master_cells=False, on_masters_started_func=None):
         for name, processes in iteritems(self._service_processes):
             for index in xrange(len(processes)):
