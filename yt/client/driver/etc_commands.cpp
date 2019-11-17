@@ -368,11 +368,11 @@ void TBalanceTabletCellsCommand::DoExecute(ICommandContextPtr context)
 
 TBuildSnapshotCommand::TBuildSnapshotCommand()
 {
-    RegisterParameter("cell_id", Options_.CellId);
+    RegisterParameter("cell_id", Options.CellId);
 
-    RegisterParameter("set_read_only", Options_.SetReadOnly)
+    RegisterParameter("set_read_only", Options.SetReadOnly)
         .Optional();
-    RegisterParameter("wait_for_snapshot_completion", Options_.WaitForSnapshotCompletion)
+    RegisterParameter("wait_for_snapshot_completion", Options.WaitForSnapshotCompletion)
         .Optional();
 }
 
@@ -383,7 +383,7 @@ void TBuildSnapshotCommand::DoExecute(ICommandContextPtr context)
     }
 
     auto admin = context->GetDriver()->GetConnection()->CreateAdmin(TAdminOptions{});
-    auto snapshotIdOrError = WaitFor(admin->BuildSnapshot(Options_));
+    auto snapshotIdOrError = WaitFor(admin->BuildSnapshot(Options));
     auto snapshotId = snapshotIdOrError.ValueOrThrow();
     context->ProduceOutputValue(BuildYsonStringFluently()
         .BeginMap()
@@ -395,11 +395,11 @@ void TBuildSnapshotCommand::DoExecute(ICommandContextPtr context)
 
 TBuildMasterSnapshotsCommand::TBuildMasterSnapshotsCommand()
 {
-    RegisterParameter("set_read_only", Options_.SetReadOnly)
+    RegisterParameter("set_read_only", Options.SetReadOnly)
         .Optional();
-    RegisterParameter("wait_for_snapshot_completion", Options_.WaitForSnapshotCompletion)
+    RegisterParameter("wait_for_snapshot_completion", Options.WaitForSnapshotCompletion)
         .Optional();
-    RegisterParameter("retry", Options_.Retry)
+    RegisterParameter("retry", Options.Retry)
         .Optional();
 }
 
@@ -410,7 +410,7 @@ void TBuildMasterSnapshotsCommand::DoExecute(ICommandContextPtr context)
     }
 
     auto admin = context->GetDriver()->GetConnection()->CreateAdmin(TAdminOptions{});
-    auto cellIdToSnapshotId = WaitFor(admin->BuildMasterSnapshots(Options_))
+    auto cellIdToSnapshotId = WaitFor(admin->BuildMasterSnapshots(Options))
         .ValueOrThrow();
 
     context->ProduceOutputValue(BuildYsonStringFluently()
