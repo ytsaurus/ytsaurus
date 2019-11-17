@@ -371,9 +371,9 @@ TBuildSnapshotCommand::TBuildSnapshotCommand()
     RegisterParameter("cell_id", CellId_);
 
     RegisterParameter("set_read_only", SetReadOnly_)
-        .Default(false);
+        .Optional();
     RegisterParameter("wait_for_snapshot_completion", WaitForSnapshotCompletion_)
-        .Default(false);
+        .Optional();
 }
 
 void TBuildSnapshotCommand::DoExecute(ICommandContextPtr context)
@@ -383,7 +383,7 @@ void TBuildSnapshotCommand::DoExecute(ICommandContextPtr context)
     }
 
     auto admin = context->GetDriver()->GetConnection()->CreateAdmin(TAdminOptions{});
-    auto snapshotIdOrError = WaitFor(admin->BuildSnapshot(TBuildSnapshotOptions{CellId_, SetReadOnly_, false}));
+    auto snapshotIdOrError = WaitFor(admin->BuildSnapshot(TBuildSnapshotOptions{CellId_, SetReadOnly_, WaitForSnapshotCompletion_}));
     auto snapshotId = snapshotIdOrError.ValueOrThrow();
     context->ProduceOutputValue(BuildYsonStringFluently()
         .BeginMap()
@@ -396,11 +396,11 @@ void TBuildSnapshotCommand::DoExecute(ICommandContextPtr context)
 TBuildMasterSnapshotsCommand::TBuildMasterSnapshotsCommand()
 {
     RegisterParameter("set_read_only", SetReadOnly_)
-        .Default(false);
+        .Optional();
     RegisterParameter("wait_for_snapshot_completion", WaitForSnapshotCompletion_)
-        .Default(false);
+        .Optional();
     RegisterParameter("retry", Retry_)
-        .Default(false);
+        .Optional();
 }
 
 void TBuildMasterSnapshotsCommand::DoExecute(ICommandContextPtr context)

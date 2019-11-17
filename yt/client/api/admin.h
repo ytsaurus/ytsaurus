@@ -22,7 +22,7 @@ struct TBuildSnapshotOptions
     //! If null then the primary one is assumed.
     NElection::TCellId CellId;
     bool SetReadOnly = false;
-    bool WaitForSnapshotCompletion = false;
+    bool WaitForSnapshotCompletion = true;
 };
 
 struct TBuildMasterSnapshotsOptions
