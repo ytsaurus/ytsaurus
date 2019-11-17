@@ -368,11 +368,11 @@ void TBalanceTabletCellsCommand::DoExecute(ICommandContextPtr context)
 
 TBuildSnapshotCommand::TBuildSnapshotCommand()
 {
-    RegisterParameter("cell_id", CellId_);
+    RegisterParameter("cell_id", Options_.CellId);
 
-    RegisterParameter("set_read_only", SetReadOnly_)
+    RegisterParameter("set_read_only", Options_.SetReadOnly)
         .Optional();
-    RegisterParameter("wait_for_snapshot_completion", WaitForSnapshotCompletion_)
+    RegisterParameter("wait_for_snapshot_completion", Options_.WaitForSnapshotCompletion)
         .Optional();
 }
 
@@ -383,7 +383,7 @@ void TBuildSnapshotCommand::DoExecute(ICommandContextPtr context)
     }
 
     auto admin = context->GetDriver()->GetConnection()->CreateAdmin(TAdminOptions{});
-    auto snapshotIdOrError = WaitFor(admin->BuildSnapshot(TBuildSnapshotOptions{CellId_, SetReadOnly_, WaitForSnapshotCompletion_}));
+    auto snapshotIdOrError = WaitFor(admin->BuildSnapshot(Options_));
     auto snapshotId = snapshotIdOrError.ValueOrThrow();
     context->ProduceOutputValue(BuildYsonStringFluently()
         .BeginMap()
@@ -395,11 +395,11 @@ void TBuildSnapshotCommand::DoExecute(ICommandContextPtr context)
 
 TBuildMasterSnapshotsCommand::TBuildMasterSnapshotsCommand()
 {
-    RegisterParameter("set_read_only", SetReadOnly_)
+    RegisterParameter("set_read_only", Options_.SetReadOnly)
         .Optional();
-    RegisterParameter("wait_for_snapshot_completion", WaitForSnapshotCompletion_)
+    RegisterParameter("wait_for_snapshot_completion", Options_.WaitForSnapshotCompletion)
         .Optional();
-    RegisterParameter("retry", Retry_)
+    RegisterParameter("retry", Options_.Retry)
         .Optional();
 }
 
@@ -410,8 +410,7 @@ void TBuildMasterSnapshotsCommand::DoExecute(ICommandContextPtr context)
     }
 
     auto admin = context->GetDriver()->GetConnection()->CreateAdmin(TAdminOptions{});
-    auto snapshotOptions = TBuildMasterSnapshotsOptions({SetReadOnly_, WaitForSnapshotCompletion_, Retry_});
-    auto cellIdToSnapshotId = WaitFor(admin->BuildMasterSnapshots(snapshotOptions))
+    auto cellIdToSnapshotId = WaitFor(admin->BuildMasterSnapshots(Options_))
         .ValueOrThrow();
 
     context->ProduceOutputValue(BuildYsonStringFluently()

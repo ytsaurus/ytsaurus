@@ -9,8 +9,8 @@ import yt.packages.requests as requests
 
 
 def build_snapshot(proxy, cell, set_read_only):
-    print('Started building snapshot for {0}'.format(cell_id))
     cell_id = cell['cell_id']
+    print('Started building snapshot for {0}'.format(cell_id))
 
     url = 'https://' + proxy + "/api/v4/build_snapshot"
 

@@ -181,9 +181,7 @@ public:
     TBuildSnapshotCommand();
 
 private:
-    NElection::TCellId CellId_;
-    bool SetReadOnly_;
-    bool WaitForSnapshotCompletion_;
+    NApi::TBuildSnapshotOptions Options_;
 
     virtual void DoExecute(ICommandContextPtr context) override;
 };
@@ -191,15 +189,13 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBuildMasterSnapshotsCommand
-        : public TCommandBase
+    : public TCommandBase
 {
 public:
     TBuildMasterSnapshotsCommand();
 
 private:
-    bool SetReadOnly_;
-    bool WaitForSnapshotCompletion_;
-    bool Retry_;
+    NApi::TBuildMasterSnapshotsOptions Options_;
 
     virtual void DoExecute(ICommandContextPtr context) override;
 };
