@@ -102,6 +102,9 @@ public:
         args[0] = evaluateConstantExpressionAsLiteral(args[0], context);
 
         auto base64EncodedSpec = static_cast<const ASTLiteral &>(*args[0]).value.safeGet<std::string>();
+
+        YT_LOG_INFO("Deserializing subquery spec (SpecLength: %v)", base64EncodedSpec.size());
+
         auto protoSpecString = Base64Decode(base64EncodedSpec);
         NProto::TSubquerySpec protoSpec;
         protoSpec.ParseFromString(protoSpecString);

@@ -94,9 +94,7 @@ class TDataSliceFetcher
     : public TRefCounted
 {
 public:
-    // TODO(max42): use from bootstrap?
     DEFINE_BYREF_RW_PROPERTY(TDataSourceDirectoryPtr, DataSourceDirectory, New<TDataSourceDirectory>());
-    DEFINE_BYREF_RW_PROPERTY(TNodeDirectoryPtr, NodeDirectory, New<TNodeDirectory>());
     DEFINE_BYREF_RW_PROPERTY(TChunkStripeListPtr, ResultStripeList, New<TChunkStripeList>());
 
 public:
@@ -278,7 +276,7 @@ private:
 
         auto chunkSpecFetcher = New<TChunkSpecFetcher>(
             Client_,
-            NodeDirectory_,
+            nullptr /* nodeDirectory */,
             Invoker_,
             Config_->MaxChunksPerFetch,
             Config_->MaxChunksPerLocateRequest,
@@ -372,10 +370,6 @@ TChunkStripeListPtr FetchInput(
     WaitFor(dataSliceFetcher->Fetch())
         .ThrowOnError();
 
-    if (!specTemplate.NodeDirectory) {
-        specTemplate.NodeDirectory = New<TNodeDirectory>();
-    }
-    specTemplate.NodeDirectory->MergeFrom(dataSliceFetcher->NodeDirectory());
     YT_VERIFY(!specTemplate.DataSourceDirectory);
     specTemplate.DataSourceDirectory = std::move(dataSliceFetcher->DataSourceDirectory());
 

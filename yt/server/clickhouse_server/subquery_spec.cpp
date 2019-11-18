@@ -52,10 +52,6 @@ void ToProto(NProto::TSubquerySpec* protoSpec, const TSubquerySpec& spec)
             inputDataSliceDescriptors);
     }
 
-    if (spec.NodeDirectory) {
-        spec.NodeDirectory->DumpTo(protoSpec->mutable_node_directory());
-    }
-
     ToProto(protoSpec->mutable_initial_query_id(), spec.InitialQueryId);
     for (const auto& column : spec.Columns) {
         ToProto(protoSpec->add_columns(), column);
@@ -79,11 +75,6 @@ void FromProto(TSubquerySpec* spec, const NProto::TSubquerySpec& protoSpec)
             &spec->DataSliceDescriptors.emplace_back(),
             inputSpec.chunk_specs(),
             inputSpec.chunk_spec_count_per_data_slice());
-    }
-
-    if (protoSpec.has_node_directory()) {
-        spec->NodeDirectory = New<TNodeDirectory>();
-        spec->NodeDirectory->MergeFrom(protoSpec.node_directory());
     }
 
     FromProto(&spec->InitialQueryId, protoSpec.initial_query_id());

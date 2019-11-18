@@ -149,7 +149,7 @@ public:
                 {} /* localDescriptor */,
                 std::nullopt,
                 QueryContext_->Client()->GetNativeConnection()->GetBlockCache(),
-                SubquerySpec_.NodeDirectory,
+                QueryContext_->Client()->GetNativeConnection()->GetNodeDirectory(),
                 SubquerySpec_.DataSourceDirectory,
                 threadDataSliceDescriptors,
                 TNameTable::FromSchema(readSchema),
@@ -175,8 +175,8 @@ public:
             YT_LOG_DEBUG("Thread debug string (ThreadIndex: %v, DebugString: %v)", threadIndex, debugString.Flush());
 
             streams.emplace_back(CreateBlockInputStream(
-                std::move(reader), 
-                readSchema, 
+                std::move(reader),
+                readSchema,
                 TLogger(Logger)
                     .AddTag("ReadSessionId: %v", blockReadOptions.ReadSessionId)));
         }

@@ -9,8 +9,6 @@
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/data_source.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
-
 #include <yt/core/yson/public.h>
 #include <yt/core/ytree/public.h>
 
@@ -25,7 +23,6 @@ class TSubquerySpec
 public:
     NChunkClient::TDataSourceDirectoryPtr DataSourceDirectory;
     std::vector<std::vector<NChunkClient::TDataSliceDescriptor>> DataSliceDescriptors;
-    NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
     TQueryId InitialQueryId;
     TString InitialQuery;
     DB::NamesAndTypesList Columns;
