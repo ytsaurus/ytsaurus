@@ -403,6 +403,7 @@ DEFINE_ENUM(ECancelationStage,
 );
 
 DEFINE_ENUM(EControllerFailureType,
+    (None)
     (AssertionFailureInPrepare)
     (ExceptionThrownInOnJobCompleted)
 )
