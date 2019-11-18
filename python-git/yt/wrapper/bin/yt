@@ -5,10 +5,10 @@ from __future__ import print_function
 from yt.common import copy_docstring_from
 
 import yt.wrapper.yson as yson
-from yt.wrapper.common import chunk_iter_stream, update, get_value, MB, \
+from yt.wrapper.common import chunk_iter_stream, MB, \
                               DoNotReplaceAction, get_binary_std_stream, get_disk_space_from_resources, \
                               chunk_iter_rows, format_disk_space
-from yt.wrapper.cli_helpers import write_silently, run_main
+from yt.wrapper.cli_helpers import write_silently, run_main, ParseStructuredArgument
 from yt.wrapper.default_config import get_default_config
 from yt.wrapper.spec_builders import MapSpecBuilder, ReduceSpecBuilder, MapReduceSpecBuilder, EraseSpecBuilder, \
                                      MergeSpecBuilder, SortSpecBuilder, JoinReduceSpecBuilder, RemoteCopySpecBuilder, VanillaSpecBuilder
@@ -176,13 +176,6 @@ class ParseStructuredArguments(Action):
     def __call__(self, parser, namespace, values, option_string=None):
         setattr(namespace, self.dest, builtins.list(imap(parse_arguments, values)))
 
-class ParseStructuredArgument(Action):
-    def __call__(self, parser, namespace, values, option_string=None):
-        # Multiple times specified arguments are merged into single dict.
-        old_value = get_value(getattr(namespace, self.dest), {})
-        new_value = update(old_value, parse_arguments(values))
-        setattr(namespace, self.dest, new_value)
-
 class ParseTimeArgument(Action):
     def __call__(self, parser, namespace, values, option_string=None):
         setattr(namespace, self.dest, self.parse_time(values))
@@ -255,7 +248,7 @@ def add_format_argument(parser, name="--format", help="", **kwargs):
 
 def add_structured_argument(parser, name, help="", **kwargs):
     description = "structured %s in %s format" % (name.strip("-"), YT_ARGUMENTS_FORMAT)
-    add_argument(parser, name, help, description=description, action=ParseStructuredArgument, **kwargs)
+    add_argument(parser, name, help, description=description, action=ParseStructuredArgument, action_load_method=parse_arguments, **kwargs)
 
 def add_type_argument(parser, name, hybrid=False):
     NODE_TYPE_HELP = "one of table, file, document, account, user, list_node, map_node, "\
@@ -699,7 +692,8 @@ def add_trim_rows_parser(add_parser):
 def add_alter_table_parser(add_parser):
     parser = add_parser("alter-table", yt.alter_table)
     add_ypath_argument(parser, "path", hybrid=True)
-    parser.add_argument("--schema", action=ParseStructuredArgument, nargs="?", help="new schema value, in {0} format.".format(YT_ARGUMENTS_FORMAT))
+    parser.add_argument("--schema", action=ParseStructuredArgument, action_load_method=parse_arguments, nargs="?",
+                        help="new schema value, in {0} format.".format(YT_ARGUMENTS_FORMAT))
     dynamic_parser = parser.add_mutually_exclusive_group(required=False)
     dynamic_parser.add_argument("--dynamic", dest="dynamic", default=None, action="store_true")
     dynamic_parser.add_argument("--static", dest="dynamic", default=None, action="store_false")
@@ -1341,8 +1335,8 @@ def main():
                                                "by default YT_PROXY from environment")
     config_parser.add_argument("--prefix", help="specify common prefix for all relative paths, "
                                                 "by default YT_PREFIX from environment")
-    config_parser.add_argument("--config", action=ParseStructuredArgument, help="specify configuration",
-                               default={})
+    config_parser.add_argument("--config", action=ParseStructuredArgument, action_load_method=parse_arguments,
+                               help="specify configuration", default={})
     config_parser.add_argument("--tx", help="perform command in the context of the given "
                                             "transaction, by default 0-0-0-0")
     config_parser.add_argument("--master-cell-id", help="perform command in master specified by this id; "

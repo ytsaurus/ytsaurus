@@ -1,6 +1,7 @@
 from __future__ import print_function
 
-from yt.common import makedirp, get_value, update
+from yt.common import makedirp
+from yt.wrapper.cli_helpers import ParseStructuredArgument
 from yt.wrapper.common import DoNotReplaceAction, chunk_iter_stream, MB
 from yt.wrapper.file_commands import _get_remote_temp_files_directory
 import yt.logger as logger
@@ -53,13 +54,6 @@ def shellquote(s):
 def make_environment_string(environment):
     return ''.join("export {var}={value}\n".format(var=var, value=shellquote(environment[var]))
                    for var in environment)
-
-class ParseStructuredArgument(argparse.Action):
-    def __call__(self, parser, namespace, values, option_string=None):
-        # Multiple times specified arguments are merged into single dict.
-        old_value = get_value(getattr(namespace, self.dest), {})
-        new_value = update(old_value, yson.loads(values))
-        setattr(namespace, self.dest, new_value)
 
 def get_output_descriptor_list(output_table_count, use_yamr_descriptors):
     if use_yamr_descriptors:
