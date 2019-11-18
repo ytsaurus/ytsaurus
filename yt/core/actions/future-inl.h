@@ -153,8 +153,10 @@ protected:
 
     virtual void DoInstallAbandonedError() = 0;
     virtual void DoTrySetAbandonedError() = 0;
+    virtual void DoTrySetCanceledError() = 0;
 
     static TError MakeAbandonedError();
+    static TError MakeCanceledError();
 
     void InstallAbandonedError();
     void InstallAbandonedError() const;
@@ -182,7 +184,7 @@ class TFutureState
 public:
     using TResultHandler = TCallback<void(const TErrorOr<T>&)>;
     using TResultHandlers = SmallVector<TResultHandler, 8>;
-    
+
     using TUniqueResultHandler = TCallback<void(TErrorOr<T>&&)>;
 
 private:
@@ -206,12 +208,10 @@ private:
         {
             TGuard<TSpinLock> guard(SpinLock_);
             YT_ASSERT(!AbandonedUnset_);
-            if (MustSet) {
+            if (MustSet && !Canceled_) {
                 YT_VERIFY(!Set_);
-            } else {
-                if (Set_) {
-                    return false;
-                }
+            } else if (Set_) {
+                return false;
             }
             // TODO(sandello): What about exceptions here?
             Value_.emplace(std::forward<U>(value));
@@ -228,7 +228,7 @@ private:
             RunNoExcept(handler);
         }
         VoidResultHandlers_.clear();
-        
+
         for (const auto& handler : ResultHandlers_) {
             RunNoExcept(handler, *Value_);
         }
@@ -266,6 +266,11 @@ private:
         TrySet(MakeAbandonedError());
     }
 
+    virtual void DoTrySetCanceledError() override
+    {
+        TrySet(MakeCanceledError());
+    }
+
 protected:
     TFutureState(int strongRefCount, int weakRefCount)
         : TFutureStateBase(strongRefCount, weakRefCount)
@@ -301,7 +306,7 @@ public:
 
         return *Value_;
     }
-    
+
     TErrorOr<T> GetUnique()
     {
         // Fast path.

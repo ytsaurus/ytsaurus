@@ -25,8 +25,11 @@ public:
         NLogging::TLogger logger = {});
 
     //! Make this participant exposed to the group.
+    //! It doesn't update the stored list of participants,
+    //! but will add {name, attributes} in every result of List().
     TFuture<void> Enter(TString name, NYTree::TAttributeMap attributes);
     //! Make this participant unexposed to the group.
+    //! It doesn't update the stored list of participants.
     TFuture<void> Leave();
 
     //! Return the list of participants stored in data structure.

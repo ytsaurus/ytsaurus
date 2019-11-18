@@ -113,6 +113,7 @@ public:
 
     void OnOperationRemovedFromPool(
         const TFairShareStrategyOperationStatePtr& state,
+        const TOperationElementPtr& element,
         const TCompositeSchedulerElementPtr& parent);
 
     // Returns true if all pool constraints are satisfied.
@@ -191,7 +192,11 @@ public:
 
     virtual NProfiling::TAggregateGauge& GetProfilingCounter(const TString& name) override;
 
-    std::vector<TOperationId> RunWaitingOperations();
+    void RunWaitingOperations(TCompositeSchedulerElement* pool);
+
+    std::vector<TOperationId> TryRunAllWaitingOperations();
+
+    std::vector<TOperationId> ExtractActivatableOperations();
 
 private:
     TFairShareStrategyTreeConfigPtr Config_;
@@ -224,7 +229,7 @@ private:
 
     THashMap<TOperationId, TInstant> OperationIdToActivationTime_;
 
-    std::list<TOperationId> WaitingOperationQueue_;
+    std::vector<TOperationId> ActivatableOperationQueue_;
 
     NConcurrency::TReaderWriterSpinLock NodeIdToLastPreemptiveSchedulingTimeLock_;
     THashMap<NNodeTrackerClient::TNodeId, NProfiling::TCpuInstant> NodeIdToLastPreemptiveSchedulingTime_;
@@ -306,6 +311,7 @@ private:
     TFairShareSchedulingStage PreemptiveSchedulingStage_;
     TFairShareSchedulingStage PackingFallbackSchedulingStage_;
 
+    NProfiling::TAggregateGauge FairSharePreUpdateTimeCounter_;
     NProfiling::TAggregateGauge FairShareUpdateTimeCounter_;
     NProfiling::TAggregateGauge FairShareLogTimeCounter_;
     NProfiling::TAggregateGauge AnalyzePreemptableJobsTimeCounter_;
@@ -352,7 +358,7 @@ private:
         const TOperationElementPtr& operationElement,
         const ISchedulingContextPtr& schedulingContext) const;
 
-    const TCompositeSchedulerElement* FindPoolViolatingMaxRunningOperationCount(const TCompositeSchedulerElement* pool);
+    TCompositeSchedulerElement* FindPoolViolatingMaxRunningOperationCount(TCompositeSchedulerElement* pool);
     const TCompositeSchedulerElement* FindPoolWithViolatedOperationCountLimit(const TCompositeSchedulerElementPtr& element);
 
     void DoRegisterPool(const TPoolPtr& pool);

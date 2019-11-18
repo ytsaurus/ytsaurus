@@ -142,7 +142,11 @@ TClickHouseTablePtr FetchClickHouseTableFromCache(
         auto attributes = bootstrap->GetHost()->CheckPermissionsAndGetCachedObjectAttributes({path.GetPath()}, client)[0]
             .ValueOrThrow();
 
-        return std::make_shared<TClickHouseTable>(path, ConvertTo<TTableSchema>(attributes.at("schema")));
+        if (ConvertTo<NObjectClient::EObjectType>(attributes.at("type")) != NObjectClient::EObjectType::Table) {
+            return nullptr;
+        }
+
+        return std::make_shared<TClickHouseTable>(path, AdaptSchemaToClickHouse(ConvertTo<TTableSchema>(attributes.at("schema"))));
     } catch (TErrorException& ex) {
         if (ex.Error().FindMatching(NYTree::EErrorCode::ResolveError)) {
             return nullptr;
@@ -204,6 +208,76 @@ TString MaybeTruncateSubquery(TString query)
         return query;
     }
     return query.substr(0, begin) + "..." + query.substr(end, query.size() - end);
+}
+
+TTableSchema AdaptSchemaToClickHouse(const TTableSchema& schema)
+{
+    std::vector<TColumnSchema> columns;
+    columns.reserve(schema.Columns().size());
+    for (const auto& column : schema.Columns()) {
+        ESimpleLogicalValueType type = static_cast<ESimpleLogicalValueType>(column.GetPhysicalType());
+        columns.emplace_back(column.Name(), MakeLogicalType(type, column.Required()), column.SortOrder());
+    }
+    return TTableSchema(std::move(columns), schema.GetStrict(), schema.GetUniqueKeys());
+}
+
+TTableSchema GetCommonSchema(const std::vector<TTableSchema>& schemas)
+{
+    if (schemas.empty()) {
+        return TTableSchema();
+    }
+
+    THashMap<TString, TColumnSchema> nameToColumn;
+    THashMap<TString, size_t> nameCounter;
+
+    for (const auto& column : schemas[0].Columns()) {
+        auto [it, _] = nameToColumn.emplace(column.Name(), column);
+        // We will set sorted order for key columns later.
+        it->second.SetSortOrder(std::nullopt);
+    }
+
+    for (const auto& schema : schemas) {
+        for (const auto& column : schema.Columns()) {
+            if (auto it = nameToColumn.find(column.Name()); it != nameToColumn.end()) {
+                if (it->second.SimplifiedLogicalType() == column.SimplifiedLogicalType()) {
+                    ++nameCounter[column.Name()];
+                    if (!column.Required() && it->second.Required()) {
+                        // If at least in one schema the column isn't required, the result common column isn't required too.
+                        it->second.SetLogicalType(New<TOptionalLogicalType>(it->second.LogicalType()));
+                    }
+                }
+            }
+        }
+    }
+
+    std::vector<TColumnSchema> resultColumns;
+    resultColumns.reserve(schemas[0].Columns().size());
+    for (const auto& column : schemas[0].Columns()) {
+        if (nameCounter[column.Name()] == schemas.size()) {
+            resultColumns.push_back(nameToColumn[column.Name()]);
+        }
+    }
+
+    for (size_t index = 0; index < resultColumns.size(); ++index) {
+        bool isKeyColumn = true;
+        for (const auto& schema : schemas) {
+            if (schema.Columns().size() <= index) {
+                isKeyColumn = false;
+                break;
+            }
+            const auto& column = schema.Columns()[index];
+            if (column.Name() != resultColumns[index].Name() || !column.SortOrder()) {
+                isKeyColumn = false;
+                break;
+            }
+        }
+        if (!isKeyColumn) {
+            // Key columns are the prefix of all columns, so all following collumns aren't key.
+            break;
+        }
+        resultColumns[index].SetSortOrder(ESortOrder::Ascending);
+    }
+    return TTableSchema(resultColumns);
 }
 
 /////////////////////////////////////////////////////////////////////////////

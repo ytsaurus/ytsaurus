@@ -67,6 +67,9 @@ struct IInstance
     virtual void SetIsolate() = 0;
     virtual void EnableMemoryTracking() = 0;
     virtual void SetUser(const TString& user) = 0;
+    virtual void SetNet(const TString& net) = 0;
+    virtual void SetIP(const TString& ip) = 0;
+    virtual void SetHostName(const TString& hostName) = 0;
 
     //! Returns externally visible pid of the root proccess inside container.
     //! Throws if container is not running.

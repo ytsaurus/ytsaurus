@@ -25,6 +25,13 @@ struct TBuildSnapshotOptions
     bool WaitForSnapshotCompletion = true;
 };
 
+struct TBuildMasterSnapshotsOptions
+{
+    bool SetReadOnly = false;
+    bool WaitForSnapshotCompletion = true;
+    bool Retry = true;
+};
+
 struct TGCCollectOptions
 {
     //! Refers to master cell.
@@ -40,11 +47,16 @@ struct TKillProcessOptions
 struct TWriteCoreDumpOptions
 { };
 
+using TCellIdToSnapshotIdMap = THashMap<NElection::TCellId, int>;
+
 struct IAdmin
     : public virtual TRefCounted
 {
     virtual TFuture<int> BuildSnapshot(
         const TBuildSnapshotOptions& options = TBuildSnapshotOptions()) = 0;
+
+    virtual TFuture<TCellIdToSnapshotIdMap> BuildMasterSnapshots(
+        const TBuildMasterSnapshotsOptions& options = TBuildMasterSnapshotsOptions()) = 0;
 
     virtual TFuture<void> GCCollect(
         const TGCCollectOptions& options = TGCCollectOptions()) = 0;

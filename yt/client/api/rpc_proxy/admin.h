@@ -19,6 +19,9 @@ public:
     virtual TFuture<int> BuildSnapshot(
         const NApi::TBuildSnapshotOptions& options = {}) override;
 
+    virtual TFuture<TCellIdToSnapshotIdMap> BuildMasterSnapshots(
+        const TBuildMasterSnapshotsOptions& options = TBuildMasterSnapshotsOptions()) override;
+
     virtual TFuture<void> GCCollect(
         const NApi::TGCCollectOptions& options = {}) override;
 

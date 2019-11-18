@@ -1,5 +1,6 @@
 #include "user_proxy.h"
 #include "account.h"
+#include "network_project.h"
 #include "security_manager.h"
 #include "subject_proxy_detail.h"
 #include "user.h"
@@ -65,6 +66,8 @@ private:
             .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UsableAccounts)
             .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UsableNetworkProjects)
+            .SetOpaque(true));
     }
 
     virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
@@ -110,6 +113,24 @@ private:
                         auto permissionCheckResult = securityManager->CheckPermission(account, user, EPermission::Use);
                         if (permissionCheckResult.Action == ESecurityAction::Allow) {
                             fluent.Item().Value(account->GetName());
+                        }
+                    });
+                return true;
+            }
+
+            case EInternedAttributeKey::UsableNetworkProjects: {
+                const auto& securityManager = Bootstrap_->GetSecurityManager();
+                BuildYsonFluently(consumer)
+                    .DoListFor(securityManager->NetworkProjects(), [&] (TFluentList fluent, const std::pair<const TNetworkProjectId, TNetworkProject*>& pair) {
+                        auto* networkProject = pair.second;
+
+                        if (!IsObjectAlive(networkProject)) {
+                            return;
+                        }
+
+                        auto permissionCheckResult = securityManager->CheckPermission(networkProject, user, EPermission::Use);
+                        if (permissionCheckResult.Action == ESecurityAction::Allow) {
+                            fluent.Item().Value(networkProject->GetName());
                         }
                     });
                 return true;

@@ -17,6 +17,7 @@ namespace NYT::NScheduler {
 using namespace NYson;
 using namespace NYTree;
 using namespace NSecurityClient;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -164,7 +165,9 @@ TTestingOperationOptions::TTestingOperationOptions()
     RegisterParameter("delay_inside_operation_commit_stage", DelayInsideOperationCommitStage)
         .Default();
     RegisterParameter("controller_failure", ControllerFailure)
-        .Default(EControllerFailureType::None);
+        .Default();
+    RegisterParameter("get_job_spec_delay", GetJobSpecDelay)
+        .Default();
     RegisterParameter("fail_get_job_spec", FailGetJobSpec)
         .Default(false);
     RegisterParameter("register_speculative_job_on_job_scheduled", RegisterSpeculativeJobOnJobScheduled)
@@ -172,6 +175,8 @@ TTestingOperationOptions::TTestingOperationOptions()
     RegisterParameter("allocation_size", AllocationSize)
         .GreaterThanOrEqual(0)
         .LessThanOrEqual(1_GB)
+        .Default();
+    RegisterParameter("cancellation_stage", CancelationStage)
         .Default();
 }
 
@@ -435,6 +440,9 @@ TOperationSpecBase::TOperationSpecBase()
         .Default()
         .GreaterThan(TDuration::Zero());
 
+    RegisterParameter("atomicity", Atomicity)
+        .Default(EAtomicity::Full);
+
     RegisterPostprocessor([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             UnavailableChunkTactics == EUnavailableChunkAction::Skip)
@@ -578,6 +586,8 @@ TUserJobSpec::TUserJobSpec()
     RegisterParameter("job_speculation_timeout", JobSpeculationTimeout)
         .Default()
         .GreaterThan(TDuration::Zero());
+    RegisterParameter("network_project", NetworkProject)
+        .Default();
 
     RegisterPostprocessor([&] () {
         if ((TmpfsSize || TmpfsPath) && !TmpfsVolumes.empty()) {
@@ -735,6 +745,8 @@ TOperationWithUserJobSpec::TOperationWithUserJobSpec()
         // TODO(babenko): deprecate this
         .Alias("core_table_writer_config")
         .DefaultNew();
+    RegisterParameter("write_sparse_core_dumps", WriteSparseCoreDumps)
+        .Default(true);
 
     RegisterParameter("job_cpu_monitor", JobCpuMonitor)
         .DefaultNew();

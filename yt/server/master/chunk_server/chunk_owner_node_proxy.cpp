@@ -1009,7 +1009,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         /* parent */ Transaction_,
         /* prerequisiteTransactions */ {},
         replicatedToCellTags,
-        replicateStartToCellTags,
+        /* replicateStart */ false,
         uploadTransactionTimeout,
         /* deadline */ std::nullopt,
         uploadTransactionTitle,
@@ -1083,13 +1083,25 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
                     node->GetId());
             } else {
                 auto* oldChunkList = lockedNode->GetChunkList();
-                oldChunkList->RemoveOwningNode(lockedNode);
-                objectManager->UnrefObject(oldChunkList);
 
-                auto* newChunkList = chunkManager->CreateChunkList(EChunkListKind::Static);
+                YT_VERIFY(oldChunkList->GetKind() == EChunkListKind::Static ||
+                    oldChunkList->GetKind() == EChunkListKind::SortedDynamicRoot);
+
+                oldChunkList->RemoveOwningNode(lockedNode);
+
+                auto* newChunkList = chunkManager->CreateChunkList(oldChunkList->GetKind());
                 newChunkList->AddOwningNode(lockedNode);
                 lockedNode->SetChunkList(newChunkList);
                 objectManager->RefObject(newChunkList);
+
+                if (oldChunkList->GetKind() == EChunkListKind::SortedDynamicRoot) {
+                    for (int index = 0; index < oldChunkList->Children().size(); ++index) {
+                        auto* appendChunkList = chunkManager->CreateChunkList(EChunkListKind::SortedDynamicTablet);
+                        chunkManager->AttachToChunkList(newChunkList, appendChunkList);
+                    }
+                }
+
+                objectManager->UnrefObject(oldChunkList);
 
                 YT_LOG_DEBUG_UNLESS(
                     IsRecovery(),
@@ -1110,14 +1122,15 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
     ToProto(response->mutable_upload_transaction_id(), uploadTransactionId);
 
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
-    response->set_cell_tag(externalCellTag == NotReplicatedCellTag ? multicellManager->GetCellTag() : externalCellTag);
+    response->set_cell_tag(externalCellTag == NotReplicatedCellTag
+        ? multicellManager->GetCellTag()
+        : externalCellTag);
+
+    auto externalizedTransactionId = node->IsExternal()
+        ? transactionManager->ExternalizeTransaction(Transaction_, externalCellTag)
+        : GetObjectId(Transaction_);
 
     if (node->IsExternal()) {
-        const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        auto externalizedTransactionId = Transaction_ && Transaction_->IsForeign()
-            ? transactionManager->ExternalizeTransaction(Transaction_, externalCellTag)
-            : GetObjectId(Transaction_);
-
         auto replicationRequest = TChunkOwnerYPathProxy::BeginUpload(FromObjectId(GetId()));
         SetTransactionId(replicationRequest, externalizedTransactionId);
         replicationRequest->set_update_mode(static_cast<int>(uploadContext.Mode));
@@ -1126,10 +1139,22 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         if (uploadTransactionTitle) {
             replicationRequest->set_upload_transaction_title(*uploadTransactionTitle);
         }
-        // NB: upload_transaction_timeout must be null
-        // NB: upload_transaction_secondary_cell_tags must be empty
-
+        // NB: upload_transaction_timeout must remain null
+        // NB: upload_transaction_secondary_cell_tags must remain empty
         multicellManager->PostToMaster(replicationRequest, externalCellTag);
+    }
+
+    if (!replicateStartToCellTags.empty()) {
+        NTransactionServer::NProto::TReqStartTransaction startRequest;
+        startRequest.set_dont_replicate(true);
+        ToProto(startRequest.mutable_hint_id(), uploadTransactionId);
+        if (externalizedTransactionId) {
+            ToProto(startRequest.mutable_parent_id(), externalizedTransactionId);
+        }
+        if (uploadTransactionTitle) {
+            startRequest.set_title(*uploadTransactionTitle);
+        }
+        multicellManager->PostToMasters(startRequest, replicateStartToCellTags);
     }
 
     context->SetResponseInfo("UploadTransactionId: %v", uploadTransactionId);
@@ -1146,7 +1171,6 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, GetUploadParams)
 
     ValidateNotExternal();
     ValidateInUpdate();
-
 
     auto* node = GetThisImpl<TChunkOwnerBase>();
     if (node->GetChunkList()->GetKind() == EChunkListKind::Static) {
@@ -1181,7 +1205,9 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, GetUploadParams)
         }
 
         for (auto* tabletList : chunkList->Children()) {
-            YT_VERIFY(tabletList->AsChunkList()->GetKind() == EChunkListKind::SortedDynamicSubtablet);
+            YT_VERIFY(
+                tabletList->AsChunkList()->GetKind() == EChunkListKind::SortedDynamicSubtablet ||
+                tabletList->AsChunkList()->GetKind() == EChunkListKind::SortedDynamicTablet);
             ToProto(response->add_tablet_chunk_list_ids(), tabletList->GetId());
         }
     } else {

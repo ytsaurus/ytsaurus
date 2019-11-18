@@ -116,6 +116,10 @@ public:
     std::vector<TString> LowGpuUsageAlertStatistics;
     std::vector<TString> LowGpuUsageAlertJobStates;
 
+    // High queue average wait time alert is triggered
+    // if queues with average wait time above this threshold are found.
+    TDuration QueueAverageWaitTimeThreshold;
+
     TOperationAlertsConfig();
 };
 

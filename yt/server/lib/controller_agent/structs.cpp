@@ -124,7 +124,11 @@ TAbortedJobSummary::TAbortedJobSummary(const TJobSummary& other, EAbortReason ab
 TAbortedJobSummary::TAbortedJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event)
     : TJobSummary(event)
     , AbortReason(static_cast<EAbortReason>(event->abort_reason()))
-{ }
+{
+    if (event->has_preempted_for()) {
+        PreemptedFor = FromProto<NScheduler::TPreemptedFor>(event->preempted_for());
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

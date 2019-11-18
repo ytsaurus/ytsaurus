@@ -59,6 +59,19 @@ NTableClient::TTableSchema ConvertToTableSchema(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Converts unsupported types to compatible, e.g. int8 -> int64, timestamp -> uint64, etc.
+NTableClient::TTableSchema AdaptSchemaToClickHouse(const NTableClient::TTableSchema& schema);
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Returns the schema with all common collumns.
+// If the column is missed in any tables or the type of the column mismatch in different schemas, the column will be ommited.
+// If at least in one schema the column doesn't have "required" flag, the column will be not required.
+// Key columns are maximum prefix of key collumns in all schemas.
+NTableClient::TTableSchema GetCommonSchema(const std::vector<NTableClient::TTableSchema>& schemas);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NClickHouseServer
 
 namespace DB {

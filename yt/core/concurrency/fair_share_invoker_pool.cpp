@@ -4,6 +4,8 @@
 
 #include <yt/core/actions/invoker_detail.h>
 
+#include <yt/core/concurrency/rw_spinlock.h>
+
 #include <yt/core/misc/optional.h>
 #include <yt/core/misc/ring_queue.h>
 #include <yt/core/misc/weak_ptr.h>
@@ -129,6 +131,8 @@ public:
         for (int index = 0; index < invokerCount; ++index) {
             Invokers_.push_back(New<TInvoker>(UnderlyingInvoker_, index, MakeWeak(this)));
         }
+        TotalActionCounts_.resize(invokerCount);
+        TotalWaitTimes_.resize(invokerCount);
     }
 
     virtual int GetSize() const override
@@ -139,9 +143,11 @@ public:
     void Enqueue(TClosure callback, int index)
     {
         Queue_->Enqueue(std::move(callback), index);
+        auto now = NProfiling::GetCpuInstant();
         UnderlyingInvoker_->Invoke(BIND(
             &TFairShareInvokerPool::Run,
-            MakeStrong(this)));
+            MakeStrong(this),
+            now));
     }
 
 protected:
@@ -155,6 +161,10 @@ private:
     const IInvokerPtr UnderlyingInvoker_;
 
     std::vector<IInvokerPtr> Invokers_;
+
+    NConcurrency::TReaderWriterSpinLock AverageWaitTimeLock_;
+    std::vector<i64> TotalActionCounts_;
+    std::vector<NProfiling::TCpuDuration> TotalWaitTimes_;
 
     IFairShareCallbackQueuePtr Queue_;
 
@@ -209,6 +219,21 @@ private:
             }
         }
 
+        virtual TDuration GetAverageWaitTime() const override
+        {
+            if (auto strongParent = Parent_.Lock()) {
+                TReaderGuard guard(strongParent->AverageWaitTimeLock_);
+
+                auto totalActionCount = strongParent->TotalActionCounts_[Index_];
+                auto totalWaitTime = strongParent->TotalWaitTimes_[Index_];
+                return totalActionCount == 0
+                    ? TDuration::Zero()
+                    : NProfiling::CpuDurationToDuration(totalWaitTime / totalActionCount);
+            }
+
+            return TDuration::Zero();
+        }
+
     private:
         const int Index_;
         const TWeakPtr<TFairShareInvokerPool> Parent_;
@@ -219,7 +244,7 @@ private:
         return 0 <= index && index < Invokers_.size();
     }
 
-    void Run()
+    void Run(NProfiling::TCpuDuration enqueuedAt)
     {
         TClosure callback;
         int bucketIndex = -1;
@@ -227,6 +252,14 @@ private:
         YT_VERIFY(IsValidInvokerIndex(bucketIndex));
 
         TCurrentInvokerGuard currentInvokerGuard(Invokers_[bucketIndex]);
+
+        {
+            TWriterGuard guard(AverageWaitTimeLock_);
+
+            auto now = NProfiling::GetCpuInstant();
+            ++TotalActionCounts_[bucketIndex];
+            TotalWaitTimes_[bucketIndex] += now - enqueuedAt;
+        }
 
         {
             TCpuTimeAccounter cpuTimeAccounter(bucketIndex, Queue_.Get());

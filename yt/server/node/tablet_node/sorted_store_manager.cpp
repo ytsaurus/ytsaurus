@@ -504,6 +504,14 @@ void TSortedStoreManager::BulkAddStores(TRange<IStorePtr> stores, bool onMount)
     }
 }
 
+void TSortedStoreManager::DiscardAllStores()
+{
+    TStoreManagerBase::DiscardAllStores();
+
+    // TODO(ifsmirnov): Reset initial partition. It's non-trivial because partition balancer tasks
+    // expect partitions in some states to stay alive long enough, though do not hold references to them.
+}
+
 void TSortedStoreManager::RemoveStore(IStorePtr store)
 {
     // The range is likely to contain at most one element.

@@ -980,6 +980,19 @@ class TestSchedulerPreemption(YTEnvSetup):
         "scheduler": {
             "fair_share_update_period": 100,
             "graceful_preemption_job_interrupt_timeout": 2000,
+            "event_log": {
+                "flush_period": 300,
+                "retry_backoff_time": 300
+            }
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "event_log": {
+                "flush_period": 300,
+                "retry_backoff_time": 300
+            }
         }
     }
 
@@ -1303,6 +1316,51 @@ class TestSchedulerPreemption(YTEnvSetup):
         })
 
         wait(lambda: len(op.get_running_jobs()) == 0)
+
+    @authors("mrkastep")
+    def test_preemptor_event_log(self):
+        set("//sys/pool_trees/default/@max_ephemeral_pools_per_user", 2)
+        create("map_node", "//sys/pools/pool1", attributes={"min_share_ratio": 1.0})
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out0")
+        create("table", "//tmp/t_out1")
+
+        for i in xrange(3):
+            write_table("<append=%true>//tmp/t_in", {"foo": "bar"})
+
+        op0 = map(
+            dont_track=True,
+            command=with_breakpoint("BREAKPOINT; sleep 1000; cat", breakpoint_name="b0"),
+            in_="//tmp/t_in",
+            out="//tmp/t_out0",
+            spec={"pool": "pool0", "job_count": 3})
+
+        wait_breakpoint(breakpoint_name="b0", job_count=3)
+        release_breakpoint(breakpoint_name="b0")
+
+        op1 = map(
+            dont_track=True,
+            command=with_breakpoint("cat; BREAKPOINT", breakpoint_name="b1"),
+            in_="//tmp/t_in",
+            out="//tmp/t_out1",
+            spec={"pool": "pool1", "job_count": 1})
+
+        preemptor_job_id = wait_breakpoint(breakpoint_name="b1")[0]
+        release_breakpoint(breakpoint_name="b1")
+
+        def check_events():
+            for row in read_table("//sys/scheduler/event_log"):
+                event_type = row["event_type"]
+                if event_type == "job_aborted" and row["operation_id"] == op0.id:
+                    assert row["preempted_for"]["operation_id"] == op1.id
+                    assert row["preempted_for"]["job_id"] == preemptor_job_id
+                    return True
+            return False
+        wait(lambda: check_events())
+
+        op0.abort()
+
 
 class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
     NUM_MASTERS = 1
@@ -3384,8 +3442,9 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
     @authors("eshcherbin")
     def test_two_trees_with_unequal_demand(self):
         for busy_tree, expected_tree in [("default", "nirvana"), ("nirvana", "default")]:
+            wait(lambda: get_from_tree_orchid(expected_tree, "fair_share_info/pools/research/resource_demand/cpu") == 0.0)
             other_op = run_sleeping_vanilla(spec={"pool_trees": [busy_tree], "pool": "research"})
-            wait(lambda: other_op.get_running_jobs())
+            wait(lambda: get_from_tree_orchid(busy_tree, "fair_share_info/pools/research/resource_demand/cpu") > 0.0)
 
             spec = {
                 "pool_trees": ["default", "nirvana"],
@@ -3403,9 +3462,8 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
     @authors("eshcherbin")
     def test_two_trees_with_unequal_min_share_resources(self):
         for other_tree, expected_tree in [("default", "nirvana"), ("nirvana", "default")]:
-            set("//sys/pool_trees/{}/@min_share_resources".format(expected_tree), {"cpu": 1})
             set("//sys/pool_trees/{}/research/@min_share_resources".format(expected_tree), {"cpu": 1})
-            wait(lambda: get_from_tree_orchid(expected_tree, "fair_share_info/pools/research")["min_share_resources"]["cpu"] == 1.0)
+            wait(lambda: get_from_tree_orchid(expected_tree, "fair_share_info/pools/research/min_share_resources/cpu") == 1.0)
 
             spec = {
                 "pool_trees": ["default", "nirvana"],
@@ -3418,7 +3476,6 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
             self._run_vanilla_and_check_tree(spec, possible_trees)
 
             set("//sys/pool_trees/{}/research/@min_share_resources".format(expected_tree), {"cpu": 0})
-            set("//sys/pool_trees/{}/@min_share_resources".format(expected_tree), {"cpu": 0})
 
     @authors("eshcherbin")
     def test_two_trees_with_unequal_total_resources(self):
@@ -3442,9 +3499,8 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_two_trees_prefer_tree_with_guaranteed_resources(self):
-        set("//sys/pool_trees/nirvana/@min_share_resources", {"cpu": 3})
         set("//sys/pool_trees/nirvana/research/@min_share_resources", {"cpu": 3})
-        wait(lambda: get_from_tree_orchid("nirvana", "fair_share_info/pools/research")["min_share_resources"]["cpu"] == 3.0)
+        wait(lambda: get_from_tree_orchid("nirvana", "fair_share_info/pools/research/min_share_resources/cpu") == 3.0)
         other_op = run_sleeping_vanilla(spec={"pool_trees": ["nirvana"], "pool": "research"}, job_count=2)
 
         spec = {
@@ -3460,7 +3516,6 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
         other_op.abort()
         other_op.wait_for_state("aborted")
         set("//sys/pool_trees/nirvana/research/@min_share_resources", {"cpu": 0})
-        set("//sys/pool_trees/nirvana/@min_share_resources", {"cpu": 0})
 
     @authors("eshcherbin")
     def test_revive_scheduler(self):
@@ -3507,9 +3562,8 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
             erased_trees = get(op.get_path() + "/@erased_trees")
             assert len(possible_trees) == len(erased_trees) + 1
             for tree in erased_trees:
-                set("//sys/pool_trees/{}/@min_share_resources".format(tree), {"cpu": 3})
                 set("//sys/pool_trees/{}/research/@min_share_resources".format(tree), {"cpu": 3})
-                wait(lambda: get_from_tree_orchid(tree, "fair_share_info/pools/research")["min_share_resources"]["cpu"] == 3.0)
+                wait(lambda: get_from_tree_orchid(tree, "fair_share_info/pools/research/min_share_resources/cpu") == 3.0)
             time.sleep(0.5)
 
         wait(lambda: get("//sys/scheduler/orchid/scheduler/operations/{}/state".format(op.id), verbose_error=False) == "running")
@@ -3525,4 +3579,3 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
 
         for tree in erased_trees:
             set("//sys/pool_trees/{}/research/@min_share_resources".format(tree), {"cpu": 0})
-            set("//sys/pool_trees/{}/@min_share_resources".format(tree), {"cpu": 0})

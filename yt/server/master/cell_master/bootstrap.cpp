@@ -728,6 +728,7 @@ void TBootstrap::DoInitialize()
     CypressManager_->RegisterHandler(CreateAccountMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateUserMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateGroupMapTypeHandler(this));
+    CypressManager_->RegisterHandler(CreateNetworkProjectMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateTabletCellNodeTypeHandler(this));
     CypressManager_->RegisterHandler(CreateTabletCellMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateTabletMapTypeHandler(this));

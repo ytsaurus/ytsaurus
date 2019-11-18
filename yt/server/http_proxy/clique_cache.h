@@ -37,8 +37,6 @@ class TCliqueCache
 {
 public:
     TCliqueCache(TCliqueCacheConfigPtr config);
-private:
-    virtual i64 GetWeight(const TCachedDiscoveryPtr& discovery) const override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCliqueCache);

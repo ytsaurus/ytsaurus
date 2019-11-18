@@ -71,8 +71,21 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TEventLogWriter
+class IEventLogWriter
     : public TIntrinsicRefCounted
+{
+public:
+    virtual std::unique_ptr<NYson::IYsonConsumer> CreateConsumer() = 0;
+
+    virtual void UpdateConfig(const TEvenTLogManagerConfigPtr& config) = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IEventLogWriter);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TEventLogWriter
+    : public IEventLogWriter
 {
 public:
     TEventLogWriter(
@@ -80,16 +93,14 @@ public:
         const NApi::NNative::IClientPtr& client,
         const IInvokerPtr& invoker);
 
-    std::unique_ptr<NYson::IYsonConsumer> CreateConsumer();
+    virtual std::unique_ptr<NYson::IYsonConsumer> CreateConsumer() override;
 
-    void UpdateConfig(const TEvenTLogManagerConfigPtr& config);
+    virtual void UpdateConfig(const TEvenTLogManagerConfigPtr& config) override;
 
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;
 };
-
-DEFINE_REFCOUNTED_TYPE(TEventLogWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 

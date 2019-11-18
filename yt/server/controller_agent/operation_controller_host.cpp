@@ -175,7 +175,7 @@ const IInvokerPtr& TOperationControllerHost::GetControllerThreadPoolInvoker()
     return Bootstrap_->GetControllerAgent()->GetControllerThreadPoolInvoker();
 }
 
-const NEventLog::TEventLogWriterPtr& TOperationControllerHost::GetEventLogWriter()
+const NEventLog::IEventLogWriterPtr& TOperationControllerHost::GetEventLogWriter()
 {
     return Bootstrap_->GetControllerAgent()->GetEventLogWriter();
 }

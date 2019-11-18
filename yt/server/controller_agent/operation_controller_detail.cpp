@@ -78,6 +78,7 @@
 #include <yt/client/tablet_client/public.h>
 #include <yt/client/tablet_client/table_mount_cache.h>
 
+#include <yt/client/transaction_client/public.h>
 #include <yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/client/api/transaction.h>
@@ -749,9 +750,10 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
 
     // Testing purpose code.
     if (Config->EnableControllerFailureSpecOption &&
-        Spec_->TestingOperationOptions)
+        Spec_->TestingOperationOptions &&
+        Spec_->TestingOperationOptions->ControllerFailure)
     {
-        YT_VERIFY(Spec_->TestingOperationOptions->ControllerFailure !=
+        YT_VERIFY(*Spec_->TestingOperationOptions->ControllerFailure !=
             EControllerFailureType::AssertionFailureInPrepare);
     }
 
@@ -1647,6 +1649,10 @@ void TOperationControllerBase::SafeCommit()
 
 void TOperationControllerBase::LockOutputDynamicTables()
 {
+    if (Spec_->Atomicity == EAtomicity::None) {
+        return;
+    }
+
     THashMap<TCellTag, std::vector<TOutputTablePtr>> externalCellTagToTables;
     for (const auto& table : UpdatingTables_) {
         if (table->Dynamic) {
@@ -2102,6 +2108,12 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
                     req->set_value(ConvertToYsonString(GetPartSize(table->OutputType)).GetData());
                     batchReq->AddRequest(req);
                 }
+                if (table->OutputType == EOutputTableType::Core && GetWriteSparseCoreDumps()) {
+                    auto req = TYPathProxy::Set(table->GetObjectIdPath() + "/@sparse");
+                    SetTransactionId(req, GetTransactionForOutputTable(table)->GetId());
+                    req->set_value(ConvertToYsonString(true).GetData());
+                    batchReq->AddRequest(req);
+                }
             }
 
             asyncResults.push_back(batchReq->Invoke());
@@ -2274,7 +2286,8 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
 
     // Testing purpose code.
     if (Config->EnableControllerFailureSpecOption && Spec_->TestingOperationOptions &&
-        Spec_->TestingOperationOptions->ControllerFailure == EControllerFailureType::ExceptionThrownInOnJobCompleted)
+        Spec_->TestingOperationOptions->ControllerFailure &&
+        *Spec_->TestingOperationOptions->ControllerFailure == EControllerFailureType::ExceptionThrownInOnJobCompleted)
     {
         THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::TestingError, "Testing exception");
     }
@@ -2529,8 +2542,12 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
 
     if (jobSummary->LogAndProfile) {
         FinalizeJoblet(joblet, jobSummary.get());
-        LogFinishedJobFluently(ELogEventType::JobAborted, joblet, *jobSummary)
+        auto fluent = LogFinishedJobFluently(ELogEventType::JobAborted, joblet, *jobSummary)
             .Item("reason").Value(abortReason);
+        if (jobSummary->PreemptedFor) {
+            fluent
+                .Item("preempted_for").Value(jobSummary->PreemptedFor);
+        }
         UpdateJobStatistics(joblet, *jobSummary);
     }
 
@@ -3591,6 +3608,30 @@ void TOperationControllerBase::AnalyzeScheduleJobStatistics()
     SetOperationAlert(EOperationAlertType::ExcessiveJobSpecThrottling, error);
 }
 
+void TOperationControllerBase::AnalyzeQueueAverageWaitTime()
+{
+    THashMap<EOperationControllerQueue, TDuration> queueToAverageWaitTime;
+    for (auto queue : TEnumTraits<EOperationControllerQueue>::GetDomainValues()) {
+        auto invoker = GetCancelableInvoker(queue);
+        auto averageWaitTime = invoker->GetAverageWaitTime();
+        if (averageWaitTime > Config->OperationAlerts->QueueAverageWaitTimeThreshold) {
+            queueToAverageWaitTime.emplace(queue, averageWaitTime);
+        }
+    }
+
+    TError error;
+    if (!queueToAverageWaitTime.empty()) {
+        error = TError("Found action queues with high average wait time: %v",
+            MakeFormattableView(queueToAverageWaitTime, [] (auto* builder, const auto& pair) {
+                const auto& [queue, averageWaitTime] = pair;
+                builder->AppendFormat("%Qlv", queue);
+            }))
+            << TErrorAttribute("queues_with_high_average_wait_time", queueToAverageWaitTime);
+    }
+
+    SetOperationAlert(EOperationAlertType::HighQueueAverageWaitTime, error);
+}
+
 void TOperationControllerBase::AnalyzeOperationProgress()
 {
     VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
@@ -3606,6 +3647,7 @@ void TOperationControllerBase::AnalyzeOperationProgress()
     AnalyzeJobsDuration();
     AnalyzeOperationDuration();
     AnalyzeScheduleJobStatistics();
+    AnalyzeQueueAverageWaitTime();
 }
 
 void TOperationControllerBase::UpdateCachedMaxAvailableExecNodeResources()
@@ -4296,6 +4338,7 @@ void TOperationControllerBase::UpdateMinNeededJobResources()
 
 void TOperationControllerBase::FlushOperationNode(bool checkFlushResult)
 {
+    YT_LOG_DEBUG("Flushing operation node");
     // Some statistics are reported only on operation end so
     // we need to synchronously check everything and set
     // appropriate alerts before flushing operation node.
@@ -4331,7 +4374,9 @@ void TOperationControllerBase::OnOperationCompleted(bool interrupted)
 
 void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush)
 {
-    VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
+    VERIFY_INVOKER_POOL_AFFINITY(InvokerPool);
+
+    YT_LOG_DEBUG("Operation controller failed (Error: %v, Flush: %v)", error, flush);
 
     // During operation failing job aborting can lead to another operation fail, we don't want to invoke it twice.
     if (IsFinished()) {
@@ -4349,7 +4394,9 @@ void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush
 
     Error_ = error;
 
+    YT_LOG_DEBUG("Notifying host about operation controller failure");
     Host->OnOperationFailed(error);
+    YT_LOG_DEBUG("Host notified about operation controller failure");
 }
 
 void TOperationControllerBase::OnOperationAborted(const TError& error)
@@ -4704,8 +4751,12 @@ void TOperationControllerBase::CreateLivePreviewTables()
         attributes->Set("replication_factor", replicationFactor);
         // Does this affect anything or is this for viewing only? Should we set the 'media' ('primary_medium') property?
         attributes->Set("compression_codec", compressionCodec);
-        attributes->Set("external", true);
-        attributes->Set("external_cell_tag", cellTag);
+        if (cellTag == connection->GetPrimaryMasterCellTag()) {
+            attributes->Set("external", false);
+        } else {
+            attributes->Set("external", true);
+            attributes->Set("external_cell_tag", cellTag);
+        }
         attributes->Set("acl", acl);
         attributes->Set("inherit_acl", false);
         if (schema) {
@@ -4727,7 +4778,6 @@ void TOperationControllerBase::CreateLivePreviewTables()
         for (int index = 0; index < OutputTables_.size(); ++index) {
             auto& table = OutputTables_[index];
             auto path = GetOperationPath(OperationId) + "/output_" + ToString(index);
-
             addRequest(
                 path,
                 table->ExternalCellTag,
@@ -4932,6 +4982,8 @@ void TOperationControllerBase::FetchInputTables()
     if (columnarStatisticsFetcher->GetChunkCount() > 0) {
         YT_LOG_INFO("Fetching chunk columnar statistics for tables with column selectors (ChunkCount: %v)",
             columnarStatisticsFetcher->GetChunkCount());
+        MaybeCancel(ECancelationStage::ColumnarStatisticsFetch);
+        columnarStatisticsFetcher->SetCancelableContext(GetCancelableContext());
         WaitFor(columnarStatisticsFetcher->Fetch())
             .ThrowOnError();
         YT_LOG_INFO("Columnar statistics fetched");
@@ -5183,11 +5235,6 @@ void TOperationControllerBase::GetOutputTablesSchema()
             0); // Here we assume zero row count, we will do additional check later.
 
         if (table->Dynamic) {
-            if (table->TableUploadOptions.UpdateMode != EUpdateMode::Append) {
-                THROW_ERROR_EXCEPTION("Dynamic table can be updated only in update mode")
-                    << TErrorAttribute("table_path", path);
-            }
-
             if (!table->TableUploadOptions.TableSchema.IsSorted()) {
                 THROW_ERROR_EXCEPTION("Only sorted dynamic table can be updated")
                     << TErrorAttribute("table_path", path);
@@ -5324,6 +5371,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                 "vital",
                 "enable_skynet_sharing",
                 "tablet_state",
+                "atomicity",
             });
             SetTransactionId(req, GetTransactionForOutputTable(table)->GetId());
             batchReq->AddRequest(req);
@@ -5356,6 +5404,15 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                     THROW_ERROR_EXCEPTION(
                         "Operations with output to dynamic tables cannot be run under user transaction")
                         << TErrorAttribute("user_transaction_id", UserTransactionId);
+                }
+
+                auto atomicity = attributes->Get<EAtomicity>("atomicity");
+                if (atomicity != Spec_->Atomicity) {
+                    THROW_ERROR_EXCEPTION("Output table %v atomicity %Qv does not match spec atomicity %Qv",
+                        path,
+                        atomicity,
+                        Spec_->Atomicity);
+
                 }
             }
 
@@ -5628,6 +5685,7 @@ void TOperationControllerBase::ValidateUserFileSizes()
     if (columnarStatisticsFetcher->GetChunkCount() > 0) {
         YT_LOG_INFO("Fetching columnar statistics for table files with column selectors (ChunkCount: %v)",
             columnarStatisticsFetcher->GetChunkCount());
+        columnarStatisticsFetcher->SetCancelableContext(GetCancelableContext());
         WaitFor(columnarStatisticsFetcher->Fetch())
             .ThrowOnError();
         columnarStatisticsFetcher->ApplyColumnSelectivityFactors();
@@ -6178,6 +6236,7 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersione
                 fetcher->AddChunk(chunk);
             }
 
+            fetcher->SetCancelableContext(GetCancelableContext());
             asyncResults.emplace_back(fetcher->Fetch());
             fetchers.emplace_back(std::move(fetcher));
         }
@@ -7144,6 +7203,8 @@ void TOperationControllerBase::BuildBriefProgress(TFluentMap fluent) const
 
 void TOperationControllerBase::BuildAndSaveProgress()
 {
+    YT_LOG_DEBUG("Building and saving progress");
+
     auto progressString = BuildYsonStringFluently()
         .BeginMap()
         .Do([=] (TFluentMap fluent) {
@@ -7174,10 +7235,12 @@ void TOperationControllerBase::BuildAndSaveProgress()
             !BriefProgressString_ || BriefProgressString_ != briefProgressString)
         {
             ShouldUpdateProgressInCypress_.store(true);
+            YT_LOG_DEBUG("New progress is different from previous one, should update progress in Cypress");
         }
         ProgressString_ = progressString;
         BriefProgressString_ = briefProgressString;
     }
+    YT_LOG_DEBUG("Progress built and saved");
 }
 
 TYsonString TOperationControllerBase::GetProgress() const
@@ -7288,6 +7351,10 @@ TSharedRef TOperationControllerBase::SafeBuildJobSpecProto(const TJobletPtr& job
 TSharedRef TOperationControllerBase::ExtractJobSpec(TJobId jobId) const
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::GetJobSpec));
+
+    if (auto getJobSpecDelay = Spec_->TestingOperationOptions->GetJobSpecDelay) {
+        Sleep(*getJobSpecDelay);
+    }
 
     if (Spec_->TestingOperationOptions->FailGetJobSpec) {
         THROW_ERROR_EXCEPTION("Testing failure");
@@ -7663,6 +7730,24 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     if (config->CudaToolkitVersion) {
         jobSpec->set_cuda_toolkit_version(*config->CudaToolkitVersion);
     }
+
+    if (config->NetworkProject) {
+        const auto& client = Host->GetClient();
+        const auto networkProjectPath = "//sys/network_projects/" + *config->NetworkProject;
+        auto checkPermissionRspOrError = WaitFor(client->CheckPermission(AuthenticatedUser,
+            networkProjectPath,
+            EPermission::Use));
+        if (checkPermissionRspOrError.ValueOrThrow().Action == ESecurityAction::Deny) {
+            THROW_ERROR_EXCEPTION("User %Qv is not allowed to use network project %Qv",
+                AuthenticatedUser,
+                *config->NetworkProject);
+        }
+
+        auto getRspOrError = WaitFor(client->GetNode(networkProjectPath + "/@project_id"));
+        jobSpec->set_network_project_id(ConvertTo<ui32>(getRspOrError.ValueOrThrow()));
+    }
+
+    jobSpec->set_write_sparse_core_dumps(GetWriteSparseCoreDumps());
 
     auto fillEnvironment = [&] (THashMap<TString, TString>& env) {
         for (const auto& [key, value] : env) {
@@ -8150,6 +8235,11 @@ std::optional<TRichYPath> TOperationControllerBase::GetCoreTablePath() const
     return std::nullopt;
 }
 
+bool TOperationControllerBase::GetWriteSparseCoreDumps() const
+{
+    return false;
+}
+
 void TOperationControllerBase::OnChunksReleased(int /* chunkCount */)
 { }
 
@@ -8298,6 +8388,11 @@ std::optional<int> TOperationControllerBase::GetRowCountLimitTableIndex()
     return RowCountLimitTableIndex;
 }
 
+void TOperationControllerBase::LoadSnapshot(const NYT::NControllerAgent::TOperationSnapshot& snapshot)
+{
+    DoLoadSnapshot(snapshot);
+}
+
 TOutputTablePtr TOperationControllerBase::RegisterOutputTable(const TRichYPath& outputTablePath)
 {
     auto it = PathToOutputTable_.find(outputTablePath.GetPath());
@@ -8444,6 +8539,18 @@ void TOperationControllerBase::AnalyzeProcessingUnitUsage(
     }
 
     SetOperationAlert(alertType, error);
+}
+
+void TOperationControllerBase::MaybeCancel(ECancelationStage cancelationStage)
+{
+    if (Spec_->TestingOperationOptions && Spec_->TestingOperationOptions->CancelationStage &&
+        cancelationStage == *Spec_->TestingOperationOptions->CancelationStage)
+    {
+        YT_LOG_INFO("Making test operation failure (CancelationStage: %v)", cancelationStage);
+        GetInvoker()->Invoke(BIND(&TOperationControllerBase::OnOperationFailed, MakeWeak(this), TError("Test operation failure"), false /* flush */));
+        YT_LOG_INFO("Making test cancelation (CancelationStage: %v)", cancelationStage);
+        Cancel();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

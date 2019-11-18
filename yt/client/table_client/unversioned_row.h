@@ -4,6 +4,8 @@
 #include "row_base.h"
 #include "unversioned_value.h"
 
+#include <yt/core/logging/log.h>
+
 #include <yt/core/misc/chunked_memory_pool.h>
 #include <yt/core/misc/serialize.h>
 #include <yt/core/misc/small_vector.h>
@@ -13,6 +15,8 @@
 #include <yt/core/yson/public.h>
 
 #include <yt/core/ytree/public.h>
+
+#include <yt/core/concurrency/fls.h>
 
 namespace NYT::NTableClient {
 
@@ -848,6 +852,25 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TSharedRange<TRowRange> MakeSingletonRowRange(TKey lowerBound, TKey upperBound);
+
+////////////////////////////////////////////////////////////////////////////////
+
+// YT-11183
+// This is a hack to log entities in any values only once per write session
+// (crudely approximated by a fiber).
+// TODO(levysotsky): Get rid of this after ticket closing.
+class TEntityInAnyReporter
+{
+public:
+    void Report();
+    void Reset();
+
+private:
+    NConcurrency::TFls<bool> Reported_;
+    NLogging::TLogger Logger{"EntityInAnyReporter"};
+};
+
+extern TEntityInAnyReporter EntityInAnyReporter;
 
 ////////////////////////////////////////////////////////////////////////////////
 

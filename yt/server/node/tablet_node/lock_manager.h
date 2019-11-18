@@ -16,11 +16,11 @@ public:
 
     void Lock(TTimestamp timestamp, TTransactionId transactionId, bool confirmed);
     std::vector<TTransactionId> RemoveUnconfirmedTransactions();
-    void Unlock(TTransactionId transactionId);
+    void Unlock(TTimestamp commitTimestamp, TTransactionId transactionId);
     TLockManagerEpoch GetEpoch() const;
-    void Wait(TTimestamp timestamp, TLockManagerEpoch epoch);
 
-    bool IsLocked();
+    void Wait(TTimestamp timestamp, TLockManagerEpoch epoch);
+    TError ValidateTransactionConflict(TTimestamp startTimestamp) const;
 
     void BuildOrchidYson(NYTree::TFluentMap fluent) const;
 

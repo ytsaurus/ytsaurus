@@ -204,6 +204,46 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Class repesenting IPv6 address in MTN model.
+//! Refer to (https://wiki.yandex-team.ru/noc/newnetwork/hbf/projectid/)
+//! for model description.
+class TMtnAddress
+{
+public:
+    TMtnAddress() = default;
+
+    TMtnAddress(TIP6Address address);
+
+    ui64 GetPrefix() const;
+    TMtnAddress& SetPrefix(ui64 prefix);
+
+    ui64 GetGeo() const;
+    TMtnAddress& SetGeo(ui64 geo);
+
+    ui64 GetProjectId() const;
+    TMtnAddress& SetProjectId(ui64 projectId);
+
+    ui64 GetHost() const;
+    TMtnAddress& SetHost(ui64 host);
+
+    const TIP6Address& ToIP6Address() const;
+
+private:
+    ui64 GetBytesRangeValue(int leftIndex, int rightIndex) const;
+
+    void SetBytesRangeValue(int leftIndex, int rightIndex, ui64 value);
+
+    static constexpr int HostOffsetInBytes = 0;
+    static constexpr int ProjectIdOffsetInBytes = 4;
+    static constexpr int GeoOffsetInBytes = 8;
+    static constexpr int PrefixOffsetInBytes = 11;
+    static constexpr int TotalLenInBytes = 16;
+
+    TIP6Address Address_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NNet
 
 template <>

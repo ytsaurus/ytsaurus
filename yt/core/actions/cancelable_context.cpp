@@ -35,7 +35,7 @@ public:
                 return;
             }
 
-            NConcurrency::TCurrentInvokerGuard guard(this_);
+            TCurrentInvokerGuard guard(this_);
             callback.Run();
         }));
     }
@@ -122,6 +122,11 @@ void TCancelableContext::PropagateTo(const TFuture<void>& future)
 {
     {
         TGuard<TSpinLock> guard(SpinLock_);
+        if (Canceled_) {
+            future.Cancel();
+            return;
+        }
+
         PropagateToFutures_.insert(future);
     }
 

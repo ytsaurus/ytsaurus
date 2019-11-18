@@ -21,6 +21,8 @@
 
 #include <yt/client/ypath/rich.h>
 
+#include <yt/client/transaction_client/public.h>
+
 #include <yt/core/rpc/config.h>
 
 #include <yt/core/ytree/fluent.h>
@@ -396,8 +398,11 @@ DEFINE_ENUM(EDelayInsideOperationCommitStage,
     (Stage7)
 );
 
+DEFINE_ENUM(ECancelationStage,
+    (ColumnarStatisticsFetch)
+);
+
 DEFINE_ENUM(EControllerFailureType,
-    (None)
     (AssertionFailureInPrepare)
     (ExceptionThrownInOnJobCompleted)
 )
@@ -423,7 +428,11 @@ public:
     std::optional<i64> AllocationSize;
 
     //! Intentionally fails the operation controller. Used only for testing purposes.
-    EControllerFailureType ControllerFailure;
+    std::optional<EControllerFailureType> ControllerFailure;
+
+    std::optional<ECancelationStage> CancelationStage;
+
+    std::optional<TDuration> GetJobSpecDelay;
 
     bool FailGetJobSpec;
 
@@ -613,6 +622,9 @@ public:
     //! from TUserJobSpec.
     std::optional<TDuration> JobSpeculationTimeout;
 
+    //! Should match the atomicity of output dynamic tables. If present, output dynamic tables are not locked.
+    NTransactionClient::EAtomicity Atomicity;
+
     TOperationSpecBase();
 
 private:
@@ -702,6 +714,9 @@ public:
     //! from TOperationBaseSpec.
     std::optional<TDuration> JobSpeculationTimeout;
 
+    //! Name of the network project to use in job.
+    std::optional<TString> NetworkProject;
+
     TUserJobSpec();
 
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig);
@@ -778,6 +793,7 @@ public:
 
     std::optional<NYPath::TRichYPath> CoreTablePath;
     NTableClient::TBlobTableWriterConfigPtr CoreTableWriter;
+    bool WriteSparseCoreDumps;
 
     TJobCpuMonitorConfigPtr JobCpuMonitor;
 

@@ -136,6 +136,32 @@ class TestGetOperation(YTEnvSetup):
             if key in res_cypress:
                 assert res_get_operation_archive[key] == res_cypress_finished[key]
 
+    # Check that operation that has not been saved by operation cleaner
+    # is reported correctly (i.e. "No such operation").
+    # Actually, cleaner is disabled in this test,
+    # but we emulate its work by removing operation node from Cypress.
+    @authors("levysotsky")
+    def test_get_operation_dropped_by_cleaner(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
+        op = map(
+            dont_track=True,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint("cat ; BREAKPOINT"),
+        )
+        wait_breakpoint()
+
+        wait(lambda: _get_operation_from_archive(op.id))
+
+        release_breakpoint()
+        op.track()
+
+        remove(op.get_path(), force=True)
+        with raises_yt_error(NoSuchOperation):
+            get_operation(op.id)
+
     @authors("ilpauzner")
     def test_progress_merge(self):
         enable_operation_progress_archivation_path = "//sys/controller_agents/config/enable_operation_progress_archivation"

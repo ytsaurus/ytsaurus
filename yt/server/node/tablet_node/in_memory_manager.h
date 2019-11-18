@@ -35,9 +35,8 @@ struct TInMemoryChunkData
     : public TIntrinsicRefCounted
 {
     NTabletClient::EInMemoryMode InMemoryMode = NTabletClient::EInMemoryMode::None;
-
+    int StartBlockIndex = 0;
     std::vector<NChunkClient::TBlock> Blocks;
-    int StartBlockIndex;
     NTableClient::TCachedVersionedChunkMetaPtr ChunkMeta;
     NTableClient::IChunkLookupHashTablePtr LookupHashTable;
     NCellNode::TNodeMemoryTrackerGuard MemoryTrackerGuard;
@@ -59,7 +58,7 @@ struct IInMemoryManager
     : public TRefCounted
 {
     virtual NChunkClient::IBlockCachePtr CreateInterceptingBlockCache(
-            NTabletClient::EInMemoryMode mode) = 0;
+        NTabletClient::EInMemoryMode mode) = 0;
 
     virtual TInMemoryChunkDataPtr EvictInterceptedChunkData(
         NChunkClient::TChunkId chunkId) = 0;
@@ -70,7 +69,6 @@ struct IInMemoryManager
         const TTabletSnapshotPtr& tablet) = 0;
 
     virtual const TInMemoryManagerConfigPtr& GetConfig() const = 0;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(IInMemoryManager)

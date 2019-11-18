@@ -71,6 +71,7 @@ public:
         PYCXX_ADD_KEYWORDS_METHOD(write_core_dump, WriteCoreDump, "Writes a core dump of a remote YT process (node, scheduler or master)");
         PYCXX_ADD_KEYWORDS_METHOD(write_operation_controller_core_dump, WriteOperationControllerCoreDump, "Write a core dump of a controller agent holding the operation controller for a given operation id");
         PYCXX_ADD_KEYWORDS_METHOD(build_snapshot, BuildSnapshot, "Forces to build a snapshot");
+        PYCXX_ADD_KEYWORDS_METHOD(build_master_snapshots, BuildMasterSnapshots, "Forces to build snapshots for all master cells");
         PYCXX_ADD_KEYWORDS_METHOD(gc_collect, GCCollect, "Runs garbage collection");
         PYCXX_ADD_KEYWORDS_METHOD(clear_metadata_caches, ClearMetadataCaches, "Clears metadata caches");
 
@@ -157,7 +158,9 @@ public:
         if (HasArgument(args, kwargs, "set_read_only")) {
             options.SetReadOnly = static_cast<bool>(Py::Boolean(ExtractArgument(args, kwargs, "set_read_only")));
         }
-
+        if (HasArgument(args, kwargs, "wait_for_snapshot_completion")) {
+            options.WaitForSnapshotCompletion = static_cast<bool>(Py::Boolean(ExtractArgument(args, kwargs, "wait_for_snapshot_completion")));
+        }
         if (!HasArgument(args, kwargs, "cell_id")) {
             throw CreateYtError("Missing argument 'cell_id'");
         }
@@ -171,12 +174,40 @@ public:
 
         try {
             auto admin = UnderlyingDriver_->GetConnection()->CreateAdmin();
-            int snapshotId = WaitFor(admin->BuildSnapshot(options))
-                .ValueOrThrow();
+            int snapshotId = WaitFor(admin->BuildSnapshot(options)).ValueOrThrow();
             return Py::Long(snapshotId);
         } CATCH_AND_CREATE_YT_ERROR("Failed to build snapshot");
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, BuildSnapshot)
+
+    Py::Object BuildMasterSnapshots(Py::Tuple& args, Py::Dict& kwargs)
+    {
+        auto options = NApi::TBuildMasterSnapshotsOptions();
+
+        if (HasArgument(args, kwargs, "set_read_only")) {
+            options.SetReadOnly = static_cast<bool>(Py::Boolean(ExtractArgument(args, kwargs, "set_read_only")));
+        }
+        if (HasArgument(args, kwargs, "retry")) {
+            options.Retry = static_cast<bool>(Py::Boolean(ExtractArgument(args, kwargs, "retry")));
+        }
+        if (HasArgument(args, kwargs, "wait_for_snapshot_completion")) {
+            options.WaitForSnapshotCompletion = static_cast<bool>(Py::Boolean(ExtractArgument(args, kwargs, "wait_for_snapshot_completion")));
+        }
+
+        ValidateArgumentsEmpty(args, kwargs);
+
+        try {
+            auto admin = UnderlyingDriver_->GetConnection()->CreateAdmin();
+            auto cellIdToSnapshotId = WaitFor(admin->BuildMasterSnapshots(options)).ValueOrThrow();
+
+            Py::Dict dict;
+            for (auto [cellId, snapshotId] : cellIdToSnapshotId) {
+                dict.setItem(ToString(cellId), Py::Long(snapshotId));
+            }
+            return dict;
+        } CATCH_AND_CREATE_YT_ERROR("Failed to build snapshot");
+    }
+    PYCXX_KEYWORDS_METHOD_DECL(TDriver, BuildMasterSnapshots)
 
     Py::Object ClearMetadataCaches(Py::Tuple& args, Py::Dict& kwargs)
     {

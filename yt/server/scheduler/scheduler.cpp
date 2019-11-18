@@ -1422,6 +1422,7 @@ private:
     TPeriodicExecutorPtr JobReporterWriteFailuresChecker_;
     TPeriodicExecutorPtr StrategyUnschedulableOperationsChecker_;
     TPeriodicExecutorPtr TransientOperationQueueScanPeriodExecutor_;
+    TPeriodicExecutorPtr WaitingForPoolOperationScanPeriodExecutor_;
 
     TString ServiceAddress_;
 
@@ -1451,7 +1452,7 @@ private:
 
     THashMap<TSchedulingTagFilter, std::pair<TCpuInstant, TJobResources>> CachedResourceLimitsByTags_;
 
-    TEventLogWriterPtr EventLogWriter_;
+    IEventLogWriterPtr EventLogWriter_;
     std::unique_ptr<IYsonConsumer> EventLogWriterConsumer_;
 
     std::atomic<int> OperationArchiveVersion_ = {-1};
@@ -1796,6 +1797,12 @@ private:
             Config_->TransientOperationQueueScanPeriod);
         TransientOperationQueueScanPeriodExecutor_->Start();
 
+        WaitingForPoolOperationScanPeriodExecutor_ = New<TPeriodicExecutor>(
+            MasterConnector_->GetCancelableControlInvoker(EControlQueue::PeriodicActivity),
+            BIND(&TImpl::ScanWaitingForPoolOperations, MakeWeak(this)),
+            Config_->WaitingForPoolOperationScanPeriod);
+        WaitingForPoolOperationScanPeriodExecutor_->Start();
+
         Strategy_->OnMasterConnected();
 
         LogEventFluently(ELogEventType::MasterConnected)
@@ -1833,6 +1840,11 @@ private:
         if (TransientOperationQueueScanPeriodExecutor_) {
             TransientOperationQueueScanPeriodExecutor_->Stop();
             TransientOperationQueueScanPeriodExecutor_.Reset();
+        }
+
+        if (WaitingForPoolOperationScanPeriodExecutor_) {
+            WaitingForPoolOperationScanPeriodExecutor_->Stop();
+            WaitingForPoolOperationScanPeriodExecutor_.Reset();
         }
 
         Strategy_->OnMasterDisconnected();
@@ -2129,6 +2141,9 @@ private:
             StrategyUnschedulableOperationsChecker_->SetPeriod(Config_->OperationUnschedulableCheckPeriod);
             if (TransientOperationQueueScanPeriodExecutor_) {
                 TransientOperationQueueScanPeriodExecutor_->SetPeriod(Config_->TransientOperationQueueScanPeriod);
+            }
+            if (WaitingForPoolOperationScanPeriodExecutor_) {
+                WaitingForPoolOperationScanPeriodExecutor_->SetPeriod(Config_->WaitingForPoolOperationScanPeriod);
             }
             StaticOrchidService_->SetCachePeriod(Config_->StaticOrchidCacheUpdatePeriod);
             CombinedOrchidService_->SetUpdatePeriod(Config_->OrchidKeysUpdatePeriod);
@@ -3456,6 +3471,15 @@ private:
             operation->GetCancelableControlInvoker()->Invoke(
                 BIND(&TImpl::HandleOrphanedOperation, MakeStrong(this), operation));
         }
+    }
+
+    void ScanWaitingForPoolOperations()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        YT_LOG_DEBUG("Started scanning operations waiting for pool");
+
+        Strategy_->ScanWaitingForPoolOperations();
     }
 
     void ScanTransientOperationQueue()

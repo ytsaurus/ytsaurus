@@ -322,6 +322,20 @@ public:
                 "Not an active leader"));
         }
 
+        auto loggedVersion = DecoratedAutomaton_->GetLoggedVersion();
+        if (GetReadOnly() && loggedVersion.RecordId == 0) {
+            auto lastSnapshotId = DecoratedAutomaton_->GetLastSuccessfulSnapshotId();
+            if (loggedVersion.SegmentId == lastSnapshotId) {
+                return MakeFuture<int>(TError(
+                    NHydra::EErrorCode::ReadOnlySnapshotBuilt,
+                    "The requested read-only snapshot is already built")
+                    << TErrorAttribute("snapshot_id", lastSnapshotId));
+            }
+            return MakeFuture<int>(TError(
+                NHydra::EErrorCode::ReadOnlySnapshotBuildFailed,
+                "Cannot build a snapshot in read-only mode"));
+        }
+
         if (!epochContext->Checkpointer->CanBuildSnapshot()) {
             return MakeFuture<int>(TError(
                 NRpc::EErrorCode::Unavailable,

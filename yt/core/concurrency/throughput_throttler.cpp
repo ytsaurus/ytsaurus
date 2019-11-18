@@ -1,5 +1,4 @@
 #include "throughput_throttler.h"
-#include "periodic_executor.h"
 #include "config.h"
 
 #include <yt/core/concurrency/thread_affinity.h>
@@ -13,6 +12,22 @@
 namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_STRUCT(TThrottlerRequest)
+
+struct TThrottlerRequest
+    : public TRefCounted
+{
+    explicit TThrottlerRequest(i64 count)
+        : Count(count)
+    { }
+
+    i64 Count;
+    TPromise<void> Promise;
+    std::atomic_flag Set = ATOMIC_FLAG_INIT;
+};
+
+DEFINE_REFCOUNTED_TYPE(TThrottlerRequest)
 
 class TReconfigurableThroughputThrottler
     : public IReconfigurableThroughputThrottler
@@ -48,6 +63,7 @@ public:
         }
 
         while (true) {
+            TryUpdateAvailable();
             auto available = Available_.load();
             if (available <= 0) {
                 break;
@@ -64,19 +80,27 @@ public:
             return VoidFuture;
         }
 
-        if (Available_ > 0) {
-            // Execute immediately.
-            Available_ -= count;
-            return VoidFuture;
-        }
-
         // Enqueue request to be executed later.
         YT_LOG_DEBUG("Started waiting for throttler (Count: %v)", count);
-        TRequest request{count, NewPromise<void>()};
+        auto promise = NewPromise<void>();
+        auto request = New<TThrottlerRequest>(count);
+        promise.OnCanceled(BIND([weakRequest = MakeWeak(request), count, this, this_ = MakeStrong(this)] {
+            auto request = weakRequest.Lock();
+            if (request && !request->Set.test_and_set()) {
+                request->Promise.Set(TError(NYT::EErrorCode::Canceled, "Throttled request canceled"));
+                QueueTotalCount_ -= count;
+                Profiler.Update(QueueSizeCounter_, QueueTotalCount_);
+            }
+        }));
+
+        request->Promise = std::move(promise);
         Requests_.push(request);
         QueueTotalCount_ += count;
         Profiler.Update(QueueSizeCounter_, QueueTotalCount_);
-        return request.Promise;
+
+        ScheduleUpdate();
+
+        return request->Promise;
     }
 
     virtual bool TryAcquire(i64 count) override
@@ -91,11 +115,12 @@ public:
 
         if (HasLimit_) {
             while (true) {
+                TryUpdateAvailable();
                 auto available = Available_.load();
                 if (available <= 0) {
                     return false;
                 }
-                if (Available_.compare_exchange_strong(available, available - count)) {
+                if (Available_.compare_exchange_weak(available, available - count)) {
                     break;
                 }
             }
@@ -117,12 +142,13 @@ public:
 
         if (HasLimit_) {
             while (true) {
+                TryUpdateAvailable();
                 auto available = Available_.load();
                 if (available <= 0) {
                     return 0;
                 }
                 i64 acquire = std::min(count, available);
-                if (Available_.compare_exchange_strong(available, available - acquire)) {
+                if (Available_.compare_exchange_weak(available, available - acquire)) {
                     count = acquire;
                     break;
                 }
@@ -143,6 +169,7 @@ public:
             return;
         }
 
+        TryUpdateAvailable();
         if (HasLimit_) {
             Available_ -= count;
         }
@@ -150,11 +177,12 @@ public:
         Profiler.Increment(ValueCounter_, count);
     }
 
-    virtual bool IsOverdraft() const override
+    virtual bool IsOverdraft() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         // Fast lane (only).
+        TryUpdateAvailable();
         return Available_ < 0;
     }
 
@@ -167,14 +195,12 @@ public:
 
         Limit_ = config->Limit;
         HasLimit_ = Limit_.operator bool();
+        LastUpdated_ = NProfiling::GetInstant();
+        TDelayedExecutor::CancelAndClear(UpdateCookie_);
         if (Limit_) {
-            ThroughputPerPeriod_ = static_cast<i64>(config->Period.SecondsFloat() * (*Limit_));
+            Period_ = config->Period;
+            ThroughputPerPeriod_ = static_cast<i64>(Period_.SecondsFloat() * (*Limit_));
             Available_ = ThroughputPerPeriod_;
-            PeriodicExecutor_ = New<TPeriodicExecutor>(
-                GetSyncInvoker(),
-                BIND(&TReconfigurableThroughputThrottler::OnTick, MakeWeak(this)),
-                config->Period);
-            PeriodicExecutor_->Start();
         } else {
             ThroughputPerPeriod_ = 0;
             Available_ = 0;
@@ -198,6 +224,7 @@ private:
     NProfiling::TMonotonicCounter ValueCounter_;
     NProfiling::TSimpleGauge QueueSizeCounter_;
 
+    std::atomic<TInstant> LastUpdated_;
     std::atomic<i64> Available_ = {0};
     std::atomic<bool> HasLimit_ = {true};
     std::atomic<i64> QueueTotalCount_ = {0};
@@ -206,60 +233,98 @@ private:
     TSpinLock SpinLock_;
     std::optional<i64> Limit_;
     i64 ThroughputPerPeriod_ = 0;
-    TPeriodicExecutorPtr PeriodicExecutor_;
+    TDuration Period_;
+    TDelayedExecutorCookie UpdateCookie_;
 
-    struct TRequest
+    std::queue<TThrottlerRequestPtr> Requests_;
+
+    void ScheduleUpdate()
     {
-        i64 Count;
-        TPromise<void> Promise;
-    };
+        VERIFY_SPINLOCK_AFFINITY(SpinLock_);
 
-    std::queue<TRequest> Requests_;
+        if (UpdateCookie_) {
+            return;
+        }
 
+        auto delay = (-Available_ + *Limit_) * 1000 / *Limit_;
+        if (delay < 0) {
+            delay = 0;
+        }
 
-    void OnTick()
+        UpdateCookie_ = TDelayedExecutor::Submit(
+            BIND(&TReconfigurableThroughputThrottler::Update, MakeWeak(this)),
+            TDuration::MilliSeconds(delay));
+    }
+
+    void TryUpdateAvailable()
+    {
+        if (!HasLimit_) {
+            return;
+        }
+
+        auto current = NProfiling::GetInstant();
+        auto lastUpdated = LastUpdated_.load();
+
+        auto millisecondsPassed = (current - lastUpdated).MilliSeconds();
+        auto deltaAvailable = millisecondsPassed * *Limit_ / 1000;
+        if (deltaAvailable == 0) {
+            return;
+        }
+
+        current = lastUpdated + TDuration::MilliSeconds(millisecondsPassed);
+        if (LastUpdated_.compare_exchange_strong(lastUpdated, current)) {
+            auto available = Available_.load();
+            while (true) {
+                auto newAvailable = available + deltaAvailable;
+                if (newAvailable > ThroughputPerPeriod_) {
+                    newAvailable = ThroughputPerPeriod_;
+                }
+                if (Available_.compare_exchange_weak(available, newAvailable)) {
+                    break;
+                }
+            }
+        }
+    }
+
+    void Update()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         TGuard<TSpinLock> guard(SpinLock_);
-
-        Available_ += ThroughputPerPeriod_;
-        if (Available_ > ThroughputPerPeriod_) {
-            Available_ = ThroughputPerPeriod_;
-        }
+        UpdateCookie_.Reset();
+        TryUpdateAvailable();
 
         ProcessRequests(std::move(guard));
     }
 
     void ProcessRequests(TGuard<TSpinLock> guard)
     {
-        std::vector<TPromise<void>> readyList;
-        std::vector<TPromise<void>> canceledList;
+        VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+
+        std::vector<TThrottlerRequestPtr> readyList;
 
         while (!Requests_.empty() && (!Limit_ || Available_ > 0)) {
-            auto& request = Requests_.front();
-            YT_LOG_DEBUG("Finished waiting for throttler (Count: %v)", request.Count);
-            if (request.Promise.IsCanceled()) {
-                canceledList.push_back(std::move(request.Promise));
-            } else {
+            const auto& request = Requests_.front();
+            if (!request->Set.test_and_set()) {
+                YT_LOG_DEBUG("Finished waiting for throttler (Count: %v)", request->Count);
                 if (Limit_) {
-                    Available_ -= request.Count;
+                    Available_ -= request->Count;
                 }
-                readyList.push_back(std::move(request.Promise));
+                readyList.push_back(request);
+                QueueTotalCount_ -= request->Count;
+                Profiler.Update(QueueSizeCounter_, QueueTotalCount_);
             }
-            QueueTotalCount_ -= request.Count;
-            Profiler.Update(QueueSizeCounter_, QueueTotalCount_);
             Requests_.pop();
+        }
+
+        if (!Requests_.empty()) {
+            ScheduleUpdate();
         }
 
         guard.Release();
 
-        for (auto& promise : readyList) {
-            promise.Set();
-        }
-
-        for (auto& promise : canceledList) {
-            promise.Set(TError(NYT::EErrorCode::Canceled, "Throttled request canceled"));
+        for (const auto& request : readyList) {
+            request->Promise.Set();
         }
     }
 
@@ -335,7 +400,7 @@ public:
         Profiler.Increment(ValueCounter_, count);
     }
 
-    virtual bool IsOverdraft() const override
+    virtual bool IsOverdraft() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         return false;
@@ -415,7 +480,7 @@ public:
         }
     }
 
-    virtual bool IsOverdraft() const override
+    virtual bool IsOverdraft() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
