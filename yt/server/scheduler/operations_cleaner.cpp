@@ -776,10 +776,15 @@ private:
                 rows.reserve(operationIds.size());
 
                 for (auto operationId : operationIds) {
-                    const auto& request = GetRequest(operationId);
-                    auto row = NDetail::BuildOrderedByIdTableRow(rowBuffer, request, desc.Index, version);
-                    rows.push_back(row);
-                    orderedByIdRowsDataWeight += GetDataWeight(row);
+                    try {
+                        const auto& request = GetRequest(operationId);
+                        auto row = NDetail::BuildOrderedByIdTableRow(rowBuffer, request, desc.Index, version);
+                        rows.push_back(row);
+                        orderedByIdRowsDataWeight += GetDataWeight(row);
+                    } catch (const TErrorException& error) {
+                        THROW_ERROR_EXCEPTION("Failed to build row for operation %v", operationId)
+                            << error;
+                    }
                 }
 
                 transaction->WriteRows(
@@ -796,10 +801,15 @@ private:
                 rows.reserve(operationIds.size());
 
                 for (auto operationId : operationIds) {
-                    const auto& request = GetRequest(operationId);
-                    auto row = NDetail::BuildOrderedByStartTimeTableRow(rowBuffer, request, desc.Index, version);
-                    rows.push_back(row);
-                    orderedByStartTimeRowsDataWeight += GetDataWeight(row);
+                    try {
+                        const auto& request = GetRequest(operationId);
+                        auto row = NDetail::BuildOrderedByStartTimeTableRow(rowBuffer, request, desc.Index, version);
+                        rows.push_back(row);
+                        orderedByStartTimeRowsDataWeight += GetDataWeight(row);
+                    } catch (const TErrorException& error) {
+                        THROW_ERROR_EXCEPTION("Failed to build row for operation %v", operationId)
+                            << error;
+                    }
                 }
 
                 transaction->WriteRows(
