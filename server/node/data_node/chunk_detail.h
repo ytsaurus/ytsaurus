@@ -5,6 +5,8 @@
 
 #include <yt/server/node/cell_node/public.h>
 
+#include <yt/core/profiling/timing.h>
+
 namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -67,6 +69,23 @@ protected:
     bool Removing_ = false;
 
 
+    struct TReadSessionBase
+        : public TIntrinsicRefCounted
+    {
+        NProfiling::TWallTimer SessionTimer;
+        std::optional<TChunkReadGuard> ReadGuard;
+        TBlockReadOptions Options;
+    };
+
+    using TReadSessionBasePtr = TIntrusivePtr<TReadSessionBase>;
+
+    struct TReadMetaSession
+        : public TReadSessionBase
+    { };
+
+    using TReadMetaSessionPtr = TIntrusivePtr<TReadMetaSession>;
+
+
     TChunkBase(
         NCellNode::TBootstrap* bootstrap,
         TLocationPtr location,
@@ -80,6 +99,11 @@ protected:
         NChunkClient::TRefCountedChunkMetaPtr meta,
         const std::optional<std::vector<int>>& extensionTags);
 
+    void StartReadSession(
+        const TReadSessionBasePtr& session,
+        const TBlockReadOptions& options);
+    void ProfileReadBlockSetLatency(const TReadSessionBasePtr& session);
+    void ProfileReadMetaLatency(const TReadSessionBasePtr& session);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

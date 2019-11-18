@@ -9,6 +9,8 @@
 
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 
+#include <yt/ytlib/table_client/partitioner.h>
+
 #include <yt/client/query_client/query_statistics.h>
 
 #include <yt/client/table_client/name_table.h>
@@ -82,6 +84,20 @@ std::vector<TDataSliceDescriptor> UnpackDataSliceDescriptors(const TTableInputSp
     return FromProto<std::vector<TDataSliceDescriptor>>(
         inputTableSpec.chunk_specs(),
         inputTableSpec.chunk_spec_count_per_data_slice());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+IPartitionerPtr CreatePartitioner(const TPartitionJobSpecExt& partitionJobSpecExt)
+{
+    if (partitionJobSpecExt.has_wire_partition_keys()) {
+        auto wirePartitionKeys = TSharedRef::FromString(partitionJobSpecExt.wire_partition_keys());
+        return CreateOrderedPartitioner(wirePartitionKeys);
+    } else {
+        return CreateHashPartitioner(
+            partitionJobSpecExt.partition_count(),
+            partitionJobSpecExt.reduce_key_column_count());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

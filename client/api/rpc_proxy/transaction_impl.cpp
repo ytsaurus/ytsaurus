@@ -590,6 +590,16 @@ TFuture<void> TTransaction::ExternalizeNode(
         PatchTransactionId(options));
 }
 
+TFuture<void> TTransaction::InternalizeNode(
+    const TYPath& path,
+    const TInternalizeNodeOptions& options)
+{
+    ValidateActive();
+    return Client_->InternalizeNode(
+        path,
+        PatchTransactionId(options));
+}
+
 TFuture<bool> TTransaction::NodeExists(
     const TYPath& path,
     const TNodeExistsOptions& options)
@@ -772,7 +782,7 @@ TFuture<void> TTransaction::SendPing()
                     NTransactionClient::EErrorCode::NoSuchTransaction,
                     "Transaction %v has expired or was aborted",
                     Id_);
-                if (GetState() != ETransactionState::Active) {
+                if (GetState() == ETransactionState::Active) {
                     OnFailure(error);
                 }
                 return error;

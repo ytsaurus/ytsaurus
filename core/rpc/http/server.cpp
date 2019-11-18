@@ -42,7 +42,7 @@ TString ToHttpContentType(EMessageFormat format)
         case EMessageFormat::Protobuf:
             return "application/x-protobuf";
         case EMessageFormat::Json:
-            return "application/json";
+            return "application/json;charset=utf8";
         case EMessageFormat::Yson:
             return "application/x-yson";
         default:
@@ -54,7 +54,7 @@ std::optional<EMessageFormat> FromHttpContentType(TStringBuf contentType)
 {
     if (contentType == "application/x-protobuf") {
         return EMessageFormat::Protobuf;
-    } else if (contentType == "application/json") {
+    } else if (contentType.StartsWith("application/json")) {
         return EMessageFormat::Json;
     } else if (contentType == "application/x-yson") {
         return EMessageFormat::Yson;
@@ -251,6 +251,12 @@ private:
             rpcHeader->set_request_format(static_cast<i32>(*decodedType));
         }
 
+        static const TString RequestFormatOptionsHeaderName("X-YT-Request-Format-Options");
+        auto requestFormatOptionsYson = httpHeaders->Find(RequestFormatOptionsHeaderName);
+        if (requestFormatOptionsYson) {
+            rpcHeader->set_request_format_options(*requestFormatOptionsYson);
+        }
+
         static const TString AcceptHeaderName("Accept");
         auto acceptString = httpHeaders->Find(AcceptHeaderName);
         if (acceptString) {
@@ -260,6 +266,12 @@ private:
                     << TErrorAttribute("value", *acceptString);
             }
             rpcHeader->set_response_format(static_cast<i32>(*decodedType));
+        }
+
+        static const TString ResponseFormatOptionsHeaderName("X-YT-Response-Format-Options");
+        auto responseFormatOptionsYson = httpHeaders->Find(ResponseFormatOptionsHeaderName);
+        if (responseFormatOptionsYson) {
+            rpcHeader->set_response_format_options(*responseFormatOptionsYson);
         }
 
         static const TString RequestIdHeaderName("X-YT-Request-Id");

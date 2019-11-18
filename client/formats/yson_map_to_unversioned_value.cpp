@@ -8,13 +8,14 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonMapToUnversionedValueConverter::TYsonMapToUnversionedValueConverter(IValueConsumer* consumer)
+TYsonMapToUnversionedValueConverter::TYsonMapToUnversionedValueConverter(
+    EComplexTypeMode complexTypeMode,
+    IValueConsumer* consumer)
     : Consumer_(consumer)
     , AllowUnknownColumns_(consumer->GetAllowUnknownColumns())
     , NameTable_(consumer->GetNameTable())
-{
-    ColumnConsumer_.SetValueConsumer(this);
-}
+    , ColumnConsumer_(complexTypeMode, this)
+{ }
 
 void TYsonMapToUnversionedValueConverter::Reset()
 {
@@ -86,11 +87,8 @@ void TYsonMapToUnversionedValueConverter::OnBeginList()
 
 void TYsonMapToUnversionedValueConverter::OnListItem()
 {
-    if (Y_LIKELY(InsideValue_)) {
-        ColumnConsumer_.OnListItem();
-    } else {
-        YT_ABORT(); // Should crash on BeginList()
-    }
+    YT_VERIFY(InsideValue_); // Should crash on BeginList()
+    ColumnConsumer_.OnListItem();
 }
 
 void TYsonMapToUnversionedValueConverter::OnBeginMap()
@@ -137,25 +135,19 @@ void TYsonMapToUnversionedValueConverter::OnBeginAttributes()
 
 void TYsonMapToUnversionedValueConverter::OnEndList()
 {
-    if (Y_LIKELY(InsideValue_)) {
-        ColumnConsumer_.OnEndList();
-    } else {
-        YT_ABORT(); // Should crash on BeginList()
-    }
+    YT_VERIFY(InsideValue_); // Should throw on BeginList().
+    ColumnConsumer_.OnEndList();
 }
 
 void TYsonMapToUnversionedValueConverter::OnEndAttributes()
 {
-    if (Y_LIKELY(InsideValue_)) {
-        ColumnConsumer_.OnEndAttributes();
-    } else {
-        YT_ABORT(); // Should crash on BeginAttributes()
-    }
+    YT_VERIFY(InsideValue_); // Should throw on BeginAttributes()
+    ColumnConsumer_.OnEndAttributes();
 }
 
 const TNameTablePtr& TYsonMapToUnversionedValueConverter::GetNameTable() const
 {
-    YT_ABORT();
+    return Consumer_->GetNameTable();
 }
 
 bool TYsonMapToUnversionedValueConverter::GetAllowUnknownColumns() const
@@ -181,7 +173,7 @@ void TYsonMapToUnversionedValueConverter::OnEndRow()
 
 const NTableClient::TTableSchema& TYsonMapToUnversionedValueConverter::GetSchema() const
 {
-    YT_ABORT();
+    return Consumer_->GetSchema();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -946,8 +946,8 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         if (query->JoinClauses[index]->ForeignKeyPrefix == 0 && !options.AllowJoinWithoutIndex) {
             const auto& ast = std::get<NAst::TQuery>(parsedQuery->AstHead.Ast);
             THROW_ERROR_EXCEPTION("Foreign table key is not used in the join clause; "
-                                  "the query is inefficient, consider rewriting it")
-                    << TErrorAttribute("source", NAst::FormatJoin(ast.Joins[index]));
+                "the query is inefficient, consider rewriting it")
+                << TErrorAttribute("source", NAst::FormatJoin(ast.Joins[index]));
         }
     }
 
@@ -991,12 +991,16 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
 
     if (options.FailOnIncompleteResult) {
         if (statistics.IncompleteInput) {
-            THROW_ERROR_EXCEPTION("Query terminated prematurely due to excessive input; consider rewriting your query or changing input limit")
-                    << TErrorAttribute("input_row_limit", inputRowLimit);
+            THROW_ERROR_EXCEPTION(
+                NTabletClient::EErrorCode::QueryInputRowCountLimitExceeded,
+                "Query terminated prematurely due to excessive input; consider rewriting your query or changing input limit")
+                << TErrorAttribute("input_row_limit", inputRowLimit);
         }
         if (statistics.IncompleteOutput) {
-            THROW_ERROR_EXCEPTION("Query terminated prematurely due to excessive output; consider rewriting your query or changing output limit")
-                    << TErrorAttribute("output_row_limit", outputRowLimit);
+            THROW_ERROR_EXCEPTION(
+                NTabletClient::EErrorCode::QueryOutputRowCountLimitExceeded,
+                "Query terminated prematurely due to excessive output; consider rewriting your query or changing output limit")
+                << TErrorAttribute("output_row_limit", outputRowLimit);
         }
     }
 

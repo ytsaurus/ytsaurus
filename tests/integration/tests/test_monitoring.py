@@ -107,20 +107,3 @@ class TestMonitoring(YTEnvSetup):
 
         with pytest.raises(requests.HTTPError):
             self.get_proto(http_port, "/profiling/proto?start_samples_index=abc")
-
-
-class TestNodeUnrecognizedOptionsAlert(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_NODES = 1
-    NUM_SCHEDULERS = 1
-
-    DELTA_NODE_CONFIG = {
-        "enable_unrecognized_options_alert": True,
-        "some_nonexistent_option": 42
-    }
-
-    @authors("gritukan")
-    def test_node_unrecognized_options_alert(self):
-        nodes = ls("//sys/nodes")
-        alerts = get("//sys/nodes/{}/@alerts".format(nodes[0]))
-        assert alerts[0]["code"] == UnrecognizedConfigOption

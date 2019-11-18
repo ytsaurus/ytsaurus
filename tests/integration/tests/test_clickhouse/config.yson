@@ -59,6 +59,9 @@
             "enable_optimize_predicate_expression" = 0;
             "join_use_nulls" = 1;
         };
+        "subquery" = {
+            "min_data_weight_per_thread" = 0;
+        }
     };
     "discovery" = {
         "directory" = "//sys/clickhouse/cliques";

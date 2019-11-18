@@ -30,11 +30,6 @@ TCliqueCache::TCliqueCache(TCliqueCacheConfigPtr config)
     : TAsyncSlruCacheBase(config->CacheBase)
 { }
 
-i64 TCliqueCache::GetWeight(const TCachedDiscoveryPtr& discovery) const
-{
-    return discovery->GetWeight();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NHttpProxy

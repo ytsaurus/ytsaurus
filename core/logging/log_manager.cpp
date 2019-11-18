@@ -733,9 +733,7 @@ private:
 
         std::vector<ILogWriterPtr> writers;
         for (const auto& writerId : writerIds) {
-            auto writerIt = Writers_.find(writerId);
-            YT_VERIFY(writerIt != Writers_.end());
-            writers.push_back(writerIt->second);
+            writers.push_back(GetOrCrash(Writers_, writerId));
         }
 
         auto pair = CachedWriters_.insert(std::make_pair(cacheKey, writers));

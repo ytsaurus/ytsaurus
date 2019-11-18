@@ -6,9 +6,13 @@
 
 #include <yt/client/chunk_client/data_statistics.h>
 
+#include <yt/client/table_client/versioned_reader.h>
+
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/ytlib/chunk_client/chunk_writer_base.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 
+#include <yt/ytlib/table_client/versioned_chunk_writer.h>
 #include <yt/ytlib/table_client/config.h>
 
 #include <yt/core/profiling/profile_manager.h>
@@ -120,6 +124,60 @@ void ProfileDynamicMemoryUsage(
     
     auto& counters = GetLocallyGloballyCachedValue<TDynamicMemoryProfilerTrait>(allTags);
     TabletNodeProfiler.Update(counters.DynamicMemoryUsage, memoryUsage);
+}
+
+void TWriterProfiler::Profile(const TTabletSnapshotPtr& tabletSnapshot, TTagId tag)
+{
+    ProfileChunkWriter(tabletSnapshot, DataStatistics_, CodecStatistics_, tag);
+}
+
+void TWriterProfiler::Update(const NTableClient::IVersionedMultiChunkWriterPtr& writer)
+{
+    if (writer) {
+        DataStatistics_ += writer->GetDataStatistics();
+        CodecStatistics_ += writer->GetCompressionStatistics();
+    }
+}
+
+void TWriterProfiler::Update(const IChunkWriterBasePtr& writer)
+{
+    if (writer) {
+        DataStatistics_ += writer->GetDataStatistics();
+        CodecStatistics_ += writer->GetCompressionStatistics();
+    }
+}
+
+void TReaderProfiler::Profile(
+    const TTabletSnapshotPtr& tabletSnapshot,
+    TTagId tag)
+{
+    ProfileChunkReader(tabletSnapshot, DataStatistics_, CodecStatistics_, ChunkReaderStatistics_, tag);
+}
+
+void TReaderProfiler::Update(
+    const NTableClient::IVersionedReaderPtr& reader,
+    const NChunkClient::TChunkReaderStatisticsPtr& chunkReaderStatistics)
+{
+    if (reader) {
+        DataStatistics_ += reader->GetDataStatistics();
+        CodecStatistics_ += reader->GetDecompressionStatistics();
+    }
+    ChunkReaderStatistics_ = chunkReaderStatistics;
+}
+
+void TReaderProfiler::SetCompressedDataSize(i64 compressedDataSize)
+{
+    DataStatistics_.set_compressed_data_size(compressedDataSize);
+}
+
+void TReaderProfiler::SetCodecStatistics(const TCodecStatistics& codecStatistics)
+{
+    CodecStatistics_ = codecStatistics;
+}
+
+void TReaderProfiler::SetChunkReaderStatistics(const TChunkReaderStatisticsPtr& chunkReaderStatistics)
+{
+    ChunkReaderStatistics_ = chunkReaderStatistics;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

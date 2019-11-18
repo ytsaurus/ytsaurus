@@ -5,6 +5,7 @@ from yt.environment.helpers import assert_items_equal
 from yt_commands import *
 
 from collections import defaultdict
+from random import shuffle
 import datetime
 
 
@@ -912,6 +913,54 @@ print "x={0}\ty={1}".format(x, y)
                          "mapper_output_table_count": 1})
         assert get("//tmp/t2/@row_count") > 1
         assert 0.25 * 10000 <= get("//tmp/t3/@row_count") <= 0.75 * 10000
+
+    @authors("gritukan")
+    def test_pivot_keys(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        create("table", "//tmp/t3")
+
+        rows = [{"key": "%02d" % key} for key in range(50)]
+        shuffle(rows)
+        write_table("//tmp/t1", rows)
+
+        map_reduce(in_="//tmp/t1",
+                   out="//tmp/t2",
+                   mapper_command="cat",
+                   reducer_command="cat",
+                   sort_by=["key"],
+                   spec={"pivot_keys": [["01"], ["43"]]})
+
+        assert_items_equal(read_table("//tmp/t2"), sorted(rows))
+        chunk_ids = get("//tmp/t2/@chunk_ids")
+        assert sorted([get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]) == [1, 7, 42]
+
+        map_reduce(in_="//tmp/t1",
+                   out="//tmp/t3",
+                   reducer_command="cat",
+                   sort_by=["key"],
+                   spec={"pivot_keys": [["01"], ["43"]]})
+
+        assert_items_equal(read_table("//tmp/t3"), sorted(rows))
+        chunk_ids = get("//tmp/t3/@chunk_ids")
+        assert sorted([get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]) == [1, 7, 42]
+
+    @authors("gritukan")
+    def test_pivot_keys_incorrect_options(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+
+        rows = [{"key": "%02d" % key} for key in range(50)]
+        shuffle(rows)
+        write_table("//tmp/t1", rows)
+
+        with pytest.raises(YtError):
+            map_reduce(in_="//tmp/t1",
+                       out="//tmp/t2",
+                       mapper_command="cat",
+                       reducer_command="cat",
+                       sort_by=["key"],
+                       spec={"pivot_keys": [["73"], ["37"]]})
 
 ##################################################################
 

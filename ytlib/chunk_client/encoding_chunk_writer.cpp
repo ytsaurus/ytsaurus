@@ -106,9 +106,9 @@ TCodecStatistics TEncodingChunkWriter::GetCompressionStatistics() const
     return TCodecStatistics().Append(EncodingWriter_->GetCompressionDuration());
 }
 
-bool TEncodingChunkWriter::HasSickReplicas() const
+bool TEncodingChunkWriter::IsCloseDemanded() const
 {
-    return ChunkWriter_->HasSickReplicas();
+    return ChunkWriter_->IsCloseDemanded();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

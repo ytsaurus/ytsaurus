@@ -42,7 +42,6 @@ TStoreManagerBase::TStoreManagerBase(
     , HydraManager_(std::move(hydraManager))
     , InMemoryManager_(std::move(inMemoryManager))
     , Client_(std::move(client))
-    , StoreFlushTag_(NProfiling::TProfileManager::Get()->RegisterTag("method", "store_flush"))
     , Logger(TabletNodeLogger)
 {
     Logger.AddTag("%v, CellId: %v",

@@ -1,6 +1,6 @@
 #include "program_tool_mixin.h"
 
-#include <yt/core/tools/tools.h>
+#include <yt/ytlib/tools/tools.h>
 
 namespace NYT {
 

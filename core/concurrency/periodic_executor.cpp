@@ -8,7 +8,18 @@
 
 #include <yt/core/utilex/random.h>
 #include <yt/core/logging/log.h>
+
 namespace NYT::NConcurrency {
+
+////////////////////////////////////////////////////////////////////////////////
+
+TPeriodicExecutorOptions TPeriodicExecutorOptions::WithJitter(TDuration period)
+{
+    TPeriodicExecutorOptions options;
+    options.Period = period;
+    options.Jitter = DefaultJitter;
+    return options;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,11 +29,30 @@ TPeriodicExecutor::TPeriodicExecutor(
     std::optional<TDuration> period,
     EPeriodicExecutorMode mode,
     TDuration splay)
+    : TPeriodicExecutor(
+        std::move(invoker),
+        std::move(callback),
+        {
+            period,
+            mode,
+            splay,
+            0.0,
+        })
+{
+    YT_VERIFY(Invoker_);
+    YT_VERIFY(Callback_);
+}
+
+TPeriodicExecutor::TPeriodicExecutor(
+    IInvokerPtr invoker,
+    TClosure callback,
+    TPeriodicExecutorOptions options)
     : Invoker_(std::move(invoker))
     , Callback_(std::move(callback))
-    , Period_(period)
-    , Mode_(mode)
-    , Splay_(splay)
+    , Period_(options.Period)
+    , Mode_(options.Mode)
+    , Splay_(options.Splay)
+    , Jitter_(options.Jitter)
 {
     YT_VERIFY(Invoker_);
     YT_VERIFY(Callback_);
@@ -150,7 +180,7 @@ void TPeriodicExecutor::ScheduleNext()
         guard.Release();
         PostCallback();
     } else if (Period_) {
-        PostDelayedCallback(*Period_);
+        PostDelayedCallback(NextDelay());
     }
 }
 
@@ -247,7 +277,7 @@ void TPeriodicExecutor::OnCallbackFailure()
     }
 
     if (Period_) {
-        PostDelayedCallback(*Period_);
+        PostDelayedCallback(NextDelay());
     }
 }
 
@@ -268,6 +298,17 @@ TFuture<void> TPeriodicExecutor::GetExecutedEvent()
     TGuard<TSpinLock> guard(SpinLock_);
     InitExecutedPromise();
     return ExecutedPromise_;
+}
+
+TDuration TPeriodicExecutor::NextDelay()
+{
+    if (Jitter_ == 0.0) {
+        return *Period_;
+    } else {
+        auto period = *Period_;
+        period += RandomDuration(period) * Jitter_ - period * Jitter_ / 2.;
+        return period;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

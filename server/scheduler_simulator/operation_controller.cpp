@@ -365,10 +365,7 @@ void TSimulatorOperationController::OnJobCompleted(std::unique_ptr<TCompletedJob
 {
     const auto& jobDescription = IdToDescription_.Get(jobSummary->Id);
 
-    // TODO: try to avoid this boilerplate code (map::at throws very uninformative exceptions)
-    auto jobBucketIt = JobBuckets_.find(jobDescription.Type);
-    YT_VERIFY(jobBucketIt != JobBuckets_.end());
-    auto& jobBucket = jobBucketIt->second;
+    auto& jobBucket = GetOrCrash(JobBuckets_, jobDescription.Type);
 
     {
         auto guard = Guard(Lock_);
@@ -382,9 +379,7 @@ void TSimulatorOperationController::OnNonscheduledJobAborted(TJobId jobId, EAbor
 {
     const auto& jobDescription = IdToDescription_.Get(jobId);
 
-    auto jobBucketIt = JobBuckets_.find(jobDescription.Type);
-    YT_VERIFY(jobBucketIt != JobBuckets_.end());
-    auto& jobBucket = jobBucketIt->second;
+    auto& jobBucket = GetOrCrash(JobBuckets_, jobDescription.Type);
 
     {
         auto guard = Guard(Lock_);

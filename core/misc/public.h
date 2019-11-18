@@ -92,11 +92,6 @@ DECLARE_REFCOUNTED_CLASS(TAsyncExpiringCacheConfig)
 DECLARE_REFCOUNTED_CLASS(TLogDigestConfig)
 DECLARE_REFCOUNTED_STRUCT(IDigest)
 
-DECLARE_REFCOUNTED_STRUCT(TStrace)
-DECLARE_REFCOUNTED_STRUCT(TStracerResult)
-
-DECLARE_REFCOUNTED_STRUCT(TSignalerArg)
-
 class TSignalRegistry;
 
 class TBloomFilterBuilder;
@@ -135,6 +130,11 @@ using TInternedObjectDataPtr = TIntrusivePtr<TInternedObjectData<T>>;
 template <class T>
 class TInternedObject;
 
+DECLARE_REFCOUNTED_STRUCT(IMemoryChunkProvider)
+
+class TStatistics;
+class TSummary;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EErrorCode,
@@ -149,17 +149,6 @@ DEFINE_ENUM(EProcessErrorCode,
     ((Signal)             (10001))
     ((CannotResolveBinary)(10002))
 );
-
-////////////////////////////////////////////////////////////////////////////////
-
-DECLARE_REFCOUNTED_CLASS(TMountTmpfsConfig)
-DECLARE_REFCOUNTED_CLASS(TUmountConfig)
-DECLARE_REFCOUNTED_CLASS(TExtractTarConfig)
-DECLARE_REFCOUNTED_CLASS(TSetThreadPriorityConfig)
-DECLARE_REFCOUNTED_CLASS(TFSQuotaConfig)
-DECLARE_REFCOUNTED_CLASS(TChownChmodConfig)
-
-DECLARE_REFCOUNTED_STRUCT(IMemoryChunkProvider)
 
 ////////////////////////////////////////////////////////////////////////////////
 

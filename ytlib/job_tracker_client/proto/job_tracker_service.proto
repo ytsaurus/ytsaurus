@@ -36,11 +36,11 @@ message TJobStartInfo
 message TJobToRemove
 {
     required NYT.NProto.TGuid job_id = 1;
-    required bool archive_job_spec = 2;
-    // COMPAT(ignat): make field required after migration.
-    optional bool archive_stderr = 3;
-    optional bool archive_fail_context = 4;
-    optional bool archive_profile = 5;
+    required bool archive_job_spec = 2; // COMPAT
+    optional bool archive_stderr = 3; // COMPAT
+    optional bool archive_fail_context = 4; // COMPAT
+    optional bool archive_profile = 5; // COMPAT
+    optional TReleaseJobFlags release_job_flags = 6;
 }
 
 message TRspHeartbeat

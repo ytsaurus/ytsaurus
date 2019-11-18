@@ -261,6 +261,32 @@ TEST(TIP6AddressTest, ToStringFromStringRandom)
     }
 }
 
+TEST(TMtnAddressTest, SimpleTest)
+{
+    TMtnAddress address(TIP6Address::FromString("1361:24ad:4326:bda1:8432:a3fe:3f6c:4b38"));
+    EXPECT_EQ(address.GetPrefix(), 0x136124ad43);
+    EXPECT_EQ(address.GetGeo(), 0x26bda1);
+    EXPECT_EQ(address.GetProjectId(), 0x8432a3fe);
+    EXPECT_EQ(address.GetHost(), 0x3f6c4b38);
+
+    address.SetPrefix(0x123456789a);
+    EXPECT_EQ(ToString(address.ToIP6Address()), "1234:5678:9a26:bda1:8432:a3fe:3f6c:4b38");
+
+    address.SetGeo(0x123456);
+    EXPECT_EQ(ToString(address.ToIP6Address()), "1234:5678:9a12:3456:8432:a3fe:3f6c:4b38");
+
+    address.SetProjectId(0x12345678);
+    EXPECT_EQ(ToString(address.ToIP6Address()), "1234:5678:9a12:3456:1234:5678:3f6c:4b38");
+
+    address.SetHost(0x12345678);
+    EXPECT_EQ(ToString(address.ToIP6Address()), "1234:5678:9a12:3456:1234:5678:1234:5678");
+
+    EXPECT_THROW(address.SetPrefix(1ull << 41), TErrorException);
+    EXPECT_THROW(address.SetGeo(1ull << 25), TErrorException);
+    EXPECT_THROW(address.SetProjectId(1ull << 33), TErrorException);
+    EXPECT_THROW(address.SetHost(1ull << 33), TErrorException);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

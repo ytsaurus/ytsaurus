@@ -101,6 +101,9 @@ TOperationAlertsConfig::TOperationAlertsConfig()
             "completed",
             "running"
         });
+
+    RegisterParameter("queue_average_wait_time_threshold", QueueAverageWaitTimeThreshold)
+        .Default(TDuration::Minutes(1));
 }
 
 TJobSplitterConfig::TJobSplitterConfig()
@@ -356,6 +359,9 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("enable_cypress_job_nodes", EnableCypressJobNodes)
         .Default(true);
 
+    RegisterParameter("enable_retained_finished_jobs", EnableRetainedFinishedJobs)
+        .Default(true);
+
     RegisterParameter("chunk_location_throttler", ChunkLocationThrottler)
         .DefaultNew();
 
@@ -440,6 +446,9 @@ TControllerAgentConfig::TControllerAgentConfig()
 
     RegisterParameter("max_available_exec_node_resources_update_period", MaxAvailableExecNodeResourcesUpdatePeriod)
         .Default(TDuration::Seconds(10));
+
+    RegisterParameter("zombie_operation_orchids", ZombieOperationOrchids)
+        .DefaultNew();
 
     RegisterParameter("max_job_nodes_per_operation", MaxJobNodesPerOperation)
         .Default(200)

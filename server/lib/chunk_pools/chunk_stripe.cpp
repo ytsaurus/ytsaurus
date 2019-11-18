@@ -56,7 +56,7 @@ TChunkStripeStatistics TChunkStripe::GetStatistics() const
     for (const auto& dataSlice : DataSlices) {
         result.DataWeight += dataSlice->GetDataWeight();
         result.RowCount += dataSlice->GetRowCount();
-        ++result.ChunkCount;
+        result.ChunkCount += dataSlice->GetChunkCount();
         result.MaxBlockSize = std::max(result.MaxBlockSize, dataSlice->GetMaxBlockSize());
     }
 

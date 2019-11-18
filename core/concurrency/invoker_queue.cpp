@@ -275,9 +275,11 @@ void TInvokerQueue::Invoke(TClosure callback)
     CallbackEventCount->NotifyOne();
 }
 
+// NB(eshcherbin): WARNING! This implementation is incorrect because it returns the wait time of
+// the latest action and not the average wait time. Please do implement this method correctly if you really need it.
 TDuration TInvokerQueue::GetAverageWaitTime() const
 {
-    return CpuDurationToDuration(WaitTimeCounter.GetCurrent());
+    return ValueToDuration(WaitTimeCounter.GetCurrent());
 }
 
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK

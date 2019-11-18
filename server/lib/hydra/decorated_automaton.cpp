@@ -17,6 +17,7 @@
 #include <yt/core/actions/invoker_detail.h>
 
 #include <yt/core/concurrency/scheduler.h>
+#include <yt/core/concurrency/delayed_executor.h>
 
 #include <yt/core/misc/blob.h>
 #include <yt/core/misc/proc.h>
@@ -235,12 +236,6 @@ public:
 
             SnapshotWriter_ = Owner_->SnapshotStore_->CreateWriter(SnapshotId_, meta);
 
-            if (BuildSnapshotDelay_ != TDuration::Zero()) {
-                YT_LOG_DEBUG("Working in testing mode, sleeping (BuildSnapshotDelay: %v)", BuildSnapshotDelay_);
-                // NB: Sleep, not TDelayedExecutor::WaitForDuration since context switch could be forbidden.
-                Sleep(BuildSnapshotDelay_);
-            }
-
             return DoRun().Apply(
                 BIND(&TSnapshotBuilderBase::OnFinished, MakeStrong(this))
                     .AsyncVia(GetHydraIOInvoker()));
@@ -283,6 +278,11 @@ protected:
     void ReleaseLock()
     {
         if (LockAcquired_) {
+            if (BuildSnapshotDelay_ != TDuration::Zero()) {
+                YT_LOG_DEBUG("Working in testing mode, sleeping (BuildSnapshotDelay: %v)", BuildSnapshotDelay_);
+                TDelayedExecutor::WaitForDuration(BuildSnapshotDelay_);
+            }
+
             Owner_->BuildingSnapshot_.store(false);
             LockAcquired_ = false;
 
@@ -734,10 +734,15 @@ void TDecoratedAutomaton::LoadSnapshot(
         try {
             AutomatonVersion_ = CommittedVersion_ = TVersion(-1, -1);
             Automaton_->LoadSnapshot(reader);
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR(ex, "Snapshot load failed; clearing state");
+            Automaton_->Clear();
+            throw;
+        } catch (const TFiberCanceledException&) {
+            YT_LOG_INFO("Snapshot load fiber was canceled");
+            throw;
         } catch (...) {
-            // Don't leave the state corrupted.
-            // NB: We could be in an arbitrary thread here.
-            AutomatonInvoker_->Invoke(BIND(&IAutomaton::Clear, Automaton_));
+            YT_LOG_ERROR("Snapshot load failed with an unknown error");
             throw;
         }
     }
@@ -1277,9 +1282,15 @@ void TDecoratedAutomaton::MaybeStartSnapshotBuilder()
         return;
     }
 
-    auto builder = Options_.UseFork
-       ? TIntrusivePtr<TSnapshotBuilderBase>(New<TForkSnapshotBuilder>(this, SnapshotVersion_, Config_->BuildSnapshotDelay))
-       : TIntrusivePtr<TSnapshotBuilderBase>(New<TNoForkSnapshotBuilder>(this, SnapshotVersion_, Config_->BuildSnapshotDelay));
+    auto builder =
+        // XXX(babenko): ASAN + fork = possible deadlock; cf. https://st.yandex-team.ru/DEVTOOLS-5425
+#ifdef _asan_enabled_
+        false
+#else
+        Options_.UseFork
+#endif
+        ? TIntrusivePtr<TSnapshotBuilderBase>(New<TForkSnapshotBuilder>(this, SnapshotVersion_, Config_->BuildSnapshotDelay))
+        : TIntrusivePtr<TSnapshotBuilderBase>(New<TNoForkSnapshotBuilder>(this, SnapshotVersion_, Config_->BuildSnapshotDelay));
 
     auto buildResult = builder->Run();
     buildResult.Subscribe(

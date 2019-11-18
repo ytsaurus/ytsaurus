@@ -427,6 +427,10 @@ public:
         TCellTag cellTag,
         const TExternalizeNodeOptions& options),
         (path, cellTag, options))
+    DELEGATE_TRANSACTIONAL_METHOD(TFuture<void>, InternalizeNode, (
+        const TYPath& path,
+        const TInternalizeNodeOptions& options),
+        (path, options))
     DELEGATE_TRANSACTIONAL_METHOD(TFuture<bool>, NodeExists, (
         const TYPath& path,
         const TNodeExistsOptions& options),
@@ -605,6 +609,9 @@ private:
             auto randomTabletInfo = tableInfo->GetRandomMountedTablet();
 
             std::vector<bool> columnPresenceBuffer(modificationSchema.GetColumnCount());
+
+            // FLS slots are reused, so we need to manually reset the reporter.
+            EntityInAnyReporter.Reset();
 
             for (const auto& modification : Modifications_) {
                 switch (modification.Type) {
@@ -1660,9 +1667,7 @@ private:
 
     TCellCommitSessionPtr GetCommitSession(TCellId cellId)
     {
-        auto it = CellIdToSession_.find(cellId);
-        YT_VERIFY(it != CellIdToSession_.end());
-        return it->second;
+        return GetOrCrash(CellIdToSession_, cellId);
     }
 
 

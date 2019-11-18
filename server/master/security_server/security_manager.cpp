@@ -6,6 +6,8 @@
 #include "config.h"
 #include "group.h"
 #include "group_proxy.h"
+#include "network_project.h"
+#include "network_project_proxy.h"
 #include "request_tracker.h"
 #include "user.h"
 #include "user_proxy.h"
@@ -17,7 +19,6 @@
 #include <yt/server/master/cell_master/multicell_manager.h>
 #include <yt/server/master/cell_master/serialize.h>
 #include <yt/server/master/cell_master/config.h>
-#include <yt/server/master/cell_master/config_manager.h>
 
 #include <yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/server/master/chunk_server/chunk_requisition.h>
@@ -87,7 +88,7 @@ using NYT::ToProto;
 static const auto& Logger = SecurityServerLogger;
 static const auto& Profiler = SecurityServerProfiler;
 
-static const auto ProfilingPeriod = TDuration::MilliSeconds(100);
+static const auto ProfilingPeriod = TDuration::MilliSeconds(10000);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -260,6 +261,46 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSecurityManager::TNetworkProjectTypeHandler
+    : public TObjectTypeHandlerWithMapBase<TNetworkProject>
+{
+public:
+    explicit TNetworkProjectTypeHandler(TImpl* owner);
+
+    virtual ETypeFlags GetFlags() const override
+    {
+        return
+            ETypeFlags::Creatable |
+            ETypeFlags::Removable;
+    }
+
+    virtual EObjectType GetType() const override
+    {
+        return EObjectType::NetworkProject;
+    }
+
+    virtual TObject* CreateObject(
+        TObjectId hintId,
+        IAttributeDictionary* attributes) override;
+
+    virtual TAccessControlDescriptor* DoFindAcd(TNetworkProject* networkProject) override
+    {
+        return &networkProject->Acd();
+    }
+
+private:
+    TImpl* const Owner_;
+
+    virtual TString DoGetName(const TNetworkProject* networkProject) override
+    {
+        return Format("network project %Qv", networkProject->GetName());
+    }
+
+    virtual IObjectProxyPtr DoGetProxy(TNetworkProject* networkProject, TTransaction* transaction) override;
+    virtual void DoZombifyObject(TNetworkProject* networkProject) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
 class TSecurityManager::TImpl
     : public TMasterAutomatonPart
 {
@@ -321,6 +362,7 @@ public:
         objectManager->RegisterHandler(New<TAccountTypeHandler>(this));
         objectManager->RegisterHandler(New<TUserTypeHandler>(this));
         objectManager->RegisterHandler(New<TGroupTypeHandler>(this));
+        objectManager->RegisterHandler(New<TNetworkProjectTypeHandler>(this));
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster()) {
@@ -341,6 +383,7 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS(Account, TAccount);
     DECLARE_ENTITY_MAP_ACCESSORS(User, TUser);
     DECLARE_ENTITY_MAP_ACCESSORS(Group, TGroup);
+    DECLARE_ENTITY_MAP_ACCESSORS(NetworkProject, TNetworkProject);
 
 
     TAccount* CreateAccount(const TString& name, TObjectId hintId)
@@ -831,6 +874,36 @@ public:
         return subject;
     }
 
+    TNetworkProject* CreateNetworkProject(const TString& name, TObjectId hintId)
+    {
+        if (FindNetworkProjectByName(name)) {
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::AlreadyExists,
+                "Network project %Qv already exists",
+                name);
+        }
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto id = objectManager->GenerateId(EObjectType::NetworkProject, hintId);
+        auto* networkProject = DoCreateNetworkProject(id, name);
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Network project created (NetworkProject: %v)", name);
+        LogStructuredEventFluently(Logger, ELogLevel::Info)
+            .Item("event").Value(EAccessControlEvent::NetworkProjectCreated)
+            .Item("name").Value(networkProject->GetName());
+        return networkProject;
+    }
+
+    void DestroyNetworkProject(TNetworkProject* networkProject)
+    {
+        YT_VERIFY(NetworkProjectNameMap_.erase(networkProject->GetName()) == 1);
+
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Network project destroyed (NetworkProject: %v)",
+            networkProject->GetName());
+        LogStructuredEventFluently(Logger, ELogLevel::Info)
+            .Item("event").Value(EAccessControlEvent::NetworkProjectDestroyed)
+            .Item("name").Value(networkProject->GetName());
+    }
+
     TSubject* FindSubjectByName(const TString& name)
     {
         auto* user = FindUserByName(name);
@@ -853,6 +926,31 @@ public:
         return subject;
     }
 
+    TNetworkProject* FindNetworkProjectByName(const TString& name)
+    {
+        auto it = NetworkProjectNameMap_.find(name);
+        return it == NetworkProjectNameMap_.end() ? nullptr : it->second;
+    }
+
+    void RenameNetworkProject(NYT::NSecurityServer::TNetworkProject* networkProject, const TString& newName)
+    {
+        if (FindNetworkProjectByName(newName)) {
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::AlreadyExists,
+                "Network project %Qv already exists",
+                newName);
+        }
+
+        YT_VERIFY(NetworkProjectNameMap_.erase(networkProject->GetName()) == 1);
+        YT_VERIFY(NetworkProjectNameMap_.emplace(newName, networkProject).second);
+
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Network project renamed (NetworkProject: %v, OldName: %v, NewName: %v",
+            networkProject->GetId(),
+            networkProject->GetName(),
+            newName);
+
+        networkProject->SetName(newName);
+    }
 
     void AddMember(TGroup* group, TSubject* member, bool ignoreExisting)
     {
@@ -1401,14 +1499,13 @@ public:
         return SecurityTagsRegistry_;
     }
 
-
     DEFINE_SIGNAL(void(TUser*, const TUserWorkload&), UserCharged);
 
 private:
     friend class TAccountTypeHandler;
     friend class TUserTypeHandler;
     friend class TGroupTypeHandler;
-
+    friend class TNetworkProjectTypeHandler;
 
     const TRequestTrackerPtr RequestTracker_;
 
@@ -1486,6 +1583,9 @@ private:
     TGroup* SuperusersGroup_ = nullptr;
 
     TFls<TUser*> AuthenticatedUser_;
+
+    NHydra::TEntityMap<TNetworkProject> NetworkProjectMap_;
+    THashMap<TString, TNetworkProject*> NetworkProjectNameMap_;
 
     // COMPAT(shakurov)
     bool RecomputeAccountResourceUsage_ = false;
@@ -1653,6 +1753,19 @@ private:
         return group;
     }
 
+    TNetworkProject* DoCreateNetworkProject(TNetworkProjectId id, const TString& name)
+    {
+        auto networkProjectHolder = std::make_unique<TNetworkProject>(id);
+        networkProjectHolder->SetName(name);
+
+        auto* networkProject = NetworkProjectMap_.Insert(id, std::move(networkProjectHolder));
+        YT_VERIFY(NetworkProjectNameMap_.emplace(networkProject->GetName(), networkProject).second);
+
+        // Make the fake reference.
+        YT_VERIFY(networkProject->RefObject() == 1);
+
+        return networkProject;
+    }
 
     void PropagateRecursiveMemberOf(TSubject* subject, TGroup* ancestorGroup)
     {
@@ -1737,6 +1850,7 @@ private:
         AccountMap_.SaveKeys(context);
         UserMap_.SaveKeys(context);
         GroupMap_.SaveKeys(context);
+        NetworkProjectMap_.SaveKeys(context);
     }
 
     void SaveValues(NCellMaster::TSaveContext& context) const
@@ -1744,6 +1858,7 @@ private:
         AccountMap_.SaveValues(context);
         UserMap_.SaveValues(context);
         GroupMap_.SaveValues(context);
+        NetworkProjectMap_.SaveValues(context);
         Save(context, MustRecomputeMembershipClosure_);
     }
 
@@ -1753,6 +1868,11 @@ private:
         AccountMap_.LoadKeys(context);
         UserMap_.LoadKeys(context);
         GroupMap_.LoadKeys(context);
+
+        // COMPAT(gritukan)
+        if (context.GetVersion() >= EMasterReign::NetworkProject) {
+            NetworkProjectMap_.LoadKeys(context);
+        }
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -1762,6 +1882,11 @@ private:
         AccountMap_.LoadValues(context);
         UserMap_.LoadValues(context);
         GroupMap_.LoadValues(context);
+
+        // COMPAT(gritukan)
+        if (context.GetVersion() >= EMasterReign::NetworkProject) {
+            NetworkProjectMap_.LoadValues(context);
+        }
 
         // COMPAT(savrus) COMPAT(shakurov)
         ValidateAccountResourceUsage_ = true;
@@ -1837,6 +1962,16 @@ private:
 
             // Reconstruct group name map.
             YT_VERIFY(GroupNameMap_.emplace(group->GetName(), group).second);
+        }
+
+        NetworkProjectNameMap_.clear();
+        for (auto [networkProjectId, networkProject] : NetworkProjectMap_) {
+            if (!IsObjectAlive(networkProject)) {
+                continue;
+            }
+
+            // Reconstruct network project name map.
+            YT_VERIFY(NetworkProjectNameMap_.emplace(networkProject->GetName(), networkProject).second);
         }
 
         InitBuiltins();
@@ -1936,6 +2071,24 @@ private:
             }  // Else this'll be done later when the chunk is confirmed/sealed.
         }
 
+        auto resourceUsageMatch = [&] (
+            TAccount* account,
+            const TClusterResources& accountUsage,
+            const TClusterResources& expectedUsage)
+        {
+            if (accountUsage == expectedUsage) {
+                return true;
+            }
+            if (account != SysAccount_) {
+                return false;
+            }
+
+            // Root node requires special handling (unless resource usage have previously been recomputed).
+            auto accountUsageCopy = accountUsage;
+            ++accountUsageCopy.NodeCount;
+            return accountUsageCopy == expectedUsage;
+        };
+
         for (auto [accountId, account] : Accounts()) {
             if (!IsObjectAlive(account)) {
                 continue;
@@ -1943,38 +2096,27 @@ private:
 
             // NB: statMap may contain no entry for an account if it has no nodes or chunks.
             const auto& stat = statMap[account];
-            bool log = false;
+            auto& actualUsage = account->LocalStatistics().ResourceUsage;
+            auto& actualCommittedUsage = account->LocalStatistics().CommittedResourceUsage;
             const auto& expectedUsage = stat.NodeUsage;
             const auto& expectedCommittedUsage = stat.NodeCommittedUsage;
             if (ValidateAccountResourceUsage_) {
-                if (account->LocalStatistics().ResourceUsage != expectedUsage) {
-                    YT_LOG_ERROR("XXX %v account usage mismatch",
-                              account->GetName());
-                    log = true;
+                if (!resourceUsageMatch(account, actualUsage, expectedUsage)) {
+                    YT_LOG_ERROR("%v account usage mismatch, snapshot usage: %v, recomputed usage: %v",
+                        account->GetName(),
+                        actualUsage,
+                        expectedUsage);
                 }
-                if (account->LocalStatistics().CommittedResourceUsage != expectedCommittedUsage) {
-                    YT_LOG_ERROR("XXX %v account committed usage mismatch",
-                              account->GetName());
-                    log = true;
-                }
-                if (log) {
-                    YT_LOG_ERROR("XXX %v account usage %v",
-                              account->GetName(),
-                              account->LocalStatistics().ResourceUsage);
-                    YT_LOG_ERROR("XXX %v account committed usage %v",
-                              account->GetName(),
-                              account->LocalStatistics().CommittedResourceUsage);
-                    YT_LOG_ERROR("XXX %v node usage %v",
-                              account->GetName(),
-                              stat.NodeUsage);
-                    YT_LOG_ERROR("XXX %v node committed usage %v",
-                              account->GetName(),
-                              stat.NodeCommittedUsage);
+                if (!resourceUsageMatch(account, actualCommittedUsage, expectedCommittedUsage)) {
+                    YT_LOG_ERROR("%v account committed usage mismatch, snapshot usage: %v, recomputed usage: %v",
+                        account->GetName(),
+                        actualCommittedUsage,
+                        expectedCommittedUsage);
                 }
             }
             if (RecomputeAccountResourceUsage_) {
-                account->LocalStatistics().ResourceUsage = expectedUsage;
-                account->LocalStatistics().CommittedResourceUsage = expectedCommittedUsage;
+                actualUsage = expectedUsage;
+                actualCommittedUsage = expectedCommittedUsage;
 
                 const auto& multicellManager = Bootstrap_->GetMulticellManager();
                 if (multicellManager->IsPrimaryMaster()) {
@@ -1997,6 +2139,8 @@ private:
         GroupMap_.Clear();
         GroupNameMap_.clear();
 
+        NetworkProjectMap_.Clear();
+        NetworkProjectNameMap_.clear();
 
         RootUser_ = nullptr;
         GuestUser_ = nullptr;
@@ -2825,6 +2969,7 @@ private:
 DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, Account, TAccount, AccountMap_)
 DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, User, TUser, UserMap_)
 DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, Group, TGroup, GroupMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, NetworkProject, TNetworkProject, NetworkProjectMap_)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2915,6 +3060,35 @@ void TSecurityManager::TGroupTypeHandler::DoZombifyObject(TGroup* group)
 {
     TObjectTypeHandlerWithMapBase::DoZombifyObject(group);
     Owner_->DestroyGroup(group);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSecurityManager::TNetworkProjectTypeHandler::TNetworkProjectTypeHandler(TImpl* owner)
+    : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->NetworkProjectMap_)
+    , Owner_(owner)
+{ }
+
+TObject* TSecurityManager::TNetworkProjectTypeHandler::CreateObject(
+    TObjectId hintId,
+    IAttributeDictionary* attributes)
+{
+    auto name = attributes->GetAndRemove<TString>("name");
+
+    return Owner_->CreateNetworkProject(name, hintId);
+}
+
+IObjectProxyPtr TSecurityManager::TNetworkProjectTypeHandler::DoGetProxy(
+    TNetworkProject* networkProject,
+    TTransaction* /*transaction*/)
+{
+    return CreateNetworkProjectProxy(Owner_->Bootstrap_, &Metadata_, networkProject);
+}
+
+void TSecurityManager::TNetworkProjectTypeHandler::DoZombifyObject(TNetworkProject* networkProject)
+{
+    TObjectTypeHandlerWithMapBase::DoZombifyObject(networkProject);
+    Owner_->DestroyNetworkProject(networkProject);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3073,6 +3247,16 @@ TSubject* TSecurityManager::FindSubjectByName(const TString& name)
 TSubject* TSecurityManager::GetSubjectByNameOrThrow(const TString& name)
 {
     return Impl_->GetSubjectByNameOrThrow(name);
+}
+
+TNetworkProject* TSecurityManager::FindNetworkProjectByName(const TString& name)
+{
+    return Impl_->FindNetworkProjectByName(name);
+}
+
+void TSecurityManager::RenameNetworkProject(NYT::NSecurityServer::TNetworkProject* networkProject, const TString& newName)
+{
+    Impl_->RenameNetworkProject(networkProject, newName);
 }
 
 void TSecurityManager::AddMember(TGroup* group, TSubject* member, bool ignoreExisting)
@@ -3260,6 +3444,8 @@ const TSecurityTagsRegistryPtr& TSecurityManager::GetSecurityTagsRegistry() cons
 DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, Account, TAccount, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, User, TUser, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, Group, TGroup, *Impl_)
+DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, NetworkProject, TNetworkProject, *Impl_)
+
 DELEGATE_SIGNAL(TSecurityManager, void(TUser*, const TUserWorkload&), UserCharged, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////

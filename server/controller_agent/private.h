@@ -53,6 +53,8 @@ DECLARE_REFCOUNTED_STRUCT(TInputTable)
 DECLARE_REFCOUNTED_STRUCT(TOutputTable)
 DECLARE_REFCOUNTED_STRUCT(TIntermediateTable)
 
+DECLARE_REFCOUNTED_CLASS(TZombieOperationOrchids)
+
 struct IJobSplitter;
 
 struct TLivePreviewTableBase;

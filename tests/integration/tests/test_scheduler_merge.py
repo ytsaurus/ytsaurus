@@ -1311,12 +1311,24 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                     table_writer={"block_size": 1024})
 
         op = merge(in_="//tmp/t1",
-              out="//tmp/t2",
-              mode=mode,
-              spec={"sampling": {"sampling_rate": 0.5, "io_block_size": 10**5},
-                    "combine_chunks": True,
-                    "data_weight_per_job": 10**9,
-                    "enable_job_splitting": False})
+                   out="//tmp/t2",
+                   mode=mode,
+                   spec={"sampling": {"sampling_rate": 0, "io_block_size": 10**5},
+                         "data_weight_per_job": 10**9,
+                         "enable_job_splitting": False})
+        assert get("//tmp/t2/@row_count") == 0
+        assert get("//tmp/t2/@row_count") == 0
+        assert get(op.get_path() + "/@progress/jobs/total") == \
+               get(op.get_path() + "/@progress/jobs/completed/total")
+
+
+        op = merge(in_="//tmp/t1",
+                   out="//tmp/t2",
+                   mode=mode,
+                   spec={"sampling": {"sampling_rate": 0.5, "io_block_size": 10**5},
+                         "combine_chunks": True,
+                         "data_weight_per_job": 10**9,
+                         "enable_job_splitting": False})
         assert 0.25 * 10000 <= get("//tmp/t2/@row_count") <= 0.75 * 10000
         assert get("//tmp/t2/@chunk_count") == 1
         assert get(op.get_path() + "/@progress/jobs/total") == \
@@ -1324,12 +1336,12 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
 
         op = merge(in_="//tmp/t1",
-              out="//tmp/t2",
-              mode=mode,
-              spec={"sampling": {"sampling_rate": 0.5, "io_block_size": 10**5},
-                    "job_count": 10,
-                    "combine_chunks": True,
-                    "enable_job_splitting": False})
+                   out="//tmp/t2",
+                   mode=mode,
+                   spec={"sampling": {"sampling_rate": 0.5, "io_block_size": 10**5},
+                         "job_count": 10,
+                         "combine_chunks": True,
+                         "enable_job_splitting": False})
         assert 0.25 * 10000 <= get("//tmp/t2/@row_count") <= 0.75 * 10000
         assert get("//tmp/t2/@chunk_count") > 1
         assert get(op.get_path() + "/@progress/jobs/total") == \
@@ -1337,29 +1349,54 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         if mode != "unordered":
             op = merge(in_="//tmp/t1",
-                  out="//tmp/t2",
-                  mode=mode,
-                  spec={"sampling": {"sampling_rate": 0.5, "io_block_size": 10**7},
-                        "job_count": 10,
-                        "combine_chunks": True,
-                        "data_weight_per_job": 10**9,
-                        "enable_job_splitting": False,})
+                       out="//tmp/t2",
+                       mode=mode,
+                       spec={"sampling": {"sampling_rate": 0.5, "io_block_size": 10**7},
+                             "job_count": 10,
+                             "combine_chunks": True,
+                             "data_weight_per_job": 10**9,
+                             "enable_job_splitting": False,})
             assert get("//tmp/t2/@row_count") in [0, 10000]
             assert get("//tmp/t2/@chunk_count") in [0, 1]
             assert get(op.get_path() + "/@progress/jobs/total") == \
                    get(op.get_path() + "/@progress/jobs/completed/total")
 
             op = merge(in_="//tmp/t1",
-                  out="//tmp/t2",
-                  mode=mode,
-                  spec={"sampling": {"sampling_rate": 0.5, "io_block_size": 1, "max_total_slice_count": 1},
-                        "job_count": 10,
-                        "combine_chunks": True,
-                        "enable_job_splitting": False})
+                       out="//tmp/t2",
+                       mode=mode,
+                       spec={"sampling": {"sampling_rate": 0.5, "io_block_size": 1, "max_total_slice_count": 1},
+                             "job_count": 10,
+                             "combine_chunks": True,
+                             "enable_job_splitting": False})
             assert get("//tmp/t2/@row_count") in [0, 10000]
             assert get("//tmp/t2/@chunk_count") in [0, 1]
             assert get(op.get_path() + "/@progress/jobs/total") == \
                    get(op.get_path() + "/@progress/jobs/completed/total")
+
+    @authors("max42")
+    @pytest.mark.parametrize("mode", ["ordered", "unordered"])
+    def test_zero_sampling_rate(self, mode):
+        # YT-11640
+        create("table", "//tmp/t1", attributes={"schema": [{"name": "key", "type": "string"}]})
+        write_table("//tmp/t1", [{"key": "0"} for i in range(1000000)], table_writer={"block_size": 1024})
+        for i in range(12):
+            merge(in_=["//tmp/t1", "//tmp/t1"], out="//tmp/t1")
+        create("table", "//tmp/t2")
+        op = merge(dont_track=True,
+                   in_="//tmp/t1",
+                   out="//tmp/t2",
+                   mode=mode,
+                   spec={"sampling": {"sampling_rate": 0, "io_block_size": 10**5},
+                         "data_weight_per_job": 10**9,
+                         "enable_job_splitting": False,
+                         "combine_chunks": True})
+        wait(lambda: op.get_state().endswith("ed"))
+        op.track()
+
+        assert get("//tmp/t2/@row_count") == 0
+        assert get("//tmp/t2/@row_count") == 0
+        assert get(op.get_path() + "/@progress/jobs/total") == \
+               get(op.get_path() + "/@progress/jobs/completed/total")
 
 
     @authors("max42")

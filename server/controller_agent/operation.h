@@ -37,7 +37,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NYTAlloc::TMemoryTag, MemoryTag);
     DEFINE_BYVAL_RW_PROPERTY(std::vector<NTransactionClient::TTransactionId>, WatchTransactionIds);
     DEFINE_BYVAL_RW_PROPERTY(IOperationControllerPtr, Controller);
-    DEFINE_BYVAL_RW_PROPERTY(TOperationControllerHostPtr, Host);
+    DEFINE_BYVAL_RW_PROPERTY(IOperationControllerHostPtr, Host);
 
 public:
     explicit TOperation(const NProto::TOperationDescriptor& descriptor);

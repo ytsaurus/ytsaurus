@@ -217,9 +217,9 @@ public:
         return Underlying_->GetDataStatistics();
     }
 
-    virtual bool HasSickReplicas() const override
+    virtual bool IsCloseDemanded() const override
     {
-        return Underlying_->HasSickReplicas();
+        return Underlying_->IsCloseDemanded();
     }
 
 private:

@@ -159,10 +159,10 @@ public:
         return Options_->ErasureCodec;
     }
 
-    virtual bool HasSickReplicas() const override
+    virtual bool IsCloseDemanded() const override
     {
         if (UnderlyingWriter_) {
-            return UnderlyingWriter_->HasSickReplicas();
+            return UnderlyingWriter_->IsCloseDemanded();
         } else {
             return false;
         }

@@ -3,6 +3,7 @@ import __builtin__
 
 from test_dynamic_tables import DynamicTablesBase
 
+from yt_helpers import Metric
 from yt_env_setup import wait, skip_if_rpc_driver_backend, parametrize_external, Restarter, NODES_SERVICE
 from yt_commands import *
 from yt.yson import YsonEntity, loads, dumps
@@ -53,11 +54,16 @@ class TestSortedDynamicTablesBase(DynamicTablesBase):
             })
         create_dynamic_table(path, **attributes)
 
-    def _wait_for_in_memory_stores_preload(self, table):
-        for tablet in get(table + "/@tablets"):
+    def _wait_for_in_memory_stores_preload(self, table, first_tablet_index=None, last_tablet_index=None):
+        tablets = get(table + "/@tablets")
+        if last_tablet_index is not None:
+            tablets = tablets[:last_tablet_index + 1]
+        if first_tablet_index is not None:
+            tablets = tablets[first_tablet_index:]
+
+        for tablet in tablets:
             tablet_id = tablet["tablet_id"]
-            address = get_tablet_leader_address(tablet_id)
-            def all_preloaded():
+            def all_preloaded(address):
                 orchid = self._find_tablet_orchid(address, tablet_id)
                 if not orchid:
                     return False
@@ -69,7 +75,8 @@ class TestSortedDynamicTablesBase(DynamicTablesBase):
                         if store["preload_state"] != "complete":
                             return False
                 return True
-            wait(lambda: all_preloaded())
+            for address in get_tablet_follower_addresses(tablet_id) + [get_tablet_leader_address(tablet_id)]:
+                wait(lambda: all_preloaded(address))
 
     def _reshard_with_retries(self, path, pivots):
         resharded = False
@@ -849,6 +856,51 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         self._wait_for_in_memory_stores_preload("//tmp/t")
         _check_preload_state("complete")
         assert lookup_rows("//tmp/t", keys) == rows
+
+    @authors("ifsmirnov")
+    @pytest.mark.parametrize("enable_lookup_hash_table", [True, False])
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_preload_block_range(self, enable_lookup_hash_table, optimize_for):
+        create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 3}})
+        sync_create_cells(1, tablet_cell_bundle="b")
+        self._create_simple_table("//tmp/t", tablet_cell_bundle="b")
+        set("//tmp/t/@chunk_writer", {"block_size": 1024})
+        set("//tmp/t/@in_memory_mode", "uncompressed")
+        set("//tmp/t/@enable_lookup_hash_table", enable_lookup_hash_table)
+        set("//tmp/t/@optimize_for", optimize_for)
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": str(i)} for i in range(10000)]
+        insert_rows("//tmp/t", rows)
+
+        sync_unmount_table("//tmp/t")
+        memory_size = get("//tmp/t/@tablet_statistics/uncompressed_data_size")
+
+        lower_bound = 3800
+        upper_bound = 5200
+        expected = rows[lower_bound:upper_bound]
+
+        sync_reshard_table("//tmp/t", [[], [lower_bound], [upper_bound]])
+        sync_mount_table("//tmp/t", first_tablet_index=1, last_tablet_index=1)
+        self._wait_for_in_memory_stores_preload("//tmp/t", first_tablet_index=1, last_tablet_index=1)
+
+        node = get_tablet_leader_address(get("//tmp/t/@tablets/1/tablet_id"))
+
+        def _check_memory_usage():
+            memory_usage = get("//sys/cluster_nodes/{}/@statistics/memory/tablet_static/used".format(node))
+            return 0 < memory_usage < memory_size
+        if optimize_for == "lookup":
+            wait(_check_memory_usage)
+
+        assert lookup_rows("//tmp/t", [{"key": i} for i in range(lower_bound, upper_bound)]) == expected
+        wait(lambda: lookup_rows("//tmp/t",
+            [{"key": i} for i in range(lower_bound, upper_bound)],
+            read_from="follower",
+            timestamp=AsyncLastCommittedTimestamp) == expected)
+
+        assert_items_equal(
+            select_rows("* from [//tmp/t] where key >= {} and key < {}".format(lower_bound, upper_bound)),
+            expected)
 
     @authors("savrus", "sandello")
     def test_lookup_hash_table(self):
@@ -1958,6 +2010,25 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         with pytest.raises(YtResponseError): lookup_rows("//tmp/t", keys, timestamp=ts)
         with pytest.raises(YtResponseError): select_rows("* from [//tmp/t]", timestamp=ts)
 
+    @authors("avmatrosov")
+    def test_chunk_profiling(self):
+        path = "//tmp/t"
+        sync_create_cells(1)
+        self._create_simple_table(path)
+        sync_mount_table(path)
+
+        filter = {"table_path": path, "method": "compaction"}
+
+        disk_space_metric = Metric.at_tablet_node(path, "chunk_writer/disk_space", with_tags=filter)
+        data_weight_metric = Metric.at_tablet_node(path, "chunk_writer/data_weight", with_tags=filter)
+        data_bytes_metric = Metric.at_tablet_node(path, "chunk_reader_statistics/data_bytes_read_from_disk", with_tags=filter)
+
+        insert_rows(path, [{"key": 0, "value": "test"}])
+        sync_compact_table(path)
+
+        assert disk_space_metric.update().get() > 0
+        assert data_weight_metric.update().get() > 0
+        assert data_bytes_metric.update().get() > 0
 
 ##################################################################
 
@@ -2056,9 +2127,9 @@ class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
         self._wait_preload(LARGE)
         check_lookup(LARGE, *large_data)
 
-        for node in ls("//sys/nodes"):
-            get("//sys/nodes/{}/@".format(node))
-            get("//sys/nodes/{}/orchid/@".format(node))
+        for node in ls("//sys/cluster_nodes"):
+            get("//sys/cluster_nodes/{}/@".format(node))
+            get("//sys/cluster_nodes/{}/orchid/@".format(node))
 
         # mount small table, preload must fail
         sync_mount_table(SMALL)

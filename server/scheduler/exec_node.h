@@ -13,8 +13,9 @@
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
+#include <yt/ytlib/job_tracker_client/helpers.h>
+
 #include <yt/ytlib/scheduler/proto/scheduler_service.pb.h>
-#include <yt/ytlib/scheduler/job.h>
 #include <yt/ytlib/scheduler/job_resources.h>
 
 #include <yt/core/concurrency/lease_manager.h>
@@ -32,6 +33,7 @@ struct TRecentlyFinishedJobInfo
 {
     TOperationId OperationId;
     NProfiling::TCpuInstant EvictionDeadline;
+    std::optional<NJobTrackerClient::TReleaseJobFlags> ReleaseFlags;
 };
 
 //! Scheduler-side representation of an execution node.
@@ -84,9 +86,6 @@ public:
     //! Is |true| iff heartbeat from this node is being processed at the moment.
     DEFINE_BYVAL_RW_PROPERTY(bool, HasOngoingHeartbeat);
 
-    //! Is |true| iff jobs are scheduled on the node at the moment by the strategy.
-    DEFINE_BYVAL_RW_PROPERTY(bool, HasOngoingJobsScheduling);
-
     //! Stores the time when resources overcommit has detected.
     DEFINE_BYVAL_RW_PROPERTY(TInstant, ResourcesOvercommitStartTime);
 
@@ -104,9 +103,6 @@ public:
     //! that no job is stored infinitely.
     using TRecentlyFinishedJobIdToInfo = THashMap<TJobId, TRecentlyFinishedJobInfo>;
     DEFINE_BYREF_RW_PROPERTY(TRecentlyFinishedJobIdToInfo, RecentlyFinishedJobs);
-
-    //! Jobs that are to be removed with a next heartbeat response.
-    DEFINE_BYREF_RW_PROPERTY(std::vector<TJobToRelease>, JobsToRemove);
 
     DEFINE_BYVAL_RO_PROPERTY(double, IOWeight);
 

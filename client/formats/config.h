@@ -33,6 +33,7 @@ class TYsonFormatConfig
 public:
     NYson::EYsonFormat Format;
     bool BooleanAsString;
+    EComplexTypeMode ComplexTypeMode;
 
     //! Only works for tabular data.
     bool SkipNullValues;
@@ -43,6 +44,8 @@ public:
             .Default(NYson::EYsonFormat::Binary);
         RegisterParameter("boolean_as_string", BooleanAsString)
             .Default(false);
+        RegisterParameter("complex_type_mode", ComplexTypeMode)
+            .Default(EComplexTypeMode::Named);
         RegisterParameter("skip_null_values", SkipNullValues)
             .Default(false);
     }

@@ -104,7 +104,7 @@ public:
                 CellTagFromId(chunkListId),
                 transactionId,
                 chunkListId,
-                CreatePartitioner(),
+                CreatePartitioner(PartitionJobSpecExt_),
                 Host_->GetTrafficMeter(),
                 Host_->GetOutBandwidthThrottler());
             return Writer_;
@@ -130,18 +130,6 @@ private:
     virtual bool ShouldSendBoundaryKeys() const override
     {
         return false;
-    }
-
-    IPartitionerPtr CreatePartitioner()
-    {
-        if (PartitionJobSpecExt_.has_wire_partition_keys()) {
-            auto wirePartitionKeys = TSharedRef::FromString(PartitionJobSpecExt_.wire_partition_keys());
-            return CreateOrderedPartitioner(wirePartitionKeys);
-        } else {
-            return CreateHashPartitioner(
-                PartitionJobSpecExt_.partition_count(),
-                PartitionJobSpecExt_.reduce_key_column_count());
-        }
     }
 };
 

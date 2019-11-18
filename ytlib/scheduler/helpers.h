@@ -32,7 +32,7 @@ NYPath::TYPath GetFailContextPath(TOperationId operationId, TJobId jobId);
 NYPath::TYPath GetSchedulerOrchidOperationPath(TOperationId operationId);
 NYPath::TYPath GetSchedulerOrchidAliasPath(const TString& alias);
 NYPath::TYPath GetControllerAgentOrchidOperationPath(
-    const TString& controllerAgentAddress,
+    TStringBuf controllerAgentAddress,
     TOperationId operationId);
 std::optional<TString> GetControllerAgentAddressFromCypress(
     TOperationId operationId,

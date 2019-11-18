@@ -254,22 +254,50 @@ class TestPortals(YTEnvSetup):
         assert exists("//sys/cypress_shards/{}".format(shard_id))
         assert get("//@id") == get("#{}/@root_node_id".format(shard_id))
         assert get("#{}/@account_statistics/sys/node_count".format(shard_id)) > 0
+        assert get("#{}/@total_account_statistics/node_count".format(shard_id)) > 0
 
     @authors("babenko")
-    def test_shard_statistics(self):
+    def test_root_shard_statistics(self):
         shard_id = get("//@shard_id")
         create_account("a")
         create_account("b")
+
         assert not exists("#{}/@account_statistics/a".format(shard_id))
+
         create("table", "//tmp/t1", attributes={"account": "a"})
+
         assert get("#{}/@account_statistics/a/node_count".format(shard_id)) == 1
+        assert get("#{}/@total_account_statistics/node_count".format(shard_id)) >= 1
+
         create("table", "//tmp/t2", attributes={"account": "a"})
+
         assert get("#{}/@account_statistics/a/node_count".format(shard_id)) == 2
+        assert get("#{}/@total_account_statistics/node_count".format(shard_id)) >= 2
+
         set("//tmp/t2/@account", "b")
+
         assert get("#{}/@account_statistics/a/node_count".format(shard_id)) == 1
         assert get("#{}/@account_statistics/b/node_count".format(shard_id)) == 1
+        assert get("#{}/@total_account_statistics/node_count".format(shard_id)) >= 2
+
         remove("//tmp/*")
+
         wait(lambda: not exists("#{}/@account_statistics/a".format(shard_id)))
+
+    @authors("babenko")
+    def test_portal_shard_statistics(self):
+        create_account("a")
+        create_account("b")
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        shard_id = get("//tmp/p/@shard_id")
+
+        create("table", "//tmp/p/a", attributes={"account": "a"})
+        create("table", "//tmp/p/b", attributes={"account": "b"})
+
+        assert get("#{}/@account_statistics/a/node_count".format(shard_id)) == 1
+        assert get("#{}/@account_statistics/b/node_count".format(shard_id)) == 1
+        assert get("#{}/@account_statistics/tmp/node_count".format(shard_id)) == 1
+        assert get("#{}/@total_account_statistics/node_count".format(shard_id)) == 3
 
     @authors("babenko")
     def test_copy_move_shard_friendly(self):
@@ -692,6 +720,81 @@ class TestPortals(YTEnvSetup):
 
         assert read_table("//tmp/m2/t") == TABLE_PAYLOAD
         assert read_file("//tmp/m2/f") == FILE_PAYLOAD
+
+    @authors("babenko")
+    def test_internalize_node(self):
+        create_account("a")
+        create_account("b")
+        create_user("u")
+
+        create("portal_entrance", "//tmp/m", attributes={"exit_cell_tag": 1})
+        set("//tmp/m/@attr", "value")
+        set("//tmp/m/@acl", [make_ace("allow", "u", "write")])
+        shard_id = get("//tmp/m/@shard_id")
+
+        TABLE_PAYLOAD = [{"key": "value"}]
+        create("table", "//tmp/m/t", attributes={"external": True, "external_cell_tag": 3, "account": "a", "attr": "t"})
+        write_table("//tmp/m/t", TABLE_PAYLOAD)
+
+        FILE_PAYLOAD = "PAYLOAD"
+        create("file", "//tmp/m/f", attributes={"external": True, "external_cell_tag": 3, "account": "b", "attr": "f"})
+        write_file("//tmp/m/f", FILE_PAYLOAD)
+
+        create("document", "//tmp/m/d", attributes={"value": {"hello": "world"}})
+        ct = get("//tmp/m/d/@creation_time")
+        mt = get("//tmp/m/d/@modification_time")
+
+        create("map_node", "//tmp/m/m", attributes={"account": "a", "compression_codec": "brotli_8"})
+
+        create("table", "//tmp/m/et", attributes={"external_cell_tag": 3, "expiration_time": "2100-01-01T00:00:00.000000Z"})
+
+        create("map_node", "//tmp/m/acl1", attributes={"inherit_acl": True,  "acl": [make_ace("deny", "u", "read")]})
+        create("map_node", "//tmp/m/acl2", attributes={"inherit_acl": False, "acl": [make_ace("deny", "u", "read")]})
+
+        root_acl = get("//tmp/m/@effective_acl")
+        acl1 = get("//tmp/m/acl1/@acl")
+        acl2 = get("//tmp/m/acl2/@acl")
+
+        ORCHID_MANIFEST = {"address": "someaddress"}
+        create("orchid", "//tmp/m/orchid", attributes={"manifest": ORCHID_MANIFEST})
+
+        internalize("//tmp/m")
+
+        wait(lambda: not exists("#" + shard_id))
+
+        assert not get("//tmp/m/@inherit_acl")
+        assert get("//tmp/m/@acl") == root_acl
+
+        assert get("//tmp/m/acl1/@inherit_acl")
+        assert get("//tmp/m/acl1/@acl") == acl1
+
+        assert not get("//tmp/m/acl2/@inherit_acl")
+        assert get("//tmp/m/acl2/@acl") == acl2
+
+        assert get("//tmp/m/@type") == "map_node"
+        assert get("//tmp/m/@attr") == "value"
+
+        assert read_table("//tmp/m/t") == TABLE_PAYLOAD
+        assert get("//tmp/m/t/@account") == "a"
+        assert get("//tmp/m/t/@attr") == "t"
+        
+        assert read_file("//tmp/m/f") == FILE_PAYLOAD
+        assert get("//tmp/m/f/@account") == "b"
+        assert get("//tmp/m/f/@attr") == "f"
+
+        assert get("//tmp/m/d") == {"hello": "world"}
+        assert get("//tmp/m/d/@creation_time") == ct
+        assert get("//tmp/m/d/@modification_time") == mt
+
+        assert get("//tmp/m/m/@account") == "a"
+        assert get("//tmp/m/m/@compression_codec") == "brotli_8"
+
+        assert get("//tmp/m/et/@expiration_time") == "2100-01-01T00:00:00.000000Z"
+
+        assert get("//tmp/m/orchid/@type") == "orchid"
+        assert get("//tmp/m/orchid/@manifest") == ORCHID_MANIFEST
+
+        assert get("//tmp/m/t/@shard_id") == get("//tmp/@shard_id")
 
     @authors("babenko")
     def test_bulk_insert_yt_11194(self):

@@ -6,6 +6,8 @@
 
 #include <yt/ytlib/scheduler/job_resources.h>
 
+#include <yt/ytlib/job_tracker_client/helpers.h>
+
 #include <yt/core/ytree/public.h>
 
 namespace NYT::NControllerAgent {
@@ -27,10 +29,7 @@ struct TAgentToSchedulerJobEvent
     TJobId JobId;
     TError Error;
     std::optional<EInterruptReason> InterruptReason;
-    std::optional<bool> ArchiveJobSpec;
-    std::optional<bool> ArchiveStderr;
-    std::optional<bool> ArchiveFailContext;
-    std::optional<bool> ArchiveProfile;
+    std::optional<NJobTrackerClient::TReleaseJobFlags> ReleaseFlags;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -49,7 +48,7 @@ public:
     virtual void InterruptJob(TJobId jobId, EInterruptReason reason) override;
     virtual void AbortJob(TJobId jobId, const TError& error) override;
     virtual void FailJob(TJobId jobId) override;
-    virtual void ReleaseJobs(const std::vector<NScheduler::TJobToRelease>& TJobToRelease) override;
+    virtual void ReleaseJobs(const std::vector<NJobTrackerClient::TJobToRelease>& TJobToRelease) override;
 
     virtual TFuture<TOperationSnapshot> DownloadSnapshot() override;
     virtual TFuture<void> RemoveSnapshot() override;
@@ -70,7 +69,7 @@ public:
     virtual const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() override;
     virtual const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() override;
     virtual const IInvokerPtr& GetControllerThreadPoolInvoker() override;
-    virtual const NEventLog::TEventLogWriterPtr& GetEventLogWriter() override;
+    virtual const NEventLog::IEventLogWriterPtr& GetEventLogWriter() override;
     virtual const ICoreDumperPtr& GetCoreDumper() override;
     virtual const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() override;
     virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() override;

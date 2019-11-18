@@ -40,6 +40,7 @@ message TReqCreate
     optional NYT.NYTree.NProto.TAttributeDictionary node_attributes = 2;
     optional bool recursive = 3 [default = false];
     optional bool ignore_existing = 4 [default = false];
+    optional bool lock_existing = 5 [default = false];
     optional bool force = 6 [default = false];
 }
 
@@ -62,7 +63,10 @@ message TReqCopy
     optional bool preserve_creation_time = 7 [default = false];
     optional bool preserve_modification_time = 10 [default = false];
     optional bool preserve_expiration_time = 6 [default = false];
+    optional bool preserve_owner = 11 [default = false];
+    optional bool preserve_acl = 12 [default = false];
     optional bool ignore_existing = 8 [default = false];
+    optional bool lock_existing = 13 [default = false];
     optional bool pessimistic_quota_check = 9 [default = true];
 }
 
@@ -104,7 +108,10 @@ message TReqEndCopy
     optional bool preserve_creation_time = 7 [default = false];
     optional bool preserve_modification_time = 11 [default = false];
     optional bool preserve_expiration_time = 6 [default = false];
+    optional bool preserve_owner = 13 [default = false];
+    optional bool preserve_acl = 14 [default = false];
     optional bool ignore_existing = 8 [default = false];
+    optional bool lock_existing = 15 [default = false];
     optional bool pessimistic_quota_check = 9 [default = true];
 
     required int32 mode = 1; // ENodeCloneMode

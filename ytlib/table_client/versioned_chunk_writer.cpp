@@ -132,7 +132,7 @@ public:
 
     virtual bool IsCloseDemanded() const override
     {
-        return EncodingChunkWriter_->HasSickReplicas();
+        return EncodingChunkWriter_->IsCloseDemanded();
     }
 
     virtual TChunkMeta GetSchedulerMeta() const override

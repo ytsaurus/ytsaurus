@@ -1,7 +1,7 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/core/tools/registry.h>
-#include <yt/core/tools/tools.h>
+#include <yt/ytlib/tools/registry.h>
+#include <yt/ytlib/tools/tools.h>
 
 #include <yt/core/ytree/serialize.h>
 
@@ -10,7 +10,7 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifndef _win_
+#ifdef _linux_
 
 template <
     typename ToolType,

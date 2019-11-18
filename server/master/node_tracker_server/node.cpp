@@ -302,10 +302,9 @@ void TNode::SetLocalState(ENodeState state)
 
 void TNode::SetCellDescriptor(TCellTag cellTag, const TCellNodeDescriptor& descriptor)
 {
-    auto it = MulticellDescriptors_.find(cellTag);
-    YT_VERIFY(it != MulticellDescriptors_.end());
-    auto mustRecomputeState = (it->second.State != descriptor.State);
-    it->second = descriptor;
+    auto& oldDescriptor = GetOrCrash(MulticellDescriptors_, cellTag);
+    auto mustRecomputeState = (oldDescriptor.State != descriptor.State);
+    oldDescriptor = descriptor;
     if (mustRecomputeState) {
         ComputeAggregatedState();
     }

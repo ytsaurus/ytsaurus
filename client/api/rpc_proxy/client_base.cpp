@@ -254,6 +254,7 @@ TFuture<NCypressClient::TNodeId> TClientBase::CreateNode(
     req->set_recursive(options.Recursive);
     req->set_force(options.Force);
     req->set_ignore_existing(options.IgnoreExisting);
+    req->set_lock_existing(options.LockExisting);
 
     ToProto(req->mutable_transactional_options(), options);
     ToProto(req->mutable_prerequisite_options(), options);
@@ -374,11 +375,14 @@ TFuture<NCypressClient::TNodeId> TClientBase::CopyNode(
 
     req->set_recursive(options.Recursive);
     req->set_ignore_existing(options.IgnoreExisting);
+    req->set_lock_existing(options.LockExisting);
     req->set_force(options.Force);
     req->set_preserve_account(options.PreserveAccount);
     req->set_preserve_creation_time(options.PreserveCreationTime);
     req->set_preserve_modification_time(options.PreserveModificationTime);
     req->set_preserve_expiration_time(options.PreserveExpirationTime);
+    req->set_preserve_owner(options.PreserveOwner);
+    req->set_preserve_acl(options.PreserveAcl);
     req->set_pessimistic_quota_check(options.PessimisticQuotaCheck);
 
     ToProto(req->mutable_transactional_options(), options);
@@ -409,6 +413,7 @@ TFuture<NCypressClient::TNodeId> TClientBase::MoveNode(
     req->set_preserve_creation_time(options.PreserveCreationTime);
     req->set_preserve_modification_time(options.PreserveModificationTime);
     req->set_preserve_expiration_time(options.PreserveExpirationTime);
+    req->set_preserve_owner(options.PreserveOwner);
     req->set_pessimistic_quota_check(options.PessimisticQuotaCheck);
 
     ToProto(req->mutable_transactional_options(), options);
@@ -436,6 +441,7 @@ TFuture<NCypressClient::TNodeId> TClientBase::LinkNode(
     req->set_recursive(options.Recursive);
     req->set_force(options.Force);
     req->set_ignore_existing(options.IgnoreExisting);
+    req->set_lock_existing(options.LockExisting);
 
     ToProto(req->mutable_transactional_options(), options);
     ToProto(req->mutable_prerequisite_options(), options);
@@ -478,6 +484,21 @@ TFuture<void> TClientBase::ExternalizeNode(
 
     ToProto(req->mutable_path(), path);
     req->set_cell_tag(cellTag);
+    ToProto(req->mutable_transactional_options(), options);
+
+    return req->Invoke().As<void>();
+}
+
+TFuture<void> TClientBase::InternalizeNode(
+    const TYPath& path,
+    const TInternalizeNodeOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.InternalizeNode();
+    SetTimeoutOptions(*req, options);
+
+    ToProto(req->mutable_path(), path);
     ToProto(req->mutable_transactional_options(), options);
 
     return req->Invoke().As<void>();

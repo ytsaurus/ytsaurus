@@ -233,11 +233,20 @@ void TNontemplateCypressNodeTypeHandlerBase::LoadInplace(
     auto* user = securityManager->GetAuthenticatedUser();
     trunkNode->Acd().SetOwner(user);
 
-    // Copy ACD, but only in move and not for portal exits.
+    // Copy ACD, but not for portal exits.
     auto sourceAcd = Load<TAccessControlDescriptor>(*context);
-    if (context->GetMode() == ENodeCloneMode::Move && trunkNode->GetType() != EObjectType::PortalExit) {
+    if ((context->GetMode() == ENodeCloneMode::Move || factory->ShouldPreserveAcl())
+        && trunkNode->GetType() != EObjectType::PortalExit) {
         trunkNode->Acd().SetInherit(sourceAcd.GetInherit());
         trunkNode->Acd().SetEntries(sourceAcd.Acl());
+    }
+
+    // Set owner.
+    if (factory->ShouldPreserveOwner()) {
+        trunkNode->Acd().SetOwner(sourceAcd.GetOwner());
+    } else {
+        auto* user = securityManager->GetAuthenticatedUser();
+        trunkNode->Acd().SetOwner(user);
     }
 
     // Copy opaque.
@@ -379,8 +388,8 @@ void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
         }
     }
 
-    // Copy ACD, but only in move.
-    if (mode == ENodeCloneMode::Move) {
+    // Copy ACD.
+    if (mode == ENodeCloneMode::Move || factory->ShouldPreserveAcl()) {
         clonedTrunkNode->Acd().SetInherit(sourceNode->Acd().GetInherit());
         for (const auto& ace : sourceNode->Acd().Acl().Entries) {
             clonedTrunkNode->Acd().AddEntry(ace);

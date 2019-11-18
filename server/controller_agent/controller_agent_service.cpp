@@ -207,7 +207,11 @@ private:
                 .ValueOrThrow();
 
             response->set_suspend(result.Suspend);
+            ToProto(response->mutable_initial_needed_resources(), result.InitialNeededResources);
 
+            context->SetResponseInfo("Suspend: %v, InitialNeededResources: %v",
+                result.Suspend,
+                FormatResources(result.InitialNeededResources));
             context->Reply();
         });
     }
@@ -243,11 +247,13 @@ private:
                 protoJob->set_node_address(job.NodeAddress);
             }
             ToProto(response->mutable_revived_banned_tree_ids(), result.RevivedBannedTreeIds);
+            ToProto(response->mutable_needed_resources(), result.NeededResources);
 
-            context->SetResponseInfo("RevivedFromSnapshot: %v, RevivedJobCount: %v, RevivedBannedTreeIds: %v",
+            context->SetResponseInfo("RevivedFromSnapshot: %v, RevivedJobCount: %v, RevivedBannedTreeIds: %v, NeededResources: %v",
                 result.RevivedFromSnapshot,
                 result.RevivedJobs.size(),
-                result.RevivedBannedTreeIds);
+                result.RevivedBannedTreeIds,
+                FormatResources(result.NeededResources));
             context->Reply();
         });
     }
@@ -299,7 +305,7 @@ private:
         auto incarnationId = FromProto<TIncarnationId>(request->incarnation_id());
         auto operationId = FromProto<TOperationId>(request->operation_id());
         auto controllerFinalState = static_cast<EControllerState>(request->controller_final_state());
-        context->SetRequestInfo("IncarnationId: %v, OperationId: %v, ControllerFinalState: %Qlv",
+        context->SetRequestInfo("IncarnationId: %v, OperationId: %v, ControllerFinalState: %v",
             incarnationId,
             operationId,
             controllerFinalState);

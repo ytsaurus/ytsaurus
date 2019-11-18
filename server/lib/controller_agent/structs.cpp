@@ -74,10 +74,7 @@ void TJobSummary::Persist(const NPhoenix::TPersistenceContext& context)
     Persist(context, Statistics);
     Persist(context, StatisticsYson);
     Persist(context, LogAndProfile);
-    Persist(context, ArchiveJobSpec);
-    Persist(context, ArchiveStderr);
-    Persist(context, ArchiveFailContext);
-    Persist(context, ArchiveProfile);
+    Persist(context, ReleaseFlags);
     Persist(context, PrepareRootFSDuration);
     Persist(context, Phase);
 }

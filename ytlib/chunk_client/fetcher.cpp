@@ -18,6 +18,8 @@
 
 #include <yt/core/rpc/retrying_channel.h>
 
+#include <yt/core/actions/cancelable_context.h>
+
 namespace NYT::NChunkClient {
 
 using namespace NConcurrency;
@@ -139,10 +141,7 @@ private:
             return;
         }
 
-        auto it = ChunkMap_.find(chunkId);
-        YT_VERIFY(it != ChunkMap_.end());
-
-        auto& description = it->second;
+        auto& description = GetOrCrash(ChunkMap_, chunkId);
         YT_VERIFY(!description.ChunkSpecs.empty());
 
         if (!description.IsWaiting)
@@ -224,7 +223,17 @@ TFuture<void> TFetcherBase::Fetch()
     BIND(&TFetcherBase::StartFetchingRound, MakeWeak(this))
         .Via(Invoker_)
         .Run();
-    return Promise_;
+    auto future = Promise_.ToFuture();
+    if (CancelableContext_) {
+        future = future.ToImmediatelyCancelable();
+        CancelableContext_->PropagateTo(future);
+    }
+    return future;
+}
+
+void TFetcherBase::SetCancelableContext(TCancelableContextPtr cancelableContext)
+{
+    CancelableContext_ = std::move(cancelableContext);
 }
 
 void TFetcherBase::StartFetchingRound()

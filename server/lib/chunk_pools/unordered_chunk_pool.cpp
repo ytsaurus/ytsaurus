@@ -159,9 +159,7 @@ public:
             Unregister(cookie);
             SuspendedDataWeight += suspendableStripe.GetStatistics().DataWeight;
         } else {
-            auto it = ExtractedLists.find(outputCookie);
-            YT_VERIFY(it != ExtractedLists.end());
-            const auto& extractedStripeList = it->second;
+            const auto& extractedStripeList = GetOrCrash(ExtractedLists, outputCookie);
 
             if (LostCookies.find(outputCookie) != LostCookies.end() &&
                 extractedStripeList->UnavailableStripeCount == 0)
@@ -194,9 +192,7 @@ public:
             SuspendedDataWeight -= suspendableStripe.GetStatistics().DataWeight;
             YT_VERIFY(SuspendedDataWeight >= 0);
         } else {
-            auto it = ExtractedLists.find(outputCookie);
-            YT_VERIFY(it != ExtractedLists.end());
-            const auto& extractedStripeList = it->second;
+            const auto& extractedStripeList = GetOrCrash(ExtractedLists, outputCookie);
             --extractedStripeList->UnavailableStripeCount;
 
             if (LostCookies.find(outputCookie) != LostCookies.end() &&
@@ -336,9 +332,7 @@ public:
             auto lostIt = LostCookies.begin();
             while (true) {
                 cookie = *lostIt;
-                auto it = ExtractedLists.find(cookie);
-                YT_VERIFY(it != ExtractedLists.end());
-                if (it->second->UnavailableStripeCount == 0) {
+                if (GetOrCrash(ExtractedLists, cookie)->UnavailableStripeCount == 0) {
                     LostCookies.erase(lostIt);
                     YT_VERIFY(ReplayCookies.insert(cookie).second);
                     list = GetStripeList(cookie);
@@ -362,9 +356,7 @@ public:
 
     TExtractedStripeListPtr GetExtractedStripeList(IChunkPoolOutput::TCookie cookie) const
     {
-        auto it = ExtractedLists.find(cookie);
-        YT_VERIFY(it != ExtractedLists.end());
-        return it->second;
+        return GetOrCrash(ExtractedLists, cookie);
     }
 
     virtual TChunkStripeListPtr GetStripeList(IChunkPoolOutput::TCookie cookie) override
@@ -816,9 +808,9 @@ private:
         suspendableStripe.SetExtractedCookie(extractedStripeList->Cookie);
         AddStripeToList(
             suspendableStripe.GetStripe(),
+            extractedStripeList->StripeList,
             std::min(stat.DataWeight, JobSizeConstraints_->GetMaxDataWeightPerJob() - 1),
-            stat.RowCount,
-            extractedStripeList->StripeList);
+            stat.RowCount);
 
         JobCounter->Increment(1);
 
@@ -895,9 +887,9 @@ private:
             suspendableStripe.SetExtractedCookie(extractedStripeList->Cookie);
             AddStripeToList(
                 suspendableStripe.GetStripe(),
+                list,
                 stat.DataWeight,
                 stat.RowCount,
-                list,
                 nodeId);
         }
         size_t newSize = list->Stripes.size();

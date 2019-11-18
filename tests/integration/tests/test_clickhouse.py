@@ -33,6 +33,7 @@ DEFAULTS = {
     "cpu_limit": 1,
     "enable_monitoring": False,
     "clickhouse_config": {},
+    "uncompressed_block_cache_size": 0,
 }
 
 QUERY_TYPES_WITH_OUTPUT = ("describe", "select", "show")
@@ -123,8 +124,9 @@ class Clique(object):
 
             if state == "aborted" or state == "failed":
                 raise self.op.get_error()
-            elif state == "running" and self.get_active_instance_count() == self.instance_count:
-                break
+            elif state == "running":
+                if self.get_active_instance_count() == self.instance_count:
+                    break
             elif counter % 30 == 0:
                 self._print_progress()
             elif counter >= MAX_COUNTER_VALUE:
@@ -134,6 +136,18 @@ class Clique(object):
             counter += 1
 
         self._print_progress()
+
+        print_debug("Waiting for all instances to know about each other")
+        def check_all_instance_pairs():
+            clique_size_per_instance = []
+            for instance in self.get_active_instances():
+                clique_size = self.make_direct_query(instance, "select count(*) from system.clique", verbose=False)[0]["count()"]
+                clique_size_per_instance.append(clique_size)
+            print_debug("Clique sizes over all instances: {}".format(clique_size_per_instance))
+            return min(clique_size_per_instance) == self.instance_count
+
+        wait(check_all_instance_pairs)
+
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
@@ -234,6 +248,21 @@ class Clique(object):
         assert len(instances) > 0
         instance = random.choice(instances)
         return self.make_direct_query(instance, query, user, format, verbose, only_rows, full_response)
+
+    def get_orchid(self, instance, path, verbose=True):
+        url = "http://{}:{}/orchid{}".format(instance.attributes["host"], instance.attributes["monitoring_port"], path)
+        if verbose:
+            print_debug("Getting orchid at {}".format(url))
+        result = requests.post(url)
+        if verbose:
+            print_debug("Status code: {}".format(result.status_code))
+        if result.status_code == 200:
+            result = result.json()
+        else:
+            result = None
+        if verbose:
+            print_debug(pprint.pformat(result))
+        return result
 
     def resize(self, size, jobs_to_abort=[]):
         update_op_parameters(self.op.id, parameters=get_scheduling_options(user_slots=size))
@@ -406,7 +435,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             write_table("//tmp/t", [{"a": 1}])
             old_description = clique.make_query('describe "//tmp/t"')
             assert old_description[0]["name"] == "a"
-            
+
             remove("//tmp/t")
             time.sleep(0.5)
             with pytest.raises(YtError):
@@ -523,13 +552,13 @@ class TestClickHouseCommon(ClickHouseTestBase):
             time.sleep(0.6)
             with pytest.raises(Exception):
                 clique.make_direct_query(instances[0], "select 1")
-        
+
             clique.resize(1)
-            
+
             new_instances = clique.get_active_instances()
             assert len(new_instances) == 1
             assert new_instances != instances
-            
+
     @authors("dakovalkov")
     def test_double_interrupt(self):
         patch = {
@@ -547,7 +576,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             time.sleep(0.2)
             with pytest.raises(Exception):
                 clique.make_direct_query(instances[0], "select 1")
-            
+
             clique.resize(1)
 
             new_instances = clique.get_active_instances()
@@ -587,7 +616,12 @@ class TestClickHouseCommon(ClickHouseTestBase):
         value1 = 1
         value2 = [1, 2]
         value3 = {"key": "value"}
-        write_table("//tmp/table", [{"i": value1, "fmt": "binary"}, {"i": value2, "fmt": "pretty"}, {"i": value3, "fmt": "text"}])
+        write_table("//tmp/table", [
+            {"i": value1, "fmt": "binary"},
+            {"i": value2, "fmt": "pretty"},
+            {"i": value3, "fmt": "text"},
+            {"i": None, "fmt": "text"}
+        ])
         with Clique(1) as clique:
             value = {"key": [1, 2]}
             func = "ConvertYson('" + yson.dumps(value, yson_format='text') + "', 'pretty')"
@@ -598,12 +632,16 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert clique.make_query("select " + func + " from \"//tmp/table\"") == [
                 {func: yson.dumps(value1, yson_format='text')},
                 {func: yson.dumps(value2, yson_format='text')},
-                {func: yson.dumps(value3, yson_format='text')}]
+                {func: yson.dumps(value3, yson_format='text')},
+                {func: None}]
             func = "ConvertYson(i, fmt)"
             assert clique.make_query("select " + func + " from \"//tmp/table\"") == [
                 {func: yson.dumps(value1, yson_format='binary')},
                 {func: yson.dumps(value2, yson_format='pretty')},
-                {func: yson.dumps(value3, yson_format='text')}]
+                {func: yson.dumps(value3, yson_format='text')},
+                {func: None}]
+            with pytest.raises(YtError):
+                clique.make_query("select ConvertYson('{key=[1;2]}', NULL)")
             with pytest.raises(YtError):
                 clique.make_query("select ConvertYson('{key=[1;2]}', 'xxx')")
             with pytest.raises(YtError):
@@ -737,6 +775,46 @@ class TestJobInput(ClickHouseTestBase):
         with Clique(1) as clique:
             result = clique.make_query("select * from concatYtTables('//tmp/t') union all select * from concatYtTables('//tmp/t')")
             assert result == [{"a": 42}, {"a": 42}]
+
+    @authors("max42")
+    def DISABLED_test_min_data_weight_per_thread(self):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "string"}]})
+        write_table("//tmp/t", [{"a": "x" * 100} for i in range(30)])
+
+        def get_momentary_stats(instances):
+            stats = []
+            for instance in instances:
+                wait(lambda: clique.get_orchid(instance, "/queries/users/root", verbose=False) is not None)
+                query_registry = clique.get_orchid(instance, "/queries/users/root")
+                stats.append(((query_registry["historical_initial_query_count"]), query_registry["historical_secondary_query_count"]))
+            return stats
+
+        def get_delta_stats(instances, initial_instance, query):
+            old_stats = get_momentary_stats(instances)
+            clique.make_direct_query(initial_instance, query, verbose=False)
+            new_stats = get_momentary_stats(instances)
+            return [(rhs[0] - lhs[0], rhs[1] - lhs[1]) for lhs, rhs in zip(old_stats, new_stats)]
+
+        with Clique(3) as clique:
+            instances = clique.get_active_instances()
+            assert len(instances) == 3
+            initial_instance = instances[random.randint(0, 2)]
+            delta_stats = get_delta_stats(instances, initial_instance, "select * from \"//tmp/t\"")
+
+            for delta_stat, instance in zip(delta_stats, instances):
+                assert delta_stat[0] == (1 if instance == initial_instance else 0)
+                assert delta_stat[1] == 1
+
+        with Clique(3, config_patch={"engine": {"subquery": {"min_data_weight_per_thread": 5000}}}) as clique:
+            instances = clique.get_active_instances()
+            assert len(instances) == 3
+            initial_instance = instances[random.randint(0, 2)]
+            delta_stats = get_delta_stats(instances, initial_instance, "select * from \"//tmp/t\"")
+
+            for delta_stat, instance in zip(delta_stats, instances):
+                assert delta_stat[0] == (1 if instance == initial_instance else 0)
+                assert delta_stat[1] == (1 if instance == initial_instance else 0)
+
 
 class TestMutations(ClickHouseTestBase):
     def setup(self):
@@ -954,11 +1032,28 @@ class TestMutations(ClickHouseTestBase):
             assert get_schema(clique.make_query('describe "//tmp/t"')) == [{"name": "b", "type": "Nullable(String)"}]
 
 
+class TestClickHouseNoCache(ClickHouseTestBase):
+    def setup(self):
+        self._setup()
+        remove_user("yt-clickhouse-cache")
+
+    @authors("dakovalkov")
+    def test_no_clickhouse_cache(self):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        write_table("//tmp/t", [{"a": 123}])
+        with Clique(1) as clique:
+            for i in range(4):
+                clique.make_query("select * from \"//tmp/t\"") == [{"a": 123}]
+
+
 class TestCompositeTypes(ClickHouseTestBase):
     def setup(self):
         self._setup()
 
-        create("table", "//tmp/t", attributes={"schema": [{"name": "i", "type": "int64"}, {"name": "v", "type": "any"}]})
+        create("table", "//tmp/t", attributes={"schema": [
+            {"name": "i", "type": "int64"},
+            {"name": "v", "type": "any"},
+            {"name": "key", "type": "string"}]})
         write_table("//tmp/t", [
             {
                 "i": 0,
@@ -976,12 +1071,14 @@ class TestCompositeTypes(ClickHouseTestBase):
                     "arr_dbl": [-1.1, 2.71],
                     "arr_bool": [False, True, False],
                 },
+                "key": "/arr_i64/0"
             },
             {
                 "i": 1,
                 "v": {
                     "i64": "xyz",  # Wrong type.
                 },
+                "key": "/i64"
             },
             {
                 "i": 2,
@@ -998,7 +1095,13 @@ class TestCompositeTypes(ClickHouseTestBase):
                 "v": {
                     "i64": 57,
                 },
-            }
+                "key": None,
+            },
+            {
+                "i": 5,
+                "v": None,
+                "key": "/unknown"
+            },
         ])
 
     @authors("max42")
@@ -1025,7 +1128,7 @@ class TestCompositeTypes(ClickHouseTestBase):
             result = clique.make_query("select YPathUInt64Strict(v, '/subnode/i64') from \"//tmp/t\" where i = 0")
             assert result[0].popitem()[1] == 123
 
-    @authors("max42")
+    @authors("max42", "dakovalkov")
     def test_read_int64_non_strict(self):
         with Clique(1) as clique:
             query = "select YPathInt64(v, '/i64') from \"//tmp/t\""
@@ -1035,6 +1138,8 @@ class TestCompositeTypes(ClickHouseTestBase):
                     assert item.popitem()[1] == -42
                 elif i == 4:
                     assert item.popitem()[1] == 57
+                elif i == 5:
+                    assert item.popitem()[1] == None
                 else:
                     assert item.popitem()[1] == 0
 
@@ -1086,12 +1191,21 @@ class TestCompositeTypes(ClickHouseTestBase):
             result = clique.make_query("select YPathString('{a=[1;2;{b=xyz}]}', '/a/2/b') as str")
         assert result == [{"str": "xyz"}]
 
-    @authors("max42")
+    @authors("max42", "dakovalkov")
     def test_nulls(self):
         with Clique(1) as clique:
             result = clique.make_query("select YPathString(NULL, NULL) as a, YPathString(NULL, '/x') as b, "
                                        "YPathString('{a=1}', NULL) as c")
-        assert result == [{"a": None, "b": None, "c": None}]
+            assert result == [{"a": None, "b": None, "c": None}]
+
+            result = clique.make_query("select YPathInt64(v, key) from \"//tmp/t\"")
+            for i, item in enumerate(result):
+                if i == 0:
+                    assert item.popitem()[1] == -1
+                elif i == 1:
+                    assert item.popitem()[1] == 0
+                else:
+                    assert item.popitem()[1] == None
 
     # CHYT-157.
     @authors("max42")
@@ -1198,7 +1312,7 @@ class TestYtDictionaries(ClickHouseTestBase):
 
         patch = {
             # Disable background update.
-            "table_attribute_cache": get_async_expiring_cache_config(2000, 2000, None),                
+            "table_attribute_cache": get_async_expiring_cache_config(2000, 2000, None),
             "permission_cache": get_async_expiring_cache_config(2000, 2000, None),
 
             "engine": {"dictionaries": [
@@ -1657,7 +1771,22 @@ class TestJoinAndIn(ClickHouseTestBase):
                                         print_debug(char + " " + row)
                                     assert False
 
-class TestHttpProxy(ClickHouseTestBase):
+    @authors("max42")
+    def test_tricky_join(self):
+        # CHYT-240.
+        create("table", "//tmp/t1", attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]})
+        create("table", "//tmp/t2", attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]})
+        write_table("//tmp/t1", [{"key": 0}, {"key": 1}])
+        write_table("<append=%true>//tmp/t1", [{"key": 2}, {"key": 3}])
+        write_table("//tmp/t2", [{"key": 0}, {"key": 1}])
+        write_table("<append=%true>//tmp/t2", [{"key": 4}, {"key": 5}])
+        write_table("<append=%true>//tmp/t2", [{"key": 6}, {"key": 7}])
+        write_table("<append=%true>//tmp/t2", [{"key": 8}, {"key": 9}])
+        with Clique(2, config_patch={"engine": {"subquery": {"min_data_weight_per_thread": 5000}}}) as clique:
+            assert clique.make_query("select * from \"//tmp/t1\" join \"//tmp/t2\" using key") == [{"key": 0}, {"key": 1}]
+
+
+class TestClickHouseHttpProxy(ClickHouseTestBase):
     def setup(self):
         self._setup()
         create_user("yt-clickhouse")
@@ -1683,6 +1812,8 @@ class TestHttpProxy(ClickHouseTestBase):
             clique.resize(1)
 
             proxy_response = requests.post(url, data="select * from system.clique format JSON")
+            print_debug(proxy_response)
+            print_debug(proxy_response.text)
             response = clique.make_query("select * from system.clique")
             assert len(response) == 1
             assert proxy_response.json()["data"] == response
@@ -1778,12 +1909,12 @@ class TestHttpProxy(ClickHouseTestBase):
             ping_thread = threading.Thread(target=pinger)
             ping_thread.start()
             time.sleep(1)
-            
+
             instances = clique.get_active_instances()
             assert len(instances) == 2
 
             update_op_parameters(clique.op.id, parameters=get_scheduling_options(user_slots=1))
-            
+
             signal_job(instances[0], "SIGINT")
 
             wait(lambda: clique.get_active_instance_count() == 1, iter=10)
@@ -1809,4 +1940,3 @@ class TestHttpProxy(ClickHouseTestBase):
             assert abs(requests.post(url,
                                      data="select avg(a) from \"//tmp/t\"",
                                      headers={"X-Yt-Sampled": "1"}).json() - 4.5) < 1e-6
-

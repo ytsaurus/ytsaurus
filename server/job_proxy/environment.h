@@ -6,7 +6,10 @@
 
 #include <yt/ytlib/cgroup/cgroup.h>
 
+#include <yt/core/net/address.h>
+
 #include <yt/core/ytree/public.h>
+
 #include <yt/core/misc/process.h>
 
 
@@ -66,7 +69,9 @@ DEFINE_REFCOUNTED_TYPE(IJobProxyEnvironment)
 IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
     NYTree::INodePtr config,
     const std::optional<NContainers::TRootFS>& rootFS,
-    std::vector<TString> gpuDevices);
+    std::vector<TString> gpuDevices,
+    const std::vector<NNet::TIP6Address>& networkAddresses,
+    const std::optional<TString>& hostName);
 
 ////////////////////////////////////////////////////////////////////////////////
 

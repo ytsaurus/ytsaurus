@@ -52,6 +52,9 @@ class Metric(object):
         "last": lambda: None,  # The last value.
     }
 
+    # Default DequeuePeriod in profile manager is 100 ms, here we take 300 ms just in case.
+    FROM_TIME_GAP = 300000  # mcs
+
     def __init__(self, path, with_tags=None, grouped_by_tags=None, aggr_method="delta"):
         assert aggr_method in Metric.AGGREGATION_METHOD_TO_DEFAULT_FACTORY
 
@@ -59,40 +62,44 @@ class Metric(object):
         self.aggr_method = aggr_method
         self.with_tags = with_tags
         self.grouped_by_tags = grouped_by_tags
+        self.last_update_samples = []
 
         # Need time in mcs.
-        start_time = int(time.time() * 1e6)
+        self.start_time = int(time.time() * 1e6)
         start_samples = self._read_from_orchid()
 
         default_factory = Metric.AGGREGATION_METHOD_TO_DEFAULT_FACTORY[self.aggr_method]
         if self.grouped_by_tags is None:
             self.data = default_factory()
             if self.aggr_method == "delta":
-                self.state = {"start_value": start_samples[-1]["value"] if start_samples else 0}
+                self.state = {"start_value": start_samples[-1]["value"] if start_samples else 0,
+                              "last_sample_time": start_samples[-1]["time"] if start_samples else 0}
             elif self.aggr_method == "last":
-                self.state = {"last_sample_time": None}
+                self.state = {"last_sample_time": 0}
             else:
                 self.state = None
 
             if start_samples:
-                start_time = max(start_time, start_samples[-1]["time"])
+                self.start_time = max(self.start_time, start_samples[-1]["time"])
         else:
             self.data = defaultdict(default_factory)
             if self.aggr_method == "delta":
-                self.state = defaultdict(lambda: {"start_value": 0})
+                self.state = defaultdict(lambda: {"start_value": 0,
+                                                  "last_sample_time": 0})
             elif self.aggr_method == "last":
-                self.state = defaultdict(lambda: {"last_sample_time": None})
+                self.state = defaultdict(lambda: {"last_sample_time": 0})
             else:
                 self.state = defaultdict(lambda: None)
 
             for tag_values, samples in start_samples.iteritems():
                 if self.aggr_method == "delta" and samples:
                     self.state[tag_values]["start_value"] = samples[-1]["value"]
+                    self.state[tag_values]["last_sample_time"] = samples[-1]["time"]
 
                 if samples:
-                    start_time = max(start_time, samples[-1]["time"])
+                    self.start_time = max(self.start_time, samples[-1]["time"])
 
-        self.last_update_time = start_time
+        self.last_update_time = self.start_time
 
     # NB(eshcherbin): **kwargs is used only for the `verbose` argument.
     def get(self, *tags, **kwargs):
@@ -125,7 +132,8 @@ class Metric(object):
     def update(self):
         # Need time in mcs.
         update_time = int(time.time() * 1e6)
-        new_samples = self._read_from_orchid(from_time=self.last_update_time)
+        new_samples = self._read_from_orchid(from_time=max(self.last_update_time - Metric.FROM_TIME_GAP,
+                                                           self.start_time))
 
         if isinstance(new_samples, list):
             self.data, self.state = Metric._update_data(
@@ -159,13 +167,25 @@ class Metric(object):
         return Metric("//sys/cluster_nodes/{0}/orchid/profiling/{1}".format(node, path), *args, **kwargs)
 
     @staticmethod
+    def at_tablet_node(node, path, *args, **kwargs):
+        tablets = get(node + "/@tablets")
+        address = get("#%s/@peers/0/address" % tablets[0]["cell_id"])
+        return Metric("//sys/cluster_nodes/{0}/orchid/profiling/tablet_node/{1}".format(address, path), *args, **kwargs)
+
+    @staticmethod
     def _update_data(data, state, new_samples, aggr):
         new_state = state
 
         if aggr == "none":
-            new_data = data + [(sample["time"], sample["value"]) for sample in new_samples]
+            new_data = sorted(data + [(sample["time"], sample["value"]) for sample in new_samples]) \
+                if new_samples \
+                else data
         elif aggr == "delta":
-            new_data = (new_samples[-1]["value"] - state["start_value"]) if new_samples else data
+            new_data = (new_samples[-1]["value"] - state["start_value"]) \
+                if new_samples and new_samples[-1]["time"] >= state["last_sample_time"] \
+                else data
+            if new_samples:
+                new_state["last_sample_time"] = max(new_state["last_sample_time"], new_samples[-1]["time"])
         elif aggr == "sum":
             new_data = data + sum(sample["value"] for sample in new_samples)
         elif aggr == "max":
@@ -178,9 +198,11 @@ class Metric(object):
             else:
                 new_data = max(data, max_sample)
         elif aggr == "last":
-            new_data = new_samples[-1]["value"] if new_samples else data
+            new_data = new_samples[-1]["value"] \
+                if new_samples and new_samples[-1]["time"] >= state["last_sample_time"] \
+                else data
             if new_samples:
-                new_state["last_sample_time"] = new_samples[-1]["time"]
+                new_state["last_sample_time"] = max(new_state["last_sample_time"], new_samples[-1]["time"])
         else:
             raise Exception("Trying to update metric data with unknown aggregator (Aggr: \"{}\")".format(aggr))
 
@@ -193,7 +215,14 @@ class Metric(object):
         except YtError:
             data = []
 
+        # Keep last_update_samples up to date.
+        from_time = kwargs["from_time"] if "from_time" in kwargs else 0
+        self.last_update_samples = [sample for sample in self.last_update_samples if sample["time"] > from_time]
+
+        # Filter out samples that were already seen before. They will be here because of FROM_TIME_GAP.
+        data = [sample for sample in data if sample not in self.last_update_samples]
         data = sorted(data, key=lambda x: x["time"])
+        self.last_update_samples = sorted(self.last_update_samples + data, key=lambda x: x["time"])
 
         if self.with_tags is not None:
             def check_tags(sample):

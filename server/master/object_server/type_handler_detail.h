@@ -210,7 +210,7 @@ protected:
     {
         TBase::DoDestroyObject(object);
         // Remove the object from the map but keep it alive.
-        Map_->Release(object->GetId()).release();
+        Map_->Release(object->NObjectServer::TObject::GetId()).release();
     }
 };
 

@@ -212,7 +212,6 @@ public:
     NTransactionServer::TDynamicTransactionManagerConfigPtr TransactionManager;
     TDynamicCellMasterConfigPtr CellMaster;
 
-
     TDynamicClusterConfig();
 };
 

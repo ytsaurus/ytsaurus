@@ -357,9 +357,7 @@ TObject* TGarbageCollector::GetWeakGhostObject(TObjectId id)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    auto it = WeakGhosts_.find(id);
-    YT_VERIFY(it != WeakGhosts_.end());
-    return it->second;
+    return GetOrCrash(WeakGhosts_, id);
 }
 
 void TGarbageCollector::Reset()

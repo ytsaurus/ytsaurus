@@ -30,6 +30,18 @@ bool ShrinkHashTable(T* collection);
 template <class TSource, class TTarget>
 void MergeFrom(TTarget* target, const TSource& source);
 
+// This function is supposed to replace frequent pattern
+///    auto it = map.find(key);
+///    YT_VERIFY(it != map.end());
+///    use it->second;
+// with
+///    use GetOrCrash(map, key);
+template <class TMap, class TKey>
+const auto& GetOrCrash(const TMap& map, const TKey& key);
+
+template <class TMap, class TKey>
+auto& GetOrCrash(TMap& map, const TKey& key);
+
 template <class... Ts>
 auto MakeArray(
     const Ts&... values)
@@ -57,4 +69,3 @@ std::vector<std::pair<typename T::key_type, typename T::mapped_type>> SortHashMa
 #define COLLECTION_HELPERS_INL_H_
 #include "collection_helpers-inl.h"
 #undef COLLECTION_HELPERS_INL_H_
-

@@ -12,6 +12,8 @@
 
 #include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
+#include <yt/ytlib/job_tracker_client/helpers.h>
+
 #include <yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/ytlib/scheduler/job_resources.h>
@@ -145,7 +147,7 @@ public:
     void AbortJobs(const std::vector<TJobId>& jobIds, const TError& error);
     void InterruptJob(TJobId jobId, EInterruptReason reason);
     void FailJob(TJobId jobId);
-    void ReleaseJob(TJobId jobId, bool archiveJobSpec, bool archiveStderr, bool archiveFailContext, bool archiveProfile);
+    void ReleaseJob(TJobId jobId, NJobTrackerClient::TReleaseJobFlags releaseFlags);
 
     void BuildNodesYson(NYTree::TFluentMap fluent);
 
@@ -256,8 +258,8 @@ private:
         THashMap<TJobId, TJobPtr> Jobs;
         THashSet<TJobId> JobsToSubmitToStrategy;
         THashSet<TJobId> RecentlyFinishedJobIds;
-        //! Used only to decrease logging size.
-        THashSet<TJobId> SkippedJobIds;
+        //! Used only to avoid multiple log messages per job about 'operation is not ready'.
+        THashSet<TJobId> OperationUnreadyLoggedJobIds;
         IOperationControllerPtr Controller;
         bool Terminated = false;
         //! Raised to prevent races between suspension and scheduler strategy scheduling new jobs.
@@ -316,6 +318,7 @@ private:
 
     TJobPtr ProcessJobHeartbeat(
         const TExecNodePtr& node,
+        const THashSet<TJobId>& recentlyFinishedJobIdsToRemove,
         NJobTrackerClient::NProto::TRspHeartbeat* response,
         TJobStatus* jobStatus);
 

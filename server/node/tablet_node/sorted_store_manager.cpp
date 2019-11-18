@@ -42,6 +42,7 @@
 #include <yt/core/ytalloc/memory_zone.h>
 
 #include <util/generic/cast.h>
+#include <yt/core/misc/finally.h>
 
 namespace NYT::NTabletNode {
 
@@ -304,7 +305,7 @@ void TSortedStoreManager::BuildPivotKeysBeforeGiantTabletProblem(
     }
 }
 
-void TSortedStoreManager::BuildPivotKeys(
+void TSortedStoreManager::BuildPivotKeysBeforeChunkViewsForPivots(
     std::vector<TOwningKey>* pivotKeys,
     const std::vector<TBoundaryDescriptor>& chunkBoundaries)
 {
@@ -326,11 +327,34 @@ void TSortedStoreManager::BuildPivotKeys(
     }
 }
 
+void TSortedStoreManager::BuildPivotKeys(
+    std::vector<TOwningKey>* pivotKeys,
+    const std::vector<TBoundaryDescriptor>& chunkBoundaries)
+{
+    const std::array<int, 3> depthChange = {-1, 1, -1};
+
+    int depth = 0;
+    i64 cumulativeDataSize = 0;
+    for (const auto& boundary : chunkBoundaries) {
+        if (boundary.Type == 1 &&
+            depth == 0 &&
+            boundary.Key > Tablet_->GetPivotKey() &&
+            cumulativeDataSize >= Tablet_->GetConfig()->MinPartitionDataSize)
+        {
+            pivotKeys->push_back(boundary.Key);
+            cumulativeDataSize = 0;
+        }
+        if (boundary.Type == 1) {
+            cumulativeDataSize += boundary.DataSize;
+        }
+        depth += depthChange[boundary.Type];
+    }
+}
+
 void TSortedStoreManager::Mount(const std::vector<TAddStoreDescriptor>& storeDescriptors)
 {
     Tablet_->CreateInitialPartition();
 
-    // TODO(ifsmirnov): consider ReadRange of ChunkView here to make more precise partition borders.
     std::vector<TBoundaryDescriptor> chunkBoundaries;
     int descriptorIndex = 0;
     const auto& schema = Tablet_->PhysicalSchema();
@@ -338,14 +362,57 @@ void TSortedStoreManager::Mount(const std::vector<TAddStoreDescriptor>& storeDes
     for (const auto& descriptor : storeDescriptors) {
         const auto& extensions = descriptor.chunk_meta().extensions();
         auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(extensions);
-        if (!miscExt.eden()) {
-            auto boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(extensions);
-            auto minKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), schema.GetKeyColumnCount());
-            auto maxKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), schema.GetKeyColumnCount());
-            chunkBoundaries.push_back({minKey, -1, descriptorIndex, miscExt.compressed_data_size()});
-            chunkBoundaries.push_back({maxKey, 1, descriptorIndex, miscExt.compressed_data_size()});
+        if (miscExt.eden()) {
+            ++descriptorIndex;
+            continue;
         }
-        ++descriptorIndex;
+
+        auto boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(extensions);
+        auto minBoundaryKey = WidenKey(FromProto<TOwningKey> (boundaryKeysExt.min()), schema.GetKeyColumnCount());
+        auto maxBoundaryKey = WidenKey(FromProto<TOwningKey> (boundaryKeysExt.max()), schema.GetKeyColumnCount());
+
+        // COMPAT(akozhikhov)
+        if (GetCurrentMutationContext()->Request().Reign < ToUnderlying(ETabletReign::ChunkViewsForPivots))  {
+            chunkBoundaries.push_back({minBoundaryKey, -1, descriptorIndex, miscExt.compressed_data_size()});
+            chunkBoundaries.push_back({maxBoundaryKey, 1, descriptorIndex, miscExt.compressed_data_size()});
+            ++descriptorIndex;
+        } else {
+            const auto& chunkView = descriptor.chunk_view_descriptor();
+
+            // Here we use three types.
+            // 0 - )
+            // 1 - [
+            // 2 - ]
+            TOwningKey minKey;
+            if (descriptor.has_chunk_view_descriptor()
+                && chunkView.has_read_range()
+                && chunkView.read_range().has_lower_limit()
+                && chunkView.read_range().lower_limit().has_key())
+            {
+                minKey = FromProto<TOwningKey>(chunkView.read_range().lower_limit().key());
+            } else {
+                minKey = std::move(minBoundaryKey);
+            }
+
+            int maxKeyType;
+            TOwningKey maxKey;
+            if (descriptor.has_chunk_view_descriptor()
+                && chunkView.has_read_range()
+                && chunkView.read_range().has_upper_limit()
+                && chunkView.read_range().upper_limit().has_key())
+            {
+                maxKeyType = 0;
+                maxKey = FromProto<TOwningKey>(chunkView.read_range().upper_limit().key());
+            } else {
+                maxKeyType = 2;
+                maxKey = std::move(maxBoundaryKey);
+            }
+
+            chunkBoundaries.push_back({WidenKey(minKey, schema.GetKeyColumnCount()), 1, descriptorIndex, miscExt.compressed_data_size()});
+            chunkBoundaries.push_back({WidenKey(maxKey, schema.GetKeyColumnCount()), maxKeyType, descriptorIndex, -1});
+
+            ++descriptorIndex;
+        }
     }
 
     if (!chunkBoundaries.empty()) {
@@ -359,6 +426,8 @@ void TSortedStoreManager::Mount(const std::vector<TAddStoreDescriptor>& storeDes
         // COMPAT(akozhikhov)
         if (GetCurrentMutationContext()->Request().Reign < ToUnderlying(ETabletReign::GiantTabletProblem)) {
             BuildPivotKeysBeforeGiantTabletProblem(&pivotKeys, chunkBoundaries);
+        } else if (GetCurrentMutationContext()->Request().Reign < ToUnderlying(ETabletReign::ChunkViewsForPivots)) {
+            BuildPivotKeysBeforeChunkViewsForPivots(&pivotKeys, chunkBoundaries);
         } else {
             BuildPivotKeys(&pivotKeys, chunkBoundaries);
         }
@@ -493,8 +562,15 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
     return BIND([=, this_ = MakeStrong(this)] (
         ITransactionPtr transaction,
         IThroughputThrottlerPtr throttler,
-        TTimestamp currentTimestamp
+        TTimestamp currentTimestamp,
+        TWriterProfilerPtr writerProfiler
     ) {
+        IVersionedChunkWriterPtr tableWriter;
+
+        auto updateProfilerGuard = Finally([&] () {
+            writerProfiler->Update(tableWriter);
+        });
+
         TMemoryZoneGuard memoryZoneGuard(inMemoryMode == EInMemoryMode::None
             ? EMemoryZone::Normal
             : EMemoryZone::Undumpable);
@@ -531,7 +607,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             nullptr,
             std::move(throttler));
 
-        auto tableWriter = CreateVersionedChunkWriter(
+        tableWriter = CreateVersionedChunkWriter(
             writerConfig,
             writerOptions,
             tabletSnapshot->PhysicalSchema,
@@ -599,12 +675,6 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
 
         WaitFor(blockCache->Finish(chunkInfos))
             .ThrowOnError();
-
-        ProfileChunkWriter(
-            tabletSnapshot,
-            tableWriter->GetDataStatistics(),
-            tableWriter->GetCompressionStatistics(),
-            StoreFlushTag_);
 
         auto dataStatistics = tableWriter->GetDataStatistics();
         auto diskSpace = CalculateDiskSpaceUsage(

@@ -396,7 +396,7 @@ private:
 
         virtual TDuration GetAverageWaitTime() const override
         {
-            YT_ABORT();
+            YT_UNIMPLEMENTED();
         }
 
         TClosure ExecuteCallbacks()

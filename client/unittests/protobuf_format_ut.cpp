@@ -372,29 +372,37 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+TProtobufFormatConfigPtr ParseAndValidateConfig(const INodePtr& node, std::vector<TTableSchema> schemas = {})
+{
+    auto config = ParseFormatConfigFromNode(node);
+    if (schemas.empty()) {
+        schemas.resize(config->Tables.size());
+    }
+    New<TProtobufFormatDescription>()->Init(config, schemas, false);
+    return config;
+}
+
+} // namespace
+
 TEST(TProtobufFormat, TestConfigParsing)
 {
-    auto parseAndValidateConfig = [] (const auto& node) {
-        auto config = ParseFormatConfigFromNode(node);
-        std::vector<TTableSchema> schemas(config->Tables.size());
-        New<TProtobufFormatDescription>()->Init(config, schemas, false);
-        return config;
-    };
     // Empty config.
     EXPECT_THROW_WITH_SUBSTRING(
-        parseAndValidateConfig(ParseYson("{}")),
+        ParseAndValidateConfig(ParseYson("{}")),
         "\"tables\" attribute is not specified in protobuf format");
 
     // Broken protobuf.
     EXPECT_THROW_WITH_SUBSTRING(
-        parseAndValidateConfig(ParseYson(R"({file_descriptor_set="dfgxx"; file_indices=[0]; message_indices=[0]})")),
+        ParseAndValidateConfig(ParseYson(R"({file_descriptor_set="dfgxx"; file_indices=[0]; message_indices=[0]})")),
         "Error parsing \"file_descriptor_set\" in protobuf config");
 
-    EXPECT_NO_THROW(parseAndValidateConfig(
+    EXPECT_NO_THROW(ParseAndValidateConfig(
         CreateAllFieldsFileDescriptorConfig()->Attributes().ToMap()
     ));
 
-    EXPECT_NO_THROW(parseAndValidateConfig(
+    EXPECT_NO_THROW(ParseAndValidateConfig(
         CreateAllFieldsSchemaConfig()->Attributes().ToMap()
     ));
 
@@ -424,7 +432,7 @@ TEST(TProtobufFormat, TestConfigParsing)
         .EndMap();
 
     EXPECT_THROW_WITH_SUBSTRING(
-        parseAndValidateConfig(multipleOtherColumnsConfig),
+        ParseAndValidateConfig(multipleOtherColumnsConfig),
         "Multiple \"other_columns\" in protobuf config are not allowed");
 
     auto duplicateColumnNamesConfig = BuildYsonNodeFluently()
@@ -453,8 +461,35 @@ TEST(TProtobufFormat, TestConfigParsing)
         .EndMap();
 
     EXPECT_THROW_WITH_SUBSTRING(
-        parseAndValidateConfig(duplicateColumnNamesConfig),
+        ParseAndValidateConfig(duplicateColumnNamesConfig),
         "Multiple fields with same column name \"SomeColumn\" are forbidden in protobuf format");
+
+    auto anyCorrespondsToStruct = BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("tables")
+            .BeginList()
+                .Item()
+                .BeginMap()
+                    .Item("columns")
+                    .BeginList()
+                        .Item()
+                        .BeginMap()
+                            .Item("name").Value("SomeColumn")
+                            .Item("field_number").Value(1)
+                            .Item("proto_type").Value("any")
+                        .EndMap()
+                    .EndList()
+                .EndMap()
+            .EndList()
+        .EndMap();
+
+    auto schema = TTableSchema({
+        TColumnSchema("SomeColumn", StructLogicalType({})),
+    });
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        ParseAndValidateConfig(duplicateColumnNamesConfig, {schema}),
+        "Schema and protobuf config mismatch");
 }
 
 TEST(TProtobufFormat, TestParseBigZigZag)
@@ -921,6 +956,7 @@ std::pair<TTableSchema, INodePtr> CreateSchemaAndConfigWithStructuredMessage()
             {"any_int64_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
             {"any_map_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any))},
             {"optional_int64_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"repeated_optional_any_field", ListLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any)))},
             {"field_missing_from_proto2", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
         })},
         {"repeated_int64_field", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
@@ -944,6 +980,8 @@ std::pair<TTableSchema, INodePtr> CreateSchemaAndConfigWithStructuredMessage()
         {"enum_int_field", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
         {"enum_string_string_field", SimpleLogicalType(ESimpleLogicalValueType::String)},
         {"enum_string_int64_field", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+
+        {"repeated_optional_any_field", ListLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any)))},
     });
 
     auto config = BuildYsonNodeFluently()
@@ -1050,6 +1088,13 @@ std::pair<TTableSchema, INodePtr> CreateSchemaAndConfigWithStructuredMessage()
                                     .Item("name").Value("optional_int64_field")
                                     .Item("field_number").Value(8)
                                     .Item("proto_type").Value("int64")
+                                .EndMap()
+                                .Item()
+                                .BeginMap()
+                                    .Item("name").Value("repeated_optional_any_field")
+                                    .Item("field_number").Value(10)
+                                    .Item("proto_type").Value("any")
+                                    .Item("repeated").Value(true)
                                 .EndMap()
                             .EndList()
                         .EndMap()
@@ -1170,6 +1215,13 @@ std::pair<TTableSchema, INodePtr> CreateSchemaAndConfigWithStructuredMessage()
                             .Item("proto_type").Value("enum_string")
                             .Item("enumeration_name").Value("EEnum")
                         .EndMap()
+                        .Item()
+                        .BeginMap()
+                            .Item("name").Value("repeated_optional_any_field")
+                            .Item("field_number").Value(14)
+                            .Item("proto_type").Value("any")
+                            .Item("repeated").Value(true)
+                        .EndMap()
                     .EndList()
                 .EndMap()
             .EndList()
@@ -1194,6 +1246,7 @@ TEST(TProtobufFormat, WriteStructuredMessage)
     auto enumIntFieldId = nameTable->RegisterName("enum_int_field");
     auto enumStringStringFieldId = nameTable->RegisterName("enum_string_string_field");
     auto enumStringInt64FieldId = nameTable->RegisterName("enum_string_int64_field");
+    auto repeatedOptionalAnyFieldId = nameTable->RegisterName("repeated_optional_any_field");
 
     auto [schema, config] = CreateSchemaAndConfigWithStructuredMessage();
 
@@ -1214,38 +1267,44 @@ TEST(TProtobufFormat, WriteStructuredMessage)
             .Item().Value("Two")
             .Item().Value(44)
             .Item()
-            .BeginList()
-                .Item().Value(55)
-                .Item().Value(56)
-                .Item().Value(57)
-            .EndList()
-            .Item()
-            .BeginList()
-            .EndList()
-            .Item()
-            .BeginList()
-                .Item().Value("key")
-                .Item().Value("value")
-            .EndList()
-            .Item()
-            .BeginList()
-                .Item()
                 .BeginList()
-                    .Item().Value("key1")
-                    .Item().Value("value1")
+                    .Item().Value(55)
+                    .Item().Value(56)
+                    .Item().Value(57)
                 .EndList()
-                .Item()
+            .Item()
                 .BeginList()
-                    .Item().Value("key2")
-                    .Item().Value("value2")
                 .EndList()
-            .EndList()
+            .Item()
+                .BeginList()
+                    .Item().Value("key")
+                    .Item().Value("value")
+                .EndList()
+            .Item()
+                .BeginList()
+                    .Item()
+                    .BeginList()
+                        .Item().Value("key1")
+                        .Item().Value("value1")
+                    .EndList()
+                    .Item()
+                    .BeginList()
+                        .Item().Value("key2")
+                        .Item().Value("value2")
+                    .EndList()
+                .EndList()
             .Item().Value(45)
             .Item()
-            .BeginMap()
-                .Item("key").Value("value")
-            .EndMap()
+                .BeginMap()
+                    .Item("key").Value("value")
+                .EndMap()
             .Item().Entity()
+            .Item()
+                .BeginList()
+                    .Item().Value(2)
+                    .Item().Entity()
+                    .Item().Value("foo")
+                .EndList()
         .EndList();
 
     auto secondYson = BuildYsonStringFluently()
@@ -1280,6 +1339,14 @@ TEST(TProtobufFormat, WriteStructuredMessage)
         .BeginList()
         .EndList();
 
+    auto repeatedOptionalAnyYson = BuildYsonStringFluently()
+        .BeginList()
+            .Item().Value(1)
+            .Item().Value("abc")
+            .Item().Entity()
+            .Item().Value(true)
+        .EndList();
+
     TUnversionedRowBuilder builder;
     builder.AddValue(MakeUnversionedAnyValue(firstYson.GetData(), firstId));
     builder.AddValue(MakeUnversionedAnyValue(secondYson.GetData(), secondId));
@@ -1296,6 +1363,8 @@ TEST(TProtobufFormat, WriteStructuredMessage)
     builder.AddValue(MakeUnversionedInt64Value(-42, enumIntFieldId));
     builder.AddValue(MakeUnversionedStringValue("Three", enumStringStringFieldId));
     builder.AddValue(MakeUnversionedInt64Value(1, enumStringInt64FieldId));
+
+    builder.AddValue(MakeUnversionedAnyValue(repeatedOptionalAnyYson.GetData(), repeatedOptionalAnyFieldId));
 
     writer->Write({builder.GetRow()});
 
@@ -1341,6 +1410,19 @@ TEST(TProtobufFormat, WriteStructuredMessage)
             .Item("key").Value("value")
         .EndMap()));
 
+    std::vector<TYsonString> firstRepeatedOptionalAnyField(
+        first.repeated_optional_any_field().begin(),
+        first.repeated_optional_any_field().end());
+
+    EXPECT_TRUE(AreNodesEqual(
+        ConvertToNode(firstRepeatedOptionalAnyField),
+        BuildYsonNodeFluently()
+            .BeginList()
+                .Item().Value(2)
+                .Item().Entity()
+                .Item().Value("foo")
+            .EndList()));
+
     EXPECT_FALSE(first.has_optional_int64_field());
 
     const auto& second = message.second();
@@ -1375,6 +1457,13 @@ TEST(TProtobufFormat, WriteStructuredMessage)
     EXPECT_EQ(message.enum_int_field(), NProtobufFormatTest::EEnum::minus_forty_two);
     EXPECT_EQ(message.enum_string_string_field(), NProtobufFormatTest::EEnum::three);
     EXPECT_EQ(message.enum_string_int64_field(), NProtobufFormatTest::EEnum::one);
+
+    std::vector<TYsonString> repeatedOptionalAnyField(
+        message.repeated_optional_any_field().begin(),
+        message.repeated_optional_any_field().end());
+    EXPECT_TRUE(AreNodesEqual(ConvertToNode(repeatedOptionalAnyField), ConvertToNode(repeatedOptionalAnyYson)))
+        << "expected: " << ConvertToYsonString(repeatedOptionalAnyYson, EYsonFormat::Text).GetData()
+        << ", got: " << ConvertToYsonString(repeatedOptionalAnyField, EYsonFormat::Text).GetData();
 
     ASSERT_FALSE(lenvalParser.Next());
 }
@@ -1419,6 +1508,10 @@ TEST(TProtobufFormat, ParseStructuredMessage)
             .EndMap()
         .GetData());
 
+    first->add_repeated_optional_any_field("%false");
+    first->add_repeated_optional_any_field("42");
+    first->add_repeated_optional_any_field("#");
+
     auto* second = message.mutable_second();
     second->set_one(101);
     second->set_two(102);
@@ -1445,9 +1538,14 @@ TEST(TProtobufFormat, ParseStructuredMessage)
     message.set_int32_field(-64);
     message.set_uint32_field(64);
 
-    // Note that we don't set the "enum_string_int64_field" as it will fail during parsing.
+    // Note that we don't set the "enum_string_int64_field" as it would fail during parsing.
     message.set_enum_int_field(NProtobufFormatTest::EEnum::minus_forty_two);
     message.set_enum_string_string_field(NProtobufFormatTest::EEnum::three);
+
+    message.add_repeated_optional_any_field("#");
+    message.add_repeated_optional_any_field("1");
+    message.add_repeated_optional_any_field("\"qwe\"");
+    message.add_repeated_optional_any_field("%true");
 
     TString lenvalBytes;
     {
@@ -1465,7 +1563,7 @@ TEST(TProtobufFormat, ParseStructuredMessage)
     auto firstNode = GetAny(rowCollector.GetRowValue(0, "first"));
     ASSERT_EQ(firstNode->GetType(), ENodeType::List);
     const auto& firstList = firstNode->AsList();
-    ASSERT_EQ(firstList->GetChildCount(), 11);
+    ASSERT_EQ(firstList->GetChildCount(), 12);
 
     EXPECT_EQ(firstList->GetChild(0)->GetType(), ENodeType::Entity);
     EXPECT_EQ(firstList->GetChild(1)->GetValue<TString>(), "Two");
@@ -1503,13 +1601,22 @@ TEST(TProtobufFormat, ParseStructuredMessage)
     EXPECT_TRUE(AreNodesEqual(
         firstList->GetChild(8),
         BuildYsonNodeFluently()
-        .BeginMap()
-            .Item("key").Value("value")
-        .EndMap()));
+            .BeginMap()
+                .Item("key").Value("value")
+            .EndMap()));
 
     ASSERT_EQ(firstList->GetChild(9)->GetType(), ENodeType::Entity);
 
-    ASSERT_EQ(firstList->GetChild(10)->GetType(), ENodeType::Entity);
+    ASSERT_TRUE(AreNodesEqual(
+        firstList->GetChild(10),
+        BuildYsonNodeFluently()
+            .BeginList()
+                .Item().Value(false)
+                .Item().Value(42)
+                .Item().Entity()
+            .EndList()));
+
+    ASSERT_EQ(firstList->GetChild(11)->GetType(), ENodeType::Entity);
 
     auto secondNode = GetAny(rowCollector.GetRowValue(0, "second"));
     ASSERT_EQ(secondNode->GetType(), ENodeType::List);
@@ -1548,6 +1655,16 @@ TEST(TProtobufFormat, ParseStructuredMessage)
 
     EXPECT_EQ(GetInt64(rowCollector.GetRowValue(0, "enum_int_field")), -42);
     EXPECT_EQ(GetString(rowCollector.GetRowValue(0, "enum_string_string_field")), "Three");
+
+    auto repeatedRepeatedOptionalAnyNode = GetAny(rowCollector.GetRowValue(0, "repeated_optional_any_field"));
+    auto expectedRepeatedOptionalAnyNode = BuildYsonNodeFluently()
+        .BeginList()
+            .Item().Entity()
+            .Item().Value(1)
+            .Item().Value("qwe")
+            .Item().Value(true)
+        .EndList();
+    EXPECT_TRUE(AreNodesEqual(repeatedRepeatedOptionalAnyNode, expectedRepeatedOptionalAnyNode));
 }
 
 std::pair<std::vector<TTableSchema>, INodePtr> CreateSeveralTablesSchemasAndConfig()
