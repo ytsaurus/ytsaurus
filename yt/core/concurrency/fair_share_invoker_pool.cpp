@@ -262,7 +262,7 @@ private:
         return 0 <= index && index < Invokers_.size();
     }
 
-    void Run(TCpuDuration enqueuedAt)
+    void Run(TCpuInstant enqueuedAt)
     {
         TClosure callback;
         int bucketIndex = -1;
