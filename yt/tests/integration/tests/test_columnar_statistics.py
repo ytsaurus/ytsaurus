@@ -1,4 +1,4 @@
-from yt_env_setup import wait, YTEnvSetup
+from yt_env_setup import wait, YTEnvSetup, Restarter, CONTROLLER_AGENTS_SERVICE
 from yt_commands import *
 
 import pytest
@@ -268,13 +268,16 @@ class TestColumnarStatistics(YTEnvSetup):
 
         self._expect_statistics(None, None, "key,value", [80, 20160], expected_timestamp_weight=(8 * 30))
 
-    @pytest.mark.skipif(True, reason="Temporarily broken")
     @authors("max42")
     def test_fetch_cancelation(self):
         create("table", "//tmp/t", attributes={"optimize_for": "scan"})
         create("table", "//tmp/d")
         for i in range(10):
             write_table("<append=%true>//tmp/t", [{"a": 'x' * 90, "b": 'y' * 10} for j in range(100)])
+
+        # Restart controller agent to ensure our operation taking memory tagged statistics slot 0.
+        with Restarter(self.Env, [CONTROLLER_AGENTS_SERVICE]):
+            pass
 
         controller_agents = ls("//sys/controller_agents/instances")
         assert len(controller_agents) == 1
