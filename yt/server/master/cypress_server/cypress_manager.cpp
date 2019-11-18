@@ -2022,11 +2022,15 @@ private:
         // COMPAT(babenko)
         if (NeedBindNodesToAncestorShard_) {
             for (auto [nodeId, node] : NodeMap_) {
+                if (!node->IsTrunk()) {
+                    continue;
+                }
+
                 if (node->GetShard()) {
                     continue;
                 }
 
-                auto* ancestorNode = node->GetTrunkNode();
+                auto* ancestorNode = node;
                 while (ancestorNode->GetParent() && !ancestorNode->GetShard()) {
                     ancestorNode = ancestorNode->GetParent();
                 }
