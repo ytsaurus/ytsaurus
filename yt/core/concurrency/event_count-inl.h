@@ -79,6 +79,9 @@ inline bool TEventCount::Wait(TCookie cookie, std::optional<TInstant> deadline)
                 timeoutSpec.tv_sec = timeout.Seconds();
                 timeout -= TDuration::Seconds(timeout.Seconds());
                 timeoutSpec.tv_nsec = timeout.MicroSeconds() * 1000;
+            } else {
+                result = false;
+                break;
             }
         }
 
