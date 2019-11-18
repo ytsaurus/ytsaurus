@@ -5,6 +5,7 @@ import yt.logger as logger
 
 import argparse
 import os.path
+from os import stat
 
 class LogicError(Exception):
     pass
@@ -16,7 +17,7 @@ def get_core_infos(parser, job_id, operation_id=None, **kwargs):
         logger.warning("Core dump names will not contain executable names because --operation-id is not specified. " +
                        "Hint: consider running 'file <core>' to find more information about core dumps.")
         return None
-    
+
     jobs = yt.list_jobs(operation_id, data_source="archive")["jobs"]
     for failed_job in jobs:
         failed_job_id = failed_job["id"]
@@ -41,7 +42,7 @@ def get_core_table_path(parser, operation_id=None, core_table_path=None, **kwarg
     return spec["core_table_path"]
 
 class CoreDumpWriter:
-    def __init__(self, job_id, core_infos, core_ids, output_directory):
+    def __init__(self, job_id, core_infos, core_ids, output_directory, sparse):
         self.job_id = job_id
         self.core_infos = core_infos
         self.core_ids = core_ids
@@ -49,12 +50,53 @@ class CoreDumpWriter:
 
         self.current_core_id = None
         self.current_file = None
+        self.current_file_path = None
         self.current_core_size = None
         self.saved_core_dumps = set()
+        self.sparse = sparse
+        self.buffer = ""
+        self.total_size = 0
+        self.total_disk_usage = 0
+
+    def process_buffer(self, finalizing=False):
+        SPARSE_CORE_DUMP_PAGE_SIZE = 65536
+        UINT64_LENGTH = 8
+
+        if self.sparse:
+            buffer_ptr = 0
+            while buffer_ptr + SPARSE_CORE_DUMP_PAGE_SIZE + 1 < len(self.buffer):
+                if self.buffer[buffer_ptr] == "0":
+                    zero_block_length = 0
+                    for idx in xrange(buffer_ptr + 1 + UINT64_LENGTH, buffer_ptr, -1):
+                        zero_block_length = 256 * zero_block_length + ord(self.buffer[idx])
+                    self.current_file.seek(zero_block_length, 1)
+                else:
+                    if self.buffer[buffer_ptr] != "1":
+                        logger.error("Sparse core dump is corrupted")
+                        return
+                    self.current_file.write(self.buffer[buffer_ptr+1:buffer_ptr+1+SPARSE_CORE_DUMP_PAGE_SIZE])
+                buffer_ptr += SPARSE_CORE_DUMP_PAGE_SIZE + 1
+
+            self.buffer = self.buffer[buffer_ptr:]
+
+            if finalizing:
+                if self.buffer:
+                    if self.buffer[0] != "1":
+                        logger.error("Sparse core dump is corrupted")
+                        return
+                    self.current_file.write(self.buffer[1:])
+                self.buffer = ""
+        else:
+            if not self.current_file:
+                return
+            self.current_file.write(self.buffer)
+            self.buffer = ""
 
     def flush(self):
+        self.process_buffer(True)
+
         if not self.current_file is None:
-            if self.current_core_size and self.current_core_size != self.current_file.tell():
+            if not self.sparse and self.current_core_size and self.current_core_size != self.current_file.tell():
                 logger.error("Information in operation node in Cypress is inconsistent with core table content: " +
                              "actual size of core with id {0} is {1} but it should be {2} according to the core info".format(self.current_core_id,
                                                                                                                              self.current_file.tell(),
@@ -63,6 +105,10 @@ class CoreDumpWriter:
             self.current_file = None
             self.saved_core_dumps.add(self.current_core_id)
             self.current_core_id = None
+
+            stat = os.stat(self.current_file_path)
+            self.total_size += stat.st_size
+            self.total_disk_usage += stat.st_blocks * 512
 
     def _switch_to(self, core_id):
         self.flush()
@@ -80,6 +126,7 @@ class CoreDumpWriter:
 
         logger.info("Started writing core with id {0} to {1}".format(core_id, core_path))
 
+        self.current_file_path = core_path
         self.current_file = open(core_path, "w")
 
     def feed(self, row):
@@ -87,7 +134,8 @@ class CoreDumpWriter:
             return False
         if self.current_core_id != row["core_id"]:
             self._switch_to(row["core_id"])
-        self.current_file.write(row["data"])
+        self.buffer += row["data"]
+        self.process_buffer()
         return True
 
     def finalize(self):
@@ -97,6 +145,11 @@ class CoreDumpWriter:
                 if not core_id in self.saved_core_dumps:
                     logger.error("Information in operation node in Cypress is inconsistent with core table content: " +
                                  "core table does not contain information about core with id {0}, though it is mentioned in core_infos".format(core_id))
+
+    def print_stats(self):
+        logger.info("{0} core(-s) written, total size is {1} bytes, actual disk usage is {2} bytes".format(len(self.saved_core_dumps),
+                                                                                                           self.total_size,
+                                                                                                           self.total_disk_usage))
 
 def process_errored_core_dumps(core_infos, core_ids):
     if core_infos is None:
@@ -118,6 +171,7 @@ def download_core_dumps(parser, core_table_path, job_id=None, core_ids=None, out
         parser.error("--core-id couldn't be specified without specifying --job-id")
 
     rows = yt.read_table(yt.TablePath(core_table_path, ranges=ranges))
+    sparse = yt.exists(core_table_path + "/@sparse") and yt.get(core_table_path + "/@sparse")
 
     # If we should choose an arbitrary job, we have to consider the first row in
     # the list of retrieved rows and determine the job_id by it.
@@ -132,7 +186,10 @@ def download_core_dumps(parser, core_table_path, job_id=None, core_ids=None, out
     if not core_infos is None:
         core_ids = range(len(core_infos))
     process_errored_core_dumps(core_infos, core_ids)
-    writer = CoreDumpWriter(job_id, core_infos, core_ids, output_directory)
+
+    logger.info("Started writing core dumps " +
+                "(JobId = {0}, CoreIds = {1}, OutputDirectory = {2}, Sparse = {3})".format(job_id, core_ids, output_directory, sparse))
+    writer = CoreDumpWriter(job_id, core_infos, core_ids, output_directory, sparse)
 
     if not first_row is None:
         assert writer.feed(first_row)
@@ -141,6 +198,7 @@ def download_core_dumps(parser, core_table_path, job_id=None, core_ids=None, out
         if not writer.feed(row):
             break
     writer.finalize()
+    writer.print_stats()
 
 def main():
     parser = argparse.ArgumentParser(description="Tool for downloading job core dumps.")
