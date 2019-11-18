@@ -850,7 +850,7 @@ public:
         // 1) currentDemand and minShareResources are the current resource demand and guarantee in the given pool.
         // 2) newDemand is the demand of the given operation.
         // 3) fullDemandRatio and minShareRatio are the dominant resource ratios of (currentDemand + newDemand) and minShareResources correspondingly.
-        // 4) regularizedDemandToMinShareRatio := fullDemandRatio / (1 + minShareRatio).
+        // 4) regularizedDemandToMinShareRatio := fullDemandRatio / (regularizationValue + minShareRatio).
         // We search for the tree with the minimal regularizedDemandToMinShareRatio.
         TString bestTree;
         auto bestRegularizedDemandToMinShareRatio = std::numeric_limits<double>::max();
@@ -872,7 +872,7 @@ public:
 
             auto fullDemandRatio = GetMaxResourceRatio(newDemand + currentDemand, totalResourceLimits);
             auto minShareRatio = GetMaxResourceRatio(minShareResources, totalResourceLimits);
-            auto regularizedDemandToMinShareRatio = fullDemandRatio / (1.0 + minShareRatio);
+            auto regularizedDemandToMinShareRatio = fullDemandRatio / (Config->BestTreeHeuristicRegularizationValue + minShareRatio);
 
             // TODO(eshcherbin): This is rather verbose. Consider removing when well tested in production.
             YT_LOG_DEBUG(
