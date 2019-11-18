@@ -1823,6 +1823,7 @@ class TestJoinAndIn(ClickHouseTestBase):
                                     assert False
 
     @authors("max42")
+    @pytest.mark.skipif(is_gcc_build(), reason="https://github.com/yandex/ClickHouse/issues/6187")
     def test_tricky_join(self):
         # CHYT-240.
         create("table", "//tmp/t1", attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]})
