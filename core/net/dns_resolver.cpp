@@ -356,8 +356,9 @@ void TDnsResolver::TImpl::ResolverThreadMain()
                 if (triggeredFD == WakeupHandle_.GetFD()) {
                     drain = true;
                 } else {
-                    int readFD = (events[i].events & EPOLLIN) ? triggeredFD : ARES_SOCKET_BAD;
-                    int writeFD = (events[i].events & EPOLLOUT) ? triggeredFD : ARES_SOCKET_BAD;
+                    // If the error events were returned, process both EPOLLIN and EPOLLOUT.
+                    int readFD = (events[i].events & (EPOLLIN | EPOLLERR | EPOLLHUP)) ? triggeredFD : ARES_SOCKET_BAD;
+                    int writeFD = (events[i].events & (EPOLLOUT | EPOLLERR | EPOLLHUP)) ? triggeredFD : ARES_SOCKET_BAD;
                     ares_process_fd(Channel_, readFD, writeFD);
                 }
             }
