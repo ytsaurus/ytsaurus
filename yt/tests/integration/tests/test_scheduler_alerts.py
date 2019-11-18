@@ -383,7 +383,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         wait(check)
 
     @authors("eshcherbin")
-    def test_high_queue_average_wait_time(self):
+    def DISABLED_test_high_queue_average_wait_time(self):
         op = run_test_vanilla(
             command="echo 'pass' >/dev/null",
             spec={
