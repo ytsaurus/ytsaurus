@@ -325,6 +325,8 @@ DB::ASTPtr TQueryAnalyzer::RewriteQuery(const TRange<TSubquery> threadSubqueries
         auto protoSpec = NYT::ToProto<NProto::TSubquerySpec>(spec);
         auto encodedSpec = Base64Encode(protoSpec.SerializeAsString());
 
+        YT_LOG_DEBUG("Serializing subquery spec (TableIndex: %v, SpecLength: %v)", index, encodedSpec.size());
+
         auto tableFunction = makeASTFunction("ytSubquery", std::make_shared<DB::ASTLiteral>(std::string(encodedSpec.data())));
 
         if (tableExpression->database_and_table_name) {

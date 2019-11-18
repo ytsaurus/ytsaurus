@@ -28,7 +28,7 @@ public:
     // NB: invoker should be serialized.
     TChunkSpecFetcher(
         const NApi::NNative::IClientPtr& client,
-        const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory,
+        NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         const IInvokerPtr& invoker,
         int maxChunksPerFetch,
         int maxChunksPerLocateRequest,

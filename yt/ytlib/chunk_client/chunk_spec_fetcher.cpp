@@ -29,7 +29,7 @@ using NYT::ToProto;
 
 TChunkSpecFetcher::TChunkSpecFetcher(
     const NApi::NNative::IClientPtr& client,
-    const TNodeDirectoryPtr& nodeDirectory,
+    TNodeDirectoryPtr nodeDirectory,
     const IInvokerPtr& invoker,
     int maxChunksPerFetch,
     int maxChunksPerLocateRequest,
@@ -44,7 +44,11 @@ TChunkSpecFetcher::TChunkSpecFetcher(
     , InitializeFetchRequest_(initializeFetchRequest)
     , Logger(logger)
     , SkipUnavailableChunks_(skipUnavailableChunks)
-{ }
+{
+    if (!NodeDirectory_) {
+        NodeDirectory_ = New<TNodeDirectory>();
+    }
+}
 
 void TChunkSpecFetcher::Add(
     TObjectId objectId,
