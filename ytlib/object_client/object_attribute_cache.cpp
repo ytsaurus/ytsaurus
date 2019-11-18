@@ -26,27 +26,34 @@ TObjectAttributeCache::TObjectAttributeCache(
     , Invoker_(std::move(invoker))
 { }
 
-TFuture<TAttributeMap> TObjectAttributeCache::DoGet(const TYPath& key)
+TFuture<std::vector<TErrorOr<TAttributeMap>>> TObjectAttributeCache::GetFromClient(
+    const std::vector<TYPath>& keys, 
+    const NNative::IClientPtr& client) const
 {
-    return DoGetMany({key})
-        .Apply(BIND([key] (const std::vector<TErrorOr<TAttributeMap>>& response) {
-            return response[0].ValueOrThrow();
-        }));
-}
-
-TFuture<std::vector<TErrorOr<TAttributeMap>>> TObjectAttributeCache::DoGetMany(const std::vector<TYPath>& keys)
-{
-    YT_LOG_DEBUG("Updating object attribute cache (KeyCount: %v)", keys.size());
     return NCypressClient::FetchAttributes(
         keys,
         Attributes_,
-        Client_,
+        client,
         TMasterReadOptions {
             Config_->ReadFrom,
             Config_->MasterCacheExpireAfterSuccessfulUpdateTime,
             Config_->MasterCacheExpireAfterFailedUpdateTime,
             Config_->MasterCacheStickyGroupSize,
         });
+}
+
+TFuture<TAttributeMap> TObjectAttributeCache::DoGet(const TYPath& path)
+{
+    return DoGetMany({path})
+        .Apply(BIND([path] (const std::vector<TErrorOr<TAttributeMap>>& response) {
+            return response[0].ValueOrThrow();
+        }));
+}
+
+TFuture<std::vector<TErrorOr<TAttributeMap>>> TObjectAttributeCache::DoGetMany(const std::vector<TYPath>& paths)
+{
+    YT_LOG_DEBUG("Updating object attribute cache (PathCount: %v)", paths.size());
+    return GetFromClient(paths, Client_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

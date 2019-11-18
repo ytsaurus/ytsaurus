@@ -8,8 +8,6 @@
 #include <yt/core/misc/fs.h>
 #include <yt/core/misc/string.h>
 
-#include <yt/core/tools/registry.h>
-
 #include <yt/core/ytree/convert.h>
 
 #include <yt/core/misc/fs.h>
@@ -21,7 +19,6 @@
 #include <util/string/vector.h>
 
 #include <util/system/info.h>
-#include <util/system/yield.h>
 #include <util/system/fs.h>
 #include <util/system/fstat.h>
 #include <util/folder/iterator.h>
@@ -57,8 +54,6 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 static const NLogging::TLogger Logger("Proc");
-
-const int RemoveAsRootAttemptCount = 5;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -261,114 +256,6 @@ std::vector<TString> GetProcessCommandLine(int pid)
 }
 
 #ifdef _unix_
-
-void RemoveDirAsRoot(const TString& path)
-{
-    // Child process
-    SafeSetUid(0);
-    execl("/bin/rm", "/bin/rm", "-rf", path.c_str(), (void*)nullptr);
-
-    THROW_ERROR_EXCEPTION("Failed to remove directory %Qv: execl failed",
-        path) << TError::FromSystem();
-}
-
-void RemoveDirContentAsRoot(const TString& path)
-{
-    // Child process
-    SafeSetUid(0);
-
-    if (!TFileStat(path).IsDir()) {
-        THROW_ERROR_EXCEPTION("Path %Qv is not directory",
-            path);
-    }
-
-    auto isRemovable = [&] (auto it) {
-        if (it->fts_info == FTS_DOT || it->fts_info == FTS_D) {
-            return false;
-        }
-        if (path.StartsWith(it->fts_path)) {
-            return false;
-        }
-
-        return true;
-    };
-
-    bool removed = false;
-    std::vector<TError> attemptErrors;
-    for (int attempt = 0; attempt < RemoveAsRootAttemptCount; ++attempt) {
-        std::vector<TError> innerErrors;
-        {
-            TDirIterator dir(path);
-            for (auto it = dir.begin(); it != dir.end(); ++it) {
-                try {
-                    if (isRemovable(it)) {
-                        NFS::Remove(it->fts_path);
-                    }
-                } catch (const std::exception& ex) {
-                    innerErrors.push_back(TError("Failed to remove path %v", it->fts_path)
-                        << ex);
-                }
-            }
-        }
-
-        std::vector<TString> unremovableItems;
-        {
-            TDirIterator dir(path);
-            for (auto it = dir.begin(); it != dir.end(); ++it) {
-                if (isRemovable(it)) {
-                    unremovableItems.push_back(it->fts_path);
-                }
-            }
-        }
-
-        if (unremovableItems.empty()) {
-            removed = true;
-            break;
-        }
-
-        auto error = TError("Failed to remove items %v in directory %v",
-            unremovableItems,
-            path);
-
-        error = NFS::AttachLsofOutput(error, path);
-        error = NFS::AttachFindOutput(error, path);
-        error.InnerErrors() = std::move(innerErrors);
-
-        attemptErrors.push_back(error);
-
-        Sleep(TDuration::Seconds(1));
-    }
-
-    if (!removed) {
-        auto error = TError("Failed to remove directory %v contents", path);
-        error.InnerErrors() = std::move(attemptErrors);
-        THROW_ERROR error;
-    }
-}
-
-void MountTmpfsAsRoot(TMountTmpfsConfigPtr config)
-{
-    SafeSetUid(0);
-    NFS::MountTmpfs(config->Path, config->UserId, config->Size);
-}
-
-void UmountAsRoot(TUmountConfigPtr config)
-{
-    SafeSetUid(0);
-    NFS::Umount(config->Path, config->Detach);
-}
-
-void SetThreadPriorityAsRoot(TSetThreadPriorityConfigPtr config)
-{
-    SafeSetUid(0);
-    SetThreadPriority(config->ThreadId, config->Priority);
-}
-
-void SetQuota(TFSQuotaConfigPtr config)
-{
-    SafeSetUid(0);
-    NFS::SetQuota(config->UserId, config->Path, config->DiskSpaceLimit, config->InodeLimit);
-}
 
 TError StatusToError(int status)
 {
@@ -713,31 +600,6 @@ TString SafeGetUsernameByUid(int uid)
     return pwdptr->pw_name;
 }
 
-void KillAllByUid(int uid)
-{
-    SafeSetUid(0);
-
-    auto pidsToKill = GetPidsByUid(uid);
-    if (pidsToKill.empty()) {
-        return;
-    }
-
-    while (true) {
-        for (int pid : pidsToKill) {
-            auto result = kill(pid, 9);
-            if (result == -1) {
-                YT_VERIFY(errno == ESRCH);
-            }
-        }
-
-        pidsToKill = GetPidsByUid(uid);
-        if (pidsToKill.empty())
-            break;
-
-        ThreadYield();
-    }
-}
-
 #else
 
 bool TryClose(int /* fd */, bool /* ignoreBadFD */)
@@ -771,41 +633,6 @@ bool TryExecve(const char /* *path */, const char* /* argv[] */, const char* /* 
 }
 
 TError StatusToError(int /* status */)
-{
-    YT_UNIMPLEMENTED();
-}
-
-void RemoveDirAsRoot(const TString& /* path */)
-{
-    YT_UNIMPLEMENTED();
-}
-
-void RemoveDirContentAsRoot(const TString& /* path */)
-{
-    YUNIMPLEMENTED();
-}
-
-void KillAllByUid(int /* uid */)
-{
-    YUNIMPLEMENTED();
-}
-
-void MountTmpfsAsRoot(TMountTmpfsConfigPtr /* config */)
-{
-    YT_UNIMPLEMENTED();
-}
-
-void KillAllByUid(int /* uid */)
-{
-    YT_UNIMPLEMENTED();
-}
-
-void UmountAsRoot(const TString& /* path */)
-{
-    YT_UNIMPLEMENTED();
-}
-
-void SetThreadPriorityAsRoot(TSetThreadPriorityConfigPtr /* config */)
 {
     YT_UNIMPLEMENTED();
 }
@@ -971,62 +798,38 @@ TNetworkInterfaceStatisticsMap GetNetworkInterfaceStatistics()
 #endif
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-void TKillAllByUidTool::operator()(int uid) const
+void SendSignal(const std::vector<int>& pids, const TString& signalName)
 {
-    KillAllByUid(uid);
+    ValidateSignalName(signalName);
+    auto sig = FindSignalIdBySignalName(signalName);
+    for (int pid : pids) {
+        kill(pid, *sig);
+    }
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-void TRemoveDirAsRootTool::operator()(const TString& arg) const
+std::optional<int> FindSignalIdBySignalName(const TString& signalName)
 {
-    RemoveDirAsRoot(arg);
+    static const THashMap<TString, int> SignalNameToNumber{
+        { "SIGHUP",  SIGHUP },
+        { "SIGINT",  SIGINT },
+        { "SIGALRM", SIGALRM },
+        { "SIGKILL", SIGKILL },
+        { "SIGTERM", SIGTERM },
+        { "SIGUSR1", SIGUSR1 },
+        { "SIGUSR2", SIGUSR2 },
+        { "SIGURG", SIGURG },
+    };
+
+    auto it = SignalNameToNumber.find(signalName);
+    return it == SignalNameToNumber.end() ? std::nullopt : std::make_optional(it->second);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-void TRemoveDirContentAsRootTool::operator()(const TString& arg) const
+void ValidateSignalName(const TString& signalName)
 {
-    RemoveDirContentAsRoot(arg);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TMountTmpfsAsRootTool::operator()(TMountTmpfsConfigPtr arg) const
-{
-    MountTmpfsAsRoot(arg);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TUmountAsRootTool::operator()(TUmountConfigPtr arg) const
-{
-    UmountAsRoot(arg);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TSetThreadPriorityAsRootTool::operator()(TSetThreadPriorityConfigPtr arg) const
-{
-    SetThreadPriorityAsRoot(arg);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TFSQuotaTool::operator()(TFSQuotaConfigPtr arg) const
-{
-    SetQuota(arg);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TChownChmodTool::operator()(TChownChmodConfigPtr config) const
-{
-    SafeSetUid(0);
-
-    ChownChmodDirectoriesRecursively(config->Path, config->UserId, config->Permissions);
+    auto signal = FindSignalIdBySignalName(signalName);
+    if (!signal) {
+        THROW_ERROR_EXCEPTION("Unsupported signal name %Qv", signalName);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

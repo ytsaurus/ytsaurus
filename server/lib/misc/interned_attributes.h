@@ -128,7 +128,7 @@
     XX(Index, index) \
     XX(InheritAcl, inherit_acl) \
     XX(IOWeights, io_weights) \
-    XX(JobId, job_id)                \
+    XX(Job, job)                \
     XX(KeepFinished, keep_finished) \
     XX(Key, key) \
     XX(KeyColumns, key_columns) \
@@ -204,6 +204,7 @@
     XX(PrimaryCellTag, primary_cell_tag) \
     XX(PrimaryMedium, primary_medium) \
     XX(Priority, priority) \
+    XX(ProjectId, project_id) \
     XX(QuorumRowCount, quorum_row_count) \
     XX(Rack, rack) \
     XX(Racks, racks) \
@@ -279,6 +280,7 @@
     XX(Timeout, timeout) \
     XX(Timestamp, timestamp) \
     XX(Title, title) \
+    XX(TotalAccountStatistics, total_account_statistics) \
     XX(TotalCommittedResourceUsage, total_committed_resource_usage) \
     XX(TotalResourceLimits, total_resource_limits) \
     XX(TotalResourceUsage, total_resource_usage) \
@@ -298,6 +300,7 @@
     XX(UpperLimit, upper_limit) \
     XX(UpstreamReplicaId, upstream_replica_id) \
     XX(UsableAccounts, usable_accounts) \
+    XX(UsableNetworkProjects, usable_network_projects) \
     XX(UsedSpace, used_space) \
     XX(UsedSpacePerMedium, used_space_per_medium) \
     XX(UserAttributes, user_attributes) \

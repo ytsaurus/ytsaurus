@@ -2524,7 +2524,10 @@ TChunkList* TChunkReplicator::FollowParentLinks(TChunkList* chunkList)
 void TChunkReplicator::RegisterJob(const TJobPtr& job)
 {
     job->GetNode()->RegisterJob(job);
-    UpdateJobCountGauge(job->GetType(), +1);
+
+    auto jobType = job->GetType();
+    ++RunningJobs_[jobType];
+    ++JobsStarted_[jobType];
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     auto chunkId = job->GetChunkIdWithIndexes().Id;
@@ -2539,8 +2542,23 @@ void TChunkReplicator::RegisterJob(const TJobPtr& job)
 void TChunkReplicator::UnregisterJob(const TJobPtr& job)
 {
     job->GetNode()->UnregisterJob(job);
-    UpdateJobCountGauge(job->GetType(), -1);
+    auto jobType = job->GetType();
+    --RunningJobs_[jobType];
 
+    auto jobState = job->GetState();
+    switch (jobState) {
+        case EJobState::Completed:
+            ++JobsCompleted_[jobType];
+            break;
+        case EJobState::Failed:
+            ++JobsFailed_[jobType];
+            break;
+        case EJobState::Aborted:
+            ++JobsAborted_[jobType];
+            break;
+        default:
+            break;
+    }
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     auto chunkId = job->GetChunkIdWithIndexes().Id;
     auto* chunk = chunkManager->FindChunk(chunkId);
@@ -2550,20 +2568,6 @@ void TChunkReplicator::UnregisterJob(const TJobPtr& job)
     }
 
     UpdateInterDCEdgeConsumption(job, job->GetNode()->GetDataCenter(), -1);
-}
-
-void TChunkReplicator::UpdateJobCountGauge(EJobType jobType, int delta)
-{
-    switch (jobType) {
-        case EJobType::ReplicateChunk:
-        case EJobType::RemoveChunk:
-        case EJobType::RepairChunk:
-        case EJobType::SealChunk:
-            JobCounters_[jobType] += delta;
-            break;
-        default:
-            YT_ABORT();
-    }
 }
 
 void TChunkReplicator::OnNodeDataCenterChanged(TNode* node, TDataCenter* oldDataCenter)

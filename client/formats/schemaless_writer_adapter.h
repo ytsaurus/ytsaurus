@@ -3,6 +3,7 @@
 #include "public.h"
 #include "format.h"
 #include "helpers.h"
+#include "unversioned_value_yson_writer.h"
 
 #include <yt/client/table_client/unversioned_writer.h>
 
@@ -114,12 +115,9 @@ public:
         TControlAttributesConfigPtr controlAttributesConfig,
         int keyColumnCount);
 
-    void Init(const TFormat& format);
+    void Init(const std::vector<NTableClient::TTableSchema>& tableSchemas, const TFormat& format);
 
 private:
-    std::unique_ptr<NYson::IFlushableYsonConsumer> Consumer_;
-    bool SkipNullValues_;
-
     template <class T>
     void WriteControlAttribute(
         NTableClient::EControlAttribute controlAttribute,
@@ -133,11 +131,13 @@ private:
     virtual void WriteTableIndex(i64 tableIndex) override;
     virtual void WriteRangeIndex(i64 rangeIndex) override;
     virtual void WriteRowIndex(i64 rowIndex) override;
+
+private:
+    std::vector<TUnversionedValueYsonWriter> ValueWriters_;
+    std::unique_ptr<NYson::IFlushableYsonConsumer> Consumer_;
+    i64 CurrentTableIndex_ = 0;
+    bool SkipNullValues_ = false;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-void WriteYsonValue(NYson::IYsonConsumer* writer, const NTableClient::TUnversionedValue& value);
 
 ////////////////////////////////////////////////////////////////////////////////
 

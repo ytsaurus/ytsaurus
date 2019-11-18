@@ -12,20 +12,23 @@ using namespace NTableClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 void AddStripeToList(
-    const TChunkStripePtr& stripe,
-    i64 stripeDataWeight,
-    i64 stripeRowCount,
+    TChunkStripePtr stripe,
     const TChunkStripeListPtr& list,
+    std::optional<i64> stripeDataWeight,
+    std::optional<i64> stripeRowCount,
     TNodeId nodeId)
 {
-    list->Stripes.push_back(stripe);
-    list->TotalDataWeight += stripeDataWeight;
-    list->TotalRowCount += stripeRowCount;
-    list->TotalChunkCount += stripe->GetChunkCount();
+    auto statistics = stripe->GetStatistics();
+    list->TotalDataWeight += stripeDataWeight.value_or(statistics.DataWeight);
+    list->TotalRowCount += stripeRowCount.value_or(statistics.RowCount);
+    list->TotalChunkCount += statistics.ChunkCount;
+    list->Stripes.emplace_back(std::move(stripe));
+
     if (nodeId == InvalidNodeId) {
         return;
     }
-    for (const auto& dataSlice : stripe->DataSlices) {
+
+    for (const auto& dataSlice : list->Stripes.back()->DataSlices) {
         for (const auto& chunkSlice : dataSlice->ChunkSlices) {
             bool isLocal = false;
             for (auto replica : chunkSlice->GetInputChunk()->GetReplicaList()) {

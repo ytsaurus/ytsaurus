@@ -231,5 +231,116 @@ ELegacyLivePreviewMode ToLegacyLivePreviewMode(std::optional<bool> enableLegacyL
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::vector<const TSample*> SortSamples(const std::vector<TSample>& samples)
+{
+    int sampleCount = static_cast<int>(samples.size());
+
+    std::vector<const TSample*> sortedSamples;
+    sortedSamples.reserve(sampleCount);
+    try {
+        for (const auto& sample : samples) {
+            ValidateClientKey(sample.Key);
+            sortedSamples.push_back(&sample);
+        }
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error validating table samples") << ex;
+    }
+
+    std::sort(
+        sortedSamples.begin(),
+        sortedSamples.end(),
+        [] (const TSample* lhs, const TSample* rhs) {
+            return *lhs < *rhs;
+        });
+
+    return sortedSamples;
+}
+
+std::vector<TPartitionKey> BuildPartitionKeysBySamples(
+    const std::vector<TSample>& samples,
+    int partitionCount,
+    const IJobSizeConstraintsPtr& partitionJobSizeConstraints,
+    int keyPrefixLength,
+    const TRowBufferPtr& rowBuffer)
+{
+    YT_VERIFY(partitionCount > 0);
+
+    auto sortedSamples = SortSamples(samples);
+
+    std::vector<TPartitionKey> partitionKeys;
+
+    i64 totalSamplesWeight = 0;
+    for (const auto* sample : sortedSamples) {
+        totalSamplesWeight += sample->Weight;
+    }
+
+    // Select samples evenly wrt weights.
+    std::vector<const TSample*> selectedSamples;
+    selectedSamples.reserve(partitionCount - 1);
+
+    double weightPerPartition = (double)totalSamplesWeight / partitionCount;
+    i64 processedWeight = 0;
+    for (const auto* sample : sortedSamples) {
+        processedWeight += sample->Weight;
+        if (processedWeight / weightPerPartition > selectedSamples.size() + 1) {
+            selectedSamples.push_back(sample);
+        }
+        if (selectedSamples.size() == partitionCount - 1) {
+            // We need exactly partitionCount - 1 partition keys.
+            break;
+        }
+    }
+
+    // Invariant:
+    //   lastKey = partitionsKeys.back().Key
+    //   lastKey corresponds to partition receiving keys in [lastKey, ...)
+    //
+    // Initially partitionKeys is empty so lastKey is assumed to be -inf.
+
+    int sampleIndex = 0;
+    while (sampleIndex < selectedSamples.size()) {
+        TKey lastKey = MinKey();
+        if (!partitionKeys.empty()) {
+            lastKey = partitionKeys.back().Key;
+        }
+
+        auto* sample = selectedSamples[sampleIndex];
+        // Check for same keys.
+        if (CompareRows(sample->Key, lastKey) != 0) {
+            partitionKeys.emplace_back(rowBuffer->Capture(sample->Key));
+            ++sampleIndex;
+        } else {
+            // Skip same keys.
+            int skippedCount = 0;
+            while (sampleIndex < selectedSamples.size() &&
+                CompareRows(selectedSamples[sampleIndex]->Key, lastKey) == 0)
+            {
+                ++sampleIndex;
+                ++skippedCount;
+            }
+
+            auto* lastManiacSample = selectedSamples[sampleIndex - 1];
+
+            if (!lastManiacSample->Incomplete) {
+                partitionKeys.back().Maniac = true;
+                YT_VERIFY(skippedCount >= 1);
+
+                // NB: in partitioner we compare keys with the whole rows,
+                // so key prefix successor in required here.
+                auto successorKey = GetKeyPrefixSuccessor(sample->Key, keyPrefixLength, rowBuffer);
+                partitionKeys.emplace_back(successorKey);
+            } else {
+                // If sample keys are incomplete, we cannot use UnorderedMerge,
+                // because full keys may be different.
+                partitionKeys.emplace_back(rowBuffer->Capture(selectedSamples[sampleIndex]->Key));
+                ++sampleIndex;
+            }
+        }
+    }
+    return partitionKeys;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NControllerAgent
 

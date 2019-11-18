@@ -6,6 +6,8 @@
 
 #include <yt/core/misc/phoenix.h>
 
+#include <yt/core/actions/cancelable_context.h>
+
 #include <contrib/libs/gmock/gmock/gmock.h>
 
 namespace NYT::NTableClient {
@@ -20,6 +22,7 @@ public:
     MOCK_CONST_METHOD0(GetChunkCount, int());
     MOCK_METHOD0(Fetch, TFuture<void>());
     MOCK_METHOD0(GetChunkSlices, std::vector<NChunkClient::TInputChunkSlicePtr>());
+    MOCK_METHOD1(SetCancelableContext, void(TCancelableContextPtr));
 };
 
 typedef TIntrusivePtr<::testing::StrictMock<TMockChunkSliceFetcher>> TStrictMockChunkSliceFetcherPtr;

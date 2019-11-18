@@ -86,7 +86,7 @@ class DynamicTablesBase(YTEnvSetup):
             path = "//sys/cluster_nodes/" + address + "/orchid/tablet_cells"
             cells = ls(path)
             for cell_id in cells:
-                if get(path + "/" + cell_id + "/state") == "leading":
+                if get(path + "/" + cell_id + "/state") in ("leading", "following"):
                     tablets = ls(path + "/" + cell_id + "/tablets")
                     if tablet_id in tablets:
                         try:
@@ -462,6 +462,11 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
         sync_flush_table("//tmp/t")
+        wait(lambda: lookup_rows(
+            "//tmp/t",
+            [{"key": 0}],
+            read_from="follower",
+            timestamp=AsyncLastCommittedTimestamp) == [{"key": 0, "value": "0"}])
 
     @authors("babenko")
     def test_tablet_cell_create_permission(self):

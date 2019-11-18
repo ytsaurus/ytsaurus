@@ -81,6 +81,8 @@ struct TNode
     bool IsClosing = false;
     bool IsFinished = false;
 
+    TClosure CloseDemandedCallback;
+
     NLogging::TLogger Logger;
 
     TNode(
@@ -110,7 +112,16 @@ struct TNode
         auto req = proxy.PingSession();
         req->SetTimeout(rpcTimeout);
         ToProto(req->mutable_session_id(), sessionId);
-        req->Invoke();
+
+        auto rspOrError = WaitFor(req->Invoke());
+        if (rspOrError.IsOK()) {
+            if (rspOrError.Value()->close_demanded() && CloseDemandedCallback) {
+                CloseDemandedCallback();
+            }
+        } else {
+            YT_LOG_DEBUG("Ping failed (Address: %v)",
+                Descriptor.GetDefaultAddress());
+        }
     }
 };
 
@@ -311,9 +322,9 @@ public:
         return NErasure::ECodec::None;
     }
 
-    virtual bool HasSickReplicas() const override
+    virtual bool IsCloseDemanded() const override
     {
-        return HasSickReplicas_;
+        return IsCloseDemanded_;
     }
 
 private:
@@ -368,7 +379,7 @@ private:
 
     std::vector<TString> BannedNodeAddresses_;
 
-    bool HasSickReplicas_ = false;
+    bool IsCloseDemanded_ = false;
 
     void DoOpen()
     {
@@ -645,9 +656,9 @@ private:
                 blockIndex,
                 node->Descriptor.GetDefaultAddress());
 
-            if (rspOrError.Value()->location_sick()) {
-                YT_LOG_DEBUG("Found sick replica (NodeAddress: %v)", node->Descriptor.GetDefaultAddress());
-                HasSickReplicas_ = true;
+            if (rspOrError.Value()->close_demanded()) {
+                YT_LOG_DEBUG("Close demanded by node (NodeAddress: %v)", node->Descriptor.GetDefaultAddress());
+                DemandClose();
             }
 
             if (CloseRequested_ && blockIndex + 1 == BlockCount_) {
@@ -703,6 +714,8 @@ private:
             target,
             channel,
             Logger);
+
+        node->CloseDemandedCallback = BIND(&TReplicationWriter::DemandClose, MakeWeak(this));
 
         node->PingExecutor = New<TPeriodicExecutor>(
             TDispatcher::Get()->GetWriterInvoker(),
@@ -876,6 +889,11 @@ private:
         }
     }
 
+    void DemandClose()
+    {
+        IsCloseDemanded_ = true;
+    }
+
     DECLARE_THREAD_AFFINITY_SLOT(WriterThread);
 };
 
@@ -991,9 +1009,9 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer)
 
     auto rspOrError = WaitFor(req->Invoke());
     if (rspOrError.IsOK()) {
-        if (rspOrError.Value()->location_sick()) {
-            YT_LOG_DEBUG("Found sick replica (NodeAddress: %v)", node->Descriptor.GetDefaultAddress());
-            writer->HasSickReplicas_ = true;
+        if (rspOrError.Value()->close_demanded()) {
+            YT_LOG_DEBUG("Close demanded by node (NodeAddress: %v)", node->Descriptor.GetDefaultAddress());
+            writer->DemandClose();
         }
         SentTo_[node->Index] = true;
 
@@ -1040,9 +1058,9 @@ void TGroup::SendGroup(const TReplicationWriterPtr& writer, const TNodePtr& srcN
 
         auto rspOrError = WaitFor(req->Invoke());
         if (rspOrError.IsOK()) {
-            if (rspOrError.Value()->location_sick()) {
-                YT_LOG_DEBUG("Found sick replica (NodeAddress: %v)", dstNode->Descriptor.GetDefaultAddress());
-                writer->HasSickReplicas_ = true;
+            if (rspOrError.Value()->close_demanded()) {
+                YT_LOG_DEBUG("Close demanded by node (NodeAddress: %v)", dstNode->Descriptor.GetDefaultAddress());
+                writer->DemandClose();
             }
             SentTo_[dstNode->Index] = true;
 

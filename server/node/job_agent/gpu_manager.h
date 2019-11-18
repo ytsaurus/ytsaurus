@@ -8,6 +8,8 @@
 #include <yt/server/node/cell_node/public.h>
 #include <yt/server/node/data_node/artifact.h>
 
+#include <yt/client/hydra/public.h>
+
 #include <yt/core/concurrency/periodic_executor.h>
 
 namespace NYT::NJobAgent {
@@ -57,6 +59,7 @@ public:
     using TGpuSlotPtr = std::unique_ptr<TGpuSlot, std::function<void(TGpuSlot*)>>;
     TGpuSlotPtr AcquireGpuSlot();
 
+    std::vector<TShellCommandConfigPtr> GetSetupCommands();
     std::vector<NDataNode::TArtifactKey> GetToppingLayers();
     void VerifyToolkitDriverVersion(const TString& toolkitVersion);
 
@@ -73,7 +76,7 @@ private:
     bool Disabled_ = false;
 
     NYPath::TYPath DriverLayerPath_;
-    ui64 DriverLayerRevision_ = 0;
+    NHydra::TRevision DriverLayerRevision_ = NHydra::NullRevision;
     std::optional<NDataNode::TArtifactKey> DriverLayerKey_;
     NConcurrency::TPeriodicExecutorPtr FetchDriverLayerExecutor_;
     TString DriverVersionString_;

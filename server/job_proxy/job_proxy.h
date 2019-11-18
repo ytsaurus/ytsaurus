@@ -13,13 +13,14 @@
 #include <yt/ytlib/job_prober_client/job_probe.h>
 
 #include <yt/ytlib/job_tracker_client/public.h>
-#include <yt/ytlib/job_tracker_client/statistics.h>
 
 #include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/core/concurrency/public.h>
 
 #include <yt/core/logging/log.h>
+
+#include <yt/core/misc/statistics.h>
 
 namespace NYT::NJobProxy {
 
@@ -142,7 +143,7 @@ private:
         TInstant startTime,
         TInstant finishTime);
 
-    NJobTrackerClient::TStatistics GetStatistics() const;
+    TStatistics GetStatistics() const;
 
     IJobPtr CreateBuiltinJob();
 

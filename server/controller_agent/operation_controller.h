@@ -19,7 +19,6 @@
 
 #include <yt/ytlib/controller_agent/proto/controller_agent_service.pb.h>
 
-#include <yt/ytlib/scheduler/job.h>
 #include <yt/ytlib/scheduler/job_resources.h>
 
 #include <yt/core/actions/future.h>
@@ -68,6 +67,7 @@ struct TOperationControllerPrepareResult
 struct TOperationControllerMaterializeResult
 {
     bool Suspend = false;
+    TJobResources InitialNeededResources;
 };
 
 struct TOperationControllerReviveResult
@@ -88,6 +88,7 @@ struct TOperationControllerReviveResult
     bool RevivedFromSnapshot = false;
     std::vector<TRevivedJob> RevivedJobs;
     THashSet<TString> RevivedBannedTreeIds;
+    TJobResources NeededResources;
 };
 
 struct TOperationControllerUnregisterResult
@@ -131,7 +132,7 @@ struct IOperationControllerHost
     virtual void InterruptJob(TJobId jobId, EInterruptReason reason) = 0;
     virtual void AbortJob(TJobId jobId, const TError& error) = 0;
     virtual void FailJob(TJobId jobId) = 0;
-    virtual void ReleaseJobs(const std::vector<NScheduler::TJobToRelease>& jobsToRelease) = 0;
+    virtual void ReleaseJobs(const std::vector<NJobTrackerClient::TJobToRelease>& jobsToRelease) = 0;
 
     virtual TFuture<TOperationSnapshot> DownloadSnapshot() = 0;
     virtual TFuture<void> RemoveSnapshot() = 0;
@@ -152,7 +153,7 @@ struct IOperationControllerHost
     virtual const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() = 0;
     virtual const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() = 0;
     virtual const IInvokerPtr& GetControllerThreadPoolInvoker() = 0;
-    virtual const NEventLog::TEventLogWriterPtr& GetEventLogWriter() = 0;
+    virtual const NEventLog::IEventLogWriterPtr& GetEventLogWriter() = 0;
     virtual const ICoreDumperPtr& GetCoreDumper() = 0;
     virtual const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() = 0;
     virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() = 0;
@@ -521,6 +522,8 @@ struct IOperationController
     virtual void RegisterOutputRows(i64 count, int tableIndex) = 0;
 
     virtual std::optional<int> GetRowCountLimitTableIndex() = 0;
+
+    virtual void LoadSnapshot(const TOperationSnapshot& snapshot) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)

@@ -5,6 +5,8 @@
 #include "private.h"
 #include "api.h"
 
+#include <yt/server/lib/misc/address_helpers.h>
+
 #include <yt/ytlib/api/native/connection.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
@@ -120,11 +122,11 @@ TCoordinator::TCoordinator(
     , UpdateStateExecutor_(New<TPeriodicExecutor>(
         bootstrap->GetControlInvoker(),
         BIND(&TCoordinator::UpdateState, MakeWeak(this)),
-        Config_->HeartbeatInterval))
+        TPeriodicExecutorOptions::WithJitter(Config_->HeartbeatInterval)))
     , UpdateDynamicConfigExecutor_(New<TPeriodicExecutor>(
         bootstrap->GetControlInvoker(),
         BIND(&TCoordinator::UpdateDynamicConfig, MakeWeak(this)),
-        Config_->HeartbeatInterval))
+        TPeriodicExecutorOptions::WithJitter(Config_->HeartbeatInterval)))
 {
     Self_ = New<TProxyEntry>();
     Self_->Endpoint = Config_->PublicFqdn
@@ -347,6 +349,20 @@ void TCoordinator::UpdateState()
                 YT_LOG_INFO("Created Cypress node (Path: %v)", selfPath);
             } else {
                 error.ValueOrThrow();
+            }
+
+            {
+                TCreateNodeOptions options;
+                options.Recursive = true;
+                options.IgnoreExisting = true;
+                auto attributes = CreateEphemeralAttributes();
+                attributes->Set("remote_addresses",
+                    NYT::GetLocalAddresses({{"default", Self_->GetHost()}}, Bootstrap_->GetConfig()->RpcPort));
+                options.Attributes = std::move(attributes);
+                auto orchidPath = selfPath + "/orchid";
+                WaitFor(Client_->CreateNode(orchidPath, EObjectType::Orchid, options))
+                    .ThrowOnError();
+                YT_LOG_INFO("Orchid node created (Path: %v)", orchidPath);
             }
 
             WaitFor(Client_->SetNode(selfPath + "/@version", ConvertToYsonString(NYT::GetVersion())))

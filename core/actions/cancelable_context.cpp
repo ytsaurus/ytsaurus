@@ -135,6 +135,7 @@ void TCancelableContext::PropagateTo(const TFuture<void>& future)
             return true;
         }
         PropagateToFutures_.insert(future);
+
         return false;
     } ();
 

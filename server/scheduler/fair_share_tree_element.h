@@ -172,6 +172,14 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSchedulerElementStateSnapshot
+{
+    TJobResources ResourceDemand;
+    TJobResources MinShareResources;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 const int UnassignedTreeIndex = -1;
 const int EmptySchedulingTagFilterIndex = -1;
 
@@ -244,8 +252,6 @@ public:
 
     virtual void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config);
 
-    virtual void Update(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context);
-
     //! Updates attributes that need to be computed from leafs up to root.
     //! For example: |parent->ResourceDemand = Sum(child->ResourceDemand)|.
     virtual void UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context);
@@ -315,7 +321,10 @@ public:
 
     void IncreaseHierarchicalResourceUsage(const TJobResources& delta);
 
-    virtual void BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap) = 0;
+    virtual void BuildElementMapping(
+        TRawOperationElementMap* operationMap,
+        TRawPoolMap* poolMap,
+        TDisabledOperationsSet* disabledOperations) = 0;
 
     virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) = 0;
 
@@ -384,6 +393,7 @@ class TCompositeSchedulerElementFixedState
 public:
     DEFINE_BYREF_RW_PROPERTY(int, RunningOperationCount);
     DEFINE_BYREF_RW_PROPERTY(int, OperationCount);
+    DEFINE_BYREF_RW_PROPERTY(std::list<TOperationId>, WaitingOperationIds);
 
     DEFINE_BYREF_RO_PROPERTY(double, AdjustedFairShareStarvationToleranceLimit);
     DEFINE_BYREF_RO_PROPERTY(TDuration, AdjustedMinSharePreemptionTimeoutLimit);
@@ -462,11 +472,12 @@ public:
 
     virtual int GetMaxOperationCount() const = 0;
     virtual int GetMaxRunningOperationCount() const = 0;
+    int GetAvailableRunningOperationCount() const;
 
     virtual std::vector<EFifoSortParameter> GetFifoSortParameters() const = 0;
     virtual bool AreImmediateOperationsForbidden() const = 0;
 
-    virtual void BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap) override;
+    virtual void BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap, TDisabledOperationsSet* disabledOperations) override;
 
     void IncreaseOperationCount(int delta);
     void IncreaseRunningOperationCount(int delta);
@@ -602,7 +613,7 @@ public:
     virtual bool IsInferringChildrenWeightsFromHistoricUsageEnabled() const override;
     virtual THistoricUsageAggregationParameters GetHistoricUsageAggregationParameters() const override;
 
-    virtual void BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap) override;
+    virtual void BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap, TDisabledOperationsSet* disabledOperations) override;
 private:
     TPoolConfigPtr Config_;
     TSchedulingTagFilter SchedulingTagFilter_;
@@ -659,6 +670,8 @@ public:
         double aggressivePreemptionSatisfactionThreshold,
         int* moveCount);
 
+    void SetPreemptable(bool value);
+
     bool IsJobKnown(TJobId jobId) const;
 
     bool IsJobPreemptable(TJobId jobId, bool aggressivePreemptionEnabled) const;
@@ -682,6 +695,7 @@ public:
 
     TJobResources Disable();
     void Enable();
+    bool Enabled();
 
     void RecordHeartbeat(
         const TPackingHeartbeatSnapshot& heartbeatSnapshot,
@@ -699,6 +713,8 @@ private:
     TJobIdList NonpreemptableJobs_;
     TJobIdList AggressivelyPreemptableJobs_;
     TJobIdList PreemptableJobs_;
+
+    std::atomic<bool> Preemptable_ = {true};
 
     std::atomic<int> RunningJobCount_ = {0};
     TJobResources NonpreemptableResourceUsage_;
@@ -854,7 +870,7 @@ public:
         bool force = false);
     void OnJobFinished(TJobId jobId);
 
-    virtual void BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap) override;
+    virtual void BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap, TDisabledOperationsSet* disabledOperations) override;
 
     virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
 
@@ -876,12 +892,17 @@ public:
     void DetachParent();
 
     void MarkOperationRunningInPool();
+    bool IsOperationRunningInPool();
 
     void UpdateAncestorsAttributes(TFairShareContext* context);
+
+    void MarkWaitingFor(TCompositeSchedulerElement* violatedPool);
 
     DEFINE_BYVAL_RW_PROPERTY(TOperationFairShareTreeRuntimeParametersPtr, RuntimeParameters);
 
     DEFINE_BYVAL_RO_PROPERTY(TStrategyOperationSpecPtr, Spec);
+
+    DEFINE_BYREF_RW_PROPERTY(std::optional<TString>, WaitingForPool);
 
 private:
     const TOperationElementSharedStatePtr OperationElementSharedState_;
@@ -951,7 +972,10 @@ public:
         const NLogging::TLogger& logger);
     TRootElement(const TRootElement& other);
 
-    virtual void Update(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
+    //! Computes various lightweight attributes in the tree. Thread-unsafe.
+    void PreUpdate(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context);
+    //! Computes min share ratio and fair share ratio in the tree. Thread-safe.
+    void Update(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context);
 
     virtual void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config) override;
 

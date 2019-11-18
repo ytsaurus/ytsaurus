@@ -200,6 +200,7 @@ void TDynamicChannelPool::SetAddressList(const TErrorOr<std::vector<TString>>& a
         Config_->ChannelPoolRebalanceInterval;
     auto now = TInstant::Now();
 
+    THashSet<TString> addressSet(addresses.begin(), addresses.end());
     std::vector<TChannelSlotPtr> replaced;
     {
         TWriterGuard guard(SpinLock_);
@@ -207,18 +208,29 @@ void TDynamicChannelPool::SetAddressList(const TErrorOr<std::vector<TString>>& a
             return;
         }
         for (int i = 0; i < Slots_.size(); ++i) {
+            // Replace channels that returned rpc errors.
             if (Slots_[i]->SeemsBroken) {
                 Slots_[i] = New<TChannelSlot>();
                 replaced.push_back(Slots_[i]);
                 continue;
             }
 
-            if (!Slots_[i]->Channel.IsSet()) {
+            const auto& channel = Slots_[i]->Channel;
+            // Initialize slots created in constructor.
+            if (!channel.IsSet()) {
                 replaced.push_back(Slots_[i]);
                 continue;
             }
 
-            if (Slots_[i]->Channel.IsSet() && !Slots_[i]->Channel.Get().IsOK()) {
+            // Replace channels that are broken for sure.
+            if (channel.IsSet() && !channel.Get().IsOK()) {
+                Slots_[i] = New<TChannelSlot>();
+                replaced.push_back(Slots_[i]);
+                continue;
+            }
+
+            // Replace channels connected to unknown proxies.
+            if (channel.IsSet() && channel.Get().IsOK() && addressSet.find(Slots_[i]->Address) == addressSet.end()) {
                 Slots_[i] = New<TChannelSlot>();
                 replaced.push_back(Slots_[i]);
                 continue;
@@ -237,7 +249,6 @@ void TDynamicChannelPool::SetAddressList(const TErrorOr<std::vector<TString>>& a
         }
     }
 
-    // Assuming `addresses` are only needed for `replaced`.
     if (!replaced.empty()) {
         ShuffleRange(addresses);
         if (!Config_->ProxyHostOrder.empty()) {
@@ -256,8 +267,18 @@ void TDynamicChannelPool::SetAddressList(const TErrorOr<std::vector<TString>>& a
                     if (strongSlot) {
                         strongSlot->SeemsBroken = true;
                     }
+                }),
+                BIND([] (const TError& error) {
+                    if (IsChannelFailureError(error)) {
+                        return true;
+                    }
+
+                    auto code = error.GetCode();
+                    return code == NYT::EErrorCode::Timeout ||
+                           code == EErrorCode::ProxyBanned;
                 }));
 
+            replaced[i]->Address = address;
             replaced[i]->Channel.TrySet(channel);
         }
     }

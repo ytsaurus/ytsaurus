@@ -13,6 +13,7 @@
 #include <yt/ytlib/security_client/public.h>
 
 #include <yt/ytlib/table_client/helpers.h>
+#include <yt/ytlib/table_client/samples_fetcher.h>
 
 #include <yt/ytlib/scheduler/config.h>
 
@@ -98,6 +99,33 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 ELegacyLivePreviewMode ToLegacyLivePreviewMode(std::optional<bool> enableLegacyLivePreview);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TPartitionKey
+{
+    NTableClient::TKey Key;
+
+    //! Whether partition starting with this key is maniac.
+    bool Maniac = false;
+
+    TPartitionKey() = default;
+
+    explicit TPartitionKey(NTableClient::TKey key)
+        : Key(std::move(key))
+    { }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<const NTableClient::TSample*> SortSamples(const std::vector<NTableClient::TSample>& samples);
+
+std::vector<TPartitionKey> BuildPartitionKeysBySamples(
+    const std::vector<NTableClient::TSample>& samples,
+    int partitionCount,
+    const IJobSizeConstraintsPtr& partitionJobSizeConstraints,
+    int keyPrefixLength,
+    const NQueryClient::TRowBufferPtr& rowBuffer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

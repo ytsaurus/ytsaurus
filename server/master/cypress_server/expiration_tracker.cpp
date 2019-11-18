@@ -59,6 +59,9 @@ void TExpirationTracker::Stop()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    const auto& configManager = Bootstrap_->GetConfigManager();
+    configManager->UnsubscribeConfigChanged(DynamicConfigChangedCallback_);
+
     CheckExecutor_.Reset();
 }
 
@@ -201,7 +204,9 @@ const TDynamicCypressManagerConfigPtr& TExpirationTracker::GetDynamicConfig()
 
 void TExpirationTracker::OnDynamicConfigChanged()
 {
-    CheckExecutor_->SetPeriod(GetDynamicConfig()->ExpirationCheckPeriod);
+    if (CheckExecutor_) {
+        CheckExecutor_->SetPeriod(GetDynamicConfig()->ExpirationCheckPeriod);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

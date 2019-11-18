@@ -73,6 +73,7 @@ class TChunkJobBase
 public:
     DEFINE_SIGNAL(void(const TNodeResources& resourcesDelta), ResourcesUpdated);
     DEFINE_SIGNAL(void(), PortsReleased);
+    DEFINE_SIGNAL(void(), JobFinished);
 
 public:
     TChunkJobBase(
@@ -421,6 +422,7 @@ private:
 
         JobPhase_ = EJobPhase::Finished;
         JobState_ = finalState;
+        JobFinished_.Fire();
         ToProto(Result_.mutable_error(), error);
         auto deltaResources = ZeroNodeResources() - ResourceLimits_;
         ResourceLimits_ = ZeroNodeResources();
@@ -809,11 +811,7 @@ private:
                 chunkId);
         }
 
-        auto readGuard = TChunkReadGuard::TryAcquire(chunk);
-        if (!readGuard) {
-            THROW_ERROR_EXCEPTION("Cannot lock chunk %v",
-                chunkId);
-        }
+        auto readGuard = TChunkReadGuard::AcquireOrThrow(chunk);
 
         auto journalDispatcher = Bootstrap_->GetJournalDispatcher();
         auto location = journalChunk->GetStoreLocation();

@@ -14,19 +14,21 @@
 
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 
+#include <yt/ytlib/tools/tools.h>
+#include <yt/ytlib/tools/proc.h>
+
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/misc/fs.h>
+#include <yt/core/misc/singleton.h>
 #include <yt/core/misc/proc.h>
 
-#include <yt/core/misc/singleton.h>
-
 #include <yt/core/yson/writer.h>
+
 #include <yt/core/ytree/convert.h>
 
-#include <yt/core/tools/tools.h>
-
 #include <util/system/fs.h>
+
 #include <util/folder/path.h>
 
 namespace NYT::NExecAgent {
@@ -63,7 +65,9 @@ TSlotLocation::TSlotLocation(
 
     try {
         NFS::MakeDirRecursive(Config_->Path, 0755);
-        WaitFor(HealthChecker_->RunCheck()).ThrowOnError();
+
+        WaitFor(HealthChecker_->RunCheck())
+            .ThrowOnError();
 
         ValidateMinimumSpace();
 
@@ -181,7 +185,7 @@ TFuture<std::vector<TString>> TSlotLocation::CreateSandboxDirectories(int slotIn
                 }
                 NFS::MakeDirRecursive(tmpfsPath);
             } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Failed to create directory %Qv for tmpfs in sandbox %v",
+                THROW_ERROR_EXCEPTION("Failed to create directory %v for tmpfs in sandbox %v",
                     tmpfsPath,
                     sandboxPath)
                     << ex;
@@ -224,7 +228,7 @@ TFuture<std::vector<TString>> TSlotLocation::CreateSandboxDirectories(int slotIn
                 auto lhsFsPath = TFsPath(result[i]);
                 auto rhsFsPath = TFsPath(result[j]);
                 if (lhsFsPath.IsSubpathOf(rhsFsPath)) {
-                    THROW_ERROR_EXCEPTION("Path of tmpfs volume %Qv is prefix of other tmpfs volume %Qv",
+                    THROW_ERROR_EXCEPTION("Path of tmpfs volume %v is prefix of other tmpfs volume %v",
                         result[i],
                         result[j]);
                 }

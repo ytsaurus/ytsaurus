@@ -134,13 +134,12 @@ TOperationStatistics TSharedOperationStatistics::OnOperationFinished(
         stats->StartTime = startTime;
         stats->FinishTime = finishTime;
 
-        auto it = OperationDescriptionById_.find(operationId);
-        YT_VERIFY(it != OperationDescriptionById_.end());
+        const auto& operationDescription = GetOrCrash(OperationDescriptionById_, operationId);
 
-        stats->RealDuration = it->second.Duration;
-        stats->OperationType = it->second.Type;
-        stats->OperationState = it->second.State;
-        stats->InTimeframe = it->second.InTimeframe;
+        stats->RealDuration = operationDescription.Duration;
+        stats->OperationType = operationDescription.Type;
+        stats->OperationState = operationDescription.State;
+        stats->InTimeframe = operationDescription.InTimeframe;
 
         return std::move(*stats);
     }
@@ -149,9 +148,7 @@ TOperationStatistics TSharedOperationStatistics::OnOperationFinished(
 const TOperationDescription& TSharedOperationStatistics::GetOperationDescription(TOperationId operationId) const
 {
     // No synchronization needed.
-    auto it = OperationDescriptionById_.find(operationId);
-    YT_VERIFY(it != OperationDescriptionById_.end());
-    return it->second;
+    return GetOrCrash(OperationDescriptionById_, operationId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -362,8 +359,7 @@ void TSharedSchedulerStrategy::ProcessJobUpdates(
     std::vector<std::pair<TOperationId, TJobId>>* successfullyUpdatedJobs,
     std::vector<TJobId>* jobsToAbort)
 {
-    int snapshotRevision;
-    SchedulerStrategy_->ProcessJobUpdates(jobUpdates, successfullyUpdatedJobs, jobsToAbort, &snapshotRevision);
+    SchedulerStrategy_->ProcessJobUpdates(jobUpdates, successfullyUpdatedJobs, jobsToAbort);
 }
 
 void TSharedSchedulerStrategy::UnregisterOperation(NYT::NScheduler::IOperationStrategyHost* operation)

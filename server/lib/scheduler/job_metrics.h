@@ -2,13 +2,12 @@
 
 #include "public.h"
 
-#include <yt/ytlib/job_tracker_client/statistics.h>
-
 #include <yt/ytlib/controller_agent/public.h>
 
 #include <yt/core/profiling/metrics_accumulator.h>
 
 #include <yt/core/misc/phoenix.h>
+#include <yt/core/misc/public.h>
 
 #include <util/system/defaults.h>
 
@@ -92,8 +91,8 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TValues, Values);
     DEFINE_BYREF_RW_PROPERTY(TCustomValues, CustomValues);
 
-    static TJobMetrics FromJobTrackerStatistics(
-        const NJobTrackerClient::TStatistics& statistics,
+    static TJobMetrics FromJobStatistics(
+        const TStatistics& statistics,
         NJobTrackerClient::EJobState jobState,
         const std::vector<TCustomJobMetricDescription>& customJobMetrics);
 

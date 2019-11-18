@@ -635,6 +635,16 @@ void TProtobufFormatDescription::InitField(
         logicalType = logicalType->AsListTypeRef().GetElement();
     }
 
+    // list<optional<any>> is allowed.
+    if (field->Repeated &&
+        field->Type == EProtobufType::Any &&
+        logicalType->GetMetatype() == ELogicalMetatype::Optional &&
+        logicalType->AsOptionalTypeRef().GetElement()->GetMetatype() == ELogicalMetatype::Simple &&
+        logicalType->AsOptionalTypeRef().GetElement()->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::Any)
+    {
+        return;
+    }
+
     if (field->Type != EProtobufType::StructuredMessage) {
         if (logicalType->GetMetatype() != ELogicalMetatype::Simple) {
             THROW_ERROR_EXCEPTION("Schema and protobuf config mismatch: expected metatype %Qlv, got %Qlv",

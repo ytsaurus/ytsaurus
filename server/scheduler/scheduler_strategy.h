@@ -75,7 +75,6 @@ struct TJobUpdate
     TJobId JobId;
     TString TreeId;
     TJobResources Delta;
-    std::optional<int> SnapshotRevision;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -153,11 +152,14 @@ struct ISchedulerStrategy
     //! Register jobs that are already created somewhere outside strategy.
     virtual void RegisterJobsFromRevivedOperation(TOperationId operationId, const std::vector<TJobPtr>& job) = 0;
 
+    //! Out of the pool trees specified for the operation, choose one most suitable tree
+    //! depending on the operation's demand and current resource usage in each tree.
+    virtual TString ChooseBestSingleTreeForOperation(TOperationId operationId, TJobResources newDemand) = 0;
+
     virtual void ProcessJobUpdates(
         const std::vector<TJobUpdate>& jobUpdates,
         std::vector<std::pair<TOperationId, TJobId>>* successfullyUpdatedJobs,
-        std::vector<TJobId>* jobsToAbort,
-        int* snapshotRevision) = 0;
+        std::vector<TJobId>* jobsToAbort) = 0;
 
     virtual void ApplyJobMetricsDelta(const TOperationIdToOperationJobMetrics& operationIdToOperationJobMetrics) = 0;
 
@@ -211,6 +213,8 @@ struct ISchedulerStrategy
     virtual TPoolTreeControllerSettingsMap GetOperationPoolTreeControllerSettingsMap(TOperationId operationId) = 0;
 
     virtual std::vector<std::pair<TOperationId, TError>> GetUnschedulableOperations() = 0;
+
+    virtual void ScanWaitingForPoolOperations() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchedulerStrategy)

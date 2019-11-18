@@ -524,6 +524,10 @@ private:
         }
 
         if (cursor->GetCurrent().GetType() == EYsonItemType::EntityValue) {
+            if (fieldDescription.Type == EProtobufType::Any) {
+                cursor->Next();
+                return ProcessEntityValue(fieldDescription);
+            }
             if (Y_UNLIKELY(!fieldDescription.Optional)) {
                 THROW_ERROR_EXCEPTION("Expected non-optional protobuf field %Qv of type %Qlv, "
                     "got YSON \"entity\" item",
@@ -597,16 +601,33 @@ private:
         return fieldDescription.TagSize + writtenByteCountSize + writtenByteCount;
     }
 
-    template <typename TValueGetter>
-    i64 ProcessSimpleType(const TProtobufFieldDescription& fieldDescription, const TValueGetter& valueGetter)
+    template <typename TFieldWriter>
+    i64 WriteSimpleField(const TProtobufFieldDescription& fieldDescription, const TFieldWriter& fieldWriter)
     {
         auto& dataResultNode = GetOrCreateDataResultNode();
         auto originalBufferSize = static_cast<i64>(Buffer_.size());
         WriteVarUint32(&BufferOutput_, fieldDescription.WireTag);
-        WriteProtobufField(&BufferOutput_, fieldDescription, valueGetter);
+        fieldWriter(&BufferOutput_);
         auto writtenByteCount = static_cast<i64>(Buffer_.size()) - originalBufferSize;
         dataResultNode.Size += writtenByteCount;
         return writtenByteCount;
+    }
+
+    i64 ProcessEntityValue(const TProtobufFieldDescription& fieldDescription)
+    {
+        static const auto EntityValue = AsStringBuf("#");
+        return WriteSimpleField(fieldDescription, [] (IOutputStream* stream) {
+            WriteVarUint32(stream, EntityValue.size());
+            stream->Write(EntityValue.data(), EntityValue.size());
+        });
+    }
+
+    template <typename TValueGetter>
+    i64 ProcessSimpleType(const TProtobufFieldDescription& fieldDescription, const TValueGetter& valueGetter)
+    {
+        return WriteSimpleField(fieldDescription, [&] (IOutputStream* stream) {
+            WriteProtobufField(stream, fieldDescription, valueGetter);
+        });
     }
 
     TDataResultNode& GetOrCreateDataResultNode()

@@ -32,13 +32,9 @@
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/public.h>
 
-#include <yt/client/object_client/helpers.h>
-
 #include <yt/ytlib/cypress_client/public.h>
 
 #include <yt/ytlib/file_client/file_ypath_proxy.h>
-
-#include <yt/ytlib/job_tracker_client/statistics.h>
 
 #include <yt/ytlib/node_tracker_client/helpers.h>
 #include <yt/ytlib/node_tracker_client/public.h>
@@ -54,6 +50,8 @@
 #include <yt/client/table_client/unversioned_row.h>
 #include <yt/client/table_client/value_consumer.h>
 
+#include <yt/client/object_client/helpers.h>
+
 #include <yt/core/actions/cancelable_context.h>
 
 #include <yt/core/concurrency/fair_share_invoker_pool.h>
@@ -68,6 +66,7 @@
 #include <yt/core/misc/optional.h>
 #include <yt/core/misc/ref_tracked.h>
 #include <yt/core/misc/safe_assert.h>
+#include <yt/core/misc/statistics.h>
 
 #include <yt/core/ytree/ypath_client.h>
 
@@ -238,6 +237,7 @@ public:
     virtual void BuildBriefProgress(NYTree::TFluentMap fluent) const;
     virtual void BuildJobSplitterInfo(NYTree::TFluentMap fluent) const;
     virtual void BuildJobsYson(NYTree::TFluentMap fluent) const;
+    virtual void BuildRetainedFinishedJobsYson(NYTree::TFluentMap fluent) const;
 
     // NB(max42, babenko): this method should not be safe. Writing a core dump or trying to fail
     // operation from a forked process is a bad idea.
@@ -360,6 +360,8 @@ public:
     virtual void RegisterOutputRows(i64 count, int tableIndex) override;
 
     virtual std::optional<int> GetRowCountLimitTableIndex() override;
+
+    virtual void LoadSnapshot(const TOperationSnapshot& snapshot) override;
 
     virtual TOutputTablePtr RegisterOutputTable(const NYPath::TRichYPath& outputTablePath) override;
 
@@ -518,6 +520,7 @@ protected:
     void AnalyzeJobsDuration();
     void AnalyzeOperationDuration();
     void AnalyzeScheduleJobStatistics();
+    void AnalyzeQueueAverageWaitTime();
 
     void AnalyzeOperationProgress();
 
@@ -966,7 +969,7 @@ private:
     TIdGenerator JobIndexGenerator;
 
     //! Aggregates job statistics.
-    NJobTrackerClient::TStatistics JobStatistics;
+    TStatistics JobStatistics;
 
     TSpinLock JobMetricsDeltaPerTreeLock_;
     //! Delta of job metrics that was not reported to scheduler.
@@ -1028,12 +1031,13 @@ private:
 
     const NConcurrency::TPeriodicExecutorPtr CheckTentativeTreeEligibilityExecutor_;
 
-    int StderrCount_ = 0;
-    int JobNodeCount_ = 0;
+    int RetainedJobWithStderrCount_ = 0;
+    int RetainedJobCount_ = 0;
     int JobSpecCompletedArchiveCount_ = 0;
 
     // Containts finished jobs (right now it is used only for archive job spec flag).
     THashMap<TJobId, TFinishedJobInfoPtr> FinishedJobs_;
+    std::vector<std::pair<TJobId, NYson::TYsonString>> RetainedFinishedJobs_;
 
     class TSink;
     std::vector<std::unique_ptr<TSink>> Sinks_;
@@ -1102,10 +1106,10 @@ private:
 
     void BuildAndSaveProgress();
 
-    void UpdateMemoryDigests(const TJobletPtr& joblet, const NJobTrackerClient::TStatistics& statistics, bool resourceOverdraft = false);
+    void UpdateMemoryDigests(const TJobletPtr& joblet, const TStatistics& statistics, bool resourceOverdraft = false);
 
     void InitializeHistograms();
-    void UpdateActualHistogram(const NJobTrackerClient::TStatistics& statistics);
+    void UpdateActualHistogram(const TStatistics& statistics);
 
     void InitializeSecurityTags();
 
@@ -1166,11 +1170,14 @@ private:
         const TJobInfoPtr& job,
         EJobState state,
         bool outputStatistics,
+        i64 stderrSize,
         NYTree::TFluentMap fluent) const;
 
     void BuildFinishedJobAttributes(
         const TFinishedJobInfoPtr& job,
         bool outputStatistics,
+        bool hasStderr,
+        bool hasFailContext,
         NYTree::TFluentMap fluent) const;
 
     void AnalyzeBriefStatistics(
@@ -1199,6 +1206,8 @@ private:
         const TString& name,
         EOperationAlertType alertType,
         const TString& message);
+
+    void MaybeCancel(ECancelationStage cancelationStage);
 
     //! Helper class that implements IChunkPoolInput interface for output tables.
     class TSink

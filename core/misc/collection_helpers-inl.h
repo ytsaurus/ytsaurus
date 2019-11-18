@@ -107,6 +107,22 @@ void MergeFrom(TTarget* target, const TSource& source)
     }
 }
 
+template <class TMap, class TKey>
+const auto& GetOrCrash(const TMap& map, const TKey& key)
+{
+    auto it = map.find(key);
+    YT_VERIFY(it != map.end());
+    return it->second;
+}
+
+template <class TMap, class TKey>
+auto& GetOrCrash(TMap& map, const TKey& key)
+{
+    auto it = map.find(key);
+    YT_VERIFY(it != map.end());
+    return it->second;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <size_t Index, class... Ts>

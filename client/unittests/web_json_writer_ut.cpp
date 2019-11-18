@@ -1123,7 +1123,8 @@ TEST_P(TWriterForWebJson_YqlSerializationMode, ComplexTypes)
     CheckYqlTypeAndValue(row5, "column_b", secondColumnBType, row5BValue, yqlTypes);
     auto row5CValue = ConvertToNode(TYsonString(R"(#)"));
     CheckYqlTypeAndValue(row5, "column_c", secondColumnCType, row5CValue, yqlTypes);
-    CheckYqlTypeAndValue(row5, "column_d", secondColumnDType, "-49", yqlTypes);
+    auto row5DValue = ConvertToNode(TYsonString(R"(["-49"])"));
+    CheckYqlTypeAndValue(row5, "column_d", secondColumnDType, row5DValue, yqlTypes);
 
     ASSERT_EQ(row6->GetType(), ENodeType::Map);
     EXPECT_EQ(row6->AsMap()->GetChildCount(), 4);

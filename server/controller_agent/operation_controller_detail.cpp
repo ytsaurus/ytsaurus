@@ -37,6 +37,8 @@
 
 #include <yt/ytlib/event_log/event_log.h>
 
+#include <yt/ytlib/job_tracker_client/statistics.h>
+
 #include <yt/ytlib/node_tracker_client/node_directory_builder.h>
 
 #include <yt/ytlib/query_client/column_evaluator.h>
@@ -54,8 +56,6 @@
 #include <yt/ytlib/table_client/data_slice_fetcher.h>
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/schema.h>
-
-#include <yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/ytlib/transaction_client/action.h>
@@ -76,6 +76,7 @@
 #include <yt/client/table_client/table_consumer.h>
 
 #include <yt/client/tablet_client/public.h>
+#include <yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/client/transaction_client/timestamp_provider.h>
 
@@ -124,7 +125,6 @@ using namespace NFormats;
 using namespace NJobProxy;
 using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
-using namespace NJobTrackerClient::NProto;
 using namespace NCoreDump::NProto;
 using namespace NConcurrency;
 using namespace NApi;
@@ -142,6 +142,7 @@ using namespace NTabletClient;
 using NYT::FromProto;
 using NYT::ToProto;
 
+using NJobTrackerClient::NProto::TJobSpec;
 using NNodeTrackerClient::TNodeId;
 using NProfiling::CpuInstantToInstant;
 using NProfiling::TCpuInstant;
@@ -713,6 +714,7 @@ void TOperationControllerBase::InitializeOrchid()
         ->AddChild("progress", createCachedMapService(BIND(&TOperationControllerBase::BuildProgress, Unretained(this))))
         ->AddChild("brief_progress", createCachedMapService(BIND(&TOperationControllerBase::BuildBriefProgress, Unretained(this))))
         ->AddChild("running_jobs", createCachedMapService(BIND(&TOperationControllerBase::BuildJobsYson, Unretained(this))))
+        ->AddChild("retained_finished_jobs", createCachedMapService(BIND(&TOperationControllerBase::BuildRetainedFinishedJobsYson, Unretained(this))))
         ->AddChild("job_splitter", createCachedMapService(BIND(&TOperationControllerBase::BuildJobSplitterInfo, Unretained(this))))
         ->AddChild("memory_usage", createService(BIND(&TOperationControllerBase::BuildMemoryUsageYson, Unretained(this))))
         ->AddChild("state", createService(BIND(&TOperationControllerBase::BuildStateYson, Unretained(this))))
@@ -747,9 +749,10 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
 
     // Testing purpose code.
     if (Config->EnableControllerFailureSpecOption &&
-        Spec_->TestingOperationOptions)
+        Spec_->TestingOperationOptions &&
+        Spec_->TestingOperationOptions->ControllerFailure)
     {
-        YT_VERIFY(Spec_->TestingOperationOptions->ControllerFailure !=
+        YT_VERIFY(*Spec_->TestingOperationOptions->ControllerFailure !=
             EControllerFailureType::AssertionFailureInPrepare);
     }
 
@@ -897,6 +900,8 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
         InitIntermediateChunkScraper();
 
         UpdateMinNeededJobResources();
+        // NB(eshcherbin): This update is done to ensure that needed resources amount is computed.
+        UpdateAllTasks();
 
         CheckTimeLimitExecutor->Start();
         ProgressBuildExecutor_->Start();
@@ -928,6 +933,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
     }
 
     result.Suspend = Spec_->SuspendOperationAfterMaterialization;
+    result.InitialNeededResources = GetNeededResources();
 
     YT_LOG_INFO("Materialization finished");
 
@@ -1004,6 +1010,10 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     }
 
     UpdateMinNeededJobResources();
+    // NB(eshcherbin): This update is done to ensure that needed resources amount is computed.
+    UpdateAllTasks();
+
+    result.NeededResources = GetNeededResources();
 
     ReinstallLivePreview();
 
@@ -2265,7 +2275,8 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
 
     // Testing purpose code.
     if (Config->EnableControllerFailureSpecOption && Spec_->TestingOperationOptions &&
-        Spec_->TestingOperationOptions->ControllerFailure == EControllerFailureType::ExceptionThrownInOnJobCompleted)
+        Spec_->TestingOperationOptions->ControllerFailure &&
+        *Spec_->TestingOperationOptions->ControllerFailure == EControllerFailureType::ExceptionThrownInOnJobCompleted)
     {
         THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::TestingError, "Testing exception");
     }
@@ -2361,7 +2372,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
            JobSpecCompletedArchiveCount_ < Config->MaxArchivedJobSpecCountPerOperation)
         {
             ++JobSpecCompletedArchiveCount_;
-            jobSummary->ArchiveJobSpec = true;
+            jobSummary->ReleaseFlags.ArchiveJobSpec = true;
         }
     }
 
@@ -2442,7 +2453,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
         JobSplitter_->OnJobFailed(*jobSummary);
     }
 
-    jobSummary->ArchiveJobSpec = true;
+    jobSummary->ReleaseFlags.ArchiveJobSpec = true;
 
     ProcessFinishedJobResult(std::move(jobSummary), /* requestJobNodeCreation */ true);
 
@@ -2654,6 +2665,7 @@ void TOperationControllerBase::BuildJobAttributes(
     const TJobInfoPtr& job,
     EJobState state,
     bool outputStatistics,
+    i64 stderrSize,
     TFluentMap fluent) const
 {
     static const auto EmptyMapYson = TYsonString("{}");
@@ -2668,7 +2680,7 @@ void TOperationControllerBase::BuildJobAttributes(
 
         // We use Int64 for `stderr_size' to be consistent with
         // compressed_data_size / uncompressed_data_size attributes.
-        .Item("stderr_size").Value(static_cast<i64>(job->StderrSize))
+        .Item("stderr_size").Value(stderrSize)
         .Item("brief_statistics")
             .Value(job->BriefStatistics)
         .DoIf(outputStatistics, [&] (TFluentMap fluent) {
@@ -2681,9 +2693,18 @@ void TOperationControllerBase::BuildJobAttributes(
 void TOperationControllerBase::BuildFinishedJobAttributes(
     const TFinishedJobInfoPtr& job,
     bool outputStatistics,
+    bool hasStderr,
+    bool hasFailContext,
     TFluentMap fluent) const
 {
-    BuildJobAttributes(job, job->Summary.State, outputStatistics, fluent);
+    auto stderrSize = hasStderr
+        // Report nonzero stderr size as we are sure it is saved.
+        ? std::max(job->StderrSize, static_cast<i64>(1))
+        : 0;
+
+    i64 failContextSize = hasFailContext ? 1 : 0;
+
+    BuildJobAttributes(job, job->Summary.State, outputStatistics, stderrSize, fluent);
 
     const auto& summary = job->Summary;
     fluent
@@ -2697,7 +2718,8 @@ void TOperationControllerBase::BuildFinishedJobAttributes(
         {
             const auto& schedulerResultExt = summary.Result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
             fluent.Item("core_infos").Value(schedulerResultExt.core_infos());
-        });
+        })
+        .Item("fail_context_size").Value(failContextSize);
 }
 
 TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(
@@ -2776,10 +2798,7 @@ void TOperationControllerBase::SafeOnInputChunkLocated(TChunkId chunkId, const T
             UnavailableInputChunkCount);
     }
 
-    auto it = InputChunkMap.find(chunkId);
-    YT_VERIFY(it != InputChunkMap.end());
-
-    auto& descriptor = it->second;
+    auto& descriptor = GetOrCrash(InputChunkMap, chunkId);
     YT_VERIFY(!descriptor.InputChunks.empty());
     auto& chunkSpec = descriptor.InputChunks.front();
     auto codecId = NErasure::ECodec(chunkSpec->GetErasureCodec());
@@ -2897,9 +2916,7 @@ void TOperationControllerBase::OnInputChunkUnavailable(TChunkId chunkId, TInputC
 
 bool TOperationControllerBase::OnIntermediateChunkUnavailable(TChunkId chunkId)
 {
-    auto it = ChunkOriginMap.find(chunkId);
-    YT_VERIFY(it != ChunkOriginMap.end());
-    auto& completedJob = it->second;
+    auto& completedJob = GetOrCrash(ChunkOriginMap, chunkId);
 
     // If completedJob->Restartable == false, that means that source pool/task don't support lost jobs
     // and we have to use scraper to find new replicas of intermediate chunks.
@@ -2944,9 +2961,7 @@ bool TOperationControllerBase::OnIntermediateChunkUnavailable(TChunkId chunkId)
 
 void TOperationControllerBase::OnIntermediateChunkAvailable(TChunkId chunkId, const TChunkReplicaList& replicas)
 {
-    auto it = ChunkOriginMap.find(chunkId);
-    YT_VERIFY(it != ChunkOriginMap.end());
-    auto& completedJob = it->second;
+    auto& completedJob = GetOrCrash(ChunkOriginMap, chunkId);
 
     if (completedJob->Restartable || !completedJob->Suspended) {
         // Job will either be restarted or all chunks are fine.
@@ -3578,6 +3593,30 @@ void TOperationControllerBase::AnalyzeScheduleJobStatistics()
     SetOperationAlert(EOperationAlertType::ExcessiveJobSpecThrottling, error);
 }
 
+void TOperationControllerBase::AnalyzeQueueAverageWaitTime()
+{
+    THashMap<EOperationControllerQueue, TDuration> queueToAverageWaitTime;
+    for (auto queue : TEnumTraits<EOperationControllerQueue>::GetDomainValues()) {
+        auto invoker = GetCancelableInvoker(queue);
+        auto averageWaitTime = invoker->GetAverageWaitTime();
+        if (averageWaitTime > Config->OperationAlerts->QueueAverageWaitTimeThreshold) {
+            queueToAverageWaitTime.emplace(queue, averageWaitTime);
+        }
+    }
+
+    TError error;
+    if (!queueToAverageWaitTime.empty()) {
+        error = TError("Found action queues with high average wait time: %v",
+            MakeFormattableView(queueToAverageWaitTime, [] (auto* builder, const auto& pair) {
+                const auto& [queue, averageWaitTime] = pair;
+                builder->AppendFormat("%Qlv", queue);
+            }))
+            << TErrorAttribute("queues_with_high_average_wait_time", queueToAverageWaitTime);
+    }
+
+    SetOperationAlert(EOperationAlertType::HighQueueAverageWaitTime, error);
+}
+
 void TOperationControllerBase::AnalyzeOperationProgress()
 {
     VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
@@ -3593,6 +3632,7 @@ void TOperationControllerBase::AnalyzeOperationProgress()
     AnalyzeJobsDuration();
     AnalyzeOperationDuration();
     AnalyzeScheduleJobStatistics();
+    AnalyzeQueueAverageWaitTime();
 }
 
 void TOperationControllerBase::UpdateCachedMaxAvailableExecNodeResources()
@@ -4133,9 +4173,7 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
 
 bool TOperationControllerBase::IsTreeTentative(const TString& treeId) const
 {
-    auto it = PoolTreeControllerSettingsMap_.find(treeId);
-    YT_VERIFY(it != PoolTreeControllerSettingsMap_.end());
-    return it->second.Tentative;
+    return GetOrCrash(PoolTreeControllerSettingsMap_, treeId).Tentative;
 }
 
 void TOperationControllerBase::MaybeBanInTentativeTree(const TString& treeId)
@@ -4285,6 +4323,7 @@ void TOperationControllerBase::UpdateMinNeededJobResources()
 
 void TOperationControllerBase::FlushOperationNode(bool checkFlushResult)
 {
+    YT_LOG_DEBUG("Flushing operation node");
     // Some statistics are reported only on operation end so
     // we need to synchronously check everything and set
     // appropriate alerts before flushing operation node.
@@ -4320,7 +4359,9 @@ void TOperationControllerBase::OnOperationCompleted(bool interrupted)
 
 void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush)
 {
-    VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
+    VERIFY_INVOKER_POOL_AFFINITY(InvokerPool);
+
+    YT_LOG_DEBUG("Operation controller failed (Error: %v, Flush: %v)", error, flush);
 
     // During operation failing job aborting can lead to another operation fail, we don't want to invoke it twice.
     if (IsFinished()) {
@@ -4338,7 +4379,9 @@ void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush
 
     Error_ = error;
 
+    YT_LOG_DEBUG("Notifying host about operation controller failure");
     Host->OnOperationFailed(error);
+    YT_LOG_DEBUG("Host notified about operation controller failure");
 }
 
 void TOperationControllerBase::OnOperationAborted(const TError& error)
@@ -4491,65 +4534,82 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
     auto stderrChunkId = FromProto<TChunkId>(schedulerResultExt.stderr_chunk_id());
     auto failContextChunkId = FromProto<TChunkId>(schedulerResultExt.fail_context_chunk_id());
 
+    auto hasStderr = static_cast<bool>(stderrChunkId);
+    auto hasFailContext = static_cast<bool>(failContextChunkId);
+
     auto joblet = GetJoblet(jobId);
     // Job is not actually started.
     if (!joblet->StartTime) {
         return;
     }
 
-    bool shouldCreateJobNode =
-        (requestJobNodeCreation && JobNodeCount_ < Config->MaxJobNodesPerOperation) ||
-        (stderrChunkId && StderrCount_ < Spec_->MaxStderrCount);
+    bool shouldRetainJob =
+        (requestJobNodeCreation && RetainedJobCount_ < Config->MaxJobNodesPerOperation) ||
+        (hasStderr && RetainedJobWithStderrCount_ < Spec_->MaxStderrCount);
 
-    if (stderrChunkId && shouldCreateJobNode) {
-        summary->ArchiveStderr = true;
+    if (hasStderr && shouldRetainJob) {
+        summary->ReleaseFlags.ArchiveStderr = true;
         // Job spec is necessary for ACL checks for stderr.
-        summary->ArchiveJobSpec = true;
+        summary->ReleaseFlags.ArchiveJobSpec = true;
     }
-    if (failContextChunkId && shouldCreateJobNode) {
-        summary->ArchiveFailContext = true;
+    if (hasFailContext && shouldRetainJob) {
+        summary->ReleaseFlags.ArchiveFailContext = true;
         // Job spec is necessary for ACL checks for fail context.
-        summary->ArchiveJobSpec = true;
+        summary->ReleaseFlags.ArchiveJobSpec = true;
     }
 
-    summary->ArchiveProfile = true;
+    summary->ReleaseFlags.ArchiveProfile = true;
 
     auto finishedJob = New<TFinishedJobInfo>(joblet, std::move(*summary));
+
     // NB: we do not want these values to get into the snapshot as they may be pretty large.
     finishedJob->Summary.StatisticsYson = TYsonString();
     finishedJob->Summary.Statistics.reset();
 
-    if (finishedJob->Summary.ArchiveJobSpec || finishedJob->Summary.ArchiveStderr || finishedJob->Summary.ArchiveFailContext || finishedJob->Summary.ArchiveProfile) {
-        FinishedJobs_.insert(std::make_pair(jobId, finishedJob));
+    if (finishedJob->Summary.ReleaseFlags.IsNonTrivial()) {
+        FinishedJobs_.emplace(jobId, finishedJob);
     }
 
-    if (!shouldCreateJobNode) {
-        if (stderrChunkId) {
+    if (!shouldRetainJob) {
+        if (hasStderr) {
             Host->AddChunkTreesToUnstageList({stderrChunkId}, false /* recursive */);
         }
         return;
     }
 
-    auto attributes = BuildYsonStringFluently<EYsonType::MapFragment>()
+    auto attributesFragment = BuildYsonStringFluently<EYsonType::MapFragment>()
         .Do([&] (TFluentMap fluent) {
-            BuildFinishedJobAttributes(finishedJob, /* outputStatistics */ true, fluent);
+            BuildFinishedJobAttributes(
+                finishedJob,
+                /* outputStatistics */ true,
+                hasStderr,
+                hasFailContext,
+                fluent);
         })
         .Finish();
+
+    if (Config->EnableRetainedFinishedJobs) {
+        auto attributes = BuildYsonStringFluently()
+            .DoMap([&] (TFluentMap fluent) {
+                fluent.GetConsumer()->OnRaw(attributesFragment);
+            });
+        RetainedFinishedJobs_.emplace_back(finishedJob->JobId, std::move(attributes));
+    }
 
     {
         TCreateJobNodeRequest request;
         request.JobId = jobId;
-        request.Attributes = attributes;
+        request.Attributes = std::move(attributesFragment);
         request.StderrChunkId = stderrChunkId;
         request.FailContextChunkId = failContextChunkId;
 
         Host->CreateJobNode(std::move(request));
     }
 
-    if (stderrChunkId) {
-        ++StderrCount_;
+    if (hasStderr) {
+        ++RetainedJobWithStderrCount_;
     }
-    ++JobNodeCount_;
+    ++RetainedJobCount_;
 }
 
 bool TOperationControllerBase::IsPrepared() const
@@ -4626,7 +4686,7 @@ void TOperationControllerBase::SuppressLivePreviewIfNeeded()
         {
             suppressionErrors.emplace_back(TError(
                 "User %v belongs to legacy live preview suppression blacklist; in order "
-                "to overcome this suppression reason, explicitly specify use_legacy_live_preview = %%true "
+                "to overcome this suppression reason, explicitly specify enable_legacy_live_preview = %%true "
                 "in operation spec", AuthenticatedUser)
                     << TErrorAttribute(
                         "legacy_live_preview_blacklist_regex",
@@ -4676,8 +4736,12 @@ void TOperationControllerBase::CreateLivePreviewTables()
         attributes->Set("replication_factor", replicationFactor);
         // Does this affect anything or is this for viewing only? Should we set the 'media' ('primary_medium') property?
         attributes->Set("compression_codec", compressionCodec);
-        attributes->Set("external", true);
-        attributes->Set("external_cell_tag", cellTag);
+        if (cellTag == connection->GetPrimaryMasterCellTag()) {
+            attributes->Set("external", false);
+        } else {
+            attributes->Set("external", true);
+            attributes->Set("external_cell_tag", cellTag);
+        }
         attributes->Set("acl", acl);
         attributes->Set("inherit_acl", false);
         if (schema) {
@@ -4699,7 +4763,6 @@ void TOperationControllerBase::CreateLivePreviewTables()
         for (int index = 0; index < OutputTables_.size(); ++index) {
             auto& table = OutputTables_[index];
             auto path = GetOperationPath(OperationId) + "/output_" + ToString(index);
-
             addRequest(
                 path,
                 table->ExternalCellTag,
@@ -4904,6 +4967,8 @@ void TOperationControllerBase::FetchInputTables()
     if (columnarStatisticsFetcher->GetChunkCount() > 0) {
         YT_LOG_INFO("Fetching chunk columnar statistics for tables with column selectors (ChunkCount: %v)",
             columnarStatisticsFetcher->GetChunkCount());
+        MaybeCancel(ECancelationStage::ColumnarStatisticsFetch);
+        columnarStatisticsFetcher->SetCancelableContext(GetCancelableContext());
         WaitFor(columnarStatisticsFetcher->Fetch())
             .ThrowOnError();
         YT_LOG_INFO("Columnar statistics fetched");
@@ -5600,6 +5665,7 @@ void TOperationControllerBase::ValidateUserFileSizes()
     if (columnarStatisticsFetcher->GetChunkCount() > 0) {
         YT_LOG_INFO("Fetching columnar statistics for table files with column selectors (ChunkCount: %v)",
             columnarStatisticsFetcher->GetChunkCount());
+        columnarStatisticsFetcher->SetCancelableContext(GetCancelableContext());
         WaitFor(columnarStatisticsFetcher->Fetch())
             .ThrowOnError();
         columnarStatisticsFetcher->ApplyColumnSelectivityFactors();
@@ -6150,6 +6216,7 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersione
                 fetcher->AddChunk(chunk);
             }
 
+            fetcher->SetCancelableContext(GetCancelableContext());
             asyncResults.emplace_back(fetcher->Fetch());
             fetchers.emplace_back(std::move(fetcher));
         }
@@ -6329,9 +6396,7 @@ void TOperationControllerBase::ExtractInterruptDescriptor(TCompletedJobSummary& 
         chunkSliceList.reserve(dataSliceDescriptor.ChunkSpecs.size());
         for (const auto& protoChunkSpec : dataSliceDescriptor.ChunkSpecs) {
             auto chunkId = FromProto<TChunkId>(protoChunkSpec.chunk_id());
-            auto it = InputChunkMap.find(chunkId);
-            YT_VERIFY(it != InputChunkMap.end());
-            const auto& inputChunks = it->second.InputChunks;
+            const auto& inputChunks = GetOrCrash(InputChunkMap, chunkId).InputChunks;
             auto chunkIt = std::find_if(
                 inputChunks.begin(),
                 inputChunks.end(),
@@ -6645,10 +6710,7 @@ void TOperationControllerBase::RegisterInputStripe(const TChunkStripePtr& stripe
                 continue;
             }
 
-            auto chunkDescriptorIt = InputChunkMap.find(chunkId);
-            YT_VERIFY(chunkDescriptorIt != InputChunkMap.end());
-
-            auto& chunkDescriptor = chunkDescriptorIt->second;
+            auto& chunkDescriptor = GetOrCrash(InputChunkMap, chunkId);
             chunkDescriptor.InputStripes.push_back(stripeDescriptor);
 
             if (chunkDescriptor.State == EInputChunkState::Waiting) {
@@ -6790,7 +6852,7 @@ void TOperationControllerBase::Dispose()
         }
 
         YT_LOG_DEBUG(
-            "Adding total time per tree to residual job metrics on controller disposal (FinalState: %Qlv, TotalTimePerTree: %v)",
+            "Adding total time per tree to residual job metrics on controller disposal (FinalState: %v, TotalTimePerTree: %v)",
             State.load(),
             TotalTimePerTree_);
     }
@@ -7121,6 +7183,8 @@ void TOperationControllerBase::BuildBriefProgress(TFluentMap fluent) const
 
 void TOperationControllerBase::BuildAndSaveProgress()
 {
+    YT_LOG_DEBUG("Building and saving progress");
+
     auto progressString = BuildYsonStringFluently()
         .BeginMap()
         .Do([=] (TFluentMap fluent) {
@@ -7151,10 +7215,12 @@ void TOperationControllerBase::BuildAndSaveProgress()
             !BriefProgressString_ || BriefProgressString_ != briefProgressString)
         {
             ShouldUpdateProgressInCypress_.store(true);
+            YT_LOG_DEBUG("New progress is different from previous one, should update progress in Cypress");
         }
         ProgressString_ = progressString;
         BriefProgressString_ = briefProgressString;
     }
+    YT_LOG_DEBUG("Progress built and saved");
 }
 
 TYsonString TOperationControllerBase::GetProgress() const
@@ -7182,7 +7248,8 @@ TYsonString TOperationControllerBase::BuildJobYson(TJobId id, bool outputStatist
                 MakeStrong(this),
                 joblet,
                 EJobState::Running,
-                outputStatistics);
+                outputStatistics,
+                joblet->StderrSize);
         } else {
             attributesBuilder = BIND([] (TFluentMap) {});
         }
@@ -7217,7 +7284,12 @@ void TOperationControllerBase::BuildJobsYson(TFluentMap fluent) const
                 if (joblet->StartTime) {
                     fluent.Item(ToString(jobId)).BeginMap()
                         .Do([&] (TFluentMap fluent) {
-                            BuildJobAttributes(joblet, EJobState::Running, /* outputStatistics */ false, fluent);
+                            BuildJobAttributes(
+                                joblet,
+                                EJobState::Running,
+                                /* outputStatistics */ false,
+                                joblet->StderrSize,
+                                fluent);
                         })
                     .EndMap();
                 }
@@ -7227,6 +7299,14 @@ void TOperationControllerBase::BuildJobsYson(TFluentMap fluent) const
     }
 
     fluent.GetConsumer()->OnRaw(CachedRunningJobsYson_);
+}
+
+void TOperationControllerBase::BuildRetainedFinishedJobsYson(TFluentMap fluent) const
+{
+    for (const auto& [jobId, attributes] : RetainedFinishedJobs_) {
+        fluent
+            .Item(ToString(jobId)).Value(attributes);
+    }
 }
 
 void TOperationControllerBase::CheckTentativeTreeEligibility()
@@ -7251,6 +7331,10 @@ TSharedRef TOperationControllerBase::SafeBuildJobSpecProto(const TJobletPtr& job
 TSharedRef TOperationControllerBase::ExtractJobSpec(TJobId jobId) const
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::GetJobSpec));
+
+    if (auto getJobSpecDelay = Spec_->TestingOperationOptions->GetJobSpecDelay) {
+        Sleep(*getJobSpecDelay);
+    }
 
     if (Spec_->TestingOperationOptions->FailGetJobSpec) {
         THROW_ERROR_EXCEPTION("Testing failure");
@@ -7327,21 +7411,14 @@ void TOperationControllerBase::ReleaseJobs(const std::vector<TJobId>& jobIds)
     jobsToRelease.reserve(jobIds.size());
 
     for (auto jobId : jobIds) {
-        bool archiveJobSpec = false;
-        bool archiveStderr = false;
-        bool archiveFailContext = false;
-        bool archiveProfile = false;
-
+        TReleaseJobFlags releaseFlags;
         auto it = FinishedJobs_.find(jobId);
         if (it != FinishedJobs_.end()) {
             const auto& jobSummary = it->second->Summary;
-            archiveJobSpec = jobSummary.ArchiveJobSpec;
-            archiveStderr = jobSummary.ArchiveStderr;
-            archiveFailContext = jobSummary.ArchiveFailContext;
-            archiveProfile = jobSummary.ArchiveProfile;
+            releaseFlags = jobSummary.ReleaseFlags;
             FinishedJobs_.erase(it);
         }
-        jobsToRelease.emplace_back(TJobToRelease{jobId, archiveJobSpec, archiveStderr, archiveFailContext, archiveProfile});
+        jobsToRelease.emplace_back(TJobToRelease{jobId, releaseFlags});
     }
     Host->ReleaseJobs(jobsToRelease);
 }
@@ -7634,6 +7711,22 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         jobSpec->set_cuda_toolkit_version(*config->CudaToolkitVersion);
     }
 
+    if (config->NetworkProject) {
+        const auto& client = Host->GetClient();
+        const auto networkProjectPath = "//sys/network_projects/" + *config->NetworkProject;
+        auto checkPermissionRspOrError = WaitFor(client->CheckPermission(AuthenticatedUser,
+            networkProjectPath,
+            EPermission::Use));
+        if (checkPermissionRspOrError.ValueOrThrow().Action == ESecurityAction::Deny) {
+            THROW_ERROR_EXCEPTION("User %Qv is not allowed to use network project %Qv",
+                AuthenticatedUser,
+                *config->NetworkProject);
+        }
+
+        auto getRspOrError = WaitFor(client->GetNode(networkProjectPath + "/@project_id"));
+        jobSpec->set_network_project_id(ConvertTo<ui32>(getRspOrError.ValueOrThrow()));
+    }
+
     auto fillEnvironment = [&] (THashMap<TString, TString>& env) {
         for (const auto& [key, value] : env) {
             jobSpec->add_environment(Format("%v=%v", key, value));
@@ -7657,9 +7750,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
 const std::vector<TUserFile>& TOperationControllerBase::GetUserFiles(const TUserJobSpecPtr& userJobSpec) const
 {
-    auto it = UserJobFiles_.find(userJobSpec);
-    YT_VERIFY(it != UserJobFiles_.end());
-    return it->second;
+    return GetOrCrash(UserJobFiles_, userJobSpec);
 }
 
 void TOperationControllerBase::InitUserJobSpec(
@@ -7714,7 +7805,7 @@ void TOperationControllerBase::InitUserJobSpec(
         jobSpec->set_enable_secure_vault_variables_in_job_shell(Spec_->EnableSecureVaultVariablesInJobShell);
     }
 
-    if (StderrCount_ >= Spec_->MaxStderrCount) {
+    if (RetainedJobWithStderrCount_ >= Spec_->MaxStderrCount) {
         jobSpec->set_upload_stderr_if_completed(false);
     }
 
@@ -8018,8 +8109,8 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, RowCountLimit);
     Persist(context, EstimatedInputDataSizeHistogram_);
     Persist(context, InputDataSizeHistogram_);
-    Persist(context, StderrCount_);
-    Persist(context, JobNodeCount_);
+    Persist(context, RetainedJobWithStderrCount_);
+    Persist(context, RetainedJobCount_);
     Persist(context, FinishedJobs_);
     Persist(context, JobSpecCompletedArchiveCount_);
     Persist(context, Sinks_);
@@ -8270,6 +8361,11 @@ std::optional<int> TOperationControllerBase::GetRowCountLimitTableIndex()
     return RowCountLimitTableIndex;
 }
 
+void TOperationControllerBase::LoadSnapshot(const NYT::NControllerAgent::TOperationSnapshot& snapshot)
+{
+    DoLoadSnapshot(snapshot);
+}
+
 TOutputTablePtr TOperationControllerBase::RegisterOutputTable(const TRichYPath& outputTablePath)
 {
     auto it = PathToOutputTable_.find(outputTablePath.GetPath());
@@ -8416,6 +8512,18 @@ void TOperationControllerBase::AnalyzeProcessingUnitUsage(
     }
 
     SetOperationAlert(alertType, error);
+}
+
+void TOperationControllerBase::MaybeCancel(ECancelationStage cancelationStage)
+{
+    if (Spec_->TestingOperationOptions && Spec_->TestingOperationOptions->CancelationStage &&
+        cancelationStage == *Spec_->TestingOperationOptions->CancelationStage)
+    {
+        YT_LOG_INFO("Making test operation failure (CancelationStage: %v)", cancelationStage);
+        GetInvoker()->Invoke(BIND(&TOperationControllerBase::OnOperationFailed, MakeWeak(this), TError("Test operation failure"), false /* flush */));
+        YT_LOG_INFO("Making test cancelation (CancelationStage: %v)", cancelationStage);
+        Cancel();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

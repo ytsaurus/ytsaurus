@@ -66,17 +66,11 @@ template <>
 class TPositionInfo<true>
 {
 private:
-    i64 Offset;
-    int Line;
-    int Column;
+    i64 Offset = 0;
+    int Line = 1;
+    int Column = 1;
 
 public:
-    TPositionInfo()
-        : Offset(0)
-        , Line(1)
-        , Column(1)
-    { }
-
     void OnRangeConsumed(const char* begin, const char* end)
     {
         Offset += end - begin;
@@ -89,12 +83,15 @@ public:
         }
     }
 
-    friend TError operator << (TError error, const TPositionInfo<true>& info)
+    std::vector<TErrorAttribute> GetErrorAttributes(const char* begin, const char* current) const
     {
-        return error
-            << TErrorAttribute("offset", info.Offset)
-            << TErrorAttribute("line", info.Line)
-            << TErrorAttribute("column", info.Column);
+        auto other = *this;
+        other.OnRangeConsumed(begin, current);
+        return {
+            TErrorAttribute("offset", other.Offset),
+            TErrorAttribute("line", other.Line),
+            TErrorAttribute("column", other.Column),
+        };
     }
 };
 
@@ -102,22 +99,21 @@ template <>
 class TPositionInfo<false>
 {
 private:
-    i64 Offset;
+    i64 Offset = 0;
 
 public:
-    TPositionInfo()
-        : Offset(0)
-    { }
-
     void OnRangeConsumed(const char* begin, const char* end)
     {
         Offset += end - begin;
     }
 
-    friend TError operator << (TError error, const TPositionInfo<false>& info)
+    std::vector<TErrorAttribute> GetErrorAttributes(const char* begin, const char* current) const
     {
-        return error
-            << TErrorAttribute("offset", info.Offset);
+        auto other = *this;
+        other.OnRangeConsumed(begin, current);
+        return {
+            TErrorAttribute("offset", other.Offset),
+        };
     }
 };
 
@@ -203,12 +199,10 @@ public:
     void CheckpointContext()
     {
         Checkpoint = TBlockStream::Current();
-        ContextSize = 0;
-        ContextPosition = 0;
     }
 
     // Return pair <context, context_position>.
-    std::pair<TString, size_t> GetContextFromCheckpoint()
+    std::pair<TString, size_t> GetContextFromCheckpoint() const
     {
         TString result(MaxContextSize, '\0');
         size_t size, position;
@@ -306,6 +300,7 @@ public:
     void Refresh()
     {
         while (IsEmpty() && !TBlockStream::IsFinished()) {
+            TPositionBase::OnRangeConsumed(TBlockStream::Begin(), TBlockStream::Current());
             TBlockStream::RefreshBlock();
         }
         if (IsEmpty() && TBlockStream::IsFinished() && !AllowFinish) {
@@ -322,6 +317,9 @@ public:
     template <bool AllowFinish>
     char GetChar()
     {
+        if (!IsEmpty()) {
+            return *TBlockStream::Current();
+        }
         Refresh<AllowFinish>();
         return !IsEmpty() ? *TBlockStream::Current() : '\0';
     }
@@ -333,13 +331,22 @@ public:
 
     void Advance(size_t bytes)
     {
-        TPositionBase::OnRangeConsumed(TBlockStream::Current(), TBlockStream::Current() + bytes);
         TBlockStream::Advance(bytes);
     }
 
     size_t Length() const
     {
         return TBlockStream::End() - TBlockStream::Current();
+    }
+
+    std::vector<TErrorAttribute> GetErrorAttributes() const
+    {
+        return TPositionBase::GetErrorAttributes(TBlockStream::Begin(), TBlockStream::Current());
+    }
+
+    friend TError operator << (const TError& error, const TCharStream<TBlockStream, TPositionBase>& stream)
+    {
+        return error << stream.GetErrorAttributes();
     }
 };
 
@@ -361,8 +368,14 @@ private:
         return reinterpret_cast<const ui8*>(TBaseStream::End());
     }
 
+    void ThrowCannotParseVarint()
+    {
+        THROW_ERROR_EXCEPTION("Error parsing varint value")
+            << *this;
+    }
+
     // Following functions is an adaptation Protobuf code from coded_stream.cc
-    bool ReadVarint32FromArray(ui32* value)
+    ui32 ReadVarint32FromArray()
     {
         // Fast path:  We have enough bytes left in the buffer to guarantee that
         // this read won't cross the end, so we can skip the checks.
@@ -385,44 +398,36 @@ private:
 
         // We have overrun the maximum size of a Varint (10 bytes).  Assume
         // the data is corrupt.
-        return false;
+        ThrowCannotParseVarint();
 
     done:
         TBaseStream::Advance(ptr - BeginByte());
-        *value = result;
-        return true;
+        return result;
     }
 
-    bool ReadVarint32Fallback(ui32* value)
+    ui32 ReadVarint32Fallback()
     {
         if (BeginByte() + MaxVarintBytes <= EndByte() ||
             // Optimization:  If the Varint ends at exactly the end of the buffer,
             // we can detect that and still use the fast path.
             (BeginByte() < EndByte() && !(EndByte()[-1] & 0x80)))
         {
-            return ReadVarint32FromArray(value);
+            return ReadVarint32FromArray();
         } else {
             // Really slow case: we will incur the cost of an extra function call here,
             // but moving this out of line reduces the size of this function, which
             // improves the common case. In micro benchmarks, this is worth about 10-15%
-            return ReadVarint32Slow(value);
+            return ReadVarint32Slow();
         }
     }
 
-    bool ReadVarint32Slow(ui32* value)
+    ui32 ReadVarint32Slow()
     {
-        ui64 result;
-        // Directly invoke ReadVarint64Fallback, since we already tried to optimize
-        // for one-byte Varints.
-        if (ReadVarint64Fallback(&result)) {
-            *value = static_cast<ui32>(result);
-            return true;
-        } else {
-            return false;
-        }
+        ui32 result = ReadVarint64();
+        return static_cast<ui32>(result);
     }
 
-    bool ReadVarint64Slow(ui64* value)
+    ui64 ReadVarint64Slow()
     {
         // Slow path:  This read might cross the end of the buffer, so we
         // need to check and refresh the buffer if and when it does.
@@ -433,7 +438,7 @@ private:
 
         do {
             if (count == MaxVarintBytes) {
-                return false;
+                ThrowCannotParseVarint();
             }
             while (BeginByte() == EndByte()) {
                 TBaseStream::Refresh();
@@ -444,11 +449,15 @@ private:
             ++count;
         } while (b & 0x80);
 
-        *value = result;
-        return true;
+        return result;
     }
 
-    Y_FORCE_INLINE bool ReadVarint64Fallback(ui64* value)
+public:
+    TCodedStream(const TBaseStream& baseStream)
+        : TBaseStream(baseStream)
+    { }
+
+    Y_FORCE_INLINE ui64 ReadVarint64()
     {
         if (BeginByte() + MaxVarintBytes <= EndByte() ||
             // Optimization:  If the Varint ends at exactly the end of the buffer,
@@ -475,41 +484,24 @@ private:
 
             // We have overrun the maximum size of a Varint (10 bytes).  The data
             // must be corrupt.
-            return false;
+            ThrowCannotParseVarint();
 
         done:
             TBaseStream::Advance(ptr - BeginByte());
-            *value = result;
-            return true;
+            return result;
         } else {
-            return ReadVarint64Slow(value);
+            return ReadVarint64Slow();
         }
     }
 
-public:
-    TCodedStream(const TBaseStream& baseStream)
-        : TBaseStream(baseStream)
-    { }
-
-    Y_FORCE_INLINE bool ReadVarint64(ui64* value)
+    ui32 ReadVarint32()
     {
         if (BeginByte() < EndByte() && *BeginByte() < 0x80) {
-            *value = *BeginByte();
+            ui32 result = *BeginByte();
             TBaseStream::Advance(1);
-            return true;
+            return result;
         } else {
-            return ReadVarint64Fallback(value);
-        }
-    }
-
-    bool ReadVarint32(ui32* value)
-    {
-        if (BeginByte() < EndByte() && *BeginByte() < 0x80) {
-            *value = *BeginByte();
-            TBaseStream::Advance(1);
-            return true;
-        } else {
-            return ReadVarint32Fallback(value);
+            return ReadVarint32Fallback();
         }
     }
 };
@@ -527,7 +519,7 @@ class TLexerBase
 private:
     typedef TCodedStream<TCharStream<TBlockStream, TPositionInfo<EnableLinePositionInfo>>> TBaseStream;
 
-    SmallVector<char, 256> Buffer_;
+    std::vector<char> Buffer_;
     const size_t MemoryLimit_;
 
     void Insert(const char* begin, const char* end)
@@ -544,8 +536,12 @@ private:
 
     void ReserveAndCheckMemoryLimit(size_t size)
     {
-        auto minReserveSize = Buffer_.size() + size;
+        const auto minReserveSize = Buffer_.size() + size;
 
+        // NB. some implementations of std::vector reserve exactly requested size.
+        // We explicitly set exponential growth here so PushBack that uses this function
+        // keep amortized complexity of O(1).
+        auto reserveSize = Max(Buffer_.capacity() * 2, minReserveSize);
         if (MemoryLimit_) {
             if (minReserveSize > MemoryLimit_) {
                 THROW_ERROR_EXCEPTION(
@@ -553,9 +549,14 @@ private:
                     minReserveSize,
                     MemoryLimit_);
             }
+            // MemoryLimit_ >= minReserveSize  ==>  reserveSize >= minReserveSize
+            reserveSize = Min(reserveSize, MemoryLimit_);
         }
-
-        Buffer_.reserve(minReserveSize);
+        if (minReserveSize <= Buffer_.capacity()) {
+            return;
+        }
+        YT_ASSERT(reserveSize >= minReserveSize);
+        Buffer_.reserve(reserveSize);
     }
 
 public:
@@ -702,11 +703,7 @@ public:
 
     TStringBuf ReadBinaryString()
     {
-        ui32 ulength = 0;
-        if (!TBaseStream::ReadVarint32(&ulength)) {
-            THROW_ERROR_EXCEPTION("Error parsing varint value")
-                << *this;
-        }
+        ui32 ulength = TBaseStream::ReadVarint32();
 
         i32 length = ZigZagDecode32(ulength);
         if (length < 0) {
@@ -778,22 +775,13 @@ public:
 
     i64 ReadBinaryInt64()
     {
-        ui64 uvalue;
-        if (!TBaseStream::ReadVarint64(&uvalue)) {
-            THROW_ERROR_EXCEPTION("Error parsing varint value")
-                << *this;
-        }
+        ui64 uvalue = TBaseStream::ReadVarint64();
         return ZigZagDecode64(uvalue);
     }
 
     ui64 ReadBinaryUint64()
     {
-        ui64 uvalue;
-        if (!TBaseStream::ReadVarint64(&uvalue)) {
-            THROW_ERROR_EXCEPTION("Error parsing varint value")
-                << *this;
-        }
-        return uvalue;
+        return TBaseStream::ReadVarint64();
     }
 
     double ReadBinaryDouble()

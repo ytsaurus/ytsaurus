@@ -34,6 +34,7 @@ protected:
     {
         TPromise<NRpc::IChannelPtr> Channel = NewPromise<NRpc::IChannelPtr>();
         TInstant CreationTime = TInstant::Now();
+        TString Address;
         std::atomic<bool> SeemsBroken{false};
 
         bool IsWarm(TInstant now);

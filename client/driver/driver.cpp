@@ -153,6 +153,7 @@ public:
         REGISTER    (TRemoveCommand,                      "remove",                        Null,       Structured, true,  false, ApiVersion4);
         REGISTER    (TSetCommand,                         "set",                           Structured, Structured, true,  false, ApiVersion4);
         REGISTER    (TExternalizeCommand,                 "externalize",                   Null,       Null,       true,  false, ApiVersion4);
+        REGISTER    (TInternalizeCommand,                 "internalize",                   Null,       Null,       true,  false, ApiVersion4);
 
         REGISTER    (TWriteFileCommand,                   "write_file",                    Binary,     Null,       true,  true,  ApiVersion3);
         REGISTER    (TWriteFileCommand,                   "write_file",                    Binary,     Structured, true,  true,  ApiVersion4);

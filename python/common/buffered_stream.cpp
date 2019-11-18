@@ -119,7 +119,9 @@ TFuture<void> TBufferedStream::Write(const TSharedRef& data)
     if (Capacity_ <= Size_ * 2) {
         Full_ = true;
         AllowWrite_ = NewPromise<void>();
-        return AllowWrite_;
+        return AllowWrite_
+            .ToFuture()
+            .ToImmediatelyCancelable();
     } else {
         return VoidFuture;
     }

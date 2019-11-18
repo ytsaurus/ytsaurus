@@ -174,7 +174,7 @@ i64 TFileChunkWriter::GetMetaSize() const
 
 bool TFileChunkWriter::IsCloseDemanded() const
 {
-    return EncodingChunkWriter_->HasSickReplicas();
+    return EncodingChunkWriter_->IsCloseDemanded();
 }
 
 TChunkMeta TFileChunkWriter::GetMasterMeta() const

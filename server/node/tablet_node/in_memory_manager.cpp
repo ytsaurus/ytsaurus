@@ -13,9 +13,6 @@
 
 #include <yt/server/lib/tablet_node/config.h>
 
-#include <yt/client/chunk_client/data_statistics.h>
-#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
-
 #include <yt/ytlib/api/native/client.h>
 
 #include <yt/ytlib/node_tracker_client/channel.h>
@@ -28,9 +25,14 @@
 
 #include <yt/ytlib/misc/memory_usage_tracker.h>
 
+#include <yt/ytlib/table_client/chunk_lookup_hash_table.h>
+
+#include <yt/client/chunk_client/data_statistics.h>
+#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
+
 #include <yt/client/object_client/helpers.h>
 
-#include <yt/ytlib/table_client/chunk_lookup_hash_table.h>
+#include <yt/client/table_client/proto/chunk_meta.pb.h>
 
 #include <yt/core/compression/codec.h>
 
@@ -42,6 +44,7 @@
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/periodic_yielder.h>
 
+#include <yt/core/misc/algorithm_helpers.h>
 #include <yt/core/misc/finally.h>
 
 #include <yt/core/ytalloc/memory_zone.h>
@@ -63,6 +66,7 @@ using namespace NYTAlloc;
 using NChunkClient::NProto::TChunkMeta;
 using NChunkClient::NProto::TMiscExt;
 using NChunkClient::NProto::TBlocksExt;
+using NTableClient::NProto::TBlockMetaExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -80,7 +84,9 @@ void FinalizeChunkData(
     const TRefCountedChunkMetaPtr& meta,
     const TTabletSnapshotPtr& tabletSnapshot)
 {
-    data->ChunkMeta = TCachedVersionedChunkMeta::Create(id, *meta, tabletSnapshot->PhysicalSchema);
+    if (!data->ChunkMeta) {
+        data->ChunkMeta = TCachedVersionedChunkMeta::Create(id, *meta, tabletSnapshot->PhysicalSchema);
+    }
 
     if (data->MemoryTrackerGuard) {
         data->MemoryTrackerGuard.UpdateSize(data->ChunkMeta->GetMemoryUsage());
@@ -88,6 +94,7 @@ void FinalizeChunkData(
 
     if (tabletSnapshot->HashTableSize > 0) {
         data->LookupHashTable = CreateChunkLookupHashTable(
+            data->StartBlockIndex,
             data->Blocks,
             data->ChunkMeta,
             tabletSnapshot->RowKeyComparer);
@@ -206,6 +213,7 @@ private:
     TAsyncSemaphorePtr PreloadSemaphore_;
 
     const NProfiling::TTagId PreloadTag_ = NProfiling::TProfileManager::Get()->RegisterTag("method", "preload");
+    const NProfiling::TTagId PreloadFailedTag_ = NProfiling::TProfileManager::Get()->RegisterTag("method", "preload_failed");
 
     TReaderWriterSpinLock InterceptedDataSpinLock_;
     THashMap<TChunkId, TInMemoryChunkDataPtr> ChunkIdToData_;
@@ -300,6 +308,12 @@ private:
             return;
         }
 
+        bool failed = true;
+        auto readerProfiler = New<TReaderProfiler>();
+        auto profileGuard = Finally([&] () {
+            readerProfiler->Profile(tabletSnapshot, failed ? PreloadFailedTag_ : PreloadTag_);
+        });
+
         try {
             // This call may suspend the current fiber.
             auto chunkData = PreloadInMemoryStore(
@@ -309,7 +323,7 @@ private:
                 Bootstrap_->GetMemoryUsageTracker(),
                 CompressionInvoker_,
                 Throttler_,
-                PreloadTag_);
+                readerProfiler);
 
             std::vector<IInvokerPtr> feasibleInvokers{
                 tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Default),
@@ -334,6 +348,7 @@ private:
                 << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
                 << TErrorAttribute("background_activity", ETabletBackgroundActivity::Preload);
 
+            failed = false;
             tabletSnapshot->TabletRuntimeData->Errors[ETabletBackgroundActivity::Preload].Store(error);
         } catch (const TFiberCanceledException&) {
             YT_LOG_DEBUG("Preload cancelled");
@@ -436,10 +451,7 @@ private:
     {
         TReaderGuard guard(InterceptedDataSpinLock_);
 
-        auto it = ChunkIdToData_.find(chunkId);
-        YT_VERIFY(it != ChunkIdToData_.end());
-
-        auto chunkData = it->second;
+        auto chunkData = GetOrCrash(ChunkIdToData_, chunkId);
         YT_VERIFY(chunkData->InMemoryMode == mode);
 
         return chunkData;
@@ -503,7 +515,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     const TNodeMemoryTrackerPtr& memoryTracker,
     const IInvokerPtr& compressionInvoker,
     const NConcurrency::IThroughputThrottlerPtr& throttler,
-    NProfiling::TTagId preloadTag)
+    const TReaderProfilerPtr& readerProfiler)
 {
     auto mode = tabletSnapshot->Config->InMemoryMode;
 
@@ -520,6 +532,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     blockReadOptions.WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletPreload);
     blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
     blockReadOptions.ReadSessionId = readSessionId;
+    readerProfiler->SetChunkReaderStatistics(blockReadOptions.ChunkReaderStatistics);
 
     auto reader = store->GetChunkReader(throttler);
     auto meta = WaitFor(reader->GetMeta(blockReadOptions))
@@ -553,8 +566,41 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     auto codecId = CheckedEnumCast<NCompression::ECodec>(miscExt.compression_codec());
     auto* codec = NCompression::GetCodec(codecId);
 
-    int startBlockIndex = 0;
-    int totalBlockCount = blocksExt.blocks_size();
+    auto chunkData = New<TInMemoryChunkData>();
+
+    int startBlockIndex;
+    int endBlockIndex;
+
+    // TODO(ifsmirnov): support columnar chunks (YT-11707).
+    bool canDeduceBlockRange = format == ETableChunkFormat::SchemalessHorizontal ||
+        format == ETableChunkFormat::VersionedSimple;
+
+    if (store->IsSorted() && canDeduceBlockRange) {
+        chunkData->ChunkMeta = TCachedVersionedChunkMeta::Create(
+            store->GetChunkId(),
+            *meta,
+            tabletSnapshot->PhysicalSchema);
+
+        auto sortedStore = store->AsSortedChunk();
+        auto lowerBound = std::max(tabletSnapshot->PivotKey, sortedStore->GetMinKey());
+        auto upperBound = std::min(tabletSnapshot->NextPivotKey, sortedStore->GetUpperBoundKey());
+
+        auto blockMetaExt = GetProtoExtension<TBlockMetaExt>(meta->extensions());
+
+        startBlockIndex = LowerBound(0, blocksExt.blocks_size(), [&] (int index) {
+            return chunkData->ChunkMeta->BlockLastKeys()[index] < lowerBound;
+        });
+
+        endBlockIndex = LowerBound(0, blocksExt.blocks_size(), [&] (int index) {
+            return chunkData->ChunkMeta->BlockLastKeys()[index] < upperBound;
+        });
+        if (endBlockIndex < blocksExt.blocks_size()) {
+            ++endBlockIndex;
+        }
+    } else {
+        startBlockIndex = 0;
+        endBlockIndex = blocksExt.blocks_size();
+    }
 
     i64 preallocatedMemory = 0;
     i64 allocatedMemory = 0;
@@ -562,7 +608,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
 
     TDuration decompressionTime;
 
-    for (int i = 0; i < totalBlockCount; ++i) {
+    for (int i = startBlockIndex; i < endBlockIndex; ++i) {
         preallocatedMemory += blocksExt.blocks(i).size();
     }
 
@@ -570,8 +616,8 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
         THROW_ERROR_EXCEPTION("Preload is cancelled due to memory pressure");
     }
 
-    auto chunkData = New<TInMemoryChunkData>();
     chunkData->InMemoryMode = mode;
+    chunkData->StartBlockIndex = startBlockIndex;
     if (memoryTracker) {
         chunkData->MemoryTrackerGuard = NCellNode::TNodeMemoryTrackerGuard::Acquire(
             memoryTracker,
@@ -579,16 +625,16 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
             preallocatedMemory,
             MemoryUsageGranularity);
     }
-    chunkData->Blocks.reserve(totalBlockCount);
+    chunkData->Blocks.reserve(endBlockIndex - startBlockIndex);
 
-    while (startBlockIndex < totalBlockCount) {
+    while (startBlockIndex < endBlockIndex) {
         YT_LOG_DEBUG("Started reading chunk blocks (FirstBlock: %v)",
             startBlockIndex);
 
         auto compressedBlocks = WaitFor(reader->ReadBlocks(
             blockReadOptions,
             startBlockIndex,
-            totalBlockCount - startBlockIndex))
+            endBlockIndex - startBlockIndex))
             .ValueOrThrow();
 
         int readBlockCount = compressedBlocks.size();
@@ -598,6 +644,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
 
         for (const auto& compressedBlock : compressedBlocks) {
             compressedDataSize += compressedBlock.Size();
+            readerProfiler->SetCompressedDataSize(compressedDataSize);
         }
 
         std::vector<TBlock> cachedBlocks;
@@ -661,15 +708,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
 
     TCodecStatistics decompressionStatistics;
     decompressionStatistics.Append(TCodecDuration{codecId, decompressionTime});
-    NChunkClient::NProto::TDataStatistics dataStatistics;
-    dataStatistics.set_compressed_data_size(compressedDataSize);
-
-    ProfileChunkReader(
-        tabletSnapshot,
-        dataStatistics,
-        decompressionStatistics,
-        blockReadOptions.ChunkReaderStatistics,
-        preloadTag);
+    readerProfiler->SetCodecStatistics(decompressionStatistics);
 
     if (chunkData->MemoryTrackerGuard) {
         chunkData->MemoryTrackerGuard.UpdateSize(allocatedMemory - preallocatedMemory);

@@ -95,6 +95,12 @@ public:
 
     TJobThrottlerConfigPtr JobThrottler;
 
+    //! Hostname to set in container.
+    std::optional<TString> HostName;
+
+    //! IP addresses to bind into container.
+    std::vector<NNet::TIP6Address> NetworkAddresses;
+
     TJobProxyConfig()
     {
         RegisterParameter("slot_index", SlotIndex);
@@ -147,6 +153,11 @@ public:
         RegisterParameter("job_throttler", JobThrottler)
             .Default(nullptr);
 
+        RegisterParameter("host_name", HostName)
+            .Default();
+
+        RegisterParameter("network_addresses", NetworkAddresses)
+            .Default();
     }
 };
 

@@ -7,9 +7,14 @@
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
+#include <yt/core/actions/public.h>
+
 namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+// TODO(max42): this class looks redundant.
+// Use chunk slice fetcher instead and call CombineVerionedChunkSlices where needed.
 
 //! Fetches data slices for a bunch of table chunks by requesting
 //! them directly from data nodes.
@@ -32,6 +37,7 @@ public:
     void AddChunk(NChunkClient::TInputChunkPtr chunk);
     TFuture<void> Fetch();
     std::vector<NChunkClient::TInputDataSlicePtr> GetDataSlices();
+    void SetCancelableContext(TCancelableContextPtr cancelableContext);
 
 private:
     const IChunkSliceFetcherPtr ChunkSliceFetcher_;

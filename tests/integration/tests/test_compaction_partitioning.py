@@ -172,7 +172,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
 
     @authors("akozhikhov")
     def test_small_chunks_partition_scenario(self):
-        # Create three chunks and check number of partitions
+        # Create three chunks and check number of partitions.
         sync_create_cells(1)
         schema = make_schema(
             [
@@ -197,6 +197,65 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         _check(expected_partitions=1)
         set("//tmp/t/@min_partition_data_size", 1)
         _check(expected_partitions=3)
+
+    @authors("akozhikhov")
+    def test_partitioning_with_chunk_views(self):
+        # Creating two chunks [{1}, {2}] and [{2}, {3}] and check whether they become partitioned.
+        sync_create_cells(1)
+
+        def _wait_not_in_eden(chunk_index):
+            chunk_id = get("//tmp/t/@chunk_ids/{0}".format(chunk_index))
+            sync_mount_table("//tmp/t", first_tablet_index=chunk_index, last_tablet_index=chunk_index)
+            wait(lambda: chunk_id != get("//tmp/t/@chunk_ids/{0}".format(chunk_index)))
+            print "\n\n\n", chunk_id, get("//tmp/t/@chunk_ids"), "\n\n"
+            assert not get("#{}/@eden".format(get("//tmp/t/@chunk_ids/{0}".format(chunk_index))))
+            sync_unmount_table("//tmp/t")
+
+        self._create_simple_table("//tmp/t", )
+        set("//tmp/t/@min_partition_data_size", 1)
+
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 1}, {"key": 2}])
+        sync_unmount_table("//tmp/t")
+        set("//tmp/t/@forced_compaction_revision", 1)
+
+        _wait_not_in_eden(chunk_index=0)
+
+        sync_reshard_table("//tmp/t", [[], [2]])
+
+        sync_mount_table("//tmp/t", first_tablet_index=1, last_tablet_index=1)
+        insert_rows("//tmp/t", [{"key": 2}, {"key": 3}])
+        sync_unmount_table("//tmp/t")
+        set("//tmp/t/@forced_compaction_revision", 1)
+
+        _wait_not_in_eden(chunk_index=1)
+
+        set("//tmp/t/@enable_compaction_and_partitioning", False)
+        sync_reshard_table("//tmp/t", [[]])
+
+        sync_mount_table("//tmp/t")
+        wait(lambda: get("//tmp/t/@tablet_statistics/partition_count") > 0)
+        assert get("//tmp/t/@tablet_statistics/partition_count") == 2
+        sync_unmount_table("//tmp/t")
+
+        assert len(get("//tmp/t/@chunk_ids")) == 2
+
+        expected = [
+            {"pivot_key": [], "min_key": [1], "upper_bound_key": [2]},
+            {"pivot_key": [2], "min_key": [2], "upper_bound_key": [3, yson.YsonEntity()]},
+        ]
+
+        sync_mount_table("//tmp/t", )
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        address = get_tablet_leader_address(tablet_id)
+        orchid = self._find_tablet_orchid(address, tablet_id)
+        for partition_idx in range(len(orchid["partitions"])):
+            partition = orchid["partitions"][partition_idx]
+            assert partition["pivot_key"] == expected[partition_idx]["pivot_key"]
+            assert len(partition["stores"]) == 1
+            store_values = dict(partition["stores"].values()[0].iteritems())
+            assert store_values["min_key"] == expected[partition_idx]["min_key"]
+            assert store_values["upper_bound_key"] == expected[partition_idx]["upper_bound_key"]
 
 
 ################################################################################

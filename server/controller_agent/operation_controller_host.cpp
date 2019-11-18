@@ -11,6 +11,8 @@ using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NScheduler;
 using namespace NYTree;
+using NJobTrackerClient::TJobToRelease;
+using NJobTrackerClient::TReleaseJobFlags;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,7 +42,6 @@ void TOperationControllerHost::InterruptJob(TJobId jobId, EInterruptReason reaso
         {},
         reason,
         {},
-        {}
     });
     YT_LOG_DEBUG("Job interrupt request enqueued (OperationId: %v, JobCount: %v)",
         OperationId_,
@@ -55,7 +56,6 @@ void TOperationControllerHost::AbortJob(TJobId jobId, const TError& error)
         error,
         {},
         {},
-        {}
     });
     YT_LOG_DEBUG("Job abort request enqueued (OperationId: %v, JobId: %v)",
         OperationId_,
@@ -70,7 +70,6 @@ void TOperationControllerHost::FailJob(TJobId jobId)
         {},
         {},
         {},
-        {}
     });
     YT_LOG_DEBUG("Job failure request enqueued (OperationId: %v, JobId: %v)",
         OperationId_,
@@ -87,10 +86,7 @@ void TOperationControllerHost::ReleaseJobs(const std::vector<TJobToRelease>& job
             jobToRelease.JobId,
             {},
             {},
-            jobToRelease.ArchiveJobSpec,
-            jobToRelease.ArchiveStderr,
-            jobToRelease.ArchiveFailContext,
-            jobToRelease.ArchiveProfile,
+            jobToRelease.ReleaseFlags,
         });
     }
     JobEventsOutbox_->Enqueue(std::move(events));
@@ -179,7 +175,7 @@ const IInvokerPtr& TOperationControllerHost::GetControllerThreadPoolInvoker()
     return Bootstrap_->GetControllerAgent()->GetControllerThreadPoolInvoker();
 }
 
-const NEventLog::TEventLogWriterPtr& TOperationControllerHost::GetEventLogWriter()
+const NEventLog::IEventLogWriterPtr& TOperationControllerHost::GetEventLogWriter()
 {
     return Bootstrap_->GetControllerAgent()->GetEventLogWriter();
 }

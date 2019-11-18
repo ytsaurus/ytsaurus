@@ -155,9 +155,7 @@ public:
 
         YT_VERIFY(Queries_.erase(queryContext));
 
-        auto it = UserToUserInfo_.find(queryContext->User);
-        YT_VERIFY(it != UserToUserInfo_.end());
-        auto& userInfo = it->second;
+        auto& userInfo = GetOrCrash(UserToUserInfo_, queryContext->User);
         switch (queryContext->QueryKind)
         {
             case EQueryKind::InitialQuery:
@@ -262,7 +260,7 @@ public:
         }
         // Skip one more zero to keep previous string readable.
         ++StatePointer_;
-        YT_LOG_DEBUG("Skipped previous string (StatePointer: %v)");
+        YT_LOG_DEBUG("Skipped previous string (StatePointer: %v)", StatePointer_);
         TStringStream stream;
         TYsonWriter writer(&stream, EYsonFormat::Pretty);
         BuildYson(&writer);

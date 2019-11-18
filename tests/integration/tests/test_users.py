@@ -313,6 +313,44 @@ class TestUsers(YTEnvSetup):
 
         wait(lambda: __builtin__.set(["g1", "g2"]) <= __builtin__.set(get("//sys/users/u/@member_of_closure")))
 
+    @authors("gritukan")
+    def test_network_projects(self):
+        create_network_project("a")
+
+        with pytest.raises(YtError):
+            create_network_project("a")
+
+        set("//sys/network_projects/a/@project_id", 123)
+        assert get("//sys/network_projects/a/@project_id") == 123
+
+        with pytest.raises(YtError):
+            set("//sys/network_projects/a/@project_id", "abc")
+
+        with pytest.raises(YtError):
+            set("//sys/network_projects/a/@project_id", -1)
+
+        set("//sys/network_projects/a/@name", "b")
+        assert not exists("//sys/network_projects/a")
+        assert get("//sys/network_projects/b/@project_id") == 123
+
+        remove_network_project("b")
+        assert not exists("//sys/network_projects/b")
+
+    @authors("gritukan")
+    def test_network_projects_acl(self):
+        create_user("u1")
+        create_user("u2")
+
+        create_network_project("a")
+
+        set("//sys/network_projects/a/@acl", [make_ace("allow", "u1", "use")])
+        assert sorted(get("//sys/users/u1/@usable_network_projects")) == ["a"]
+        assert get("//sys/users/u2/@usable_network_projects") == []
+
+        create_group("g")
+        set("//sys/network_projects/a/@acl", [make_ace("allow", "g", "use")])
+        add_member("u2", "g")
+        assert sorted(get("//sys/users/u2/@usable_network_projects")) == ["a"]
 
 class TestBuiltinTabletSystemUsers(YTEnvSetup):
     USE_DYNAMIC_TABLES = True

@@ -168,6 +168,8 @@ DEFINE_ENUM(EObjectType,
     ((UserMap)                       (415))
     ((Group)                         (502))
     ((GroupMap)                      (416))
+    ((NetworkProject)                (503))
+    ((NetworkProjectMap)             (426))
 
     // Global stuff
     // A mysterious creature representing the master as a whole.

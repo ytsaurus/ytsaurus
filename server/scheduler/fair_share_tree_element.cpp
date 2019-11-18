@@ -264,14 +264,6 @@ void TSchedulerElement::UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& 
     TreeConfig_ = config;
 }
 
-void TSchedulerElement::Update(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
-{
-    YT_VERIFY(Mutable_);
-
-    UpdateBottomUp(dynamicAttributesList, context);
-    UpdateTopDown(dynamicAttributesList, context);
-}
-
 void TSchedulerElement::UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
 {
     YT_VERIFY(Mutable_);
@@ -905,10 +897,15 @@ void TCompositeSchedulerElement::UpdateDynamicAttributes(TDynamicAttributesList*
     }
 }
 
-void TCompositeSchedulerElement::BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap)
+void TCompositeSchedulerElement::BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap, TDisabledOperationsSet* disabledOperations)
 {
     for (const auto& child : EnabledChildren_) {
-        child->BuildElementMapping(operationMap, poolMap);
+        child->BuildElementMapping(operationMap, poolMap, disabledOperations);
+    }
+    for (const auto& child : DisabledChildren_) {
+        if (child->IsOperation()) {
+            child->BuildElementMapping(operationMap, poolMap, disabledOperations);
+        }
     }
 }
 
@@ -1430,6 +1427,11 @@ bool TCompositeSchedulerElement::HasHigherPriorityInFifoMode(const TSchedulerEle
     return false;
 }
 
+int TCompositeSchedulerElement::GetAvailableRunningOperationCount() const
+{
+    return std::max(GetMaxRunningOperationCount() - RunningOperationCount_, 0);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TPoolFixedState::TPoolFixedState(const TString& id)
@@ -1743,10 +1745,10 @@ TJobResources TPool::ComputeResourceLimits() const
     return ComputeResourceLimitsBase(Config_->ResourceLimits);
 }
 
-void TPool::BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap)
+void TPool::BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap, TDisabledOperationsSet* disabledOperations)
 {
     poolMap->emplace(GetId(), this);
-    TCompositeSchedulerElement::BuildElementMapping(operationMap, poolMap);
+    TCompositeSchedulerElement::BuildElementMapping(operationMap, poolMap, disabledOperations);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1799,6 +1801,12 @@ void TOperationElementSharedState::Enable()
 
     YT_VERIFY(!Enabled_);
     Enabled_ = true;
+}
+
+bool TOperationElementSharedState::Enabled()
+{
+    TReaderGuard guard(JobPropertiesMapLock_);
+    return Enabled_;
 }
 
 void TOperationElementSharedState::RecordHeartbeat(
@@ -1943,7 +1951,7 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
             &AggressivelyPreemptableJobs_,
             &PreemptableJobs_,
             startNonPreemptableAndAggressivelyPreemptableResourceUsage_,
-            fairShareRatio * preemptionSatisfactionThreshold,
+            Preemptable_ ? fairShareRatio * preemptionSatisfactionThreshold : 1.0,
             setPreemptable,
             setAggressivelyPreemptable);
 
@@ -1954,6 +1962,11 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
         "Preemptable lists usage bounds after update (NonpreemptableResourceUsage: %v, AggressivelyPreemptableResourceUsage: %v)",
         FormatResources(NonpreemptableResourceUsage_),
         FormatResources(AggressivelyPreemptableResourceUsage_));
+}
+
+void TOperationElementSharedState::SetPreemptable(bool value)
+{
+    Preemptable_.store(value);
 }
 
 bool TOperationElementSharedState::IsJobKnown(TJobId jobId) const
@@ -2347,6 +2360,13 @@ void TOperationElement::UpdateTopDown(TDynamicAttributesList* dynamicAttributesL
     YT_VERIFY(Mutable_);
 
     TSchedulerElement::UpdateTopDown(dynamicAttributesList, context);
+    // If fair share ratio equals demand ratio then we want to explicitly disable preemption.
+    // It is necessary since some job's resource usage may increase before the next fair share update,
+    //  and in this case we don't want any jobs to become preemptable
+    bool isFairShareRatioEqualToDemandRatio =
+        std::abs(Attributes_.DemandRatio - GetFairShareRatio()) < RatioComparisonPrecision &&
+        Attributes_.DemandRatio > RatioComparisonPrecision;
+    OperationElementSharedState_->SetPreemptable(!isFairShareRatioEqualToDemandRatio);
 
     UpdatePreemptableJobsList();
 }
@@ -2851,9 +2871,13 @@ void TOperationElement::OnJobFinished(TJobId jobId)
     }
 }
 
-void TOperationElement::BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap)
+void TOperationElement::BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap, TDisabledOperationsSet* disabledOperations)
 {
-    operationMap->emplace(OperationId_, this);
+    if (OperationElementSharedState_->Enabled()) {
+        operationMap->emplace(OperationId_, this);
+    } else {
+        disabledOperations->insert(OperationId_);
+    }
 }
 
 TSchedulerElementPtr TOperationElement::Clone(TCompositeSchedulerElement* clonedParent)
@@ -3067,13 +3091,30 @@ void TOperationElement::MarkOperationRunningInPool()
 {
     Parent_->IncreaseRunningOperationCount(1);
     RunningInThisPoolTree_ = true;
+    WaitingForPool_.reset();
 
     YT_LOG_INFO("Operation is running in pool (Pool: %v)", Parent_->GetId());
+}
+
+bool TOperationElement::IsOperationRunningInPool()
+{
+    return RunningInThisPoolTree_;
 }
 
 TFairShareStrategyPackingConfigPtr TOperationElement::GetPackingConfig() const
 {
     return TreeConfig_->Packing;
+}
+
+void TOperationElement::MarkWaitingFor(TCompositeSchedulerElement* violatedPool)
+{
+    violatedPool->WaitingOperationIds().push_back(OperationId_);
+    WaitingForPool_ = violatedPool->GetId();
+
+    YT_LOG_DEBUG("Operation is pending since max running operation count is violated (OperationId: %v, Pool: %v, Limit: %v)",
+        OperationId_,
+        violatedPool->GetId(),
+        violatedPool->GetMaxRunningOperationCount());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3120,7 +3161,7 @@ void TRootElement::UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& confi
     Attributes_.AdjustedFairSharePreemptionTimeout = GetFairSharePreemptionTimeout();
 }
 
-void TRootElement::Update(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
+void TRootElement::PreUpdate(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
 {
     YT_VERIFY(Mutable_);
 
@@ -3129,7 +3170,18 @@ void TRootElement::Update(TDynamicAttributesList* dynamicAttributesList, TUpdate
     DisableNonAliveElements();
     TreeSize_ = TCompositeSchedulerElement::EnumerateElements(0, context);
     dynamicAttributesList->assign(TreeSize_, TDynamicAttributes());
-    TCompositeSchedulerElement::Update(dynamicAttributesList, context);
+
+    UpdateBottomUp(dynamicAttributesList, context);
+}
+
+void TRootElement::Update(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
+{
+    YT_VERIFY(Mutable_);
+
+    VERIFY_INVOKER_AFFINITY(Host_->GetFairShareUpdateInvoker());
+    TForbidContextSwitchGuard contextSwitchGuard;
+
+    UpdateTopDown(dynamicAttributesList, context);
 }
 
 bool TRootElement::IsRoot() const
@@ -3144,7 +3196,7 @@ const TSchedulingTagFilter& TRootElement::GetSchedulingTagFilter() const
 
 TString TRootElement::GetId() const
 {
-    return TString(RootPoolName);
+    return RootPoolName;
 }
 
 std::optional<double> TRootElement::GetSpecifiedWeight() const

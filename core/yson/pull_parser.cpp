@@ -2,6 +2,8 @@
 
 #include "consumer.h"
 
+#include "token_writer.h"
+
 namespace NYT::NYson {
 
 namespace NDetail {
@@ -93,6 +95,93 @@ static void TransferListImpl(TYsonPullParserCursor* cursor, IYsonConsumer* consu
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static void TransferMapOrAttributesImpl(TYsonPullParserCursor* cursor, TCheckedInDebugYsonTokenWriter* writer);
+static void TransferListImpl(TYsonPullParserCursor* cursor, TCheckedInDebugYsonTokenWriter* writer);
+
+Y_FORCE_INLINE static void TransferComplexValueImpl(TYsonPullParserCursor* cursor, TCheckedInDebugYsonTokenWriter* writer)
+{
+    while (true) {
+        switch (cursor->GetCurrent().GetType()) {
+            case EYsonItemType::BeginAttributes:
+                writer->WriteBeginAttributes();
+                TransferMapOrAttributesImpl(cursor, writer);
+                writer->WriteEndAttributes();
+                continue;
+            case EYsonItemType::BeginList:
+                writer->WriteBeginList();
+                TransferListImpl(cursor, writer);
+                writer->WriteEndList();
+                return;
+            case EYsonItemType::BeginMap:
+                writer->WriteBeginMap();
+                TransferMapOrAttributesImpl(cursor, writer);
+                writer->WriteEndMap();
+                return;
+            case EYsonItemType::EntityValue:
+                writer->WriteEntity();
+                cursor->Next();
+                return;
+            case EYsonItemType::BooleanValue:
+                writer->WriteBinaryBoolean(cursor->GetCurrent().UncheckedAsBoolean());
+                cursor->Next();
+                return;
+            case EYsonItemType::Int64Value:
+                writer->WriteBinaryInt64(cursor->GetCurrent().UncheckedAsInt64());
+                cursor->Next();
+                return;
+            case EYsonItemType::Uint64Value:
+                writer->WriteBinaryUint64(cursor->GetCurrent().UncheckedAsUint64());
+                cursor->Next();
+                return;
+            case EYsonItemType::DoubleValue:
+                writer->WriteBinaryDouble(cursor->GetCurrent().UncheckedAsDouble());
+                cursor->Next();
+                return;
+            case EYsonItemType::StringValue:
+                writer->WriteBinaryString(cursor->GetCurrent().UncheckedAsString());
+                cursor->Next();
+                return;
+
+            case EYsonItemType::EndOfStream:
+            case EYsonItemType::EndAttributes:
+            case EYsonItemType::EndMap:
+            case EYsonItemType::EndList:
+                break;
+        }
+        YT_ABORT();
+    }
+}
+
+static void TransferMapOrAttributesImpl(TYsonPullParserCursor* cursor, TCheckedInDebugYsonTokenWriter* writer)
+{
+    YT_ASSERT(cursor->GetCurrent().GetType() == EYsonItemType::BeginAttributes ||
+        cursor->GetCurrent().GetType() == EYsonItemType::BeginMap);
+    cursor->Next();
+    while (cursor->GetCurrent().GetType() == EYsonItemType::StringValue) {
+        writer->WriteBinaryString(cursor->GetCurrent().UncheckedAsString());
+        writer->WriteKeyValueSeparator();
+        cursor->Next();
+        TransferComplexValueImpl(cursor, writer);
+        writer->WriteItemSeparator();
+    }
+    YT_ASSERT(cursor->GetCurrent().GetType() == EYsonItemType::EndAttributes ||
+             cursor->GetCurrent().GetType() == EYsonItemType::EndMap);
+    cursor->Next();
+}
+
+static void TransferListImpl(TYsonPullParserCursor* cursor, TCheckedInDebugYsonTokenWriter* writer)
+{
+    YT_ASSERT(cursor->GetCurrent().GetType() == EYsonItemType::BeginList);
+    cursor->Next();
+    while (cursor->GetCurrent().GetType() != EYsonItemType::EndList) {
+        TransferComplexValueImpl(cursor, writer);
+        writer->WriteItemSeparator();
+    }
+    cursor->Next();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TZeroCopyInputStreamReader::TZeroCopyInputStreamReader(IZeroCopyInput* reader)
     : Reader_(reader)
 { }
@@ -100,75 +189,6 @@ TZeroCopyInputStreamReader::TZeroCopyInputStreamReader(IZeroCopyInput* reader)
 ui64 TZeroCopyInputStreamReader::GetTotalReadSize() const
 {
     return TotalReadBlocksSize_ + (Current_ - Begin_);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TYsonSyntaxChecker::TYsonSyntaxChecker(EYsonType ysonType)
-{
-    StateStack_.push_back(EYsonState::Terminated);
-    switch (ysonType) {
-        case EYsonType::Node:
-            StateStack_.push_back(EYsonState::ExpectValue);
-            break;
-        case EYsonType::ListFragment:
-            StateStack_.push_back(EYsonState::InsideListFragmentExpectValue);
-            break;
-        case EYsonType::MapFragment:
-            StateStack_.push_back(EYsonState::InsideMapFragmentExpectKey);
-            break;
-        default:
-            YT_ABORT();
-    }
-}
-
-TStringBuf TYsonSyntaxChecker::StateExpectationString(EYsonState state)
-{
-    switch (state) {
-        case EYsonState::Terminated:
-            return "no further tokens (yson is completed)";
-
-        case EYsonState::ExpectValue:
-        case EYsonState::ExpectAttributelessValue:
-        case EYsonState::InsideListFragmentExpectAttributelessValue:
-        case EYsonState::InsideListFragmentExpectValue:
-        case EYsonState::InsideMapFragmentExpectAttributelessValue:
-        case EYsonState::InsideMapFragmentExpectValue:
-        case EYsonState::InsideMapExpectAttributelessValue:
-        case EYsonState::InsideMapExpectValue:
-        case EYsonState::InsideAttributeMapExpectAttributelessValue:
-        case EYsonState::InsideAttributeMapExpectValue:
-        case EYsonState::InsideListExpectAttributelessValue:
-        case EYsonState::InsideListExpectValue:
-            return "value";
-
-        case EYsonState::InsideMapFragmentExpectKey:
-        case EYsonState::InsideMapExpectKey:
-            return "key";
-        case EYsonState::InsideAttributeMapExpectKey:
-            return "attribute key";
-
-        case EYsonState::InsideMapFragmentExpectEquality:
-        case EYsonState::InsideMapExpectEquality:
-        case EYsonState::InsideAttributeMapExpectEquality:
-            return "=";
-
-        case EYsonState::InsideListFragmentExpectSeparator:
-        case EYsonState::InsideMapFragmentExpectSeparator:
-        case EYsonState::InsideMapExpectSeparator:
-        case EYsonState::InsideListExpectSeparator:
-        case EYsonState::InsideAttributeMapExpectSeparator:
-            return ";";
-    }
-    YT_VERIFY(false);
-}
-
-void TYsonSyntaxChecker::ThrowUnexpectedToken(TStringBuf token)
-{
-    THROW_ERROR_EXCEPTION("Unexpected %Qv, expected %Qv",
-        token,
-        StateExpectationString(StateStack_.back()))
-        << TErrorAttribute("yson_parser_state", StateStack_.back());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -217,19 +237,30 @@ TYsonItem TYsonPullParser::Next()
         Lexer_.CheckpointContext();
         return NextImpl();
     } catch (const std::exception& ex) {
-        auto [context, contextPosition] = Lexer_.GetContextFromCheckpoint();
-        TStringStream markedContext;
-        markedContext << EscapeC(context.substr(0, contextPosition)) << "  ERROR>>>  " << EscapeC(context.substr(contextPosition));
         THROW_ERROR_EXCEPTION("Error occurred while parsing YSON")
-            << Lexer_
-            << TErrorAttribute("context", EscapeC(context))
-            << TErrorAttribute("context_pos", contextPosition)
-            << TErrorAttribute("marked_context", markedContext.Str())
+            << GetErrorAttributes()
             << ex;
     }
 }
 
+std::vector<TErrorAttribute> TYsonPullParser::GetErrorAttributes() const
+{
+    auto result = Lexer_.GetErrorAttributes();
+    auto [context, contextPosition] = Lexer_.GetContextFromCheckpoint();
+    TStringStream markedContext;
+    markedContext << EscapeC(context.substr(0, contextPosition)) << "  ERROR>>>  " << EscapeC(context.substr(contextPosition));
+    result.emplace_back("context", EscapeC(context));
+    result.emplace_back("context_pos", contextPosition);
+    result.emplace_back("marked_context", markedContext.Str());
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
+
+std::vector<TErrorAttribute> TYsonPullParserCursor::GetErrorAttributes() const
+{
+    return Parser_->GetErrorAttributes();
+}
 
 void TYsonPullParserCursor::SkipComplexValue()
 {
@@ -271,6 +302,11 @@ void TYsonPullParserCursor::SkipComplexValue()
 void TYsonPullParserCursor::TransferComplexValue(NYT::NYson::IYsonConsumer* consumer)
 {
     NDetail::TransferComplexValueImpl(this, consumer);
+}
+
+void TYsonPullParserCursor::TransferComplexValue(NYT::NYson::TCheckedInDebugYsonTokenWriter* writer)
+{
+    NDetail::TransferComplexValueImpl(this, writer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

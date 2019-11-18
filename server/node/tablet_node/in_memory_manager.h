@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "tablet_profiling.h"
 
 #include <yt/server/node/cell_node/public.h>
 
@@ -34,7 +35,7 @@ struct TInMemoryChunkData
     : public TIntrinsicRefCounted
 {
     NTabletClient::EInMemoryMode InMemoryMode = NTabletClient::EInMemoryMode::None;
-
+    int StartBlockIndex = 0;
     std::vector<NChunkClient::TBlock> Blocks;
     NTableClient::TCachedVersionedChunkMetaPtr ChunkMeta;
     NTableClient::IChunkLookupHashTablePtr LookupHashTable;
@@ -57,7 +58,7 @@ struct IInMemoryManager
     : public TRefCounted
 {
     virtual NChunkClient::IBlockCachePtr CreateInterceptingBlockCache(
-            NTabletClient::EInMemoryMode mode) = 0;
+        NTabletClient::EInMemoryMode mode) = 0;
 
     virtual TInMemoryChunkDataPtr EvictInterceptedChunkData(
         NChunkClient::TChunkId chunkId) = 0;
@@ -68,7 +69,6 @@ struct IInMemoryManager
         const TTabletSnapshotPtr& tablet) = 0;
 
     virtual const TInMemoryManagerConfigPtr& GetConfig() const = 0;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(IInMemoryManager)
@@ -87,7 +87,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     const NNodeTrackerClient::TNodeMemoryTrackerPtr& memoryTracker,
     const IInvokerPtr& compressionInvoker,
     const NConcurrency::IThroughputThrottlerPtr& throttler,
-    NProfiling::TTagId preloadTag);
+    const TReaderProfilerPtr& readerProfiler);
 
 ////////////////////////////////////////////////////////////////////////////////
 

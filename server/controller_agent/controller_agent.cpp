@@ -9,7 +9,6 @@
 #include "memory_tag_queue.h"
 #include "bootstrap.h"
 
-#include <yt/server/lib/scheduler/config.h>
 #include <yt/server/lib/scheduler/message_queue.h>
 
 #include <yt/server/lib/scheduler/controller_agent_tracker_service_proxy.h>
@@ -52,6 +51,7 @@ using namespace NScheduler;
 using namespace NConcurrency;
 using namespace NYTree;
 using namespace NChunkClient;
+using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
 using namespace NEventLog;
 using namespace NProfiling;
@@ -124,6 +124,81 @@ private:
 
 ////////////////////////////////////////////////////////////////////
 
+class TZombieOperationOrchids
+    : public TRefCounted
+{
+private:
+    using TOperationIdToOrchidMap = THashMap<TOperationId, IYPathServicePtr>;
+    using TMapIterator = TOperationIdToOrchidMap::iterator;
+
+public:
+    explicit TZombieOperationOrchids(TZombieOperationOrchidsConfigPtr config)
+        : Config_(std::move(config))
+    { }
+
+    void AddOrchid(TOperationId id, IYPathServicePtr orchid)
+    {
+        if (!Config_->Enable) {
+            return;
+        }
+        auto [iterator, inserted] = IdToOrchid_.emplace(id, std::move(orchid));
+        YT_VERIFY(inserted);
+        Queue_.emplace(TInstant::Now(), iterator);
+        while (static_cast<int>(Queue_.size()) > Config_->Limit) {
+            QueuePop();
+        }
+    }
+
+    const TOperationIdToOrchidMap& GetOperationIdToOrchidMap() const
+    {
+        return IdToOrchid_;
+    }
+
+    void Clean()
+    {
+        IdToOrchid_.clear();
+        Queue_ = {};
+    }
+
+    void StartPeriodicCleaning(const IInvokerPtr& invoker)
+    {
+        if (!Config_->Enable) {
+            return;
+        }
+        CleanExecutor_ = New<TPeriodicExecutor>(
+            invoker,
+            BIND(&TZombieOperationOrchids::CleanOldOrchids, MakeWeak(this), Config_->CleanPeriod),
+            Config_->CleanPeriod);
+        CleanExecutor_->Start();
+    }
+
+private:
+    TZombieOperationOrchidsConfigPtr Config_;
+    TOperationIdToOrchidMap IdToOrchid_;
+    std::queue<std::pair<TInstant, TMapIterator>> Queue_;
+
+    TPeriodicExecutorPtr CleanExecutor_;
+
+    void CleanOldOrchids(TDuration maxAge)
+    {
+        auto now = TInstant::Now();
+        while (!Queue_.empty() && now > Queue_.front().first + maxAge) {
+            QueuePop();
+        }
+    }
+
+    void QueuePop()
+    {
+        YT_VERIFY(!Queue_.empty());
+        IdToOrchid_.erase(Queue_.front().second);
+        Queue_.pop();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TZombieOperationOrchids);
+
+////////////////////////////////////////////////////////////////////
+
 class TControllerAgent::TImpl
     : public TRefCounted
 {
@@ -156,6 +231,7 @@ public:
             Config_->SchedulingTagFilterExpireTimeout,
             Bootstrap_->GetControlInvoker()))
         , SchedulerProxy_(Bootstrap_->GetMasterClient()->GetSchedulerChannel())
+        , ZombieOperationOrchids_(New<TZombieOperationOrchids>(Config_->ZombieOperationOrchids))
         , MemoryTagQueue_(Config_)
     { }
 
@@ -330,7 +406,7 @@ public:
         return CoreSemaphore_;
     }
 
-    const TEventLogWriterPtr& GetEventLogWriter() const
+    const IEventLogWriterPtr& GetEventLogWriter() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -450,9 +526,19 @@ public:
         YT_VERIFY(Connected_);
 
         auto operation = GetOperationOrThrow(operationId);
-        const auto& controller = operation->GetController();
+        auto controller = operation->GetController();
         if (controller) {
             controller->Cancel();
+
+            // We carefully destroy controller and log warning if we detect that controller is actually leaked.
+            operation->SetController(nullptr);
+            auto refCount = ResetAndGetResidualRefCount(controller);
+            if (refCount > 0) {
+                YT_LOG_WARNING(
+                    "Operation is going to be unregistered, but its controller has non-zero residual refcount; memory leak is possible "
+                    "(RefCount: %v)",
+                    refCount);
+            }
         }
 
         YT_VERIFY(IdToOperation_.erase(operationId) == 1);
@@ -553,9 +639,33 @@ public:
         YT_VERIFY(Connected_);
 
         const auto& controller = operation->GetControllerOrThrow();
-        return BIND(&IOperationControllerSchedulerHost::Commit, controller)
-            .AsyncVia(controller->GetCancelableInvoker())
-            .Run();
+
+        auto getOrchidAndCommit = BIND(
+            [controller, this_ = MakeStrong(this)] () -> IYPathServicePtr {
+                IYPathServicePtr orchid;
+                if (controller->GetOrchid()) {
+                    auto yson = WaitFor(AsyncYPathGet(controller->GetOrchid(), ""))
+                        .ValueOrThrow();
+                    auto producer = TYsonProducer(BIND([yson = std::move(yson)] (IYsonConsumer* consumer) {
+                        consumer->OnRaw(yson);
+                    }));
+                    orchid = IYPathService::FromProducer(std::move(producer))
+                        ->Via(this_->GetControllerThreadPoolInvoker());
+                }
+                controller->Commit();
+                return orchid;
+            })
+            .AsyncVia(controller->GetCancelableInvoker());
+
+        auto saveOrchid = BIND(
+            [this, this_ = MakeStrong(this), operationId = operation->GetId()] (const IYPathServicePtr& orchid) {
+                if (orchid) {
+                    ZombieOperationOrchids_->AddOrchid(operationId, orchid);
+                }
+            })
+            .AsyncVia(GetCurrentInvoker());
+
+        return getOrchidAndCommit.Run().Apply(saveOrchid);
     }
 
     TFuture<void> CompleteOperation(const TOperationPtr& operation)
@@ -710,7 +820,7 @@ private:
     const IReconfigurableThroughputThrottlerPtr ReconfigurableJobSpecSliceThrottler_;
     const IThroughputThrottlerPtr JobSpecSliceThrottler_;
     const TAsyncSemaphorePtr CoreSemaphore_;
-    const TEventLogWriterPtr EventLogWriter_;
+    const IEventLogWriterPtr EventLogWriter_;
     const std::unique_ptr<TMasterConnector> MasterConnector_;
 
     bool Connected_= false;
@@ -752,6 +862,7 @@ private:
     std::unique_ptr<TMessageQueueInbox> ScheduleJobRequestsInbox_;
 
     TIntrusivePtr<NYTree::ICachedYPathService> StaticOrchidService_;
+    TZombieOperationOrchidsPtr ZombieOperationOrchids_;
 
     TPeriodicExecutorPtr HeartbeatExecutor_;
 
@@ -900,6 +1011,9 @@ private:
             Config_->SchedulerHeartbeatPeriod);
         HeartbeatExecutor_->Start();
 
+        ZombieOperationOrchids_->Clean();
+        ZombieOperationOrchids_->StartPeriodicCleaning(CancelableControlInvoker_);
+
         SchedulerConnected_.Fire();
     }
 
@@ -1011,17 +1125,8 @@ private:
                 if (!event.Error.IsOK()) {
                     ToProto(protoEvent->mutable_error(), event.Error);
                 }
-                if (event.ArchiveJobSpec) {
-                    protoEvent->set_archive_job_spec(*event.ArchiveJobSpec);
-                }
-                if (event.ArchiveStderr) {
-                    protoEvent->set_archive_stderr(*event.ArchiveStderr);
-                }
-                if (event.ArchiveFailContext) {
-                    protoEvent->set_archive_fail_context(*event.ArchiveFailContext);
-                }
-                if (event.ArchiveProfile) {
-                    protoEvent->set_archive_profile(*event.ArchiveProfile);
+                if (event.ReleaseFlags) {
+                    ToProto(protoEvent->mutable_release_job_flags(), *event.ReleaseFlags);
                 }
             });
 
@@ -1415,7 +1520,7 @@ private:
             .EndMap();
     }
 
-    IYPathServicePtr GetDynamicOrchidService() const
+    IYPathServicePtr GetDynamicOrchidService()
     {
         auto dynamicOrchidService = New<TCompositeMapService>();
         dynamicOrchidService->AddChild("operations", New<TOperationsService>(this));
@@ -1446,6 +1551,13 @@ private:
                 }
                 keys.emplace_back(ToString(operationId));
             }
+            const auto& zombieOperationOrchids = ControllerAgent_->ZombieOperationOrchids_->GetOperationIdToOrchidMap();
+            for (const auto& [operationId, orchid] : zombieOperationOrchids) {
+                if (static_cast<i64>(keys.size()) >= limit) {
+                    break;
+                }
+                keys.emplace_back(ToString(operationId));
+            }
             return keys;
         }
 
@@ -1456,12 +1568,16 @@ private:
             }
 
             auto operationId = TOperationId::FromString(key);
-            auto operation = ControllerAgent_->FindOperation(operationId);
-            if (!operation) {
-                return nullptr;
+            if (auto operation = ControllerAgent_->FindOperation(operationId)) {
+                return operation->GetController()->GetOrchid();
             }
 
-            return operation->GetController()->GetOrchid();
+            const auto& idToZombieOperationOrchid = ControllerAgent_->ZombieOperationOrchids_->GetOperationIdToOrchidMap();
+            if (auto it = idToZombieOperationOrchid.find(operationId); it != idToZombieOperationOrchid.end()) {
+                return it->second;
+            }
+
+            return nullptr;
         }
 
     private:
@@ -1560,7 +1676,7 @@ const TAsyncSemaphorePtr& TControllerAgent::GetCoreSemaphore() const
     return Impl_->GetCoreSemaphore();
 }
 
-const TEventLogWriterPtr& TControllerAgent::GetEventLogWriter() const
+const IEventLogWriterPtr& TControllerAgent::GetEventLogWriter() const
 {
     return Impl_->GetEventLogWriter();
 }

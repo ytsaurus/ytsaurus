@@ -337,6 +337,8 @@ TSchedulerConfig::TSchedulerConfig()
         .Default(TDuration::Seconds(10));
     RegisterParameter("transient_operation_queue_scan_period", TransientOperationQueueScanPeriod)
         .Default(TDuration::MilliSeconds(100));
+    RegisterParameter("waiting_for_pool_operation_scan_period", WaitingForPoolOperationScanPeriod)
+        .Default(TDuration::Minutes(1));
 
     RegisterParameter("operation_to_agent_assignment_backoff", OperationToAgentAssignmentBackoff)
         .Default(TDuration::Seconds(1));

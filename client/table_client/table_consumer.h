@@ -2,6 +2,9 @@
 
 #include "public.h"
 
+#include <yt/client/complex_types/named_structures_yson.h>
+#include <yt/client/formats/public.h>
+
 #include <yt/client/table_client/value_consumer.h>
 #include <yt/client/table_client/name_table.h>
 
@@ -18,13 +21,24 @@ class TYsonToUnversionedValueConverter
     : public NYson::TYsonConsumerBase
 {
 public:
-    TYsonToUnversionedValueConverter();
+    DEFINE_BYREF_RO_PROPERTY(std::vector<IValueConsumer*>, ValueConsumers);
 
-    // `valueConsumer` must not be nullptr.
-    void SetValueConsumer(IValueConsumer* valueConsumer);
+public:
+    TYsonToUnversionedValueConverter(
+        NFormats::EComplexTypeMode complexTypeMode,
+        IValueConsumer* valueConsumers);
+
+    TYsonToUnversionedValueConverter(
+        NFormats::EComplexTypeMode complexTypeMode,
+        std::vector<IValueConsumer*> valueConsumers,
+        int tableIndex = 0);
+
+    IValueConsumer* SwitchToTable(int tableIndex);
 
     // Set column index of next emitted value.
     void SetColumnIndex(int columnIndex);
+
+    int GetDepth() const;
 
     virtual void OnStringScalar(TStringBuf value) override;
     virtual void OnInt64Scalar(i64 value) override;
@@ -45,9 +59,14 @@ private:
     TBlobOutput ValueBuffer_;
     NYson::TBufferedBinaryYsonWriter ValueWriter_;
 
-    IValueConsumer* ValueConsumer_ = nullptr;
+    THashMap<std::pair<int,int>, NComplexTypes::TYsonConverter> Converters_;
+    TBlobOutput ConvertedBuffer_;
+    NYson::TBufferedBinaryYsonWriter ConvertedWriter_;
+
+    IValueConsumer* CurrentValueConsumer_;
     int Depth_ = 0;
     int ColumnIndex_ = 0;
+    int TableIndex_ = 0;
 
 private:
     void FlushCurrentValueIfCompleted();
@@ -67,9 +86,11 @@ class TTableConsumer
     : public NYson::TYsonConsumerBase
 {
 public:
-    explicit TTableConsumer(
+    TTableConsumer(
+        NFormats::EComplexTypeMode complexTypeMode,
         IValueConsumer* consumer);
-    explicit TTableConsumer(
+    TTableConsumer(
+        NFormats::EComplexTypeMode complexTypeMode,
         std::vector<IValueConsumer*> consumers,
         int tableIndex = 0);
 
@@ -105,8 +126,10 @@ protected:
 
     void SwitchToTable(int tableIndex);
 
+private:
+    int GetTableCount() const;
 
-    const std::vector<IValueConsumer*> ValueConsumers_;
+protected:
     std::vector<std::unique_ptr<TNameTableWriter>> NameTableWriters_;
 
     IValueConsumer* CurrentValueConsumer_ = nullptr;

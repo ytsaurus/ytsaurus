@@ -8,6 +8,7 @@
 #include <yt/server/master/cell_master/multicell_manager.h>
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/hydra_facade.h>
+#include <yt/server/master/cell_master/config_manager.h>
 
 #include <yt/server/master/chunk_server/chunk_list.h>
 #include <yt/server/master/chunk_server/chunk_manager.h>
@@ -16,6 +17,7 @@
 
 #include <yt/server/lib/misc/interned_attributes.h>
 
+#include <yt/server/master/security_server/access_log.h>
 #include <yt/server/master/security_server/account.h>
 #include <yt/server/master/security_server/security_manager.h>
 #include <yt/server/master/security_server/user.h>
@@ -70,6 +72,24 @@ using namespace NCypressClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
+
+bool IsAccessLoggedMethod(const TString& method) {
+    static const THashSet<TString> methodsForAccessLog = {
+        "Lock",
+        "Unlock",
+        "GetKey",
+        "Get",
+        "Set",
+        "Remove",
+        "List",
+        "Exists",
+        "GetBasicAttributes",
+        "CheckPermission",
+        "BeginCopy",
+        "EndCopy"
+    };
+    return methodsForAccessLog.contains(method);
+}
 
 bool HasTrivialAcd(const TCypressNode* node)
 {
@@ -783,6 +803,12 @@ bool TNontemplateCypressNodeProxyBase::DoInvoke(const NRpc::IServiceContextPtr& 
 {
     ValidateAccessTransaction();
 
+    YT_LOG_ACCESS_IF(
+        IsAccessLoggedMethod(context->GetMethod()),
+        context,
+        GetPath(),
+        Transaction_);
+
     DISPATCH_YPATH_SERVICE_METHOD(Lock);
     DISPATCH_YPATH_SERVICE_METHOD(Create);
     DISPATCH_YPATH_SERVICE_METHOD(Copy);
@@ -1348,21 +1374,33 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Unlock)
 DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
 {
     DeclareMutating();
-
     auto type = EObjectType(request->type());
     auto ignoreExisting = request->ignore_existing();
+    auto lockExisting = request->lock_existing();
     auto recursive = request->recursive();
     auto force = request->force();
     const auto& path = GetRequestTargetYPath(context->RequestHeader());
 
-    context->SetRequestInfo("Type: %v, IgnoreExisting: %v, Recursive: %v, Force: %v",
+    YT_LOG_ACCESS_IF(
+        IsAccessLoggedType(type),
+        context,
+        GetPath(),
+        Transaction_,
+        {{"type", FormatEnum(type)}});
+
+    context->SetRequestInfo("Type: %v, IgnoreExisting: %v, LockExisting: %v, Recursive: %v, Force: %v",
         type,
         ignoreExisting,
+        lockExisting,
         recursive,
         force);
 
     if (ignoreExisting && force) {
         THROW_ERROR_EXCEPTION("Cannot specify both \"ignore_existing\" and \"force\" options simultaneously");
+    }
+
+    if (!ignoreExisting && lockExisting) {
+        THROW_ERROR_EXCEPTION("Cannot specify \"lock_existing\" without \"ignore_existing\"");
     }
 
     bool replace = path.empty();
@@ -1380,6 +1418,11 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
                 impl->GetType(),
                 type);
         }
+
+        if (lockExisting) {
+            LockThisImpl();
+        }
+
         ToProto(response->mutable_node_id(), impl->GetId());
         response->set_cell_tag(impl->GetExternalCellTag() == NotReplicatedCellTag
             ? Bootstrap_->GetMulticellManager()->GetCellTag()
@@ -1435,6 +1478,16 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         }
     }
 
+    if (type == EObjectType::Link && explicitAttributes->Contains("target_path")) {
+        auto targetPath = explicitAttributes->Get<TString>("target_path");
+        YT_LOG_ACCESS(
+            context,
+            GetPath(),
+            Transaction_,
+            {{"destination_path", targetPath}},
+            "Link");
+    }
+
     auto factory = CreateCypressFactory(account, TNodeFactoryOptions());
     auto newProxy = factory->CreateNode(type, &inheritedAttributes, explicitAttributes.get());
 
@@ -1476,8 +1529,13 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     const auto& sourcePath = ypathExt.additional_paths_size() == 1
         ? ypathExt.additional_paths(0)
         : request->source_path();
-    bool ignoreExisting = request->ignore_existing();
+    auto ignoreExisting = request->ignore_existing();
+    auto lockExisting = request->lock_existing();
     auto mode = CheckedEnumCast<ENodeCloneMode>(request->mode());
+
+    if (!ignoreExisting && lockExisting) {
+        THROW_ERROR_EXCEPTION("Cannot specify \"lock_existing\" without \"ignore_existing\"");
+    }
 
     if (ignoreExisting && mode == ENodeCloneMode::Move) {
         THROW_ERROR_EXCEPTION("Cannot specify \"ignore_existing\" for move operation");
@@ -1495,6 +1553,10 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
         ? LockImpl(trunkSourceNode, ELockMode::Exclusive, true)
         : cypressManager->GetVersionedNode(trunkSourceNode, Transaction_);
 
+    if (trunkSourceNode == TrunkNode_) {
+        THROW_ERROR_EXCEPTION("Cannot copy or move a node to itself");
+    }
+
     if (IsAncestorOf(trunkSourceNode, TrunkNode_)) {
         THROW_ERROR_EXCEPTION("Cannot copy or move a node to its descendant");
     }
@@ -1511,6 +1573,13 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
             EPermission::Remove);
         ValidatePermission(sourceNode, EPermissionCheckScope::Parent, EPermission::Write);
     }
+
+    YT_LOG_ACCESS(
+        context,
+        sourceProxy->GetPath(),
+        Transaction_,
+        {{"destination_path", GetPath()}},
+        mode == ENodeCloneMode::Move ? "Move" : "Copy");
 
     CopyCore(
         context,
@@ -1630,8 +1699,11 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
     bool preserveCreationTime = request->preserve_creation_time();
     bool preserveModificationTime = request->preserve_modification_time();
     bool preserveExpirationTime = request->preserve_expiration_time();
+    bool preserveOwner = request->preserve_owner();
+    bool preserveAcl = request->preserve_acl();
     auto recursive = request->recursive();
     auto ignoreExisting = request->ignore_existing();
+    auto lockExisting = request->lock_existing();
     auto force = request->force();
     auto pessimisticQuotaCheck = request->pessimistic_quota_check();
 
@@ -1644,14 +1716,18 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
 
     context->SetRequestInfo("TransactionId: %v "
         "PreserveAccount: %v, PreserveCreationTime: %v, PreserveModificationTime: %v, PreserveExpirationTime: %v, "
-        "Recursive: %v, IgnoreExisting: %v, Force: %v, PessimisticQuotaCheck: %v",
+        "PreserveOwner: %v, PreserveAcl: %v, Recursive: %v, IgnoreExisting: %v,  LockExisting: %v, "
+        "Force: %v, PessimisticQuotaCheck: %v",
         NObjectServer::GetObjectId(Transaction_),
         preserveAccount,
         preserveCreationTime,
         preserveModificationTime,
         preserveExpirationTime,
+        preserveOwner,
+        preserveAcl,
         recursive,
         ignoreExisting,
+        lockExisting,
         force,
         pessimisticQuotaCheck);
 
@@ -1660,6 +1736,11 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
         if (!ignoreExisting) {
             ThrowAlreadyExists(this);
         }
+
+        if (lockExisting) {
+            LockThisImpl();
+        }
+
         ToProto(response->mutable_node_id(), TrunkNode_->GetId());
         context->SetResponseInfo("ExistingNodeId: %v",
             TrunkNode_->GetId());
@@ -1681,8 +1762,14 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
     if (replace && !inplace) {
         ValidatePermission(EPermissionCheckScope::This | EPermissionCheckScope::Descendants, EPermission::Remove);
         ValidatePermission(EPermissionCheckScope::Parent, EPermission::Write);
+        if (preserveAcl) {
+            ValidatePermission(EPermissionCheckScope::Parent, EPermission::Administer);
+        }
     } else {
         ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+        if (preserveAcl) {
+            ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
+        }
     }
 
     auto* account = (replace && !inplace)
@@ -1694,6 +1781,8 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
         .PreserveCreationTime = preserveCreationTime,
         .PreserveModificationTime = preserveModificationTime,
         .PreserveExpirationTime = preserveExpirationTime,
+        .PreserveOwner = preserveOwner,
+        .PreserveAcl = preserveAcl,
         .PessimisticQuotaCheck = pessimisticQuotaCheck
     });
 

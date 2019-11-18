@@ -1,6 +1,8 @@
 #include "routine_registry.h"
 #include "private.h"
 
+#include <yt/core/misc/collection_helpers.h>
+
 namespace NYT::NCodegen {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -43,10 +45,7 @@ uint64_t TRoutineRegistry::GetAddress(const TString& symbol) const
 
 TRoutineRegistry::TValueTypeBuilder TRoutineRegistry::GetTypeBuilder(const TString& symbol) const
 {
-    auto mangledSymbol = MangleSymbol(symbol);
-    auto it = SymbolToTypeBuilder_.find(mangledSymbol);
-    YT_VERIFY(it != SymbolToTypeBuilder_.end());
-    return it->second;
+    return GetOrCrash(SymbolToTypeBuilder_, MangleSymbol(symbol));
 }
 
 void TRoutineRegistry::RegisterRoutineImpl(
@@ -55,7 +54,7 @@ void TRoutineRegistry::RegisterRoutineImpl(
     TValueTypeBuilder typeBuilder)
 {
     auto mangledSymbol = MangleSymbol(symbol);
-    YT_VERIFY(SymbolToAddress_.insert(std::make_pair(mangledSymbol, std::move(address))).second);
+    YT_VERIFY(SymbolToAddress_.insert(std::make_pair(mangledSymbol, address)).second);
     YT_VERIFY(SymbolToTypeBuilder_.insert(std::make_pair(mangledSymbol, std::move(typeBuilder))).second);
 }
 

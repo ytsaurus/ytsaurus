@@ -1303,7 +1303,7 @@ class TestSchedulerReviveVanilla(SchedulerReviveBase):
         spec["tasks"] = {"main": {"command": command, "job_count": job_count}}
         return vanilla(spec=spec, **kwargs)
 
-class TestControllerAgent(YTEnvSetup):
+class TestControllerAgentReconnection(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -1453,6 +1453,65 @@ class TestControllerAgent(YTEnvSetup):
         self._wait_for_state(op, "aborted")
 
 
+@authors("levysotsky")
+class TestControllerAgentZombieOrchids(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "zombie_operation_orchids": {
+                "clean_period": 15 * 1000,
+            },
+        }
+    }
+
+    def _create_table(self, table):
+        create("table", table, attributes={"replication_factor": 1})
+
+    def _get_operation_orchid_path(self, op):
+        controller_agent = get(op.get_path() + "/@controller_agent_address")
+        return "//sys/controller_agents/instances/{}/orchid/controller_agent/operations/{}"\
+            .format(controller_agent, op.id)
+
+    def test_zombie_operation_orchids(self):
+        self._create_table("//tmp/t_in")
+        self._create_table("//tmp/t_out")
+        write_table("//tmp/t_in", {"foo": "bar"})
+
+        op = map(
+            command="cat",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out")
+
+        orchid_path = self._get_operation_orchid_path(op)
+        wait(lambda: exists(orchid_path))
+        assert get(orchid_path + "/state") == "completed"
+        wait(lambda: not exists(orchid_path))
+
+    def test_retained_finished_jobs(self):
+        self._create_table("//tmp/t_in")
+        self._create_table("//tmp/t_out")
+        write_table("//tmp/t_in", [{"foo": "bar1"}, {"foo": "bar2"}])
+
+        op = map(
+            command='if [[ "$YT_JOB_INDEX" == "0" ]] ; then exit 1; fi; cat',
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out",
+            spec={
+                "data_size_per_job": 1,
+            })
+
+        orchid_path = self._get_operation_orchid_path(op)
+        wait(lambda: exists(orchid_path))
+        retained_finished_jobs = get(orchid_path + "/retained_finished_jobs")
+        assert len(retained_finished_jobs) == 1
+        (job_id, attributes), = retained_finished_jobs.items()
+        assert attributes["job_type"] == "map"
+        assert attributes["state"] == "failed"
+
+
 class TestSchedulerErrorTruncate(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -1538,3 +1597,59 @@ class TestSchedulerErrorTruncate(YTEnvSetup):
         job_error = get_job(job_id=running_job, operation_id=op.id)["error"]
         assert find_truncated_errors(job_error)
 
+
+class TestRaceBetweenShardAndStrategy(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 2   # snapshot upload replication factor is 2; unable to configure
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "fair_share_update_period": 100,
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "snapshot_period": 500,
+            "operation_time_limit_check_period": 100,
+            "operation_build_progress_period": 100,
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "scheduler_connector": {
+                "heartbeat_period": 100
+            }
+        }
+    }
+
+    @authors("renadeen")
+    def test_race_between_shard_and_strategy(self):
+        # Scenario:
+        # 1. operation is running
+        # 2. controller fails, scheduler disables operation and it disappears from tree snapshot
+        # 3. job completed event arrives to node shard but is not processed until job revival
+        # 4. controller returns, scheduler revives operation
+        # 5. node shard revives job and sets JobsReady=true
+        # 6. scheduler should enable operation but a bit delayed
+        # 7. node shard manages to process job completed event cause job is revived
+        #    but operation still is not present at tree snapshot (due to not being enabled)
+        #    and strategy discards job completed event telling node to remove it forever
+        # 8. job resource usage is stuck in scheduler and next job won't be scheduled ever
+
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=2,
+            spec={
+                "testing": {"delay_inside_materialize": 1000},
+                "resource_limits": {"user_slots": 1}
+            })
+        wait_breakpoint()
+        op.wait_fresh_snapshot()
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            release_breakpoint()
+
+        wait(lambda: op.get_state() == "completed")

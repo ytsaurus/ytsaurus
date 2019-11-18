@@ -4,6 +4,8 @@
 
 #include <yt/server/lib/chunk_pools/chunk_pool.h>
 
+#include <yt/ytlib/job_tracker_client/statistics.h>
+
 #include <yt/core/ytree/fluent.h>
 
 namespace NYT::NControllerAgent {
@@ -15,6 +17,7 @@ using namespace NYPath;
 using namespace NChunkClient;
 using namespace NPhoenix;
 using namespace NScheduler;
+using namespace NJobTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -132,7 +135,7 @@ TBriefJobStatisticsPtr BuildBriefStatistics(std::unique_ptr<TJobSummary> jobSumm
 
     auto briefStatistics = New<TBriefJobStatistics>();
     briefStatistics->Phase = jobSummary->Phase;
-    
+
     if (auto value = FindNumericValue(statistics, InputRowCountPath)) {
         briefStatistics->ProcessedInputRowCount = *value;
     }
@@ -177,12 +180,12 @@ void ParseStatistics(TJobSummary* jobSummary, TInstant startTime, const TYsonStr
     auto& statistics = jobSummary->Statistics;
     const auto& statisticsYson = jobSummary->StatisticsYson;
     if (statisticsYson) {
-        statistics = ConvertTo<NJobTrackerClient::TStatistics>(statisticsYson);
+        statistics = ConvertTo<TStatistics>(statisticsYson);
         // NB: we should remove timestamp from the statistics as it becomes a YSON-attribute
         // when writing it to the event log, but top-level attributes are disallowed in table rows.
         statistics->SetTimestamp(std::nullopt);
     } else {
-        statistics = NJobTrackerClient::TStatistics();
+        statistics = TStatistics();
     }
 
     {

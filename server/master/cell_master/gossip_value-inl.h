@@ -29,9 +29,7 @@ const TValue& TGossipValue<TValue>::Local() const
 template <class TValue>
 TValue* TGossipValue<TValue>::Remote(NObjectClient::TCellTag cellTag)
 {
-    auto it = Multicell().find(cellTag);
-    YT_VERIFY(it != Multicell().end());
-    return &it->second;
+    return &GetOrCrash(Multicell(), cellTag);
 }
 
 template <class TValue>

@@ -27,7 +27,7 @@ public:
     TCellDirectoryTransactionParticipantProvider(
         TCellDirectoryPtr cellDirectory,
         ITimestampProviderPtr timestampProvider,
-        TCellTagList cellTags)
+        const TCellTagList& cellTags)
         : CellDirectory_(std::move(cellDirectory))
         , TimestampProvider_(std::move(timestampProvider))
         , CellTags_(cellTags)
@@ -60,7 +60,7 @@ private:
 ITransactionParticipantProviderPtr CreateTransactionParticipantProvider(
     TCellDirectoryPtr cellDirectory,
     ITimestampProviderPtr timestampProvider,
-    TCellTagList cellTags)
+    const TCellTagList& cellTags)
 {
     return New<TCellDirectoryTransactionParticipantProvider>(
         std::move(cellDirectory),

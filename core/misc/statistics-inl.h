@@ -5,9 +5,7 @@
 #include "statistics.h"
 #endif
 
-#include <yt/core/ypath/tokenizer.h>
-
-namespace NYT::NJobTrackerClient {
+namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,4 +17,4 @@ void TStatistics::AddSample(const NYPath::TYPath& path, const T& sample)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NJobTrackerClient
+} // namespace NYT

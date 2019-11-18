@@ -24,9 +24,10 @@
 
 #include <yt/ytlib/cgroup/cgroup.h>
 
-#include <yt/core/concurrency/scheduler.h>
+#include <yt/ytlib/tools/tools.h>
+#include <yt/ytlib/tools/proc.h>
 
-#include <yt/core/tools/tools.h>
+#include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/misc/process.h>
 #include <yt/core/misc/proc.h>
@@ -393,7 +394,7 @@ public:
             : ::getuid();
     }
 
-    virtual IJobDirectoryManagerPtr CreateJobDirectoryManager(const TString& path)
+    virtual IJobDirectoryManagerPtr CreateJobDirectoryManager(const TString& path) override
     {
         return CreateSimpleJobDirectoryManager(
             MounterThread_->GetInvoker(),
@@ -403,6 +404,7 @@ public:
 
 private:
     const TSimpleJobEnvironmentConfigPtr Config_;
+
     const bool HasRootPermissions_ = HasRootPermissions();
     const TActionQueuePtr MounterThread_ = New<TActionQueue>("Mounter");
 
@@ -502,10 +504,10 @@ public:
         const TRootFS& rootFS,
         const TString& user) override
     {
-        auto instance = CreateSetupInstance(slotIndex, jobId, rootFS, user);
-
-        return BIND([instance, commands] {
+        return BIND([this_ = MakeStrong(this), slotIndex, jobId, commands, rootFS, user] {
             for (const auto& command : commands) {
+                YT_LOG_DEBUG("Running setup command; path: %v args: %v", command->Path, command->Args);
+                auto instance = this_->CreateSetupInstance(slotIndex, jobId, rootFS, user);
                 auto process = CreateSetupProcess(instance, command);
                 WaitFor(process->Spawn()).ThrowOnError();
             }
@@ -730,7 +732,7 @@ private:
     IInstancePtr CreateSetupInstance(int slotIndex, TJobId jobId, const TRootFS& rootFS, const TString& user)
     {
         auto instance = CreatePortoInstance(
-            GetFullSlotMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex) + "/setup_" + ToString(jobId),
+            GetFullSlotMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex) + "/sc_" + ToString(jobId),
             PortoExecutor_);
         instance->SetRoot(rootFS);
         instance->SetUser(user);

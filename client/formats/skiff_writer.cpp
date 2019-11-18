@@ -95,6 +95,7 @@ private:
 struct TWriteContext
 {
     TNameTablePtr NameTable;
+    TUnversionedValueYsonWriter* UnversionedValueYsonConverter = nullptr;
     TBuffer* TmpBuffer = nullptr;
 };
 
@@ -158,7 +159,7 @@ void ConvertSimpleValueImpl(const TUnversionedValue& value, TCheckedInDebugSkiff
         {
             TBufferOutput out(*context->TmpBuffer);
             NYson::TYsonWriter writer(&out);
-            WriteYsonValue(&writer, value);
+            context->UnversionedValueYsonConverter->WriteValue(value, &writer);
         }
         writer->WriteYson32(TStringBuf(context->TmpBuffer->data(), context->TmpBuffer->size()));
     } else if constexpr (wireType == EWireType::Nothing) {
@@ -336,6 +337,10 @@ public:
 
     void Init(const std::vector<TTableSchema>& schemas, const std::vector<TSkiffSchemaPtr>& tableSkiffSchemas)
     {
+        for (const auto& schema : schemas) {
+            UnversionedValueToYsonConverter_.emplace_back(NameTable_, schema, EComplexTypeMode::Named, /* skipNullValues */ false);
+        }
+
         auto streamSchema = CreateVariant16Schema(tableSkiffSchemas);
         SkiffWriter_.emplace(streamSchema, GetOutputStream());
 
@@ -480,6 +485,8 @@ private:
                     tableIndex)
                     << GetRowPositionErrorAttributes();
             }
+            YT_VERIFY(tableIndex < UnversionedValueToYsonConverter_.size());
+            writeContext.UnversionedValueYsonConverter = &UnversionedValueToYsonConverter_[tableIndex];
 
             const auto& knownFields = TableDescriptionList_[tableIndex].KnownFields;
             const auto& denseFields = TableDescriptionList_[tableIndex].DenseFieldInfos;
@@ -621,7 +628,7 @@ private:
                 for (const auto otherValueIndex : OtherValueIndexes_) {
                     const auto& value = row[otherValueIndex];
                     writer.OnKeyedItem(NameTable_->GetName(value.Id));
-                    WriteYsonValue(&writer, value);
+                    writeContext.UnversionedValueYsonConverter->WriteValue(value, &writer);
                 }
                 writer.OnEndMap();
                 SkiffWriter_->WriteYson32(TStringBuf(YsonBuffer_.Data(), YsonBuffer_.Size()));
@@ -647,6 +654,8 @@ private:
     i64 TableIndex_ = -1;
     i64 RangeIndex_ = -1;
     i64 RowIndex_ = -1;
+
+    std::vector<TUnversionedValueYsonWriter> UnversionedValueToYsonConverter_;
 
     // Buffer that we are going to reuse in order to reduce memory allocations.
     TBuffer YsonBuffer_;

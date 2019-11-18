@@ -232,5 +232,19 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TInternalizeCommand
+    : public TTypedCommand<NApi::TInternalizeNodeOptions>
+{
+public:
+    TInternalizeCommand();
+
+private:
+    NYPath::TYPath Path;
+
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NDriver
 

@@ -128,9 +128,7 @@ TFuture<TBlock> TBlockFetcher::FetchBlock(int blockIndex)
 {
     YT_VERIFY(HasMoreBlocks());
 
-    auto iterator = BlockIndexToWindowIndex_.find(blockIndex);
-    YT_VERIFY(iterator != BlockIndexToWindowIndex_.end());
-    int windowIndex = iterator->second;
+    int windowIndex = GetOrCrash(BlockIndexToWindowIndex_, blockIndex);
     auto& windowSlot = Window_[windowIndex];
 
     YT_VERIFY(windowSlot.RemainingFetches > 0);
@@ -222,9 +220,7 @@ void TBlockFetcher::DecompressBlocks(
         UncompressedDataSize_ += uncompressedBlock.Size();
         CompressedDataSize_ += compressedBlock.Size();
 
-        if (Codec_->GetId() != NCompression::ECodec::None) {
-            BlockCache_->Put(blockId, EBlockType::UncompressedData, TBlock(uncompressedBlock), std::nullopt);
-        }
+        BlockCache_->Put(blockId, EBlockType::UncompressedData, TBlock(uncompressedBlock), std::nullopt);
     }
 }
 

@@ -83,8 +83,7 @@ TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::ReadMeta(
 
     auto session = New<TReadMetaSession>();
     try {
-        session->ReadGuard = TChunkReadGuard::TryAcquire(this);
-        session->Options = options;
+        StartReadSession(session, options);
     } catch (const std::exception& ex) {
         return MakeFuture<TRefCountedChunkMetaPtr>(ex);
     }
@@ -102,7 +101,7 @@ TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::ReadMeta(
 
         Bootstrap_
             ->GetStorageHeavyInvoker()
-            ->Invoke(callback, options.WorkloadDescriptor.GetPriority());
+            ->Invoke(std::move(callback), options.WorkloadDescriptor.GetPriority());
     }
 
     return
@@ -448,24 +447,6 @@ void TBlobChunkBase::OnBlocksRead(
     DoReadBlockSet(session, endEntryIndex, std::move(pendingIOGuard));
 }
 
-void TBlobChunkBase::ProfileReadBlockSetLatency(const TReadBlockSetSessionPtr& session)
-{
-    const auto& locationProfiler = Location_->GetProfiler();
-    auto& performanceCounters = Location_->GetPerformanceCounters();
-    locationProfiler.Update(
-        performanceCounters.BlobBlockReadLatencies[session->Options.WorkloadDescriptor.Category],
-        session->SessionTimer.GetElapsedValue());
-}
-
-void TBlobChunkBase::ProfileReadMetaLatency(const TReadMetaSessionPtr& session)
-{
-    const auto& locationProfiler = Location_->GetProfiler();
-    auto& performanceCounters = Location_->GetPerformanceCounters();
-    locationProfiler.Update(
-        performanceCounters.BlobChunkMetaReadLatencies[session->Options.WorkloadDescriptor.Category],
-        session->SessionTimer.GetElapsedValue());
-}
-
 TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
     const std::vector<int>& blockIndexes,
     const TBlockReadOptions& options)
@@ -475,11 +456,10 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
     auto session = New<TReadBlockSetSession>();
     try {
         // Initialize session.
-        session->ReadGuard = TChunkReadGuard::TryAcquire(this);
+        StartReadSession(session, options);
         session->Invoker = CreateFixedPriorityInvoker(
             Bootstrap_->GetStorageHeavyInvoker(),
             options.WorkloadDescriptor.GetPriority());
-        session->Options = options;
         session->EntryCount = static_cast<int>(blockIndexes.size());
         session->Entries.reset(new TReadBlockSetSession::TBlockEntry[session->EntryCount]);
         for (int entryIndex = 0; entryIndex < session->EntryCount; ++entryIndex) {

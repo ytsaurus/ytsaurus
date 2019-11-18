@@ -389,9 +389,7 @@ private:
                                         .Item(tag.first).Value(tag.second);
                                 })
                                 .DoFor(sample.TagIds, [&] (TFluentMap fluent, TTagId tagId) {
-                                    auto it = tagIdToValue.find(tagId);
-                                    YT_VERIFY(it != tagIdToValue.end());
-                                    const auto& tag = it->second;
+                                    const auto& tag = GetOrCrash(tagIdToValue, tagId);
                                     fluent
                                         .Item(tag.Key).Value(tag.Value);
                                 })

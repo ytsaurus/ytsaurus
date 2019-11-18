@@ -113,6 +113,10 @@ public:
         NObjectClient::TCellTag cellTag,
         const TExternalizeNodeOptions& options));
 
+    MOCK_METHOD2(InternalizeNode, TFuture<void>(
+        const NYPath::TYPath& path,
+        const TInternalizeNodeOptions& options));
+
     MOCK_METHOD2(NodeExists, TFuture<bool>(
         const NYPath::TYPath& path,
         const TNodeExistsOptions& options));

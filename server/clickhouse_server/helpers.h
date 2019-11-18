@@ -45,17 +45,9 @@ void ConvertToFieldRow(const NTableClient::TUnversionedRow& row, int count, DB::
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(max42): unify with similar functions all over the code base.
-std::unique_ptr<TTableObject> GetTableAttributes(
-    const NApi::NNative::IClientPtr& client,
-    const NYPath::TRichYPath& path,
-    NYTree::EPermission permission,
-    const NLogging::TLogger& logger);
-
 TClickHouseTablePtr FetchClickHouseTableFromCache(
     TBootstrap* bootstrap,
-    // User for checking permissions. If user is nullopt, permissions won't be checked.
-    std::optional<TString> user,
+    const NApi::NNative::IClientPtr& client,
     const NYPath::TRichYPath& path,
     const NLogging::TLogger& logger);
 

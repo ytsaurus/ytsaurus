@@ -309,6 +309,11 @@ public:
     //! Limit on the number of concurrent calls to ScheduleJob of single controller.
     std::optional<int> MaxConcurrentControllerScheduleJobCalls;
 
+    //! If set and several regular pool trees have been specified, then the scheduler will choose
+    //! one of those trees based on some heuristic, and all jobs will be scheduled only in the chosen tree.
+    //! This option can't be used simultaneously with TentativePoolTrees or UseDefaulTentativePoolTrees;
+    bool ScheduleInSingleTree;
+
     //! Tentative pool trees to schedule operation in.
     //! Operation's job will be scheduled to these pool trees as long as they're
     //! not much slower than those in other (non-tentative) trees.
@@ -391,8 +396,11 @@ DEFINE_ENUM(EDelayInsideOperationCommitStage,
     (Stage7)
 );
 
+DEFINE_ENUM(ECancelationStage,
+    (ColumnarStatisticsFetch)
+);
+
 DEFINE_ENUM(EControllerFailureType,
-    (None)
     (AssertionFailureInPrepare)
     (ExceptionThrownInOnJobCompleted)
 )
@@ -413,10 +421,16 @@ public:
 
     std::optional<TDuration> DelayInsideSuspend;
 
+    std::optional<TDuration> DelayInsideMaterialize;
+
     std::optional<i64> AllocationSize;
 
     //! Intentionally fails the operation controller. Used only for testing purposes.
-    EControllerFailureType ControllerFailure;
+    std::optional<EControllerFailureType> ControllerFailure;
+
+    std::optional<ECancelationStage> CancelationStage;
+
+    std::optional<TDuration> GetJobSpecDelay;
 
     bool FailGetJobSpec;
 
@@ -694,6 +708,9 @@ public:
     //! Force running speculative job after this timeout. Has higher priority than `JobSpeculationTimeout`
     //! from TOperationBaseSpec.
     std::optional<TDuration> JobSpeculationTimeout;
+
+    //! Name of the network project to use in job.
+    std::optional<TString> NetworkProject;
 
     TUserJobSpec();
 
@@ -1051,6 +1068,8 @@ public:
     bool EnableIntermediateOutputRecalculation;
 
     std::optional<i64> DataWeightPerSortedJob;
+
+    std::vector<NTableClient::TOwningKey> PivotKeys;
 
     TSortOperationSpecBase();
 

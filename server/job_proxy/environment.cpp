@@ -27,6 +27,7 @@ using namespace NContainers;
 using namespace NCGroup;
 using namespace NExecAgent;
 using namespace NJobAgent;
+using namespace NNet;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -548,13 +549,20 @@ class TPortoJobProxyEnvironment
     : public IJobProxyEnvironment
 {
 public:
-    TPortoJobProxyEnvironment(TPortoJobEnvironmentConfigPtr config, const std::optional<TRootFS>& rootFS, std::vector<TString> gpuDevices)
+    TPortoJobProxyEnvironment(
+        TPortoJobEnvironmentConfigPtr config,
+        const std::optional<TRootFS>& rootFS,
+        std::vector<TString> gpuDevices,
+        std::vector<TIP6Address> networkAddresses,
+        const std::optional<TString>& hostName)
         : RootFS_(rootFS)
         , GpuDevices_(std::move(gpuDevices))
         , BlockIOWatchdogPeriod_(config->BlockIOWatchdogPeriod)
         , PortoExecutor_(CreatePortoExecutor("environ", config->PortoWaitTime, config->PortoPollPeriod))
         , Self_(GetSelfPortoInstance(PortoExecutor_))
         , ResourceTracker_(New<TPortoResourceTracker>(Self_, TDuration::MilliSeconds(100)))
+        , NetworkAddresses_(std::move(networkAddresses))
+        , HostName_(hostName)
     {
         PortoExecutor_->SubscribeFailed(BIND(&TPortoJobProxyEnvironment::OnFatalError, MakeWeak(this)));
 
@@ -608,6 +616,23 @@ public:
             }
         }
 
+        if (HostName_) {
+            instance->SetHostName(*HostName_);
+        }
+
+        if (!NetworkAddresses_.empty()) {
+            instance->SetNet("L3 veth0");
+
+            TString ipProperty;
+            for (const auto& address : NetworkAddresses_) {
+                if (!ipProperty.empty()) {
+                    ipProperty += ";";
+                }
+                ipProperty += "veth0 " + ToString(address);
+            }
+            instance->SetIP(ipProperty);
+        }
+
         // Restrict access to devices, that are not explicitly granted.
         instance->SetDevices(std::move(devices));
 
@@ -628,6 +653,8 @@ private:
     IInstancePtr Self_;
     TPortoResourceTrackerPtr ResourceTracker_;
     bool UsePortoMemoryTracking_ = false;
+    const std::vector<TIP6Address> NetworkAddresses_;
+    const std::optional<TString> HostName_;
 
     void OnFatalError(const TError& error)
     {
@@ -648,25 +675,38 @@ DEFINE_REFCOUNTED_TYPE(TPortoJobProxyEnvironment)
 IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
     NYTree::INodePtr config,
     const std::optional<TRootFS>& rootFS,
-    std::vector<TString> gpuDevices)
+    std::vector<TString> gpuDevices,
+    const std::vector<TIP6Address>& networkAddresses,
+    const std::optional<TString>& hostName)
 {
 
     auto environmentConfig = ConvertTo<TJobEnvironmentConfigPtr>(config);
     switch (environmentConfig->Type) {
         case EJobEnvironmentType::Cgroups:
             if (rootFS) {
-                THROW_ERROR_EXCEPTION("Cgroups job environment does not support custom root FS");
+                THROW_ERROR_EXCEPTION("CGroups job environment does not support custom root FS");
             }
 
             if (!gpuDevices.empty()) {
-                YT_LOG_WARNING("Cgroups job environment does not support GPU device isolation (Devices: %v)", gpuDevices);
+                YT_LOG_WARNING("CGroups job environment does not support GPU device isolation (Devices: %v)", gpuDevices);
+            }
+
+            if (!networkAddresses.empty() || hostName) {
+                YT_LOG_WARNING("CGroups job environment does not support network isolation (NetworkAddresses: %v, Hostname: %v)",
+                    networkAddresses,
+                    hostName);
             }
 
             return New<TCGroupsJobProxyEnvironment>(ConvertTo<TCGroupJobEnvironmentConfigPtr>(config));
 
 #ifdef _linux_
         case EJobEnvironmentType::Porto:
-            return New<TPortoJobProxyEnvironment>(ConvertTo<TPortoJobEnvironmentConfigPtr>(config), rootFS, std::move(gpuDevices));
+            return New<TPortoJobProxyEnvironment>(
+                ConvertTo<TPortoJobEnvironmentConfigPtr>(config),
+                rootFS,
+                std::move(gpuDevices),
+                networkAddresses,
+                hostName);
 #endif
 
         case EJobEnvironmentType::Simple:
@@ -676,6 +716,12 @@ IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
 
             if (!gpuDevices.empty()) {
                 YT_LOG_WARNING("Simple job environment does not support GPU device isolation (Devices: %v)", gpuDevices);
+            }
+
+            if (!networkAddresses.empty() || hostName) {
+                YT_LOG_WARNING("Simple job environment does not support network isolation (NetworkAddresses: %v, HostName: %v)",
+                    networkAddresses,
+                    hostName);
             }
             return nullptr;
 

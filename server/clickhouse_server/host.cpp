@@ -31,10 +31,14 @@
 #include <yt/client/misc/discovery.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
+
 #include <yt/core/profiling/profile_manager.h>
+
 #include <yt/core/misc/proc.h>
-#include <yt/core/logging/log_manager.h>
+#include <yt/core/misc/ref_counted_tracker.h>
 #include <yt/core/misc/crash_handler.h>
+
+#include <yt/core/logging/log_manager.h>
 
 #include <yt/core/rpc/bus/channel.h>
 #include <yt/core/rpc/caching_channel_factory.h>
@@ -84,6 +88,7 @@
 namespace NYT::NClickHouseServer {
 
 using namespace DB;
+using namespace NApi::NNative;
 using namespace NProfiling;
 using namespace NYTree;
 using namespace NRpc::NBus;
@@ -217,7 +222,14 @@ public:
             Config_->Discovery,
             Bootstrap_->GetRootClient(),
             ControlInvoker_,
-            std::vector<TString>{"host", "rpc_port", "monitoring_port", "tcp_port", "http_port", "pid"},
+            std::vector<TString>{
+                "host",
+                "rpc_port",
+                "monitoring_port",
+                "tcp_port",
+                "http_port",
+                "pid",
+            },
             Logger);
 
         SetupContext();
@@ -237,6 +249,10 @@ public:
 
         WaitFor(Discovery_->Enter(InstanceId_, attributes))
             .ThrowOnError();
+
+        // Update after entering the group guarantees that we will notify all
+        // alive instances via gossip about new one.
+        Discovery_->UpdateList();
 
         ProfilingExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(),
@@ -276,14 +292,65 @@ public:
         }
     }
 
-    TObjectAttributeCachePtr GetTableAttributeCache()
+    std::vector<TErrorOr<NYTree::TAttributeMap>> CheckPermissionsAndGetCachedObjectAttributes(
+        const std::vector<TYPath>& paths,
+        const IClientPtr& client)
     {
-        return TableAttributeCache_;
-    }
+        const auto& user = client->GetOptions().GetUser();
+        auto foundAttributes = TableAttributeCache_->Find(paths);
+        std::vector<TYPath> missedPaths;
+        std::vector<TYPath> hitPaths;
+        std::vector<TYPath> permissionKeys;
+        for (int index = 0; index < (int)paths.size(); ++index) {
+            if (foundAttributes[index]) {
+                hitPaths.push_back(paths[index]);
+            } else {
+                missedPaths.push_back(paths[index]);
+            }
+        }
 
-    TPermissionCachePtr GetPermissionsCache()
-    {
-        return PermissionCache_;
+        YT_LOG_DEBUG("Getting object attributes (CacheHit: %v, CacheMissed: %v, User: %v)",
+            hitPaths.size(),
+            missedPaths.size(),
+            user);
+
+        auto attributesFuture = TableAttributeCache_->GetFromClient(missedPaths, client);
+        
+        auto permissionOrErrors = WaitFor(PermissionCache_->CheckPermissions(hitPaths, user, EPermission::Read, client))
+            .ValueOrThrow();
+
+        auto attributeOrErrors = WaitFor(attributesFuture)
+            .ValueOrThrow();
+
+        for (int index = 0; index < (int)missedPaths.size(); ++index) {
+            if (attributeOrErrors[index].IsOK()) {
+                TableAttributeCache_->SetValue(missedPaths[index], attributeOrErrors[index]);
+                // User can read attributes -> user has read permissions to table.
+                PermissionCache_->SetValue({missedPaths[index], user, EPermission::Read}, TError());
+            }
+        }
+
+        std::reverse(attributeOrErrors.begin(), attributeOrErrors.end());
+        std::reverse(permissionOrErrors.begin(), permissionOrErrors.end());
+        
+        std::vector<TErrorOr<NYTree::TAttributeMap>> result;
+        result.reserve(paths.size());
+
+        for (int index = 0; index < (int)paths.size(); ++index) {
+            if (foundAttributes[index]) {
+                if (permissionOrErrors.back().IsOK()) {
+                    result.emplace_back(std::move(*foundAttributes[index]));
+                } else {
+                    result.emplace_back(std::move(permissionOrErrors.back()));
+                }
+                permissionOrErrors.pop_back();
+            } else {
+                result.emplace_back(std::move(attributeOrErrors.back()));
+                attributeOrErrors.pop_back();
+            }
+        }
+
+        return result;
     }
 
     Poco::Logger& logger() const override
@@ -314,7 +381,7 @@ public:
         for (const auto& [_, attributes] : nodeList) {
             auto host = attributes.at("host")->AsString()->GetValue();
             auto tcpPort = attributes.at("tcp_port")->AsUint64()->GetValue();
-            result.push_back(CreateClusterNode(TClusterNodeName{host, tcpPort}, Context->getSettingsRef(), tcpPort));
+            result.push_back(CreateClusterNode(TClusterNodeName{host, tcpPort}, Context->getSettingsRef(), TcpPort_));
         }
         return result;
     }
@@ -575,6 +642,8 @@ private:
             YT_LOG_ERROR("We are close to OOM, printing query digest codicils and killing ourselves");
             NYT::NLogging::TLogManager::Get()->Shutdown();
             Bootstrap_->GetQueryRegistry()->WriteStateToStderr();
+            Cerr << "*** RefCountedTracker ***\n" << Endl;
+            Cerr << TRefCountedTracker::Get()->GetDebugInfo(2 /* sortByColumn */) << Endl;
             _exit(MemoryLimitExceededExitCode);
         }
     }
@@ -702,14 +771,11 @@ void TClickHouseHost::StopTcpServers()
     return Impl_->StopTcpServers();
 }
 
-TObjectAttributeCachePtr TClickHouseHost::GetTableAttributeCache()
+std::vector<TErrorOr<NYTree::TAttributeMap>> TClickHouseHost::CheckPermissionsAndGetCachedObjectAttributes(
+    const std::vector<TYPath>& paths,
+    const IClientPtr& client)
 {
-    return Impl_->GetTableAttributeCache();
-}
-
-TPermissionCachePtr TClickHouseHost::GetPermissionsCache()
-{
-    return Impl_->GetPermissionsCache();
+    return Impl_->CheckPermissionsAndGetCachedObjectAttributes(paths, client);
 }
 
 const IInvokerPtr& TClickHouseHost::GetControlInvoker() const

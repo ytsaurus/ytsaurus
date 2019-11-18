@@ -217,7 +217,7 @@ i64 CalculateDiskSpaceUsage(
 void DumpCodecStatistics(
     const TCodecStatistics& codecStatistics,
     const NYPath::TYPath& path,
-    NJobTrackerClient::TStatistics* statistics);
+    TStatistics* statistics);
 
 ///////////////////////////////////////////////////////////////////////////////
 

@@ -14,8 +14,6 @@
 
 #include <yt/core/misc/async_cache.h>
 
-#include <yt/core/profiling/timing.h>
-
 namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,23 +54,8 @@ protected:
     virtual TFuture<void> AsyncRemove() override;
 
 private:
-    struct TSesssionBase
-        : public TIntrinsicRefCounted
-    {
-        NProfiling::TWallTimer SessionTimer;
-        std::optional<TChunkReadGuard> ReadGuard;
-    };
-
-    struct TReadMetaSession
-        : public TSesssionBase
-    {
-        TBlockReadOptions Options;
-    };
-
-    using TReadMetaSessionPtr = TIntrusivePtr<TReadMetaSession>;
-
     struct TReadBlockSetSession
-        : public TSesssionBase
+        : public TReadSessionBase
     {
         struct TBlockEntry
         {
@@ -86,7 +69,6 @@ private:
         std::optional<NProfiling::TWallTimer> ReadTimer;
         std::unique_ptr<TBlockEntry[]> Entries;
         int EntryCount = 0;
-        TBlockReadOptions Options;
         std::vector<TFuture<void>> AsyncResults;
         TPromise<std::vector<NChunkClient::TBlock>> SessionPromise = NewPromise<std::vector<NChunkClient::TBlock>>();
         TPromise<void> DiskFetchPromise;
@@ -131,9 +113,6 @@ private:
         int endEntryIndex,
         TPendingIOGuard&& pendingIOGuard,
         const TErrorOr<std::vector<NChunkClient::TBlock>>& blocksOrError);
-
-    void ProfileReadBlockSetLatency(const TReadBlockSetSessionPtr& session);
-    void ProfileReadMetaLatency(const TReadMetaSessionPtr& session);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlobChunkBase)

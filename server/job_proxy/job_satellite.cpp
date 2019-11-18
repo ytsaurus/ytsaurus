@@ -23,7 +23,9 @@
 #include <yt/core/rpc/bus/server.h>
 #include <yt/core/rpc/server.h>
 
-#include <yt/core/tools/tools.h>
+#include <yt/ytlib/tools/tools.h>
+#include <yt/ytlib/tools/stracer.h>
+#include <yt/ytlib/tools/signaler.h>
 
 #include <yt/core/ytree/convert.h>
 
@@ -31,8 +33,6 @@
 
 #include <yt/core/misc/finally.h>
 #include <yt/core/misc/proc.h>
-#include <yt/core/misc/stracer.h>
-#include <yt/core/misc/signaler.h>
 
 #include <yt/ytlib/cgroup/cgroup.h>
 
@@ -309,7 +309,7 @@ TYsonString TJobProbeTools::StraceJob()
 
 void TJobProbeTools::SignalJob(const TString& signalName)
 {
-    auto arg = New<TSignalerArg>();
+    auto arg = New<TSignalerConfig>();
     arg->Pids = PidsHolder_->GetPids();
 
     YT_LOG_DEBUG("Processing \"SignalJob\" (Signal: %v, Pids: %v, RootPid: %v)",

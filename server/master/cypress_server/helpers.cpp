@@ -7,8 +7,6 @@
 
 #include <yt/server/master/cypress_server/cypress_manager.h>
 
-#include <yt/server/master/transaction_server/transaction_manager.h>
-
 namespace NYT::NCypressServer {
 
 using namespace NObjectClient;

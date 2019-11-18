@@ -43,9 +43,7 @@ public:
 
     virtual EJobSplitterVerdict ExamineJob(TJobId jobId) override
     {
-        auto it = RunningJobs_.find(jobId);
-        YT_VERIFY(it != RunningJobs_.end());
-        auto& job = it->second;
+        auto& job = GetOrCrash(RunningJobs_, jobId);
 
         auto minJobExecTime = std::max(
             Config_->MinJobTime,
@@ -129,9 +127,7 @@ public:
 
     void OnJobRunning(const TJobSummary& summary) override
     {
-        auto it = RunningJobs_.find(summary.Id);
-        YT_VERIFY(it != RunningJobs_.end());
-        auto& job = it->second;
+        auto& job = GetOrCrash(RunningJobs_, summary.Id);
         job.UpdateCompletionTime(&JobTimeTracker_, summary);
     }
 

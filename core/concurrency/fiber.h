@@ -172,9 +172,7 @@ public:
 
 private:
     TFiberId Id_;
-#ifdef DEBUG
     std::list<TFiber*>::iterator Iterator_;
-#endif
 
     TSpinLock SpinLock_;
 

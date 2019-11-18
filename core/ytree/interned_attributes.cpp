@@ -1,5 +1,7 @@
 #include "interned_attributes.h"
 
+#include <yt/core/misc/collection_helpers.h>
+
 namespace NYT::NYTree {
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -23,9 +25,7 @@ public:
 
     const TString& GetUninterned(TInternedAttributeKey internedKey)
     {
-        auto it = AttributeIndexToName_.find(internedKey);
-        YT_VERIFY(it != AttributeIndexToName_.end());
-        return it->second;
+        return GetOrCrash(AttributeIndexToName_, internedKey);
     }
 
 private:

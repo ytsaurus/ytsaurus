@@ -48,6 +48,10 @@ bool TFutureStateBase::Cancel() noexcept
         Canceled_ = true;
     }
 
+    if (CancelHandlers_.empty()) {
+        DoTrySetCanceledError();
+    }
+
     for (const auto& handler : CancelHandlers_) {
         RunNoExcept(handler);
     }
@@ -106,6 +110,11 @@ bool TFutureStateBase::TimedWait(TDuration timeout) const
 TError TFutureStateBase::MakeAbandonedError()
 {
     return TError(NYT::EErrorCode::Canceled, "Promise abandoned");
+}
+
+TError TFutureStateBase::MakeCanceledError()
+{
+    return TError(NYT::EErrorCode::Canceled, "Operation canceled");
 }
 
 void TFutureStateBase::InstallAbandonedError() const

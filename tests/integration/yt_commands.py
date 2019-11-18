@@ -153,6 +153,7 @@ def wait_assert(check_fn, *args, **kwargs):
         except AssertionError as e:
             last_exception[:] = [e]
             last_exc_info[:] = [sys.exc_info()]
+            print_debug("Assertion failed, retrying.\n{}".format(e))
             return False
         return True
     try:
@@ -526,6 +527,10 @@ def externalize(path, cell_tag, **kwargs):
     kwargs["path"] = path
     kwargs["cell_tag"] = cell_tag
     execute_command("externalize", kwargs)
+
+def internalize(path, **kwargs):
+    kwargs["path"] = path
+    execute_command("internalize", kwargs)
 
 def ls(path, **kwargs):
     kwargs["path"] = path
@@ -1204,6 +1209,16 @@ def remove_member(member, group, **kwargs):
     kwargs["group"] = group
     execute_command("remove_member", kwargs)
 
+def create_network_project(name, **kwargs):
+    kwargs["type"] = "network_project"
+    if "attributes" not in kwargs:
+        kwargs["attributes"] = dict()
+    kwargs["attributes"]["name"] = name
+    execute_command("create", kwargs)
+
+def remove_network_project(name, **kwargs):
+    remove("//sys/network_projects/" + name, **kwargs)
+
 def create_tablet_cell(**kwargs):
     kwargs["type"] = "tablet_cell"
     if "attributes" not in kwargs:
@@ -1711,6 +1726,12 @@ def get_tablet_leader_address(tablet_id):
     peers = get("//sys/tablet_cells/" + cell_id + "/@peers")
     leader_peer = list(x for x in peers if x["state"] == "leading")[0]
     return leader_peer["address"]
+
+def get_tablet_follower_addresses(tablet_id):
+    cell_id = get("//sys/tablets/" + tablet_id + "/@cell_id")
+    peers = get("//sys/tablet_cells/" + cell_id + "/@peers")
+    follower_peers = list(x for x in peers if x["state"] == "following")
+    return [peer["address"] for peer in follower_peers]
 
 def sync_alter_table_replica_mode(replica_id, mode, driver=None):
     alter_table_replica(replica_id, mode=mode, driver = driver)

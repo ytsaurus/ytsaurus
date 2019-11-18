@@ -26,18 +26,13 @@ public:
     V& Get(const K& key)
     {
         auto guard = NConcurrency::TReaderGuard(Lock_);
-        auto it = Map_.find(key);
-        YT_VERIFY(it != Map_.end());
-        return it->second;
+        return GetOrCrash(Map_, key);
     }
 
-    // TODO: get rid of copy-paste here
     const V& Get(const K& key) const
     {
         auto guard = NConcurrency::TReaderGuard(Lock_);
-        auto it = Map_.find(key);
-        YT_VERIFY(it != Map_.end());
-        return it->second;
+        return GetOrCrash(Map_, key);
     }
 
     template <typename F>

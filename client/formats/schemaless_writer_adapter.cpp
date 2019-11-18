@@ -2,6 +2,7 @@
 #include "config.h"
 
 #include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/schema.h>
 
 #include <yt/core/actions/future.h>
 
@@ -276,12 +277,19 @@ TSchemalessWriterAdapter::TSchemalessWriterAdapter(
 
 // CreateConsumerForFormat may throw an exception if there is no consumer for the given format,
 // so we set Consumer_ inside Init function rather than inside the constructor.
-void TSchemalessWriterAdapter::Init(const TFormat& format)
+void TSchemalessWriterAdapter::Init(const std::vector<NTableClient::TTableSchema>& tableSchemas, const TFormat& format)
 {
     // This is generic code for those formats, that support skipping nulls.
     // See #TYsonFormatConfig and #TJsonFormatConfig.
     SkipNullValues_ = format.Attributes().Get("skip_null_values", false);
+    auto complexTypeMode = format.Attributes().Get("complex_type_mode", EComplexTypeMode::Named);
+
     Consumer_ = CreateConsumerForFormat(format, EDataType::Tabular, GetOutputStream());
+
+    ValueWriters_.reserve(tableSchemas.size());
+    for (const auto& schema : tableSchemas) {
+        ValueWriters_.emplace_back(NameTable_, schema, complexTypeMode, SkipNullValues_);
+    }
 }
 
 void TSchemalessWriterAdapter::DoWrite(TRange<TUnversionedRow> rows)
@@ -319,6 +327,7 @@ void TSchemalessWriterAdapter::WriteControlAttribute(
 
 void TSchemalessWriterAdapter::WriteTableIndex(i64 tableIndex)
 {
+    CurrentTableIndex_ = tableIndex;
     WriteControlAttribute(EControlAttribute::TableIndex, tableIndex);
 }
 
@@ -350,40 +359,9 @@ void TSchemalessWriterAdapter::ConsumeRow(TUnversionedRow row)
         }
 
         Consumer_->OnKeyedItem(NameTableReader_->GetName(value.Id));
-        WriteYsonValue(Consumer_.get(), value);
+        ValueWriters_[CurrentTableIndex_].WriteValue(value, Consumer_.get());
     }
     Consumer_->OnEndMap();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void WriteYsonValue(IYsonConsumer* writer, const TUnversionedValue& value)
-{
-    switch (value.Type) {
-        case EValueType::Int64:
-            writer->OnInt64Scalar(value.Data.Int64);
-            break;
-        case EValueType::Uint64:
-            writer->OnUint64Scalar(value.Data.Uint64);
-            break;
-        case EValueType::Double:
-            writer->OnDoubleScalar(value.Data.Double);
-            break;
-        case EValueType::Boolean:
-            writer->OnBooleanScalar(value.Data.Boolean);
-            break;
-        case EValueType::String:
-            writer->OnStringScalar(TStringBuf(value.Data.String, value.Length));
-            break;
-        case EValueType::Null:
-            writer->OnEntity();
-            break;
-        case EValueType::Any:
-            writer->OnRaw(TStringBuf(value.Data.String, value.Length), EYsonType::Node);
-            break;
-        default:
-            YT_ABORT();
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

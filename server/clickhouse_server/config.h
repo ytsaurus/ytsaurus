@@ -155,8 +155,10 @@ class TSubqueryConfig
 {
 public:
     NChunkClient::TFetcherConfigPtr ChunkSliceFetcher;
+    int MaxJobCountForPool;
+    int MinDataWeightPerThread;
 
-    int MaxSlicedChunkCount;
+    // Two fields below are for the chunk spec fetcher.
     int MaxChunksPerFetch;
     int MaxChunksPerLocateRequest;
 
@@ -164,8 +166,10 @@ public:
     {
         RegisterParameter("chunk_slice_fetcher", ChunkSliceFetcher)
             .DefaultNew();
-        RegisterParameter("max_sliced_chunk_count", MaxSlicedChunkCount)
-            .Default(100);
+        RegisterParameter("max_job_count_for_pool", MaxJobCountForPool)
+            .Default(1'000'000);
+        RegisterParameter("min_data_weight_per_thread", MinDataWeightPerThread)
+            .Default(64_MB);
         RegisterParameter("max_chunks_per_fetch", MaxChunksPerFetch)
             .Default(100'000);
         RegisterParameter("max_chunks_per_locate_request", MaxChunksPerLocateRequest)
@@ -388,7 +392,7 @@ public:
 
         RegisterParameter("unknown_instance_ping_limit", UnknownInstancePingLimit)
             .Default(10);
-        
+
         RegisterParameter("interruption_graceful_timeout", InterruptionGracefulTimeout)
             .Default(TDuration::Seconds(2));
 

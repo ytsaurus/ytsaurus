@@ -490,11 +490,10 @@ private:
                 : std::lower_bound(lowerLimits.begin(), lowerLimits.end(), maxKey));
             int extraCoincidingSingleKeySlices = 0;
             if (minKey == maxKey && !EnableKeyGuarantee_) {
-                auto it = singleKeySliceNumber.find(minKey);
-                YT_VERIFY(it != singleKeySliceNumber.end());
+                auto& sliceNumber = GetOrCrash(singleKeySliceNumber, minKey);
                 // +1 because we accounted data slice for the current chunk twice (in slicesToTheLeft and slicesToTheRight),
                 // but we actually want to account it zero time since we condier only data slices different from current.
-                extraCoincidingSingleKeySlices = it->second + 1;
+                extraCoincidingSingleKeySlices = sliceNumber + 1;
             }
             int nonIntersectingSlices = slicesToTheLeft + slicesToTheRight - extraCoincidingSingleKeySlices;
             YT_VERIFY(nonIntersectingSlices <= dataSlicesCount - 1);

@@ -220,6 +220,16 @@ public:
         return Options_.PreserveExpirationTime;
     }
 
+    virtual bool ShouldPreserveOwner() const override
+    {
+        return Options_.PreserveOwner;
+    }
+
+    virtual bool ShouldPreserveAcl() const override
+    {
+        return Options_.PreserveAcl;
+    }
+
     virtual TAccount* GetNewNodeAccount() const override
     {
         return Account_;
@@ -1210,11 +1220,13 @@ public:
         auto strongestLockModeBefore = ELockMode::None;
         auto strongestLockModeAfter = ELockMode::None;
         for (auto* lock : transaction->Locks()) {
-            if (lock->GetState() != ELockState::Acquired) {
+            YT_ASSERT(lock->GetTransaction() == transaction);
+
+            if (lock->GetTrunkNode() != trunkNode) {
                 continue;
             }
 
-            if (lock->GetTransaction() != transaction) {
+            if (lock->GetState() != ELockState::Acquired) {
                 continue;
             }
 
@@ -3103,9 +3115,13 @@ private:
             account);
 
         // Set owner.
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* user = securityManager->GetAuthenticatedUser();
-        clonedTrunkNode->Acd().SetOwner(user);
+        if (factory->ShouldPreserveOwner()) {
+            clonedTrunkNode->Acd().SetOwner(sourceNode->Acd().GetOwner());
+        } else {
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            auto* user = securityManager->GetAuthenticatedUser();
+            clonedTrunkNode->Acd().SetOwner(user);
+        }
 
         // Copy creation time.
         if (factory->ShouldPreserveCreationTime()) {

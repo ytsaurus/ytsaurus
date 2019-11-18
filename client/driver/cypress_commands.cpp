@@ -156,6 +156,8 @@ TCreateNodeCommand::TCreateNodeCommand()
         .Optional();
     RegisterParameter("ignore_existing", Options.IgnoreExisting)
         .Optional();
+    RegisterParameter("lock_existing", Options.LockExisting)
+        .Optional();
     RegisterParameter("force", Options.Force)
         .Optional();
 }
@@ -283,6 +285,8 @@ TCopyCommand::TCopyCommand()
         .Optional();
     RegisterParameter("ignore_existing", Options.IgnoreExisting)
         .Optional();
+    RegisterParameter("lock_existing", Options.LockExisting)
+        .Optional();
     RegisterParameter("force", Options.Force)
         .Optional();
     RegisterParameter("preserve_account", Options.PreserveAccount)
@@ -292,6 +296,10 @@ TCopyCommand::TCopyCommand()
     RegisterParameter("preserve_modifcation_time", Options.PreserveModificationTime)
         .Optional();
     RegisterParameter("preserve_expiration_time", Options.PreserveExpirationTime)
+        .Optional();
+    RegisterParameter("preserve_owner", Options.PreserveOwner)
+        .Optional();
+    RegisterParameter("preserve_acl", Options.PreserveAcl)
         .Optional();
     RegisterParameter("pessimistic_quota_check", Options.PessimisticQuotaCheck)
         .Optional();
@@ -326,6 +334,8 @@ TMoveCommand::TMoveCommand()
     RegisterParameter("preserve_modifcation_time", Options.PreserveModificationTime)
         .Optional();
     RegisterParameter("preserve_expiration_time", Options.PreserveExpirationTime)
+        .Optional();
+    RegisterParameter("preserve_owner", Options.PreserveOwner)
         .Optional();
     RegisterParameter("pessimistic_quota_check", Options.PessimisticQuotaCheck)
         .Optional();
@@ -372,6 +382,8 @@ TLinkCommand::TLinkCommand()
     RegisterParameter("recursive", Options.Recursive)
         .Optional();
     RegisterParameter("ignore_existing", Options.IgnoreExisting)
+        .Optional();
+    RegisterParameter("lock_existing", Options.LockExisting)
         .Optional();
     RegisterParameter("force", Options.Force)
         .Optional();
@@ -434,6 +446,23 @@ void TExternalizeCommand::DoExecute(ICommandContextPtr context)
     auto asyncResult = context->GetClient()->ExternalizeNode(
         Path,
         CellTag,
+        Options);
+
+    WaitFor(asyncResult)
+        .ThrowOnError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TInternalizeCommand::TInternalizeCommand()
+{
+    RegisterParameter("path", Path);
+}
+
+void TInternalizeCommand::DoExecute(ICommandContextPtr context)
+{
+    auto asyncResult = context->GetClient()->InternalizeNode(
+        Path,
         Options);
 
     WaitFor(asyncResult)

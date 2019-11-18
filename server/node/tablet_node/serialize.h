@@ -20,6 +20,7 @@ DEFINE_ENUM(ETabletReign,
     ((SafeReplicatedLogSchema)       (100012)) // savrus
     ((BulkInsert)                    (100013)) // savrus
     ((GiantTabletProblem)            (100014)) // akozhikhov
+    ((ChunkViewsForPivots)           (100015)) // akozhikhov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

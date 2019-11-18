@@ -38,7 +38,7 @@ void UpdateFromProto(
     const NProto::TChunkReaderStatistics& protoChunkReaderStatistics);
 
 void DumpChunkReaderStatistics(
-    NJobTrackerClient::TStatistics* jobStatisitcs,
+    TStatistics* jobStatisitcs,
     const TString& path,
     const TChunkReaderStatisticsPtr& chunkReaderStatisticsPtr);
 

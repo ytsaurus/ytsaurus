@@ -9,50 +9,58 @@
 
 #include <yt/build/build.h>
 
-#include <yt/ytlib/api/native/connection.h>
 #include <yt/ytlib/api/native/config.h>
+#include <yt/ytlib/api/native/connection.h>
 
-#include <yt/ytlib/program/build_attributes.h>
+#include <yt/ytlib/auth/authentication_manager.h>
 
 #include <yt/ytlib/monitoring/http_integration.h>
 #include <yt/ytlib/monitoring/monitoring_manager.h>
 
-#include <yt/ytlib/auth/authentication_manager.h>
+#include <yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
+
+#include <yt/ytlib/orchid/orchid_service.h>
+
+#include <yt/ytlib/program/build_attributes.h>
 
 #include <yt/client/driver/driver.h>
 
-#include <yt/core/http/server.h>
-#include <yt/core/http/helpers.h>
-#include <yt/core/https/server.h>
+#include <yt/core/bus/tcp/server.h>
 
 #include <yt/core/concurrency/thread_pool_poller.h>
 #include <yt/core/concurrency/thread_pool.h>
+
+#include <yt/core/http/helpers.h>
+#include <yt/core/http/server.h>
+
+#include <yt/core/https/server.h>
+
+#include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
+#include <yt/core/misc/ref_counted_tracker.h>
+
+#include <yt/core/profiling/profile_manager.h>
+
+#include <yt/core/rpc/bus/server.h>
+
+#include <yt/core/ytalloc/statistics_producer.h>
 
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/virtual.h>
 #include <yt/core/ytree/ypath_client.h>
 
-#include <yt/core/profiling/profile_manager.h>
-
-#include <yt/core/misc/ref_counted_tracker.h>
-#include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
-
-#include <yt/core/ytalloc/statistics_producer.h>
-
-#include <yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
-
 namespace NYT::NHttpProxy {
 
-using namespace NConcurrency;
-using namespace NYTree;
-using namespace NYson;
-using namespace NHttp;
 using namespace NApi;
-using namespace NDriver;
-using namespace NNative;
-using namespace NMonitoring;
-using namespace NProfiling;
 using namespace NAuth;
+using namespace NConcurrency;
+using namespace NDriver;
+using namespace NHttp;
+using namespace NMonitoring;
+using namespace NNative;
+using namespace NOrchid;
+using namespace NProfiling;
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -93,6 +101,13 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
         orchidRoot,
         "/coordinator",
         CreateVirtualNode(Coordinator_->CreateOrchidService()));
+
+    Config_->BusServer->Port = Config_->RpcPort;
+    RpcServer_ = NRpc::NBus::CreateBusServer(CreateTcpBusServer(Config_->BusServer));
+
+    RpcServer_->RegisterService(CreateOrchidService(
+        orchidRoot,
+        GetControlInvoker()));
 
     HostsHandler_ = New<THostsHandler>(Coordinator_);
     PingHandler_ = New<TPingHandler>(Coordinator_);
@@ -177,6 +192,8 @@ void TBootstrap::Run()
         ApiHttpsServer_->Start();
     }
     Coordinator_->Start();
+
+    RpcServer_->Start();
 
     Sleep(TDuration::Max());
 }

@@ -897,10 +897,10 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
 
         auto jobController = Bootstrap_->GetJobController();
         jobController->SetResourceLimitsOverrides(rsp->resource_limits_overrides());
-        jobController->SetDisableSchedulerJobs(rsp->disable_scheduler_jobs());
+        jobController->SetDisableSchedulerJobs(rsp->disable_scheduler_jobs() || rsp->decommissioned());
 
         auto sessionManager = Bootstrap_->GetSessionManager();
-        sessionManager->SetDisableWriteSessions(rsp->disable_write_sessions());
+        sessionManager->SetDisableWriteSessions(rsp->disable_write_sessions() || rsp->decommissioned());
 
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         for (const auto& info : rsp->tablet_slots_to_remove()) {
@@ -940,7 +940,7 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
                 continue;
             }
             if (!slot->CanConfigure()) {
-                YT_LOG_WARNING("Cannot configure slot in non-configurable state, ignored (CellId: %v, State: %Qlv)",
+                YT_LOG_WARNING("Cannot configure slot in non-configurable state, ignored (CellId: %v, State: %v)",
                     descriptor.CellId,
                     slot->GetControlState());
                 continue;
@@ -957,7 +957,7 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
                 continue;
             }
             if (!slot->CanConfigure()) {
-                YT_LOG_WARNING("Cannot update slot in non-configurable state, ignored (CellId: %v, State: %Qlv)",
+                YT_LOG_WARNING("Cannot update slot in non-configurable state, ignored (CellId: %v, State: %v)",
                     cellId,
                     slot->GetControlState());
                 continue;

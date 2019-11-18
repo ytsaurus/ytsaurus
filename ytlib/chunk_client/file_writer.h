@@ -44,7 +44,7 @@ public:
 
     virtual NErasure::ECodec GetErasureCodecId() const override;
 
-    virtual bool HasSickReplicas() const override;
+    virtual bool IsCloseDemanded() const override;
 
     //! Returns the chunk meta.
     /*!

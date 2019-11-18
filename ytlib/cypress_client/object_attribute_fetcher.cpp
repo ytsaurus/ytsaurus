@@ -24,6 +24,9 @@ TFuture<std::vector<TErrorOr<TAttributeMap>>> FetchAttributes(
     const NNative::IClientPtr& client,
     const TMasterReadOptions& options)
 {
+    if (paths.empty()) {
+        return MakeFuture(std::vector<TErrorOr<TAttributeMap>>());
+    }
     TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(options.ReadFrom));
     auto batchReq = proxy.ExecuteBatch();
     for (const auto& path : paths) {

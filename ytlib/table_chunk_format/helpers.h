@@ -92,54 +92,25 @@ int CompareTypedValues(const NTableClient::TUnversionedValue& lhs, const NTableC
 
 //! Compare two unversioned values of the same type (or null).
 template <NTableClient::EValueType valueType>
-int CompareValues(const NTableClient::TUnversionedValue& lhs, const NTableClient::TUnversionedValue& rhs);
-
-template <>
-inline int CompareValues<NTableClient::EValueType::Int64>(
-    const NTableClient::TUnversionedValue& lhs,
-    const NTableClient::TUnversionedValue& rhs)
+int CompareValues(const NTableClient::TUnversionedValue& lhs, const NTableClient::TUnversionedValue& rhs)
 {
-    return CompareTypedValues<i64>(lhs, rhs);
-}
-
-template <>
-inline int CompareValues<NTableClient::EValueType::Uint64>(
-    const NTableClient::TUnversionedValue& lhs,
-    const NTableClient::TUnversionedValue& rhs)
-{
-    return CompareTypedValues<ui64>(lhs, rhs);
-}
-
-template <>
-inline int CompareValues<NTableClient::EValueType::Double>(
-    const NTableClient::TUnversionedValue& lhs,
-    const NTableClient::TUnversionedValue& rhs)
-{
-    return CompareTypedValues<double>(lhs, rhs);
-}
-
-template <>
-inline int CompareValues<NTableClient::EValueType::String>(
-    const NTableClient::TUnversionedValue& lhs,
-    const NTableClient::TUnversionedValue& rhs)
-{
-    return CompareTypedValues<TStringBuf>(lhs, rhs);
-}
-
-template <>
-inline int CompareValues<NTableClient::EValueType::Boolean>(
-    const NTableClient::TUnversionedValue& lhs,
-    const NTableClient::TUnversionedValue& rhs)
-{
-    return CompareTypedValues<bool>(lhs, rhs);
-}
-
-template<>
-inline int CompareValues<NTableClient::EValueType::Any>(
-    const NTableClient::TUnversionedValue& lhs,
-    const NTableClient::TUnversionedValue& rhs)
-{
-    return NTableClient::CompareRowValues(lhs, rhs);
+    using namespace NTableClient;
+    if constexpr (valueType == EValueType::Int64) {
+        return CompareTypedValues<i64>(lhs, rhs);
+    } else if constexpr (valueType == EValueType::Uint64) {
+        return CompareTypedValues<ui64>(lhs, rhs);
+    } else if constexpr (valueType == EValueType::Double) {
+        return CompareTypedValues<double>(lhs, rhs);
+    } else if constexpr (valueType == EValueType::String) {
+        return CompareTypedValues<TStringBuf>(lhs, rhs);
+    } else if constexpr (valueType == EValueType::Boolean) {
+        return CompareTypedValues<bool>(lhs, rhs);
+    } else if constexpr (valueType == EValueType::Any) {
+        return CompareRowValues(lhs, rhs);
+    } else {
+        // Poor man static_assert(false, ...).
+        static_assert(valueType == EValueType::Int64, "Unexpected value type");
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

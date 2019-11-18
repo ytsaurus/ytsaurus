@@ -418,6 +418,7 @@ public:
                 consumer->OnEntity();
                 return;
             }
+            consumer->OnBeginList();
         }
 
         if (Y_UNLIKELY(value.Type != Type)) {
@@ -445,6 +446,10 @@ public:
         } else {
             // Silly assert instead of uncompilable |static_assert(false)|.
             static_assert(Type == EValueType::Int64, "Unexpected value type");
+        }
+
+        if constexpr (!Required) {
+            consumer->OnEndList();
         }
     }
 };
