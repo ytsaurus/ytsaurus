@@ -80,6 +80,7 @@ DEFINE_ENUM(EMasterReign,
     ((YT_10726_StagedChunkExpiration)                                (837))  // shakurov
     ((ChunkViewToParentsArray)                                       (838))  // ifsmirnov
     ((FixTableStatistics)                                            (839))  // savrus
+    ((BranchedAndLockedNodeCountMismatchFix_19_6)                    (840))  // shakurov
     ((YT_10639_CumulativeStatisticsInDynamicTables)                  (899))  // ifsmirnov
     ((PortalsInitial)                                                (900))  // babenko
     ((CypressShards)                                                 (901))  // babenko
