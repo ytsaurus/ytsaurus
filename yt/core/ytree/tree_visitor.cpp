@@ -27,7 +27,7 @@ public:
         const std::optional<std::vector<TString>>& attributeKeys)
         : Consumer(consumer)
         , Stable_(stable)
-        , AttributeKeys_(attributeKeys)
+        , AttributeKeys(attributeKeys)
     { }
 
     void Visit(const INodePtr& root)
@@ -38,11 +38,11 @@ public:
 private:
     IAsyncYsonConsumer* const Consumer;
     const bool Stable_;
-    const std::optional<std::vector<TString>> AttributeKeys_;
+    const std::optional<std::vector<TString>> AttributeKeys;
 
     void VisitAny(const INodePtr& node, bool isRoot = false)
     {
-        node->WriteAttributes(Consumer, AttributeKeys_, Stable_);
+        node->WriteAttributes(Consumer, AttributeKeys, Stable_);
 
         static const TString opaqueAttributeName("opaque");
         if (!isRoot &&
