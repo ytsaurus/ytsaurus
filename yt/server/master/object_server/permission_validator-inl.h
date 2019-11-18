@@ -52,12 +52,12 @@ void THierarchicPermissionValidator<TObject>::ValidateCopyPermissions(
     bool replace,
     bool validateAdminister)
 {
-    ValidateCopyPermissionsSource(sourceImpl, mode);
-    ValidateCopyPermissionsDestination(replace, validateAdminister);
+    ValidateCopyFromSourcePermissions(sourceImpl, mode);
+    ValidateCopyToThisDestinationPermissions(replace, validateAdminister);
 }
 
 template <class TObject>
-void THierarchicPermissionValidator<TObject>::ValidateCopyPermissionsSource(
+void THierarchicPermissionValidator<TObject>::ValidateCopyFromSourcePermissions(
     TObject* sourceImpl,
     NCypressClient::ENodeCloneMode mode)
 {
@@ -82,7 +82,7 @@ void THierarchicPermissionValidator<TObject>::ValidateCopyPermissionsSource(
 }
 
 template <class TObject>
-void THierarchicPermissionValidator<TObject>::ValidateCopyPermissionsDestination(
+void THierarchicPermissionValidator<TObject>::ValidateCopyToThisDestinationPermissions(
     bool replace,
     bool validateAdminister)
 {

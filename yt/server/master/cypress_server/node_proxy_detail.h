@@ -163,7 +163,7 @@ protected:
 
     ICypressNodeProxyPtr GetProxy(TCypressNode* trunkNode) const;
 
-    virtual TSharedRange<TCypressNode*> ListDescendants(TCypressNode* node) override;
+    virtual SmallVector<TCypressNode*, 1> ListDescendants(TCypressNode* node) override;
 
     // TSupportsPermissions members
     virtual void ValidatePermission(
