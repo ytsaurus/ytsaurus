@@ -21,6 +21,9 @@ class ParseStructuredArgument(Action):
 def build_snapshot(*args, **kwargs):
     print(get_driver_instance(None).build_snapshot(*args, **kwargs))
 
+def build_master_snapshots(*args, **kwargs):
+    print(get_driver_instance(None).build_master_snapshots(*args, **kwargs))
+
 def gc_collect(*args, **kwargs):
     get_driver_instance(None).gc_collect(*args, **kwargs)
 
@@ -52,7 +55,14 @@ def main():
     build_snapshot_parser = subparsers.add_parser("build-snapshot", help="Build snapshot")
     build_snapshot_parser.set_defaults(func=build_snapshot)
     build_snapshot_parser.add_argument("--set-read-only", action="store_true", default=False)
+    build_snapshot_parser.add_argument("--wait-for-snapshot-completion", action="store_true", default=False)
     build_snapshot_parser.add_argument("--cell-id", required=True)
+
+    build_master_snapshot_parser = subparsers.add_parser("build-master-snapshots", help="Build snapshots for all master cells")
+    build_master_snapshot_parser.set_defaults(func=build_master_snapshots)
+    build_master_snapshot_parser.add_argument("--set-read-only", action="store_true", default=False)
+    build_master_snapshot_parser.add_argument("--wait-for-snapshot-completion", action="store_true", default=False)
+    build_master_snapshot_parser.add_argument("--retry", action="store_true", default=True)
 
     gc_collect_parser = subparsers.add_parser("gc-collect", help="Run garbage collection")
     gc_collect_parser.set_defaults(func=gc_collect)
