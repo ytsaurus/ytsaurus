@@ -1126,12 +1126,11 @@ void TNontemplateCypressNodeProxyBase::ValidatePermission(
     }
 }
 
-TSharedRange<TCypressNode*> TNontemplateCypressNodeProxyBase::ListDescendants(TCypressNode* node)
+SmallVector<TCypressNode*, 1> TNontemplateCypressNodeProxyBase::ListDescendants(TCypressNode* node)
 {
     const auto& cypressManager = Bootstrap_->GetCypressManager();
     auto* trunkNode = node->GetTrunkNode();
-    auto descendants = cypressManager->ListSubtreeNodes(trunkNode, Transaction_, false);
-    return MakeSharedRange(std::move(descendants));
+    return cypressManager->ListSubtreeNodes(trunkNode, Transaction_, false);
 }
 
 void TNontemplateCypressNodeProxyBase::ValidateNotExternal()
@@ -1538,7 +1537,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
         THROW_ERROR_EXCEPTION("Cannot copy or move a node to its descendant");
     }
 
-    ValidateCopyPermissionsSource(sourceNode, mode);
+    ValidateCopyFromSourcePermissions(sourceNode, mode);
 
     auto sourceParentProxy = sourceProxy->GetParent();
     if (!sourceParentProxy && mode == ENodeCloneMode::Move) {
@@ -1730,7 +1729,7 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
         }
     }
 
-    ValidateCopyPermissionsDestination(replace && !inplace, preserveAcl);
+    ValidateCopyToThisDestinationPermissions(replace && !inplace, preserveAcl);
 
     auto* account = (replace && !inplace)
         ? ICypressNodeProxy::FromNode(parentProxy.Get())->GetTrunkNode()->GetAccount()

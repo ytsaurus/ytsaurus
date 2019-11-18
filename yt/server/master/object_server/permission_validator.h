@@ -25,7 +25,7 @@ struct IPermissionValidator
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Encapsulates common permission-related logic for hierarchic objects like
-//! Cypress node and non-versioned map objects.
+//! Cypress nodes and non-versioned map objects.
 template <class TObject>
 class THierarchicPermissionValidator
 {
@@ -38,7 +38,7 @@ protected:
         NYTree::EPermissionCheckScope scope,
         NYTree::EPermission permission);
 
-    virtual TSharedRange<TObject*> ListDescendants(TObject* object) = 0;
+    virtual SmallVector<TObject*, 1> ListDescendants(TObject* object) = 0;
 
     void ValidateCreatePermissions(
         bool replace,
@@ -49,8 +49,8 @@ protected:
         NCypressClient::ENodeCloneMode mode,
         bool replace,
         bool validateAdminister);
-    void ValidateCopyPermissionsSource(TObject* sourceImpl, NCypressClient::ENodeCloneMode mode);
-    void ValidateCopyPermissionsDestination(bool replace, bool validateAdminister);
+    void ValidateCopyFromSourcePermissions(TObject* sourceImpl, NCypressClient::ENodeCloneMode mode);
+    void ValidateCopyToThisDestinationPermissions(bool replace, bool validateAdminister);
 
 private:
     std::unique_ptr<IPermissionValidator> Underlying_;

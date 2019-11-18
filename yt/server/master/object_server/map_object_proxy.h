@@ -110,8 +110,8 @@ protected:
 
     virtual TSelfPtr ResolveNameOrThrow(const TString& name) = 0;
 
-    virtual TSharedRange<TObject*> ListDescendants(TObject* object) override;
-    void ListDescendants(TObject* object, std::vector<TObject*>* descendants);
+    virtual SmallVector<TObject*, 1> ListDescendants(TObject* object) override;
+    void ListDescendants(TObject* object, bool includeRoot, SmallVector<TObject*, 1>* descendants);
 
     virtual void ValidatePermission(
         NYTree::EPermissionCheckScope scope,

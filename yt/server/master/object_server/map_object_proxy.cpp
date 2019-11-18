@@ -348,23 +348,26 @@ void TNonversionedMapObjectProxyBase<TObject>::ValidatePermission(
 }
 
 template <class TObject>
-TSharedRange<TObject*> TNonversionedMapObjectProxyBase<TObject>::ListDescendants(
+SmallVector<TObject*, 1> TNonversionedMapObjectProxyBase<TObject>::ListDescendants(
     TObject* object)
 {
-    std::vector<TObject*> result;
-    ListDescendants(object, &result);
-    return MakeSharedRange(std::move(result));
+    SmallVector<TObject*, 1> descendants;
+    ListDescendants(object, false /* includeRoot */, &descendants);
+    return descendants;
 }
 
 template <class TObject>
 void TNonversionedMapObjectProxyBase<TObject>::ListDescendants(
     TObject* object,
-    std::vector<TObject*>* descendants)
+    bool includeRoot,
+    SmallVector<TObject*, 1>* descendants)
 {
     YT_VERIFY(object);
-    descendants->push_back(object);
+    if (includeRoot) {
+        descendants->push_back(object);
+    }
     for (const auto& [_, child] : object->KeyToChild()) {
-        ListDescendants(child, descendants);
+        ListDescendants(child, true /* includeRoot */, descendants);
     }
 }
 
@@ -670,7 +673,7 @@ TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>> TNonversionedMapObjectPr
     TObjectProxyBase::DeclareMutating();
 
     if (type != TBase::GetThisImpl()->GetType()) {
-        THROW_ERROR_EXCEPTION("Cannot create an object of the type %Qlv, expected type %Qlv",
+        THROW_ERROR_EXCEPTION("Cannot create an object of type %Qlv, expected type %Qlv",
             type,
             TBase::GetThisImpl()->GetType());
     }
@@ -741,7 +744,7 @@ TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>> TNonversionedMapObjectPr
     auto* impl = TBase::GetThisImpl();
     auto* sourceObject = ResolvePathToNonversionedObject(sourcePath);
     if (sourceObject->GetType() != TBase::GetObject()->GetType()) {
-        THROW_ERROR_EXCEPTION("Cannot copy or move an object of the type %Qv, expected type %Qv",
+        THROW_ERROR_EXCEPTION("Cannot copy or move an object of type %Qv, expected type %Qv",
             sourceObject->GetType(),
             impl->GetType());
     }
@@ -971,7 +974,7 @@ void TNonversionedMapObjectFactoryBase<TObject>::RollbackEvent(const TFactoryEve
         }
     } catch (const std::exception& ex) {
         const auto& Logger = NObjectServer::ObjectServerLogger;
-        YT_LOG_FATAL(ex, "Unhandled exception during rollback of factory event of the type %Qlv", event.Type);
+        YT_LOG_FATAL(ex, "Unhandled exception during rollback of factory event of type %Qlv", event.Type);
     }
 }
 
