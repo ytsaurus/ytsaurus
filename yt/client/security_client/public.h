@@ -12,6 +12,7 @@ using TAccountId = NObjectClient::TObjectId;
 using TSubjectId = NObjectClient::TObjectId;
 using TUserId = NObjectClient::TObjectId;
 using TGroupId = NObjectClient::TObjectId;
+using TNetworkProjectId = NObjectClient::TObjectId;
 
 extern const TString TmpAccountName;
 extern const TString SysAccountName;

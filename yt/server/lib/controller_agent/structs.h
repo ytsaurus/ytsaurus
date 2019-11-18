@@ -4,6 +4,8 @@
 
 #include <yt/server/lib/scheduler/public.h>
 
+#include <yt/server/lib/scheduler/structs.h>
+
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/ytlib/chunk_client/public.h>
@@ -81,6 +83,7 @@ struct TAbortedJobSummary
     explicit TAbortedJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event);
 
     EAbortReason AbortReason = EAbortReason::None;
+    std::optional<NScheduler::TPreemptedFor> PreemptedFor;
 };
 
 struct TRunningJobSummary

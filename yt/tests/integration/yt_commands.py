@@ -1130,7 +1130,10 @@ def remote_copy(**kwargs):
     return start_op("remote_copy", **kwargs)
 
 def build_snapshot(*args, **kwargs):
-    get_driver().build_snapshot(*args, **kwargs)
+    return get_driver().build_snapshot(*args, **kwargs)
+
+def build_master_snapshots(*args, **kwargs):
+    return get_driver().build_master_snapshots(*args, **kwargs)
 
 def get_version():
     return execute_command("get_version", {}, parse_yson=True)
@@ -1208,6 +1211,16 @@ def remove_member(member, group, **kwargs):
     kwargs["member"] = member
     kwargs["group"] = group
     execute_command("remove_member", kwargs)
+
+def create_network_project(name, **kwargs):
+    kwargs["type"] = "network_project"
+    if "attributes" not in kwargs:
+        kwargs["attributes"] = dict()
+    kwargs["attributes"]["name"] = name
+    execute_command("create", kwargs)
+
+def remove_network_project(name, **kwargs):
+    remove("//sys/network_projects/" + name, **kwargs)
 
 def create_tablet_cell(**kwargs):
     kwargs["type"] = "tablet_cell"

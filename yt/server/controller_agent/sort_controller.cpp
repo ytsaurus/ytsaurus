@@ -2511,6 +2511,7 @@ private:
                 SamplesFetcher->AddChunk(chunk);
             }
 
+            SamplesFetcher->SetCancelableContext(GetCancelableContext());
             asyncSamplesResult = SamplesFetcher->Fetch();
         }
 
@@ -3010,6 +3011,11 @@ private:
     virtual TBlobTableWriterConfigPtr GetCoreTableWriterConfig() const override
     {
         return Spec->CoreTableWriter;
+    }
+
+    virtual bool GetWriteSparseCoreDumps() const override
+    {
+        return Spec->WriteSparseCoreDumps;
     }
 
     virtual std::vector<TUserJobSpecPtr> GetUserJobSpecs() const override

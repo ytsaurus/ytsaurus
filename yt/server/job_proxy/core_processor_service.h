@@ -38,6 +38,7 @@ public:
         const NTableClient::TTableWriterOptionsPtr& tableWriterOptions,
         NObjectClient::TTransactionId transaction,
         NChunkClient::TChunkListId chunkList,
+        bool writeSparseCoreDumps,
         const IInvokerPtr& controlInvoker,
         TDuration readTimeout);
 

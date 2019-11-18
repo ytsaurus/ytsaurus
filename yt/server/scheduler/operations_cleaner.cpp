@@ -869,8 +869,14 @@ private:
                     TryArchiveOperations(batch);
                     break;
                 } catch (const std::exception& ex) {
-                    YT_LOG_WARNING(ex, "Failed to archive operations (PendingCount: %v)",
-                        ArchivePendingCounter_.GetCurrent());
+                    int pendingCount = ArchivePendingCounter_.GetCurrent();
+                    YT_LOG_WARNING(ex, "Failed to archive operations (PendingCount: %v)", pendingCount);
+                    if (pendingCount >= Config_->ArchivationFailuresCountForAlert) {
+                        Host_->SetSchedulerAlert(
+                            ESchedulerAlertType::OperationsArchivation,
+                            TError("Failed to archive operations")
+                                << TErrorAttribute("pending_count", pendingCount));
+                    }
                     Profiler.Increment(ArchiveErrorCounter_, 1);
                 }
 

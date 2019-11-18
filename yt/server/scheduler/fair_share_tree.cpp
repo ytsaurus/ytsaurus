@@ -271,6 +271,7 @@ TFairShareTree::TFairShareTree(
     , PackingFallbackSchedulingStage_(
         /* nameInLogs */ "Packing fallback",
         TScheduleJobsProfilingCounters("/packing_fallback", {TreeIdProfilingTag_}))
+    , FairSharePreUpdateTimeCounter_("/fair_share_preupdate_time", {TreeIdProfilingTag_})
     , FairShareUpdateTimeCounter_("/fair_share_update_time", {TreeIdProfilingTag_})
     , FairShareLogTimeCounter_("/fair_share_log_time", {TreeIdProfilingTag_})
     , AnalyzePreemptableJobsTimeCounter_("/analyze_preemptable_jobs_time", {TreeIdProfilingTag_})
@@ -390,7 +391,7 @@ void TFairShareTree::UnregisterOperation(
     operationElement->DetachParent();
     operationElement->SetAlive(false);
 
-    OnOperationRemovedFromPool(state, pool);
+    OnOperationRemovedFromPool(state, operationElement, pool);
 
     UnregisterSchedulingTagFilter(operationElement->GetSchedulingTagFilterIndex());
 
@@ -400,17 +401,77 @@ void TFairShareTree::UnregisterOperation(
     OperationIdToActivationTime_.erase(operationId);
 }
 
+std::vector<TOperationId> TFairShareTree::TryRunAllWaitingOperations()
+{
+    std::vector<TOperationId> result;
+    std::vector<std::pair<TOperationElementPtr, TCompositeSchedulerElement*>> stillWaiting;
+    for (const auto& [_, pool] : Pools_) {
+        for (auto waitingOperationId : pool->WaitingOperationIds()) {
+            if (auto element = FindOperationElement(waitingOperationId)) {
+                YT_VERIFY(!element->IsOperationRunningInPool());
+                if (auto violatingPool = FindPoolViolatingMaxRunningOperationCount(element->GetMutableParent())) {
+                    stillWaiting.emplace_back(std::move(element), violatingPool);
+                } else {
+                    element->MarkOperationRunningInPool();
+                    result.push_back(waitingOperationId);
+                }
+            }
+        }
+        pool->WaitingOperationIds().clear();
+    }
+
+    for (const auto& [operation, pool] : stillWaiting) {
+        operation->MarkWaitingFor(pool);
+    }
+
+    return result;
+}
+
+void TFairShareTree::RunWaitingOperations(TCompositeSchedulerElement* pool)
+{
+    auto* current = pool;
+    while (current) {
+        int availableOperationCount = current->GetAvailableRunningOperationCount();
+        auto& waitingOperations = current->WaitingOperationIds();
+        auto it = waitingOperations.begin();
+        while (it != waitingOperations.end() && availableOperationCount > 0) {
+            auto waitingOperationId = *it;
+            if (auto element = FindOperationElement(waitingOperationId)) {
+                YT_VERIFY(!element->IsOperationRunningInPool());
+                if (auto violatingPool = FindPoolViolatingMaxRunningOperationCount(element->GetMutableParent())) {
+                    YT_VERIFY(pool != violatingPool);
+                    element->MarkWaitingFor(violatingPool);
+                } else {
+                    element->MarkOperationRunningInPool();
+                    ActivatableOperationQueue_.push_back(waitingOperationId);
+                    --availableOperationCount;
+                }
+            }
+            auto toRemove = it++;
+            waitingOperations.erase(toRemove);
+        }
+
+        current = current->GetMutableParent();
+    }
+}
+
 void TFairShareTree::OnOperationRemovedFromPool(
     const TFairShareStrategyOperationStatePtr& state,
+    const TOperationElementPtr& element,
     const TCompositeSchedulerElementPtr& parent)
 {
     auto operationId = state->GetHost()->GetId();
     ReleaseOperationSlotIndex(state, parent->GetId());
 
-    WaitingOperationQueue_.remove(operationId);
-
+    if (element->IsOperationRunningInPool()) {
+        RunWaitingOperations(parent.Get());
+    } else if (auto blockedPoolName = element->WaitingForPool()) {
+        if (auto blockedPool = FindPool(*blockedPoolName)) {
+            blockedPool->WaitingOperationIds().remove(operationId);
+        }
+    }
     if (!parent->IsRoot() && parent->IsEmpty()) {
-        TPool* pool = static_cast<TPool*>(parent.Get());
+        auto* pool = static_cast<TPool*>(parent.Get());
         if (pool->IsDefaultConfigured()) {
             UnregisterPool(pool);
         }
@@ -423,21 +484,15 @@ bool TFairShareTree::OnOperationAddedToPool(
 {
     AllocateOperationSlotIndex(state, operationElement->GetParent()->GetId());
 
-    auto violatedPool = FindPoolViolatingMaxRunningOperationCount(operationElement->GetParent());
+    auto violatedPool = FindPoolViolatingMaxRunningOperationCount(operationElement->GetMutableParent());
     if (!violatedPool) {
         operationElement->MarkOperationRunningInPool();
         return true;
     }
+    operationElement->MarkWaitingFor(violatedPool);
 
-    auto operationId = state->GetHost()->GetId();
-    WaitingOperationQueue_.push_back(operationId);
-
-    YT_LOG_DEBUG("Operation is pending since max running operation count violated (OperationId: %v, Pool: %v, Limit: %v)",
-        operationId,
-        violatedPool->GetId(),
-        violatedPool->GetMaxRunningOperationCount());
     Host_->SetOperationAlert(
-        operationId,
+        state->GetHost()->GetId(),
         EOperationAlertType::OperationPending,
         TError("Max running operation count violated")
             << TErrorAttribute("pool", violatedPool->GetId())
@@ -577,7 +632,7 @@ void TFairShareTree::ChangeOperationPool(
     auto newParent = GetOrCreatePool(newPool, state->GetHost()->GetAuthenticatedUser());
     element->ChangeParent(newParent.Get());
 
-    OnOperationRemovedFromPool(state, oldParent);
+    OnOperationRemovedFromPool(state, element, oldParent);
 
     YT_VERIFY(OnOperationAddedToPool(state, element));
 }
@@ -984,7 +1039,7 @@ std::pair<IFairShareTreeSnapshotPtr, TError> TFairShareTree::DoFairShareUpdateAt
     updateContext.Now = now;
 
     auto rootElement = RootElement_->Clone();
-    PROFILE_AGGREGATED_TIMING(FairShareUpdateTimeCounter_) {
+    PROFILE_AGGREGATED_TIMING(FairSharePreUpdateTimeCounter_) {
         rootElement->PreUpdate(&dynamicAttributes, &updateContext);
     }
     auto asyncUpdate = BIND([&]
@@ -1279,6 +1334,11 @@ void TFairShareTree::DoScheduleJobsWithPreemption(
             job->SetPreemptionReason(Format("Preempted to start job %v of operation %v",
                 jobStartedUsingPreemption->GetId(),
                 jobStartedUsingPreemption->GetOperationId()));
+
+            job->SetPreemptedFor(TPreemptedFor{
+                .JobId = jobStartedUsingPreemption->GetId(),
+                .OperationId = jobStartedUsingPreemption->GetOperationId(),
+            });
         } else {
             job->SetPreemptionReason(Format("Node resource limits violated"));
         }
@@ -1479,7 +1539,7 @@ void TFairShareTree::PreemptJob(
     schedulingContext->PreemptJob(job);
 }
 
-const TCompositeSchedulerElement* TFairShareTree::FindPoolViolatingMaxRunningOperationCount(const TCompositeSchedulerElement* pool)
+TCompositeSchedulerElement* TFairShareTree::FindPoolViolatingMaxRunningOperationCount(TCompositeSchedulerElement* pool)
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -1487,7 +1547,7 @@ const TCompositeSchedulerElement* TFairShareTree::FindPoolViolatingMaxRunningOpe
         if (pool->RunningOperationCount() >= pool->GetMaxRunningOperationCount()) {
             return pool;
         }
-        pool = pool->GetParent();
+        pool = pool->GetMutableParent();
     }
     return nullptr;
 }
@@ -1626,26 +1686,6 @@ void TFairShareTree::ReleaseOperationSlotIndex(const TFairShareStrategyOperation
     YT_LOG_DEBUG("Operation slot index released (OperationId: %v, SlotIndex: %v)",
         state->GetHost()->GetId(),
         *slotIndex);
-}
-
-std::vector<TOperationId> TFairShareTree::RunWaitingOperations()
-{
-    std::vector<TOperationId> result;
-    auto it = WaitingOperationQueue_.begin();
-    while (it != WaitingOperationQueue_.end() && RootElement_->RunningOperationCount() < Config_->MaxRunningOperationCount) {
-        auto operationId = *it;
-        auto element = GetOperationElement(operationId);
-        auto* operationPool = element->GetParent();
-        if (FindPoolViolatingMaxRunningOperationCount(operationPool) == nullptr) {
-            result.push_back(operationId);
-            element->MarkOperationRunningInPool();
-            auto toRemove = it++;
-            WaitingOperationQueue_.erase(toRemove);
-        } else {
-            ++it;
-        }
-    }
-    return result;
 }
 
 void TFairShareTree::BuildEssentialOperationProgress(TOperationId operationId, TFluentMap fluent)
@@ -2102,6 +2142,13 @@ void TFairShareTree::ProfileSchedulerElement(
         accumulator,
         profilingPrefix + "/metrics",
         tags);
+}
+
+std::vector<TOperationId> TFairShareTree::ExtractActivatableOperations()
+{
+    auto result = std::move(ActivatableOperationQueue_);
+    ActivatableOperationQueue_.clear();
+    return result;
 }
 
 

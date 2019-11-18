@@ -213,7 +213,7 @@ public:
     {
         auto tree = GetTree(treeId);
         tree->UnregisterOperation(operationState);
-        for (auto operationId : tree->RunWaitingOperations()) {
+        for (auto operationId : tree->ExtractActivatableOperations()) {
             OnOperationReadyInTree(operationId, tree);
         }
     }
@@ -462,9 +462,6 @@ public:
             auto tree = GetTree(treeId);
             if (oldPool.GetPool() != newPool.GetPool()) {
                 tree->ChangeOperationPool(operation->GetId(), state, newPool);
-                for (auto operationId : tree->RunWaitingOperations()) {
-                    OnOperationReadyInTree(operationId, tree);
-                }
             }
 
             const auto& treeParams = GetOrCrash(runtimeParameters->SchedulingOptionsPerPoolTree, treeId);
@@ -841,7 +838,7 @@ public:
         }
     }
 
-    virtual TString ChooseBestSingleTreeForOperation(TOperationId operationId, TJobResources neededResources) override
+    virtual TString ChooseBestSingleTreeForOperation(TOperationId operationId, TJobResources newDemand) override
     {
         THashMap<TString, IFairShareTreeSnapshotPtr> snapshots;
         {
@@ -861,18 +858,36 @@ public:
             YT_VERIFY(snapshots.contains(treeId));
             auto snapshot = snapshots[treeId];
 
-            double regularizedDemandToMinShareRatio;
             auto totalResourceLimits = snapshot->GetTotalResourceLimits();
+            TJobResources currentDemand;
+            TJobResources minShareResources;
+
             // If pool is not present in the snapshot (e.g. due to poor timings or if it is an ephemeral pool),
             // then its demand and min share resources are considered to be zero.
             if (auto poolStateSnapshot = snapshot->GetMaybeStateSnapshotForPool(poolName.GetPool()))
             {
-                auto fullDemandRatio = GetMaxResourceRatio(neededResources + poolStateSnapshot->ResourceDemand, totalResourceLimits);
-                auto minShareRatio = GetMaxResourceRatio(poolStateSnapshot->MinShareResources, totalResourceLimits);
-                regularizedDemandToMinShareRatio = fullDemandRatio / (1.0 + minShareRatio);
-            } else {
-                regularizedDemandToMinShareRatio = GetMaxResourceRatio(neededResources, totalResourceLimits);
+                currentDemand = poolStateSnapshot->ResourceDemand;
+                minShareResources = poolStateSnapshot->MinShareResources;
             }
+
+            auto fullDemandRatio = GetMaxResourceRatio(newDemand + currentDemand, totalResourceLimits);
+            auto minShareRatio = GetMaxResourceRatio(minShareResources, totalResourceLimits);
+            auto regularizedDemandToMinShareRatio = fullDemandRatio / (1.0 + minShareRatio);
+
+            // TODO(eshcherbin): This is rather verbose. Consider removing when well tested in production.
+            YT_LOG_DEBUG(
+                "Considering candidate single tree for operation (OperationId: %v, Tree: %v, "
+                "NewDemand: %v, CurrentDemand: %v, MinShareResources: %v, TotalResourceLimits: %v, "
+                "FullDemandRatio: %v, MinShareRatio: %v, RegularizedDemandToMinShareRatio: %v)",
+                operationId,
+                treeId,
+                FormatResources(newDemand),
+                FormatResources(currentDemand),
+                FormatResources(minShareResources),
+                FormatResources(totalResourceLimits),
+                fullDemandRatio,
+                minShareRatio,
+                regularizedDemandToMinShareRatio);
 
             if (regularizedDemandToMinShareRatio < bestRegularizedDemandToMinShareRatio)
             {
@@ -888,6 +903,17 @@ public:
             bestRegularizedDemandToMinShareRatio);
 
         return bestTree;
+    }
+
+    virtual void ScanWaitingForPoolOperations() override
+    {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+
+        for (const auto& [_, tree] : IdToTree_) {
+            for (const auto& operationId : tree->TryRunAllWaitingOperations()) {
+                OnOperationReadyInTree(operationId, tree);
+            }
+        }
     }
 
 private:

@@ -30,6 +30,11 @@ TFuture<int> TAdmin::BuildSnapshot(const TBuildSnapshotOptions& options)
     }));
 }
 
+TFuture<TCellIdToSnapshotIdMap> TAdmin::BuildMasterSnapshots(const TBuildMasterSnapshotsOptions& /* options */)
+{
+    YT_UNIMPLEMENTED();
+}
+
 TFuture<void> TAdmin::GCCollect(const TGCCollectOptions& options)
 {
     TApiServiceProxy proxy(Channel_);

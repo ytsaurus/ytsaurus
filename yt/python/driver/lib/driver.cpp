@@ -245,8 +245,8 @@ void TDriverModuleBase::Initialize(
         /*index*/ 0
     );
 
-    TSignalRegistry::Get()->PushCallback(SIGSEGV, CrashSignalHandler);
-    TSignalRegistry::Get()->PushDefaultSignalHandler(SIGSEGV);
+    TSignalRegistry::Get()->PushCallback(AllCrashSignals, CrashSignalHandler);
+    TSignalRegistry::Get()->PushDefaultSignalHandler(AllCrashSignals);
 
     TBufferedStreamWrap::InitType();
     TDriverResponse::InitType();

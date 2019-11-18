@@ -34,6 +34,8 @@
 #include <yt/core/concurrency/throughput_throttler.h>
 #include <yt/core/concurrency/two_level_fair_share_thread_pool.h>
 
+#include <yt/core/net/address.h>
+
 #include <yt/core/rpc/public.h>
 
 #include <yt/core/ytree/public.h>
@@ -115,6 +117,7 @@ public:
     NObjectClient::TCellId GetCellId(NObjectClient::TCellTag cellTag) const;
     NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks();
     std::optional<TString> GetDefaultNetworkName();
+    const std::vector<NNet::TIP6Address>& GetResolvedNodeAddresses() const;
 
     NJobProxy::TJobProxyConfigPtr BuildJobProxyConfig() const;
 
@@ -206,6 +209,8 @@ private:
     NQueryAgent::IQuerySubexecutorPtr QueryExecutor_;
 
     NConcurrency::TPeriodicExecutorPtr FootprintUpdateExecutor_;
+
+    std::vector<NNet::TIP6Address> ResolvedNodeAddresses_;
 
     void DoInitialize();
     void DoRun();

@@ -1488,7 +1488,11 @@ public:
     {
         YT_VERIFY(originatingNode->IsTrunk());
 
-        CopyChunkListIfShared(originatingNode, 0, originatingNode->GetChunkList()->Children().size() - 1);
+        auto updateMode = branchedNode->GetUpdateMode();
+        if (updateMode == EUpdateMode::Append) {
+            CopyChunkListIfShared(originatingNode, 0, originatingNode->Tablets().size() - 1);
+        }
+
         auto* originatingChunkList = originatingNode->GetChunkList();
         auto* branchedChunkList = branchedNode->GetChunkList();
         auto* transaction = branchedNode->GetTransaction();
@@ -1497,38 +1501,67 @@ public:
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& hiveManager = Bootstrap_->GetHiveManager();
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
 
         transaction->LockedDynamicTables().erase(originatingNode);
 
         i64 totalMemorySizeDelta = 0;
 
+        // Deaccumulate old tablet statistics.
+        for (int index = 0; index < branchedChunkList->Children().size(); ++index) {
+            auto* tablet = originatingNode->Tablets()[index];
+
+            totalMemorySizeDelta -= tablet->GetTabletStaticMemorySize();
+
+            if (tablet->GetState() != ETabletState::Unmounted) {
+                auto* cell = tablet->GetCell();
+                cell->GossipStatistics().Local() -= GetTabletStatistics(tablet);
+            }
+        }
+
+        // Replace root chunk list.
+        if (updateMode == EUpdateMode::Overwrite) {
+            originatingChunkList->RemoveOwningNode(originatingNode);
+            branchedChunkList->AddOwningNode(originatingNode);
+            originatingNode->SetChunkList(branchedChunkList);
+        }
+
+        // Merge tablet chunk lists and accumulate new tablet statistics.
         for (int index = 0; index < branchedChunkList->Children().size(); ++index) {
             auto* appendChunkList = branchedChunkList->Children()[index];
             auto* tabletChunkList = originatingChunkList->Children()[index]->AsChunkList();
             auto* tablet = originatingNode->Tablets()[index];
 
-            auto oldMemorySize = tablet->GetTabletStaticMemorySize();
-            auto oldStatistics = GetTabletStatistics(tablet);
-
-            if (!appendChunkList->AsChunkList()->Children().empty()) {
-                chunkManager->AttachToChunkList(tabletChunkList, appendChunkList);
+            if (updateMode == EUpdateMode::Append) {
+                if (!appendChunkList->AsChunkList()->Children().empty()) {
+                    chunkManager->AttachToChunkList(tabletChunkList, appendChunkList);
+                }
             }
 
             auto newMemorySize = tablet->GetTabletStaticMemorySize();
             auto newStatistics = GetTabletStatistics(tablet);
-            auto deltaStatistics = newStatistics - oldStatistics;
-            totalMemorySizeDelta += newMemorySize - oldMemorySize;
+
+            totalMemorySizeDelta += newMemorySize;
 
             if (tablet->GetState() == ETabletState::Unmounted) {
                 continue;
             }
 
+            if (updateMode == EUpdateMode::Overwrite) {
+                tablet->SetStoresUpdatePreparedTransaction(nullptr);
+            }
+
             auto* cell = tablet->GetCell();
-            cell->GossipStatistics().Local() += deltaStatistics;
+            cell->GossipStatistics().Local() += newStatistics;
 
             TReqUnlockTablet req;
             ToProto(req.mutable_tablet_id(), tablet->GetId());
             ToProto(req.mutable_transaction_id(), transaction->GetId());
+            req.set_mount_revision(tablet->GetMountRevision());
+            req.set_commit_timestamp(static_cast<i64>(
+                transactionManager->GetTimestampHolderTimestamp(transaction->GetId())));
+            req.set_update_mode(static_cast<int>(updateMode));
+
             auto chunksOrViews = EnumerateChunksAndChunkViewsInChunkTree(appendChunkList->AsChunkList());
             auto storeType = originatingNode->IsPhysicallySorted() ? EStoreType::SortedChunk : EStoreType::OrderedChunk;
             i64 startingRowIndex = 0;
@@ -1550,7 +1583,9 @@ public:
 
         originatingNode->RemoveDynamicTableLock(transaction->GetId());
 
-        chunkManager->ClearChunkList(branchedChunkList);
+        if (updateMode == EUpdateMode::Append) {
+            chunkManager->ClearChunkList(branchedChunkList);
+        }
     }
 
 
@@ -3056,6 +3091,10 @@ private:
                 TReqUnlockTablet req;
                 ToProto(req.mutable_tablet_id(), tablet->GetId());
                 ToProto(req.mutable_transaction_id(), transaction->GetId());
+                req.set_mount_revision(tablet->GetMountRevision());
+                // Aborted bulk insert should not conflict with concurrent tablet transactions.
+                req.set_commit_timestamp(static_cast<i64>(MinTimestamp));
+
                 hiveManager->PostMessage(mailbox, req);
             }
 

@@ -619,7 +619,7 @@ private:
     {
         FetcherChunkScraper_ = CreateFetcherChunkScraper();
 
-        return NTableClient::CreateChunkSliceFetcher(
+        auto fetcher = NTableClient::CreateChunkSliceFetcher(
             Config->Fetcher,
             InputSliceDataWeight_,
             PrimaryKeyColumns_,
@@ -630,6 +630,8 @@ private:
             Host->GetClient(),
             RowBuffer,
             Logger);
+        fetcher->SetCancelableContext(GetCancelableContext());
+        return fetcher;
     }
 };
 
@@ -975,6 +977,11 @@ public:
     virtual TBlobTableWriterConfigPtr GetCoreTableWriterConfig() const override
     {
         return Spec_->CoreTableWriter;
+    }
+
+    virtual bool GetWriteSparseCoreDumps() const override
+    {
+        return Spec_->WriteSparseCoreDumps;
     }
 
     virtual ELegacyLivePreviewMode GetLegacyOutputLivePreviewMode() const override

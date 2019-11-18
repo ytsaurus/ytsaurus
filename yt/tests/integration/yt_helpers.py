@@ -65,7 +65,7 @@ class Metric(object):
         self.last_update_samples = []
 
         # Need time in mcs.
-        start_time = int(time.time() * 1e6)
+        self.start_time = int(time.time() * 1e6)
         start_samples = self._read_from_orchid()
 
         default_factory = Metric.AGGREGATION_METHOD_TO_DEFAULT_FACTORY[self.aggr_method]
@@ -80,7 +80,7 @@ class Metric(object):
                 self.state = None
 
             if start_samples:
-                start_time = max(start_time, start_samples[-1]["time"])
+                self.start_time = max(self.start_time, start_samples[-1]["time"])
         else:
             self.data = defaultdict(default_factory)
             if self.aggr_method == "delta":
@@ -97,9 +97,9 @@ class Metric(object):
                     self.state[tag_values]["last_sample_time"] = samples[-1]["time"]
 
                 if samples:
-                    start_time = max(start_time, samples[-1]["time"])
+                    self.start_time = max(self.start_time, samples[-1]["time"])
 
-        self.last_update_time = start_time
+        self.last_update_time = self.start_time
 
     # NB(eshcherbin): **kwargs is used only for the `verbose` argument.
     def get(self, *tags, **kwargs):
@@ -132,7 +132,8 @@ class Metric(object):
     def update(self):
         # Need time in mcs.
         update_time = int(time.time() * 1e6)
-        new_samples = self._read_from_orchid(from_time=self.last_update_time - Metric.FROM_TIME_GAP)
+        new_samples = self._read_from_orchid(from_time=max(self.last_update_time - Metric.FROM_TIME_GAP,
+                                                           self.start_time))
 
         if isinstance(new_samples, list):
             self.data, self.state = Metric._update_data(

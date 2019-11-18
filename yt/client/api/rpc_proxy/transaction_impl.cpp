@@ -782,7 +782,7 @@ TFuture<void> TTransaction::SendPing()
                     NTransactionClient::EErrorCode::NoSuchTransaction,
                     "Transaction %v has expired or was aborted",
                     Id_);
-                if (GetState() != ETransactionState::Active) {
+                if (GetState() == ETransactionState::Active) {
                     OnFailure(error);
                 }
                 return error;

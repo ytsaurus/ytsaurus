@@ -111,7 +111,8 @@ public:
     {
         RegisterParameter("pem_root_certs", PemRootCerts)
             .Optional();
-        RegisterParameter("pem_key_cert_pair", PemKeyCertPair);
+        RegisterParameter("pem_key_cert_pair", PemKeyCertPair)
+            .Optional();
     }
 };
 

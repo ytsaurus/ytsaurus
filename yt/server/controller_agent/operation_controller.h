@@ -153,7 +153,7 @@ struct IOperationControllerHost
     virtual const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() = 0;
     virtual const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() = 0;
     virtual const IInvokerPtr& GetControllerThreadPoolInvoker() = 0;
-    virtual const NEventLog::TEventLogWriterPtr& GetEventLogWriter() = 0;
+    virtual const NEventLog::IEventLogWriterPtr& GetEventLogWriter() = 0;
     virtual const ICoreDumperPtr& GetCoreDumper() = 0;
     virtual const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() = 0;
     virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() = 0;
@@ -522,6 +522,8 @@ struct IOperationController
     virtual void RegisterOutputRows(i64 count, int tableIndex) = 0;
 
     virtual std::optional<int> GetRowCountLimitTableIndex() = 0;
+
+    virtual void LoadSnapshot(const TOperationSnapshot& snapshot) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)

@@ -1419,7 +1419,7 @@ private:
             nullptr,
             {},
             secondaryCellTags,
-            secondaryCellTags,
+            /* replicateStart */ true,
             std::nullopt,
             /* deadline */ std::nullopt,
             Format("Prerequisite for cell %v", cell->GetId()),

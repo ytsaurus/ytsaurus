@@ -228,6 +228,7 @@ public:
             auto chunkList = FromProto<TChunkListId>(coreTableSpec.output_table_spec().chunk_list_id());
             auto blobTableWriterConfig = ConvertTo<TBlobTableWriterConfigPtr>(TYsonString(coreTableSpec.blob_table_writer_config()));
             auto debugTransactionId = FromProto<TTransactionId>(UserJobSpec_.debug_output_transaction_id());
+            auto writeSparseCoreDumps = UserJobSpec_.write_sparse_core_dumps();
 
             CoreProcessorService_ = New<TCoreProcessorService>(
                 Host_,
@@ -235,6 +236,7 @@ public:
                 tableWriterOptions,
                 debugTransactionId,
                 chunkList,
+                writeSparseCoreDumps,
                 AuxQueue_->GetInvoker(),
                 Config_->CoreForwarderTimeout);
 
@@ -508,6 +510,10 @@ private:
         formatter.AddProperty(
             "SandboxPath",
             NFS::CombinePaths(Host_->GetSlotPath(), SandboxDirectoryNames[ESandboxKind::User]));
+
+        if (UserJobSpec_.has_network_project_id()) {
+            Environment_.push_back(Format("YT_NETWORK_PROJECT_ID=%v", UserJobSpec_.network_project_id()));
+        }
 
         for (int i = 0; i < UserJobSpec_.environment_size(); ++i) {
             Environment_.emplace_back(formatter.Format(UserJobSpec_.environment(i)));

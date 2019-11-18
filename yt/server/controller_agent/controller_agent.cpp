@@ -406,7 +406,7 @@ public:
         return CoreSemaphore_;
     }
 
-    const TEventLogWriterPtr& GetEventLogWriter() const
+    const IEventLogWriterPtr& GetEventLogWriter() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -526,9 +526,19 @@ public:
         YT_VERIFY(Connected_);
 
         auto operation = GetOperationOrThrow(operationId);
-        const auto& controller = operation->GetController();
+        auto controller = operation->GetController();
         if (controller) {
             controller->Cancel();
+
+            // We carefully destroy controller and log warning if we detect that controller is actually leaked.
+            operation->SetController(nullptr);
+            auto refCount = ResetAndGetResidualRefCount(controller);
+            if (refCount > 0) {
+                YT_LOG_WARNING(
+                    "Operation is going to be unregistered, but its controller has non-zero residual refcount; memory leak is possible "
+                    "(RefCount: %v)",
+                    refCount);
+            }
         }
 
         YT_VERIFY(IdToOperation_.erase(operationId) == 1);
@@ -810,7 +820,7 @@ private:
     const IReconfigurableThroughputThrottlerPtr ReconfigurableJobSpecSliceThrottler_;
     const IThroughputThrottlerPtr JobSpecSliceThrottler_;
     const TAsyncSemaphorePtr CoreSemaphore_;
-    const TEventLogWriterPtr EventLogWriter_;
+    const IEventLogWriterPtr EventLogWriter_;
     const std::unique_ptr<TMasterConnector> MasterConnector_;
 
     bool Connected_= false;
@@ -1365,7 +1375,7 @@ private:
             response.JobId = jobId;
             response.OperationId = operationId;
             response.Result = New<TControllerScheduleJobResult>();
-            response.Result->RecordFail(EScheduleJobFailReason::UnknownNode);
+            response.Result->RecordFail(reason);
             outbox->Enqueue(std::move(response));
         };
 
@@ -1390,14 +1400,17 @@ private:
                 auto controller = operation->GetController();
                 auto scheduleJobInvoker = controller->GetCancelableInvoker(Config_->ScheduleJobControllerQueue);
                 auto buildJobSpecInvoker = controller->GetCancelableInvoker(Config_->BuildJobSpecControllerQueue);
-                auto averageWaitTime = scheduleJobInvoker->GetAverageWaitTime() + buildJobSpecInvoker->GetAverageWaitTime();
-                if (averageWaitTime > Config_->ScheduleJobWaitTimeThreshold) {
+                auto scheduleJobWaitTime = scheduleJobInvoker->GetAverageWaitTime();
+                auto buildJobSpecWaitTime = buildJobSpecInvoker->GetAverageWaitTime();
+                if (scheduleJobWaitTime + buildJobSpecWaitTime > Config_->ScheduleJobWaitTimeThreshold) {
                     replyWithFailure(operationId, jobId, EScheduleJobFailReason::ControllerThrottling);
-                    YT_LOG_DEBUG("Schedule job skipped since average schedule job wait time is too large "
-                        "(OperationId: %v, JobId: %v, WaitTime: %v, Threshold: %v)",
+                    YT_LOG_DEBUG("Schedule job request skipped since average schedule job wait time is too large "
+                        "(OperationId: %v, JobId: %v, ScheduleJobWaitTime: %v, BuildJobSpecTime: %v, TotalWaitTime: %v, Threshold: %v)",
                         operationId,
                         jobId,
-                        averageWaitTime,
+                        scheduleJobWaitTime,
+                        buildJobSpecWaitTime,
+                        scheduleJobWaitTime + buildJobSpecWaitTime,
                         Config_->ScheduleJobWaitTimeThreshold);
                     return;
                 }
@@ -1666,7 +1679,7 @@ const TAsyncSemaphorePtr& TControllerAgent::GetCoreSemaphore() const
     return Impl_->GetCoreSemaphore();
 }
 
-const TEventLogWriterPtr& TControllerAgent::GetEventLogWriter() const
+const IEventLogWriterPtr& TControllerAgent::GetEventLogWriter() const
 {
     return Impl_->GetEventLogWriter();
 }

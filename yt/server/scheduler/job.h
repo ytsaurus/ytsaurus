@@ -5,9 +5,11 @@
 
 #include <yt/client/chunk_client/data_statistics.h>
 
-#include <yt/ytlib/chunk_client/input_data_slice.h>
-
 #include <yt/client/node_tracker_client/proto/node.pb.h>
+
+#include <yt/server/lib/scheduler/structs.h>
+
+#include <yt/ytlib/chunk_client/input_data_slice.h>
 
 #include <yt/ytlib/scheduler/job_resources.h>
 
@@ -80,6 +82,9 @@ class TJob
 
     //! String describing preemption reason.
     DEFINE_BYVAL_RW_PROPERTY(TString, PreemptionReason);
+
+    //! Preemptor job id and operation id.
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TPreemptedFor>, PreemptedFor);
 
     //! The purpose of the job interruption.
     DEFINE_BYVAL_RW_PROPERTY(EInterruptReason, InterruptReason, EInterruptReason::None);

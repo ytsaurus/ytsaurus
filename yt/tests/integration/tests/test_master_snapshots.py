@@ -136,3 +136,32 @@ class TestMasterSnapshots(YTEnvSetup):
         for s in checker_state_list:
             with pytest.raises(StopIteration):
                 next(s)
+
+class TestAllMastersSnapshots(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_NODES = 5
+    USE_DYNAMIC_TABLES = True
+
+    @authors("aleksandra-zh")
+    def test(self):
+        CHECKER_LIST = [
+            check_simple_node,
+            check_schema,
+            check_forked_schema,
+            check_dynamic_tables,
+            check_security_tags,
+            check_removed_account # keep this item last as it's sensitive to timings
+        ]
+
+        checker_state_list = [iter(c()) for c in CHECKER_LIST]
+        for s in checker_state_list:
+            next(s)
+
+        build_master_snapshots()
+
+        with Restarter(self.Env, MASTER_CELL_SERVICE):
+            pass
+
+        for s in checker_state_list:
+            with pytest.raises(StopIteration):
+                next(s)

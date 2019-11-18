@@ -59,6 +59,9 @@ void TExpirationTracker::Stop()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    const auto& configManager = Bootstrap_->GetConfigManager();
+    configManager->UnsubscribeConfigChanged(DynamicConfigChangedCallback_);
+
     CheckExecutor_.Reset();
 }
 

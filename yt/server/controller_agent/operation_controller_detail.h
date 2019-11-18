@@ -265,6 +265,7 @@ public:
 
     virtual std::optional<NYPath::TRichYPath> GetStderrTablePath() const override;
     virtual std::optional<NYPath::TRichYPath> GetCoreTablePath() const override;
+    virtual bool GetWriteSparseCoreDumps() const override;
 
     virtual void RegisterInputStripe(const NChunkPools::TChunkStripePtr& stripe, const TTaskPtr& task) override;
     virtual void AddTaskLocalityHint(const NChunkPools::TChunkStripePtr& stripe, const TTaskPtr& task) override;
@@ -360,6 +361,8 @@ public:
     virtual void RegisterOutputRows(i64 count, int tableIndex) override;
 
     virtual std::optional<int> GetRowCountLimitTableIndex() override;
+
+    virtual void LoadSnapshot(const TOperationSnapshot& snapshot) override;
 
     virtual TOutputTablePtr RegisterOutputTable(const NYPath::TRichYPath& outputTablePath) override;
 
@@ -518,6 +521,7 @@ protected:
     void AnalyzeJobsDuration();
     void AnalyzeOperationDuration();
     void AnalyzeScheduleJobStatistics();
+    void AnalyzeQueueAverageWaitTime();
 
     void AnalyzeOperationProgress();
 
@@ -1203,6 +1207,8 @@ private:
         const TString& name,
         EOperationAlertType alertType,
         const TString& message);
+
+    void MaybeCancel(ECancelationStage cancelationStage);
 
     //! Helper class that implements IChunkPoolInput interface for output tables.
     class TSink

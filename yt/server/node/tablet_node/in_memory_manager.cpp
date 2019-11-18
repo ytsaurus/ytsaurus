@@ -94,6 +94,7 @@ void FinalizeChunkData(
 
     if (tabletSnapshot->HashTableSize > 0) {
         data->LookupHashTable = CreateChunkLookupHashTable(
+            data->StartBlockIndex,
             data->Blocks,
             data->ChunkMeta,
             tabletSnapshot->RowKeyComparer);
@@ -570,7 +571,11 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     int startBlockIndex;
     int endBlockIndex;
 
-    if (store->IsSorted()) {
+    // TODO(ifsmirnov): support columnar chunks (YT-11707).
+    bool canDeduceBlockRange = format == ETableChunkFormat::SchemalessHorizontal ||
+        format == ETableChunkFormat::VersionedSimple;
+
+    if (store->IsSorted() && canDeduceBlockRange) {
         chunkData->ChunkMeta = TCachedVersionedChunkMeta::Create(
             store->GetChunkId(),
             *meta,
