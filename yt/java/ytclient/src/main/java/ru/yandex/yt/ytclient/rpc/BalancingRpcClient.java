@@ -214,9 +214,6 @@ public class BalancingRpcClient implements RpcClient {
 
         BalancingResponseHandler h = new BalancingResponseHandler(
             executorService,
-            failoverPolicy,
-            globalTimeout,
-            failoverTimeout,
             f,
             request,
             destinations,

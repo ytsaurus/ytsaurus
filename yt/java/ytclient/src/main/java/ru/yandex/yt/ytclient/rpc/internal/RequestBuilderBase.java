@@ -132,9 +132,6 @@ public abstract class RequestBuilderBase<RequestType extends MessageLite.Builder
 
             BalancingResponseHandler h = new BalancingResponseHandler(
                     clients.get(0).executor(),
-                    options.getFailoverPolicy(),
-                    options.getGlobalTimeout(),
-                    options.getFailoverTimeout(),
                     f,
                     this,
                     clients,

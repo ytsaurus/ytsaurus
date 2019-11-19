@@ -1,10 +1,8 @@
 package ru.yandex.yt.ytclient.proxy.internal;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -16,7 +14,6 @@ import ru.yandex.yt.ytclient.rpc.RpcClientRequestControl;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponseHandler;
 import ru.yandex.yt.ytclient.rpc.RpcFailoverPolicy;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingResponseHandlerMetricsHolder;
-import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingResponseHandlerMetricsHolderImpl;
 
 /**
  * @author aozeritsky
@@ -29,7 +26,6 @@ public class BalancingResponseHandler implements RpcClientResponseHandler {
     private final RpcClientRequest request;
     private int step;
     private final List<RpcClientRequestControl> cancelation;
-    private Future<?> timeoutFuture;
     final private ScheduledExecutorService executorService;
     final private RpcFailoverPolicy failoverPolicy;
 
@@ -37,31 +33,15 @@ public class BalancingResponseHandler implements RpcClientResponseHandler {
     private long timeout;
 
     public BalancingResponseHandler(
-        ScheduledExecutorService executorService,
-        RpcFailoverPolicy failoverPolicy,
-        Duration globalTimeout,
-        Duration failoverTimeout,
-        CompletableFuture<Tuple3<RpcClient, TResponseHeader, List<byte[]>>> f,
-        RpcClientRequest request,
-        List<RpcClient> clients)
-    {
-        this(executorService, failoverPolicy, globalTimeout, failoverTimeout, f, request, clients,
-                new BalancingResponseHandlerMetricsHolderImpl());
-    }
-
-    public BalancingResponseHandler(
             ScheduledExecutorService executorService,
-            RpcFailoverPolicy failoverPolicy,
-            Duration globalTimeout,
-            Duration failoverTimeout,
             CompletableFuture<Tuple3<RpcClient, TResponseHeader, List<byte[]>>> f,
             RpcClientRequest request,
             List<RpcClient> clients,
             BalancingResponseHandlerMetricsHolder metricsHolder)
     {
         this.executorService = executorService;
-        this.failoverPolicy = failoverPolicy;
-        this.failoverTimeout = failoverTimeout.toMillis();
+        this.failoverPolicy = request.getOptions().getFailoverPolicy();
+        this.failoverTimeout = request.getOptions().getFailoverTimeout().toMillis();
 
         this.f = f;
         this.request = request;
@@ -69,10 +49,9 @@ public class BalancingResponseHandler implements RpcClientResponseHandler {
 
         this.metricsHolder = metricsHolder;
 
-        timeout = globalTimeout.toMillis();
+        timeout = request.getOptions().getGlobalTimeout().toMillis();
 
         cancelation = new ArrayList<>();
-        timeoutFuture = CompletableFuture.completedFuture(0);
         step = 0;
 
         if (clients.isEmpty()) {
@@ -121,6 +100,7 @@ public class BalancingResponseHandler implements RpcClientResponseHandler {
                     }
                 } else {
                     // global timeout
+                    f.completeExceptionally(new RuntimeException("timeout"));
                 }
             }
         }
@@ -140,11 +120,7 @@ public class BalancingResponseHandler implements RpcClientResponseHandler {
 
     @Override
     public void onResponse(RpcClient sender, TResponseHeader header, List<byte[]> attachments) {
-        synchronized (f) {
-            if (!f.isDone()) {
-                f.complete(new Tuple3<>(sender, header, attachments));
-            }
-        }
+        f.complete(new Tuple3<>(sender, header, attachments));
     }
 
     @Override
@@ -153,7 +129,6 @@ public class BalancingResponseHandler implements RpcClientResponseHandler {
             if (!f.isDone()) {
                 // maybe use other proxy here?
                 if (failoverPolicy.onError(request, error) && !clients.isEmpty()) {
-                    timeoutFuture.cancel(true);
                     send();
                 } else {
                     f.completeExceptionally(error);
