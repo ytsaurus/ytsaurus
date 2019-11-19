@@ -32,6 +32,7 @@ import ru.yandex.yt.rpc.TRequestCancelationHeader;
 import ru.yandex.yt.rpc.TRequestHeaderOrBuilder;
 import ru.yandex.yt.rpc.TResponseHeader;
 import ru.yandex.yt.rpc.TStreamingFeedbackHeader;
+import ru.yandex.yt.rpc.TStreamingParameters;
 import ru.yandex.yt.rpc.TStreamingPayloadHeader;
 import ru.yandex.yt.ytclient.bus.Bus;
 import ru.yandex.yt.ytclient.bus.BusDeliveryTracking;
@@ -586,13 +587,36 @@ public class DefaultRpcBusClient implements RpcClient {
     private static class StreamingRequest extends RequestBase implements RpcClientStreamControl {
         RpcStreamConsumer consumer = new Stash();
         final AtomicInteger sequenceNumber = new AtomicInteger(0);
-        final Duration timeout;
+        Duration readTimeout;
+        Duration writeTimeout;
+        final RpcOptions options;
+
+        ScheduledFuture<?> readTimeoutFuture = null;
+        ScheduledFuture<?> writeTimeoutFuture = null;
 
         StreamingRequest(RpcClient sender, Session session, RpcClientRequest request, Statistics stat) {
             super(sender, session, request, stat);
-            this.timeout = request.getTimeout();
-            this.resetTimeout();
+            this.options = request.getOptions();
+            this.readTimeout = options.getStreamingReadTimeout();
+            this.writeTimeout = options.getStreamingWriteTimeout();
+            this.resetWriteTimeout();
+            this.resetReadTimeout();
+            setStreamingOptions();
+        }
+
+        private void setStreamingOptions() {
             request.header().clearTimeout();
+
+            TStreamingParameters.Builder builder = TStreamingParameters.newBuilder();
+
+            if (readTimeout != null) {
+                builder.setReadTimeout(RpcUtil.durationToMicros(readTimeout));
+            }
+            if (writeTimeout != null) {
+                builder.setWriteTimeout(RpcUtil.durationToMicros(writeTimeout));
+            }
+            builder.setWindowSize(options.getStreamingWindowSize());
+            request.header().setServerAttachmentsStreamingParameters(builder);
         }
 
         @Override
@@ -621,13 +645,30 @@ public class DefaultRpcBusClient implements RpcClient {
             }
         }
 
-        private void resetTimeout() {
-            if (timeout != null) {
-                if (timeoutFuture != null) {
-                    timeoutFuture.cancel(false);
+        private void clearReadTimeout() {
+            if (readTimeoutFuture != null) {
+                readTimeoutFuture.cancel(false);
+            }
+            readTimeout = null;
+        }
+
+        private void resetReadTimeout() {
+            if (readTimeout != null) {
+                if (readTimeoutFuture != null) {
+                    readTimeoutFuture.cancel(false);
                 }
-                timeoutFuture = session.eventLoop()
-                        .schedule(this::handleTimeout, timeout.toNanos(), TimeUnit.NANOSECONDS);
+                readTimeoutFuture = session.eventLoop()
+                        .schedule(this::handleTimeout, readTimeout.toNanos(), TimeUnit.NANOSECONDS);
+            }
+        }
+
+        private void resetWriteTimeout() {
+            if (writeTimeout != null) {
+                if (writeTimeoutFuture != null) {
+                    writeTimeoutFuture.cancel(false);
+                }
+                writeTimeoutFuture = session.eventLoop()
+                        .schedule(this::handleTimeout, writeTimeout.toNanos(), TimeUnit.NANOSECONDS);
             }
         }
 
@@ -649,7 +690,7 @@ public class DefaultRpcBusClient implements RpcClient {
                     return;
                 }
             } finally {
-                resetTimeout();
+                resetWriteTimeout();
                 lock.unlock();
             }
 
@@ -682,7 +723,7 @@ public class DefaultRpcBusClient implements RpcClient {
                     return;
                 }
             } finally {
-                resetTimeout();
+                resetReadTimeout();
                 lock.unlock();
             }
 
@@ -770,7 +811,14 @@ public class DefaultRpcBusClient implements RpcClient {
             if (header.hasRealmId()) {
                 builder.setRealmId(header.getRealmId());
             }
-            return session.bus.send(RpcUtil.createEofMessage(builder.build()), BusDeliveryTracking.NONE);
+            return session.bus.send(RpcUtil.createEofMessage(builder.build()), BusDeliveryTracking.NONE).thenAccept((unused) -> {
+                lock.lock();
+                try {
+                    clearReadTimeout();
+                } finally {
+                    lock.unlock();
+                }
+            });
         }
 
         private byte[] preparePayloadHeader() {
@@ -798,7 +846,7 @@ public class DefaultRpcBusClient implements RpcClient {
             return session.bus.send(message, BusDeliveryTracking.NONE).thenAccept((unused) -> {
                 lock.lock();
                 try {
-                    resetTimeout();
+                    resetReadTimeout();
                 } finally {
                     lock.unlock();
                 }

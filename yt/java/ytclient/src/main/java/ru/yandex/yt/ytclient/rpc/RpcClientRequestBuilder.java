@@ -102,4 +102,6 @@ public interface RpcClientRequestBuilder<RequestType extends MessageLite.Builder
 
     RpcClientStreamControl startStream(List<RpcClient> clients);
 
+    RpcOptions getOptions();
+
 }
