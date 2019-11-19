@@ -77,7 +77,7 @@ class IEventLogWriter
 public:
     virtual std::unique_ptr<NYson::IYsonConsumer> CreateConsumer() = 0;
 
-    virtual void UpdateConfig(const TEvenTLogManagerConfigPtr& config) = 0;
+    virtual void UpdateConfig(const TEventLogManagerConfigPtr& config) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IEventLogWriter);
