@@ -1146,18 +1146,19 @@ def run_yp_integration_tests(options, build_context):
             python_version=python_version,
             pytest_args=pytest_args)
 
-@build_step
-@only_for_projects("yt")
-def run_ya_python_tests(options, build_context):
-    targets = [
-        "python/yt/local/tests",
-        "python/yt/skiff/tests",
-        "python/yt/yson/tests/py2",
-        "python/yt/yson/tests/py3",
-        "python/yt/wrapper/tests/py2",
-        "python/yt/wrapper/tests/py3",
-    ]
-    run_ya_tests(options, "ya_python", targets)
+# TODO(ignat): enable python dist tests after fixes YT-11716.
+#@build_step
+#@only_for_projects("yt")
+#def run_ya_python_tests(options, build_context):
+#    targets = [
+#        "python/yt/local/tests",
+#        "python/yt/skiff/tests",
+#        "python/yt/yson/tests/py2",
+#        "python/yt/yson/tests/py3",
+#        "python/yt/wrapper/tests/py2",
+#        "python/yt/wrapper/tests/py3",
+#    ]
+#    run_ya_tests(options, "ya_python", targets)
 
 @build_step
 @only_for_projects("yt")
@@ -1173,10 +1174,11 @@ def run_python_libraries_tests(options, build_context):
     if options.enable_parallel_testing:
         pytest_args.extend(["--process-count", str(PYTHON_TESTS_PARALLELISM)])
 
-    test_paths_filename = os.path.join(options.checkout_directory, "python/yt/wrapper/system_python_tests/test_paths.txt")
-    test_names = open(test_paths_filename).read().split()
-    pytest_args += [os.path.join(options.checkout_directory, "python/yt/wrapper/tests", name)
-                    for name in test_names]
+    # TODO(ignat): enable after fixes YT-11716.
+    #test_paths_filename = os.path.join(options.checkout_directory, "python/yt/wrapper/system_python_tests/test_paths.txt")
+    #test_names = open(test_paths_filename).read().split()
+    #pytest_args += [os.path.join(options.checkout_directory, "python/yt/wrapper/tests", name)
+    #                for name in test_names]
     run_pytest(options,
                "python_libraries",
                "{0}/python".format(options.checkout_directory),
