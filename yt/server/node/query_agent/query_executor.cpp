@@ -694,6 +694,11 @@ private:
             keySchema.push_back(Query_->OriginalSchema.Columns()[index].GetPhysicalType());
         }
 
+        bool hasRanges = false;
+        for (const auto& source : DataSources_) {
+            hasRanges |= !source.Ranges.Empty();
+        }
+
         size_t rangesCount = 0;
         for (const auto& source : DataSources_) {
             TRowRanges rowRanges;
@@ -728,6 +733,7 @@ private:
                 auto upperBound = range.second;
 
                 if (source.LookupSupported &&
+                    !hasRanges &&
                     keySize == lowerBound.GetCount() &&
                     keySize + 1 == upperBound.GetCount() &&
                     upperBound[keySize].Type == EValueType::Max &&
@@ -744,6 +750,7 @@ private:
             for (const auto& key : source.Keys) {
                 auto rowSize = key.GetCount();
                 if (source.LookupSupported &&
+                    !hasRanges &&
                     keySize == key.GetCount())
                 {
                     pushRanges();
