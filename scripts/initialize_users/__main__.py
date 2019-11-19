@@ -461,6 +461,9 @@ def initialize_users(cluster):
 
         set_schema_permissions(client, "dns_record_set", "robot-ydnxdns-export", right_crwu)
 
+        # https://st.yandex-team.ru/YPADMIN-257
+        set_schema_permissions(client, "pod_disruption_budget", "nanny-robot", right_crw)
+
         create_accounts(client, cluster, accounts)
 
         allow_account_usage(client, account="odin", user="odin")
