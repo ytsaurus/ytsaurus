@@ -194,7 +194,8 @@ public:
     TProfiler(
         const NYPath::TYPath& pathPrefix,
         const TTagIdList& tagIds = EmptyTagIds,
-        bool selfProfiling = false);
+        bool selfProfiling = false,
+        bool forceEnqueue = false);
 
     //! Path prefix for each enqueued sample.
     DEFINE_BYVAL_RW_PROPERTY(NYPath::TYPath, PathPrefix);
@@ -204,6 +205,10 @@ public:
 
     //! Tags to append to each enqueued sample.
     DEFINE_BYREF_RW_PROPERTY(TTagIdList, TagIds);
+
+    //! If |true|, then Enqueue will be invoked on every OnUpdated.
+    //! This value is inheritable via AppendPath and AddTags.
+    DEFINE_BYREF_RW_PROPERTY(bool, ForceEnqueue)
 
 
     //! Constructs a new profiler by adding a suffix to the path.

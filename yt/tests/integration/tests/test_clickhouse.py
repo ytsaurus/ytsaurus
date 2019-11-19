@@ -1,4 +1,5 @@
 from yt_commands import *
+from yt_helpers import *
 
 from yt_env_setup import wait, YTEnvSetup, is_asan_build, is_gcc_build
 from yt.wrapper.clickhouse import get_clickhouse_clique_spec_builder
@@ -284,9 +285,10 @@ class ClickHouseTestBase(YTEnvSetup):
             "clickhouse": {
                 "clique_cache": {
                     "soft_age_threshold": 500,
-                    "hard_age_threshold": 500,
+                    "hard_age_threshold": 1500,
                     "master_cache_expire_time": 500,
                 },
+                "force_enqueue_profiling": True,
             },
         }
     }
@@ -1844,7 +1846,10 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         create_user("yt-clickhouse")
 
     def _get_proxy_address(self):
-        return "http://" + self.Env.get_proxy_address()
+        return "http://" + self.Env.get_http_proxy_address()
+
+    def _get_proxy_metric(self, metric_name):
+        return Metric.at_proxy(self.Env.get_http_proxy_address(), metric_name)
 
     @authors("dakovalkov")
     def test_http_proxy(self):
@@ -1878,6 +1883,11 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
                 "transaction_timeout": 1000000,
             }
         }
+
+        cache_missed_count = self._get_proxy_metric("clickhouse_proxy/clique_cache/missed")
+        force_update_count = self._get_proxy_metric("clickhouse_proxy/force_update_count")
+        banned_count = self._get_proxy_metric("clickhouse_proxy/banned_count")
+
         with Clique(2, config_patch=patch) as clique:
             url = self._get_proxy_address() + "/query?database={}".format(clique.op.id)
 
@@ -1906,11 +1916,20 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             assert proxy_responses[0].json()["data"] == [{"1": 1}]
             assert clique.get_active_instance_count() == 2
 
+        assert cache_missed_count.update().get(verbose=True) == 1
+        assert force_update_count.update().get(verbose=True) == 1
+        assert banned_count.update().get(verbose=True) == 1
+
     @authors("dakovalkov")
     def test_ban_stopped_instance_in_proxy(self):
         patch = {
             "interruption_graceful_timeout": 100000,
         }
+
+        cache_missed_count = self._get_proxy_metric("clickhouse_proxy/clique_cache/missed")
+        force_update_count = self._get_proxy_metric("clickhouse_proxy/force_update_count")
+        banned_count = self._get_proxy_metric("clickhouse_proxy/banned_count")
+
         with Clique(2, config_patch=patch) as clique:
             url = self._get_proxy_address() + "/query?database={}".format(clique.op.id)
 
@@ -1939,6 +1958,10 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             assert proxy_responses[0].json()["data"] == [{"1": 1}]
             assert clique.get_active_instance_count() == 1
 
+        assert cache_missed_count.update().get(verbose=True) == 1
+        assert force_update_count.update().get(verbose=True) == 1
+        assert banned_count.update().get(verbose=True) == 1
+
     @authors("dakovalkov")
     def test_clique_availability(self):
         create("table", "//tmp/table", attributes={"schema": [{"name": "i", "type": "int64"}]})
@@ -1946,6 +1969,11 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         patch = {
             "interruption_graceful_timeout": 600,
         }
+
+        cache_missed_counter = Metric.at_proxy(self.Env.get_http_proxy_address(), "clickhouse_proxy/clique_cache/missed")
+        force_update_counter = Metric.at_proxy(self.Env.get_http_proxy_address(), "clickhouse_proxy/force_update_count")
+        banned_count = self._get_proxy_metric("clickhouse_proxy/banned_count")
+        
         with Clique(2, max_failed_job_count=2, config_patch=patch) as clique:
             url = self._get_proxy_address() + "/query?output_format_json_quote_64bit_integers=0&database={}".format(clique.op.id)
             running = True
@@ -1979,6 +2007,10 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             assert ping_thread.is_alive()
             running = False
             ping_thread.join()
+
+        assert cache_missed_counter.update().get(verbose=True) == 1
+        assert force_update_counter.update().get(verbose=True) == 1
+        assert banned_count.update().get(verbose=True) == 1
 
     @authors("max42")
     def test_tracing_via_http_proxy(self):
