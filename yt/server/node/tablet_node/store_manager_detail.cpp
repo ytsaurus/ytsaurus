@@ -173,10 +173,16 @@ void TStoreManagerBase::DiscardAllStores()
 {
     Rotate(/*createNewStore*/ true);
 
+    std::vector<IStorePtr> storesToRemove;
+
     for (auto [id, store] : Tablet_->StoreIdMap()) {
         if (store->GetStoreState() != EStoreState::ActiveDynamic) {
-            RemoveStore(store);
+            storesToRemove.push_back(store);
         }
+    }
+
+    for (const auto& store : storesToRemove) {
+        RemoveStore(store);
     }
 }
 
