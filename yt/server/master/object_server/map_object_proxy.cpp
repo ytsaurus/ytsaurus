@@ -766,7 +766,6 @@ TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>> TNonversionedMapObjectPr
         }
     }
 
-    // XXX(kiselyovp) do we validate administer permission?
     this->ValidateCopyPermissions(sourceImpl, mode, replace, false /* validateAdminister */);
 
     auto sourceParent = sourceProxy->DoGetParent();
