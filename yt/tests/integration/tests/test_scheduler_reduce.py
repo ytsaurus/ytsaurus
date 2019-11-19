@@ -1843,6 +1843,22 @@ done
 
         assert read_table("//tmp/out") == [{"key": 1}, {"key": 1}]
 
+    @authors("max42")
+    def test_reduce_empty_table(self):
+        # YT-11740.
+        create("table", "//tmp/t_in", attributes={
+            "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]
+        })
+        create("table", "//tmp/t_out", attributes={
+            "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]
+        })
+        reduce(in_=["//tmp/t_in"],
+               out=["//tmp/t_out"],
+               command="cat >/dev/null",
+               reduce_by=["key"],
+               spec={"job_count": 1})
+        assert get("//tmp/t_out/@row_count") == 0
+
 
 class TestSchedulerReduceCommandsMulticell(TestSchedulerReduceCommands):
     NUM_SECONDARY_MASTER_CELLS = 2
