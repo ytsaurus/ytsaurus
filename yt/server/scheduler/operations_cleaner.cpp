@@ -781,9 +781,9 @@ private:
                         auto row = NDetail::BuildOrderedByIdTableRow(rowBuffer, request, desc.Index, version);
                         rows.push_back(row);
                         orderedByIdRowsDataWeight += GetDataWeight(row);
-                    } catch (const TErrorException& error) {
+                    } catch (const TErrorException& ex) {
                         THROW_ERROR_EXCEPTION("Failed to build row for operation %v", operationId)
-                            << error;
+                            << ex;
                     }
                 }
 
@@ -806,9 +806,9 @@ private:
                         auto row = NDetail::BuildOrderedByStartTimeTableRow(rowBuffer, request, desc.Index, version);
                         rows.push_back(row);
                         orderedByStartTimeRowsDataWeight += GetDataWeight(row);
-                    } catch (const TErrorException& error) {
+                    } catch (const TErrorException& ex) {
                         THROW_ERROR_EXCEPTION("Failed to build row for operation %v", operationId)
-                            << error;
+                            << ex;
                     }
                 }
 
