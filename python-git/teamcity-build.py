@@ -388,6 +388,11 @@ def build_packages(options):
 def clean_failed_tests(options, build_context, max_allowed_size=None):
     clean_failed_tests_directory(options.failed_tests_path)
 
+@cleanup_step
+def clean_sandbox(options, build_context):
+    # Note: ytserver tests may create files with that cannot be deleted by teamcity user.
+    sudo_rmtree(options.sandbox_directory)
+
 ################################################################################
 # This is an entry-point. Just boiler-plate.
 
