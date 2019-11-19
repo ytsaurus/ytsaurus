@@ -27,13 +27,18 @@ public abstract class RequestBuilderBase<RequestType extends MessageLite.Builder
     private boolean requestAck = true;
     private final RpcOptions options;
 
-    protected RequestBuilderBase(Option<RpcClient> clientOpt, TRequestHeader.Builder header, RequestType body, RpcOptions options) {
+    RequestBuilderBase(Option<RpcClient> clientOpt, TRequestHeader.Builder header, RequestType body, RpcOptions options) {
         this.clientOpt = clientOpt;
         this.header = header;
         this.body = body;
         this.options = options;
         setTimeout(options.getGlobalTimeout());
         setRequestAck(options.getDefaultRequestAck());
+    }
+
+    @Override
+    public RpcOptions getOptions() {
+        return this.options;
     }
 
     @Override

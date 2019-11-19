@@ -22,6 +22,11 @@ public class RpcOptions {
     private Duration proxyUpdateTimeout = Duration.ofMillis(60000);
     private Duration pingTimeout = Duration.ofMillis(5000); // marks proxy as dead/live after this timeout
 
+    // steaming options
+    private Duration readTimeout = Duration.ofMillis(60000);
+    private Duration writeTimeout = Duration.ofMillis(60000);
+    private int windowSize = 32*1024*1024;
+
     private RpcFailoverPolicy failoverPolicy = new DefaultRpcFailoverPolicy();
     private BalancingResponseHandlerMetricsHolder responseMetricsHolder = new BalancingResponseHandlerMetricsHolderImpl();
     private DataCenterMetricsHolder dataCenterMetricsHolder = DataCenterMetricsHolderImpl.instance;
@@ -133,6 +138,33 @@ public class RpcOptions {
     public RpcOptions setPingTimeout(Duration timeout) {
         this.pingTimeout = timeout;
         return this;
+    }
+
+    public RpcOptions setStreamingWindowSize(int bytes) {
+        this.windowSize = bytes;
+        return this;
+    }
+
+    public int getStreamingWindowSize() {
+        return this.windowSize;
+    }
+
+    public RpcOptions  setStreamingWriteTimeout(Duration timeout) {
+        this.writeTimeout = timeout;
+        return this;
+    }
+
+    public Duration getStreamingWriteTimeout() {
+        return this.writeTimeout;
+    }
+
+    public RpcOptions setStreamingReadTimeout(Duration timeout) {
+        this.readTimeout = timeout;
+        return this;
+    }
+
+    public Duration getStreamingReadTimeout() {
+        return this.readTimeout;
     }
 
     public RpcFailoverPolicy getFailoverPolicy() {

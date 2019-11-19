@@ -73,4 +73,6 @@ public interface RpcClientRequest {
             return null;
         }
     }
+
+    RpcOptions getOptions();
 }
