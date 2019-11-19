@@ -28,13 +28,6 @@ NObjectServer::TObject* TNonversionedMapObjectTypeHandlerBase<TObject>::DoGetPar
 }
 
 template <class TObject>
-TString TNonversionedMapObjectTypeHandlerBase<TObject>::GetRootPath(const TObject* rootObject) const
-{
-    YT_VERIFY(rootObject && rootObject->IsRoot());
-    return NObjectClient::FromObjectId(rootObject->GetId());
-}
-
-template <class TObject>
 void TNonversionedMapObjectTypeHandlerBase<TObject>::ValidateObjectName(const TString& name)
 {
     if (name.empty()) {

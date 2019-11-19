@@ -32,9 +32,8 @@ public:
 
     virtual NObjectServer::TObject* DoGetParent(TObject* object) override;
 
-    // XXX(kiselyovp) Should this be a pure virtual method?
     //! Returns Cypress path to a map object which must be a designated root.
-    virtual TString GetRootPath(const TObject* rootObject) const;
+    virtual TString GetRootPath(const TObject* rootObject) const = 0;
 
     virtual void RegisterName(const TString& /* name */, TObject* /* object */) noexcept = 0;
     virtual void UnregisterName(const TString& /* name */, TObject* /* object */) noexcept = 0;
