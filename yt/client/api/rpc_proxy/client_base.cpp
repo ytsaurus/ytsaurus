@@ -633,6 +633,9 @@ TFuture<ITableReaderPtr> TClientBase::CreateTableReader(
 
     req->set_unordered(options.Unordered);
     req->set_omit_inaccessible_columns(options.OmitInaccessibleColumns);
+    req->set_enable_table_index(options.EnableTableIndex);
+    req->set_enable_row_index(options.EnableRowIndex);
+    req->set_enable_range_index(options.EnableRangeIndex);
     if (options.Config) {
         req->set_config(ConvertToYsonString(*options.Config).GetData());
     }
