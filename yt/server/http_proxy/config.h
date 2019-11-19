@@ -173,6 +173,10 @@ public:
     //! Timeout to resolve alias.
     TDuration AliasResolutionTimeout;
 
+    //! If set to true, profiler won't wait a second to update a counter.
+    //! It is useful for testing.
+    bool ForceEnqueueProfiling;
+
     TClickHouseConfig()
     {
         RegisterParameter("discovery_path", DiscoveryPath)
@@ -193,6 +197,8 @@ public:
             .Default(TDuration::Seconds(1));
         RegisterParameter("alias_resolution_timeout", AliasResolutionTimeout)
             .Default(TDuration::Seconds(30));
+        RegisterParameter("force_enqueue_profiling", ForceEnqueueProfiling)
+            .Default(false);
 
         RegisterPreprocessor([&] {
             HttpClient->HeaderReadTimeout = TDuration::Hours(1);
