@@ -1511,9 +1511,9 @@ public:
         for (int index = 0; index < branchedChunkList->Children().size(); ++index) {
             auto* tablet = originatingNode->Tablets()[index];
 
-            totalMemorySizeDelta -= tablet->GetTabletStaticMemorySize();
-
             if (tablet->GetState() != ETabletState::Unmounted) {
+                totalMemorySizeDelta -= tablet->GetTabletStaticMemorySize();
+
                 auto* cell = tablet->GetCell();
                 cell->GossipStatistics().Local() -= GetTabletStatistics(tablet);
             }
@@ -1538,14 +1538,14 @@ public:
                 }
             }
 
+            if (tablet->GetState() == ETabletState::Unmounted) {
+                continue;
+            }
+
             auto newMemorySize = tablet->GetTabletStaticMemorySize();
             auto newStatistics = GetTabletStatistics(tablet);
 
             totalMemorySizeDelta += newMemorySize;
-
-            if (tablet->GetState() == ETabletState::Unmounted) {
-                continue;
-            }
 
             if (updateMode == EUpdateMode::Overwrite) {
                 tablet->SetStoresUpdatePreparedTransaction(nullptr);
