@@ -98,7 +98,7 @@ public:
             sliceDataSize = dataWeightPerJob;
         }
 
-        return sliceDataSize;
+        return std::max<i64>(1, sliceDataSize);
     }
 
     virtual i64 GetMaxDataWeightPerJob() const override
