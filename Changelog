@@ -6,6 +6,7 @@
 #    yt/server/master/cell_master/serialize.cpp - if the version differs, then the update should be done with master snapshots (+ --set-read-only).
 #    yt/server/node/tablet_node/serialize.cpp - if the version differs, then the update should be done with tablet cell recreation.
 
+* ifsmirnov: Fix memory accounting in bulk insert. Update masters via snapshot if bulk insert is enabled.
 * ifsmirnov: Overwrite mode for bulk insert. Update masters via snapshot.
 * ifsmirnov: Mount revision is set during tablet unlock. Update masters via snapshot.
 * shakurov: Commit 71325f8588 has changed the 'unlock' command semantics. Update masters via snapshot.
