@@ -74,7 +74,7 @@ void LogAccess(
     YT_ASSERT(!bootstrap->GetHydraFacade()->GetHydraManager()->IsLeader());
     YT_ASSERT(!bootstrap->GetHydraFacade()->GetHydraManager()->IsRecovery());
 
-    const auto& ypathExt = context->RequestHeader().MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+    const auto& ypathExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
 
     const auto& targetSuffix = GetRequestTargetYPath(context->RequestHeader());
     auto targetSuffixIsForDestinationPath = context->GetMethod() == "Move" || context->GetMethod() == "Copy";
@@ -103,11 +103,18 @@ void LogAccess(
             doPath(fluent, path, !targetSuffixIsForDestinationPath);
         })
         .Do([&] (auto fluent) {
-            const auto& originalPath = targetSuffixIsForDestinationPath
-                                       ? ypathExt->original_additional_paths(0)
-                                       : ypathExt->original_target_path();
-            if (!originalPath.empty()) {
-                fluent.Item("original_path").Value(originalPath);
+            const TString* originalPath = nullptr;
+            if (targetSuffixIsForDestinationPath) {
+                // COMPAT(shakurov)
+                if (ypathExt.original_additional_paths_size() == 1) {
+                    originalPath = &ypathExt.original_additional_paths(0);
+                }
+            } else if (ypathExt.has_original_target_path()) {
+                originalPath = &ypathExt.original_target_path();
+            }
+
+            if (originalPath && !originalPath->empty()) {
+                fluent.Item("original_path").Value(*originalPath);
             }
         })
         .Do([&] (auto fluent) {
@@ -118,8 +125,9 @@ void LogAccess(
                     fluent.Item(attrName).Do([&] (auto fluent) {
                         doPath(fluent, attrValue, targetSuffixIsForDestinationPath);
                     });
-                    if (targetSuffixIsForDestinationPath) {
-                        fluent.Item("original_destination_path").Value(ypathExt->original_target_path());
+                    // COMPAT(shakurov)
+                    if (targetSuffixIsForDestinationPath && ypathExt.has_original_target_path()) {
+                        fluent.Item("original_destination_path").Value(ypathExt.original_target_path());
                     }
                 } else {
                     fluent.Item(attrName).Value(attrValue);
