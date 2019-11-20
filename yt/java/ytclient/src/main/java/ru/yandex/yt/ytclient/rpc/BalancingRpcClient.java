@@ -216,8 +216,7 @@ public class BalancingRpcClient implements RpcClient {
             executorService,
             f,
             request,
-            destinations,
-            balancingResponseHandlerMetricsHolder);
+            destinations);
 
         f.whenComplete((result, error) -> {
             h.cancel();

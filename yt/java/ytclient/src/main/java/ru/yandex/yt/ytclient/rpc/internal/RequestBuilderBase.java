@@ -134,8 +134,7 @@ public abstract class RequestBuilderBase<RequestType extends MessageLite.Builder
                     clients.get(0).executor(),
                     f,
                     this,
-                    clients,
-                    options.getResponseMetricsHolder());
+                    clients);
 
             f.whenComplete((result, error) -> {
                 h.cancel();

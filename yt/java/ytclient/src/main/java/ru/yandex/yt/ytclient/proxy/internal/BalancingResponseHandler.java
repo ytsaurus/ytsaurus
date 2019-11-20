@@ -36,8 +36,7 @@ public class BalancingResponseHandler implements RpcClientResponseHandler {
             ScheduledExecutorService executorService,
             CompletableFuture<Tuple3<RpcClient, TResponseHeader, List<byte[]>>> f,
             RpcClientRequest request,
-            List<RpcClient> clients,
-            BalancingResponseHandlerMetricsHolder metricsHolder)
+            List<RpcClient> clients)
     {
         this.executorService = executorService;
         this.failoverPolicy = request.getOptions().getFailoverPolicy();
@@ -46,8 +45,7 @@ public class BalancingResponseHandler implements RpcClientResponseHandler {
         this.f = f;
         this.request = request;
         this.clients = clients;
-
-        this.metricsHolder = metricsHolder;
+        this.metricsHolder = request.getOptions().getResponseMetricsHolder();
 
         timeout = request.getOptions().getGlobalTimeout().toMillis();
 
