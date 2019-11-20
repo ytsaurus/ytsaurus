@@ -16,7 +16,7 @@ object CommonPlugin extends AutoPlugin {
 
   override def projectSettings: Seq[Def.Setting[_]] = Seq(
     resolvers += "Arcadia" at "http://artifactory.yandex.net/artifactory/yandex_media_releases",
-    version in ThisBuild := "0.0.1-SNAPSHOT",
+    version in ThisBuild := "0.0.3",
     organization := "ru.yandex",
     name := s"spark-yt-${name.value}",
     scalaVersion := "2.12.8",
@@ -41,6 +41,6 @@ object CommonPlugin extends AutoPlugin {
         Some("releases" at nexus + "yandex_spark_releases")
     },
     credentials += Credentials(Path.userHome / ".sbt" / ".credentials"),
-    publishYtTo := "//home/sashbel/spark-test"
+    publishYtTo := "//home/sashbel/spark"
   )
 }
