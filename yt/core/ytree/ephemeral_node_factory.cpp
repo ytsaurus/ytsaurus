@@ -497,7 +497,6 @@ public:
 
 private:
     const bool ShouldHideAttributes_;
-
 };
 
 std::unique_ptr<ITransactionalNodeFactory> CreateEphemeralNodeFactory(bool shouldHideAttributes)

@@ -719,11 +719,16 @@ private:
 
         auto type = FromProto<EObjectType>(request->type());
         TCreateObjectOptions options;
+        if (request->has_ignore_existing()) {
+            options.IgnoreExisting = request->ignore_existing();
+        }
         if (request->has_attributes()) {
             options.Attributes = NYTree::FromProto(request->attributes());
         }
 
-        context->SetRequestInfo("Type: %v", type);
+        context->SetRequestInfo("Type: %v, IgnoreExisting: %v",
+            type,
+            options.IgnoreExisting);
 
         CompleteCallWith(
             client,

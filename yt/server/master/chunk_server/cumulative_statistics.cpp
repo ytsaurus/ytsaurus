@@ -3,6 +3,7 @@
 #include <yt/server/master/cell_master/serialize.h>
 
 #include <yt/core/ytree/convert.h>
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT::NChunkServer {
 

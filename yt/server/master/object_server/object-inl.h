@@ -131,9 +131,22 @@ inline void TObject::SetLifeStage(EObjectLifeStage lifeStage)
     LifeStage_ = lifeStage;
 }
 
+inline bool TObject::IsBeingCreated() const
+{
+    return LifeStage_ == EObjectLifeStage::CreationStarted ||
+        LifeStage_ == EObjectLifeStage::CreationPreCommitted;
+}
+
 inline bool TObject::IsAlive() const
 {
     return RefCounter_ > 0;
+}
+
+inline bool TObject::IsBeingRemoved() const
+{
+    return LifeStage_ == EObjectLifeStage::RemovalStarted ||
+        LifeStage_ == EObjectLifeStage::RemovalPreCommitted ||
+        LifeStage_ == EObjectLifeStage::RemovalCommitted;
 }
 
 inline bool TObject::IsDestroyed() const

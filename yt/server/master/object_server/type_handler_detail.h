@@ -86,6 +86,13 @@ public:
         DoUnstageObject(object->As<TImpl>(), recursive);
     }
 
+    virtual TObject* FindObjectByAttributes(
+        const NYTree::IAttributeDictionary* /*attributes*/) override
+    {
+        THROW_ERROR_EXCEPTION("Searching by attributes is not supported for type %Qlv",
+            GetType());
+    }
+
     virtual NSecurityServer::TAccessControlDescriptor* FindAcd(TObject* object) override
     {
         return DoFindAcd(object->As<TImpl>());
@@ -115,7 +122,6 @@ protected:
     NCellMaster::TBootstrap* const Bootstrap_;
 
     TObjectTypeMetadata Metadata_;
-
 
     virtual TCellTagList DoGetReplicationCellTags(const TImpl* /*object*/)
     {

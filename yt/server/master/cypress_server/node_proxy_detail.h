@@ -6,6 +6,7 @@
 #include <yt/server/master/cell_master/config.h>
 
 #include <yt/server/master/object_server/public.h>
+#include <yt/server/master/object_server/permission_validator.h>
 
 #include <yt/server/master/security_server/public.h>
 
@@ -23,6 +24,7 @@ namespace NYT::NCypressServer {
 class TNontemplateCypressNodeProxyBase
     : public NYTree::TNodeBase
     , public NObjectServer::TObjectProxyBase
+    , public NObjectServer::THierarchicPermissionValidator<TCypressNode>
     , public ICypressNodeProxy
 {
 public:
@@ -161,19 +163,16 @@ protected:
 
     ICypressNodeProxyPtr GetProxy(TCypressNode* trunkNode) const;
 
+    virtual SmallVector<TCypressNode*, 1> ListDescendants(TCypressNode* node) override;
+
     // TSupportsPermissions members
     virtual void ValidatePermission(
         NYTree::EPermissionCheckScope scope,
         NYTree::EPermission permission,
         const TString& /* user */ = "") override;
 
-    // Cypress-specific overload.
-    void ValidatePermission(
-        TCypressNode* node,
-        NYTree::EPermissionCheckScope scope,
-        NYTree::EPermission permission);
-
     // Inject other overloads into the scope.
+    using THierarchicPermissionValidator<TCypressNode>::ValidatePermission;
     using TObjectProxyBase::ValidatePermission;
 
     void ValidateNotExternal();
@@ -345,7 +344,7 @@ class TScalarNodeProxy
     : public TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, IBase, TImpl>
 {
 private:
-    using TBase =  TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, IBase, TImpl>;
+    using TBase = TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, IBase, TImpl>;
 
 public:
     using TBase::TBase;

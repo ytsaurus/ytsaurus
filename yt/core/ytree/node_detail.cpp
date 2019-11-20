@@ -115,7 +115,7 @@ void TNodeBase::RemoveSelf(
         EPermission::Remove);
     ValidatePermission(
         EPermissionCheckScope::Parent,
-        EPermission::Write);
+        EPermission::Write | EPermission::ModifyChildren);
 
     bool isComposite = (GetType() == ENodeType::Map || GetType() == ENodeType::List);
     if (!request->recursive() && isComposite && AsComposite()->GetChildCount() > 0) {
@@ -215,7 +215,7 @@ void TCompositeNodeMixin::RemoveRecursive(
         tokenizer.Advance();
         tokenizer.Expect(NYPath::ETokenType::EndOfStream);
 
-        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Write | EPermission::ModifyChildren);
         ValidatePermission(EPermissionCheckScope::Descendants, EPermission::Remove);
         Clear();
 
@@ -350,12 +350,14 @@ void TMapNodeMixin::ListSelf(
     }));
 }
 
-void TMapNodeMixin::SetChild(
+std::pair<TString, INodePtr> TMapNodeMixin::PrepareSetChild(
     INodeFactory* factory,
     const TYPath& path,
     INodePtr child,
     bool recursive)
 {
+    YT_VERIFY(factory || !recursive);
+
     NYPath::TTokenizer tokenizer(path);
     if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
         tokenizer.ThrowUnexpected();
@@ -411,7 +413,17 @@ void TMapNodeMixin::SetChild(
     }
 
     YT_VERIFY(rootKey);
-    rootNode->AddChild(rootKey, rootChild);
+    return {rootKey, rootChild};
+}
+
+void TMapNodeMixin::SetChild(
+    INodeFactory* factory,
+    const TYPath& path,
+    INodePtr child,
+    bool recursive)
+{
+    const auto& [rootKey, rootChild] = PrepareSetChild(factory, path, child, recursive);
+    AddChild(rootKey, rootChild);
 }
 
 int TMapNodeMixin::GetMaxKeyLength() const

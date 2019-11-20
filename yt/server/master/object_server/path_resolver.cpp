@@ -172,7 +172,6 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
             }
 
             TObject* childNode;
-            TResolveCacheNodePtr childCacheNode;
             if (options.EnablePartialResolve) {
                 childNode = currentNode->GetNodeType() == ENodeType::Map
                     ? FindMapNodeChild(cypressManager, currentNode->As<TMapNode>(), GetTransaction(), key)

@@ -512,6 +512,7 @@ TFuture<NObjectClient::TObjectId> TClientBase::CreateObject(
     auto req = proxy.CreateObject();
 
     req->set_type(static_cast<i32>(type));
+    req->set_ignore_existing(options.IgnoreExisting);
     if (options.Attributes) {
         ToProto(req->mutable_attributes(), *options.Attributes);
     }

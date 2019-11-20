@@ -235,8 +235,9 @@ void TNontemplateCypressNodeTypeHandlerBase::LoadInplace(
 
     // Copy ACD, but not for portal exits.
     auto sourceAcd = Load<TAccessControlDescriptor>(*context);
-    if ((context->GetMode() == ENodeCloneMode::Move || factory->ShouldPreserveAcl())
-        && trunkNode->GetType() != EObjectType::PortalExit) {
+    if ((context->GetMode() == ENodeCloneMode::Move || factory->ShouldPreserveAcl()) &&
+        trunkNode->GetType() != EObjectType::PortalExit)
+    {
         trunkNode->Acd().SetInherit(sourceAcd.GetInherit());
         trunkNode->Acd().SetEntries(sourceAcd.Acl());
     }

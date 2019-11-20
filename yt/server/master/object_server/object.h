@@ -156,8 +156,14 @@ public:
     //! Increases life stage vote count and returns the vote count.
     int IncrementLifeStageVoteCount();
 
+    //! Returns |true| iff object's creation has started but hasn't been committed yet.
+    bool IsBeingCreated() const;
+
     //! Returns |true| iff the reference counter is positive.
     bool IsAlive() const;
+
+    //! Returns |true| iff object's removal has started.
+    bool IsBeingRemoved() const;
 
     //! Returns |true| iff the type handler has destroyed the object and called #SetDestroyed.
     bool IsDestroyed() const;

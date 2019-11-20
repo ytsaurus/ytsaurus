@@ -775,6 +775,11 @@ void TObjectProxyBase::ValidatePermission(TObject* object, EPermission permissio
     securityManager->ValidatePermission(object, user, permission);
 }
 
+std::unique_ptr<IPermissionValidator> TObjectProxyBase::CreatePermissionValidator()
+{
+    return std::make_unique<TPermissionValidator>(this);
+}
+
 void TObjectProxyBase::ValidateAnnotation(const TString& annotation)
 {
     if (annotation.size() > MaxAnnotationLength) {

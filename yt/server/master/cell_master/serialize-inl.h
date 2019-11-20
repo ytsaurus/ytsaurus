@@ -12,12 +12,9 @@
 #include <yt/server/master/object_server/public.h>
 
 #include <yt/server/master/cypress_server/node.h>
+#include <yt/server/master/cypress_server/serialize.h>
 
 #include <yt/server/master/node_tracker_server/node.h>
-
-#include <yt/server/master/chunk_server/chunk.h>
-
-#include <yt/server/master/cypress_server/serialize.h>
 
 namespace NYT::NCellMaster {
 
