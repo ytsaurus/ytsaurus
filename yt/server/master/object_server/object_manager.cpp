@@ -161,6 +161,10 @@ public:
     TObject* GetWeakGhostObject(TObjectId id);
     void RemoveObject(TObject* object);
 
+    TObject* FindObjectByAttributes(
+        EObjectType type,
+        const IAttributeDictionary* attributes);
+
     IYPathServicePtr CreateRemoteProxy(TObjectId id);
 
     IObjectProxyPtr GetProxy(
@@ -1194,7 +1198,7 @@ TObject* TObjectManager::TImpl::CreateObject(
 
     const auto& handler = FindHandler(type);
     if (!handler) {
-        THROW_ERROR_EXCEPTION("Unknown object type %v",
+        THROW_ERROR_EXCEPTION("Unknown object type %Qlv",
             type);
     }
 
@@ -1303,6 +1307,21 @@ TObject* TObjectManager::TImpl::CreateObject(
     }
 
     return object;
+}
+
+TObject* TObjectManager::TImpl::FindObjectByAttributes(
+    EObjectType type,
+    const IAttributeDictionary* attributes)
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    const auto& handler = FindHandler(type);
+    if (!handler) {
+        THROW_ERROR_EXCEPTION("Unknown object type %Qlv",
+            type);
+    }
+
+    return handler->FindObjectByAttributes(attributes);
 }
 
 void TObjectManager::TImpl::ConfirmObjectLifeStageToPrimaryMaster(TObject* object)
@@ -2175,6 +2194,11 @@ TFuture<void> TObjectManager::GCCollect()
 TObject* TObjectManager::CreateObject(TObjectId hintId, EObjectType type, IAttributeDictionary* attributes)
 {
     return Impl_->CreateObject(hintId, type, attributes);
+}
+
+TObject* TObjectManager::FindObjectByAttributes(EObjectType type, const NYTree::IAttributeDictionary* attributes)
+{
+    return Impl_->FindObjectByAttributes(type, attributes);
 }
 
 TObject* TObjectManager::ResolvePathToObject(const TYPath& path, TTransaction* transaction)

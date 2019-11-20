@@ -265,6 +265,7 @@ TNontemplateCypressNodeProxyBase::TNontemplateCypressNodeProxyBase(
     TTransaction* transaction,
     TCypressNode* trunkNode)
     : TObjectProxyBase(bootstrap, metadata, trunkNode)
+    , THierarchicPermissionValidator(CreatePermissionValidator())
     , CustomAttributesImpl_(this)
     , Transaction_(transaction)
     , TrunkNode_(trunkNode)
@@ -1125,27 +1126,11 @@ void TNontemplateCypressNodeProxyBase::ValidatePermission(
     }
 }
 
-void TNontemplateCypressNodeProxyBase::ValidatePermission(
-    TCypressNode* node,
-    EPermissionCheckScope scope,
-    EPermission permission)
+SmallVector<TCypressNode*, 1> TNontemplateCypressNodeProxyBase::ListDescendants(TCypressNode* node)
 {
-    if (Any(scope & EPermissionCheckScope::This)) {
-        ValidatePermission(node, permission);
-    }
-
-    if (Any(scope & EPermissionCheckScope::Parent) && node->GetParent()) {
-        ValidatePermission(node->GetParent(), permission);
-    }
-
-    if (Any(scope & EPermissionCheckScope::Descendants)) {
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* trunkNode = node->GetTrunkNode();
-        auto descendants = cypressManager->ListSubtreeNodes(trunkNode, Transaction_, false);
-        for (auto* descendant : descendants) {
-            ValidatePermission(descendant, permission);
-        }
-    }
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
+    auto* trunkNode = node->GetTrunkNode();
+    return cypressManager->ListSubtreeNodes(trunkNode, Transaction_, false);
 }
 
 void TNontemplateCypressNodeProxyBase::ValidateNotExternal()
@@ -1445,12 +1430,12 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         }
     }
 
-    if (replace) {
-        ValidatePermission(EPermissionCheckScope::This | EPermissionCheckScope::Descendants, EPermission::Remove);
-        ValidatePermission(EPermissionCheckScope::Parent, EPermission::Write);
-    } else {
-        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+    std::unique_ptr<IAttributeDictionary> explicitAttributes;
+    if (request->has_node_attributes()) {
+        explicitAttributes = FromProto(request->node_attributes());
     }
+
+    ValidateCreatePermissions(replace, explicitAttributes.get());
 
     auto* node = GetThisImpl();
     // The node inside which the new node must be created.
@@ -1460,21 +1445,12 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     TInheritedAttributeDictionary inheritedAttributes(Bootstrap_);
     GatherInheritableAttributes(intendedParentNode, &inheritedAttributes.Attributes());
 
-    std::unique_ptr<IAttributeDictionary> explicitAttributes;
-    if (request->has_node_attributes()) {
-        explicitAttributes = FromProto(request->node_attributes());
-
+    if (explicitAttributes) {
         auto optionalAccount = explicitAttributes->FindAndRemove<TString>("account");
         if (optionalAccount) {
             const auto& securityManager = Bootstrap_->GetSecurityManager();
             account = securityManager->GetAccountByNameOrThrow(*optionalAccount);
             account->ValidateActiveLifeStage();
-        }
-
-        if ((explicitAttributes->Contains("acl") || explicitAttributes->Contains("inherit_acl")) &&
-            intendedParentNode->GetTrunkNode())
-        {
-            ValidatePermission(intendedParentNode, EPermissionCheckScope::This, EPermission::Administer);
         }
     }
 
@@ -1561,17 +1537,11 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
         THROW_ERROR_EXCEPTION("Cannot copy or move a node to its descendant");
     }
 
-    ValidatePermission(sourceNode, EPermissionCheckScope::This | EPermissionCheckScope::Descendants, EPermission::Read);
+    ValidateCopyFromSourcePermissions(sourceNode, mode);
 
     auto sourceParentProxy = sourceProxy->GetParent();
-    if (mode == ENodeCloneMode::Move) {
-        // Cf. TNodeBase::RemoveSelf
-        if (!sourceParentProxy) {
-            ThrowCannotRemoveNode(sourceProxy);
-        }
-        ValidatePermission(sourceNode, EPermissionCheckScope::This | EPermissionCheckScope::Descendants,
-            EPermission::Remove);
-        ValidatePermission(sourceNode, EPermissionCheckScope::Parent, EPermission::Write);
+    if (!sourceParentProxy && mode == ENodeCloneMode::Move) {
+        ThrowCannotRemoveNode(sourceProxy);
     }
 
     YT_LOG_ACCESS(
@@ -1759,18 +1729,7 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
         }
     }
 
-    if (replace && !inplace) {
-        ValidatePermission(EPermissionCheckScope::This | EPermissionCheckScope::Descendants, EPermission::Remove);
-        ValidatePermission(EPermissionCheckScope::Parent, EPermission::Write);
-        if (preserveAcl) {
-            ValidatePermission(EPermissionCheckScope::Parent, EPermission::Administer);
-        }
-    } else {
-        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
-        if (preserveAcl) {
-            ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
-        }
-    }
+    ValidateCopyToThisDestinationPermissions(replace && !inplace, preserveAcl);
 
     auto* account = (replace && !inplace)
         ? ICypressNodeProxy::FromNode(parentProxy.Get())->GetTrunkNode()->GetAccount()

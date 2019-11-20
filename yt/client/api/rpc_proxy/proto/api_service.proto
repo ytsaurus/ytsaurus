@@ -681,6 +681,7 @@ message TRspListNode
 message TReqCreateObject
 {
     required int32 type = 1; // NObjectClient::EObjectType
+    optional bool ignore_existing = 3 [default = false];
     optional NYT.NYTree.NProto.TAttributeDictionary attributes = 2;
 }
 

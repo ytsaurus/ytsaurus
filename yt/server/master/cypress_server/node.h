@@ -222,7 +222,7 @@ public:
      */
     bool CanCacheResolve() const;
 
-    // Similar methods are also declared in TObjectBase but starting from TCypressNode
+    // Similar methods are also declared in TObject but starting from TCypressNode
     // they become virtual.
     virtual void Save(NCellMaster::TSaveContext& context) const;
     virtual void Load(NCellMaster::TLoadContext& context);

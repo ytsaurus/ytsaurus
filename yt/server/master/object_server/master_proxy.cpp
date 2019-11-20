@@ -73,15 +73,28 @@ private:
         DeclareMutating();
 
         auto type = EObjectType(request->type());
+        auto ignoreExisting = request->ignore_existing();
 
-        context->SetRequestInfo("Type: %v",
-            type);
+        context->SetRequestInfo("Type: %v, IgnoreExisting: %v",
+            type,
+            ignoreExisting);
 
         auto attributes = request->has_object_attributes()
             ? FromProto(request->object_attributes())
             : std::unique_ptr<IAttributeDictionary>();
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
+        if (ignoreExisting) {
+            if (auto* existingObject = objectManager->FindObjectByAttributes(type, attributes.get())) {
+                auto existingObjectId = existingObject->GetId();
+                ToProto(response->mutable_object_id(), existingObjectId);
+
+                context->SetResponseInfo("ExistingObjectId: %v", existingObjectId);
+                context->Reply();
+                return;
+            }
+        }
+
         auto* object = objectManager->CreateObject(
             NullObjectId,
             type,

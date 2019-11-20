@@ -4,6 +4,8 @@
 
 #include <yt/core/misc/serialize.h>
 
+#include <yt/server/master/security_server/account.h>
+
 #include <yt/core/ytree/fluent.h>
 
 namespace NYT::NCypressServer {
