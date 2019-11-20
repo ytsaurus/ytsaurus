@@ -17,7 +17,7 @@ def build_snapshot(proxy, cell, set_read_only):
     params = {
         "cell_id": cell_id,
         "set_read_only": set_read_only,
-        "wait_for_completion": False
+        "wait_for_snapshot_completion": False
     }
 
     headers = {
