@@ -12,17 +12,18 @@ import ru.yandex.yt.ytclient.proxy.YtClient
 
 class YtFileSystem extends FileSystem {
   private val log = Logger.getLogger(getClass)
+
   private var _uri: URI = _
   private var _workingDirectory: Path = new Path("/")
-  private var conf: Configuration = _
+  private var _conf: Configuration = _
 
   override def initialize(uri: URI, conf: Configuration): Unit = {
     super.initialize(uri, conf)
-    this.conf = conf
+    this._conf = conf
     _uri = uri
   }
 
-  def yt: YtClient = YtClientProvider.ytClient(YtClientConfigurationConverter(conf))
+  def yt: YtClient = YtClientProvider.ytClient(YtClientConfigurationConverter(_conf))
 
   override def getUri: URI = _uri
 
