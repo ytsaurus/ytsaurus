@@ -65,7 +65,8 @@ lazy val `client` = (project in file("client"))
   .settings(
     debPackageVersion := {
       val debBuildNumber = Option(System.getProperty("build")).getOrElse("")
-      s"$sparkVersion-${(version in ThisBuild).value.takeWhile(_ != '-')}-yandex$debBuildNumber"
+      val beta = if ((version in ThisBuild).value.contains("SNAPSHOT")) "~beta1" else ""
+      s"$sparkVersion-${(version in ThisBuild).value.takeWhile(_ != '-')}$beta+yandex$debBuildNumber"
     },
     version := debPackageVersion.value,
     packageSummary := "Spark over YT Client Debian Package",

@@ -14,12 +14,14 @@ object DebianPackagePlugin extends AutoPlugin {
 
   object autoImport {
     val debPackageWithSources = taskKey[File]("Build debian package and .dsc file")
+    val debPackageChanges = taskKey[File]("Build .changes file")
     val debPackageAddChangelog = taskKey[Unit]("Add message to changelog")
     val debPackageSign = taskKey[Unit]("Sign .dsc and .changes files by debsign")
     val debPackagePublish = taskKey[Unit]("Publish debian package to repository")
     val debPackageBuildAndPublish = taskKey[Unit]("Build, sign and publish debian package")
 
     val debPackageSourceControlFile = taskKey[File]("Build control file for dpkg-source")
+    val debPackageFilesList = taskKey[File]("Create debian/files file")
 
     val debPackageSourceFormat = settingKey[String]("Required format of .dsc file")
     val debPackageVersion = settingKey[String]("Debian package version")
@@ -59,6 +61,30 @@ object DebianPackagePlugin extends AutoPlugin {
       targetPath / s"${targetPath.getName}.dsc"
     },
     debPackageWithSources := (debPackageWithSources dependsOn (packageBin in Debian)).value,
+    debPackageFilesList := {
+      val debName = (name in Debian).value + "_" + (version in Debian).value
+      val debianPath = (target in Debian).value / "debian"
+      val output = debianPath / "files"
+      val content = s"""${debName}_all.deb misc optional
+                      |$debName.dsc text important""".stripMargin
+
+      IO.write(output, content)
+      output
+    },
+    debPackageChanges := {
+      val debName = (name in Debian).value + "_" + (version in Debian).value
+      val control = debPackageSourceControlFile.value
+      val files = debPackageFilesList.value
+      val output = target.value / s"${debName}_all.changes"
+      runProcess(
+        Process(
+          s"dpkg-genchanges -f${files.getAbsolutePath} -c${control.getAbsolutePath} -O${output.getAbsolutePath}",
+          (target in Debian).value
+        ),
+        "Failed to run dpkg-genchanges"
+      )
+      output
+    },
     debPackageAddChangelog := {
       import scala.language.postfixOps
       import scala.sys.process._
@@ -101,6 +127,7 @@ object DebianPackagePlugin extends AutoPlugin {
     debPackageBuildAndPublish := Def.sequential(
       debPackageAddChangelog,
       debPackageWithSources,
+      debPackageChanges,
       debPackageSign,
       debPackagePublish
     ).value
