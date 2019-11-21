@@ -183,6 +183,10 @@ type ErrorAttr struct {
 	Value interface{}
 }
 
+func Attr(name string, value interface{}) ErrorAttr {
+	return ErrorAttr{Name: name, Value: value}
+}
+
 // FromError converts any error to YT error, if it not already YT error.
 //
 // Nested errors are converted to nested YT errors.
