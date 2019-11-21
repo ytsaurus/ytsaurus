@@ -875,19 +875,32 @@ private:
 
         if (!batch.empty()) {
             while (IsArchivationEnabled()) {
+                TError error;
                 try {
                     TryArchiveOperations(batch);
-                    break;
                 } catch (const std::exception& ex) {
                     int pendingCount = ArchivePendingCounter_.GetCurrent();
-                    YT_LOG_WARNING(ex, "Failed to archive operations (PendingCount: %v)", pendingCount);
-                    if (pendingCount >= Config_->ArchivationFailuresCountForAlert) {
-                        Host_->SetSchedulerAlert(
-                            ESchedulerAlertType::OperationsArchivation,
-                            TError("Failed to archive operations")
-                                << TErrorAttribute("pending_count", pendingCount));
-                    }
+                    error = TError("Failed to archive operations (PendingCount: %v)", pendingCount)
+                        << ex;
+                    YT_LOG_WARNING(error);
                     Profiler.Increment(ArchiveErrorCounter_, 1);
+                }
+
+                int pendingCount = ArchivePendingCounter_.GetCurrent();
+                if (pendingCount >= Config_->MinOperationCountEnqueuedForAlert) {
+                    Host_->SetSchedulerAlert(
+                        ESchedulerAlertType::OperationsArchivation,
+                        TError("Too many operations in archivation queue")
+                            << TErrorAttribute("pending_count", pendingCount)
+                            << error);
+                } else {
+                    Host_->SetSchedulerAlert(
+                        ESchedulerAlertType::OperationsArchivation,
+                        TError());
+                }
+
+                if (error.IsOK()) {
+                    break;
                 }
 
                 if (ArchivePendingCounter_.GetCurrent() > Config_->MaxOperationCountEnqueuedForArchival) {
@@ -1024,7 +1037,7 @@ private:
 
             Profiler.Increment(RemovedCounter_, removedOperationIds.size());
             Profiler.Increment(RemoveErrorCounter_, failedOperationIds.size());
-            
+
             ProcessCleanedOperation(removedOperationIds);
 
             for (auto operationId : failedOperationIds) {

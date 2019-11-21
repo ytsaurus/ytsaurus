@@ -290,7 +290,7 @@ public:
     TDuration MaxRemovalSleepDelay;
 
     //! Number of operations failed to archive to set scheduler alert.
-    int ArchivationFailuresCountForAlert;
+    int MinOperationCountEnqueuedForAlert;
 
     TOperationsCleanerConfig();
 };
