@@ -70,6 +70,9 @@ public:
     int CyclesPerFlush;
 
     int ThreadCount;
+    int NodeShardCount;
+
+    std::optional<TDuration> ScheduleJobDelay;
 
     bool ShiftOperationsToStart;
 
@@ -96,6 +99,12 @@ public:
         RegisterParameter("thread_count", ThreadCount)
             .Default(1)
             .GreaterThan(0);
+        RegisterParameter("node_shard_count", NodeShardCount)
+            .Default(1)
+            .GreaterThan(0);
+
+        RegisterParameter("schedule_job_delay", ScheduleJobDelay)
+            .Default();
 
         RegisterParameter("shift_operations_to_start", ShiftOperationsToStart)
             .Default(false);

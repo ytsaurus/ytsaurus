@@ -45,6 +45,7 @@ NScheduler::NProto::TSchedulerToAgentJobEvent BuildSchedulerToAgentJobEvent(cons
 DEFINE_REFCOUNTED_TYPE(TSimulatorNodeShard)
 
 TSimulatorNodeShard::TSimulatorNodeShard(
+    const IInvokerPtr& commonNodeShardInvoker,
     TSharedEventQueue* events,
     TSharedSchedulerStrategy* schedulingStrategy,
     TSharedOperationStatistics* operationStatistics,
@@ -65,14 +66,14 @@ TSimulatorNodeShard::TSimulatorNodeShard(
     , SchedulerConfig_(schedulerConfig)
     , EarliestTime_(earliestTime)
     , ShardId_(shardId)
-    , ActionQueue_(New<TActionQueue>(Format("NodeShard:%v", shardId)))
+    , Invoker_(CreateSerializedInvoker(commonNodeShardInvoker))
     , Logger(TLogger(NSchedulerSimulator::Logger)
         .AddTag("ShardId: %v", shardId))
 { }
 
 const IInvokerPtr& TSimulatorNodeShard::GetInvoker() const
 {
-    return ActionQueue_->GetInvoker();
+    return Invoker_;
 }
 
 TFuture<void> TSimulatorNodeShard::AsyncRun()

@@ -33,7 +33,8 @@ DEFINE_REFCOUNTED_TYPE(ISimulatorOperationController)
 
 ISimulatorOperationControllerPtr CreateSimulatorOperationController(
     const TOperation* operation,
-    const TOperationDescription* operationDescription);
+    const TOperationDescription* operationDescription,
+    std::optional<TDuration> scheduleJobDelay = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

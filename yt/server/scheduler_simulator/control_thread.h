@@ -72,6 +72,7 @@ private:
     NScheduler::ISchedulerStrategyPtr SchedulerStrategy_;
     TSharedSchedulerStrategy SchedulerStrategyForNodeShards_;
     TSharedEventQueue NodeShardEventQueue_;
+    const NConcurrency::TThreadPoolPtr NodeShardThreadPool_;
 
     TSharedOperationStatistics OperationStatistics_;
     TSharedRunningOperationsMap RunningOperationsMap_;
