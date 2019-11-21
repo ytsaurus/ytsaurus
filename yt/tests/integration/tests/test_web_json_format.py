@@ -34,7 +34,7 @@ ROWS = [
         "boolean_column": True,
         "optional_list_int64_column": yson.YsonEntity(),
         "variant_tuple_column": [1, [7, 8]],
-        "struct_column": {"a": True, "b": yson.YsonUint64(12), "c": "hey", "d": [yson.YsonEntity()]},
+        "struct_column": {"a": True, "b": yson.YsonUint64(12), "c": "quite long string", "d": [yson.YsonEntity()]},
         "non_utf_string_column": b"ab\xFAcd",
         "list_optional_int64_column": [100, yson.YsonEntity(), 200],
     }
@@ -242,21 +242,12 @@ EXPECTED_OUTPUT_BASE = {
     "incomplete_all_column_names": "false"
 }
 
+FIELD_WEIGHT_LIMIT = 20
+STRING_WEIGHT_LIMIT = 5
 
 # Instead of type indices this function returns types.
 # Later they will be matched with actual rows using yql_type_registry.
-#
-# NB: field_weight_limit is currently ignored!
-def get_output_yql_rows(value_format, field_weight_limit):
-    def make_string_entry(string):
-        assert value_format == "yql"
-        return string
-
-    def make_base64_encoded_string_entry(string):
-        encoded = base64.b64encode(string)
-        assert value_format == "yql"
-        return [encoded]
-
+def get_output_yql_rows():
     optional_list_int64_type = ["OptionalType", ["ListType", ["DataType", "Int64"]]]
     variant_tuple_type = ["VariantType", ["TupleType", [
         ["DataType", "String"],
@@ -272,11 +263,11 @@ def get_output_yql_rows(value_format, field_weight_limit):
     return [
         {
             "string32_column": [
-                [make_string_entry("abcdefghij")],
+                ["abcdefghij"],
                 ["OptionalType", ["DataType", "String"]]
             ],
             "yson32_column": [
-                [make_string_entry("[110;\"xxx\";{\"foo\"=\"bar\";};]")],
+                [{"val": "", "inc": True}],
                 ["OptionalType", ["DataType", "Yson"]]
             ],
             "int64_column": [
@@ -296,7 +287,7 @@ def get_output_yql_rows(value_format, field_weight_limit):
                 ["OptionalType", ["DataType", "Boolean"]]
             ],
             "optional_list_int64_column": [
-                [["11", "12", "13"]],
+                [{"val": ["11", "12"], "inc": True}],
                 optional_list_int64_type
             ],
             "variant_tuple_column": [
@@ -308,11 +299,11 @@ def get_output_yql_rows(value_format, field_weight_limit):
                 struct_type
             ],
             "non_utf_string_column": [
-                [make_base64_encoded_string_entry(b"\xFF\xFE\xFD\xFC")],
+                [{"val": base64.b64encode(b"\xFF\xFE\xFD\xFC"), "b64": True}],
                 ["OptionalType", ["DataType", "String"]]
             ],
             "list_optional_int64_column": [
-                [["21"], ["22"], ["23"]],
+                {"val": [["21"], ["22"]], "inc": True},
                 ["ListType", ["OptionalType", ["DataType", "Int64"]]],
             ],
         },
@@ -322,7 +313,7 @@ def get_output_yql_rows(value_format, field_weight_limit):
                 ["OptionalType", ["DataType", "String"]]
             ],
             "yson32_column": [
-                [make_string_entry("{\"f\"=\"b\";}")],
+                ["{\"f\"=\"b\";}"],
                 ["OptionalType", ["DataType", "Yson"]]
             ],
             "int64_column": [
@@ -348,20 +339,20 @@ def get_output_yql_rows(value_format, field_weight_limit):
             "variant_tuple_column": [
                 [
                     "1",
-                    ["7", "8"]
+                    {"val": ["7", "8"]}
                 ],
                 variant_tuple_type
             ],
             "struct_column": [
-                [True, "12", "hey", [yson.YsonEntity()]],
+                [True, "12", {"val": "quite", "inc": True}, [yson.YsonEntity()]],
                 struct_type
             ],
             "non_utf_string_column": [
-                [make_base64_encoded_string_entry(b"ab\xFAcd")],
+                [{"val": base64.b64encode(b"ab\xFAcd"), "b64": True}],
                 ["OptionalType", ["DataType", "String"]]
             ],
             "list_optional_int64_column": [
-                [["100"], yson.YsonEntity(), ["200"]],
+                {"val": [["100"], yson.YsonEntity()], "inc": True},
                 ["ListType", ["OptionalType", ["DataType", "Int64"]]],
             ],
         },
@@ -392,12 +383,14 @@ def get_expected_all_column_names(dynamic_ordered):
     result.sort()
     return result
 
-def get_web_json_format(field_weight_limit, column_limit, value_format=None):
+def get_web_json_format(field_weight_limit, column_limit, value_format=None, string_weight_limit=None):
     format_ = yson.YsonString("web_json")
     format_.attributes["field_weight_limit"] = field_weight_limit
     format_.attributes["max_selected_column_count"] = column_limit
     if value_format is not None:
         format_.attributes["value_format"] = value_format
+    if string_weight_limit is not None:
+        format_.attributes["string_weight_limit"] = string_weight_limit
     return format_
 
 def get_dynamic_table_select_query(column_names, table_path):
@@ -565,13 +558,17 @@ class TestWebJsonFormat(YTEnvSetup):
         column_names = get_column_names(dynamic_ordered=False)
         assert len(column_names) > 0
 
-        field_weight_limit = 9
-        format_ = get_web_json_format(field_weight_limit, len(column_names), value_format=value_format)
+        format_ = get_web_json_format(
+            FIELD_WEIGHT_LIMIT,
+            len(column_names),
+            value_format=value_format,
+            string_weight_limit=STRING_WEIGHT_LIMIT,
+        )
         output = json.loads(read_table(TABLE_PATH, output_format=format_))
 
         assert "yql_type_registry" in output
         type_registry = output["yql_type_registry"]
-        expected_output_rows = get_output_yql_rows(value_format, field_weight_limit)
+        expected_output_rows = get_output_yql_rows()
 
         assert len(expected_output_rows) == len(output["rows"])
         for actual_row, expected_row in zip(output["rows"], expected_output_rows):

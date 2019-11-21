@@ -484,10 +484,12 @@ DEFINE_ENUM(EWebJsonValueFormat,
     // Values are stringified and (de-)serialized in form
     // |<column_name>: [ <value>,  <stringified-type-index>]|, i.e. |"column_name": ["3.141592", "3"]|.
     // Type indices point to type registry stored under "yql_type_registry" key.
-    // Non-UTF-8 strings are Base64-encoded and enclosed in an additional single-item list:
-    //    | "column_name": [["aqw=="], "4"] |.
-    //
-    // |FieldWeightLimit| is currently ignored.
+    // Non-UTF-8 strings are Base64-encoded and enclosed in a map with "b64" and "val" keys:
+    //    | "column_name": {"val": "aqw==", "b64": true} |.
+    // Strings and lists can be truncated, in which case they are enclosed in a map with "inc" and "val" keys:
+    //    | "column_name": {"val": ["12", "13"], "inc": true} |
+    // Wrapping in an additional map can occur on any depth.
+    // Both "inc" and "b64" keys may appear in such maps.
     (Yql)
 );
 
@@ -497,6 +499,7 @@ class TWebJsonFormatConfig
 public:
     int MaxSelectedColumnCount;
     int FieldWeightLimit;
+    int StringWeightLimit;
     int MaxAllColumnNamesCount;
     std::optional<std::vector<TString>> ColumnNames;
     EWebJsonValueFormat ValueFormat;
@@ -511,6 +514,9 @@ public:
             .GreaterThanOrEqual(0);
         RegisterParameter("field_weight_limit", FieldWeightLimit)
             .Default(1_KB)
+            .GreaterThanOrEqual(0);
+        RegisterParameter("string_weight_limit", StringWeightLimit)
+            .Default(200)
             .GreaterThanOrEqual(0);
         RegisterParameter("max_all_column_names_count", MaxAllColumnNamesCount)
             .Default(2000)

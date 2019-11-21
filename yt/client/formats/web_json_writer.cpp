@@ -304,15 +304,17 @@ public:
         const TNameTablePtr& nameTable,
         const std::vector<TTableSchema>& schemas,
         IJsonConsumer* consumer)
-        : Consumer_(consumer)
+        : UnderlyingConsumer_(consumer)
+        , Consumer_(UnderlyingConsumer_)
         , TableIndexToColumnIdToTypeIndex_(schemas.size())
     {
         YT_VERIFY(config->ValueFormat == EWebJsonValueFormat::Yql);
+        auto converterConfig = CreateYqlJsonConsumerConfig(config);
 
         for (auto valueType : TEnumTraits<EValueType>::GetDomainValues()) {
             if (IsValueType(valueType) || valueType == EValueType::Null) {
                 Types_.push_back(SimpleLogicalType(GetLogicalType(valueType)));
-                Converters_.push_back(CreateUnversionedValueToYqlConverter(Types_.back()));
+                Converters_.push_back(CreateUnversionedValueToYqlConverter(Types_.back(), converterConfig));
                 ValueTypeToTypeIndex_[valueType] = static_cast<int>(Types_.size()) - 1;
             } else {
                 ValueTypeToTypeIndex_[valueType] = UnknownTypeIndex;
@@ -323,7 +325,7 @@ public:
             const auto& schema = schemas[tableIndex];
             for (const auto& column : schema.Columns()) {
                 Types_.push_back(column.LogicalType());
-                Converters_.push_back(CreateUnversionedValueToYqlConverter(column.LogicalType()));
+                Converters_.push_back(CreateUnversionedValueToYqlConverter(column.LogicalType(), converterConfig));
                 auto [it, inserted] = TableIndexAndColumnNameToTypeIndex_.emplace(
                     std::make_pair(tableIndex, column.Name()),
                     static_cast<int>(Types_.size()) - 1);
@@ -334,20 +336,22 @@ public:
 
     void WriteValue(int tableIndex, TStringBuf columnName, TUnversionedValue value)
     {
+        Consumer_.OnBeginList();
+
+        Consumer_.OnListItem();
         auto typeIndex = GetTypeIndex(tableIndex, value.Id, columnName, value.Type);
-        BuildYsonFluently(&Consumer_)
-            .BeginList()
-                .Item().Do([&, value] (TFluentAny fluent) {
-                    Converters_[typeIndex](value, &Consumer_);
-                })
-                .Item().Value(::ToString(typeIndex))
-            .EndList();
+        Converters_[typeIndex](value, &Consumer_);
+
+        Consumer_.OnListItem();
+        Consumer_.OnInt64Scalar(typeIndex);
+
+        Consumer_.OnEndList();
     }
 
     void WriteMetaInfo()
     {
-        Consumer_.OnKeyedItem("yql_type_registry");
-        BuildYsonFluently(&Consumer_)
+        UnderlyingConsumer_->OnKeyedItem("yql_type_registry");
+        BuildYsonFluently(UnderlyingConsumer_)
             .DoListFor(Types_, [&] (TFluentList fluentList, const TLogicalTypePtr& type) {
                 fluentList
                     .Item().Do([&] (TFluentAny innerFluent) {
@@ -367,6 +371,7 @@ private:
     static constexpr int UnknownTypeIndex = -1;
     static constexpr int UnschematizedTypeIndex = -2;
 
+    IJsonConsumer* UnderlyingConsumer_;
     TYqlJsonConsumer Consumer_;
     std::vector<TUnversionedValueToYqlConverter> Converters_;
     std::vector<TLogicalTypePtr> Types_;
@@ -399,6 +404,14 @@ private:
 
         YT_VERIFY(typeIndex != UnknownTypeIndex && typeIndex != UnschematizedTypeIndex);
         return typeIndex;
+    }
+
+    static TYqlConverterConfigPtr CreateYqlJsonConsumerConfig(const TWebJsonFormatConfigPtr& formatConfig)
+    {
+        auto config = New<TYqlConverterConfig>();
+        config->FieldWeightLimit = formatConfig->FieldWeightLimit;
+        config->StringWeightLimit = formatConfig->StringWeightLimit;
+        return config;
     }
 };
 
