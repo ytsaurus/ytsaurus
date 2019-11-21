@@ -19,6 +19,7 @@ class TSimulatorNodeShard
 {
 public:
     TSimulatorNodeShard(
+        const IInvokerPtr& commonNodeShardInvoker,
         TSharedEventQueue* events,
         TSharedSchedulerStrategy* schedulingStrategy,
         TSharedOperationStatistics* operationStatistics,
@@ -51,7 +52,7 @@ private:
     const NScheduler::TSchedulerConfigPtr SchedulerConfig_;
     const TInstant EarliestTime_;
     const int ShardId_;
-    const NConcurrency::TActionQueuePtr ActionQueue_;
+    const IInvokerPtr Invoker_;
 
     NLogging::TLogger Logger;
 
