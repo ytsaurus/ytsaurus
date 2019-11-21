@@ -190,6 +190,24 @@ def create_pod_with_boilerplate(
 
     return yp_client.create_object("pod", attributes=attributes, transaction_id=transaction_id)
 
+def update_node_id(yp_client, pod_id, node_id, other_updates=None, with_retries=True):
+    if other_updates is None:
+        other_updates = []
+
+    def impl():
+        yp_client.update_object("pod", pod_id, set_updates=
+            [
+                {
+                    "path": "/spec/node_id",
+                    "value": node_id
+                }
+            ] + other_updates)
+
+    if with_retries:
+        run_with_retries(impl, exceptions=(YtResponseError,))
+    else:
+        impl()
+
 
 def create_nodes(
         yp_client,

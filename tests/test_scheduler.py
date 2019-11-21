@@ -14,6 +14,7 @@ from .conftest import (
     is_pod_assigned,
     wait_pod_is_assigned,
     wait_pod_is_assigned_to,
+    update_node_id,
 )
 
 from yp.local import set_account_infinite_resource_limits
@@ -29,7 +30,7 @@ from yt.packages.six.moves import xrange
 
 import pytest
 
-from collections import defaultdict, Counter
+from collections import Counter
 from functools import partial
 import random
 import time
@@ -72,17 +73,11 @@ class TestScheduler(object):
         assert self._get_scheduled_allocations(yp_env, node_id, "cpu") == []
         assert self._get_scheduled_allocations(yp_env, node_id, "memory") == []
 
-        yp_client.update_object("pod", pod_id,
-            set_updates=[
-                {"path": "/spec/node_id", "value": ""}
-            ])
+        update_node_id(yp_client, pod_id, "")
 
         assert yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/state"]) == ["disabled"]
 
-        yp_client.update_object("pod", pod_id,
-            set_updates=[
-                {"path": "/spec/node_id", "value": node_id}
-            ])
+        update_node_id(yp_client, pod_id, node_id)
 
         assert yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/state"]) == ["assigned"]
 
@@ -251,7 +246,7 @@ class TestScheduler(object):
         node_id = yp_client.select_objects("node", selectors=["/meta/id"])[0][0]
         unassigned_pod_id = yp_client.select_objects("pod", filter="[/status/scheduling/state] != \"assigned\"", selectors=["/meta/id"])[0][0]
         with pytest.raises(YtResponseError):
-            yp_client.update_object("pod", unassigned_pod_id, set_updates=[{"path": "/spec/node_id", "value": node_id}])
+            update_node_id(yp_client, unassigned_pod_id, node_id, with_retries=False)
 
     def test_network_bandwidth(self, yp_env):
         yp_client = yp_env.yp_client

@@ -3,18 +3,16 @@ from .conftest import (
     create_nodes,
     create_pod_set,
     create_pod_with_boilerplate,
+    update_node_id,
 )
 
 from yp.common import (
     YpInvalidObjectIdError,
-    YpNoSuchObjectError,
     YtResponseError,
     wait,
 )
 
 from yt.yson import YsonEntity
-
-from yt.packages.six.moves import xrange
 
 import pytest
 
@@ -102,7 +100,7 @@ class TestNet(object):
             })
 
         with pytest.raises(YtResponseError):
-            yp_client.update_object("pod", pod_id,  set_updates=[{"path": "/spec/node_id", "value": node_id}])
+            update_node_id(yp_client, pod_id, node_id, with_retries=False)
 
     def test_invalid_pod_network_id(self, yp_env):
         yp_client = yp_env.yp_client
@@ -131,7 +129,7 @@ class TestNet(object):
             })
 
         with pytest.raises(YtResponseError):
-            yp_client.update_object("pod", pod_id,  set_updates=[{"path": "/spec/node_id", "value": node_id}])
+            update_node_id(yp_client, pod_id, node_id, with_retries=False)
 
     def test_pod_ip6_address_fqdn(self, yp_env):
         yp_client = yp_env.yp_client
@@ -172,7 +170,7 @@ class TestNet(object):
                 }
             })
 
-        yp_client.update_object("pod", pod_id,  set_updates=[{"path": "/spec/node_id", "value": node_id}])
+        update_node_id(yp_client, pod_id, node_id)
         allocations = yp_client.get_object("pod", pod_id, selectors=["/status/ip6_address_allocations"])[0]
         assert len(allocations) == 4
         assert "persistent_fqdn" not in allocations[0]
@@ -244,7 +242,7 @@ class TestNet(object):
                 }
             })
 
-        yp_client.update_object("pod", pod_id,  set_updates=[{"path": "/spec/node_id", "value": node_id}])
+        update_node_id(yp_client, pod_id, node_id)
         allocations = yp_client.get_object("pod", pod_id, selectors=["/status/ip6_address_allocations"])[0]
         assert len(allocations) == 2
         assert allocations[0]["persistent_fqdn"] == "abc.{}.test.yp-c.yandex.net".format(pod_id)

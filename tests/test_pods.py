@@ -2,7 +2,8 @@ from .conftest import (
     ZERO_RESOURCE_REQUESTS,
     create_pod_with_boilerplate,
     create_nodes,
-    create_pod_set_with_quota
+    create_pod_set_with_quota,
+    update_node_id
 )
 
 from yp.common import YtResponseError, YpNoSuchObjectError
@@ -475,11 +476,8 @@ class TestPods(object):
                     "value": YsonUint64(555)
                 }])
 
-        yp_client.update_object("pod", pod_id, set_updates=[
-            {
-                "path": "/spec/node_id",
-                "value": ""
-            }])
+
+        update_node_id(yp_client, pod_id, "")
 
         yp_client.update_object("pod", pod_id, set_updates=[
             {
@@ -487,11 +485,7 @@ class TestPods(object):
                 "value": YsonUint64(555)
             }])
 
-        yp_client.update_object("pod", pod_id, set_updates=[
-            {
-                "path": "/spec/node_id",
-                "value": node_id
-            }])
+        update_node_id(yp_client, pod_id, node_id)
 
 
         allocations3 = yp_client.get_object("resource", hdd_resource_id, selectors=["/status/scheduled_allocations"])[0]
@@ -606,17 +600,17 @@ class TestPods(object):
         assert yp_client.get_object("pod", pod_id, selectors=["/status/dns/persistent_fqdn", "/status/dns/transient_fqdn"]) == \
                [pod_id + ".test.yp-c.yandex.net", YsonEntity()]
 
-        yp_client.update_object("pod", pod_id, set_updates=[{"path": "/spec/node_id", "value": node_id}])
+        update_node_id(yp_client, pod_id, node_id)
 
         assert yp_client.get_object("pod", pod_id, selectors=["/status/dns/persistent_fqdn", "/status/dns/transient_fqdn", "/status/generation_number"]) == \
                [pod_id + ".test.yp-c.yandex.net", "test-1." + pod_id + ".test.yp-c.yandex.net", 1]
 
-        yp_client.update_object("pod", pod_id, set_updates=[{"path": "/spec/node_id", "value": ""}])
+        update_node_id(yp_client, pod_id, "")
 
         assert yp_client.get_object("pod", pod_id, selectors=["/status/dns/persistent_fqdn", "/status/dns/transient_fqdn", "/status/generation_number"]) == \
                [pod_id + ".test.yp-c.yandex.net", YsonEntity(), 1]
 
-        yp_client.update_object("pod", pod_id, set_updates=[{"path": "/spec/node_id", "value": node_id}])
+        update_node_id(yp_client, pod_id, node_id)
 
         assert yp_client.get_object("pod", pod_id, selectors=["/status/dns/persistent_fqdn", "/status/dns/transient_fqdn", "/status/generation_number"]) == \
                [pod_id + ".test.yp-c.yandex.net", "test-2." + pod_id + ".test.yp-c.yandex.net", 2]
