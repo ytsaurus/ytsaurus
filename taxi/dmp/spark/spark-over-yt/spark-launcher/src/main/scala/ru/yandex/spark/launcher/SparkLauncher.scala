@@ -97,7 +97,6 @@ object SparkLauncher {
 
     sparkProcess = Process(command, None, env.toSeq:_*)
       .run(ProcessLogger(log.info(_)))
-
     sparkProcess.exitValue()
   }
 
@@ -107,7 +106,7 @@ object SparkLauncher {
 
   def startWorker(master: Address,
                   port: Option[Int], webUiPort: Int,
-                  cores: Int, memory: String, opts: Option[String]): Unit = {
+                  cores: Int, memory: String, opts: Option[String]): Thread = {
     val env = Map(
       "SPARK_WORKER_OPTS" -> opts,
     ).flatMap { case (k, v) => v.map(vv => k -> vv.toString) }

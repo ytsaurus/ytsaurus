@@ -63,9 +63,13 @@ object SparkPackagePlugin extends AutoPlugin {
         buildSpark(sparkHome.toString)
       }
 
-      sparkAdditionalJars.value.foreach { file => IO.copyFile(file, sparkDist / "jars" / file.name) }
+      sparkAdditionalJars.value.foreach { file =>
+        IO.copyFile(file, sparkDist / "jars" / file.name)
+      }
       IO.copyFile(sparkDefaults.value, sparkDist / "conf" / "spark-defaults.conf")
-      sparkAdditionalBin.value.foreach { file => IO.copyFile(file, sparkDist / "bin" / file.name) }
+      sparkAdditionalBin.value.foreach { file =>
+        IO.copyFile(file, sparkDist / "bin" / file.name, preserveExecutable = true)
+      }
 
       createFileFromTemplate(sparkLaunchConfigTemplate.value, Map(
         "spark_yt_base_path" -> publishYtTo.value,
