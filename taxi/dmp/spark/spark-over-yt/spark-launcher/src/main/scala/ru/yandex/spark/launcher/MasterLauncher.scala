@@ -3,7 +3,7 @@ package ru.yandex.spark.launcher
 import com.google.common.net.HostAndPort
 import com.twitter.scalding.Args
 import org.apache.log4j.Logger
-import ru.yandex.spark.discovery.CypressDiscoveryService
+import ru.yandex.spark.discovery.{CypressDiscoveryService, DiscoveryService}
 import ru.yandex.spark.yt.utils.YtClientConfiguration
 
 import scala.annotation.tailrec
@@ -28,16 +28,8 @@ object MasterLauncher extends App {
     discoveryService.register(masterArgs.id, masterArgs.operationId, masterAddress)
     log.info("Master registered")
 
-    @tailrec
-    def checkPeriodically(): Unit = {
-      if (masterThread.isAlive) {
-        Thread.sleep((10 seconds).toMillis)
-        checkPeriodically()
-      }
-    }
-
     try {
-      checkPeriodically()
+      DiscoveryService.checkPeriodically(masterThread.isAlive)
       log.info("Master thread is not alive!")
     } finally {
       log.info("Removing master address")

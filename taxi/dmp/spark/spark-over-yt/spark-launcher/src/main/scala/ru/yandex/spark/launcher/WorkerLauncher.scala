@@ -2,9 +2,10 @@ package ru.yandex.spark.launcher
 
 import com.twitter.scalding.Args
 import org.apache.log4j.Logger
-import ru.yandex.spark.discovery.CypressDiscoveryService
+import ru.yandex.spark.discovery.{CypressDiscoveryService, DiscoveryService}
 import ru.yandex.spark.yt.utils.YtClientConfiguration
 
+import scala.annotation.tailrec
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
@@ -22,9 +23,11 @@ object WorkerLauncher extends App {
     log.info(s"Starting worker for master $masterAddress")
     log.info(s"Worker opts: ${workerArgs.opts}")
     log.info(s"Worker args: ${args.mkString(" ")}")
-    SparkLauncher.startWorker(masterAddress, workerArgs.port, workerArgs.webUiPort,
+    val thread = SparkLauncher.startWorker(masterAddress, workerArgs.port, workerArgs.webUiPort,
       workerArgs.cores, workerArgs.memory, workerArgs.opts)
-    discoveryService.checkPeriodically(masterAddress.webUiHostAndPort)
+    def masterIsAlive: Boolean = DiscoveryService.isAlive(masterAddress.webUiHostAndPort)
+    DiscoveryService.checkPeriodically(thread.isAlive && masterIsAlive)
+    log.warn(s"Worker is alive: ${thread.isAlive}, master is alive: $masterIsAlive")
   } finally {
     discoveryService.close()
     SparkLauncher.stopSlave()

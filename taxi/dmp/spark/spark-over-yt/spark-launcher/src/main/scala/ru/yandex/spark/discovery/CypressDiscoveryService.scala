@@ -32,7 +32,7 @@ class CypressDiscoveryService(config: YtClientConfiguration,
 
   override def register(id: String, operationId: String, address: Address): Unit = {
     getAddress(id) match {
-      case Some(address) if isAlive(address.hostAndPort) && getOperation(id).exists(_ != operationId) =>
+      case Some(address) if DiscoveryService.isAlive(address.hostAndPort) && getOperation(id).exists(_ != operationId) =>
         throw new IllegalStateException(s"Spark instance with id $id already exists")
       case Some(_) =>
         log.info(s"Spark instance with id $id registered, but is not alive, rewriting id")
@@ -88,7 +88,7 @@ class CypressDiscoveryService(config: YtClientConfiguration,
     val maybeAddress = getAddress(id)
 
     maybeAddress match {
-      case Some(address) if isAlive(address.hostAndPort) => maybeAddress
+      case Some(address) if DiscoveryService.isAlive(address.hostAndPort) => maybeAddress
       case _ =>
         log.info("Sleep 500 milliseconds before next retry")
         Thread.sleep(500)
@@ -107,7 +107,7 @@ class CypressDiscoveryService(config: YtClientConfiguration,
     if (timeout < 0) {
       false
     } else {
-      if (!isAlive(hostPort)) {
+      if (!DiscoveryService.isAlive(hostPort)) {
         Thread.sleep((10 seconds).toMillis)
         waitAlive(hostPort, timeout - (System.currentTimeMillis() - start), retryCount + 1)
       } else {
@@ -120,26 +120,6 @@ class CypressDiscoveryService(config: YtClientConfiguration,
   override def removeAddress(id: String): Unit = {
     val request = new RemoveNode(s"$discoveryPath/$id").setRecursive(true)
     yt.removeNode(request).join()
-  }
-
-  private def isAlive(hostPort: HostAndPort): Boolean = {
-    val socket = new Socket()
-    try {
-      socket.connect(new InetSocketAddress(hostPort.getHost, hostPort.getPort), (5 seconds).toMillis.toInt)
-      true
-    } catch {
-      case _: IOException => false
-    } finally {
-      socket.close()
-    }
-  }
-
-  @tailrec
-  override final def checkPeriodically(hostPort: HostAndPort): Unit = {
-    if (isAlive(hostPort)) {
-      Thread.sleep((10 seconds).toMillis)
-      checkPeriodically(hostPort)
-    }
   }
 
   override def close(): Unit = {
