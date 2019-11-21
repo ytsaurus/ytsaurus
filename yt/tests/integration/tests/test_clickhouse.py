@@ -1908,10 +1908,14 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
                     assert clique.make_direct_query(instance, "select 1") == [{"1": 1}]
 
             proxy_responses = []
-            for i in range(5):
+            for i in range(50):
+                print_debug("Iteration:", i)
                 proxy_responses += [requests.post(url, data="select 1 format JSON")]
                 assert proxy_responses[i].status_code == 200
                 assert proxy_responses[i].json()["data"] == proxy_responses[i - 1].json()["data"]
+                time.sleep(0.05)
+                if banned_count.update().get(verbose=True) == 1:
+                    break
 
             assert proxy_responses[0].json()["data"] == [{"1": 1}]
             assert clique.get_active_instance_count() == 2
@@ -1950,10 +1954,14 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
                 else:
                     assert clique.make_direct_query(instance, "select 1") == [{"1": 1}]
 
-            for i in range(5):
+            for i in range(50):
+                print_debug("Iteration:", i)
                 proxy_responses += [requests.post(url, data="select 1 format JSON")]
                 assert proxy_responses[i + 1].status_code == 200
                 assert proxy_responses[i].json()["data"] == proxy_responses[i + 1].json()["data"]
+                time.sleep(0.05)
+                if banned_count.update().get(verbose=True) == 1:
+                    break
 
             assert proxy_responses[0].json()["data"] == [{"1": 1}]
             assert clique.get_active_instance_count() == 1
@@ -1970,8 +1978,8 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             "interruption_graceful_timeout": 600,
         }
 
-        cache_missed_counter = Metric.at_proxy(self.Env.get_http_proxy_address(), "clickhouse_proxy/clique_cache/missed")
-        force_update_counter = Metric.at_proxy(self.Env.get_http_proxy_address(), "clickhouse_proxy/force_update_count")
+        cache_missed_counter = self._get_proxy_metric("clickhouse_proxy/clique_cache/missed")
+        force_update_counter = self._get_proxy_metric("clickhouse_proxy/force_update_count")
         banned_count = self._get_proxy_metric("clickhouse_proxy/banned_count")
         
         with Clique(2, max_failed_job_count=2, config_patch=patch) as clique:
