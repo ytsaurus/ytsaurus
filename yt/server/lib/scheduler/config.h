@@ -455,6 +455,8 @@ public:
 
     TDuration OperationsUpdatePeriod;
 
+    TDuration OperationsDestroyPeriod;
+
     TTestingOptionsPtr TestingOptions;
 
     NEventLog::TEventLogManagerConfigPtr EventLog;
