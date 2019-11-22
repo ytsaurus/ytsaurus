@@ -463,9 +463,26 @@ std::vector<TSubquery> BuildSubqueries(
             adjustedJobCount);
         rate = adjustedRate;
         jobCount = adjustedJobCount;
+    } else {
+        // Try not to form too small ranges when total data weight is small.
+        auto maxJobCount = inputStripeList->TotalDataWeight / std::max<i64>(1, config->MinDataWeightPerThread) + 1;
+        if (maxJobCount < jobCount) {
+            jobCount = maxJobCount;
+            dataWeightPerJob = std::max<i64>(1, inputStripeList->TotalDataWeight / maxJobCount);
+            YT_LOG_INFO("Query is small and without sampling; forcing new contraints (JobCount: %v, DataWeightPerJob: %v)", jobCount, dataWeightPerJob);
+        }
     }
 
     std::unique_ptr<IChunkPool> chunkPool;
+
+    // TODO(max42): consider introducing new job size constraints to incapsulate all these heuristics.
+
+    constexpr i64 MinSliceDataWeight = 1_MB;
+
+    auto inputSliceDataWeight = std::max<i64>(1, dataWeightPerJob * 0.51);
+    if (inputSliceDataWeight < MinSliceDataWeight) {
+        inputSliceDataWeight = dataWeightPerJob;
+    }
 
     auto jobSizeConstraints = CreateExplicitJobSizeConstraints(
         false /* canAdjustDataWeightPerJob */,
@@ -476,7 +493,7 @@ std::vector<TSubquery> BuildSubqueries(
         1'000'000'000'000ll /* maxDataSlicesPerJob */,
         1_TB /* maxDataWeightPerJob */,
         1_TB /* primaryMaxDataWeightPerJob */,
-        std::max<i64>(1, dataWeightPerJob * 0.26) /* inputSliceDataWeight */,
+        inputSliceDataWeight /* inputSliceDataWeight */,
         std::max<i64>(1, inputStripeList->TotalRowCount / jobCount) /* inputSliceRowCount */,
         std::nullopt /* samplingRate */);
 
