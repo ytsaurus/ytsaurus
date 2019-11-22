@@ -66,11 +66,7 @@ public:
             NApi::NNative::CreateSchemalessMultiChunkReader(
                 Bootstrap_->GetRootClient(),
                 Path_,
-                NApi::TTableReaderOptions {
-                    .EnableTableIndex = false,
-                    .EnableRowIndex = false,
-                    .EnableRangeIndex = false
-                },
+                NApi::TTableReaderOptions(),
                 NTableClient::TNameTable::FromSchema(table->TableSchema),
                 NTableClient::TColumnFilter(table->TableSchema.Columns().size())))
             .ValueOrThrow();
