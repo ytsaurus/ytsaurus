@@ -14,6 +14,8 @@
 #include <yp/server/lib/cluster/pod_disruption_budget.h>
 #include <yp/server/lib/cluster/pod_set.h>
 
+#include <contrib/libs/protobuf/util/time_util.h>
+
 namespace NYP::NServer::NScheduler {
 
 using namespace NServer::NMaster;
@@ -141,9 +143,10 @@ class TPodDisruptionBudgetController::TImpl
     : public TRefCounted
 {
 public:
-    TImpl(TBootstrap* bootstrap, TPodDisruptionBudgetControllerConfigPtr config)
+    TImpl(TBootstrap* bootstrap, TPodDisruptionBudgetControllerConfigPtr config, NProfiling::TProfiler profiler)
         : Bootstrap_(bootstrap)
         , Config_(std::move(config))
+        , Profiler_(std::move(profiler))
         , UpdateQueue_(New<TPodDisruptionBudgetUpdateQueue>())
         , UpdateRateLimiter_(New<TRateLimiter>(Config_->UpdatesPerIteration))
     {
@@ -164,12 +167,24 @@ public:
 private:
     TBootstrap* const Bootstrap_;
     const TPodDisruptionBudgetControllerConfigPtr Config_;
+    const NProfiling::TProfiler Profiler_;
 
     NObjects::TTimestamp StatisticsTimestamp_ = NObjects::NullTimestamp;
     THashMap<TObjectId, TPodAvailabilityStatistics> StatisticsPerPodDisruptionBudgetUuid_;
 
     TPodDisruptionBudgetUpdateQueuePtr UpdateQueue_;
     TRateLimiterPtr UpdateRateLimiter_;
+
+    struct TProfiling
+    {
+        TProfiling()
+            : UpdateLag("/update_lag")
+        { }
+
+        NProfiling::TSimpleGauge UpdateLag;
+    };
+
+    TProfiling Profiling_;
 
     DECLARE_THREAD_AFFINITY_SLOT(SchedulerLoopThread);
 
@@ -200,8 +215,9 @@ private:
 
         YT_LOG_DEBUG("Building pod disruption budget update queue");
 
+        const auto& podDisruptionBudgets = cluster->GetPodDisruptionBudgets();
         int enqueuedItemCount = 0;
-        for (auto* podDisruptionBudget : cluster->GetPodDisruptionBudgets()) {
+        for (auto* podDisruptionBudget : podDisruptionBudgets) {
             TPodDisruptionBudgetUpdateQueue::TItem item(
                 podDisruptionBudget->GetId(),
                 podDisruptionBudget->Uuid());
@@ -215,6 +231,16 @@ private:
         YT_LOG_DEBUG("Spawning pod disruption budget updaters");
 
         UpdateRateLimiter_->Reset();
+
+        YT_LOG_DEBUG("Computing update lag of pod disruption budgets");
+
+        auto updateLag = ComputeUpdateLag(podDisruptionBudgets);
+
+        YT_LOG_DEBUG("Computed update lag (UpdateLag: %v, PodDisruptionBudgetCount: %v)",
+            updateLag,
+            podDisruptionBudgets.size());
+
+        Profiler_.Update(Profiling_.UpdateLag, updateLag.MicroSeconds());
 
         std::vector<TFuture<void>> asyncResults;
         asyncResults.reserve(Config_->UpdateConcurrency);
@@ -315,16 +341,38 @@ private:
             }
         }
     }
+
+    TDuration ComputeUpdateLag(const std::vector<NCluster::TPodDisruptionBudget*>& podDisruptionBudgets)
+    {
+        auto nullTimestamp = google::protobuf::util::TimeUtil::MicrosecondsToTimestamp(0);
+        TInstant startMonitoring = TInstant::Now();
+        TDuration updateLag;
+
+        for (const auto* podDisruptionBudget : podDisruptionBudgets) {
+            TInstant lastUpdateTime = podDisruptionBudget->CreationTime();
+            auto statusLastUpdateTime = podDisruptionBudget->Status().last_update_time();
+
+            if (statusLastUpdateTime != nullTimestamp) {
+                lastUpdateTime = TInstant::MicroSeconds(google::protobuf::util::TimeUtil::TimestampToMicroseconds(
+                    statusLastUpdateTime));
+            }
+            updateLag = std::max(updateLag, startMonitoring - lastUpdateTime);
+        }
+
+        return updateLag;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TPodDisruptionBudgetController::TPodDisruptionBudgetController(
     TBootstrap* bootstrap,
-    TPodDisruptionBudgetControllerConfigPtr config)
+    TPodDisruptionBudgetControllerConfigPtr config,
+    NProfiling::TProfiler profiler)
     : Impl_(New<TPodDisruptionBudgetController::TImpl>(
         bootstrap,
-        std::move(config)))
+        std::move(config),
+        std::move(profiler)))
 { }
 
 void TPodDisruptionBudgetController::Run(const NCluster::TClusterPtr& cluster)

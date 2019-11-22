@@ -271,6 +271,7 @@ struct TSelectObjectTraits<TPodDisruptionBudget>
             "/meta/id",
             "/labels",
             "/meta/uuid",
+            "/meta/creation_time",
             "/spec",
             "/status"};
         return paths;
@@ -285,6 +286,7 @@ struct TParseObjectTraits<TPodDisruptionBudget>
         NObjects::TObjectId id;
         NYson::TYsonString labels;
         NObjects::TObjectId uuid;
+        ui64 creationTime;
         NClient::NApi::NProto::TPodDisruptionBudgetSpec spec;
         NClient::NApi::NProto::TPodDisruptionBudgetStatus status;
 
@@ -293,6 +295,7 @@ struct TParseObjectTraits<TPodDisruptionBudget>
             &id,
             &labels,
             &uuid,
+            &creationTime,
             &spec,
             &status);
 
@@ -300,6 +303,7 @@ struct TParseObjectTraits<TPodDisruptionBudget>
             std::move(id),
             std::move(labels),
             std::move(uuid),
+            creationTime,
             std::move(spec),
             std::move(status));
     }

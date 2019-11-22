@@ -795,7 +795,8 @@ private:
             try {
                 context.PodDisruptionBudgetController = New<TPodDisruptionBudgetController>(
                     Bootstrap_,
-                    context.Config->PodDisruptionBudgetController);
+                    context.Config->PodDisruptionBudgetController,
+                    Profiler.AppendPath("/pod_disruption_budget_controller"));
             } catch (const std::exception& ex) {
                 context.PodDisruptionBudgetController = nullptr;
                 THROW_ERROR_EXCEPTION("Error creating pod disruption budget controller")

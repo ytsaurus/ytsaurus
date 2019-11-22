@@ -2,9 +2,10 @@ from .conftest import (
     DEFAULT_POD_SET_SPEC,
     are_pods_assigned,
     assert_over_time,
-    create_nodes,
-    create_pod_with_boilerplate,
     attach_pod_set_to_disruption_budget,
+    create_nodes,
+    create_pod_set,
+    create_pod_with_boilerplate,
 )
 
 from yp.common import YtResponseError, YpNoSuchObjectError, wait
@@ -217,21 +218,21 @@ class TestPodDisruptionBudgets(object):
                 selectors=["/spec/max_pods_unavailable"],
             )
 
-        def create_pod_set(pod_disruption_budget_id=None):
+        def _create_pod_set(pod_disruption_budget_id=None):
             if pod_disruption_budget_id is None:
                 attributes = None
             else:
                 attributes = dict(spec=dict(pod_disruption_budget_id=pod_disruption_budget_id))
             return yp_client.create_object("pod_set", attributes=attributes)
 
-        def get_pod_set_disruption_budget(pod_set_id):
+        def _get_pod_set_disruption_budget(pod_set_id):
             return yp_client.get_object(
                 "pod_set",
                 pod_set_id,
                 selectors=["/spec/pod_disruption_budget_id"],
             )[0]
 
-        def update_pod_set_disruption_budget(pod_set_id, pod_disruption_budget_id):
+        def _update_pod_set_disruption_budget(pod_set_id, pod_disruption_budget_id):
             yp_client.update_object(
                 "pod_set",
                 pod_set_id,
@@ -244,23 +245,23 @@ class TestPodDisruptionBudgets(object):
         # Pod disruption budget with budgeting pod sets cannot be removed.
         pod_disruption_budget_id = yp_client.create_object("pod_disruption_budget")
         for _ in xrange(2):
-            pod_set_id = create_pod_set(pod_disruption_budget_id)
+            pod_set_id = _create_pod_set(pod_disruption_budget_id)
             with pytest.raises(YtResponseError):
                 yp_client.remove_object("pod_disruption_budget", pod_disruption_budget_id)
-            assert get_pod_set_disruption_budget(pod_set_id) == pod_disruption_budget_id
+            assert _get_pod_set_disruption_budget(pod_set_id) == pod_disruption_budget_id
 
         # Pod set cannot be budgeted by non existent pod disruption budget.
         nonexistent_id = "nonexistent"
         with pytest.raises(YpNoSuchObjectError):
-            create_pod_set(nonexistent_id)
+            _create_pod_set(nonexistent_id)
 
         # Pod set disruption budget is optional.
-        pod_set_id = create_pod_set()
-        assert get_pod_set_disruption_budget(pod_set_id) == ""
+        pod_set_id = _create_pod_set()
+        assert _get_pod_set_disruption_budget(pod_set_id) == ""
 
         # Pod set disruption budget can be updated.
-        update_pod_set_disruption_budget(pod_set_id, pod_disruption_budget_id)
-        update_pod_set_disruption_budget(pod_set_id, yp_client.create_object("pod_disruption_budget"))
+        _update_pod_set_disruption_budget(pod_set_id, pod_disruption_budget_id)
+        _update_pod_set_disruption_budget(pod_set_id, yp_client.create_object("pod_disruption_budget"))
 
 
 def get_status(yp_client, pod_disruption_budget_id, timestamp=None):
@@ -445,6 +446,64 @@ class TestPodDisruptionBudgetController(object):
                 value = expected_value_per_eviction[eviction_index + 1]
                 wait(lambda: check(value))
                 assert_over_time(lambda: check(value))
+
+    def test_pod_disruption_budget_controller_profiling(self, yp_env):
+        yp_client = yp_env.yp_client
+        orchid = yp_env.create_orchid_client()
+
+        def _prepare_pod_set_with_disruption_budget(pod_count):
+            pod_disruption_budget_id = yp_client.create_object(
+                "pod_disruption_budget",
+                attributes=dict(spec=dict(
+                    max_pods_unavailable=2,
+                    max_pod_disruptions_between_syncs=1,
+                )),
+            )
+            pod_set_id = create_pod_set(yp_client)
+            attach_pod_set_to_disruption_budget(yp_client, pod_set_id, pod_disruption_budget_id)
+            pod_ids = [
+                create_pod_with_boilerplate(
+                    yp_client,
+                    pod_set_id,
+                    spec=dict(enable_scheduling=True),
+                )
+                for _ in xrange(pod_count)
+            ]
+            return pod_set_id, pod_ids
+
+        start_time = time_module.time()
+
+        def _get_update_lags():
+            master_instance = orchid.get_instances()[0]
+            samples = orchid.get(master_instance, "/profiling/scheduler/pod_disruption_budget_controller/update_lag")
+            return [sample["value"] for sample in samples]
+
+        NODE_COUNT = 2
+        POD_SET_COUNT = 10
+        POD_COUNT_PER_POD_SET = 5
+
+        node_ids = create_nodes(yp_client, NODE_COUNT)
+        pod_set_ids = []
+        pod_ids = []
+
+        for _ in xrange(POD_SET_COUNT):
+            new_pod_set_id, new_pod_ids = _prepare_pod_set_with_disruption_budget(POD_COUNT_PER_POD_SET)
+            pod_set_ids.append(new_pod_set_id)
+            pod_ids.extend(new_pod_ids)
+
+        assert len(pod_set_ids) == POD_SET_COUNT
+        assert len(pod_ids) == POD_SET_COUNT * POD_COUNT_PER_POD_SET
+
+        wait(lambda: are_pods_assigned(yp_client, pod_ids))
+        time_module.sleep(30)
+
+        update_lags = _get_update_lags()
+
+        update_lag_silly_threshold = (time_module.time() - start_time) * 1000000
+        assert all(map(lambda value: value >= 0 and value <= update_lag_silly_threshold, update_lags))
+
+        positive_update_lags = list(filter(lambda value: value > 0, update_lags))
+        assert len(positive_update_lags) > 0
 
 
 def get_pod_eviction_state(yp_client, pod_id):

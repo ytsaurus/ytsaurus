@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/core/profiling/profiler.h>
+
 namespace NYP::NServer::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -12,7 +14,8 @@ class TPodDisruptionBudgetController
 public:
     TPodDisruptionBudgetController(
         NMaster::TBootstrap* bootstrap,
-        TPodDisruptionBudgetControllerConfigPtr config);
+        TPodDisruptionBudgetControllerConfigPtr config,
+        NProfiling::TProfiler profiler);
 
     void Run(const NCluster::TClusterPtr& cluster);
 

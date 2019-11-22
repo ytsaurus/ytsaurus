@@ -7,6 +7,8 @@
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref_tracked.h>
 
+#include <util/datetime/base.h>
+
 namespace NYP::NServer::NCluster {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -22,10 +24,13 @@ public:
         TObjectId id,
         NYT::NYson::TYsonString labels,
         TObjectId uuid,
+        ui64 creationTime,
         NClient::NApi::NProto::TPodDisruptionBudgetSpec spec,
         NClient::NApi::NProto::TPodDisruptionBudgetStatus status);
 
     DEFINE_BYREF_RO_PROPERTY(TObjectId, Uuid);
+    DEFINE_BYREF_RO_PROPERTY(TInstant, CreationTime);
+
     DEFINE_BYREF_RO_PROPERTY(NClient::NApi::NProto::TPodDisruptionBudgetSpec, Spec);
     DEFINE_BYREF_RO_PROPERTY(NClient::NApi::NProto::TPodDisruptionBudgetStatus, Status);
 };

@@ -379,10 +379,11 @@ TString TClusterReader::GetObjectQueryString<TPodDisruptionBudget>()
 {
     const auto& ytConnector = Bootstrap_->GetYTConnector();
     return Format(
-        "[%v], [%v], [%v], [%v], [%v] from [%v] where is_null([%v])",
+        "[%v], [%v], [%v], [%v], [%v], [%v] from [%v] where is_null([%v])",
         PodDisruptionBudgetsTable.Fields.Meta_Id.Name,
         PodDisruptionBudgetsTable.Fields.Labels.Name,
         PodDisruptionBudgetsTable.Fields.Meta_Etc.Name,
+        PodDisruptionBudgetsTable.Fields.Meta_CreationTime.Name,
         PodDisruptionBudgetsTable.Fields.Spec.Name,
         PodDisruptionBudgetsTable.Fields.Status.Name,
         ytConnector->GetTablePath(&PodDisruptionBudgetsTable),
@@ -396,6 +397,7 @@ std::unique_ptr<TPodDisruptionBudget> TClusterReader::ParseObjectFromRow<TPodDis
     TObjectId id;
     TYsonString labels;
     NServer::NObjects::NProto::TMetaEtc metaEtc;
+    ui64 creationTime;
     NClient::NApi::NProto::TPodDisruptionBudgetSpec spec;
     NClient::NApi::NProto::TPodDisruptionBudgetStatus status;
     FromUnversionedRow(
@@ -403,6 +405,7 @@ std::unique_ptr<TPodDisruptionBudget> TClusterReader::ParseObjectFromRow<TPodDis
         &id,
         &labels,
         &metaEtc,
+        &creationTime,
         &spec,
         &status);
 
@@ -410,6 +413,7 @@ std::unique_ptr<TPodDisruptionBudget> TClusterReader::ParseObjectFromRow<TPodDis
         std::move(id),
         std::move(labels),
         std::move(*metaEtc.mutable_uuid()),
+        creationTime,
         std::move(spec),
         std::move(status));
 }
