@@ -411,6 +411,9 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("finished_operation_job_storing_timeout", FinishedOperationJobStoringTimeout)
         .Default(TDuration::Seconds(10));
 
+    RegisterParameter("operations_destroy_period", OperationsDestroyPeriod)
+        .Default(TDuration::Seconds(1));
+
     RegisterParameter("testing_options", TestingOptions)
         .DefaultNew();
 

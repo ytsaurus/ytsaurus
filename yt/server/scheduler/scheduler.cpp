@@ -310,6 +310,12 @@ public:
             BIND(&TImpl::CheckUnschedulableOperations, MakeWeak(this)),
             Config_->OperationUnschedulableCheckPeriod);
         StrategyUnschedulableOperationsChecker_->Start();
+
+        OperationsDestroyerExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
+            BIND(&TImpl::PostOperationsToDestroy, MakeWeak(this)),
+            Config_->OperationsDestroyPeriod);
+        OperationsDestroyerExecutor_->Start();
     }
 
     const NApi::NNative::IClientPtr& GetMasterClient() const
@@ -1423,6 +1429,7 @@ private:
     TPeriodicExecutorPtr StrategyUnschedulableOperationsChecker_;
     TPeriodicExecutorPtr TransientOperationQueueScanPeriodExecutor_;
     TPeriodicExecutorPtr WaitingForPoolOperationScanPeriodExecutor_;
+    TPeriodicExecutorPtr OperationsDestroyerExecutor_;
 
     TString ServiceAddress_;
 
@@ -1464,6 +1471,8 @@ private:
 
     TIntrusivePtr<NYTree::ICachedYPathService> StaticOrchidService_;
     TIntrusivePtr<NYTree::TServiceCombiner> CombinedOrchidService_;
+
+    std::vector<TOperationPtr> OperationsToDestroy_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -2139,6 +2148,7 @@ private:
             UpdateExecNodeDescriptorsExecutor_->SetPeriod(Config_->ExecNodeDescriptorsUpdatePeriod);
             JobReporterWriteFailuresChecker_->SetPeriod(Config_->JobReporterIssuesCheckPeriod);
             StrategyUnschedulableOperationsChecker_->SetPeriod(Config_->OperationUnschedulableCheckPeriod);
+            OperationsDestroyerExecutor_->SetPeriod(Config_->OperationsDestroyPeriod);
             if (TransientOperationQueueScanPeriodExecutor_) {
                 TransientOperationQueueScanPeriodExecutor_->SetPeriod(Config_->TransientOperationQueueScanPeriod);
             }
@@ -2747,6 +2757,7 @@ private:
             UnregisterOperation(operation);
         }
         operation->Cancel();
+        OperationsToDestroy_.push_back(operation);
     }
 
     void ProcessUnregisterOperationResult(
@@ -3538,6 +3549,27 @@ private:
                         it->second.OperationId);
                 }
             }
+        }
+    }
+
+    void PostOperationsToDestroy()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        Y_UNUSED(WaitFor(BIND(&TImpl::TryDestroyOperations, MakeStrong(this), Passed(std::move(OperationsToDestroy_)))
+            .AsyncVia(TDispatcher::Get()->GetHeavyInvoker())
+            .Run()));
+    }
+
+    void TryDestroyOperations(std::vector<TOperationPtr>&& operations)
+    {
+        for (auto& operation : operations) {
+            if (operation->GetRefCount() == 1) {
+                YT_LOG_DEBUG("Destroying operation %Qv now", operation->GetId());
+            } else {
+                YT_LOG_DEBUG("Operation %Qv is still in use and will be destroyed later", operation->GetId());
+            }
+            operation.Reset();
         }
     }
 
