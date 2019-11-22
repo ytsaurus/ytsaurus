@@ -1,3 +1,4 @@
+test_download_core_dump.py
 test_operations_pickling.py
 test_user_statistics.py
 test_tmpfs.py
