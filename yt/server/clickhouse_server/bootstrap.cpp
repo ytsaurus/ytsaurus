@@ -20,10 +20,14 @@
 
 #include <yt/ytlib/program/build_attributes.h>
 #include <yt/ytlib/program/configure_singletons.h>
+
 #include <yt/ytlib/api/connection.h>
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/connection.h>
 #include <yt/ytlib/api/native/client_cache.h>
+
+#include <yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
+
 #include <yt/ytlib/orchid/orchid_service.h>
 
 #include <yt/client/api/client.h>
@@ -198,6 +202,8 @@ void TBootstrap::DoRun()
     Connection_ = NApi::NNative::CreateConnection(
         Config_->ClusterConnection,
         connectionOptions);
+    // Kick-start node directory synchronizing; otherwise it will start only with first query.
+    Connection_->GetNodeDirectorySynchronizer()->Start();
 
     ClientCache_ = New<NApi::NNative::TClientCache>(Config_->ClientCache, Connection_);
 
