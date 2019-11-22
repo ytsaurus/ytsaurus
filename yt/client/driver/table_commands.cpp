@@ -69,8 +69,10 @@ void TReadTableCommand::DoExecute(ICommandContextPtr context)
         Unordered,
         StartRowIndexOnly,
         Options.OmitInaccessibleColumns);
-
     Options.Ping = true;
+    Options.EnableTableIndex = ControlAttributes->EnableTableIndex;
+    Options.EnableRowIndex = ControlAttributes->EnableRowIndex;
+    Options.EnableRangeIndex = ControlAttributes->EnableRangeIndex;
     Options.Config = UpdateYsonSerializable(
         context->GetConfig()->TableReader,
         TableReader);
