@@ -452,6 +452,7 @@ void TBootstrap::DoInitialize()
     JobProxyConfigTemplate_->JobThrottler = Config_->JobThrottler;
 
     JobProxyConfigTemplate_->ClusterConnection = CloneYsonSerializable(Config_->ClusterConnection);
+    JobProxyConfigTemplate_->ClusterConnection->MasterCellDirectorySynchronizer->RetryPeriod = std::nullopt;
 
     auto patchMasterConnectionConfig = [&] (const NNative::TMasterConnectionConfigPtr& config) {
         config->Addresses = {localAddress};
