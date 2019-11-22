@@ -4,6 +4,7 @@ import java.io.IOException
 import java.net.{InetSocketAddress, Socket}
 
 import com.google.common.net.HostAndPort
+import org.apache.log4j.Logger
 
 import scala.annotation.tailrec
 import scala.concurrent.duration._
@@ -12,20 +13,40 @@ import scala.language.postfixOps
 trait DiscoveryService extends AutoCloseable {
   def register(id: String, operationId: String, address: Address): Unit
 
+  def registerSHS(id: String, address: Address): Unit
+
   def getAddress(id: String): Option[Address]
 
   def waitAddress(id: String, timeout: Duration): Option[Address]
+
+  def waitAlive(hostPort: HostAndPort, timeout: Duration): Boolean
 
   def removeAddress(id: String): Unit
 }
 
 object DiscoveryService {
+  private val log = Logger.getLogger(getClass)
+
   @tailrec
-  final def checkPeriodically(p: => Boolean): Unit = {
-    if (p) {
-      Thread.sleep((10 seconds).toMillis)
-      checkPeriodically(p)
+  final def waitFor[T](f: => Option[T], timeout: Long, retryCount: Int = 2): Option[T] = {
+    val start = System.currentTimeMillis()
+
+    f match {
+      case r @ Some(_) => r
+      case _ =>
+        log.info("Sleep 5 seconds before next retry")
+        Thread.sleep(5000)
+        log.info(s"Retry ($retryCount)")
+        if (timeout > 0) {
+          waitFor(f, timeout - (System.currentTimeMillis() - start), retryCount + 1)
+        } else {
+          None
+        }
     }
+  }
+
+  def waitFor(f: => Boolean, timeout: Duration): Boolean = {
+    waitFor(Option(true).filter(_ => f), timeout.toMillis).getOrElse(false)
   }
 
   def isAlive(hostPort: HostAndPort): Boolean = {
@@ -41,16 +62,16 @@ object DiscoveryService {
   }
 }
 
-case class Address(host: String, port: Int, webUiPort: Int, restPort: Int) {
+case class Address(host: String, port: Int, webUiPort: Option[Int], restPort: Option[Int]) {
   def hostAndPort: HostAndPort = HostAndPort.fromParts(host, port)
 
-  def webUiHostAndPort: HostAndPort = HostAndPort.fromParts(host, webUiPort)
+  def webUiHostAndPort: HostAndPort = HostAndPort.fromParts(host, webUiPort.get)
 
-  def restHostAndPort: HostAndPort = HostAndPort.fromParts(host, restPort)
+  def restHostAndPort: HostAndPort = HostAndPort.fromParts(host, restPort.get)
 }
 
 object Address {
   def apply(hostAndPort: HostAndPort, webUiHostAndPort: HostAndPort, restHostAndPort: HostAndPort): Address = {
-    Address(hostAndPort.getHost, hostAndPort.getPort, webUiHostAndPort.getPort, restHostAndPort.getPort)
+    Address(hostAndPort.getHost, hostAndPort.getPort, Some(webUiHostAndPort.getPort), Some(restHostAndPort.getPort))
   }
 }

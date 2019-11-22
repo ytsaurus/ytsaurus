@@ -27,6 +27,9 @@ spark_env = os.environ.copy()
 spark_args.append("--conf")
 spark_args.append("spark.hadoop.yt.proxy={}".format(proxy))
 
+spark_args.append("--conf")
+spark_args.append("spark.eventLog.dir=yt:/{}/logs/{}".format(working_dir, args.id))
+
 if args.auto_auth:
     with open("{0}/.yt/token".format(os.getenv("HOME"))) as f:
         token = f.readline().strip()
