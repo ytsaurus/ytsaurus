@@ -19,6 +19,10 @@ using namespace NObjectClient;
 
 ///////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = CellMasterClientLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCellDirectorySynchronizer::TImpl
     : public TRefCounted
 {
@@ -139,11 +143,20 @@ private:
     void OnSync()
     {
         TError error;
+        std::optional<TDuration> period;
         try {
             DoSync();
+
+            period = Config_->SyncPeriod;
+            YT_LOG_DEBUG("Synchronizing master cell directory succeeded, next sync in %v", period);
         } catch (const std::exception& ex) {
-            error = TError("Synchronizing master cell directory failed") << TError(ex);
+            error = TError("Synchronizing master cell directory failed") << ex;
+
+            period = Config_->RetryPeriod ? Config_->RetryPeriod : Config_->SyncPeriod;
+            YT_LOG_WARNING(error, "Synchronizing master cell directory failed, next sync in %v", period);
         }
+
+        SyncExecutor_->SetPeriod(period);
 
         auto nextSyncPromise = NextSyncPromise_;
         // Don't drop the very first recent sync promise.
