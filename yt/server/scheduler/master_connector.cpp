@@ -373,24 +373,6 @@ public:
         CustomGlobalWatcherRecords_[type] = TPeriodicExecutorRecord{type, std::move(requester), std::move(handler), period};
     }
 
-    void AddOperationWatcherRequester(const TOperationPtr& operation, TWatcherRequester requester)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
-
-        auto* list = GetOrCreateWatcherList(operation);
-        list->WatcherRequesters.push_back(requester);
-    }
-
-    void AddOperationWatcherHandler(const TOperationPtr& operation, TWatcherHandler handler)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
-
-        auto* list = GetOrCreateWatcherList(operation);
-        list->WatcherHandlers.push_back(handler);
-    }
-
     void UpdateConfig(const TSchedulerConfigPtr& config)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -468,19 +450,6 @@ private:
     };
 
     TIntrusivePtr<TUpdateExecutor<TOperationId, TOperationNodeUpdate>> OperationNodesUpdateExecutor_;
-
-    struct TWatcherList
-    {
-        explicit TWatcherList(TOperationPtr operation)
-            : Operation(std::move(operation))
-        { }
-
-        TOperationPtr Operation;
-        std::vector<TWatcherRequester> WatcherRequesters;
-        std::vector<TWatcherHandler>   WatcherHandlers;
-    };
-
-    THashMap<TOperationId, TWatcherList> WatcherLists;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -1246,8 +1215,6 @@ private:
 
         LockTransaction_.Reset();
 
-        ClearWatcherLists();
-
         StopPeriodicActivities();
 
         if (CancelableContext_) {
@@ -1315,30 +1282,6 @@ private:
             executor.Reset();
         }
     }
-
-
-    TWatcherList* GetOrCreateWatcherList(const TOperationPtr& operation)
-    {
-        auto it = WatcherLists.find(operation->GetId());
-        if (it == WatcherLists.end()) {
-            it = WatcherLists.insert(std::make_pair(
-                operation->GetId(),
-                TWatcherList(operation))).first;
-        }
-        return &it->second;
-    }
-
-    TWatcherList* FindWatcherList(const TOperationPtr& operation)
-    {
-        auto it = WatcherLists.find(operation->GetId());
-        return it == WatcherLists.end() ? nullptr : &it->second;
-    }
-
-    void ClearWatcherLists()
-    {
-        WatcherLists.clear();
-    }
-
 
     void OnOperationUpdateFailed(const TError& error)
     {
@@ -1528,43 +1471,13 @@ private:
 
         YT_LOG_DEBUG("Updating watchers");
 
-        // Global watchers.
-        {
-            auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
-            for (const auto& requester : GlobalWatcherRequesters_) {
-                requester.Run(batchReq);
-            }
-            batchReq->Invoke().Subscribe(
-                BIND(&TImpl::OnGlobalWatchersUpdated, MakeStrong(this))
-                    .Via(GetCancelableControlInvoker(EControlQueue::PeriodicActivity)));
+        auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
+        for (const auto& requester : GlobalWatcherRequesters_) {
+            requester.Run(batchReq);
         }
-
-        // Purge obsolete watchers.
-        {
-            auto it = WatcherLists.begin();
-            while (it != WatcherLists.end()) {
-                auto jt = it++;
-                const auto& list = jt->second;
-                if (list.Operation->IsFinishedState()) {
-                    WatcherLists.erase(jt);
-                }
-            }
-        }
-
-        // Per-operation watchers.
-        for (const auto& [operationId, list] : WatcherLists) {
-            auto operation = list.Operation;
-            if (operation->GetState() != EOperationState::Running)
-                continue;
-
-            auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
-            for (auto requester : list.WatcherRequesters) {
-                requester.Run(batchReq);
-            }
-            batchReq->Invoke().Subscribe(
-                BIND(&TImpl::OnOperationWatchersUpdated, MakeStrong(this), operation)
-                    .Via(GetCancelableControlInvoker(EControlQueue::PeriodicActivity)));
-        }
+        Y_UNUSED(WaitFor(batchReq->Invoke().Apply(
+            BIND(&TImpl::OnGlobalWatchersUpdated, MakeStrong(this))
+                .AsyncVia(GetCancelableControlInvoker(EControlQueue::PeriodicActivity)))));
     }
 
     void OnGlobalWatchersUpdated(const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
@@ -1584,36 +1497,6 @@ private:
 
         YT_LOG_DEBUG("Global watchers updated");
     }
-
-    void OnOperationWatchersUpdated(
-        const TOperationPtr& operation,
-        const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        YT_VERIFY(State_ == EMasterConnectorState::Connected);
-
-        if (!batchRspOrError.IsOK()) {
-            YT_LOG_ERROR(batchRspOrError, "Error updating operation watchers (OperationId: %v)",
-                operation->GetId());
-            return;
-        }
-
-        if (operation->GetState() != EOperationState::Running)
-            return;
-
-        auto* list = FindWatcherList(operation);
-        if (!list)
-            return;
-
-        const auto& batchRsp = batchRspOrError.Value();
-        for (auto handler : list->WatcherHandlers) {
-            handler.Run(batchRsp);
-        }
-
-        YT_LOG_DEBUG("Operation watchers updated (OperationId: %v)",
-            operation->GetId());
-    }
-
 
     void UpdateAlerts()
     {
@@ -1795,16 +1678,6 @@ void TMasterConnector::SetCustomGlobalWatcher(EWatcherType type, TWatcherRequest
     Impl_->SetCustomGlobalWatcher(type, std::move(requester), std::move(handler), period);
 }
 
-void TMasterConnector::AddOperationWatcherRequester(const TOperationPtr& operation, TWatcherRequester requester)
-{
-    Impl_->AddOperationWatcherRequester(operation, requester);
-}
-
-void TMasterConnector::AddOperationWatcherHandler(const TOperationPtr& operation, TWatcherHandler handler)
-{
-    Impl_->AddOperationWatcherHandler(operation, handler);
-}
-
 DELEGATE_SIGNAL(TMasterConnector, void(), MasterConnecting, *Impl_);
 DELEGATE_SIGNAL(TMasterConnector, void(const TMasterHandshakeResult& result), MasterHandshake, *Impl_);
 DELEGATE_SIGNAL(TMasterConnector, void(), MasterConnected, *Impl_);
@@ -1813,4 +1686,3 @@ DELEGATE_SIGNAL(TMasterConnector, void(), MasterDisconnected, *Impl_);
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler
-
