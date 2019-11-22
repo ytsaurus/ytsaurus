@@ -1,8 +1,5 @@
 package ru.yandex.spark.discovery
 
-import java.io.IOException
-import java.net.{InetSocketAddress, Socket}
-
 import com.google.common.net.HostAndPort
 import org.apache.log4j.Logger
 import org.joda.time.{Duration => JDuration}
@@ -30,6 +27,8 @@ class CypressDiscoveryService(config: YtClientConfiguration,
 
   private def operationPath(id: String): String = s"$discoveryPath/$id/operation"
 
+  private def shsPath(id: String): String = s"$discoveryPath/$id/shs"
+
   override def register(id: String, operationId: String, address: Address): Unit = {
     getAddress(id) match {
       case Some(address) if DiscoveryService.isAlive(address.hostAndPort) && getOperation(id).exists(_ != operationId) =>
@@ -56,6 +55,14 @@ class CypressDiscoveryService(config: YtClientConfiguration,
     yt.commitTransaction(transaction, true)
   }
 
+
+  override def registerSHS(id: String, address: Address): Unit = {
+    val tm = new TransactionManager(yt)
+    val transaction = tm.start(JDuration.standardMinutes(1)).join()
+    createNode(s"${shsPath(id)}/${address.hostAndPort}", transaction)
+    yt.commitTransaction(transaction, true)
+  }
+
   private def createNode(path: String, transaction: GUID): Unit = {
     val request = new CreateNode(path, ObjectType.MapNode)
       .setRecursive(true)
@@ -79,30 +86,15 @@ class CypressDiscoveryService(config: YtClientConfiguration,
   }.toOption
 
   override def waitAddress(id: String, timeout: Duration): Option[Address] = {
-    waitAddress(id, timeout.toMillis)
+    DiscoveryService.waitFor(getAddress(id).filter(a => DiscoveryService.isAlive(a.hostAndPort)), timeout.toMillis)
+  }
+
+  override def waitAlive(hostPort: HostAndPort, timeout: Duration): Boolean = {
+    waitAlive(hostPort, timeout.toMillis)
   }
 
   @tailrec
-  private def waitAddress(id: String, timeout: Long, retryCount: Int = 2): Option[Address] = {
-    val start = System.currentTimeMillis()
-    val maybeAddress = getAddress(id)
-
-    maybeAddress match {
-      case Some(address) if DiscoveryService.isAlive(address.hostAndPort) => maybeAddress
-      case _ =>
-        log.info("Sleep 500 milliseconds before next retry")
-        Thread.sleep(500)
-        log.info(s"Retry ($retryCount)")
-        if (timeout > 0) {
-          waitAddress(id, timeout - (System.currentTimeMillis() - start), retryCount + 1)
-        } else {
-          None
-        }
-    }
-  }
-
-  @tailrec
-  final def waitAlive(hostPort: HostAndPort, timeout: Long, retryCount: Int = 2): Boolean = {
+  private def waitAlive(hostPort: HostAndPort, timeout: Long, retryCount: Int = 2): Boolean = {
     val start = System.currentTimeMillis()
     if (timeout < 0) {
       false
