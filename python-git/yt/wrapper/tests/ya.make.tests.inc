@@ -60,6 +60,7 @@ RESOURCE_FILES(
     PREFIX yt_python_test/
     ../files/accumulate_c.py
     ../files/bin.cpp
+    ../files/bin_core_crash.cpp
     ../files/capitalize_b.py
     ../files/collect.py
     ../files/driver_catch_sigint.py

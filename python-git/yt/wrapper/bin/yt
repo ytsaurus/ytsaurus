@@ -11,7 +11,8 @@ from yt.wrapper.common import chunk_iter_stream, MB, \
 from yt.wrapper.cli_helpers import write_silently, run_main, ParseStructuredArgument
 from yt.wrapper.default_config import get_default_config
 from yt.wrapper.spec_builders import MapSpecBuilder, ReduceSpecBuilder, MapReduceSpecBuilder, EraseSpecBuilder, \
-                                     MergeSpecBuilder, SortSpecBuilder, JoinReduceSpecBuilder, RemoteCopySpecBuilder, VanillaSpecBuilder
+                                     MergeSpecBuilder, SortSpecBuilder, JoinReduceSpecBuilder, RemoteCopySpecBuilder, \
+                                     VanillaSpecBuilder
 import yt.wrapper.job_tool as yt_job_tool
 import yt.wrapper.completers as completers
 import yt.json_wrapper as json
@@ -52,7 +53,8 @@ Job commands:
     get-job-stderr, get-job-input, get-job-input-paths,
     run-job-shell, abort-job, get-job, list-jobs
 Other commands:
-    transform, show-spec, show-default-config'''
+    transform, show-spec, show-default-config
+    download-core-dump'''
 
 EPILOG = '''Examples:
 
@@ -263,8 +265,8 @@ def add_read_from_arguments(parser):
     parser.add_argument("--cache-sticky-group-size", type=int, help='Size of sticky group size for read_from="cache" mode')
 
 @copy_docstring_from(yt.exists)
-def exists(**args):
-    print("true" if yt.exists(**args) else "false")
+def exists(**kwargs):
+    print("true" if yt.exists(**kwargs) else "false")
 
 def add_exists_parser(add_parser):
     parser = add_parser("exists", exists)
@@ -296,23 +298,23 @@ def formatted_print(obj, path, long_format, recursive_resource_usage):
         print(obj)
 
 @copy_docstring_from(yt.list)
-def list(**args):
-    list_args = dict(args)
+def list(**kwargs):
+    list_args = dict(kwargs)
     list_args.pop("long_format")
     list_args.pop("recursive_resource_usage")
-    if args["long_format"]:
-        assert args["format"] is None
+    if kwargs["long_format"]:
+        assert kwargs["format"] is None
         list_args["attributes"] = LONG_FORMAT_ATTRIBUTES
     list = yt.list(**list_args)
-    if args["format"] is None:
-        if args["attributes"] is not None:
+    if kwargs["format"] is None:
+        if kwargs["attributes"] is not None:
             print("WARNING! Attributes are ignored if format is not specified.", file=sys.stderr)
         for elem in list:
             formatted_print(
                 elem,
-                yt.ypath_join(args["path"], yt.escape_ypath_literal(elem)),
-                args["long_format"],
-                args["recursive_resource_usage"])
+                yt.ypath_join(kwargs["path"], yt.escape_ypath_literal(elem)),
+                kwargs["long_format"],
+                kwargs["recursive_resource_usage"])
         if list.attributes.get("incomplete", False):
             print("WARNING: list is incomplete, check --max-size option", file=sys.stderr)
     else:
@@ -335,36 +337,36 @@ def add_list_parser(add_parser):
     add_read_from_arguments(parser)
     group.add_argument("--absolute", action="store_true", default=False, help="print absolute paths")
 
-def find(**args):
+def find(**kwargs):
     path_filter = None
-    if args["name"] is not None:
-        path_filter = lambda path: fnmatch.fnmatch(os.path.basename(path), args["name"])
+    if kwargs["name"] is not None:
+        path_filter = lambda path: fnmatch.fnmatch(os.path.basename(path), kwargs["name"])
 
-    attributes = dict([(x, args[x]) for x in ["account", "owner"] if args[x] is not None])
-    if args["attribute_filter"] is not None:
+    attributes = dict([(x, kwargs[x]) for x in ["account", "owner"] if kwargs[x] is not None])
+    if kwargs["attribute_filter"] is not None:
         try:
-            attributes_filter = yson._loads_from_native_str(args["attribute_filter"], yson_type="map_fragment")
+            attributes_filter = yson._loads_from_native_str(kwargs["attribute_filter"], yson_type="map_fragment")
         except yson.YsonError as err:
             raise yt.YtError("Specified attribute filter must be a valid yson map fragment", inner_errors=[err])
         attributes.update(attributes_filter)
 
-    long_format_attributes = builtins.list(LONG_FORMAT_ATTRIBUTES) if args["long_format"] else []
+    long_format_attributes = builtins.list(LONG_FORMAT_ATTRIBUTES) if kwargs["long_format"] else []
 
     object_filter = lambda obj: \
         all([obj.attributes.get(attr) == attributes[attr] for attr in attributes])
 
-    result = yt.search(args["path"],
-                       node_type=args["type"],
+    result = yt.search(kwargs["path"],
+                       node_type=kwargs["type"],
                        path_filter=path_filter,
                        attributes=builtins.list(attributes) + long_format_attributes,
                        object_filter=object_filter,
-                       depth_bound=args["depth"],
-                       follow_links=args["follow_links"],
-                       read_from=args["read_from"],
-                       cache_sticky_group_size=args["cache_sticky_group_size"])
+                       depth_bound=kwargs["depth"],
+                       follow_links=kwargs["follow_links"],
+                       read_from=kwargs["read_from"],
+                       cache_sticky_group_size=kwargs["cache_sticky_group_size"])
 
     for elem in result:
-        formatted_print(elem, elem, args["long_format"], args["recursive_resource_usage"])
+        formatted_print(elem, elem, kwargs["long_format"], kwargs["recursive_resource_usage"])
 
 def add_find_parser(add_parser):
     parser = add_parser("find", yt.search)
@@ -383,8 +385,8 @@ def add_find_parser(add_parser):
     parser.set_defaults(func=find)
 
 @copy_docstring_from(yt.read_table)
-def read_table(**args):
-    stream = yt.read_table(**args)
+def read_table(**kwargs):
+    stream = yt.read_table(**kwargs)
     if yt.config["read_retries"]["enable"]:
         iterator = chunk_iter_rows(stream, yt.config["read_buffer_size"])
     else:
@@ -401,8 +403,8 @@ def add_read_table_parser(add_parser):
         parser.add_argument("--unordered", action="store_true")
 
 @copy_docstring_from(yt.read_file)
-def read_file(**args):
-    write_silently(chunk_iter_stream(yt.read_file(**args), yt.config["read_buffer_size"]))
+def read_file(**kwargs):
+    write_silently(chunk_iter_stream(yt.read_file(**kwargs), yt.config["read_buffer_size"]))
 
 def add_read_file_parser(add_parser):
     for name, func in [("read-file", read_file), ("download", read_file)]:
@@ -413,8 +415,8 @@ def add_read_file_parser(add_parser):
         parser.add_argument("--length", type=int, help="length in bytes of desired part of input file, all file without offset by default")
 
 @copy_docstring_from(yt.read_blob_table)
-def read_blob_table(**args):
-    stream = yt.read_blob_table(**args)
+def read_blob_table(**kwargs):
+    stream = yt.read_blob_table(**kwargs)
     iterator = chunk_iter_stream(stream, yt.config["read_buffer_size"])
     write_silently(iterator)
 
@@ -427,18 +429,18 @@ def add_read_blob_table_parser(add_parser):
     add_structured_argument(parser, "--table-reader")
 
 @copy_docstring_from(yt.write_file)
-def write_file(**args):
-    func_args = dict(args)
+def write_file(**kwargs):
+    func_args = dict(kwargs)
     func_args.pop("executable")
     if func_args.pop("no_compression", False):
         yt.config["proxy"]["content_encoding"] = "identity"
     yt.write_file(stream=get_binary_std_stream(sys.stdin), **func_args)
-    if args["executable"]:
-        yt.set(args["destination"] + "/@executable", True)
+    if kwargs["executable"]:
+        yt.set(kwargs["destination"] + "/@executable", True)
 
 @copy_docstring_from(yt.write_table)
-def write_table(**args):
-    func_args = dict(args)
+def write_table(**kwargs):
+    func_args = dict(kwargs)
     if func_args.pop("no_compression", False):
         yt.config["proxy"]["content_encoding"] = "identity"
     yt.write_table(input_stream=get_binary_std_stream(sys.stdin), **func_args)
@@ -471,9 +473,9 @@ def add_write_table_parser(add_parser):
         add_no_compression_arg(parser)
 
 @copy_docstring_from(yt.create_temp_table)
-def create_temp_table(**args):
-    args["prefix"] = args.pop("name_prefix", None)
-    print(yt.create_temp_table(**args))
+def create_temp_table(**kwargs):
+    kwargs["prefix"] = kwargs.pop("name_prefix", None)
+    print(yt.create_temp_table(**kwargs))
 
 def add_create_temp_table_parser(add_parser):
     parser = add_parser("create-temp-table", create_temp_table)
@@ -483,8 +485,8 @@ def add_create_temp_table_parser(add_parser):
     add_structured_argument(parser, "--attributes")
 
 @copy_docstring_from(yt.create)
-def create(**args):
-    print(yt.create(**args))
+def create(**kwargs):
+    print(yt.create(**kwargs))
 
 def add_create_parser(add_parser):
     parser = add_parser("create", create)
@@ -497,9 +499,9 @@ def add_create_parser(add_parser):
     add_structured_argument(parser, "--attributes")
 
 @copy_docstring_from(yt.get)
-def get(**args):
-    result = yt.get(**args)
-    if args["format"] is None:
+def get(**kwargs):
+    result = yt.get(**kwargs)
+    if kwargs["format"] is None:
         result = dump_data(result)
     print(result)
 
@@ -516,17 +518,17 @@ def add_get_parser(add_parser):
     add_read_from_arguments(parser)
 
 @copy_docstring_from(yt.set)
-def set(**args):
-    if args["value"] is None:
+def set(**kwargs):
+    if kwargs["value"] is None:
         value = get_binary_std_stream(sys.stdin).read()
     else:
-        value = args["value"]
+        value = kwargs["value"]
         if PY3:
             value = value.encode("utf-8")
-    if args["format"] is None:
+    if kwargs["format"] is None:
         value = parse_arguments(value)
-    args["value"] = value
-    yt.set(**args)
+    kwargs["value"] = value
+    yt.set(**kwargs)
 
 def add_set_parser(add_parser):
     parser = add_parser("set", set)
@@ -646,9 +648,9 @@ def add_unfreeze_table_parser(add_parser):
     parser.add_argument("--sync", action="store_true")
 
 @copy_docstring_from(yt.get_tablet_infos)
-def get_tablet_infos(**args):
-    result = yt.get_tablet_infos(**args)
-    if args["format"] is None:
+def get_tablet_infos(**kwargs):
+    result = yt.get_tablet_infos(**kwargs)
+    if kwargs["format"] is None:
         result = dump_data(result)
     print(result)
 
@@ -659,10 +661,10 @@ def add_get_tablet_infos_parser(add_parser):
     add_structured_format_argument(parser)
 
 @copy_docstring_from(yt.reshard_table)
-def reshard_table(**args):
-    if args.get("pivot_keys") == []:
-        del args["pivot_keys"]
-    yt.reshard_table(**args)
+def reshard_table(**kwargs):
+    if kwargs.get("pivot_keys") == []:
+        del kwargs["pivot_keys"]
+    yt.reshard_table(**kwargs)
 
 def add_reshard_table_parser(add_parser):
     parser = add_parser("reshard-table", reshard_table)
@@ -680,7 +682,7 @@ def add_balance_tablet_cells_parser(add_parser):
     parser = add_parser("balance-tablet-cells", yt.balance_tablet_cells)
     add_hybrid_argument(parser, "bundle", help="tablet cell bundle", type=str)
     parser.add_argument("--tables", nargs="*", help="tables to balance. If omitted, all tables of bundle"
-        " will be balanced")
+                                                    " will be balanced")
     parser.add_argument("--sync", action="store_true")
 
 def add_trim_rows_parser(add_parser):
@@ -700,16 +702,16 @@ def add_alter_table_parser(add_parser):
     parser.add_argument("--upstream-replica-id", help="upstream replica id")
 
 @copy_docstring_from(yt.alter_table_replica)
-def alter_table_replica(**args):
-    if args["enable"]:
-        args["enabled"] = True
-    if args["disable"]:
-        args["enabled"] = False
+def alter_table_replica(**kwargs):
+    if kwargs["enable"]:
+        kwargs["enabled"] = True
+    if kwargs["disable"]:
+        kwargs["enabled"] = False
 
-    args.pop("enable")
-    args.pop("disable")
+    kwargs.pop("enable")
+    kwargs.pop("disable")
 
-    yt.alter_table_replica(**args)
+    yt.alter_table_replica(**kwargs)
 
 def add_alter_table_replica_parser(add_parser):
     parser = add_parser("alter-table-replica", alter_table_replica)
@@ -720,8 +722,8 @@ def add_alter_table_replica_parser(add_parser):
     parser.add_argument("--mode", help='alternation mode, can be "sync" or "async"')
 
 @copy_docstring_from(yt.select_rows)
-def select_rows(**args):
-    write_silently(chunk_iter_stream(yt.select_rows(raw=True, **args), yt.config["read_buffer_size"]))
+def select_rows(**kwargs):
+    write_silently(chunk_iter_stream(yt.select_rows(raw=True, **kwargs), yt.config["read_buffer_size"]))
 
 def add_select_rows_parser(add_parser):
     # TODO(ignat): remake by alias system
@@ -765,8 +767,8 @@ def add_explain_parser(add_parser):
 
 
 @copy_docstring_from(yt.lookup_rows)
-def lookup_rows(**args):
-    write_silently(chunk_iter_stream(yt.lookup_rows(raw=True, **args), yt.config["read_buffer_size"]))
+def lookup_rows(**kwargs):
+    write_silently(chunk_iter_stream(yt.lookup_rows(raw=True, **kwargs), yt.config["read_buffer_size"]))
 
 def add_lookup_rows_parser(add_parser):
     # TODO(ignat): remake by alias system
@@ -1062,9 +1064,9 @@ def add_resume_op_parser(add_parser):
     operation_id_args(parser)
 
 @copy_docstring_from(yt.Operation.wait)
-def track_op(**args):
+def track_op(**kwargs):
     yt.config["operation_tracker"]["abort_on_sigint"] = False
-    operation = yt.Operation(args["operation"])
+    operation = yt.Operation(kwargs["operation"])
     operation.wait()
 
 def add_track_op_parser(add_parser):
@@ -1081,9 +1083,9 @@ def add_update_op_parameters_parser(add_parser):
     add_structured_argument(parser, "parameters")
 
 @copy_docstring_from(yt.get_operation)
-def get_operation(**args):
-    result = yt.get_operation(**args)
-    if args["format"] is None:
+def get_operation(**kwargs):
+    result = yt.get_operation(**kwargs)
+    if kwargs["format"] is None:
         result = dump_data(result)
     sys.stdout.write(result)
 
@@ -1099,10 +1101,10 @@ def add_time_argument(parser, name, help="", **kwargs):
     add_argument(parser, name, help, description=description, action=ParseTimeArgument, **kwargs)
 
 @copy_docstring_from(yt.list_operations)
-def list_operations(**args):
-    args["include_counters"] = not args.pop("no_include_counters")
-    result = yt.list_operations(**args)
-    if args["format"] is None:
+def list_operations(**kwargs):
+    kwargs["include_counters"] = not kwargs.pop("no_include_counters")
+    result = yt.list_operations(**kwargs)
+    if kwargs["format"] is None:
         result = dump_data(result)
     sys.stdout.write(result)
 
@@ -1133,8 +1135,8 @@ def add_list_operations_parser(add_parser):
     add_structured_format_argument(parser)
 
 @copy_docstring_from(yt.start_transaction)
-def start_tx(**args):
-    print(yt.start_transaction(**args))
+def start_tx(**kwargs):
+    print(yt.start_transaction(**kwargs))
 
 def add_start_tx_parser(add_parser):
     parser = add_parser("start-tx", start_tx)
@@ -1159,8 +1161,8 @@ def add_ping_tx_parser(add_parser):
     transaction_args(parser)
 
 @copy_docstring_from(yt.lock)
-def lock(**args):
-    lock_id = yt.lock(**args)
+def lock(**kwargs):
+    lock_id = yt.lock(**kwargs)
     if lock_id is not None:
         print(lock_id)
     else:
@@ -1180,8 +1182,8 @@ def add_unlock_parser(add_parser):
     add_ypath_argument(parser, "path", hybrid=True)
 
 @copy_docstring_from(yt.check_permission)
-def check_permission(**args):
-    sys.stdout.write(yt.check_permission(**args))
+def check_permission(**kwargs):
+    sys.stdout.write(yt.check_permission(**kwargs))
 
 def add_check_permission_parser(add_parser):
     parser = add_parser("check-permission", check_permission)
@@ -1204,12 +1206,12 @@ def add_remove_member_parser(add_parser):
     parser = add_parser("remove-member", yt.remove_member)
     member_args(parser)
 
-def execute(**args):
-    if "output_format" not in args["execute_params"]:
-        args["execute_params"]["output_format"] = yt.create_format(output_format)
-    data = chunk_iter_stream(sys.stdin, 16 * MB) if "input_format" in args["execute_params"] else None
-    result = yt.transaction_commands._make_transactional_request(args["command_name"],
-                                                                 args["execute_params"],
+def execute(**kwargs):
+    if "output_format" not in kwargs["execute_params"]:
+        kwargs["execute_params"]["output_format"] = yt.create_format(output_format)
+    data = chunk_iter_stream(sys.stdin, 16 * MB) if "input_format" in kwargs["execute_params"] else None
+    result = yt.transaction_commands._make_transactional_request(kwargs["command_name"],
+                                                                 kwargs["execute_params"],
                                                                  data=data)
     if result is not None:
         sys.stdout.write(result)
@@ -1220,8 +1222,8 @@ def add_execute_parser(add_parser):
     add_structured_argument(parser, "execute_params")
     parser.set_defaults(func=execute)
 
-def get_table_columnar_statistics(**args):
-    print(yt.get_table_columnar_statistics(**args))
+def get_table_columnar_statistics(**kwargs):
+    print(yt.get_table_columnar_statistics(**kwargs))
 
 def add_get_table_columnar_statistics_parser(add_parser):
     parser = add_parser("get-table-columnar-statistics", help="get table columnar statistics")
@@ -1229,8 +1231,8 @@ def add_get_table_columnar_statistics_parser(add_parser):
                        help="Path to source table.")
     parser.set_defaults(func=get_table_columnar_statistics)
 
-def execute_batch(**args):
-    print(dump_data(yt.execute_batch(**args)))
+def execute_batch(**kwargs):
+    print(dump_data(yt.execute_batch(**kwargs)))
 
 def add_execute_batch_parser(add_parser):
     parser = add_parser("execute-batch", help="execute your command")
@@ -1250,8 +1252,8 @@ def add_abort_job_parser(add_parser):
     parser.add_argument("--interrupt-timeout", type=int, help="try to interrupt job before abort during timeout (in ms)")
 
 @copy_docstring_from(yt.get_job_stderr)
-def get_job_stderr(**args):
-    write_silently(chunk_iter_stream(yt.get_job_stderr(**args), yt.config["read_buffer_size"]))
+def get_job_stderr(**kwargs):
+    write_silently(chunk_iter_stream(yt.get_job_stderr(**kwargs), yt.config["read_buffer_size"]))
 
 def add_get_job_stderr_parser(add_parser):
     parser = add_parser("get-job-stderr", get_job_stderr)
@@ -1259,16 +1261,16 @@ def add_get_job_stderr_parser(add_parser):
     add_hybrid_argument(parser, "operation_id", help="operation id, for example: 876084ca-efd01a47-3e8-7a62e787")
 
 @copy_docstring_from(yt.get_job_input)
-def get_job_input(**args):
-    write_silently(chunk_iter_stream(yt.get_job_input(**args), yt.config["read_buffer_size"]))
+def get_job_input(**kwargs):
+    write_silently(chunk_iter_stream(yt.get_job_input(**kwargs), yt.config["read_buffer_size"]))
 
 def add_get_job_input_parser(add_parser):
     parser = add_parser("get-job-input", get_job_input)
     add_hybrid_argument(parser, "job_id", help="job id, for example: 5c51-24e204-384-9f3f6437")
 
 @copy_docstring_from(yt.get_job_input_paths)
-def get_job_input_paths(**args):
-    paths = yt.get_job_input_paths(**args)
+def get_job_input_paths(**kwargs):
+    paths = yt.get_job_input_paths(**kwargs)
     print(dump_data(map(yt.YPath.to_yson_type, paths)))
 
 def add_get_job_input_paths_parser(add_parser):
@@ -1276,9 +1278,9 @@ def add_get_job_input_paths_parser(add_parser):
     add_hybrid_argument(parser, "job_id", help="job id, for example: 5c51-24e204-384-9f3f6437")
 
 @copy_docstring_from(yt.get_job)
-def get_job(**args):
-    result = yt.get_job(**args)
-    if args["format"] is None:
+def get_job(**kwargs):
+    result = yt.get_job(**kwargs)
+    if kwargs["format"] is None:
         result = dump_data(result)
     sys.stdout.write(result)
 
@@ -1289,9 +1291,9 @@ def add_get_job_parser(add_parser):
     add_structured_format_argument(parser)
 
 @copy_docstring_from(yt.list_jobs)
-def list_jobs(**args):
-    result = yt.list_jobs(**args)
-    if args["format"] is None:
+def list_jobs(**kwargs):
+    result = yt.list_jobs(**kwargs)
+    if kwargs["format"] is None:
         result = dump_data(result)
     sys.stdout.write(result)
 
@@ -1333,20 +1335,20 @@ def add_transform_parser(add_parser):
                         help="check if table already has proper codecs before transforming")
     add_structured_argument(parser, "--spec")
 
-def job_tool(**args):
+def job_tool(**kwargs):
     commands = {
         "prepare-job-environment": yt_job_tool.prepare_job_environment,
         "run-job": yt_job_tool.run_job
     }
-    command = args.pop("command")
-    commands[command](**args)
+    command = kwargs.pop("command")
+    commands[command](**kwargs)
 
 def add_job_tool_parser(add_parser):
     parser = add_parser("job-tool", function=job_tool, pythonic_help=yt_job_tool.DESCRIPTION)
     yt_job_tool.create_job_tool_parser(parser)
 
-def sky_share(**args):
-    print(yt.sky_share(**args))
+def sky_share(**kwargs):
+    print(yt.sky_share(**kwargs))
 
 def add_sky_share_parser(add_parser):
     parser = add_parser("sky-share", function=sky_share, help="share table to skynet")
@@ -1354,11 +1356,33 @@ def add_sky_share_parser(add_parser):
     parser.add_argument("--cluster", help="cluster name, by default it is derived from proxy url")
 
 @copy_docstring_from(get_default_config)
-def show_default_config(**args):
+def show_default_config(**kwargs):
     print(dump_data(get_default_config()))
 
 def add_show_default_config_parser(add_parser):
     add_parser("show-default-config", show_default_config)
+
+def add_download_core_dump_parser(add_parser):
+    parser = add_parser("download-core-dump",
+                        function=yt.download_core_dump,
+                        help="Tool for downloading job core dumps")
+    parser.add_argument("--operation-id",
+                        help="Operation id (should be specified if proper core file naming is needed)")
+    parser.add_argument("--core-table-path",
+                        help="A path to the core table")
+    parser.add_argument("--job-id",
+                        help="Id of a job that produced core dump. "
+                             "If not specified, an arbitrary job with core dumps is taken")
+    parser.add_argument("--core-index",
+                        type=int,
+                        action="append",
+                        dest="core_indices",
+                        help="Indices of core dumps during the given job that should be downloaded, "
+                             "several indices may be specified. If not specified, all core dumps are downloaded. "
+                             "Requires --job-id to be specified")
+    parser.add_argument("--output-directory",
+                        default=".",
+                        help="A directory to save the core dumps. Defaults to the current working directory")
 
 
 def main():
@@ -1500,6 +1524,8 @@ def main():
 
     add_show_default_config_parser(add_parser)
     add_show_spec_parser(add_parser)
+
+    add_download_core_dump_parser(add_parser)
 
     if "_ARGCOMPLETE" in os.environ:
         completers.autocomplete(parser, enable_bash_fallback=False,

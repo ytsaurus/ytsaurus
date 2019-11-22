@@ -338,6 +338,27 @@ def test_environment_job_archive(request):
 
     return environment
 
+@pytest.fixture(scope="session", params=["v3", "v4", "native_v3", "native_v4", "rpc"])
+def test_environment_with_porto(request):
+    environment = init_environment_for_test_session(
+        request.param,
+        env_options={"use_porto_for_servers": True},
+        delta_node_config={
+            "exec_agent": {
+                "slot_manager": {
+                    "enforce_job_control": True,
+                    "job_environment": {
+                        "type": "porto",
+                    },
+                }
+            }
+        }
+    )
+
+    request.addfinalizer(lambda: environment.cleanup())
+    return environment
+
+
 # TODO(ignat): fix this copypaste from yt_env_setup
 def _remove_operations():
     if yt.get("//sys/scheduler/instances/@count") == 0:
@@ -525,6 +546,16 @@ def yt_env_job_archive(request, test_environment_job_archive):
     yt.mkdir(TEST_DIR, recursive=True)
     request.addfinalizer(test_method_teardown)
     return test_environment_job_archive
+
+@pytest.fixture(scope="function")
+def yt_env_with_porto(request, test_environment_with_porto):
+    """ YT cluster fixture for tests that require "porto" instead of "cgroups"
+    """
+    test_environment_with_porto.check_liveness()
+    test_environment_with_porto.reload_global_configuration()
+    yt.mkdir(TEST_DIR, recursive=True)
+    request.addfinalizer(test_method_teardown)
+    return test_environment_with_porto
 
 @pytest.fixture(scope="function")
 def job_events(request):
