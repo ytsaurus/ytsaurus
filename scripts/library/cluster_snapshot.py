@@ -20,6 +20,7 @@ SchedulerClusterBase = namedtuple("SchedulerClusterBase", [
     "resources",
     "nodes",
     "pod_sets",
+    "pod_disruption_budgets",
     "internet_addresses",
     "network_projects",
     "virtual_services",
@@ -30,7 +31,7 @@ class SchedulerCluster(SchedulerClusterBase):
     # NB: as namedtuple uses __new__ instead of __init__, we have to do the same.
     def __new__(cls, **kwargs):
         for field in cls._fields:
-            kwargs[field] = kwargs.get(field, None)
+            kwargs[field] = kwargs.get(field, [])
         return super(SchedulerCluster, cls).__new__(cls, **yson_to_json(kwargs))
 
     @classmethod
@@ -144,6 +145,12 @@ TYPE_SELECTORS = {
         "/spec",
         "/labels",
     ],
+    "pod_disruption_budget": [
+        "/meta",
+        "/spec",
+        "/status",
+        "/labels",
+    ]
 }
 
 KEY_COLUMNS_PER_OBJECT_TYPE = {
@@ -169,6 +176,9 @@ KEY_COLUMNS_PER_OBJECT_TYPE = {
         "/meta/id",
     ],
     "virtual_service": [
+        "/meta/id",
+    ],
+    "pod_disruption_budget": [
         "/meta/id",
     ],
 }

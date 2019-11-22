@@ -373,7 +373,7 @@ struct TSelectObjectTraits<TPod>
             "/meta/id",
             "/labels",
             "/meta/pod_set_id",
-            "/status/scheduling/node_id",
+            "/spec/node_id",
             "/spec/account_id",
             "/meta/uuid",
             "/spec/resource_requests",
