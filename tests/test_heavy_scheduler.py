@@ -17,6 +17,7 @@ from yt.wrapper.errors import YtCypressTransactionLockConflict
 from yt.packages.six import PY3
 from yt.packages.six.moves import xrange
 
+import json
 import pytest
 
 
@@ -71,6 +72,20 @@ class TestHeavyScheduler(object):
 
         yt_client.create("map_node", "//yp/heavy_scheduler/leader")
         wait(is_leading)
+
+    def test_task_manager_profiling(self, yp_env_configurable):
+        monitoring_client = yp_env_configurable.yp_heavy_scheduler_instance.create_monitoring_client()
+
+        def are_task_counters_initialized():
+            for name in ("active", "finished", "timed_out"):
+                samples = json.loads(monitoring_client.get("/profiling/heavy_scheduler/task_manager/{}".format(name)))
+                if len(samples) > 0 and samples[-1]["value"] == 0:
+                    continue
+                else:
+                    return False
+            return True
+
+        wait(are_task_counters_initialized, ignore_exceptions=True)
 
     def _prepare_strategy_test_segment(self, yp_client, node_segment_id):
         def create_pods(count, cpu, memory):

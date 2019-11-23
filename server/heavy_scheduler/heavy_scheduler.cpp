@@ -231,6 +231,8 @@ class TTaskManager
 public:
     explicit TTaskManager(TDuration taskTimeLimit)
         : TaskTimeLimit_(taskTimeLimit)
+        , Profiler_(NProfiling::TProfiler(NHeavyScheduler::Profiler)
+            .AppendPath("/task_manager"))
     { }
 
     void ReconcileState(const TClusterPtr& cluster)
@@ -244,15 +246,20 @@ public:
     {
         auto now = TInstant::Now();
 
+        int timedOutCount = 0;
+        int finishedCount = 0;
+
         Tasks_.erase(
             std::remove_if(
                 Tasks_.begin(),
                 Tasks_.end(),
                 [&] (const TSwapTaskPtr& task) {
                     if (task->GetState() == ETaskState::Finished) {
+                        ++finishedCount;
                         return true;
                     }
                     if (task->GetStartTime() + TaskTimeLimit_ < now) {
+                        ++timedOutCount;
                         YT_LOG_DEBUG("Task time limit exceeded (TaskId: %v, StartTime: %v, TimeLimit: %v)",
                             task->GetId(),
                             task->GetStartTime(),
@@ -262,6 +269,10 @@ public:
                     return false;
                 }),
             Tasks_.end());
+
+        Profiler_.Update(Profiling_.TimedOutCounter, timedOutCount);
+        Profiler_.Update(Profiling_.FinishedCounter, finishedCount);
+        Profiler_.Update(Profiling_.ActiveCounter, Tasks_.size());
     }
 
     bool ShouldWait() const
@@ -276,8 +287,18 @@ public:
 
 private:
     const TDuration TaskTimeLimit_;
+    const NProfiling::TProfiler Profiler_;
 
     std::vector<TSwapTaskPtr> Tasks_;
+
+    struct TProfiling
+    {
+        NProfiling::TSimpleGauge TimedOutCounter{"/timed_out"};
+        NProfiling::TSimpleGauge FinishedCounter{"/finished"};
+        NProfiling::TSimpleGauge ActiveCounter{"/active"};
+    };
+
+    TProfiling Profiling_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -297,7 +318,8 @@ public:
             Config_->IterationPeriod))
         , Cluster_(New<TCluster>(
             Logger,
-            Profiler,
+            NProfiling::TProfiler(NHeavyScheduler::Profiler)
+                .AppendPath("/cluster"),
             CreateClusterReader(
                 Config_->ClusterReader,
                 Bootstrap_->GetClient()),
