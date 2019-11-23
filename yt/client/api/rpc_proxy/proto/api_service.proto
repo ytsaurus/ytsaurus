@@ -1631,9 +1631,9 @@ message TReqReadTable
 
     optional bool unordered = 2 [default = false];
     optional bool omit_inaccessible_columns = 3 [default = false];
-    optional bool enable_table_index = 5 [default = true];
-    optional bool enable_row_index = 6 [default = true];
-    optional bool enable_range_index = 7 [default = true];
+    optional bool enable_table_index = 5 [default = false];
+    optional bool enable_row_index = 6 [default = false];
+    optional bool enable_range_index = 7 [default = false];
     optional bytes config = 4; // YSON-serialized TTableReaderConfig
 
     optional TTransactionalOptions transactional_options = 100;
