@@ -9,6 +9,7 @@
 #include <yt/server/master/node_tracker_server/node.h>
 
 #include <yt/server/master/cell_server/cell_proxy_base.h>
+#include <yt/server/master/cell_server/tamed_cell_manager.h>
 
 #include <yt/server/lib/misc/interned_attributes.h>
 
@@ -126,6 +127,10 @@ private:
         descriptors->push_back(EInternedAttributeKey::TotalStatistics);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MulticellStatistics)
             .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PeerCount)
+            .SetWritable(true)
+            .SetRemovable(true)
+            .SetReplicated(true));
     }
 
     virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
@@ -258,6 +263,39 @@ private:
         }
 
         return TBase::GetBuiltinAttributeAsync(key);
+    }
+
+    virtual bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
+    {
+        auto* cell = GetThisImpl();
+
+        switch (key) {
+            case EInternedAttributeKey::PeerCount:
+                if (cell->PeerCount()) {
+                    THROW_ERROR_EXCEPTION("Peer count for cell %v is already set",
+                        cell->GetId());
+                }
+
+                ValidateNoTransaction();
+                Bootstrap_->GetTamedCellManager()->UpdatePeerCount(cell, ConvertTo<int>(value));
+                return true;
+            default:
+                return TBase::SetBuiltinAttribute(key, value);
+        }
+    }
+
+    virtual bool RemoveBuiltinAttribute(TInternedAttributeKey key) override
+    {
+        auto* cell = GetThisImpl();
+
+        switch (key) {
+            case EInternedAttributeKey::PeerCount:
+                ValidateNoTransaction();
+                Bootstrap_->GetTamedCellManager()->UpdatePeerCount(cell, std::nullopt);
+                return true;
+            default:
+                return TBase::RemoveBuiltinAttribute(key);
+        }
     }
 };
 

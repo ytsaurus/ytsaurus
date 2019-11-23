@@ -39,6 +39,7 @@ public:
 
     void ValidateAllPeersPresent();
 
+    int CountVotingPeers() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCellConfig)

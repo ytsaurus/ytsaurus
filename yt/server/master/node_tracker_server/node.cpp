@@ -79,6 +79,13 @@ void TNode::TCellSlot::Persist(NCellMaster::TPersistenceContext& context)
     Persist(context, Cell);
     Persist(context, PeerState);
     Persist(context, PeerId);
+
+    if (context.GetVersion() >= EMasterReign::DynamicPeerCount) {
+        Persist(context, IsResponseKeeperWarmingUp);
+        Persist(context, PreloadPendingStoreCount);
+        Persist(context, PreloadCompletedStoreCount);
+        Persist(context, PreloadFailedStoreCount);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -237,6 +237,7 @@ public:
     TDuration CellScanPeriod;
     TDuration PeerRevocationTimeout;
     TDuration LeaderReassignmentTimeout;
+
     int SafeOnlineNodeCount;
 
     TTabletBalancerMasterConfigPtr TabletBalancer;
@@ -436,6 +437,11 @@ public:
 
     int CompatibilityVersion;
 
+    bool DecommissionThroughExtraPeers;
+
+    //! This parameter is used only for testing purposes.
+    std::optional<TDuration> DecommissionedLeaderReassignmentTimeout;
+
     TDynamicTabletManagerConfig()
     {
         RegisterParameter("peer_revocation_timeout", PeerRevocationTimeout)
@@ -486,6 +492,10 @@ public:
             .DefaultNew();
         RegisterParameter("enable_bulk_insert", EnableBulkInsert)
             .Default(false);
+        RegisterParameter("decommission_through_extra_peers", DecommissionThroughExtraPeers)
+            .Default(false);
+        RegisterParameter("decommissioned_leader_reassignment_timeout", DecommissionedLeaderReassignmentTimeout)
+            .Default();
 
         // COMPAT(savrus) Special parameter to apply old file configs on fly.
         RegisterParameter("compatibility_version", CompatibilityVersion)

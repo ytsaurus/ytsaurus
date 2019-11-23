@@ -8,6 +8,7 @@
 #include <yt/server/master/cell_master/public.h>
 #include <yt/server/master/cell_master/gossip_value.h>
 
+#include <yt/server/master/node_tracker_server/node.h>
 #include <yt/server/master/node_tracker_server/public.h>
 
 #include <yt/server/master/object_server/object.h>
@@ -75,6 +76,12 @@ public:
     using TGossipStatus = NCellMaster::TGossipValue<TCellStatus>;
     DEFINE_BYREF_RW_PROPERTY(TGossipStatus, GossipStatus);
 
+    //! Overrides `peer_count` in cell bundle.
+    DEFINE_BYREF_RW_PROPERTY(std::optional<int>, PeerCount);
+
+    //! Last `peer_count` update time. Only for testing purposes.
+    DEFINE_BYREF_RW_PROPERTY(TInstant, LastPeerCountUpdateTime);
+
 public:
     explicit TCellBase(TTamedCellId id);
 
@@ -93,6 +100,10 @@ public:
     void AttachPeer(NNodeTrackerServer::TNode* node, TPeerId peerId);
     void DetachPeer(NNodeTrackerServer::TNode* node);
     void UpdatePeerSeenTime(TPeerId peerId, TInstant when);
+
+    NNodeTrackerServer::TNode::TCellSlot* FindCellSlot(TPeerId peerId) const;
+
+    NHydra::EPeerState GetPeerState(TPeerId peerId) const;
 
     //! Get health from a point of view of a single master.
     ECellHealth GetHealth() const;

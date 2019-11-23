@@ -3,10 +3,13 @@
 #include "public.h"
 #include "cell_base.h"
 #include "cell_balancer.h"
+#include "config.h"
 
 #include <yt/server/master/cell_master/public.h>
 
 #include <yt/server/master/node_tracker_server/public.h>
+
+#include <yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
 
@@ -52,6 +55,7 @@ private:
     void ScheduleLeaderReassignment(TCellBase* cell, TBundleCounter* counter);
     void SchedulePeerAssignment(TCellBase* cell, ICellBalancer* balancer, TBundleCounter* counter);
     void SchedulePeerRevocation(TCellBase* cell, ICellBalancer* balancer, TBundleCounter* counter);
+    bool SchedulePeerCountChange(TCellBase* cell, NTabletServer::NProto::TReqReassignPeers* request);
 
     TError IsFailed(
         const TCellBase::TPeer& peer,
@@ -60,7 +64,9 @@ private:
     bool IsDecommissioned(
         const NNodeTrackerServer::TNode* node,
         const TBooleanFormula& nodeTagFilter);
-    static int FindGoodPeer(const TCellBase* cell);
+
+    static TPeerId FindGoodPeer(const TCellBase* cell);
+    static TPeerId FindGoodFollower(const TCellBase* cell);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

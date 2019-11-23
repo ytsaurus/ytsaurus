@@ -95,6 +95,18 @@ void TCellConfig::ValidateAllPeersPresent()
     }
 }
 
+int TCellConfig::CountVotingPeers() const
+{
+    int votingPeerCount = 0;
+    for (const auto& peer : Peers) {
+        if (peer.Voting) {
+            ++votingPeerCount;
+        }
+    }
+
+    return votingPeerCount;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NElection

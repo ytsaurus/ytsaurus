@@ -54,6 +54,7 @@
 #include <yt/core/utilex/random.h>
 
 #include <yt/core/rpc/client.h>
+#include <yt/core/rpc/response_keeper.h>
 
 #include <yt/core/ytree/convert.h>
 
@@ -741,14 +742,24 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
         *request->add_removed_chunks() = BuildRemoveChunkInfo(chunk);
     }
 
+    THashMap<TCellId, int> CellIdToSlotId;
+
     auto slotManager = Bootstrap_->GetTabletSlotManager();
-    for (auto slot : slotManager->Slots()) {
+    auto slots = slotManager->Slots();
+    for (int slotId = 0; slotId < slots.size(); ++slotId) {
+        const auto& slot = slots[slotId];
         auto* protoSlotInfo = request->add_tablet_slots();
+
         if (slot) {
             ToProto(protoSlotInfo->mutable_cell_info(), slot->GetCellDescriptor().ToInfo());
             protoSlotInfo->set_peer_state(static_cast<int>(slot->GetControlState()));
             protoSlotInfo->set_peer_id(slot->GetPeerId());
             protoSlotInfo->set_dynamic_config_version(slot->GetDynamicConfigVersion());
+            if (slot->GetResponseKeeper()) {
+                protoSlotInfo->set_is_response_keeper_warming_up(slot->GetResponseKeeper()->IsWarmingUp());
+            }
+
+            YT_VERIFY(CellIdToSlotId.emplace(slot->GetCellId(), slotId).second);
         } else {
             protoSlotInfo->set_peer_state(static_cast<int>(NHydra::EPeerState::None));
         }
@@ -780,6 +791,19 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
             protoTabletStatistics->set_dynamic_memory_pool_size(totalDynamicMemoryUsage);
             protoTabletStatistics->set_modification_time(ToProto<ui64>(tabletSnapshot->TabletRuntimeData->ModificationTime));
             protoTabletStatistics->set_access_time(ToProto<ui64>(tabletSnapshot->TabletRuntimeData->AccessTime));
+
+            if (tabletSnapshot->CellId) {
+                auto it = CellIdToSlotId.find(tabletSnapshot->CellId);
+                if (it != CellIdToSlotId.end()) {
+                    auto* protoSlotInfo = request->mutable_tablet_slots(it->second);
+                    protoSlotInfo->set_preload_pending_store_count(protoSlotInfo->preload_pending_store_count() +
+                        tabletSnapshot->PreloadPendingStoreCount);
+                    protoSlotInfo->set_preload_completed_store_count(protoSlotInfo->preload_completed_store_count() +
+                        tabletSnapshot->PreloadCompletedStoreCount);
+                    protoSlotInfo->set_preload_failed_store_count(protoSlotInfo->preload_failed_store_count() +
+                        tabletSnapshot->PreloadFailedStoreCount);
+                }
+            }
 
             TEnumIndexedVector<NTabletClient::ETabletBackgroundActivity, TError> errors;
             for (auto key : TEnumTraits<ETabletBackgroundActivity>::GetDomainValues()) {
