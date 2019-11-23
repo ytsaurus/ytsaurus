@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "config.h"
 #include "cell_base.h"
 #include "cell_bundle.h"
 
@@ -23,8 +24,7 @@ class TTamedCellManager
     : public TRefCounted
 {
 public:
-    explicit TTamedCellManager(
-        NCellMaster::TBootstrap* bootstrap);
+    explicit TTamedCellManager(NCellMaster::TBootstrap* bootstrap);
     ~TTamedCellManager();
 
     void Initialize();
@@ -53,6 +53,7 @@ public:
     TCellBase* CreateCell(TCellBundle* cellBundle, std::unique_ptr<TCellBase> holder);
     void ZombifyCell(TCellBase* cell);
     void DestroyCell(TCellBase* cell);
+    void UpdatePeerCount(TCellBase* cell, std::optional<int> peerCount);
 
     DECLARE_SIGNAL(void(TCellBundle* bundle), CellBundleCreated);
     DECLARE_SIGNAL(void(TCellBundle* bundle), CellBundleDestroyed);

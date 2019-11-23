@@ -42,14 +42,14 @@ public:
     NProfiling::TTagId GetPeerQuorumTag() const;
     NProfiling::TTagId GetCellIdTag() const;
 
-    void Reconfigure(TCellConfigPtr newConfig);
+    void Reconfigure(TCellConfigPtr newConfig, TPeerId selfId);
 
     DEFINE_SIGNAL(void(TPeerId peerId), PeerReconfigured);
 
 private:
     TCellConfigPtr Config_;
     const NRpc::IChannelFactoryPtr ChannelFactory_;
-    const TPeerId SelfId_;
+    TPeerId SelfId_;
 
     const NLogging::TLogger Logger;
 
@@ -65,7 +65,7 @@ private:
     NProfiling::TTagId CellIdTag_;
 
     void BuildTags();
-    NRpc::IChannelPtr CreatePeerChannel(TPeerId id);
+    NRpc::IChannelPtr CreatePeerChannel(const TCellPeerConfig& peerConfig);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCellManager)

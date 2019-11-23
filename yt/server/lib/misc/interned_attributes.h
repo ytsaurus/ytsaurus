@@ -194,6 +194,7 @@
     XX(ParentIds, parent_ids) \
     XX(ParentName, parent_name) \
     XX(Path, path) \
+    XX(PeerCount, peer_count) \
     XX(Peers, peers) \
     XX(PerformanceCounters, performance_counters) \
     XX(PivotKey, pivot_key) \

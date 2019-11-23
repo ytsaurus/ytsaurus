@@ -12,6 +12,10 @@ message TTabletSlotInfo
     optional int32 peer_id = 2;
     optional NYT.NHiveClient.NProto.TCellInfo cell_info = 3;
     optional int32 dynamic_config_version = 4;
+    optional bool is_response_keeper_warming_up = 5;
+    optional int32 preload_pending_store_count = 6;
+    optional int32 preload_completed_store_count = 7;
+    optional int32 preload_failed_store_count = 8;
 }
 
 message TTableReplicaStatistics
@@ -94,6 +98,7 @@ message TConfigureTabletSlotInfo
 {
     required NYT.NHiveClient.NProto.TCellDescriptor cell_descriptor = 1;
     required NYT.NProto.TGuid prerequisite_transaction_id = 2;
+    optional int32 peer_id = 3;
 }
 
 message TUpdateTabletSlotInfo

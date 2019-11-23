@@ -27,10 +27,17 @@ message TReqRevokePeers
     repeated int32 peer_ids = 2;
 }
 
+message TReqUpdatePeerCount
+{
+    required NYT.NProto.TGuid cell_id = 1;
+    optional int32 peer_count = 2;
+}
+
 message TReqReassignPeers
 {
     repeated TReqRevokePeers revocations = 1;
     repeated TReqAssignPeers assignments = 2;
+    repeated TReqUpdatePeerCount peer_count_updates = 3;
 }
 
 message TReqSetLeadingPeer

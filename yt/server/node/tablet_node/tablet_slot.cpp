@@ -284,17 +284,13 @@ public:
                 TabletCellBundle ? TabletCellBundle : UnknownProfilingTag)
         }
         , OptionsString_(TYsonString(createInfo.options()))
-        , Logger(NLogging::TLogger(TabletNodeLogger)
-            .AddTag("CellId: %v, PeerId: %v",
-                CellDescriptor_.CellId,
-                PeerId_))
+        , Logger(GetLogger())
     {
         VERIFY_INVOKER_THREAD_AFFINITY(GetAutomatonInvoker(), AutomatonThread);
 
         ResetEpochInvokers();
         ResetGuardedInvokers();
     }
-
 
     int GetIndex() const
     {
@@ -518,6 +514,20 @@ public:
 
         CellDescriptor_ = FromProto<TCellDescriptor>(configureInfo.cell_descriptor());
 
+        if (configureInfo.has_peer_id()) {
+            TPeerId peerId = configureInfo.peer_id();
+            if (PeerId_ != peerId) {
+                YT_LOG_DEBUG("Peer id updated (PeerId: %v -> %v)",
+                    PeerId_,
+                    peerId);
+
+                PeerId_ = peerId;
+
+                // Logger has peer_id tag so should be updated.
+                Logger = GetLogger();
+            }
+        }
+
         auto newPrerequisiteTransactionId = FromProto<TTransactionId>(configureInfo.prerequisite_transaction_id());
         if (newPrerequisiteTransactionId != PrerequisiteTransactionId_) {
             YT_LOG_INFO("Prerequisite transaction updated (TransactionId: %v -> %v)",
@@ -567,7 +577,7 @@ public:
 
         if (GetHydraManager()) {
             ElectionManager_->SetEpochId(PrerequisiteTransactionId_);
-            CellManager_->Reconfigure(cellConfig);
+            CellManager_->Reconfigure(cellConfig, PeerId_);
 
             YT_LOG_INFO("Slot reconfigured (ConfigVersion: %v)",
                 CellDescriptor_.ConfigVersion);
@@ -775,7 +785,7 @@ private:
     const TSnapshotStoreThunkPtr SnapshotStoreThunk_ = New<TSnapshotStoreThunk>();
     const TChangelogStoreFactoryThunkPtr ChangelogStoreFactoryThunk_ = New<TChangelogStoreFactoryThunk>();
 
-    const TPeerId PeerId_;
+    TPeerId PeerId_;
     TCellDescriptor CellDescriptor_;
 
     const TString TabletCellBundle;
@@ -883,6 +893,13 @@ private:
         return Options_;
     }
 
+    NLogging::TLogger GetLogger() const
+    {
+        return NLogging::TLogger(TabletNodeLogger)
+            .AddTag("CellId: %v, PeerId: %v",
+                CellDescriptor_.CellId,
+                PeerId_);
+    }
 
     void ResetEpochInvokers()
     {
