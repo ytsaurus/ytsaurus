@@ -289,7 +289,7 @@ void TFiber::ResetForReuse()
 
     auto oldId = Id_;
     RegenerateId();
-    YT_LOG_DEBUG("Reusing fiber (Id: %llx -> %llx)", oldId, Id_);
+    YT_LOG_TRACE("Reusing fiber (Id: %llx -> %llx)", oldId, Id_);
 }
 
 bool TFiber::IsCanceled() const
