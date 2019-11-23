@@ -241,7 +241,7 @@ _START_DEFAULTS = {
     "node_chunk_store_quota": 7 * GB
 }
 
-def start(master_count=None, node_count=None, scheduler_count=None, rpc_proxy_count=0,
+def start(master_count=None, node_count=None, scheduler_count=None, rpc_proxy_count=0, rpc_proxy_config=None,
           master_config=None, node_config=None, scheduler_config=None, proxy_config=None, controller_agent_config=None,
           proxy_port=None, http_proxy_ports=None, http_proxy_count=None, id=None, local_cypress_dir=None,
           enable_debug_logging=False, tmpfs_path=None, port_range_start=None, fqdn=None, path=None,

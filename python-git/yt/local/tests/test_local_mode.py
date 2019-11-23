@@ -392,8 +392,9 @@ class TestLocalMode(object):
                           master_config=yson_file.name,
                           node_config=yson_file.name,
                           scheduler_config=yson_file.name,
-                          proxy_config=json_file.name) as environment:
-                for service in ["master", "node", "scheduler", "proxy"]:
+                          proxy_config=json_file.name,
+                          rpc_proxy_config=yson_file.name) as environment:
+                for service in ["master", "node", "scheduler", "proxy", "rpc_proxy"]:
                     if isinstance(environment.configs[service], list):
                         for config in environment.configs[service]:
                             assert config["test_key"] == "test_value"
@@ -409,8 +410,9 @@ class TestLocalMode(object):
                       master_config=patch,
                       node_config=patch,
                       scheduler_config=patch,
-                      proxy_config=patch) as environment:
-            for service in ["master", "node", "scheduler", "proxy"]:
+                      proxy_config=patch,
+                      rpc_proxy_config=patch) as environment:
+            for service in ["master", "node", "scheduler", "proxy", "rpc_proxy"]:
                 if isinstance(environment.configs[service], list):
                     for config in environment.configs[service]:
                         assert config["test_key"] == "test_value"
