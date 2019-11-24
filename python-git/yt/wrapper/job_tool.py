@@ -6,7 +6,6 @@ from yt.wrapper.common import DoNotReplaceAction, chunk_iter_stream, MB
 from yt.wrapper.file_commands import _get_remote_temp_files_directory
 from yt.wrapper.job_commands import get_job_input, get_job_fail_context
 import yt.logger as logger
-import yt.yson as yson
 import yt.wrapper as yt
 
 from yt.packages.six.moves import xrange
@@ -46,6 +45,9 @@ JOB_TYPE_TO_SPEC_TYPE = {
 OPERATION_ARCHIVE_JOBS_PATH = "//sys/operations_archive/jobs"
 
 JobInfo = collections.namedtuple("JobInfo", ["job_type", "is_running"])
+
+FULL_INPUT_MODE = "full_input"
+INPUT_CONTEXT_MODE = "input_context"
 
 def shellquote(s):
     # https://stackoverflow.com/questions/35817/how-to-escape-os-system-calls-in-python
@@ -188,7 +190,11 @@ def ensure_backend_is_supported():
             file=sys.stderr)
         exit(1)
 
-def prepare_job_environment(operation_id, job_id, job_path, run=False, get_context_mode="context"):
+def prepare_job_environment(operation_id, job_id, job_path, run=False, get_context_mode=INPUT_CONTEXT_MODE):
+    if get_context_mode not in (INPUT_CONTEXT_MODE, FULL_INPUT_MODE):
+        raise YtError("Incorrect get_context_mode {}, expected one of ({}, {})",
+            repr(get_context_mode), repr(INPUT_CONTEXT_MODE), repr(FULL_INPUT_MODE))
+
     # NB: we should explicitly reset this option to default value since CLI usually set True to it.
     yt.config["default_value_of_raw_option"] = None
 
@@ -207,7 +213,7 @@ def prepare_job_environment(operation_id, job_id, job_path, run=False, get_conte
     logger.info("Preparing job environment for job %s, operation %s", job_id, operation_id)
 
     job_info = get_job_info(operation_id, job_id)
-    if get_context_mode == "full_input":
+    if get_context_mode == FULL_INPUT_MODE:
         get_context_action = "get_job_input"
     elif job_info.is_running:
         get_context_action = "dump_job_context"
@@ -318,13 +324,11 @@ def create_job_tool_parser(parser):
                                         action="store_true", default=False)
 
     get_context_mode_group = prepare_job_env_parser.add_mutually_exclusive_group()
-    get_context_mode_group.add_argument("--full-input", dest="get_context_mode", action="store_const",
-                                        help="download input context of a job", const="full_input",
-                                        default="full_input")
-    get_context_mode_group.add_argument("--full", dest="get_context_mode", action="store_const",
-                                        help="download input context of a job", const="full_input")
+    get_context_mode_group.add_argument("--full-input", "--full", dest="get_context_mode", action="store_const",
+                                        help="download input context of a job", const=FULL_INPUT_MODE,
+                                        default=FULL_INPUT_MODE)
     get_context_mode_group.add_argument("--context", dest="get_context_mode", action="store_const",
-                                        help="download fail context of a job", const="context")
+                                        help="download fail context of a job", const=INPUT_CONTEXT_MODE)
 
     run_job_parser = subparsers.add_parser("run-job", help="runs job binary")
     add_hybrid_argument(run_job_parser, "job_path", help="path to prepared job environment")
