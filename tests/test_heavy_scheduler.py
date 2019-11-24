@@ -77,7 +77,7 @@ class TestHeavyScheduler(object):
         monitoring_client = yp_env_configurable.yp_heavy_scheduler_instance.create_monitoring_client()
 
         def are_task_counters_initialized():
-            for name in ("active", "finished", "timed_out"):
+            for name in ("active", "succeeded", "failed", "timed_out"):
                 samples = json.loads(monitoring_client.get("/profiling/heavy_scheduler/task_manager/{}".format(name)))
                 if len(samples) > 0 and samples[-1]["value"] == 0:
                     continue

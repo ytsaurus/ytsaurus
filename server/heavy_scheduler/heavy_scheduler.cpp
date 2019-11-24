@@ -86,7 +86,8 @@ TPod* FindPod(const TClusterPtr& cluster, const TObjectCompositeId& compositeId)
 
 DEFINE_ENUM(ETaskState,
     (Active)
-    (Finished)
+    (Succeeded)
+    (Failed)
 );
 
 class TSwapTask
@@ -131,13 +132,13 @@ public:
 
         if (!starvingPod) {
             YT_LOG_DEBUG("Swap task is considered finished; starving pod does not exist");
-            State_ = ETaskState::Finished;
+            State_ = ETaskState::Succeeded;
             return;
         }
 
         if (starvingPod->GetNode()) {
             YT_LOG_DEBUG("Swap task is considered finished; starving pod is scheduled");
-            State_ = ETaskState::Finished;
+            State_ = ETaskState::Succeeded;
             return;
         }
 
@@ -153,7 +154,7 @@ public:
             YT_LOG_DEBUG(
                 "Swap task is considered finished; "
                 "passed at least one scheduling iteration after victim eviction");
-            State_ = ETaskState::Finished;
+            State_ = ETaskState::Failed;
         } else {
             YT_LOG_DEBUG(
                 "Swap task is cosidered not finished; "
@@ -247,15 +248,21 @@ public:
         auto now = TInstant::Now();
 
         int timedOutCount = 0;
-        int finishedCount = 0;
+        int succeededCount = 0;
+        int failedCount = 0;
+        int activeCount = 0;
 
         Tasks_.erase(
             std::remove_if(
                 Tasks_.begin(),
                 Tasks_.end(),
                 [&] (const TSwapTaskPtr& task) {
-                    if (task->GetState() == ETaskState::Finished) {
-                        ++finishedCount;
+                    if (task->GetState() == ETaskState::Succeeded) {
+                        ++succeededCount;
+                        return true;
+                    }
+                    if (task->GetState() == ETaskState::Failed) {
+                        ++failedCount;
                         return true;
                     }
                     if (task->GetStartTime() + TaskTimeLimit_ < now) {
@@ -266,13 +273,15 @@ public:
                             TaskTimeLimit_);
                         return true;
                     }
+                    ++activeCount;
                     return false;
                 }),
             Tasks_.end());
 
         Profiler_.Update(Profiling_.TimedOutCounter, timedOutCount);
-        Profiler_.Update(Profiling_.FinishedCounter, finishedCount);
-        Profiler_.Update(Profiling_.ActiveCounter, Tasks_.size());
+        Profiler_.Update(Profiling_.SucceededCounter, succeededCount);
+        Profiler_.Update(Profiling_.FailedCounter, failedCount);
+        Profiler_.Update(Profiling_.ActiveCounter, activeCount);
     }
 
     bool ShouldWait() const
@@ -294,7 +303,8 @@ private:
     struct TProfiling
     {
         NProfiling::TSimpleGauge TimedOutCounter{"/timed_out"};
-        NProfiling::TSimpleGauge FinishedCounter{"/finished"};
+        NProfiling::TSimpleGauge SucceededCounter{"/succeeded"};
+        NProfiling::TSimpleGauge FailedCounter{"/failed"};
         NProfiling::TSimpleGauge ActiveCounter{"/active"};
     };
 
