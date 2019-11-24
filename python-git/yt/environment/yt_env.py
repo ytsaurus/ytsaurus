@@ -1069,7 +1069,11 @@ class YTInstance(object):
         self._remove_scheduler_lock()
 
         client = self._create_cluster_client()
-        client.create("map_node", "//sys/pool_trees/default", ignore_existing=True, recursive=True)
+        # COMPAT(renadeen): add yt/yt master branch commit hash with user managed pools
+        if client.get("//sys/pool_trees/@type") == "map_node":
+            client.create("map_node", "//sys/pool_trees/default", ignore_existing=True, recursive=True)
+        else:
+            client.create("scheduler_pool_tree", attributes={"name": "default"}, ignore_existing=True)
         client.set("//sys/pool_trees/@default_tree", "default")
         client.set("//sys/pool_trees/default/@max_ephemeral_pools_per_user", 5)
         if not client.exists("//sys/pools"):
