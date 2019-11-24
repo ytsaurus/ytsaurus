@@ -343,6 +343,13 @@ private:
 
     TTaskManager TaskManager_;
 
+    struct TProfiling
+    {
+        NProfiling::TSimpleGauge VictimSearchFailureCounter{"/victim_search_failure"};
+        NProfiling::TSimpleGauge UnhealthyClusterCounter{"/unhealthy_cluster"};
+    };
+
+    TProfiling Profiling_;
 
     void RunIteration()
     {
@@ -376,6 +383,7 @@ private:
         }
 
         if (!CheckClusterHealth()) {
+            Profiler.Update(Profiling_.UnhealthyClusterCounter, 1);
             return;
         }
 
@@ -415,6 +423,7 @@ private:
             starvingPodFilteredNodes);
         if (!victimPod) {
             YT_LOG_DEBUG("Could not find victim pod");
+            Profiler.Update(Profiling_.VictimSearchFailureCounter, 1);
             return;
         }
 
