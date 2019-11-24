@@ -645,7 +645,15 @@ print(op.id)
         old_value = yt.config["start_operation_request_timeout"]
         yt.config["start_operation_request_timeout"] = 2000
 
-        yt.create("map_node", "//sys/pools/with_operation_count_limit", attributes={"max_operation_count": 1})
+        # COMPAT(renadeen): add yt/yt master branch commit hash with user managed pools
+        if yt.get("//sys/pool_trees/@type") == "map_node":
+            yt.create("map_node", "//sys/pools/with_operation_count_limit", attributes={"max_operation_count": 1})
+        else:
+            yt.create("scheduler_pool", attributes={
+                "name": "with_operation_count_limit",
+                "pool_tree": "default",
+                "max_operation_count": 1
+            })
         time.sleep(1)
 
         try:

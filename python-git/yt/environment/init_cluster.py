@@ -290,16 +290,33 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
     client.link("//tmp/trash", "//trash", ignore_existing=True)
 
     if configure_pool_trees:
-        client.create("map_node", "//sys/pool_trees/physical", attributes={"nodes_filter": "internal"}, ignore_existing=True)
+        # COMPAT(renadeen): add yt/yt master branch commit hash with user managed pools
+        if client.get("//sys/pool_trees/@type") == "map_node":
+            client.create("map_node", "//sys/pool_trees/physical",
+                          attributes={"nodes_filter": "internal"},
+                          ignore_existing=True)
+            client.create("map_node", "//sys/pool_trees/physical/research",
+                          attributes={"forbid_immediate_operations": True},
+                          ignore_existing=True)
+            client.create("map_node", "//sys/pool_trees/physical/transfer_manager", ignore_existing=True)
+        else:
+            client.create("scheduler_pool_tree", ignore_existing=True, attributes={
+                "name": "physical",
+                "nodes_filter": "internal"
+            })
+            client.create("scheduler_pool", ignore_existing=True, attributes={
+                "name": "research",
+                "pool_tree": "physical",
+                "forbid_immediate_operations": True
+            })
+            client.create("scheduler_pool", ignore_existing=True, attributes={
+                "name": "transfer_manager",
+                "pool_tree": "physical"
+            })
         client.set("//sys/pool_trees/@default_tree", "physical")
         client.link("//sys/pool_trees/physical", "//sys/pools", force=True)
-        # Configure research pool
-        client.create("map_node", "//sys/pool_trees/physical/research",
-                      attributes={"forbid_immediate_operations": True},
-                      ignore_existing=True)
         client.set("//sys/pool_trees/physical/@default_parent_pool", "research")
-        client.create("map_node", "//sys/pool_trees/physical/transfer_manager", ignore_existing=True)
-        add_acl("//sys/pool_trees/physical/transfer_manager", 
+        add_acl("//sys/pool_trees/physical/transfer_manager",
                 {"subjects": ["transfer_manager"], "permissions": ["write", "remove"], "action": "allow"},
                 client)
 
