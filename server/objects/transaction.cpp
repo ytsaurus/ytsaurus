@@ -56,6 +56,7 @@
 #include <yt/ytlib/query_client/query_preparer.h>
 
 #include <yt/core/ytree/node.h>
+#include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/ypath_resolver.h>
 
 #include <yt/core/ypath/tokenizer.h>
@@ -1546,7 +1547,12 @@ private:
                             : row.BeginDeleteTimestamps()[0];
 
                         if (maxWriteTimestamp <= maxDeleteTimestamp) {
-                            YT_LOG_DEBUG("Got dead lookup row (%v, Row: %v)", tag, row);
+                            YT_LOG_DEBUG("Got dead lookup row (%v, Row: %v)", tag, BuildYsonStringFluently(EYsonFormat::Text)
+                                .DoListFor(row.BeginValues(), row.EndValues(), [&] (TFluentList fluent, const TVersionedValue* value) {
+                                    fluent
+                                        .Item().Value(*value);
+                                })
+                            );
                             continue;
                         }
 
@@ -1574,7 +1580,12 @@ private:
                             }
                         }
 
-                        YT_LOG_DEBUG("Got lookup row (%v, Row: %v)", tag, row);
+                        YT_LOG_DEBUG("Got lookup row (%v, Row: %v)", tag, BuildYsonStringFluently(EYsonFormat::Text)
+                            .DoListFor(row.BeginValues(), row.EndValues(), [&] (TFluentList fluent, const TVersionedValue* value) {
+                                fluent
+                                    .Item().Value(*value);
+                            })
+                        );
                     }
                 }
             }
