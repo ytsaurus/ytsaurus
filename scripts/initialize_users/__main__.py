@@ -17,7 +17,11 @@ logger = None
 def configure_logger():
     global logger
 
-    logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
+    logging.basicConfig(
+        format="%(asctime)-15s %(levelname)s %(message)s",
+        level=logging.DEBUG,
+        stream=sys.stdout,
+    )
     logger = logging
 
 
@@ -59,7 +63,7 @@ def set_schema_permissions(client, type, user, rights):
                     actual_user_permissions.add(permission)
 
         rights_to_add = rights_to_grant.difference(actual_user_permissions)
-        rights_to_revoke = actual_user_permissions.difference(rights_to_grant)
+        # rights_to_revoke = actual_user_permissions.difference(rights_to_grant)
 
         updates_set = []
         for right in rights_to_add:
@@ -85,6 +89,61 @@ def set_schema_permissions(client, type, user, rights):
 
         if updates_set:
             client.update_object("schema", type, updates_set)
+
+
+def set_schema_permission_for_attribute(client, type, user, permission, attribute):
+    create_user(client, user)
+
+    logger.debug("Setting schema permission for attribute: type = {}, user = {}, permission = {}, attribute = {}".format(
+        type,
+        user,
+        permission,
+        attribute,
+    ))
+
+    matching_ace = None
+
+    acl = client.get_object("schema", type, ["/meta/acl"])[0]
+    for ace in acl:
+        if ace["action"] != "allow":
+            continue
+        if user not in ace["subjects"]:
+            continue
+        if permission not in ace["permissions"]:
+            continue
+        if "attributes" not in ace or len(ace["attributes"]) == 0:
+            matching_ace = ace
+            break
+        for ace_attribute in ace["attributes"]:
+            if attribute.startswith(ace_attribute):
+                matching_ace = ace
+                break
+        if matching_ace is not None:
+            break
+
+    if matching_ace is not None:
+        logger.debug("Found matching ace = {}".format(matching_ace))
+        return
+
+    set_updates = [
+        dict(
+            path="/meta/acl/end",
+            value=dict(
+                action="allow",
+                subjects=[user],
+                permissions=[permission],
+                attributes=[attribute],
+            )
+        )
+    ]
+
+    logger.debug("Updating object: type = {}, id = {}, set updates = {}".format(
+        "schema",
+        type,
+        set_updates,
+    ))
+
+    client.update_object("schema", type, set_updates=set_updates)
 
 
 def set_account(client, account_name, segment_name, cpu, memory, hdd, ssd, ipv4):
@@ -240,17 +299,14 @@ ACCOUNTS = [
         }
     }),
 
-    Account("tmp",
-            {
-                "default": {
-                    "cpu": 1700000,
-                    "memory": 10000000000000,
-                    "hdd": 150000000000000,
-                    "ssd": 20000000000000
-                }
-            },
-            allow_use_for_all=True
-        ),
+    Account("tmp", {
+        "default": {
+            "cpu": 1700000,
+            "memory": 10000000000000,
+            "hdd": 150000000000000,
+            "ssd": 20000000000000
+        },
+    }, allow_use_for_all=True),
 
     Account("odin",
             {
@@ -303,12 +359,12 @@ def accounts_override_man(cluster, accounts, client):
 
 
 def is_cluster_with_qyp_dev_segment(cluster, client):
-        try:
-            client.get_object("node_segment", "dev", ["/meta/id"])
-        except YpNoSuchObjectError:
-            return False
+    try:
+        client.get_object("node_segment", "dev", ["/meta/id"])
+    except YpNoSuchObjectError:
+        return False
 
-        return True
+    return True
 
 
 def setup_dev_segment(cluster, accounts, client):
@@ -463,6 +519,8 @@ def initialize_users(cluster):
 
         # https://st.yandex-team.ru/YPADMIN-257
         set_schema_permissions(client, "pod_disruption_budget", "nanny-robot", right_crw)
+
+        set_schema_permission_for_attribute(client, "pod", "robot-yp-heavy-sched", "write", "/control/request_eviction")
 
         create_accounts(client, cluster, accounts)
 
