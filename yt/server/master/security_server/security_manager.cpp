@@ -2183,6 +2183,7 @@ private:
             if (HasSchema(type)) {
                 auto* schema = objectManager->GetSchema(type);
                 auto* acd = GetAcd(schema);
+                // TODO(renadeen): giving read, write, remove for object schema to all users looks like a bad idea.
                 if (!IsVersionedType(type)) {
                     acd->AddEntry(TAccessControlEntry(
                         ESecurityAction::Allow,

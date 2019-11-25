@@ -159,7 +159,8 @@ inline TEntitySerializationKey TEntityStreamLoadContext::RegisterEntity(void* en
 template <class T>
 T* TEntityStreamLoadContext::GetEntity(TEntitySerializationKey key) const
 {
-    YT_ASSERT(key.Index >= 0 && key.Index < static_cast<int>(Entities_.size()));
+    YT_ASSERT(key.Index >= 0);
+    YT_ASSERT(key.Index < static_cast<int>(Entities_.size()));
     return static_cast<T*>(Entities_[key.Index]);
 }
 

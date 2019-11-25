@@ -171,9 +171,12 @@ def _restore_globals(driver=None):
                 yt_commands.make_batch_request("set", path="//sys/tablet_cell_bundles/default/@dynamic_options", input={}),
                 yt_commands.make_batch_request("set", path="//sys/tablet_cell_bundles/default/@tablet_balancer_config", input={}),
                 yt_commands.make_batch_request("set", path="//sys/@config", input=get_dynamic_master_config()),
-                yt_commands.make_batch_request("remove", path="//sys/pool_trees/default/*", force=True)
+                # TODO(renadeen): remove
+                # yt_commands.make_batch_request("remove", path="//sys/pool_trees/default/*", force=True)
             ], driver=driver):
             assert not yt_commands.get_batch_output(response)
+        if yt_commands.exists("//sys/pool_trees/default"):
+            yt_commands.remove("//sys/pool_trees/default/*")
 
     _retry_with_gc_collect(do, driver=driver)
 

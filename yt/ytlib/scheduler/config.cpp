@@ -1355,10 +1355,12 @@ TEphemeralSubpoolConfig::TEphemeralSubpoolConfig()
         .Default(ESchedulingMode::FairShare);
 
     RegisterParameter("max_running_operation_count", MaxRunningOperationCount)
-        .Default(10);
+        .Default()
+        .GreaterThanOrEqual(0);
 
     RegisterParameter("max_operation_count", MaxOperationCount)
-        .Default(10);
+        .Default()
+        .GreaterThanOrEqual(0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1382,12 +1384,12 @@ TPoolConfig::TPoolConfig()
         .Default(ESchedulingMode::FairShare);
 
     RegisterParameter("max_running_operation_count", MaxRunningOperationCount)
-        .Alias("max_running_operations")
-        .Default();
+        .Default()
+        .GreaterThanOrEqual(0);
 
     RegisterParameter("max_operation_count", MaxOperationCount)
-        .Alias("max_operations")
-        .Default();
+        .Default()
+        .GreaterThanOrEqual(0);
 
     RegisterParameter("fifo_sort_parameters", FifoSortParameters)
         .Default({EFifoSortParameter::Weight, EFifoSortParameter::StartTime})

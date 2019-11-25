@@ -5,18 +5,14 @@
 
 #include <yt/server/master/cell_master/bootstrap.h>
 
-#include <yt/server/master/cypress_server/cypress_manager.h>
 #include <yt/server/master/cypress_server/node_detail.h>
-
-#include <yt/server/lib/hive/transaction_supervisor.h>
-
-#include <yt/server/lib/hydra/mutation.h>
 
 #include <yt/server/master/security_server/acl.h>
 #include <yt/server/master/security_server/group.h>
-#include <yt/server/master/security_server/security_manager.h>
 
-#include <yt/server/master/transaction_server/transaction_manager.h>
+#include <yt/server/lib/hive/transaction_supervisor.h>
+
+#include <yt/server/lib/scheduler/public.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
@@ -36,7 +32,6 @@
 #include <yt/core/ypath/token.h>
 
 #include <yt/core/ytree/ypath_client.h>
-#include <yt/core/ytree/ypath_proxy.h>
 
 namespace NYT::NCellMaster {
 
@@ -218,12 +213,11 @@ private:
                     .EndMap());
 
             ScheduleCreateNode(
-                "//sys/pool_trees",
+                NScheduler::PoolTreesRootCypressPath,
                 transactionId,
-                EObjectType::MapNode,
+                EObjectType::SchedulerPoolTreeMap,
                 BuildYsonStringFluently()
                     .BeginMap()
-                        .Item("opaque").Value(true)
                         .Item("acl").BeginList()
                         .Item().Value(TAccessControlEntry(
                             ESecurityAction::Allow,

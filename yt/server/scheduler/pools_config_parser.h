@@ -1,7 +1,8 @@
 #pragma once
 
 #include "public.h"
-#include "fair_share_tree.h"
+
+#include <yt/server/lib/scheduler/helpers.h>
 
 #include <yt/core/ytree/convert.h>
 
@@ -71,8 +72,8 @@ private:
         }
 
         for (const auto& [childName, childNode] : children) {
-            if (childName == RootPoolName) {
-                Error_ = TError("Use of root element id is forbidden");
+            Error_ = CheckPoolName(childName);
+            if (!Error_.IsOK()) {
                 return false;
             }
 

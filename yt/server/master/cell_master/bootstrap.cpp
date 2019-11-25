@@ -50,6 +50,10 @@
 #include <yt/server/master/object_server/request_profiling_manager.h>
 #include <yt/server/master/object_server/sys_node_type_handler.h>
 
+#include <yt/server/master/scheduler_pool_server/cypress_integration.h>
+#include <yt/server/master/scheduler_pool_server/scheduler_pool.h>
+#include <yt/server/master/scheduler_pool_server/scheduler_pool_manager.h>
+
 #include <yt/server/master/orchid/cypress_integration.h>
 
 #include <yt/server/master/security_server/cypress_integration.h>
@@ -149,6 +153,7 @@ using namespace NNodeTrackerClient;
 using namespace NNodeTrackerServer;
 using namespace NObjectClient;
 using namespace NObjectServer;
+using namespace NSchedulerPoolServer;
 using namespace NOrchid;
 using namespace NProfiling;
 using namespace NRpc;
@@ -333,6 +338,11 @@ const TJournalManagerPtr& TBootstrap::GetJournalManager() const
 const TSecurityManagerPtr& TBootstrap::GetSecurityManager() const
 {
     return SecurityManager_;
+}
+
+const TSchedulerPoolManagerPtr& TBootstrap::GetSchedulerPoolManager() const
+{
+    return SchedulerPoolManager_;
 }
 
 const TTamedCellManagerPtr& TBootstrap::GetTamedCellManager() const
@@ -633,6 +643,8 @@ void TBootstrap::DoInitialize()
 
     ReplicatedTableTracker_ = New<TReplicatedTableTracker>(Config_->ReplicatedTableTracker, this);
 
+    SchedulerPoolManager_ = New<TSchedulerPoolManager>(this);
+
     auto timestampManager = New<TTimestampManager>(
         Config_->TimestampManager,
         HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::TimestampManager),
@@ -675,6 +687,7 @@ void TBootstrap::DoInitialize()
     TamedCellManager_->Initialize();
     TabletManager_->Initialize();
     MulticellManager_->Initialize();
+    SchedulerPoolManager_->Initialize();
 
     CellDirectorySynchronizer_ = New<NHiveServer::TCellDirectorySynchronizer>(
         Config_->CellDirectorySynchronizer,
@@ -729,6 +742,7 @@ void TBootstrap::DoInitialize()
     CypressManager_->RegisterHandler(CreateUserMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateGroupMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateNetworkProjectMapTypeHandler(this));
+    CypressManager_->RegisterHandler(CreatePoolTreeMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateTabletCellNodeTypeHandler(this));
     CypressManager_->RegisterHandler(CreateTabletCellMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateTabletMapTypeHandler(this));

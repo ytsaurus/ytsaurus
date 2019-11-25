@@ -107,6 +107,7 @@ DEFINE_ENUM(EMasterReign,
     ((EnableDelayedMembershipClosureRecomputationByDefault)         (1001))  // babenko
     ((NetworkProject)                                               (1002))  // gritukan
     ((DynamicPeerCount)                                             (1003))  // gritukan
+    ((UserManagedPools)                                             (1004))  // renadeen
 );
 
 ////////////////////////////////////////////////////////////////////////////////
