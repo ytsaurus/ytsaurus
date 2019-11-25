@@ -29,11 +29,11 @@ func disableIndexControlAttributes(ca *ControlAttributes) {
 	ca.EnableRangeIndex = false
 }
 
-func (base *Spec) Map() *Spec {
-	s := base.Clone()
-	s.Type = yt.OperationMap
-	enableControlAttributes(&s.JobIO)
-	return s
+func (s *Spec) Map() *Spec {
+	ss := s.Clone()
+	ss.Type = yt.OperationMap
+	enableControlAttributes(&ss.JobIO)
+	return ss
 }
 
 func Reduce() *Spec {
@@ -41,11 +41,11 @@ func Reduce() *Spec {
 	return spec.Reduce()
 }
 
-func (base *Spec) Reduce() *Spec {
-	s := base.Clone()
-	s.Type = yt.OperationReduce
-	enableControlAttributes(&s.JobIO)
-	return s
+func (s *Spec) Reduce() *Spec {
+	ss := s.Clone()
+	ss.Type = yt.OperationReduce
+	enableControlAttributes(&ss.JobIO)
+	return ss
 }
 
 func MapReduce() *Spec {
@@ -53,15 +53,15 @@ func MapReduce() *Spec {
 	return spec.Reduce()
 }
 
-func (base *Spec) MapReduce() *Spec {
-	s := base.Clone()
-	s.Type = yt.OperationMapReduce
-	enableControlAttributes(&s.MapJobIO)
-	enableControlAttributes(&s.ReduceJobIO)
+func (s *Spec) MapReduce() *Spec {
+	ss := s.Clone()
+	ss.Type = yt.OperationMapReduce
+	enableControlAttributes(&ss.MapJobIO)
+	enableControlAttributes(&ss.ReduceJobIO)
 	// Required for Reduce because this operation
 	// does not support indexes (table, row and range)
-	disableIndexControlAttributes(s.ReduceJobIO.ControlAttributes)
-	return s
+	disableIndexControlAttributes(ss.ReduceJobIO.ControlAttributes)
+	return ss
 }
 
 func JoinReduce() *Spec {
@@ -69,11 +69,11 @@ func JoinReduce() *Spec {
 	return spec.JoinReduce()
 }
 
-func (base *Spec) JoinReduce() *Spec {
-	s := base.Clone()
-	s.Type = yt.OperationJoinReduce
-	enableControlAttributes(&s.JobIO)
-	return s
+func (s *Spec) JoinReduce() *Spec {
+	ss := s.Clone()
+	ss.Type = yt.OperationJoinReduce
+	enableControlAttributes(&ss.JobIO)
+	return ss
 }
 
 func Sort() *Spec {
@@ -81,10 +81,10 @@ func Sort() *Spec {
 	return spec.Sort()
 }
 
-func (base *Spec) Sort() *Spec {
-	s := base.Clone()
-	s.Type = yt.OperationSort
-	return s
+func (s *Spec) Sort() *Spec {
+	ss := s.Clone()
+	ss.Type = yt.OperationSort
+	return ss
 }
 
 func Merge() *Spec {
@@ -92,10 +92,10 @@ func Merge() *Spec {
 	return spec.Merge()
 }
 
-func (base *Spec) Merge() *Spec {
-	s := base.Clone()
-	s.Type = yt.OperationMerge
-	return s
+func (s *Spec) Merge() *Spec {
+	ss := s.Clone()
+	ss.Type = yt.OperationMerge
+	return ss
 }
 
 func Erase() *Spec {
@@ -103,10 +103,10 @@ func Erase() *Spec {
 	return spec.Erase()
 }
 
-func (base *Spec) Erase() *Spec {
-	s := base.Clone()
-	s.Type = yt.OperationErase
-	return s
+func (s *Spec) Erase() *Spec {
+	ss := s.Clone()
+	ss.Type = yt.OperationErase
+	return ss
 }
 
 func Vanilla() *Spec {
@@ -114,25 +114,25 @@ func Vanilla() *Spec {
 	return spec.Vanilla()
 }
 
-func (base *Spec) AddVanillaTask(name string, jobCount int) *Spec {
-	s := base.Clone()
+func (s *Spec) AddVanillaTask(name string, jobCount int) *Spec {
+	ss := s.Clone()
 
-	if s.Tasks == nil {
-		s.Tasks = map[string]*UserScript{}
+	if ss.Tasks == nil {
+		ss.Tasks = map[string]*UserScript{}
 	}
 
-	u, ok := s.Tasks[name]
+	u, ok := ss.Tasks[name]
 	if !ok {
 		u = &UserScript{}
-		s.Tasks[name] = u
+		ss.Tasks[name] = u
 	}
 
 	u.JobCount = jobCount
-	return s
+	return ss
 }
 
-func (base *Spec) Vanilla() *Spec {
-	s := base.Clone()
-	s.Type = yt.OperationVanilla
-	return s
+func (s *Spec) Vanilla() *Spec {
+	ss := s.Clone()
+	ss.Type = yt.OperationVanilla
+	return ss
 }
