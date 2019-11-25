@@ -427,7 +427,15 @@ TFuture<void> TTcpConnection::Send(TSharedRefArray message, const TSendOptions& 
     }
 
     QueuedMessages_.Enqueue(queuedMessage);
-    ArmPollerForWrite();
+
+    if (State_ == EState::Open) {
+        if (!PendingWrite_) {
+            PendingWrite_ = true;
+            Poller_->Retry(this);
+        }
+    } else {
+        YT_LOG_TRACE("Cannot start writing since connection is not open yet");
+    }
 
     return queuedMessage.Promise;
 }
@@ -483,7 +491,16 @@ void TTcpConnection::UnsubscribeTerminated(const TCallback<void(const TError&)>&
 
 void TTcpConnection::OnEvent(EPollControl control)
 {
-    do {
+    // New events could come while previous handler is still running.
+    if (Any(control & EPollControl::Read) && !PendingRead_) {
+        PendingRead_ = true;
+    }
+
+    if (Any(control & EPollControl::Write) && !PendingWrite_) {
+        PendingWrite_ = true;
+    }
+
+    {
         TTryGuard<TSpinLock> guard(EventHandlerSpinLock_);
         if (!guard.WasAcquired()) {
             YT_LOG_TRACE("Event handler is already running");
@@ -512,23 +529,38 @@ void TTcpConnection::OnEvent(EPollControl control)
 
         YT_LOG_TRACE("Event processing started");
 
-        ProcessQueuedMessages();
-
         // NB: Try to read from the socket before writing into it to avoid
         // getting SIGPIPE when the other party closes the connection.
-        if (Any(control & EPollControl::Read)) {
+        //
+        // Clear PendingRead_ before reading. Consequent event will raise it
+        // back and retry handling. OnSocketRead() always consumes all backlog
+        // or aborts connection if something went wrong, othwewise if somehting
+        // left then handling should raise PendingRead_ back.
+        if (PendingRead_) {
+            PendingRead_ = false;
             OnSocketRead();
         }
 
-        if (Any(control & EPollControl::Write)) {
+        // Similar logic for writing. This always writes as much as possible.
+        // Writing retried either by new message or event from poller.
+        if (PendingWrite_) {
+            PendingWrite_ = false;
+            ProcessQueuedMessages();
             OnSocketWrite();
         }
 
-        HasUnsentData_ = HasUnsentData();
-        YT_LOG_TRACE("Event processing finished (HasUnsentData: %v)", HasUnsentData_.load());
-    } while (ArmedForQueuedMessages_);
+        YT_LOG_TRACE("Event processing finished (HasUnsentData: %v)", HasUnsentData());
+    }
 
-    RearmPoller();
+    // Finally, recheck pending flags out of lock. If concurrent event failed
+    // to grab lock then we have to retry event handing. But loop here around
+    // one pollable could cause starvation for others and increase latency for
+    // events already picked by this thread. So, put it away into retry queue
+    // without waking other threads. This or any other thread will handle it
+    // on next iteration after handling picked events.
+    if (PendingRead_ || PendingWrite_) {
+        Poller_->Retry(this, false);
+    }
 }
 
 void TTcpConnection::OnShutdown()
@@ -1066,7 +1098,6 @@ void TTcpConnection::OnTerminated()
 
 void TTcpConnection::ProcessQueuedMessages()
 {
-    ArmedForQueuedMessages_ = false;
     auto messages = QueuedMessages_.DequeueAll();
 
     for (auto it = messages.rbegin(); it != messages.rend(); ++it) {
@@ -1139,27 +1170,6 @@ void TTcpConnection::UnregisterFromPoller()
     Poller_->Unregister(this);
 }
 
-void TTcpConnection::ArmPollerForWrite()
-{
-    if (State_ != EState::Open) {
-        YT_LOG_TRACE("Cannot arm poller since connection is not open yet");
-        return;
-    }
-
-    // In case the connection is already open we kick-start processing by arming the poller.
-    // ArmedForQueuedMessages_ is used to batch these arm calls.
-    bool expected = false;
-    if (!ArmedForQueuedMessages_.compare_exchange_strong(expected, true)) {
-        YT_LOG_TRACE("Poller is already armed");
-        return;
-    }
-
-    {
-        NConcurrency::TReaderGuard guard(ControlSpinLock_);
-        DoArmPoller();
-    }
-}
-
 void TTcpConnection::DoArmPoller()
 {
     if (Unregistered_) {
@@ -1175,40 +1185,6 @@ void TTcpConnection::DoArmPoller()
     Poller_->Arm(Socket_, this, EPollControl::Read|EPollControl::Write);
 
     YT_LOG_TRACE("Poller armed");
-}
-
-void TTcpConnection::RearmPoller()
-{
-    NConcurrency::TReaderGuard guard(ControlSpinLock_);
-
-    if (Unregistered_) {
-        YT_LOG_TRACE("Cannot rearm poller since connection is unregistered");
-        return;
-    }
-
-    if (Socket_ == INVALID_SOCKET) {
-        YT_LOG_TRACE("Cannot rearm poller since socket is closed");
-        return;
-    }
-
-    auto mustArmForWrite = [&] {
-        return HasUnsentData_.load() || ArmedForQueuedMessages_.load();
-    };
-
-    // This loop is to avoid race with #TTcpConnection::Send and to prevent
-    // arming the poller in read-only mode in presence of queued messages or unsent data.
-    bool forWrite;
-    do {
-        if (HasUnsentData_.load()) {
-            LastIncompleteWriteTime_ = NProfiling::GetCpuInstant();
-        } else {
-            LastIncompleteWriteTime_ = std::numeric_limits<NProfiling::TCpuInstant>::max();
-        }
-
-        forWrite = mustArmForWrite();
-        Poller_->Arm(Socket_, this, EPollControl::Read | (forWrite ? EPollControl::Write : EPollControl::None));
-        YT_LOG_TRACE("Poller rearmed (ForWrite: %v)", forWrite);
-    } while (!forWrite && mustArmForWrite());
 }
 
 int TTcpConnection::GetSocketError() const
