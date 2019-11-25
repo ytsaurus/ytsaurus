@@ -2207,7 +2207,7 @@ TEST_F(TQueryEvaluateTest, ComplexWithNull)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, GroupWithLimit)
+TEST_F(TQueryEvaluateTest, GroupWithTotalsAndLimit)
 {
     auto split = MakeSplit({
         {"a", EValueType::Int64},
@@ -2265,6 +2265,64 @@ TEST_F(TQueryEvaluateTest, GroupWithLimit)
     result.push_back(YsonToRow("y=" + ToString(totalSum), resultSplit, true));
 
     Evaluate("x, sum(b) as y FROM [//t] group by a % 127 as x with totals limit 20",
+        split, source, ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, GroupDisjointTotalsLimit)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64, ESortOrder::Ascending},
+        {"b", EValueType::Int64, ESortOrder::Ascending},
+        {"v", EValueType::Int64}
+    });
+
+    size_t limit = 20;
+    std::vector<std::pair<i64, i64>> orderedKeys;
+    THashMap<std::pair<i64, i64>, i64> groupedValues;
+    i64 totalSum = 0;
+
+    auto groupRow = [&] (i64 a, i64 b, i64 value) {
+        auto key = std::make_pair(a, b % 3);
+
+        if (!groupedValues.count(key)) {
+            if (groupedValues.size() >= limit) {
+                return;
+            } else {
+                orderedKeys.push_back(key);
+            }
+        }
+
+        groupedValues[key] += value;
+        totalSum += value;
+    };
+
+    std::vector<TString> source;
+    for (int i = 0; i < 100; ++i) {
+        auto a = i / 10;
+        auto b = i % 10;
+        auto v = i;
+
+        source.push_back(Format("a=%v;b=%v;v=%v", a, b, v));
+        groupRow(a, b, v);
+    }
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64},
+        {"y", EValueType::Int64},
+        {"s", EValueType::Int64},
+    });
+
+    std::vector<TOwningRow> result;
+    for (auto [a, b] : orderedKeys) {
+        TString resultRow = Format("x=%v;y=%v;s=%v", a, b, groupedValues[std::make_pair(a, b)]);
+        result.push_back(YsonToRow(resultRow, resultSplit, false));
+    }
+    // TODO(lukyan): Try to make stable order of totals row
+    result.push_back(YsonToRow("s=" + ToString(totalSum), resultSplit, true));
+
+    Evaluate("x, y, sum(v) as s FROM [//t] group by a as x, b % 3 as y with totals limit 20",
         split, source, ResultMatcher(result));
 
     SUCCEED();

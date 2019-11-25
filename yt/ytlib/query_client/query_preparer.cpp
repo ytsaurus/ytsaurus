@@ -2261,7 +2261,6 @@ void PrepareQuery(
 
         auto keyColumns = query->GetKeyColumns();
 
-
         TNamedItemList groupItems = std::move(groupClause->GroupItems);
 
         std::vector<int> touchedKeyColumns(keyColumns.size(), -1);
@@ -2762,9 +2761,10 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
     }
 
     if (ast.Offset) {
-        if (!query->OrderClause) {
-            THROW_ERROR_EXCEPTION("OFFSET used without ORDER BY");
+        if (!query->OrderClause && query->HavingClause) {
+            THROW_ERROR_EXCEPTION("HAVING with OFFSET is not allowed");
         }
+
         query->Offset = *ast.Offset;
     }
 

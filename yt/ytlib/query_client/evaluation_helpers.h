@@ -216,6 +216,8 @@ struct TGroupByClosure
     int ValuesCount;
     bool CheckNulls;
 
+    size_t GroupedRowCount = 0;
+
     TGroupByClosure(
         IMemoryChunkProviderPtr chunkProvider,
         TComparerFunction* prefixEqComparer,
@@ -235,7 +237,8 @@ struct TWriteOpClosure
     // Rows stored in OutputBuffer
     std::vector<TRow> OutputRowsBatch;
     size_t RowSize;
-    bool ConsiderLimit;
+    bool ConsiderLimitAndOffset;
+    size_t ProcessedRows = 0;
 
     TWriteOpClosure();
 
