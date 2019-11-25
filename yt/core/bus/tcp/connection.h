@@ -180,8 +180,8 @@ private:
 
     TSingleShotCallbackList<void(const TError&)> Terminated_;
 
-    std::atomic<bool> ArmedForQueuedMessages_ = {false};
-    std::atomic<bool> HasUnsentData_ = {false};
+    std::atomic<bool> PendingRead_ = {false};
+    std::atomic<bool> PendingWrite_ = {false};
 
     TMultipleProducerSingleConsumerLockFreeStack<TQueuedMessage> QueuedMessages_;
     std::atomic<size_t> PendingOutPayloadBytes_ = {0};
