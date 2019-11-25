@@ -107,8 +107,14 @@ bool WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TValue* valu
 
     auto* statistics = context->Statistics;
 
-    if (closure->ConsiderLimit && statistics->RowsWritten >= context->Limit) {
-        return true;
+    if (closure->ConsiderLimitAndOffset) {
+        if (closure->ProcessedRows++ < context->Offset) {
+            return false;
+        }
+
+        if (statistics->RowsWritten >= context->Limit) {
+            return true;
+        }
     }
 
     if (statistics->RowsWritten >= context->OutputRowLimit) {
@@ -1164,16 +1170,18 @@ const TValue* InsertGroupRow(
         closure->ProcessSegment();
     }
 
-    if (context->Ordered && closure->Lookup.size() >= context->Limit) {
+    // Any prefix but ordered scan.
+    if (context->Ordered && closure->GroupedRowCount >= context->Offset + context->Limit) {
         if (closure->ValuesCount == 0) {
             return nullptr;
         }
 
-        YT_VERIFY(closure->Lookup.size() == context->Limit);
+        YT_VERIFY(closure->GroupedRowCount == context->Offset + context->Limit);
         auto found = closure->Lookup.find(row);
         return found != closure->Lookup.end() ? *found : nullptr;
     }
 
+    // FIXME: Incorrect in case of grouping by prefix.
     bool limitReached = closure->GroupedRows.size() == context->GroupRowLimit;
 
     if (limitReached) {
@@ -1191,7 +1199,10 @@ const TValue* InsertGroupRow(
     if (inserted.second) {
         closure->LastKey = *inserted.first;
 
+        YT_ASSERT(*inserted.first == row);
+
         closure->GroupedRows.push_back(row);
+        ++closure->GroupedRowCount;
         YT_VERIFY(closure->GroupedRows.size() <= context->GroupRowLimit);
 
         for (int index = 0; index < closure->KeySize; ++index) {
@@ -1249,8 +1260,16 @@ void GroupOpHelper(
     auto flushGroupedRows = [&] (bool isBoundary, const TValue** begin, const TValue** end) {
         auto finished = false;
 
+        if (context->Ordered && processedRows < context->Offset) {
+            size_t skip = std::min<size_t>(context->Offset - processedRows, end - begin);
+
+            processedRows += skip;
+            begin += skip;
+        }
+
         while (!finished && begin < end) {
             i64 size = std::min(begin + RowsetProcessingSize, end) - begin;
+
             processedRows += size;
 
             if (isBoundary) {
@@ -1369,7 +1388,7 @@ void WriteOpHelper(
 {
     TWriteOpClosure closure;
     closure.RowSize = rowSize;
-    closure.ConsiderLimit = considerLimit;
+    closure.ConsiderLimitAndOffset = considerLimit;
 
     try {
         collectRows(collectRowsClosure, &closure);
