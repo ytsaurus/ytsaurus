@@ -31,14 +31,14 @@ class TestSchedulerAlerts(YTEnvSetup):
         assert get("//sys/scheduler/@alerts") == []
 
         # Incorrect pool configuration.
-        create("map_node", "//sys/pools/poolA", attributes={"min_share_ratio": 2.0})
+        create_pool("poolA", attributes={"min_share_ratio": 2.0})
         wait(lambda: len(get("//sys/scheduler/@alerts")) == 1)
 
         set("//sys/pools/poolA/@min_share_ratio", 0.8)
         wait(lambda: get("//sys/scheduler/@alerts") == [])
 
         # Total min_share_ratio > 1.
-        create("map_node", "//sys/pools/poolB", attributes={"min_share_ratio": 0.8})
+        create_pool("poolB", attributes={"min_share_ratio": 0.8})
         wait(lambda: len(get("//sys/scheduler/@alerts")) == 1)
 
         set("//sys/pools/poolA/@min_share_ratio", 0.1)

@@ -152,8 +152,6 @@ public:
     //! Enables infer of weight from effective min share ratios (if weight is not implicitly specified); inferred weight is this number mupltiplied by min share ratio.
     std::optional<double> InferWeightFromMinShareRatioMultiplier;
 
-    bool CrashOnOperationResourceUsageInconsistency;
-
     TFairShareStrategyPackingConfigPtr Packing;
 
     TFairShareStrategyTreeConfig();

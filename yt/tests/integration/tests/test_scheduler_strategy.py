@@ -93,28 +93,14 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
 
     @authors("ignat")
     def test_scheduler_guaranteed_resources_ratio(self):
-        create("map_node", "//sys/pools/big_pool", attributes={"min_share_ratio": 1.0})
-        create("map_node", "//sys/pools/big_pool/subpool_1", attributes={"weight": 1.0})
-        create("map_node", "//sys/pools/big_pool/subpool_2", attributes={"weight": 3.0})
-        create("map_node", "//sys/pools/small_pool", attributes={"weight": 100.0})
-        create("map_node", "//sys/pools/small_pool/subpool_3")
-        create("map_node", "//sys/pools/small_pool/subpool_4")
+        create_pool("big_pool", attributes={"min_share_ratio": 1.0})
+        create_pool("subpool_1", parent_name="big_pool", attributes={"weight": 1.0})
+        create_pool("subpool_2", parent_name="big_pool", attributes={"weight": 3.0})
+        create_pool("small_pool", attributes={"weight": 100.0})
+        create_pool("subpool_3", parent_name="small_pool")
+        create_pool("subpool_4", parent_name="small_pool")
 
         total_resource_limit = get("//sys/scheduler/orchid/scheduler/cell/resource_limits")
-
-        # Wait for fair share update.
-        time.sleep(1)
-
-        assert not get("//sys/scheduler/@alerts")
-
-        set("//sys/pools/small_pool/subpool_3/@min_share_resources", {"cpu": 1})
-
-        # Wait for fair share update.
-        time.sleep(1)
-
-        assert get("//sys/scheduler/@alerts")
-
-        remove("//sys/pools/small_pool/subpool_3/@min_share_resources")
 
         # Wait for fair share update.
         time.sleep(1)
@@ -163,7 +149,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
     @authors("ignat")
     def test_resource_limits(self):
         resource_limits = {"cpu": 1, "memory": 1000 * 1024 * 1024, "network": 10}
-        create("map_node", "//sys/pools/test_pool", attributes={"resource_limits": resource_limits})
+        create_pool("test_pool", attributes={"resource_limits": resource_limits})
 
         wait(lambda: "test_pool" in get(scheduler_orchid_default_pool_tree_path() + "/pools"))
 
@@ -210,7 +196,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
 
     @authors("ignat")
     def test_resource_limits_preemption(self):
-        create("map_node", "//sys/pools/test_pool2")
+        create_pool("test_pool2")
         wait(lambda: "test_pool2" in get(scheduler_orchid_default_pool_tree_path() + "/pools"))
 
         self._prepare_tables()
@@ -253,10 +239,10 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
 
     @authors("ignat")
     def test_max_possible_resource_usage(self):
-        create("map_node", "//sys/pools/low_cpu_pool", attributes={"resource_limits": {"cpu": 1}})
-        create("map_node", "//sys/pools/low_cpu_pool/subpool_1")
-        create("map_node", "//sys/pools/low_cpu_pool/subpool_2", attributes={"resource_limits": {"cpu": 0}})
-        create("map_node", "//sys/pools/high_cpu_pool")
+        create_pool("low_cpu_pool", attributes={"resource_limits": {"cpu": 1}})
+        create_pool("subpool_1", parent_name="low_cpu_pool")
+        create_pool("subpool_2", parent_name="low_cpu_pool", attributes={"resource_limits": {"cpu": 0}})
+        create_pool("high_cpu_pool")
 
         self._create_table("//tmp/t_in")
         self._create_table("//tmp/t_out_1")
@@ -308,9 +294,9 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
 
     @authors("renadeen", "ignat")
     def test_recursive_fair_share_when_lack_of_resources(self):
-        create("map_node", "//sys/pools/parent_pool", attributes={"min_share_ratio": 0.1})
-        create("map_node", "//sys/pools/parent_pool/subpool1", attributes={"min_share_ratio": 1})
-        create("map_node", "//sys/pools/parent_pool/subpool2", attributes={"min_share_ratio": 1})
+        create_pool("parent_pool", attributes={"min_share_ratio": 0.1})
+        create_pool("subpool1", parent_name="parent_pool", attributes={"min_share_ratio": 1})
+        create_pool("subpool2", parent_name="parent_pool", attributes={"min_share_ratio": 1})
 
         def check():
             ratio_path = scheduler_orchid_default_pool_tree_path() + "/pools/{0}/recursive_min_share_ratio"
@@ -576,16 +562,16 @@ class TestSchedulerOperationLimits(YTEnvSetup):
 
     @authors("ignat")
     def test_operations_pool_limit(self):
-        create("map_node", "//sys/pools/test_pool_1")
-        create("map_node", "//sys/pools/test_pool_2")
+        create_pool("test_pool_1")
+        create_pool("test_pool_2")
         self._run_operations()
 
     @authors("ignat")
     def test_operations_recursive_pool_limit(self):
-        create("map_node", "//sys/pools/research")
+        create_pool("research")
         set("//sys/pools/research/@max_running_operation_count", 2)
-        create("map_node", "//sys/pools/research/test_pool_1")
-        create("map_node", "//sys/pools/research/test_pool_2")
+        create_pool("test_pool_1", parent_name="research")
+        create_pool("test_pool_2", parent_name="research")
         self._run_operations()
 
     @authors("asaitgalin")
@@ -594,9 +580,9 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
 
         attrs = {"max_running_operation_count": 3}
-        create("map_node", "//sys/pools/research", attributes=attrs)
-        create("map_node", "//sys/pools/research/subpool", attributes=attrs)
-        create("map_node", "//sys/pools/research/subpool/other_subpool", attributes=attrs)
+        create_pool("research", attributes=attrs)
+        create_pool("subpool", parent_name="research", attributes=attrs)
+        create_pool("other_subpool", parent_name="subpool", attributes=attrs)
 
         # give time to scheduler for pool reloading
         time.sleep(0.2)
@@ -673,8 +659,8 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         create("table", "//tmp/out2")
         write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
 
-        create("map_node", "//sys/pools/test_pool_1")
-        create("map_node", "//sys/pools/test_pool_2")
+        create_pool("test_pool_1")
+        create_pool("test_pool_2")
 
         op1 = map(
             dont_track=True,
@@ -685,7 +671,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         wait_breakpoint()
 
         remove("//sys/pools/test_pool_1")
-        create("map_node", "//sys/pools/test_pool_2/test_pool_1")
+        create_pool("test_pool_1", parent_name="test_pool_2")
         time.sleep(0.5)
 
         op2 = map(
@@ -704,9 +690,9 @@ class TestSchedulerOperationLimits(YTEnvSetup):
 
     @authors("ignat")
     def test_total_operations_limit(self):
-        create("map_node", "//sys/pools/research")
-        create("map_node", "//sys/pools/research/research_subpool")
-        create("map_node", "//sys/pools/production")
+        create_pool("research")
+        create_pool("research_subpool", parent_name="research")
+        create_pool("production")
         set("//sys/pools/research/@max_operation_count", 3)
 
         create("table", "//tmp/in")
@@ -767,7 +753,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         for node in nodes[:-1]:
             set("//sys/cluster_nodes/{0}/@user_tags".format(node), ["other"])
         set("//sys/pool_trees/default/@nodes_filter", "!other")
-        create("map_node", "//sys/pool_trees/other", attributes={"nodes_filter": "other", "max_running_operation_count_per_pool": 1})
+        create_pool_tree("other", attributes={"nodes_filter": "other", "max_running_operation_count_per_pool": 1})
         time.sleep(0.5)
 
         blocking_op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"pool_trees": ["other"]})
@@ -799,10 +785,10 @@ class TestSchedulerOperationLimits(YTEnvSetup):
             set("//sys/cluster_nodes/{0}/@user_tags".format(tentative_node), ["tentative"])
 
         set("//sys/pool_trees/default/@nodes_filter", "!(normal|tentative)")
-        create("map_node", "//sys/pool_trees/normal", attributes={"nodes_filter": "normal"})
-        create("map_node", "//sys/pool_trees/normal/pool", attributes={"max_operation_count": 5})
-        create("map_node", "//sys/pool_trees/tentative", attributes={"nodes_filter": "tentative"})
-        create("map_node", "//sys/pool_trees/tentative/pool", attributes={"max_operation_count": 3})
+        create_pool_tree("normal", attributes={"nodes_filter": "normal"})
+        create_pool("pool", pool_tree="normal", attributes={"max_operation_count": 5})
+        create_pool_tree("tentative", attributes={"nodes_filter": "tentative"})
+        create_pool("pool", pool_tree="tentative", attributes={"max_operation_count": 3})
 
         pool_path = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/{}/fair_share_info/pools/pool"
         wait(lambda: exists(pool_path.format("normal")))
@@ -858,9 +844,9 @@ class TestSchedulerOperationLimits(YTEnvSetup):
 
     @authors("ignat")
     def test_pool_changes(self):
-        create("map_node", "//sys/pools/research")
-        create("map_node", "//sys/pools/research/subpool")
-        create("map_node", "//sys/pools/production")
+        create_pool("research")
+        create_pool("subpool", parent_name="research")
+        create_pool("production")
 
         create("table", "//tmp/in")
         write_table("//tmp/in", [{"foo": "bar"}])
@@ -918,13 +904,14 @@ class TestSchedulerOperationLimits(YTEnvSetup):
                 spec={"pool": pool})
         _run_op()
         set("//sys/pools{0}/@acl/0/action".format(acl_path), "deny")
+        check_permission("u", "use", "//sys/pools" + acl_path)
         with pytest.raises(YtError):
             _run_op()
 
     @authors("ignat")
     def test_global_pool_acl(self):
         self._test_pool_acl_prologue()
-        create("map_node", "//sys/pools/p", attributes={
+        create_pool("p", attributes={
             "inherit_acl": False,
             "acl": [make_ace("allow", "u", "use")]
         })
@@ -933,20 +920,20 @@ class TestSchedulerOperationLimits(YTEnvSetup):
     @authors("ignat")
     def test_inner_pool_acl(self):
         self._test_pool_acl_prologue()
-        create("map_node", "//sys/pools/p1", attributes={
+        create_pool("p1", attributes={
             "inherit_acl": False,
             "acl": [make_ace("allow", "u", "use")]
         })
-        create("map_node", "//sys/pools/p1/p2")
+        create_pool("p2", parent_name="p1")
         self._test_pool_acl_core("p2", "/p1")
 
     @authors("ignat")
     def test_forbid_immediate_operations(self):
         self._test_pool_acl_prologue()
 
-        create("map_node", "//sys/pools/p1", attributes={"forbid_immediate_operations": True})
-        create("map_node", "//sys/pools/p1/p2")
-        create("map_node", "//sys/pools/default_pool", attributes={"forbid_immediate_operations": True})
+        create_pool("p1", attributes={"forbid_immediate_operations": True})
+        create_pool("p2", parent_name="p1")
+        create_pool("default_pool", attributes={"forbid_immediate_operations": True})
 
         time.sleep(0.5)
 
@@ -1023,7 +1010,7 @@ class TestSchedulerPreemption(YTEnvSetup):
         assert get(pools_path + "/fake_pool/fair_share_ratio") >= 0.999
         assert get(pools_path + "/fake_pool/usage_ratio") >= 0.999
 
-        create("map_node", "//sys/pools/test_pool", attributes={"min_share_ratio": 1.0})
+        create_pool("test_pool", attributes={"min_share_ratio": 1.0})
         op2 = map(dont_track=True, command="cat", in_=["//tmp/t_in"], out="//tmp/t_out2", spec={"pool": "test_pool"})
         op2.track()
 
@@ -1074,7 +1061,7 @@ class TestSchedulerPreemption(YTEnvSetup):
         assert get(pools_path + "/fake_pool/fair_share_ratio") >= 0.999
         assert get(pools_path + "/fake_pool/usage_ratio") >= 0.999
 
-        create("map_node", "//sys/pools/test_pool", attributes={"min_share_ratio": 1.0})
+        create_pool("test_pool", attributes={"min_share_ratio": 1.0})
 
         # Ensure that all three jobs have started.
         events_on_fs().wait_breakpoint(timeout=datetime.timedelta(1000), job_count=3)
@@ -1145,7 +1132,7 @@ class TestSchedulerPreemption(YTEnvSetup):
 
     @authors("ignat")
     def test_min_share_ratio(self):
-        create("map_node", "//sys/pools/test_min_share_ratio_pool", attributes={"min_share_ratio": 1.0})
+        create_pool("test_min_share_ratio_pool", attributes={"min_share_ratio": 1.0})
 
         create("table", "//tmp/t_in")
         for i in xrange(3):
@@ -1191,12 +1178,12 @@ class TestSchedulerPreemption(YTEnvSetup):
 
     @authors("ignat")
     def test_infer_weight_from_min_share(self):
-        create("map_node", "//sys/pool_trees/custom_pool_tree", attributes={"infer_weight_from_min_share_ratio_multiplier": 10, "nodes_filter": "missing"})
-        create("map_node", "//sys/pool_trees/custom_pool_tree/test_pool1", attributes={"min_share_ratio": 0.3})
-        create("map_node", "//sys/pool_trees/custom_pool_tree/test_pool2", attributes={"min_share_ratio": 0.4})
-        create("map_node", "//sys/pool_trees/custom_pool_tree/test_pool3")
-        create("map_node", "//sys/pool_trees/custom_pool_tree/test_pool2/subpool1", attributes={"min_share_ratio": 0.3})
-        create("map_node", "//sys/pool_trees/custom_pool_tree/test_pool2/subpool2", attributes={"min_share_ratio": 0.4})
+        create_pool_tree("custom_pool_tree", attributes={"infer_weight_from_min_share_ratio_multiplier": 10, "nodes_filter": "missing"})
+        create_pool("test_pool1", pool_tree="custom_pool_tree", attributes={"min_share_ratio": 0.3})
+        create_pool("test_pool2", pool_tree="custom_pool_tree", attributes={"min_share_ratio": 0.4})
+        create_pool("test_pool3", pool_tree="custom_pool_tree")
+        create_pool("subpool1", pool_tree="custom_pool_tree", parent_name="test_pool2", attributes={"min_share_ratio": 0.3})
+        create_pool("subpool2", pool_tree="custom_pool_tree", parent_name="test_pool2", attributes={"min_share_ratio": 0.4})
 
         pools_path = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/custom_pool_tree/fair_share_info/pools"
         wait(lambda: exists(pools_path + "/subpool2"))
@@ -1210,12 +1197,12 @@ class TestSchedulerPreemption(YTEnvSetup):
 
     @authors("ignat")
     def test_recursive_preemption_settings(self):
-        create("map_node", "//sys/pools/p1", attributes={"fair_share_starvation_tolerance_limit": 0.6})
-        create("map_node", "//sys/pools/p1/p2")
-        create("map_node", "//sys/pools/p1/p3", attributes={"fair_share_starvation_tolerance": 0.5})
-        create("map_node", "//sys/pools/p1/p4", attributes={"fair_share_starvation_tolerance": 0.9})
-        create("map_node", "//sys/pools/p5", attributes={"fair_share_starvation_tolerance": 0.8})
-        create("map_node", "//sys/pools/p5/p6")
+        create_pool("p1", attributes={"fair_share_starvation_tolerance_limit": 0.6})
+        create_pool("p2", parent_name="p1")
+        create_pool("p3", parent_name="p1", attributes={"fair_share_starvation_tolerance": 0.5})
+        create_pool("p4", parent_name="p1", attributes={"fair_share_starvation_tolerance": 0.9})
+        create_pool("p5", attributes={"fair_share_starvation_tolerance": 0.8})
+        create_pool("p6", parent_name="p5")
         time.sleep(1)
 
         get_pool_tolerance = lambda pool: \
@@ -1320,7 +1307,7 @@ class TestSchedulerPreemption(YTEnvSetup):
     @authors("mrkastep")
     def test_preemptor_event_log(self):
         set("//sys/pool_trees/default/@max_ephemeral_pools_per_user", 2)
-        create("map_node", "//sys/pools/pool1", attributes={"min_share_ratio": 1.0})
+        create_pool("pool1", attributes={"min_share_ratio": 1.0})
 
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out0")
@@ -1564,7 +1551,7 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
 
         create("table", "//tmp/t_out")
 
-        create("map_node", "//sys/pools/special_pool")
+        create_pool("special_pool")
         set("//sys/pools/special_pool/@aggressive_starvation_enabled", True)
         scheduling_info_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/"
 
@@ -1631,11 +1618,11 @@ class TestSchedulerAggressiveStarvationPreemption(YTEnvSetup):
 
         create("table", "//tmp/t_out")
 
-        create("map_node", "//sys/pools/special_pool")
+        create_pool("special_pool")
         set("//sys/pools/special_pool/@aggressive_starvation_enabled", True)
 
         for index in xrange(4):
-            create("map_node", "//sys/pools/pool" + str(index))
+            create_pool("pool" + str(index))
 
         get_fair_share_ratio = lambda op_id: \
             get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/fair_share_ratio".format(op_id))
@@ -1732,8 +1719,9 @@ class TestSchedulerPools(YTEnvSetup):
 
         testing_options = {"scheduling_delay": 1000}
 
-        create("map_node", "//sys/pools/test_pool_1")
-        create("map_node", "//sys/pools/test_pool_2")
+        create_pool("test_pool_1")
+        create_pool("test_pool_2")
+
         time.sleep(0.2)
 
         op = map(
@@ -1745,7 +1733,7 @@ class TestSchedulerPools(YTEnvSetup):
         time.sleep(1)
 
         remove("//sys/pools/test_pool_1")
-        create("map_node", "//sys/pools/test_pool_2/test_pool_1")
+        create_pool("test_pool_1", parent_name="test_pool_2")
 
         op.track()
 
@@ -1759,7 +1747,7 @@ class TestSchedulerPools(YTEnvSetup):
             create("table", output)
             set(output + "/@replication_factor", 1)
 
-        create("map_node", "//sys/pools/default_pool")
+        create_pool("default_pool")
         set("//sys/pool_trees/default/@default_parent_pool", "default_pool")
         set("//sys/pool_trees/default/@max_ephemeral_pools_per_user", 2)
         time.sleep(0.2)
@@ -1799,7 +1787,7 @@ class TestSchedulerPools(YTEnvSetup):
 
     @authors("renadeen")
     def test_ephemeral_pool_in_custom_pool_simple(self):
-        create("map_node", "//sys/pools/custom_pool")
+        create_pool("custom_pool")
         set("//sys/pools/custom_pool/@create_ephemeral_subpools", True)
         time.sleep(0.2)
 
@@ -1812,7 +1800,7 @@ class TestSchedulerPools(YTEnvSetup):
 
     @authors("renadeen")
     def test_ephemeral_pool_scheduling_mode(self):
-        create("map_node", "//sys/pools/custom_pool_fifo")
+        create_pool("custom_pool_fifo")
         set("//sys/pools/custom_pool_fifo/@create_ephemeral_subpools", True)
         set("//sys/pools/custom_pool_fifo/@ephemeral_subpool_config", {"mode": "fifo"})
         time.sleep(0.2)
@@ -1826,7 +1814,7 @@ class TestSchedulerPools(YTEnvSetup):
 
     @authors("renadeen")
     def test_ephemeral_pool_max_operation_count(self):
-        create("map_node", "//sys/pools/custom_pool")
+        create_pool("custom_pool")
         set("//sys/pools/custom_pool/@create_ephemeral_subpools", True)
         set("//sys/pools/custom_pool/@ephemeral_subpool_config", {"max_operation_count": 1})
         time.sleep(0.2)
@@ -1848,7 +1836,7 @@ class TestSchedulerPools(YTEnvSetup):
             create("table", output)
             set(output + "/@replication_factor", 1)
 
-        create("map_node", "//sys/pools/default_pool")
+        create_pool("default_pool")
         set("//sys/pool_trees/default/@default_parent_pool", "default_pool")
         set("//sys/pool_trees/default/@max_ephemeral_pools_per_user", 3)
         time.sleep(0.2)
@@ -1891,7 +1879,7 @@ class TestSchedulerPools(YTEnvSetup):
     def test_event_log(self):
         create_test_tables(attributes={"replication_factor": 1})
 
-        create("map_node", "//sys/pools/event_log_test_pool", attributes={"min_share_resources": {"cpu": 1}})
+        create_pool("event_log_test_pool", attributes={"min_share_resources": {"cpu": 1}})
         op = map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"pool": "event_log_test_pool"})
 
         def check_events():
@@ -1922,7 +1910,197 @@ class TestSchedulerPools(YTEnvSetup):
         wait(lambda: check_pools())
 
 
-class TestSchedulerPoolsReconfiguration(YTEnvSetup):
+class TestSchedulerPoolsReconfigurationOld(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 0
+    NUM_SCHEDULERS = 1
+
+    POOL_TREES_ROOT = "//sys/map_node_pool_trees_root"
+    POOL_TREE_PATH = POOL_TREES_ROOT + "/tree"
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "watchers_update_period": 100,  # Update pools configuration period
+            "pool_trees_root": POOL_TREES_ROOT
+        }
+    }
+
+    orchid_pools = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/tree/fair_share_info/pools"
+
+    def setup_method(self, method):
+        super(TestSchedulerPoolsReconfigurationOld, self).setup_method(method)
+        create("map_node", self.POOL_TREES_ROOT)
+        create("map_node", self.POOL_TREE_PATH)
+        time.sleep(0.2)
+        print get("//sys/pool_trees/default/@")
+
+        wait(lambda: len(ls(self.orchid_pools)) == 1, sleep_backoff=0.1)  # <Root> is always in orchid
+        wait(lambda: not get("//sys/scheduler/@alerts"), sleep_backoff=0.1)
+
+    def teardown_method(self, method):
+        remove(self.POOL_TREES_ROOT)
+
+        super(TestSchedulerPoolsReconfigurationOld, self).teardown_method(method)
+
+    @authors("renadeen")
+    def test_add_nested_pool(self):
+        set(self.POOL_TREE_PATH + "/test_parent", {"test_pool": {}})
+
+        self.wait_pool_exists("test_parent")
+        self.wait_pool_exists("test_pool")
+
+        assert self.get_pool_parent("test_parent") == "<Root>"
+        assert self.get_pool_parent("test_pool") == "test_parent"
+
+    @authors("renadeen")
+    def test_move_to_existing_pool(self):
+        create("map_node", self.POOL_TREE_PATH + "/test_parent")
+        create("map_node", self.POOL_TREE_PATH + "/test_pool")
+        self.wait_pool_exists("test_pool")
+        wait(lambda: self.get_pool_parent("test_pool") == "<Root>")
+
+        move(self.POOL_TREE_PATH + "/test_pool", self.POOL_TREE_PATH + "/test_parent/test_pool")
+        wait(lambda: self.get_pool_parent("test_pool") == "test_parent")
+
+    @authors("renadeen")
+    def test_move_to_new_pool(self):
+        create("map_node", self.POOL_TREE_PATH + "/test_pool")
+        self.wait_pool_exists("test_pool")
+
+        tx = start_transaction()
+        create("map_node", self.POOL_TREE_PATH + "/new_pool", tx=tx)
+        move(self.POOL_TREE_PATH + "/test_pool", self.POOL_TREE_PATH + "/new_pool/test_pool", tx=tx)
+        commit_transaction(tx)
+
+        self.wait_pool_exists("new_pool")
+        wait(lambda: self.get_pool_parent("test_pool") == "new_pool")
+
+    @authors("renadeen")
+    def test_move_to_root_pool(self):
+        set(self.POOL_TREE_PATH + "/test_parent", {"test_pool": {}})
+        self.wait_pool_exists("test_pool")
+        wait(lambda: self.get_pool_parent("test_pool") == "test_parent")
+
+        move(self.POOL_TREE_PATH + "/test_parent/test_pool", self.POOL_TREE_PATH + "/test_pool")
+
+        wait(lambda: self.get_pool_parent("test_pool") == "<Root>")
+
+    @authors("renadeen")
+    def test_remove_big_hierarchy(self):
+        # Test bug when some pools weren't removed due to wrong removal order and inability to remove nonempty pools
+        path = self.POOL_TREE_PATH
+        for i in range(10):
+            path = path + "/pool" + str(i)
+            create("map_node", path)
+
+        self.wait_pool_exists("pool9")
+
+        remove(self.POOL_TREE_PATH + "/pool0")
+        wait(lambda: len(ls(self.orchid_pools)) == 1)  # only <Root> must remain
+
+    @authors("renadeen")
+    def test_parent_child_swap_is_allowed(self):
+        set(self.POOL_TREE_PATH + "/test_parent", {"test_pool": {}})
+        self.wait_pool_exists("test_pool")
+        wait(lambda: self.get_pool_parent("test_pool") == "test_parent")
+
+        tx = start_transaction()
+        move(self.POOL_TREE_PATH + "/test_parent/test_pool", self.POOL_TREE_PATH + "/test_pool", tx=tx)
+        move(self.POOL_TREE_PATH + "/test_parent", self.POOL_TREE_PATH + "/test_pool/test_parent", tx=tx)
+        commit_transaction(tx)
+
+        wait(lambda: self.get_pool_parent("test_parent") == "test_pool")
+        assert get("//sys/scheduler/@alerts") == []
+
+    # Now this behaviour is prevented in master
+    @authors("renadeen")
+    def test_duplicate_pools_are_forbidden(self):
+        tx = start_transaction()
+        set(self.POOL_TREE_PATH + "/test_parent1", {"test_pool": {}}, tx=tx)
+        set(self.POOL_TREE_PATH + "/test_parent2", {"test_pool": {}}, tx=tx)
+        commit_transaction(tx)
+
+        alert_message = self.wait_and_get_inner_alert_message()
+        assert "Duplicate poolId test_pool found in new configuration" == alert_message
+        assert ls(self.orchid_pools) == ['<Root>']
+
+    # Now this behaviour is prevented in master
+    @authors("renadeen")
+    def test_root_id_are_forbidden(self):
+        set(self.POOL_TREE_PATH + "/test_parent", {"<Root>": {}})
+
+        alert_message = self.wait_and_get_inner_alert_message()
+        assert "Pool name cannot be equal to root pool name" == alert_message
+        assert ls(self.orchid_pools) == ['<Root>']
+
+    # Now this behaviour is prevented in master
+    @authors("renadeen")
+    def test_invalid_pool_attributes(self):
+        create("map_node", self.POOL_TREE_PATH + "/test_pool", attributes={"max_operation_count": "trash"})
+
+        alert_message = self.wait_and_get_inner_alert_message()
+        assert "Parsing configuration of pool \"test_pool\" failed" == alert_message
+        assert ls(self.orchid_pools) == ['<Root>']
+
+    # Now this behaviour is prevented in master
+    @authors("renadeen")
+    def test_invalid_pool_node(self):
+        set(self.POOL_TREE_PATH + "/test_pool", 0)
+
+        alert_message = self.wait_and_get_inner_alert_message()
+        assert "Found node with type Int64, but only Map is allowed" == alert_message
+        assert ls(self.orchid_pools) == ['<Root>']
+
+    # Now this behaviour is prevented in master
+    @authors("renadeen")
+    def test_operation_count_validation_on_pool(self):
+        create("map_node", self.POOL_TREE_PATH + "/test_pool", attributes={
+            "max_operation_count": 1,
+            "max_running_operation_count": 2
+        })
+
+        alert_message = self.wait_and_get_inner_alert_message()
+        assert "Parsing configuration of pool \"test_pool\" failed" == alert_message
+        assert ls(self.orchid_pools) == ['<Root>']
+
+    # Now this behaviour is prevented in master
+    @authors("renadeen")
+    def test_subpools_of_fifo_pools_are_forbidden(self):
+        tx = start_transaction()
+        create("map_node", self.POOL_TREE_PATH + "/test_pool", attributes={"mode": "fifo"}, tx=tx)
+        create("map_node", self.POOL_TREE_PATH + "/test_pool/test_child", tx=tx)
+        commit_transaction(tx)
+
+        alert_message = self.wait_and_get_inner_alert_message()
+        assert "Pool \"test_pool\" cannot have subpools since it is in fifo mode" == alert_message
+        assert ls(self.orchid_pools) == ['<Root>']
+
+    # @authors("renadeen", "ignat")
+    # def test_ephemeral_to_explicit_pool_transformation(self):
+    #     create("map_node", self.POOL_TREE_PATH + "/default_pool")
+    #     set(self.POOL_TREE_PATH + "/@default_parent_pool", "default_pool")
+    #     self.wait_pool_exists("default_pool")
+    #
+    #     run_sleeping_vanilla(spec={"pool": "test_pool"})
+    #     self.wait_pool_exists("test_pool")
+    #
+    #     create("map_node", self.POOL_TREE_PATH + "/test_pool")
+    #
+    #     wait(lambda: self.get_pool_parent("test_pool") == "<Root>")
+    #     ephemeral_pools = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/tree/user_to_ephemeral_pools/root"
+    #     assert get(ephemeral_pools) == []
+
+    def wait_pool_exists(self, pool):
+        wait(lambda: exists(self.orchid_pools + "/" + pool), sleep_backoff=0.1)
+
+    def get_pool_parent(self, pool):
+        return get(self.orchid_pools + "/" + pool + "/parent")
+
+    def wait_and_get_inner_alert_message(self):
+        wait(lambda: get("//sys/scheduler/@alerts"))
+        return get("//sys/scheduler/@alerts")[0]["inner_errors"][0]["inner_errors"][0]["message"]
+
+class TestSchedulerPoolsReconfigurationNew(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -1936,13 +2114,14 @@ class TestSchedulerPoolsReconfiguration(YTEnvSetup):
     orchid_pools = scheduler_orchid_default_pool_tree_path() + "/pools"
 
     def setup_method(self, method):
-        super(TestSchedulerPoolsReconfiguration, self).setup_method(method)
+        super(TestSchedulerPoolsReconfigurationNew, self).setup_method(method)
         wait(lambda: len(ls(self.orchid_pools)) == 1, sleep_backoff=0.1)  # <Root> is always in orchid
         wait(lambda: not get("//sys/scheduler/@alerts"), sleep_backoff=0.1)
 
     @authors("renadeen")
     def test_add_nested_pool(self):
-        set("//sys/pools/test_parent", {"test_pool": {}})
+        create_pool("test_parent")
+        create_pool("test_pool", parent_name="test_parent")
 
         self.wait_pool_exists("test_parent")
         self.wait_pool_exists("test_pool")
@@ -1952,8 +2131,8 @@ class TestSchedulerPoolsReconfiguration(YTEnvSetup):
 
     @authors("renadeen")
     def test_move_to_existing_pool(self):
-        create("map_node", "//sys/pools/test_parent")
-        create("map_node", "//sys/pools/test_pool")
+        create_pool("test_parent")
+        create_pool("test_pool")
         self.wait_pool_exists("test_pool")
         wait(lambda: self.get_pool_parent("test_pool") == "<Root>")
 
@@ -1962,20 +2141,20 @@ class TestSchedulerPoolsReconfiguration(YTEnvSetup):
 
     @authors("renadeen")
     def test_move_to_new_pool(self):
-        create("map_node", "//sys/pools/test_pool")
+        create_pool("test_pool")
         self.wait_pool_exists("test_pool")
 
-        tx = start_transaction()
-        create("map_node", "//sys/pools/new_pool", tx=tx)
-        move("//sys/pools/test_pool", "//sys/pools/new_pool/test_pool", tx=tx)
-        commit_transaction(tx)
+        # We'd like to execute these two commands atomically
+        create_pool("new_pool")
+        move("//sys/pools/test_pool", "//sys/pools/new_pool/test_pool")
 
         self.wait_pool_exists("new_pool")
         wait(lambda: self.get_pool_parent("test_pool") == "new_pool")
 
     @authors("renadeen")
     def test_move_to_root_pool(self):
-        set("//sys/pools/test_parent", {"test_pool": {}})
+        create_pool("test_parent")
+        create_pool("test_pool", parent_name="test_parent")
         self.wait_pool_exists("test_pool")
         wait(lambda: self.get_pool_parent("test_pool") == "test_parent")
 
@@ -1986,97 +2165,27 @@ class TestSchedulerPoolsReconfiguration(YTEnvSetup):
     @authors("renadeen")
     def test_remove_big_hierarchy(self):
         # Test bug when some pools weren't removed due to wrong removal order and inability to remove nonempty pools
-        path = "//sys/pools"
+        parent = None
         for i in range(10):
-            path = path + "/pool" + str(i)
-            create("map_node", path)
+            pool = "pool" + str(i)
+            create_pool(pool, parent_name= parent)
+            parent = pool
 
         self.wait_pool_exists("pool9")
 
         remove("//sys/pools/pool0")
         wait(lambda: len(ls(self.orchid_pools)) == 1)  # only <Root> must remain
 
-    @authors("renadeen")
-    def test_parent_child_swap_is_allowed(self):
-        set("//sys/pools/test_parent", {"test_pool": {}})
-        self.wait_pool_exists("test_pool")
-        wait(lambda: self.get_pool_parent("test_pool") == "test_parent")
-
-        tx = start_transaction()
-        move("//sys/pools/test_parent/test_pool", "//sys/pools/test_pool", tx=tx)
-        move("//sys/pools/test_parent", "//sys/pools/test_pool/test_parent", tx=tx)
-        commit_transaction(tx)
-
-        wait(lambda: self.get_pool_parent("test_parent") == "test_pool")
-        assert get("//sys/scheduler/@alerts") == []
-
-    @authors("renadeen")
-    def test_duplicate_pools_are_forbidden(self):
-        tx = start_transaction()
-        set("//sys/pools/test_parent1", {"test_pool": {}}, tx=tx)
-        set("//sys/pools/test_parent2", {"test_pool": {}}, tx=tx)
-        commit_transaction(tx)
-
-        alert_message = self.wait_and_get_inner_alert_message()
-        assert "Duplicate poolId test_pool found in new configuration" == alert_message
-        assert ls(self.orchid_pools) == ['<Root>']
-
-    @authors("renadeen")
-    def test_root_id_are_forbidden(self):
-        set("//sys/pools/test_parent", {"<Root>": {}})
-
-        alert_message = self.wait_and_get_inner_alert_message()
-        assert "Use of root element id is forbidden" == alert_message
-        assert ls(self.orchid_pools) == ['<Root>']
-
-    @authors("renadeen")
-    def test_invalid_pool_attributes(self):
-        create("map_node", "//sys/pools/test_pool", attributes={"max_operation_count": "trash"})
-
-        alert_message = self.wait_and_get_inner_alert_message()
-        assert "Parsing configuration of pool \"test_pool\" failed" == alert_message
-        assert ls(self.orchid_pools) == ['<Root>']
-
-    @authors("renadeen")
-    def test_invalid_pool_node(self):
-        set("//sys/pools/test_pool", 0)
-
-        alert_message = self.wait_and_get_inner_alert_message()
-        assert "Found node with type Int64, but only Map is allowed" == alert_message
-        assert ls(self.orchid_pools) == ['<Root>']
-
-    @authors("renadeen")
-    def test_operation_count_validation_on_pool(self):
-        create("map_node", "//sys/pools/test_pool", attributes={
-            "max_operation_count": 1,
-            "max_running_operation_count": 2
-        })
-
-        alert_message = self.wait_and_get_inner_alert_message()
-        assert "Parsing configuration of pool \"test_pool\" failed" == alert_message
-        assert ls(self.orchid_pools) == ['<Root>']
-
-    @authors("renadeen")
-    def test_subpools_of_fifo_pools_are_forbidden(self):
-        tx = start_transaction()
-        create("map_node", "//sys/pools/test_pool", attributes={"mode": "fifo"}, tx=tx)
-        create("map_node", "//sys/pools/test_pool/test_child", tx=tx)
-        commit_transaction(tx)
-
-        alert_message = self.wait_and_get_inner_alert_message()
-        assert "Pool \"test_pool\" cannot have subpools since it is in fifo mode" == alert_message
-        assert ls(self.orchid_pools) == ['<Root>']
-
     @authors("renadeen", "ignat")
     def test_ephemeral_to_explicit_pool_transformation(self):
-        create("map_node", "//sys/pools/default_pool")
+        create_pool("default_pool")
         set("//sys/pool_trees/default/@default_parent_pool", "default_pool")
         self.wait_pool_exists("default_pool")
 
         run_sleeping_vanilla(spec={"pool": "test_pool"})
         self.wait_pool_exists("test_pool")
 
-        create("map_node", "//sys/pools/test_pool")
+        create_pool("test_pool")
 
         wait(lambda: self.get_pool_parent("test_pool") == "<Root>")
         ephemeral_pools = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/user_to_ephemeral_pools/root"
@@ -2419,8 +2528,9 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
     def teardown_method(self, method):
         for node in ls("//sys/cluster_nodes"):
             set("//sys/cluster_nodes/{}/@resource_limits_overrides".format(node), {})
-        remove("//sys/pool_trees/*")
-        create("map_node", "//sys/pool_trees/default")
+        for tree in ls("//sys/pool_trees"):
+            remove("//sys/pool_trees/" + tree)
+        create_pool_tree("default")
         set("//sys/pool_trees/@default_tree", "default")
         time.sleep(0.5)  # Give scheduler some time to reload trees
         super(TestPoolTreesReconfiguration, self).teardown_method(method)
@@ -2429,13 +2539,13 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
     def test_basic_sanity(self):
         assert exists("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/fair_share_info")
 
-        create("map_node", "//sys/pool_trees/other", attributes={"nodes_filter": "other"})
+        create_pool_tree("other", attributes={"nodes_filter": "other"})
 
         wait(lambda: exists("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/other/fair_share_info"))
         wait(lambda: not get("//sys/scheduler/@alerts"))
 
         # This tree intersects with default pool tree by nodes, should not be added
-        create("map_node", "//sys/pool_trees/other_intersecting", attributes={"nodes_filter": ""})
+        create_pool_tree("other_intersecting", attributes={"nodes_filter": ""})
         time.sleep(1.0)
         assert not exists("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/other_intersecting/fair_share_info")
         assert get("//sys/scheduler/@alerts")
@@ -2542,8 +2652,8 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
 
     @authors("asaitgalin", "ignat")
     def test_incorrect_node_tags(self):
-        create("map_node", "//sys/pool_trees/supertree1", attributes={"nodes_filter": "x|y"})
-        create("map_node", "//sys/pool_trees/supertree2", attributes={"nodes_filter": "y|z"})
+        create_pool_tree("supertree1", attributes={"nodes_filter": "x|y"})
+        create_pool_tree("supertree2", attributes={"nodes_filter": "y|z"})
         wait(lambda: "supertree1" in ls("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree"))
         wait(lambda: "supertree2" in ls("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree"))
 
@@ -2678,7 +2788,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         tag = pool_tree
         node = ls("//sys/cluster_nodes")[0]
         set("//sys/cluster_nodes/" + node + "/@user_tags/end", tag)
-        create("map_node", "//sys/pool_trees/" + pool_tree, attributes={"nodes_filter": tag})
+        create_pool_tree(pool_tree, attributes={"nodes_filter": tag})
         set("//sys/pool_trees/default/@nodes_filter", "!" + tag)
         return node
 
@@ -2731,7 +2841,7 @@ class TestTentativePoolTrees(YTEnvSetup):
             set("//sys/cluster_nodes/" + node + "/@user_tags/end", "other")
 
         set("//sys/pool_trees/default/@nodes_filter", "!other")
-        create("map_node", "//sys/pool_trees/other", attributes={"nodes_filter": "other"})
+        create_pool_tree("other", attributes={"nodes_filter": "other"})
         set("//sys/pool_trees/default/@nodes_filter", "!other")
         time.sleep(0.5)
 
@@ -3037,7 +3147,7 @@ class TestSchedulingTagFilterOnPerPoolTreeConfiguration(YTEnvSetup):
         set("//sys/cluster_nodes/" + runnable_custom_node + "/@user_tags", ["custom_tag", "runnable_tag"])
 
         set("//sys/pool_trees/default/@nodes_filter", "default_tag")
-        create("map_node", "//sys/pool_trees/custom_pool_tree", attributes={"nodes_filter": "custom_tag"})
+        create_pool_tree("custom_pool_tree", attributes={"nodes_filter": "custom_tag"})
 
         time.sleep(0.5)
 
@@ -3092,19 +3202,19 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
 
     def setup_method(self, method):
         super(TestSchedulerInferChildrenWeightsFromHistoricUsage, self).setup_method(method)
-        create("map_node", "//sys/pools/parent")
+        create_pool("parent")
         wait(lambda: "parent" in get(scheduler_orchid_default_pool_tree_path() + "/pools"))
         set("//sys/pools/parent/@infer_children_weights_from_historic_usage", True)
         set("//sys/pools/parent/@historic_usage_config", {
             "aggregation_mode": "exponential_moving_average",
-            "ema_alpha": 1
+            "ema_alpha": 1.0
         })
         wait(lambda: get("//sys/pools/parent/@infer_children_weights_from_historic_usage"))
         wait(lambda: "historic_usage_config" in get("//sys/pools/parent/@"))
 
     def _init_children(self, num_children=2):
         for i in xrange(num_children):
-            create("map_node", "//sys/pools/parent/child" + str(i + 1))
+            create_pool("child" + str(i + 1), parent_name="parent")
             wait(lambda: ("child" + str(i + 1)) in get(scheduler_orchid_default_pool_tree_path() + "/pools"))
 
     def _get_pool_fair_share_ratio(self, pool):
@@ -3260,7 +3370,7 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
             "infer_children_weights_from_historic_usage": False,
             "historic_usage_config": {
                 "aggregation_mode": "none",
-                "ema_alpha": 0
+                "ema_alpha": 0.0
             }
         })
 
@@ -3270,7 +3380,7 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
             "infer_children_weights_from_historic_usage": False,
             "historic_usage_config": {
                 "aggregation_mode": "exponential_moving_average",
-                "ema_alpha": 1
+                "ema_alpha": 1.0
             }
         })
 
@@ -3280,7 +3390,7 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
             "infer_children_weights_from_historic_usage": True,
             "historic_usage_config": {
                 "aggregation_mode": "none",
-                "ema_alpha": 1
+                "ema_alpha": 1.0
             }
         })
 
@@ -3290,7 +3400,7 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
             "infer_children_weights_from_historic_usage": True,
             "historic_usage_config": {
                 "aggregation_mode": "exponential_moving_average",
-                "ema_alpha": 0
+                "ema_alpha": 0.0
             }
         })
 
@@ -3358,18 +3468,16 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
         pool_orchid = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/{}/fair_share_info/pools/research"
         for tree in ["default", "nirvana", "cloud"]:
             if tree != "default":
-                create("map_node", "//sys/pool_trees/" + tree,
-                       attributes={"nodes_filter": tree + "_tag"})
-            create("map_node", "//sys/pool_trees/{}/research".format(tree))
+                create_pool_tree(tree, attributes={"nodes_filter": tree + "_tag"})
+            create_pool("research", pool_tree=tree)
             wait(lambda: exists(pool_orchid.format(tree), verbose_error=True))
 
     def teardown_method(self, method):
         super(TestSchedulerScheduleInSingleTree, self).setup_method(method)
 
-        for tree in ["default", "nirvana", "cloud"]:
-            remove("//sys/pool_trees/{}/research".format(tree))
-            if tree != "default":
-                remove("//sys/pool_trees/{}".format(tree))
+        for tree in ["nirvana", "cloud"]:
+            remove("//sys/pool_trees/{}".format(tree), recursive=True)
+        remove("//sys/pool_trees/default/research")
         set("//sys/pool_trees/default/@nodes_filter", "")
         set("//sys/pool_trees/default/@max_running_operation_count_per_pool", 50)
 

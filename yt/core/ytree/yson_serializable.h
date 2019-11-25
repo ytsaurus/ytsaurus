@@ -45,6 +45,7 @@ public:
         virtual void SetDefaults() = 0;
         virtual void Save(NYson::IYsonConsumer* consumer) const = 0;
         virtual bool CanOmitValue() const = 0;
+        virtual const TString& GetKey() const = 0;
         virtual const std::vector<TString>& GetAliases() const = 0;
         virtual IMapNodePtr GetUnrecognizedRecursively() const = 0;
         virtual void SetKeepUnrecognizedRecursively() = 0;
@@ -60,13 +61,14 @@ public:
         typedef std::function<void(const T&)> TPostprocessor;
         typedef typename TOptionalTraits<T>::TValue TValueType;
 
-        explicit TParameter(T& parameter);
+        TParameter(TString key, T& parameter);
 
         virtual void Load(NYTree::INodePtr node, const NYPath::TYPath& path, std::optional<EMergeStrategy> mergeStrategy) override;
         virtual void Postprocess(const NYPath::TYPath& path) const override;
         virtual void SetDefaults() override;
         virtual void Save(NYson::IYsonConsumer* consumer) const override;
         virtual bool CanOmitValue() const override;
+        virtual const TString& GetKey() const override;
         virtual const std::vector<TString>& GetAliases() const override;
         virtual IMapNodePtr GetUnrecognizedRecursively() const override;
         virtual void SetKeepUnrecognizedRecursively() override;
@@ -88,6 +90,7 @@ public:
         TParameter& DefaultNew(TArgs&&... args);
 
     private:
+        TString Key;
         T& Parameter;
         std::optional<T> DefaultValue;
         std::vector<TPostprocessor> Postprocessors;
@@ -125,10 +128,12 @@ public:
     void LoadParameter(const TString& key, const NYTree::INodePtr& node, EMergeStrategy mergeStrategy) const;
     void ResetParameter(const TString& key) const;
 
+    std::vector<TString> GetAllParameterAliases(const TString& key) const;
+
 protected:
     template <class T>
     TParameter<T>& RegisterParameter(
-        const TString& parameterName,
+        TString parameterName,
         T& value);
 
     void RegisterPreprocessor(const TPreprocessor& func);

@@ -87,6 +87,7 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (CellDirectorySynchronizer)
     (ResponseKeeper)
     (TamedCellManager)
+    (SchedulerPoolManager)
 );
 
 using NCellMasterClient::EMasterCellRoles;

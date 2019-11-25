@@ -90,6 +90,19 @@ public:
     std::optional<i64> Memory;
     std::optional<int> Gpu;
 
+    template <class T>
+    void ForEachResource(T processResource)
+    {
+        // NB(renadeen): must be in sync with the lines below.
+        YT_VERIFY(GetParameterCount() == 5);
+
+        processResource(&TResourceLimitsConfig::UserSlots, "user_slots");
+        processResource(&TResourceLimitsConfig::Cpu, "cpu");
+        processResource(&TResourceLimitsConfig::Network, "network");
+        processResource(&TResourceLimitsConfig::Memory, "memory");
+        processResource(&TResourceLimitsConfig::Gpu, "gpu");
+    }
+
     TResourceLimitsConfig();
 };
 

@@ -2406,12 +2406,14 @@ class TestSchedulingTags(YTEnvSetup):
         self.node = nodes[0]
         set("//sys/cluster_nodes/{0}/@user_tags".format(self.node), ["default", "tagA", "tagB"])
         set("//sys/cluster_nodes/{0}/@user_tags".format(nodes[1]), ["tagC"])
-        # Wait for applying scheduling tags.
-        time.sleep(0.5)
 
         set("//sys/pool_trees/default/@nodes_filter", "default")
 
-        create("map_node", "//sys/pool_trees/other", force=True)
+        if exists("//sys/pool_trees/other"):
+            remove("//sys/pool_trees/other")
+        create_pool_tree("other")
+        time.sleep(0.5)
+
         set("//sys/pool_trees/other/@nodes_filter", "tagC")
 
         wait(lambda: self._get_slots_by_filter("default") == 1)
@@ -2445,7 +2447,7 @@ class TestSchedulingTags(YTEnvSetup):
     def test_pools(self):
         self._prepare()
 
-        create("map_node", "//sys/pools/test_pool", attributes={"scheduling_tag_filter": "tagA"})
+        create_pool("test_pool", attributes={"scheduling_tag_filter": "tagA"})
         op = map(command="cat; echo 'AAA' >&2", in_="//tmp/t_in", out="//tmp/t_out", spec={"pool": "test_pool"})
         assert read_table("//tmp/t_out") == [{"foo": "bar"}]
 
@@ -2900,7 +2902,7 @@ class TestSchedulerGpu(YTEnvSetup):
 
     @authors("ignat")
     def test_min_share_resources(self):
-        create("map_node", "//sys/pools/gpu_pool", attributes={"min_share_resources": {"gpu": 1}})
+        create_pool("gpu_pool", attributes={"min_share_resources": {"gpu": 1}})
         gpu_pool_orchid_path = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/fair_share_info/pools/gpu_pool"
         wait(lambda: exists(gpu_pool_orchid_path))
         wait(lambda: get(gpu_pool_orchid_path + "/min_share_resources/gpu") == 1)
@@ -3336,9 +3338,9 @@ class TestPoolMetrics(YTEnvSetup):
     @authors("ignat")
     @unix_only
     def test_map(self):
-        create("map_node", "//sys/pools/parent")
-        create("map_node", "//sys/pools/parent/child1")
-        create("map_node", "//sys/pools/parent/child2")
+        create_pool("parent")
+        create_pool("child1", parent_name="parent")
+        create_pool("child2", parent_name="parent")
 
         # Give scheduler some time to apply new pools.
         time.sleep(1)
@@ -3421,8 +3423,8 @@ class TestPoolMetrics(YTEnvSetup):
 
     @authors("ignat")
     def test_time_metrics(self):
-        create("map_node", "//sys/pools/parent")
-        create("map_node", "//sys/pools/parent/child")
+        create_pool("parent")
+        create_pool("child", parent_name="parent")
 
         # Give scheduler some time to apply new pools.
         time.sleep(1)
@@ -3471,10 +3473,10 @@ class TestPoolMetrics(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_total_time_operation_by_state(self):
-        create("map_node", "//sys/pools/parent")
+        create_pool("parent")
         wait(lambda: "parent" in get(scheduler_orchid_default_pool_tree_path() + "/pools"))
         for i in xrange(3):
-            create("map_node", "//sys/pools/parent/child" + str(i + 1))
+            create_pool("child" + str(i + 1), parent_name="parent")
             wait(lambda: ("child" + str(i + 1)) in get(scheduler_orchid_default_pool_tree_path() + "/pools"))
 
 
@@ -3527,7 +3529,7 @@ class TestPoolMetrics(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_total_time_operation_completed_several_jobs(self):
-        create("map_node", "//sys/pools/unique_pool")
+        create_pool("unique_pool")
 
         # Give scheduler some time to apply new pools.
         time.sleep(1)
@@ -3591,7 +3593,7 @@ class TestPoolMetrics(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_total_time_operation_failed_several_jobs(self):
-        create("map_node", "//sys/pools/unique_pool")
+        create_pool("unique_pool")
 
         # Give scheduler some time to apply new pools.
         time.sleep(1)
@@ -3647,7 +3649,7 @@ class TestPoolMetrics(YTEnvSetup):
         # Set up second tree
         node = ls("//sys/cluster_nodes")[0]
         set("//sys/cluster_nodes/" + node + "/@user_tags/end", "other")
-        create("map_node", "//sys/pool_trees/other", attributes={"nodes_filter": "other"})
+        create_pool_tree("other", attributes={"nodes_filter": "other"})
         set("//sys/pool_trees/default/@nodes_filter", "!other")
 
         time.sleep(1.0)
@@ -3674,14 +3676,15 @@ class TestPoolMetrics(YTEnvSetup):
              > 0)
 
         # Go back to one default tree
-        remove("//sys/pool_trees/*")
-        create("map_node", "//sys/pool_trees/default")
+        for tree in ls("//sys/pool_trees"):
+            remove("//sys/pool_trees/" + tree)
+        create_pool_tree("default")
         set("//sys/pool_trees/@default_tree", "default")
         time.sleep(0.5)  # Give scheduler some time to reload trees
 
     @authors("eshcherbin")
     def test_revive(self):
-        create("map_node", "//sys/pools/unique_pool")
+        create_pool("unique_pool")
         wait(lambda: "unique_pool" in get(scheduler_orchid_default_pool_tree_path() + "/pools"))
 
         create("table", "//tmp/t_input")

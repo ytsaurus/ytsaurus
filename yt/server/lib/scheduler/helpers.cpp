@@ -6,6 +6,8 @@
 
 #include <yt/ytlib/security_client/acl.h>
 
+#include <yt/core/re2/re2.h>
+
 namespace NYT::NScheduler {
 
 using namespace NSecurityClient;
@@ -14,6 +16,37 @@ using namespace NNodeTrackerClient;
 using namespace NConcurrency;
 using namespace NYTree;
 using namespace NApi;
+
+////////////////////////////////////////////////////////////////////////////////
+
+const int PoolNameMaxLength = 100;
+const char* PoolNameRegex = "[\\w\\-]+";
+
+TError CheckPoolName(const TString& poolName)
+{
+    if (poolName == NScheduler::RootPoolName) {
+        return TError("Pool name cannot be equal to root pool name")
+            << TErrorAttribute("RootPoolName", RootPoolName);
+    }
+
+    if (poolName.length() > PoolNameMaxLength) {
+        return TError("Pool name is too long")
+            << TErrorAttribute("length", poolName.length())
+            << TErrorAttribute("max_length", PoolNameMaxLength);
+    }
+
+    static NRe2::TRe2Ptr regex = New<NRe2::TRe2>(PoolNameRegex);
+    if (!NRe2::TRe2::FullMatch(NRe2::StringPiece(poolName), *regex)) {
+        return TError("Name must match regular expression %Qv", PoolNameRegex);
+    }
+
+    return TError();
+}
+
+void ValidatePoolName(const TString& poolName)
+{
+    CheckPoolName(poolName).ThrowOnError();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

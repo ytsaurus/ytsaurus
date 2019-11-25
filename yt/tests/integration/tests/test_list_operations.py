@@ -137,9 +137,9 @@ class ListOperationsSetup(YTEnvSetup):
         nodes = ls("//sys/cluster_nodes")
         set("//sys/cluster_nodes/" + nodes[0] + "/@user_tags/end", "other")
 
-        create("map_node", "//sys/pool_trees/other", attributes={"nodes_filter": "tag"}, ignore_existing=True)
-        create("map_node", "//sys/pool_trees/other/some_pool", ignore_existing=True)
-        create("map_node", "//sys/pool_trees/other/pool_no_running", ignore_existing=True)
+        create_pool_tree("other", attributes={"nodes_filter": "tag"}, ignore_existing=True)
+        create_pool("some_pool", pool_tree="other", ignore_existing=True)
+        create_pool("pool_no_running", pool_tree="other", ignore_existing=True)
         set("//sys/pool_trees/other/pool_no_running/@max_running_operation_count", 0)
         wait(lambda: exists("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/other/fair_share_info"))
 

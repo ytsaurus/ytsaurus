@@ -1,6 +1,8 @@
 #include "map_object_type_handler.h"
 #include "map_object_proxy.h"
 
+#include <yt/server/master/scheduler_pool_server/scheduler_pool.h>
+
 namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -102,6 +104,10 @@ std::optional<int> TNonversionedMapObjectTypeHandlerBase<TObject>::GetDepthLimit
 {
     return std::nullopt;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+template class TNonversionedMapObjectTypeHandlerBase<NSchedulerPoolServer::TSchedulerPool>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -57,12 +57,10 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
         .GreaterThan(0);
 
     RegisterParameter("max_running_operation_count_per_pool", MaxRunningOperationCountPerPool)
-        .Alias("max_running_operations_per_pool")
         .Default(50)
         .GreaterThan(0);
 
     RegisterParameter("max_operation_count_per_pool", MaxOperationCountPerPool)
-        .Alias("max_operations_per_pool")
         .Default(50)
         .GreaterThan(0);
 
@@ -126,9 +124,6 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
     RegisterParameter("infer_weight_from_min_share_ratio_multiplier", InferWeightFromMinShareRatioMultiplier)
         .Default()
         .GreaterThanOrEqual(1.0);
-
-    RegisterParameter("crash_on_operation_resource_usage_inconsistency", CrashOnOperationResourceUsageInconsistency)
-        .Default(false);
 
     RegisterParameter("packing", Packing)
         .DefaultNew();
@@ -463,7 +458,7 @@ TSchedulerConfig::TSchedulerConfig()
         .Default(TDuration::Seconds(15));
 
     RegisterParameter("pool_trees_root", PoolTreesRoot)
-        .Default("//sys/pool_trees");
+        .Default(PoolTreesRootCypressPath);
 
     RegisterParameter("validate_node_tags_period", ValidateNodeTagsPeriod)
         .Default(TDuration::Seconds(30));

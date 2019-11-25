@@ -1174,6 +1174,26 @@ def remove_account(name, **kwargs):
     if sync:
         wait(lambda: not exists(account_path))
 
+def create_pool_tree(name, **kwargs):
+    kwargs["type"] = "scheduler_pool_tree"
+    if "attributes" not in kwargs:
+        kwargs["attributes"] = dict()
+    kwargs["attributes"]["name"] = name
+    execute_command("create", kwargs, parse_yson=True)
+
+def remove_pool_tree(name, **kwargs):
+    remove("//sys/pool_trees/" + name, **kwargs)
+
+def create_pool(name, pool_tree="default", parent_name=None, **kwargs):
+    kwargs["type"] = "scheduler_pool"
+    if "attributes" not in kwargs:
+        kwargs["attributes"] = dict()
+    kwargs["attributes"]["name"] = name
+    kwargs["attributes"]["pool_tree"] = pool_tree
+    if parent_name:
+        kwargs["attributes"]["parent_name"] = parent_name
+    execute_command("create", kwargs, parse_yson=True)
+
 def create_user(name, **kwargs):
     kwargs["type"] = "user"
     if "attributes" not in kwargs:

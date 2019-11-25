@@ -66,8 +66,8 @@ class TestRuntimeParameters(YTEnvSetup):
 
     @authors("renadeen")
     def test_change_pool_of_default_pooltree(self):
-        create("map_node", "//sys/pools/initial_pool")
-        create("map_node", "//sys/pools/changed_pool")
+        create_pool("initial_pool")
+        create_pool("changed_pool")
 
         op = run_sleeping_vanilla(spec={"pool": "initial_pool"})
 
@@ -82,8 +82,8 @@ class TestRuntimeParameters(YTEnvSetup):
     def test_running_operation_counts_on_change_pool(self):
         pools_path = scheduler_orchid_default_pool_tree_path() + "/pools"
 
-        create("map_node", "//sys/pools/initial_pool")
-        create("map_node", "//sys/pools/changed_pool")
+        create_pool("initial_pool")
+        create_pool("changed_pool")
         wait(lambda: exists(pools_path + "/changed_pool"))
 
         op = run_sleeping_vanilla(spec={"pool": "initial_pool"})
@@ -100,9 +100,9 @@ class TestRuntimeParameters(YTEnvSetup):
     @authors("renadeen")
     def test_change_pool_of_multitree_operation(self):
         self.create_custom_pool_tree_with_one_node(pool_tree="custom")
-        create("map_node", "//sys/pools/default_pool")
-        create("map_node", "//sys/pool_trees/custom/custom_pool1")
-        create("map_node", "//sys/pool_trees/custom/custom_pool2")
+        create_pool("default_pool")
+        create_pool("custom_pool1", pool_tree="custom")
+        create_pool("custom_pool2", pool_tree="custom")
         time.sleep(0.1)
 
         op = run_sleeping_vanilla(
@@ -123,12 +123,10 @@ class TestRuntimeParameters(YTEnvSetup):
 
     @authors("renadeen")
     def test_operation_count_validation_on_change_pool(self):
-        set("//sys/pools/initial_pool", {})
-        set("//sys/pools/full_pool", {})
-        set("//sys/pools/full_pool/@max_running_operation_count", 0)
+        create_pool("initial_pool")
+        create_pool("full_pool", attributes={"max_running_operation_count": 0})
 
         op = run_sleeping_vanilla(spec={"pool": "initial_pool"})
-
         wait(lambda: op.get_state() == "running")
 
         with pytest.raises(YtError):
@@ -148,7 +146,7 @@ class TestRuntimeParameters(YTEnvSetup):
 
     @authors("renadeen")
     def test_no_pool_validation_on_change_weight(self):
-        set("//sys/pools/test_pool", {})
+        create_pool("test_pool")
         op = run_sleeping_vanilla(spec={"pool": "test_pool"})
         wait(lambda: op.get_state() == "running")
 
@@ -165,7 +163,7 @@ class TestRuntimeParameters(YTEnvSetup):
         tag = pool_tree
         node = ls("//sys/cluster_nodes")[0]
         set("//sys/cluster_nodes/" + node + "/@user_tags/end", tag)
-        create("map_node", "//sys/pool_trees/" + pool_tree, attributes={"nodes_filter": tag})
+        create_pool_tree(pool_tree, attributes={"nodes_filter": tag})
         set("//sys/pool_trees/default/@nodes_filter", "!" + tag)
         return node
 
@@ -197,8 +195,8 @@ class TestJobsAreScheduledAfterPoolChange(YTEnvSetup):
 
     @authors("renadeen", "antonkikh")
     def test_jobs_are_scheduled_after_pool_change(self):
-        create("map_node", "//sys/pools/initial_pool")
-        create("map_node", "//sys/pools/changed_pool")
+        create_pool("initial_pool")
+        create_pool("changed_pool")
         op = run_test_vanilla(":", job_count=100000, spec={"pool": "initial_pool"})
         wait(lambda: op.get_job_count("running") > 5, iter=10)
 
@@ -220,7 +218,7 @@ class TestOperationDetailedLogs(YTEnvSetup):
 
     @authors("antonkikh")
     def test_enable_detailed_logs(self):
-        create("map_node", "//sys/pool_trees/default/fake_pool")
+        create_pool("fake_pool")
         set("//sys/pool_trees/default/fake_pool/@resource_limits", {"user_slots": 3})
 
         op = run_sleeping_vanilla(job_count=10, spec={"pool": "fake_pool"})

@@ -312,7 +312,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         self._create_table("//tmp/out3")
         write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
 
-        create("map_node", "//sys/pools/fifo_pool", ignore_existing=True)
+        create_pool("fifo_pool", ignore_existing=True)
         set("//sys/pools/fifo_pool/@mode", "fifo")
 
         pools_orchid = scheduler_orchid_default_pool_tree_path() + "/pools"
@@ -348,7 +348,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             self._create_table("//tmp/out" + str(i))
             write_table("//tmp/in" + str(i), [{"foo": j} for j in xrange(op_count * (op_count + 1 - i))])
 
-        create("map_node", "//sys/pools/fifo_pool", ignore_existing=True)
+        create_pool("fifo_pool", ignore_existing=True)
         set("//sys/pools/fifo_pool/@mode", "fifo")
         set("//sys/pools/fifo_pool/@fifo_sort_parameters", ["pending_job_count"])
 
@@ -374,18 +374,6 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         finish_times = [get(op.get_path() + "/@finish_time".format(op.id)) for op in ops]
         for cur, next in zip(finish_times, finish_times[1:]):
             assert cur > next
-
-    @authors("ignat")
-    def test_fifo_subpools(self):
-        assert not get("//sys/scheduler/@alerts")
-
-        create("map_node", "//sys/pools/fifo_pool", attributes={"mode": "fifo"})
-        create("map_node", "//sys/pools/fifo_pool/fifo_subpool", attributes={"mode": "fifo"})
-
-        time.sleep(1.5)
-
-        assert get("//sys/scheduler/@alerts")
-        assert get("//sys/scheduler/@alerts")[0]
 
     @authors("ignat")
     def test_preparing_operation_transactions(self):
@@ -604,8 +592,8 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
     @authors("ignat", "eshcherbin")
     def test_pool_profiling(self):
         self._prepare_tables()
+        create_pool("unique_pool")
         pool_path = "//sys/pools/unique_pool"
-        create("map_node", pool_path)
         set(pool_path + "/@max_operation_count", 50)
         wait(lambda: get(pool_path + "/@max_operation_count") == 50)
         set(pool_path + "/@max_running_operation_count", 8)
@@ -700,7 +688,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         for i in xrange(2):
             self._create_table("//tmp/t_out_" + str(i + 1))
 
-        create("map_node", "//sys/pools/some_pool")
+        create_pool("some_pool")
 
         metric_prefix = "scheduler/operations_by_slot/"
         fair_share_ratio_last = Metric.at_scheduler(
@@ -792,8 +780,8 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         for i in xrange(4):
             self._create_table("//tmp/t_out_" + str(i + 1))
 
-        create("map_node", "//sys/pools/some_pool", attributes={"allowed_profiling_tags": ["hello"]})
-        create("map_node", "//sys/pools/other_pool", attributes={"allowed_profiling_tags": ["hello", "world"]})
+        create_pool("some_pool")
+        create_pool("other_pool", attributes={"allowed_profiling_tags": ["hello", "world"]})
 
         metric_prefix = "scheduler/operations_by_user/"
         fair_share_ratio_last = Metric.at_scheduler(
@@ -1002,7 +990,7 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
     @unix_only
     def test_operation_completed(self):
         self._prepare_tables()
-        create("map_node", "//sys/pools/unique_pool")
+        create_pool("unique_pool")
         time.sleep(1)
 
         map_cmd = """python -c "import os; os.write(5, '{value_completed=117};')"; sleep 0.5 ; cat ; sleep 5; echo done > /dev/stderr"""
@@ -1019,7 +1007,7 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
     @unix_only
     def test_operation_failed(self):
         self._prepare_tables()
-        create("map_node", "//sys/pools/unique_pool")
+        create_pool("unique_pool")
         time.sleep(1)
 
         map_cmd = """python -c "import os; os.write(5, '{value_failed=225};')"; sleep 0.5 ; cat ; sleep 5; exit 1"""

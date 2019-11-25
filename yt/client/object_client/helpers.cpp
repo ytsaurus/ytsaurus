@@ -50,6 +50,7 @@ bool IsVersionedType(EObjectType type)
         type == EObjectType::AccountMap ||
         type == EObjectType::UserMap ||
         type == EObjectType::GroupMap ||
+        type == EObjectType::SchedulerPoolTreeMap ||
         type == EObjectType::Link ||
         type == EObjectType::Document ||
         type == EObjectType::LockMap ||
@@ -89,7 +90,9 @@ bool IsUserType(EObjectType type)
         type == EObjectType::TabletAction ||
         type == EObjectType::Journal ||
         type == EObjectType::Link ||
-        type == EObjectType::Document;
+        type == EObjectType::Document ||
+        type == EObjectType::SchedulerPool ||
+        type == EObjectType::SchedulerPoolTree;
 }
 
 bool IsTableType(EObjectType type)

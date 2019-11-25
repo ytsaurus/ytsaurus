@@ -13,17 +13,25 @@ using namespace NYTree;
 
 void Serialize(const TRe2Ptr& re, IYsonConsumer* consumer)
 {
-    BuildYsonFluently(consumer)
-        .Value(re->pattern());
+    if (re) {
+        BuildYsonFluently(consumer)
+            .Value(re->pattern());
+    } else {
+        consumer->OnEntity();
+    }
 }
 
 void Deserialize(TRe2Ptr& re, INodePtr node)
 {
-    auto pattern = node->GetValue<TString>();
-    re = New<TRe2>(pattern);
-    if (!re->ok()) {
-        THROW_ERROR_EXCEPTION("Error parsing RE2 regex")
-            << TErrorAttribute("error", re->error());
+    if (node->GetType() != ENodeType::Entity) {
+        auto pattern = node->GetValue<TString>();
+        re = New<TRe2>(pattern);
+        if (!re->ok()) {
+            THROW_ERROR_EXCEPTION("Error parsing RE2 regex")
+                << TErrorAttribute("error", re->error());
+        }
+    } else {
+        re.Reset();
     }
 }
 

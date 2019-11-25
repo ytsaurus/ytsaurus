@@ -207,6 +207,9 @@ DEFINE_ENUM(EObjectType,
 
     // Scheduler
     ((Operation)                    (1000))
+    ((SchedulerPool)                (1001))
+    ((SchedulerPoolTree)            (1002))
+    ((SchedulerPoolTreeMap)         (1003))
 
     // Object manager stuff
     ((EstimatedCreationTimeMap)     (1100))

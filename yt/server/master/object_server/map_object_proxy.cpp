@@ -16,6 +16,8 @@
 
 #include <yt/server/lib/misc/interned_attributes.h>
 
+#include <yt/server/master/scheduler_pool_server/scheduler_pool.h>
+
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
 namespace NYT::NObjectServer {
@@ -976,6 +978,12 @@ void TNonversionedMapObjectFactoryBase<TObject>::RollbackEvent(const TFactoryEve
         YT_LOG_FATAL(ex, "Unhandled exception during rollback of factory event of type %Qlv", event.Type);
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+template class TNonversionedMapObjectFactoryBase<NSchedulerPoolServer::TSchedulerPool>;
+
+template class TNonversionedMapObjectProxyBase<NSchedulerPoolServer::TSchedulerPool>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
