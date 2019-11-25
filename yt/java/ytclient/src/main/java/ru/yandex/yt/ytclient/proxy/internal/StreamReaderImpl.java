@@ -73,10 +73,7 @@ class Stash {
     void error(Throwable ex) {
         synchronized (attachments) {
             this.ex = ex;
-
-            if (!this.readyEvent.isDone()) {
-                this.readyEvent.completeExceptionally(ex);
-            }
+            this.readyEvent.completeExceptionally(ex);
         }
     }
 }

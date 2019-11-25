@@ -83,10 +83,7 @@ public abstract class StreamBase<RspType extends Message> implements RpcStreamCo
     @Override
     public void onError(RpcClient sender, Throwable error) {
         logger.error("Error", error);
-
-        if (!result.isDone()) {
-            result.completeExceptionally(error);
-        }
+        result.completeExceptionally(error);
     }
 
     protected CompletableFuture<Void> waitResult() {
