@@ -652,6 +652,13 @@ public class DefaultRpcBusClient implements RpcClient {
             readTimeout = null;
         }
 
+        private void clearWriteTimeout() {
+            if (writeTimeoutFuture != null) {
+                writeTimeoutFuture.cancel(false);
+            }
+            writeTimeout = null;
+        }
+
         private void resetReadTimeout() {
             if (readTimeout != null) {
                 if (readTimeoutFuture != null) {
@@ -739,6 +746,14 @@ public class DefaultRpcBusClient implements RpcClient {
         }
 
         @Override
+        protected void finishLocked()
+        {
+            clearReadTimeout();
+            clearWriteTimeout();
+            state = RequestState.FINISHED;
+        }
+
+        @Override
         public void response(TResponseHeader header, List<byte[]> attachments) {
             Duration elapsed = Duration.between(started, Instant.now());
             stat.updateResponse(elapsed.toMillis());
@@ -767,7 +782,6 @@ public class DefaultRpcBusClient implements RpcClient {
             } catch (Throwable e) {
                 handleError(e);
             } finally {
-                finishLocked();
                 session.unregister(this);
                 lock.unlock();
             }

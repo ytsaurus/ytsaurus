@@ -34,4 +34,6 @@ public interface TableReader<T> {
     List<T> read() throws Exception;
 
     CompletableFuture<Void> close();
+
+    void cancel();
 }
