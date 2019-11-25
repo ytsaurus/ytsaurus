@@ -34,6 +34,10 @@
 
 #include <util/system/sanitizers.h>
 
+#include <util/string/split.h>
+#include <util/string/strip.h>
+#include <util/string/subst.h>
+
 #include <tuple>
 
 // Tests:
@@ -1135,6 +1139,27 @@ protected:
             .ValueOrThrow();
     }
 
+
+    TQueryPtr Prepare(const TString& query, const std::map<TString, TDataSplit>& dataSplits)
+    {
+
+        for (const auto& dataSplit : dataSplits) {
+            EXPECT_CALL(PrepareMock_, GetInitialSplit(dataSplit.first, _))
+                .WillOnce(Return(MakeFuture(dataSplit.second)));
+        }
+
+        auto fetchFunctions = [&] (const std::vector<TString>& /*names*/, const TTypeInferrerMapPtr& typeInferrers) {
+            MergeFrom(typeInferrers.Get(), *TypeInferrers_);
+        };
+
+        auto fragment = PreparePlanFragment(
+            &PrepareMock_,
+            query,
+            fetchFunctions);
+
+        return fragment->Query;
+    }
+
     TQueryPtr DoEvaluate(
         const TString& query,
         const std::map<TString, TDataSplit>& dataSplits,
@@ -1144,14 +1169,7 @@ protected:
         i64 outputRowLimit,
         bool failure)
     {
-        for (const auto& dataSplit : dataSplits) {
-            EXPECT_CALL(PrepareMock_, GetInitialSplit(dataSplit.first, _))
-                .WillOnce(Return(MakeFuture(dataSplit.second)));
-        }
-
-        auto fetchFunctions = [&] (const std::vector<TString>& /*names*/, const TTypeInferrerMapPtr& typeInferrers) {
-            MergeFrom(typeInferrers.Get(), *TypeInferrers_);
-        };
+        auto primaryQuery = Prepare(query, dataSplits);
 
         TQueryBaseOptions options;
         options.InputRowLimit = inputRowLimit;
@@ -1162,8 +1180,10 @@ protected:
         auto profileCallback = [&] (TQueryPtr subquery, TConstJoinClausePtr joinClause) mutable {
             auto rows = owningSources[sourceIndex++];
 
-            return [&, rows, subquery, joinClause] (std::vector<TRow> keys, TRowBufferPtr permanentBuffer)
-            mutable {
+            return [&, rows, subquery, joinClause] (
+                std::vector<TRow> keys,
+                TRowBufferPtr permanentBuffer) mutable
+            {
                 TDataRanges dataSource;
                 TQueryPtr preparedSubquery;
                 std::tie(preparedSubquery, dataSource) = GetForeignQuery(
@@ -1185,12 +1205,6 @@ protected:
                 return pipe->GetReader();
             };
         };
-
-        auto fragment = PreparePlanFragment(
-            &PrepareMock_,
-            query,
-            fetchFunctions);
-        const auto& primaryQuery = fragment->Query;
 
         auto prepareAndExecute = [&] () {
             IUnversionedRowsetWriterPtr writer;
@@ -5588,6 +5602,396 @@ TEST_F(TQueryEvaluateTest, MakeMapFailure)
     EvaluateExpectingError("make_map(\"a\") as x FROM [//t]", split, source);
     EvaluateExpectingError("make_map(1, 1) as x FROM [//t]", split, source);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TJoinColumns
+{
+    const char* Self = nullptr;
+    const char* Foreign = nullptr;
+};
+
+struct TGroupColumns
+{
+    const char* X = nullptr;
+    const char* Y = nullptr;
+    const char* Z = nullptr;
+};
+
+class TQueryEvaluateComplexTest
+    : public TQueryEvaluateTest
+    , public ::testing::WithParamInterface<std::tuple<
+        const char*, // left or inner
+        TJoinColumns, // join equation
+        TGroupColumns, // group key
+        const char* // totals
+    >>
+{ };
+
+struct TIntValue
+    : public std::optional<int>
+{
+    using TBase = std::optional<int>;
+    using TBase::TBase;
+
+    void operator+=(const TIntValue& other)
+    {
+        if (!*this) {
+            *this = other;
+        } else if (other) {
+            **this += *other;
+        }
+    }
+};
+
+bool operator<(const TIntValue& l, const TIntValue& r)
+{
+    return static_cast<const std::optional<int>&>(l) < static_cast<const std::optional<int>&>(r);
+}
+
+bool operator==(const TIntValue& l, const TIntValue& r)
+{
+    return static_cast<const std::optional<int>&>(l) == static_cast<const std::optional<int>&>(r);
+}
+
+void FormatValue(TStringBuilderBase* builder, const TIntValue& value, TStringBuf spec)
+{
+    if (value) {
+        builder->AppendFormat("%v", *value);
+    } else {
+        builder->AppendChar('#');
+    }
+}
+
+TEST_P(TQueryEvaluateComplexTest, All)
+{
+    int M = 7;
+    // Primary columns: (a, b, c) -> v
+    // Secondary columns: (d, e) -> w
+    // Group columns x, y, z
+
+    struct TPrimaryKey
+    {
+        TIntValue a, b, c;
+
+        bool operator< (const TPrimaryKey& other) const
+        {
+            return std::tie(a, b, c) < std::tie(other.a, other.b, other.c);
+        }
+
+        bool operator== (const TPrimaryKey& other) const
+        {
+            return std::tie(a, b, c) == std::tie(other.a, other.b, other.c);
+        }
+    };
+
+    struct TPrimaryValue
+    {
+        TIntValue v;
+    };
+
+    struct TPrimaryRow
+        : public TPrimaryKey
+        , public TPrimaryValue
+    { };
+
+    struct TSecondaryKey
+    {
+        TIntValue d, e;
+
+        bool operator< (const TSecondaryKey& other) const
+        {
+            return std::tie(d, e) < std::tie(other.d, other.e);
+        }
+
+        bool operator== (const TSecondaryKey& other) const
+        {
+            return std::tie(d, e) == std::tie(other.d, other.e);
+        }
+    };
+
+    struct TSecondaryValue
+    {
+        TIntValue w;
+    };
+
+    struct TSecondaryRow
+        : public TSecondaryKey
+        , public TSecondaryValue
+    { };
+
+    struct TGroupKey
+    {
+        TIntValue x, y, z;
+
+        bool operator< (const TGroupKey& other) const
+        {
+            return std::tie(x, y, z) < std::tie(other.x, other.y, other.z);
+        }
+
+        bool operator== (const TGroupKey& other) const
+        {
+            return std::tie(x, y, z) == std::tie(other.x, other.y, other.z);
+        }
+    };
+
+    std::vector<TPrimaryRow> primaryTable;
+    std::vector<TSecondaryRow> secondaryTable;
+
+    for (int i = 0; i < M * M * M; ++i) {
+        if (rand() % 7 == 0) {
+            continue;
+        }
+        primaryTable.push_back({i / (M * M), i % (M * M) / M, i % M, i});
+    }
+
+    for (int i = 0; i < M * M; ++i) {
+        if (rand() % 7 == 0) {
+            continue;
+        }
+        secondaryTable.push_back({i / M, i % M, i});
+    }
+
+    const auto& param = GetParam();
+
+    TStringBuf joinType = std::get<0>(param);
+    TJoinColumns joinEq = std::get<1>(param);
+    TGroupColumns groupEq = std::get<2>(param);
+    TStringBuf groupTotals = std::get<3>(param);
+
+    auto offset = 3;
+    auto limit = 3;
+
+    TString queryString = Format(
+        "x, y, z, sum(1) as count, sum(v) as sumv, sum(w) as sumw "
+        "from [//t] %v join [//s] on (%v) = (%v) group by %v as x, %v as y, %v as z %v offset %v limit %v",
+        joinType,
+        joinEq.Self,
+        joinEq.Foreign,
+        groupEq.X,
+        groupEq.Y,
+        groupEq.Z,
+        groupTotals,
+        offset,
+        limit);
+
+    struct TAggregates
+    {
+        TIntValue count, sumv, sumw;
+
+        void operator+= (const TAggregates& other) {
+            count += other.count;
+            sumv += other.sumv;
+            sumw += other.sumw;
+        }
+    };
+
+    struct TResultRow
+        : TGroupKey
+        , TAggregates
+    { };
+
+    TStringBuf s1, s2;
+    StringSplitter(joinEq.Self)
+        .Split(',')
+        .CollectInto(&s1, &s2);
+
+    s1 = StripString(s1);
+    s2 = StripString(s2);
+
+    auto evaluate = [] (const TPrimaryRow& row, TStringBuf expr) -> TIntValue {
+        if (expr == "a") {
+            return row.a;
+        }
+
+        if (expr == "b") {
+            return row.b;
+        }
+
+        if (expr == "c") {
+            return row.c;
+        }
+
+        if (expr == "c % 3") {
+            return row.c ? TIntValue(*row.c % 3) : std::nullopt;
+        }
+
+        if (expr == "(b * 10 + c) % 3") {
+            return row.b && row.c ? TIntValue((*row.b * 10 + *row.c) % 3) : std::nullopt;
+        }
+
+        if (expr == "0") {
+            return 0;
+        }
+
+        YT_ABORT();
+        Y_UNREACHABLE();
+    };
+
+    std::map<TGroupKey, TAggregates> lookup;
+    std::vector<TGroupKey> groupedKeys;
+
+    bool isLeft = joinType == "left";
+
+    TSecondaryRow nullRow;
+
+    for (auto& primaryRow : primaryTable) {
+        // Join.
+        auto joinKey = TSecondaryKey{
+            evaluate(primaryRow, s1),
+            evaluate(primaryRow, s2)};
+
+        auto [begin, end] = std::equal_range(
+            secondaryTable.data(),
+            secondaryTable.data() + secondaryTable.size(),
+            joinKey);
+
+        if (begin == end && isLeft) {
+            begin = &nullRow;
+            end = begin + 1;
+        }
+
+        for (auto it = begin; it != end; ++it) {
+            auto groupKey = TGroupKey{
+                evaluate(primaryRow, groupEq.X),
+                evaluate(primaryRow, groupEq.Y),
+                evaluate(primaryRow, groupEq.Z)};
+
+            auto groupValue = TAggregates{1, primaryRow.v, it->w};
+
+            bool limitReached = lookup.size() >= offset + limit;
+
+            if (limitReached) {
+                auto found = lookup.find(groupKey);
+
+                if (found != lookup.end()) {
+                    found->second += groupValue;
+                }
+            } else {
+                auto [pos, inserted] = lookup.emplace(groupKey, groupValue);
+
+                if (!inserted) {
+                    pos->second += groupValue;
+                } else {
+                    groupedKeys.push_back(groupKey);
+                }
+            }
+        }
+    }
+
+    std::map<TString, TDataSplit> splits;
+    std::vector<std::vector<TString>> sources(2);
+
+    auto primarySplit = MakeSplit({
+        {"a", EValueType::Int64, ESortOrder::Ascending},
+        {"b", EValueType::Int64, ESortOrder::Ascending},
+        {"c", EValueType::Int64, ESortOrder::Ascending},
+        {"v", EValueType::Int64}
+    }, 0);
+
+    splits["//t"] = primarySplit;
+
+    for (const auto& row : primaryTable) {
+        sources[0].push_back(Format("a=%v;b=%v;c=%v;v=%v", row.a, row.b, row.c, row.v));
+    }
+
+    auto secondarySplit = MakeSplit({
+        {"d", EValueType::Int64, ESortOrder::Ascending},
+        {"e", EValueType::Int64, ESortOrder::Ascending},
+        {"w", EValueType::Int64}
+    }, 0);
+
+    splits["//s"] = secondarySplit;
+
+    for (const auto& row : secondaryTable) {
+        sources[1].push_back(Format("d=%v;e=%v;w=%v", row.d, row.e, row.w));
+    }
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64},
+        {"y", EValueType::Int64},
+        {"z", EValueType::Int64},
+        {"count", EValueType::Int64},
+        {"sumv", EValueType::Int64},
+        {"sumw", EValueType::Int64},
+    });
+
+    std::sort(groupedKeys.begin(), groupedKeys.end());
+
+    std::vector<TResultRow> resultData;
+    TAggregates totals;
+
+    for (int index = offset; index < std::min(offset + limit, int(groupedKeys.size())); ++index) {
+        auto groupKey = groupedKeys[index];
+        auto groupValue = lookup[groupKey];
+
+        resultData.push_back(TResultRow{
+            groupKey.x,
+            groupKey.y,
+            groupKey.z,
+            groupValue.count,
+            groupValue.sumv,
+            groupValue.sumw});
+
+        totals += groupValue;
+    }
+
+    std::vector<TOwningRow> result;
+
+    if (groupTotals == "with totals") {
+        auto rowString = Format(
+            "count=%v;sumv=%v;sumw=%v",
+            totals.count,
+            totals.sumv,
+            totals.sumw);
+        result.push_back(YsonToRow(rowString, resultSplit, true));
+    }
+
+    for (const auto& row : resultData) {
+        auto resultRow = Format(
+            "x=%v;y=%v;z=%v;count=%v;sumv=%v;sumw=%v",
+            row.x,
+            row.y,
+            row.z,
+            row.count,
+            row.sumv,
+            row.sumw);
+
+        result.push_back(YsonToRow(resultRow, resultSplit, true));
+    }
+
+    auto query = Evaluate(
+        queryString,
+        splits,
+        sources,
+        OrderedResultMatcher(result, {"x", "y", "z"}));
+
+    EXPECT_TRUE(query->IsOrdered());
+}
+
+INSTANTIATE_TEST_CASE_P(1, TQueryEvaluateComplexTest,
+::testing::Combine(
+    ::testing::ValuesIn({
+        "",
+        "left"
+    }), // join type
+    ::testing::ValuesIn({
+        TJoinColumns{"a, b", "d, e"},
+        TJoinColumns{"b, c", "d, e"},
+        TJoinColumns{"a, c", "d, e"},
+        TJoinColumns{"c, a", "d, e"},
+    }), // join equation
+    ::testing::ValuesIn({
+        TGroupColumns{"a", "0", "0"},
+        TGroupColumns{"a", "b", "0"},
+        TGroupColumns{"a", "b", "c"},
+        TGroupColumns{"a", "b", "c % 3"},
+        TGroupColumns{"a", "(b * 10 + c) % 3", "0"}
+    }), // group by
+    ::testing::ValuesIn({
+        "",
+        "with totals"
+    })));
 
 ////////////////////////////////////////////////////////////////////////////////
 
