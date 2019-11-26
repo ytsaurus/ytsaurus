@@ -433,8 +433,8 @@ enum EResolvConf {
     // При использовании nat64 resolv.conf будет содержать следующие строки:
     // 1) search search.yandex.net.
     // 2) nameserver 2a02:6b8:0:3400::5005 (https://wiki.yandex-team.ru/noc/ipv6/statefulnat64)
-    // 3) nameserver 2a02:6b8::1:1
-    // 4) nameserver 2a02:6b8:0:3400::1
+    // 3) options timeout:1 attempts:1
+    // Возможно, список изменится https://st.yandex-team.ru/DEPLOY-1436#5ddcf980701665001d5c3459
     EResolvConf_NAT64 = 2 [(NYT.NYson.NProto.enum_value_name) = "nat64"];
 }
 
