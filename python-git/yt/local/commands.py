@@ -326,6 +326,11 @@ def start(master_count=None, node_count=None, scheduler_count=None, rpc_proxy_co
         if not environment._load_existing_environment:
             client = environment.create_client()
 
+            # This hack is necessary to correctly run inside docker container.
+            # In this case public proxy port differs from proxy port inside container and
+            # we should use latter.
+            client.config["proxy"]["enable_proxy_discovery"] = False
+
             _initialize_world(client, environment, wait_tablet_cell_initialization,
                               (environment.abi_version[0] == 19))
             if local_cypress_dir is not None:
