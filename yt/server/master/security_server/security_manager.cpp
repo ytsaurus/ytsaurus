@@ -2952,6 +2952,9 @@ private:
             if (!IsObjectAlive(user)) {
                 continue;
             }
+            if (!user->GetNeedsProfiling()) {
+                continue;
+            }
 
             TTagIdList tagIds{
                 GetProfilingTagForUser(user)
@@ -2963,6 +2966,7 @@ private:
             Profiler.Enqueue("/user_write_request_count", user->Statistics()[EUserWorkloadType::Write].RequestCount, EMetricType::Counter, tagIds);
             Profiler.Enqueue("/user_request_count", user->Statistics()[EUserWorkloadType::Read].RequestCount + user->Statistics()[EUserWorkloadType::Write].RequestCount, EMetricType::Counter, tagIds);
             Profiler.Enqueue("/user_request_queue_size", user->GetRequestQueueSize(), EMetricType::Gauge, tagIds);
+            user->SetNeedsProfiling(false);
         }
     }
 };
