@@ -33,7 +33,7 @@ class TableIterator[T](reader: TableReader[T]) extends Iterator[T] with AutoClos
   private def waitReaderReadyEvent(): Unit = {
     YtMetricsRegister.time(readReadyEventTime, readReadyEventTimeSum) {
       log.debugLazy("Waiting for reader")
-      reader.readyEvent().get(30, TimeUnit.SECONDS)
+      reader.readyEvent().get(60, TimeUnit.SECONDS)
     }
   }
 

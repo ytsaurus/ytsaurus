@@ -31,8 +31,10 @@ spark_args.append("--conf")
 spark_args.append("spark.eventLog.dir=yt:/{}/logs/{}".format(working_dir, args.id))
 
 if args.auto_auth:
-    with open("{0}/.yt/token".format(os.getenv("HOME"))) as f:
-        token = f.readline().strip()
+    token = os.getenv("YT_TOKEN")
+    if token is None:
+        with open("{0}/.yt/token".format(os.getenv("HOME"))) as f:
+            token = f.readline().strip()
     spark_args.append("--conf")
     spark_args.append("spark.hadoop.yt.user={}".format(user))
     spark_args.append("--conf")

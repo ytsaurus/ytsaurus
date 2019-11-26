@@ -56,6 +56,7 @@ parser.add_argument("--worker-num", required=True, type=int)
 parser.add_argument("--proxy", required=False)
 parser.add_argument("--working-dir", required=False)
 parser.add_argument("--master-memory-limit", required=False)
+parser.add_argument("--pool", required=False)
 
 args = parser.parse_args()
 
@@ -112,15 +113,18 @@ environment = {
 }
 
 operation_spec = {
-    "stderr_table_path": "{0}/logs/stderr_{1}".format(working_dir, args.id)
+    "stderr_table_path": "{0}/logs/stderr_{1}".format(working_dir, args.id),
+    "pool": args.pool or user
 }
 
 task_spec = {
     "restart_completed_jobs": True
 }
 
-with open(os.getenv("HOME") + "/.yt/token") as f:
-    token = f.readline().strip()
+token = os.getenv("YT_TOKEN")
+if token is None:
+    with open(os.getenv("HOME") + "/.yt/token") as f:
+        token = f.readline().strip()
 
 secure_vault = {
     "YT_USER": user,
@@ -134,6 +138,7 @@ spec_builder = \
             .file_paths(file_paths) \
             .command(master_command) \
             .memory_limit(master_memory_limit) \
+            .memory_reserve_factor(1.0) \
             .cpu_limit(2) \
             .environment(environment) \
             .layer_paths(layer_paths) \
@@ -144,6 +149,7 @@ spec_builder = \
             .file_paths(file_paths) \
             .command(history_command) \
             .memory_limit(master_memory_limit) \
+            .memory_reserve_factor(1.0) \
             .cpu_limit(1) \
             .environment(environment) \
             .layer_paths(layer_paths) \
@@ -154,7 +160,9 @@ spec_builder = \
             .file_paths(file_paths) \
             .command(worker_command) \
             .memory_limit(parse_memory(args.worker_memory) + worker_memory_add) \
+            .memory_reserve_factor(1.0) \
             .cpu_limit(args.worker_cores) \
+            .disk_space_limit(parse_memory("100G")) \
             .environment(environment) \
             .layer_paths(layer_paths) \
             .spec(task_spec) \

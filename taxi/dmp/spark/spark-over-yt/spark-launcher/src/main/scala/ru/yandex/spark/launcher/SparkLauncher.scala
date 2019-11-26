@@ -91,15 +91,18 @@ trait SparkLauncher {
                              positionalArgs: Seq[String],
                              env: Map[String, String]): Thread = {
     val thread = new Thread(() => {
+      var process: Process = null
       try {
         val log = Logger.getLogger(self.getClass)
-        runSparkClass(className, systemProperties, namedArgs, positionalArgs, env, log)
+        process = runSparkClass(className, systemProperties, namedArgs, positionalArgs, env, log)
+        log.warn(s"Spark exit value: ${process.exitValue()}")
       } catch {
         case e: Throwable =>
           log.error(s"Spark failed with error: ${e.getMessage}")
           val sw = new StringWriter
           e.printStackTrace(new PrintWriter(sw))
           log.error(sw.toString)
+          process.destroy()
       }
     }, "Spark Thread")
     thread.setDaemon(true)
@@ -112,7 +115,7 @@ trait SparkLauncher {
                             namedArgs: Map[String, String],
                             positionalArgs: Seq[String],
                             env: Map[String, String],
-                            log: Logger): Unit = {
+                            log: Logger): Process = {
     val command = s"$sparkHome/bin/spark-class " +
       s"${systemProperties.map{case (k, v) => s"-D$k=$v"}.mkString(" ")} " +
       s"$className " +
@@ -121,7 +124,7 @@ trait SparkLauncher {
 
     log.info(s"Run command: $command")
 
-    Process(command, None, env.toSeq: _*) ! ProcessLogger(log.info(_))
+    Process(command, None, env.toSeq: _*).run(ProcessLogger(log.info(_)))
   }
 
   def sparkThreadIsAlive: Boolean = sparkThread.isAlive

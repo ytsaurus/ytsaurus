@@ -13,6 +13,10 @@ import ru.yandex.yt.ytclient.proxy.YtClient
 package object yt {
   lazy val yt: YtClient = YtClientProvider.ytClient(YtClientConfigurationConverter(SparkSession.getDefaultSession.get))
 
+  private def normalizePath(path: String): String = {
+    if (path.startsWith("//")) path.drop(1) else path
+  }
+
   def createSparkSession(conf: SparkConf = new SparkConf()): SparkSession = {
     SparkSession.builder()
       .config(conf)
@@ -35,15 +39,11 @@ package object yt {
   }
 
   implicit class YtReader(reader: DataFrameReader) {
-    def yt(paths: String*): DataFrame = reader.format("yt").load(paths.map(normalizePath):_*)
+    def yt(paths: String*): DataFrame = reader.format("yt").load(paths.map(normalizePath): _*)
 
     def yt(path: String, filesCount: Int): DataFrame = {
       GlobalTableSettings.setFilesCount(normalizePath(path), filesCount)
       yt(normalizePath(path))
-    }
-
-    private def normalizePath(path: String): String = {
-      if (path.startsWith("//")) path.drop(1) else path
     }
 
     def schemaHint(schemaHint: StructType): DataFrameReader = {
@@ -63,7 +63,7 @@ package object yt {
   }
 
   implicit class YtWriter[T](writer: DataFrameWriter[T]) {
-    def yt(path: String): Unit = writer.format("yt").save(path)
+    def yt(path: String): Unit = writer.format("yt").save(normalizePath(path))
 
     def optimizeFor(optimizeMode: OptimizeMode): DataFrameWriter[T] = {
       writer.option(YtTableSettings.OptimizeFor.name, optimizeMode.name)
