@@ -600,6 +600,7 @@ private:
             YT_LOG_INFO("Chunk created (SessionId: %v)",
                 session->Id);
 
+            int minReplicaCount = Options_.WaitForAllReplicasUponOpen ? ReplicationFactor_ : WriteQuorum_;
             TChunkReplicaWithMediumList replicas;
             {
                 TTimingGuard timingGuard(&Profiler, "/time/allocate_write_targets");
@@ -608,7 +609,7 @@ private:
                     Client_,
                     session->Id,
                     ReplicationFactor_,
-                    WriteQuorum_,
+                    minReplicaCount,
                     std::nullopt,
                     Config_->PreferLocalHost,
                     GetBannedNodes(),
@@ -656,7 +657,7 @@ private:
                     asyncResults.push_back(asyncRsp);
                 }
 
-                auto result = WaitFor(CombineQuorum(asyncResults, WriteQuorum_));
+                auto result = WaitFor(CombineQuorum(asyncResults, minReplicaCount));
                 THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error starting chunk sessions");
             } catch (const std::exception& ex) {
                 YT_LOG_WARNING(TError(ex));
