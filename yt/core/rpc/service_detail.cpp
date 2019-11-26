@@ -86,6 +86,8 @@ TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
     , TagIds(tagIds)
     , QueueSizeCounter("/request_queue_size", tagIds)
     , QueueSizeLimitCounter("/request_queue_size_limit", tagIds)
+    , ConcurrencyCounter("/concurrency", tagIds)
+    , ConcurrencyLimitCounter("/concurrency_limit", tagIds)
     , LoggingSuppressionFailedRequestThrottler(
         CreateReconfigurableThroughputThrottler(TMethodConfig::DefaultLoggingSuppressionFailedRequestThrottler))
 { }
@@ -1424,8 +1426,10 @@ void TServiceBase::OnProfiling()
     {
         TReaderGuard guard(MethodMapLock_);
         for (const auto& [methodName, runtimeInfo] : MethodMap_) {
-            Profiler.Update(runtimeInfo->QueueSizeCounter, runtimeInfo->QueueSize.load());
+            Profiler.Update(runtimeInfo->QueueSizeCounter, runtimeInfo->QueueSize.load(std::memory_order_relaxed));
             Profiler.Update(runtimeInfo->QueueSizeLimitCounter, runtimeInfo->Descriptor.QueueSizeLimit);
+            Profiler.Update(runtimeInfo->ConcurrencyCounter, runtimeInfo->ConcurrencySemaphore.load(std::memory_order_relaxed));
+            Profiler.Update(runtimeInfo->ConcurrencyLimitCounter, runtimeInfo->Descriptor.ConcurrencyLimit);
         }
     }
 }
