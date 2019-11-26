@@ -7,7 +7,7 @@ import org.apache.spark.sql.SparkSession
 trait SparkApp extends App {
   private val log = Logger.getLogger(getClass)
 
-  def run(spark: SparkSession): Unit
+  def run(args: Array[String], spark: SparkSession): Unit
 
   def sparkConf: SparkConf = new SparkConf()
 
@@ -15,7 +15,7 @@ trait SparkApp extends App {
     try {
       val spark = createSparkSession(sparkConf)
       try {
-        run(spark)
+        run(args, spark)
       } finally {
         log.info("Stopping SparkSession")
         spark.stop()
