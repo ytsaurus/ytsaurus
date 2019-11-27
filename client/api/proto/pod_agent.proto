@@ -81,12 +81,12 @@ message TPodAgentStatus {
 
     repeated TBoxStatus boxes = 7;
 
-    // Если хотя бы один из Ready вложенных T*Status имеет Status == EConditionStatus_UNKNOWN,
+    // Если хотя бы один из Ready вложенных TWorkloadStatus имеет Status == EConditionStatus_UNKNOWN,
     // обращается в EConditionStatus_UNKNOWN.
     // Иначе, если хотя бы один из них имеет Status == EConditionStatus_FALSE,
     // обращается в EConditionStatus_FALSE.
     // Иначе обращается в EConditionStatus_TRUE.
-    // LastTransitionTime -- максимальное значение Ready.LastTransitionTime среди всех вложеных T*Status
+    // LastTransitionTime -- максимальное значение Ready.LastTransitionTime среди всех вложеных TWorkloadStatus
     TCondition ready = 8;
 
     // Если хотя бы один из InProgress вложенных T*Status имеет Status == EConditionStatus_UNKNOWN,
@@ -622,7 +622,6 @@ message TTcpCheck {
 // Это соответствет текущему поведению instaceCTL и qloudinit
 //      https://wiki.yandex-team.ru/jandekspoisk/sepe/instancectl/#ortho-tags
 //      https://docs.platform.yandex-team.ru/doc/component#status_hook
-// Если это поведение поменять сделать миграцию автоматической будет сложнее
 // Если пользователь хочет пробпросить кастомный стуктурированный status, то рекомендуемое место для этого
 // stdout этого хука
 message TReadinessCheck {
