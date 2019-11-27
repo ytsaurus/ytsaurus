@@ -474,7 +474,7 @@ template <class TProto, bool EnableWeak>
 void TRefCountedProto<TProto, EnableWeak>::RegisterExtraSpace()
 {
     auto spaceUsed = TProto::SpaceUsed();
-    YT_ASSERT(spaceUsed >= sizeof(TProto));
+    YT_ASSERT(static_cast<size_t>(spaceUsed) >= sizeof(TProto));
     YT_ASSERT(ExtraSpace_ == 0);
     ExtraSpace_ = TProto::SpaceUsed() - sizeof (TProto);
     auto cookie = GetRefCountedTypeCookie<TRefCountedProto<TProto, EnableWeak>>();

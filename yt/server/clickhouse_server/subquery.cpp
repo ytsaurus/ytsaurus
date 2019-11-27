@@ -96,6 +96,8 @@ class TDataSliceFetcher
 public:
     DEFINE_BYREF_RW_PROPERTY(TDataSourceDirectoryPtr, DataSourceDirectory, New<TDataSourceDirectory>());
     DEFINE_BYREF_RW_PROPERTY(TChunkStripeListPtr, ResultStripeList, New<TChunkStripeList>());
+    using TMiscExtMap = THashMap<TChunkId, TRefCountedMiscExtPtr>;
+    DEFINE_BYREF_RW_PROPERTY(TMiscExtMap, MiscExtMap);
 
 public:
     TDataSliceFetcher(
@@ -319,10 +321,16 @@ private:
 
         YT_LOG_INFO("Chunks fetched (ChunkCount: %v)", chunkSpecFetcher->ChunkSpecs().size());
 
+
         for (const auto& chunkSpec : chunkSpecFetcher->ChunkSpecs()) {
             auto inputChunk = New<TInputChunk>(chunkSpec);
+            auto miscExt = FindProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.chunk_meta().extensions());
+            YT_VERIFY(miscExt);
+            // Note that misc extension for given chunk may already be present as same chunk may appear several times.
+            MiscExtMap_.emplace(inputChunk->ChunkId(), New<TRefCountedMiscExt>(*miscExt));
             InputChunks_.emplace_back(std::move(inputChunk));
         }
+        YT_LOG_DEBUG("Misc extension map statistics (Count: %v)", MiscExtMap_.size());
     }
 
     BoolMask GetRangeMask(TKey lowerKey, TKey upperKey, int tableIndex)
@@ -347,7 +355,7 @@ DEFINE_REFCOUNTED_TYPE(TDataSliceFetcher);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkStripeListPtr FetchInput(
+TQueryInput FetchInput(
     TBootstrap* bootstrap,
     NNative::IClientPtr client,
     const IInvokerPtr& invoker,
@@ -373,7 +381,7 @@ TChunkStripeListPtr FetchInput(
     YT_VERIFY(!specTemplate.DataSourceDirectory);
     specTemplate.DataSourceDirectory = std::move(dataSliceFetcher->DataSourceDirectory());
 
-    return std::move(dataSliceFetcher->ResultStripeList());
+    return TQueryInput{std::move(dataSliceFetcher->ResultStripeList()), std::move(dataSliceFetcher->MiscExtMap())};
 }
 
 void LogSubqueryDebugInfo(const std::vector<TSubquery>& subqueries, TStringBuf phase, const TLogger& logger)

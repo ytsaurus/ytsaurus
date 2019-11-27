@@ -164,6 +164,9 @@ DECLARE_REFCOUNTED_TYPE(TRefCountedChunkMeta)
 using TRefCountedBlocksExt = TRefCountedProto<NChunkClient::NProto::TBlocksExt, true>;
 DECLARE_REFCOUNTED_TYPE(TRefCountedBlocksExt)
 
+using TRefCountedMiscExt = TRefCountedProto<NChunkClient::NProto::TMiscExt>;
+DECLARE_REFCOUNTED_TYPE(TRefCountedMiscExt);
+
 using TPlacementId = TGuid;
 
 struct TDataSliceDescriptor;

@@ -48,6 +48,7 @@ using namespace NTableClient;
 using namespace NYson;
 using namespace NYTree;
 using namespace NChunkPools;
+using namespace NChunkClient;
 using namespace NTracing;
 
 /////////////////////////////////////////////////////////////////////////////
@@ -305,6 +306,7 @@ public:
             auto subqueryAst = QueryAnalyzer_->RewriteQuery(
                 threadSubqueries,
                 SpecTemplate_,
+                MiscExtMap_,
                 index,
                 index + 1 == subqueryCount /* isLastSubquery */);
 
@@ -390,6 +392,10 @@ private:
     std::vector<TSubquery> Subqueries_;
     std::vector<TRichYPath> TablePaths_;
     std::optional<TQueryAnalyzer> QueryAnalyzer_;
+    // TODO(max42): YT-11778.
+    // TMiscExt is used for better memory estimation in readers, but it is dropped when using
+    // TInputChunk, so for now we store it explicitly in a map and use when serializing subquery input.
+    THashMap<TChunkId, TRefCountedMiscExtPtr> MiscExtMap_;
 
     void Prepare(
         int subqueryCount,
@@ -401,7 +407,7 @@ private:
         QueryAnalyzer_.emplace(context, queryInfo);
         auto analyzerResult = QueryAnalyzer_->Analyze();
 
-        auto inputStripeList = FetchInput(
+        auto input = FetchInput(
             queryContext->Bootstrap,
             queryContext->Client(),
             queryContext->Bootstrap->GetSerializedWorkerInvoker(),
@@ -412,20 +418,22 @@ private:
             queryContext->Bootstrap->GetConfig()->Engine->Subquery,
             SpecTemplate_);
 
+        MiscExtMap_ = std::move(input.MiscExtMap);
+
         std::optional<double> samplingRate;
         const auto& selectQuery = queryInfo.query->as<DB::ASTSelectQuery&>();
         if (auto selectSampleSize = selectQuery.sample_size()) {
             auto ratio = selectSampleSize->as<DB::ASTSampleRatio&>().ratio;
             auto rate = static_cast<double>(ratio.numerator) / ratio.denominator;
             if (rate > 1.0) {
-                rate /= inputStripeList->TotalRowCount;
+                rate /= input.StripeList->TotalRowCount;
             }
             rate = std::clamp(rate, 0.0, 1.0);
             samplingRate = rate;
         }
 
         Subqueries_ = BuildSubqueries(
-            inputStripeList,
+            std::move(input.StripeList),
             analyzerResult.KeyColumnCount,
             analyzerResult.PoolKind,
             std::max<int>(1, subqueryCount * context.getSettings().max_threads),

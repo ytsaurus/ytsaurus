@@ -12,6 +12,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 
@@ -142,6 +143,10 @@ public:
                 rowCount += dataSliceDescriptor.ChunkSpecs[0].row_count_override();
                 dataWeight += dataSliceDescriptor.ChunkSpecs[0].data_weight_override();
                 ++dataSliceCount;
+                for (const auto& chunkSpec : dataSliceDescriptor.ChunkSpecs) {
+                    // It is crucial for better memory estimation.
+                    YT_VERIFY(FindProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.chunk_meta().extensions()));
+                }
             }
 
             auto reader = CreateSchemalessParallelMultiReader(
