@@ -1934,6 +1934,7 @@ class TestSchedulerPoolsReconfigurationOld(YTEnvSetup):
         time.sleep(0.2)
         print get("//sys/pool_trees/default/@")
 
+        wait(lambda: exists(self.orchid_pools), sleep_backoff=0.1)
         wait(lambda: len(ls(self.orchid_pools)) == 1, sleep_backoff=0.1)  # <Root> is always in orchid
         wait(lambda: not get("//sys/scheduler/@alerts"), sleep_backoff=0.1)
 
