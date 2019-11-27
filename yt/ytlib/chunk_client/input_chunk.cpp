@@ -249,13 +249,9 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk, ED
         ToProto(chunkSpec->mutable_upper_limit(), *inputChunk->UpperLimit_);
     }
 
-    // This is the default intermediate table chunk format,
-    // so we omit chunk_meta altogether to minimize job spec size.
-    if (inputChunk->TableChunkFormat_ != ETableChunkFormat::SchemalessHorizontal || dataSourceType != EDataSourceType::UnversionedTable) {
-        chunkSpec->mutable_chunk_meta()->set_type(static_cast<int>(EChunkType::Table));
-        chunkSpec->mutable_chunk_meta()->set_version(static_cast<int>(inputChunk->TableChunkFormat_));
-        chunkSpec->mutable_chunk_meta()->mutable_extensions();
-    }
+    chunkSpec->mutable_chunk_meta()->set_type(static_cast<int>(EChunkType::Table));
+    chunkSpec->mutable_chunk_meta()->set_version(static_cast<int>(inputChunk->TableChunkFormat_));
+    chunkSpec->mutable_chunk_meta()->mutable_extensions();
 }
 
 TString ToString(const TInputChunkPtr& inputChunk)

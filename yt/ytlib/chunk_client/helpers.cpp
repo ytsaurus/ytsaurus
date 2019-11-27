@@ -449,9 +449,15 @@ i64 GetChunkReaderMemoryEstimate(const NProto::TChunkSpec& chunkSpec, TMultiChun
         // Block used by upper level chunk reader.
         i64 chunkBufferSize = ChunkReaderMemorySize + miscExt->max_block_size();
 
+        // If range to read is large enough to cover several blocks, consider prefetch memory estimate.
         if (currentSize > miscExt->max_block_size()) {
             chunkBufferSize += config->WindowSize + config->GroupSize;
         }
+
+        // But after all we will not exceed total uncompressed data size for chunk.
+        // Compressed data size is ignored (and works just fine according to psushin@).
+        chunkBufferSize = std::min<i64>(chunkBufferSize, miscExt->uncompressed_data_size());
+
         return chunkBufferSize;
     } else {
         return ChunkReaderMemorySize +
