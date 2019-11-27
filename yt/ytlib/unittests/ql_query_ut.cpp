@@ -598,6 +598,112 @@ TEST_F(TQueryPrepareTest, OrderByPrimaryKeyPrefix)
     }
 }
 
+TEST_F(TQueryPrepareTest, InvalidUdfImpl)
+{
+    TTypeInferrerMapPtr TypeInferrers_ = New<TTypeInferrerMap>();
+    TFunctionProfilerMapPtr FunctionProfilers_ = New<TFunctionProfilerMap>();
+    TAggregateProfilerMapPtr AggregateProfilers_ = New<TAggregateProfilerMap>();
+
+    MergeFrom(TypeInferrers_.Get(), *BuiltinTypeInferrersMap);
+    MergeFrom(FunctionProfilers_.Get(), *BuiltinFunctionProfilers);
+    MergeFrom(AggregateProfilers_.Get(), *BuiltinAggregateProfilers);
+
+    TFunctionRegistryBuilder builder(
+        TypeInferrers_.Get(),
+        FunctionProfilers_.Get(),
+        AggregateProfilers_.Get());
+
+    builder.RegisterFunction(
+        "short_invalid_ir",
+        std::vector<TType>{EValueType::Int64},
+        EValueType::Int64,
+        TSharedRef(short_invalid_ir_bc, short_invalid_ir_bc_len, nullptr),
+        ECallingConvention::Simple);
+
+    builder.RegisterFunction(
+        "long_invalid_ir",
+        std::vector<TType>{EValueType::Int64},
+        EValueType::Int64,
+        TSharedRef(long_invalid_ir_bc, long_invalid_ir_bc_len, nullptr),
+        ECallingConvention::Simple);
+
+    auto bcImplementations = UDF_BC(test_udfs);
+
+    builder.RegisterFunction(
+        "abs_udf_arity",
+        "abs_udf",
+        std::unordered_map<TTypeArgument, TUnionType>(),
+        std::vector<TType>{EValueType::Int64, EValueType::Int64},
+        EValueType::Null,
+        EValueType::Int64,
+        bcImplementations,
+        GetCallingConvention(ECallingConvention::Simple));
+
+    builder.RegisterFunction(
+        "abs_udf_double",
+        "abs_udf",
+        std::unordered_map<TTypeArgument, TUnionType>(),
+        std::vector<TType>{EValueType::Double},
+        EValueType::Null,
+        EValueType::Int64,
+        bcImplementations,
+        GetCallingConvention(ECallingConvention::Simple));
+
+    auto schema = TTableSchema({{"a", EValueType::Int64}, {"b", EValueType::Int64}});
+
+    { // ShortInvalidUdfImpl
+        auto expr = PrepareExpression("short_invalid_ir(a)", schema, TypeInferrers_);
+
+        TCGVariables variables;
+
+        EXPECT_THROW_THAT({
+            auto codegen = Profile(expr, schema, nullptr, &variables, FunctionProfilers_);
+            auto callback = codegen();
+        }, HasSubstr("LLVM bitcode"));
+    }
+
+    { // LongInvalidUdfImpl
+        auto expr = PrepareExpression("long_invalid_ir(a)", schema, TypeInferrers_);
+
+        TCGVariables variables;
+
+        EXPECT_THROW_THAT({
+            auto codegen = Profile(expr, schema, nullptr, &variables, FunctionProfilers_);
+            auto callback = codegen();
+        }, HasSubstr("LLVM bitcode"));
+    }
+
+    { // InvalidUdfArity
+        auto expr = PrepareExpression("abs_udf_arity(a, b)", schema, TypeInferrers_);
+
+        TCGVariables variables;
+
+        EXPECT_THROW_THAT({
+            auto codegen = Profile(expr, schema, nullptr, &variables, FunctionProfilers_);
+            auto callback = codegen();
+        }, HasSubstr("LLVM bitcode"));
+    }
+
+    { // InvalidUdfType
+        EXPECT_THROW_THAT({
+            PrepareExpression("abs_udf_double(a)", schema, TypeInferrers_);
+        }, HasSubstr("Wrong type for argument"));
+    }
+}
+
+TEST_F(TQueryPrepareTest, WronglyTypedAggregate)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::String}
+    });
+
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+        .WillRepeatedly(Return(MakeFuture(split)));
+
+    EXPECT_THROW_THAT({
+        PreparePlanFragment(&PrepareMock_, "avg(a) from [//t] group by 1");
+    }, HasSubstr("Type mismatch in function \"avg\""));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -726,12 +832,6 @@ TEST_F(TQueryCoordinateTest, SimpleIn)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EFailureLocation,
-    (Nowhere)
-    (Codegen)
-    (Execution)
-);
-
 class TReaderMock
     : public ISchemafulReader
 {
@@ -773,7 +873,6 @@ TQueryStatistics DoExecuteQuery(
     const std::vector<TString>& source,
     TFunctionProfilerMapPtr functionProfilers,
     TAggregateProfilerMapPtr aggregateProfilers,
-    EFailureLocation failureLocation,
     TConstQueryPtr query,
     IUnversionedRowsetWriterPtr writer,
     const TQueryBaseOptions& options,
@@ -799,9 +898,7 @@ TQueryStatistics DoExecuteQuery(
 
     ON_CALL(*readerMock, Read(_))
         .WillByDefault(DoAll(SetArgPointee<0>(sourceRows), Return(false)));
-    if (failureLocation != EFailureLocation::Codegen) {
-        EXPECT_CALL(*readerMock, Read(_));
-    }
+    EXPECT_CALL(*readerMock, Read(_));
 
     auto evaluator = New<TEvaluator>(New<TExecutorConfig>());
     return evaluator->Run(
@@ -956,80 +1053,16 @@ protected:
         ///
 
         builder.RegisterFunction(
-            "short_invalid_ir",
-            std::vector<TType>{EValueType::Int64},
-            EValueType::Int64,
-            TSharedRef(short_invalid_ir_bc, short_invalid_ir_bc_len, nullptr),
-            ECallingConvention::Simple);
-
-        builder.RegisterFunction(
-            "long_invalid_ir",
-            std::vector<TType>{EValueType::Int64},
-            EValueType::Int64,
-            TSharedRef(long_invalid_ir_bc, long_invalid_ir_bc_len, nullptr),
-            ECallingConvention::Simple);
-
-        builder.RegisterFunction(
-            "abs_udf_arity",
-            "abs_udf",
-            std::unordered_map<TTypeArgument, TUnionType>(),
-            std::vector<TType>{EValueType::Int64, EValueType::Int64},
-            EValueType::Null,
-            EValueType::Int64,
-            bcImplementations,
-            GetCallingConvention(ECallingConvention::Simple));
-
-        builder.RegisterFunction(
-            "abs_udf_double",
-            "abs_udf",
-            std::unordered_map<TTypeArgument, TUnionType>(),
-            std::vector<TType>{EValueType::Double},
-            EValueType::Null,
-            EValueType::Int64,
-            bcImplementations,
-            GetCallingConvention(ECallingConvention::Simple));
-
-        builder.RegisterFunction(
             "throw_if_negative_udf",
             std::vector<TType>{EValueType::Int64},
             EValueType::Int64,
             bcImplementations,
             ECallingConvention::Simple);
-
     }
 
     virtual void TearDown() override
     {
         ActionQueue_->Shutdown();
-    }
-
-    TQueryPtr Evaluate(
-        const TString& query,
-        const TDataSplit& dataSplit,
-        const std::vector<TString>& owningSource,
-        const TResultMatcher& resultMatcher,
-        i64 inputRowLimit = std::numeric_limits<i64>::max(),
-        i64 outputRowLimit = std::numeric_limits<i64>::max())
-    {
-        std::vector<std::vector<TString>> owningSources = {
-            owningSource
-        };
-        std::map<TString, TDataSplit> dataSplits = {
-            {"//t", dataSplit}
-        };
-
-        return BIND(&TQueryEvaluateTest::DoEvaluate, this)
-            .AsyncVia(ActionQueue_->GetInvoker())
-            .Run(
-                query,
-                dataSplits,
-                owningSources,
-                resultMatcher,
-                inputRowLimit,
-                outputRowLimit,
-                EFailureLocation::Nowhere)
-            .Get()
-            .ValueOrThrow();
     }
 
     TQueryPtr Evaluate(
@@ -1049,16 +1082,16 @@ protected:
                 resultMatcher,
                 inputRowLimit,
                 outputRowLimit,
-                EFailureLocation::Nowhere)
+                false)
             .Get()
             .ValueOrThrow();
     }
 
-    TQueryPtr EvaluateExpectingError(
+    TQueryPtr Evaluate(
         const TString& query,
         const TDataSplit& dataSplit,
         const std::vector<TString>& owningSource,
-        EFailureLocation failureLocation,
+        const TResultMatcher& resultMatcher,
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
         i64 outputRowLimit = std::numeric_limits<i64>::max())
     {
@@ -1069,16 +1102,35 @@ protected:
             {"//t", dataSplit}
         };
 
+        return Evaluate(query, dataSplits, owningSources, resultMatcher, inputRowLimit, outputRowLimit);
+    }
+
+    TQueryPtr EvaluateExpectingError(
+        const TString& query,
+        const TDataSplit& dataSplit,
+        const std::vector<TString>& owningSource,
+        i64 inputRowLimit = std::numeric_limits<i64>::max(),
+        i64 outputRowLimit = std::numeric_limits<i64>::max())
+    {
+        std::vector<std::vector<TString>> owningSources = {
+            owningSource
+        };
+        std::map<TString, TDataSplit> dataSplits = {
+            {"//t", dataSplit}
+        };
+
+        auto resultMatcher = [] (TRange<TRow>, const TTableSchema&) { };
+
         return BIND(&TQueryEvaluateTest::DoEvaluate, this)
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run(
                 query,
                 dataSplits,
                 owningSources,
-                [] (TRange<TRow>, const TTableSchema&) { },
+                resultMatcher,
                 inputRowLimit,
                 outputRowLimit,
-                failureLocation)
+                true)
             .Get()
             .ValueOrThrow();
     }
@@ -1090,7 +1142,7 @@ protected:
         const TResultMatcher& resultMatcher,
         i64 inputRowLimit,
         i64 outputRowLimit,
-        EFailureLocation failureLocation)
+        bool failure)
     {
         for (const auto& dataSplit : dataSplits) {
             EXPECT_CALL(PrepareMock_, GetInitialSplit(dataSplit.first, _))
@@ -1107,42 +1159,40 @@ protected:
 
         size_t sourceIndex = 1;
 
-        auto prepareAndExecute = [&] () {
-            auto fragment = PreparePlanFragment(
-                &PrepareMock_,
-                query,
-                fetchFunctions);
-            const auto& primaryQuery = fragment->Query;
+        auto profileCallback = [&] (TQueryPtr subquery, TConstJoinClausePtr joinClause) mutable {
+            auto rows = owningSources[sourceIndex++];
 
-            auto profileCallback = [&] (TQueryPtr subquery, TConstJoinClausePtr joinClause) mutable {
-                auto rows = owningSources[sourceIndex++];
+            return [&, rows, subquery, joinClause] (std::vector<TRow> keys, TRowBufferPtr permanentBuffer)
+            mutable {
+                TDataRanges dataSource;
+                TQueryPtr preparedSubquery;
+                std::tie(preparedSubquery, dataSource) = GetForeignQuery(
+                    subquery,
+                    joinClause,
+                    std::move(keys),
+                    permanentBuffer);
 
-                return [&, rows, subquery, joinClause] (std::vector<TRow> keys, TRowBufferPtr permanentBuffer)
-                mutable {
-                    TDataRanges dataSource;
-                    TQueryPtr preparedSubquery;
-                    std::tie(preparedSubquery, dataSource) = GetForeignQuery(
-                        subquery,
-                        joinClause,
-                        std::move(keys),
-                        permanentBuffer);
+                auto pipe = New<NTableClient::TSchemafulPipe>();
 
-                    auto pipe = New<NTableClient::TSchemafulPipe>();
+                DoExecuteQuery(
+                    rows,
+                    FunctionProfilers_,
+                    AggregateProfilers_,
+                    preparedSubquery,
+                    pipe->GetWriter(),
+                    options);
 
-                    DoExecuteQuery(
-                        rows,
-                        FunctionProfilers_,
-                        AggregateProfilers_,
-                        failureLocation,
-                        preparedSubquery,
-                        pipe->GetWriter(),
-                        options);
-
-                    return pipe->GetReader();
-                };
+                return pipe->GetReader();
             };
+        };
 
+        auto fragment = PreparePlanFragment(
+            &PrepareMock_,
+            query,
+            fetchFunctions);
+        const auto& primaryQuery = fragment->Query;
 
+        auto prepareAndExecute = [&] () {
             IUnversionedRowsetWriterPtr writer;
             TFuture<IUnversionedRowsetPtr> asyncResultRowset;
 
@@ -1152,7 +1202,6 @@ protected:
                 owningSources.front(),
                 FunctionProfilers_,
                 AggregateProfilers_,
-                failureLocation,
                 primaryQuery,
                 writer,
                 options,
@@ -1165,7 +1214,7 @@ protected:
             return primaryQuery;
         };
 
-        if (failureLocation != EFailureLocation::Nowhere) {
+        if (failure) {
             EXPECT_THROW(prepareAndExecute(), TErrorException);
             return nullptr;
         } else {
@@ -4140,63 +4189,6 @@ TEST_F(TQueryEvaluateTest, ZeroArgumentUdf)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, ShortInvalidUdfImpl)
-{
-    auto split = MakeSplit({
-        {"a", EValueType::Int64},
-        {"b", EValueType::Int64}
-    });
-
-    std::vector<TString> source = {
-        "a=1;b=10",
-    };
-
-    EvaluateExpectingError("short_invalid_ir(a) as x FROM [//t]", split, source, EFailureLocation::Codegen);
-}
-
-TEST_F(TQueryEvaluateTest, LongInvalidUdfImpl)
-{
-    auto split = MakeSplit({
-        {"a", EValueType::Int64},
-        {"b", EValueType::Int64}
-    });
-
-    std::vector<TString> source = {
-        "a=1;b=10",
-    };
-
-    EvaluateExpectingError("long_invalid_ir(a) as x FROM [//t]", split, source, EFailureLocation::Codegen);
-}
-
-TEST_F(TQueryEvaluateTest, InvalidUdfArity)
-{
-    auto split = MakeSplit({
-        {"a", EValueType::Int64},
-        {"b", EValueType::Int64}
-    });
-
-    std::vector<TString> source = {
-        "a=1;b=10",
-    };
-
-    EvaluateExpectingError("abs_udf_arity(a, b) as x FROM [//t]", split, source, EFailureLocation::Codegen);
-}
-
-TEST_F(TQueryEvaluateTest, InvalidUdfType)
-{
-    auto split = MakeSplit({
-        {"a", EValueType::Int64},
-        {"b", EValueType::Int64}
-    });
-
-    std::vector<TString> source = {
-        "a=1;b=10",
-    };
-
-    EvaluateExpectingError("abs_udf_double(a) as x FROM [//t]", split, source, EFailureLocation::Codegen,
-    std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
-}
-
 TEST_F(TQueryEvaluateTest, UdfNullPropagation)
 {
     auto split = MakeSplit({
@@ -4425,8 +4417,8 @@ TEST_F(TQueryEvaluateTest, YPathGetInt64Fail)
         "yson={b={c=4};d=[1;2}};ypath=\"/@d/1\"",
     };
 
-    EvaluateExpectingError("try_get_int64(yson, ypath) as result FROM [//t]", split, source, EFailureLocation::Execution);
-    EvaluateExpectingError("get_int64(yson, ypath) as result FROM [//t]", split, source, EFailureLocation::Execution);
+    EvaluateExpectingError("try_get_int64(yson, ypath) as result FROM [//t]", split, source);
+    EvaluateExpectingError("get_int64(yson, ypath) as result FROM [//t]", split, source);
 
     SUCCEED();
 }
@@ -4514,8 +4506,8 @@ TEST_F(TQueryEvaluateTest, YPathGetUint64Fail)
         "yson={b={c=4u};d=[1u;2u}};ypath=\"/@d/1\"",
     };
 
-    EvaluateExpectingError("try_get_uint64(yson, ypath) as result FROM [//t]", split, source, EFailureLocation::Execution);
-    EvaluateExpectingError("get_uint64(yson, ypath) as result FROM [//t]", split, source, EFailureLocation::Execution);
+    EvaluateExpectingError("try_get_uint64(yson, ypath) as result FROM [//t]", split, source);
+    EvaluateExpectingError("get_uint64(yson, ypath) as result FROM [//t]", split, source);
 
     SUCCEED();
 }
@@ -4603,8 +4595,8 @@ TEST_F(TQueryEvaluateTest, YPathGetDoubleFail)
         "yson={b={c=4};d=[1;2}};ypath=\"/@d/1\"",
     };
 
-    EvaluateExpectingError("try_get_double(yson, ypath) as result FROM [//t]", split, source, EFailureLocation::Execution);
-    EvaluateExpectingError("get_double(yson, ypath) as result FROM [//t]", split, source, EFailureLocation::Execution);
+    EvaluateExpectingError("try_get_double(yson, ypath) as result FROM [//t]", split, source);
+    EvaluateExpectingError("get_double(yson, ypath) as result FROM [//t]", split, source);
 
     SUCCEED();
 }
@@ -4692,8 +4684,8 @@ TEST_F(TQueryEvaluateTest, YPathGetBooleanFail)
         "yson={b={c=4};d=[1;2}};ypath=\"/@d/1\"",
     };
 
-    EvaluateExpectingError("try_get_boolean(yson, ypath) as result FROM [//t]", split, source, EFailureLocation::Execution);
-    EvaluateExpectingError("get_boolean(yson, ypath) as result FROM [//t]", split, source, EFailureLocation::Execution);
+    EvaluateExpectingError("try_get_boolean(yson, ypath) as result FROM [//t]", split, source);
+    EvaluateExpectingError("get_boolean(yson, ypath) as result FROM [//t]", split, source);
 
     SUCCEED();
 }
@@ -4782,8 +4774,8 @@ TEST_F(TQueryEvaluateTest, YPathGetStringFail)
         "yson={b={c=4};d=[1;2}};ypath=\"/@d/1\"",
     };
 
-    EvaluateExpectingError("try_get_string(yson, ypath) as result FROM [//t]", split, source, EFailureLocation::Execution);
-    EvaluateExpectingError("get_string(yson, ypath) as result FROM [//t]", split, source, EFailureLocation::Execution);
+    EvaluateExpectingError("try_get_string(yson, ypath) as result FROM [//t]", split, source);
+    EvaluateExpectingError("get_string(yson, ypath) as result FROM [//t]", split, source);
 
     SUCCEED();
 }
@@ -5094,7 +5086,7 @@ TEST_F(TQueryEvaluateTest, RegexParseError)
         "x=%false",
     }, resultSplit);
 
-    EvaluateExpectingError("regex_full_match(\"hel[a-z)\", a) as x FROM [//t]", split, source, EFailureLocation::Execution);
+    EvaluateExpectingError("regex_full_match(\"hel[a-z)\", a) as x FROM [//t]", split, source);
 }
 
 TEST_F(TQueryEvaluateTest, RegexFullMatch)
@@ -5363,19 +5355,6 @@ TEST_F(TQueryEvaluateTest, StringAgg)
     Evaluate("min(a) as b, max(a) as c from [//t] group by 1", split, source, ResultMatcher(result));
 }
 
-TEST_F(TQueryEvaluateTest, WronglyTypedAggregate)
-{
-    auto split = MakeSplit({
-        {"a", EValueType::String}
-    });
-
-    std::vector<TString> source = {
-        "a=\"\""
-    };
-
-    EvaluateExpectingError("avg(a) from [//t] group by 1", split, source, EFailureLocation::Codegen);
-}
-
 TEST_F(TQueryEvaluateTest, CardinalityAggregate)
 {
     auto split = MakeSplit({
@@ -5552,7 +5531,7 @@ TEST_F(TQueryEvaluateTest, UdfException)
     auto result = YsonToRows({
     }, resultSplit);
 
-    EvaluateExpectingError("throw_if_negative_udf(a) from [//t]", split, source, EFailureLocation::Execution);
+    EvaluateExpectingError("throw_if_negative_udf(a) from [//t]", split, source);
 }
 
 TEST_F(TQueryEvaluateTest, MakeMapSuccess)
@@ -5606,8 +5585,8 @@ TEST_F(TQueryEvaluateTest, MakeMapFailure)
         {"x", EValueType::Any},
     });
 
-    EvaluateExpectingError("make_map(\"a\") as x FROM [//t]", split, source, EFailureLocation::Execution);
-    EvaluateExpectingError("make_map(1, 1) as x FROM [//t]", split, source, EFailureLocation::Execution);
+    EvaluateExpectingError("make_map(\"a\") as x FROM [//t]", split, source);
+    EvaluateExpectingError("make_map(1, 1) as x FROM [//t]", split, source);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
