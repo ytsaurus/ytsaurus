@@ -1,0 +1,118 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import argparse
+import http.server
+import os
+import pathlib
+import subprocess
+import socket
+import sys
+import tempfile
+
+THIS_DIR = pathlib.Path(__file__).resolve().parent
+OUT_FILE = pathlib.Path("yt-doc.tgz").resolve()
+
+DOXYGEN_CONFIG_TEMPLATE = """
+DOXYFILE_ENCODING = UTF-8
+PROJECT_NAME      = "C++ YT Wrapper"
+PROJECT_BRIEF     = "C++ library for working with YT clusters"
+OUTPUT_DIRECTORY  = {output_directory}
+RECURSIVE         = NO
+INPUT             = mapreduce/yt/interface
+EXCLUDE           = mapreduce/yt/interface/logging
+FILE_PATTERNS     = *.h
+EXCLUDE_PATTERNS  = *-inl.h
+
+ENABLE_PREPROCESSING = YES
+MACRO_EXPANSION      = YES
+EXPAND_ONLY_PREDEF   = YES
+PREDEFINED           = "FLUENT_FIELD_OPTION(type, name) = TSelf& name(type);" \
+                       "FLUENT_FIELD_DEFAULT(type, name, default) = TSelf& name(type);"
+
+GENERATE_LATEX = NO
+
+# Ugly dot graphs of include dependencies are not relevant to our users
+HAVE_DOT = NO
+SHOW_INCLUDE_FILES = NO
+"""
+
+class DoxYtError(RuntimeError):
+    pass
+
+def get_doxygen_config(output_directory):
+    return DOXYGEN_CONFIG_TEMPLATE.format(
+        output_directory=output_directory
+    )
+
+def iter_warnings(out):
+    for line in out.split("\n"):
+        if "warning:" in line or "error:" in line:
+            yield line
+
+
+def generate_documentation(output_directory):
+    os.chdir(THIS_DIR / "../../..")
+    if not os.path.exists(".arcadia.root"):
+        raise RuntimeError("Internal error: {} doesn't seem like arcadia root", os.getcwd())
+
+    doxygen_proc = subprocess.Popen(
+        ["doxygen", "-"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        encoding="utf-8",
+    )
+
+    stdout, stderr = doxygen_proc.communicate(get_doxygen_config(output_directory))
+    doxy_out = stdout + stderr
+
+    sys.stderr.write(stdout)
+    sys.stderr.write(stderr)
+    sys.stderr.flush()
+
+    count = 0
+    for line in iter_warnings(doxy_out):
+        print(line, file=sys.stderr)
+        count += 1
+
+    print("Found {} problems".format(count))
+
+    if doxygen_proc.returncode != 0:
+        raise DoxYtError("doxygen exited with nonzero code")
+
+def subcommand_serve(doc_dir, args):
+    class HTTPServerV6(http.server.HTTPServer):
+        address_family = socket.AF_INET6
+
+    os.chdir(pathlib.Path(doc_dir) / "html")
+
+    server = HTTPServerV6(("::", args.port), http.server.SimpleHTTPRequestHandler)
+    print("http://{}:{}/".format(socket.getfqdn(), args.port), file=sys.stderr)
+    server.serve_forever()
+
+def subcommand_pack(doc_dir, args):
+    subprocess.check_call(
+        ["tar", "czf", OUT_FILE, "html"],
+        cwd=doc_dir,
+    )
+
+def main():
+    parser = argparse.ArgumentParser()
+    subparsers = parser.add_subparsers()
+
+    serve_parser = subparsers.add_parser("serve", help="Start http server serving documentation")
+    serve_parser.add_argument("port", type=int, help="port to listen", nargs="?", default=8080)
+    serve_parser.set_defaults(subcommand=subcommand_serve)
+
+    parser.set_defaults(subcommand=subcommand_pack)
+
+    args = parser.parse_args()
+
+    with tempfile.TemporaryDirectory() as tmpd:
+        tmpd = pathlib.Path(tmpd)
+        generate_documentation(tmpd)
+        args.subcommand(tmpd, args)
+
+if __name__ == '__main__':
+    main()
