@@ -2485,10 +2485,13 @@ TString TOperationElement::GetLoggingString(const TDynamicAttributes& dynamicAtt
         GetDeactivationReasons());
 }
 
-void TOperationElement::UpdateAncestorsAttributes(TFairShareContext* context)
+void TOperationElement::UpdateAncestorsDynamicAttributes(TFairShareContext* context, bool activateAncestors)
 {
     auto* parent = GetMutableParent();
     while (parent) {
+        if (activateAncestors) {
+            context->DynamicAttributesFor(parent).Active = true;
+        }
         parent->UpdateDynamicAttributes(&context->DynamicAttributesList);
         if (!parent->IsActive(context->DynamicAttributesList)) {
             ++context->StageState->DeactivationReasons[EDeactivationReason::NoBestLeafDescendant];
@@ -2535,7 +2538,7 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
         ++context->StageState->DeactivationReasons[reason];
         OnOperationDeactivated(*context, reason);
         context->DynamicAttributesFor(this).Active = false;
-        UpdateAncestorsAttributes(context);
+        UpdateAncestorsDynamicAttributes(context);
     };
 
     auto recordHeartbeatWithTimer = [&] (const auto& heartbeatSnapshot) {
@@ -2633,7 +2636,7 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
         Spec_->PreemptionMode);
 
     UpdateDynamicAttributes(&context->DynamicAttributesList);
-    UpdateAncestorsAttributes(context);
+    UpdateAncestorsDynamicAttributes(context);
 
     if (heartbeatSnapshot) {
         recordHeartbeatWithTimer(*heartbeatSnapshot);
