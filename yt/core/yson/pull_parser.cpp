@@ -268,7 +268,7 @@ void TYsonPullParserCursor::SkipComplexValue()
     switch (Current_.GetType()) {
         case EYsonItemType::BeginAttributes:
             isAttributes = true;
-            // fallthrough
+            [[fallthrough]];
         case EYsonItemType::BeginList:
         case EYsonItemType::BeginMap: {
             const auto nestingLevel = Parser_->GetNestingLevel();
@@ -307,6 +307,34 @@ void TYsonPullParserCursor::TransferComplexValue(NYT::NYson::IYsonConsumer* cons
 void TYsonPullParserCursor::TransferComplexValue(NYT::NYson::TCheckedInDebugYsonTokenWriter* writer)
 {
     NDetail::TransferComplexValueImpl(this, writer);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ThrowUnexpectedYsonTokenException(
+    TStringBuf description,
+    const TYsonPullParserCursor& cursor,
+    const std::vector<EYsonItemType>& expected)
+{
+    YT_VERIFY(!expected.empty());
+    TString expectedString;
+    if (expected.size() > 1) {
+        TStringStream out;
+        out << "one of the tokens {";
+        for (const auto& token : expected) {
+            out << Format("%Qlv, ", token);
+        }
+        out << "}";
+        expectedString = out.Str();
+    } else {
+        expectedString = Format("%Qlv", expected[0]);
+    }
+
+    THROW_ERROR_EXCEPTION("Cannot parse %Qv; expected: %v; actual: %Qlv",
+        description,
+        expectedString,
+        cursor->GetType())
+        << cursor.GetErrorAttributes();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

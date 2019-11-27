@@ -156,14 +156,37 @@ public:
     // owns these attributes will be skipped as well.
     void SkipComplexValue();
 
-    // Transfer complex value is similar to SkipComplexValue except it feeds passed consumer with skipped value.
+    // Transfer complex value is similar to SkipComplexValue
+    // except that it feeds passed consumer with skipped value.
     void TransferComplexValue(IYsonConsumer* consumer);
     void TransferComplexValue(TCheckedInDebugYsonTokenWriter* writer);
+
+    // |Parse...| methods call |function(this)| for each item of corresponding composite object
+    // and expect |function| to consume it (e.g. call |cursor->Next()|).
+    // For map and attributes cursor will point to the key and |function| must consume both key and value.
+    template <typename TFunction>
+    void ParseMap(TFunction function);
+    template <typename TFunction>
+    void ParseList(TFunction function);
+    template <typename TFunction>
+    void ParseAttributes(TFunction function);
 
 private:
     TYsonItem Current_;
     TYsonPullParser* Parser_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+Y_FORCE_INLINE void EnsureYsonToken(
+    TStringBuf description,
+    const TYsonPullParserCursor& cursor,
+    EYsonItemType expected);
+
+void ThrowUnexpectedYsonTokenException(
+    TStringBuf description,
+    const TYsonPullParserCursor& cursor,
+    const std::vector<EYsonItemType>& expected);
 
 ////////////////////////////////////////////////////////////////////////////////
 
