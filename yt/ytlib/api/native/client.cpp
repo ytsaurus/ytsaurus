@@ -2536,7 +2536,7 @@ THashMap<NScheduler::TOperationId, TOperation> TClient::DoListOperationsFromArch
         keys.push_back(CreateOperationKey(id, tableDescriptor.Index, rowBuffer));
     }
 
-    const THashSet<TString> RequiredAttributes = {"id", "start_time", "brief_progress"};
+    const THashSet<TString> RequiredAttributes = {"id", "start_time"};
     const THashSet<TString> DefaultAttributes = {
         "authenticated_user",
         "brief_progress",
@@ -2550,8 +2550,11 @@ THashMap<NScheduler::TOperationId, TOperation> TClient::DoListOperationsFromArch
     };
     const THashSet<TString> IgnoredAttributes = {"suspended", "memory_usage"};
 
-    auto attributesToRequest = MakeFinalAttributeSet(options.Attributes, RequiredAttributes, DefaultAttributes, IgnoredAttributes);
-    bool needBriefProgress = !options.Attributes || options.Attributes->contains("brief_progress");
+    auto attributesToRequest = MakeFinalAttributeSet(
+        options.Attributes,
+        RequiredAttributes,
+        DefaultAttributes,
+        IgnoredAttributes);
 
     std::vector<int> columns;
     for (const auto columnName : MakeArchiveOperationAttributes(attributesToRequest)) {
@@ -2641,8 +2644,8 @@ THashMap<NScheduler::TOperationId, TOperation> TClient::DoListOperationsFromArch
             operation.UnrecognizedSpec = getYson(row[*indexOrNull]);
         }
 
-        if (needBriefProgress) {
-            operation.BriefProgress = getYson(row[columnFilter.GetPosition(tableIndex.BriefProgress)]);
+        if (auto indexOrNull = columnFilter.FindPosition(tableIndex.BriefProgress)) {
+            operation.BriefProgress = getYson(row[*indexOrNull]);
         }
         if (auto indexOrNull = columnFilter.FindPosition(tableIndex.Progress)) {
             operation.Progress = getYson(row[*indexOrNull]);
