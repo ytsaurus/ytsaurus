@@ -27,10 +27,16 @@ public class TableSchema implements YTreeConvertible {
     private final boolean isWriteSchema;
     private final boolean isLookupSchema;
 
-    private TableSchema(List<ColumnSchema> columns, boolean strict, boolean uniqueKeys) {
+    // Per column attributes. Keep it here to allow to change schema via builder
+    private final String lock;
+    private final String group;
+
+    private TableSchema(List<ColumnSchema> columns, boolean strict, boolean uniqueKeys, String lock, String group) {
         this.columns = Objects.requireNonNull(columns);
         this.strict = strict;
         this.uniqueKeys = uniqueKeys;
+        this.lock = lock;
+        this.group = group;
         int keyColumnsCount = 0;
         boolean isKeysSchema = true;
         boolean isValuesSchema = true;
@@ -207,7 +213,7 @@ public class TableSchema implements YTreeConvertible {
                 newColumns.add(column);
             }
         }
-        return new TableSchema(newColumns, strict, uniqueKeys);
+        return new TableSchema(newColumns, strict, uniqueKeys, lock, group);
     }
 
     /**
@@ -223,7 +229,7 @@ public class TableSchema implements YTreeConvertible {
                 newColumns.add(column);
             }
         }
-        return new TableSchema(newColumns, strict, uniqueKeys);
+        return new TableSchema(newColumns, strict, uniqueKeys, lock, group);
     }
 
     /**
@@ -246,7 +252,7 @@ public class TableSchema implements YTreeConvertible {
                 newColumns.add(column);
             }
         }
-        return new TableSchema(newColumns, strict, uniqueKeys);
+        return new TableSchema(newColumns, strict, uniqueKeys, lock, group);
     }
 
     /**
@@ -262,7 +268,7 @@ public class TableSchema implements YTreeConvertible {
                 newColumns.add(column);
             }
         }
-        return new TableSchema(newColumns, strict, false);
+        return new TableSchema(newColumns, strict, false, lock, group);
     }
 
     /**
@@ -272,7 +278,11 @@ public class TableSchema implements YTreeConvertible {
         if (uniqueKeys) {
             return this;
         }
-        return new TableSchema(columns, strict, true);
+        return new TableSchema(columns, strict, true, lock, group);
+    }
+
+    public TableSchema.Builder toBuilder() {
+        return new TableSchema.Builder(this);
     }
 
     @Override
@@ -293,7 +303,7 @@ public class TableSchema implements YTreeConvertible {
         }
         boolean strict = node.getAttribute("strict").map(YTreeNode::boolValue).getOrElse(true);
         boolean uniqueKeys = node.getAttribute("unique_keys").map(YTreeNode::boolValue).getOrElse(false);
-        return new TableSchema(columns, strict, uniqueKeys);
+        return new TableSchema(columns, strict, uniqueKeys, null, null);
     }
 
     @Override
@@ -330,12 +340,30 @@ public class TableSchema implements YTreeConvertible {
     }
 
     public static class Builder {
-        private final List<ColumnSchema> columns = new ArrayList<>();
-        private String lock = null;
-        private String group = null;
-        private boolean strict = true;
-        private boolean uniqueKeys = true;
-        private int keysCount = 0;
+        private final List<ColumnSchema> columns;
+        private String lock;
+        private String group;
+        private boolean strict;
+        private boolean uniqueKeys;
+        private int keysCount;
+
+        public Builder() {
+            columns = new ArrayList<>();
+            lock = null;
+            group = null;
+            strict = true;
+            uniqueKeys = true;
+            keysCount = 0;
+        }
+
+        public Builder(TableSchema tableSchema) {
+            this.columns = tableSchema.columns;
+            this.lock = tableSchema.lock;
+            this.group = tableSchema.group;
+            this.strict = tableSchema.strict;
+            this.uniqueKeys = tableSchema.uniqueKeys;
+            this.keysCount = tableSchema.keyColumnsCount;
+        }
 
         public Builder addKey(String name, ColumnValueType type) {
             return add(new ColumnSchema(name, type, ColumnSortOrder.ASCENDING, lock, null, null, group, false));
@@ -357,6 +385,13 @@ public class TableSchema implements YTreeConvertible {
             columns.add(Objects.requireNonNull(column));
             if (column.getSortOrder() != null) {
                 ++keysCount;
+            }
+            return this;
+        }
+
+        public Builder addAll(List<ColumnSchema> columns) {
+            for (ColumnSchema column : columns) {
+                add(column);
             }
             return this;
         }
@@ -392,7 +427,7 @@ public class TableSchema implements YTreeConvertible {
         }
 
         public TableSchema build() {
-            return new TableSchema(new ArrayList<>(columns), strict, uniqueKeys);
+            return new TableSchema(new ArrayList<>(columns), strict, uniqueKeys, lock, group);
         }
     }
 }
