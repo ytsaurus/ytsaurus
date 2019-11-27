@@ -1011,7 +1011,7 @@ void ReactivateBadPackingOperations(TFairShareContext* context)
     for (const auto& operation : context->BadPackingOperations) {
         context->DynamicAttributesList[operation->GetTreeIndex()].Active = true;
         // TODO(antonkikh): This can be implemented more efficiently.
-        operation->UpdateAncestorsAttributes(context);
+        operation->UpdateAncestorsDynamicAttributes(context, /* activateAncestors */ true);
     }
     context->BadPackingOperations.clear();
 }

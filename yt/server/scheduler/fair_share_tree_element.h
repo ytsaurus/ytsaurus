@@ -894,7 +894,7 @@ public:
     void MarkOperationRunningInPool();
     bool IsOperationRunningInPool();
 
-    void UpdateAncestorsAttributes(TFairShareContext* context);
+    void UpdateAncestorsDynamicAttributes(TFairShareContext* context, bool activateAncestors = false);
 
     void MarkWaitingFor(TCompositeSchedulerElement* violatedPool);
 
