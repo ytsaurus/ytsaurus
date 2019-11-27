@@ -1024,6 +1024,9 @@ void BuildCommonOperationPart(const TOperationSpecBase<T>& baseSpec, const TOper
             Y_ENSURE(options.SecureVault_->IsMap(),
                 "SecureVault must be a map node, got " << options.SecureVault_->GetType());
             fluentMap.Item("secure_vault").Value(*options.SecureVault_);
+        })
+        .DoIf(baseSpec.Title_.Defined(), [&] (TFluentMap fluentMap) {
+            fluentMap.Item("title").Value(*baseSpec.Title_);
         });
 }
 
@@ -1044,9 +1047,6 @@ void BuildCommonUserOperationPart(const TSpec& baseSpec, TNode* spec)
     }
     if (baseSpec.WaitingJobTimeout_.Defined()) {
         (*spec)["waiting_job_timeout"] = baseSpec.WaitingJobTimeout_->MilliSeconds();
-    }
-    if (baseSpec.Title_.Defined()) {
-        (*spec)["title"] = *baseSpec.Title_;
     }
 }
 
@@ -1238,6 +1238,8 @@ TOperationId DoExecuteMap(
         operationIo.JobFiles,
         options);
 
+    spec.Title_ = spec.Title_.GetOrElse(map.GetClassName());
+
     TNode specNode = BuildYsonNodeFluently()
     .BeginMap().Item("spec").BeginMap()
         .Item("mapper").DoMap(std::bind(
@@ -1259,8 +1261,6 @@ TOperationId DoExecuteMap(
     if (!TConfig::Get()->TableWriter.Empty()) {
         specNode["spec"]["job_io"]["table_writer"] = TConfig::Get()->TableWriter;
     }
-
-    spec.Title_ = spec.Title_.GetOrElse(map.GetClassName());
 
     BuildCommonUserOperationPart(spec, &specNode["spec"]);
     BuildJobCountOperationPart(spec, &specNode["spec"]);
@@ -1334,6 +1334,8 @@ TOperationId DoExecuteReduce(
         operationIo.JobFiles,
         options);
 
+    spec.Title_ = spec.Title_.GetOrElse(reduce.GetClassName());
+
     TNode specNode = BuildYsonNodeFluently()
     .BeginMap().Item("spec").BeginMap()
         .Item("reducer").DoMap(std::bind(
@@ -1364,8 +1366,6 @@ TOperationId DoExecuteReduce(
         .EndMap()
         .Do(std::bind(BuildCommonOperationPart<T>, spec, options, std::placeholders::_1))
     .EndMap().EndMap();
-
-    spec.Title_ = spec.Title_.GetOrElse(reduce.GetClassName());
 
     BuildCommonUserOperationPart(spec, &specNode["spec"]);
     BuildJobCountOperationPart(spec, &specNode["spec"]);
@@ -1439,6 +1439,8 @@ TOperationId DoExecuteJoinReduce(
         operationIo.JobFiles,
         options);
 
+    spec.Title_ = spec.Title_.GetOrElse(reduce.GetClassName());
+
     TNode specNode = BuildYsonNodeFluently()
     .BeginMap().Item("spec").BeginMap()
         .Item("reducer").DoMap(std::bind(
@@ -1462,8 +1464,6 @@ TOperationId DoExecuteJoinReduce(
         .EndMap()
         .Do(std::bind(BuildCommonOperationPart<T>, spec, options, std::placeholders::_1))
     .EndMap().EndMap();
-
-    spec.Title_ = spec.Title_.GetOrElse(reduce.GetClassName());
 
     BuildCommonUserOperationPart(spec, &specNode["spec"]);
     BuildJobCountOperationPart(spec, &specNode["spec"]);
@@ -1631,10 +1631,11 @@ TOperationId DoExecuteMapReduce(
                 fluent.Item("table_writer").Value(TConfig::Get()->TableWriter);
             })
         .EndMap()
+        .Do([&] (TFluentMap) {
+            spec.Title_ = spec.Title_.GetOrElse(title + "reducer:" + reduce.GetClassName());
+        })
         .Do(std::bind(BuildCommonOperationPart<T>, spec, options, std::placeholders::_1))
     .EndMap().EndMap();
-
-    spec.Title_ = spec.Title_.GetOrElse(title + "reducer:" + reduce.GetClassName());
 
     if (spec.Ordered_) {
         specNode["spec"]["ordered"] = *spec.Ordered_;
