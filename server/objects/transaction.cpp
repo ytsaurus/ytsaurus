@@ -169,6 +169,44 @@ void FromProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void Serialize(TVersionedValue* value, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginAttributes()
+            .Item("timestamp").Value(value->Timestamp)
+        .EndAttributes()
+        .Value(value);
+}
+
+TYsonString ConvertVersionedRowToYsonString(const TVersionedRow row, EYsonFormat ysonFormat = EYsonFormat::Text)
+{
+    return BuildYsonStringFluently(ysonFormat)
+        .BeginAttributes()
+            .Item("write_timestamps").BeginList()
+                .DoFor(row.BeginWriteTimestamps(), row.EndWriteTimestamps(), [&] (TFluentList fluent, const TTimestamp* timestamp) {
+                    fluent.Item().Value(*timestamp);
+                })
+            .EndList()
+            .Item("delete_timestamps").BeginList()
+                .DoFor(row.BeginDeleteTimestamps(), row.EndDeleteTimestamps(), [&] (TFluentList fluent, const TTimestamp* timestamp) {
+                    fluent.Item().Value(*timestamp);
+                })
+            .EndList()
+        .EndAttributes()
+        .BeginList()
+            .DoFor(row.BeginKeys(), row.EndKeys(), [&] (TFluentList fluent, const TUnversionedValue* value) {
+                fluent
+                    .Item().Value(*value);
+            })
+            .DoFor(row.BeginValues(), row.EndValues(), [&] (TFluentList fluent, const TVersionedValue* value) {
+                fluent
+                    .Item().Value(*value);
+            })
+        .EndList();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TString ToString(const TAttributeSelector& selector)
 {
     return Format("{Paths: %v}", selector.Paths);
@@ -1547,12 +1585,7 @@ private:
                             : row.BeginDeleteTimestamps()[0];
 
                         if (maxWriteTimestamp <= maxDeleteTimestamp) {
-                            YT_LOG_DEBUG("Got dead lookup row (%v, Row: %v)", tag, BuildYsonStringFluently(EYsonFormat::Text)
-                                .DoListFor(row.BeginValues(), row.EndValues(), [&] (TFluentList fluent, const TVersionedValue* value) {
-                                    fluent
-                                        .Item().Value(*value);
-                                })
-                            );
+                            YT_LOG_DEBUG("Got dead lookup row (%v, Row: %v)", tag, ConvertVersionedRowToYsonString(row));
                             continue;
                         }
 
@@ -1580,12 +1613,7 @@ private:
                             }
                         }
 
-                        YT_LOG_DEBUG("Got lookup row (%v, Row: %v)", tag, BuildYsonStringFluently(EYsonFormat::Text)
-                            .DoListFor(row.BeginValues(), row.EndValues(), [&] (TFluentList fluent, const TVersionedValue* value) {
-                                fluent
-                                    .Item().Value(*value);
-                            })
-                        );
+                        YT_LOG_DEBUG("Got lookup row (%v, Row: %v)", tag, ConvertVersionedRowToYsonString(row));
                     }
                 }
             }
