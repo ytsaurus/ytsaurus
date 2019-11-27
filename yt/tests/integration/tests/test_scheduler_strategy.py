@@ -1929,19 +1929,16 @@ class TestSchedulerPoolsReconfigurationOld(YTEnvSetup):
 
     def setup_method(self, method):
         super(TestSchedulerPoolsReconfigurationOld, self).setup_method(method)
+        if exists(self.POOL_TREES_ROOT):
+            remove(self.POOL_TREES_ROOT)
+
         create("map_node", self.POOL_TREES_ROOT)
         create("map_node", self.POOL_TREE_PATH)
         time.sleep(0.2)
-        print get("//sys/pool_trees/default/@")
 
         wait(lambda: exists(self.orchid_pools), sleep_backoff=0.1)
         wait(lambda: len(ls(self.orchid_pools)) == 1, sleep_backoff=0.1)  # <Root> is always in orchid
         wait(lambda: not get("//sys/scheduler/@alerts"), sleep_backoff=0.1)
-
-    def teardown_method(self, method):
-        remove(self.POOL_TREES_ROOT)
-
-        super(TestSchedulerPoolsReconfigurationOld, self).teardown_method(method)
 
     @authors("renadeen")
     def test_add_nested_pool(self):
