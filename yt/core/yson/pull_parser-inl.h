@@ -336,4 +336,60 @@ void TYsonPullParserCursor::Next()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+
+template <typename TFunction, EYsonItemType BeginItemType, EYsonItemType EndItemType>
+void ParseComposite(TYsonPullParserCursor* cursor, TFunction function)
+{
+    if constexpr (BeginItemType == EYsonItemType::BeginAttributes) {
+        EnsureYsonToken("attributes", *cursor, BeginItemType);
+    } else if constexpr (BeginItemType == EYsonItemType::BeginList) {
+        EnsureYsonToken("list", *cursor, BeginItemType);
+    } else if constexpr (BeginItemType == EYsonItemType::BeginMap) {
+        EnsureYsonToken("map", *cursor, BeginItemType);
+    }
+
+    cursor->Next();
+    while ((*cursor)->GetType() != EndItemType) {
+        function(cursor);
+    }
+    cursor->Next();
+}
+
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename TFunction>
+void TYsonPullParserCursor::ParseMap(TFunction function)
+{
+    NDetail::ParseComposite<TFunction, EYsonItemType::BeginMap, EYsonItemType::EndMap>(this, function);
+}
+
+template <typename TFunction>
+void TYsonPullParserCursor::ParseList(TFunction function)
+{
+    NDetail::ParseComposite<TFunction, EYsonItemType::BeginList, EYsonItemType::EndList>(this, function);
+}
+
+template <typename TFunction>
+void TYsonPullParserCursor::ParseAttributes(TFunction function)
+{
+    NDetail::ParseComposite<TFunction, EYsonItemType::BeginAttributes, EYsonItemType::EndAttributes>(this, function);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+Y_FORCE_INLINE void EnsureYsonToken(
+    TStringBuf description,
+    const TYsonPullParserCursor& cursor,
+    EYsonItemType expected)
+{
+    if (expected != cursor->GetType()) {
+        ThrowUnexpectedYsonTokenException(description, cursor, {expected});
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NYson

@@ -37,6 +37,7 @@ bool operator != (const TSerializableAccessControlEntry& lhs, const TSerializabl
 
 void Serialize(const TSerializableAccessControlEntry& ace, NYson::IYsonConsumer* consumer);
 void Deserialize(TSerializableAccessControlEntry& ace, NYTree::INodePtr node);
+void Deserialize(TSerializableAccessControlEntry& ace, NYson::TYsonPullParserCursor* cursor);
 
 struct TSerializableAccessControlList
 {
@@ -50,6 +51,7 @@ bool operator != (const TSerializableAccessControlList& lhs, const TSerializable
 
 void Serialize(const TSerializableAccessControlList& acl, NYson::IYsonConsumer* consumer);
 void Deserialize(TSerializableAccessControlList& acl, NYTree::INodePtr node);
+void Deserialize(TSerializableAccessControlList& acl, NYson::TYsonPullParserCursor* cursor);
 
 ////////////////////////////////////////////////////////////////////////////////
 

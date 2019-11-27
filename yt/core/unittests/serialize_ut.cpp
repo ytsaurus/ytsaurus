@@ -2,6 +2,8 @@
 
 #include <yt/core/misc/serialize.h>
 
+#include <yt/core/yson/pull_parser_deserialize.h>
+
 #include <yt/core/ytree/convert.h>
 
 #include <array>
@@ -25,11 +27,30 @@ DEFINE_BIT_ENUM(ETestBitEnum,
 )
 
 template <typename TOriginal, typename TResult = TOriginal>
-void TestSerializationDeserialization(const TOriginal& original)
+void TestSerializationDeserializationPullParser(const TOriginal& original)
+{
+    auto yson = ConvertToYsonString(original);
+    TResult deserialized;
+    TMemoryInput input(yson.GetData());
+    TYsonPullParser parser(&input, EYsonType::Node);
+    TYsonPullParserCursor cursor(&parser);
+    Deserialize(deserialized, &cursor);
+    EXPECT_EQ(original, deserialized);
+}
+
+template <typename TOriginal, typename TResult = TOriginal>
+void TestSerializationDeserializationNode(const TOriginal& original)
 {
     auto yson = ConvertToYsonString(original);
     auto deserialized = ConvertTo<TResult>(yson);
     EXPECT_EQ(original, deserialized);
+}
+
+template <typename TOriginal, typename TResult = TOriginal>
+void TestSerializationDeserialization(const TOriginal& original)
+{
+    TestSerializationDeserializationPullParser<TOriginal, TResult>(original);
+    TestSerializationDeserializationNode<TOriginal, TResult>(original);
 }
 
 TString RemoveSpaces(const TString& str)
@@ -68,12 +89,14 @@ TEST(TCustomTypeSerializationTest, Optional)
         std::optional<int> value(10);
         auto yson = ConvertToYsonString(value);
         EXPECT_EQ(10, ConvertTo<std::optional<int>>(yson));
+        TestSerializationDeserialization(value);
     }
     {
         std::optional<int> value;
         auto yson = ConvertToYsonString(value);
         EXPECT_EQ(TString("#"), yson.GetData());
         EXPECT_EQ(value, ConvertTo<std::optional<int>>(yson));
+        TestSerializationDeserialization(value);
     }
 }
 
