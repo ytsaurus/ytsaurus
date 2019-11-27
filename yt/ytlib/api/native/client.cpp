@@ -274,6 +274,14 @@ struct TClient::TCountingFilter
         FailedJobsCount += hasFailedJobs;
         return !Options.WithFailedJobs || (*Options.WithFailedJobs == hasFailedJobs);
     }
+
+    bool FilterByFailedJobs(bool hasFailedJobs, i64 count)
+    {
+        if (hasFailedJobs) {
+            FailedJobsCount += count;
+        }
+        return !Options.WithFailedJobs || (*Options.WithFailedJobs == hasFailedJobs);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2403,6 +2411,7 @@ THashMap<NScheduler::TOperationId, TOperation> TClient::DoListOperationsFromArch
         auto stateIndex = builder.AddSelectExpression("state");
         auto operationTypeIndex = builder.AddSelectExpression("operation_type");
         auto poolIndex = builder.AddSelectExpression("pool");
+        auto hasFailedJobsIndex = builder.AddSelectExpression("has_failed_jobs");
         auto countIndex = builder.AddSelectExpression("sum(1)", "count");
 
         addCommonWhereConjuncts(&builder);
@@ -2412,6 +2421,7 @@ THashMap<NScheduler::TOperationId, TOperation> TClient::DoListOperationsFromArch
         builder.AddGroupByExpression("state");
         builder.AddGroupByExpression("operation_type");
         builder.AddGroupByExpression("pool");
+        builder.AddGroupByExpression("has_failed_jobs");
 
         TSelectRowsOptions selectOptions;
         selectOptions.Timeout = deadline - Now();
@@ -2436,10 +2446,17 @@ THashMap<NScheduler::TOperationId, TOperation> TClient::DoListOperationsFromArch
                 pools->push_back(FromUnversionedValue<TString>(row[poolIndex]));
             }
             auto count = FromUnversionedValue<i64>(row[countIndex]);
+            if (!countingFilter.Filter(pools, user, state, type, count)) {
+                continue;
+            }
 
-            countingFilter.Filter(pools, user, state, type, count);
+            bool hasFailedJobs = false;
+            if (row[hasFailedJobsIndex].Type != EValueType::Null) {
+                hasFailedJobs = FromUnversionedValue<bool>(row[hasFailedJobsIndex]);
+            }
+            countingFilter.FilterByFailedJobs(hasFailedJobs, count);
         }
-    }
+    };
 
     NQueryClient::TQueryBuilder builder;
     builder.SetSource(GetOperationsArchiveOrderedByStartTimePath());
@@ -2488,6 +2505,14 @@ THashMap<NScheduler::TOperationId, TOperation> TClient::DoListOperationsFromArch
 
     if (options.UserFilter) {
         builder.AddWhereConjunct(Format("authenticated_user = %Qv", *options.UserFilter));
+    }
+
+    if (options.WithFailedJobs) {
+        if (*options.WithFailedJobs) {
+            builder.AddWhereConjunct("has_failed_jobs");
+        } else {
+            builder.AddWhereConjunct("not has_failed_jobs");
+        }
     }
 
     // Retain more operations than limit to track (in)completeness of the response.
@@ -2563,14 +2588,9 @@ THashMap<NScheduler::TOperationId, TOperation> TClient::DoListOperationsFromArch
 
     THashMap<NScheduler::TOperationId, TOperation> idToOperation;
 
-    auto& tableIndex = tableDescriptor.Index;
+    const auto& tableIndex = tableDescriptor.Index;
     for (auto row : rows) {
         if (!row) {
-            continue;
-        }
-
-        auto briefProgress = getYson(row[columnFilter.GetPosition(tableIndex.BriefProgress)]);
-        if (!countingFilter.FilterByFailedJobs(briefProgress)) {
             continue;
         }
 
@@ -2622,7 +2642,7 @@ THashMap<NScheduler::TOperationId, TOperation> TClient::DoListOperationsFromArch
         }
 
         if (needBriefProgress) {
-            operation.BriefProgress = std::move(briefProgress);
+            operation.BriefProgress = getYson(row[columnFilter.GetPosition(tableIndex.BriefProgress)]);
         }
         if (auto indexOrNull = columnFilter.FindPosition(tableIndex.Progress)) {
             operation.Progress = getYson(row[*indexOrNull]);
@@ -2692,8 +2712,6 @@ THashSet<TString> TClient::GetSubjectClosure(
 
 // XXX(levysotsky): The counters may be incorrect if |options.IncludeArchive| is |true|
 // and an operation is in both Cypress and archive.
-// XXX(levysotsky): The "failed_jobs_count" counter is incorrect if corresponding failed operations
-// are in archive and outside of queried range.
 TListOperationsResult TClient::DoListOperations(
     const TListOperationsOptions& options)
 {
