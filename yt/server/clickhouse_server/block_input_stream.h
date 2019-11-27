@@ -15,6 +15,7 @@ namespace NYT::NClickHouseServer {
 DB::BlockInputStreamPtr CreateBlockInputStream(
     NTableClient::ISchemalessReaderPtr reader,
     NTableClient::TTableSchema readSchema,
+    NTracing::TTraceContextPtr traceContext,
     NLogging::TLogger logger);
 
 DB::BlockInputStreamPtr CreateBlockInputStreamLoggingAdapter(

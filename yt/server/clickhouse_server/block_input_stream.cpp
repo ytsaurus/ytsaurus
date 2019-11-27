@@ -19,6 +19,7 @@ namespace NYT::NClickHouseServer {
 using namespace NTableClient;
 using namespace NLogging;
 using namespace NConcurrency;
+using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,9 +27,10 @@ class TBlockInputStream
     : public DB::IBlockInputStream
 {
 public:
-    TBlockInputStream(ISchemalessReaderPtr reader, TTableSchema readSchema, TLogger logger)
+    TBlockInputStream(ISchemalessReaderPtr reader, TTableSchema readSchema, TTraceContextPtr traceContext,  TLogger logger)
         : Reader_(std::move(reader))
         , ReadSchema_(std::move(readSchema))
+        , TraceContext_(std::move(traceContext))
         , Logger(std::move(logger))
     {
         PrepareHeader();
@@ -57,6 +59,7 @@ public:
 private:
     ISchemalessReaderPtr Reader_;
     TTableSchema ReadSchema_;
+    TTraceContextPtr TraceContext_;
     TLogger Logger;
     DB::Block HeaderBlock_;
     std::vector<int> IdToColumnIndex_;
@@ -65,6 +68,8 @@ private:
     DB::Block readImpl() override
     {
         auto block = HeaderBlock_.cloneEmpty();
+
+        TTraceContextGuard guard(TraceContext_);
 
         // TODO(max42): consult with psushin@ about contract here.
         std::vector<TUnversionedRow> rows;
@@ -155,9 +160,10 @@ private:
 DB::BlockInputStreamPtr CreateBlockInputStream(
     ISchemalessReaderPtr reader,
     TTableSchema readSchema,
+    TTraceContextPtr traceContext,
     TLogger logger)
 {
-    return std::make_shared<TBlockInputStream>(std::move(reader), std::move(readSchema), logger);
+    return std::make_shared<TBlockInputStream>(std::move(reader), std::move(readSchema), std::move(traceContext), logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
