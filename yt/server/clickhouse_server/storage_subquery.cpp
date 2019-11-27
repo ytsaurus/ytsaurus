@@ -71,11 +71,13 @@ public:
     BlockInputStreams read(
         const Names& columnNames,
         const SelectQueryInfo& /* queryInfo */,
-        const Context& /* context */,
+        const Context& context,
         QueryProcessingStage::Enum /* processedStage */,
         size_t /* maxBlockSize */,
         unsigned maxStreamCount) override
     {
+        auto* queryContext = GetQueryContext(context);
+
         // TODO(max42): ?
         auto columns = ToString(columnNames);
 
@@ -177,6 +179,7 @@ public:
             streams.emplace_back(CreateBlockInputStream(
                 std::move(reader),
                 readSchema,
+                queryContext->TraceContext,
                 TLogger(Logger)
                     .AddTag("ReadSessionId: %v", blockReadOptions.ReadSessionId)));
         }

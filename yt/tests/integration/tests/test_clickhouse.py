@@ -1447,7 +1447,7 @@ class TestClickHouseSchema(ClickHouseTestBase):
             assert sorted(clique.make_query('select * from concatYtTables("//tmp/t3", "//tmp/t4")')) == [
                 {"a": "1"},
                 {"a": "2"}]
-            
+
 
     @authors("max42")
     def test_common_schema_sorted(self):
@@ -1981,7 +1981,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         cache_missed_counter = self._get_proxy_metric("clickhouse_proxy/clique_cache/missed")
         force_update_counter = self._get_proxy_metric("clickhouse_proxy/force_update_count")
         banned_count = self._get_proxy_metric("clickhouse_proxy/banned_count")
-        
+
         with Clique(2, max_failed_job_count=2, config_patch=patch) as clique:
             url = self._get_proxy_address() + "/query?output_format_json_quote_64bit_integers=0&database={}".format(clique.op.id)
             running = True
@@ -2020,7 +2020,16 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         assert force_update_counter.update().get(verbose=True) == 1
         assert banned_count.update().get(verbose=True) == 1
 
+
+def is_tracing_enabled():
+    return "YT_TRACE_DUMP_DIR" in os.environ
+
+class TestTracing(ClickHouseTestBase):
+    def setup(self):
+        self._setup()
+
     @authors("max42")
+    @pytest.mark.skipif(not is_tracing_enabled(), reason="YT_TRACE_DUMP_DIR should be in env")
     def test_tracing_via_http_proxy(self):
         with Clique(5) as clique:
             url = self._get_proxy_address() + "/query?database={}".format(clique.op.id)
@@ -2032,3 +2041,15 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             assert abs(requests.post(url,
                                      data="select avg(a) from \"//tmp/t\"",
                                      headers={"X-Yt-Sampled": "1"}).json() - 4.5) < 1e-6
+
+    @authors("max42")
+    @pytest.mark.skipif(not is_tracing_enabled(), reason="YT_TRACE_DUMP_DIR should be in env")
+    def test_large_tracing(self):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "string"}]})
+        write_table("//tmp/t", [{"a": "a"}])
+        merge(in_=["//tmp/t"] * 100,
+              out="//tmp/t")
+
+        with Clique(5) as clique:
+            assert clique.make_query("select count(*) from \"//tmp/t\"")[0]["count()"] == 100
+
