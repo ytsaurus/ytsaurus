@@ -2692,13 +2692,11 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         write_table("//tmp/t_in", [{"x": 1}])
         create("table", "//tmp/t_out")
 
-        error_occured = False
         try:
-            op = map(command="cat", in_="//tmp/t_in", out="//tmp/t_out")
-        except YtResponseError:
-            error_occured = True
-
-        assert error_occured or op.get_state() == "failed"
+            map(command="cat", in_="//tmp/t_in", out="//tmp/t_out")
+            assert False, "Didn't throw"
+        except YtError as e:
+            assert e.contains_code(214)  # NScheduler::EErrorCode::PoolTreesAreUnspecified
 
         map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"pool_trees": ["default"]})
 

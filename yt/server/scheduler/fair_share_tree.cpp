@@ -117,8 +117,7 @@ THashMap<TString, TPoolName> GetOperationPools(const TOperationRuntimeParameters
     return pools;
 }
 
-TFairShareStrategyOperationStatePtr
-CreateFairShareStrategyOperationState(IOperationStrategyHost* host)
+TFairShareStrategyOperationStatePtr CreateFairShareStrategyOperationState(IOperationStrategyHost* host)
 {
     auto state = New<TFairShareStrategyOperationState>(host);
     auto treeIdToPoolNameMap = GetOperationPools(host->GetRuntimeParameters());
@@ -383,7 +382,7 @@ void TFairShareTree::UnregisterOperation(
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
     auto operationId = state->GetHost()->GetId();
-    auto operationElement = FindOperationElement(operationId);
+    auto operationElement = GetOperationElement(operationId);
 
     auto* pool = operationElement->GetMutableParent();
 
@@ -2151,6 +2150,16 @@ std::vector<TOperationId> TFairShareTree::ExtractActivatableOperations()
     return result;
 }
 
+void TFairShareTree::OnTreeRemoveStarted()
+{
+    YT_LOG_DEBUG("Pool tree %Qv is marked to be removed", TreeId_);
+    IsBeingRemoved_ = true;
+}
+
+bool TFairShareTree::IsBeingRemoved()
+{
+    return IsBeingRemoved_;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
