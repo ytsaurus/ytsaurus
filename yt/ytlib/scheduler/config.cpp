@@ -655,8 +655,8 @@ TUserJobSpec::TUserJobSpec()
         );
         UserJobMemoryDigestDefaultValue = std::max(UserJobMemoryDigestLowerBound, UserJobMemoryDigestDefaultValue);
 
-        for (const auto& pair : Environment) {
-            ValidateEnvironmentVariableName(pair.first);
+        for (const auto& [variableName, _] : Environment) {
+            ValidateEnvironmentVariableName(variableName);
         }
 
         for (auto& path : FilePaths) {
@@ -1262,9 +1262,7 @@ TVanillaOperationSpec::TVanillaOperationSpec()
         .NonEmpty();
 
     RegisterPostprocessor([&] {
-        for (const auto& pair : Tasks) {
-            const auto& taskName = pair.first;
-            const auto& taskSpec = pair.second;
+        for (const auto& [taskName, taskSpec] : Tasks) {
             if (taskName.empty()) {
                 THROW_ERROR_EXCEPTION("Empty task names are not allowed");
             }
