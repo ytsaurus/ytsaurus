@@ -108,13 +108,17 @@ TTraceContextPtr SetupTraceContext(
             requestSpanId);
     }
 
-    auto requestSampled = request.get("X-Yt-Sampled", "");
+    auto requestSampled = TString(request.get("X-Yt-Sampled", ""));
     int sampled;
-    if (!TryIntFromString<10>(TString(requestSampled), sampled) || sampled < 0 || sampled > 1) {
+    if (int intValue; TryIntFromString<10>(requestSampled, intValue) && intValue >= 0 && intValue <= 1) {
+        YT_LOG_INFO("Parsed X-Yt-Sampled (RequestSampled: %Qv)", requestSampled);
+        sampled = intValue;
+    } else if (bool boolValue; TryFromString<bool>(requestSampled, boolValue)) {
+        YT_LOG_INFO("Parsed X-Yt-Sampled (RequestSampled: %Qv)", requestSampled);
+        sampled = boolValue;
+    } else {
         YT_LOG_INFO("Cannot parse X-Yt-Sampled, assuming false (RequestSampled: %Qv)", requestSampled);
         sampled = 0;
-    } else {
-        YT_LOG_INFO("Parsed X-Yt-Sampled (RequetSampled: %Qv)", requestSampled);
     }
 
     auto traceContext = New<TTraceContext>(parentSpan, "HttpHandler");

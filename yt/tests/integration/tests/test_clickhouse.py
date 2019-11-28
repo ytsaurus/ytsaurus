@@ -320,6 +320,9 @@ class ClickHouseTestBase(YTEnvSetup):
     def _read_local_config_file(self, name):
         return open(os.path.join(TEST_DIR, "test_clickhouse", name)).read()
 
+    def _get_proxy_address(self):
+        return "http://" + self.Env.get_http_proxy_address()
+
     def _setup(self):
         Clique.path_to_run = self.path_to_run
         Clique.core_dump_path = os.path.join(self.path_to_run, "core_dumps")
@@ -331,6 +334,7 @@ class ClickHouseTestBase(YTEnvSetup):
             pytest.skip("This test requires ytserver-clickhouse binary being built")
 
         create_user("yt-clickhouse-cache")
+        create_user("yt-clickhouse")
 
         if exists("//sys/clickhouse"):
             return
@@ -1850,10 +1854,6 @@ class TestJoinAndIn(ClickHouseTestBase):
 class TestClickHouseHttpProxy(ClickHouseTestBase):
     def setup(self):
         self._setup()
-        create_user("yt-clickhouse")
-
-    def _get_proxy_address(self):
-        return "http://" + self.Env.get_http_proxy_address()
 
     def _get_proxy_metric(self, metric_name):
         return Metric.at_proxy(self.Env.get_http_proxy_address(), metric_name)
@@ -2038,17 +2038,33 @@ class TestTracing(ClickHouseTestBase):
     @authors("max42")
     @pytest.mark.skipif(not is_tracing_enabled(), reason="YT_TRACE_DUMP_DIR should be in env")
     def test_tracing_via_http_proxy(self):
-        with Clique(5) as clique:
+        with Clique(1) as clique:
             url = self._get_proxy_address() + "/query?database={}".format(clique.op.id)
 
             create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
             for i in range(5):
                 write_table("<append=%true>//tmp/t", [{"a": 2 * i}, {"a": 2 * i + 1}])
 
-            assert abs(requests.post(url,
-                                     data="select avg(a) from \"//tmp/t\"",
-                                     headers={"X-Yt-Sampled": "1"}).json() - 4.5) < 1e-6
-            
+            result = requests.post(url,
+                                   data="select avg(a) from \"//tmp/t\" format JSON",
+                                   headers={"X-Yt-Sampled": "1"})
+            assert abs(result.json()["data"][0]["avg(a)"] - 4.5) < 1e-6
+            query_id = result.headers["X-ClickHouse-Query-Id"]
+            print_debug("Query id =", query_id)
+            # Check presence of one of the middle parts of query id in the binary trace file.
+            # It looks like a good evidence of that everything works fine. Don't tell prime@ that
+            # I rely on tracing binary protobuf representation, though :)
+            query_id_part = query_id.split("-")[2].rjust(8, '0')
+            query_id_part_binary = ''.join(chr(int(a, 16) * 16 + int(b, 16)) for a, b in reversed(zip(query_id_part[::2], query_id_part[1::2])))
+
+            time.sleep(2)
+
+            pid = clique.make_query("select pid from system.clique")[0]["pid"]
+            tracing_file = open(os.path.join(os.environ["YT_TRACE_DUMP_DIR"], "ytserver-clickhouse." + str(pid)))
+            content = tracing_file.read()
+            assert query_id_part_binary in content
+
+
     @authors("max42")
     @pytest.mark.skipif(not is_tracing_enabled(), reason="YT_TRACE_DUMP_DIR should be in env")
     def test_large_tracing(self):
