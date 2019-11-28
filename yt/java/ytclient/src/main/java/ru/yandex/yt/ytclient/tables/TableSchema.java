@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
@@ -386,6 +387,32 @@ public class TableSchema implements YTreeConvertible {
             if (column.getSortOrder() != null) {
                 ++keysCount;
             }
+            return this;
+        }
+
+        public Builder sortBy(List<String> keyColumnNames) {
+            Stream<ColumnSchema> keyColumns = keyColumnNames
+                    .stream()
+                    .map(
+                            keyCol -> columns.stream()
+                                    .filter(col -> col.getName().equals(keyCol))
+                                    .findAny()
+                                    .orElseThrow(() -> new IllegalArgumentException("Can't find column in schema: " + keyCol))
+                    )
+                    .map(keyCol -> keyCol.toBuilder().setSortOrder(ColumnSortOrder.ASCENDING).build());
+
+            Stream<ColumnSchema> restColumns = columns
+                    .stream()
+                    .filter(col -> !keyColumnNames.contains(col.getName()))
+                    // reset sorting of  the rest columns
+                    .map(keyCol -> keyCol.toBuilder().setSortOrder(null).build());
+
+            // key columns should prepend the rest
+            List<ColumnSchema> newColumns = Stream.concat(keyColumns, restColumns).collect(Collectors.toList());
+
+            columns.clear();
+            columns.addAll(newColumns);
+
             return this;
         }
 

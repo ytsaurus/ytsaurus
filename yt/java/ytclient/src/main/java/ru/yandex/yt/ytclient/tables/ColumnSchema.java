@@ -123,6 +123,10 @@ public class ColumnSchema implements YTreeConvertible {
         return new ColumnSchema(name, type, sortOrder, lock, expression, aggregate, group, required);
     }
 
+    public ColumnSchema.Builder toBuilder() {
+        return new ColumnSchema.Builder(this);
+    }
+
     @Override
     public String toString() {
         return toYTree().toString();
@@ -189,6 +193,17 @@ public class ColumnSchema implements YTreeConvertible {
         public Builder(String name, ColumnValueType type) {
             this.name = name;
             this.type = type;
+        }
+
+        public Builder(ColumnSchema columnSchema) {
+            this.name = columnSchema.name;
+            this.type = columnSchema.type;
+            this.sortOrder = columnSchema.sortOrder;
+            this.lock = columnSchema.lock;
+            this.expression = columnSchema.expression;
+            this.aggregate = columnSchema.aggregate;
+            this.group = columnSchema.group;
+            this.required = columnSchema.required;
         }
 
         public Builder setSortOrder(ColumnSortOrder sortOrder) {
