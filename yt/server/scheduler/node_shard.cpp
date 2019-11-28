@@ -487,12 +487,12 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     }
 
     bool isThrottlingActive = false;
-    if (ConcurrentHeartbeatCount_ > Config_->HardConcurrentHeartbeatLimit) {
+    if (ConcurrentHeartbeatCount_ >= Config_->HardConcurrentHeartbeatLimit) {
         isThrottlingActive = true;
         YT_LOG_INFO("Hard heartbeat limit reached (NodeAddress: %v, Limit: %v)",
             node->GetDefaultAddress(),
             Config_->HardConcurrentHeartbeatLimit);
-    } else if (ConcurrentHeartbeatCount_ > Config_->SoftConcurrentHeartbeatLimit &&
+    } else if (ConcurrentHeartbeatCount_ >= Config_->SoftConcurrentHeartbeatLimit &&
         node->GetLastSeenTime() + Config_->HeartbeatProcessBackoff > TInstant::Now())
     {
         isThrottlingActive = true;

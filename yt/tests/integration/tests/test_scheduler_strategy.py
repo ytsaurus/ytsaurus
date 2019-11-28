@@ -338,10 +338,14 @@ class TestStrategyWithSlowController(YTEnvSetup, PrepareTables):
     NUM_NODES = 10
     NUM_SCHEDULERS = 1
 
+    CONCURRENT_HEARTBEAT_LIMIT = 2
+
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "fair_share_update_period": 100,
             "node_shard_count": 1,
+            "soft_concurrent_heartbeat_limit": CONCURRENT_HEARTBEAT_LIMIT,
+            "hard_concurrent_heartbeat_limit": CONCURRENT_HEARTBEAT_LIMIT
         }
     }
 
@@ -355,26 +359,35 @@ class TestStrategyWithSlowController(YTEnvSetup, PrepareTables):
 
     @authors("renadeen", "ignat")
     def test_strategy_with_slow_controller(self):
-        spec = {
+        slow_spec = {
             "testing": {
                 "scheduling_delay": 1000,
                 "scheduling_delay_type": "async"
             }
         }
-        op1 = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=20, spec=spec)
-        op2 = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=20, spec=spec)
 
+        # Occupy the cluster
+        op0 = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=10)
         wait_breakpoint(job_count=10)
 
-        for j in op1.get_running_jobs().keys():
-            release_breakpoint(job_id=j)
-        for j in op2.get_running_jobs().keys():
+        # Run operations
+        op1 = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=20)
+        enable_op_detailed_logs(op1)
+        op2 = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=20, spec=slow_spec)
+        enable_op_detailed_logs(op2)
+
+        wait(lambda: op1.get_state() == "running")
+        wait(lambda: op2.get_state() == "running")
+        assert op1.get_job_count("running") == 0
+        assert op2.get_job_count("running") == 0
+
+        # Free up the cluster
+        for j in op0.get_running_jobs():
             release_breakpoint(job_id=j)
 
-        wait_breakpoint(job_count=10)
-
-        wait(lambda: op1.get_job_count("running") == 5)
-        wait(lambda: op2.get_job_count("running") == 5)
+        # Check the resulting allocation
+        wait(lambda: op1.get_job_count("running") + op2.get_job_count("running") == 10)
+        assert abs(op1.get_job_count("running") - op2.get_job_count("running")) <= self.CONCURRENT_HEARTBEAT_LIMIT
 
 
 class TestStrategies(YTEnvSetup):
