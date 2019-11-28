@@ -9,6 +9,8 @@ from yt.packages.six.moves import map as imap
 
 import yt.yson as yson
 
+from yt.wrapper.ypath import FilePath
+
 from yt.common import update, parts_to_uuid
 
 from distutils.spawn import find_executable
@@ -20,12 +22,17 @@ import os
 import copy
 import threading
 import pprint
+import subprocess
 
 TEST_DIR = os.path.join(os.path.dirname(__file__))
 
 YTSERVER_CLICKHOUSE_BINARY = os.environ.get("YTSERVER_CLICKHOUSE_PATH")
 if YTSERVER_CLICKHOUSE_BINARY is None:
     YTSERVER_CLICKHOUSE_BINARY = find_executable("ytserver-clickhouse")
+
+YT_LOG_TAILER_BINARY = os.environ.get("YT_LOG_TAILER_BINARY")
+if YT_LOG_TAILER_BINARY is None:
+    YT_LOG_TAILER_BINARY = find_executable("log_tailer")
 
 DEFAULTS = {
     "memory_footprint": 2 * 1000**3,
@@ -2041,7 +2048,7 @@ class TestTracing(ClickHouseTestBase):
             assert abs(requests.post(url,
                                      data="select avg(a) from \"//tmp/t\"",
                                      headers={"X-Yt-Sampled": "1"}).json() - 4.5) < 1e-6
-
+            
     @authors("max42")
     @pytest.mark.skipif(not is_tracing_enabled(), reason="YT_TRACE_DUMP_DIR should be in env")
     def test_large_tracing(self):
@@ -2053,3 +2060,101 @@ class TestTracing(ClickHouseTestBase):
         with Clique(5) as clique:
             assert clique.make_query("select count(*) from \"//tmp/t\"")[0]["count()"] == 100
 
+
+class TestClickHouseWithLogTailer(ClickHouseTestBase):
+    def setup(self):
+        self._setup()
+        if YT_LOG_TAILER_BINARY is None:
+            pytest.skip("This test requires log_tailer binary being built")
+
+    @authors("gritukan")
+    def test_log_tailer(self):
+        clique_index = Clique.clique_index
+
+        log_tailer_config = yson.loads(self._read_local_config_file("log_tailer_config.yson"))
+        log_tailer_config["log_tailer"]["log_files"][0]["path"] = \
+            os.path.join(self.path_to_run,
+            "logs",
+            "clickhouse-{}".format(clique_index),
+            "clickhouse-{}.debug.log".format(clique_index))
+
+        log_tailer_config["logging"]["writers"]["debug"]["file_name"] = \
+            os.path.join(self.path_to_run,
+            "logs",
+            "clickhouse-{}".format(clique_index),
+            "log_tailer-{}.debug.log".format(clique_index))
+        log_tailer_config["cluster_connection"] = self.__class__.Env.configs["driver"]
+
+        log_tailer_config_file = \
+            os.path.join(self.path_to_run,
+            "logs",
+            "log_tailer_config.yson")
+
+        with open(log_tailer_config_file, "w") as config:
+            config.write(yson.dumps(log_tailer_config, yson_format="pretty"))
+
+        create_tablet_cell_bundle("sys")
+        sync_create_cells(1, tablet_cell_bundle="sys")
+
+        create("map_node", "//sys/clickhouse/logs")
+
+        create("table", "//sys/clickhouse/logs/log", attributes= \
+            {
+                "dynamic": True,
+                "schema": [
+                    {"name": "timestamp", "type": "string", "sort_order": "ascending"},
+                    {"name": "category", "type": "string"},
+                    {"name": "message", "type": "string"},
+                    {"name": "log_level", "type": "string"},
+                    {"name": "thread_id", "type": "string"},
+                    {"name": "fiber_id", "type": "string"},
+                    {"name": "trace_id", "type": "string"},
+                    {"name": "job_id", "type": "string"},
+                    {"name": "operation_id", "type": "string"},
+                ],
+                "tablet_cell_bundle": "sys"
+            })
+
+        sync_mount_table("//sys/clickhouse/logs/log")
+
+        create_user("yt-log-tailer")
+        add_member("yt-log-tailer", "superusers")
+
+        with Clique(1) as clique:
+            instance = clique.get_active_instances()[0]
+            pid = clique.make_direct_query(instance, "select * from system.clique", verbose=False)[0]["pid"]
+            log_tailer = subprocess.Popen([YT_LOG_TAILER_BINARY, str(pid), "--config", log_tailer_config_file])
+
+            create("table", "//tmp/t", attributes={"schema": [{"name": "key1", "type": "string"},
+                                                              {"name": "key2", "type": "string"},
+                                                              {"name": "value", "type": "int64"}]})
+            for i in range(5):
+                write_table("<append=%true>//tmp/t", [{"key1": "dream", "key2": "theater", "value": i * 5 + j} for j in range(5)])
+            total = 24 * 25 // 2
+
+            # Work for sufficient time to make sure that log was rotated.
+            for _ in range(10):
+                result = clique.make_query('select key1, key2, sum(value) from "//tmp/t" group by key1, key2')
+                assert result == [{"key1": "dream", "key2": "theater", "sum(value)": total}]
+
+            # Check whether log was rotated.
+            old_log = \
+                os.path.join(self.path_to_run,
+                "logs",
+                "clickhouse-{}".format(clique_index),
+                "clickhouse-{}.debug.log.1".format(clique_index))
+            assert os.path.exists(old_log)
+            assert os.stat(old_log).st_size > 0
+
+            # Wait logger to flush records and kill it.
+            time.sleep(1.1)
+            log_tailer.terminate()
+
+            # Freeze table with log.
+            log_table = "//sys/clickhouse/logs/log"
+            freeze_table(log_table)
+            wait_for_tablet_state(log_table, "frozen")
+
+            # Check whether log was written.
+            assert len(read_table(log_table)) > 0
+            remove(log_table)
