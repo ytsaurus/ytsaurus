@@ -1220,6 +1220,15 @@ def run_test_vanilla(command, spec=None, job_count=1, dont_track=True, task_patc
 def run_sleeping_vanilla(**kwargs):
     return run_test_vanilla("sleep 1000", **kwargs)
 
+def enable_op_detailed_logs(op):
+    update_op_parameters(op.id, parameters={
+        "scheduling_options_per_pool_tree": {
+            "default": {
+                "enable_detailed_logs": True,
+            }
+        }
+    })
+
 def remove_user(name, **kwargs):
     remove("//sys/users/" + name, **kwargs)
 

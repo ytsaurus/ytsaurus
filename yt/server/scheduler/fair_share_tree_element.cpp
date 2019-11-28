@@ -2532,6 +2532,12 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
 {
     YT_VERIFY(IsActive(context->DynamicAttributesList));
 
+    OPERATION_LOG_DETAILED(this,
+        "Trying to schedule job (SatisfactionRatio: %v, NodeId: %v, NodeResourceUsage: %v)",
+        context->DynamicAttributesFor(this).SatisfactionRatio,
+        context->SchedulingContext->GetNodeDescriptor().Id,
+        FormatResourceUsage(context->SchedulingContext->ResourceUsage(), context->SchedulingContext->ResourceLimits()));
+
     auto disableOperationElement = [&] (EDeactivationReason reason) {
         OPERATION_LOG_DETAILED(this,
             "Failed to schedule job, operation deactivated "
@@ -2648,7 +2654,8 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
     FinishScheduleJob(/* enableBackoff */ false, now);
 
     OPERATION_LOG_DETAILED(this,
-        "Scheduled a job (NodeId: %v, JobId: %v, JobResourceLimits: %v)",
+        "Scheduled a job (SatisfactionRatio: %v, NodeId: %v, JobId: %v, JobResourceLimits: %v)",
+        context->DynamicAttributesFor(this).SatisfactionRatio,
         context->SchedulingContext->GetNodeDescriptor().Id,
         startDescriptor.Id,
         FormatResources(startDescriptor.ResourceLimits));
