@@ -2510,7 +2510,10 @@ bool TOperationElement::CheckPacking(const TPackingHeartbeatSnapshot& heartbeatS
     auto detailedMinNeededResources = Controller_->GetDetailedMinNeededJobResources();
     // NB: We expect detailedMinNeededResources to be of size 1 most of the time.
     TJobResourcesWithQuota packingJobResourcesWithQuota;
-    if (detailedMinNeededResources.size() == 1) {
+    if (detailedMinNeededResources.empty()) {
+        // Refuse packing if no information about resource requirements is provided.
+        return false;
+    } else if (detailedMinNeededResources.size() == 1) {
         packingJobResourcesWithQuota = detailedMinNeededResources[0];
     } else {
         auto idx = RandomNumber<ui32>(static_cast<ui32>(detailedMinNeededResources.size()));
