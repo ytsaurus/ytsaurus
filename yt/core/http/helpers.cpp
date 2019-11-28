@@ -157,6 +157,7 @@ static const auto HeadersWhitelist = JoinSeq(", ", std::vector<TString>{
     "Origin",
     "Content-Type",
     "Accept",
+    "Cache-Control",
     "X-Csrf-Token",
     "X-YT-Parameters",
     "X-YT-Parameters0",
