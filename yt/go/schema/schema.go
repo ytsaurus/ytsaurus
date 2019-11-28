@@ -1,7 +1,9 @@
 // Package schema defines schema of YT tables.
 package schema
 
-import "reflect"
+import (
+	"reflect"
+)
 
 type Type string
 
@@ -157,4 +159,51 @@ func (s Schema) WithUniqueKeys() Schema {
 
 func (s *Schema) IsStrict() bool {
 	return s.Strict != nil && *s.Strict
+}
+
+// MergeSchemas merges two schemas inferred from rows
+//
+// If column have different types, then result column will be of type Any.
+// Result schema does not have key columns, and columns have following order:
+// columns from `lhs` schema, then columns from `rhs` schema that does not
+// exist in `lhs` schema.
+func MergeSchemas(lhs, rhs Schema) Schema {
+	rhsColumns := make(map[string]Column)
+	for _, c := range rhs.Columns {
+		rhsColumns[c.Name] = c
+	}
+	var schema Schema
+	lhsColumns := make(map[string]Column)
+	for _, lCol := range lhs.Columns {
+		if rCol, ok := rhsColumns[lCol.Name]; ok {
+			schema.Columns = append(schema.Columns, mergeColumns(lCol, rCol))
+		} else {
+			// If one row does not have such column we need to mark this
+			// column as not required due to `null` values.
+			lCol.Required = false
+			lCol.SortOrder = SortNode
+			schema.Columns = append(schema.Columns, lCol)
+		}
+		lhsColumns[lCol.Name] = lCol
+	}
+	for _, c := range rhs.Columns {
+		if _, ok := lhsColumns[c.Name]; !ok {
+			c.Required = false
+			c.SortOrder = SortNode
+			schema.Columns = append(schema.Columns, c)
+		}
+	}
+	return schema
+}
+
+func mergeColumns(lhs, rhs Column) Column {
+	if lhs.Required != rhs.Required {
+		lhs.Required = false
+	}
+	if lhs.Type != rhs.Type {
+		lhs.Required = false
+		lhs.Type = TypeAny
+	}
+	lhs.SortOrder = SortNode
+	return lhs
 }
