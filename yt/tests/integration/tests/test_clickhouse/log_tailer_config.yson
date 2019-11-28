@@ -1,0 +1,34 @@
+{
+    "log_tailer" = {
+        "log_files" = [
+            {
+                "path" = "LOG";
+                "table" = "//sys/clickhouse/logs/log";
+            }
+        ];
+        "log_rotation" = {
+            "enable" = %true;
+            "rotation_period" = 100;
+            "rotation_delay" = 3;
+        };
+        "read_frequency" = 50;
+    };
+    "logging" = {
+        "writers" = {
+            "debug" = {
+                "file_name" = "LOG";
+                "type" = "file";
+            };
+        };
+        "rules" = [
+            {
+                "min_level" = "debug";
+                "writers" = [
+                    "debug";
+                ];
+            };
+        ];
+        "flush_period" = 1000;
+        "watch_period" = 5000;
+    };
+}
