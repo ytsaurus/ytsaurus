@@ -387,6 +387,11 @@ def load_scheduler_cluster_snapshot(yp_client, node_segment_id=None, object_type
 
     all_objects = []
 
+    def try_extend_all_objects(*args):
+        for objects_or_none in args:
+            if objects_or_none is not None:
+                all_objects.extend(objects_or_none)
+
     if "pod_set" in object_types or "pod" in object_types:
         if "pod_set" in object_types:
             pod_set_selectors = TYPE_SELECTORS["pod_set"]
@@ -399,13 +404,14 @@ def load_scheduler_cluster_snapshot(yp_client, node_segment_id=None, object_type
 
         pod_sets, pods = select_pod_sets_and_pods(yp_client, timestamp, node_segment_id,
                                                   pod_set_selectors, pod_selectors)
-        all_objects.extend(pod_sets + pods)
+
+        try_extend_all_objects(pod_sets, pods)
 
     if "node" in object_types or "resource" in object_types:
         if "node" in object_types:
             node_selectors = TYPE_SELECTORS["node"]
         else:
-            node_selectors = ["/meta/id"]
+            node_selectors = []
         if "resource" in object_types:
             resource_selectors = TYPE_SELECTORS["resource"]
         else:
@@ -413,7 +419,8 @@ def load_scheduler_cluster_snapshot(yp_client, node_segment_id=None, object_type
 
         nodes, resources = select_nodes_and_resources(yp_client, timestamp, node_segment_id,
                                                       node_selectors, resource_selectors)
-        all_objects.extend(nodes + resources)
+
+        try_extend_all_objects(nodes, resources)
 
     other_types = sorted(set(SchedulerCluster.get_object_types()) - {"pod_set", "pod", "resource", "node"})
     for object_type in other_types:
@@ -429,6 +436,6 @@ def load_scheduler_cluster_snapshot(yp_client, node_segment_id=None, object_type
             objects = [reconstruct_object(fields, TYPE_SELECTORS[object_type])
                        for fields in objects_fields]
 
-            all_objects.extend(objects)
+            try_extend_all_objects(objects)
 
     return SchedulerCluster.from_flatten(all_objects)
