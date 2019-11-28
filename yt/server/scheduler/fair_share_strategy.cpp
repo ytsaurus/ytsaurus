@@ -234,6 +234,16 @@ public:
         state->SetEnabled(false);
     }
 
+    virtual void ValidatePoolTreesAreNotRemoved(const TOperationPtr& operation) override
+    {
+        for (const auto& [treeId, _] : operation->GetRuntimeParameters()->SchedulingOptionsPerPoolTree) {
+            if (GetOrCrash(IdToTree_, treeId)->IsBeingRemoved()) {
+                THROW_ERROR_EXCEPTION("Failed to register operation: tree %Qv is being removed", treeId)
+                    << TErrorAttribute("operation_id", operation->GetId());
+            }
+        }
+    }
+
     virtual void UpdatePoolTrees(const INodePtr& poolTreesNode) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
@@ -288,6 +298,10 @@ public:
                 Host->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, error);
                 return;
             }
+        }
+
+        for (const auto& tree : treeIdsToRemove) {
+            IdToTree_[tree]->OnTreeRemoveStarted();
         }
 
         // Update configs and pools structure of all trees.
@@ -995,7 +1009,9 @@ private:
             }
         } else {
             if (!DefaultTreeId_) {
-                THROW_ERROR_EXCEPTION("Failed to determine fair-share tree for operation since "
+                THROW_ERROR_EXCEPTION(
+                    NScheduler::EErrorCode::PoolTreesAreUnspecified,
+                    "Failed to determine fair-share tree for operation since "
                     "valid pool trees are not specified and default fair-share tree is not configured");
             }
             result.push_back(TPoolTreeDescription{
@@ -1005,7 +1021,9 @@ private:
         }
 
         if (result.empty()) {
-            THROW_ERROR_EXCEPTION("No pool trees are specified for operation");
+            THROW_ERROR_EXCEPTION(
+                NScheduler::EErrorCode::PoolTreesAreUnspecified,
+                "No pool trees are specified for operation");
         }
 
         // Data shuffling shouldn't be launched in tentative trees.

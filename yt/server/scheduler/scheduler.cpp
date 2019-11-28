@@ -2318,6 +2318,8 @@ private:
 
         bool aliasRegistered = false;
         try {
+            Strategy_->ValidatePoolTreesAreNotRemoved(operation);
+
             if (operation->Alias()) {
                 RegisterOperationAlias(operation);
                 aliasRegistered = true;
@@ -2898,6 +2900,10 @@ private:
         YT_LOG_INFO(error, "Aborting operation (OperationId: %v, State: %v)",
             operation->GetId(),
             operation->GetState());
+
+        if (operation->Spec()->TestingOperationOptions->DelayInsideAbort) {
+            TDelayedExecutor::WaitForDuration(*operation->Spec()->TestingOperationOptions->DelayInsideAbort);
+        }
 
         TerminateOperation(
             operation,

@@ -439,6 +439,8 @@ public:
 
     std::optional<TDuration> DelayInsideMaterialize;
 
+    std::optional<TDuration> DelayInsideAbort;
+
     std::optional<i64> AllocationSize;
 
     //! Intentionally fails the operation controller. Used only for testing purposes.

@@ -78,7 +78,7 @@ NProfiling::TTagIdList GetFailReasonProfilingTags(NControllerAgent::EScheduleJob
 //!
 //!   * Snapshot of the tree with scheduling attributes (fair share ratios, best leaf descendants et. c).
 //!     It is built repeatedly from actual tree by taking snapshot and calculating scheduling attributes.
-//!     Clones of this tree are used in heartbeats for scheduling. Also, element attributes from this tree 
+//!     Clones of this tree are used in heartbeats for scheduling. Also, element attributes from this tree
 //!     are used in orchid and for profiling.
 //!     This tree represented by fields #GlobalDynamicAttributes_, #ElementIndexes_, #RootElementSnapshot_.
 //!     NB: elements of this tree may be invalidated by #Alive flag in resource tree. In this case element cannot be safely used
@@ -197,6 +197,10 @@ public:
     std::vector<TOperationId> TryRunAllWaitingOperations();
 
     std::vector<TOperationId> ExtractActivatableOperations();
+
+    void OnTreeRemoveStarted();
+
+    bool IsBeingRemoved();
 
 private:
     TFairShareStrategyTreeConfigPtr Config_;
@@ -320,6 +324,8 @@ private:
     THashMap<TString, std::unique_ptr<NProfiling::TAggregateGauge>> CustomProfilingCounters_;
 
     NProfiling::TCpuInstant LastSchedulingInformationLoggedTime_ = 0;
+
+    bool IsBeingRemoved_ = false;
 
     TDynamicAttributes GetGlobalDynamicAttributes(const TSchedulerElement* element) const;
 
