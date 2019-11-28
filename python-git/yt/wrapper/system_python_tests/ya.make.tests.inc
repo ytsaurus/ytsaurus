@@ -33,6 +33,7 @@ DEPENDS(
 DATA(
     arcadia/ya
     arcadia/${YT_ROOT}/yt/python
+    arcadia/${YT_PYTHON_ROOT}/python
 )
 
 NO_LINT()
