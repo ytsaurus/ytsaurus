@@ -241,7 +241,7 @@ _START_DEFAULTS = {
     "node_chunk_store_quota": 7 * GB
 }
 
-def start(master_count=None, node_count=None, scheduler_count=None, rpc_proxy_count=0,
+def start(master_count=None, node_count=None, scheduler_count=None, rpc_proxy_count=0, rpc_proxy_config=None,
           master_config=None, node_config=None, scheduler_config=None, proxy_config=None, controller_agent_config=None,
           proxy_port=None, http_proxy_ports=None, http_proxy_count=None, id=None, local_cypress_dir=None,
           enable_debug_logging=False, tmpfs_path=None, port_range_start=None, fqdn=None, path=None,
@@ -326,6 +326,11 @@ def start(master_count=None, node_count=None, scheduler_count=None, rpc_proxy_co
         if not environment._load_existing_environment:
             client = environment.create_client()
 
+            # This hack is necessary to correctly run inside docker container.
+            # In this case public proxy port differs from proxy port inside container and
+            # we should use latter.
+            client.config["proxy"]["enable_proxy_discovery"] = False
+
             _initialize_world(client, environment, wait_tablet_cell_initialization,
                               (environment.abi_version[0] == 19))
             if local_cypress_dir is not None:
@@ -352,14 +357,15 @@ def _is_exists(id, path=None):
     sandbox_path = os.path.join(get_root_path(path), id)
     return os.path.isdir(sandbox_path)
 
-def stop(id, remove_working_dir=False, path=None, ignore_lock=False):
+def stop(id, remove_working_dir=False, remove_runtime_data=False, path=None, ignore_lock=False):
     require(_is_exists(id, path),
             lambda: yt.YtError("Local YT with id {0} not found".format(id)))
     require(ignore_lock or not _is_stopped(id, path),
             lambda: yt.YtError("Local YT with id {0} is already stopped".format(id)))
 
-    pids_file_path = os.path.join(get_root_path(path), id, "pids.txt")
-    main_process_pid_file = get_main_process_pid_file_path(os.path.join(get_root_path(path), id))
+    sandbox_dir = os.path.join(get_root_path(path), id)
+    pids_file_path = os.path.join(sandbox_dir, "pids.txt")
+    main_process_pid_file = get_main_process_pid_file_path(sandbox_dir)
 
     if os.path.exists(main_process_pid_file):
         pid = _read_pids_file(main_process_pid_file)[0]
@@ -388,6 +394,9 @@ def stop(id, remove_working_dir=False, path=None, ignore_lock=False):
 
     if remove_working_dir:
         delete(id, force=True, path=path)
+    elif remove_runtime_data:
+        runtime_data_path = os.path.join(sandbox_dir, "runtime_data")
+        shutil.rmtree(runtime_data_path, ignore_errors=True)
 
 def delete(id, force=False, path=None):
     require(_is_exists(id, path) or force,

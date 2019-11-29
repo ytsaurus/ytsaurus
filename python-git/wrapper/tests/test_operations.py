@@ -519,7 +519,7 @@ print(op.id)
 
         finally:
             if instance is not None:
-                stop(instance.id, path=dir)
+                stop(instance.id, path=dir, remove_runtime_data=True)
 
     @add_failed_operation_stderrs_to_error_message
     def test_shuffle(self):
@@ -645,7 +645,15 @@ print(op.id)
         old_value = yt.config["start_operation_request_timeout"]
         yt.config["start_operation_request_timeout"] = 2000
 
-        yt.create("map_node", "//sys/pools/with_operation_count_limit", attributes={"max_operation_count": 1})
+        # COMPAT(renadeen): add yt/yt master branch commit hash with user managed pools
+        if yt.get("//sys/pool_trees/@type") == "map_node":
+            yt.create("map_node", "//sys/pools/with_operation_count_limit", attributes={"max_operation_count": 1})
+        else:
+            yt.create("scheduler_pool", attributes={
+                "name": "with_operation_count_limit",
+                "pool_tree": "default",
+                "max_operation_count": 1
+            })
         time.sleep(1)
 
         try:
@@ -1364,7 +1372,7 @@ class TestOperationsTracker(object):
 
         finally:
             if instance is not None:
-                stop(instance.id, path=dir)
+                stop(instance.id, path=dir, remove_runtime_data=True)
 
     def test_operations_tracker(self):
         tracker = yt.OperationsTracker()
@@ -1509,7 +1517,7 @@ class TestOperationsTracker(object):
         finally:
             logger.LOGGER.setLevel(old_level)
             if instance is not None:
-                stop(instance.id, path=dir)
+                stop(instance.id, path=dir, remove_runtime_data=True)
 
     def test_pool_tracker(self):
         def create_spec_builder(binary, source_table, destination_table):

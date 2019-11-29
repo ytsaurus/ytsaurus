@@ -3,12 +3,17 @@
 from __future__ import print_function
 import sys
 
+from yt.wrapper.cli_helpers import ParseStructuredArgument
 from yt.wrapper.native_driver import get_driver_instance
+import yt.wrapper as yt
 
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Action
 
 def build_snapshot(*args, **kwargs):
     print(get_driver_instance(None).build_snapshot(*args, **kwargs))
+
+def build_master_snapshots(*args, **kwargs):
+    print(get_driver_instance(None).build_master_snapshots(*args, **kwargs))
 
 def gc_collect(*args, **kwargs):
     get_driver_instance(None).gc_collect(*args, **kwargs)
@@ -27,14 +32,27 @@ def clear_metadata_caches(*args, **kwargs):
     get_driver_instance(None).clear_metadata_caches(*args, **kwargs)
 
 def main():
-    parser = ArgumentParser(description="Script to run some administer stuff directly through driver")
+    config_parser = ArgumentParser(add_help=False)
+    config_parser.add_argument("--config", action=ParseStructuredArgument, help="specify configuration", default={})
+
+    parser = ArgumentParser(
+        parents=[config_parser],
+        description="Script to run some administer stuff directly through driver")
+
     subparsers = parser.add_subparsers(metavar="command")
     subparsers.required = True
 
     build_snapshot_parser = subparsers.add_parser("build-snapshot", help="Build snapshot")
     build_snapshot_parser.set_defaults(func=build_snapshot)
     build_snapshot_parser.add_argument("--set-read-only", action="store_true", default=False)
+    build_snapshot_parser.add_argument("--wait-for-snapshot-completion", action="store_true", default=False)
     build_snapshot_parser.add_argument("--cell-id", required=True)
+
+    build_master_snapshot_parser = subparsers.add_parser("build-master-snapshots", help="Build snapshots for all master cells")
+    build_master_snapshot_parser.set_defaults(func=build_master_snapshots)
+    build_master_snapshot_parser.add_argument("--set-read-only", action="store_true", default=False)
+    build_master_snapshot_parser.add_argument("--wait-for-snapshot-completion", action="store_true", default=False)
+    build_master_snapshot_parser.add_argument("--retry", action="store_true", default=True)
 
     gc_collect_parser = subparsers.add_parser("gc-collect", help="Run garbage collection")
     gc_collect_parser.set_defaults(func=gc_collect)
@@ -44,7 +62,7 @@ def main():
                                                                      "This command always finishes with an error")
     kill_process_parser.add_argument("address")
     kill_process_parser.set_defaults(func=kill_process)
-    
+
     write_core_dump_parser = subparsers.add_parser("write-core-dump", help="Make remote YT process (node, scheduler or master) write a run-time" +
                                                                            "core dump. This (presumably) does not affect the state of the process.")
     write_core_dump_parser.add_argument("address")
@@ -59,7 +77,10 @@ def main():
     clear_metadata_caches_parser = subparsers.add_parser("clear-caches", help="Clear metadata caches")
     clear_metadata_caches_parser.set_defaults(func=clear_metadata_caches)
 
-    args = parser.parse_args()
+    config_args, unparsed = config_parser.parse_known_args()
+    yt.config.update_config(config_args.config)
+
+    args = parser.parse_args(unparsed)
     func_args = dict(vars(args))
     func_args.pop("func")
     args.func(**func_args)

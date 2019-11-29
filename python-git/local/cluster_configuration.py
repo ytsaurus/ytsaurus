@@ -76,43 +76,6 @@ SCHEDULER_CONFIG_PATCH = {
     },
     "transaction_manager": None,
     "scheduler": {
-        "transactions_refresh_period": None,
-        "operations_update_period": None,
-        "watchers_update_period": 300,
-        "connect_grace_delay": None,
-        "lock_transaction_timeout": 30000,
-        "enable_locality": False,
-        "sort_operation_options": {
-            "spec_template": {
-                "partition_data_size": 512 * MB
-            }
-        },
-
-        "map_reduce_operation_options": {
-            "spec_template": {
-                "partition_data_size": 512 * MB
-            }
-        },
-        "enable_tmpfs": False,
-        "environment": {
-            "TMPDIR": "$(SandboxPath)",
-            "PYTHON_EGG_CACHE": "$(SandboxPath)/.python-eggs",
-            "PYTHONUSERBASE": "$(SandboxPath)/.python-site-packages",
-            "PYTHONPATH": "$(SandboxPath)",
-            "HOME": "$(SandboxPath)",
-        },
-        "enable_snapshot_cycle_after_materialization": False,
-        "testing_options": None,
-    },
-    "snapshot_timeout": 300000,
-}
-
-SCHEDULER_CONFIG_PATCH_19_3 = {
-    "cluster_connection": {
-        "transaction_manager": None
-    },
-    "transaction_manager": None,
-    "scheduler": {
         "operations_update_period": None,
         "watchers_update_period": 300,
         "lock_transaction_timeout": 30000
@@ -254,7 +217,8 @@ def _remove_none_fields(node):
     traverse(node)
 
 def modify_cluster_configuration(cluster_configuration, abi_version, master_config_patch=None, node_config_patch=None,
-                                 scheduler_config_patch=None, controller_agent_config_patch=None, proxy_config_patch=None):
+                                 scheduler_config_patch=None, controller_agent_config_patch=None, proxy_config_patch=None,
+                                 rpc_proxy_config_patch=None):
     master = cluster_configuration["master"]
 
     for tag in [master["primary_cell_tag"]] + master["secondary_cell_tags"]:
@@ -269,18 +233,12 @@ def modify_cluster_configuration(cluster_configuration, abi_version, master_conf
         update_inplace(config, DRIVER_CONFIG_PATCH)
 
     for config in cluster_configuration["scheduler"]:
-        if abi_version >= (19, 3):
-            update_inplace(config, SCHEDULER_CONFIG_PATCH_19_3)
-        else:
-            update_inplace(config, SCHEDULER_CONFIG_PATCH)
-
+        update_inplace(config, SCHEDULER_CONFIG_PATCH)
         if scheduler_config_patch:
             update_inplace(config, scheduler_config_patch)
 
-    if abi_version >= (19, 3):
-        for config in cluster_configuration["controller_agent"]:
-            update_inplace(config, CONTROLLER_AGENT_CONFIG_PATCH)
-
+    for config in cluster_configuration["controller_agent"]:
+        update_inplace(config, CONTROLLER_AGENT_CONFIG_PATCH)
         if controller_agent_config_patch:
             update_inplace(config, controller_agent_config_patch)
 
@@ -298,5 +256,9 @@ def modify_cluster_configuration(cluster_configuration, abi_version, master_conf
     if proxy_config_patch:
         for config in cluster_configuration["http_proxy"]:
             update_inplace(config, proxy_config_patch)
+
+    if rpc_proxy_config_patch:
+        for config in cluster_configuration["rpc_proxy"]:
+            update_inplace(config, rpc_proxy_config_patch)
 
     _remove_none_fields(cluster_configuration)

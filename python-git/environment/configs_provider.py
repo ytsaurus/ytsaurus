@@ -771,7 +771,7 @@ class ConfigsProvider_19(ConfigsProvider):
                 "grpc_server": grpc_server_config,
                 "monitoring_port": next(ports_generator),
                 "enable_authentication": False,
-                "address_resolver": {"localhost_fqdn": "localhost"},
+                "address_resolver": {"localhost_fqdn": provision["fqdn"]},
             }
             config["cluster_connection"] = self._build_cluster_connection_config(master_connection_configs)
             config["logging"] = init_logging(config.get("logging"), proxy_logs_dir,

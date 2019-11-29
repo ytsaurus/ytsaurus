@@ -667,7 +667,7 @@ class TestTableCommands(object):
             assert list(client.read_table(table)) == [{"x": 1}, {"x": 2}]
         finally:
             if instance is not None:
-                stop(instance.id, path=dir)
+                stop(instance.id, path=dir, remove_runtime_data=True)
 
     def test_lazy_read(self):
         table = TEST_DIR + "/test_lazy_read_table"
