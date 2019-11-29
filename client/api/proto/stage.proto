@@ -189,6 +189,9 @@ message TDeployUnitStatus
     uint64 target_spec_timestamp = 6;
     // Resolved docker images from spec.
     repeated TDockerImageContents docker_image_contents = 7;
+    // User-specified itype if unit spec has one, controller-generated default otherwise.
+    // Current default is "deploy".
+    string yasm_itype = 8;
 
     message TReplicaSetDeploy
     {
