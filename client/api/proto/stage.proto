@@ -234,6 +234,7 @@ message TTvmApp
     uint32 app_id = 1;
     string alias = 2;
     // ABC service to which this app is assigned.
+    // Used only as metadata to be displayed in GUI/yaml.
     string abc_service_id = 3;
 }
 
@@ -249,7 +250,7 @@ message TTvmClient
 }
 
 // Config for tvmtool.
-// See https://wiki.yandex-team.ru/passport/tvm2/tvm-daemon/ for details.
+// See https://wiki.yandex-team.ru/deploy/docs/sidecars/tvmtool for details.
 message TTvmConfig
 {
     enum EMode
@@ -265,14 +266,17 @@ message TTvmConfig
     }
     EMode mode = 1;
     // Blackbox instances to check tickets.
-    // See https://wiki.yandex-team.ru/passport/tvm2/tvm-daemon/#lokalno for details.
+    // See https://wiki.yandex-team.ru/passport/tvm2/tvm-daemon/#opisanieformatakonfiganajsonschema for available values.
     string blackbox_environment = 2;
     repeated TTvmClient clients = 3;
     // Port number on which tvmtool listens. It binds to loopback interface only.
+    // If unset, port 2 will be used - https://wiki.yandex-team.ru/deploy/docs/#portyvpodezanjatyeinfrastrukturojj.
     uint32 client_port = 4;
     // Port number to ping tvmtool. It binds to all interfaces.
+    // TODO: DEPLOY-1462 - deprecated and will be removed.
     uint32 ping_port = 5;
-    // Custom tvmtool.
+    // Custom tvmtool layer.
+    // TODO: DEPLOY-1371 - rename field.
     TDownloadableResource tvmtool_binary = 6;
 }
 
