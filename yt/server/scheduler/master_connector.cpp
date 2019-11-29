@@ -786,6 +786,7 @@ private:
                 "output_completion_transaction_id",
                 "suspended",
                 "erased_trees",
+                "banned",
             };
 
             auto batchReq = Owner_->StartObjectBatchRequest(EMasterChannelKind::Follower);
@@ -851,6 +852,10 @@ private:
                     }
 
                     try {
+                        if (attributesNode->Get<bool>("banned", false)) {
+                            YT_LOG_INFO("Operation manually banned (OperationId: %v)", operationId);
+                            continue;
+                        }
                         auto operation = TryCreateOperationFromAttributes(
                             operationId,
                             *attributesNode,
