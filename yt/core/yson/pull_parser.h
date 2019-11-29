@@ -171,9 +171,17 @@ public:
     template <typename TFunction>
     void ParseAttributes(TFunction function);
 
+    // Transfer or skip attributes (if cursor is not positioned over attributes, throws an error).
+    void SkipAttributes();
+    void TransferAttributes(IYsonConsumer* consumer);
+    void TransferAttributes(TCheckedInDebugYsonTokenWriter* writer);
+
 private:
     TYsonItem Current_;
     TYsonPullParser* Parser_;
+
+private:
+    void SkipComplexValueOrAttributes();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
