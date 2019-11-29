@@ -95,6 +95,26 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
     @authors("ignat")
     @require_ytserver_root_privileges
+    def test_banned_operation(self):
+        self._prepare_tables()
+
+        self._create_table("//tmp/t_out1")
+        self._create_table("//tmp/t_out2")
+
+        op1 = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out1", command="sleep 1000")
+        op2 = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out2", command="sleep 1000")
+        wait(lambda: op1.get_state() == "running")
+        wait(lambda: op2.get_state() == "running")
+
+        set(op1.get_path() + "/@banned", True)
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+
+        wait(lambda: ls("//sys/scheduler/orchid/scheduler/operations") == [op2.id])
+
+    @authors("ignat")
+    @require_ytserver_root_privileges
     def test_disconnect_during_revive(self):
         op_count = 20
 
