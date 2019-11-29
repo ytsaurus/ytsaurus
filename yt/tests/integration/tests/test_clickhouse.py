@@ -15,11 +15,14 @@ from yt.common import update, parts_to_uuid
 
 from distutils.spawn import find_executable
 
+from datetime import datetime
+
+import copy
 import json
+import os
+import pprint
 import pytest
 import random
-import os
-import copy
 import threading
 import pprint
 import subprocess
@@ -368,6 +371,15 @@ def get_object_attibute_cache_config(expire_after_access_time, expire_after_succ
         "permission_cache": get_async_expiring_cache_config(expire_after_access_time, expire_after_successful_update_time, refresh_time),
     }
 
+def get_schema_from_description(describe_info):
+    schema = []
+    for info in describe_info:
+        schema.append({
+            "name": info["name"],
+            "type": info["type"],
+        })
+    return schema
+
 class TestClickHouseCommon(ClickHouseTestBase):
     def setup(self):
         self._setup()
@@ -707,6 +719,50 @@ class TestClickHouseCommon(ClickHouseTestBase):
             # Not a table.
             assert clique.make_query('exists table "//sys"') == [{"result": 0}]
 
+    @authors("dakovalkov")
+    def test_date_types(self):
+        create("table", "//tmp/t1", attributes={
+            "schema": [
+                {"name": "datetime", "type": "datetime"},
+                {"name": "date", "type": "date"},
+                {"name": "timestamp", "type": "timestamp"},
+                {"name": "interval_", "type": "interval"},
+            ]})
+        write_table("//tmp/t1", [
+            {
+                "datetime": 1,
+                "date": 2,
+                "timestamp": 3,
+                "interval_": 4,
+            },
+        ])
+        with Clique(1) as clique:
+            assert get_schema_from_description(clique.make_query("describe \"//tmp/t1\"")) == [
+                    {"name": "datetime", "type": "Nullable(DateTime)"},
+                    {"name": "date", "type": "Nullable(Date)"},
+                    # TODO(dakovalkov): https://github.com/yandex/ClickHouse/pull/7170.
+                    # {"name": "timestamp", "type": "Nullable(DateTime64)"},
+                    {"name": "timestamp", "type": "Nullable(UInt64)"},
+                    {"name": "interval_", "type": "Nullable(Int64)"},
+                ]
+            assert clique.make_query('select * from "//tmp/t1"') == [{
+                # ClickHouse returns string values in local time, so this time is UTC +tz hours.
+                'datetime': datetime.fromtimestamp(1).isoformat(' '),
+                'date': '1970-01-03',
+                'timestamp': 3,
+                'interval_': 4,}]
+            clique.make_query('create table "//tmp/t2" engine YtTable() as select * from "//tmp/t1"')
+            assert get_schema_from_description(get("//tmp/t2/@schema")) == [
+                    {"name": "datetime", "type": "datetime"},
+                    {"name": "date", "type": "date"},
+                    # TODO(dakovalkov): https://github.com/yandex/ClickHouse/pull/7170.
+                    # {"name": "timestamp", "type": "timestamp"},
+                    {"name": "timestamp", "type": "uint64"},
+                    {"name": "interval_", "type": "int64"},
+                ]
+            assert read_table("//tmp/t1") == read_table("//tmp/t2")
+
+
 class TestJobInput(ClickHouseTestBase):
     def setup(self):
         self._setup()
@@ -966,14 +1022,16 @@ class TestMutations(ClickHouseTestBase):
     @authors("max42")
     def test_create_table_simple(self):
         with Clique(1, config_patch={"engine": {"create_table_default_attributes": {"foo": 42}}}) as clique:
-            clique.make_query('create table "//tmp/t"(i64 Int64, ui64 UInt64, str String, dbl Float64, i32 Int32) '
+            clique.make_query('create table "//tmp/t"(i64 Int64, ui64 UInt64, str String, dbl Float64, i32 Int32, dt Date, dtm DateTime) '
                               'engine YtTable() order by (str, i64)')
             assert normalize_schema(get("//tmp/t/@schema")) == make_schema([
-                {"name": "str", "type": "string", "sort_order": "ascending", "required": False},
-                {"name": "i64", "type": "int64", "sort_order": "ascending", "required": False},
-                {"name": "ui64", "type": "uint64", "required": False},
-                {"name": "dbl", "type": "double", "required": False},
-                {"name": "i32", "type": "int64", "required": False},
+                {"name": "str", "type": "string", "sort_order": "ascending", "required": True},
+                {"name": "i64", "type": "int64", "sort_order": "ascending", "required": True},
+                {"name": "ui64", "type": "uint64", "required": True},
+                {"name": "dbl", "type": "double", "required": True},
+                {"name": "i32", "type": "int64", "required": True},
+                {"name": "dt", "type": "date", "required": True},
+                {"name": "dtm", "type": "datetime", "required": True},
             ], strict=True, unique_keys=False)
 
             # Table already exists.
@@ -981,13 +1039,22 @@ class TestMutations(ClickHouseTestBase):
                 clique.make_query('create table "//tmp/t"(i64 Int64, ui64 UInt64, str String, dbl Float64, i32 Int32) '
                                   'engine YtTable() order by (str, i64)')
 
+            clique.make_query('create table "//tmp/t_nullable"(i64 Nullable(Int64), ui64 Nullable(UInt64), str Nullable(String), '
+            + 'dbl Nullable(Float64), i32 Nullable(Int32), dt Nullable(Date), dtm Nullable(DateTime))'''
+                              'engine YtTable() order by (str, i64)')
+            assert normalize_schema(get("//tmp/t_nullable/@schema")) == make_schema([
+                {"name": "str", "type": "string", "sort_order": "ascending", "required": False},
+                {"name": "i64", "type": "int64", "sort_order": "ascending", "required": False},
+                {"name": "ui64", "type": "uint64", "required": False},
+                {"name": "dbl", "type": "double", "required": False},
+                {"name": "i32", "type": "int64", "required": False},
+                {"name": "dt", "type": "date", "required": False},
+                {"name": "dtm", "type": "datetime", "required": False},
+            ], strict=True, unique_keys=False)
+
             # No non-trivial expressions.
             with pytest.raises(YtError):
                 clique.make_query('create table "//tmp/t2"(i64 Int64) engine YtTable() order by (i64 * i64)')
-
-            # No fancy types.
-            with pytest.raises(YtError):
-                clique.make_query('create table "//tmp/t2"(d DateTime) engine YtTable()')
 
             # Missing key column.
             with pytest.raises(YtError):
@@ -1060,17 +1127,8 @@ class TestMutations(ClickHouseTestBase):
         with Clique(1, config_patch=patch) as clique:
             create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
 
-            def get_schema(describe_info):
-                schema = []
-                for info in describe_info:
-                    schema.append({
-                        "name": info["name"],
-                        "type": info["type"],
-                    })
-                return schema
-
             # Load attributes into cache.
-            assert get_schema(clique.make_query('describe "//tmp/t"')) == [{"name": "a", "type": "Nullable(Int64)"}]
+            assert get_schema_from_description(clique.make_query('describe "//tmp/t"')) == [{"name": "a", "type": "Nullable(Int64)"}]
 
             remove("//tmp/t")
 
@@ -1079,7 +1137,7 @@ class TestMutations(ClickHouseTestBase):
 
             clique.make_query('create table "//tmp/t"(b String) engine YtTable()')
 
-            assert get_schema(clique.make_query('describe "//tmp/t"')) == [{"name": "b", "type": "Nullable(String)"}]
+            assert get_schema_from_description(clique.make_query('describe "//tmp/t"')) == [{"name": "b", "type": "String"}]
 
 
 class TestClickHouseNoCache(ClickHouseTestBase):

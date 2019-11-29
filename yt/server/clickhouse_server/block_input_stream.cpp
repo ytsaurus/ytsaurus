@@ -138,7 +138,7 @@ private:
 
         for (int index = 0; index < static_cast<int>(ReadSchema_.Columns().size()); ++index) {
             const auto& columnSchema = ReadSchema_.Columns()[index];
-            auto type = RepresentYtType(columnSchema.GetPhysicalType());
+            auto type = RepresentYtType(columnSchema.LogicalType());
             auto dataType = dataTypes.get(GetTypeName(type));
             auto column = dataType->createColumn();
             if (!columnSchema.Required()) {
