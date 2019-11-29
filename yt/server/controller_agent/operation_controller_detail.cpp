@@ -3284,15 +3284,15 @@ void TOperationControllerBase::AnalyzeTmpfsUsage()
         return;
     }
 
-    THashMap<EJobType, std::vector<std::optional<i64>>> maximumUsedTmpfsSizesPerJobType;
-    THashMap<EJobType, TUserJobSpecPtr> userJobSpecPerJobType;
+    THashMap<TString, std::vector<std::optional<i64>>> maximumUsedTmpfsSizesPerJobType;
+    THashMap<TString, TUserJobSpecPtr> userJobSpecPerJobType;
 
     for (const auto& task : Tasks) {
         if (!task->IsSimpleTask()) {
             continue;
         }
 
-        auto jobType = task->GetJobType();
+        auto jobType = task->GetVertexDescriptor();
         const auto& userJobSpecPtr = task->GetUserJobSpec();
         if (!userJobSpecPtr) {
             continue;
@@ -3309,6 +3309,8 @@ void TOperationControllerBase::AnalyzeTmpfsUsage()
             it = maximumUsedTmpfsSizesPerJobType.emplace(jobType, std::vector<std::optional<i64>>(maxUsedTmpfsSizes.size())).first;
         }
         auto& knownMaxUsedTmpfsSizes = it->second;
+
+        YT_VERIFY(knownMaxUsedTmpfsSizes.size() == maxUsedTmpfsSizes.size());
 
         for (int index = 0; index < maxUsedTmpfsSizes.size(); ++index) {
             auto tmpfsSize = maxUsedTmpfsSizes[index];
