@@ -2429,6 +2429,11 @@ void TOperationElement::PrescheduleJob(TFairShareContext* context, bool starving
         return;
     }
 
+    if (auto blockedReason = CheckBlocked(context->SchedulingContext->GetNow())) {
+        onOperationDeactivated(*blockedReason);
+        return;
+    }
+
     if (Spec_->PreemptionMode == EPreemptionMode::Graceful && GetStatus() == ESchedulableStatus::Normal) {
         onOperationDeactivated(EDeactivationReason::FairShareExceeded);
         return;
@@ -2447,10 +2452,6 @@ void TOperationElement::PrescheduleJob(TFairShareContext* context, bool starving
         return;
     }
 
-    if (IsBlocked(context->SchedulingContext->GetNow())) {
-        onOperationDeactivated(EDeactivationReason::IsBlocked);
-        return;
-    }
     if (Controller_->IsSaturatedInTentativeTree(
         context->SchedulingContext->GetNow(),
         TreeId_,
@@ -2557,8 +2558,8 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
     };
 
     auto now = context->SchedulingContext->GetNow();
-    if (IsBlocked(now)) {
-        disableOperationElement(EDeactivationReason::IsBlocked);
+    if (auto blockedReason = CheckBlocked(now)) {
+        disableOperationElement(*blockedReason);
         return TFairShareScheduleJobResult(/* finished */ true, /* scheduled */ false);
     }
 
@@ -2899,20 +2900,44 @@ TSchedulerElementPtr TOperationElement::Clone(TCompositeSchedulerElement* cloned
 
 bool TOperationElement::IsSchedulable() const
 {
-    YT_VERIFY(Mutable_);
-
     return Schedulable_;
 }
 
-bool TOperationElement::IsBlocked(NProfiling::TCpuInstant now) const
+bool TOperationElement::HasPendingJobs() const
 {
-    return
-        !Schedulable_ ||
-        GetPendingJobCount() == 0 ||
-        Controller_->IsBlocked(
-            now,
-            Spec_->MaxConcurrentControllerScheduleJobCalls.value_or(ControllerConfig_->MaxConcurrentControllerScheduleJobCalls),
-            ControllerConfig_->ScheduleJobFailBackoffTime);
+    return GetPendingJobCount() > 0;
+}
+
+bool TOperationElement::IsMaxConcurrentScheduleJobCallsViolated() const
+{
+    return Controller_->IsMaxConcurrentScheduleJobCallsViolated(
+        Spec_->MaxConcurrentControllerScheduleJobCalls.value_or(ControllerConfig_->MaxConcurrentControllerScheduleJobCalls));
+}
+
+bool TOperationElement::HasRecentScheduleJobFailure(NYT::NProfiling::TCpuInstant now) const
+{
+    return Controller_->HasRecentScheduleJobFailure(now, ControllerConfig_->ScheduleJobFailBackoffTime);
+}
+
+std::optional<EDeactivationReason> TOperationElement::CheckBlocked(NYT::NProfiling::TCpuInstant now) const
+{
+    if (!IsSchedulable()) {
+        return EDeactivationReason::IsNotSchedulable;
+    }
+
+    if (!HasPendingJobs()) {
+        return EDeactivationReason::NoPendingJobs;
+    }
+
+    if (IsMaxConcurrentScheduleJobCallsViolated()) {
+        return EDeactivationReason::MaxConcurrentScheduleJobCallsViolated;
+    }
+
+    if (HasRecentScheduleJobFailure(now)) {
+        return EDeactivationReason::RecentScheduleJobFailed;
+    }
+
+    return std::nullopt;
 }
 
 TJobResources TOperationElement::GetHierarchicalAvailableResources(const TFairShareContext& context) const

@@ -21,10 +21,8 @@ public:
     TJobResources GetAggregatedMinNeededJobResources() const;
     void UpdateMinNeededJobResources();
 
-    bool IsBlocked(
-        NProfiling::TCpuInstant now,
-        int maxConcurrentScheduleJobCalls,
-        TDuration scheduleJobFailBackoffTime) const;
+    bool IsMaxConcurrentScheduleJobCallsViolated(int maxConcurrentScheduleJobCalls) const;
+    bool HasRecentScheduleJobFailure(NProfiling::TCpuInstant now, TDuration scheduleJobFailBackoffTime) const;
 
     TControllerScheduleJobResultPtr ScheduleJob(
         const ISchedulingContextPtr& schedulingContext,
@@ -48,12 +46,16 @@ private:
 
     const NLogging::TLogger Logger;
 
-    mutable std::atomic<bool> Blocked_ = {false};
+    mutable std::atomic<bool> MaxConcurrentScheduleJobCallsViolated_ = {false};
     std::atomic<int> ConcurrentScheduleJobCalls_ = {0};
+
+    mutable std::atomic<bool> RecentScheduleJobFailed_ = {false};
     std::atomic<NProfiling::TCpuInstant> LastScheduleJobFailTime_ = ::Min<NProfiling::TCpuInstant>();
 
     NConcurrency::TReaderWriterSpinLock SaturatedTentativeTreesLock_;
     THashMap<TString, NProfiling::TCpuInstant> TentativeTreeIdToSaturationTime_;
+
+    bool IsBlocked() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairShareStrategyOperationController)
