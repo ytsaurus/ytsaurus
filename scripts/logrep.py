@@ -77,6 +77,12 @@ APPLICATION_TABLE = [
 ]
 APPLICATION_MAP = {info.name: info for info in APPLICATION_TABLE}
 
+CHYT_PATH_MAP = {
+    "master":    "//home/logfeller/logs/yt-raw-master-log",
+    "scheduler": "//home/logfeller/logs/yt-raw-scheduler-log",
+    "proxy":     "//home/logfeller/logs/yt-raw-http-proxy-log",
+}
+
 assert all(service.application_name in APPLICATION_MAP for service in SERVICE_TABLE)
 
 LOG_PREFIX_MAP = {info.log_prefix: info for info in APPLICATION_TABLE}
@@ -639,28 +645,42 @@ def utc_to_local(utc_dt):
     offset = datetime.datetime.fromtimestamp(epoch) - datetime.datetime.utcfromtimestamp(epoch)
     return utc_dt + offset
 
-def parse_time(time_str):
-    if time_str == "now":
-        return datetime.datetime.now()
-    elif re.match("\d\d:\d\d:\d\d", time_str) or re.match("\d\d:\d\d", time_str):
-        now = datetime.datetime.now()
-        if len(time_str) == 5:
-            parsed = datetime.datetime.strptime(time_str, "%H:%M")
-        else:
-            parsed = datetime.datetime.strptime(time_str, "%H:%M:%S")
-        result = now.replace(hour=parsed.hour, minute=parsed.minute, second=parsed.second, microsecond=0)
-        if result > now:
-            raise LogrepError("Date {0} is in the future".format(result))
-        return result
-    if re.match("\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d.\d*Z", time_str):
-        return utc_to_local(datetime.datetime.strptime(time_str, "%Y-%m-%dT%H:%M:%S.%fZ"))
-    if re.match("\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d", time_str):
-        return datetime.datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S")
-    if re.match("\d{1,2} \w+ \d\d\d\d \d\d:\d\d:\d\d", time_str):
-        return datetime.datetime.strptime(time_str, "%d %b %Y %H:%M:%S")
-    if re.match("\w+ \w+ \d{1,2} \d\d:\d\d:\d\d \w+ \d\d\d\d", time_str):
-        return datetime.datetime.strptime(time_str, "%a %b %d %H:%M:%S %Z %Y")
-    raise LogrepError("Don't know how to parse time: {0}".format(time_str))
+def parse_time(time_str, is_start=True):
+    try:
+        if time_str == "now":
+            return datetime.datetime.now()
+        elif re.match("\d\d:\d\d:\d\d", time_str) or re.match("\d\d:\d\d", time_str):
+            now = datetime.datetime.now()
+            if len(time_str) == 5:
+                parsed = datetime.datetime.strptime(time_str, "%H:%M")
+            else:
+                parsed = datetime.datetime.strptime(time_str, "%H:%M:%S")
+            result = now.replace(hour=parsed.hour, minute=parsed.minute, second=parsed.second, microsecond=0)
+            if result > now:
+                raise LogrepError("Date {0} is in the future".format(result))
+            return result
+        elif re.match("\d\d\d\d-\d\d-\d\d", time_str):
+            if is_start:
+                time_str += "T00:00:00"
+            else:
+                time_str += "T23:59:59"
+            return datetime.datetime.strptime(time_str, "%Y-%m-%dT%H:%M:%S")
+        if re.match("\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d.\d*Z", time_str):
+            return utc_to_local(datetime.datetime.strptime(time_str, "%Y-%m-%dT%H:%M:%S.%fZ"))
+        if re.match("\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d", time_str):
+            return datetime.datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S")
+        if re.match("\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d", time_str):
+            return datetime.datetime.strptime(time_str, "%Y-%m-%dT%H:%M:%S")
+        if re.match("\d{1,2} \w+ \d\d\d\d \d\d:\d\d:\d\d", time_str):
+            return datetime.datetime.strptime(time_str, "%d %b %Y %H:%M:%S")
+        if re.match("\w+ \w+ \d{1,2} \d\d:\d\d:\d\d \w+ \d\d\d\d", time_str):
+            return datetime.datetime.strptime(time_str, "%a %b %d %H:%M:%S %Z %Y")
+        raise LogrepError("Don't know how to parse time: {0}".format(time_str))
+    except LogrepError as e:
+        raise LogrepError(
+            str(e) +
+            "\nPlease use one of the known time formats.\n\n" +
+            TIME_FORMAT_HELP)
 
 
 #
@@ -669,6 +689,28 @@ def parse_time(time_str):
 
 Instance = collections.namedtuple("Instance", ["address", "application", "attributes", "hidden_attributes"])
 
+class Selector(object):
+    def __init__(self, selector_str, cluster=None, service=None, instance_list=()):
+        self._selector_str = selector_str
+        self._cluster = cluster
+        self._service = service
+        self._instance_list = instance_list
+
+    def get_cluster(self):
+        return self._cluster
+
+    def get_service(self):
+        return self._service
+
+    def iter_instances(self):
+        return iter(self._instance_list)
+
+
+def get_all_instances(selector_list):
+    res = []
+    for selector in selector_list:
+        res += selector.iter_instances()
+    return res
 
 def resolve_cluster(guid):
     cell_tag = cell_id_from_guid(guid)
@@ -679,17 +721,17 @@ def resolve_cluster(guid):
     return cluster
 
 
-def resolve_instance(instance_str):
+def resolve_selector(selector_str):
     from yt.wrapper import YtClient
 
     def _raise(msg=None):
         if msg:
-            raise LogrepError("Cannot resolve instance `{}': {}".format(instance_str, msg))
+            raise LogrepError("Cannot resolve selector `{}': {}".format(selector_str, msg))
         else:
-            raise LogrepError("Cannot resolve instance `{}'".format(instance_str))
+            raise LogrepError("Cannot resolve selector `{}'".format(selector_str))
 
-    if CLUSTER_SERVICE_INSTANCE_SELECTOR_RE.match(instance_str):
-        components = instance_str.strip("/").split("/")
+    if CLUSTER_SERVICE_INSTANCE_SELECTOR_RE.match(selector_str):
+        components = selector_str.strip("/").split("/")
 
         def _is_service(component):
             return component in SERVICE_MAP
@@ -724,10 +766,21 @@ def resolve_instance(instance_str):
             _raise("instance must start with /<cluster>/<service> or with /<service> and contain a guid")
 
         client = YtClient(cluster)
-        return resolve_service(client, service, components)
+        instance_list = resolve_service(client, service, components)
+        return Selector(
+            selector_str=selector_str,
+            cluster=cluster,
+            service=service,
+            instance_list=instance_list
+        )
     elif instance_str.count("@") == 1:
-        application, address = instance_str.split("@")
-        return [Instance(address, application, [], [])]
+        service, address = instance_str.split("@")
+        return Selector(
+            selector_str=instance_str,
+            cluster=None,
+            service=service,
+            instance_list= [Instance(address, service, [], [])],
+        )
     else:
         _raise()
 
@@ -1129,7 +1182,8 @@ def parse_address(address):
 # Subcommands
 #
 
-def subcommand_list(instance_list, args):
+def subcommand_list(selector_list, args):
+    instance_list = get_all_instances(selector_list)
     for instance in sorted(instance_list):
         attributes = " ".join(instance.attributes)
         if args.short:
@@ -1171,20 +1225,19 @@ def get_instance_for_subcommand(instance_list, args):
     return instance_list[0]
 
 
-def args_get_time_interval(args):
-    start_time = parse_time(args.time)
+def args_get_time_interval(args, dt=datetime.timedelta(seconds=10)):
+    start_time = parse_time(args.time, is_start=True)
     if args.end_time is None:
-        end_time = start_time
-    else:
-        end_time = parse_time(args.end_time)
-
-    dt = datetime.timedelta(seconds=10)
+        args.end_time = args.time
+    end_time = parse_time(args.end_time, is_start=False)
     start_time -= dt
     end_time += dt
     return start_time, end_time
 
 
-def subcommand_grep(instance_list, args):
+def subcommand_grep(selector_list, args):
+    instance_list = get_all_instances(selector_list)
+
     start_time, end_time = args_get_time_interval(args)
 
     instance = get_instance_for_subcommand(instance_list, args)
@@ -1201,7 +1254,9 @@ def subcommand_grep(instance_list, args):
     task.remote_run()
 
 
-def subcommand_pgrep(instance_list, args):
+def subcommand_pgrep(selector_list, args):
+    instance_list = get_all_instances(selector_list)
+
     verify_at_least_one_instance(instance_list, exactly=False)
 
     if args.instance_limit and len(instance_list) > args.instance_limit:
@@ -1265,7 +1320,59 @@ def subcommand_pgrep(instance_list, args):
         logging.info("Successfully grepped {} instances".format(len(completed_list)))
 
 
-def subcommand_ssh(instance_list, args):
+def subcommand_yql_grep(selector_list, args):
+    if len(selector_list) != 1:
+        raise LogrepError("Multiple selectors specified, but --chyt-grep supports only single selector")
+
+    selector = selector_list[0]
+
+    cluster = selector.get_cluster()
+    if cluster is None:
+        raise LogrepError("Cannot derive cluster from selector {}".format(selector.selector_str))
+
+    table_prefix = CHYT_PATH_MAP.get(selector.get_service(), None)
+    if table_prefix is None:
+        raise LogrepError("Logs for {} are not pushed to YT".format(selector.service))
+
+    start_time, end_time = args_get_time_interval(args, dt=datetime.timedelta())
+
+    import yql_logrep
+    import yt.wrapper
+
+    logging.info("Gathering tables to grep")
+    client = yt.wrapper.YtClient("hahn")
+    yql_tables = yql_logrep.find_tables(client, table_prefix, start_time, end_time)
+    tables = yql_tables.all_tables
+    if len(tables) == 0:
+        raise LogrepError("Cannot find tables for specified time")
+
+    logging.info("Found tables: {}".format(" ".join(tables)))
+    if not yql_tables.complete:
+        logging.warning("Looks like requested interval is not fully covered by selected tables")
+
+    use_chyt = False
+    if args.yql_flavour == "chyt":
+        use_chyt = True
+    elif args.yql_flavour == "yql":
+        use_chyt = False
+    else:
+        assert args.yql_flavour == "auto"
+        # 1d tables are to big to use chyt :(
+        use_chyt = (len(yql_tables.tables_1d) == 0 and len(tables) <= 5)
+
+    for record in yql_logrep.yql_grep(tables, cluster=cluster, pattern=args.pattern, use_chyt=use_chyt):
+        sys.stdout.write(
+            "{timestamp}\t{log_level}\t{log_message}\t{source}\n"
+            .format(
+                timestamp=record.timestamp,
+                log_level=record.log_level,
+                log_message=record.log_message,
+                source=record.node))
+        sys.stdout.flush()
+
+def subcommand_ssh(selector_list, args):
+    instance_list = get_all_instances(selector_list)
+
     instance = get_instance_for_subcommand(instance_list, args)
     host = parse_address(instance.address).host
     for fd, name in enumerate(["stdin", "stdout", "stderr"]):
@@ -1276,7 +1383,9 @@ def subcommand_ssh(instance_list, args):
     SshTask(host, instance.application).remote_run()
 
 
-def subcommand_get_job_log(instance_list, args):
+def subcommand_get_job_log(selector_list, args):
+    instance_list = get_all_instances(selector_list)
+
     from yt.wrapper import YtClient
     from yt.wrapper.common import object_type_from_uuid
 
@@ -1330,7 +1439,7 @@ def subcommand_get_job_log(instance_list, args):
     task.remote_run()
 
 
-EPILOG = """\
+SELECTOR_HELP = """\
 INSTANCE SELECTORS
  Instance selector must start with /<cluster>/<service> or /<service>. In the latter case a guid selector
  must be present and the cluster will be detected. Check RECOGNIZED SERVICES for the list of accepted services.
@@ -1381,28 +1490,52 @@ INSTANCE SELECTORS
 
 RECOGNIZED SERVICES
 {list_of_known_services}
+"""
 
+TIME_FORMAT_HELP = """
 TIME FORMATS
  logrep supports multiple ways of specifying time
     now - use current moment (current log file will be grepped)
     HH:MM (e.g. 14:30) - today's date is used
     HH:MM:SS (e.g. 12:23:00) - today's date is used
+    YYYY-mm-DD (e.g. 2018-11-09)
     YYYY-mm-DD HH:MM:SS' (e.g. 2018-11-09 05:10:43)
+    YYYY-mm-DDTHH:MM:SS' (e.g. 2019-12-14T00:10:43)
     DD MMM YYYY HH:MM:SS (e.g. 16 Nov 2018 13:56:14)
     YYYY-mm-DDTHH:MM:SSZ (e.g. 2019-09-19T11:46:04.848360Z)
-
-Check https://ya.cc/4Waoc for examples of usage.
 """.format(
     list_of_known_services=indented_lines((info.name for info in SERVICE_TABLE), indent=2)
 )
 
+EPILOG = """\
+Check https://ya.cc/4Waoc for examples of usage.
+For help about instance selectors and time formats use `--help-more`
+"""
 
 def main():
     RemoteTask.try_switch_to_remote_task_mode()
 
     parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter, epilog=EPILOG)
+
+    class MoreHelpAction(argparse.Action):
+        def __init__(self, option_strings, dest, nargs=None, **kwargs):
+            if nargs != None:
+                raise ValueError("nargs not allowed")
+            argparse.Action.__init__(self, option_strings, dest, nargs=0, **kwargs)
+
+        def __call__(self, parser, namespace, values, option_string):
+            sys.stdout.write(SELECTOR_HELP)
+            sys.stdout.write(TIME_FORMAT_HELP)
+            sys.stdout.flush()
+            sys.exit(0)
+    parser.add_argument(
+        "--help-more", action=MoreHelpAction,
+        help="Show help about instance selectors and time format then exit")
+
     parser.set_defaults(subcommand=subcommand_list)
-    parser.add_argument("instance", nargs="+", help="instances to work with")
+    parser.add_argument("selector", nargs="+", help="selector of instances to work with")
+
+    parser.add_argument("--any", action="store_true", default=False, help="select arbitrary instance")
 
     action_group = parser.add_mutually_exclusive_group()
 
@@ -1414,9 +1547,17 @@ def main():
         const=subcommand_ssh
     )
 
+    action_group.add_argument(
+        "--get-job-log",
+        help="find and get logs of a job proxy that executed job",
+        action="store_const",
+        dest="subcommand",
+        const=subcommand_get_job_log,
+    )
+
     class GrepAction(argparse.Action):
         def __init__(self, option_strings, dest, subcommand=None, **kwargs):
-            argparse.Action.__init__(self, option_strings, dest, **kwargs)
+            argparse.Action.__init__(self, option_strings, dest, metavar="PATTERN", **kwargs)
             self.subcommand = subcommand
 
         def __call__(self, parser, namespace, values, option_string):
@@ -1436,7 +1577,14 @@ def main():
         action=GrepAction,
         subcommand=subcommand_pgrep,
     )
-    
+
+    action_group.add_argument(
+        "--yql-grep",
+        help="grep logs using YQL",
+        action=GrepAction,
+        subcommand=subcommand_yql_grep,
+    )
+
     list_group = parser.add_argument_group("list instances arguments")
 
     list_group.add_argument(
@@ -1469,23 +1617,23 @@ def main():
         )
     )
     
-    action_group.add_argument(
-        "--get-job-log",
-        help="find and get logs of a job proxy that executed job",
-        action="store_const",
-        dest="subcommand",
-        const=subcommand_get_job_log,
+    yql_grep_group = parser.add_argument_group("yql-grep arguments")
+    yql_grep_group.add_argument(
+        "--yql-flavour",
+        choices=["auto", "chyt", "yql"],
+        default="auto",
+        help=(
+            "which flavour of YQL query we should use (default:auto)"
+        )
     )
-
-    parser.add_argument("--any", action="store_true", default=False, help="select arbitrary instance")
 
     args = parser.parse_args()
 
-    instance_list = []
-    for instance_description in args.instance:
-        instance_list += resolve_instance(instance_description)
+    selector_list = []
+    for selector_str in args.selector:
+        selector_list.append(resolve_selector(selector_str))
 
-    args.subcommand(instance_list, args)
+    args.subcommand(selector_list, args)
 
 
 if __name__ == "__main__":
