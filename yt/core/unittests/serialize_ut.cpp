@@ -36,6 +36,7 @@ void TestSerializationDeserializationPullParser(const TOriginal& original)
     TYsonPullParserCursor cursor(&parser);
     Deserialize(deserialized, &cursor);
     EXPECT_EQ(original, deserialized);
+    EXPECT_EQ(cursor->GetType(), EYsonItemType::EndOfStream);
 }
 
 template <typename TOriginal, typename TResult = TOriginal>
@@ -79,8 +80,14 @@ TEST(TYTreeSerializationTest, All)
 
 TEST(TCustomTypeSerializationTest, TInstant)
 {
-    TInstant value = TInstant::MilliSeconds(100500);
-    TestSerializationDeserialization(value);
+    {
+        TInstant value = TInstant::MilliSeconds(100500);
+        TestSerializationDeserialization(value);
+    }
+    {
+        TDuration value = TDuration::Days(365);
+        TestSerializationDeserialization(value);
+    }
 }
 
 TEST(TCustomTypeSerializationTest, Optional)
@@ -99,6 +106,75 @@ TEST(TCustomTypeSerializationTest, Optional)
         TestSerializationDeserialization(value);
     }
 }
+
+TEST(TSerializationTest, Simple)
+{
+    {
+        signed char value = -127;
+        TestSerializationDeserialization(value);
+    }
+    {
+        unsigned char value = 255;
+        TestSerializationDeserialization(value);
+    }
+    {
+        short value = -30'000;
+        TestSerializationDeserialization(value);
+    }
+    {
+        unsigned short value = 65'535;
+        TestSerializationDeserialization(value);
+    }
+    {
+        int value = -2'000'000;
+        TestSerializationDeserialization(value);
+    }
+    {
+        unsigned value = 4'000'000;
+        TestSerializationDeserialization(value);
+    }
+    {
+        long value = -1'999'999;
+        TestSerializationDeserialization(value);
+    }
+    {
+        unsigned long value = 3'999'999;
+        TestSerializationDeserialization(value);
+    }
+    {
+        long long value = -8'000'000'000'000LL;
+        TestSerializationDeserialization(value);
+    }
+    {
+        unsigned long long value = 16'000'000'000'000uLL;
+        TestSerializationDeserialization(value);
+    }
+
+    {
+        double value = 2.7182818284590452353602874713527e12;
+        TestSerializationDeserialization(value);
+    }
+
+    {
+        TString value = "abacaba";
+        TestSerializationDeserialization(value);
+    }
+
+    {
+        bool value = true;
+        TestSerializationDeserialization(value);
+        value = false;
+        TestSerializationDeserialization(value);
+    }
+
+    {
+        char value = 'a';
+        TestSerializationDeserialization(value);
+        value = 'Z';
+        TestSerializationDeserialization(value);
+    }
+}
+
 
 TEST(TSerializationTest, PackRefs)
 {

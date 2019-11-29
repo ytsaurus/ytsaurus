@@ -262,13 +262,10 @@ std::vector<TErrorAttribute> TYsonPullParserCursor::GetErrorAttributes() const
     return Parser_->GetErrorAttributes();
 }
 
-void TYsonPullParserCursor::SkipComplexValue()
+void TYsonPullParserCursor::SkipComplexValueOrAttributes()
 {
-    bool isAttributes = false;
     switch (Current_.GetType()) {
         case EYsonItemType::BeginAttributes:
-            isAttributes = true;
-            [[fallthrough]];
         case EYsonItemType::BeginList:
         case EYsonItemType::BeginMap: {
             const auto nestingLevel = Parser_->GetNestingLevel();
@@ -276,9 +273,6 @@ void TYsonPullParserCursor::SkipComplexValue()
                 Parser_->Next();
             }
             Current_ = Parser_->Next();
-            if (isAttributes) {
-                SkipComplexValue();
-            }
             return;
         }
         case EYsonItemType::EntityValue:
@@ -299,6 +293,14 @@ void TYsonPullParserCursor::SkipComplexValue()
     YT_ABORT();
 }
 
+void TYsonPullParserCursor::SkipComplexValue()
+{
+    if (Current_.GetType() == EYsonItemType::BeginAttributes) {
+        SkipComplexValueOrAttributes();
+    }
+    SkipComplexValueOrAttributes();
+}
+
 void TYsonPullParserCursor::TransferComplexValue(NYT::NYson::IYsonConsumer* consumer)
 {
     NDetail::TransferComplexValueImpl(this, consumer);
@@ -307,6 +309,24 @@ void TYsonPullParserCursor::TransferComplexValue(NYT::NYson::IYsonConsumer* cons
 void TYsonPullParserCursor::TransferComplexValue(NYT::NYson::TCheckedInDebugYsonTokenWriter* writer)
 {
     NDetail::TransferComplexValueImpl(this, writer);
+}
+
+void TYsonPullParserCursor::SkipAttributes()
+{
+    EnsureYsonToken("attributes", *this, EYsonItemType::BeginAttributes);
+    SkipComplexValueOrAttributes();
+}
+
+void TYsonPullParserCursor::TransferAttributes(NYT::NYson::IYsonConsumer* consumer)
+{
+    EnsureYsonToken("attributes", *this, EYsonItemType::BeginAttributes);
+    NDetail::TransferMapOrAttributesImpl(this, consumer);
+}
+
+void TYsonPullParserCursor::TransferAttributes(NYT::NYson::TCheckedInDebugYsonTokenWriter* writer)
+{
+    EnsureYsonToken("attributes", *this, EYsonItemType::BeginAttributes);
+    NDetail::TransferMapOrAttributesImpl(this, writer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

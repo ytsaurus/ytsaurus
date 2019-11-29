@@ -347,6 +347,8 @@ void ParseComposite(TYsonPullParserCursor* cursor, TFunction function)
         EnsureYsonToken("list", *cursor, BeginItemType);
     } else if constexpr (BeginItemType == EYsonItemType::BeginMap) {
         EnsureYsonToken("map", *cursor, BeginItemType);
+    } else {
+        static_assert(BeginItemType == EYsonItemType::BeginAttributes, "unexpected item type");
     }
 
     cursor->Next();
