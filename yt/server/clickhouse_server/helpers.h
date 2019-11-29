@@ -59,7 +59,7 @@ NTableClient::TTableSchema ConvertToTableSchema(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Converts unsupported types to compatible, e.g. int8 -> int64, timestamp -> uint64, etc.
+// Converts unsupported types to compatible, e.g. int8 -> int64, etc.
 NTableClient::TTableSchema AdaptSchemaToClickHouse(const NTableClient::TTableSchema& schema);
 
 ////////////////////////////////////////////////////////////////////////////////

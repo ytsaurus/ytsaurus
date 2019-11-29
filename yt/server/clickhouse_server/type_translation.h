@@ -13,11 +13,13 @@ namespace NYT::NClickHouseServer {
 
 // YT native types
 
-bool IsYtTypeSupported(NTableClient::EValueType valueType);
+NTableClient::TLogicalTypePtr AdaptTypeToClickHouse(const NTableClient::TLogicalTypePtr& valueType);
 
-EClickHouseColumnType RepresentYtType(NTableClient::EValueType valueType);
+bool IsYtTypeSupported(const NTableClient::TLogicalTypePtr& valueType);
 
-NTableClient::EValueType RepresentClickHouseType(const DB::DataTypePtr& type);
+EClickHouseColumnType RepresentYtType(const NTableClient::TLogicalTypePtr& valueType);
+
+NTableClient::TLogicalTypePtr RepresentClickHouseType(const DB::DataTypePtr& type);
 
 ////////////////////////////////////////////////////////////////////////////////
 

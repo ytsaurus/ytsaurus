@@ -44,6 +44,8 @@ const char* GetTypeName(EClickHouseColumnType type)
         /// DateTime value.
         case EClickHouseColumnType::Date:     return "Date";
         case EClickHouseColumnType::DateTime: return "DateTime";
+        // TODO(dakovalkov): https://github.com/yandex/ClickHouse/pull/7170.
+        // case EClickHouseColumnType::DateTime64: return "DateTime64";
 
         /// String value.
         case EClickHouseColumnType::String:   return "String";

@@ -39,6 +39,8 @@ enum class EClickHouseColumnType
     /// DateTime value.
     Date,
     DateTime,
+    // TODO(dakovalkov): https://github.com/yandex/ClickHouse/pull/7170.
+    // DateTime64,
 
     /// String value.
     String,

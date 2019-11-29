@@ -215,8 +215,7 @@ TTableSchema AdaptSchemaToClickHouse(const TTableSchema& schema)
     std::vector<TColumnSchema> columns;
     columns.reserve(schema.Columns().size());
     for (const auto& column : schema.Columns()) {
-        ESimpleLogicalValueType type = static_cast<ESimpleLogicalValueType>(column.GetPhysicalType());
-        columns.emplace_back(column.Name(), MakeLogicalType(type, column.Required()), column.SortOrder());
+        columns.emplace_back(column.Name(), AdaptTypeToClickHouse(column.LogicalType()), column.SortOrder());
     }
     return TTableSchema(std::move(columns), schema.GetStrict(), schema.GetUniqueKeys());
 }
@@ -243,7 +242,7 @@ TTableSchema GetCommonSchema(const std::vector<TTableSchema>& schemas)
                     ++nameCounter[column.Name()];
                     if (!column.Required() && it->second.Required()) {
                         // If at least in one schema the column isn't required, the result common column isn't required too.
-                        it->second.SetLogicalType(New<TOptionalLogicalType>(it->second.LogicalType()));
+                        it->second.SetLogicalType(OptionalLogicalType(it->second.LogicalType()));
                     }
                 }
             }
