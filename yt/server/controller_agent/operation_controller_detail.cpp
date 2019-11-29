@@ -1302,6 +1302,7 @@ void TOperationControllerBase::InitIntermediateChunkScraper()
     IntermediateChunkScraper = New<TIntermediateChunkScraper>(
         Config->ChunkScraper,
         CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
+        CancelableInvokerPool,
         Host->GetChunkLocationThrottlerManager(),
         InputClient,
         InputNodeDirectory_,

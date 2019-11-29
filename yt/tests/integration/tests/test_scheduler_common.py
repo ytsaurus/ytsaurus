@@ -3012,7 +3012,7 @@ class TestCustomControllerQueues(YTEnvSetup):
     }
 
     @authors("ignat")
-    def test_run_operation(self):
+    def test_run_map(self):
         data = [{"foo": i} for i in xrange(3)]
         create("table", "//tmp/in")
         create("table", "//tmp/out")
@@ -3036,6 +3036,32 @@ class TestCustomControllerQueues(YTEnvSetup):
             in_="//tmp/in",
             out="//tmp/out",
             sort_by=["foo"])
+
+    @authors("eshcherbin")
+    def test_run_merge_erase(self):
+        data = [{"foo": i} for i in xrange(3)]
+        create("table", "//tmp/in")
+        create("table", "//tmp/out")
+        write_table("//tmp/in", data)
+
+        merge(
+            in_="//tmp/in",
+            out="//tmp/out",
+            spec={"force_transform": True})
+        erase("//tmp/in")
+
+    @authors("eshcherbin")
+    def test_run_reduce(self):
+        data = [{"foo": i} for i in xrange(3)]
+        create("table", "//tmp/in")
+        create("table", "//tmp/out")
+        write_table("//tmp/in", data, sorted_by=["foo"])
+
+        reduce(
+            command="sleep 1; cat",
+            in_="//tmp/in",
+            out="//tmp/out",
+            reduce_by=["foo"])
 
 ##################################################################
 

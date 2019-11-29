@@ -24,6 +24,7 @@ public:
     TIntermediateChunkScraper(
         const TIntermediateChunkScraperConfigPtr& config,
         const IInvokerPtr& invoker,
+        const IInvokerPoolPtr& invokerPool,
         const NChunkClient::TThrottlerManagerPtr& throttlerManager,
         const NApi::NNative::IClientPtr& client,
         const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory,
@@ -38,6 +39,7 @@ public:
 private:
     const TIntermediateChunkScraperConfigPtr Config_;
     const IInvokerPtr Invoker_;
+    const IInvokerPoolPtr InvokerPool_;
     const NChunkClient::TThrottlerManagerPtr ThrottlerManager_;
     const NApi::NNative::IClientPtr Client_;
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;

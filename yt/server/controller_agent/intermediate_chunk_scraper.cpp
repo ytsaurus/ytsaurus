@@ -18,6 +18,7 @@ using namespace NConcurrency;
 TIntermediateChunkScraper::TIntermediateChunkScraper(
     const TIntermediateChunkScraperConfigPtr& config,
     const IInvokerPtr& invoker,
+    const IInvokerPoolPtr& invokerPool,
     const TThrottlerManagerPtr& throttlerManager,
     const NNative::IClientPtr& client,
     const TNodeDirectoryPtr& nodeDirectory,
@@ -26,6 +27,7 @@ TIntermediateChunkScraper::TIntermediateChunkScraper(
     const NLogging::TLogger& logger)
     : Config_(config)
     , Invoker_(invoker)
+    , InvokerPool_(invokerPool)
     , ThrottlerManager_(throttlerManager)
     , Client_(client)
     , NodeDirectory_(nodeDirectory)
@@ -36,7 +38,7 @@ TIntermediateChunkScraper::TIntermediateChunkScraper(
 
 void TIntermediateChunkScraper::Start()
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    VERIFY_INVOKER_POOL_AFFINITY(InvokerPool_);
 
     if (!Started_) {
         Started_ = true;
@@ -46,7 +48,7 @@ void TIntermediateChunkScraper::Start()
 
 void TIntermediateChunkScraper::Restart()
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    VERIFY_INVOKER_POOL_AFFINITY(InvokerPool_);
 
     if (!Started_ || ResetScheduled_) {
         return;
@@ -66,7 +68,7 @@ void TIntermediateChunkScraper::Restart()
 
 void TIntermediateChunkScraper::ResetChunkScraper()
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    VERIFY_INVOKER_POOL_AFFINITY(InvokerPool_);
 
     ResetInstant_ = TInstant::Now();
     ResetScheduled_ = false;
