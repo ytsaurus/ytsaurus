@@ -1037,6 +1037,9 @@ message TStopStatus {
         TContainerStatus container_status = 1;
         THttpGetStatus http_get_status = 3;
     }
+
+    // Указан ли в спеке stop_policy
+    bool has_stop = 4;
 }
 
 message TDestroyStatus {
@@ -1046,6 +1049,9 @@ message TDestroyStatus {
         TContainerStatus container_status = 1;
         THttpGetStatus http_get_status = 3;
     }
+
+    // Указан ли в спеке destroy_policy
+    bool has_destroy = 4;
 }
 
 message TReadinessStatus {
@@ -1056,6 +1062,9 @@ message TReadinessStatus {
         TTcpCheckStatus tcp_check_status = 2;
         THttpGetStatus http_get_status = 4;
     }
+
+    // Указан ли в спеке readiness_check
+    bool has_readiness = 5;
 }
 
 message TLivenessStatus {
@@ -1066,6 +1075,9 @@ message TLivenessStatus {
         TTcpCheckStatus tcp_check_status = 2;
         THttpGetStatus http_get_status = 4;
     }
+
+    // Указан ли в спеке liveness_check
+    bool has_liveness = 5;
 }
 
 // Ресурс при скачивании и проверке проиходит через несколько стадий
