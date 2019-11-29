@@ -11,7 +11,7 @@ import sys
 import tempfile
 
 THIS_DIR = pathlib.Path(__file__).resolve().parent
-OUT_FILE = pathlib.Path("yt-doc.tgz").resolve()
+OUT_FILE = pathlib.Path("c++_doc.tar.gz").resolve()
 
 DOXYGEN_CONFIG_TEMPLATE = """
 DOXYFILE_ENCODING = UTF-8
@@ -80,12 +80,13 @@ def generate_documentation(output_directory):
 
     if doxygen_proc.returncode != 0:
         raise DoxYtError("doxygen exited with nonzero code")
+    os.rename(output_directory / "html", output_directory / "c++")
 
 def subcommand_serve(doc_dir, args):
     class HTTPServerV6(http.server.HTTPServer):
         address_family = socket.AF_INET6
 
-    os.chdir(pathlib.Path(doc_dir) / "html")
+    os.chdir(pathlib.Path(doc_dir) / "c++")
 
     server = HTTPServerV6(("::", args.port), http.server.SimpleHTTPRequestHandler)
     print("http://{}:{}/".format(socket.getfqdn(), args.port), file=sys.stderr)
@@ -93,7 +94,7 @@ def subcommand_serve(doc_dir, args):
 
 def subcommand_pack(doc_dir, args):
     subprocess.check_call(
-        ["tar", "czf", OUT_FILE, "html"],
+        ["tar", "czf", OUT_FILE, "c++"],
         cwd=doc_dir,
     )
 
