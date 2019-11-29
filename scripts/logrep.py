@@ -649,7 +649,7 @@ def parse_time(time_str, is_start=True):
     try:
         if time_str == "now":
             return datetime.datetime.now()
-        elif re.match("\d\d:\d\d:\d\d", time_str) or re.match("\d\d:\d\d", time_str):
+        elif re.match("^\d\d:\d\d:\d\d$", time_str) or re.match("\d\d:\d\d", time_str):
             now = datetime.datetime.now()
             if len(time_str) == 5:
                 parsed = datetime.datetime.strptime(time_str, "%H:%M")
@@ -659,21 +659,21 @@ def parse_time(time_str, is_start=True):
             if result > now:
                 raise LogrepError("Date {0} is in the future".format(result))
             return result
-        elif re.match("\d\d\d\d-\d\d-\d\d", time_str):
+        elif re.match("^\d\d\d\d-\d\d-\d\d$", time_str):
             if is_start:
                 time_str += "T00:00:00"
             else:
                 time_str += "T23:59:59"
             return datetime.datetime.strptime(time_str, "%Y-%m-%dT%H:%M:%S")
-        if re.match("\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d.\d*Z", time_str):
+        if re.match("^\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d.\d*Z$", time_str):
             return utc_to_local(datetime.datetime.strptime(time_str, "%Y-%m-%dT%H:%M:%S.%fZ"))
-        if re.match("\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d", time_str):
+        if re.match("^\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d$", time_str):
             return datetime.datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S")
-        if re.match("\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d", time_str):
+        if re.match("^\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d$", time_str):
             return datetime.datetime.strptime(time_str, "%Y-%m-%dT%H:%M:%S")
-        if re.match("\d{1,2} \w+ \d\d\d\d \d\d:\d\d:\d\d", time_str):
+        if re.match("^\d{1,2} \w+ \d\d\d\d \d\d:\d\d:\d\d$", time_str):
             return datetime.datetime.strptime(time_str, "%d %b %Y %H:%M:%S")
-        if re.match("\w+ \w+ \d{1,2} \d\d:\d\d:\d\d \w+ \d\d\d\d", time_str):
+        if re.match("^\w+ \w+ \d{1,2} \d\d:\d\d:\d\d \w+ \d\d\d\d$", time_str):
             return datetime.datetime.strptime(time_str, "%a %b %d %H:%M:%S %Z %Y")
         raise LogrepError("Don't know how to parse time: {0}".format(time_str))
     except LogrepError as e:
