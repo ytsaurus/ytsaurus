@@ -107,6 +107,8 @@ public:
         , OperationId_(operation->GetId())
         , RuntimeData_(operation->GetRuntimeData())
         , PreemptionMode_(operation->Spec()->PreemptionMode)
+        , Logger(NLogging::TLogger(SchedulerLogger)
+            .AddTag("OperationId: %v", OperationId_))
     { }
 
 
@@ -127,7 +129,7 @@ public:
         ScheduleJobRequestsOutbox_ = agent->GetScheduleJobRequestsOutbox();
 
         if (!PostponedJobEvents_.empty()) {
-            YT_LOG_DEBUG("Postponed job events enqueued (OperationId: %v, EventCount: %v)",
+            YT_LOG_DEBUG("Postponed job events enqueued (EventCount: %v)",
                 OperationId_,
                 PostponedJobEvents_.size());
             JobEventsOutbox_->Enqueue(std::move(PostponedJobEvents_));
@@ -178,7 +180,7 @@ public:
                 try {
                     FromProto(&transactions, rsp->transaction_ids(), std::bind(&TBootstrap::GetRemoteMasterClient, Bootstrap_, _1), Config_->OperationTransactionPingPeriod);
                 } catch (const std::exception& ex) {
-                    YT_LOG_INFO(ex, "Failed to attach operation transactions (OperationId: %v)",
+                    YT_LOG_INFO(ex, "Failed to attach operation transactions",
                         OperationId_);
                 }
                 return TOperationControllerInitializeResult{
@@ -286,9 +288,10 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        YT_LOG_INFO("Terminating operation controller");
+
         if (!IncarnationId_) {
-            YT_LOG_WARNING("Operation has no agent assigned; control abort request ignored (OperationId: %v)",
-                OperationId_);
+            YT_LOG_INFO("Operation has no agent assigned; terminate request ignored");
             return VoidFuture;
         }
 
@@ -319,7 +322,10 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        YT_LOG_INFO("Unregistering operation controller");
+
         if (!IncarnationId_) {
+            YT_LOG_INFO("Operation has no agent assigned; unregister request ignored");
             return MakeFuture<TOperationControllerUnregisterResult>({});
         }
 
@@ -353,8 +359,7 @@ public:
 
         auto event = BuildEvent(ESchedulerToAgentJobEventType::Started, job, false, nullptr);
         JobEventsOutbox_->Enqueue(std::move(event));
-        YT_LOG_DEBUG("Job start notification enqueued (OperationId: %v, JobId: %v)",
-            OperationId_,
+        YT_LOG_DEBUG("Job start notification enqueued (JobId: %v)",
             job->GetId());
     }
 
@@ -369,9 +374,8 @@ public:
         event.Abandoned = abandoned;
         event.InterruptReason = job->GetInterruptReason();
         auto result = EnqueueJobEvent(std::move(event));
-        YT_LOG_DEBUG("Job completion notification %v (OperationId: %v, JobId: %v)",
+        YT_LOG_DEBUG("Job completion notification %v (JobId: %v)",
             result ? "enqueued" : "buffered",
-            OperationId_,
             job->GetId());
     }
 
@@ -383,9 +387,8 @@ public:
 
         auto event = BuildEvent(ESchedulerToAgentJobEventType::Failed, job, true, status);
         auto result = EnqueueJobEvent(std::move(event));
-        YT_LOG_DEBUG("Job failure notification %v (OperationId: %v, JobId: %v)",
+        YT_LOG_DEBUG("Job failure notification %v (JobId: %v)",
             result ? "enqueued" : "buffered",
-            OperationId_,
             job->GetId());
     }
 
@@ -402,9 +405,8 @@ public:
         event.PreemptedFor = job->GetPreemptedFor();
 
         auto result = EnqueueJobEvent(std::move(event));
-        YT_LOG_DEBUG("Job abort notification %v (OperationId: %v, JobId: %v, ByScheduler: %v)",
+        YT_LOG_DEBUG("Job abort notification %v (JobId: %v, ByScheduler: %v)",
             result ? "enqueued" : "buffered",
-            OperationId_,
             job->GetId(),
             byScheduler);
     }
@@ -430,9 +432,8 @@ public:
             {}
         };
         auto result = EnqueueJobEvent(std::move(event));
-        YT_LOG_DEBUG("Nonscheduled job abort notification %v (OperationId: %v, JobId: %v)",
+        YT_LOG_DEBUG("Nonscheduled job abort notification %v (JobId: %v)",
             result ? "enqueued" : "buffered",
-            OperationId_,
             jobId);
     }
 
@@ -446,9 +447,8 @@ public:
         auto event = BuildEvent(ESchedulerToAgentJobEventType::Running, job, true, status);
         auto result = EnqueueJobEvent(std::move(event), /* postponeIfNoAgent */ false);
         YT_LOG_DEBUG_IF(shouldLogJob,
-            "Job run notification %v (OperationId: %v, JobId: %v)",
+            "Job run notification %v (JobId: %v)",
             result ? "enqueued" : "dropped",
-            OperationId_,
             job->GetId());
     }
 
@@ -479,8 +479,7 @@ public:
             if (!IncarnationId_) {
                 guard.Release();
 
-                YT_LOG_DEBUG("Job schedule request cannot be served since no agent is assigned (OperationId: %v, JobId: %v)",
-                    OperationId_,
+                YT_LOG_DEBUG("Job schedule request cannot be served since no agent is assigned (JobId: %v)",
                     jobId);
 
                 auto result = New<TControllerScheduleJobResult>();
@@ -493,8 +492,7 @@ public:
             ScheduleJobRequestsOutbox_->Enqueue(std::move(request));
         }
 
-        YT_LOG_TRACE("Job schedule request enqueued (OperationId: %v, JobId: %v)",
-            OperationId_,
+        YT_LOG_TRACE("Job schedule request enqueued (JobId: %v)",
             jobId);
 
         const auto& scheduler = Bootstrap_->GetScheduler();
@@ -518,8 +516,7 @@ public:
             ESchedulerToAgentOperationEventType::UpdateMinNeededJobResources,
             OperationId_
         });
-        YT_LOG_DEBUG("Min needed job resources update request enqueued (OperationId: %v)",
-            OperationId_);
+        YT_LOG_DEBUG("Min needed job resources update request enqueued");
     }
 
     virtual TJobResourcesWithQuotaList GetMinNeededJobResources() const override
@@ -547,6 +544,7 @@ private:
     const TOperationId OperationId_;
     const TOperationRuntimeDataPtr RuntimeData_;
     const EPreemptionMode PreemptionMode_;
+    const NLogging::TLogger Logger;
 
     TSpinLock SpinLock_;
 
