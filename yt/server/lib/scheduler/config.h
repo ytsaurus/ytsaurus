@@ -34,7 +34,7 @@ DEFINE_ENUM(EDeactivationReason,
     (IsNotAlive)
     (UnmatchedSchedulingTag)
     (IsNotStarving)
-    (IsBlocked)
+    (IsNotSchedulable)
     (ScheduleJobFailed)
     (NoBestLeafDescendant)
     (MinNeededResourcesUnsatisfied)
@@ -43,6 +43,9 @@ DEFINE_ENUM(EDeactivationReason,
     (OperationDisabled)
     (BadPacking)
     (FairShareExceeded)
+    (NoPendingJobs)
+    (MaxConcurrentScheduleJobCallsViolated)
+    (RecentScheduleJobFailed)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

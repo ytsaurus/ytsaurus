@@ -913,7 +913,10 @@ private:
 
     bool HasJobsSatisfyingResourceLimits(const TFairShareContext& context) const;
 
-    bool IsBlocked(NProfiling::TCpuInstant now) const;
+    bool HasPendingJobs() const;
+    bool IsMaxConcurrentScheduleJobCallsViolated() const;
+    bool HasRecentScheduleJobFailure(NProfiling::TCpuInstant now) const;
+    std::optional<EDeactivationReason> CheckBlocked(NProfiling::TCpuInstant now) const;
 
     void RecordHeartbeat(const TPackingHeartbeatSnapshot& heartbeatSnapshot);
     bool CheckPacking(const TPackingHeartbeatSnapshot& heartbeatSnapshot) const;

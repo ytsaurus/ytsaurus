@@ -54,29 +54,41 @@ void TFairShareStrategyOperationController::UpdateMinNeededJobResources()
     Controller_->UpdateMinNeededJobResources();
 }
 
-bool TFairShareStrategyOperationController::IsBlocked(
-    NProfiling::TCpuInstant now,
-    int maxConcurrentScheduleJobCalls,
-    TDuration scheduleJobFailBackoffTime) const
+bool TFairShareStrategyOperationController::IsMaxConcurrentScheduleJobCallsViolated(
+    int maxConcurrentScheduleJobCalls) const
 {
     auto concurrentScheduleJobCalls = ConcurrentScheduleJobCalls_.load();
     if (concurrentScheduleJobCalls >= maxConcurrentScheduleJobCalls) {
-        YT_LOG_DEBUG_UNLESS(Blocked_,
+        YT_LOG_DEBUG_UNLESS(MaxConcurrentScheduleJobCallsViolated_,
             "Operation blocked in fair share strategy due to violation of maximum concurrent schedule job calls (ConcurrentScheduleJobCalls: %v)",
             concurrentScheduleJobCalls);
-        Blocked_.store(true);
+        MaxConcurrentScheduleJobCallsViolated_.store(true);
         return true;
     }
 
-    if (LastScheduleJobFailTime_ + NProfiling::DurationToCpuDuration(scheduleJobFailBackoffTime) > now) {
-        YT_LOG_DEBUG_UNLESS(Blocked_, "Operation blocked in fair share strategy due to schedule job failure");
-        Blocked_.store(true);
-        return true;
-    }
-
-    YT_LOG_DEBUG_UNLESS(!Blocked_, "Operation unblocked in fair share strategy");
-    Blocked_.store(false);
+    YT_LOG_DEBUG_UNLESS(!IsBlocked(), "Operation unblocked in fair share strategy");
+    MaxConcurrentScheduleJobCallsViolated_.store(false);
     return false;
+}
+
+bool TFairShareStrategyOperationController::HasRecentScheduleJobFailure(
+    NYT::NProfiling::TCpuInstant now,
+    TDuration scheduleJobFailBackoffTime) const
+{
+    if (LastScheduleJobFailTime_ + NProfiling::DurationToCpuDuration(scheduleJobFailBackoffTime) > now) {
+        YT_LOG_DEBUG_UNLESS(RecentScheduleJobFailed_, "Operation blocked in fair share strategy due to a recent schedule job failure");
+        RecentScheduleJobFailed_.store(true);
+        return true;
+    }
+
+    YT_LOG_DEBUG_UNLESS(!IsBlocked(), "Operation unblocked in fair share strategy");
+    RecentScheduleJobFailed_.store(false);
+    return false;
+}
+
+bool TFairShareStrategyOperationController::IsBlocked() const
+{
+    return MaxConcurrentScheduleJobCallsViolated_ || RecentScheduleJobFailed_;
 }
 
 void TFairShareStrategyOperationController::AbortJob(TJobId jobId, EAbortReason abortReason)
