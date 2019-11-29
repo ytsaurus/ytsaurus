@@ -444,6 +444,45 @@ class TestSandboxTmpfs(YTEnvSetup):
         words = content.strip().split()
         assert ["file", "content_1", "file", "content_2"] == words
 
+    @authors("ignat")
+    def test_vanilla(self):
+        op = vanilla(
+            dont_track=False,
+            spec={
+                "tasks": {
+                    "a": {
+                        "job_count": 2,
+                        "command": 'sleep 5',
+                        "tmpfs_volumes": [
+                        ]
+                    },
+                    "b": {
+                        "job_count": 1,
+                        "command": 'sleep 10',
+                        "tmpfs_volumes": [
+                            {
+                                "path": "tmpfs",
+                                "size": 1024 * 1024,
+                            },
+                        ]
+                    },
+                    "c": {
+                        "job_count": 3,
+                        "command": 'sleep 15',
+                        "tmpfs_volumes": [
+                            {
+                                "path": "tmpfs",
+                                "size": 1024 * 1024,
+                            },
+                            {
+                                "path": "other_tmpfs",
+                                "size": 1024 * 1024,
+                            },
+                        ]
+                    },
+                },
+            })
+
 ##################################################################
 
 class TestSandboxTmpfsOverflow(YTEnvSetup):
