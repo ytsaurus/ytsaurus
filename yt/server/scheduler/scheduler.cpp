@@ -3074,19 +3074,22 @@ private:
 
         if (!operation->FindAgent() && operation->Transactions()) {
             std::vector<TFuture<void>> asyncResults;
-            auto scheduleAbort = [&] (const ITransactionPtr& transaction) {
+            auto scheduleAbort = [&] (const ITransactionPtr& transaction, TString transactionType) {
                 if (transaction) {
+                    YT_LOG_DEBUG("Aborting transaction %v (Type: %v)", transaction->GetId(), transactionType);
                     asyncResults.push_back(transaction->Abort());
+                } else {
+                    YT_LOG_DEBUG("Transaction missed, skipping abort (Type: %v)", transactionType);
                 }
             };
 
             const auto& transactions = *operation->Transactions();
-            scheduleAbort(transactions.AsyncTransaction);
-            scheduleAbort(transactions.InputTransaction);
-            scheduleAbort(transactions.OutputTransaction);
-            scheduleAbort(transactions.DebugTransaction);
+            scheduleAbort(transactions.AsyncTransaction, "Async");
+            scheduleAbort(transactions.InputTransaction, "Input");
+            scheduleAbort(transactions.OutputTransaction, "Output");
+            scheduleAbort(transactions.DebugTransaction, "Debug");
             for (const auto& transaction : transactions.NestedInputTransactions) {
-                scheduleAbort(transaction);
+                scheduleAbort(transaction, "NestedInput");
             }
 
             try {
