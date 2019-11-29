@@ -268,7 +268,7 @@ class RequestRetrier(Retrier):
             # Module requests patched to process response from YT proxy
             # in case of large chunked-encoding write requests.
             # Here we check that this response was added to the error.
-            if hasattr(error, "response"):
+            if hasattr(error, "response") and error.response is not None:
                 exc_info = sys.exc_info()
                 try:
                     # We should perform it under try..except due to response may be incomplete.

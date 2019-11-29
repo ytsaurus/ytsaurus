@@ -22,6 +22,7 @@ import os
 import imp
 import sys
 import uuid
+import glob
 from copy import deepcopy
 import shutil
 import logging
@@ -229,9 +230,7 @@ class YtTestEnvironment(object):
     def cleanup(self):
         self.reload_global_configuration()
         self.env.stop()
-        for node_config in self.env.configs["node"]:
-            rmtree(node_config["data_node"]["store_locations"][0]["path"])
-            rmtree(node_config["data_node"]["cache_locations"][0]["path"])
+        self.env.remove_runtime_data()
         self.save_sandbox()
 
     def save_sandbox(self):
@@ -421,13 +420,6 @@ def test_method_teardown():
 
     _remove_operations()
     _remove_objects()
-
-def save_yatest_working_files(sandbox_path, output_subpath):
-    if yatest_common is None or yatest_common.get_param("ram_drive_path") is None:
-        return
-    shutil.copytree(
-        sandbox_path,
-        os.path.join(yatest_common.output_path(), output_subpath))
 
 @pytest.fixture(scope="function")
 def yt_env(request, test_environment):

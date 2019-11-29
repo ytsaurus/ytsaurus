@@ -1,6 +1,8 @@
 from __future__ import print_function
 
 import yt.logger as logger
+import yt.yson as yson
+from yt.common import get_value, update
 from yt.wrapper.errors import YtOperationFailedError, YtError
 from yt.wrapper.operation_commands import format_operation_stderrs
 from yt.wrapper.common import get_binary_std_stream
@@ -8,6 +10,7 @@ from yt.wrapper.common import get_binary_std_stream
 import os
 import sys
 import traceback
+from argparse import Action
 
 def write_silently(strings, force_use_text_stdout=False):
     output_stream = sys.stdout
@@ -73,5 +76,13 @@ def run_main(main_func):
         traceback.print_exc(file=sys.stderr)
         die()
 
+class ParseStructuredArgument(Action):
+    def __init__(self, option_strings, dest, action_load_method=yson._loads_from_native_str, **kwargs):
+        Action.__init__(self, option_strings, dest, **kwargs)
+        self.action_load_method = action_load_method
 
-
+    def __call__(self, parser, namespace, values, option_string=None):
+        # Multiple times specified arguments are merged into single dict.
+        old_value = get_value(getattr(namespace, self.dest), {})
+        new_value = update(old_value, self.action_load_method(values))
+        setattr(namespace, self.dest, new_value)

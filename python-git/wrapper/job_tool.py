@@ -1,15 +1,15 @@
 from __future__ import print_function
 
-from yt.common import makedirp, get_value, update
+from yt.common import makedirp, YtError
+from yt.wrapper.cli_helpers import ParseStructuredArgument
 from yt.wrapper.common import DoNotReplaceAction, chunk_iter_stream, MB
 from yt.wrapper.file_commands import _get_remote_temp_files_directory
+from yt.wrapper.job_commands import get_job_input, get_job_fail_context
 import yt.logger as logger
-import yt.yson as yson
 import yt.wrapper as yt
 
 from yt.packages.six.moves import xrange
 
-import argparse
 import collections
 import json
 import os
@@ -46,6 +46,9 @@ OPERATION_ARCHIVE_JOBS_PATH = "//sys/operations_archive/jobs"
 
 JobInfo = collections.namedtuple("JobInfo", ["job_type", "is_running"])
 
+FULL_INPUT_MODE = "full_input"
+INPUT_CONTEXT_MODE = "input_context"
+
 def shellquote(s):
     # https://stackoverflow.com/questions/35817/how-to-escape-os-system-calls-in-python
     return "'" + s.replace("'", "'\\''") + "'"
@@ -53,13 +56,6 @@ def shellquote(s):
 def make_environment_string(environment):
     return ''.join("export {var}={value}\n".format(var=var, value=shellquote(environment[var]))
                    for var in environment)
-
-class ParseStructuredArgument(argparse.Action):
-    def __call__(self, parser, namespace, values, option_string=None):
-        # Multiple times specified arguments are merged into single dict.
-        old_value = get_value(getattr(namespace, self.dest), {})
-        new_value = update(old_value, yson.loads(values))
-        setattr(namespace, self.dest, new_value)
 
 def get_output_descriptor_list(output_table_count, use_yamr_descriptors):
     if use_yamr_descriptors:
@@ -152,8 +148,8 @@ def run_job(job_path, env=None):
     p = subprocess.Popen([run_script], env=env, close_fds=False)
     sys.exit(p.wait())
 
-def download_job_input(operation_id, job_id, job_input_path, mode):
-    if mode == "running":
+def download_job_input(operation_id, job_id, job_input_path, get_context_action):
+    if get_context_action == "dump_job_context":
         logger.info("Job is running, using its input context as local input")
         output_path = yt.find_free_subpath(_get_remote_temp_files_directory(client=None))
         yt.dump_job_context(job_id, output_path)
@@ -161,23 +157,22 @@ def download_job_input(operation_id, job_id, job_input_path, mode):
             download_file(output_path, job_input_path)
         finally:
             yt.remove(output_path, force=True)
-    elif mode in ["failed", "full"]:
-        if mode == "failed":
+    elif get_context_action in ["get_job_fail_context", "get_job_input"]:
+        if get_context_action == "get_job_fail_context":
             logger.info("Job is failed, using its fail context as local input")
-            method = "get_job_fail_context"
+            job_input_stream = get_job_fail_context(operation_id, job_id)
         else:
             logger.info("Downloading full job input")
-            method = "get_job_input"
-        job_input_f = yt.driver.make_request(
-            method,
-            {"operation_id": operation_id, "job_id": job_id},
-            return_content=False,
-            use_heavy_proxy=True)
+            try:
+                job_input_stream = get_job_input(job_id)
+            except YtError as err:
+                raise YtError("Failed to download job input. To get job fail context, use option --context",
+                                    inner_errors=[err])
         with open(job_input_path, "wb") as out:
-            for chunk in chunk_iter_stream(job_input_f, 16 * MB):
+            for chunk in chunk_iter_stream(job_input_stream, 16 * MB):
                 out.write(chunk)
     else:
-        raise ValueError("Unknown mode: {0}".format(mode))
+        raise ValueError("Unknown get_context_action: {0}".format(get_context_action))
 
     logger.info("Job input is downloaded to %s", job_input_path)
 
@@ -195,8 +190,12 @@ def ensure_backend_is_supported():
             file=sys.stderr)
         exit(1)
 
-def prepare_job_environment(operation_id, job_id, job_path, run=False, full=False):
-    # NB: we should explicitely reset this option to default value since CLI usually set True to it.
+def prepare_job_environment(operation_id, job_id, job_path, run=False, get_context_mode=INPUT_CONTEXT_MODE):
+    if get_context_mode not in (INPUT_CONTEXT_MODE, FULL_INPUT_MODE):
+        raise YtError("Incorrect get_context_mode {}, expected one of ({}, {})",
+            repr(get_context_mode), repr(INPUT_CONTEXT_MODE), repr(FULL_INPUT_MODE))
+
+    # NB: we should explicitly reset this option to default value since CLI usually set True to it.
     yt.config["default_value_of_raw_option"] = None
 
     ensure_backend_is_supported()
@@ -214,12 +213,12 @@ def prepare_job_environment(operation_id, job_id, job_path, run=False, full=Fals
     logger.info("Preparing job environment for job %s, operation %s", job_id, operation_id)
 
     job_info = get_job_info(operation_id, job_id)
-    if full:
-        mode = "full"
+    if get_context_mode == FULL_INPUT_MODE:
+        get_context_action = "get_job_input"
     elif job_info.is_running:
-        mode = "running"
+        get_context_action = "dump_job_context"
     else:
-        mode = "failed"
+        get_context_action = "get_job_fail_context"
 
     if job_info.job_type not in JOB_TYPE_TO_SPEC_TYPE:
         raise yt.YtError("Unknown job type \"{0}\"".format(repr(job_info.job_type)))
@@ -229,7 +228,7 @@ def prepare_job_environment(operation_id, job_id, job_path, run=False, full=Fals
     makedirp(job_path)
     job_input_path = os.path.join(job_path, "input")
 
-    download_job_input(operation_id, job_id, job_input_path, mode)
+    download_job_input(operation_id, job_id, job_input_path, get_context_action)
 
     # Sandbox files
     sandbox_path = os.path.join(job_path, "sandbox")
@@ -323,8 +322,13 @@ def create_job_tool_parser(parser):
                                         help="output directory to store job environment. Default: <cwd>/job_<job_id>")
     prepare_job_env_parser.add_argument("--run", help="run job when job environment is prepared",
                                         action="store_true", default=False)
-    prepare_job_env_parser.add_argument("--full", help="download full input of a job",
-                                        action="store_true", default=False)
+
+    get_context_mode_group = prepare_job_env_parser.add_mutually_exclusive_group()
+    get_context_mode_group.add_argument("--full-input", "--full", dest="get_context_mode", action="store_const",
+                                        help="download input context of a job", const=FULL_INPUT_MODE,
+                                        default=FULL_INPUT_MODE)
+    get_context_mode_group.add_argument("--context", dest="get_context_mode", action="store_const",
+                                        help="download fail context of a job", const=INPUT_CONTEXT_MODE)
 
     run_job_parser = subparsers.add_parser("run-job", help="runs job binary")
     add_hybrid_argument(run_job_parser, "job_path", help="path to prepared job environment")

@@ -3,7 +3,7 @@ from __future__ import print_function
 from yt.packages.six import iteritems, integer_types, text_type, binary_type, b
 from yt.packages.six.moves import map as imap
 
-from yt.test_helpers import wait
+from yt.test_helpers import wait, get_tests_sandbox as get_tests_sandbox_impl, get_tmpfs_path
 from yt.test_helpers.job_events import JobEvents
 
 import yt.yson as yson
@@ -43,22 +43,7 @@ def get_tests_location():
         return TESTS_LOCATION
 
 def get_tests_sandbox():
-    path = os.environ.get("TESTS_SANDBOX")
-    tmpfs_path = get_tmpfs_path()
-    if path is None:
-        if yatest_common is not None:
-            if tmpfs_path is None:
-                path = os.path.join(yatest_common.output_path(), "sandbox")
-            else:
-                path = os.path.join(tmpfs_path, "sandbox")
-        else:
-            path = TESTS_SANDBOX
-    if not os.path.exists(path):
-        try:
-            os.mkdir(path)
-        except OSError:  # Already exists.
-            pass
-    return path
+    return get_tests_sandbox_impl(TESTS_SANDBOX)
 
 def get_test_files_dir_path():
     return os.path.join(get_tests_location(), "files")
@@ -81,14 +66,6 @@ def get_test_file_path(name, use_files=True):
             return os.path.join(get_tests_location(), "files", name)
         else:
             return os.path.join(get_tests_location(),  name)
-
-def get_tmpfs_path():
-    if yatest_common is not None and yatest_common.get_param("ram_drive_path") is not None:
-        path = yatest_common.get_param("ram_drive_path")
-        if not os.path.exists(path):
-            os.makedirs(path)
-        return path
-    return None
 
 def get_port_locks_path():
     path = get_tmpfs_path()

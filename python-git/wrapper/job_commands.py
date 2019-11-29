@@ -113,3 +113,18 @@ def abort_job(job_id, interrupt_timeout=None, client=None):
 def dump_job_context(job_id, path, client=None):
     """Dumps job input context to specified path."""
     return make_request("dump_job_context", {"job_id": job_id, "path": path}, client=client)
+
+def get_job_fail_context(operation_id, job_id, client=None):
+    """Get fail context of the specified job.
+
+    :param str operation_id: operation id.
+    :param str job_id: job id.
+    """
+    if get_config(client)["backend"] == "rpc" and get_config(client).get("use_http_backend_for_streaming", True):
+        client = _create_http_client_from_rpc(client, "get_job_input")
+    return make_request(
+        "get_job_fail_context",
+        params={"operation_id": operation_id, "job_id": job_id},
+        return_content=False,
+        use_heavy_proxy=True,
+        client=client)

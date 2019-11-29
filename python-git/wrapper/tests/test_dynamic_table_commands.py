@@ -274,7 +274,7 @@ class TestDynamicTableCommands(object):
 
         finally:
             if instance is not None:
-                stop(instance.id, path=dir)
+                stop(instance.id, path=dir, remove_runtime_data=True)
 
     def test_reshard_automatic(self):
         self._sync_create_tablet_cell()

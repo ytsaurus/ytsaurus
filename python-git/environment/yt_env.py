@@ -130,7 +130,9 @@ def _get_cgroup_path(cgroup_type, *args):
 
 class YTInstance(object):
     def __init__(self, path, master_count=1, nonvoting_master_count=0, secondary_master_cell_count=0, clock_count=0,
-                 node_count=1, defer_node_start=False, scheduler_count=1, controller_agent_count=None,
+                 node_count=1, defer_node_start=False,
+                 scheduler_count=1, defer_scheduler_start=False,
+                 controller_agent_count=None, defer_controller_agent_start=False,
                  http_proxy_count=0, http_proxy_ports=None, rpc_proxy_count=None, cell_tag=0, skynet_manager_count=0,
                  enable_debug_logging=True, preserve_working_dir=False, tmpfs_path=None,
                  port_locks_path=None, local_port_range=None, port_range_start=None, node_port_set_size=None,
@@ -247,11 +249,13 @@ class YTInstance(object):
         self.node_count = node_count
         self.defer_node_start = defer_node_start
         self.scheduler_count = scheduler_count
+        self.defer_scheduler_start = defer_scheduler_start
         if controller_agent_count is None:
             if self.abi_version >= (19, 3) and scheduler_count > 0:
                 controller_agent_count = 1
             else:
                 controller_agent_count = 0
+        self.defer_controller_agent_start = defer_controller_agent_start
         self.controller_agent_count = controller_agent_count
         self.has_http_proxy = http_proxy_count > 0
         self.http_proxy_count = http_proxy_count
@@ -428,21 +432,21 @@ class YTInstance(object):
 
         self._prepare_cgroups()
         if self.master_count + self.secondary_master_cell_count > 0:
-            self._prepare_masters(cluster_configuration["master"], dirs["master"])
+            self._prepare_masters(cluster_configuration["master"])
         if self.clock_count > 0:
-            self._prepare_clocks(cluster_configuration["clock"], dirs["clock"])
+            self._prepare_clocks(cluster_configuration["clock"])
         if self.node_count > 0:
-            self._prepare_nodes(cluster_configuration["node"], dirs["node"])
+            self._prepare_nodes(cluster_configuration["node"])
         if self.scheduler_count > 0:
-            self._prepare_schedulers(cluster_configuration["scheduler"], dirs["scheduler"])
+            self._prepare_schedulers(cluster_configuration["scheduler"])
         if self.controller_agent_count > 0:
-            self._prepare_controller_agents(cluster_configuration["controller_agent"], dirs["controller_agent"])
+            self._prepare_controller_agents(cluster_configuration["controller_agent"])
         if self.has_http_proxy:
-            self._prepare_http_proxies(cluster_configuration["http_proxy"], dirs["http_proxy"])
+            self._prepare_http_proxies(cluster_configuration["http_proxy"])
         if self.has_rpc_proxy:
-            self._prepare_rpc_proxies(cluster_configuration["rpc_proxy"], cluster_configuration["rpc_client"], dirs["rpc_proxy"])
+            self._prepare_rpc_proxies(cluster_configuration["rpc_proxy"], cluster_configuration["rpc_client"])
         if self.skynet_manager_count > 0:
-            self._prepare_skynet_managers(cluster_configuration["skynet_manager"], dirs["skynet_manager"])
+            self._prepare_skynet_managers(cluster_configuration["skynet_manager"])
 
         http_proxy_url = None
         if self.has_http_proxy:
@@ -461,6 +465,10 @@ class YTInstance(object):
             function()
         else:
             self._wait_functions.append(function)
+
+    def remove_runtime_data(self):
+        if os.path.exists(self.runtime_data_path):
+            shutil.rmtree(self.runtime_data_path, ignore_errors=True)
 
     def start(self, start_secondary_master_cells=False, on_masters_started_func=None):
         for name, processes in iteritems(self._service_processes):
@@ -507,9 +515,9 @@ class YTInstance(object):
                 on_masters_started_func()
             if self.node_count > 0 and not self.defer_node_start:
                 self.start_nodes(sync=False)
-            if self.scheduler_count > 0:
+            if self.scheduler_count > 0 and not self.defer_scheduler_start:
                 self.start_schedulers(sync=False)
-            if self.controller_agent_count > 0:
+            if self.controller_agent_count > 0 and not self.defer_controller_agent_start:
                 self.start_controller_agents(sync=False)
             if self.skynet_manager_count > 0:
                 self.start_skynet_managers(sync=False)
@@ -564,6 +572,21 @@ class YTInstance(object):
         for func in self._wait_functions:
             func()
         self._wait_functions = []
+
+    def rewrite_master_configs(self):
+        self._prepare_masters(self._cluster_configuration["master"], force_overwrite=True)
+
+    def rewrite_node_configs(self):
+        self._prepare_nodes(self._cluster_configuration["node"], force_overwrite=True)
+
+    def rewrite_scheduler_configs(self):
+        self._prepare_schedulers(self._cluster_configuration["scheduler"], force_overwrite=True)
+
+    def rewrite_controller_agent_configs(self):
+        self._prepare_controller_agents(self._cluster_configuration["controller_agent"], force_overwrite=True)
+
+    def rewrite_http_proxy_configs(self):
+        self._prepare_http_proxies(self._cluster_configuration["http_proxy"], force_overwrite=True)
 
     # TODO(max42): remove this method and rename all its usages to get_http_proxy_address.
     def get_proxy_address(self):
@@ -657,6 +680,10 @@ class YTInstance(object):
     def kill_master_cell(self, cell_index=0):
         name = self._get_master_name("master", cell_index)
         self.kill_service(name)
+
+    def kill_all_masters(self):
+        for cell_index in xrange(self.secondary_master_cell_count + 1):
+            self.kill_master_cell(cell_index)
 
     def kill_service(self, name, indexes=None):
         with self._lock:
@@ -835,7 +862,7 @@ class YTInstance(object):
         else:
             return master_name + "_secondary_" + str(cell_index - 1)
 
-    def _prepare_masters(self, master_configs, master_dirs):
+    def _prepare_masters(self, master_configs, force_overwrite=False):
         for cell_index in xrange(self.secondary_master_cell_count + 1):
             master_name = self._get_master_name("master", cell_index)
             if cell_index == 0:
@@ -843,10 +870,15 @@ class YTInstance(object):
             else:
                 cell_tag = master_configs["secondary_cell_tags"][cell_index - 1]
 
+            if force_overwrite:
+                self.configs[master_name] = []
+                self.config_paths[master_name] = []
+                self._service_processes[master_name] = []
+
             for master_index in xrange(self.master_count):
                 master_config_name = "master-{0}-{1}.yson".format(cell_index, master_index)
                 config_path = os.path.join(self.configs_path, master_config_name)
-                if self._load_existing_environment:
+                if self._load_existing_environment and not force_overwrite:
                     if not os.path.isfile(config_path):
                         raise YtError("Master config {0} not found. It is possible that you requested "
                                       "more masters than configs exist".format(config_path))
@@ -916,7 +948,7 @@ class YTInstance(object):
         for i in xrange(self.secondary_master_cell_count):
             self.start_master_cell(i + 1, sync=sync)
 
-    def _prepare_clocks(self, clock_configs, clock_dirs):
+    def _prepare_clocks(self, clock_configs):
         for clock_index in xrange(self.clock_count):
             clock_config_name = "clock-{0}.yson".format(clock_index)
             config_path = os.path.join(self.configs_path, clock_config_name)
@@ -953,12 +985,16 @@ class YTInstance(object):
 
         self._wait_or_skip(lambda: self._wait_for(quorum_ready, "clock", max_wait_time=30), sync)
 
+    def _prepare_nodes(self, node_configs, force_overwrite=False):
+        if force_overwrite:
+            self.configs["node"] = []
+            self.config_paths["node"] = []
+            self._service_processes["node"] = []
 
-    def _prepare_nodes(self, node_configs, node_dirs):
         for node_index in xrange(self.node_count):
             node_config_name = "node-" + str(node_index) + ".yson"
             config_path = os.path.join(self.configs_path, node_config_name)
-            if self._load_existing_environment:
+            if self._load_existing_environment and not force_overwrite:
                 if not os.path.isfile(config_path):
                     raise YtError("Node config {0} not found. It is possible that you requested "
                                   "more nodes than configs exist".format(config_path))
@@ -985,11 +1021,16 @@ class YTInstance(object):
         wait_function = lambda: self._wait_for(nodes_ready, "node", max_wait_time=max(self.node_count * 6.0, 20))
         self._wait_or_skip(wait_function, sync)
 
-    def _prepare_schedulers(self, scheduler_configs, scheduler_dirs):
+    def _prepare_schedulers(self, scheduler_configs, force_overwrite=False):
+        if force_overwrite:
+            self.configs["scheduler"] = []
+            self.config_paths["scheduler"] = []
+            self._service_processes["scheduler"] = []
+
         for scheduler_index in xrange(self.scheduler_count):
             scheduler_config_name = "scheduler-" + str(scheduler_index) + ".yson"
             config_path = os.path.join(self.configs_path, scheduler_config_name)
-            if self._load_existing_environment:
+            if self._load_existing_environment and not force_overwrite:
                 if not os.path.isfile(config_path):
                     raise YtError("Scheduler config {0} not found. It is possible that you requested "
                                   "more schedulers than configs exist".format(config_path))
@@ -1002,11 +1043,16 @@ class YTInstance(object):
             self.config_paths["scheduler"].append(config_path)
             self._service_processes["scheduler"].append(None)
 
-    def _prepare_controller_agents(self, controller_agent_configs, controller_agent_dirs):
+    def _prepare_controller_agents(self, controller_agent_configs, force_overwrite=False):
+        if force_overwrite:
+            self.configs["controller_agent"] = []
+            self.config_paths["controller_agent"] = []
+            self._service_processes["controller_agent"] = []
+
         for controller_agent_index in xrange(self.controller_agent_count):
             controller_agent_config_name = "controller_agent-" + str(controller_agent_index) + ".yson"
             config_path = os.path.join(self.configs_path, controller_agent_config_name)
-            if self._load_existing_environment:
+            if self._load_existing_environment and not force_overwrite:
                 if not os.path.isfile(config_path):
                     raise YtError("Controller agent config {0} not found. It is possible that you requested "
                                   "more controller agents than configs exist".format(config_path))
@@ -1023,7 +1069,11 @@ class YTInstance(object):
         self._remove_scheduler_lock()
 
         client = self._create_cluster_client()
-        client.create("map_node", "//sys/pool_trees/default", ignore_existing=True, recursive=True)
+        # COMPAT(renadeen): add yt/yt master branch commit hash with user managed pools
+        if client.get("//sys/pool_trees/@type") == "map_node":
+            client.create("map_node", "//sys/pool_trees/default", ignore_existing=True, recursive=True)
+        else:
+            client.create("scheduler_pool_tree", attributes={"name": "default"}, ignore_existing=True)
         client.set("//sys/pool_trees/@default_tree", "default")
         client.set("//sys/pool_trees/default/@max_ephemeral_pools_per_user", 5)
         if not client.exists("//sys/pools"):
@@ -1227,13 +1277,13 @@ class YTInstance(object):
         self.configs["console_driver"].append(config)
         self.config_paths["console_driver"].append(config_path)
 
-    def _prepare_http_proxies(self, proxy_configs, http_proxy_dirs):
+    def _prepare_http_proxies(self, proxy_configs, force_overwrite=False):
         self.configs["http_proxy"] = []
         self.config_paths["http_proxy"] = []
 
-        for i in xrange(len(http_proxy_dirs)):
+        for i in xrange(self.http_proxy_count):
             config_path = os.path.join(self.configs_path, "http-proxy-{}.yson".format(i))
-            if self._load_existing_environment:
+            if self._load_existing_environment and not force_overwrite:
                 if not os.path.isfile(config_path):
                     raise YtError("Http proxy config {0} not found".format(config_path))
                 config = read_config(config_path)
@@ -1245,11 +1295,11 @@ class YTInstance(object):
             self.config_paths["http_proxy"].append(config_path)
             self._service_processes["http_proxy"].append(None)
 
-    def _prepare_rpc_proxies(self, rpc_proxy_configs, rpc_client_config, rpc_proxy_dirs):
+    def _prepare_rpc_proxies(self, rpc_proxy_configs, rpc_client_config):
         self.configs["rpc_proxy"] = []
         self.config_paths["rpc_proxy"] = []
 
-        for i in xrange(len(rpc_proxy_dirs)):
+        for i in xrange(self.rpc_proxy_count):
             config_path = os.path.join(self.configs_path, "rpc-proxy-{}.yson".format(i))
             if self._load_existing_environment:
                 if not os.path.isfile(config_path):
@@ -1270,11 +1320,11 @@ class YTInstance(object):
             else:
                 write_config(rpc_client_config, rpc_client_config_path)
 
-    def _prepare_skynet_managers(self, skynet_manager_configs, skynet_manager_dirs):
+    def _prepare_skynet_managers(self, skynet_manager_configs):
         self.configs["skynet_manager"] = []
         self.config_paths["skynet_manager"] = []
 
-        for i in xrange(len(skynet_manager_dirs)):
+        for i in xrange(self.skynet_manager_count):
             config_path = os.path.join(self.configs_path, "skynet-manager-{}.yson".format(i))
             write_config(skynet_manager_configs[i], config_path)
             self.configs["skynet_manager"].append(skynet_manager_configs[i])

@@ -42,7 +42,13 @@ def prepare_yt_binaries(destination, source_prefix="", arcadia_root=None, inside
         if use_from_package:
             ytserver_all = yatest_common.binary_path("yt/packages/19_4/ytserver-all")
         else:
-            ytserver_all = get_binary_path("{0}yt/server/all/ytserver-all".format(yt_root))
+            ytserver_all = None
+            try:
+                ytserver_all = get_binary_path("{0}yt/server/all/stripped/ytserver-all".format(yt_root))
+            except Exception:  # TestMisconfigurationException
+                pass
+            if ytserver_all is None or not os.path.exists(ytserver_all):
+                ytserver_all = get_binary_path("{0}yt/server/all/ytserver-all".format(yt_root))
         if copy_ytserver_all:
             shutil.copy(ytserver_all, os.path.join(destination, "ytserver-all"))
             ytserver_all = os.path.join(destination, "ytserver-all")
