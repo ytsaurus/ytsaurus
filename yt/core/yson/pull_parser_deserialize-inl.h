@@ -137,9 +137,12 @@ void Deserialize(std::optional<T>& value, TYsonPullParserCursor* cursor)
     }
 }
 
-template <class T, class TDummy = typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type>
-void Deserialize(T& value, TYsonPullParserCursor* cursor)
+// Enum.
+template <class T>
+void Deserialize(T& value, TYsonPullParserCursor* cursor, std::enable_if_t<TEnumTraits<T>::IsEnum, void*>)
 {
+    static_assert(TEnumTraits<T>::IsEnum);
+
     if constexpr (TEnumTraits<T>::IsBitEnum) {
         switch ((*cursor)->GetType()) {
             case EYsonItemType::BeginList:

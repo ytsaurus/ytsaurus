@@ -50,8 +50,8 @@ template <class T>
 void Deserialize(std::optional<T>& value, TYsonPullParserCursor* cursor);
 
 // Enum.
-template <class T, class TDummy>
-void Deserialize(T& value, TYsonPullParserCursor* cursor);
+template <class T>
+void Deserialize(T& value, TYsonPullParserCursor* cursor, std::enable_if_t<TEnumTraits<T>::IsEnum, void*> = nullptr);
 
 // SmallVector.
 template <class T, unsigned N>
