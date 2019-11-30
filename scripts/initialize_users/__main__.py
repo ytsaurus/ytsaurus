@@ -519,6 +519,8 @@ def initialize_users(cluster):
 
         # https://st.yandex-team.ru/YPADMIN-257
         set_schema_permissions(client, "pod_disruption_budget", "nanny-robot", right_crw)
+        if cluster in ("man-pre", "sas-test"):
+            set_schema_permissions(client, "pod_disruption_budget", "abc:service-scope:730:5", right_crw)
 
         set_schema_permission_for_attribute(client, "pod", "robot-yp-heavy-sched", "write", "/control/request_eviction")
 
