@@ -453,7 +453,6 @@ TEST_F(TFairShareTreeTest, TestAttributes)
     auto poolB = CreateTestPool(host.Get(), "B");
 
     poolA->AttachParent(rootElement.Get());
-
     poolB->AttachParent(rootElement.Get());
 
     auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(10, jobResources));
@@ -462,22 +461,47 @@ TEST_F(TFairShareTreeTest, TestAttributes)
     operationElementX->AttachParent(poolA.Get(), true);
     operationElementX->Enable();
 
-    auto dynamicAttributes = TDynamicAttributesList(4);
+    {
+        auto dynamicAttributes = TDynamicAttributesList(4);
 
-    TUpdateFairShareContext updateContext;
-    rootElement->PreUpdate(&dynamicAttributes, &updateContext);
-    // We call UpdateTopDown() directly here, because Update() verifies current invoker.
-    rootElement->UpdateTopDown(&dynamicAttributes, &updateContext);
+        TUpdateFairShareContext updateContext;
+        rootElement->PreUpdate(&dynamicAttributes, &updateContext);
+        // We call UpdateTopDown() directly here, because Update() verifies current invoker.
+        rootElement->UpdateTopDown(&dynamicAttributes, &updateContext);
 
-    EXPECT_EQ(0.1, rootElement->Attributes().DemandRatio);
-    EXPECT_EQ(0.1, poolA->Attributes().DemandRatio);
-    EXPECT_EQ(0.0, poolB->Attributes().DemandRatio);
-    EXPECT_EQ(0.1, operationElementX->Attributes().DemandRatio);
+        EXPECT_EQ(0.1, rootElement->Attributes().DemandRatio);
+        EXPECT_EQ(0.1, poolA->Attributes().DemandRatio);
+        EXPECT_EQ(0.0, poolB->Attributes().DemandRatio);
+        EXPECT_EQ(0.1, operationElementX->Attributes().DemandRatio);
 
-    EXPECT_EQ(0.1, rootElement->Attributes().FairShareRatio);
-    EXPECT_EQ(0.1, rootElement->Attributes().DemandRatio);
-    EXPECT_EQ(0.0, poolB->Attributes().FairShareRatio);
-    EXPECT_EQ(0.1, operationElementX->Attributes().FairShareRatio);
+        EXPECT_EQ(0.1, rootElement->Attributes().FairShareRatio);
+        EXPECT_EQ(0.1, rootElement->Attributes().DemandRatio);
+        EXPECT_EQ(0.0, poolB->Attributes().FairShareRatio);
+        EXPECT_EQ(0.1, operationElementX->Attributes().FairShareRatio);
+    }
+
+    std::vector<TJobId> jobIds;
+    for (int i = 0; i < 10; ++i) {
+        auto jobId = TGuid::Create();
+        jobIds.push_back(jobId);
+        operationElementX->OnJobStarted(
+            jobId,
+            jobResources.ToJobResources(),
+            /* precommitedResources */ {});
+    }
+
+    {
+        auto dynamicAttributes = TDynamicAttributesList(4);
+
+        TUpdateFairShareContext updateContext;
+        rootElement->PreUpdate(&dynamicAttributes, &updateContext);
+        // We call UpdateTopDown() directly here, because Update() verifies current invoker.
+        rootElement->UpdateTopDown(&dynamicAttributes, &updateContext);
+
+        EXPECT_EQ(0.5, dynamicAttributes[operationElementX->GetTreeIndex()].SatisfactionRatio);
+        EXPECT_EQ(0.5, dynamicAttributes[poolA->GetTreeIndex()].SatisfactionRatio);
+        EXPECT_EQ(std::numeric_limits<double>::max(), dynamicAttributes[poolB->GetTreeIndex()].SatisfactionRatio);
+    }
 }
 
 TEST_F(TFairShareTreeTest, TestUpdatePreemptableJobsList)
