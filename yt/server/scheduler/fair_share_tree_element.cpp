@@ -786,8 +786,13 @@ void TCompositeSchedulerElement::UpdateTopDown(TDynamicAttributesList* dynamicAt
 
     UpdatePreemptionSettingsLimits();
 
-    // Propagate updates to children.
     for (const auto& child : EnabledChildren_) {
+        // It is necessary to update satisfaction ratio in global attributes during update.
+        auto& dynamicAttributes = (*dynamicAttributesList)[child->GetTreeIndex()];
+        dynamicAttributes.Active = true;
+        child->UpdateDynamicAttributes(dynamicAttributesList);
+
+        // Propagate updates to children.
         UpdateChildPreemptionSettings(child);
         child->UpdateTopDown(dynamicAttributesList, context);
     }
