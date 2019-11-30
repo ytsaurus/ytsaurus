@@ -740,8 +740,8 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         get_slot_index = lambda op_id: \
             get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/slot_index".format(op_id))
 
-        assert get_slot_index(op1.id) == 0
-        assert get_slot_index(op2.id) == 1
+        wait(lambda: get_slot_index(op1.id) == 0)
+        wait(lambda: get_slot_index(op2.id) == 1)
 
         range_ = (49999, 50000, 50001)
 
