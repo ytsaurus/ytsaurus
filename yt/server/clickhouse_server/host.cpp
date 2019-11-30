@@ -3,7 +3,6 @@
 #include "clickhouse_service_proxy.h"
 #include "config_repository.h"
 #include "database.h"
-#include "functions.h"
 #include "http_handler.h"
 #include "logger.h"
 #include "runtime_components_factory.h"
@@ -20,6 +19,7 @@
 #include "config.h"
 #include "storage_distributor.h"
 
+#include <yt/server/clickhouse_server/functions/public.h>
 #include <yt/server/clickhouse_server/protos/clickhouse_service.pb.h>
 
 #include <yt/ytlib/api/native/client.h>

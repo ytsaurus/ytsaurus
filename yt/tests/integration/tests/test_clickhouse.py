@@ -762,6 +762,59 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 ]
             assert read_table("//tmp/t1") == read_table("//tmp/t2")
 
+    @authors("dakovalkov")
+    def test_yson_extract(self):
+        with Clique(1) as clique:
+            assert clique.make_query("select YSONHas('{a=5;b=6}', 'a') as a") == [{"a": 1}]
+            assert clique.make_query("select YSONHas('{a=5;b=6}', 'c') as a") == [{"a": 0}]
+            assert clique.make_query("select YSONHas('{a=5;b=[5; 4; 3]}', 'b', 1) as a") == [{"a": 1}]
+
+            assert clique.make_query("select YSONLength('{a=5;b=6}') as a") == [{"a": 2}]
+            assert clique.make_query("select YSONLength('{a=5;b=[5; 4; 3]}', 'b') as a") == [{"a": 3}]
+
+            assert clique.make_query("select YSONKey('{a=5;b={c=4}}', 'b', 'c') as a") == [{"a": "c"}]
+
+            assert clique.make_query("select YSONType('{a=5}') as a") == [{"a": "Object"}]
+            assert clique.make_query("select YSONType('[1; 3; 4]') as a") == [{"a": "Array"}]
+            assert clique.make_query("select YSONType('{a=5;b=4}', 'b') as a") == [{"a": "Int64"}]
+
+            assert clique.make_query("select YSONExtractInt('{a=5;b=[5; 4; 3]}', 'b', 1) as a") == [{"a": 5}]
+
+            assert clique.make_query("select YSONExtractUInt('{a=5;b=[5; 4; 3]}', 'b', 1) as a") == [{"a": 5}]
+
+            assert clique.make_query("select YSONExtractFloat('[1; 2; 4.4]', 3) as a") == [{"a": 4.4}]
+
+            assert clique.make_query("select YSONExtractBool('[%true; %false]', 1) as a") == [{"a": 1}]
+            assert clique.make_query("select YSONExtractBool('[%true; %false]', 2) as a") == [{"a": 0}]
+
+            assert clique.make_query("select YSONExtractString('[true; false]', 1) as a") == [{"a": "true"}]
+            assert clique.make_query("select YSONExtractString('{a=true; b=false}', 'b') as a") == [{"a": "false"}]
+
+            assert clique.make_query("select YSONExtract('{a=5;b=[5; 4; 3]}', 'b', 'Array(Int64)') as a") == [{"a": [5, 4, 3]}]
+
+            assert sorted(clique.make_query("select YSONExtractKeysAndValues('[{a=5};{a=5;b=6;c=10}]', 2, 'Int8') as a")[0]["a"]) == \
+                [["a", 5], ["b", 6], ["c", 10]]
+
+            assert yson.loads(clique.make_query("select YSONExtractRaw('[{a=5};{a=5;b=6;c=10}]', 2) as a")[0]["a"]) == \
+                {"a": 5, "b": 6, "c": 10}
+
+    @authors("dakovalkov")
+    def test_yson_extract_invalid(self):
+        with Clique(1) as clique:
+            assert clique.make_query("select YSONLength('{a=5;b=6}', 'invalid_key') as a") == [{"a": 0}]
+            assert clique.make_query("select YSONKey('{a=5;b={c=4}}', 'b', 'c', 'invalid_key') as a") == [{"a": ""}]
+            assert clique.make_query("select YSONType('{a=5}', 'invalid_key') as a") == [{"a": "Null"}]
+            assert clique.make_query("select YSONExtractInt('{a=5;b=[5; 4; 3]}', 'b', 100500) as a") == [{"a": 0}]
+            assert clique.make_query("select YSONExtractUInt('{a=5;b=[5; 4; 3]}', 'b', -100500) as a") == [{"a": 0}]
+            assert clique.make_query("select YSONExtractFloat('[1; 2; 4.4]', 42) as a") == [{"a": 0.0}]
+            assert clique.make_query("select YSONExtractBool('[%true; %false]', 10) as a") == [{"a": 0}]
+            assert clique.make_query("select YSONExtractString('[true; false]', 10) as a") == [{"a": ""}]
+            assert clique.make_query("select YSONExtractString('{a=true; b=false}', 'invalid_key') as a") == [{"a": ""}]
+            assert clique.make_query("select YSONExtract('{a=5;b=[5; 4; 3]}', 'invalid_key', 'Array(Int64)') as a") == [{"a": []}]
+            assert clique.make_query("select YSONExtractKeysAndValues('[{a=5};{a=5;b=6;c=10}]', 2, 10, 'Int8') as a")[0]["a"] == []
+            assert clique.make_query("select YSONExtractRaw('[{a=5};{a=5;b=6;c=10}]', 2, 1) as a") == [{"a": ""}]
+
+            assert clique.make_query("select YSONExtractString('{Invalid_YSON') as a") == [{"a": ""}]
 
 class TestJobInput(ClickHouseTestBase):
     def setup(self):
@@ -1331,6 +1384,38 @@ class TestCompositeTypes(ClickHouseTestBase):
         with Clique(1) as clique:
             result = clique.make_query("select YPathInt64(a, '') as i from \"//tmp/s2\" order by i")
             assert result == [{"i": row["a"]} for row in lst]
+
+    @authors("dakovalkov")
+    def test_raw_yson_as_any(self):
+        object = {"a": [1, 2, {"b": "xxx"}]}
+        create("table", "//tmp/s1", attributes={"schema": [{"name": "a", "type": "any"}]})
+        write_table("//tmp/s1", {"a": object})
+
+        with Clique(1) as clique:
+            result = clique.make_query("select YPathRaw(a, '') as i from \"//tmp/s1\"")
+            assert result == [{"i": yson.dumps(object, "binary")}]
+            result = clique.make_query("select YPathRawStrict(a, '/a') as i from \"//tmp/s1\"")
+            assert result == [{"i": yson.dumps(object["a"], "binary")}]
+            result = clique.make_query("select YPathRaw(a, '', 'text') as i from \"//tmp/s1\"")
+            assert result == [{"i": yson.dumps(object, "text")}]
+            result = clique.make_query("select YPathRaw(a, '/b') as i from \"//tmp/s1\"")
+            assert result == [{"i": None}]
+            with pytest.raises(YtError):
+                clique.make_query("select YPathRawStrict(a, '/b') as i from \"//tmp/s1\"")
+
+    @authors("dakovlkov")
+    def test_ypath_extract(self):
+        object = {"a": [[1, 2, 3], [4, 5], [6, 7, 8, 9]]}
+        create("table", "//tmp/s1", attributes={"schema": [{"name": "a", "type": "any"}]})
+        write_table("//tmp/s1", {"a": object})
+
+        with Clique(1) as clique:
+            result = clique.make_query("select YPathExtract(a, '/a/1/1', 'UInt64') as i from \"//tmp/s1\"")
+            assert result == [{"i": object["a"][1][1]}]
+            result = clique.make_query("select YPathExtract(a, '/a/2', 'Array(UInt64)') as i from \"//tmp/s1\"")
+            assert result == [{"i": object["a"][2]}]
+            result = clique.make_query("select YPathExtract(a, '/a', 'Array(Array(UInt64))') as i from \"//tmp/s1\"")
+            assert result == [{"i": object["a"]}]
 
 class TestYtDictionaries(ClickHouseTestBase):
     def setup(self):

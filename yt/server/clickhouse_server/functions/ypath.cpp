@@ -1,25 +1,27 @@
-#include "functions.h"
+#include "ypath.h"
 
-#include "private.h"
+#include "yson_parser_adapter.h"
+
+#include <yt/server/clickhouse_server/private.h>
 
 #include <yt/core/yson/string.h>
 
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/ypath_client.h>
 
+#include <Columns/ColumnNullable.h>
+#include <Columns/ColumnsNumber.h>
+#include <Columns/ColumnString.h>
 #include <DataTypes/DataTypeArray.h>
 #include <DataTypes/DataTypeNullable.h>
 #include <DataTypes/DataTypesNumber.h>
 #include <DataTypes/DataTypeString.h>
-#include <Columns/ColumnNullable.h>
-#include <Columns/ColumnString.h>
-#include <Columns/ColumnsNumber.h>
 #include <Functions/FunctionFactory.h>
 #include <Functions/FunctionHelpers.h>
+#include <Functions/FunctionsJSON.h>
 #include <Functions/IFunction.h>
 
-namespace DB
-{
+namespace DB {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -102,12 +104,7 @@ public:
             columnPath = &nullableColumnPath->getNestedColumn();
         }
 
-        MutableColumnPtr columnTo;
-        if (OutputDataType_->canBeInsideNullable() && (columnYsonOrNull->isNullable() || columnPathOrNull->isNullable())) {
-            columnTo = makeNullable(OutputDataType_)->createColumn();
-        } else {
-            columnTo = OutputDataType_->createColumn();
-        }
+        auto columnTo = block.getByPosition(result).type->createColumn();
         columnTo->reserve(inputRowCount);
 
         for (size_t i = 0; i < inputRowCount; ++i) {
@@ -119,6 +116,7 @@ public:
 
             const auto& yson = columnYson->getDataAt(i);
             const auto& path = columnPath->getDataAt(i);
+            // TODO(dakovalkov): Remove string copy after YT-11723.
             auto node = ConvertToNode(TYsonString(yson.data, yson.size));
 
             INodePtr subNode = nullptr;
@@ -258,23 +256,72 @@ using TFunctionYPathArrayDouble = TArrayYPathFunction<DataTypeFloat64, std::vect
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFunctionConvertYson : public IFunction
+template <bool Strict, class TName>
+class TFunctionYPathRawImpl : public IFunction
 {
 public:
-    static constexpr auto name = "ConvertYson";
-    static FunctionPtr create(const Context &)
-    {
-        return std::make_shared<TFunctionConvertYson>();
-    }
+    static constexpr auto name = TName::Name;
 
-    String getName() const override
+    virtual std::string getName() const override
     {
         return name;
     }
 
-    size_t getNumberOfArguments() const override
+    virtual bool isVariadic() const override
     {
-        return 2;
+        return true;
+    }
+
+    virtual size_t getNumberOfArguments() const override
+    {
+        return 0;
+    }
+
+    static FunctionPtr create(const Context& /* context */)
+    {
+        return std::make_shared<TFunctionYPathRawImpl>();
+    }
+
+    virtual DataTypePtr getReturnTypeImpl(const ColumnsWithTypeAndName& arguments) const
+    {
+        if (arguments.size() < 2) {
+            throw Exception(
+                "Too few arguments, should be at least 2",
+                ErrorCodes::TOO_FEW_ARGUMENTS_FOR_FUNCTION);
+        }
+        if (arguments.size() > 3) {
+            throw Exception(
+                "Too many arguments, should be at most 3",
+                ErrorCodes::TOO_MANY_ARGUMENTS_FOR_FUNCTION);
+        }
+
+        if (!isString(removeNullable(arguments[0].type)) && !WhichDataType(removeNullable(arguments[0].type)).isNothing()) {
+            throw Exception(
+                "Illegal type " + arguments[0].type->getName() + " of first argument of function " + getName(),
+                ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
+        }
+        if (!isString(removeNullable(arguments[1].type)) && !WhichDataType(removeNullable(arguments[1].type)).isNothing()) {
+            throw Exception(
+                "Illegal type " + arguments[1].type->getName() + " of second argument of function " + getName(),
+                ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
+        }
+        if (arguments.size() == 3) {
+            const auto& format = arguments[2];
+            auto formatConst = typeid_cast<const ColumnConst *>(format.column.get());
+            if (!formatConst || !isString(format.type)) {
+                throw Exception(
+                    "Illegal type " + format.type->getName() + " of third argument of function " + getName()
+                    + ", only const string is supported",
+                    ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
+            }
+        }
+
+        // If the path doesn't exist and the function isn't strict, we return Null.
+        if (!Strict || arguments[0].type->isNullable() || arguments[1].type->isNullable()) {
+            return makeNullable(std::make_shared<DataTypeString>());
+        } else {
+            return std::make_shared<DataTypeString>();
+        }
     }
 
     virtual bool useDefaultImplementationForNulls() const override
@@ -287,27 +334,7 @@ public:
         return true;
     }
 
-    DataTypePtr getReturnTypeImpl(const DataTypes & arguments) const override
-    {
-        if (!isString(removeNullable(arguments[0])) && !WhichDataType(removeNullable(arguments[0])).isNothing()) {
-            throw Exception(
-                "Illegal type " + arguments[0]->getName() + " of first argument of function " + getName(),
-                ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
-        }
-        if (!isString(removeNullable(arguments[1]))) {
-            throw Exception(
-                "Illegal type " + arguments[1]->getName() + " of second argument of function " + getName(),
-                ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
-        }
-
-        if (arguments[0]->isNullable()) {
-            return makeNullable(std::make_shared<DataTypeString>());
-        } else {
-            return std::make_shared<DataTypeString>();
-        }
-    }
-
-    void executeImpl(Block & block, const ColumnNumbers & arguments, size_t result, size_t inputRowCount) override
+    void executeImpl(Block& block, const ColumnNumbers& arguments, size_t result, size_t inputRowCount) override
     {
         const IColumn* columnYsonOrNull = block.getByPosition(arguments[0]).column.get();
         const IColumn* columnYson = columnYsonOrNull;
@@ -315,36 +342,45 @@ public:
             columnYson = &nullableColumnYson->getNestedColumn();
         }
 
-        const IColumn* columnFormatOrNull = block.getByPosition(arguments[1]).column.get();
-        const IColumn* columnFormat = columnFormatOrNull;
-        if (auto* nullableColumnFormat = checkAndGetColumn<ColumnNullable>(columnFormat)) {
-            columnFormat = &nullableColumnFormat->getNestedColumn();
+        const IColumn* columnPathOrNull = block.getByPosition(arguments[1]).column.get();
+        const IColumn* columnPath = columnPathOrNull;
+        if (auto* nullableColumnPath = checkAndGetColumn<ColumnNullable>(columnPath)) {
+            columnPath = &nullableColumnPath->getNestedColumn();
         }
-        
-        MutableColumnPtr columnTo;
-        if (columnYsonOrNull->isNullable()) {
-            columnTo = makeNullable(std::make_shared<DataTypeString>())->createColumn();
-        } else {
-            columnTo = DataTypeString().createColumn();   
-        }
+
+        auto format = NYson::EYsonFormat::Binary;
+        if (arguments.size() == 3) {
+            const auto* formatColumn = typeid_cast<const ColumnConst *>(block.getByPosition(arguments[2]).column.get());
+            format = ConvertTo<NYson::EYsonFormat>(formatColumn->getValue<String>());
+        } 
+
+        auto columnTo = block.getByPosition(result).type->createColumn();
         columnTo->reserve(inputRowCount);
 
         for (size_t i = 0; i < inputRowCount; ++i) {
-            if (columnYsonOrNull->isNullAt(i)) {
+            if (columnYsonOrNull->isNullAt(i) || columnPathOrNull->isNullAt(i)) {
                 // Default is Null.
                 columnTo->insertDefault();
                 continue;
             }
-            if (columnFormatOrNull->isNullAt(i)) {
-                THROW_ERROR_EXCEPTION("Yson format should be not null");
-            }
+
             const auto& yson = columnYson->getDataAt(i);
-            const auto& format = columnFormat->getDataAt(i);
+            const auto& path = columnPath->getDataAt(i);
+            // TODO(dakovalkov): Remove string copy after YT-11723.
+            auto node = ConvertToNode(TYsonString(yson.data, yson.size));
 
-            NYson::EYsonFormat ysonFormat = ConvertTo<NYson::EYsonFormat>(TString(format.data, format.size));
-            auto ysonString = TYsonString(yson.data, yson.size);
+            INodePtr subNode = nullptr;
+            if constexpr (Strict) {
+                subNode = GetNodeByYPath(node, TString(path.data, path.size));
+            } else {
+                subNode = FindNodeByYPath(node, TString(path.data, path.size));
+            }
 
-            columnTo->insert(toField(ConvertToYsonString(ysonString, ysonFormat).GetData()));
+            if (subNode) {
+                columnTo->insert(toField(ConvertToYsonString(subNode, format).GetData()));
+            } else {
+                columnTo->insertDefault();
+            }
         }
 
         block.getByPosition(result).column = std::move(columnTo);
@@ -353,7 +389,132 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RegisterFunctions()
+// TODO(dakovalkov): Support Strict version of the function.
+template <bool Strict, class TName>
+class TFunctionYPathExtractImpl : public IFunction
+{
+public:
+    static constexpr auto name = TName::Name;
+
+    virtual std::string getName() const override
+    {
+        return name;
+    }
+
+    virtual size_t getNumberOfArguments() const override
+    {
+        return 3;
+    }
+
+    static FunctionPtr create(const Context& /* context */)
+    {
+        return std::make_shared<TFunctionYPathExtractImpl>();
+    }
+
+    virtual DataTypePtr getReturnTypeImpl(const ColumnsWithTypeAndName& arguments) const
+    {
+        if (!isString(removeNullable(arguments[0].type)) && !WhichDataType(removeNullable(arguments[0].type)).isNothing()) {
+            throw Exception(
+                "Illegal type " + arguments[0].type->getName() + " of first argument of function " + getName(),
+                ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
+        }
+        if (!isString(removeNullable(arguments[1].type)) && !WhichDataType(removeNullable(arguments[1].type)).isNothing()) {
+            throw Exception(
+                "Illegal type " + arguments[1].type->getName() + " of second argument of function " + getName(),
+                ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
+        }
+        const auto& type = arguments[2];
+        auto typeConst = typeid_cast<const ColumnConst *>(type.column.get());
+        if (!typeConst || !isString(type.type)) {
+            throw Exception(
+                "Illegal type " + type.type->getName() + " of third argument of function " + getName()
+                + ", only const string is supported",
+                ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
+        }
+
+        return DataTypeFactory::instance().get(typeConst->getValue<String>());
+    }
+
+    virtual bool useDefaultImplementationForNulls() const override
+    {
+        return false;
+    }
+
+    virtual bool useDefaultImplementationForConstants() const override
+    {
+        return true;
+    }
+
+    void executeImpl(Block& block, const ColumnNumbers& arguments, size_t result, size_t inputRowCount) override
+    {
+        const IColumn* columnYsonOrNull = block.getByPosition(arguments[0]).column.get();
+        const IColumn* columnYson = columnYsonOrNull;
+        if (auto* nullableColumnYson = checkAndGetColumn<ColumnNullable>(columnYson)) {
+            columnYson = &nullableColumnYson->getNestedColumn();
+        }
+
+        const IColumn* columnPathOrNull = block.getByPosition(arguments[1]).column.get();
+        const IColumn* columnPath = columnPathOrNull;
+        if (auto* nullableColumnPath = checkAndGetColumn<ColumnNullable>(columnPath)) {
+            columnPath = &nullableColumnPath->getNestedColumn();
+        }
+
+        auto returnType = block.getByPosition(result).type;
+
+        using Iterator = TYsonParserAdapter::Iterator;
+        auto extractTree = JSONExtractTree<TYsonParserAdapter>::build(name, returnType);
+
+        auto columnTo = returnType->createColumn();
+        columnTo->reserve(inputRowCount);
+
+        for (size_t i = 0; i < inputRowCount; ++i) {
+            if (columnYsonOrNull->isNullAt(i) || columnPathOrNull->isNullAt(i)) {
+                // Default is Null.
+                columnTo->insertDefault();
+                continue;
+            }
+
+            const auto& yson = columnYson->getDataAt(i);
+            const auto& path = columnPath->getDataAt(i);
+            // TODO(dakovalkov): Remove string copy after YT-11723.
+            auto node = ConvertToNode(TYsonString(yson.data, yson.size));
+
+            INodePtr subNode = nullptr;
+            if constexpr (Strict) {
+                subNode = GetNodeByYPath(node, TString(path.data, path.size));
+            } else {
+                subNode = FindNodeByYPath(node, TString(path.data, path.size));
+            }
+
+            if (!subNode || !extractTree->addValueToColumn(*columnTo, Iterator{subNode})) {
+                columnTo->insertDefault();
+            }
+        }
+
+        block.getByPosition(result).column = std::move(columnTo);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TNameYPathRawStrict { static constexpr auto Name = "YPathRawStrict"; };
+struct TNameYPathExtractStrict { static constexpr auto Name = "YPathExtractStrict"; };
+
+struct TNameYPathRaw { static constexpr auto Name = "YPathRaw"; };
+struct TNameYPathExtract { static constexpr auto Name = "YPathExtract"; };
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TFunctionYPathRawStrict = TFunctionYPathRawImpl<true, TNameYPathRawStrict>;
+// Not supported yet.
+// using TFunctionYPathExtractStrict = TFunctionYPathExtractImpl<true, TNameYPathExtractStrict>;
+
+using TFunctionYPathRaw = TFunctionYPathRawImpl<false, TNameYPathRaw>;
+using TFunctionYPathExtract = TFunctionYPathExtractImpl<false, TNameYPathExtract>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+void RegisterYPathFunctions()
 {
     auto& factory = FunctionFactory::instance();
 
@@ -379,7 +540,11 @@ void RegisterFunctions()
     factory.registerFunction<TFunctionYPathArrayDouble>();
     factory.registerFunction<TFunctionYPathArrayBoolean>();
 
-    factory.registerFunction<TFunctionConvertYson>();
+    factory.registerFunction<TFunctionYPathRawStrict>();
+    // factory.registerFunction<TFunctionYPathExtractStrict>();
+
+    factory.registerFunction<TFunctionYPathRaw>();
+    factory.registerFunction<TFunctionYPathExtract>();
 }
 
 /////////////////////////////////////////////////////////////////////////////
