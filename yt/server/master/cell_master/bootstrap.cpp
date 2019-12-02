@@ -172,6 +172,7 @@ using NTransactionServer::TTransactionManagerPtr;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const NLogging::TLogger Logger("Bootstrap");
+static const NProfiling::TProfiler BootstrapProfiler("");
 static constexpr auto ProfilingPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -754,6 +755,8 @@ void TBootstrap::DoInitialize()
     RpcServer_->Configure(Config_->RpcServer);
 
     AnnotationSetter_ = New<TAnnotationSetter>(this);
+
+    Profiler_ = BootstrapProfiler;
 
     ProfilingExecutor_ = New<TPeriodicExecutor>(
         GetProfilerInvoker(),
