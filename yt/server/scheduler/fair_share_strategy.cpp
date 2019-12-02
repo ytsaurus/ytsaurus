@@ -118,7 +118,8 @@ public:
         YT_LOG_INFO("Starting min needed job resources update");
 
         for (const auto& [operationId, state] : OperationIdToOperationState_) {
-            if (state->GetHost()->IsSchedulable()) {
+            auto maybeUnschedulableReason = state->GetHost()->CheckUnschedulable();
+            if (!maybeUnschedulableReason || maybeUnschedulableReason == EUnschedulableReason::NoPendingJobs) {
                 state->GetController()->UpdateMinNeededJobResources();
             }
         }
@@ -826,7 +827,8 @@ public:
                 tree->EnableOperation(state);
             }
         }
-        if (host->IsSchedulable()) {
+        auto maybeUnschedulableReason = host->CheckUnschedulable();
+        if (!maybeUnschedulableReason || maybeUnschedulableReason == EUnschedulableReason::NoPendingJobs) {
             state->GetController()->UpdateMinNeededJobResources();
         }
     }

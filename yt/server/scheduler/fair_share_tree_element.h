@@ -76,6 +76,7 @@ struct TUpdateFairShareContext
     std::vector<TError> Errors;
     THashMap<TString, int> ElementIndexes;
     TInstant Now;
+    TEnumIndexedVector<EUnschedulableReason, int> UnschedulableReasons;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -278,6 +279,8 @@ public:
 
     bool IsActive(const TDynamicAttributesList& dynamicAttributesList) const;
 
+    virtual bool IsSchedulable() const = 0;
+
     virtual bool IsAggressiveStarvationPreemptionAllowed() const = 0;
 
     bool IsAlive() const;
@@ -447,6 +450,8 @@ public:
     virtual void PrescheduleJob(TFairShareContext* context, bool starvingOnly, bool aggressiveStarvationEnabled) override;
     virtual TFairShareScheduleJobResult ScheduleJob(TFairShareContext* context, bool ignorePacking) override;
 
+    virtual bool IsSchedulable() const override;
+
     virtual bool HasAggressivelyStarvingElements(TFairShareContext* context, bool aggressiveStarvationEnabled) const override;
 
     virtual bool IsExplicit() const;
@@ -498,6 +503,8 @@ protected:
 
     TChildMap DisabledChildToIndex_;
     TChildList DisabledChildren_;
+
+    TChildList SchedulableChildren_;
 
     template <class TGetter, class TSetter>
     void ComputeByFitting(const TGetter& getter, const TSetter& setter, double sum);
@@ -633,7 +640,7 @@ protected:
         TFairShareStrategyOperationControllerConfigPtr controllerConfig);
 
     const TOperationId OperationId_;
-    bool Schedulable_;
+    std::optional<EUnschedulableReason> UnschedulableReason_;
     std::optional<int> SlotIndex_;
     TString UserName_;
     IOperationStrategyHost* const Operation_;
@@ -823,7 +830,7 @@ public:
 
     virtual TString GetId() const override;
 
-    bool IsSchedulable() const;
+    virtual bool IsSchedulable() const override;
 
     virtual bool IsAggressiveStarvationPreemptionAllowed() const override;
 
@@ -913,7 +920,6 @@ private:
 
     bool HasJobsSatisfyingResourceLimits(const TFairShareContext& context) const;
 
-    bool HasPendingJobs() const;
     bool IsMaxConcurrentScheduleJobCallsViolated() const;
     bool HasRecentScheduleJobFailure(NProfiling::TCpuInstant now) const;
     std::optional<EDeactivationReason> CheckBlocked(NProfiling::TCpuInstant now) const;

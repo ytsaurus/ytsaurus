@@ -213,9 +213,9 @@ public:
         YT_ABORT();
     }
 
-    virtual bool IsSchedulable() const override
+    virtual std::optional<EUnschedulableReason> CheckUnschedulable() const override
     {
-        return true;
+        return std::nullopt;
     }
 
     virtual TInstant GetStartTime() const override

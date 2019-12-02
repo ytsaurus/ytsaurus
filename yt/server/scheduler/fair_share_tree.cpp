@@ -1041,6 +1041,9 @@ std::pair<IFairShareTreeSnapshotPtr, TError> TFairShareTree::DoFairShareUpdateAt
     PROFILE_AGGREGATED_TIMING(FairSharePreUpdateTimeCounter_) {
         rootElement->PreUpdate(&dynamicAttributes, &updateContext);
     }
+    YT_LOG_DEBUG("Fair share tree pre-update finished (UnschedulableReasons: %v)",
+        updateContext.UnschedulableReasons);
+
     auto asyncUpdate = BIND([&]
         {
             PROFILE_AGGREGATED_TIMING(FairShareUpdateTimeCounter_) {
