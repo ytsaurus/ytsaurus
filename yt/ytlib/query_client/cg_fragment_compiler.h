@@ -254,6 +254,13 @@ size_t MakeCodegenProjectOp(
     TCodegenFragmentInfosPtr fragmentInfos,
     std::vector<size_t> argIds);
 
+size_t MakeCodegenOffsetLimiterOp(
+    TCodegenSource* codegenSource,
+    size_t* slotCount,
+    size_t producerSlot,
+    size_t offsetId,
+    size_t limitId);
+
 void MakeCodegenWriteOp(
     TCodegenSource* codegenSource,
     size_t slot,
