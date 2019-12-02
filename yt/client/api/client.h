@@ -954,8 +954,6 @@ struct TOperation
     std::optional<TString> AuthenticatedUser;
     NYTree::INodePtr Acl;
 
-    std::optional<std::vector<TString>> Pools;
-
     NYson::TYsonString BriefSpec;
     NYson::TYsonString Spec;
     NYson::TYsonString FullSpec;
