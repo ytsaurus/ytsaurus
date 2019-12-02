@@ -99,11 +99,19 @@ using TOperationAlertMap = SmallDenseMap<
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EUnschedulableReason,
+    (IsNotRunning)
+    (Suspended)
+    (NoPendingJobs)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IOperationStrategyHost
 {
     virtual EOperationType GetType() const = 0;
 
-    virtual bool IsSchedulable() const = 0;
+    virtual std::optional<EUnschedulableReason> CheckUnschedulable() const = 0;
 
     virtual TInstant GetStartTime() const = 0;
 
@@ -280,8 +288,8 @@ public:
     //! Delegates to #NYT::NScheduler::IsOperationFinishing.
     bool IsFinishingState() const;
 
-    //! Checks whether current operation state allows starting new jobs.
-    bool IsSchedulable() const override;
+    //! Checks whether current operation state doesn't allow starting new jobs.
+    std::optional<EUnschedulableReason> CheckUnschedulable() const override;
 
     virtual IOperationControllerStrategyHostPtr GetControllerStrategyHost() const override;
 

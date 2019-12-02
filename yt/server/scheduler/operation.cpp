@@ -212,9 +212,21 @@ bool TOperation::IsFinishingState() const
     return IsOperationFinishing(State_);
 }
 
-bool TOperation::IsSchedulable() const
+std::optional<EUnschedulableReason> TOperation::CheckUnschedulable() const
 {
-    return State_ == EOperationState::Running && !Suspended_;
+    if (State_ != EOperationState::Running) {
+        return EUnschedulableReason::IsNotRunning;
+    }
+
+    if (Suspended_) {
+        return EUnschedulableReason::Suspended;
+    }
+
+    if (Controller_->GetPendingJobCount() == 0) {
+        return EUnschedulableReason::NoPendingJobs;
+    }
+
+    return std::nullopt;
 }
 
 IOperationControllerStrategyHostPtr TOperation::GetControllerStrategyHost() const
