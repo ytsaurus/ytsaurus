@@ -271,12 +271,21 @@ class TTransaction
     , public TClientBase
 {
 public:
+    //
+    // Start a new transaction.
+    TTransaction(
+        TClientPtr parentClient,
+        const TAuth& auth,
+        const TTransactionId& parentTransactionId,
+        const TStartTransactionOptions& options);
+
+    //
+    // Attach an existing transaction.
     TTransaction(
         TClientPtr parentClient,
         const TAuth& auth,
         const TTransactionId& transactionId,
-        bool isOwning,
-        const TStartTransactionOptions& options);
+        const TAttachTransactionOptions& options);
 
     const TTransactionId& GetId() const override;
 
@@ -294,6 +303,8 @@ public:
     void Abort() override;
 
     void Ping() override;
+
+    void Detach() override;
 
     TClientPtr GetParentClientImpl() override;
 
@@ -317,7 +328,8 @@ public:
     ~TClient();
 
     ITransactionPtr AttachTransaction(
-        const TTransactionId& transactionId) override;
+        const TTransactionId& transactionId,
+        const TAttachTransactionOptions& options) override;
 
     void MountTable(
         const TYPath& path,

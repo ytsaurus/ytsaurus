@@ -25,7 +25,7 @@ void RetryHeavyWriteRequest(
     header.SetToken(auth.Token);
 
     for (int attempt = 0; attempt < retryCount; ++attempt) {
-        TPingableTransaction attemptTx(auth, parentId);
+        TPingableTransaction attemptTx(auth, parentId, TStartTransactionOptions());
 
         auto input = streamMaker();
         TString requestId;

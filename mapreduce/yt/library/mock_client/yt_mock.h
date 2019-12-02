@@ -62,7 +62,7 @@ namespace NTesting {
         MOCK_METHOD1(StartTransaction, ITransactionPtr(const TStartTransactionOptions&));
         MOCK_METHOD2(AlterTable, void(const TYPath&, const TAlterTableOptions&));
 
-        MOCK_METHOD1(AttachTransaction, ITransactionPtr(const TTransactionId&));
+        MOCK_METHOD2(AttachTransaction, ITransactionPtr(const TTransactionId&, const TAttachTransactionOptions&));
         MOCK_METHOD2(MountTable, void(const TYPath&, const TMountTableOptions&));
         MOCK_METHOD2(UnmountTable, void(const TYPath&, const TUnmountTableOptions&));
         MOCK_METHOD2(RemountTable, void(const TYPath&, const TRemountTableOptions&));

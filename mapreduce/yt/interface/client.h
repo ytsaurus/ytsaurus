@@ -190,6 +190,12 @@ public:
 
     /// Ping transaction.
     virtual void Ping() = 0;
+
+    //
+    // Detach transaction.
+    // Stop any activities connected with it: pinging, aborting on crashed etc.
+    // Forget about the transaction totally.
+    virtual void Detach();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -201,11 +207,14 @@ public:
     ///
     /// @brief Attach to existing transaction.
     ///
-    /// Returned object WILL NOT ping transaction automatically.
-    /// Otherwise returened object is similar to the object returned by StartTransaction
+    /// Returned object WILL NOT:
+    ///  - ping transaction automatically (unless @ref TAttachTransactionOptions::AutoPing is set)
+    ///  - abort it on program termination (unless @ref TAttachTransactionOptions::AbortOnTermination is set).
+    /// Otherwise returned object is similar to the object returned by @ref IClientBase::StartTransaction.
     /// and it can see all the changes made inside the transaction.
     [[nodiscard]] virtual ITransactionPtr AttachTransaction(
-        const TTransactionId& transactionId) = 0;
+        const TTransactionId& transactionId,
+        const TAttachTransactionOptions& options = TAttachTransactionOptions()) = 0;
 
     virtual void MountTable(
         const TYPath& path,

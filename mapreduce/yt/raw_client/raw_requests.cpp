@@ -84,6 +84,24 @@ TNode Get(
     return NodeFromYsonString(RetryRequestWithPolicy(retryPolicy, auth, header).Response);
 }
 
+TNode TryGet(
+    const IRequestRetryPolicyPtr& retryPolicy,
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TYPath& path,
+    const TGetOptions& options)
+{
+    try {
+        return Get(retryPolicy, auth, transactionId, path, options);
+    } catch (const TErrorResponse& error) {
+        if (!error.IsResolveError()) {
+            throw;
+        }
+        return TNode();
+    }
+}
+
+
 void Set(
     const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
