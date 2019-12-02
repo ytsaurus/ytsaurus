@@ -61,7 +61,8 @@ private:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->ResolvePathToObject(
             TLinkNode::ComputeEffectiveTargetPath(targetPath, context.Shard),
-            context.Transaction);
+            context.Transaction,
+            true /*portalEntranceAcceptable*/);
 
         auto implHolder = TBase::DoCreate(id, context);
         implHolder->SetTargetPath(targetPath);

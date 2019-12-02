@@ -178,7 +178,8 @@ public:
     //! Pretty slow.
     TObject* ResolvePathToObject(
         const NYPath::TYPath& path,
-        NTransactionServer::TTransaction* transaction);
+        NTransactionServer::TTransaction* transaction,
+        bool portalEntranceAcceptable);
 
     //! Validates prerequisites, throws on failure.
     void ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites);

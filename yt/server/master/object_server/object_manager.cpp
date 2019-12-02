@@ -205,7 +205,8 @@ public:
 
     TObject* ResolvePathToObject(
         const TYPath& path,
-        TTransaction* transaction);
+        TTransaction* transaction,
+        bool portalEntranceAcceptable);
 
     void ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites);
 
@@ -1362,7 +1363,7 @@ void TObjectManager::TImpl::AdvanceObjectLifeStageAtSecondaryMasters(NYT::NObjec
     multicellManager->PostToSecondaryMasters(advanceRequest);
 }
 
-TObject* TObjectManager::TImpl::ResolvePathToObject(const TYPath& path, TTransaction* transaction)
+TObject* TObjectManager::TImpl::ResolvePathToObject(const TYPath& path, TTransaction* transaction, bool portalEntranceAcceptable)
 {
     static const TString NullService;
     static const TString NullMethod;
@@ -1374,7 +1375,8 @@ TObject* TObjectManager::TImpl::ResolvePathToObject(const TYPath& path, TTransac
         transaction);
 
     auto result = resolver.Resolve(TPathResolverOptions{
-        .EnablePartialResolve = false
+        .EnablePartialResolve = false,
+        .ResolvePortalToEntranceNotExit = portalEntranceAcceptable
     });
     const auto* payload = std::get_if<TPathResolver::TLocalObjectPayload>(&result.Payload);
     if (!payload) {
@@ -2201,9 +2203,9 @@ TObject* TObjectManager::FindObjectByAttributes(EObjectType type, const NYTree::
     return Impl_->FindObjectByAttributes(type, attributes);
 }
 
-TObject* TObjectManager::ResolvePathToObject(const TYPath& path, TTransaction* transaction)
+TObject* TObjectManager::ResolvePathToObject(const TYPath& path, TTransaction* transaction, bool portalEntranceAcceptable)
 {
-    return Impl_->ResolvePathToObject(path, transaction);
+    return Impl_->ResolvePathToObject(path, transaction, portalEntranceAcceptable);
 }
 
 void TObjectManager::ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites)

@@ -22,6 +22,7 @@ struct TPathResolverOptions
 {
     bool EnablePartialResolve = true;
     bool PopulateResolveCache = false;
+    bool ResolvePortalToEntranceNotExit = false;
 };
 
 class TPathResolver

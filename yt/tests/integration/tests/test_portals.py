@@ -867,6 +867,22 @@ class TestPortals(YTEnvSetup):
         commit_transaction(tx)
         assert read_table("//tmp/p/t3") == [{"key": "value1"}, {"key": "value2"}]
 
+    @authors("shakurov")
+    def test_link_not_externalizable(self):
+        create("map_node", "//tmp/m")
+        create("link", "//tmp/l", attributes={"target_path": "//tmp/m"})
+        with pytest.raises(YtError):
+            externalize("//tmp/l", 1)
+
+    @authors("shakurov")
+    def test_link_to_portal_not_broken(self):
+        create("map_node", "//tmp/m")
+        create("link", "//tmp/l", attributes={"target_path": "//tmp/m"})
+
+        externalize("//tmp/m", 1)
+
+        assert not get("//tmp/l&/@broken")
+
 ##################################################################
 
 class TestResolveCache(YTEnvSetup):
