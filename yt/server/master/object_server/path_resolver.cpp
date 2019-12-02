@@ -205,6 +205,7 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
                  Method_ == "Set" ||
                  Method_ == "Create" ||
                  Method_ == "Copy" ||
+                 Method_ == "BeginCopy" ||
                  Method_ == "EndCopy"))
             {
                 return makeCurrentLocalObjectResult();
@@ -226,6 +227,13 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
                 return makeCurrentLocalObjectResult();
             }
 
+            if (options.ResolvePortalToEntranceNotExit &&
+                !slashSkipped &&
+                Tokenizer_.GetType() == NYPath::ETokenType::EndOfStream)
+            {
+                return makeCurrentLocalObjectResult();
+            }
+
             const auto* portalEntrance = currentNode->As<TPortalEntranceNode>();
             auto portalExitNodeId = MakePortalExitNodeId(
                 portalEntrance->GetId(),
@@ -236,7 +244,7 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
                 TRemoteObjectPayload{portalExitNodeId},
                 canCacheResolve
             };
-        } else  {
+        } else {
             return makeCurrentLocalObjectResult();
         }
     }
