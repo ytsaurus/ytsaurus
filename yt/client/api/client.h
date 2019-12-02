@@ -781,6 +781,9 @@ struct TListOperationsAccessFilter
     TString Subject;
     NYTree::EPermissionSet Permissions;
 
+    // This parameter cannot be set from YSON, it must be computed.
+    THashSet<TString> SubjectTransitiveClosure;
+
     TListOperationsAccessFilter()
     {
         RegisterParameter("subject", Subject);

@@ -2,6 +2,7 @@
 #include "box.h"
 #include "config.h"
 #include "connection.h"
+#include "list_operations.h"
 #include "transaction.h"
 #include "private.h"
 
@@ -78,7 +79,6 @@
 #include <yt/client/scheduler/operation_id_or_alias.h>
 
 #include <yt/ytlib/security_client/group_ypath_proxy.h>
-#include <yt/ytlib/security_client/helpers.h>
 
 #include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/schema_inferer.h>
@@ -170,11 +170,14 @@ TUnversionedOwningRow CreateJobKey(TJobId jobId, const TNameTablePtr& nameTable)
     return keyBuilder.FinishRow();
 }
 
-TUnversionedRow CreateOperationKey(const TOperationId& operationId, const TOrderedByIdTableDescriptor::TIndex& Index, const TRowBufferPtr& rowBuffer)
+TUnversionedRow CreateOperationKey(
+    const TOperationId& operationId,
+    const TOrderedByIdTableDescriptor::TIndex& index,
+    const TRowBufferPtr& rowBuffer)
 {
     auto key = rowBuffer->AllocateUnversioned(2);
-    key[0] = MakeUnversionedUint64Value(operationId.Parts64[0], Index.IdHi);
-    key[1] = MakeUnversionedUint64Value(operationId.Parts64[1], Index.IdLo);
+    key[0] = MakeUnversionedUint64Value(operationId.Parts64[0], index.IdHi);
+    key[1] = MakeUnversionedUint64Value(operationId.Parts64[1], index.IdLo);
     return key;
 }
 
@@ -209,81 +212,6 @@ TYPath GetControllerAgentOrchidRetainedFinishedJobsPath(TStringBuf controllerAge
 }
 
 } // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TClient::TCountingFilter
-{
-    THashMap<TString, i64> PoolCounts;
-    THashMap<TString, i64> UserCounts;
-    TEnumIndexedVector<NScheduler::EOperationState, i64> StateCounts;
-    TEnumIndexedVector<NScheduler::EOperationType, i64> TypeCounts;
-    i64 FailedJobsCount = 0;
-
-    const TListOperationsOptions& Options;
-
-    explicit TCountingFilter(const TListOperationsOptions& options)
-        : Options(options)
-    { }
-
-    bool Filter(
-        std::optional<std::vector<TString>> pools,
-        TStringBuf user,
-        const EOperationState& state,
-        const NScheduler::EOperationType& type,
-        i64 count)
-    {
-        UserCounts[user] += count;
-
-        if (Options.UserFilter && *Options.UserFilter != user) {
-            return false;
-        }
-
-        if (pools) {
-            for (const auto& pool : *pools) {
-                PoolCounts[pool] += count;
-            }
-        }
-
-        if (Options.Pool && (!pools || std::find(pools->begin(), pools->end(), *Options.Pool) == pools->end())) {
-            return false;
-        }
-
-        StateCounts[state] += count;
-
-        if (Options.StateFilter && *Options.StateFilter != state) {
-            return false;
-        }
-
-        TypeCounts[type] += count;
-
-        if (Options.TypeFilter && *Options.TypeFilter != type) {
-            return false;
-        }
-
-        return true;
-    }
-
-    bool FilterByFailedJobs(const NYson::TYsonString& briefProgress)
-    {
-        bool hasFailedJobs = false;
-        if (briefProgress) {
-            auto briefProgressMapNode = ConvertToNode(briefProgress)->AsMap();
-            auto jobsNode = briefProgressMapNode->FindChild("jobs");
-            hasFailedJobs = jobsNode && jobsNode->AsMap()->GetChild("failed")->GetValue<i64>() > 0;
-        }
-        FailedJobsCount += hasFailedJobs;
-        return !Options.WithFailedJobs || (*Options.WithFailedJobs == hasFailedJobs);
-    }
-
-    bool FilterByFailedJobs(bool hasFailedJobs, i64 count)
-    {
-        if (hasFailedJobs) {
-            FailedJobsCount += count;
-        }
-        return !Options.WithFailedJobs || (*Options.WithFailedJobs == hasFailedJobs);
-    }
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -764,9 +692,9 @@ std::vector<TString> TClient::MakeCypressOperationAttributes(const THashSet<TStr
 
         }
         if (attribute == "id") {
-            result.push_back("key");
+            result.emplace_back("key");
         } else if (attribute == "type") {
-            result.push_back("operation_type");
+            result.emplace_back("operation_type");
         } else {
             result.push_back(attribute);
         }
@@ -1957,151 +1885,6 @@ TSharedRef TClient::DoGetJobFailContext(
         << TErrorAttribute("job_id", jobId);
 }
 
-TString TClient::ExtractTextFactorForCypressItem(const TOperation& operation)
-{
-    std::vector<TString> textFactors;
-
-    if (operation.Id) {
-        textFactors.push_back(ToString(*operation.Id));
-    }
-    if (operation.AuthenticatedUser) {
-        textFactors.push_back(*operation.AuthenticatedUser);
-    }
-    if (operation.State) {
-        textFactors.push_back(ToString(*operation.State));
-    }
-    if (operation.Type) {
-        textFactors.push_back(ToString(*operation.Type));
-    }
-    if (operation.Annotations) {
-        textFactors.push_back(ConvertToYsonString(operation.Annotations, EYsonFormat::Text).GetData());
-    }
-
-    if (operation.BriefSpec) {
-        auto briefSpecMapNode = ConvertToNode(operation.BriefSpec)->AsMap();
-        if (briefSpecMapNode->FindChild("title")) {
-            textFactors.push_back(briefSpecMapNode->GetChild("title")->AsString()->GetValue());
-        }
-        if (briefSpecMapNode->FindChild("input_table_paths")) {
-            auto inputTablesNode = briefSpecMapNode->GetChild("input_table_paths")->AsList();
-            if (inputTablesNode->GetChildCount() > 0) {
-                textFactors.push_back(inputTablesNode->GetChildren()[0]->AsString()->GetValue());
-            }
-        }
-        if (briefSpecMapNode->FindChild("output_table_paths")) {
-            auto outputTablesNode = briefSpecMapNode->GetChild("output_table_paths")->AsList();
-            if (outputTablesNode->GetChildCount() > 0) {
-                textFactors.push_back(outputTablesNode->GetChildren()[0]->AsString()->GetValue());
-            }
-        }
-    }
-
-    if (operation.RuntimeParameters) {
-        auto pools = GetPoolsFromRuntimeParameters(ConvertToNode(operation.RuntimeParameters));
-        textFactors.insert(textFactors.end(), pools.begin(), pools.end());
-    }
-
-    return to_lower(JoinToString(textFactors, AsStringBuf(" ")));
-}
-
-std::vector<TString> TClient::GetPoolsFromRuntimeParameters(const INodePtr& runtimeParameters)
-{
-    YT_VERIFY(runtimeParameters);
-
-    std::vector<TString> result;
-    if (auto schedulingOptionsNode = runtimeParameters->AsMap()->FindChild("scheduling_options_per_pool_tree")) {
-        for (const auto& entry : schedulingOptionsNode->AsMap()->GetChildren()) {
-            if (auto poolNode = entry.second->AsMap()->FindChild("pool")) {
-                result.push_back(poolNode->GetValue<TString>());
-            }
-        }
-    }
-    return result;
-}
-
-TOperation TClient::CreateOperationFromNode(
-    const INodePtr& node,
-    const std::optional<THashSet<TString>>& attributes)
-{
-    const auto& nodeAttributes = node->Attributes();
-
-    TOperation operation;
-
-    if (!attributes || attributes->contains("id")) {
-        operation.Id = nodeAttributes.Find<TGuid>("key");
-    }
-    if (!attributes || attributes->contains("type")) {
-        operation.Type = nodeAttributes.Find<NScheduler::EOperationType>("operation_type");
-    }
-    if (!attributes || attributes->contains("state")) {
-        operation.State = nodeAttributes.Find<NScheduler::EOperationState>("state");
-    }
-    if (!attributes || attributes->contains("start_time")) {
-        operation.StartTime = nodeAttributes.Find<TInstant>("start_time");
-    }
-    if (!attributes || attributes->contains("finish_time")) {
-        operation.FinishTime = nodeAttributes.Find<TInstant>("finish_time");
-    }
-    if (!attributes || attributes->contains("authenticated_user")) {
-        operation.AuthenticatedUser = nodeAttributes.Find<TString>("authenticated_user");
-    }
-
-    if (!attributes || attributes->contains("brief_spec")) {
-        operation.BriefSpec = nodeAttributes.FindYson("brief_spec");
-    }
-    if (!attributes || attributes->contains("spec")) {
-        operation.Spec = nodeAttributes.FindYson("spec");
-    }
-    if (!attributes || attributes->contains("full_spec")) {
-        operation.FullSpec = nodeAttributes.FindYson("full_spec");
-    }
-    if (!attributes || attributes->contains("unrecognized_spec")) {
-        operation.UnrecognizedSpec = nodeAttributes.FindYson("unrecognized_spec");
-    }
-
-    if (!attributes || attributes->contains("brief_progress")) {
-        operation.BriefProgress = nodeAttributes.FindYson("brief_progress");
-    }
-    if (!attributes || attributes->contains("progress")) {
-        operation.Progress = nodeAttributes.FindYson("progress");
-    }
-
-    if (!attributes || attributes->contains("runtime_parameters")) {
-        operation.RuntimeParameters = nodeAttributes.FindYson("runtime_parameters");
-
-        if (operation.RuntimeParameters) {
-            auto runtimeParametersNode = ConvertToNode(operation.RuntimeParameters);
-            operation.Pools = GetPoolsFromRuntimeParameters(runtimeParametersNode);
-            operation.Acl = runtimeParametersNode->AsMap()->FindChild("acl");
-        }
-    }
-
-    if (!attributes || attributes->contains("suspended")) {
-        operation.Suspended = nodeAttributes.Find<bool>("suspended");
-    }
-
-    if (!attributes || attributes->contains("events")) {
-        operation.Events = nodeAttributes.FindYson("events");
-    }
-    if (!attributes || attributes->contains("result")) {
-        operation.Result = nodeAttributes.FindYson("result");
-    }
-
-    if (!attributes || attributes->contains("slot_index_per_pool_tree")) {
-        operation.SlotIndexPerPoolTree = nodeAttributes.FindYson("slot_index_per_pool_tree");
-    }
-
-    if (!attributes || attributes->contains("alerts")) {
-        operation.Alerts = nodeAttributes.FindYson("alerts");
-    }
-
-    if (!attributes || attributes->contains("annotations")) {
-        operation.Annotations = nodeAttributes.FindYson("annotations");
-    }
-
-    return operation;
-}
-
 THashSet<TString> TClient::MakeFinalAttributeSet(
     const std::optional<THashSet<TString>>& originalAttributes,
     const THashSet<TString>& requiredAttributes,
@@ -2121,9 +1904,7 @@ THashSet<TString> TClient::MakeFinalAttributeSet(
 // The operations are returned with requested fields plus necessarily "start_time" and "id".
 void TClient::DoListOperationsFromCypress(
     TInstant deadline,
-    TCountingFilter& countingFilter,
-    const TListOperationsAccessFilterPtr& accessFilter,
-    const std::optional<THashSet<TString>>& transitiveClosureOfSubject,
+    TListOperationsCountingFilter& countingFilter,
     const TListOperationsOptions& options,
     THashMap<NScheduler::TOperationId, TOperation>* idToOperation)
 {
@@ -2166,17 +1947,15 @@ void TClient::DoListOperationsFromCypress(
 
     auto requestedAttributes = MakeFinalAttributeSet(options.Attributes, RequiredAttributes, DefaultAttributes, IgnoredAttributes);
 
-    bool areAllRequestedAttributesLight = std::all_of(
-        requestedAttributes.begin(),
-        requestedAttributes.end(),
-        [&] (const TString& attribute) {
-            return LightAttributes.contains(attribute);
-        });
-
     TObjectServiceProxy proxy(GetOperationArchiveChannel(options.ReadFrom));
     auto listBatchReq = proxy.ExecuteBatch();
     SetBalancingHeader(listBatchReq, options);
 
+    auto filteringAttributes = LightAttributes;
+    if (options.SubstrFilter) {
+        filteringAttributes.emplace("annotations");
+    }
+    auto filteringCypressAttributes = MakeCypressOperationAttributes(filteringAttributes);
     for (int hash = 0x0; hash <= 0xFF; ++hash) {
         auto hashStr = Format("%02x", hash);
         auto req = TYPathProxy::List("//sys/operations/" + hashStr);
@@ -2185,83 +1964,35 @@ void TClient::DoListOperationsFromCypress(
         if (options.SubstrFilter) {
             attributes.emplace("annotations");
         }
-        ToProto(req->mutable_attributes()->mutable_keys(), MakeCypressOperationAttributes(attributes));
+        ToProto(req->mutable_attributes()->mutable_keys(), filteringCypressAttributes);
         listBatchReq->AddRequest(req, "list_operations_" + hashStr);
     }
 
     auto listBatchRsp = WaitFor(listBatchReq->Invoke())
         .ValueOrThrow();
 
-    auto substrFilter = options.SubstrFilter;
-    if (substrFilter) {
-        *substrFilter = to_lower(*substrFilter);
-    }
-
-    std::vector<TOperation> filteredOperations;
+    std::vector<TYsonString> operationsYson;
+    operationsYson.reserve(0xFF + 1);
     for (int hash = 0x0; hash <= 0xFF; ++hash) {
         auto rspOrError = listBatchRsp->GetResponse<TYPathProxy::TRspList>(Format("list_operations_%02x", hash));
-
         if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
             continue;
         }
-
         auto rsp = rspOrError.ValueOrThrow();
-        auto operationNodes = ConvertToNode(TYsonString(rsp->value()))->AsList();
-
-        for (const auto& operationNode : operationNodes->GetChildren()) {
-            auto operation = CreateOperationFromNode(operationNode);
-
-            if (options.FromTime && *operation.StartTime < *options.FromTime ||
-                options.ToTime && *operation.StartTime >= *options.ToTime)
-            {
-                continue;
-            }
-
-            if (accessFilter) {
-                YT_VERIFY(transitiveClosureOfSubject);
-                if (!operation.Acl) {
-                    continue;
-                }
-                auto action = CheckPermissionsByAclAndSubjectClosure(
-                    ConvertTo<TSerializableAccessControlList>(operation.Acl),
-                    *transitiveClosureOfSubject,
-                    accessFilter->Permissions);
-                if (action != ESecurityAction::Allow) {
-                    continue;
-                }
-            }
-
-            auto textFactor = ExtractTextFactorForCypressItem(operation);
-            if (substrFilter && textFactor.find(*substrFilter) == std::string::npos) {
-                continue;
-            }
-
-            EOperationState state = *operation.State;
-            if (state != EOperationState::Pending && IsOperationInProgress(state)) {
-                state = EOperationState::Running;
-            }
-
-            if (!countingFilter.Filter(operation.Pools, *operation.AuthenticatedUser, state, *operation.Type, 1)) {
-                continue;
-            }
-
-            if (areAllRequestedAttributesLight) {
-                filteredOperations.push_back(CreateOperationFromNode(operationNode, requestedAttributes));
-            } else {
-                filteredOperations.push_back(std::move(operation));
-            }
-        }
+        operationsYson.emplace_back(rsp->value());
     }
 
-    // Lookup all operations with certain ids, add their brief progress.
-    if (DoesOperationsArchiveExist()) {
-        std::vector<TUnversionedRow> keys;
+    TListOperationsFilter filter(operationsYson, countingFilter, options);
 
+    // Lookup all operations with currently filtered ids, add their brief progress.
+    if (DoesOperationsArchiveExist()) {
         TOrderedByIdTableDescriptor tableDescriptor;
         auto rowBuffer = New<TRowBuffer>();
-        for (const auto& operation : filteredOperations) {
-            keys.push_back(CreateOperationKey(*operation.Id, tableDescriptor.Index, rowBuffer));
-        }
+        std::vector<TUnversionedRow> keys;
+        keys.reserve(filter.GetCount());
+        filter.ForEachOperationImmutable([&] (int index, const TListOperationsFilter::TLightOperation& lightOperation) {
+            keys.push_back(CreateOperationKey(lightOperation.GetId(), tableDescriptor.Index, rowBuffer));
+        });
 
         std::vector<int> columnIndexes = {tableDescriptor.NameTable->GetIdOrThrow("brief_progress")};
 
@@ -2278,85 +2009,64 @@ void TClient::DoListOperationsFromCypress(
         if (!rowsetOrError.IsOK()) {
             YT_LOG_DEBUG(rowsetOrError, "Failed to get information about operations' brief_progress from Archive");
         } else {
-            const auto& rows = rowsetOrError.Value()->GetRows();
+            auto rows = rowsetOrError.ValueOrThrow()->GetRows();
+            YT_VERIFY(rows.Size() == filter.GetCount());
 
-            for (size_t rowIndex = 0; rowIndex < rows.size(); ++rowIndex) {
-                const auto& row = rows[rowIndex];
+            filter.ForEachOperationMutable([&] (int index, TListOperationsFilter::TLightOperation& lightOperation) {
+                auto row = rows[index];
                 if (!row) {
-                    continue;
+                    return;
                 }
-
-                auto& operation = filteredOperations[rowIndex];
-                if (auto briefProgressPosition = lookupOptions.ColumnFilter.FindPosition(tableDescriptor.Index.BriefProgress)) {
-                    auto briefProgressValue = row[*briefProgressPosition];
-                    if (briefProgressValue.Type != EValueType::Null) {
-                        auto briefProgressYsonString = FromUnversionedValue<TYsonString>(briefProgressValue);
-                        operation.BriefProgress = GetLatestProgress(operation.BriefProgress, briefProgressYsonString);
-                    }
+                auto position = lookupOptions.ColumnFilter.FindPosition(tableDescriptor.Index.BriefProgress);
+                if (!position) {
+                    return;
                 }
-            }
-        }
-    }
-
-    auto shouldRemove = [&] (const TOperation& operation) {
-        if (!countingFilter.FilterByFailedJobs(operation.BriefProgress)) {
-            return true;
-        }
-        return options.CursorTime &&
-            ((options.CursorDirection == EOperationSortDirection::Past && *operation.StartTime >= *options.CursorTime) ||
-            (options.CursorDirection == EOperationSortDirection::Future && *operation.StartTime <= *options.CursorTime));
-    };
-
-    filteredOperations.erase(
-        std::remove_if(
-            filteredOperations.begin(),
-            filteredOperations.end(),
-            shouldRemove),
-        filteredOperations.end());
-
-    // Retain more operations than limit to track (in)completeness of the response.
-    auto operationsToRetain = options.Limit + 1;
-    if (filteredOperations.size() > operationsToRetain) {
-        std::nth_element(
-            filteredOperations.begin(),
-            filteredOperations.begin() + operationsToRetain,
-            filteredOperations.end(),
-            [&] (const TOperation& lhs, const TOperation& rhs) {
-                // Leave only |operationsToRetain| operations:
-                // either oldest (cursor_direction == "future") or newest (cursor_direction == "past").
-                return (options.CursorDirection == EOperationSortDirection::Future) && (*lhs.StartTime < *rhs.StartTime) ||
-                       (options.CursorDirection == EOperationSortDirection::Past  ) && (*lhs.StartTime > *rhs.StartTime);
+                auto value = row[*position];
+                if (value.Type == EValueType::Null) {
+                    return;
+                }
+                YT_VERIFY(value.Type == EValueType::Any);
+                lightOperation.UpdateBriefProgress(TStringBuf(value.Data.String, value.Length));
             });
-        filteredOperations.resize(operationsToRetain);
+        }
     }
 
-    idToOperation->reserve(idToOperation->size() + filteredOperations.size());
-    if (areAllRequestedAttributesLight) {
-        for (auto& operation : filteredOperations) {
-            (*idToOperation)[*operation.Id] = std::move(operation);
-        }
-    } else {
+    filter.OnBriefProgressFinished();
+
+    auto areAllRequestedAttributesLight = std::all_of(
+        requestedAttributes.begin(),
+        requestedAttributes.end(),
+        [&] (const TString& attribute) {
+            return LightAttributes.contains(attribute);
+        });
+    if (!areAllRequestedAttributesLight) {
         auto getBatchReq = proxy.ExecuteBatch();
         SetBalancingHeader(getBatchReq, options);
 
-        for (const auto& operation: filteredOperations) {
-            auto req = TYPathProxy::Get(GetOperationPath(*operation.Id));
+        const auto cypressRequestedAttributes = MakeCypressOperationAttributes(requestedAttributes);
+        filter.ForEachOperationImmutable([&] (int index, const TListOperationsFilter::TLightOperation& lightOperation) {
+            auto req = TYPathProxy::Get(GetOperationPath(lightOperation.GetId()));
             SetCachingHeader(req, options);
-            ToProto(req->mutable_attributes()->mutable_keys(), MakeCypressOperationAttributes(requestedAttributes));
+            ToProto(req->mutable_attributes()->mutable_keys(), cypressRequestedAttributes);
             getBatchReq->AddRequest(req);
-        }
+        });
 
         auto getBatchRsp = WaitFor(getBatchReq->Invoke())
             .ValueOrThrow();
-
-        for (const auto& rspOrError : getBatchRsp->GetResponses<TYPathProxy::TRspGet>()) {
+        auto responses = getBatchRsp->GetResponses<TYPathProxy::TRspGet>();
+        filter.ForEachOperationMutable([&] (int index, TListOperationsFilter::TLightOperation& lightOperation) {
+            const auto& rspOrError = responses[index];
             if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                continue;
+                return;
             }
-            auto node = ConvertToNode(TYsonString(rspOrError.ValueOrThrow()->value()));
-            auto operation = CreateOperationFromNode(node);
-            (*idToOperation)[*operation.Id] = std::move(operation);
-        }
+            lightOperation.SetYson(rspOrError.ValueOrThrow()->value());
+        });
+    }
+
+    auto operations = filter.BuildOperations(requestedAttributes);
+    idToOperation->reserve(idToOperation->size() + operations.size());
+    for (auto& operation : operations) {
+        (*idToOperation)[*operation.Id] = std::move(operation);
     }
 }
 
@@ -2364,9 +2074,7 @@ void TClient::DoListOperationsFromCypress(
 // Returns operations with requested fields plus necessarily "start_time" and "id".
 THashMap<NScheduler::TOperationId, TOperation> TClient::DoListOperationsFromArchive(
     TInstant deadline,
-    TCountingFilter& countingFilter,
-    const TListOperationsAccessFilterPtr& accessFilter,
-    const std::optional<THashSet<TString>>& transitiveClosureOfSubject,
+    TListOperationsCountingFilter& countingFilter,
     const TListOperationsOptions& options)
 {
     if (!options.FromTime) {
@@ -2377,7 +2085,7 @@ THashMap<NScheduler::TOperationId, TOperation> TClient::DoListOperationsFromArch
         THROW_ERROR_EXCEPTION("Missing required parameter \"to_time\"");
     }
 
-    if (accessFilter) {
+    if (options.AccessFilter) {
         constexpr int requiredVersion = 30;
         if (DoGetOperationsArchiveVersion() < requiredVersion) {
             THROW_ERROR_EXCEPTION("\"access\" filter is not supported in operations archive of version < %v",
@@ -2392,14 +2100,13 @@ THashMap<NScheduler::TOperationId, TOperation> TClient::DoListOperationsFromArch
 
         if (options.SubstrFilter) {
             builder->AddWhereConjunct(
-                Format("is_substr(%Qv, filter_factors)", to_lower(*options.SubstrFilter)));
+                Format("is_substr(%Qv, filter_factors)", *options.SubstrFilter));
         }
 
-        if (accessFilter) {
-            YT_VERIFY(transitiveClosureOfSubject);
+        if (options.AccessFilter) {
             builder->AddWhereConjunct(Format("NOT is_null(acl) AND _yt_has_permissions(acl, %Qv, %Qv)",
-                ConvertToYsonString(*transitiveClosureOfSubject, EYsonFormat::Text),
-                ConvertToYsonString(accessFilter->Permissions, EYsonFormat::Text)));
+                ConvertToYsonString(options.AccessFilter->SubjectTransitiveClosure, EYsonFormat::Text),
+                ConvertToYsonString(options.AccessFilter->Permissions, EYsonFormat::Text)));
         }
     };
 
@@ -2558,11 +2265,11 @@ THashMap<NScheduler::TOperationId, TOperation> TClient::DoListOperationsFromArch
         IgnoredAttributes);
 
     std::vector<int> columns;
-    for (const auto columnName : MakeArchiveOperationAttributes(attributesToRequest)) {
+    for (const auto& columnName : MakeArchiveOperationAttributes(attributesToRequest)) {
         columns.push_back(tableDescriptor.NameTable->GetIdOrThrow(columnName));
     }
 
-    NTableClient::TColumnFilter columnFilter(columns);
+    const NTableClient::TColumnFilter columnFilter(columns);
 
     TLookupRowsOptions lookupOptions;
     lookupOptions.ColumnFilter = columnFilter;
@@ -2576,14 +2283,12 @@ THashMap<NScheduler::TOperationId, TOperation> TClient::DoListOperationsFromArch
         lookupOptions))
         .ValueOrThrow();
 
-    auto rows = rowset->GetRows();
-
-    auto getYson = [&] (const TUnversionedValue& value) {
+    auto getYson = [&] (TUnversionedValue value) {
         return value.Type == EValueType::Null
             ? TYsonString()
             : TYsonString(value.Data.String, value.Length);
     };
-    auto getString = [&] (const TUnversionedValue& value, TStringBuf name) {
+    auto getString = [&] (TUnversionedValue value, TStringBuf name) {
         if (value.Type == EValueType::Null) {
             THROW_ERROR_EXCEPTION("Unexpected null value in column %Qv in job archive", name);
         }
@@ -2593,7 +2298,7 @@ THashMap<NScheduler::TOperationId, TOperation> TClient::DoListOperationsFromArch
     THashMap<NScheduler::TOperationId, TOperation> idToOperation;
 
     const auto& tableIndex = tableDescriptor.Index;
-    for (auto row : rows) {
+    for (auto row : rowset->GetRows()) {
         if (!row) {
             continue;
         }
@@ -2656,10 +2361,6 @@ THashMap<NScheduler::TOperationId, TOperation> TClient::DoListOperationsFromArch
             operation.RuntimeParameters = getYson(row[*indexOrNull]);
         }
 
-        if (operation.RuntimeParameters) {
-            operation.Pools = GetPoolsFromRuntimeParameters(ConvertToNode(operation.RuntimeParameters));
-        }
-
         if (auto indexOrNull = columnFilter.FindPosition(tableIndex.Events)) {
             operation.Events = getYson(row[*indexOrNull]);
         }
@@ -2717,14 +2418,16 @@ THashSet<TString> TClient::GetSubjectClosure(
 // XXX(levysotsky): The counters may be incorrect if |options.IncludeArchive| is |true|
 // and an operation is in both Cypress and archive.
 TListOperationsResult TClient::DoListOperations(
-    const TListOperationsOptions& options)
+    const TListOperationsOptions& oldOptions)
 {
+    auto options = oldOptions;
+
     auto timeout = options.Timeout.value_or(Connection_->GetConfig()->DefaultListOperationsTimeout);
     auto deadline = timeout.ToDeadLine();
 
     if (options.CursorTime && (
-        options.ToTime && *options.CursorTime > *options.ToTime ||
-        options.FromTime && *options.CursorTime < *options.FromTime))
+        (options.ToTime && *options.CursorTime > *options.ToTime) ||
+        (options.FromTime && *options.CursorTime < *options.FromTime)))
     {
         THROW_ERROR_EXCEPTION("Time cursor (%v) is out of range [from_time (%v), to_time (%v)]",
             *options.CursorTime,
@@ -2739,36 +2442,36 @@ TListOperationsResult TClient::DoListOperations(
             MaxLimit);
     }
 
-    auto accessFilter = options.AccessFilter;
-    std::optional<THashSet<TString>> transitiveClosureOfSubject;
-    if (accessFilter) {
+    if (options.SubstrFilter) {
+        options.SubstrFilter = to_lower(*options.SubstrFilter);
+    }
+
+    if (options.AccessFilter) {
         TObjectServiceProxy proxy(GetOperationArchiveChannel(options.ReadFrom));
-        transitiveClosureOfSubject = GetSubjectClosure(
-            accessFilter->Subject,
+        options.AccessFilter->SubjectTransitiveClosure = GetSubjectClosure(
+            options.AccessFilter->Subject,
             proxy,
             options);
-        if (accessFilter->Subject == RootUserName || transitiveClosureOfSubject->contains(SuperusersGroupName)) {
-            accessFilter.Reset();
+        if (options.AccessFilter->Subject == RootUserName ||
+            options.AccessFilter->SubjectTransitiveClosure.contains(SuperusersGroupName))
+        {
+            options.AccessFilter.Reset();
         }
     }
 
-    TCountingFilter countingFilter(options);
+    TListOperationsCountingFilter countingFilter(options);
 
     THashMap<NScheduler::TOperationId, TOperation> idToOperation;
     if (options.IncludeArchive && DoesOperationsArchiveExist()) {
         idToOperation = DoListOperationsFromArchive(
             deadline,
             countingFilter,
-            accessFilter,
-            transitiveClosureOfSubject,
             options);
     }
 
     DoListOperationsFromCypress(
         deadline,
         countingFilter,
-        accessFilter,
-        transitiveClosureOfSubject,
         options,
         &idToOperation);
 
