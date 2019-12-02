@@ -239,7 +239,7 @@ public:
                 File_->Close();
                 NFS::Remove(FileName_ + TempFileSuffix);
             } catch (const std::exception& ex) {
-                YT_LOG_WARNING("Error removing temporary local snapshot %v, ignored",
+                YT_LOG_WARNING(ex, "Error removing temporary local snapshot %v, ignored",
                     FileName_ + TempFileSuffix);
             }
         }
