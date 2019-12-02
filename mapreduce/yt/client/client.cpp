@@ -75,7 +75,7 @@ TClientBase::TClientBase(
 ITransactionPtr TClientBase::StartTransaction(
     const TStartTransactionOptions& options)
 {
-    return MakeIntrusive<TTransaction>(GetParentClientImpl(), Auth_, TransactionId_, true, options);
+    return MakeIntrusive<TTransaction>(GetParentClientImpl(), Auth_, TransactionId_, options);
 }
 
 TNodeId TClientBase::Create(
@@ -646,25 +646,32 @@ const IClientRetryPolicyPtr& TClientBase::GetRetryPolicy() const
 TTransaction::TTransaction(
     TClientPtr parentClient,
     const TAuth& auth,
-    const TTransactionId& transactionId,
-    bool isOwning,
+    const TTransactionId& parentTransactionId,
     const TStartTransactionOptions& options)
-    : TClientBase(auth, transactionId, parentClient->GetRetryPolicy())
-    , PingableTx_(isOwning ?
+    : TClientBase(auth, parentTransactionId, parentClient->GetRetryPolicy())
+    , PingableTx_(
         new TPingableTransaction(
             auth,
-            transactionId, // parent id
-            options.Timeout_,
-            options.Deadline_,
-            options.PingAncestors_,
-            options.AutoPingable_,
-            options.Title_,
-            options.Attributes_)
-        : nullptr)
+            parentTransactionId,
+            options))
     , ParentClient_(parentClient)
 {
-    TransactionId_ = isOwning ? PingableTx_->GetId() : transactionId;
+    TransactionId_ = PingableTx_->GetId();
 }
+
+TTransaction::TTransaction(
+    TClientPtr parentClient,
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TAttachTransactionOptions& options)
+    : TClientBase(auth, transactionId, parentClient->GetRetryPolicy())
+    , PingableTx_(
+        new TPingableTransaction(
+            auth,
+            transactionId,
+            options))
+    , ParentClient_(parentClient)
+{ }
 
 const TTransactionId& TTransaction::GetId() const
 {
@@ -689,25 +696,22 @@ void TTransaction::Unlock(
 
 void TTransaction::Commit()
 {
-    if (PingableTx_) {
-        PingableTx_->Commit();
-    } else {
-        CommitTransaction(Auth_, TransactionId_);
-    }
+    PingableTx_->Commit();
 }
 
 void TTransaction::Abort()
 {
-    if (PingableTx_) {
-        PingableTx_->Abort();
-    } else {
-        AbortTransaction(Auth_, TransactionId_);
-    }
+    PingableTx_->Abort();
 }
 
 void TTransaction::Ping()
 {
     PingTx(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, TransactionId_);
+}
+
+void TTransaction::Detach()
+{
+    PingableTx_->Detach();
 }
 
 TClientPtr TTransaction::GetParentClientImpl()
@@ -727,9 +731,10 @@ TClient::TClient(
 TClient::~TClient() = default;
 
 ITransactionPtr TClient::AttachTransaction(
-    const TTransactionId& transactionId)
+    const TTransactionId& transactionId,
+    const TAttachTransactionOptions& options)
 {
-    return MakeIntrusive<TTransaction>(this, Auth_, transactionId, false, TStartTransactionOptions());
+    return MakeIntrusive<TTransaction>(this, Auth_, transactionId, options);
 }
 
 void TClient::MountTable(

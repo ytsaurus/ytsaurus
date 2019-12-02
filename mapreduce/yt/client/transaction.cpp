@@ -73,41 +73,70 @@ TString TPingRetryPolicy::GetAttemptDescription() const
 TPingableTransaction::TPingableTransaction(
     const TAuth& auth,
     const TTransactionId& parentId,
-    const TMaybe<TDuration>& timeout,
-    const TMaybe<TInstant>& deadline,
-    bool pingAncestors,
-    bool autoPingable,
-    const TMaybe<TString>& title,
-    const TMaybe<TNode>& attributes)
+    const TStartTransactionOptions& options)
     : Auth_(auth)
     , AbortableRegistry_(NDetail::TAbortableRegistry::Get())
+    , AbortOnTermination_(true)
 {
-    TransactionId_ = StartTransaction(
+    auto transactionId = StartTransaction(
         auth,
         parentId,
-        timeout,
-        deadline,
-        pingAncestors,
-        title,
-        attributes);
+        options.Timeout_,
+        options.Deadline_,
+        options.PingAncestors_,
+        options.Title_,
+        options.Attributes_);
 
-    AbortableRegistry_->Add(
-        TransactionId_,
-        ::MakeIntrusive<NDetail::TTransactionAbortable>(auth, TransactionId_));
+    auto actualTimeout = options.Timeout_.GetOrElse(TConfig::Get()->TxTimeout);
+    Init(auth, transactionId, actualTimeout, options.AutoPingable_);
+}
+
+TPingableTransaction::TPingableTransaction(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TAttachTransactionOptions& options)
+    : Auth_(auth)
+    , AbortableRegistry_(NDetail::TAbortableRegistry::Get())
+    , AbortOnTermination_(options.AbortOnTermination_)
+{
+    auto timeoutNode = NDetail::NRawClient::TryGet(
+        /* retryPolicy = */ nullptr,
+        auth,
+        TTransactionId(),
+        "#" + GetGuidAsString(transactionId) + "/@timeout",
+        TGetOptions());
+    if (timeoutNode.IsUndefined()) {
+        throw yexception() << "Transaction " << GetGuidAsString(transactionId) << " does not exist";
+    }
+    auto timeout = TDuration::MilliSeconds(timeoutNode.AsInt64());
+    Init(auth, transactionId, timeout, options.AutoPingable_);
+}
+
+void TPingableTransaction::Init(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    TDuration timeout,
+    bool autoPingable)
+{
+    TransactionId_ = transactionId;
+
+    if (AbortOnTermination_) {
+        AbortableRegistry_->Add(
+            TransactionId_,
+            ::MakeIntrusive<NDetail::TTransactionAbortable>(auth, TransactionId_));
+    }
 
     Running_ = true;
 
-    {
+    if (autoPingable) {
         // Compute 'MaxPingInterval_' and 'MinPingInterval_' such that 'pingInterval == (max + min) / 2'.
         auto pingInterval = TConfig::Get()->PingInterval;
-        auto actualTimeout = timeout.GetOrElse(TConfig::Get()->TxTimeout);
-        auto safeTimeout = actualTimeout - TDuration::Seconds(5);
+        auto safeTimeout = timeout - TDuration::Seconds(5);
         MaxPingInterval_ = Max(pingInterval, Min(safeTimeout, pingInterval * 1.5));
         MinPingInterval_ = pingInterval - (MaxPingInterval_ - pingInterval);
-    }
 
-    if (autoPingable) {
-        Thread_ = MakeHolder<TThread>(TThread::TParams{Pinger, (void*)this}.SetName("pingable_tx"));
+        Thread_ = MakeHolder<TThread>(
+            TThread::TParams{Pinger, this}.SetName("pingable_tx"));
         Thread_->Start();
     }
 }
@@ -115,7 +144,7 @@ TPingableTransaction::TPingableTransaction(
 TPingableTransaction::~TPingableTransaction()
 {
     try {
-        Stop(false);
+        Stop(AbortOnTermination_ ? EStopAction::Abort : EStopAction::Detach);
     } catch (...) {
     }
 }
@@ -127,15 +156,20 @@ const TTransactionId TPingableTransaction::GetId() const
 
 void TPingableTransaction::Commit()
 {
-    Stop(true);
+    Stop(EStopAction::Commit);
 }
 
 void TPingableTransaction::Abort()
 {
-    Stop(false);
+    Stop(EStopAction::Abort);
 }
 
-void TPingableTransaction::Stop(bool commit)
+void TPingableTransaction::Detach()
+{
+    Stop(EStopAction::Detach);
+}
+
+void TPingableTransaction::Stop(EStopAction action)
 {
     if (!Running_) {
         return;
@@ -148,10 +182,16 @@ void TPingableTransaction::Stop(bool commit)
         }
     });
 
-    if (commit) {
-        CommitTransaction(Auth_, TransactionId_);
-    } else {
-        AbortTransaction(Auth_, TransactionId_);
+    switch (action) {
+        case EStopAction::Commit:
+            CommitTransaction(Auth_, TransactionId_);
+            break;
+        case EStopAction::Abort:
+            AbortTransaction(Auth_, TransactionId_);
+            break;
+        case EStopAction::Detach:
+            // Do nothing.
+            break;
     }
 
     AbortableRegistry_->Remove(TransactionId_);

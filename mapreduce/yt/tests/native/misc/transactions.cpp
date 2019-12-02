@@ -12,6 +12,12 @@ using namespace NYT::NTesting;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static TInstant GetLastPingTime(const IClientBasePtr& client, const ITransactionPtr& tx)
+{
+    auto node = client->Get("//sys/transactions/" + GetGuidAsString(tx->GetId()) + "/@last_ping_time");
+    return TInstant::ParseIso8601(node.AsString());
+};
+
 Y_UNIT_TEST_SUITE(Transactions)
 {
     Y_UNIT_TEST(TestTitle)
@@ -61,17 +67,12 @@ Y_UNIT_TEST_SUITE(Transactions)
 
         TConfig::Get()->PingInterval = TDuration::MilliSeconds(100);
 
-        auto getLastPingTime = [&] (const ITransactionPtr& tx) {
-            auto node = client->Get("//sys/transactions/" + GetGuidAsString(tx->GetId()) + "/@last_ping_time");
-            return node.AsString();
-        };
-
         {
             auto transaction = client->StartTransaction();
 
-            const TString pt1 = getLastPingTime(transaction);
+            const auto pt1 = GetLastPingTime(client, transaction);
             Sleep(TDuration::Seconds(1));
-            const TString pt2 = getLastPingTime(transaction);
+            const auto pt2 = GetLastPingTime(client, transaction);
             UNIT_ASSERT(pt1 != pt2);
         }
 
@@ -80,13 +81,13 @@ Y_UNIT_TEST_SUITE(Transactions)
             opts.AutoPingable(false);
             auto transaction = client->StartTransaction(opts);
 
-            const TString pt1 = getLastPingTime(transaction);
+            const auto pt1 = GetLastPingTime(client, transaction);
             Sleep(TDuration::Seconds(1));
-            const TString pt2 = getLastPingTime(transaction);
+            const auto pt2 = GetLastPingTime(client, transaction);
             UNIT_ASSERT_VALUES_EQUAL(pt1, pt2);
 
             transaction->Ping();
-            const TString pt3 = getLastPingTime(transaction);
+            const auto pt3 = GetLastPingTime(client, transaction);
             UNIT_ASSERT(pt1 != pt3);
         }
     }
@@ -106,6 +107,47 @@ Y_UNIT_TEST_SUITE(Transactions)
 
         UNIT_ASSERT(!client->Exists("#" + GetGuidAsString(transaction->GetId())));
 
+    }
+
+    Y_UNIT_TEST(TestDetachAttach)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        TTransactionId transactionId;
+        {
+            auto transaction = client->StartTransaction(
+                TStartTransactionOptions().Timeout(TDuration::Seconds(10)));
+            transactionId = transaction->GetId();
+            transaction->Detach();
+        }
+
+        UNIT_ASSERT(client->Exists("#" + GetGuidAsString(transactionId)));
+
+        {
+            auto transaction = client->AttachTransaction(transactionId);
+            auto oldPingTime = GetLastPingTime(client, transaction);
+            Sleep(TDuration::Seconds(3));
+            UNIT_ASSERT_VALUES_EQUAL(oldPingTime, GetLastPingTime(client, transaction));
+            transaction->Detach();
+        }
+
+        UNIT_ASSERT(client->Exists("#" + GetGuidAsString(transactionId)));
+
+        {
+            auto transaction = client->AttachTransaction(
+                transactionId,
+                TAttachTransactionOptions().AutoPingable(true));
+            auto oldPingTime = GetLastPingTime(client, transaction);
+            Sleep(TDuration::Seconds(3));
+            UNIT_ASSERT_VALUES_UNEQUAL(oldPingTime, GetLastPingTime(client, transaction));
+            transaction->Detach();
+        }
+
+        UNIT_ASSERT(client->Exists("#" + GetGuidAsString(transactionId)));
+        Sleep(TDuration::Seconds(12));
+        UNIT_ASSERT(!client->Exists("#" + GetGuidAsString(transactionId)));
     }
 }
 

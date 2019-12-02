@@ -48,6 +48,13 @@ TNode Get(
     const TYPath& path,
     const TGetOptions& options = TGetOptions());
 
+TNode TryGet(
+    const IRequestRetryPolicyPtr& retryPolicy,
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TYPath& path,
+    const TGetOptions& options);
+
 void Set(
     const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,

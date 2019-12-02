@@ -382,6 +382,25 @@ struct TStartTransactionOptions
     FLUENT_FIELD_OPTION(TNode, Attributes);
 };
 
+struct TAttachTransactionOptions
+{
+    using TSelf = TAttachTransactionOptions;
+
+    /// @brief Ping transaction automatically.
+    ///
+    /// When set to |true| library creates a thread that pings transaction.
+    /// When set to |false| library doesn't ping transaction and
+    /// it's user responsibility to ping it.
+    FLUENT_FIELD_DEFAULT(bool, AutoPingable, false);
+
+    /// @brief Abort transaction on program termination.
+    ///
+    /// Should the transaction be aborted on program termination
+    /// (either normal or by a signal or uncaught exception -- two latter
+    /// only if @ref TInitializeOptions::CleanupOnTermination is set).
+    FLUENT_FIELD_DEFAULT(bool, AbortOnTermination, false);
+};
+
 enum ELockMode : int
 {
     LM_EXCLUSIVE    /* "exclusive" */,

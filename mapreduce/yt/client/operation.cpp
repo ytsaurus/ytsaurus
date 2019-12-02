@@ -2708,7 +2708,10 @@ private:
 TOperationPreparer::TOperationPreparer(TClientPtr client, TTransactionId transactionId)
     : Client_(std::move(client))
     , TransactionId_(transactionId)
-    , FileTransaction_(new TPingableTransaction(Client_->GetAuth(), TransactionId_))
+    , FileTransaction_(new TPingableTransaction(
+        Client_->GetAuth(),
+        TransactionId_,
+        TStartTransactionOptions()))
     , ClientRetryPolicy_(Client_->GetRetryPolicy())
     , PreparationId_(CreateGuidAsString())
 { }

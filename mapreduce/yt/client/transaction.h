@@ -18,15 +18,19 @@ namespace NYT {
 class TPingableTransaction
 {
 public:
+    //
+    // Start a new transaction.
     TPingableTransaction(
         const TAuth& auth,
         const TTransactionId& parentId,
-        const TMaybe<TDuration>& timeout = Nothing(),
-        const TMaybe<TInstant>& deadline = Nothing(),
-        bool pingAncestors = false,
-        bool autoPingable = true,
-        const TMaybe<TString>& title = Nothing(),
-        const TMaybe<TNode>& attributes = Nothing());
+        const TStartTransactionOptions& options);
+
+    //
+    // Attach to an existing transaction.
+    TPingableTransaction(
+        const TAuth& auth,
+        const TTransactionId& transactionId,
+        const TAttachTransactionOptions& options);
 
     ~TPingableTransaction();
 
@@ -34,6 +38,15 @@ public:
 
     void Commit();
     void Abort();
+    void Detach();
+
+private:
+    enum class EStopAction
+    {
+        Detach,
+        Abort,
+        Commit,
+    };
 
 private:
     TAuth Auth_;
@@ -41,13 +54,22 @@ private:
     TDuration MinPingInterval_;
     TDuration MaxPingInterval_;
 
-    // We have to own an IntrusivePtr to registry to prevent use-after-free
+    // We have to own an IntrusivePtr to registry to prevent use-after-free.
     ::TIntrusivePtr<NDetail::TAbortableRegistry> AbortableRegistry_;
+
+    bool AbortOnTermination_;
 
     std::atomic<bool> Running_{false};
     THolder<TThread> Thread_;
 
-    void Stop(bool commit);
+private:
+    void Init(
+        const TAuth& auth,
+        const TTransactionId& transactionId,
+        TDuration timeout,
+        bool autoPingable);
+
+    void Stop(EStopAction action);
 
     void Pinger();
     static void* Pinger(void* opaque);
