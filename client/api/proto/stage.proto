@@ -28,10 +28,16 @@ option (NYP.NClient.NApi.NProto.object_type) = {
 
 // Stage - see https://wiki.yandex-team.ru/deploy/Stage
 
+// for field descriptions see NYP.NClient.NApi.NProto.TStageMeta
+message TStageMetaBase
+{
+    // Id of parent project.
+    string project_id = 4;
+}
+
 message TStageSpec
 {
     // Should be incremented on any update
-    // TODO: will be moved to meta after YP-710.
     // For now you can write a manually generated timestamp there.
     uint64 revision = 1 [(NYP.NClient.NApi.NProto.etc) = true];
     // <unit id> -> <unit spec>.

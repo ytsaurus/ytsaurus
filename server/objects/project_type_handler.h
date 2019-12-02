@@ -1,15 +1,12 @@
 #pragma once
 
-#include <yp/server/lib/objects/private.h>
-
-#include <yt/core/logging/log.h>
+#include "public.h"
 
 namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr int DBVersion = 41;
-extern const NYT::NLogging::TLogger Logger;
+std::unique_ptr<IObjectTypeHandler> CreateProjectTypeHandler(NMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

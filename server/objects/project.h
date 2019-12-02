@@ -11,40 +11,34 @@ namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStage
+class TProject
     : public TObject
-    , public NYT::TRefTracked<TStage>
+    , public NYT::TRefTracked<TProject>
 {
 public:
-    static constexpr EObjectType Type = EObjectType::Stage;
+    static constexpr EObjectType Type = EObjectType::Project;
 
-    TStage(
+    TProject(
         const TObjectId& id,
         IObjectTypeHandler* typeHandler,
         ISession* session);
 
     virtual EObjectType GetType() const override;
 
-    static const TScalarAttributeSchema<TStage, TObjectId> ProjectIdSchema;
-    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TObjectId>, ProjectId);
-
     class TSpec
     {
     public:
-        explicit TSpec(TStage* stage);
+        explicit TSpec(TProject* project);
 
-        static const TManyToOneAttributeSchema<TStage, TAccount> AccountSchema;
-        using TAccountAttribute = TManyToOneAttribute<TStage, TAccount>;
+        static const TManyToOneAttributeSchema<TProject, TAccount> AccountSchema;
+        using TAccountAttribute = TManyToOneAttribute<TProject, TAccount>;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TAccountAttribute, Account);
-
-        using TEtc = NProto::TStageSpecEtc;
-        static const TScalarAttributeSchema<TStage, TEtc> EtcSchema;
-        DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TEtc>, Etc);
     };
+
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TSpec, Spec);
 
-    using TStatus = NYP::NClient::NApi::NProto::TStageStatus;
-    static const TScalarAttributeSchema<TStage, TStatus> StatusSchema;
+    using TStatus = NClient::NApi::NProto::TProjectStatus;
+    static const TScalarAttributeSchema<TProject, TStatus> StatusSchema;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TStatus>, Status);
 };
 

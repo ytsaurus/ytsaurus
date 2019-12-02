@@ -35,6 +35,7 @@ const TAccountToReplicaSetsTable AccountToReplicaSetsTable;
 const TAccountToMultiClusterReplicaSetsTable AccountToMultiClusterReplicaSetsTable;
 const TAccountToPodsTable AccountToPodsTable;
 const TAccountToStagesTable AccountToStagesTable;
+const TAccountToProjectsTable AccountToProjectsTable;
 const TDnsRecordSetsTable DnsRecordSetsTable;
 const TResourceCachesTable ResourceCachesTable;
 const TMultiClusterReplicaSetsTable MultiClusterReplicaSetsTable;
@@ -42,6 +43,7 @@ const TStagesTable StagesTable;
 const TPodDisruptionBudgetsTable PodDisruptionBudgetsTable;
 const TPodDisruptionBudgetToPodSetsTable PodDisruptionBudgetToPodSetsTable;
 const THistoryEventsTable HistoryEventsTable;
+const TProjectsTable ProjectsTable;
 
 const TWatchLogSchema WatchLogSchema;
 
@@ -76,13 +78,15 @@ const std::vector<const TDBTable*> Tables = {
     &AccountToReplicaSetsTable,
     &AccountToMultiClusterReplicaSetsTable,
     &AccountToStagesTable,
+    &AccountToProjectsTable,
     &DnsRecordSetsTable,
     &ResourceCachesTable,
     &MultiClusterReplicaSetsTable,
     &StagesTable,
     &PodDisruptionBudgetsTable,
     &PodDisruptionBudgetToPodSetsTable,
-    &HistoryEventsTable
+    &HistoryEventsTable,
+    &ProjectsTable,
 };
 
 ////////////////////////////////////////////////////////////////////////////////

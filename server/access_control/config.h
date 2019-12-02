@@ -48,7 +48,8 @@ public:
                 NObjects::EObjectType::ReplicaSet,
                 NObjects::EObjectType::PodSet,
                 NObjects::EObjectType::Stage,
-                NObjects::EObjectType::DynamicResource});
+                NObjects::EObjectType::DynamicResource,
+                NObjects::EObjectType::Project});
     }
 };
 

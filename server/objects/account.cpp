@@ -4,6 +4,7 @@
 #include "replica_set.h"
 #include "multi_cluster_replica_set.h"
 #include "stage.h"
+#include "project.h"
 #include "db_schema.h"
 
 namespace NYP::NServer::NObjects {
@@ -81,6 +82,14 @@ const TOneToManyAttributeSchema<TAccount, TAccount> TAccount::ChildrenSchema{
     [] (TAccount* account) { return &account->Spec().Parent(); },
 };
 
+const TOneToManyAttributeSchema<TAccount, TProject> TAccount::ProjectsSchema{
+    &AccountToProjectsTable,
+    &AccountToProjectsTable.Fields.AccountId,
+    &AccountToProjectsTable.Fields.ProjectId,
+    [] (TAccount* account) { return &account->Projects(); },
+    [] (TProject* project) { return &project->Spec().Account(); },
+};
+
 TAccount::TAccount(
     const TObjectId& id,
     IObjectTypeHandler* typeHandler,
@@ -94,6 +103,7 @@ TAccount::TAccount(
     , MultiClusterReplicaSets_(this, &MultiClusterReplicaSetsSchema)
     , Stages_(this, &StagesSchema)
     , Children_(this, &ChildrenSchema)
+    , Projects_(this, &ProjectsSchema)
 { }
 
 EObjectType TAccount::GetType() const

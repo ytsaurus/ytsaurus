@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package NYP.NClient.NApi.NProto;
+
+import "yp/client/api/proto/data_model.proto";
+
+import "yt/core/yson/proto/protobuf_interop.proto";
+
+option python_package = "yp_proto.yp.client.api.proto";
+
+option go_package = "a.yandex-team.ru/yp/go/proto/api";
+
+option java_package = "ru.yandex.yp.client.api";
+option java_outer_classname = "Project";
+option java_multiple_files = true;
+
+option (NYP.NClient.NApi.NProto.object_type) = {
+    camel_case_name: "Project"
+    snake_case_name: "project"
+    type_value: 22
+};
+
+// Project - see https://wiki.yandex-team.ru/deploy/docs/ierarxija-sushhnostejj-v-y.deploy/#project
+
+message TProjectSpec
+{
+    // In form "abc:service:<int id>".
+    string account_id = 1;
+}
+
+message TProjectStatus
+{ }

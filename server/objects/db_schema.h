@@ -712,6 +712,7 @@ extern const struct TStagesTable
     struct TFields
         : public TObjectTableBase::TFields
     {
+        TDBField Meta_ProjectId{"meta.project_id", NTableClient::EValueType::String};
         TDBField Spec_AccountId{"spec.account_id", NTableClient::EValueType::String};
         TDBField Spec_Etc{"spec.etc", NTableClient::EValueType::Any};
         TDBField Status{"status", NTableClient::EValueType::Any};
@@ -799,6 +800,44 @@ extern const struct THistoryEventsTable
         TDBField HistoryEnabledAttributes{"history_enabled_attributes", NTableClient::EValueType::Any};
     } Fields;
 } HistoryEventsTable;
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const struct TProjectsTable
+    : public TDBTable
+    , public TObjectTableBase
+{
+    TProjectsTable()
+        : TDBTable("projects")
+    {
+        Key = {&TObjectTableBase::Fields.Meta_Id};
+    }
+
+    struct TFields
+        : public TObjectTableBase::TFields
+    {
+        TDBField Spec_AccountId{"spec.account_id", NTableClient::EValueType::String};
+        TDBField Status{"status", NTableClient::EValueType::Any};
+    } Fields;
+} ProjectsTable;
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const struct TAccountToProjectsTable
+    : public TDBTable
+{
+    TAccountToProjectsTable()
+        : TDBTable("account_to_projects")
+    {
+        Key = {&Fields.AccountId, &Fields.ProjectId};
+    }
+
+    struct TFields
+    {
+        TDBField AccountId{"account_id", NTableClient::EValueType::String};
+        TDBField ProjectId{"project_id", NTableClient::EValueType::String};
+    } Fields;
+} AccountToProjectsTable;
 
 ////////////////////////////////////////////////////////////////////////////////
 

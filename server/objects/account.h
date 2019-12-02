@@ -71,6 +71,10 @@ public:
     using TChildrenAttribute = TOneToManyAttribute<TAccount, TAccount>;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TChildrenAttribute, Children);
 
+    static const TOneToManyAttributeSchema<TAccount, TProject> ProjectsSchema;
+    using TProjects = TOneToManyAttribute<TAccount, TProject>;
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TProjects, Projects);
+
     virtual bool IsBuiltin() const override;
 };
 

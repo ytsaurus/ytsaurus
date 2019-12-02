@@ -4,6 +4,7 @@
 #include "stage.h"
 #include "pod.h"
 #include "pod_set.h"
+#include "project.h"
 #include "replica_set.h"
 #include "multi_cluster_replica_set.h"
 #include "db_schema.h"

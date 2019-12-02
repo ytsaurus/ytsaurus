@@ -20,6 +20,7 @@ import "yp/client/api/proto/dynamic_resource.proto";
 import "yp/client/api/proto/stage.proto";
 import "yp/client/api/proto/host_infra.proto";
 import "yp/client/api/proto/deploy.proto";
+import "yp/client/api/proto/project.proto";
 import "yt/core/misc/proto/error.proto";
 import "yt/core/ytree/proto/attributes.proto";
 import "yt/core/yson/proto/protobuf_interop.proto";
@@ -96,6 +97,9 @@ enum EObjectType
 
     OT_STAGE = 19
     [(NYT.NYson.NProto.enum_value_name) = "stage"];
+
+    OT_PROJECT = 22
+    [(NYT.NYson.NProto.enum_value_name) = "project"];
 
     OT_NULL = -1
     [(NYT.NYson.NProto.enum_value_name) = "null"];
@@ -591,6 +595,8 @@ message TStageMeta
     uint64 creation_time = 3;
     bool inherit_acl = 10;
     repeated TAccessControlEntry acl = 11;
+    // Custom fields:
+    string project_id = 4;
 }
 
 message TStage
@@ -598,6 +604,28 @@ message TStage
     TStageMeta meta = 1;
     TStageSpec spec = 2;
     TStageStatus status = 3;
+    NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TProjectMeta
+{
+    string id = 1;
+    string uuid = 12;
+    string name = 13;
+    EObjectType type = 2;
+    uint64 creation_time = 3;
+    bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+}
+
+message TProject
+{
+    TProjectMeta meta = 1;
+    TProjectSpec spec = 2;
+    TProjectStatus status = 3;
     NYT.NYTree.NProto.TAttributeDictionary labels = 4;
     NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
 }

@@ -1,7 +1,7 @@
-#include "stage_type_handler.h"
 #include "account.h"
 #include "db_schema.h"
 #include "stage.h"
+#include "stage_type_handler.h"
 #include "type_handler_detail.h"
 
 #include <yp/server/master/bootstrap.h>
@@ -30,6 +30,14 @@ public:
     virtual void Initialize() override
     {
         TObjectTypeHandlerBase::Initialize();
+
+        MetaAttributeSchema_
+            ->AddChildren({
+                //TODO(DEPLOY-1502): ParentAttribute after DEPLOY-1486 and DEPLOY-1501
+                MakeAttributeSchema("project_id")
+                    ->SetAttribute(TStage::ProjectIdSchema)
+                    ->SetUpdatable()
+            });
 
         SpecAttributeSchema_
             ->AddChildren({

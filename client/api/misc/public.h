@@ -95,6 +95,7 @@ DEFINE_ENUM(EObjectType,
     ((Stage)                  (19))
     ((PodDisruptionBudget)    (20))
     ((IP4AddressPool)         (21))
+    ((Project)                (22))
     ((NetworkModule)         (100)) // internal, not present in data_model.proto
     ((Schema)                (256))
 );

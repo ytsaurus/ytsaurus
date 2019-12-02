@@ -23,6 +23,11 @@ TStage::TSpec::TSpec(TStage* stage)
     , Etc_(stage, &EtcSchema)
 { }
 
+const TScalarAttributeSchema<TStage, TString> TStage::ProjectIdSchema{
+    &StagesTable.Fields.Meta_ProjectId,
+    [] (TStage* stage) { return &stage->ProjectId(); }
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 const TScalarAttributeSchema<TStage, TStage::TStatus> TStage::StatusSchema{
@@ -35,6 +40,7 @@ TStage::TStage(
     IObjectTypeHandler* typeHandler,
     ISession* session)
     : TObject(id, TObjectId(), typeHandler, session)
+    , ProjectId_(this, &ProjectIdSchema)
     , Spec_(this)
     , Status_(this, &StatusSchema)
 { }
