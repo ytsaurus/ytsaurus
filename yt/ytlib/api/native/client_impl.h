@@ -2,6 +2,8 @@
 
 #include "client.h"
 
+#include "private.h"
+
 #include <yt/ytlib/tablet_client/public.h>
 
 #include <yt/ytlib/query_client/query_service_proxy.h>
@@ -865,8 +867,6 @@ private:
     static TString ExtractTextFactorForCypressItem(const TOperation& operation);
     static std::vector<TString> GetPoolsFromRuntimeParameters(const NYTree::INodePtr& runtimeParameters);
 
-    struct TCountingFilter;
-
     TOperation CreateOperationFromNode(
         const NYTree::INodePtr& node,
         const std::optional<THashSet<TString>>& attributes = std::nullopt);
@@ -883,9 +883,7 @@ private:
     // The operations are returned with requested fields plus necessarily "start_time" and "id".
     void DoListOperationsFromCypress(
         TInstant deadline,
-        TCountingFilter& countingFilter,
-        const TListOperationsAccessFilterPtr& accessFilter,
-        const std::optional<THashSet<TString>>& transitiveClosureOfSubject,
+        TListOperationsCountingFilter& countingFilter,
         const TListOperationsOptions& options,
         THashMap<NScheduler::TOperationId, TOperation>* idToOperation);
 
@@ -893,12 +891,10 @@ private:
     // Returns operations with requested fields plus necessarily "start_time" and "id".
     THashMap<NScheduler::TOperationId, TOperation> DoListOperationsFromArchive(
         TInstant deadline,
-        TCountingFilter& countingFilter,
-        const TListOperationsAccessFilterPtr& accessFilter,
-        const std::optional<THashSet<TString>>& transitiveClosureOfSubject,
+        TListOperationsCountingFilter& countingFilter,
         const TListOperationsOptions& options);
 
-    THashSet<TString> GetSubjectClosure(
+    static THashSet<TString> GetSubjectClosure(
         const TString& subject,
         NObjectClient::TObjectServiceProxy& proxy,
         const TMasterReadOptions& options);

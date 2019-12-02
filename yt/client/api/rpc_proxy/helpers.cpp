@@ -553,10 +553,6 @@ void ToProto(NProto::TOperation* protoOperation, const NApi::TOperation& operati
         protoOperation->set_authenticated_user(*operation.AuthenticatedUser);
     }
 
-    if (operation.Pools) {
-        NYT::ToProto(protoOperation->mutable_pools()->mutable_data(), *operation.Pools);
-    }
-
     if (operation.BriefSpec) {
         protoOperation->set_brief_spec(operation.BriefSpec.GetData());
     }
@@ -633,12 +629,6 @@ void FromProto(NApi::TOperation* operation, const NProto::TOperation& protoOpera
         operation->AuthenticatedUser = protoOperation.authenticated_user();
     } else {
         operation->AuthenticatedUser.reset();
-    }
-
-    if (protoOperation.has_pools()) {
-        operation->Pools = NYT::FromProto<std::vector<TString>>(protoOperation.pools().data());
-    } else {
-        operation->Pools.reset();
     }
 
     if (protoOperation.has_brief_spec()) {
