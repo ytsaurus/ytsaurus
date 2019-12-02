@@ -2839,10 +2839,7 @@ std::pair<size_t, size_t> MakeCodegenGroupOp(
                         .StoreToValues(builder, dstValues, index);
                 }
 
-                for (int index = groupExprsIds.size(); index < commonPrefixWithPrimaryKey; ++index) {
-                    TCGValue::CreateNull(builder, keyTypes[index])
-                        .StoreToValues(builder, dstValues, index);
-                }
+                YT_VERIFY(commonPrefixWithPrimaryKey <= keySize);
 
                 for (int index = groupExprsIds.size(); index < keySize; ++index) {
                     TCGValue::CreateNull(builder, keyTypes[index])
@@ -3090,6 +3087,79 @@ size_t MakeCodegenOrderOp(
                 consumeOrderedRows.Function,
                 builder->getInt64(schemaSize + exprIds.size())
             });
+    };
+
+    return consumerSlot;
+}
+
+size_t MakeCodegenOffsetLimiterOp(
+    TCodegenSource* codegenSource,
+    size_t* slotCount,
+    size_t producerSlot,
+    size_t offsetId,
+    size_t limitId)
+{
+    size_t consumerSlot = (*slotCount)++;
+
+    *codegenSource = [
+        consumerSlot,
+        producerSlot,
+        offsetId,
+        limitId,
+        codegenSource = std::move(*codegenSource)
+    ] (TCGOperatorContext& builder) {
+
+        // index = 0
+        Value* indexPtr = builder->CreateAlloca(builder->getInt64Ty(), nullptr, "indexPtr");
+        builder->CreateStore(builder->getInt64(0), indexPtr);
+
+        builder[producerSlot] = [&] (TCGContext& builder, Value* values) {
+            Value* indexPtrRef = builder->ViaClosure(indexPtr);
+
+            auto* ifBB = builder->CreateBBHere("if");
+            auto* endIfBB = builder->CreateBBHere("endIf");
+
+            Value* offset = builder->CreateLoad(
+                builder->CreatePointerCast(
+                    builder.GetOpaqueValue(offsetId),
+                    builder->getInt64Ty()->getPointerTo()));
+
+            Value* limit = builder->CreateLoad(
+                builder->CreatePointerCast(
+                    builder.GetOpaqueValue(limitId),
+                    builder->getInt64Ty()->getPointerTo()));
+
+            Value* skip = builder->CreateICmpULT(
+                builder->CreateLoad(indexPtrRef, "index"),
+                offset);
+
+            Value* index = builder->CreateLoad(indexPtrRef, "index");
+
+            Value* finish = builder->CreateICmpUGE(
+                index,
+                limit);
+
+            // index = index + 1
+            builder->CreateStore(builder->CreateAdd(index, builder->getInt64(1)), indexPtrRef);
+
+            builder->CreateCondBr(
+                builder->CreateOr(skip, finish),
+                endIfBB,
+                ifBB);
+
+            auto* condBB = builder->GetInsertBlock();
+
+            builder->SetInsertPoint(ifBB);
+            Value* result = builder[consumerSlot](builder, values);
+            ifBB = builder->GetInsertBlock();
+            builder->CreateBr(endIfBB);
+
+            builder->SetInsertPoint(endIfBB);
+
+            return MakePhi(builder, ifBB, condBB, result, finish, "finishedPhi");
+        };
+
+        codegenSource(builder);
     };
 
     return consumerSlot;

@@ -949,6 +949,15 @@ void TQueryProfiler::Profile(
         schema = projectClause->GetTableSchema();
     }
 
+    bool considerLimit = query->IsOrdered() && !query->GroupClause;
+    Fold(static_cast<int>(considerLimit));
+    if (considerLimit) {
+        int offsetId = Variables_->AddOpaque<size_t>(query->Offset);
+        int limitId = Variables_->AddOpaque<size_t>(query->Limit);
+
+        finalSlot = MakeCodegenOffsetLimiterOp(codegenSource, slotCount, finalSlot, offsetId, limitId);
+    }
+
     size_t resultRowSize = schema.GetColumnCount();
 
     if (!isFinal) {
@@ -981,11 +990,8 @@ void TQueryProfiler::Profile(
 
     //resultSlot = MakeCodegenOnceOp(codegenSource, slotCount, resultSlot);
 
-    bool considerLimit = query->IsOrdered() && !query->GroupClause;
     Fold(static_cast<int>(EFoldingObjectType::WriteOp));
-    Fold(static_cast<int>(considerLimit));
-
-    MakeCodegenWriteOp(codegenSource, resultSlot, resultRowSize, considerLimit);
+    MakeCodegenWriteOp(codegenSource, resultSlot, resultRowSize, false);
 }
 
 void TQueryProfiler::Profile(
