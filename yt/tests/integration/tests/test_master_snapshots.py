@@ -137,6 +137,15 @@ class TestMasterSnapshots(YTEnvSetup):
             with pytest.raises(StopIteration):
                 next(s)
 
+    @authors("gritukan")
+    def test_master_snapshots_free_space_profiling(self):
+        primary_master = ls("//sys/primary_masters")[0]
+        profiling = get("//sys/primary_masters/{0}/orchid/profiling".format(primary_master))
+        assert "free_space" in profiling["snapshots"]
+        assert "available_space" in profiling["snapshots"]
+        assert "free_space" in profiling["changelogs"]
+        assert "available_space" in profiling["changelogs"]
+
 class TestAllMastersSnapshots(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
