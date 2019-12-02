@@ -214,11 +214,11 @@ private:
             if (ChannelSlotsOrError_.IsOK()) {
                 auto& channelSlots = ChannelSlotsOrError_.Value();
 
-                auto itBegin = std::remove_if(
+                auto itBegin = std::partition(
                     channelSlots.begin(),
                     channelSlots.end(),
                     [&] (const TChannelSlot& channelSlot) {
-                        return addresses.find(channelSlot.Address) == addresses.end();
+                        return addresses.find(channelSlot.Address) != addresses.end();
                     });
 
                 newChannelSlotsToRelease.reserve(std::distance(itBegin, channelSlots.end()));
@@ -285,11 +285,11 @@ private:
             std::make_move_iterator(newChannelSlotsToRelease.begin()),
             std::make_move_iterator(newChannelSlotsToRelease.end()));
 
-        auto itBegin = std::remove_if(
+        auto itBegin = std::partition(
             ChannelSlotsToRelease_.begin(),
             ChannelSlotsToRelease_.end(),
             [&] (const TChannelSlot& channelSlot) {
-                return channelSlot.Channel->GetRefCount() == 1;
+                return channelSlot.Channel->GetRefCount() > 1;
             });
 
         for (auto it = itBegin; it != ChannelSlotsToRelease_.end(); ++it) {
