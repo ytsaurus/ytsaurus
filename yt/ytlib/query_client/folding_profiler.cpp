@@ -842,28 +842,13 @@ void TQueryProfiler::Profile(
         }
 
         if (groupClause->TotalsMode != ETotalsMode::None) {
-            // TODO(lukyan): Optimize. Assign empty consumer to totalsSlotEmpty and remove MergeOp
-            size_t totalsSlotEmpty;
-            std::tie(totalsSlot, totalsSlotEmpty) = MakeCodegenGroupOp(
+            totalsSlot = MakeCodegenGroupTotalsOp(
                 codegenSource,
                 slotCount,
                 totalsSlot,
-                New<TCodegenFragmentInfos>(),
-                std::vector<size_t>(),
-                std::vector<size_t>(),
                 codegenAggregates,
                 keyTypes,
-                stateTypes,
-                true,
-                false,
-                0,
-                ComparerManager_);
-
-            totalsSlot = MakeCodegenMergeOp(
-                codegenSource,
-                slotCount,
-                totalsSlot,
-                totalsSlotEmpty);
+                stateTypes);
 
             if (isFinal) {
                 totalsSlot = MakeCodegenFinalizeOp(

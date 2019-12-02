@@ -221,6 +221,14 @@ std::pair<size_t, size_t> MakeCodegenGroupOp(
     size_t commonPrefixWithPrimaryKey,
     TComparerManagerPtr comparerManager);
 
+size_t MakeCodegenGroupTotalsOp(
+    TCodegenSource* codegenSource,
+    size_t* slotCount,
+    size_t producerSlot,
+    std::vector<TCodegenAggregate> codegenAggregates,
+    std::vector<EValueType> keyTypes,
+    std::vector<EValueType> stateTypes);
+
 size_t MakeCodegenFinalizeOp(
     TCodegenSource* codegenSource,
     size_t* slotCount,

@@ -2796,7 +2796,7 @@ std::pair<size_t, size_t> MakeCodegenGroupOp(
         commonPrefixWithPrimaryKey,
         MOVE(comparerManager)
     ] (TCGOperatorContext& builder) {
-        auto collect = MakeClosure<void(TGroupByClosure*, TExpressionContext*)>(builder, "CollectGroups", [&] (
+        auto collect = MakeClosure<void(TGroupByClosure*, TExpressionContext*)>(builder, "GroupCollect", [&] (
             TCGOperatorContext& builder,
             Value* groupByClosure,
             Value* buffer
@@ -2945,6 +2945,110 @@ std::pair<size_t, size_t> MakeCodegenGroupOp(
     };
 
     return std::make_pair(boundaryConsumerSlot, innerConsumerSlot);
+}
+
+size_t MakeCodegenGroupTotalsOp(
+    TCodegenSource* codegenSource,
+    size_t* slotCount,
+    size_t producerSlot,
+    std::vector<TCodegenAggregate> codegenAggregates,
+    std::vector<EValueType> keyTypes,
+    std::vector<EValueType> stateTypes)
+{
+    size_t consumerSlot = (*slotCount)++;
+
+    *codegenSource = [
+        consumerSlot,
+        producerSlot,
+        MOVE(codegenAggregates),
+        codegenSource = std::move(*codegenSource),
+        MOVE(keyTypes),
+        MOVE(stateTypes)
+    ] (TCGOperatorContext& builder) {
+        auto collect = MakeClosure<void(TExpressionContext*)>(builder, "GroupTotalsCollect", [&] (
+            TCGOperatorContext& builder,
+            Value* buffer
+        ) {
+            Value* newValuesPtr = builder->CreateAlloca(TTypeBuilder<TValue*>::Get(builder->getContext()));
+
+            size_t keySize = keyTypes.size();
+            size_t groupRowSize = keySize + stateTypes.size();
+
+            builder->CreateCall(
+                builder.Module->GetRoutine("AllocatePermanentRow"),
+                {
+                    builder.GetExecutionContext(),
+                    buffer,
+                    builder->getInt32(groupRowSize),
+                    newValuesPtr
+                });
+
+            Value* groupValues = builder->CreateLoad(newValuesPtr);
+
+            for (int index = 0; index < keySize; ++index) {
+                TCGValue::CreateNull(builder, keyTypes[index])
+                    .StoreToValues(builder, groupValues, index);
+            }
+
+            for (int index = 0; index < codegenAggregates.size(); index++) {
+                codegenAggregates[index].Initialize(builder, buffer)
+                    .StoreToValues(builder, groupValues, keySize + index);
+            }
+
+            Value* hasRows = builder->CreateAlloca(builder->getInt1Ty());
+            builder->CreateStore(builder->getFalse(), hasRows);
+
+            builder[producerSlot] = [&] (TCGContext& builder, Value* values) {
+                Value* bufferRef = builder->ViaClosure(buffer);
+                Value* groupValuesRef = builder->ViaClosure(groupValues);
+
+                builder->CreateStore(builder->getTrue(), builder->ViaClosure(hasRows));
+
+                for (int index = 0; index < codegenAggregates.size(); index++) {
+                    auto aggState = TCGValue::CreateFromRowValues(
+                        builder,
+                        groupValuesRef,
+                        keySize + index,
+                        stateTypes[index]);
+
+                    auto newValue = TCGValue::CreateFromRowValues(
+                        builder,
+                        values,
+                        keySize + index,
+                        stateTypes[index]);
+
+                    codegenAggregates[index].Merge(builder, bufferRef, aggState, newValue)
+                        .StoreToValues(builder, groupValuesRef, keySize + index);
+                }
+
+                YT_VERIFY(!stateTypes.empty());
+
+                return builder->getFalse();
+            };
+
+            codegenSource(builder);
+
+            CodegenIf<TCGOperatorContext>(
+                builder,
+                builder->CreateLoad(hasRows),
+                [&] (TCGOperatorContext& builder) {
+                    TCGContext innerBuilder(builder, buffer);
+                    builder[consumerSlot](innerBuilder, groupValues);
+                });
+
+            builder->CreateRetVoid();
+        });
+
+        builder->CreateCall(
+            builder.Module->GetRoutine("GroupTotalsOpHelper"),
+            {
+                builder.GetExecutionContext(),
+                collect.ClosurePtr,
+                collect.Function
+            });
+    };
+
+    return consumerSlot;
 }
 
 size_t MakeCodegenFinalizeOp(

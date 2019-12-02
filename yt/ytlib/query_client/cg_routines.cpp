@@ -1260,6 +1260,7 @@ void GroupOpHelper(
     auto flushGroupedRows = [&] (bool isBoundary, const TValue** begin, const TValue** end) {
         auto finished = false;
 
+        // FIXME: Do not consider offset in totals
         if (context->Ordered && processedRows < context->Offset) {
             size_t skip = std::min<size_t>(context->Offset - processedRows, end - begin);
 
@@ -1330,6 +1331,17 @@ void GroupOpHelper(
     YT_VERIFY(closure.GroupedRows.empty());
 
     YT_LOG_DEBUG("Processed %v group rows", processedRows);
+}
+
+void GroupTotalsOpHelper(
+    TExecutionContext* context,
+    void** collectRowsClosure,
+    void (*collectRows)(
+        void** closure,
+        TExpressionContext* buffer))
+{
+    auto buffer = New<TRowBuffer>(TIntermediateBufferTag());
+    collectRows(collectRowsClosure, buffer.Get());
 }
 
 void AllocatePermanentRow(TExecutionContext* context, TExpressionContext* buffer, int valueCount, TValue** row)
@@ -2185,6 +2197,7 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(StorePrimaryRow);
     REGISTER_ROUTINE(MultiJoinOpHelper);
     REGISTER_ROUTINE(GroupOpHelper);
+    REGISTER_ROUTINE(GroupTotalsOpHelper);
     REGISTER_ROUTINE(StringHash);
     REGISTER_ROUTINE(AllocatePermanentRow);
     REGISTER_ROUTINE(AllocateBytes);
