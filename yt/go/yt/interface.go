@@ -817,6 +817,8 @@ type Tx interface {
 }
 
 type LookupRowsOptions struct {
+	KeepMissingRows bool `http:"keep_missing_rows"`
+
 	*TransactionOptions
 }
 
