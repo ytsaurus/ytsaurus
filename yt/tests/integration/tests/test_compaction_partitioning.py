@@ -207,7 +207,6 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
             chunk_id = get("//tmp/t/@chunk_ids/{0}".format(chunk_index))
             sync_mount_table("//tmp/t", first_tablet_index=chunk_index, last_tablet_index=chunk_index)
             wait(lambda: chunk_id != get("//tmp/t/@chunk_ids/{0}".format(chunk_index)))
-            print "\n\n\n", chunk_id, get("//tmp/t/@chunk_ids"), "\n\n"
             assert not get("#{}/@eden".format(get("//tmp/t/@chunk_ids/{0}".format(chunk_index))))
             sync_unmount_table("//tmp/t")
 

@@ -79,6 +79,8 @@ DECLARE_REFCOUNTED_CLASS(TVersionedChunkMetaManager)
 
 DECLARE_REFCOUNTED_CLASS(TTableReplicator)
 
+DECLARE_REFCOUNTED_CLASS(TStoreCompactor)
+
 struct TSortedDynamicRowHeader;
 class TSortedDynamicRow;
 
