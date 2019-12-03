@@ -5605,6 +5605,8 @@ TEST_F(TQueryEvaluateTest, MakeMapFailure)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#if 0
+
 struct TJoinColumns
 {
     const char* Self = nullptr;
@@ -5992,6 +5994,8 @@ INSTANTIATE_TEST_CASE_P(1, TQueryEvaluateComplexTest,
         "",
         "with totals"
     })));
+
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
