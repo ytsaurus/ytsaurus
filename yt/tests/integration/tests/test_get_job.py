@@ -5,6 +5,8 @@ import yt.environment.init_operation_archive as init_operation_archive
 
 from yt.common import date_string_to_datetime, uuid_to_parts
 
+from yt.wrapper.common import uuid_hash_pair
+
 import __builtin__
 import datetime
 
@@ -55,7 +57,9 @@ class TestGetJob(YTEnvSetup):
 
         attributes = ["job_id", "state", "start_time"]
         job_info = retry(lambda: get_job(op_id, job_id, attributes=attributes))
-        assert __builtin__.set(job_info.keys()) == __builtin__.set(attributes)
+        assert __builtin__.set(attributes).issubset(__builtin__.set(job_info.keys()))
+        attribute_difference = __builtin__.set(job_info.keys()) - __builtin__.set(attributes)
+        assert attribute_difference.issubset(__builtin__.set(["archive_state", "controller_agent_state"]))
 
         if not check_has_spec:
             return
@@ -91,7 +95,7 @@ class TestGetJob(YTEnvSetup):
             in_="//tmp/t1",
             out="//tmp/t2",
             command=with_breakpoint("""
-                echo SOME-STDERR > 2 ;
+                echo SOME-STDERR >&2 ;
                 cat ;
                 if [[ "$YT_JOB_INDEX" == "0" ]]; then
                     BREAKPOINT
@@ -113,6 +117,57 @@ class TestGetJob(YTEnvSetup):
         # Controller agent must be able to respond as it stores
         # zombie operation orchids.
         self._check_get_job(op.id, job_id, before_start_time, state="failed", check_has_spec=False)
+
+    @authors("levysotsky")
+    def test_get_stubborn_job(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
+        before_start_time = datetime.datetime.utcnow()
+        op = map(
+            dont_track=True,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint("echo SOME-STDERR >&2; cat; BREAKPOINT"),
+        )
+        job_id, = wait_breakpoint()
+
+        operation_hash = uuid_hash_pair(op.id)
+        job_hash = uuid_hash_pair(job_id)
+        archive_path = init_operation_archive.DEFAULT_ARCHIVE_PATH + "/jobs"
+        def get_job_from_archive(job_id):
+            rows = lookup_rows(archive_path, [{
+                "operation_id_hi": operation_hash.hi,
+                "operation_id_lo": operation_hash.lo,
+                "job_id_hi": job_hash.hi,
+                "job_id_lo": job_hash.lo,
+            }])
+            return rows[0] if rows else None
+        wait(lambda: get_job_from_archive(job_id) is not None)
+        job_from_archive = get_job_from_archive(job_id)
+
+        abort_job(job_id)
+        release_breakpoint()
+        op.track()
+
+        # We emulate the situation when aborted (in CA's opinion) job
+        # still reports "running" to archive.
+        del job_from_archive["operation_id_hash"]
+        insert_rows(
+            init_operation_archive.DEFAULT_ARCHIVE_PATH + "/jobs",
+            [job_from_archive],
+            update=True,
+            atomicity="none",
+        )
+
+        self._check_get_job(op.id, job_id, before_start_time, state="running", check_has_spec=False)
+        job_info = retry(lambda: get_job(op.id, job_id))
+        assert job_info["archive_state"] == job_info["state"] == "running"
+
+        self._delete_job_from_archive(op.id, job_id)
+        self._check_get_job(op.id, job_id, before_start_time, state="aborted", check_has_spec=False)
+        job_info = retry(lambda: get_job(op.id, job_id))
+        assert job_info["controller_agent_state"] == job_info["state"] == "aborted"
 
 ##################################################################
 

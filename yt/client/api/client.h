@@ -992,6 +992,8 @@ struct TJob
     NJobTrackerClient::TJobId OperationId;
     std::optional<NJobTrackerClient::EJobType> Type;
     std::optional<NJobTrackerClient::EJobState> State;
+    std::optional<NJobTrackerClient::EJobState> ControllerAgentState;
+    std::optional<NJobTrackerClient::EJobState> ArchiveState;
     std::optional<TInstant> StartTime;
     std::optional<TInstant> FinishTime;
     std::optional<TString> Address;

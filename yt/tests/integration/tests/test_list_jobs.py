@@ -8,6 +8,7 @@ from yt.common import date_string_to_datetime
 from collections import defaultdict
 from datetime import datetime
 import __builtin__
+from contextlib import contextmanager
 
 import pytest
 
@@ -28,6 +29,29 @@ def get_profile_from_table(operation_id, job_id):
     assert len(rows) == 1
     return rows[0]["profile_type"], rows[0]["profile_blob"]
 
+def get_job_from_table(operation_id, job_id):
+    path = init_operation_archive.DEFAULT_ARCHIVE_PATH + "/jobs"
+    operation_hash = uuid_hash_pair(operation_id)
+    job_hash = uuid_hash_pair(job_id)
+    rows = lookup_rows(path, [{
+        "operation_id_hi": operation_hash.hi,
+        "operation_id_lo": operation_hash.lo,
+        "job_id_hi": job_hash.hi,
+        "job_id_lo": job_hash.lo,
+    }])
+    return rows[0] if rows else None
+
+def set_job_in_table(operation_id, job_id, fields):
+    path = init_operation_archive.DEFAULT_ARCHIVE_PATH + "/jobs"
+    operation_hash = uuid_hash_pair(operation_id)
+    job_hash = uuid_hash_pair(job_id)
+    fields.update({
+        "operation_id_hi": operation_hash.hi,
+        "operation_id_lo": operation_hash.lo,
+        "job_id_hi": job_hash.hi,
+        "job_id_lo": job_hash.lo,
+    })
+    insert_rows(path, [fields], update=True, atomicity="none")
 
 def checked_list_jobs(*args, **kwargs):
     res = list_jobs(*args, **kwargs)
@@ -35,6 +59,23 @@ def checked_list_jobs(*args, **kwargs):
         raise YtError(message="list_jobs failed", inner_errors=res["errors"])
     return res
 
+@contextmanager
+def cypress_job_nodes_context_manager(enable):
+    original_enable = None
+    instances = ls("//sys/controller_agents/instances")
+    orchid_path = \
+        "//sys/controller_agents/instances/{}/orchid/controller_agent/config/enable_cypress_job_nodes".format(instances[0])
+    config_path = "//sys/controller_agents/config/enable_cypress_job_nodes"
+    try:
+        original_enable = get(orchid_path)
+        set(config_path, enable, recursive=True)
+        wait(lambda: get(orchid_path) == enable)
+        yield
+    finally:
+        # TODO(ignat): move it to teardown.
+        if original_enable is not None:
+            set(config_path, original_enable, recursive=True)
+            wait(lambda: get(orchid_path) == original_enable)
 
 class TestListJobs(YTEnvSetup):
     SINGLE_SETUP_TEARDOWN = True
@@ -90,6 +131,17 @@ class TestListJobs(YTEnvSetup):
         sync_create_cells(1)
         init_operation_archive.create_tables_latest_version(cls.Env.create_native_client(), override_tablet_cell_bundle="default")
         cls._tmpdir = create_tmpdir("list_jobs")
+        cls.failed_job_id_fname = os.path.join(cls._tmpdir, "failed_job_id")
+
+    def restart_nodes_and_wait_jobs_table(self):
+        unmount_table("//sys/operations_archive/jobs")
+        wait(lambda: get("//sys/operations_archive/jobs/@tablet_state") == "unmounted")
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+        clear_metadata_caches()
+        wait_for_cells()
+        mount_table("//sys/operations_archive/jobs")
+        wait(lambda: get("//sys/operations_archive/jobs/@tablet_state") == "mounted")
 
     def _create_tables(self):
         input_table = "//tmp/input_" + make_random_string()
@@ -365,13 +417,12 @@ class TestListJobs(YTEnvSetup):
 
     def _run_op_and_wait_mapper_breakpoint(self):
         input_table, output_table = self._create_tables()
-        failed_job_id_fname = os.path.join(self._tmpdir, "failed_job_id")
         # Write stderrs in jobs to ensure they will be saved.
         mapper_command = with_breakpoint(
             """echo STDERR-OUTPUT >&2 ; cat; printf 'test\\nfoobar' >&8; """
             """test $YT_JOB_INDEX -eq "1" && echo $YT_JOB_ID > {failed_job_id_fname} && exit 1; """
             """BREAKPOINT"""
-                .format(failed_job_id_fname=failed_job_id_fname),
+            .format(failed_job_id_fname=self.failed_job_id_fname),
             breakpoint_name="mapper",
         )
         reducer_command = with_breakpoint(
@@ -394,16 +445,20 @@ class TestListJobs(YTEnvSetup):
                     "output_format": "json",
                 },
                 "map_job_count" : 3,
-                "reduce_job_count": 1,
+                "partition_count": 1,
             },
         )
 
         job_ids = {}
         job_ids["completed_map"] = wait_breakpoint(breakpoint_name="mapper", job_count=3)
+        return op, job_ids
+
+    def _run_op_and_fill_job_ids(self):
+        op, job_ids = self._run_op_and_wait_mapper_breakpoint()
 
         wait(lambda: op.get_job_count("failed") == 1)
-        wait(lambda: os.path.exists(failed_job_id_fname))
-        with open(failed_job_id_fname) as f:
+        wait(lambda: os.path.exists(self.failed_job_id_fname))
+        with open(self.failed_job_id_fname) as f:
             job_ids["failed_map"] = [f.read().strip()]
 
         wait(op.get_running_jobs)
@@ -424,19 +479,47 @@ class TestListJobs(YTEnvSetup):
 
     @authors("levysotsky")
     @add_failed_operation_stderrs_to_error_message
+    def test_list_jobs_attributes(self):
+        # We need to switch off cypress job nodes to make list_jobs
+        # go to both archive and CA.
+        with cypress_job_nodes_context_manager(False):
+            before_start_time = datetime.utcnow()
+            op, job_ids = self._run_op_and_wait_mapper_breakpoint()
+
+            job_id = job_ids["completed_map"][0]
+
+            release_breakpoint(breakpoint_name="mapper")
+            release_breakpoint(breakpoint_name="reducer")
+            op.track()
+
+            def has_job_state_converged():
+                set_job_in_table(op.id, job_id, {"transient_state": "running"})
+                time.sleep(1)
+                return get_job_from_table(op.id, job_id)["transient_state"] == "running"
+            wait(has_job_state_converged)
+
+            res = checked_list_jobs(op.id)
+            res_jobs = [job for job in res["jobs"] if job["id"] == job_id]
+            assert len(res_jobs) == 1
+            res_job = res_jobs[0]
+
+            start_time = date_string_to_datetime(res_job["start_time"])
+            assert res_job.get("finish_time") is not None
+            finish_time = date_string_to_datetime(res_job.get("finish_time"))
+            assert before_start_time < start_time < finish_time < datetime.now()
+            assert res_job["controller_agent_state"] == "completed"
+            assert res_job["archive_state"] == "running"
+            assert res_job["type"] == "partition_map"
+            stderr_size = len("STDERR-OUTPUT\n")
+            assert res_job["stderr_size"] == stderr_size
+
+    @authors("levysotsky")
+    @add_failed_operation_stderrs_to_error_message
     @pytest.mark.parametrize("data_source", ["runtime", "archive", "auto"])
     @pytest.mark.parametrize("enable_cypress_job_nodes", [True, False])
     def test_list_jobs(self, data_source, enable_cypress_job_nodes):
-        original_enable_cypress_job_nodes = None
-        instances = ls("//sys/controller_agents/instances")
-        orchid_path = \
-            "//sys/controller_agents/instances/{}/orchid/controller_agent/config/enable_cypress_job_nodes".format(instances[0])
-        try:
-            original_enable_cypress_job_nodes = get(orchid_path)
-            set("//sys/controller_agents/config/enable_cypress_job_nodes", enable_cypress_job_nodes, recursive=True)
-            wait(lambda: get(orchid_path) == enable_cypress_job_nodes)
-
-            op, job_ids = self._run_op_and_wait_mapper_breakpoint()
+        with cypress_job_nodes_context_manager(enable_cypress_job_nodes):
+            op, job_ids = self._run_op_and_fill_job_ids()
 
             wait_assert(
                 self._check_during_map,
@@ -478,11 +561,6 @@ class TestListJobs(YTEnvSetup):
                 data_source=data_source,
                 enable_cypress_job_nodes=enable_cypress_job_nodes,
                 operation_cleaned=True)
-        finally:
-            # TODO(ignat): move it to teardown.
-            if original_enable_cypress_job_nodes is not None:
-                set("//sys/controller_agents/config/enable_cypress_job_nodes", original_enable_cypress_job_nodes, recursive=True)
-                wait(lambda: get(orchid_path) == original_enable_cypress_job_nodes)
 
     @authors("ermolovd", "levysotsky")
     @pytest.mark.parametrize("data_source", ["runtime", "archive"])
@@ -563,18 +641,7 @@ class TestListJobs(YTEnvSetup):
         wait(lambda: op.get_running_jobs())
         wait(lambda: len(checked_list_jobs(op.id, data_source="archive")["jobs"]) == 1)
 
-        unmount_table("//sys/operations_archive/jobs")
-        wait(lambda: get("//sys/operations_archive/jobs/@tablet_state") == "unmounted")
-
-        with Restarter(self.Env, NODES_SERVICE):
-            pass
-
-        clear_metadata_caches()
-
-        wait_for_cells()
-
-        mount_table("//sys/operations_archive/jobs")
-        wait(lambda: get("//sys/operations_archive/jobs/@tablet_state") == "mounted")
+        self.restart_nodes_and_wait_jobs_table()
 
         op.track()
 

@@ -714,6 +714,12 @@ void ToProto(NProto::TJob* protoJob, const NApi::TJob& job)
     if (job.State) {
         protoJob->set_state(ConvertJobStateToProto(*job.State));
     }
+    if (job.ControllerAgentState) {
+        protoJob->set_controller_agent_state(ConvertJobStateToProto(*job.ControllerAgentState));
+    }
+    if (job.ArchiveState) {
+        protoJob->set_archive_state(ConvertJobStateToProto(*job.ArchiveState));
+    }
 
     if (job.StartTime) {
         protoJob->set_start_time(NYT::ToProto<i64>(*job.StartTime));
@@ -773,6 +779,16 @@ void FromProto(NApi::TJob* job, const NProto::TJob& protoJob)
         job->State = ConvertJobStateFromProto(protoJob.state());
     } else {
         job->State.reset();
+    }
+    if (protoJob.has_controller_agent_state()) {
+        job->ControllerAgentState = ConvertJobStateFromProto(protoJob.controller_agent_state());
+    } else {
+        job->ControllerAgentState.reset();
+    }
+    if (protoJob.has_archive_state()) {
+        job->ArchiveState = ConvertJobStateFromProto(protoJob.archive_state());
+    } else {
+        job->ArchiveState.reset();
     }
     if (protoJob.has_start_time()) {
         job->StartTime = TInstant::FromValue(protoJob.start_time());
