@@ -18,6 +18,8 @@ import ru.yandex.spark.yt.serializers.{InternalRowDeserializer, SchemaConverter}
 import ru.yandex.spark.yt.{YtClientConfigurationConverter, YtClientProvider, YtTableUtils}
 import ru.yandex.yt.ytclient.proxy.YtClient
 
+import scala.util.{Failure, Success, Try}
+
 class YtFileFormat extends FileFormat with DataSourceRegister with Serializable {
   override def inferSchema(sparkSession: SparkSession,
                            options: Map[String, String],
@@ -25,7 +27,15 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
     files.headOption.map { fileStatus =>
       val schemaHint = SchemaConverter.schemaHint(options)
       implicit val client: YtClient = YtClientProvider.ytClient(YtClientConfigurationConverter(sparkSession))
-      val schemaTree = YtTableUtils.tableAttribute(fileStatus.getPath.asInstanceOf[YtPath].stringPath, "schema")
+      val path = fileStatus.getPath match {
+        case ytPath: YtPath => ytPath.stringPath
+        case p =>
+          Try(YtPath.decode(p)) match {
+            case Success(ytPath) => ytPath.stringPath
+            case Failure(_) => p.toUri.getPath
+          }
+      }
+      val schemaTree = YtTableUtils.tableAttribute(path, "schema")
       SchemaConverter.sparkSchema(schemaTree, schemaHint)
     }
   }

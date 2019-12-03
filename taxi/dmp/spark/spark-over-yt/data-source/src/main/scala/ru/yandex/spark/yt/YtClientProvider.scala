@@ -24,7 +24,9 @@ object YtClientProvider {
     _client.get.get.yt
   }
 
-  def ytClient: YtClient = cachedYtClient.getOrElse(throw new IllegalStateException("YtClient is not initialized"))
+  def ytClient: YtClient = cachedYtClient
+    .orElse(SparkSession.getDefaultSession.map(spark => ytClient(YtClientConfigurationConverter(spark))))
+    .getOrElse(throw new IllegalStateException("YtClient is not initialized"))
 
   def httpClient: Yt = {
     YtUtils.createHttpClient(_conf.get())
