@@ -60,6 +60,7 @@ public:
     bool TryPrepare();
     void FinishPrepare();
     void Run();
+    void LogAndProfile();
     void Finalize();
 
 private:
