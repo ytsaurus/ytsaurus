@@ -10,6 +10,7 @@
 #include "versioned_block_reader.h"
 #include "versioned_chunk_reader.h"
 
+#include <yt/ytlib/chunk_client/block.h>
 #include <yt/ytlib/chunk_client/block_cache.h>
 #include <yt/ytlib/chunk_client/block_id.h>
 #include <yt/ytlib/chunk_client/cache_reader.h>

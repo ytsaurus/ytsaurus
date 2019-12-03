@@ -2,6 +2,7 @@
 
 #include "chunk_meta_extensions.h"
 
+#include <yt/ytlib/chunk_client/public.h>
 #include <yt/ytlib/chunk_client/block_fetcher.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/block.h>
@@ -34,11 +35,13 @@ protected:
     const NChunkClient::IBlockCachePtr BlockCache_;
     const NChunkClient::TClientBlockReadOptions BlockReadOptions_;
 
-    NConcurrency::TAsyncSemaphorePtr Semaphore_;
+    NChunkClient::TChunkReaderMemoryManagerPtr MemoryManager_;
     NChunkClient::TBlockFetcherPtr BlockFetcher_;
 
     TFuture<void> ReadyEvent_ = VoidFuture;
     std::vector<TFuture<NChunkClient::TBlock>> PendingBlocks_;
+
+    i64 RequiredMemorySize_ = 0;
 
     struct TColumn
     {

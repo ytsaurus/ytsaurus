@@ -5,6 +5,7 @@
 
 #include <yt/ytlib/chunk_client/block_cache.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/chunk_reader_memory_manager.h>
 
 #include <yt/client/table_client/unversioned_row.h>
 
@@ -34,7 +35,7 @@ TColumnarChunkReaderBase::TColumnarChunkReaderBase(
     , UnderlyingReader_(std::move(underlyingReader))
     , BlockCache_(std::move(blockCache))
     , BlockReadOptions_(blockReadOptions)
-    , Semaphore_(New<TAsyncSemaphore>(Config_->WindowSize))
+    , MemoryManager_(New<TChunkReaderMemoryManager>(TChunkReaderMemoryManagerOptions(Config_->WindowSize)))
 { }
 
 TDataStatistics TColumnarChunkReaderBase::GetDataStatistics() const
@@ -86,7 +87,13 @@ void TColumnarChunkReaderBase::ResetExhaustedColumns()
         if (PendingBlocks_[i]) {
             YT_VERIFY(PendingBlocks_[i].IsSet());
             YT_VERIFY(PendingBlocks_[i].Get().IsOK());
-            Columns_[i].ColumnReader->ResetBlock(
+            auto& columnReader = Columns_[i].ColumnReader;
+            if (columnReader->GetCurrentBlockIndex() != -1) {
+                RequiredMemorySize_ -= BlockFetcher_->GetBlockSize(columnReader->GetCurrentBlockIndex());
+            }
+            MemoryManager_->SetRequiredMemorySize(RequiredMemorySize_);
+
+            columnReader->ResetBlock(
                 PendingBlocks_[i].Get().Value().Data,
                 Columns_[i].PendingBlockIndex_);
         }
@@ -260,7 +267,7 @@ void TColumnarRangeChunkReaderBase::InitBlockFetcher()
         BlockFetcher_ = New<TBlockFetcher>(
             Config_,
             std::move(blockInfos),
-            Semaphore_,
+            MemoryManager_,
             UnderlyingReader_,
             BlockCache_,
             CheckedEnumCast<NCompression::ECodec>(ChunkMeta_->Misc().compression_codec()),
@@ -280,6 +287,8 @@ TFuture<void> TColumnarRangeChunkReaderBase::RequestFirstBlocks()
             PendingBlocks_.emplace_back();
         } else {
             column.PendingBlockIndex_ = column.BlockIndexSequence.front();
+            RequiredMemorySize_ += BlockFetcher_->GetBlockSize(column.PendingBlockIndex_);
+            MemoryManager_->SetRequiredMemorySize(RequiredMemorySize_);
             PendingBlocks_.push_back(BlockFetcher_->FetchBlock(column.PendingBlockIndex_));
             blockFetchResult.push_back(PendingBlocks_.back().template As<void>());
         }
@@ -306,6 +315,8 @@ bool TColumnarRangeChunkReaderBase::TryFetchNextRow()
             auto nextBlockIndex = column.ColumnReader->GetNextBlockIndex();
             YT_VERIFY(nextBlockIndex);
             column.PendingBlockIndex_ = *nextBlockIndex;
+            RequiredMemorySize_ += BlockFetcher_->GetBlockSize(column.PendingBlockIndex_);
+            MemoryManager_->SetRequiredMemorySize(RequiredMemorySize_);
             PendingBlocks_.push_back(BlockFetcher_->FetchBlock(column.PendingBlockIndex_));
             blockFetchResult.push_back(PendingBlocks_.back().template As<void>());
         }
@@ -370,7 +381,7 @@ void TColumnarLookupChunkReaderBase::InitBlockFetcher()
     BlockFetcher_ = New<TBlockFetcher>(
         Config_,
         std::move(blockInfos),
-        Semaphore_,
+        MemoryManager_,
         UnderlyingReader_,
         BlockCache_,
         CheckedEnumCast<NCompression::ECodec>(ChunkMeta_->Misc().compression_codec()),
@@ -406,6 +417,8 @@ TFuture<void> TColumnarLookupChunkReaderBase::RequestFirstBlocks()
             }
 
             column.PendingBlockIndex_ = column.BlockIndexSequence[NextKeyIndex_];
+            RequiredMemorySize_ += BlockFetcher_->GetBlockSize(column.PendingBlockIndex_);
+            MemoryManager_->SetRequiredMemorySize(RequiredMemorySize_);
             PendingBlocks_.push_back(BlockFetcher_->FetchBlock(column.PendingBlockIndex_));
             blockFetchResult.push_back(PendingBlocks_.back().As<void>());
         }

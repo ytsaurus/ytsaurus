@@ -3,6 +3,7 @@
 #include "block_cache.h"
 #include "config.h"
 #include "dispatcher.h"
+#include "chunk_reader_memory_manager.h"
 #include "chunk_reader_statistics.h"
 
 #include <yt/client/node_tracker_client/node_directory.h>
@@ -23,7 +24,7 @@ using namespace NProfiling;
 TBlockFetcher::TBlockFetcher(
     TBlockFetcherConfigPtr config,
     std::vector<TBlockInfo> blockInfos,
-    TAsyncSemaphorePtr asyncSemaphore,
+    TChunkReaderMemoryManagerPtr memoryManager,
     IChunkReaderPtr chunkReader,
     IBlockCachePtr blockCache,
     NCompression::ECodec codecId,
@@ -41,7 +42,7 @@ TBlockFetcher::TBlockFetcher(
             blockReadOptions.WorkloadDescriptor.GetPriority()))
     , ReaderInvoker_(CreateSerializedInvoker(TDispatcher::Get()->GetReaderInvoker()))
     , CompressionRatio_(compressionRatio)
-    , AsyncSemaphore_(std::move(asyncSemaphore))
+    , MemoryManager_(std::move(memoryManager))
     , Codec_(NCompression::GetCodec(codecId))
     , BlockReadOptions_(blockReadOptions)
     , Logger(ChunkClientLogger)
@@ -106,20 +107,32 @@ TBlockFetcher::TBlockFetcher(
     // Now Window_ and BlockInfos_ correspond to each other.
     BlockInfos_.resize(WindowSize_);
 
+    size_t totalBlockUncompressedSize = 0;
+    for (const auto& blockInfo : BlockInfos_) {
+        totalBlockUncompressedSize += blockInfo.UncompressedDataSize;
+    }
+
+    MemoryManager_->SetTotalSize(totalBlockUncompressedSize);
+
     YT_LOG_DEBUG("Creating block fetcher (Blocks: %v)",
         blockIndexes);
 
     YT_VERIFY(TotalRemainingSize_ > 0);
 
-    AsyncSemaphore_->AsyncAcquire(
-        BIND(&TBlockFetcher::FetchNextGroup, MakeWeak(this)),
-        ReaderInvoker_,
-        std::min(TotalRemainingSize_.load(), Config_->GroupSize));
+    FetchNextGroupMemoryFuture_ =
+        MemoryManager_->AsyncAquire(std::min(TotalRemainingSize_.load(), Config_->GroupSize));
+    FetchNextGroupMemoryFuture_.SubscribeUnique(BIND(&TBlockFetcher::FetchNextGroup, MakeWeak(this)).Via(ReaderInvoker_));
 }
 
 bool TBlockFetcher::HasMoreBlocks() const
 {
     return TotalRemainingFetches_ > 0;
+}
+
+i64 TBlockFetcher::GetBlockSize(int blockIndex) const
+{
+    int windowIndex = GetOrCrash(BlockIndexToWindowIndex_, blockIndex);
+    return BlockInfos_[windowIndex].UncompressedDataSize;
 }
 
 TFuture<TBlock> TBlockFetcher::FetchBlock(int blockIndex)
@@ -135,15 +148,14 @@ TFuture<TBlock> TBlockFetcher::FetchBlock(int blockIndex)
             blockIndex,
             windowIndex);
 
-        windowSlot.AsyncSemaphoreGuard = std::make_unique<TAsyncSemaphoreGuard>(
-            TAsyncSemaphoreGuard::Acquire(
-                AsyncSemaphore_,
-                BlockInfos_[windowIndex].UncompressedDataSize));
+        windowSlot.MemoryUsageGuard = MemoryManager_->Acquire(BlockInfos_[windowIndex].UncompressedDataSize);
 
         TBlockId blockId(ChunkReader_->GetChunkId(), blockIndex);
         auto uncompressedBlock = BlockCache_->Find(blockId, EBlockType::UncompressedData);
         if (uncompressedBlock) {
-            GetBlockPromise(windowSlot).Set(uncompressedBlock);
+            auto managedBlock = New<TMemoryManagedData>(uncompressedBlock.Data, std::move(windowSlot.MemoryUsageGuard));
+            GetBlockPromise(windowSlot).Set(
+                TBlock(TSharedRef(TRef(managedBlock->Data), managedBlock)));
             TotalRemainingSize_ -= BlockInfos_[windowIndex].UncompressedDataSize;
         } else {
             ReaderInvoker_->Invoke(BIND(
@@ -207,7 +219,9 @@ void TBlockFetcher::DecompressBlocks(
         }
 
         auto& windowSlot = Window_[windowIndex];
-        GetBlockPromise(windowSlot).Set(TBlock(uncompressedBlock));
+        auto managedBlock = New<TMemoryManagedData>(uncompressedBlock, std::move(windowSlot.MemoryUsageGuard));
+        GetBlockPromise(windowSlot).Set(
+            TBlock(TSharedRef(TRef(managedBlock->Data), managedBlock)));
         if (windowSlot.RemainingFetches == 0) {
             ReaderInvoker_->Invoke(
                 BIND(&TBlockFetcher::ReleaseBlock, MakeWeak(this), windowIndex));
@@ -220,12 +234,19 @@ void TBlockFetcher::DecompressBlocks(
     }
 }
 
-void TBlockFetcher::FetchNextGroup(TAsyncSemaphoreGuard asyncSemaphoreGuard)
+void TBlockFetcher::FetchNextGroup(TErrorOr<TMemoryUsageGuardPtr> memoryUsageGuardOrError)
 {
+    if (!memoryUsageGuardOrError.IsOK()) {
+        YT_LOG_INFO(memoryUsageGuardOrError, "Failed to acquire memory in chunk reader memory manager");
+        return;
+    }
+
+    auto& memoryUsageGuard = memoryUsageGuardOrError.Value();
+
     std::vector<int> windowIndexes;
     std::vector<int> blockIndexes;
     i64 uncompressedSize = 0;
-    i64 availableSlots = asyncSemaphoreGuard.GetSlots();
+    i64 availableSlots = memoryUsageGuard->Guard.GetSlots();
     while (FirstUnfetchedWindowIndex_ < BlockInfos_.size()) {
         const auto& blockInfo = BlockInfos_[FirstUnfetchedWindowIndex_];
         int blockIndex = blockInfo.Index;
@@ -238,17 +259,20 @@ void TBlockFetcher::FetchNextGroup(TAsyncSemaphoreGuard asyncSemaphoreGuard)
                 ++FirstUnfetchedWindowIndex_;
                 continue;
             }
-            Window_[FirstUnfetchedWindowIndex_].AsyncSemaphoreGuard =
-                std::make_unique<TAsyncSemaphoreGuard>(asyncSemaphoreGuard.TransferSlots(
-                    std::min(
-                        static_cast<i64>(blockInfo.UncompressedDataSize),
-                        asyncSemaphoreGuard.GetSlots())));
+
+            auto transferred = memoryUsageGuard->Guard.TransferSlots(
+                std::min(
+                    static_cast<i64>(blockInfo.UncompressedDataSize),
+                    memoryUsageGuard->Guard.GetSlots()));
+            Window_[FirstUnfetchedWindowIndex_].MemoryUsageGuard = New<TMemoryUsageGuard>(std::move(transferred));
 
             TBlockId blockId(ChunkReader_->GetChunkId(), blockIndex);
             auto uncompressedBlock = BlockCache_->Find(blockId, EBlockType::UncompressedData);
             if (uncompressedBlock) {
                 auto& windowSlot = Window_[FirstUnfetchedWindowIndex_];
-                GetBlockPromise(windowSlot).Set(uncompressedBlock);
+                auto managedBlock = New<TMemoryManagedData>(uncompressedBlock.Data, std::move(windowSlot.MemoryUsageGuard));
+                GetBlockPromise(windowSlot).Set(
+                    TBlock(TSharedRef(TRef(managedBlock->Data), managedBlock)));
                 TotalRemainingSize_ -= blockInfo.UncompressedDataSize;
             } else {
                 uncompressedSize += blockInfo.UncompressedDataSize;
@@ -264,14 +288,14 @@ void TBlockFetcher::FetchNextGroup(TAsyncSemaphoreGuard asyncSemaphoreGuard)
 
     if (windowIndexes.empty()) {
         FetchingCompleted_ = true;
+        MemoryManager_->Finalize();
         return;
     }
 
     if (TotalRemainingSize_ > 0) {
-        AsyncSemaphore_->AsyncAcquire(
-            BIND(&TBlockFetcher::FetchNextGroup, MakeWeak(this)),
-            ReaderInvoker_,
-            std::min(TotalRemainingSize_.load(), Config_->GroupSize));
+        FetchNextGroupMemoryFuture_ =
+            MemoryManager_->AsyncAquire(std::min(TotalRemainingSize_.load(), Config_->GroupSize));
+        FetchNextGroupMemoryFuture_.SubscribeUnique(BIND(&TBlockFetcher::FetchNextGroup, MakeWeak(this)).Via(ReaderInvoker_));
     }
 
     RequestBlocks(windowIndexes, blockIndexes, uncompressedSize);
@@ -287,11 +311,10 @@ void TBlockFetcher::MarkFailedBlocks(const std::vector<int>& windowIndexes, cons
 void TBlockFetcher::ReleaseBlock(int windowIndex)
 {
     auto& windowSlot = Window_[windowIndex];
-    windowSlot.AsyncSemaphoreGuard.reset();
     GetBlockPromise(windowSlot).Reset();
     YT_LOG_DEBUG("Releasing block (WindowIndex: %v, WindowSize: %v)",
         windowIndex,
-        AsyncSemaphore_->GetFree());
+        MemoryManager_->GetAvailableSize());
 }
 
 TPromise<TBlock>& TBlockFetcher::GetBlockPromise(TWindowSlot& windowSlot)
@@ -381,7 +404,7 @@ TCodecDuration TBlockFetcher::GetDecompressionTime() const
 TSequentialBlockFetcher::TSequentialBlockFetcher(
     TBlockFetcherConfigPtr config,
     std::vector<TBlockInfo> blockInfos,
-    TAsyncSemaphorePtr asyncSemaphore,
+    TChunkReaderMemoryManagerPtr memoryManager,
     IChunkReaderPtr chunkReader,
     IBlockCachePtr blockCache,
     NCompression::ECodec codecId,
@@ -390,7 +413,7 @@ TSequentialBlockFetcher::TSequentialBlockFetcher(
     : TBlockFetcher(
         config,
         blockInfos,
-        asyncSemaphore,
+        memoryManager,
         chunkReader,
         blockCache,
         codecId,
@@ -403,6 +426,12 @@ TFuture<TBlock> TSequentialBlockFetcher::FetchNextBlock()
 {
     YT_VERIFY(CurrentIndex_ < OriginalOrderBlockInfos_.size());
     return FetchBlock(OriginalOrderBlockInfos_[CurrentIndex_++].Index);
+}
+
+i64 TSequentialBlockFetcher::GetNextBlockSize() const
+{
+    YT_VERIFY(CurrentIndex_ < OriginalOrderBlockInfos_.size());
+    return OriginalOrderBlockInfos_[CurrentIndex_].UncompressedDataSize;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
