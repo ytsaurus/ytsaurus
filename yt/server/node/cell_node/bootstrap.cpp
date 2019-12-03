@@ -636,6 +636,8 @@ void TBootstrap::DoRun()
 
     NMonitoring::Initialize(HttpServer_, &MonitoringManager_, &OrchidRoot_);
 
+    auto storeCompactor = CreateStoreCompactor(Config_->TabletNode, this);
+
     SetNodeByYPath(
         OrchidRoot_,
         "/config",
@@ -663,7 +665,10 @@ void TBootstrap::DoRun()
         OrchidRoot_,
         "/cluster_connection",
         CreateVirtualNode(MasterConnection_->GetOrchidService()));
-    
+    SetNodeByYPath(
+        OrchidRoot_,
+        "/store_compactor",
+        CreateVirtualNode(GetOrchidService(storeCompactor)));
     SetBuildAttributes(OrchidRoot_, "node");
 
     SkynetHttpServer_->AddHandler(
@@ -683,8 +688,9 @@ void TBootstrap::DoRun()
     PeerBlockDistributor_->Start();
     MasterConnector_->Start();
     SchedulerConnector_->Start();
+
     StartStoreFlusher(Config_->TabletNode, this);
-    StartStoreCompactor(Config_->TabletNode, this);
+    StartStoreCompactor(storeCompactor);
     StartStoreTrimmer(Config_->TabletNode, this);
     StartPartitionBalancer(Config_->TabletNode, this);
 

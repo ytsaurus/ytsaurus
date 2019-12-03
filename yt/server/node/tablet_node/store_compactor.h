@@ -8,9 +8,14 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void StartStoreCompactor(
+TStoreCompactorPtr CreateStoreCompactor(
     TTabletNodeConfigPtr config,
     NCellNode::TBootstrap* bootstrap);
+
+void StartStoreCompactor(
+    TStoreCompactorPtr storeCompactor);
+
+NYTree::IYPathServicePtr GetOrchidService(TStoreCompactorPtr storeCompactor);
 
 ////////////////////////////////////////////////////////////////////////////////
 
