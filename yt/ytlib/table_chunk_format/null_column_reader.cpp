@@ -3,6 +3,8 @@
 #include "column_reader_detail.h"
 #include "helpers.h"
 
+#include <yt/ytlib/chunk_client/public.h>
+
 namespace NYT::NTableChunkFormat {
 
 using namespace NProto;

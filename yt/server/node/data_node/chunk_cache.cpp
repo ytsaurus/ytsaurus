@@ -21,6 +21,7 @@
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/ytlib/chunk_client/chunk_reader_memory_manager.h>
 #include <yt/ytlib/chunk_client/file_writer.h>
 #include <yt/ytlib/chunk_client/file_reader.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
@@ -766,12 +767,19 @@ private:
                     index /* priority */});
             }
 
-            auto asyncSemaphore = New<TAsyncSemaphore>(Config_->ArtifactCacheReader->WindowSize);
+            auto memoryManager = New<TChunkReaderMemoryManager>(
+                TChunkReaderMemoryManagerOptions(Config_->ArtifactCacheReader->WindowSize));
+
+            i64 requiredMemory = 0;
+            for (const auto& block : blocks) {
+                requiredMemory = std::max(requiredMemory, block.UncompressedDataSize);
+            }
+            memoryManager->SetRequiredMemorySize(requiredMemory);
 
             auto blockFetcher = New<TBlockFetcher>(
                 Config_->ArtifactCacheReader,
                 std::move(blocks),
-                asyncSemaphore,
+                memoryManager,
                 chunkReader,
                 GetNullBlockCache(),
                 NCompression::ECodec::None,

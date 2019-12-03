@@ -31,6 +31,7 @@ struct IColumnReaderBase
     //! read without block or segment change.
     virtual i64 GetReadyUpperRowIndex() const = 0;
 
+    //! Returns current block index or `-1` if no block was set.
     virtual int GetCurrentBlockIndex() const = 0;
 
     virtual std::optional<int> GetNextBlockIndex() const = 0;
