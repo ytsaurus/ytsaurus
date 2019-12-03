@@ -213,7 +213,7 @@ def batch_select(yp_client, object_type, filter, selectors, timestamp=None):
             current_filter = filter
         else:
             current_filter = all_filter([filter, lower_bound_filter(key_columns, continuation_key)])
-        logging.debug("Selecting batch")
+        logging.debug("Selecting batch of %ss", object_type)
         result = yp_client.select_objects(
             object_type,
             filter=current_filter,
@@ -221,7 +221,7 @@ def batch_select(yp_client, object_type, filter, selectors, timestamp=None):
             timestamp=timestamp,
             limit=batch_size,
         )
-        logging.debug("Selected batch of size %d", len(result))
+        logging.debug("Selected batch of %ss (size: %d)", object_type, len(result))
         try:
             continuation_key = max(values[:len(key_columns)] for values in result)
         except ValueError:

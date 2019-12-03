@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from yp.scripts.library.batch_creator import create_batch_yp_creator
+from yp.scripts.library.batch_client import create_batch_yp_client
 from yp.scripts.library.scheduler_history import SchedulerObjectsHistory
 
 from yp.client import YpClient, find_token
@@ -56,16 +56,16 @@ def main_impl(yp_client, arguments):
         logging.info("Shuffling YP pods")
         random.shuffle(scheduler_objects.pods)
 
-        with create_batch_yp_creator(yp_client, batch_size=100) as batch_creator:
+        with create_batch_yp_client(yp_client, batch_size=100) as batch_yp_client:
             logging.info("Creating pod sets")
             for pod_set in scheduler_objects.pod_sets:
-                run_with_common_errors_retries(lambda: batch_creator.create("pod_set", pod_set))
+                run_with_common_errors_retries(lambda: batch_yp_client.create_object("pod_set", pod_set))
 
             logging.info("Creating pods")
             for pod in scheduler_objects.pods:
-                run_with_common_errors_retries(lambda: batch_creator.create("pod", pod))
+                run_with_common_errors_retries(lambda: batch_yp_client.create_object("pod", pod))
 
-            run_with_common_errors_retries(lambda: batch_creator.commit())
+            run_with_common_errors_retries(lambda: batch_yp_client.flush())
 
         logging.info("Waiting for YP master to schedule")
         time.sleep(arguments.schedule_time / 1000.0)

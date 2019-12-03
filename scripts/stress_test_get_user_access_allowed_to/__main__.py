@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from yp.scripts.library.batch_creator import create_batch_yp_creator
+from yp.scripts.library.batch_client import create_batch_yp_client
 
 from yp.client import YpClient, generate_uuid
 
@@ -32,10 +32,10 @@ def main_impl(yp_client, arguments):
 
     logging.info("Creating %d objects", arguments.object_count)
     object_ids = []
-    with create_batch_yp_creator(yp_client, batch_size=200) as creator:
+    with create_batch_yp_client(yp_client, batch_size=200) as batch_yp_client:
         for object_index in xrange(arguments.object_count):
             object_id = "test-network-project-" + generate_uuid()
-            creator.create(
+            batch_yp_client.create_object(
                 "network_project",
                 attributes=dict(
                     meta=dict(
@@ -53,7 +53,7 @@ def main_impl(yp_client, arguments):
                 )
             )
             object_ids.append(object_id)
-        creator.commit()
+        batch_yp_client.flush()
 
     logging.info("Wait for YP access control state")
     time.sleep(5)
