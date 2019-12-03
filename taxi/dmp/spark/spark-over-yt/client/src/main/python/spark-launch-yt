@@ -159,13 +159,14 @@ spec_builder = \
             .job_count(args.worker_num) \
             .file_paths(file_paths) \
             .command(worker_command) \
-            .memory_limit(parse_memory(args.worker_memory) + worker_memory_add) \
+            .memory_limit(parse_memory(args.worker_memory) + parse_memory("100G")) \
             .memory_reserve_factor(1.0) \
-            .cpu_limit(args.worker_cores) \
+            .cpu_limit(args.worker_cores * 2 + 2) \
             .disk_space_limit(parse_memory("100G")) \
             .environment(environment) \
             .layer_paths(layer_paths) \
             .spec(task_spec) \
+            .tmpfs_path("tmpfs") \
         .end_task() \
         .secure_vault(secure_vault) \
         .max_failed_job_count(1) \

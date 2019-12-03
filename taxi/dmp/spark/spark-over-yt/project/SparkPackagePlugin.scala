@@ -17,6 +17,7 @@ object SparkPackagePlugin extends AutoPlugin {
 
     val sparkAdditionalJars = taskKey[Seq[File]]("Additional spark jars")
     val sparkDefaults = settingKey[File]("spark-defaults.conf")
+    val sparkEnv = settingKey[File]("spark-env.sh")
     val sparkAdditionalBin = settingKey[Seq[File]]("Spark python scripts")
     val sparkName = settingKey[String]("Spark name, for example spark-2.4.4-0.0.1-SNAPSHOT")
     val sparkLaunchConfigTemplate = settingKey[File]("Spark launch config template")
@@ -47,6 +48,9 @@ object SparkPackagePlugin extends AutoPlugin {
     sparkDefaults := {
       (resourceDirectory in Compile).value / "spark-defaults.conf"
     },
+    sparkEnv := {
+      (resourceDirectory in Compile).value / "spark-env.sh"
+    },
     sparkAdditionalBin := {
       val pythonDir = sourceDirectory.value / "main" / "python"
       pythonDir.listFiles()
@@ -67,6 +71,7 @@ object SparkPackagePlugin extends AutoPlugin {
         IO.copyFile(file, sparkDist / "jars" / file.name)
       }
       IO.copyFile(sparkDefaults.value, sparkDist / "conf" / "spark-defaults.conf")
+      IO.copyFile(sparkEnv.value, sparkDist / "conf" / "spark-env.sh")
       sparkAdditionalBin.value.foreach { file =>
         IO.copyFile(file, sparkDist / "bin" / file.name, preserveExecutable = true)
       }

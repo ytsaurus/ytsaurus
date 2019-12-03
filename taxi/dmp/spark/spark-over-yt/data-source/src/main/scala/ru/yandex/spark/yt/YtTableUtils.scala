@@ -47,13 +47,17 @@ object YtTableUtils {
     yt.createNode(request).join()
   }
 
-  def remove(path: String)(implicit yt: YtClient): Unit = {
-    yt.removeNode(formatPath(path)).join()
+  def move(src: String, dst: String, transaction: Option[String] = None)(implicit yt: YtClient): Unit = {
+    yt.moveNode(new MoveNode(formatPath(src), formatPath(dst)).optionalTransaction(transaction)).join()
   }
 
-  def removeIfExists(path: String)(implicit yt: YtClient): Unit = {
+  def remove(path: String, transaction: Option[String] = None)(implicit yt: YtClient): Unit = {
+    yt.removeNode(new RemoveNode(formatPath(path)).optionalTransaction(transaction)).join()
+  }
+
+  def removeIfExists(path: String, transaction: Option[String] = None)(implicit yt: YtClient): Unit = {
     if (exists(path)) {
-      remove(path)
+      remove(path, transaction)
     }
   }
 
@@ -78,7 +82,7 @@ object YtTableUtils {
     yt.getNode(request).join()
   }
 
-  def formatPath(path: String): String = "/" + path
+  def formatPath(path: String): String = if (path.startsWith("//")) path else "/" + path
 
   def mergeTables(srcDir: String, dstTable: String,
                   sorted: Boolean,

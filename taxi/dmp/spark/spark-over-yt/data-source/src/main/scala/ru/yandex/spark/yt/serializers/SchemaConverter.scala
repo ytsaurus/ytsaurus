@@ -58,6 +58,7 @@ object SchemaConverter {
       case LongType => ColumnValueType.INT64.getName
       case DoubleType => ColumnValueType.DOUBLE.getName
       case BooleanType => ColumnValueType.BOOLEAN.getName
+      case BinaryType => ColumnValueType.ANY.getName
       case ArrayType(elementType, _) => "a#" + stringType(elementType)
       case StructType(fields) => "s#" + fields.map(f => f.name -> stringType(f.dataType)).asJson.noSpaces
       case MapType(StringType, valueType, _) => "m#" + stringType(valueType)

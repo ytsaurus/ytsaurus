@@ -14,7 +14,7 @@ object YtUtils {
   private val log = Logger.getLogger(getClass)
 
   def createRpcClient(config: YtClientConfiguration): YtRpcClient = {
-    log.debug("Create yt client")
+    log.info("Create yt client")
     val connector = new DefaultBusConnector(new NioEventLoopGroup(1), true)
     try {
       val rpcOptions = new RpcOptions()
@@ -29,7 +29,7 @@ object YtUtils {
 
       try {
         client.waitProxies.join
-        log.debug("YtClient created")
+        log.info("YtClient created")
         YtRpcClient(client, connector)
       } catch {
         case e: Throwable =>
