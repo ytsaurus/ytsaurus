@@ -2758,6 +2758,7 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsyncImpl(
 
             ValidateNotNull(row[stateIndex], "state", operationId, jobId);
             job.State = ParseEnum<EJobState>(TString(row[stateIndex].Data.String, row[stateIndex].Length));
+            job.ArchiveState = job.State;
 
             if (row[startTimeIndex].Type != EValueType::Null) {
                 job.StartTime = TInstant::MicroSeconds(row[startTimeIndex].Data.Int64);
@@ -3124,6 +3125,7 @@ static void ParseJobsFromControllerAgentResponse(
         }
         if (needState) {
             job.State = ParseEnum<EJobState>(jobMapNode->GetChild("state")->GetValue<TString>());;
+            job.ControllerAgentState = job.State;
         }
         if (needStartTime) {
             job.StartTime = ConvertTo<TInstant>(jobMapNode->GetChild("start_time")->GetValue<TString>());
@@ -3317,40 +3319,66 @@ static std::function<bool(const TJob&, const TJob&)> GetJobsComparator(
     }
 }
 
-static void UpdateJobList(std::vector<TJob>&& delta, std::vector<TJob>* origin, bool ignoreNewJobs = false)
+template <typename TSourceJob>
+static void MergeJob(TSourceJob&& source, TJob* target)
 {
-    auto mergeJob = [] (TJob&& source, TJob* target) {
 #define MERGE_NULLABLE_FIELD(name) \
-        if (source.name) { \
-            target->name = std::move(source.name); \
-        }
-        MERGE_NULLABLE_FIELD(Type);
-        MERGE_NULLABLE_FIELD(State);
-        MERGE_NULLABLE_FIELD(StartTime);
-        MERGE_NULLABLE_FIELD(FinishTime);
-        MERGE_NULLABLE_FIELD(Address);
-        MERGE_NULLABLE_FIELD(Progress);
-        MERGE_NULLABLE_FIELD(StderrSize);
-        MERGE_NULLABLE_FIELD(Error);
-        MERGE_NULLABLE_FIELD(BriefStatistics);
-        MERGE_NULLABLE_FIELD(InputPaths);
-        MERGE_NULLABLE_FIELD(CoreInfos);
-#undef MERGE_NULLABLE_FIELD
-    };
-
-    THashMap<TJobId, TJob*> originMap;
-    for (auto& job : *origin) {
-        YT_VERIFY(job.Id);
-        originMap.emplace(job.Id, &job);
+    if (source.name) { \
+        target->name = std::forward<decltype(std::forward<TSourceJob>(source).name)>(source.name); \
     }
+    MERGE_NULLABLE_FIELD(Type);
+    MERGE_NULLABLE_FIELD(State);
+    MERGE_NULLABLE_FIELD(ControllerAgentState);
+    MERGE_NULLABLE_FIELD(ArchiveState);
+    MERGE_NULLABLE_FIELD(StartTime);
+    MERGE_NULLABLE_FIELD(FinishTime);
+    MERGE_NULLABLE_FIELD(Address);
+    MERGE_NULLABLE_FIELD(Progress);
+    MERGE_NULLABLE_FIELD(Error);
+    MERGE_NULLABLE_FIELD(BriefStatistics);
+    MERGE_NULLABLE_FIELD(InputPaths);
+    MERGE_NULLABLE_FIELD(CoreInfos);
+#undef MERGE_NULLABLE_FIELD
+    if (source.StderrSize && target->StderrSize.value_or(0) < source.StderrSize) {
+        target->StderrSize = source.StderrSize;
+    }
+}
 
+static THashMap<TJobId, TJob*> CreateJobIdToJobMap(std::vector<TJob>& jobs)
+{
+    THashMap<TJobId, TJob*> result;
+    for (auto& job : jobs) {
+        YT_VERIFY(job.Id);
+        result.emplace(job.Id, &job);
+    }
+    return result;
+}
+
+template <typename TJobs>
+static void UpdateJobs(TJobs&& patch, std::vector<TJob>* origin)
+{
+    auto originMap = CreateJobIdToJobMap(*origin);
+    for (auto& job : patch) {
+        YT_VERIFY(job.Id);
+        if (auto originMapIt = originMap.find(job.Id); originMapIt != originMap.end()) {
+            if constexpr (std::is_rvalue_reference_v<TJobs>) {
+                MergeJob(std::move(job), originMapIt->second);
+            } else {
+                MergeJob(job, originMapIt->second);
+            }
+        }
+    }
+}
+
+static void UpdateJobsAndAddMissing(std::vector<TJob>&& delta, std::vector<TJob>* origin)
+{
+    auto originMap = CreateJobIdToJobMap(*origin);
     std::vector<TJob> newJobs;
     for (auto& job : delta) {
         YT_VERIFY(job.Id);
-        auto originMapIt = originMap.find(job.Id);
-        if (originMapIt != originMap.end()) {
-            mergeJob(std::move(job), originMapIt->second);
-        } else if (!ignoreNewJobs) {
+        if (auto originMapIt = originMap.find(job.Id); originMapIt != originMap.end()) {
+            MergeJob(std::move(job), originMapIt->second);
+        } else {
             newJobs.push_back(std::move(job));
         }
     }
@@ -3534,32 +3562,39 @@ TListJobsResult TClient::DoListJobs(
                 << archiveResultOrError);
         }
 
+        std::vector<std::optional<ui64>> v;
+        for (const auto& j : archiveResult.InProgressJobs) {
+            v.push_back(j.StderrSize);
+        }
+        YT_LOG_INFO("ZZZ inProgressJobs: %v", ConvertToYsonString(v, EYsonFormat::Text).GetData());
         if (!controllerAgentAddress && archiveResult.InProgressJobs.empty()) {
             result.Jobs = std::move(archiveResult.FinishedJobs);
             return;
         }
 
-        auto inProgressJobs = std::move(archiveResult.InProgressJobs);
-        if (inProgressJobs.empty()) {
-            inProgressJobs = std::move(controllerAgentResult.InProgressJobs);
-        } else {
-            UpdateJobList(std::move(controllerAgentResult.InProgressJobs), &inProgressJobs, /* ignoreNewJobs */ true);
-        }
+        UpdateJobs(controllerAgentResult.InProgressJobs, &archiveResult.InProgressJobs);
+        UpdateJobs(controllerAgentResult.FinishedJobs, &archiveResult.InProgressJobs);
+        UpdateJobs(controllerAgentResult.InProgressJobs, &archiveResult.FinishedJobs);
+        UpdateJobs(controllerAgentResult.FinishedJobs, &archiveResult.FinishedJobs);
 
-        THashSet<TJobId> archiveFinishedJobIds;
+        THashSet<TJobId> archiveJobIds;
+        for (const auto& job : archiveResult.InProgressJobs) {
+            YT_VERIFY(job.Id);
+            archiveJobIds.insert(job.Id);
+        }
         for (const auto& job : archiveResult.FinishedJobs) {
             YT_VERIFY(job.Id);
-            archiveFinishedJobIds.insert(job.Id);
+            archiveJobIds.insert(job.Id);
         }
-        auto finishedControllerAgentJobs = std::move(controllerAgentResult.FinishedJobs);
-        finishedControllerAgentJobs.erase(
+
+        controllerAgentResult.FinishedJobs.erase(
             std::remove_if(
-                finishedControllerAgentJobs.begin(),
-                finishedControllerAgentJobs.end(),
+                controllerAgentResult.FinishedJobs.begin(),
+                controllerAgentResult.FinishedJobs.end(),
                 [&] (const TJob& job) {
-                    return archiveFinishedJobIds.contains(job.Id);
+                    return archiveJobIds.contains(job.Id);
                 }),
-            finishedControllerAgentJobs.end());
+            controllerAgentResult.FinishedJobs.end());
 
         auto jobComparator = GetJobsComparator(options.SortField, options.SortOrder);
         auto countFilterSort = [&] (std::vector<TJob>& jobs) {
@@ -3567,12 +3602,13 @@ TListJobsResult TClient::DoListJobs(
             std::sort(jobs.begin(), jobs.end(), jobComparator);
         };
 
-        countFilterSort(finishedControllerAgentJobs);
-        countFilterSort(inProgressJobs);
+        countFilterSort(controllerAgentResult.FinishedJobs);
+        countFilterSort(archiveResult.InProgressJobs);
+        std::sort(archiveResult.FinishedJobs.begin(), archiveResult.FinishedJobs.end(), jobComparator);
 
         MergeThreeVectors(
-            std::move(finishedControllerAgentJobs),
-            std::move(inProgressJobs),
+            std::move(controllerAgentResult.FinishedJobs),
+            std::move(archiveResult.InProgressJobs),
             std::move(archiveResult.FinishedJobs),
             &result.Jobs,
             jobComparator);
@@ -3604,8 +3640,8 @@ TListJobsResult TClient::DoListJobs(
                 break;
             }
 
-            UpdateJobList(std::move(controllerAgentResult.InProgressJobs), &jobs);
-            UpdateJobList(std::move(controllerAgentResult.FinishedJobs), &jobs);
+            UpdateJobsAndAddMissing(std::move(controllerAgentResult.InProgressJobs), &jobs);
+            UpdateJobsAndAddMissing(std::move(controllerAgentResult.FinishedJobs), &jobs);
 
             jobs = countAndFilterJobs(std::move(jobs), &result.Statistics);
             std::sort(jobs.begin(), jobs.end(), GetJobsComparator(options.SortField, options.SortOrder));
@@ -3732,6 +3768,7 @@ std::optional<TJob> TClient::DoGetJobFromArchive(
     }
     if (state) {
         job.State = ParseEnum<EJobState>(*state);
+        job.ArchiveState = job.State;
     }
 
     // NB: We need a separate function for |TInstant| because it has type "int64" in table

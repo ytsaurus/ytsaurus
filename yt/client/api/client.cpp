@@ -122,6 +122,8 @@ void Serialize(const TJob& job, NYson::IYsonConsumer* consumer, TStringBuf idKey
             .OptionalItem("operation_id", job.OperationId)
             .OptionalItem("type", job.Type)
             .OptionalItem("state", job.State)
+            .OptionalItem("controller_agent_state", job.ControllerAgentState)
+            .OptionalItem("archive_state", job.ArchiveState)
             .OptionalItem("address", job.Address)
             .OptionalItem("start_time", job.StartTime)
             .OptionalItem("finish_time", job.FinishTime)
