@@ -9,6 +9,8 @@
 
 #include <yt/core/profiling/profile_manager.h>
 
+#include <yt/core/misc/finally.h>
+
 namespace NYT::NHttpProxy {
 
 using namespace NConcurrency;
@@ -237,6 +239,9 @@ void TApi::HandleRequest(
         YT_LOG_ERROR(ex, "Command failed");
     }
 
+    auto finally = Finally([&] {
+        context->LogAndProfile();
+    });
     context->Finalize();
 }
 

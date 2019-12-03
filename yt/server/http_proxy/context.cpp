@@ -739,7 +739,7 @@ TSharedRef DumpError(const TError& error)
     return TSharedRef::FromString(errorMessage);
 }
 
-void TContext::Finalize()
+void TContext::LogAndProfile()
 {
     Duration_ = TInstant::Now() - StartTime_;
 
@@ -753,7 +753,10 @@ void TContext::Finalize()
             Duration_,
             Request_->GetReadByteCount(),
             Response_->GetWriteByteCount());
+}
 
+void TContext::Finalize()
+{
     if (IsClientBuggy(Request_)) {
         try {
             while (true) {
