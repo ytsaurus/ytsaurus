@@ -358,11 +358,19 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     // The format is:
     //  (replicaCount, mediumIndex) pairs
     //  0
+    SmallVector<int, 8> mediumIndexes;
     for (const auto& [mediumIndex, replicas] : Replicas_) {
         if (!replicas.empty()) {
-            TSizeSerializer::Save(context, replicas.size());
-            Save(context, mediumIndex);
+            mediumIndexes.push_back(mediumIndex);
         }
+    }
+    std::sort(mediumIndexes.begin(), mediumIndexes.end());
+    for (auto mediumIndex : mediumIndexes) {
+        auto it = Replicas_.find(mediumIndex);
+        YT_ASSERT(it != Replicas_.end());
+        const auto& replicas = it->second;
+        TSizeSerializer::Save(context, replicas.size());
+        Save(context, mediumIndex);
     }
     TSizeSerializer::Save(context, 0);
 
