@@ -48,8 +48,7 @@ func parseOptions(typeSpec *ast.TypeSpec) (option *optionsType, err error) {
 			f.fieldName = field.Names[0].Name
 
 			if field.Tag == nil {
-				err = errorf(field.Pos(), "field %s is missing tag\n", field.Names[0].Name)
-				return
+				continue
 			}
 
 			var tagValue string

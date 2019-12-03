@@ -685,6 +685,8 @@ func writeLookupRowsOptions(w *yson.Writer, o *yt.LookupRowsOptions) {
 	if o == nil {
 		return
 	}
+	w.MapKeyString("keep_missing_rows")
+	w.Any(o.KeepMissingRows)
 	writeTransactionOptions(w, o.TransactionOptions)
 }
 
