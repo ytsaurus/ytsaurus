@@ -2283,37 +2283,45 @@ class TestClickHouseWithLogTailer(ClickHouseTestBase):
             instance = clique.get_active_instances()[0]
             pid = clique.make_direct_query(instance, "select * from system.clique", verbose=False)[0]["pid"]
             log_tailer = subprocess.Popen([YT_LOG_TAILER_BINARY, str(pid), "--config", log_tailer_config_file])
-
-            create("table", "//tmp/t", attributes={"schema": [{"name": "key1", "type": "string"},
-                                                              {"name": "key2", "type": "string"},
-                                                              {"name": "value", "type": "int64"}]})
-            for i in range(5):
-                write_table("<append=%true>//tmp/t", [{"key1": "dream", "key2": "theater", "value": i * 5 + j} for j in range(5)])
-            total = 24 * 25 // 2
-
-            # Work for sufficient time to make sure that log was rotated.
-            for _ in range(10):
-                result = clique.make_query('select key1, key2, sum(value) from "//tmp/t" group by key1, key2')
-                assert result == [{"key1": "dream", "key2": "theater", "sum(value)": total}]
-
-            # Check whether log was rotated.
-            old_log = \
-                os.path.join(self.path_to_run,
-                "logs",
-                "clickhouse-{}".format(clique_index),
-                "clickhouse-{}.debug.log.1".format(clique_index))
-            assert os.path.exists(old_log)
-            assert os.stat(old_log).st_size > 0
-
-            # Wait logger to flush records and kill it.
-            time.sleep(1.1)
-            log_tailer.terminate()
-
-            # Freeze table with log.
             log_table = "//sys/clickhouse/logs/log"
-            freeze_table(log_table)
-            wait_for_tablet_state(log_table, "frozen")
 
-            # Check whether log was written.
-            assert len(read_table(log_table)) > 0
-            remove(log_table)
+            def cleanup():
+                log_tailer.terminate()
+                remove(log_table)
+
+            try:
+                create("table", "//tmp/t", attributes={"schema": [{"name": "key1", "type": "string"},
+                                                                  {"name": "key2", "type": "string"},
+                                                                  {"name": "value", "type": "int64"}]})
+                for i in range(5):
+                    write_table("<append=%true>//tmp/t", [{"key1": "dream", "key2": "theater", "value": i * 5 + j} for j in range(5)])
+                total = 24 * 25 // 2
+
+                # Work for sufficient time to make sure that log was rotated.
+                for _ in range(10):
+                    result = clique.make_query('select key1, key2, sum(value) from "//tmp/t" group by key1, key2')
+                    assert result == [{"key1": "dream", "key2": "theater", "sum(value)": total}]
+
+                # Check whether log was rotated.
+                old_log = \
+                    os.path.join(self.path_to_run,
+                    "logs",
+                    "clickhouse-{}".format(clique_index),
+                    "clickhouse-{}.debug.log.1".format(clique_index))
+                assert os.path.exists(old_log)
+                assert os.stat(old_log).st_size > 0
+
+                # Wait logger to flush records and kill it.
+                time.sleep(1.1)
+
+                # Freeze table with log.
+                freeze_table(log_table)
+                wait_for_tablet_state(log_table, "frozen")
+
+                # Check whether log was written.
+                assert len(read_table(log_table)) > 0
+            except:
+                cleanup()
+                raise
+            else:
+                cleanup()
