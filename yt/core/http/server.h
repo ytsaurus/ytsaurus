@@ -79,6 +79,10 @@ IServerPtr CreateServer(
     const TServerConfigPtr& config,
     const NConcurrency::IPollerPtr& poller);
 IServerPtr CreateServer(
+    const TServerConfigPtr& config,
+    const NConcurrency::IPollerPtr& poller,
+    const NConcurrency::IPollerPtr& acceptor);
+IServerPtr CreateServer(
     int port,
     const NConcurrency::IPollerPtr& poller);
 IServerPtr CreateServer(
