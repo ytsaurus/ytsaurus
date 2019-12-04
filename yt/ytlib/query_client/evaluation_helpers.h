@@ -237,8 +237,6 @@ struct TWriteOpClosure
     // Rows stored in OutputBuffer
     std::vector<TRow> OutputRowsBatch;
     size_t RowSize;
-    bool ConsiderLimitAndOffset;
-    size_t ProcessedRows = 0;
 
     TWriteOpClosure();
 

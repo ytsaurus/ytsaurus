@@ -107,16 +107,6 @@ bool WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TValue* valu
 
     auto* statistics = context->Statistics;
 
-    if (closure->ConsiderLimitAndOffset) {
-        if (closure->ProcessedRows++ < context->Offset) {
-            return false;
-        }
-
-        if (statistics->RowsWritten >= context->Limit) {
-            return true;
-        }
-    }
-
     if (statistics->RowsWritten >= context->OutputRowLimit) {
         throw TInterruptedIncompleteException();
     }
@@ -160,7 +150,7 @@ bool WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TValue* valu
         rowBuffer->Clear();
     }
 
-    return closure->ConsiderLimitAndOffset && statistics->RowsWritten >= context->Limit;
+    return false;
 }
 
 void ScanOpHelper(
@@ -1394,13 +1384,11 @@ void OrderOpHelper(
 void WriteOpHelper(
     TExecutionContext* context,
     size_t rowSize,
-    bool considerLimit,
     void** collectRowsClosure,
     void (*collectRows)(void** closure, TWriteOpClosure* writeOpClosure))
 {
     TWriteOpClosure closure;
     closure.RowSize = rowSize;
-    closure.ConsiderLimitAndOffset = considerLimit;
 
     try {
         collectRows(collectRowsClosure, &closure);
