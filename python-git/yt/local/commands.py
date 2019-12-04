@@ -276,6 +276,7 @@ def start(master_count=None, node_count=None, scheduler_count=None, rpc_proxy_co
         scheduler_config_patch=_load_config(scheduler_config),
         controller_agent_config_patch=_load_config(controller_agent_config),
         node_config_patch=_load_config(node_config),
+        rpc_proxy_config_patch=_load_config(rpc_proxy_config),
         proxy_config_patch=_load_config(proxy_config, is_proxy_config=True))
 
     # Enable capturing stderrs to file
