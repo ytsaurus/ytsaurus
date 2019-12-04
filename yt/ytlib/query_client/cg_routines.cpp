@@ -160,7 +160,7 @@ bool WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TValue* valu
         rowBuffer->Clear();
     }
 
-    return false;
+    return closure->ConsiderLimitAndOffset && statistics->RowsWritten >= context->Limit;
 }
 
 void ScanOpHelper(

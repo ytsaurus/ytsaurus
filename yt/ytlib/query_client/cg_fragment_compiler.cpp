@@ -3233,28 +3233,26 @@ size_t MakeCodegenOffsetLimiterOp(
                     builder.GetOpaqueValue(limitId),
                     builder->getInt64Ty()->getPointerTo()));
 
-            Value* skip = builder->CreateICmpULT(
-                builder->CreateLoad(indexPtrRef, "index"),
-                offset);
-
             Value* index = builder->CreateLoad(indexPtrRef, "index");
 
-            Value* finish = builder->CreateICmpUGE(
-                index,
-                limit);
-
             // index = index + 1
-            builder->CreateStore(builder->CreateAdd(index, builder->getInt64(1)), indexPtrRef);
+            index = builder->CreateAdd(index, builder->getInt64(1));
+            builder->CreateStore(index, indexPtrRef);
 
-            builder->CreateCondBr(
-                builder->CreateOr(skip, finish),
-                endIfBB,
-                ifBB);
+            Value* skip = builder->CreateOr(
+                builder->CreateICmpULE(index, offset),
+                builder->CreateICmpUGT(index, limit));
+
+            Value* finish = builder->CreateICmpUGE(index, limit);
+
+            builder->CreateCondBr(skip, endIfBB, ifBB);
 
             auto* condBB = builder->GetInsertBlock();
 
             builder->SetInsertPoint(ifBB);
             Value* result = builder[consumerSlot](builder, values);
+            result = builder->CreateOr(result, finish);
+
             ifBB = builder->GetInsertBlock();
             builder->CreateBr(endIfBB);
 
