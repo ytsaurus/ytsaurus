@@ -335,6 +335,12 @@ public:
 
     const NLogging::TLogger& GetLogger() const;
 
+    virtual TJobResources GetSpecifiedResourceLimits() const = 0;
+
+    TJobResources ComputeTotalResourcesOnSuitableNodes() const;
+
+    TJobResources ComputeResourceLimits() const;
+
 private:
     TResourceTreeElementPtr ResourceTreeElement_;
 
@@ -372,8 +378,6 @@ protected:
     TJobResources GetLocalAvailableResourceLimits(const TFairShareContext& context) const;
 
     bool CheckDemand(const TJobResources& delta, const TFairShareContext& context);
-
-    TJobResources ComputeResourceLimitsBase(const TResourceLimitsConfigPtr& resourceLimitsConfig) const;
 
 protected:
     const NLogging::TLogger Logger;
@@ -471,9 +475,6 @@ public:
     void SetMode(ESchedulingMode);
 
     NProfiling::TTagId GetProfilingTag() const;
-
-    virtual TJobResources GetSpecifiedResourceLimits() const = 0;
-    virtual TJobResources ComputeResourceLimits() const = 0;
 
     virtual int GetMaxOperationCount() const = 0;
     virtual int GetMaxRunningOperationCount() const = 0;
@@ -594,7 +595,6 @@ public:
     virtual TDuration GetFairSharePreemptionTimeoutLimit() const override;
 
     virtual TJobResources GetSpecifiedResourceLimits() const override;
-    virtual TJobResources ComputeResourceLimits() const override;
 
     virtual void SetStarving(bool starving) override;
     virtual void CheckForStarvation(TInstant now) override;
@@ -943,10 +943,8 @@ private:
         const TJobResources& availableResources,
         TJobResources* precommittedResources);
 
-    TJobResources GetSpecifiedResourceLimits() const;
-    TJobResources ComputeResourceLimits() const;
+    virtual TJobResources GetSpecifiedResourceLimits() const override;
     TJobResources ComputeResourceDemand() const;
-    TJobResources ComputeMaxPossibleResourceUsage() const;
     int ComputePendingJobCount() const;
 
     void UpdatePreemptableJobsList();
@@ -1001,7 +999,6 @@ public:
     virtual TDuration GetFairSharePreemptionTimeout() const override;
 
     virtual TJobResources GetSpecifiedResourceLimits() const override;
-    virtual TJobResources ComputeResourceLimits() const override;
 
     virtual bool IsAggressiveStarvationEnabled() const override;
 

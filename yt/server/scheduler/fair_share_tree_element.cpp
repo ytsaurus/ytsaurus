@@ -497,7 +497,7 @@ TJobResources TSchedulerElement::GetLocalAvailableResourceDemand(const TFairShar
 TJobResources TSchedulerElement::GetLocalAvailableResourceLimits(const TFairShareContext& context) const
 {
     return ComputeAvailableResources(
-        ResourceLimits(),
+        ResourceLimits_,
         ResourceTreeElement_->GetResourceUsageWithPrecommit(),
         context.DynamicAttributesFor(this).ResourceUsageDiscount);
 }
@@ -631,15 +631,21 @@ void TSchedulerElement::SetOperationAlert(
 }
 
 
-TJobResources TSchedulerElement::ComputeResourceLimitsBase(const TResourceLimitsConfigPtr& resourceLimitsConfig) const
+TJobResources TSchedulerElement::ComputeResourceLimits() const
+{
+    return Min(GetSpecifiedResourceLimits(), ComputeTotalResourcesOnSuitableNodes());
+}
+
+TJobResources TSchedulerElement::ComputeTotalResourcesOnSuitableNodes() const
 {
     auto connectionTime = InstantToCpuInstant(Host_->GetConnectionTime());
     auto delay = DurationToCpuDuration(TreeConfig_->TotalResourceLimitsConsiderDelay);
-    auto maxShareLimits = connectionTime + delay < GetCpuInstant()
-        ? GetHost()->GetResourceLimits(TreeConfig_->NodesFilter & GetSchedulingTagFilter()) * GetMaxShareRatio()
-        : TJobResources::Infinite();
-    auto perTypeLimits = ToJobResources(resourceLimitsConfig, TJobResources::Infinite());
-    return Min(maxShareLimits, perTypeLimits);
+    if (GetCpuInstant() < connectionTime + delay) {
+        // Return infinity during the cluster startup.
+        return TJobResources::Infinite();
+    } else {
+        return GetHost()->GetResourceLimits(TreeConfig_->NodesFilter & GetSchedulingTagFilter()) * GetMaxShareRatio();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1756,11 +1762,6 @@ TJobResources TPool::GetSpecifiedResourceLimits() const
     return ToJobResources(Config_->ResourceLimits, TJobResources::Infinite());
 }
 
-TJobResources TPool::ComputeResourceLimits() const
-{
-    return ComputeResourceLimitsBase(Config_->ResourceLimits);
-}
-
 void TPool::BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap, TDisabledOperationsSet* disabledOperations)
 {
     poolMap->emplace(GetId(), this);
@@ -2349,7 +2350,7 @@ void TOperationElement::UpdateBottomUp(TDynamicAttributesList* dynamicAttributes
     ResourceDemand_ = ComputeResourceDemand();
     ResourceLimits_ = ComputeResourceLimits();
     ResourceTreeElement_->SetResourceLimits(GetSpecifiedResourceLimits());
-    MaxPossibleResourceUsage_ = ComputeMaxPossibleResourceUsage();
+    MaxPossibleResourceUsage_ = Min(ResourceLimits_, ResourceDemand_);
     PendingJobCount_ = ComputePendingJobCount();
     StartTime_ = Operation_->GetStartTime();
 
@@ -3022,16 +3023,6 @@ TJobResources TOperationElement::GetSpecifiedResourceLimits() const
     return ToJobResources(RuntimeParameters_->ResourceLimits, TJobResources::Infinite());
 }
 
-TJobResources TOperationElement::ComputeResourceLimits() const
-{
-    return ComputeResourceLimitsBase(RuntimeParameters_->ResourceLimits);
-}
-
-TJobResources TOperationElement::ComputeMaxPossibleResourceUsage() const
-{
-    return Min(ResourceLimits(), ResourceDemand());
-}
-
 int TOperationElement::ComputePendingJobCount() const
 {
     return Controller_->GetPendingJobCount();
@@ -3318,11 +3309,6 @@ bool TRootElement::IsInferringChildrenWeightsFromHistoricUsageEnabled() const
 TJobResources TRootElement::GetSpecifiedResourceLimits() const
 {
     return TJobResources::Infinite();
-}
-
-TJobResources TRootElement::ComputeResourceLimits() const
-{
-    return ComputeResourceLimitsBase(New<TResourceLimitsConfig>());
 }
 
 THistoricUsageAggregationParameters TRootElement::GetHistoricUsageAggregationParameters() const
