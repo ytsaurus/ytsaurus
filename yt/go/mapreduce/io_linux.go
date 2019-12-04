@@ -44,7 +44,7 @@ func (c *jobContext) initPipes(state *jobState, nOutputPipes int) error {
 		fd := uintptr(3*i + 1)
 		_, _, errno := syscall.Syscall(syscall.SYS_FCNTL, fd, syscall.F_GETFD, 0)
 		if errno != 0 {
-			return xerrors.Errorf("output pipe #%d is missing: %w", errno)
+			return xerrors.Errorf("output pipe #%d is missing: %w", i, errno)
 		}
 
 		if i == 0 {
