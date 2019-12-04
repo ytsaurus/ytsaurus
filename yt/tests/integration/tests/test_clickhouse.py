@@ -35,7 +35,7 @@ if YTSERVER_CLICKHOUSE_BINARY is None:
 
 YT_LOG_TAILER_BINARY = os.environ.get("YT_LOG_TAILER_BINARY")
 if YT_LOG_TAILER_BINARY is None:
-    YT_LOG_TAILER_BINARY = find_executable("log_tailer")
+    YT_LOG_TAILER_BINARY = find_executable("ytserver-log-tailer")
 
 DEFAULTS = {
     "memory_footprint": 2 * 1000**3,

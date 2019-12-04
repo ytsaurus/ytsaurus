@@ -12,7 +12,7 @@ TEST_DIR = os.path.join(os.path.dirname(__file__))
 
 YT_LOG_TAILER_BINARY = os.environ.get("YT_LOG_TAILER_BINARY")
 if YT_LOG_TAILER_BINARY is None:
-    YT_LOG_TAILER_BINARY = find_executable("log_tailer")
+    YT_LOG_TAILER_BINARY = find_executable("ytserver-log-tailer")
 
 YT_DUMMY_LOGGER_BINARY = os.environ.get("YT_DUMMY_LOGGER_BINARY")
 if YT_DUMMY_LOGGER_BINARY is None:
