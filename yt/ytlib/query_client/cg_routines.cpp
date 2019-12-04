@@ -239,6 +239,10 @@ void ScanOpHelper(
         rows.clear();
         values.clear();
         rowBuffer->Clear();
+
+        if (!context->IsMerge && rows.capacity() < RowsetProcessingSize) {
+            rows.reserve(std::min(2 * rows.capacity(), RowsetProcessingSize));
+        }
     } while (hasMoreData && !finished);
 }
 

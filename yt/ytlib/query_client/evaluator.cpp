@@ -269,6 +269,7 @@ public:
             executionContext.Offset = query->Offset;
             executionContext.Limit = query->Limit;
             executionContext.Ordered = query->IsOrdered();
+            executionContext.IsMerge = dynamic_cast<const TFrontQuery*>(query.Get());
             executionContext.MemoryChunkProvider = memoryChunkProvider;
 
             YT_LOG_DEBUG("Evaluating query");

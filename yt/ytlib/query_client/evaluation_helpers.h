@@ -267,6 +267,7 @@ struct TExecutionContext
     i64 Limit = std::numeric_limits<i64>::max();
 
     bool Ordered = false;
+    bool IsMerge = false;
 
     IMemoryChunkProviderPtr MemoryChunkProvider;
 
