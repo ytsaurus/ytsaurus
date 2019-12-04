@@ -321,7 +321,6 @@ private:
 
         YT_LOG_INFO("Chunks fetched (ChunkCount: %v)", chunkSpecFetcher->ChunkSpecs().size());
 
-
         for (const auto& chunkSpec : chunkSpecFetcher->ChunkSpecs()) {
             auto inputChunk = New<TInputChunk>(chunkSpec);
             auto miscExt = FindProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.chunk_meta().extensions());
@@ -487,7 +486,7 @@ std::vector<TSubquery> BuildSubqueries(
 
     constexpr i64 MinSliceDataWeight = 1_MB;
 
-    auto inputSliceDataWeight = std::max<i64>(1, dataWeightPerJob * 0.51);
+    auto inputSliceDataWeight = std::max<i64>(1, dataWeightPerJob * 0.1);
     if (inputSliceDataWeight < MinSliceDataWeight) {
         inputSliceDataWeight = dataWeightPerJob;
     }

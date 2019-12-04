@@ -296,10 +296,13 @@ public:
                 index,
                 subqueryCount);
             for (const auto& threadSubquery : threadSubqueries) {
-                YT_LOG_DEBUG("Thread subquery (Cookie: %v, LowerLimit: %v, UpperLimit: %v)",
+                YT_LOG_DEBUG("Thread subquery (Cookie: %v, LowerLimit: %v, UpperLimit: %v, DataWeight: %v, RowCount: %v, ChunkCount: %v)",
                     threadSubquery.Cookie,
                     threadSubquery.Limits.first,
-                    threadSubquery.Limits.second);
+                    threadSubquery.Limits.second,
+                    threadSubquery.StripeList->TotalDataWeight,
+                    threadSubquery.StripeList->TotalRowCount,
+                    threadSubquery.StripeList->TotalChunkCount);
             }
 
             const auto& cliqueNode = cliqueNodes[index];
