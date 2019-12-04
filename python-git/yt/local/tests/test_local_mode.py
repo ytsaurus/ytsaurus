@@ -389,13 +389,15 @@ class TestLocalMode(object):
                 json.dump(patch, json_file)
 
             with local_yt(id=_get_id("test_configs_patches"),
+                          rpc_proxy_count=1,
                           master_config=yson_file.name,
                           node_config=yson_file.name,
                           scheduler_config=yson_file.name,
                           proxy_config=json_file.name,
                           rpc_proxy_config=yson_file.name) as environment:
-                for service in ["master", "node", "scheduler", "proxy", "rpc_proxy"]:
+                for service in ["master", "node", "scheduler", "http_proxy", "rpc_proxy"]:
                     if isinstance(environment.configs[service], list):
+                        assert environment.configs[service], "Not configs for service '{}'".format(service)
                         for config in environment.configs[service]:
                             assert config["test_key"] == "test_value"
                     else:  # Proxy config
@@ -407,13 +409,15 @@ class TestLocalMode(object):
     def test_config_patches_value(self):
         patch = {"test_key": "test_value"}
         with local_yt(id=_get_id("test_configs_patches"),
+                      rpc_proxy_count=1,
                       master_config=patch,
                       node_config=patch,
                       scheduler_config=patch,
                       proxy_config=patch,
                       rpc_proxy_config=patch) as environment:
-            for service in ["master", "node", "scheduler", "proxy", "rpc_proxy"]:
+            for service in ["master", "node", "scheduler", "http_proxy", "rpc_proxy"]:
                 if isinstance(environment.configs[service], list):
+                    assert environment.configs[service], "Not configs for service '{}'".format(service)
                     for config in environment.configs[service]:
                         assert config["test_key"] == "test_value"
                 else:  # Proxy config
