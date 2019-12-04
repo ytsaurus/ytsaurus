@@ -954,7 +954,6 @@ private:
 
     std::optional<TString> DefaultTreeId_;
 
-    // TODO(eshcherbin): Use TAtomicObject here.
     TReaderWriterSpinLock TreeIdToSnapshotLock_;
     THashMap<TString, IFairShareTreeSnapshotPtr> TreeIdToSnapshot_;
 
