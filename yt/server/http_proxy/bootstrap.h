@@ -68,6 +68,7 @@ private:
 
     NConcurrency::TActionQueuePtr Control_;
     NConcurrency::IPollerPtr Poller_;
+    NConcurrency::IPollerPtr Acceptor_;
 
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     NHttp::IServerPtr MonitoringServer_;

@@ -76,6 +76,7 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
 
     Control_ = New<TActionQueue>("Control");
     Poller_ = CreateThreadPoolPoller(Config_->ThreadCount, "Poller");
+    Acceptor_ = CreateThreadPoolPoller(1, "Acceptor");
 
     Config_->MonitoringServer->Port = Config_->MonitoringPort;
     MonitoringServer_ = NHttp::CreateServer(

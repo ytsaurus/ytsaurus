@@ -54,10 +54,12 @@ public:
     TServer(
         const TServerConfigPtr& config,
         const IListenerPtr& listener,
-        const IPollerPtr& poller)
+        const IPollerPtr& poller,
+        const IPollerPtr& acceptor)
         : Config_(config)
         , Listener_(listener)
         , Poller_(poller)
+        , Acceptor_(acceptor)
     { }
 
     virtual void AddHandler(const TString& path, const IHttpHandlerPtr& handler) override
@@ -92,6 +94,7 @@ private:
     const TServerConfigPtr Config_;
     const IListenerPtr Listener_;
     const IPollerPtr Poller_;
+    const IPollerPtr Acceptor_;
 
     bool Started_ = false;
     std::atomic<bool> Stopped_ = {false};
@@ -107,7 +110,7 @@ private:
     {
         Listener_->Accept().Subscribe(
             BIND(&TServer::OnConnectionAccepted, MakeWeak(this))
-                .Via(Poller_->GetInvoker()));
+                .Via(Acceptor_->GetInvoker()));
     }
 
     void OnConnectionAccepted(const TErrorOr<IConnectionPtr>& connectionOrError)
@@ -309,16 +312,16 @@ IServerPtr CreateServer(
     const IListenerPtr& listener,
     const IPollerPtr& poller)
 {
-    return New<TServer>(config, listener, poller);
+    return New<TServer>(config, listener, poller, poller);
 }
 
-IServerPtr CreateServer(const TServerConfigPtr& config, const IPollerPtr& poller)
+IServerPtr CreateServer(const TServerConfigPtr& config, const IPollerPtr& poller, const IPollerPtr& acceptor)
 {
     auto address = TNetworkAddress::CreateIPv6Any(config->Port);
     for (int i = 0;; ++i) {
         try {
-            auto listener = CreateListener(address, poller);
-            return New<TServer>(config, listener, poller);
+            auto listener = CreateListener(address, acceptor);
+            return New<TServer>(config, listener, poller, acceptor);
         } catch (const std::exception& ex) {
             if (i + 1 == config->BindRetryCount) {
                 throw;
@@ -328,6 +331,11 @@ IServerPtr CreateServer(const TServerConfigPtr& config, const IPollerPtr& poller
             }
         }
     }
+}
+
+IServerPtr CreateServer(const TServerConfigPtr& config, const IPollerPtr& poller)
+{
+    return CreateServer(config, poller, poller);
 }
 
 IServerPtr CreateServer(int port, const IPollerPtr& poller)
