@@ -854,7 +854,6 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
             since_time = int((time.time() - 2) * 1000000)  # Filter out outdated samples.
             result = sum(value for tags, value in metric.data.iteritems()
                          if tags[0] == pool and tags[1] == user and metric.state[tags]["last_sample_time"] > since_time)
-            # TODO(eshcherbin): do it some other normal way.
             metric_name = metric.path.split(metric_prefix)[-1]
             print_debug("Last value of metric '{}' for pool '{}' and user '{}' is {}".format(metric_name, pool, user, result))
             return result
@@ -863,7 +862,6 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
             since_time = int((time.time() - 2) * 1000000)  # Filter out outdated samples.
             result = sum(value for tags, value in metric.data.iteritems()
                          if tags[0] == pool and tags[2] == custom_tag and metric.state[tags]["last_sample_time"] > since_time)
-            # TODO(eshcherbin): do it some other normal way.
             metric_name = metric.path.split(metric_prefix)[-1]
             print_debug("Last value of metric '{}' for pool '{}' with custom_tag '{}' is {}".format(metric_name, pool, custom_tag, result))
             return result
