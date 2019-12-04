@@ -976,7 +976,7 @@ void TQueryProfiler::Profile(
     //resultSlot = MakeCodegenOnceOp(codegenSource, slotCount, resultSlot);
 
     Fold(static_cast<int>(EFoldingObjectType::WriteOp));
-    MakeCodegenWriteOp(codegenSource, resultSlot, resultRowSize, false);
+    MakeCodegenWriteOp(codegenSource, resultSlot, resultRowSize);
 }
 
 void TQueryProfiler::Profile(

@@ -3270,13 +3270,11 @@ size_t MakeCodegenOffsetLimiterOp(
 void MakeCodegenWriteOp(
     TCodegenSource* codegenSource,
     size_t producerSlot,
-    size_t rowSize,
-    bool considerLimit)
+    size_t rowSize)
 {
     *codegenSource = [
         producerSlot,
         rowSize,
-        considerLimit,
         codegenSource = std::move(*codegenSource)
     ] (TCGOperatorContext& builder) {
         auto collect = MakeClosure<void(TWriteOpClosure*)>(builder, "WriteOpInner", [&] (
@@ -3303,7 +3301,6 @@ void MakeCodegenWriteOp(
             {
                 builder.GetExecutionContext(),
                 builder->getInt64(rowSize),
-                builder->getInt8(considerLimit),
                 collect.ClosurePtr,
                 collect.Function
             });

@@ -272,8 +272,7 @@ size_t MakeCodegenOffsetLimiterOp(
 void MakeCodegenWriteOp(
     TCodegenSource* codegenSource,
     size_t slot,
-    size_t rowSize,
-    bool considerLimit);
+    size_t rowSize);
 
 ////////////////////////////////////////////////////////////////////////////////
 
