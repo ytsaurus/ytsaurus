@@ -534,6 +534,23 @@ void TAlterTableCommand::DoExecute(ICommandContextPtr context)
 TSelectRowsCommand::TSelectRowsCommand()
 {
     RegisterParameter("query", Query);
+    RegisterParameter("input_row_limit", Options.InputRowLimit)
+        .Optional();
+    RegisterParameter("output_row_limit", Options.OutputRowLimit)
+        .Optional();
+    RegisterParameter("range_expansion_limit", Options.RangeExpansionLimit)
+        .Optional();
+    RegisterParameter("max_subqueries", Options.MaxSubqueries)
+        .GreaterThan(0)
+        .Optional();
+    RegisterParameter("use_multijoin", Options.UseMultijoin)
+        .Optional();
+    RegisterParameter("allow_full_scan", Options.AllowFullScan)
+        .Optional();
+    RegisterParameter("allow_join_without_index", Options.AllowJoinWithoutIndex)
+        .Optional();
+    RegisterParameter("execution_pool", Options.ExecutionPool)
+        .Optional();
     RegisterParameter("fail_on_incomplete_result", Options.FailOnIncompleteResult)
         .Optional();
     RegisterParameter("verbose_logging", Options.VerboseLogging)

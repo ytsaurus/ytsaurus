@@ -2391,29 +2391,8 @@ private:
         if (request->has_timestamp()) {
             options->Timestamp = request->timestamp();
         }
-        if (request->has_input_row_limit()) {
-            options->InputRowLimit = request->input_row_limit();
-        }
-        if (request->has_output_row_limit()) {
-            options->OutputRowLimit = request->output_row_limit();
-        }
-        if (request->has_range_expansion_limit()) {
-            options->RangeExpansionLimit = request->range_expansion_limit();
-        }
-        if (request->has_max_subqueries()) {
-            options->MaxSubqueries = request->max_subqueries();
-        }
-        if (request->has_allow_full_scan()) {
-            options->AllowFullScan = request->allow_full_scan();
-        }
-        if (request->has_allow_join_without_index()) {
-            options->AllowJoinWithoutIndex = request->allow_join_without_index();
-        }
         if (request->has_udf_registry_path()) {
             options->UdfRegistryPath = request->udf_registry_path();
-        }
-        if (request->has_execution_pool()) {
-            options->ExecutionPool = request->execution_pool();
         }
     }
 
@@ -2423,9 +2402,31 @@ private:
 
         const auto& query = request->query();
 
-        TSelectRowsOptions options; // TODO: Fill all options.
+        TSelectRowsOptions options;
         SetTimeoutOptions(&options, context.Get());
         FillSelectRowsOptionsBaseFromRequest(request, &options);
+
+        if (request->has_input_row_limit()) {
+            options.InputRowLimit = request->input_row_limit();
+        }
+        if (request->has_output_row_limit()) {
+            options.OutputRowLimit = request->output_row_limit();
+        }
+        if (request->has_range_expansion_limit()) {
+            options.RangeExpansionLimit = request->range_expansion_limit();
+        }
+        if (request->has_max_subqueries()) {
+            options.MaxSubqueries = request->max_subqueries();
+        }
+        if (request->has_allow_full_scan()) {
+            options.AllowFullScan = request->allow_full_scan();
+        }
+        if (request->has_allow_join_without_index()) {
+            options.AllowJoinWithoutIndex = request->allow_join_without_index();
+        }
+        if (request->has_execution_pool()) {
+            options.ExecutionPool = request->execution_pool();
+        }
         if (request->has_fail_on_incomplete_result()) {
             options.FailOnIncompleteResult = request->fail_on_incomplete_result();
         }
@@ -2435,9 +2436,11 @@ private:
         if (request->has_enable_code_cache()) {
             options.EnableCodeCache = request->enable_code_cache();
         }
+        // TODO: Support WorkloadDescriptor
         if (request->has_memory_limit_per_node()) {
             options.MemoryLimitPerNode = request->memory_limit_per_node();
         }
+        // TODO(lukyan): Move to FillSelectRowsOptionsBaseFromRequest
         if (request->has_suppressable_access_tracking_options()) {
             FromProto(&options, request->suppressable_access_tracking_options());
         }
@@ -2445,7 +2448,6 @@ private:
         context->SetRequestInfo("Query: %v, Timestamp: %llx",
             query,
             options.Timestamp);
-        FillSelectRowsOptionsBaseFromRequest(request, &options);
 
         CompleteCallWith(
             client,
@@ -2469,6 +2471,7 @@ private:
 
         TExplainOptions options;
         SetTimeoutOptions(&options, context.Get());
+        FillSelectRowsOptionsBaseFromRequest(request, &options);
 
         context->SetRequestInfo("Query: %v, Timestamp: %llx",
             query,

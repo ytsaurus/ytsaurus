@@ -102,13 +102,13 @@ struct TDataRanges
 
 struct TQueryBaseOptions
 {
-    bool EnableCodeCache = true;
     i64 InputRowLimit = std::numeric_limits<i64>::max();
     i64 OutputRowLimit = std::numeric_limits<i64>::max();
+
+    bool EnableCodeCache = true;
     bool UseMultijoin = true;
     NChunkClient::TReadSessionId ReadSessionId;
     size_t MemoryLimitPerNode = std::numeric_limits<size_t>::max();
-    std::optional<TString> ExecutionPool;
 };
 
 struct TQueryOptions
@@ -122,6 +122,7 @@ struct TQueryOptions
     bool AllowFullScan = true;
     TInstant Deadline = TInstant::Max();
     bool SuppressAccessTracking = false;
+    std::optional<TString> ExecutionPool;
 };
 
 struct TBaseColumn
