@@ -1,16 +1,14 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 import argparse
+import hashlib
 import http.server
 import os
 import pathlib
-import subprocess
 import socket
+import subprocess
 import sys
 import tempfile
+import urllib.request
 
-THIS_DIR = pathlib.Path(__file__).resolve().parent
 OUT_FILE = pathlib.Path("c++_doc.tar.gz").resolve()
 
 DOXYGEN_CONFIG_TEMPLATE = """
@@ -37,13 +35,16 @@ HAVE_DOT = NO
 SHOW_INCLUDE_FILES = NO
 """
 
+
 class DoxYtError(RuntimeError):
     pass
+
 
 def get_doxygen_config(output_directory):
     return DOXYGEN_CONFIG_TEMPLATE.format(
         output_directory=output_directory
     )
+
 
 def iter_warnings(out):
     for line in out.split("\n"):
@@ -51,13 +52,43 @@ def iter_warnings(out):
             yield line
 
 
-def generate_documentation(output_directory):
-    os.chdir(THIS_DIR / "../../..")
-    if not os.path.exists(".arcadia.root"):
-        raise RuntimeError("Internal error: {} doesn't seem like arcadia root", os.getcwd())
+def chdir_to_arcadia_root():
+    cur = pathlib.Path(os.getcwd())
+    prev = None
+    while cur != prev:
+        if (cur / ".arcadia.root").exists():
+            os.chdir(cur)
+            return
+        prev = cur
+        cur = cur.parent
+    raise DoxYtError("Script must be run from arcadia")
 
+
+def get_doxygen_path():
+    expected_hash = "bff352fd49defbfff9a3dcbfc07a55a3"
+    doxygen_file = pathlib.Path(tempfile.gettempdir()) / "doxygen-{}".format(expected_hash)
+    if doxygen_file.exists():
+        with open(doxygen_file, "rb") as inf:
+            if hashlib.md5(inf.read()).hexdigest() == expected_hash:
+                return doxygen_file
+
+    print("downloading doxygen", file=sys.stderr)
+    doxygen_bytes = urllib.request.urlopen("https://proxy.sandbox.yandex-team.ru/1242793942").read()
+    hash
+    if hashlib.md5(doxygen_bytes).hexdigest() != expected_hash:
+        raise DoxYtError("downloaded doxygen has unexpected hash")
+    with open(doxygen_file, "wb") as outf:
+        outf.write(doxygen_bytes)
+        os.fchmod(outf.fileno(), 0o755)
+    return doxygen_file
+
+
+def generate_documentation(output_directory):
+    chdir_to_arcadia_root()
+
+    doxygen = get_doxygen_path()
     doxygen_proc = subprocess.Popen(
-        ["doxygen", "-"],
+        [doxygen, "-"],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -82,6 +113,7 @@ def generate_documentation(output_directory):
         raise DoxYtError("doxygen exited with nonzero code")
     os.rename(output_directory / "html", output_directory / "c++")
 
+
 def subcommand_serve(doc_dir, args):
     class HTTPServerV6(http.server.HTTPServer):
         address_family = socket.AF_INET6
@@ -92,11 +124,13 @@ def subcommand_serve(doc_dir, args):
     print("http://{}:{}/".format(socket.getfqdn(), args.port), file=sys.stderr)
     server.serve_forever()
 
+
 def subcommand_pack(doc_dir, args):
     subprocess.check_call(
         ["tar", "czf", OUT_FILE, "c++"],
         cwd=doc_dir,
     )
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -115,5 +149,11 @@ def main():
         generate_documentation(tmpd)
         args.subcommand(tmpd, args)
 
+
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except DoxYtError as e:
+        print(str(e).rstrip('\n'), file=sys.stderr)
+        print("Error occurred, exiting...")
+        exit(1)
