@@ -62,8 +62,15 @@ public:
     TAttributeSchema* SetEtc();
     bool IsEtc() const;
 
+    //! Returns all subattribute paths with enabled history.
     std::vector<NYT::NYPath::TYPath> GetHistoryEnabledAttributePaths() const;
+
+    //! Returns all subattribute values with enabled history regardless of
+    //! the filtering result and whether attribute was updated or not.
     NYT::NYTree::IMapNodePtr GetHistoryEnabledAttributes(TObject* object) const;
+
+    //! Returns true iff there is at least one subattribute which was
+    //! updated (store scheduled) and accepted by the history filter.
     bool HasStoreScheduledHistoryEnabledAttributes(TObject* object) const;
 
     TAttributeSchema* SetReadPermission(NAccessControl::EAccessControlPermission permission);
