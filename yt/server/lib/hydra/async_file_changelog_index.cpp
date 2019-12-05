@@ -288,10 +288,7 @@ void TAsyncFileChangelogIndex::Search(
         it = std::min(it, FirstGreater(Index_, maxPositionPivot, CompareFilePositions));
     }
 
-    if (it == Index_.end()) {
-        upperBound->RecordId = -1;
-        upperBound->FilePosition = -1;
-    } else {
+    if (it != Index_.end()) {
         *upperBound = *it;
     }
 }
