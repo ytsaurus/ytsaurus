@@ -1,10 +1,9 @@
 package ru.yandex.spark
 
-import org.apache.log4j.Logger
 import org.apache.spark.SparkConf
 import org.apache.spark.sql._
 import org.apache.spark.sql.types._
-import ru.yandex.spark.yt.conf.YtTableSettings
+import ru.yandex.spark.yt.conf.YtTableSparkSettings
 import ru.yandex.spark.yt.format.{GlobalTableSettings, YtSourceStrategy}
 import ru.yandex.spark.yt.serializers.SchemaConverter
 import ru.yandex.spark.yt.utils.DefaultRpcCredentials
@@ -66,20 +65,11 @@ package object yt {
     def yt(path: String): Unit = writer.format("yt").save(normalizePath(path))
 
     def optimizeFor(optimizeMode: OptimizeMode): DataFrameWriter[T] = {
-      writer.option(YtTableSettings.OptimizeFor.name, optimizeMode.name)
+      writer.option(YtTableSparkSettings.OptimizeFor.name, optimizeMode.name)
     }
 
     def sortedBy(cols: String*): DataFrameWriter[T] = {
-      writer.option(YtTableSettings.SortColumns.name, cols.mkString(","))
+      writer.option(YtTableSparkSettings.SortColumns.name, cols.mkString(","))
     }
   }
-
-  implicit class RichLogger(log: Logger) {
-    def debugLazy(message: => String): Unit = {
-      if (log.isDebugEnabled) {
-        log.debug(message)
-      }
-    }
-  }
-
 }

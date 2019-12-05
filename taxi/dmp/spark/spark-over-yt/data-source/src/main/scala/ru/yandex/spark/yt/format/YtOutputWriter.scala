@@ -14,7 +14,7 @@ import ru.yandex.inside.yt.kosher.common.GUID
 import ru.yandex.spark.yt._
 import ru.yandex.spark.yt.conf.SparkYtWriteConfiguration
 import ru.yandex.spark.yt.serializers.InternalRowSerializer
-import ru.yandex.spark.yt.utils.YtClientConfiguration
+import ru.yandex.spark.yt.utils._
 import ru.yandex.yt.ytclient.proxy.TableWriter
 import ru.yandex.yt.ytclient.proxy.request.{TransactionalOptions, WriteTable}
 

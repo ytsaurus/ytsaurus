@@ -1,4 +1,4 @@
-package ru.yandex.spark.yt
+package ru.yandex.spark.yt.utils
 
 import java.io.{InputStream, OutputStream}
 import java.time.{Duration => JavaDuration}
@@ -13,9 +13,6 @@ import ru.yandex.inside.yt.kosher.impl.rpc.TransactionManager
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
 import ru.yandex.inside.yt.kosher.operations.specs.{MergeMode, MergeSpec}
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
-import ru.yandex.spark.yt.conf.YtTableSettings
-import ru.yandex.spark.yt.format._
-import ru.yandex.spark.yt.serializers.SchemaConverter
 import ru.yandex.yt.ytclient.`object`.WireRowDeserializer
 import ru.yandex.yt.ytclient.proxy.internal.FileWriterImpl
 import ru.yandex.yt.ytclient.proxy.request._
@@ -23,16 +20,15 @@ import ru.yandex.yt.ytclient.proxy.{FileWriter, YtClient}
 
 object YtTableUtils {
   def createTable(path: String,
-                  options: YtTableSettings,
+                  settings: YtTableSettings,
                   transaction: String)
                  (implicit yt: YtClient): Unit = {
-
     import scala.collection.JavaConverters._
-    val ytOptions = options.all.map { case (key, value) =>
+    val ytOptions = settings.options.map { case (key, value) =>
       val builder = new YTreeBuilder()
       builder.onString(value)
       key -> builder.build()
-    } + ("schema" -> SchemaConverter.ytSchema(options.schema, options.sortColumns))
+    } + ("schema" -> settings.ytSchema)
 
     createTable(path, ytOptions.asJava, transaction)
   }

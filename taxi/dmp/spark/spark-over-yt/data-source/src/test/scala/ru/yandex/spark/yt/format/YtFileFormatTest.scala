@@ -1,22 +1,69 @@
 package ru.yandex.spark.yt.format
 
 import java.nio.file.{Files, Paths}
-import java.time.{ZoneOffset, ZonedDateTime}
 
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.SparkException
-import org.apache.spark.sql.functions.lit
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{AnalysisException, Encoders, Row, SaveMode}
 import org.scalatest.{FlatSpec, Matchers}
+import ru.yandex.TestUtils
 import ru.yandex.spark.yt._
-import ru.yandex.spark.yt.utils.DateTimeUtils.{emptyStringToNull, format, formatDatetime, time}
+import ru.yandex.spark.yt.utils.YtTableUtils
+import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
 
-class YtFileFormatTest extends FlatSpec with Matchers with TmpTable {
+class YtFileFormatTest extends FlatSpec with Matchers with TmpTable with TestUtils {
+
   import YtFileFormatTest._
+  import spark.implicits._
+
+  private val atomicSchema = new TableSchema.Builder()
+    .setUniqueKeys(false)
+    .addValue("a", ColumnValueType.INT64)
+    .addValue("b", ColumnValueType.STRING)
+    .addValue("c", ColumnValueType.DOUBLE)
+    .build()
+
+  private val anySchema = new TableSchema.Builder()
+    .setUniqueKeys(false)
+    .addValue("value", ColumnValueType.ANY)
+    .build()
+
+  private def writeComplexTable(path: String): Unit = {
+    val ytSchema = new TableSchema.Builder()
+      .setUniqueKeys(false)
+      .addValue("f1", ColumnValueType.ANY)
+      .addValue("f2", ColumnValueType.ANY)
+      .addValue("f3", ColumnValueType.ANY)
+      .addValue("f4", ColumnValueType.ANY)
+      .addValue("f5", ColumnValueType.ANY)
+      .addValue("f6", ColumnValueType.ANY)
+      .addValue("f7", ColumnValueType.ANY)
+      .addValue("f8", ColumnValueType.ANY)
+      .addValue("f9", ColumnValueType.ANY)
+      .build()
+    writeTableFromYson(Seq(
+      """{
+        |f1={a={aa=1};b=#;c={cc=#}};
+        |f2={a={a="aa"};b=#;c={a=#}};
+        |f3={a=[0.1];b=#;c=[#]};
+        |f4={a=%true;b=#};
+        |f5={a={a=1;b=#};b={a="aa"};c=[%true;#];d=0.1};
+        |f6=[{a=1;b=#};#];
+        |f7=[{a="aa"};{a=#};#];
+        |f8=[[1;#];#];
+        |f9=[0.1;#]
+        |}""".stripMargin
+    ), path, ytSchema)
+  }
 
   "YtFileFormat" should "read dataset" in {
-    val res = spark.read.yt("/home/sashbel/data/test_read_atomic")
+    writeTableFromYson(Seq(
+      """{a = 1; b = "a"; c = 0.3}""",
+      """{a = 2; b = "b"; c = 0.5}"""
+    ), tmpPath, atomicSchema)
+
+    val res = spark.read.yt(tmpPath)
 
     res.columns should contain theSameElementsAs Seq("a", "b", "c")
     res.select("a", "b", "c").collect() should contain theSameElementsAs Seq(
@@ -26,7 +73,12 @@ class YtFileFormatTest extends FlatSpec with Matchers with TmpTable {
   }
 
   it should "read dataset with custom maxSplitRows" in {
-    val res = spark.read.option("maxSplitRows", "1").yt("/home/sashbel/data/test_read_atomic")
+    writeTableFromYson(Seq(
+      """{a = 1; b = "a"; c = 0.3}""",
+      """{a = 2; b = "b"; c = 0.5}"""
+    ), tmpPath, atomicSchema)
+
+    val res = spark.read.option("maxSplitRows", "1").yt(tmpPath)
 
     res.columns should contain theSameElementsAs Seq("a", "b", "c")
     res.select("a", "b", "c").collect() should contain theSameElementsAs Seq(
@@ -36,7 +88,12 @@ class YtFileFormatTest extends FlatSpec with Matchers with TmpTable {
   }
 
   it should "read dataset with nulls" in {
-    val res = spark.read.yt("/home/sashbel/data/test_read_atomic_with_null")
+    writeTableFromYson(Seq(
+      """{a = 1; b = #; c = 0.3}""",
+      """{a = 2; b = "b"; c = #}"""
+    ), tmpPath, atomicSchema)
+
+    val res = spark.read.yt(tmpPath)
 
     res.columns should contain theSameElementsAs Seq("a", "b", "c")
     res.select("a", "b", "c").collect() should contain theSameElementsAs Seq(
@@ -46,9 +103,12 @@ class YtFileFormatTest extends FlatSpec with Matchers with TmpTable {
   }
 
   it should "read dataset with list of long" in {
-    val res = spark.read
-      .schemaHint("value" -> ArrayType(LongType))
-      .yt("/home/sashbel/data/test_read_list_atomic")
+    writeTableFromYson(Seq(
+      "{value = [1; 2; 3]}",
+      "{value = [4; 5; 6]}"
+    ), tmpPath, anySchema)
+
+    val res = spark.read.schemaHint("value" -> ArrayType(LongType)).yt(tmpPath)
 
     res.columns should contain theSameElementsAs Seq("value")
     res.collect() should contain theSameElementsAs Seq(
@@ -58,9 +118,11 @@ class YtFileFormatTest extends FlatSpec with Matchers with TmpTable {
   }
 
   it should "read dataset with list of string" in {
-    val res = spark.read
-      .schemaHint("value" -> ArrayType(StringType))
-      .yt("/home/sashbel/data/test_read_list_string")
+    writeTableFromYson(Seq(
+      """{value = ["a"; "b"; "c"]}"""
+    ), tmpPath, anySchema)
+
+    val res = spark.read.schemaHint("value" -> ArrayType(StringType)).yt(tmpPath)
 
     res.columns should contain theSameElementsAs Seq("value")
     res.collect() should contain theSameElementsAs Seq(
@@ -69,9 +131,14 @@ class YtFileFormatTest extends FlatSpec with Matchers with TmpTable {
   }
 
   it should "read dataset with list of lists" in {
+    writeTableFromYson(Seq(
+      "{value = [[1]; [2; 3]]}",
+      "{value = [[4]; #]}"
+    ), tmpPath, anySchema)
+
     val res = spark.read
       .schemaHint("value" -> ArrayType(ArrayType(LongType)))
-      .yt("/home/sashbel/data/test_read_list_of_lists")
+      .yt(tmpPath)
 
     res.columns should contain theSameElementsAs Seq("value")
     res.collect() should contain theSameElementsAs Seq(
@@ -81,9 +148,14 @@ class YtFileFormatTest extends FlatSpec with Matchers with TmpTable {
   }
 
   it should "read dataset with struct of atomic" in {
+    writeTableFromYson(Seq(
+      """{value = {a = 1; b = "a"}}""",
+      """{value = {a = 2; b = "b"}}""",
+    ), tmpPath, anySchema)
+
     val res = spark.read
       .schemaHint("value" -> StructType(Seq(StructField("a", LongType), StructField("b", StringType))))
-      .yt("/home/sashbel/data/test_read_struct_atomic")
+      .yt(tmpPath)
 
     res.columns should contain theSameElementsAs Seq("value")
     res.collect() should contain theSameElementsAs Seq(
@@ -93,6 +165,11 @@ class YtFileFormatTest extends FlatSpec with Matchers with TmpTable {
   }
 
   it should "read dataset with struct of lists" in {
+    writeTableFromYson(Seq(
+      """{value = {a = [1; 2; 3]; b = ["a"; #]; c = [{a = 1; b = "a"}; {a = 2; b = "b"}]}}""",
+      """{value = {a = #; b = [#; "b"]; c = [{a = 3; b = "c"}; {a = 4; b = "d"}]}}"""
+    ), tmpPath, anySchema)
+
     val res = spark.read
       .schemaHint("value" -> StructType(Seq(
         StructField("a", ArrayType(LongType)),
@@ -102,7 +179,7 @@ class YtFileFormatTest extends FlatSpec with Matchers with TmpTable {
           StructField("b", StringType)
         ))))
       )))
-      .yt("/home/sashbel/data/test_read_struct_list")
+      .yt(tmpPath)
 
     res.columns should contain theSameElementsAs Seq("value")
     res.collect() should contain theSameElementsAs Seq(
@@ -112,9 +189,14 @@ class YtFileFormatTest extends FlatSpec with Matchers with TmpTable {
   }
 
   it should "read dataset with map of atomic" in {
+    writeTableFromYson(Seq(
+      "{value = {a = 1; b = 2}}",
+      "{value = {c = 3; d = 4}}"
+    ), tmpPath, anySchema)
+
     val res = spark.read
       .schemaHint("value" -> MapType(StringType, LongType))
-      .yt("/home/sashbel/data/test_read_map_atomic")
+      .yt(tmpPath)
 
     res.columns should contain theSameElementsAs Seq("value")
     res.collect() should contain theSameElementsAs Seq(
@@ -124,21 +206,32 @@ class YtFileFormatTest extends FlatSpec with Matchers with TmpTable {
   }
 
   it should "read dataset with complex types" in {
-    import spark.implicits._
+    writeComplexTable(tmpPath)
 
     val schema = Encoders.product[Test].schema
-    val res = spark.read.schemaHint(schema).yt("/home/sashbel/data/test_read_complex")
+    val res = spark.read.schemaHint(schema).yt(tmpPath)
 
     res.columns should contain theSameElementsAs schema.fieldNames
     res.as[Test].collect() should contain theSameElementsAs Seq(testRow)
   }
 
   it should "read some columns from dataset with complex row" in {
-    import spark.implicits._
-
+    writeTableFromYson(Seq(
+      """{value={
+        |f1={a={aa=1};b=#;c={cc=#}};
+        |f2={a={a="aa"};b=#;c={a=#}};
+        |f3={a=[0.1];b=#;c=[#]};
+        |f4={a=%true;b=#};
+        |f5={a={a=1;b=#};b={a="aa"};c=[%true;#];d=0.1};
+        |f6=[{a=1;b=#};#];
+        |f7=[{a="aa"};{a=#};#];
+        |f8=[[1;#];#];
+        |f9=[0.1;#]
+        |}}""".stripMargin
+    ), tmpPath, anySchema)
     val res = spark.read
       .schemaHint("value" -> Encoders.product[TestSmall].schema)
-      .yt("/home/sashbel/data/test_read_complex_row")
+      .yt(tmpPath)
 
     res.columns should contain theSameElementsAs Seq("value")
     res.select($"value.*").as[TestSmall].collect() should contain theSameElementsAs Seq(testRowSmall)
@@ -185,7 +278,7 @@ class YtFileFormatTest extends FlatSpec with Matchers with TmpTable {
     )
       .toDF("a", "b", "c").coalesce(1)
       .write.mode(SaveMode.Overwrite)
-      .yt("/home/sashbel/data/test_write_complex")
+      .yt(tmpPath)
 
     val res = spark.read
       .schemaHint(
@@ -193,7 +286,7 @@ class YtFileFormatTest extends FlatSpec with Matchers with TmpTable {
         "b" -> StructType(Seq(StructField("field1", LongType), StructField("field2", StringType))),
         "c" -> MapType(StringType, DoubleType)
       )
-      .yt("/home/sashbel/data/test_write_complex")
+      .yt(tmpPath)
 
     res.columns should contain theSameElementsAs Seq("a", "b", "c")
     res.select("a", "b", "c").collect() should contain theSameElementsAs Seq(
@@ -203,7 +296,8 @@ class YtFileFormatTest extends FlatSpec with Matchers with TmpTable {
   }
 
   it should "read any as binary if no schema hint provided" in {
-    val res = spark.read.yt("/home/sashbel/data/test_read_complex")
+    writeComplexTable(tmpPath)
+    val res = spark.read.yt(tmpPath)
 
     res.columns should contain theSameElementsAs Encoders.product[Test].schema.fieldNames
     res.schema.map(_.dataType) should contain theSameElementsAs Encoders.product[Test].schema.map(_ => BinaryType)
@@ -252,7 +346,13 @@ class YtFileFormatTest extends FlatSpec with Matchers with TmpTable {
   }
 
   it should "count df" in {
-    val res = spark.read.yt("/home/sashbel/data/test_read_atomic")
+    writeTableFromYson(Seq(
+      """{a = 1; b = "a"; c = 0.3}""",
+      """{a = 2; b = "b"; c = 0.5}"""
+    ), tmpPath, atomicSchema)
+
+    val res = spark.read.yt(tmpPath)
+
     res.count() shouldEqual 2
   }
 
@@ -312,7 +412,9 @@ class YtFileFormatTest extends FlatSpec with Matchers with TmpTable {
 
   it should "write sorted table" in {
     import spark.implicits._
-    (1 to 9).toDF.coalesce(3).write.mode(SaveMode.Overwrite).option("sort_columns", "value").yt("/home/sashbel/data/sort")
+    (1 to 9).toDF.coalesce(3).write.option("sort_columns", "value").yt(tmpPath)
+
+    //TODO add assert
   }
 }
 

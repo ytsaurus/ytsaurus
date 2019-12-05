@@ -1,4 +1,4 @@
-package ru.yandex.spark.yt.format
+package ru.yandex.spark.yt.utils
 
 sealed trait PathType
 
