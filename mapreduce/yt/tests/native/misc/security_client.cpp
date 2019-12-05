@@ -14,7 +14,7 @@ Y_UNIT_TEST_SUITE(SecurityClient) {
     {
         if (!client->Exists("//sys/users/" + user)) {
             return client->Create("", NT_USER,
-                TCreateOptions().Attributes(TNode()("name", user)).IgnoreExisting(true));
+                TCreateOptions().Attributes(TNode()("name", user)));
         }
         return GetGuid(client->Get("//sys/users/" + user + "/@id").AsString());
     }

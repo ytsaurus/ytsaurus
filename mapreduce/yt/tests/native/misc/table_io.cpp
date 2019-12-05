@@ -593,8 +593,18 @@ Y_UNIT_TEST_SUITE(TableIo) {
         }
     }
 
+    struct TColumnNames
+    {
+        TString Host;
+        TString Path;
+        TString HttpCode;
+    };
+
     template <typename TRow, typename TElement>
-    void TestProtobufSerializationModes(EWrapperFieldFlag::Enum mode1, EWrapperFieldFlag::Enum mode2)
+    void TestProtobufSerializationModes(
+        EWrapperFieldFlag::Enum mode1,
+        EWrapperFieldFlag::Enum mode2,
+        const TColumnNames& columnNames = {"Host", "Path", "HttpCode"})
     {
         TTestFixture fixture;
         auto client = fixture.GetClient();
@@ -649,8 +659,8 @@ Y_UNIT_TEST_SUITE(TableIo) {
                 protobufSerializedValues.push_back(TVector<TString>{embedded1Serialized, embedded2Serialized});
 
                 nodeSerializedValues.push_back(TVector<TNode>{
-                    TNode().Add(host).Add(path).Add(code),
-                    TNode().Add(host).Add(path).Add(code + 1),
+                    TNode()(columnNames.Host, host)(columnNames.Path, path)(columnNames.HttpCode, code),
+                    TNode()(columnNames.Host, host)(columnNames.Path, path)(columnNames.HttpCode, code + 1),
                 });
             }
             writer->Finish();
@@ -731,7 +741,8 @@ Y_UNIT_TEST_SUITE(TableIo) {
     {
         TestProtobufSerializationModes<TRowMixedSerializationOptions_ColumnNames, TUrlRowWithColumnNames>(
             EWrapperFieldFlag::EXPERIMENTAL_SERIALIZATION_YT,
-            EWrapperFieldFlag::SERIALIZATION_PROTOBUF);
+            EWrapperFieldFlag::SERIALIZATION_PROTOBUF,
+            {"Host_ColumnName", "Path_KeyColumnName", "HttpCode"});
     }
 
     Y_UNIT_TEST(ProtobufRepeatedSerialization)
@@ -796,8 +807,8 @@ Y_UNIT_TEST_SUITE(TableIo) {
                 TNode()
                     ("Ints", TNode().Add(1).Add(2).Add(3))
                     ("UrlRows", TNode()
-                        .Add(TNode().Add("http://www.example.com").Add("/").Add(303))
-                        .Add(TNode().Add("http://www.example.com").Add("/").Add(307))));
+                        .Add(TNode()("Host", "http://www.example.com")("Path", "/")("HttpCode", 303))
+                        .Add(TNode()("Host", "http://www.example.com")("Path", "/")("HttpCode", 307))));
             reader->Next();
             UNIT_ASSERT(reader->IsValid());
             UNIT_ASSERT_VALUES_EQUAL(
@@ -805,8 +816,8 @@ Y_UNIT_TEST_SUITE(TableIo) {
                 TNode()
                     ("Ints", TNode().Add(101).Add(201).Add(301))
                     ("UrlRows", TNode()
-                        .Add(TNode().Add("http://www.example.com").Add("/index.php").Add(200))
-                        .Add(TNode().Add("http://www.example.com").Add("/index.php").Add(201))));
+                        .Add(TNode()("Host", "http://www.example.com")("Path", "/index.php")("HttpCode", 200))
+                        .Add(TNode()("Host", "http://www.example.com")("Path", "/index.php")("HttpCode", 201))));
             reader->Next();
             UNIT_ASSERT(!reader->IsValid());
         }
@@ -962,9 +973,9 @@ Y_UNIT_TEST_SUITE(TableIo) {
                     ("UnknownSchematizedColumn", true)
                     ("UnknownUnschematizedColumn", 1234)
                     ("EmbeddedField", TNode()
-                        .Add(0)
-                        .Add("RED")
-                        .Add(node2))
+                        ("ColorIntField", 0)
+                        ("ColorStringField", "RED")
+                        ("AnyField", node2))
                     ("RepeatedEnumIntField", TNode()
                         .Add(0)
                         .Add(1)
@@ -980,9 +991,9 @@ Y_UNIT_TEST_SUITE(TableIo) {
                     ("UnknownSchematizedColumn", false)
                     ("UnknownUnschematizedColumn", "some-string")
                     ("EmbeddedField", TNode()
-                        .Add(-1)
-                        .Add("WHITE")
-                        .Add(node4))
+                        ("ColorIntField", -1)
+                        ("ColorStringField", "WHITE")
+                        ("AnyField", node4))
                     ("RepeatedEnumIntField", TNode().Add(1)));
             reader->Next();
             UNIT_ASSERT(!reader->IsValid());
