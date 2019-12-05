@@ -281,14 +281,17 @@ void TAsyncFileChangelogIndex::Search(
     TChangelogIndexRecord lastRecordPivot;
     lastRecordPivot.RecordId = lastRecordId;
     auto it = FirstGreater(Index_, lastRecordPivot, CompareRecordIds);
+    
     if (maxBytes != -1) {
-        i64 maxFilePosition = lowerBound->FilePosition + maxBytes;
         TChangelogIndexRecord maxPositionPivot;
-        maxPositionPivot.FilePosition = maxFilePosition;
+        maxPositionPivot.FilePosition = lowerBound->FilePosition + maxBytes;
         it = std::min(it, FirstGreater(Index_, maxPositionPivot, CompareFilePositions));
     }
 
-    if (it != Index_.end()) {
+    if (it == Index_.end()) {
+        upperBound->RecordId = -1;
+        upperBound->FilePosition = -1;
+    } else {
         *upperBound = *it;
     }
 }
