@@ -148,12 +148,11 @@ func EnsureTables(
 ) error {
 	for path, table := range tables {
 		var attrs struct {
-			Schema  schema.Schema `yson:"schema"`
-			Dynamic bool          `yson:"dynamic"`
+			Schema schema.Schema `yson:"schema"`
 		}
 
 	retry:
-		if err := yc.GetNode(ctx, path.Attrs(), &attrs, nil); err != nil {
+		if err := yc.GetNode(ctx, path.Attrs(), &attrs, &yt.GetNodeOptions{Attributes: []string{"schema"}}); err != nil {
 			if yterrors.ContainsErrorCode(err, yterrors.CodeResolveError) {
 				attrs := make(map[string]interface{})
 				for k, v := range table.Attributes {
