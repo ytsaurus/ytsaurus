@@ -2666,7 +2666,7 @@ private:
             {
                 if (schema->IsComposite()) {
                     if (node->GetType() != ENodeType::Map) {
-                        THROW_ERROR_EXCEPTION("Attribute %v is composite and cannot be parsed from %Qlv node",
+                        THROW_ERROR_EXCEPTION("Attribute %Qv is composite and cannot be parsed from %Qlv node",
                             schema->GetPath(),
                             node->GetType());
                     }
@@ -2682,7 +2682,7 @@ private:
                                 TSetUpdateRequest{"/" + ToYPathLiteral(key), value}
                             });
                         } else {
-                            THROW_ERROR_EXCEPTION("Attribute %v has no child with key %Qv",
+                            THROW_ERROR_EXCEPTION("Attribute %Qv has no child with key %Qv",
                                 schema->GetPath(),
                                 key);
                         }
@@ -2690,21 +2690,21 @@ private:
                 } else {
                     if (schema == IdSchema_) {
                         if (node->GetType() != ENodeType::String) {
-                            THROW_ERROR_EXCEPTION("Attribute %v must be %Qlv",
+                            THROW_ERROR_EXCEPTION("Attribute %Qv must be %Qlv",
                                 schema->GetPath(),
                                 ENodeType::String);
                         }
                         Id_ = node->GetValue<TString>();
                     } else if (schema == ParentIdSchema_) {
                         if (node->GetType() != ENodeType::String) {
-                            THROW_ERROR_EXCEPTION("Attribute %v must be %Qlv",
+                            THROW_ERROR_EXCEPTION("Attribute %Qv must be %Qlv",
                                 schema->GetPath(),
                                 ENodeType::String);
                         }
                         ParentId_ = node->GetValue<TString>();
                     } else {
                         if (!schema->HasValueSetter()) {
-                            THROW_ERROR_EXCEPTION("Attribute %v cannot be set",
+                            THROW_ERROR_EXCEPTION("Attribute %Qv cannot be set",
                                 schema->GetPath());
                         }
                         AddMatch({
@@ -2731,7 +2731,7 @@ private:
 
         const auto& unmatchedMandatory = matcher.UnmatchedMandatoryAttributes();
         if (!unmatchedMandatory.empty()) {
-            THROW_ERROR_EXCEPTION("Missing mandatory attribute %v",
+            THROW_ERROR_EXCEPTION("Missing mandatory attribute %Qv",
                 (*unmatchedMandatory.begin())->GetPath());
         }
 
@@ -2754,7 +2754,7 @@ private:
                         request.Value,
                         request.Recursive);
                 } catch (const std::exception& ex) {
-                    THROW_ERROR_EXCEPTION("Error setting attribute %v",
+                    THROW_ERROR_EXCEPTION("Error setting attribute %Qv",
                         schema->GetPath())
                         << ex;
                 }
@@ -2804,7 +2804,7 @@ private:
                 auto actualTimestamp = GetAttributeTimestamp(resolveResult, Owner_, object);
                 if (actualTimestamp > prerequisite.Timestamp) {
                     THROW_ERROR_EXCEPTION(NClient::NApi::EErrorCode::PrerequisiteCheckFailure,
-                        "Prerequisite timestamp check failed for attribute %v of %v %Qv: expected <=%v, actual %v",
+                        "Prerequisite timestamp check failed for attribute %Qv of %v %Qv: expected <=%v, actual %v",
                         resolveResult.Attribute->GetPath(),
                         GetHumanReadableTypeName(object->GetType()),
                         object->GetId(),
@@ -2895,7 +2895,7 @@ private:
             &permissions);
 
         if (!resolveResult.Attribute->GetUpdatable()) {
-            THROW_ERROR_EXCEPTION("Attribute %v does not support updates",
+            THROW_ERROR_EXCEPTION("Attribute %Qv does not support updates",
                 resolveResult.Attribute->GetPath());
         }
 
@@ -2922,7 +2922,7 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Scheduling attribute load (ObjectId: %v, Attribute: %v)",
+        YT_LOG_DEBUG("Scheduling attribute load (ObjectId: %v, Attribute: %Qv)",
             object->GetId(),
             match.Schema->GetPath());
 
@@ -2953,7 +2953,7 @@ private:
                         typedRequest);
                 });
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error updating attribute %v of %v %v",
+            THROW_ERROR_EXCEPTION("Error updating attribute %Qv of %v %v",
                 match.Schema->GetPath(),
                 GetHumanReadableTypeName(object->GetType()),
                 GetObjectDisplayName(object))
@@ -2970,7 +2970,7 @@ private:
         YT_VERIFY(request.Path.Empty());
 
         if (request.Value->GetType() != ENodeType::Map) {
-            THROW_ERROR_EXCEPTION("Attribute %v cannot be updated from %Qlv values",
+            THROW_ERROR_EXCEPTION("Attribute %Qv cannot be updated from %Qlv values",
                 schema->GetPath(),
                 request.Value->GetType());
         }
@@ -2992,7 +2992,7 @@ private:
                 }
                 etcMapValue->AddChild(key, CloneNode(childValue));
             } else {
-                THROW_ERROR_EXCEPTION("Attribute %v has no child with key %Qv",
+                THROW_ERROR_EXCEPTION("Attribute %Qv has no child with key %Qv",
                     schema->GetPath(),
                     key);
             }
@@ -3019,11 +3019,11 @@ private:
         }
 
         if (!schema->HasValueSetter()) {
-            THROW_ERROR_EXCEPTION("Attribute %v does not support set updates",
+            THROW_ERROR_EXCEPTION("Attribute %Qv does not support set updates",
                 schema->GetPath());
         }
 
-        YT_LOG_DEBUG("Applying set update (ObjectId: %v, Attribute: %v, Path: %v, Value: %v)",
+        YT_LOG_DEBUG("Applying set update (ObjectId: %v, Attribute: %Qv, Path: %Qv, Value: %v)",
             object->GetId(),
             schema->GetPath(),
             request.Path,
@@ -3039,11 +3039,11 @@ private:
         const TRemoveUpdateRequest& request)
     {
         if (!schema->HasRemover()) {
-            THROW_ERROR_EXCEPTION("Attribute %v does not support remove updates",
+            THROW_ERROR_EXCEPTION("Attribute %Qv does not support remove updates",
                 schema->GetPath());
         }
 
-        YT_LOG_DEBUG("Applying remove update (ObjectId: %v, Attribute: %v, Path: %v)",
+        YT_LOG_DEBUG("Applying remove update (ObjectId: %v, Attribute: %Qv, Path: %Qv)",
             object->GetId(),
             schema->GetPath(),
             request.Path);

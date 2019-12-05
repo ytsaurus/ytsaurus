@@ -33,7 +33,7 @@ struct TEmptyPathValidator
     static void Run(const TAttributeSchema* attribute, const NYPath::TYPath& path)
     {
         if (!path.empty()) {
-            THROW_ERROR_EXCEPTION("Attribute %v is scalar and does not support nested access",
+            THROW_ERROR_EXCEPTION("Attribute %Qv is scalar and does not support nested access",
                 attribute->GetPath());
         }
     }
@@ -45,7 +45,7 @@ struct TScalarAttributePathValidator
     static void Run(const TScalarAttributeSchemaBase* schema, const TAttributeSchema* attribute, const NYPath::TYPath& path)
     {
         if (schema->Field->Type != NTableClient::EValueType::Any && !path.empty()) {
-            THROW_ERROR_EXCEPTION("Attribute %v is scalar and does not support nested access",
+            THROW_ERROR_EXCEPTION("Attribute %Qv is scalar and does not support nested access",
                 attribute->GetPath());
         }
     }
@@ -68,7 +68,7 @@ struct TScalarAttributePathValidator<
             }
             NYson::ResolveProtobufElementByYPath(protobufType, path, options);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error fetching field %v of attribute %v",
+            THROW_ERROR_EXCEPTION("Error fetching field %Qv of attribute %Qv",
                 path,
                 attribute->GetPath())
                 << ex;
@@ -618,7 +618,7 @@ void TAttributeSchema::InitRemover(const TSchema& schema)
             const NYT::NYPath::TYPath& path)
         {
             if (path.empty()) {
-                THROW_ERROR_EXCEPTION("Attribute %v cannot be removed",
+                THROW_ERROR_EXCEPTION("Attribute %Qv cannot be removed",
                     GetPath());
             }
 

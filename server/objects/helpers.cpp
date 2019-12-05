@@ -51,7 +51,7 @@ TResolveResult ResolveAttribute(
             return;
         }
         if (!permissions) {
-            THROW_ERROR_EXCEPTION("Attribute %v cannot be referenced since it requires special read permission %Qlv",
+            THROW_ERROR_EXCEPTION("Attribute %Qv cannot be referenced since it requires special read permission %Qlv",
                 attribute->GetPath(),
                 permission);
         }
@@ -90,7 +90,7 @@ TResolveResult ResolveAttribute(
                     addReadPermission(etcChild);
                     return {etcChild, TYPath(remainingPath)};
                 } else {
-                    THROW_ERROR_EXCEPTION("Attribute %v has no child with key %Qv",
+                    THROW_ERROR_EXCEPTION("Attribute %Qv has no child with key %Qv",
                         current->GetPath(),
                         key);
                 }
@@ -112,7 +112,7 @@ namespace {
 void ValidateHasExpressionBuilder(TAttributeSchema *attribute)
 {
     if (!attribute->HasExpressionBuilder()) {
-        THROW_ERROR_EXCEPTION("Attribute %v cannot be queried",
+        THROW_ERROR_EXCEPTION("Attribute %Qv cannot be queried",
             attribute->GetPath());
     }
 }
@@ -280,7 +280,7 @@ EAttributeFetchMethod TAttributeFetcher::GetFetchMethod(const TResolveResult& re
     if (attribute->HasEvaluator()) {
         return EAttributeFetchMethod::Evaluator;
     }
-    THROW_ERROR_EXCEPTION("Attribute %v cannot be fetched",
+    THROW_ERROR_EXCEPTION("Attribute %Qv cannot be fetched",
         attribute->GetPath());
 }
 

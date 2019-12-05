@@ -42,7 +42,7 @@ public:
     bool IsControl() const;
 
     const TString& GetName() const;
-    TString GetPath() const;
+    NYPath::TYPath GetPath() const;
 
     TAttributeSchema* GetParent() const;
     void SetParent(TAttributeSchema* parent);

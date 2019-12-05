@@ -138,7 +138,7 @@ TAttributeSchema* TAttributeSchema::SetAnnotationsAttribute()
             TTokenizer tokenizer(path);
 
             if (tokenizer.Advance() == ETokenType::EndOfStream) {
-                THROW_ERROR_EXCEPTION("Attribute %v cannot be removed",
+                THROW_ERROR_EXCEPTION("Attribute %Qv cannot be removed",
                     GetPath());
             }
             tokenizer.Expect(ETokenType::Slash);
@@ -299,7 +299,7 @@ const TString& TAttributeSchema::GetName() const
     return Name_;
 }
 
-TString TAttributeSchema::GetPath() const
+NYPath::TYPath TAttributeSchema::GetPath() const
 {
     SmallVector<const TAttributeSchema*, 4> parents;
     const auto* current = this;
@@ -308,9 +308,6 @@ TString TAttributeSchema::GetPath() const
             parents.push_back(current);
         }
         current = current->GetParent();
-    }
-    if (parents.empty()) {
-        return "/";
     }
     TStringBuilder builder;
     for (auto it = parents.rbegin(); it != parents.rend(); ++it) {
@@ -394,7 +391,7 @@ TAttributeSchema* TAttributeSchema::GetChildOrThrow(const TString& key) const
 {
     auto* child = FindChild(key);
     if (!child) {
-        THROW_ERROR_EXCEPTION("Attribute %v has no child with key %Qv",
+        THROW_ERROR_EXCEPTION("Attribute %Qv has no child with key %Qv",
             GetPath(),
             key);
     }
@@ -480,7 +477,7 @@ void TAttributeSchema::RunValidators(
             validator(transaction, object);
         }
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error validating %v for %v %v",
+        THROW_ERROR_EXCEPTION("Error validating %Qv for %v %v",
             GetPath(),
             GetHumanReadableTypeName(object->GetType()),
             GetObjectDisplayName(object))
@@ -516,7 +513,7 @@ TAttributeSchema* TAttributeSchema::SetExpressionBuilder(std::function<TExpressi
     ExpressionBuilder_ =
         [=] (IQueryContext* context, const TYPath& path) {
             if (!path.empty()) {
-                THROW_ERROR_EXCEPTION("Attribute %v can only be queried as a whole",
+                THROW_ERROR_EXCEPTION("Attribute %Qv can only be queried as a whole",
                     GetPath());
             }
             return builder(context);
