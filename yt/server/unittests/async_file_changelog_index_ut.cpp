@@ -75,8 +75,8 @@ TEST_P(TAsyncFileChangelogIndexTest, Simple)
     }
 
     {
-        TChangelogIndexRecord lowerBound;
-        TChangelogIndexRecord upperBound;
+        TChangelogIndexRecord lowerBound{-1, -1};
+        TChangelogIndexRecord upperBound{-1, -1};
         index.Search(&lowerBound, &upperBound, 0, 2);
 
         EXPECT_EQ(lowerBound.RecordId, 0); EXPECT_EQ(lowerBound.FilePosition, 0);
@@ -85,8 +85,8 @@ TEST_P(TAsyncFileChangelogIndexTest, Simple)
 
 
     {
-        TChangelogIndexRecord lowerBound;
-        TChangelogIndexRecord upperBound;
+        TChangelogIndexRecord lowerBound{-1, -1};
+        TChangelogIndexRecord upperBound{-1, -1};
         index.Search(&lowerBound, &upperBound, 267, 2048);
 
         EXPECT_EQ(lowerBound.RecordId, 267); EXPECT_EQ(lowerBound.FilePosition, 4241);
@@ -100,8 +100,8 @@ TEST_P(TAsyncFileChangelogIndexTest, Simple)
     index2.TruncateInvalidRecords(index2.Records().size());
 
     {
-        TChangelogIndexRecord lowerBound;
-        TChangelogIndexRecord upperBound;
+        TChangelogIndexRecord lowerBound{-1, -1};
+        TChangelogIndexRecord upperBound{-1, -1};
         index2.Search(&lowerBound, &upperBound, 0, 2);
 
         EXPECT_EQ(lowerBound.RecordId, 0); EXPECT_EQ(lowerBound.FilePosition, 0);
@@ -109,8 +109,8 @@ TEST_P(TAsyncFileChangelogIndexTest, Simple)
     }
 
     {
-        TChangelogIndexRecord lowerBound;
-        TChangelogIndexRecord upperBound;
+        TChangelogIndexRecord lowerBound{-1, -1};
+        TChangelogIndexRecord upperBound{-1, -1};
         index2.Search(&lowerBound, &upperBound, 267, 2048);
 
         EXPECT_EQ(lowerBound.RecordId, 267); EXPECT_EQ(lowerBound.FilePosition, 4241);
