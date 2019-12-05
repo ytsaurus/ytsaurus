@@ -795,9 +795,6 @@ enum EWorkloadState {
     // Ожидание готовности box
     EWorkloadState_WAITING_FOR_BOX = 1 [(NYT.NYson.NProto.enum_value_name) = "waiting_for_box"];
 
-    // Процесс start активен и последний запуск readiness завершился ошибкой
-    EWorkloadState_SEMI_FAILURE = 2 [(NYT.NYson.NProto.enum_value_name) = "semi_failure"];
-
     // Процесс start активен и readiness еще ни разу не завершился
     EWorkloadState_ACTIVATING = 3 [(NYT.NYson.NProto.enum_value_name) = "activating"];
 
@@ -825,6 +822,10 @@ enum EWorkloadState {
 
     // Процесс start завершился (сам, либо был убит) и будет перезапущен
     EWorkloadState_DEAD = 12 [(NYT.NYson.NProto.enum_value_name) = "dead"];
+
+    // Процесс start активен и последний запуск readiness завершился ошибкой
+    EWorkloadState_SEMI_FAILURE = 2 [(NYT.NYson.NProto.enum_value_name) = "semi_failure"]; // deprecated DEPLOY-1365
+    EWorkloadState_READINESS_FAILED = 13 [(NYT.NYson.NProto.enum_value_name) = "readiness_failed"];
 }
 
 // Описание результата выполнения хука
