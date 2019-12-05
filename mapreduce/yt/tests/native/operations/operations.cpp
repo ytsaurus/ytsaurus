@@ -1616,13 +1616,13 @@ Y_UNIT_TEST_SUITE(Operations)
             // UrlRow_2 has the same value as UrlRow_1.
             auto writer = client->CreateTableWriter<TNode>(inputTable1);
             writer->AddRow(TNode()
-                ("UrlRow_1", TNode().Add("ya.ru").Add("/mail").Add(404))
+                ("UrlRow_1", TNode()("Host", "ya.ru")("Path", "/mail")("HttpCode", 404))
                 ("UrlRow_2",
                      "\x0A" "\x05" "\x79\x61\x2E\x72\x75"
                      "\x12" "\x05" "\x2F\x6D\x61\x69\x6C"
                      "\x18" "\xA8\x06"));
             writer->AddRow(TNode()
-                ("UrlRow_1", TNode().Add("ya.ru").Add("/maps").Add(300))
+                ("UrlRow_1", TNode()("Host", "ya.ru")("Path", "/maps")("HttpCode", 300))
                 ("UrlRow_2",
                     "\x0A" "\x05" "\x79\x61\x2E\x72\x75"
                     "\x12" "\x05" "\x2F\x6D\x61\x70\x73"
@@ -1636,13 +1636,13 @@ Y_UNIT_TEST_SUITE(Operations)
             writer->AddRow(TNode()
                 ("Ints", TNode().Add(-1).Add(-2))
                 ("UrlRows", TNode()
-                    .Add(TNode().Add("yandex.ru").Add("/mail").Add(200))
-                    .Add(TNode().Add("google.com").Add("/mail").Add(404))));
+                    .Add(TNode()("Host", "yandex.ru")("Path", "/mail")("HttpCode", 200))
+                    .Add(TNode()("Host", "google.com")("Path", "/mail")("HttpCode", 404))));
             writer->AddRow(TNode()
                 ("Ints", TNode().Add(1).Add(2))
                 ("UrlRows", TNode()
-                    .Add(TNode().Add("yandex.ru").Add("/maps").Add(200))
-                    .Add(TNode().Add("google.com").Add("/maps").Add(404))));
+                    .Add(TNode()("Host", "yandex.ru")("Path", "/maps")("HttpCode", 200))
+                    .Add(TNode()("Host", "google.com")("Path", "/maps")("HttpCode", 404))));
             writer->Finish();
         }
 
@@ -1656,13 +1656,13 @@ Y_UNIT_TEST_SUITE(Operations)
 
         TVector<TNode> expectedContent1 = {
             TNode()
-                ("UrlRow_1", TNode().Add("ya.ru.mapped").Add("/mail").Add(404))
+                ("UrlRow_1", TNode()("Host", "ya.ru.mapped")("Path", "/mail")("HttpCode", 404))
                 ("UrlRow_2",
                     "\x0A" "\x0C" "\x79\x61\x2E\x72\x75\x2E\x6D\x61\x70\x70\x65\x64"
                     "\x12" "\x05" "\x2F\x6D\x61\x69\x6C"
                     "\x18" "\xA8\x06"),
             TNode()
-                ("UrlRow_1", TNode().Add("ya.ru.mapped").Add("/maps").Add(300))
+                ("UrlRow_1", TNode()("Host", "ya.ru.mapped")("Path", "/maps")("HttpCode", 300))
                 ("UrlRow_2",
                     "\x0A" "\x0C" "\x79\x61\x2E\x72\x75\x2E\x6D\x61\x70\x70\x65\x64"
                     "\x12" "\x05" "\x2F\x6D\x61\x70\x73"
@@ -1673,13 +1673,13 @@ Y_UNIT_TEST_SUITE(Operations)
             TNode()
                 ("Ints", TNode().Add(-1).Add(-2).Add(40000))
                 ("UrlRows", TNode()
-                    .Add(TNode().Add("yandex.ru").Add("/mail").Add(200))
-                    .Add(TNode().Add("google.com").Add("/mail").Add(404))),
+                    .Add(TNode()("Host", "yandex.ru")("Path", "/mail")("HttpCode", 200))
+                    .Add(TNode()("Host", "google.com")("Path", "/mail")("HttpCode", 404))),
             TNode()
                 ("Ints", TNode().Add(1).Add(2).Add(40000))
                 ("UrlRows", TNode()
-                    .Add(TNode().Add("yandex.ru").Add("/maps").Add(200))
-                    .Add(TNode().Add("google.com").Add("/maps").Add(404))),
+                    .Add(TNode()("Host", "yandex.ru")("Path", "/maps")("HttpCode", 200))
+                    .Add(TNode()("Host", "google.com")("Path", "/maps")("HttpCode", 404)))
         };
 
         auto actualContent1 = ReadTable(client, outputTable1.Path_);
@@ -1739,9 +1739,9 @@ Y_UNIT_TEST_SUITE(Operations)
                 ("UnknownSchematizedColumn", true)
                 ("UnknownUnschematizedColumn", 1234)
                 ("EmbeddedField", TNode()
-                    .Add(0)
-                    .Add("RED")
-                    .Add(TNode()("key", "value")))
+                    ("ColorIntField", 0)
+                    ("ColorStringField", "RED")
+                    ("AnyField", TNode()("key", "value")))
                 ("RepeatedEnumIntField", TNode().Add(0).Add(1).Add(-1)));
             writer->AddRow(TNode()
                 ("ColorIntField", 0)
@@ -1750,9 +1750,9 @@ Y_UNIT_TEST_SUITE(Operations)
                 ("UnknownSchematizedColumn", false)
                 ("UnknownUnschematizedColumn", "some-string")
                 ("EmbeddedField", TNode()
-                    .Add(-1)
-                    .Add("WHITE")
-                    .Add("hooray"))
+                    ("ColorIntField", -1)
+                    ("ColorStringField", "WHITE")
+                    ("AnyField", "hooray"))
                 ("RepeatedEnumIntField", TNode().Add(1)));
             writer->Finish();
         }
@@ -1779,9 +1779,9 @@ Y_UNIT_TEST_SUITE(Operations)
             UNIT_ASSERT_VALUES_EQUAL(
                 row["EmbeddedField"],
                 TNode()
-                    .Add(0)
-                    .Add("RED")
-                    .Add(TNode()("key", "value")));
+                    ("ColorIntField", 0)
+                    ("ColorStringField", "RED")
+                    ("AnyField", TNode()("key", "value")));
             UNIT_ASSERT_VALUES_EQUAL(row["RepeatedEnumIntField"], TNode().Add(0).Add(1).Add(-1).Add(1));
             UNIT_ASSERT_VALUES_EQUAL(row["NewColumn"], "BrandNew");
         }
@@ -1797,9 +1797,9 @@ Y_UNIT_TEST_SUITE(Operations)
             UNIT_ASSERT_VALUES_EQUAL(row["UnknownSchematizedColumn"], false);
             UNIT_ASSERT_VALUES_EQUAL(row["UnknownUnschematizedColumn"], "some-string");
             UNIT_ASSERT_VALUES_EQUAL(row["EmbeddedField"], TNode()
-                .Add(-1)
-                .Add("WHITE")
-                .Add("hooray"));
+                ("ColorIntField", -1)
+                ("ColorStringField", "WHITE")
+                ("AnyField", "hooray"));
             UNIT_ASSERT_VALUES_EQUAL(row["RepeatedEnumIntField"], TNode().Add(1).Add(1));
         }
     }
