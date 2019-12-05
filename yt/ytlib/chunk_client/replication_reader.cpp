@@ -29,7 +29,6 @@
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>
-#include <yt/core/concurrency/fair_share_thread_pool.h>
 
 #include <yt/core/logging/log.h>
 
@@ -542,14 +541,9 @@ protected:
                 options.ReadSessionId,
                 reader->ChunkId_))
     {
+        SessionInvoker_ = GetCompressionInvoker(WorkloadDescriptor_);
         if (WorkloadDescriptor_.CompressionFairShareTag) {
-            SessionInvoker_ = NRpc::TDispatcher::Get()->GetCompressionFairShareThreadPool()
-                ->GetInvoker(*WorkloadDescriptor_.CompressionFairShareTag);
             Logger.AddTag("CompressionFairShareTag: %v", WorkloadDescriptor_.CompressionFairShareTag);
-        } else {
-            SessionInvoker_ = CreateFixedPriorityInvoker(
-                NRpc::TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
-                WorkloadDescriptor_.GetPriority());
         }
 
         ResetPeerQueue();

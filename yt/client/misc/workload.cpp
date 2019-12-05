@@ -2,14 +2,19 @@
 
 #include <yt/client/misc/proto/workload.pb.h>
 
+#include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/fair_share_thread_pool.h>
+
 #include <yt/core/misc/string.h>
 
 #include <yt/core/rpc/service.h>
+#include <yt/core/rpc/dispatcher.h>
 
 #include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
 
+using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYson;
 using namespace NRpc;
@@ -81,6 +86,18 @@ i64 GetBasicPriority(EWorkloadCategory category)
         // Graceful fallback for possible future extensions of categories.
         default:
             return 0;
+    }
+}
+
+IInvokerPtr GetCompressionInvoker(const TWorkloadDescriptor& workloadDescriptor)
+{
+    if (workloadDescriptor.CompressionFairShareTag) {
+        return NRpc::TDispatcher::Get()->GetCompressionFairShareThreadPool()
+            ->GetInvoker(*workloadDescriptor.CompressionFairShareTag);
+    } else {
+        return CreateFixedPriorityInvoker(
+            NRpc::TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
+            workloadDescriptor.GetPriority());
     }
 }
 

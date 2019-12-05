@@ -1562,7 +1562,7 @@ private:
         if (!ChunkMeta_->Misc().sorted()) {
             THROW_ERROR_EXCEPTION("Requested a sorted read for an unsorted chunk");
         }
-        
+
         const auto& chunkSchema = ChunkMeta_->ChunkSchema();
         const auto& columnMeta = ChunkMeta_->ColumnMeta();
 

@@ -37,9 +37,7 @@ TBlockFetcher::TBlockFetcher(
     , CompressionInvoker_(
         codecId == NCompression::ECodec::None
         ? nullptr
-        : CreateFixedPriorityInvoker(
-            NRpc::TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
-            blockReadOptions.WorkloadDescriptor.GetPriority()))
+        : GetCompressionInvoker(blockReadOptions.WorkloadDescriptor))
     , ReaderInvoker_(CreateSerializedInvoker(TDispatcher::Get()->GetReaderInvoker()))
     , CompressionRatio_(compressionRatio)
     , MemoryManager_(std::move(memoryManager))
