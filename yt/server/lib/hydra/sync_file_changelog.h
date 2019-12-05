@@ -11,6 +11,11 @@ namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EFileChangelogFormat,
+    (V4)
+    (V5)
+);
+
 //! A fully synchronous file-based changelog implementation.
 /*!
  *  The instances are fully thread-safe, at the cost of taking mutex on each invocation.
@@ -45,7 +50,7 @@ public:
 
     //! Creates a new changelog.
     //! Throws an exception on failure.
-    void Create(const NProto::TChangelogMeta& meta);
+    void Create(const NProto::TChangelogMeta& meta, EFileChangelogFormat format = EFileChangelogFormat::V5);
 
     //! Returns the number of records in the changelog.
     int GetRecordCount() const;

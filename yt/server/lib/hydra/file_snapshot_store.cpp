@@ -120,59 +120,59 @@ private:
 
             ui64 signature;
             ReadPod(input, signature);
-            File_->Seek(0, sSet);
 
-            if (signature == TSnapshotHeader::ExpectedSignature) {
-                ReadPod(input, Header_);
-
-                if (Header_.SnapshotId != SnapshotId_ && SnapshotId_ != InvalidSegmentId) {
-                    THROW_ERROR_EXCEPTION(
-                        "Invalid snapshot id in header of %v: expected %" PRIx64 ", got %" PRIx64,
-                        FileName_,
-                        SnapshotId_,
-                        Header_.SnapshotId);
-                }
-
-                if (Header_.CompressedLength != File_->GetLength()) {
-                    THROW_ERROR_EXCEPTION(
-                        "Invalid compressed length in header of %v: expected %v, got %v",
-                        FileName_,
-                        File_->GetLength(),
-                        Header_.CompressedLength);
-                }
-
-                auto serializedMeta = TSharedMutableRef::Allocate(Header_.MetaSize, false);
-                ReadPadded(input, serializedMeta);
-                DeserializeProto(&Meta_, serializedMeta);
-
-                if (Raw_) {
-                    YT_VERIFY(Offset_);
-                    File_->Seek(*Offset_, sSet);
-                }
-
-                FileInput_.reset(new TUnbufferedFileInput(*File_));
-
-                if (Raw_) {
-                    FacadeInput_ = FileInput_.get();
-                } else {
-                    auto codec = CheckedEnumCast<ECodec>(Header_.Codec);
-                    switch (codec) {
-                        case ECodec::None:
-                            break;
-                        case ECodec::Snappy:
-                            CodecInput_.reset(new TSnappyDecompress(FileInput_.get()));
-                            break;
-                        case ECodec::Lz4:
-                            CodecInput_.reset(new TLz4Decompress(FileInput_.get()));
-                            break;
-                        default:
-                            YT_ABORT();
-                    }
-                    FacadeInput_ = CodecInput_ ? CodecInput_.get() : FileInput_.get();
-                }
-            } else {
+            if (signature != TSnapshotHeader::ExpectedSignature) {
                 THROW_ERROR_EXCEPTION("Unrecognized snapshot signature %" PRIx64,
                     signature);
+            }
+
+            File_->Seek(0, sSet);
+            ReadPod(input, Header_);
+
+            if (Header_.SnapshotId != SnapshotId_ && SnapshotId_ != InvalidSegmentId) {
+                THROW_ERROR_EXCEPTION(
+                    "Invalid snapshot id in header of %v: expected %v, got %v",
+                    FileName_,
+                    SnapshotId_,
+                    Header_.SnapshotId);
+            }
+
+            if (Header_.CompressedLength != File_->GetLength()) {
+                THROW_ERROR_EXCEPTION(
+                    "Invalid compressed length in header of %v: expected %v, got %v",
+                    FileName_,
+                    File_->GetLength(),
+                    Header_.CompressedLength);
+            }
+
+            auto serializedMeta = TSharedMutableRef::Allocate(Header_.MetaSize, false);
+            ReadPadded(input, serializedMeta);
+            DeserializeProto(&Meta_, serializedMeta);
+
+            if (Raw_) {
+                YT_VERIFY(Offset_);
+                File_->Seek(*Offset_, sSet);
+            }
+
+            FileInput_.reset(new TUnbufferedFileInput(*File_));
+
+            if (Raw_) {
+                FacadeInput_ = FileInput_.get();
+            } else {
+                auto codec = CheckedEnumCast<ECodec>(Header_.Codec);
+                switch (codec) {
+                    case ECodec::None:
+                        break;
+                    case ECodec::Snappy:
+                        CodecInput_.reset(new TSnappyDecompress(FileInput_.get()));
+                        break;
+                    case ECodec::Lz4:
+                        CodecInput_.reset(new TLz4Decompress(FileInput_.get()));
+                        break;
+                    default:
+                        YT_ABORT();
+                }
+                FacadeInput_ = CodecInput_ ? CodecInput_.get() : FileInput_.get();
             }
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error opening snapshot %v for reading",
@@ -320,6 +320,7 @@ private:
                 FacadeOutput_ = FileOutput_.get();
             } else {
                 TSnapshotHeader header;
+                Zero(header);
                 WritePod(*File_, header);
                 WritePadded(*File_, SerializedMeta_);
                 File_->Flush();
@@ -392,6 +393,8 @@ private:
 
         if (!IsRaw_) {
             TSnapshotHeader header;
+            Zero(header);
+            header.Signature = TSnapshotHeader::ExpectedSignature;
             header.SnapshotId = SnapshotId_;
             header.CompressedLength = Params_.CompressedLength;
             header.UncompressedLength = Params_.UncompressedLength;

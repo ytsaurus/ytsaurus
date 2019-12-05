@@ -35,7 +35,8 @@ public:
     //! Should only be used in tests and local mode.
     bool EnableSync;
 
-    i64 PreallocateSize;
+    // TODO(savrus): implement this
+    std::optional<i64> PreallocateSize;
 
     TFileChangelogConfig()
     {
@@ -50,7 +51,7 @@ public:
         RegisterParameter("enable_sync", EnableSync)
             .Default(true);
         RegisterParameter("preallocate_size", PreallocateSize)
-            .Default(-1);
+            .Default();
     }
 };
 
