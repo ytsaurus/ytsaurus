@@ -80,19 +80,14 @@ class TestAdminCli(object):
 
         assert_db(INITIAL_DB_VERSION)
 
-        for current_db_version in range(INITIAL_DB_VERSION, ACTUAL_DB_VERSION):
-            next_db_version = current_db_version + 1
-
-            output = cli.check_output([
-                "migrate-db",
-                "--yt-proxy", get_yt_proxy_address(yp_env_configurable),
-                "--yp-path", yp_path,
-                "--version", str(next_db_version),
-                "--no-backup"
-            ])
-            assert output == ""
-
-            assert_db(next_db_version)
+        output = cli.check_output([
+            "migrate-db",
+            "--yt-proxy", get_yt_proxy_address(yp_env_configurable),
+            "--yp-path", yp_path,
+            "--version", str(ACTUAL_DB_VERSION),
+            "--no-backup"
+        ])
+        assert output == ""
 
     def test_diff_db(self, yp_env_configurable):
         cli = YpAdminCli()
