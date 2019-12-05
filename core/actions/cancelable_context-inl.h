@@ -13,7 +13,7 @@ namespace NYT {
 template <class T>
 void TCancelableContext::PropagateTo(TFuture<T> future)
 {
-    PropagateTo(future.template As<void>());
+    PropagateTo(future.AsAwaitable());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
