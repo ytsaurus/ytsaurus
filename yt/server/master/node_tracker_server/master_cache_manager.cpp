@@ -58,8 +58,10 @@ void TMasterCacheManager::OnLeaderActive()
 
 void TMasterCacheManager::OnStopLeading()
 {
-    PeriodicExecutor_->Stop();
-    PeriodicExecutor_.Reset();
+    if (PeriodicExecutor_) {
+        PeriodicExecutor_->Stop();
+        PeriodicExecutor_.Reset();
+    }
 }
 
 bool TMasterCacheManager::IsGoodNode(const TNode* node) const
