@@ -154,7 +154,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
                 "low_cpu_usage_alert_cpu_usage_threshold": 0.5,
                 "operation_too_long_alert_min_wall_time": 0,
                 "operation_too_long_alert_estimate_duration_threshold": 5000,
-                "queue_average_wait_time_threshold": 1000
+                "queue_average_wait_time_threshold": 5000
             },
             "map_reduce_operation_options": {
                 "min_uncompressed_block_size": 1
@@ -383,19 +383,20 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         wait(check)
 
     @authors("eshcherbin")
-    def DISABLED_test_high_queue_average_wait_time(self):
+    def test_high_queue_average_wait_time(self):
         op = run_test_vanilla(
             command="echo 'pass' >/dev/null",
             spec={
                 "testing": {
-                    "get_job_spec_delay": 5000,
+                    "get_job_spec_delay": 1500,
                 }
             },
-            job_count=6,
-            dont_track=False
+            job_count=1000,
         )
 
         wait(lambda: "high_queue_average_wait_time" in op.get_alerts())
+
+        op.abort()
 
     def wait_for_running_jobs(self, operation):
         wait(lambda: operation.get_job_count("running") >= 1)

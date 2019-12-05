@@ -133,8 +133,7 @@ public:
         for (int index = 0; index < invokerCount; ++index) {
             Invokers_.push_back(New<TInvoker>(UnderlyingInvoker_, index, MakeWeak(this)));
         }
-        TotalActionCounts_.resize(invokerCount);
-        TotalWaitRecords_.resize(invokerCount);
+        InvokerQueueStates_.resize(invokerCount);
     }
 
     virtual int GetSize() const override
@@ -144,8 +143,19 @@ public:
 
     void Enqueue(TClosure callback, int index)
     {
-        Queue_->Enqueue(std::move(callback), index);
         auto now = GetCpuInstant();
+        {
+            TWriterGuard guard(InvokerQueueStatesLock_);
+
+            auto& queueState = InvokerQueueStates_[index];
+            ++queueState.EnqueuedActionCount;
+            // NB(eshcherbin): scaling is needed to avoid overflow problems in case too many actions are enqueued.
+            // According to my humble calculations, without it the capacity would be only a few hundred actions per bucket,
+            // which is not reliable enough.
+            queueState.ScaledSumOfEnqueuedAtInstants += now / CpuInstantScalingFactor;
+        }
+
+        Queue_->Enqueue(std::move(callback), index);
         UnderlyingInvoker_->Invoke(BIND(
             &TFairShareInvokerPool::Run,
             MakeStrong(this),
@@ -160,22 +170,20 @@ protected:
     }
 
 private:
+    static constexpr int CpuInstantScalingFactor = 1000;
+
     const IInvokerPtr UnderlyingInvoker_;
 
     std::vector<IInvokerPtr> Invokers_;
 
-    struct TWaitRecord
+    struct TInvokerQueueState
     {
-        TCpuInstant RecordTime;
-        TCpuDuration Duration;
+        int EnqueuedActionCount;
+        TCpuInstant ScaledSumOfEnqueuedAtInstants;
     };
 
-    const int MaxWaitRecordsPerBucket = 3;
-    const TCpuDuration MaxWaitRecordsStorageDuration = DurationToCpuDuration(TDuration::Minutes(2));
-
-    NConcurrency::TReaderWriterSpinLock AverageWaitTimeLock_;
-    std::vector<i64> TotalActionCounts_;
-    std::vector<std::deque<TWaitRecord>> TotalWaitRecords_;
+    NConcurrency::TReaderWriterSpinLock InvokerQueueStatesLock_;
+    std::vector<TInvokerQueueState> InvokerQueueStates_;
 
     IFairShareCallbackQueuePtr Queue_;
 
@@ -233,20 +241,15 @@ private:
         virtual TDuration GetAverageWaitTime() const override
         {
             if (auto strongParent = Parent_.Lock()) {
-                TReaderGuard guard(strongParent->AverageWaitTimeLock_);
+                TReaderGuard guard(strongParent->InvokerQueueStatesLock_);
 
                 auto now = GetCpuInstant();
-                auto totalWaitTime = TCpuDuration();
-                int count = 0;
-                for (auto record : strongParent->TotalWaitRecords_[Index_]) {
-                    if (record.RecordTime + strongParent->MaxWaitRecordsStorageDuration >= now) {
-                        ++count;
-                        totalWaitTime += record.Duration;
-                    }
-                }
-                return count == 0
+                auto& queueState = strongParent->InvokerQueueStates_[Index_];
+                auto enqueuedActionCount = queueState.EnqueuedActionCount;
+                auto sumOfEnqueuedAtInstants = queueState.ScaledSumOfEnqueuedAtInstants * CpuInstantScalingFactor;
+                return enqueuedActionCount == 0
                     ? TDuration::Zero()
-                    : CpuDurationToDuration(totalWaitTime / count);
+                    : CpuDurationToDuration(now - sumOfEnqueuedAtInstants / enqueuedActionCount);
             }
 
             return TDuration::Zero();
@@ -272,19 +275,11 @@ private:
         TCurrentInvokerGuard currentInvokerGuard(Invokers_[bucketIndex]);
 
         {
-            TWriterGuard guard(AverageWaitTimeLock_);
+            TWriterGuard guard(InvokerQueueStatesLock_);
 
-            auto now = GetCpuInstant();
-            ++TotalActionCounts_[bucketIndex];
-
-            auto& records = TotalWaitRecords_[bucketIndex];
-            records.push_back(TWaitRecord{
-                .RecordTime = now,
-                .Duration = now - enqueuedAt
-            });
-            if (records.size() > MaxWaitRecordsPerBucket) {
-                records.pop_front();
-            }
+            auto& queueState = InvokerQueueStates_[bucketIndex];
+            --queueState.EnqueuedActionCount;
+            queueState.ScaledSumOfEnqueuedAtInstants -= enqueuedAt / CpuInstantScalingFactor;
         }
 
         {
