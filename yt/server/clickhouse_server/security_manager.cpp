@@ -78,8 +78,12 @@ private:
             : Bootstrap_(bootstrap)
             , CliqueId_(std::move(cliqueId))
         {
-            YT_LOG_INFO("Updating ACL for the first time");
-            DoUpdateCurrentAcl();
+            if (Bootstrap_->GetConfig()->ValidateOperationAccess) {
+                YT_LOG_INFO("Updating ACL for the first time");
+                DoUpdateCurrentAcl();
+            } else {
+                YT_LOG_INFO("Operation access validation is disabled");
+            }
         }
 
         void loadFromConfig(const Poco::Util::AbstractConfiguration& config)
