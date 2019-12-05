@@ -25,6 +25,8 @@
 
 #include <yt/core/logging/log.h>
 
+#include <yt/core/re2/re2.h>
+
 #include <Common/FieldVisitors.h>
 #include <Interpreters/ExpressionActions.h>
 #include <Interpreters/ProcessList.h>
@@ -46,6 +48,7 @@ using namespace NChunkClient;
 using namespace NApi;
 using namespace NConcurrency;
 using namespace NYson;
+using namespace NRe2;
 
 using NYT::ToProto;
 
@@ -193,21 +196,10 @@ TTableSchema ConvertToTableSchema(const ColumnsDescription& columns, const TKeyC
 
 TString MaybeTruncateSubquery(TString query)
 {
-    // TODO(max42): rewrite properly.
-    auto begin = query.find("ytSubquery");
-    if (begin == TString::npos) {
-        return query;
-    }
-    begin += 10;
-    if (begin >= query.size() || query[begin] != '(') {
-        return query;
-    }
-    ++begin;
-    auto end = query.find(")", begin);
-    if (end == TString::npos) {
-        return query;
-    }
-    return query.substr(0, begin) + "..." + query.substr(end, query.size() - end);
+    static const auto ytSubqueryRegex = New<TRe2>("ytSubquery\\([^()]*\\)");
+    static constexpr const char* replacement = "ytSubquery(...)";
+    RE2::GlobalReplace(&query, *ytSubqueryRegex, replacement);
+    return query;
 }
 
 TTableSchema AdaptSchemaToClickHouse(const TTableSchema& schema)
@@ -289,7 +281,7 @@ namespace DB {
 
 TString ToString(const IAST& ast)
 {
-    return TString(DB::serializeAST(ast, true));
+    return NYT::NClickHouseServer::MaybeTruncateSubquery(TString(DB::serializeAST(ast, true)));
 }
 
 TString ToString(const NameSet& nameSet)

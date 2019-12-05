@@ -72,6 +72,11 @@ NTableClient::TTableSchema GetCommonSchema(const std::vector<NTableClient::TTabl
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Truncate ytSubquery(<long base64-encoded stuff>) to make it human-readable.
+TString MaybeTruncateSubquery(TString query);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NClickHouseServer
 
 namespace DB {
