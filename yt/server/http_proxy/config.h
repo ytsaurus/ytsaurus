@@ -28,6 +28,7 @@ public:
     bool Announce;
 
     std::optional<TString> PublicFqdn;
+    std::optional<TString> DefaultRoleFilter;
 
     TDuration HeartbeatInterval;
     TDuration DeathAge;
@@ -48,6 +49,8 @@ public:
 
         RegisterParameter("public_fqdn", PublicFqdn)
             .Default();
+        RegisterParameter("default_role_filter", DefaultRoleFilter)
+            .Default("data");
 
         RegisterParameter("heartbeat_interval", HeartbeatInterval)
             .Default(TDuration::Seconds(5));
