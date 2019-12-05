@@ -27,7 +27,7 @@ def main():
         "ch_version": ch_version,
         "ch_commit": ch_commit,
         "ch_version_url": yson.to_yson_type("https://github.com/yandex/clickhouse/tree/" + ch_commit, attributes={"_type_tag": "url"}),
-        "yt_version_url": yson.to_yson_type("https://github.yandex-team.ru/yt/yt/tree/" + yt_commit, attributes={"_type_tag": "url"}),
+        "yt_version_url": yson.to_yson_type("https://github.yandex-team.ru/yt/yt/tree/" + yt_commit + "/yt/server/clickhouse_server", attributes={"_type_tag": "url"}),
     }, ignore_existing=True)
     yt.write_file(cypress_path, open(args.src), filename_hint=filename, size_hint=os.stat(args.src).st_size)
 
