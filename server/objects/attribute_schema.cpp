@@ -659,7 +659,7 @@ void TAttributeSchema::GetHistoryEnabledAttributesImpl(
     TObject* object,
     bool hasParentHistoryEnabledAttribute) const
 {
-    hasParentHistoryEnabledAttribute |= (HasHistoryFilter() && RunHistoryFilter(object));
+    hasParentHistoryEnabledAttribute |= HasHistoryFilter();
 
     if (IsComposite()) {
         if (EtcChild_) {

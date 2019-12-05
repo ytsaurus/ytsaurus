@@ -2376,7 +2376,6 @@ private:
         {
             TYsonString historyEnabledAttributes;
             if (eventType == EEventType::ObjectRemoved) {
-                // TODO (gritukan@): simpler?
                 historyEnabledAttributes = TYsonString("{}");
             } else {
                 historyEnabledAttributes = object->GetHistoryEnabledAttributes();
