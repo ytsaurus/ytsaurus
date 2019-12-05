@@ -64,6 +64,8 @@ public:
 
     // Task manager.
     TDuration TaskTimeLimit;
+    int ConcurrentTaskLimit;
+    bool LimitEvictionsByPodSet;
 
     // Cluster safety.
     int SafeClusterPodEvictionCount;

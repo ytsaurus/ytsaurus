@@ -19,6 +19,7 @@ from yt.packages.six.moves import xrange
 
 import json
 import pytest
+import time
 
 
 @pytest.mark.usefixtures("yp_env_configurable")
@@ -177,3 +178,100 @@ class TestHeavyScheduler(object):
 
         run_eviction_acknowledger(yp_client, iteration_count=wait_time, sleep_time=1.0)
         wait(lambda: are_pods_assigned(yp_client, first_segment_pod_ids))
+
+
+class TestConcurrentHeavySchedulerBase(object):
+    START_YP_HEAVY_SCHEDULER = True
+
+    def _prepare(self, yp_client, pod_set_ids):
+        node_ids = create_nodes(
+            yp_client,
+            node_count=6,
+            cpu_total_capacity=10000,
+            memory_total_capacity=2 ** 60,
+            labels=dict(segment="default"),
+        )
+
+        bloat_pod_ids = []
+        for node_id, pod_set_id in zip(node_ids, pod_set_ids):
+            bloat_pod_ids.append(create_pod_with_boilerplate(
+                yp_client,
+                pod_set_id,
+                spec=dict(
+                    node_id=node_id,
+                    resource_requests=dict(
+                        vcpu_guarantee=5000,
+                        memory_limit=2 ** 30,
+                    ),
+                ),
+            ))
+            # NB: can not create pod with /spec/node_id and /spec/enable_scheduling both set.
+            yp_client.update_object("pod", bloat_pod_ids[-1],
+                                    set_updates=[dict(path="/spec/enable_scheduling", value=True)])
+
+        for pod_set_id in pod_set_ids[len(bloat_pod_ids):]:
+            create_pod_with_boilerplate(
+                yp_client,
+                pod_set_id,
+                spec=dict(
+                    enable_scheduling=True,
+                    resource_requests=dict(
+                        vcpu_guarantee=10000,
+                        memory_limit=2 ** 30,
+                    ),
+                ),
+            )
+
+        return bloat_pod_ids
+
+    def _check(self, yp_client, bloat_pod_ids, expected_eviction_count):
+        get_evictions_count = lambda: sum(
+            yp_client.get_object("pod", pod_id, selectors=["/status/eviction/state"])[0] == "requested"
+            for pod_id in bloat_pod_ids)
+
+        wait(lambda: get_evictions_count() == expected_eviction_count)
+        time.sleep(5)
+        assert get_evictions_count() == expected_eviction_count
+
+
+@pytest.mark.usefixtures("yp_env_configurable")
+class TestConcurrentHeavyScheduler(TestConcurrentHeavySchedulerBase):
+    YP_HEAVY_SCHEDULER_CONFIG = dict(
+        heavy_scheduler = dict(
+            node_segment = "default",
+            safe_suitable_node_count = 1,
+            validate_pod_disruption_budget = False,
+            concurrent_task_limit = 2,
+        ),
+    )
+
+    def test_concurrent_tasks(self, yp_env_configurable):
+        yp_client = yp_env_configurable.yp_client
+        pod_set_ids = [create_pod_set(yp_client) for _ in range(9)]
+        bloat_pod_ids = self._prepare(yp_client, pod_set_ids)
+        self._check(yp_client, bloat_pod_ids, expected_eviction_count=2)
+
+    def test_concurrent_tasks_disruption(self, yp_env_configurable):
+        yp_client = yp_env_configurable.yp_client
+        pod_set_ids = [create_pod_set(yp_client)] * 9
+        bloat_pod_ids = self._prepare(yp_client, pod_set_ids)
+        self._check(yp_client, bloat_pod_ids, expected_eviction_count=1)
+
+
+@pytest.mark.usefixtures("yp_env_configurable")
+class TestConcurrentHeavySchedulerLimitEvictions(TestConcurrentHeavySchedulerBase):
+    YP_HEAVY_SCHEDULER_CONFIG = dict(
+        heavy_scheduler = dict(
+            node_segment = "default",
+            safe_suitable_node_count = 1,
+            validate_pod_disruption_budget = False,
+            concurrent_task_limit = 2,
+            limit_evictions_by_pod_set = False,
+        ),
+    )
+
+    def test_concurrent_tasks_evictions_limit(self, yp_env_configurable):
+        yp_client = yp_env_configurable.yp_client
+        pod_set_ids = [create_pod_set(yp_client)] * 9
+        bloat_pod_ids = self._prepare(yp_client, pod_set_ids)
+        self._check(yp_client, bloat_pod_ids, expected_eviction_count=2)

@@ -48,6 +48,11 @@ THeavySchedulerConfig::THeavySchedulerConfig()
 
     RegisterParameter("task_time_limit", TaskTimeLimit)
         .Default(TDuration::Minutes(30));
+    RegisterParameter("concurrent_task_limit", ConcurrentTaskLimit)
+        .GreaterThanOrEqual(1)
+        .Default(1);
+    RegisterParameter("limit_evictions_by_pod_set", LimitEvictionsByPodSet)
+        .Default(true);
 
     RegisterParameter("safe_cluster_pod_eviction_count", SafeClusterPodEvictionCount)
         .GreaterThanOrEqual(0)
