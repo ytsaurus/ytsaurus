@@ -138,7 +138,6 @@ private:
                 if (!presentValueMask[columnIndex]) {
                     YT_VERIFY(!ReadSchema_.Columns()[columnIndex].Required());
                     block.getByPosition(columnIndex).column->assumeMutable()->insertDefault();
-                    break;
                 }
             }
         }
