@@ -10,7 +10,7 @@ import ru.yandex.yt.ytclient.bus.DefaultBusConnector
 import ru.yandex.yt.ytclient.proxy.YtClient
 import ru.yandex.yt.ytclient.rpc.RpcOptions
 
-object YtUtils {
+object YtClientUtils {
   private val log = Logger.getLogger(getClass)
 
   def createRpcClient(config: YtClientConfiguration): YtRpcClient = {

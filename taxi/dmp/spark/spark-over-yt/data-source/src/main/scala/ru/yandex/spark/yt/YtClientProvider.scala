@@ -5,7 +5,7 @@ import org.apache.spark.SparkConf
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.sql.SparkSession
 import ru.yandex.inside.yt.kosher.Yt
-import ru.yandex.spark.yt.utils.{YtClientConfiguration, YtRpcClient, YtUtils}
+import ru.yandex.spark.yt.utils.{YtClientConfiguration, YtRpcClient, YtClientUtils}
 import ru.yandex.yt.ytclient.proxy.YtClient
 
 
@@ -19,7 +19,7 @@ object YtClientProvider {
 
   def ytClient(conf: YtClientConfiguration): YtClient = cachedYtClient.getOrElse {
     _conf.set(conf)
-    val client = YtUtils.createRpcClient(conf)
+    val client = YtClientUtils.createRpcClient(conf)
     _client.set(Some(client))
     _client.get.get.yt
   }
@@ -29,7 +29,7 @@ object YtClientProvider {
     .getOrElse(throw new IllegalStateException("YtClient is not initialized"))
 
   def httpClient: Yt = {
-    YtUtils.createHttpClient(_conf.get())
+    YtClientUtils.createHttpClient(_conf.get())
   }
 
   def close(): Unit = {

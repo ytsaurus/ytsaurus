@@ -3,7 +3,7 @@ package org.apache.spark.deploy.master
 import org.apache.log4j.Logger
 import org.apache.spark.serializer.{DeserializationStream, SerializationStream, Serializer}
 import org.apache.spark.util.Utils
-import ru.yandex.spark.yt.YtTableUtils
+import ru.yandex.spark.yt.utils.YtTableUtils
 import ru.yandex.yt.ytclient.proxy.YtClient
 
 import scala.reflect.ClassTag

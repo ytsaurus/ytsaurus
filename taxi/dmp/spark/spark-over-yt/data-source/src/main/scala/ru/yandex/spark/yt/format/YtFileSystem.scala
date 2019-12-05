@@ -7,7 +7,8 @@ import org.apache.hadoop.fs._
 import org.apache.hadoop.fs.permission.FsPermission
 import org.apache.hadoop.util.Progressable
 import org.apache.log4j.Logger
-import ru.yandex.spark.yt.{YtClientConfigurationConverter, YtClientProvider, YtTableUtils}
+import ru.yandex.spark.yt.utils.{PathType, YtTableUtils}
+import ru.yandex.spark.yt.{YtClientConfigurationConverter, YtClientProvider}
 import ru.yandex.yt.ytclient.proxy.YtClient
 
 class YtFileSystem extends FileSystem {

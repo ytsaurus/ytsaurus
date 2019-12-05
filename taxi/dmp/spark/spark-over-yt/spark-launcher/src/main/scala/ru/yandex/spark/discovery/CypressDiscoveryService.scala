@@ -5,7 +5,7 @@ import org.apache.log4j.Logger
 import org.joda.time.{Duration => JDuration}
 import ru.yandex.inside.yt.kosher.common.GUID
 import ru.yandex.inside.yt.kosher.impl.rpc.TransactionManager
-import ru.yandex.spark.yt.utils.{YtClientConfiguration, YtUtils}
+import ru.yandex.spark.yt.utils.{YtClientConfiguration, YtClientUtils}
 import ru.yandex.yt.ytclient.proxy.request.{CreateNode, ObjectType, RemoveNode, TransactionalOptions}
 
 import scala.annotation.tailrec
@@ -16,7 +16,7 @@ import scala.util.Try
 class CypressDiscoveryService(config: YtClientConfiguration,
                               discoveryPath: String) extends DiscoveryService {
   private val log = Logger.getLogger(getClass)
-  private val client = YtUtils.createRpcClient(config)
+  private val client = YtClientUtils.createRpcClient(config)
   private val yt = client.yt
 
   private def addressPath(id: String): String = s"$discoveryPath/$id/address"

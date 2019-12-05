@@ -6,8 +6,9 @@ import org.apache.hadoop.mapreduce.{JobContext, TaskAttemptContext}
 import org.apache.log4j.Logger
 import org.apache.spark.internal.io.FileCommitProtocol
 import ru.yandex.inside.yt.kosher.Yt
-import ru.yandex.spark.yt.conf.YtTableSettings
-import ru.yandex.spark.yt.{YtClientProvider, _}
+import ru.yandex.spark.yt._
+import ru.yandex.spark.yt.conf.YtTableSparkSettings
+import ru.yandex.spark.yt.utils._
 import ru.yandex.yt.ytclient.proxy.YtClient
 
 class YtOutputCommitter(jobId: String,
@@ -22,7 +23,7 @@ class YtOutputCommitter(jobId: String,
   override def setupJob(jobContext: JobContext): Unit = {
     val conf = jobContext.getConfiguration
     val transaction = createTransaction(conf, GlobalTransaction, None)
-    if (YtTableSettings.isTableSorted(conf)) {
+    if (YtTableSparkSettings.isTableSorted(conf)) {
       YtTableUtils.createDir(tmpPath, Some(transaction))
     }
     setupTable(path, conf, transaction)
@@ -30,7 +31,7 @@ class YtOutputCommitter(jobId: String,
 
   private def setupTable(path: String, conf: Configuration, transaction: String): Unit = {
     if (!YtTableUtils.exists(path)) {
-      val options = YtTableSettings.deserialize(conf)
+      val options = YtTableSparkSettings.deserialize(conf)
       YtTableUtils.createTable(path, options, transaction)
       GlobalTableSettings.setTransaction(path, transaction)
     }
@@ -40,7 +41,7 @@ class YtOutputCommitter(jobId: String,
     val conf = taskContext.getConfiguration
     val globalTransaction = YtOutputCommitter.getGlobalWriteTransaction(conf)
     val transaction = createTransaction(conf, Transaction, Some(globalTransaction))
-    if (YtTableSettings.isTableSorted(conf)) {
+    if (YtTableSparkSettings.isTableSorted(conf)) {
       setupTable(newTaskTempFile(taskContext, None, ""), conf, transaction)
     }
   }
@@ -57,7 +58,7 @@ class YtOutputCommitter(jobId: String,
   override def commitJob(jobContext: JobContext, taskCommits: Seq[FileCommitProtocol.TaskCommitMessage]): Unit = {
     val conf = jobContext.getConfiguration
     val globalTransaction = YtOutputCommitter.getGlobalWriteTransaction(conf)
-    if (YtTableSettings.isTableSorted(conf)) {
+    if (YtTableSparkSettings.isTableSorted(conf)) {
       YtTableUtils.mergeTables(tmpPath, path, sorted = true, Some(globalTransaction))
       YtTableUtils.removeDir(tmpPath, recursive = true, Some(globalTransaction))
     }
@@ -71,7 +72,7 @@ class YtOutputCommitter(jobId: String,
   }
 
   override def newTaskTempFile(taskContext: TaskAttemptContext, dir: Option[String], ext: String): String = {
-    if (YtTableSettings.isTableSorted(taskContext.getConfiguration)) {
+    if (YtTableSparkSettings.isTableSorted(taskContext.getConfiguration)) {
       s"${path}_tmp/part-${taskContext.getTaskAttemptID.getTaskID.getId}"
     } else path
   }

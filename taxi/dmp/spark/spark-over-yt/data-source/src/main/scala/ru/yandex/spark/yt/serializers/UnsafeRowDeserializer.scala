@@ -8,7 +8,7 @@ import org.apache.spark.sql.types._
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YsonDecoderUnsafe
 import ru.yandex.yt.ytclient.`object`.{WireRowDeserializer, WireValueDeserializer}
 import ru.yandex.yt.ytclient.tables.ColumnValueType
-import ru.yandex.spark.yt._
+import ru.yandex.spark.yt.utils._
 
 import scala.collection.mutable
 

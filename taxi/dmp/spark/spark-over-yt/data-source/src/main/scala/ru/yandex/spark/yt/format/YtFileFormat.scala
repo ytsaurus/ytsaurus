@@ -13,9 +13,10 @@ import org.apache.spark.sql.execution.vectorized.OnHeapColumnVector
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.sources.{DataSourceRegister, Filter}
 import org.apache.spark.sql.types.{StringType, StructType}
-import ru.yandex.spark.yt.conf.{SparkYtWriteConfiguration, YtTableSettings}
+import ru.yandex.spark.yt.conf.{SparkYtWriteConfiguration, YtTableSparkSettings}
 import ru.yandex.spark.yt.serializers.{InternalRowDeserializer, SchemaConverter}
-import ru.yandex.spark.yt.{YtClientConfigurationConverter, YtClientProvider, YtTableUtils}
+import ru.yandex.spark.yt.utils.YtTableUtils
+import ru.yandex.spark.yt.{YtClientConfigurationConverter, YtClientProvider}
 import ru.yandex.yt.ytclient.proxy.YtClient
 
 import scala.util.{Failure, Success, Try}
@@ -81,7 +82,7 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
                             dataSchema: StructType): OutputWriterFactory = {
     val ytClientConfiguration = YtClientConfigurationConverter(sparkSession)
     val writeConfiguration = SparkYtWriteConfiguration(sparkSession.sqlContext)
-    YtTableSettings.serialize(options, dataSchema, job.getConfiguration)
+    YtTableSparkSettings.serialize(options, dataSchema, job.getConfiguration)
 
     new OutputWriterFactory {
       override def getFileExtension(context: TaskAttemptContext): String = ""

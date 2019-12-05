@@ -4,8 +4,8 @@ import org.apache.hadoop.mapreduce.{InputSplit, RecordReader, TaskAttemptContext
 import org.apache.spark.sql.execution.vectorized.{OnHeapColumnVector, WritableColumnVector}
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.vectorized.{ColumnVector, ColumnarBatch}
-import ru.yandex.spark.yt.YtTableUtils
 import ru.yandex.spark.yt.serializers.ArrayAnyDeserializer
+import ru.yandex.spark.yt.utils.YtTableUtils
 import ru.yandex.yt.ytclient.proxy.YtClient
 
 class YtVectorizedReader(capacity: Int)(implicit yt: YtClient) extends RecordReader[Void, Object] {

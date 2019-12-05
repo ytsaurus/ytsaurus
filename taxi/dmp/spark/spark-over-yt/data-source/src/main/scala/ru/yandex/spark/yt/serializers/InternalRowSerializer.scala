@@ -9,7 +9,7 @@ import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types._
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YsonEncoder
-import ru.yandex.spark.yt._
+import ru.yandex.spark.yt.utils._
 import ru.yandex.yt.ytclient.`object`.{WireProtocolWriteable, WireRowSerializer}
 import ru.yandex.yt.ytclient.proxy.TableWriter
 import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}

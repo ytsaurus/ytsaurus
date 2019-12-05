@@ -2,28 +2,35 @@ package ru.yandex.spark.yt.conf
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.sql.types.StructType
+import ru.yandex.inside.yt.kosher.ytree.YTreeNode
+import ru.yandex.spark.yt.serializers.SchemaConverter
+import ru.yandex.spark.yt.utils.YtTableSettings
 
-case class YtTableSettings(configuration: Configuration) {
+case class YtTableSparkSettings(configuration: Configuration) extends YtTableSettings {
 
-  import YtTableSettings._
+  import YtTableSparkSettings._
 
-  def all: Map[String, String] = {
+  private def sortColumns: Seq[String] = configuration.ytConf(SortColumns)
+
+  private def schema: StructType = configuration.ytConf(Schema)
+
+  override def ytSchema: YTreeNode = SchemaConverter.ytSchema(schema, sortColumns)
+
+  override def options: Map[String, String] = {
     val optionsKeys = configuration.ytConf(Options)
     optionsKeys.collect { case key if Options.available.contains(key) =>
       key.drop(prefix.length + 1) -> configuration.getYtConf(key).get
     }.toMap
   }
-
-  def sortColumns: Seq[String] = configuration.ytConf(SortColumns)
-
-  def schema: StructType = configuration.ytConf(Schema)
 }
 
-object YtTableSettings {
+object YtTableSparkSettings {
   private val prefix = "table_settings"
 
   case object SortColumns extends StringListConfigEntry(s"$prefix.sort_columns", Some(Nil))
+
   case object Schema extends StructTypeConfigEntry(s"$prefix.schema")
+
   case object OptimizeFor extends StringConfigEntry(s"$prefix.optimize_for")
 
   case object Options extends StringListConfigEntry(s"$prefix.options") {
@@ -34,8 +41,8 @@ object YtTableSettings {
     configuration.getYtConf(SortColumns).exists(_.nonEmpty)
   }
 
-  def deserialize(configuration: Configuration): YtTableSettings = {
-    YtTableSettings(configuration)
+  def deserialize(configuration: Configuration): YtTableSparkSettings = {
+    YtTableSparkSettings(configuration)
   }
 
   def serialize(options: Map[String, String], schema: StructType, configuration: Configuration): Unit = {
