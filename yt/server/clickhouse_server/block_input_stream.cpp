@@ -92,16 +92,26 @@ private:
             }
         }
 
+        // NB(max42): CHYT-256.
+        // If chunk schema contains not all of the requested columns (which may happen
+        // when a non-required column was introduced after chunk creation), we are not
+        // going to receive some of the unversioned values with nulls. We still need
+        // to provide them to CH, though, so we keep track of present columns for each
+        // row we get and add nulls for all unpresent columns.
+        std::vector<bool> presentValueMask;
+
         for (const auto& row : rows) {
+            presentValueMask.assign(ReadSchema_.GetColumnCount(), false);
             for (int index = 0; index < static_cast<int>(row.GetCount()); ++index) {
                 auto value = row[index];
                 auto id = value.Id;
                 int columnIndex = (id < IdToColumnIndex_.size()) ? IdToColumnIndex_[id] : -1;
                 YT_VERIFY(columnIndex != -1);
+                presentValueMask[columnIndex] = true;
                 switch (value.Type) {
                     case EValueType::Null:
                         // TODO(max42): consider transforming to Y_ASSERT.
-                        Y_VERIFY(!ReadSchema_.Columns()[columnIndex].Required());
+                        YT_VERIFY(!ReadSchema_.Columns()[columnIndex].Required());
                         block.getByPosition(columnIndex).column->assumeMutable()->insertDefault();
                         break;
 
@@ -122,6 +132,13 @@ private:
                     }
                     default:
                         Y_UNREACHABLE();
+                }
+            }
+            for (int columnIndex = 0; columnIndex < ReadSchema_.GetColumnCount(); ++columnIndex) {
+                if (!presentValueMask[columnIndex]) {
+                    YT_VERIFY(!ReadSchema_.Columns()[columnIndex].Required());
+                    block.getByPosition(columnIndex).column->assumeMutable()->insertDefault();
+                    break;
                 }
             }
         }

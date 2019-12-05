@@ -816,6 +816,20 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
             assert clique.make_query("select YSONExtractString('{Invalid_YSON') as a") == [{"a": ""}]
 
+    @authors("max42")
+    def test_old_chunk_schema(self):
+        # CHYT-256.
+        create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        create("table", "//tmp/t2", attributes={"schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "int64"}]})
+        write_table("//tmp/t1", [{"a": 1}])
+        merge(in_=["//tmp/t1"],
+              out="//tmp/t2",
+              mode="ordered")
+
+        with Clique(1) as clique:
+            assert clique.make_query("select b from \"//tmp/t2\"") == [{"b": None}]
+
+
 class TestJobInput(ClickHouseTestBase):
     def setup(self):
         self._setup()
