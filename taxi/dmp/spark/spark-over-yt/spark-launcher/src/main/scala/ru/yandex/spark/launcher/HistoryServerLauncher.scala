@@ -9,7 +9,7 @@ object HistoryServerLauncher extends App with SparkLauncher {
 
   val launcherArgs = HistoryServerLauncherArgs(args)
 
-  run(launcherArgs.ytConfig, launcherArgs.discoveryPath){discoveryService =>
+  run(launcherArgs.ytConfig, launcherArgs.discoveryPath) { discoveryService =>
     val address = startHistoryServer(launcherArgs.port, launcherArgs.logPath, launcherArgs.opts)
     discoveryService.registerSHS(launcherArgs.id, address)
     checkPeriodically(sparkThreadIsAlive)

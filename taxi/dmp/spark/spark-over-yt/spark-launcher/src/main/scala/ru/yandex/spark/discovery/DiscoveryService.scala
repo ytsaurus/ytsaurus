@@ -22,6 +22,8 @@ trait DiscoveryService extends AutoCloseable {
   def waitAlive(hostPort: HostAndPort, timeout: Duration): Boolean
 
   def removeAddress(id: String): Unit
+
+  def removeId(id: String): Unit
 }
 
 object DiscoveryService {
