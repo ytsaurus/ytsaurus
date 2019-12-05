@@ -29,12 +29,18 @@ using namespace NHydra::NProto;
 
 class TSyncFileChangelogTest
     : public ::testing::Test
+    , public ::testing::WithParamInterface<EFileChangelogFormat>
 {
 protected:
     std::unique_ptr<TTempFile> TemporaryFile;
     std::unique_ptr<TTempFile> TemporaryIndexFile;
     TFileChangelogConfigPtr DefaultFileChangelogConfig;
     NChunkClient::IIOEnginePtr IOEngine;
+
+    EFileChangelogFormat GetFormatParam() const
+    {
+        return GetParam();
+    }
 
     virtual void SetUp()
     {
@@ -61,8 +67,7 @@ protected:
         }
 
         auto changelog = New<TSyncFileChangelog>(IOEngine, TemporaryFile->Name(), fileChangelogConfig);
-
-        changelog->Create(TChangelogMeta());
+        changelog->Create(TChangelogMeta(), GetFormatParam());
         auto records = MakeRecords<TRecordType>(0, recordCount);
         changelog->Append(0, records);
         changelog->Flush();
@@ -70,10 +75,10 @@ protected:
     }
 
     template <class TRecordType>
-    std::vector<TSharedRef> MakeRecords(i32 from, i32 to) const
+    std::vector<TSharedRef> MakeRecords(int from, int to) const
     {
         std::vector<TSharedRef> records(to - from);
-        for (i32 recordId = from; recordId < to; ++recordId) {
+        for (int recordId = from; recordId < to; ++recordId) {
             TBlob blob(TDefaultBlobTag(), sizeof(TRecordType));
             *reinterpret_cast<TRecordType*>(blob.Begin()) = static_cast<TRecordType>(recordId);
             records[recordId - from] = TSharedRef::FromBlob(std::move(blob));
@@ -87,6 +92,15 @@ protected:
         return file.GetLength();
     }
 
+    size_t GetRecordHeaderSize() const
+    {
+        switch (GetFormatParam()) {
+            case EFileChangelogFormat::V4: return sizeof(TChangelogRecordHeader_4);
+            case EFileChangelogFormat::V5: return sizeof(TChangelogRecordHeader_5);
+            default:                       YT_ABORT();
+        }
+    }
+
     TSyncFileChangelogPtr OpenChangelog() const
     {
         auto changelog = New<TSyncFileChangelog>(IOEngine, TemporaryFile->Name(), DefaultFileChangelogConfig);
@@ -98,43 +112,39 @@ protected:
     static void CheckRecord(const T& data, TRef record)
     {
         EXPECT_EQ(record.Size(), sizeof(data));
-        EXPECT_EQ(*(reinterpret_cast<const T*>(record.Begin())), data);
+        EXPECT_EQ(*reinterpret_cast<const T*>(record.Begin()), data);
     }
 
 
     template <class T>
     static void CheckRead(
         TSyncFileChangelogPtr changelog,
-        i32 firstRecordId,
-        i32 recordCount,
-        i32 logRecordCount)
+        int firstRecordId,
+        int recordCount,
+        int logRecordCount)
     {
         auto records = changelog->Read(firstRecordId, recordCount, std::numeric_limits<i64>::max());
-
-        i32 expectedRecordCount =
-            firstRecordId >= logRecordCount ?
-            0 : Min(recordCount, logRecordCount - firstRecordId);
-
+        int expectedRecordCount = firstRecordId >= logRecordCount ? 0 : Min(recordCount, logRecordCount - firstRecordId);
         EXPECT_EQ(records.size(), expectedRecordCount);
-        for (i32 i = 0; i < records.size(); ++i) {
+        for (int i = 0; i < records.size(); ++i) {
             CheckRecord<T>(static_cast<T>(firstRecordId + i), records[i]);
         }
     }
 
     template <class T>
-    static void CheckReads(TSyncFileChangelogPtr changelog, i32 logRecordCount)
+    static void CheckReads(TSyncFileChangelogPtr changelog, int logRecordCount)
     {
-        for (i32 start = 0; start <= logRecordCount; ++start) {
-            for (i32 end = start; end <= 2 * logRecordCount + 1; ++end) {
+        for (int start = 0; start <= logRecordCount; ++start) {
+            for (int end = start; end <= 2 * logRecordCount + 1; ++end) {
                 CheckRead<T>(changelog, start, end - start, logRecordCount);
             }
         }
     }
 
-    void TestCorrupted(i64 newFileSize, i32 initialRecordCount, i32 correctRecordCount) const
+    void TestCorrupted(i64 newFileSize, int initialRecordCount, int correctRecordCount) const
     {
         if (newFileSize > GetFileSize()) {
-            // Add trash to file
+            // Add trash to file.
             TFile file(TemporaryFile->Name(), RdWr);
             file.Seek(0, sEnd);
             TBlob data(TDefaultBlobTag(), newFileSize - file.GetLength());
@@ -159,11 +169,11 @@ protected:
     }
 };
 
-TEST_F(TSyncFileChangelogTest, EmptyChangelog)
+TEST_P(TSyncFileChangelogTest, EmptyChangelog)
 {
     {
         auto changelog = New<TSyncFileChangelog>(IOEngine, TemporaryFile->Name(), New<TFileChangelogConfig>());
-        changelog->Create(TChangelogMeta());
+        changelog->Create(TChangelogMeta(), GetFormatParam());
     }
     {
         auto changelog = New<TSyncFileChangelog>(IOEngine, TemporaryFile->Name(), New<TFileChangelogConfig>());
@@ -180,7 +190,7 @@ TSharedRef GenerateBlob(size_t size)
     return blob;
 }
 
-TEST_F(TSyncFileChangelogTest, Meta)
+TEST_P(TSyncFileChangelogTest, Meta)
 {
     TChangelogMeta meta;
     meta.set_prev_record_count(123);
@@ -188,7 +198,7 @@ TEST_F(TSyncFileChangelogTest, Meta)
 
     {
         auto changelog = New<TSyncFileChangelog>(IOEngine, TemporaryFile->Name(), New<TFileChangelogConfig>());
-        changelog->Create(meta);
+        changelog->Create(meta, GetFormatParam());
         changelog->Append(0, std::vector<TSharedRef>(1, record));
         changelog->Flush();
     }
@@ -201,7 +211,7 @@ TEST_F(TSyncFileChangelogTest, Meta)
     }
 }
 
-TEST_F(TSyncFileChangelogTest, MetaWithTruncate)
+TEST_P(TSyncFileChangelogTest, MetaWithTruncate)
 {
     TChangelogMeta meta;
     meta.set_prev_record_count(123);
@@ -209,7 +219,7 @@ TEST_F(TSyncFileChangelogTest, MetaWithTruncate)
 
     {
         auto changelog = New<TSyncFileChangelog>(IOEngine, TemporaryFile->Name(), New<TFileChangelogConfig>());
-        changelog->Create(meta);
+        changelog->Create(meta, GetFormatParam());
         changelog->Append(0, std::vector<TSharedRef>(1, record));
         changelog->Flush();
         changelog->Truncate(1);
@@ -224,7 +234,7 @@ TEST_F(TSyncFileChangelogTest, MetaWithTruncate)
     }
 }
 
-TEST_F(TSyncFileChangelogTest, ReadWrite)
+TEST_P(TSyncFileChangelogTest, ReadWrite)
 {
     const int logRecordCount = 16;
     {
@@ -239,22 +249,19 @@ TEST_F(TSyncFileChangelogTest, ReadWrite)
     }
 }
 
-TEST_F(TSyncFileChangelogTest, TestCorrupted)
+TEST_P(TSyncFileChangelogTest, TestCorrupted)
 {
-    const int logRecordCount = 1024;
-    {
-        auto changelog = CreateChangelog<ui32>(logRecordCount);
-    }
-
+    const int LogRecordCount = 1024;
+    CreateChangelog<ui32>(LogRecordCount);
     i64 fileSize = GetFileSize();
-    TestCorrupted(fileSize - 1, logRecordCount, logRecordCount - 1);
-    TestCorrupted(30, logRecordCount, 0);
-    TestCorrupted(fileSize + 1, logRecordCount, logRecordCount);
-    TestCorrupted(fileSize + 1000, logRecordCount, logRecordCount);
-    TestCorrupted(fileSize + 50000, logRecordCount, logRecordCount);
+    TestCorrupted(fileSize - 1, LogRecordCount, LogRecordCount - 1);
+    TestCorrupted(30, LogRecordCount, 0);
+    TestCorrupted(fileSize + 1, LogRecordCount, LogRecordCount);
+    TestCorrupted(fileSize + 1000, LogRecordCount, LogRecordCount);
+    TestCorrupted(fileSize + 50000, LogRecordCount, LogRecordCount);
 }
 
-TEST_F(TSyncFileChangelogTest, Truncate)
+TEST_P(TSyncFileChangelogTest, Truncate)
 {
     const int logRecordCount = 16;
 
@@ -277,7 +284,7 @@ TEST_F(TSyncFileChangelogTest, Truncate)
     }
 }
 
-TEST_F(TSyncFileChangelogTest, UnalignedChecksum)
+TEST_P(TSyncFileChangelogTest, UnalignedChecksum)
 {
     const int logRecordCount = 256;
 
@@ -290,131 +297,92 @@ TEST_F(TSyncFileChangelogTest, UnalignedChecksum)
     }
 }
 
-TEST_F(TSyncFileChangelogTest, MissingIndex)
+TEST_P(TSyncFileChangelogTest, MissingIndex)
 {
-    const int logRecordCount = 256;
+    const int LogRecordCount = 256;
 
-    {
-        auto changelog = CreateChangelog<ui8>(logRecordCount);
-    }
+    CreateChangelog<ui8>(LogRecordCount);
+
     {
         NFS::Remove(TemporaryIndexFile->Name());
         auto changelog = OpenChangelog();
-        CheckRead<ui8>(changelog, 0, logRecordCount, logRecordCount);
+        CheckRead<ui8>(changelog, 0, LogRecordCount, LogRecordCount);
     }
 }
 
-TEST_F(TSyncFileChangelogTest, Padding)
+TEST_P(TSyncFileChangelogTest, Padding)
 {
     {
-        const int alignment = 4096;
+        const int Alignment = 4_KB;
         auto changelog = CreateChangelog<ui8>(0);
 
-        TChangelogRecordHeader header;
         TFileWrapper file(TemporaryFile->Name(), RdOnly);
 
-        auto record = TSharedMutableRef::Allocate(12, false);
-        changelog->Append(0, {record});
-        changelog->Flush();
+        {
+            auto record = TSharedMutableRef::Allocate(12, false);
+            changelog->Append(0, {record});
+            changelog->Flush();
 
-        auto chunks = changelog->Read(0, std::numeric_limits<int>::max(), std::numeric_limits<i64>::max());
-        EXPECT_EQ(chunks.size(), 1);
+            auto records = changelog->Read(0, std::numeric_limits<int>::max(), std::numeric_limits<i64>::max());
+            EXPECT_EQ(records.size(), 1);
 
-        auto paddingSize = alignment - AlignUp(record.Size()) - AlignUp(sizeof(header));
-        file.Seek(-alignment, sEnd);
-        EXPECT_EQ(file.Load(&header, sizeof(header)), sizeof(header));
-        EXPECT_EQ(header.RecordId, 0);
-        EXPECT_EQ(header.DataSize, record.Size());
-        EXPECT_EQ(header.PaddingSize, paddingSize);
+            auto paddingSize = Alignment - AlignUp(record.Size()) - AlignUp(GetRecordHeaderSize());
 
-        record = TSharedMutableRef::Allocate(alignment - 2 * sizeof(header), false);
-        changelog->Append(1, {record});
-        changelog->Flush();
+            TChangelogRecordHeader_4 header;
+            file.Seek(-Alignment, sEnd);
+            EXPECT_EQ(sizeof(header), file.Load(&header, sizeof(header)));
 
-        paddingSize = alignment - AlignUp(record.Size()) - AlignUp(sizeof(header));
-        ASSERT_EQ(paddingSize, 16);
+            EXPECT_EQ(header.RecordId, 0);
+            EXPECT_EQ(header.DataSize, record.Size());
+            EXPECT_EQ(header.PaddingSize, paddingSize);
+        }
 
-        file.Seek(-alignment, sEnd);
-        EXPECT_EQ(file.Load(&header, sizeof(header)), sizeof(header));
-        EXPECT_EQ(header.RecordId, 1);
-        EXPECT_EQ(header.DataSize, record.Size());
-        EXPECT_EQ(header.PaddingSize, paddingSize);
+        {
+            auto record = TSharedMutableRef::Allocate(Alignment - 2 * GetRecordHeaderSize(), false);
+            changelog->Append(1, {record});
+            changelog->Flush();
 
-        changelog->Append(2, {record});
-        changelog->Flush();
+            auto paddingSize = Alignment - AlignUp(record.Size()) - AlignUp(GetRecordHeaderSize());
 
-        chunks = changelog->Read(0, std::numeric_limits<int>::max(), std::numeric_limits<i64>::max());
-        EXPECT_EQ(chunks.size(), 3);
+            TChangelogRecordHeader_4 header;
+            file.Seek(-Alignment, sEnd);
+            EXPECT_EQ(file.Load(&header, sizeof(header)), sizeof(header));
+
+            EXPECT_EQ(header.RecordId, 1);
+            EXPECT_EQ(header.DataSize, record.Size());
+            EXPECT_EQ(header.PaddingSize, paddingSize);
+
+            changelog->Append(2, {record});
+            changelog->Flush();
+        }
+
+        {
+            auto records = changelog->Read(0, std::numeric_limits<int>::max(), std::numeric_limits<i64>::max());
+            EXPECT_EQ(records.size(), 3);
+        }
     }
 
     {
         auto changelog = OpenChangelog();
-        auto chunks = changelog->Read(0, std::numeric_limits<int>::max(), std::numeric_limits<i64>::max());
-        EXPECT_EQ(chunks.size(), 3);
+        auto records = changelog->Read(0, std::numeric_limits<int>::max(), std::numeric_limits<i64>::max());
+        EXPECT_EQ(records.size(), 3);
     }
 }
 
-// This structure is hack to make changelog with huge blobs.
-// Remove it with refactoring.
-class BigStruct {
-public:
-    BigStruct(i32 num) {
-        str.fill(0);
-    }
-
-private:
-    std::array<char, 1000000> str;
-};
-
-TEST_F(TSyncFileChangelogTest, DISABLED_Profiling)
-{
-    auto fileChangelogConfig = New<TFileChangelogConfig>();
-    fileChangelogConfig->IndexBlockSize = 1024 * 1024;
-    for (int i = 0; i < 2; ++i) {
-        int recordsCount;
-        if (i == 0) { // A lot of small records
-            recordsCount = 10000000;
-            NProfiling::TWallTimer timer;
-            TSyncFileChangelogPtr changelog = CreateChangelog<ui32>(recordsCount, fileChangelogConfig);
-            std::cerr << "Make changelog of size " << recordsCount <<
-                ", with blob of size " << sizeof(ui32) <<
-                ", time " << ToString(timer.GetElapsedTime()) << std::endl;
-        } else {
-            recordsCount = 50;
-            NProfiling::TWallTimer timer;
-            TSyncFileChangelogPtr changelog = CreateChangelog<BigStruct>(recordsCount, fileChangelogConfig);
-            std::cerr << "Make changelog of size " << recordsCount <<
-                ", with blob of size " << sizeof(BigStruct) <<
-                ", time " << ToString(timer.GetElapsedTime()) << std::endl;
-        }
-
-        {
-            NProfiling::TWallTimer timer;
-            TSyncFileChangelogPtr changelog = OpenChangelog();
-            std::cerr << "Open changelog of size " << recordsCount <<
-                ", time " << ToString(timer.GetElapsedTime()) << std::endl;
-        }
-        {
-            TSyncFileChangelogPtr changelog = OpenChangelog();
-            NProfiling::TWallTimer timer;
-            std::vector<TSharedRef> records = changelog->Read(0, recordsCount, std::numeric_limits<i64>::max());
-            std::cerr << "Read full changelog of size " << recordsCount <<
-                ", time " << ToString(timer.GetElapsedTime()) << std::endl;
-
-            timer.Restart();
-            changelog->Truncate(recordsCount / 2);
-            std::cerr << "Sealing changelog of size " << recordsCount <<
-                ", time " << ToString(timer.GetElapsedTime()) << std::endl;
-        }
-    }
-    SUCCEED();
-}
-
-TEST_F(TSyncFileChangelogTest, SealEmptyChangelog)
+TEST_P(TSyncFileChangelogTest, SealEmptyChangelog)
 {
     auto changelog = CreateChangelog<int>(0);
     changelog->Truncate(0);
 }
+
+INSTANTIATE_TEST_CASE_P(
+    TSyncFileChangelogTest,
+    TSyncFileChangelogTest,
+    ::testing::Values(
+        EFileChangelogFormat::V4,
+        EFileChangelogFormat::V5
+    )
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 
