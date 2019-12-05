@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/core/actions/public.h>
+
 #include <yt/core/rpc/public.h>
 
 #include <yt/core/yson/public.h>
@@ -50,6 +52,8 @@ struct TWorkloadDescriptor
 };
 
 i64 GetBasicPriority(EWorkloadCategory category);
+
+IInvokerPtr GetCompressionInvoker(const TWorkloadDescriptor& workloadDescriptor);
 
 void FormatValue(
     TStringBuilderBase* builder,
