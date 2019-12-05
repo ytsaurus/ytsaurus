@@ -242,27 +242,8 @@ TSelectRowsCommandBase<
     typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, NApi::TSelectRowsOptionsBase&>>::TType
 >::TSelectRowsCommandBase()
 {
-    this->RegisterParameter("timestamp", this->Options.Timestamp)
-        .Optional();
-    this->RegisterParameter("input_row_limit", this->Options.InputRowLimit)
-        .Optional();
-    this->RegisterParameter("output_row_limit", this->Options.OutputRowLimit)
-        .Optional();
-    this->RegisterParameter("range_expansion_limit", this->Options.RangeExpansionLimit)
-        .Optional();
-    this->RegisterParameter("max_subqueries", this->Options.MaxSubqueries)
-        .GreaterThan(0)
-        .Optional();
-    this->RegisterParameter("use_multijoin", this->Options.UseMultijoin)
-        .Optional();
-    this->RegisterParameter("allow_full_scan", this->Options.AllowFullScan)
-        .Optional();
-    this->RegisterParameter("allow_join_without_index", this->Options.AllowJoinWithoutIndex)
-        .Optional();
     this->RegisterParameter("udf_registry_path", this->Options.UdfRegistryPath)
         .Default();
-    this->RegisterParameter("execution_pool", this->Options.ExecutionPool)
-        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

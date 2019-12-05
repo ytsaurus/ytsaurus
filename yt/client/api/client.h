@@ -437,6 +437,13 @@ struct TSelectRowsOptionsBase
     : public TTabletReadOptions
     , public TSuppressableAccessTrackingOptions
 {
+    //! Path in Cypress with UDFs.
+    std::optional<TString> UdfRegistryPath;
+};
+
+struct TSelectRowsOptions
+    : public TSelectRowsOptionsBase
+{
     //! If null then connection defaults are used.
     std::optional<i64> InputRowLimit;
     //! If null then connection defaults are used.
@@ -451,15 +458,8 @@ struct TSelectRowsOptionsBase
     bool AllowFullScan = true;
     //! Allow queries with join condition which implies foreign query with IN operator.
     bool AllowJoinWithoutIndex = false;
-    //! Path in Cypress with UDFs.
-    std::optional<TString> UdfRegistryPath;
     //! Execution pool
     std::optional<TString> ExecutionPool;
-};
-
-struct TSelectRowsOptions
-    : public TSelectRowsOptionsBase
-{
     //! If |true| then incomplete result would lead to a failure.
     bool FailOnIncompleteResult = true;
     //! If |true| then logging is more verbose.
@@ -468,8 +468,6 @@ struct TSelectRowsOptions
     bool EnableCodeCache = true;
     //! Used to prioritize requests.
     TUserWorkloadDescriptor WorkloadDescriptor;
-    //! Allow queries with join condition which implies foreign query with IN operator.
-    bool AllowJoinWithoutIndex = false;
     //! Memory limit per execution node
     size_t MemoryLimitPerNode = std::numeric_limits<size_t>::max();
 };
