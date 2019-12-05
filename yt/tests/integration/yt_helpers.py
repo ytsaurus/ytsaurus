@@ -235,7 +235,7 @@ class Metric(object):
                         return False
                 return True
 
-            return filter(check_tags, data)
+            data = filter(check_tags, data)
 
         if self.grouped_by_tags is not None:
             data_by_tags = defaultdict(list)
