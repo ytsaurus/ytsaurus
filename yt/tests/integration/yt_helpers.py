@@ -238,7 +238,7 @@ class Metric(object):
             return filter(check_tags, data)
 
         if self.grouped_by_tags is not None:
-            data_by_tags = defaultdict()
+            data_by_tags = defaultdict(list)
             for sample in data:
                 tag_values = tuple(sample["tags"][tag_name] if tag_name in sample["tags"] else None
                                    for tag_name in self.grouped_by_tags)
