@@ -584,8 +584,7 @@ public:
 
     virtual void ApplyJobMetricsDelta(const TOperationIdToOperationJobMetrics& operationIdToOperationJobMetrics) override
     {
-        // TODO(eshcherbin): Change verification. This method is called only in control thread.
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
