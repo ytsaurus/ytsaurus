@@ -370,11 +370,15 @@ private:
                 ActiveRequestMap_.erase(it);
             }
 
-            NotifyError(
+            // YT-1639: Avoid notifying the client directly as this may lead
+            // to an extremely long chain of recursive calls.
+            TDispatcher::Get()->GetLightInvoker()->Invoke(BIND(
+                &TSession::NotifyError,
+                MakeStrong(this),
                 requestControl,
                 responseHandler,
                 AsStringBuf("Request canceled"),
-                TError(NYT::EErrorCode::Canceled, "Request canceled"));
+                TError(NYT::EErrorCode::Canceled, "Request canceled")));
 
             auto bus = FindBus();
             if (!bus) {
@@ -1091,10 +1095,7 @@ private:
         // IClientRequestControl overrides
         virtual void Cancel() override
         {
-            // YT-1639: Avoid calling TSession::Cancel directly as this may lead
-            // to an extremely long chain of recursive calls.
-            TDispatcher::Get()->GetLightInvoker()->Invoke(
-                BIND(&TSession::Cancel, Session_, MakeStrong(this)));
+            Session_->Cancel(this);
         }
 
         virtual TFuture<void> SendStreamingPayload(const TStreamingPayload& payload) override
