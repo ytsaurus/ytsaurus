@@ -46,6 +46,7 @@ import ru.yandex.yt.rpcproxy.TReqCompleteOperation;
 import ru.yandex.yt.rpcproxy.TReqConcatenateNodes;
 import ru.yandex.yt.rpcproxy.TReqCopyNode;
 import ru.yandex.yt.rpcproxy.TReqCreateNode;
+import ru.yandex.yt.rpcproxy.TReqCreateObject;
 import ru.yandex.yt.rpcproxy.TReqDumpJobContext;
 import ru.yandex.yt.rpcproxy.TReqExistsNode;
 import ru.yandex.yt.rpcproxy.TReqFreezeTable;
@@ -104,6 +105,7 @@ import ru.yandex.yt.rpcproxy.TRspCompleteOperation;
 import ru.yandex.yt.rpcproxy.TRspConcatenateNodes;
 import ru.yandex.yt.rpcproxy.TRspCopyNode;
 import ru.yandex.yt.rpcproxy.TRspCreateNode;
+import ru.yandex.yt.rpcproxy.TRspCreateObject;
 import ru.yandex.yt.rpcproxy.TRspDumpJobContext;
 import ru.yandex.yt.rpcproxy.TRspExistsNode;
 import ru.yandex.yt.rpcproxy.TRspFreezeTable;
@@ -193,6 +195,7 @@ import ru.yandex.yt.ytclient.rpc.internal.RpcServiceClient;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 import ru.yandex.yt.ytclient.wire.VersionedRowset;
+import ru.yandex.yt.ytree.TAttributeDictionary;
 
 /**
  * Клиент для высокоуровневой работы с ApiService
@@ -374,6 +377,27 @@ public class ApiServiceClient implements TransactionalClient {
 
         return RpcUtil.apply(invoke(builder),
                 response -> response.body());
+    }
+
+
+    public CompletableFuture<GUID> createObject(ObjectType type, Map<String, YTreeNode> attributes) {
+        RpcClientRequestBuilder<TReqCreateObject.Builder, RpcClientResponse<TRspCreateObject>> builder =
+                service.createObject();
+
+        builder.body().setType(type.value());
+
+        if (!attributes.isEmpty()) {
+            final TAttributeDictionary.Builder aBuilder = builder.body().getAttributesBuilder();
+            for (Map.Entry<String, YTreeNode> me : attributes.entrySet()) {
+                aBuilder.addAttributesBuilder()
+                        .setKey(me.getKey())
+                        .setValue(ByteString.copyFrom(me.getValue().toBinary()));
+            }
+        }
+
+        return RpcUtil.apply(invoke(builder),
+                response ->
+                        RpcUtil.fromProto(response.body().getObjectId()));
     }
 
     public CompletableFuture<GUID> createNode(CreateNode req) {

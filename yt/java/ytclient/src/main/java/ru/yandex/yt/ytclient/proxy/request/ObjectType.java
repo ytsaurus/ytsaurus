@@ -163,7 +163,7 @@ public enum ObjectType {
         }
     }
 
-    int value() {
+    public int value() {
         return value;
     }
 }

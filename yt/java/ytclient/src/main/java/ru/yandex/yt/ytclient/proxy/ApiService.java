@@ -14,6 +14,7 @@ import ru.yandex.yt.rpcproxy.TReqCompleteOperation;
 import ru.yandex.yt.rpcproxy.TReqConcatenateNodes;
 import ru.yandex.yt.rpcproxy.TReqCopyNode;
 import ru.yandex.yt.rpcproxy.TReqCreateNode;
+import ru.yandex.yt.rpcproxy.TReqCreateObject;
 import ru.yandex.yt.rpcproxy.TReqDumpJobContext;
 import ru.yandex.yt.rpcproxy.TReqExistsNode;
 import ru.yandex.yt.rpcproxy.TReqFreezeTable;
@@ -72,6 +73,7 @@ import ru.yandex.yt.rpcproxy.TRspCompleteOperation;
 import ru.yandex.yt.rpcproxy.TRspConcatenateNodes;
 import ru.yandex.yt.rpcproxy.TRspCopyNode;
 import ru.yandex.yt.rpcproxy.TRspCreateNode;
+import ru.yandex.yt.rpcproxy.TRspCreateObject;
 import ru.yandex.yt.rpcproxy.TRspDumpJobContext;
 import ru.yandex.yt.rpcproxy.TRspExistsNode;
 import ru.yandex.yt.rpcproxy.TRspFreezeTable;
@@ -151,6 +153,9 @@ public interface ApiService extends DiscoverableRpcService {
     RpcClientRequestBuilder<TReqGetTabletInfos.Builder, RpcClientResponse<TRspGetTabletInfos>> getTabletInfos();
 
     RpcClientRequestBuilder<TReqGenerateTimestamps.Builder, RpcClientResponse<TRspGenerateTimestamps>> generateTimestamps();
+
+    /* objects */
+    RpcClientRequestBuilder<TReqCreateObject.Builder, RpcClientResponse<TRspCreateObject>> createObject();
 
     /* nodes */
     RpcClientRequestBuilder<TReqGetNode.Builder, RpcClientResponse<TRspGetNode>> getNode();
