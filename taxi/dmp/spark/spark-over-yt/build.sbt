@@ -76,7 +76,8 @@ lazy val `client` = (project in file("client"))
       Seq(
         createPackageMapping(sparkDist, s"/opt/${sparkName.value}"),
         LinuxPackageMapping(Map(
-          sparkGenerateProfile.value -> "/etc/profile.d/spark-profile.sh"
+          sparkGenerateProfile.value -> "/etc/profile.d/spark-profile.sh",
+          (resourceDirectory in Compile).value / "log4j.local.properties" -> s"/opt/${sparkName.value}/conf/log4j.properties"
         ))
       )
     },

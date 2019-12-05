@@ -1,0 +1,48 @@
+#!/usr/bin/env python
+
+from __future__ import print_function
+
+import argparse
+import os
+import sys
+
+import yt
+from yt.wrapper.cypress_commands import list
+from yt.wrapper.errors import YtHttpResponseError
+from yt.wrapper.operation_commands import get_operation_url
+
+parser = argparse.ArgumentParser(description="Spark Discovery")
+parser.add_argument("--id", required=True)
+parser.add_argument("--working-dir", required=False)
+parser.add_argument("--proxy", required=False)
+
+args, unknown_args = parser.parse_known_args()
+
+id = args.id
+user = os.getenv("USER")
+proxy = args.proxy or os.getenv("YT_PROXY")
+working_dir = args.working_dir or "//home/{0}/spark-tmp".format(user)
+
+yt.wrapper.config.config['proxy']['url'] = proxy
+
+
+def get_address(name):
+    try:
+        return list("{0}/instances/{1}/{2}".format(working_dir, id, name))[0]
+    except YtHttpResponseError as e:
+        print(e.message, file=sys.stderr)
+        for inner in e.inner_errors:
+            print(inner["message"], file=sys.stderr)
+
+
+master = get_address("address")
+master_web_ui = get_address("webui")
+master_rest = get_address("rest")
+operation = get_address("operation")
+shs = get_address("shs")
+
+print("Master: %s" % master)
+print("Master Web UI: http://%s/" % master_web_ui)
+print("Master REST API Endpoint: %s" % master_rest)
+print("Operation: %s" % get_operation_url(operation))
+print("Spark History Server: http://%s/" % shs)

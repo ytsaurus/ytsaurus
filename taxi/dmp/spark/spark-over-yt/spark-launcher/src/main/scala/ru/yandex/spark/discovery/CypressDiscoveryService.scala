@@ -59,6 +59,7 @@ class CypressDiscoveryService(config: YtClientConfiguration,
   override def registerSHS(id: String, address: Address): Unit = {
     val tm = new TransactionManager(yt)
     val transaction = tm.start(JDuration.standardMinutes(1)).join()
+    removeNode(shsPath(id), Some(transaction))
     createNode(s"${shsPath(id)}/${address.hostAndPort}", transaction)
     yt.commitTransaction(transaction, true)
   }
@@ -68,6 +69,15 @@ class CypressDiscoveryService(config: YtClientConfiguration,
       .setRecursive(true)
       .setTransactionalOptions(new TransactionalOptions(transaction))
     yt.createNode(request).join()
+  }
+
+  private def removeNode(path: String, transaction: Option[GUID] = None): Unit = {
+    if (yt.existsNode(path).join()) {
+      val request = new RemoveNode(path)
+        .setRecursive(true)
+      transaction.foreach(t => request.setTransactionalOptions(new TransactionalOptions(t)))
+      yt.removeNode(request).join()
+    }
   }
 
   private def cypressHostAndPort(path: String): HostAndPort = {
@@ -106,12 +116,17 @@ class CypressDiscoveryService(config: YtClientConfiguration,
         true
       }
     }
+  }
 
+  override def removeId(id: String): Unit = {
+    removeNode(s"$discoveryPath/$id")
   }
 
   override def removeAddress(id: String): Unit = {
-    val request = new RemoveNode(s"$discoveryPath/$id").setRecursive(true)
-    yt.removeNode(request).join()
+    removeNode(addressPath(id))
+    removeNode(webUiPath(id))
+    removeNode(restPath(id))
+    removeNode(operationPath(id))
   }
 
   override def close(): Unit = {
