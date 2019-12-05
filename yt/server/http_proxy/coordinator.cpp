@@ -486,7 +486,7 @@ void THostsHandler::HandleRequest(
         return;
     }
 
-    std::optional<TString> role{"data"};
+    auto role = Coordinator_->GetConfig()->DefaultRoleFilter;
     std::optional<TString> suffix;
     bool returnJson = true;
 
