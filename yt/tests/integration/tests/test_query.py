@@ -1103,3 +1103,7 @@ class TestQuery(YTEnvSetup):
             )
         ''')
         assert actual == expected
+
+class TestQueryRpcProxy(TestQuery):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
