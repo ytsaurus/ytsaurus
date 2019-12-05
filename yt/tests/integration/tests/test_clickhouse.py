@@ -2240,7 +2240,6 @@ class TestClickHouseWithLogTailer(ClickHouseTestBase):
         log_tailer_config["logging"]["writers"]["debug"]["file_name"] = \
             os.path.join(self.path_to_run,
             "logs",
-            "clickhouse-{}".format(clique_index),
             "log_tailer-{}.debug.log".format(clique_index))
         log_tailer_config["cluster_connection"] = self.__class__.Env.configs["driver"]
 
