@@ -65,6 +65,7 @@ void ProcessFetchResponse(
 
 //! Synchronously fetches chunk specs from master,
 //! waits for the result and processes the responses.
+// XXX(babenko): YT-11825; passing -1 to chunkCount disables multi-fetch
 std::vector<NProto::TChunkSpec> FetchChunkSpecs(
     const NApi::NNative::IClientPtr& client,
     const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory,

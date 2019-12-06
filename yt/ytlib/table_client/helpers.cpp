@@ -349,6 +349,9 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
     YT_LOG_INFO("Requesting table chunk count");
 
     int chunkCount;
+    // XXX(babenko): YT-11825
+    bool dynamic;
+    bool sorted;
     {
         auto channel = client->GetMasterChannelOrThrow(
             EMasterChannelKind::Follower,
@@ -359,7 +362,9 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
         AddCellTagToSyncWith(req, userObject.ObjectId);
         SetTransactionId(req, userObject.ExternalTransactionId);
         ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
-            "chunk_count"
+            "chunk_count",
+            "dynamic",
+            "sorted"
         });
 
         auto rspOrError = WaitFor(proxy.Execute(req));
@@ -370,6 +375,9 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
         auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
 
         chunkCount = attributes->Get<int>("chunk_count");
+        // XXX(babenko): YT-11825
+        dynamic = attributes->Get<bool>("dynamic");
+        sorted = attributes->Get<bool>("sorted");
     }
 
     YT_LOG_INFO("Fetching chunk specs (ChunkCount: %v)", chunkCount);
@@ -379,7 +387,8 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
         nodeDirectory,
         userObject,
         path.GetRanges(),
-        chunkCount,
+        // XXX(babenko): YT-11825
+        dynamic && !sorted ? -1 : chunkCount,
         config->MaxChunksPerFetch,
         config->MaxChunksPerLocateRequest,
         [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req) {
@@ -391,7 +400,7 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
 
     std::vector<TInputChunkPtr> inputChunks;
     for (const auto& chunkSpec : chunkSpecs) {
-        inputChunks.emplace_back(New<TInputChunk>(chunkSpec));
+        inputChunks.push_back(New<TInputChunk>(chunkSpec));
     }
 
     return inputChunks;

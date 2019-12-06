@@ -4941,7 +4941,8 @@ void TOperationControllerBase::FetchInputTables()
             InputNodeDirectory_,
             *table,
             ranges,
-            table->ChunkCount,
+            // XXX(babenko): YT-11825
+            table->Dynamic && !table->Schema.IsSorted() ? -1 : table->ChunkCount,
             Config->MaxChunksPerFetch,
             Config->MaxChunksPerLocateRequest,
             [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req) {
