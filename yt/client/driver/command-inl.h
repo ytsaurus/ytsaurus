@@ -124,6 +124,8 @@ TReadOnlyTabletCommandBase<
         .Optional();
     this->RegisterParameter("backup_request_delay", this->Options.BackupRequestDelay)
         .Optional();
+    this->RegisterParameter("timestamp", this->Options.Timestamp)   
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

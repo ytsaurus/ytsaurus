@@ -534,8 +534,6 @@ void TAlterTableCommand::DoExecute(ICommandContextPtr context)
 TSelectRowsCommand::TSelectRowsCommand()
 {
     RegisterParameter("query", Query);
-    RegisterParameter("timestamp", Options.Timestamp)   
-        .Optional();
     RegisterParameter("input_row_limit", Options.InputRowLimit)
         .Optional();
     RegisterParameter("output_row_limit", Options.OutputRowLimit)
