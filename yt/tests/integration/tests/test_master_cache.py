@@ -46,6 +46,9 @@ class TestMasterCache(YTEnvSetup):
     def set_node_tags(self, id, tags):
         set("//sys/cluster_nodes/{0}/@user_tags".format(self.select_node(id)), tags)
 
+    def ban_node(self, id):
+        set("//sys/cluster_nodes/{0}/@banned".format(self.select_node(id)), True)
+
     def get_node_cache_list(self, node):
         result = get("//sys/cluster_nodes/{}/orchid/cluster_connection/master_cache/addresses".format(node))
         return list(result)
@@ -119,4 +122,15 @@ class TestMasterCache(YTEnvSetup):
         self.set_master_cache_manager_update_period(100)
         self.set_master_cache_manager_node_tag_filter("some_long_and_creepy_tag")
 
+        self.wait_for_cache_config([])
+
+    @authors("aleksandra-zh")
+    def test_ban_node(self):
+        self.set_node_tags(0, ["foo"])
+        self.set_master_cache_manager_update_period(100)
+        self.set_master_cache_manager_node_tag_filter("foo")
+
+        self.wait_for_cache_config([0])
+
+        self.ban_node(0)
         self.wait_for_cache_config([])
