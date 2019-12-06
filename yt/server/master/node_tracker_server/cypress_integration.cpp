@@ -178,6 +178,8 @@ private:
         descriptors->push_back(EInternedAttributeKey::DecommissionedNodeCount);
         descriptors->push_back(EInternedAttributeKey::WithAlertsNodeCount);
         descriptors->push_back(EInternedAttributeKey::FullNodeCount);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MasterCacheNodes)
+            .SetOpaque(true));
     }
 
     virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
@@ -294,6 +296,11 @@ private:
             case EInternedAttributeKey::FullNodeCount:
                 BuildYsonFluently(consumer)
                     .Value(statistics.FullNodeCount);
+                return true;
+
+            case EInternedAttributeKey::MasterCacheNodes:
+                BuildYsonFluently(consumer)
+                    .Value(Bootstrap_->GetNodeTracker()->GetMasterCacheNodeAddresses());
                 return true;
 
             default:
