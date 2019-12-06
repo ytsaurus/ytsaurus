@@ -6,6 +6,7 @@
 #    yt/server/master/cell_master/serialize.cpp - if the version differs, then the update should be done with master snapshots (+ --set-read-only).
 #    yt/server/node/tablet_node/serialize.cpp - if the version differs, then the update should be done with tablet cell recreation.
 
+* ermolovd: Add type_v3 to schema. Update masters via snapshot.
 * ifsmirnov: Do not store tablet and replication errors on master. Update masters via snapshot.
 * gritukan: Cypress tree serialization format changed. Update masters via snapshot.
 * renadeen: Added new scheduler pool object at master. Update masters via snapshot.

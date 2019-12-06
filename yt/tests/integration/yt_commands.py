@@ -1454,18 +1454,20 @@ def make_schema(columns, **attributes):
     return schema
 
 def normalize_schema(schema):
-    "Remove 'type_v2' field from schema, useful for schema comparison."""
+    """Remove 'type_v2' / 'type_v3' field from schema, useful for schema comparison."""
     result = pycopy.deepcopy(schema)
     for column in result:
         if "type_v2" in column:
             del column["type_v2"]
+        if "type_v3" in column:
+            del column["type_v3"]
     return result
 
 def normalize_schema_v2(schema):
-    "Remove (old) 'type' and 'required' fields from schema, useful for schema comparison."""
+    """Remove "type" / "required" / "type_v3" fields from schema, useful for schema comparison."""
     result = pycopy.deepcopy(schema)
     for column in result:
-        for f in ["type", "required"]:
+        for f in ["type", "required", "type_v3"]:
             if f in column:
                 del column[f]
     return result
