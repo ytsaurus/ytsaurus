@@ -1276,6 +1276,45 @@ TEST_F(TQueryEvaluateTest, Simple)
     Evaluate("a, b FROM [//t]", split, source, ResultMatcher(result));
 }
 
+TEST_F(TQueryEvaluateTest, SimpleOffsetLimit)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    std::vector<TString> source = {
+        "a=0",
+        "a=1",
+        "a=2",
+        "a=3",
+        "a=4",
+        "a=5",
+        "a=6",
+        "a=7",
+        "a=8"
+    };
+
+    {
+        auto result = YsonToRows({
+            "a=0",
+            "a=1",
+            "a=2",
+            "a=3",
+            "a=4"
+        }, split);
+
+        Evaluate("a FROM [//t] limit 5", split, source, ResultMatcher(result));
+    }
+
+    {
+        auto result = YsonToRows({
+            "a=5"
+        }, split);
+
+        Evaluate("a FROM [//t] offset 5 limit 1", split, source, ResultMatcher(result));
+    }
+}
+
 TEST_F(TQueryEvaluateTest, SimpleAlias)
 {
     auto split = MakeSplit({
