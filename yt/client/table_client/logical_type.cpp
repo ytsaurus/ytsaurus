@@ -1208,6 +1208,346 @@ void Deserialize(TLogicalTypePtr& logicalType, NYTree::INodePtr node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TV3Variant
+{};
+
+using TV3TypeName = std::variant<ESimpleLogicalValueType, ELogicalMetatype, TV3Variant>;
+
+std::pair<ESimpleLogicalValueType, TString> V3SimpleLogicalValueTypeEncoding[] =
+{
+    {ESimpleLogicalValueType::Null,      "null"},
+    {ESimpleLogicalValueType::Int64,     "int64"},
+    {ESimpleLogicalValueType::Uint64,    "uint64"},
+    {ESimpleLogicalValueType::Double,    "double"},
+    {ESimpleLogicalValueType::Boolean,   "bool"},  // NB. diff
+    {ESimpleLogicalValueType::String,    "string"},
+    {ESimpleLogicalValueType::Any,       "yson"}, // NB. diff
+    {ESimpleLogicalValueType::Int8,      "int8"},
+    {ESimpleLogicalValueType::Uint8,     "uint8"},
+
+    {ESimpleLogicalValueType::Int16,     "int16"},
+    {ESimpleLogicalValueType::Uint16,    "uint16"},
+
+    {ESimpleLogicalValueType::Int32,     "int32"},
+    {ESimpleLogicalValueType::Uint32,    "uint32"},
+
+    {ESimpleLogicalValueType::Utf8,      "utf8"},
+
+    {ESimpleLogicalValueType::Date,      "date"},
+    {ESimpleLogicalValueType::Datetime,  "datetime"},
+    {ESimpleLogicalValueType::Timestamp, "timestamp"},
+    {ESimpleLogicalValueType::Interval,  "interval"},
+};
+static_assert(std::size(V3SimpleLogicalValueTypeEncoding) == TEnumTraits<ESimpleLogicalValueType>::DomainSize);
+
+std::pair<ELogicalMetatype, TString> V3LogicalMetatypeEncoding[] =
+{
+    // NB. following metatypes are not included:
+    //   - ELogicalMetatype::Simple
+    //   - ELogicalMetatype::VariantStruct
+    //   - ELogicalMetatype::VariantTuple
+    {ELogicalMetatype::Optional, "optional"},
+    {ELogicalMetatype::List, "list"},
+    {ELogicalMetatype::Struct, "struct"},
+    {ELogicalMetatype::Tuple, "tuple"},
+    {ELogicalMetatype::Dict, "dict"},
+    {ELogicalMetatype::Tagged, "tagged"},
+};
+
+// NB ELogicalMetatype::{Simple,VariantStruct,VariantTuple} are not encoded therefore we have `-3` in static_assert below.
+static_assert(std::size(V3LogicalMetatypeEncoding) == TEnumTraits<ELogicalMetatype>::DomainSize - 3);
+
+TV3TypeName FromTypeV3(TStringBuf stringBuf)
+{
+    static const auto map = [] {
+        THashMap<TStringBuf, TV3TypeName> res;
+        for (const auto& [value, string] : V3SimpleLogicalValueTypeEncoding) {
+            res[string] = value;
+        }
+        for (const auto& [value, string] : V3LogicalMetatypeEncoding) {
+            res[string] = value;
+        }
+        res["variant"] = TV3Variant{};
+        return res;
+    }();
+
+    auto it = map.find(stringBuf);
+    if (it == map.end()) {
+        THROW_ERROR_EXCEPTION("%Qv is not valid type_v3 simple type",
+            stringBuf);
+    }
+    return it->second;
+}
+
+TStringBuf ToTypeV3(ESimpleLogicalValueType value)
+{
+    for (const auto& [type, string] : V3SimpleLogicalValueTypeEncoding) {
+        if (type == value) {
+            return string;
+        }
+    }
+    YT_ABORT();
+}
+
+TStringBuf ToTypeV3(ELogicalMetatype value)
+{
+    YT_VERIFY(value != ELogicalMetatype::Simple);
+    for (const auto& [type, string] : V3LogicalMetatypeEncoding) {
+        if (type == value) {
+            return string;
+        }
+    }
+    YT_VERIFY(value == ELogicalMetatype::VariantStruct || value == ELogicalMetatype::VariantTuple);
+    return "variant";
+}
+
+struct TTypeV3MemberWrapper
+{
+    TStructField Member;
+};
+
+void Serialize(const TTypeV3MemberWrapper& wrapper, NYson::IYsonConsumer* consumer)
+{
+    NYTree::BuildYsonFluently(consumer).BeginMap()
+        .Item("type").Value(TTypeV3LogicalTypeWrapper{wrapper.Member.Type})
+        .Item("name").Value(wrapper.Member.Name)
+    .EndMap();
+}
+
+void Deserialize(TTypeV3MemberWrapper& wrapper, NYTree::INodePtr node)
+{
+    const auto& mapNode = node->AsMap();
+    auto wrappedType = NYTree::ConvertTo<TTypeV3LogicalTypeWrapper>(mapNode->GetChild("type"));
+    wrapper.Member.Type = wrappedType.LogicalType;
+    wrapper.Member.Name = NYTree::ConvertTo<TString>(mapNode->GetChild("name"));
+}
+
+struct TTypeV3ElementWrapper
+{
+    TLogicalTypePtr Element;
+};
+
+void Serialize(const TTypeV3ElementWrapper& wrapper, NYson::IYsonConsumer* consumer)
+{
+    NYTree::BuildYsonFluently(consumer).BeginMap()
+        .Item("type").Value(TTypeV3LogicalTypeWrapper{wrapper.Element})
+    .EndMap();
+}
+
+void Deserialize(TTypeV3ElementWrapper& wrapper, NYTree::INodePtr node)
+{
+    const auto& mapNode = node->AsMap();
+    auto wrappedElement = NYTree::ConvertTo<TTypeV3LogicalTypeWrapper>(mapNode->GetChild("type"));
+    wrapper.Element = wrappedElement.LogicalType;
+}
+
+void Serialize(const TTypeV3LogicalTypeWrapper& wrapper, NYson::IYsonConsumer* consumer)
+{
+    using TWrapper = TTypeV3LogicalTypeWrapper;
+
+    const auto metatype = wrapper.LogicalType->GetMetatype();
+    switch (metatype) {
+        case ELogicalMetatype::Simple:
+            NYTree::BuildYsonFluently(consumer)
+                .Value(ToTypeV3(wrapper.LogicalType->AsSimpleTypeRef().GetElement()));
+            return;
+        case ELogicalMetatype::Optional:
+            NYTree::BuildYsonFluently(consumer)
+                .BeginMap()
+                    .Item("type_name").Value(ToTypeV3(metatype))
+                    .Item("item").Value(TWrapper{wrapper.LogicalType->AsOptionalTypeRef().GetElement()})
+                .EndMap();
+            return;
+        case ELogicalMetatype::List:
+            NYTree::BuildYsonFluently(consumer)
+                .BeginMap()
+                    .Item("type_name").Value(ToTypeV3(metatype))
+                    .Item("item").Value(TWrapper{wrapper.LogicalType->AsListTypeRef().GetElement()})
+                .EndMap();
+            return;
+        case ELogicalMetatype::Struct:
+        case ELogicalMetatype::VariantStruct: {
+            const auto& fields = wrapper.LogicalType->GetFields();
+
+            std::vector<TTypeV3MemberWrapper> wrappedMembers;
+            wrappedMembers.reserve(fields.size());
+            for (const auto& f : fields) {
+                wrappedMembers.emplace_back(TTypeV3MemberWrapper{f});
+            }
+
+            NYTree::BuildYsonFluently(consumer)
+                .BeginMap()
+                    .Item("type_name").Value(ToTypeV3(metatype))
+                    .Item("members").Value(wrappedMembers)
+                .EndMap();
+            return;
+        }
+        case ELogicalMetatype::Tuple:
+        case ELogicalMetatype::VariantTuple: {
+            const auto& elements = wrapper.LogicalType->GetElements();
+
+            std::vector<TTypeV3ElementWrapper> wrappedElements;
+            wrappedElements.reserve(elements.size());
+            for (const auto& e : elements) {
+                wrappedElements.emplace_back(TTypeV3ElementWrapper{e});
+            }
+
+            NYTree::BuildYsonFluently(consumer)
+                .BeginMap()
+                    .Item("type_name").Value(ToTypeV3(metatype))
+                    .Item("elements").Value(wrappedElements)
+                .EndMap();
+            return;
+        }
+        case ELogicalMetatype::Dict: {
+            const auto& key = wrapper.LogicalType->AsDictTypeRef().GetKey();
+            const auto& value = wrapper.LogicalType->AsDictTypeRef().GetValue();
+            NYTree::BuildYsonFluently(consumer)
+                .BeginMap()
+                    .Item("type_name").Value(ToTypeV3(metatype))
+                    .Item("key").Value(TWrapper{key})
+                    .Item("value").Value(TWrapper{value})
+                .EndMap();
+            return;
+        }
+        case ELogicalMetatype::Tagged: {
+            const auto& element = wrapper.LogicalType->AsTaggedTypeRef().GetElement();
+            const auto& tag = wrapper.LogicalType->AsTaggedTypeRef().GetTag();
+            NYTree::BuildYsonFluently(consumer)
+                .BeginMap()
+                    .Item("type_name").Value(ToTypeV3(metatype))
+                    .Item("tag").Value(tag)
+                    .Item("item").Value(TWrapper{element})
+                .EndMap();
+            return;
+        }
+    }
+    YT_ABORT();
+}
+
+void Deserialize(TTypeV3LogicalTypeWrapper& wrapper, NYTree::INodePtr node)
+{
+    if (node->GetType() == NYTree::ENodeType::String) {
+        auto typeNameString = node->GetValue<TString>();
+        auto typeName = FromTypeV3(typeNameString);
+        std::visit([&](const auto& arg) {
+            using T = std::decay_t<decltype(arg)>;
+            if constexpr (std::is_same_v<T, ESimpleLogicalValueType>) {
+                wrapper.LogicalType = SimpleLogicalType(arg);
+            } else {
+                static_assert(std::is_same_v<T, ELogicalMetatype> || std::is_same_v<T, TV3Variant>);
+                THROW_ERROR_EXCEPTION("Type %Qv must be represented by map not a string",
+                    typeNameString);
+            }
+        }, typeName);
+        return;
+    }
+    if (node->GetType() != NYTree::ENodeType::Map) {
+        THROW_ERROR_EXCEPTION("Error parsing logical type: expected %Qlv or %Qlv, actual %Qlv",
+            NYTree::ENodeType::Map,
+            NYTree::ENodeType::String,
+            node->GetType());
+    }
+
+    auto mapNode = node->AsMap();
+    auto typeNameString = mapNode->GetChild("type_name")->GetValue<TString>();
+    auto typeName = FromTypeV3(typeNameString);
+    std::visit([&](const auto& typeName) {
+        using T = std::decay_t<decltype(typeName)>;
+        if constexpr (std::is_same_v<T, ESimpleLogicalValueType>) {
+            wrapper.LogicalType = SimpleLogicalType(typeName);
+        } else {
+            ELogicalMetatype type;
+            if constexpr (std::is_same_v<T, ELogicalMetatype>) {
+                type = typeName;
+            } else {
+                const bool hasMembers = static_cast<bool>(mapNode->FindChild("members"));
+                const bool hasElements =  static_cast<bool>(mapNode->FindChild("elements"));
+                if (hasMembers && hasElements) {
+                    THROW_ERROR_EXCEPTION("\"variant\" cannot have both children \"elements\" and \"members\"");
+                } else if (hasMembers) {
+                    type = ELogicalMetatype::VariantStruct;
+                } else if (hasElements) {
+                    type = ELogicalMetatype::VariantTuple;
+                } else {
+                    THROW_ERROR_EXCEPTION("\"variant\" must have \"elements\" or \"members\" child");
+                }
+            }
+            switch (type) {
+                case ELogicalMetatype::Simple:
+                    // NB. FromTypeV3 never returns this value.
+                    YT_ABORT();
+                case ELogicalMetatype::Optional: {
+                    auto itemNode = mapNode->GetChild("item");
+                    auto item = NYTree::ConvertTo<TTypeV3LogicalTypeWrapper>(itemNode);
+                    wrapper.LogicalType = OptionalLogicalType(std::move(item.LogicalType));
+                    return;
+                }
+                case ELogicalMetatype::List: {
+                    auto itemNode = mapNode->GetChild("item");
+                    auto wrappedItem = NYTree::ConvertTo<TTypeV3LogicalTypeWrapper>(itemNode);
+                    wrapper.LogicalType = ListLogicalType(std::move(wrappedItem.LogicalType));
+                    return;
+                }
+                case ELogicalMetatype::Struct:
+                case ELogicalMetatype::VariantStruct: {
+                    auto membersNode = mapNode->GetChild("members");
+                    auto wrappedMembers = NYTree::ConvertTo<std::vector<TTypeV3MemberWrapper>>(membersNode);
+
+                    std::vector<TStructField> members;
+                    members.reserve(wrappedMembers.size());
+                    for (auto& w : wrappedMembers) {
+                        members.emplace_back(w.Member);
+                    }
+
+                    if (type == ELogicalMetatype::Struct) {
+                        wrapper.LogicalType = StructLogicalType(std::move(members));
+                    } else {
+                        wrapper.LogicalType = VariantStructLogicalType(std::move(members));
+                    }
+                    return;
+                }
+                case ELogicalMetatype::Tuple:
+                case ELogicalMetatype::VariantTuple: {
+                    auto elementsNode = mapNode->GetChild("elements");
+                    auto elementsV3 = NYTree::ConvertTo<std::vector<TTypeV3ElementWrapper>>(elementsNode);
+
+                    std::vector<TLogicalTypePtr> elements;
+                    elements.reserve(elementsV3.size());
+                    for (auto& e : elementsV3) {
+                        elements.emplace_back(std::move(e.Element));
+                    }
+                    if (type == ELogicalMetatype::Tuple) {
+                        wrapper.LogicalType = TupleLogicalType(std::move(elements));
+                    } else {
+                        wrapper.LogicalType = VariantTupleLogicalType(std::move(elements));
+                    }
+                    return;
+                }
+                case ELogicalMetatype::Dict: {
+                    auto keyNode = mapNode->GetChild("key");
+                    auto key = NYTree::ConvertTo<TTypeV3LogicalTypeWrapper>(keyNode);
+                    auto valueNode = mapNode->GetChild("value");
+                    auto value = NYTree::ConvertTo<TTypeV3LogicalTypeWrapper>(valueNode);
+                    wrapper.LogicalType = DictLogicalType(std::move(key.LogicalType), std::move(value.LogicalType));
+                    return;
+                }
+                case ELogicalMetatype::Tagged: {
+                    auto tagNode = mapNode->GetChild("tag");
+                    auto tag = NYTree::ConvertTo<TString>(tagNode);
+                    auto elementNode = mapNode->GetChild("item");
+                    auto element = NYTree::ConvertTo<TTypeV3LogicalTypeWrapper>(elementNode);
+                    wrapper.LogicalType = TaggedLogicalType(std::move(tag), std::move(element.LogicalType));
+                    return;
+                }
+            }
+            YT_ABORT();
+        }
+    }, typeName);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////

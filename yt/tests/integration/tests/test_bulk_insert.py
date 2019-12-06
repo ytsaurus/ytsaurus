@@ -1314,8 +1314,9 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
         rhs = deepcopy(list(rhs))
 
         def _normalize_column(column):
-            if "type_v2" in column:
-                column.pop("type_v2")
+            for k in ["type_v2", "type_v3"]:
+                if k in column:
+                    column.pop(k)
             column.setdefault("required", False)
 
         for column in lhs:
