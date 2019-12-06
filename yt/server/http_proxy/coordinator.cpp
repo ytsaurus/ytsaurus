@@ -103,6 +103,9 @@ TDynamicConfig::TDynamicConfig()
     RegisterParameter("fitness_function", FitnessFunction)
         .Default();
 
+    RegisterParameter("relax_csrf_check", RelaxCsrfCheck)
+        .Default(false);
+
     RegisterParameter("cpu_weight", CpuWeight)
         .Default(1);
     RegisterParameter("cpu_wait_weight", CpuWaitWeight)

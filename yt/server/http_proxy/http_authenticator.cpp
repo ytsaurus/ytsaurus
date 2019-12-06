@@ -1,8 +1,11 @@
 #include "http_authenticator.h"
 
+#include "coordinator.h"
+
 #include <yt/ytlib/auth/config.h>
 #include <yt/ytlib/auth/token_authenticator.h>
 #include <yt/ytlib/auth/cookie_authenticator.h>
+#include <yt/ytlib/auth/helpers.h>
 
 #include <yt/core/http/http.h>
 #include <yt/core/http/helpers.h>
@@ -10,8 +13,6 @@
 #include <yt/core/ytree/fluent.h>
 
 #include <util/string/strip.h>
-
-#include <yt/ytlib/auth/helpers.h>
 
 namespace NYT::NHttpProxy {
 
@@ -27,10 +28,12 @@ DEFINE_REFCOUNTED_TYPE(THttpAuthenticator)
 THttpAuthenticator::THttpAuthenticator(
     TAuthenticationManagerConfigPtr config,
     ITokenAuthenticatorPtr tokenAuthenticator,
-    ICookieAuthenticatorPtr cookieAuthenticator)
+    ICookieAuthenticatorPtr cookieAuthenticator,
+    TCoordinatorPtr coordinator)
     : Config_(config)
     , TokenAuthenticator_(tokenAuthenticator)
     , CookieAuthenticator_(cookieAuthenticator)
+    , Coordinator_(coordinator)
 {
     YT_VERIFY(TokenAuthenticator_);
     YT_VERIFY(CookieAuthenticator_);
@@ -140,7 +143,8 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
                 Config_->GetCsrfSecret(),
                 Config_->GetCsrfTokenExpirationTime());
 
-            if (!error.IsOK()) {
+            auto dynamicConfig = Coordinator_->GetDynamicConfig();
+            if (!error.IsOK() && !dynamicConfig->RelaxCsrfCheck) {
                 return error;
             }
         }

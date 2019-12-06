@@ -66,6 +66,8 @@ public:
     TString FitnessFunction;
     double CpuWeight, CpuWaitWeight, ConcurrentRequestsWeight;
 
+    bool RelaxCsrfCheck;
+
     TDynamicConfig();
 };
 
