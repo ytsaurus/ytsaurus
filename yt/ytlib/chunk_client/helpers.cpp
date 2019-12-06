@@ -263,7 +263,10 @@ std::vector<NProto::TChunkSpec> FetchChunkSpecs(
     EAddressType addressType)
 {
     std::vector<NProto::TChunkSpec> chunkSpecs;
-    chunkSpecs.reserve(static_cast<size_t>(chunkCount));
+    // XXX(babenko): YT-11825
+    if (chunkCount >= 0) {
+        chunkSpecs.reserve(static_cast<size_t>(chunkCount));
+    }
 
     auto channel = client->GetMasterChannelOrThrow(
         EMasterChannelKind::Follower,
@@ -272,19 +275,25 @@ std::vector<NProto::TChunkSpec> FetchChunkSpecs(
     auto batchReq = proxy.ExecuteBatch();
 
     for (int rangeIndex = 0; rangeIndex < static_cast<int>(ranges.size()); ++rangeIndex) {
-        for (i64 index = 0; index < (chunkCount + maxChunksPerFetch - 1) / maxChunksPerFetch; ++index) {
+        // XXX(babenko): YT-11825
+        i64 subrequestCount = chunkCount < 0 ? 1 : (chunkCount + maxChunksPerFetch - 1) / maxChunksPerFetch;
+        for (i64 subrequestIndex = 0; subrequestIndex < subrequestCount; ++subrequestIndex) {
             auto adjustedRange = ranges[rangeIndex];
-            auto chunkCountLowerLimit = index * maxChunksPerFetch;
-            if (adjustedRange.LowerLimit().HasChunkIndex()) {
-                chunkCountLowerLimit = std::max(chunkCountLowerLimit, adjustedRange.LowerLimit().GetChunkIndex());
-            }
-            adjustedRange.LowerLimit().SetChunkIndex(chunkCountLowerLimit);
 
-            auto chunkCountUpperLimit = (index + 1) * maxChunksPerFetch;
-            if (adjustedRange.UpperLimit().HasChunkIndex()) {
-                chunkCountUpperLimit = std::min(chunkCountUpperLimit, adjustedRange.UpperLimit().GetChunkIndex());
+            // XXX(babenko): YT-11825
+            if (chunkCount >= 0) {
+                auto chunkCountLowerLimit = subrequestIndex * maxChunksPerFetch;
+                if (adjustedRange.LowerLimit().HasChunkIndex()) {
+                    chunkCountLowerLimit = std::max(chunkCountLowerLimit, adjustedRange.LowerLimit().GetChunkIndex());
+                }
+                adjustedRange.LowerLimit().SetChunkIndex(chunkCountLowerLimit);
+
+                auto chunkCountUpperLimit = (subrequestIndex + 1) * maxChunksPerFetch;
+                if (adjustedRange.UpperLimit().HasChunkIndex()) {
+                    chunkCountUpperLimit = std::min(chunkCountUpperLimit, adjustedRange.UpperLimit().GetChunkIndex());
+                }
+                adjustedRange.UpperLimit().SetChunkIndex(chunkCountUpperLimit);
             }
-            adjustedRange.UpperLimit().SetChunkIndex(chunkCountUpperLimit);
 
             // NB: objectId is null for virtual tables.
             auto req = TChunkOwnerYPathProxy::Fetch(userObject.GetObjectIdPathIfAvailable());
