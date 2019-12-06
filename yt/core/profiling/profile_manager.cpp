@@ -155,6 +155,23 @@ public:
         return IdToTag_[id];
     }
 
+    void SetGlobalTag(TTagId id)
+    {
+        BIND([this_ = MakeStrong(this), this, id] () {
+            const auto& newTag = GetTag(id);
+            for (auto& tagId : GlobalTagIds_) {
+                // Replace tag with the same key.
+                if (GetTag(tagId).Key == newTag.Key) {
+                    tagId = id;
+                    return;
+                }
+            }
+            GlobalTagIds_.push_back(id);
+        })
+            .Via(GetInvoker())
+            .Run();
+    }
+
     std::pair<i64, NProto::TPointBatch> GetSamples(std::optional<i64> count = std::nullopt)
     {
         auto result = BIND(&TSampleStorage::GetProtoSamples, &Storage_, count)
@@ -458,6 +475,9 @@ private:
     using TTagKeyToValues = THashMap<TString, std::vector<TString>>;
     TTagKeyToValues TagKeyToValues_;
 
+    //! Tags attached to every sample.
+    TTagIdList GlobalTagIds_;
+
     //! One deque instead of buckets with deques.
     TSampleStorage Storage_;
 
@@ -481,6 +501,8 @@ private:
         int samplesProcessed = 0;
 
         while (SampleQueue_.DequeueAll(true, [&] (TQueuedSample& sample) {
+                // Enrich sample with global tags.
+                sample.TagIds.insert(sample.TagIds.end(), GlobalTagIds_.begin(), GlobalTagIds_.end());
                 ProcessSample(sample);
                 ProcessSampleV2(sample);
                 ++samplesProcessed;
@@ -605,6 +627,11 @@ IYPathServicePtr TProfileManager::GetService() const
 TTagId TProfileManager::RegisterTag(const TTag& tag)
 {
     return Impl_->RegisterTag(tag);
+}
+
+void TProfileManager::SetGlobalTag(TTagId id)
+{
+    Impl_->SetGlobalTag(id);
 }
 
 std::pair<i64, NProto::TPointBatch> TProfileManager::GetSamples(std::optional<i64> count)

@@ -96,6 +96,9 @@ public:
     template <class T>
     TTagId RegisterTag(const TString& key, const T& value);
 
+    //! Registers or updates a tag that is attached to every sample generated in this process.
+    void SetGlobalTag(TTagId id);
+
     std::pair<i64, NProto::TPointBatch> GetSamples(std::optional<i64> cnt = std::nullopt);
 
     TResourceTrackerPtr GetResourceTracker() const;

@@ -1,5 +1,6 @@
 from yt_env_setup import YTEnvSetup, wait, Restarter, MASTER_CELL_SERVICE
 from yt_commands import *
+from yt_helpers import Metric
 
 import yt.packages.requests as requests
 import json
@@ -65,12 +66,33 @@ class TestHttpProxy(HttpProxyTestBase):
         assert [proxy] == get_yson(self.proxy_address() + "/hosts?role=data")
         assert [] == get_yson(self.proxy_address() + "/hosts?role=control")
 
+        def make_request_and_check_metric(metric):
+            url = self.proxy_address() + "/api/v3/get?path=//sys/@config"
+            requests.get(url)
+            return metric.update().get(verbose=True) > 0
+
+        data_metric = Metric.at_proxy(
+            proxy,
+            "http_proxy/http_code_count",
+            with_tags={"http_code": "200", "proxy_role" : "data"},
+            aggr_method="last")
+
+        wait(lambda: make_request_and_check_metric(data_metric))
+
         set("//sys/proxies/" + proxy + "/@role", "control")
 
         # Wait until the proxy entry will be updated on the coordinator.
         wait(lambda: [] == get_yson(self.proxy_address() + "/hosts"))
         assert [] == get_yson(self.proxy_address() + "/hosts?role=data")
         assert [proxy] == get_yson(self.proxy_address() + "/hosts?role=control")
+
+        control_metric = Metric.at_proxy(
+            proxy,
+            "http_proxy/http_code_count",
+            with_tags={"http_code": "200", "proxy_role" : "control"},
+            aggr_method="last")
+
+        wait(lambda: make_request_and_check_metric(control_metric))
 
         hosts = requests.get(self.proxy_address() + "/hosts/all").json()
         assert len(hosts) == 1

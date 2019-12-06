@@ -98,10 +98,18 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     SetupClients();
 
     Coordinator_ = New<TCoordinator>(Config_, this);
+
     SetNodeByYPath(
         orchidRoot,
         "/coordinator",
         CreateVirtualNode(Coordinator_->CreateOrchidService()));
+
+    auto setGlobalRoleTag = [] (const TString& role) {
+        auto id = TProfileManager::Get()->RegisterTag("proxy_role", role);
+        TProfileManager::Get()->SetGlobalTag(id);
+    };
+    setGlobalRoleTag(Coordinator_->GetSelf()->Role);
+    Coordinator_->SubscribeOnSelfRoleChanged(BIND(setGlobalRoleTag));
 
     Config_->BusServer->Port = Config_->RpcPort;
     RpcServer_ = NRpc::NBus::CreateBusServer(CreateTcpBusServer(Config_->BusServer));

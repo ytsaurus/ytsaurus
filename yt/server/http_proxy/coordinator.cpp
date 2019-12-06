@@ -411,6 +411,7 @@ void TCoordinator::UpdateState()
                     YT_LOG_INFO("Updating self role attribute (Old: %v, New: %v)",
                         Self_->Role,
                         proxy->Role);
+                    OnSelfRoleChanged_.Fire(proxy->Role);
                 }
 
                 Self_ = proxy;
