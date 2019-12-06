@@ -132,7 +132,11 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     TokenAuthenticator_ = authenticationManager->GetTokenAuthenticator();
     CookieAuthenticator_ = authenticationManager->GetCookieAuthenticator();
 
-    HttpAuthenticator_ = New<THttpAuthenticator>(Config_->Auth, TokenAuthenticator_, CookieAuthenticator_);
+    HttpAuthenticator_ = New<THttpAuthenticator>(
+        Config_->Auth,
+        TokenAuthenticator_,
+        CookieAuthenticator_,
+        Coordinator_);
 
     Api_ = New<TApi>(this);
     ApiHttpServer_ = NHttp::CreateServer(Config_->HttpServer, Poller_);
