@@ -695,8 +695,6 @@ TLookupRowsCommand::TLookupRowsCommand()
         .Default(false);
     RegisterParameter("retention_config", RetentionConfig)
         .Optional();
-    RegisterParameter("timestamp", Options.Timestamp)
-        .Optional();
     RegisterParameter("keep_missing_rows", Options.KeepMissingRows)
         .Optional();
     RegisterParameter("enable_partial_result", Options.EnablePartialResult)
