@@ -2,7 +2,7 @@ from library.python.testing.recipe import declare_recipe
 
 from mapreduce.yt.python.recipe.lib import start, stop
 
-from mapreduce.yt.python.yt_stuff import YtConfig
+import yt.yson as yson
 
 import yatest.common
 
@@ -36,7 +36,9 @@ def start_and_init(args):
         },
     }
 
-    yt = start(args, YtConfig(scheduler_config=scheduler_config, node_config=node_config))
+    args += ["--scheduler-config", yson.dumps(scheduler_config, yson_format="text"),
+             "--node-config", yson.dumps(node_config, yson_format="text")]
+    yt = start(args)
     yt_address = "localhost:" + str(yt.yt_proxy_port)
 
     yatest.common.execute([
