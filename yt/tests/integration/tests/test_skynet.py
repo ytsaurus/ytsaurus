@@ -331,9 +331,11 @@ class TestSkynetIntegration(YTEnvSetup):
 class TestSkynetManager(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
+    NUM_SCHEDULERS = 1
     ENABLE_HTTP_PROXY = True
     ENABLE_RPC_PROXY = True
     NUM_SKYNET_MANAGERS = 2
+    NUM_SECONDARY_MASTER_CELLS = 3
 
 
     def wait_skynet_manager(self):
@@ -538,6 +540,34 @@ class TestSkynetManager(YTEnvSetup):
 
         subprocess.check_call(["sky", "get", "-t", "60", "-p", "-d", self.path_to_run + "/test_download_2", rbtorrentid1])
         assert second_file == open(self.path_to_run + "/test_download_2/a").read()
+
+    @authors("prime")
+    def test_multicell_table(self):
+        self.wait_skynet_manager()
+
+        for i in range(10):
+            create("table", "//tmp/table_part_%d" % i, attributes={
+                "enable_skynet_sharing": True,
+                "schema": SKYNET_TABLE_SCHEMA,
+                "external": True,
+            })
+
+            random_file = ''.join(random.choice(string.ascii_uppercase) for _ in range(128))
+            write_table("//tmp/table_part_%d" % i, [
+                {"sky_share_id": 0, "filename": "file%d" % i, "part_index": 0, "data": random_file},
+            ])
+
+        create("table", "//tmp/multicell_table", attributes={
+            "enable_skynet_sharing": True,
+            "schema": SKYNET_TABLE_SCHEMA,
+            "external": True,
+        })
+
+        merge(in_=["//tmp/table_part_%d" % i for i in range(10)], out="//tmp/multicell_table", mode="sorted")
+        assert len(get("//tmp/multicell_table/@multicell_statistics")) > 1
+
+        rbtorrentid = self.share("//tmp/multicell_table")
+        subprocess.check_call(["sky", "get", "-t", "60", "-p", "-d", self.path_to_run + "/test_multicell", rbtorrentid])
 
     @authors("prime")
     @flaky(max_runs=5)

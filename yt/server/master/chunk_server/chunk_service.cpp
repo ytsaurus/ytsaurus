@@ -82,7 +82,11 @@ private:
         SyncWithUpstream();
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        TNodeDirectoryBuilder nodeDirectoryBuilder(response->mutable_node_directory());
+
+        auto addressType = request->has_address_type()
+            ? CheckedEnumCast<NNodeTrackerClient::EAddressType>(request->address_type())
+            : NNodeTrackerClient::EAddressType::InternalRpc;
+        TNodeDirectoryBuilder nodeDirectoryBuilder(response->mutable_node_directory(), addressType);
 
         const auto& cellDirectory = Bootstrap_->GetCellDirectory();
         const auto& multicellManager = Bootstrap_->GetMulticellManager();

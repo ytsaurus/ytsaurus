@@ -101,10 +101,11 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
         options.Config->MaxChunksPerLocateRequest,
         [&] (TChunkOwnerYPathProxy::TReqFetchPtr req) {
             req->set_fetch_all_meta_extensions(false);
-            req->set_address_type(static_cast<int>(EAddressType::SkynetHttp));
             SetSuppressAccessTracking(req, false);
         },
-        Logger);
+        Logger,
+        false,
+        EAddressType::SkynetHttp);
 
     return skynetShareLocations;
 }

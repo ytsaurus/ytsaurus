@@ -60,7 +60,8 @@ void ProcessFetchResponse(
     std::optional<int> rangeIndex,
     const NLogging::TLogger& logger,
     std::vector<NProto::TChunkSpec>* chunkSpecs,
-    bool skipUnavailableChunks = false);
+    bool skipUnavailableChunks = false,
+    NNodeTrackerClient::EAddressType addressType = NNodeTrackerClient::EAddressType::InternalRpc);
 
 //! Synchronously fetches chunk specs from master,
 //! waits for the result and processes the responses.
@@ -74,7 +75,8 @@ std::vector<NProto::TChunkSpec> FetchChunkSpecs(
     int maxChunksPerLocateRequest,
     const std::function<void(const TChunkOwnerYPathProxy::TReqFetchPtr&)>& initializeFetchRequest,
     const NLogging::TLogger& logger,
-    bool skipUnavailableChunks = false);
+    bool skipUnavailableChunks = false,
+    NNodeTrackerClient::EAddressType addressType = NNodeTrackerClient::EAddressType::InternalRpc);
 
 //! Synchronously invokes TChunkServiceProxy::AllocateWriteTargets.
 //! Populates #nodeDirectory with the returned node descriptors.
@@ -110,7 +112,8 @@ void LocateChunks(
     const std::vector<NProto::TChunkSpec*>& chunkSpecList,
     const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory,
     const NLogging::TLogger& logger,
-    bool skipUnavailableChunks = false);
+    bool skipUnavailableChunks = false,
+    NNodeTrackerClient::EAddressType addressType = NNodeTrackerClient::EAddressType::InternalRpc);
 
 ////////////////////////////////////////////////////////////////////////////////
 

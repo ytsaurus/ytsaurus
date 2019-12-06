@@ -216,7 +216,8 @@ void ProcessFetchResponse(
     std::optional<int> rangeIndex,
     const NLogging::TLogger& logger,
     std::vector<NProto::TChunkSpec>* chunkSpecs,
-    bool skipUnavailableChunks)
+    bool skipUnavailableChunks,
+    EAddressType addressType)
 {
     if (nodeDirectory) {
         nodeDirectory->MergeFrom(fetchResponse->node_directory());
@@ -240,7 +241,8 @@ void ProcessFetchResponse(
         foreignChunkSpecs,
         nodeDirectory,
         logger,
-        skipUnavailableChunks);
+        skipUnavailableChunks,
+        addressType);
 
     for (auto& chunkSpec : *fetchResponse->mutable_chunks()) {
         chunkSpecs->push_back(std::move(chunkSpec));
@@ -257,7 +259,8 @@ std::vector<NProto::TChunkSpec> FetchChunkSpecs(
     int maxChunksPerLocateRequest,
     const std::function<void(const TChunkOwnerYPathProxy::TReqFetchPtr&)>& initializeFetchRequest,
     const NLogging::TLogger& logger,
-    bool skipUnavailableChunks)
+    bool skipUnavailableChunks,
+    EAddressType addressType)
 {
     std::vector<NProto::TChunkSpec> chunkSpecs;
     chunkSpecs.reserve(static_cast<size_t>(chunkCount));
@@ -287,6 +290,7 @@ std::vector<NProto::TChunkSpec> FetchChunkSpecs(
             auto req = TChunkOwnerYPathProxy::Fetch(userObject.GetObjectIdPathIfAvailable());
             AddCellTagToSyncWith(req, userObject.ObjectId);
             req->Tag() = rangeIndex;
+            req->set_address_type(static_cast<int>(addressType));
             initializeFetchRequest(req.Get());
             ToProto(req->mutable_ranges(), std::vector<NChunkClient::TReadRange>{adjustedRange});
             batchReq->AddRequest(req);
@@ -313,7 +317,8 @@ std::vector<NProto::TChunkSpec> FetchChunkSpecs(
             rangeIndex,
             logger,
             &chunkSpecs,
-            skipUnavailableChunks);
+            skipUnavailableChunks,
+            addressType);
     }
 
     return chunkSpecs;
@@ -555,7 +560,8 @@ void LocateChunks(
     const std::vector<NProto::TChunkSpec*>& chunkSpecList,
     const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory,
     const NLogging::TLogger& logger,
-    bool skipUnavailableChunks)
+    bool skipUnavailableChunks,
+    EAddressType addressType)
 {
     const auto& Logger = logger;
 
@@ -582,6 +588,7 @@ void LocateChunks(
 
             auto req = proxy.LocateChunks();
             req->SetHeavy(true);
+            req->set_address_type(static_cast<int>(addressType));
             for (int index = beginIndex; index < endIndex; ++index) {
                 *req->add_subrequests() = chunkSpecs[index]->chunk_id();
             }
