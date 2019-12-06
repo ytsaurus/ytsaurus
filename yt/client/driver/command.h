@@ -223,7 +223,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTabletReadOptions
+struct TTabletTransactionOptions
 {
     NTransactionClient::TTransactionId TransactionId;
 };
@@ -235,7 +235,7 @@ class TTabletReadCommandBase
 template <class TOptions>
 class TTabletReadCommandBase<
     TOptions,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, TTabletReadOptions&>>::TType
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, TTabletTransactionOptions&>>::TType
 >
     : public virtual TTypedCommandBase<TOptions>
 {
@@ -247,7 +247,7 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTabletWriteOptions
-    : public TTabletReadOptions
+    : public TTabletTransactionOptions
 {
     NTransactionClient::EAtomicity Atomicity;
     NTransactionClient::EDurability Durability;
@@ -264,7 +264,7 @@ struct TDeleteRowsOptions
 { };
 
 struct TLockRowsOptions
-    : public TTabletReadOptions
+    : public TTabletTransactionOptions
 { };
 
 template <class TOptions, class = void>
