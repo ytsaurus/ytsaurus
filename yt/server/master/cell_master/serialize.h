@@ -103,12 +103,12 @@ DEFINE_ENUM(EMasterReign,
     ((FixClusterNodeForeignFlag)                                     (920))  // babenko
     ((BranchedAndLockedNodeCountMismatchFix)                         (921))  // shakurov
     ((FixParentTxForConcatUpload)                                    (922))  // babenko
-    ((DynamicMasterCacheDiscovery)                                   (923))  // aleksandra-zh
     ((CellServer)                                                   (1000))  // savrus
-    ((EnableDelayedMembershipClosureRecomputationByDefault)         (1001))  // babenko
-    ((NetworkProject)                                               (1002))  // gritukan
-    ((DynamicPeerCount)                                             (1003))  // gritukan
-    ((UserManagedPools)                                             (1004))  // renadeen
+    ((DynamicMasterCacheDiscovery)                                  (1001))  // aleksandra-zh
+    ((EnableDelayedMembershipClosureRecomputationByDefault)         (2001))  // babenko
+    ((NetworkProject)                                               (2002))  // gritukan
+    ((DynamicPeerCount)                                             (2003))  // gritukan
+    ((UserManagedPools)                                             (2004))  // renadeen
 );
 
 ////////////////////////////////////////////////////////////////////////////////
