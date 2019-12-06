@@ -174,6 +174,7 @@
     XX(LockedNodeIds, locked_node_ids) \
     XX(Locks, locks) \
     XX(LowerLimit, lower_limit) \
+    XX(MasterCacheNodes, master_cache_nodes) \
     XX(MasterMetaSize, master_meta_size) \
     XX(MaxBlockSize, max_block_size) \
     XX(MaxEphemeralPoolsPerUser, max_ephemeral_pools_per_user) \

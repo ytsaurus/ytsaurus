@@ -54,9 +54,7 @@ class TestMasterCache(YTEnvSetup):
         return list(result)
 
     def get_master_cache_list(self):
-        master = ls("//sys/primary_masters")[0]
-        result = get("//sys/primary_masters/{}/orchid/node_tracker/master_cache/addresses".format(master))
-        return list(result)
+        return get("//sys/cluster_nodes/@master_cache_nodes")
 
     def wait_for_cache_config_at_nodes(self, expected_nodes):
         for node in ls("//sys/cluster_nodes"):
