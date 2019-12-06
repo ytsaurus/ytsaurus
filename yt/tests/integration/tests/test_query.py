@@ -1105,6 +1105,29 @@ class TestQuery(YTEnvSetup):
         ''')
         assert actual == expected
 
+    @authors("lukyan")
+    def test_offset(self):
+        sync_create_cells(1)
+
+        create("table", "//tmp/t",
+            attributes={
+                "dynamic": True,
+                "optimize_for": "scan",
+                "schema": [
+                    {"name": "a", "type": "int64", "sort_order": "ascending"},
+                    {"name": "b", "type": "int64"}]
+            })
+
+        sync_mount_table("//tmp/t")
+
+        data = [{"a" : i, "b" : i} for i in xrange(0,11)]
+        insert_rows("//tmp/t", data)
+
+        expected = data[8:9]
+
+        actual = select_rows('''* from [//tmp/t] offset 8 limit 1''')
+        assert actual == expected
+
 class TestQueryRpcProxy(TestQuery):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
