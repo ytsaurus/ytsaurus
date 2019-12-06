@@ -340,11 +340,12 @@ private:
                     BuiltinRangeExtractorMap,
                     options);
 
-                ranges = MakeSharedRange(std::move(prunedRanges), rowBuffer);
                 YT_LOG_DEBUG("Splitting ranges (PrunedRangeCount: %v, OriginalRangeCount: %v, TableId: %v)",
                     prunedRanges.size(),
                     ranges.Size(),
                     tableId);
+
+                ranges = MakeSharedRange(std::move(prunedRanges), rowBuffer);
             } else {
                 YT_LOG_DEBUG("Splitting ranges (RangeCount: %v, TableId: %v)",
                     ranges.Size(),
