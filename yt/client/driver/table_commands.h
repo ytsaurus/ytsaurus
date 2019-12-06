@@ -210,7 +210,7 @@ private:
 
 struct TSelectRowsOptions
     : public NApi::TSelectRowsOptions
-    , public TTabletReadOptions
+    , public TTabletTransactionOptions
 { };
 
 class TSelectRowsCommand
@@ -229,9 +229,8 @@ private:
 
 struct TExplainOptions
     : public NApi::TExplainOptions
-    , public TTabletReadOptions
+    , public TTabletTransactionOptions
 { };
-
 
 class TExplainCommand
     : public TTypedCommand<TExplainOptions>
@@ -266,7 +265,7 @@ private:
 
 struct TLookupRowsOptions
     : public NApi::TLookupRowsOptions
-    , public TTabletReadOptions
+    , public TTabletTransactionOptions
 { };
 
 class TLookupRowsCommand
