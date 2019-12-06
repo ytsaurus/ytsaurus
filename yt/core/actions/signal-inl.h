@@ -62,8 +62,7 @@ void TCallbackList<TResult(TArgs...)>::Clear()
 }
 
 template <class TResult, class... TArgs>
-template <class... TCallArgs>
-void TCallbackList<TResult(TArgs...)>::Fire(TCallArgs&&... args) const
+void TCallbackList<TResult(TArgs...)>::Fire(const TArgs&... args) const
 {
     TCallbackVector callbacks;
     {
@@ -72,13 +71,12 @@ void TCallbackList<TResult(TArgs...)>::Fire(TCallArgs&&... args) const
     }
 
     for (const auto& callback : callbacks) {
-        callback.Run(std::forward<TCallArgs>(args)...);
+        callback.Run(args...);
     }
 }
 
 template <class TResult, class... TArgs>
-template <class... TCallArgs>
-void TCallbackList<TResult(TArgs...)>::FireAndClear(TCallArgs&&... args)
+void TCallbackList<TResult(TArgs...)>::FireAndClear(const TArgs&... args)
 {
     TCallbackVector callbacks;
     {
@@ -87,7 +85,7 @@ void TCallbackList<TResult(TArgs...)>::FireAndClear(TCallArgs&&... args)
     }
 
     for (const auto& callback : callbacks) {
-        callback.Run(std::forward<TCallArgs>(args)...);
+        callback.Run(args...);
     }
 }
 
