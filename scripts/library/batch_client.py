@@ -40,11 +40,15 @@ class BatchYpClient(object):
         self._try_flush(self._commit_remove_requests)
         self._try_flush(self._commit_update_requests)
         self._batch_create.append((object_type, attributes))
+        if len(self._batch_create) >= self._batch_size:
+            self._try_flush(self._commit_create_requests)
 
     def remove_object(self, object_type, object_id):
         self._try_flush(self._commit_create_requests)
         self._try_flush(self._commit_update_requests)
         self._batch_remove.append((object_type, object_id))
+        if len(self._batch_remove) >= self._batch_size:
+            self._try_flush(self._commit_remove_requests)
 
     def update_object(self, object_type, object_id, set_updates=None, remove_updates=None, attribute_timestamp_prerequisites=None):
         self._try_flush(self._commit_create_requests)
@@ -56,6 +60,8 @@ class BatchYpClient(object):
             remove_updates=remove_updates,
             attribute_timestamp_prerequisites=attribute_timestamp_prerequisites
         ))
+        if len(self._batch_update) >= self._batch_size:
+            self._try_flush(self._commit_update_requests)
 
     def _try_flush(self, commit_function):
         for retry_number in xrange(self._retries_count):
