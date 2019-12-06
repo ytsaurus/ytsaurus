@@ -694,7 +694,7 @@ public:
         return AggregatedOnlineNodeCount_;
     }
 
-    const THashSet<TNode*>& GetMasterCacheNodes()
+    const std::vector<TNode*>& GetMasterCacheNodes()
     {
         return MasterCacheNodes_;
     }
@@ -1105,7 +1105,7 @@ private:
         for (auto nodeId: request->node_ids()) {
             auto* node = FindNode(nodeId);
             if (IsObjectAlive(node)) {
-                YT_VERIFY(MasterCacheNodes_.push_back(node).second);
+                MasterCacheNodes_.push_back(node);
             } else {
                 YT_LOG_DEBUG_UNLESS(IsRecovery(), "New master cache node is dead, ignoring (NodeId: %v)", node->GetId());
             }
@@ -2115,7 +2115,7 @@ void TNodeTracker::ZombifyDataCenter(TDataCenter* dc)
     Impl_->ZombifyDataCenter(dc);
 }
 
-const THashSet<TNode*>& TNodeTracker::GetMasterCacheNodes()
+const std::vector<TNode*>& TNodeTracker::GetMasterCacheNodes()
 {
     return Impl_->GetMasterCacheNodes();
 }

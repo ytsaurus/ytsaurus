@@ -66,10 +66,12 @@ void TMasterCacheManager::OnStopLeading()
 
 bool TMasterCacheManager::IsGoodNode(const TNode* node) const
 {
-    return IsObjectAlive(node) && Config_->NodeTagFilter.IsSatisfiedBy(node->Tags());
+    return node->GetAggregatedState() == ENodeState::Online &&
+        IsObjectAlive(node) &&
+        Config_->NodeTagFilter.IsSatisfiedBy(node->Tags());
 }
 
-THashMap<TRack*, int> TMasterCacheManager::CountNodesPerRack(const THashSet<TNode*>& nodes)
+THashMap<TRack*, int> TMasterCacheManager::CountNodesPerRack(const std::vector<TNode*>& nodes)
 {
     THashMap<TRack*, int> result;
     for (auto* node : nodes) {
@@ -80,27 +82,28 @@ THashMap<TRack*, int> TMasterCacheManager::CountNodesPerRack(const THashSet<TNod
     return result;
 }
 
-THashSet<TNode*> TMasterCacheManager::FindAppropriateNodes(const THashSet<TNode*>& selectedNodes, int count)
+std::vector<TNode*> TMasterCacheManager::FindAppropriateNodes(const std::vector<TNode*>& selectedNodes, int count)
 {
     auto nodeCountPerRack = CountNodesPerRack(selectedNodes);
 
-    THashSet<TNode*> result;
+    std::vector<TNode*> result;
 
     int maxPeersPerRack = Config_->MaxPeersPerRack;
 
+    THashSet<TNode*> selectedNodeSet(selectedNodes.begin(), selectedNodes.end());
     for (auto [_, node] : Bootstrap_->GetNodeTracker()->Nodes()) {
         if (count == 0) {
             break;
         }
 
-        if (!IsGoodNode(node) || selectedNodes.contains(node)) {
+        if (!IsGoodNode(node) || selectedNodeSet.contains(node)) {
             continue;
         }
 
         auto* rack = node->GetRack();
         if (!rack || nodeCountPerRack[rack] < maxPeersPerRack) {
             ++nodeCountPerRack[rack];
-            YT_VERIFY(result.insert(node).second);
+            result.push_back(node);
             --count;
         }
     }
@@ -111,14 +114,13 @@ THashSet<TNode*> TMasterCacheManager::FindAppropriateNodes(const THashSet<TNode*
 void TMasterCacheManager::UpdateMasterCacheNodes()
 {
     auto nodes = Bootstrap_->GetNodeTracker()->GetMasterCacheNodes();
+
     YT_LOG_INFO("Started updating master cache nodes (OldNodes: %v)",
         MakeFormattableView(nodes, TNodePtrAddressFormatter()));
 
-    for (auto* node : nodes) {
-        if (!IsGoodNode(node)) {
-            nodes.erase(node);
-        }
-    }
+    nodes.erase(std::remove_if(nodes.begin(), nodes.end(), [&] (auto* node) {
+        return !IsGoodNode(node);
+    }), nodes.end());
 
     int nodesToReplaceCount = Config_->PeerCount - static_cast<int>(nodes.size());
     if (nodesToReplaceCount == 0) {
@@ -136,12 +138,12 @@ void TMasterCacheManager::UpdateMasterCacheNodes()
          newNodes.size(),
          MakeFormattableView(newNodes, TNodePtrAddressFormatter()));
 
-    nodes.insert(newNodes.begin(), newNodes.end());
+    nodes.insert(nodes.end(), newNodes.begin(), newNodes.end());
 
     CommitMasterCacheNodes(nodes);
 }
 
-void TMasterCacheManager::CommitMasterCacheNodes(const THashSet<TNode*>& nodes)
+void TMasterCacheManager::CommitMasterCacheNodes(const std::vector<TNode*>& nodes)
 {
     NProto::TReqUpdateMasterCacheNodes request;
     for (auto* node : nodes) {

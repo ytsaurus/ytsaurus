@@ -25,10 +25,10 @@ private:
     void OnLeaderActive();
     void OnStopLeading();
     bool IsGoodNode(const TNode* node) const;
-    THashMap<TRack*, int> CountNodesPerRack(const THashSet<TNode*>& nodes);
-    THashSet<TNode*> FindAppropriateNodes(const THashSet<TNode*>& selectedNodes, int count);
+    THashMap<TRack*, int> CountNodesPerRack(const std::vector<TNode*>& nodes);
+    std::vector<TNode*> FindAppropriateNodes(const std::vector<TNode*>& selectedNodes, int count);
     void UpdateMasterCacheNodes();
-    void CommitMasterCacheNodes(const THashSet<TNode*>& nodeIds);
+    void CommitMasterCacheNodes(const std::vector<TNode*>& nodeIds);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMasterCacheManager)

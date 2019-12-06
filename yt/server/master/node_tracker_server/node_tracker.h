@@ -202,7 +202,7 @@ public:
     int GetOnlineNodeCount();
 
     //! Returns the list of master cache nodes.
-    const THashSet<TNode*>& GetMasterCacheNodes();
+    const std::vector<TNode*>& GetMasterCacheNodes();
 
     //! Returns the list of master cache node default addresses.
     const std::vector<TString>& GetMasterCacheNodeAddresses();
