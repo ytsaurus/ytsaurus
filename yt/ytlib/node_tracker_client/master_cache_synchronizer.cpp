@@ -63,7 +63,7 @@ public:
         return Addresses_;
     }
 
-    DEFINE_SIGNAL(void(std::vector<TString>), MasterCacheNodeAddressesUpdated);
+    DEFINE_SIGNAL(void(const std::vector<TString>&), MasterCacheNodeAddressesUpdated);
 
 private:
     const TWeakPtr<IConnection> Connection_;

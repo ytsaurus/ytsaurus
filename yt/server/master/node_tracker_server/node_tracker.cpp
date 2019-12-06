@@ -747,7 +747,7 @@ private:
     const TAsyncSemaphorePtr IncrementalHeartbeatSemaphore_ = New<TAsyncSemaphore>(0);
     const TAsyncSemaphorePtr DisposeNodeSemaphore_ = New<TAsyncSemaphore>(0);
 
-    THashSet<TNode*> MasterCacheNodes_;
+    std::vector<TNode*> MasterCacheNodes_;
     std::vector<TString> MasterCacheNodeAddresses_;
 
     struct TNodeGroup
@@ -1105,7 +1105,7 @@ private:
         for (auto nodeId: request->node_ids()) {
             auto* node = FindNode(nodeId);
             if (IsObjectAlive(node)) {
-                YT_VERIFY(MasterCacheNodes_.insert(node).second);
+                YT_VERIFY(MasterCacheNodes_.push_back(node).second);
             } else {
                 YT_LOG_DEBUG_UNLESS(IsRecovery(), "New master cache node is dead, ignoring (NodeId: %v)", node->GetId());
             }
@@ -1724,7 +1724,9 @@ private:
 
     void RemoveFromMasterCache(TNode* node)
     {
-        if (MasterCacheNodes_.erase(node) > 0) {
+        auto nodeIt = std::find(MasterCacheNodes_.begin(), MasterCacheNodes_.end(), node);
+        if (nodeIt != MasterCacheNodes_.end()) {
+            MasterCacheNodes_.erase(nodeIt);
             UpdateMasterCacheNodeAddresses();
         }
     }
