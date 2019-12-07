@@ -2,7 +2,9 @@ from __future__ import print_function
 
 from .configs_provider import init_logging, get_default_provision, create_configs_provider
 from .default_configs import get_dynamic_master_config
-from .helpers import read_config, write_config, is_dead_or_zombie, OpenPortIterator, wait_for_removing_file_lock, add_binary_path, get_value_from_config
+from .helpers import (
+    read_config, write_config, is_dead_or_zombie, OpenPortIterator,
+    wait_for_removing_file_lock, add_binary_path, get_value_from_config, WaitFailed)
 from .porto_helpers import PortoSubprocess, porto_avaliable
 from .watcher import ProcessWatcher
 
@@ -746,7 +748,15 @@ class YTInstance(object):
 
         logger.info("Sending SIGKILL (pid: {})".format(proc.pid))
         os.killpg(proc.pid, signal.SIGKILL)
-        wait(lambda: is_dead_or_zombie(proc.pid))
+        try:
+            wait(lambda: is_dead_or_zombie(proc.pid))
+        except WaitFailed:
+            try:
+                with open("/proc/{0}/status".format(proc.pid), "r") as fin:
+                    logger.error("Process status: %s", fin.read().replace("\n", "\\n"))
+            except IOError:
+                pass
+            raise
 
     def _append_pid(self, pid):
         self.pids_file.write(str(pid) + "\n")
