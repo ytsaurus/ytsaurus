@@ -65,6 +65,8 @@
 #include <yt/server/lib/hydra/snapshot.h>
 #include <yt/server/lib/hydra/file_snapshot_store.h>
 
+#include <yt/server/lib/object_server/object_service_cache.h>
+
 #include <yt/ytlib/program/build_attributes.h>
 
 #include <yt/ytlib/api/native/client.h>
@@ -162,6 +164,7 @@ using namespace NTransactionServer;
 using namespace NHiveClient;
 using namespace NHiveServer;
 using namespace NObjectClient;
+using namespace NObjectServer;
 using namespace NTableClient;
 using namespace NNet;
 
@@ -572,7 +575,17 @@ void TBootstrap::DoInitialize()
     RpcServer_->RegisterService(CreateTimestampProxyService(
         MasterConnection_->GetTimestampProvider()));
 
-    auto initMasterCacheSerivce = [&] (const auto& masterConfig) {
+    auto cache = New<TObjectServiceCache>(
+        Config_->MasterCacheService,
+        Logger,
+        TProfiler("/cell_node/master_cache"));
+
+    {
+        auto result = GetMemoryUsageTracker()->TryAcquire(EMemoryCategory::MasterCache, Config_->MasterCacheService->Capacity);
+        THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error reserving memory for master cache");
+    }
+
+    auto initMasterCacheService = [&] (const auto& masterConfig) {
         return CreateMasterCacheService(
             Config_->MasterCacheService,
             MasterCacheQueue_->GetInvoker(),
@@ -582,14 +595,15 @@ void TBootstrap::DoInitialize()
                     MasterConnection_->GetChannelFactory(),
                     EPeerKind::Follower),
                 masterConfig->RpcTimeout),
+            cache,
             masterConfig->CellId);
     };
 
-    MasterCacheServices_.push_back(initMasterCacheSerivce(
+    MasterCacheServices_.push_back(initMasterCacheService(
         Config_->ClusterConnection->PrimaryMaster));
 
     for (const auto& masterConfig : Config_->ClusterConnection->SecondaryMasters) {
-        MasterCacheServices_.push_back(initMasterCacheSerivce(masterConfig));
+        MasterCacheServices_.push_back(initMasterCacheService(masterConfig));
     }
 
     RpcServer_->RegisterService(CreateAdminService(GetControlInvoker(), CoreDumper_));

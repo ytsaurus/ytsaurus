@@ -462,10 +462,11 @@ private:
     static void SetSuppressAccessTracking(
         const NRpc::IClientRequestPtr& request,
         const TSuppressableAccessTrackingOptions& commandOptions);
-    static void SetCachingHeader(
+
+    void SetCachingHeader(
         const NRpc::IClientRequestPtr& request,
         const TMasterReadOptions& options);
-    static void SetBalancingHeader(
+    void SetBalancingHeader(
         const NRpc::IClientRequestPtr& request,
         const TMasterReadOptions& options);
 
@@ -894,7 +895,7 @@ private:
         TListOperationsCountingFilter& countingFilter,
         const TListOperationsOptions& options);
 
-    static THashSet<TString> GetSubjectClosure(
+    THashSet<TString> GetSubjectClosure(
         const TString& subject,
         NObjectClient::TObjectServiceProxy& proxy,
         const TMasterReadOptions& options);

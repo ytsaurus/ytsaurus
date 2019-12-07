@@ -23,10 +23,21 @@ public:
     //! Interval between consequent directory updates.
     TDuration SyncPeriod;
 
+    //! TTL for GetClusterMeta request.
+    TDuration ExpireAfterSuccessfulUpdateTime;
+    TDuration ExpireAfterFailedUpdateTime;
+
     TClusterDirectorySynchronizerConfig()
     {
         RegisterParameter("sync_period", SyncPeriod)
             .Default(TDuration::Seconds(60));
+
+        RegisterParameter("expire_after_successful_update_time", ExpireAfterSuccessfulUpdateTime)
+            .Alias("success_expiration_time")
+            .Default(TDuration::Seconds(15));
+        RegisterParameter("expire_after_failed_update_time", ExpireAfterFailedUpdateTime)
+            .Alias("failure_expiration_time")
+            .Default(TDuration::Seconds(15));
     }
 };
 

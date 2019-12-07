@@ -108,6 +108,8 @@ TDynamicClusterConfig::TDynamicClusterConfig()
         .DefaultNew();
     RegisterParameter("cell_master", CellMaster)
         .DefaultNew();
+    RegisterParameter("object_service", ObjectService)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

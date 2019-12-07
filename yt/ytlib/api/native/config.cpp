@@ -149,6 +149,9 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("enable_builtin_tablet_system_users", EnableBuiltinTabletSystemUsers)
         .Default(false);
 
+    RegisterParameter("cache_sticky_group_size_override", CacheStickyGroupSizeOverride)
+        .Default();
+
     RegisterParameter("idle_channel_ttl", IdleChannelTtl)
         .Default(TDuration::Minutes(30));
 

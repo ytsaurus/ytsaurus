@@ -113,6 +113,9 @@ private:
             TGetClusterMetaOptions options;
             options.PopulateClusterDirectory = true;
             options.ReadFrom = EMasterChannelKind::Cache;
+            options.ExpireAfterSuccessfulUpdateTime = Config_->ExpireAfterSuccessfulUpdateTime;
+            options.ExpireAfterFailedUpdateTime = Config_->ExpireAfterFailedUpdateTime;
+
             auto meta = WaitFor(client->GetClusterMeta(options))
                 .ValueOrThrow();
 

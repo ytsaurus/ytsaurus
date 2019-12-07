@@ -35,12 +35,13 @@ DEFINE_BIT_ENUM(ETypeFlags,
 DECLARE_REFCOUNTED_CLASS(TObjectManager)
 DECLARE_REFCOUNTED_CLASS(TGarbageCollector)
 
-DECLARE_REFCOUNTED_STRUCT(TRequestProfilngCounters)
+DECLARE_REFCOUNTED_STRUCT(TRequestProfilingCounters)
 DECLARE_REFCOUNTED_CLASS(TRequestProfilingManager)
 
 DECLARE_REFCOUNTED_CLASS(TObjectManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicObjectManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TObjectServiceConfig)
+DECLARE_REFCOUNTED_CLASS(TDynamicObjectServiceConfig)
 
 class TObject;
 class TNonversionedObjectBase;

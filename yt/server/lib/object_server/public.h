@@ -21,7 +21,10 @@ using NObjectClient::NullTransactionId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TObjectServiceCacheConfig)
 DECLARE_REFCOUNTED_CLASS(TMasterCacheServiceConfig)
+DECLARE_REFCOUNTED_CLASS(TObjectServiceCacheEntry)
+DECLARE_REFCOUNTED_CLASS(TObjectServiceCache)
 
 using TEpoch = ui32;
 

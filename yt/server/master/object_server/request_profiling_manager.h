@@ -6,10 +6,10 @@ namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TRequestProfilngCounters
+struct TRequestProfilingCounters
     : public TIntrinsicRefCounted
 {
-    explicit TRequestProfilngCounters(const NProfiling::TTagIdList& tagIds);
+    explicit TRequestProfilingCounters(const NProfiling::TTagIdList& tagIds);
 
     NProfiling::TMonotonicCounter TotalReadRequestCounter;
     NProfiling::TMonotonicCounter TotalWriteRequestCounter;
@@ -22,7 +22,7 @@ struct TRequestProfilngCounters
     NProfiling::TMonotonicCounter LocalMutationScheduleTimeCounter;
 };
 
-DEFINE_REFCOUNTED_TYPE(TRequestProfilngCounters)
+DEFINE_REFCOUNTED_TYPE(TRequestProfilingCounters)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,7 +32,7 @@ class TRequestProfilingManager
 public:
     TRequestProfilingManager();
 
-    TRequestProfilngCountersPtr GetCounters(const TString& user, const TString& method);
+    TRequestProfilingCountersPtr GetCounters(const TString& user, const TString& method);
 
 private:
     class TImpl;

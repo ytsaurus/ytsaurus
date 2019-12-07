@@ -16,6 +16,7 @@ DEFINE_ENUM(EErrorCode,
     ((CrossCellAdditionalPath)                   (1002))
     ((CrossCellRevisionPrerequisitePath)         (1003))
     ((ForwardedRequestFailed)                    (1004))
+    ((CannotCacheMutatingRequest)                (1005))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
