@@ -2374,12 +2374,19 @@ private:
             EEventType eventType,
             TInstant time)
         {
-            TYsonString historyEnabledAttributes;
-            if (eventType == EEventType::ObjectRemoved) {
-                historyEnabledAttributes = TYsonString("{}");
-            } else {
-                historyEnabledAttributes = object->GetHistoryEnabledAttributes();
+            INodePtr historyEnabledAttributesNode;
+            if (eventType != EEventType::ObjectRemoved) {
+                auto typeHandler = object->GetTypeHandler();
+                historyEnabledAttributesNode = typeHandler
+                    ->GetRootAttributeSchema()
+                    ->GetHistoryEnabledAttributes(object);
             }
+
+            if (!historyEnabledAttributesNode) {
+                historyEnabledAttributesNode = GetEphemeralNodeFactory()->CreateMap();
+            }
+
+            auto historyEnabledAttributes = ConvertToYsonString(historyEnabledAttributesNode);
 
             storeContext.WriteRow(
                 &HistoryEventsTable,
@@ -2430,7 +2437,7 @@ private:
                 }
 
                 auto* typeHandler = object->GetTypeHandler();
-                if (typeHandler->HasStoreScheduledHistoryEnabledAttributes(object.get())) {
+                if (typeHandler->HasHistoryEnabledAttributeForStore(object.get())) {
                     ++eventCount;
                     WriteHistoryEvent(storeContext, object.get(), EEventType::ObjectUpdated, time);
                 }

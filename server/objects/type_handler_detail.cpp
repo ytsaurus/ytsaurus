@@ -10,8 +10,6 @@
 
 #include <yt/ytlib/query_client/ast.h>
 
-#include <yt/core/ypath/tokenizer.h>
-
 namespace NYP::NServer::NObjects {
 
 using namespace NAccessControl;
@@ -23,23 +21,6 @@ using namespace NYT::NQueryClient::NAst;
 
 using std::placeholders::_1;
 using std::placeholders::_2;
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace {
-
-void ValidateAttributePath(const NYPath::TYPath& attributePath)
-{
-    NYPath::TTokenizer tokenizer(attributePath);
-
-    while (tokenizer.Advance() != NYPath::ETokenType::EndOfStream) {
-        tokenizer.Expect(NYPath::ETokenType::Slash);
-        tokenizer.Advance();
-        tokenizer.Expect(NYPath::ETokenType::Literal);
-    }
-}
-
-} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -107,7 +88,7 @@ void TObjectTypeHandlerBase::Initialize()
 
 void TObjectTypeHandlerBase::PostInitialize()
 {
-    EvaluateHistoryEnabledAttributePaths();
+    PrepareHistoryEnabledAttributeSchemaCache();
 }
 
 EObjectType TObjectTypeHandlerBase::GetType()
@@ -195,6 +176,8 @@ void TObjectTypeHandlerBase::BeforeObjectCreated(
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 bool TObjectTypeHandlerBase::HasHistoryEnabledAttributes()
 {
     return HasHistoryEnabledAttributes_;
@@ -205,10 +188,12 @@ const TYsonString& TObjectTypeHandlerBase::GetHistoryEnabledAttributePaths()
     return SerializedHistoryEnabledAttributePaths_;
 }
 
-bool TObjectTypeHandlerBase::HasStoreScheduledHistoryEnabledAttributes(TObject* object)
+bool TObjectTypeHandlerBase::HasHistoryEnabledAttributeForStore(TObject* object)
 {
-    return RootAttributeSchema_->HasStoreScheduledHistoryEnabledAttributes(object);
+    return RootAttributeSchema_->HasHistoryEnabledAttributeForStore(object);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 void TObjectTypeHandlerBase::AfterObjectCreated(
     TTransaction* /*transaction*/,
@@ -304,10 +289,11 @@ void TObjectTypeHandlerBase::ValidateAcl(TTransaction* transaction, TObject* obj
     }
 }
 
-void TObjectTypeHandlerBase::EvaluateHistoryEnabledAttributePaths()
-{
-    const auto historyEnabledAttributePaths = RootAttributeSchema_->GetHistoryEnabledAttributePaths();
+////////////////////////////////////////////////////////////////////////////////
 
+void TObjectTypeHandlerBase::PrepareHistoryEnabledAttributeSchemaCache()
+{
+    auto historyEnabledAttributePaths = RootAttributeSchema_->GetHistoryEnabledAttributePaths();
     HasHistoryEnabledAttributes_ = !historyEnabledAttributePaths.empty();
     SerializedHistoryEnabledAttributePaths_ = ConvertToYsonString(historyEnabledAttributePaths);
 }

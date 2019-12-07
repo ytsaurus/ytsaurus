@@ -34,7 +34,7 @@ struct IObjectTypeHandler
 
     virtual bool HasHistoryEnabledAttributes() = 0;
     virtual const NYT::NYson::TYsonString& GetHistoryEnabledAttributePaths() = 0;
-    virtual bool HasStoreScheduledHistoryEnabledAttributes(TObject* object) = 0;
+    virtual bool HasHistoryEnabledAttributeForStore(TObject* object) = 0;
 
     virtual std::unique_ptr<TObject> InstantiateObject(
         const TObjectId& id,

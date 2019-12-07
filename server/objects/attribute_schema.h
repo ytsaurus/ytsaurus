@@ -16,6 +16,10 @@ namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ValidateAttributePath(const NYPath::TYPath& attributePath);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IQueryContext
 {
     virtual ~IQueryContext() = default;
@@ -23,6 +27,22 @@ struct IQueryContext
     virtual IObjectTypeHandler* GetTypeHandler() = 0;
     virtual NYT::NQueryClient::NAst::TExpressionPtr GetFieldExpression(const TDBField* field) = 0;
     virtual NYT::NQueryClient::NAst::TExpressionPtr GetAnnotationExpression(const TString& name) = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct THistoryEnabledAttributeSchema
+{
+    THistoryEnabledAttributeSchema& SetPath(NYPath::TYPath path);
+
+    template <class TTypedObject>
+    THistoryEnabledAttributeSchema& SetValueFilter(std::function<bool(TTypedObject*)> valueFilter);
+
+    //! Path of the attribute relative to the current attribute schema.
+    NYPath::TYPath Path;
+
+    //! Determines if the new value of the attribute should be stored.
+    std::function<bool(TObject*)> ValueFilter;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -61,17 +81,6 @@ public:
 
     TAttributeSchema* SetEtc();
     bool IsEtc() const;
-
-    //! Returns all subattribute paths with enabled history.
-    std::vector<NYT::NYPath::TYPath> GetHistoryEnabledAttributePaths() const;
-
-    //! Returns all subattribute values with enabled history regardless of
-    //! the filtering result and whether attribute was updated or not.
-    NYT::NYTree::IMapNodePtr GetHistoryEnabledAttributes(TObject* object) const;
-
-    //! Returns true iff there is at least one subattribute which was
-    //! updated (store scheduled) and accepted by the history filter.
-    bool HasStoreScheduledHistoryEnabledAttributes(TObject* object) const;
 
     TAttributeSchema* SetReadPermission(NAccessControl::EAccessControlPermission permission);
     NAccessControl::EAccessControlPermission GetReadPermission() const;
@@ -208,13 +217,17 @@ public:
         TObject* object,
         const NYT::NYPath::TYPath& path);
 
-    template <class TTypedObject>
-    TAttributeSchema* SetHistoryFilter(std::function<bool(
-        TTypedObject* object)> historyFilter);
-    template <class TTypedObject>
-    TAttributeSchema* SetHistoryFilter();
-    bool HasHistoryFilter() const;
-    bool RunHistoryFilter(TObject* object) const;
+    TAttributeSchema* EnableHistory(
+        THistoryEnabledAttributeSchema schema = THistoryEnabledAttributeSchema());
+    //! Returns all subattribute paths with enabled history.
+    std::vector<NYPath::TYPath> GetHistoryEnabledAttributePaths() const;
+    //! Returns all subattribute values with enabled history regardless of
+    //! the filtering result and whether attribute was updated or not.
+    //! Returns nullptr if there is no history enabled attribute.
+    NYTree::INodePtr GetHistoryEnabledAttributes(TObject* object) const;
+    //! Returns true iff there is at least one history enabled attribute for store,
+    //! i.e. updated (store scheduled) and accepted by the history filter.
+    bool HasHistoryEnabledAttributeForStore(TObject* object) const;
 
 private:
     IObjectTypeHandler* const TypeHandler_;
@@ -239,7 +252,9 @@ private:
     std::function<void(TTransaction*, TObject*, NYson::IYsonConsumer*)> Evaluator_;
     std::function<void(TTransaction*, TObject*, const NYT::NYPath::TYPath&)> TimestampPregetter_;
     std::function<TTimestamp(TTransaction*, TObject*, const NYT::NYPath::TYPath&)> TimestampGetter_;
-    std::function<bool(TObject*)> HistoryFilter_;
+
+    // NB! For simplicity supports at most one history enabled subattribute.
+    std::optional<THistoryEnabledAttributeSchema> HistoryEnabledAttribute_;
 
     bool Composite_ = false;
     bool Extensible_ = false;
@@ -271,16 +286,14 @@ private:
     template <class TTypedObject, class TSchema>
     void InitPreupdater(const TSchema& schema);
 
-    void GetHistoryEnabledAttributePathsImpl(std::vector<NYT::NYPath::TYPath>* result) const;
-
-    void GetHistoryEnabledAttributesImpl(
-        NYT::NYTree::IMapNodePtr result,
+    void FillHistoryEnabledAttributePaths(
+        std::vector<NYT::NYPath::TYPath>* result) const;
+    NYTree::INodePtr GetHistoryEnabledAttributesImpl(
         TObject* object,
-        bool hasParentHistoryEnabledAttribute) const;
-
-    bool HasStoreScheduledHistoryEnabledAttributesImpl(
+        bool hasHistoryEnabledParentAttribute) const;
+    bool HasHistoryEnabledAttributeForStoreImpl(
         TObject* object,
-        bool hasParentHistoryEnabledAttribute) const;
+        bool hasAcceptedByHistoryFilterParentAttribute) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

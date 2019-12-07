@@ -1,12 +1,11 @@
 from .conftest import (
-    DEFAULT_POD_SET_SPEC,
     assert_over_time,
     create_nodes,
-    create_pod_set_with_quota,
+    create_pod_set,
     create_pod_with_boilerplate,
     get_pod_scheduling_status,
-    is_assigned_pod_scheduling_status,
     is_error_pod_scheduling_status,
+    is_pod_assigned,
 )
 
 from yp.common import wait
@@ -14,7 +13,7 @@ from yp.common import wait
 from yt.yson import YsonEntity
 
 import pytest
-import time
+
 
 @pytest.mark.usefixtures("yp_env")
 class TestHistoryApi(object):
@@ -73,16 +72,39 @@ class TestHistoryApi(object):
     def test_selectors(self, yp_env):
         yp_client = yp_env.yp_client
 
-        stage_id = yp_client.create_object(object_type="stage", attributes={"spec": {"revision": 42}})
-        history_events = yp_client.select_object_history("stage", stage_id, ["/spec", "/spec/revision", "/meta", "/spec/abc", "/spec/abc", "/spec/revision/abc"])["events"]
-        assert len(history_events) == 1
-        results = history_events[0]["results"]
-        assert len(results) == 6
-        # TODO(gritukan) fix for accounts
-        #assert results[0]["value"]["revision"] == {"account": YsonEntity, "revision": 42}
+        stage_id = yp_client.create_object("stage", attributes={"spec": {"revision": 42}})
+
+        events = yp_client.select_object_history(
+            "stage",
+            stage_id,
+            ["/spec", "/spec/revision", "/meta", "/spec/abc", "/spec/abc", "/spec/revision/abc", "/spec/account_id"],
+        )["events"]
+        assert len(events) == 1
+
+        results = events[0]["results"]
+        assert len(results) == 7
+
         assert results[1]["value"] == 42
-        for i in range(2, 6):
+        for i in range(2, 7):
             assert isinstance(results[i]["value"], YsonEntity)
+
+        yp_client.update_object(
+            "stage",
+            stage_id,
+            set_updates=[
+                dict(
+                    path="/spec/account_id",
+                    value="tmp",
+                ),
+            ],
+        )
+
+        next_events = yp_client.select_object_history("stage", stage_id, ["/spec"])["events"]
+        assert len(next_events) == 2
+
+        assert events[0]["results"][0]["value"] == next_events[0]["results"][0]["value"]
+
+        assert "tmp" == next_events[1]["results"][0]["value"]["account_id"]
 
     def test_filter_uuid(self, yp_env):
         yp_client = yp_env.yp_client
@@ -168,17 +190,8 @@ class TestHistoryApi(object):
     def test_pod_status_scheduling_filter(self, yp_env):
         yp_client = yp_env.yp_client
 
-        pod_set_id = create_pod_set_with_quota(
-            yp_client,
-            bandwidth_quota=2 ** 60)[0]
-
-        pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, {
-            "resource_requests": {
-                "network_bandwidth_guarantee": 2 ** 29,
-                "network_bandwidth_limit": 2 ** 32,
-            },
-            "enable_scheduling": True
-        })
+        pod_set_id = create_pod_set(yp_client)
+        pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, spec=dict(enable_scheduling=True))
 
         wait(lambda: is_error_pod_scheduling_status(get_pod_scheduling_status(yp_client, pod_id)))
         assert len(yp_client.select_object_history("pod", pod_id, ["/status/scheduling"])["events"]) == 2
@@ -194,7 +207,7 @@ class TestHistoryApi(object):
     def test_pod_status_scheduling_history(self, yp_env):
         yp_client = yp_env.yp_client
 
-        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": DEFAULT_POD_SET_SPEC})
+        pod_set_id = create_pod_set(yp_client)
         create_nodes(yp_client, 2)
 
         pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, {
@@ -204,7 +217,7 @@ class TestHistoryApi(object):
             "enable_scheduling": True
         })
 
-        wait(lambda: is_assigned_pod_scheduling_status(get_pod_scheduling_status(yp_client, pod_id)))
+        wait(lambda: is_pod_assigned(yp_client, pod_id))
 
         assert(len(yp_client.select_object_history("pod", pod_id, ["/status/scheduling"])["events"]) == 2)
         generation_number = yp_client.get_object("pod", pod_id, ["/status/generation_number"])[0]
@@ -216,19 +229,120 @@ class TestHistoryApi(object):
 
         wait(lambda: yp_client.get_object("pod", pod_id, ["/status/generation_number"])[0] != generation_number)
 
-        wait(lambda: is_assigned_pod_scheduling_status(get_pod_scheduling_status(yp_client, pod_id)))
+        wait(lambda: is_pod_assigned(yp_client, pod_id))
 
-        events = yp_client.select_object_history("pod", pod_id, ["/status/scheduling"])["events"]
-        assert len(events) == 4
+        events = yp_client.select_object_history("pod", pod_id, ["/status/scheduling", "/status/eviction"])["events"]
+        assert 5 == len(events)
+
+        # Pod created.
         assert not events[0]["results"][0]["value"]["node_id"]
         assert "error" not in events[0]["results"][0]["value"]
         assert events[0]["results"][0]["value"]["state"] == "pending"
+        assert events[0]["results"][1]["value"]["state"] == "none"
+        assert events[0]["results"][1]["value"]["reason"] == "none"
+
+        # Pod assigned.
         assert events[1]["results"][0]["value"]["node_id"]
         assert "error" not in events[1]["results"][0]["value"]
         assert events[1]["results"][0]["value"]["state"] == "assigned"
-        assert not events[2]["results"][0]["value"]["node_id"]
+        assert events[1]["results"][1]["value"]["state"] == "none"
+        assert events[1]["results"][1]["value"]["reason"] == "none"
+
+        # Pod eviction acknowledged.
+        assert events[2]["results"][0]["value"]["node_id"]
         assert "error" not in events[2]["results"][0]["value"]
-        assert events[2]["results"][0]["value"]["state"] == "pending"
-        assert events[3]["results"][0]["value"]["node_id"]
+        assert events[2]["results"][0]["value"]["state"] == "assigned"
+        assert events[2]["results"][1]["value"]["state"] == "acknowledged"
+        assert events[2]["results"][1]["value"]["reason"] == "none"
+
+        # Pod evicted.
+        assert not events[3]["results"][0]["value"]["node_id"]
         assert "error" not in events[3]["results"][0]["value"]
-        assert events[3]["results"][0]["value"]["state"] == "assigned"
+        assert events[3]["results"][0]["value"]["state"] == "pending"
+        assert events[3]["results"][1]["value"]["state"] == "none"
+        assert events[3]["results"][1]["value"]["reason"] == "none"
+
+        # Pod assigned.
+        assert events[4]["results"][0]["value"]["node_id"]
+        assert "error" not in events[4]["results"][0]["value"]
+        assert events[4]["results"][0]["value"]["state"] == "assigned"
+        assert events[4]["results"][1]["value"]["state"] == "none"
+        assert events[4]["results"][1]["value"]["reason"] == "none"
+
+    def test_either_all_or_none_history_attributes_are_stored(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        pod_set_id = create_pod_set(yp_client)
+        create_nodes(yp_client, 1)
+        pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, spec=dict(enable_scheduling=True))
+
+        wait(lambda: is_pod_assigned(yp_client, pod_id))
+
+        events = yp_client.select_object_history("pod", pod_id, ["/status/scheduling", "/status/eviction"])["events"]
+        assert 2 == len(events)
+        assert 2 == len(events[0]["history_enabled_attributes"])
+        assert set(["/status/scheduling", "/status/eviction"]) == set(events[0]["history_enabled_attributes"])
+
+        scheduling = events[0]["results"][0]["value"]
+        assert not scheduling["node_id"]
+        assert scheduling["state"] == "pending"
+        assert "error" not in scheduling
+        eviction = events[0]["results"][1]["value"]
+        assert eviction["state"] == "none"
+        assert eviction["reason"] == "none"
+        assert eviction["last_updated"] > 0
+        assert len(eviction["message"]) > 0
+
+        scheduling = events[1]["results"][0]["value"]
+        assert len(scheduling["node_id"]) > 0
+        assert scheduling["state"] == "assigned"
+        assert "error" not in scheduling
+        eviction = events[1]["results"][1]["value"]
+        assert eviction["state"] == "none"
+        assert eviction["reason"] == "none"
+        assert eviction["last_updated"] > 0
+        assert len(eviction["message"]) > 0
+
+        yp_client.request_pod_eviction(pod_id, "Test")
+
+        next_events = yp_client.select_object_history("pod", pod_id, ["/status/scheduling", "/status/eviction"])["events"]
+        assert 3 == len(next_events)
+
+        assert events[0] == next_events[0]
+        assert events[1] == next_events[1]
+
+        assert scheduling == next_events[2]["results"][0]["value"]
+        eviction = next_events[2]["results"][1]["value"]
+        assert eviction["state"] == "requested"
+        assert eviction["reason"] == "client"
+        assert eviction["last_updated"] > 0
+        assert len(eviction["message"]) > 0
+
+    def test_pod_status_eviction_history(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        def get_eviction_timestamp(pod_id):
+            return yp_client.get_object("pod", pod_id, selectors=["/status/eviction/last_updated"])[0]
+
+        pod_set_id = create_pod_set(yp_client)
+        create_nodes(yp_client, 1)
+        pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, spec=dict(enable_scheduling=True))
+
+        wait(lambda: is_pod_assigned(yp_client, pod_id))
+
+        timestamp = get_eviction_timestamp(pod_id)
+
+        transaction_id = yp_client.start_transaction()
+        yp_client.request_pod_eviction(pod_id, "Test", transaction_id=transaction_id)
+        yp_client.abort_pod_eviction(pod_id, "Test", transaction_id=transaction_id)
+        yp_client.commit_transaction(transaction_id)
+
+        assert get_eviction_timestamp(pod_id) > timestamp
+
+        events = yp_client.select_object_history("pod", pod_id, [""])["events"]
+        assert 2 == len(events)
+
+        for event in events:
+            value = event["results"][0]["value"]
+            assert set(value.keys()) == set(["status"])
+            assert set(value["status"].keys()) == set(["scheduling", "eviction"])

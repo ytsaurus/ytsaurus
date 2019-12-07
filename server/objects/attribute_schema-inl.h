@@ -224,27 +224,21 @@ TAttributeSchema* TAttributeSchema::SetEvaluator(std::function<void(
     return this;
 }
 
-template <class TTypedObject>
-TAttributeSchema* TAttributeSchema::SetHistoryFilter(std::function<bool(
-    TTypedObject* object)> historyFilter)
-{
-    HistoryFilter_ =
-        [=] (TObject* object) -> bool {
-            auto* typedObject = object->template As<TTypedObject>();
-            return historyFilter(typedObject);
-        };
-    return this;
-}
+////////////////////////////////////////////////////////////////////////////////
 
 template <class TTypedObject>
-TAttributeSchema* TAttributeSchema::SetHistoryFilter()
+THistoryEnabledAttributeSchema& THistoryEnabledAttributeSchema::SetValueFilter(
+    std::function<bool(TTypedObject*)> valueFilter)
 {
-    HistoryFilter_ =
-        [=] (TObject* /* object */) -> bool {
-            return true;
+    ValueFilter =
+        [=] (TObject* object) -> bool {
+            auto* typedObject = object->template As<TTypedObject>();
+            return valueFilter(typedObject);
         };
-    return this;
+    return *this;
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <class TTypedObject, class TTypedValue>
 TAttributeSchema* TAttributeSchema::SetAttribute(const TScalarAttributeSchema<TTypedObject, TTypedValue>& schema)
@@ -549,7 +543,6 @@ void TAttributeSchema::InitValueGetter(const TSchema& schema)
             return NYT::NYTree::ConvertToNode(attribute->Load());
         };
 }
-
 
 template <class TTypedObject, class TTypedValue, class TSchema>
 void TAttributeSchema::InitStoreScheduledGetter(const TSchema& schema)

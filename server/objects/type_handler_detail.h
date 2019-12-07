@@ -41,7 +41,7 @@ public:
 
     virtual bool HasHistoryEnabledAttributes() override;
     virtual const NYT::NYson::TYsonString& GetHistoryEnabledAttributePaths() override;
-    virtual bool HasStoreScheduledHistoryEnabledAttributes(TObject* object) override;
+    virtual bool HasHistoryEnabledAttributeForStore(TObject* object) override;
 
     virtual void BeforeObjectCreated(
         TTransaction* transaction,
@@ -91,7 +91,7 @@ private:
     void ValidateMetaEtc(TTransaction* transaction, TObject* object);
     void ValidateAcl(TTransaction* transaction, TObject* object);
 
-    void EvaluateHistoryEnabledAttributePaths();
+    void PrepareHistoryEnabledAttributeSchemaCache();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -81,9 +81,6 @@ public:
     template <class T>
     T* As();
 
-    bool HasHistoryEnabledAttributes() const;
-    NYT::NYson::TYsonString GetHistoryEnabledAttributes();
-
 private:
     friend class TAttributeBase;
 

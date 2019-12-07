@@ -175,16 +175,6 @@ bool TObject::IsStoreScheduled() const
     return StoreScheduled_;
 }
 
-bool TObject::HasHistoryEnabledAttributes() const
-{
-    return TypeHandler_->HasHistoryEnabledAttributes();
-}
-
-NYT::NYson::TYsonString TObject::GetHistoryEnabledAttributes()
-{
-    return NYT::NYTree::ConvertToYsonString(TypeHandler_->GetRootAttributeSchema()->GetHistoryEnabledAttributes(this));
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TClusterTag ClusterTagFromId(const TTransactionId& id)

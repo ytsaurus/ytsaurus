@@ -8,6 +8,7 @@
 
 #include <yt/core/ypath/tokenizer.h>
 
+#include <yt/core/ytree/exception_helpers.h>
 #include <yt/core/ytree/fluent.h>
 
 #include <util/string/join.h>
@@ -23,6 +24,19 @@ using namespace NYT::NQueryClient::NAst;
 using NYT::NYson::TYsonString;
 using NYT::NYson::IYsonConsumer;
 using NYT::NQueryClient::TSourceLocation;
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ValidateAttributePath(const NYPath::TYPath& attributePath)
+{
+    NYPath::TTokenizer tokenizer(attributePath);
+
+    while (tokenizer.Advance() != NYPath::ETokenType::EndOfStream) {
+        tokenizer.Expect(NYPath::ETokenType::Slash);
+        tokenizer.Advance();
+        tokenizer.Expect(NYPath::ETokenType::Literal);
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -576,16 +590,6 @@ TTimestamp TAttributeSchema::RunTimestampGetter(TTransaction* transaction, TObje
     return TimestampGetter_(transaction, object, path);
 }
 
-bool TAttributeSchema::HasHistoryFilter() const
-{
-    return HistoryFilter_.operator bool();
-}
-
-bool TAttributeSchema::RunHistoryFilter(TObject* object) const
-{
-    return HistoryFilter_(object);
-}
-
 TAttributeSchema* TAttributeSchema::SetMandatory()
 {
     Mandatory_ = true;
@@ -610,6 +614,7 @@ bool TAttributeSchema::GetUpdatable() const
 
 TAttributeSchema* TAttributeSchema::SetEtc()
 {
+    YT_VERIFY(!Composite_);
     Etc_ = true;
     return this;
 }
@@ -619,82 +624,175 @@ bool TAttributeSchema::IsEtc() const
     return Etc_;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+THistoryEnabledAttributeSchema& THistoryEnabledAttributeSchema::SetPath(NYPath::TYPath path)
+{
+    Path = std::move(path);
+    return *this;
+}
+
+TAttributeSchema* TAttributeSchema::EnableHistory(
+    THistoryEnabledAttributeSchema schema)
+{
+    ValidateAttributePath(schema.Path);
+    YT_VERIFY(!HistoryEnabledAttribute_);
+    HistoryEnabledAttribute_ = std::move(schema);
+    return this;
+}
+
 std::vector<TYPath> TAttributeSchema::GetHistoryEnabledAttributePaths() const
 {
     std::vector<TYPath> result;
-    GetHistoryEnabledAttributePathsImpl(&result);
+    FillHistoryEnabledAttributePaths(&result);
     return result;
 }
 
-IMapNodePtr TAttributeSchema::GetHistoryEnabledAttributes(TObject* object) const
+INodePtr TAttributeSchema::GetHistoryEnabledAttributes(TObject* object) const
 {
+    return GetHistoryEnabledAttributesImpl(object, false);
+}
+
+bool TAttributeSchema::HasHistoryEnabledAttributeForStore(TObject* object) const
+{
+    return HasHistoryEnabledAttributeForStoreImpl(object, false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TAttributeSchema::FillHistoryEnabledAttributePaths(std::vector<TYPath>* result) const
+{
+    if (HistoryEnabledAttribute_) {
+        result->push_back(GetPath() + HistoryEnabledAttribute_->Path);
+    }
+
+    if (IsComposite()) {
+        if (EtcChild_) {
+            EtcChild_->FillHistoryEnabledAttributePaths(result);
+        }
+        for (const auto& [key, child] : KeyToChild_) {
+            child->FillHistoryEnabledAttributePaths(result);
+        }
+    }
+}
+
+INodePtr TAttributeSchema::GetHistoryEnabledAttributesImpl(
+    TObject* object,
+    bool hasHistoryEnabledParentAttribute) const
+{
+    bool hasHistoryEnabledAttribute = hasHistoryEnabledParentAttribute;
+    if (HistoryEnabledAttribute_) {
+        hasHistoryEnabledAttribute = true;
+    }
+
+    if (IsComposite()) {
+        if (HistoryEnabledAttribute_) {
+            YT_VERIFY(HistoryEnabledAttribute_->Path.empty());
+        }
+
+        INodePtr result;
+        auto ensureMapResult = [&result] {
+            if (!result) {
+                result = GetEphemeralNodeFactory()->CreateMap();
+            }
+            YT_VERIFY(result->GetType() == ENodeType::Map);
+        };
+
+        if (EtcChild_) {
+            result = EtcChild_->GetHistoryEnabledAttributesImpl(
+                object,
+                hasHistoryEnabledAttribute);
+        }
+
+        for (const auto& [key, child] : KeyToChild_) {
+            auto subresult = child->GetHistoryEnabledAttributesImpl(
+                object,
+                hasHistoryEnabledAttribute);
+            if (subresult) {
+                ensureMapResult();
+                YT_VERIFY(result->AsMap()->AddChild(key, subresult));
+            }
+        }
+
+        return result;
+    }
+
+    if (!hasHistoryEnabledAttribute || !HasValueGetter()) {
+        return nullptr;
+    }
+
+    auto value = RunValueGetter(object);
+    // Check the case of scalar attribute of the pointer type (e.g. /labels).
+    if (!value) {
+        value = GetEphemeralNodeFactory()->CreateEntity();
+    }
+
+    static const NYPath::TYPath EmptyAttributePath;
+    const auto& path = hasHistoryEnabledParentAttribute
+        ? EmptyAttributePath
+        : HistoryEnabledAttribute_->Path;
+
+    if (!path) {
+        return value;
+    }
+
     auto result = GetEphemeralNodeFactory()->CreateMap();
-    GetHistoryEnabledAttributesImpl(result, object, false);
+
+    // Supposing path is consistent with the data model.
+    ForceYPath(result, path);
+
+    static const TNodeWalkOptions WalkOptions{
+        .MissingAttributeHandler = [] (const TString& /* key */) {
+            return GetEphemeralNodeFactory()->CreateEntity();
+        },
+        .MissingChildKeyHandler = [] (const IMapNodePtr& /* node */, const TString& /* key */) {
+            return GetEphemeralNodeFactory()->CreateEntity();
+        },
+        .MissingChildIndexHandler = [] (const IListNodePtr& /* node */, int /* index */) {
+            return GetEphemeralNodeFactory()->CreateEntity();
+        },
+        .NodeCannotHaveChildrenHandler = [] (const INodePtr& node) {
+            if (node->GetType() != ENodeType::Entity) {
+                ThrowCannotHaveChildren(node);
+            }
+            return GetEphemeralNodeFactory()->CreateEntity();
+        }};
+    value = WalkNodeByYPath(value, path, WalkOptions);
+
+    SetNodeByYPath(result, path, value);
+
     return result;
 }
 
-bool TAttributeSchema::HasStoreScheduledHistoryEnabledAttributes(TObject* object) const
-{
-    return HasStoreScheduledHistoryEnabledAttributesImpl(object, false);
-}
-
-void TAttributeSchema::GetHistoryEnabledAttributePathsImpl(std::vector<TYPath>* result) const
-{
-    if (HasHistoryFilter()) {
-        result->push_back(GetPath());
-    }
-
-    if (IsComposite()) {
-        if (EtcChild_) {
-            EtcChild_->GetHistoryEnabledAttributePathsImpl(result);
-        }
-        for (const auto& [key, child] : KeyToChild_) {
-            child->GetHistoryEnabledAttributePathsImpl(result);
-        }
-    }
-}
-
-void TAttributeSchema::GetHistoryEnabledAttributesImpl(
-    IMapNodePtr result,
+bool TAttributeSchema::HasHistoryEnabledAttributeForStoreImpl(
     TObject* object,
-    bool hasParentHistoryEnabledAttribute) const
+    bool hasAcceptedByHistoryFilterParentAttribute) const
 {
-    hasParentHistoryEnabledAttribute |= HasHistoryFilter();
-
-    if (IsComposite()) {
-        if (EtcChild_) {
-            EtcChild_->GetHistoryEnabledAttributesImpl(
-                result,
-                object,
-                hasParentHistoryEnabledAttribute);
+    if (HistoryEnabledAttribute_) {
+        const auto& valueFilter = HistoryEnabledAttribute_->ValueFilter;
+        if (!valueFilter || valueFilter(object)) {
+            hasAcceptedByHistoryFilterParentAttribute = true;
         }
-        for (const auto& [key, child] : KeyToChild_) {
-            child->GetHistoryEnabledAttributesImpl(
-                result,
-                object,
-                hasParentHistoryEnabledAttribute);
-        }
-    } else if (hasParentHistoryEnabledAttribute && HasValueGetter()) {
-        const TString path = GetPath();
-        ForceYPath(result, path);
-        SetNodeByYPath(result, path, RunValueGetter(object));
     }
-}
 
-bool TAttributeSchema::HasStoreScheduledHistoryEnabledAttributesImpl(
-    TObject* object,
-    bool hasParentHistoryEnabledAttribute) const
-{
-    hasParentHistoryEnabledAttribute |= (HasHistoryFilter() && RunHistoryFilter(object));
-
-    if (hasParentHistoryEnabledAttribute && HasStoreScheduledGetter() && RunStoreScheduledGetter(object)) {
+    if (hasAcceptedByHistoryFilterParentAttribute &&
+        HasStoreScheduledGetter() &&
+        RunStoreScheduledGetter(object))
+    {
         return true;
     } else if (IsComposite()) {
-        if (EtcChild_ && EtcChild_->HasStoreScheduledHistoryEnabledAttributesImpl(object, hasParentHistoryEnabledAttribute)) {
+        if (EtcChild_ &&
+            EtcChild_->HasHistoryEnabledAttributeForStoreImpl(
+                object,
+                hasAcceptedByHistoryFilterParentAttribute))
+        {
             return true;
         }
         for (const auto& [key, child] : KeyToChild_) {
-            if (child->HasStoreScheduledHistoryEnabledAttributesImpl(object, hasParentHistoryEnabledAttribute)) {
+            if (child->HasHistoryEnabledAttributeForStoreImpl(
+                    object,
+                    hasAcceptedByHistoryFilterParentAttribute))
+            {
                 return true;
             }
         }
@@ -702,6 +800,8 @@ bool TAttributeSchema::HasStoreScheduledHistoryEnabledAttributesImpl(
 
     return false;
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 TAttributeSchema* TAttributeSchema::SetReadPermission(EAccessControlPermission permission)
 {

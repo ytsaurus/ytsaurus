@@ -54,7 +54,7 @@ public:
             // TODO(YP-1389) Move validator to EtcAttributeSchema after the bug is fixed.
             ->SetValidator<TStage>(ValidateSpec)
             ->SetExtensible()
-            ->SetHistoryFilter<TStage>();
+            ->EnableHistory();
 
         StatusAttributeSchema_
             ->SetAttribute(TStage::StatusSchema)

@@ -96,7 +96,8 @@ public:
                         MakeEtcAttributeSchema()
                             ->SetAttribute(TPod::TStatus::TScheduling::EtcSchema)
                     })
-                    ->SetHistoryFilter<TPod>(std::bind(&TPodTypeHandler::StatusSchedulingHistoryFilter, this, _1)),
+                    ->EnableHistory(THistoryEnabledAttributeSchema()
+                        .SetValueFilter<TPod>(std::bind(&TPodTypeHandler::StatusSchedulingHistoryFilter, this, _1))),
 
                 MakeAttributeSchema("generation_number")
                     ->SetAttribute(TPod::TStatus::GenerationNumberSchema),
@@ -119,6 +120,9 @@ public:
 
                 MakeEtcAttributeSchema()
                     ->SetAttribute(TPod::TStatus::EtcSchema)
+                    ->EnableHistory(THistoryEnabledAttributeSchema()
+                        .SetPath("/eviction")
+                        .SetValueFilter<TPod>(std::bind(&TPodTypeHandler::StatusEvictionHistoryFilter, this, _1)))
             });
 
         SpecAttributeSchema_
@@ -677,6 +681,22 @@ private:
         }
 
         if (pod->Status().Scheduling().NodeId().Load() != pod->Status().Scheduling().NodeId().LoadOld()) {
+            return true;
+        }
+
+        return false;
+    }
+
+    bool StatusEvictionHistoryFilter(TPod* pod)
+    {
+        const auto& oldEviction = pod->Status().Etc().LoadOld().eviction();
+        const auto& newEviction = pod->Status().Etc().Load().eviction();
+
+        if (oldEviction.state() != newEviction.state()) {
+            return true;
+        }
+
+        if (oldEviction.reason() != newEviction.reason()) {
             return true;
         }
 
