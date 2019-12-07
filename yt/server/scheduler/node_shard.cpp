@@ -455,6 +455,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         if (!oldValue && newValue) {
             ++JobReporterQueueIsTooLargeNodeCount_;
         }
+        YT_LOG_DEBUG_IF(newValue, "Job reporter queue is too large (NodeAddress: %v)", descriptor.GetDefaultAddress());
         node->SetJobReporterQueueIsTooLarge(newValue);
     }
 
