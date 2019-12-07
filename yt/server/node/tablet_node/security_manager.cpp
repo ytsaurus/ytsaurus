@@ -100,6 +100,9 @@ private:
         auto client = Bootstrap_->GetMasterClient();
         auto options = TGetNodeOptions();
         options.ReadFrom = EMasterChannelKind::Cache;
+        options.ExpireAfterSuccessfulUpdateTime = Config_->ExpireAfterSuccessfulUpdateTime;
+        options.ExpireAfterFailedUpdateTime = Config_->ExpireAfterFailedUpdateTime;
+
         return client->GetNode("//sys/accounts/" + ToYPathLiteral(key.Account) + "/@violated_resource_limits", options).Apply(
             BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TYsonString>& resultOrError) {
                 if (!resultOrError.IsOK()) {

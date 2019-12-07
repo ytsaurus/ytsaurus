@@ -10,7 +10,7 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRequestProfilngCounters::TRequestProfilngCounters(const TTagIdList& tagIds)
+TRequestProfilingCounters::TRequestProfilingCounters(const TTagIdList& tagIds)
     : TotalReadRequestCounter("/total_read_request_count", tagIds)
     , TotalWriteRequestCounter("/total_write_request_count", tagIds)
     , LocalReadRequestCounter("/local_read_request_count", tagIds)
@@ -27,7 +27,7 @@ TRequestProfilngCounters::TRequestProfilngCounters(const TTagIdList& tagIds)
 class TRequestProfilingManager::TImpl
 {
 public:
-    TRequestProfilngCountersPtr GetCounters(const TString& user, const TString& method)
+    TRequestProfilingCountersPtr GetCounters(const TString& user, const TString& method)
     {
         auto key = std::make_tuple(user, method);
 
@@ -42,7 +42,7 @@ public:
             TProfileManager::Get()->RegisterTag("user", user),
             TProfileManager::Get()->RegisterTag("method", method)
         };
-        auto counters = New<TRequestProfilngCounters>(tagIds);
+        auto counters = New<TRequestProfilingCounters>(tagIds);
 
         {
             NConcurrency::TWriterGuard guard(Lock_);
@@ -55,7 +55,7 @@ private:
     // (user, method)
     using TKey = std::tuple<TString, TString>;
     NConcurrency::TReaderWriterSpinLock Lock_;
-    THashMap<TKey, TRequestProfilngCountersPtr> KeyToCounters_;
+    THashMap<TKey, TRequestProfilingCountersPtr> KeyToCounters_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -64,7 +64,7 @@ TRequestProfilingManager::TRequestProfilingManager()
     : Impl_(std::make_unique<TImpl>())
 { }
 
-TRequestProfilngCountersPtr TRequestProfilingManager::GetCounters(
+TRequestProfilingCountersPtr TRequestProfilingManager::GetCounters(
     const TString& user,
     const TString& method)
 {

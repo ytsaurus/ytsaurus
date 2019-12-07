@@ -1,6 +1,7 @@
 #include "automaton.h"
 #include "bootstrap.h"
 #include "config_manager.h"
+#include "hydra_facade.h"
 #include "multicell_manager.h"
 #include "config.h"
 
@@ -25,6 +26,8 @@ public:
     explicit TImpl(NCellMaster::TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, NCellMaster::EAutomatonThreadQueue::ConfigManager)
     {
+        VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Default), AutomatonThread);
+
         RegisterLoader(
             "ConfigManager",
             BIND(&TImpl::Load, Unretained(this)));
@@ -36,6 +39,8 @@ public:
 
     void Initialize()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster()) {
             multicellManager->SubscribeReplicateKeysToSecondaryMaster(
@@ -45,11 +50,15 @@ public:
 
     const TDynamicClusterConfigPtr& GetConfig() const
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         return Config_;
     }
 
     void SetConfig(TDynamicClusterConfigPtr config)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         Config_ = std::move(config);
         ReplicateConfigToSecondaryMasters();
 
@@ -62,20 +71,28 @@ public:
 private:
     TDynamicClusterConfigPtr Config_ = New<TDynamicClusterConfig>();
 
+    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
     void Save(NCellMaster::TSaveContext& context) const
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         using NYT::Save;
         Save(context, *Config_);
     }
 
     void Load(NCellMaster::TLoadContext& context)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         using NYT::Load;
         Load(context, *Config_);
     }
 
     void OnReplicateValuesToSecondaryMaster(TCellTag cellTag)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         auto req = TYPathProxy::Set("//sys/@config");
         req->set_value(ConvertToYsonString(GetConfig()).GetData());
 
@@ -85,6 +102,8 @@ private:
 
     void ReplicateConfigToSecondaryMasters()
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster()) {
             auto req = TYPathProxy::Set("//sys/@config");

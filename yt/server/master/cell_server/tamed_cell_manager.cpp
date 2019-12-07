@@ -187,8 +187,6 @@ public:
         }
 
         BundleNodeTracker_->Initialize();
-
-        OnDynamicConfigChanged();
     }
 
     TCellBundle* CreateCellBundle(

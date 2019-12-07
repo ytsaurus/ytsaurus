@@ -76,6 +76,8 @@ private:
             TGetClusterMetaOptions options;
             options.ReadFrom = EMasterChannelKind::Cache;
             options.PopulateNodeDirectory = true;
+            options.ExpireAfterSuccessfulUpdateTime = Config_->ExpireAfterSuccessfulUpdateTime;
+            options.ExpireAfterFailedUpdateTime = Config_->ExpireAfterFailedUpdateTime;
 
             // Request may block for prolonged periods of time;
             // handle cancelation requests (induced by stopping the executor) immediately.

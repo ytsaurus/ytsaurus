@@ -304,8 +304,9 @@ void TMasterConnector::InitMedia()
 
     const auto& client = Bootstrap_->GetMasterClient();
     TGetClusterMetaOptions options;
-    options.ReadFrom = EMasterChannelKind::Follower;
+    options.ReadFrom = EMasterChannelKind::SecondLevelCache;
     options.PopulateMediumDirectory = true;
+
     auto result = WaitFor(client->GetClusterMeta(options))
         .ValueOrThrow();
 

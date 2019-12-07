@@ -56,6 +56,9 @@ message TRspExecute
     // for which no response was received; the client must annotate the subsequent attempts with
     // "retry" flag.
     repeated int32 uncertain_subrequest_indexes = 4;
+
+    // If true, two-level cache is enabled at master.
+    optional bool two_level_cache_enabled = 5 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

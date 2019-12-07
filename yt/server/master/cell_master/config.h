@@ -211,6 +211,7 @@ public:
     TDynamicMulticellManagerConfigPtr MulticellManager;
     NTransactionServer::TDynamicTransactionManagerConfigPtr TransactionManager;
     TDynamicCellMasterConfigPtr CellMaster;
+    NObjectServer::TDynamicObjectServiceConfigPtr ObjectService;
 
     TDynamicClusterConfig();
 };

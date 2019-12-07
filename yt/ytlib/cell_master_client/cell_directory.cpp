@@ -299,6 +299,7 @@ private:
         }
 
         InitMasterChannel(EMasterChannelKind::Cache, masterCacheConfig, EPeerKind::Follower, options, channelFactory);
+        InitMasterChannel(EMasterChannelKind::SecondLevelCache, masterCacheConfig, EPeerKind::Follower, options, channelFactory);
     }
 
     void InitMasterChannel(

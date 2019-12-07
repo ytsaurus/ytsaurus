@@ -44,6 +44,8 @@ public:
     void Clear();
 
 protected:
+    const TAsyncExpiringCacheConfigPtr Config_;
+
     virtual TFuture<TValue> DoGet(const TKey& key, const TGetInfo&... getInfo) = 0;
 
     virtual TFuture<std::vector<TErrorOr<TValue>>> DoGetMany(
@@ -53,7 +55,6 @@ protected:
     virtual void OnErase(const TKey& key);
 
 private:
-    const TAsyncExpiringCacheConfigPtr Config_;
     const NProfiling::TProfiler Profiler_;
 
     struct TEntry

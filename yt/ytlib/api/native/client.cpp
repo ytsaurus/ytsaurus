@@ -3,6 +3,7 @@
 #include "config.h"
 #include "connection.h"
 #include "list_operations.h"
+#include "rpc_helpers.h"
 #include "transaction.h"
 #include "private.h"
 
@@ -569,22 +570,14 @@ void TClient::SetCachingHeader(
     const IClientRequestPtr& request,
     const TMasterReadOptions& options)
 {
-    if (options.ReadFrom == EMasterChannelKind::Cache) {
-        auto* cachingHeaderExt = request->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
-        cachingHeaderExt->set_success_expiration_time(ToProto<i64>(options.ExpireAfterSuccessfulUpdateTime));
-        cachingHeaderExt->set_failure_expiration_time(ToProto<i64>(options.ExpireAfterFailedUpdateTime));
-    }
+    NApi::NNative::SetCachingHeader(request, Connection_->GetConfig(), options);
 }
 
 void TClient::SetBalancingHeader(
     const IClientRequestPtr& request,
     const TMasterReadOptions& options)
 {
-    if (options.ReadFrom == EMasterChannelKind::Cache) {
-        auto* balancingHeaderExt = request->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext);
-        balancingHeaderExt->set_enable_stickness(true);
-        balancingHeaderExt->set_sticky_group_size(options.CacheStickyGroupSize);
-    }
+    NApi::NNative::SetBalancingHeader(request, Connection_->GetConfig(), options);
 }
 
 template <class TProxy>

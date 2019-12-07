@@ -86,7 +86,7 @@ private:
             YT_LOG_DEBUG("Started updating master cache node list");
 
             TGetClusterMetaOptions options;
-            options.ReadFrom = EMasterChannelKind::Follower;
+            options.ReadFrom = EMasterChannelKind::SecondLevelCache;
             options.PopulateMasterCacheNodeAddresses = true;
 
             auto meta = WaitFor(client->GetClusterMeta(options).ToImmediatelyCancelable())

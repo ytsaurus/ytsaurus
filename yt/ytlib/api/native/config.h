@@ -114,6 +114,8 @@ public:
     bool UseTabletService;
     bool EnableBuiltinTabletSystemUsers;
 
+    std::optional<int> CacheStickyGroupSizeOverride;
+
     TDuration IdleChannelTtl;
 
     ssize_t MaxRequestWindowSize;

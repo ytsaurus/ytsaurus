@@ -48,6 +48,7 @@ DEFINE_ENUM(EMemoryCategory,
     ((SystemJobs)                  (8))
     ((Query)                       (9))
     ((TmpfsLayers)                (11))
+    ((MasterCache)                (12))
 );
 
 DEFINE_ENUM(ENodeState,

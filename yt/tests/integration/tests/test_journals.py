@@ -109,6 +109,20 @@ class TestJournals(YTEnvSetup):
         with pytest.raises(YtError): set("//tmp/j/@vital", False)
         with pytest.raises(YtError): set("//tmp/j/@primary_medium", "default")
 
+    @authors("kiselyovp")
+    def test_write_future_semantics(self):
+        create("journal", "//tmp/j1")
+        write_journal("//tmp/j1", self.DATA, journal_writer={"ignore_closing": True})
+        assert(read_journal("//tmp/j1") == self.DATA)
+
+##################################################################
+
+class TestJournalsChangeMedia(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 5
+
+    DATA = [{"data" : "payload" + str(i)} for i in xrange(0, 10)]
+
     @authors("ilpauzner", "shakurov")
     def test_journal_replica_changes_medium_yt_8669(self):
         set("//sys/@config/chunk_manager/enable_chunk_sealer", False, recursive=True)
@@ -171,12 +185,6 @@ class TestJournals(YTEnvSetup):
 
 
         wait(replicator_has_done_well)
-
-    @authors("kiselyovp")
-    def test_write_future_semantics(self):
-        create("journal", "//tmp/j1")
-        write_journal("//tmp/j1", self.DATA, journal_writer={"ignore_closing": True})
-        assert(read_journal("//tmp/j1") == self.DATA)
 
 ##################################################################
 
