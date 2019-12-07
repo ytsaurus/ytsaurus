@@ -1,19 +1,19 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/core/math/binary_search.h>
+#include <yt/core/numeric/binary_search.h>
 
 namespace NYT {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMathTest
+class TBinarySearchTest
     : public ::testing::Test
 { };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TMathTest, TestDoubleToBitset)
+TEST_F(TBinarySearchTest, TestDoubleToBitset)
 {
     struct TTestCase
     {
@@ -72,7 +72,7 @@ TEST_F(TMathTest, TestDoubleToBitset)
     }
 }
 
-TEST_F(TMathTest, TestFloatingPointLowerBound)
+TEST_F(TBinarySearchTest, TestFloatingPointLowerBound)
 {
     struct TTestCase
     {
@@ -199,7 +199,7 @@ TEST_F(TMathTest, TestFloatingPointLowerBound)
     }
 }
 
-TEST_F(TMathTest, TestFloatingPointInverseLowerBound)
+TEST_F(TBinarySearchTest, TestFloatingPointInverseLowerBound)
 {
     struct TTestCase
     {
@@ -326,7 +326,7 @@ TEST_F(TMathTest, TestFloatingPointInverseLowerBound)
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYT
-
-////////////////////////////////////////////////////////////////////////////////

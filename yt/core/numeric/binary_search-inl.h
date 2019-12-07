@@ -5,7 +5,7 @@
 #include "binary_search.h"
 #endif
 
-#include "bit.h"
+#include "util.h"
 
 #include <yt/core/misc/assert.h>
 
@@ -66,6 +66,8 @@ constexpr TInt IntegerLowerBound(TInt lo, TInt hi, TPredicate&& predicate)
 {
     static_assert(std::is_integral_v<TInt>);
 
+    using TUInt = std::make_unsigned_t<TInt>;
+
     YT_VERIFY(lo <= hi);
 
     YT_VERIFY(predicate(hi));
@@ -75,7 +77,8 @@ constexpr TInt IntegerLowerBound(TInt lo, TInt hi, TPredicate&& predicate)
 
     // Notice that lo < hi and hence does not overflow.
     while (lo + 1 < hi) {
-        TInt mid = Midpoint(lo, hi);
+        // NB(antonkikh): std::midpoint is slow because it also handles the case when lo > hi.
+        TInt mid = lo + static_cast<TInt>(static_cast<TUInt>(hi - lo) >> 1);
 
         if (predicate(mid)) {
             hi = mid;
@@ -92,6 +95,8 @@ constexpr TInt IntegerInverseLowerBound(TInt lo, TInt hi, TPredicate&& predicate
 {
     static_assert(std::is_integral_v<TInt>);
 
+    using TUInt = std::make_unsigned_t<TInt>;
+
     YT_VERIFY(lo <= hi);
 
     YT_VERIFY(predicate(lo));
@@ -101,7 +106,8 @@ constexpr TInt IntegerInverseLowerBound(TInt lo, TInt hi, TPredicate&& predicate
 
     // Notice that lo < hi and hence does not overflow.
     while (lo + 1 < hi) {
-        TInt mid = Midpoint(lo, hi);
+        // NB(antonkikh): std::midpoint is slow because it also handles the case when lo > hi.
+        TInt mid = lo + static_cast<TInt>(static_cast<TUInt>(hi - lo) >> 1);
 
         if (predicate(mid)) {
             lo = mid;
