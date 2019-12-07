@@ -2160,7 +2160,6 @@ class TestDisabledJobRevival(TestJobRevivalBase):
         write_table("//tmp/t_in", [{"a": 0}])
 
         map_cmd = " ; ".join([
-            "sleep 2",
             events_on_fs().notify_event_cmd("snapshot_written"),
             events_on_fs().wait_event_cmd("scheduler_reconnected"),
             "echo {a=1}"])
@@ -2175,6 +2174,8 @@ class TestDisabledJobRevival(TestJobRevivalBase):
         job_id = self._wait_for_single_job(op.id)
 
         events_on_fs().wait_event("snapshot_written")
+        op.wait_fresh_snapshot()
+
         self._kill_and_start(components_to_kill)
 
         wait(lambda: exists(orchid_path), "Operation did not re-appear")
