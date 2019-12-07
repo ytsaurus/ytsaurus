@@ -112,7 +112,7 @@ private:
 
             TGetClusterMetaOptions options;
             options.PopulateClusterDirectory = true;
-            options.ReadFrom = EMasterChannelKind::Follower;
+            options.ReadFrom = EMasterChannelKind::Cache;
             auto meta = WaitFor(client->GetClusterMeta(options))
                 .ValueOrThrow();
 
