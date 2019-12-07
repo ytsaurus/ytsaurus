@@ -1141,7 +1141,7 @@ def run_yp_integration_tests(options, build_context):
             continue
         run_pytest(
             options,
-            "yp_integration",
+            "yp_integration_" + python_version.replace(".", "_"),
             "{0}/yp/tests".format(options.checkout_directory),
             python_version=python_version,
             pytest_args=pytest_args)
