@@ -22,6 +22,7 @@
 *       `yt set //sys/scheduler/config/pool_trees_root //path/to/pool_trees/root`
 *   Please tell renadeen@ if there were any problems.
 
+* aleksandra-zh: Dynamic master cache discovery. Update masters via snapshot.
 * gritukan: New mutation for changing peer count was added. Update masters via snapshot.
 * ifsmirnov: Fix memory accounting in bulk insert. Update masters via snapshot if bulk insert is enabled.
 * ifsmirnov: Overwrite mode for bulk insert. Update masters via snapshot.
