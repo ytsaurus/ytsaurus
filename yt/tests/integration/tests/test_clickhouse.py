@@ -2241,7 +2241,7 @@ class TestClickHouseWithLogTailer(ClickHouseTestBase):
             pytest.skip("This test requires log_tailer binary being built")
 
     @authors("gritukan")
-    def test_log_tailer(self):
+    def DISABLED_test_log_tailer(self):
         clique_index = Clique.clique_index
 
         log_tailer_config = yson.loads(self._read_local_config_file("log_tailer_config.yson"))
