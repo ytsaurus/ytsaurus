@@ -137,7 +137,7 @@ def create_temp_table(path=None, prefix=None, attributes=None, expiration_timeou
     _create_table(name, attributes=attributes, client=client)
     return name
 
-def write_table(table, input_stream, format=None, table_writer=None,
+def write_table(table, input_stream, format=None, table_writer=None, max_row_buffer_size=None,
                 is_stream_compressed=False, force_create=None, raw=None,
                 client=None):
     """Writes rows from input_stream to table.
@@ -149,6 +149,7 @@ def write_table(table, input_stream, format=None, table_writer=None,
     :param format: format of input data, ``yt.wrapper.config["tabular_data_format"]`` by default.
     :type format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
     :param dict table_writer: spec of "write" operation.
+    :param int max_row_buffer_size: option for testing purposes only, consult yt@ if you want to use it.
     :param bool is_stream_compressed: expect stream to contain compressed table data. \
     This data can be passed directly to proxy without recompression. Be careful! this option \
     disables write retries.
