@@ -309,8 +309,9 @@ class YTInstance(object):
             for dir_ in master_dirs[cell_index]:
                 makedirp(dir_)
 
-            if self._tmpfs_path is not None and not self._load_existing_environment:
+            if self._tmpfs_path is not None:
                 master_tmpfs_dirs.append([os.path.join(self._tmpfs_path, name, str(i)) for i in xrange(self.master_count)])
+
                 for dir_ in master_tmpfs_dirs[cell_index]:
                     makedirp(dir_)
 
@@ -319,7 +320,7 @@ class YTInstance(object):
             makedirp(dir_)
 
         clock_tmpfs_dirs = None
-        if self._tmpfs_path is not None and not self._load_existing_environment:
+        if self._tmpfs_path is not None:
             clock_tmpfs_dirs = [os.path.join(self._tmpfs_path, name, str(i)) for i in xrange(self.clock_count)]
             for dir_ in clock_tmpfs_dirs:
                 makedirp(dir_)
@@ -337,7 +338,7 @@ class YTInstance(object):
             makedirp(dir_)
 
         node_tmpfs_dirs = None
-        if self._tmpfs_path is not None and not self._load_existing_environment:
+        if self._tmpfs_path is not None:
             node_tmpfs_dirs = [os.path.join(self._tmpfs_path, "node", str(i)) for i in xrange(self.node_count)]
             for dir_ in node_tmpfs_dirs:
                 makedirp(dir_)
