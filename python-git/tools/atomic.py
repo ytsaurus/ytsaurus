@@ -13,17 +13,17 @@ CANCEL = -2
 RETRIES_COUNT = 10
 DELAY = 5.0
 
-def atomic_pop(list):
-    with yt.Transaction():
+def atomic_pop(client, list):
+    with client.Transaction():
         for i in xrange(RETRIES_COUNT):
             logger.info("Trying to take lock, %d-th attempt...", i + 1)
             try:
-                count = int(yt.get(list + "/@count"))
+                count = int(client.get(list + "/@count"))
                 if not count:
                     return
-                yt.lock(list + "/-1")
-                value = yt.get(list + "/-1")
-                yt.remove(list + "/-1", recursive=True)
+                client.lock(list + "/-1")
+                value = client.get(list + "/-1")
+                client.remove(list + "/-1", recursive=True)
                 return value
             # We hope that it is cannot take lock error
             except yt.YtResponseError as rsp:
@@ -35,11 +35,11 @@ def atomic_pop(list):
                     raise
 
 
-def atomic_push(list, value):
+def atomic_push(client, list, value):
     logger.warning("Put value '%s' to queue '%s'", str(value), list)
     for i in xrange(RETRIES_COUNT):
         try:
-            yt.set(list + "/begin", value)
+            client.set(list + "/begin", value)
             break
         except yt.YtResponseError as rsp:
             if rsp.is_concurrent_transaction_lock_conflict():
@@ -56,14 +56,14 @@ def is_hashable(obj):
     except:
         return False
 
-def process_tasks_from_list(list, action, limit=10000, process_forever=False,
+def process_tasks_from_list(client, list, action, limit=10000, process_forever=False,
                             empty_queue_sleep_delay=5.0):
     processed_values = set()
     counter = 0
     while True:
         value = None
         try:
-            value = atomic_pop(list)
+            value = atomic_pop(client, list)
 
             if value is None:
                 if process_forever:
@@ -84,21 +84,21 @@ def process_tasks_from_list(list, action, limit=10000, process_forever=False,
             if hashable_value is not None and is_hashable(hashable_value):
                 if hashable_value in processed_values:
                     logger.info("We have already prosessed value '%s', processing stopped", str(value))
-                    atomic_push(list, value)
+                    atomic_push(client, list, value)
                     break
                 processed_values.add(hashable_value)
 
             logger.info("Processing value %s", str(value))
             result = action(value)
             if result == REPEAT:
-                atomic_push(list, value)
+                atomic_push(client, list, value)
             if result == CANCEL:
                 logger.info("Processing of value %s failed, it cancelled", str(value))
 
         except (Exception, KeyboardInterrupt):
             logger.exception("Process interrupted or error occurred, processing stopped")
             if value is not None:
-                atomic_push(list, value)
+                atomic_push(client, list, value)
             break
 
         counter += 1
