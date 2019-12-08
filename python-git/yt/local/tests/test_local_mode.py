@@ -380,6 +380,16 @@ class TestLocalMode(object):
             client = environment.create_client()
             assert list(client.read_table("//home/my_table")) == [{"x": 1, "y": 2, "z": 3}]
 
+    def test_preserve_state_with_tmpfs(self):
+        kwargs = dict(tmpfs_path=os.path.join(_get_tests_sandbox(), "tmpfs"))
+        with local_yt(id=_get_id("test_preserve_state"), **kwargs) as environment:
+            client = environment.create_client()
+            client.write_table("//home/my_table", [{"x": 1, "y": 2, "z": 3}])
+
+        with local_yt(id=environment.id, **kwargs) as environment:
+            client = environment.create_client()
+            assert list(client.read_table("//home/my_table")) == [{"x": 1, "y": 2, "z": 3}]
+
     def test_config_patches_path(self):
         patch = {"test_key": "test_value"}
         try:
