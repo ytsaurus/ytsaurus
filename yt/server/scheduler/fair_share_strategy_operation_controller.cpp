@@ -66,7 +66,9 @@ bool TFairShareStrategyOperationController::IsMaxConcurrentScheduleJobCallsViola
         return true;
     }
 
-    YT_LOG_DEBUG_UNLESS(!IsBlocked(), "Operation unblocked in fair share strategy");
+    // NB(eshcherbin): Races are not fully avoided by these atomics, but this is used only for diagnostics, so we don't care.
+    YT_LOG_DEBUG_IF(MaxConcurrentScheduleJobCallsViolated_ && !RecentScheduleJobFailed_,
+        "Operation unblocked in fair share strategy");
     MaxConcurrentScheduleJobCallsViolated_.store(false);
     return false;
 }
@@ -81,14 +83,11 @@ bool TFairShareStrategyOperationController::HasRecentScheduleJobFailure(
         return true;
     }
 
-    YT_LOG_DEBUG_UNLESS(!IsBlocked(), "Operation unblocked in fair share strategy");
+    // NB(eshcherbin): Races are not fully avoided by these atomics, but this is used only for diagnostics, so we don't care.
+    YT_LOG_DEBUG_IF(RecentScheduleJobFailed_ && !MaxConcurrentScheduleJobCallsViolated_,
+        "Operation unblocked in fair share strategy");
     RecentScheduleJobFailed_.store(false);
     return false;
-}
-
-bool TFairShareStrategyOperationController::IsBlocked() const
-{
-    return MaxConcurrentScheduleJobCallsViolated_ || RecentScheduleJobFailed_;
 }
 
 void TFairShareStrategyOperationController::AbortJob(TJobId jobId, EAbortReason abortReason)

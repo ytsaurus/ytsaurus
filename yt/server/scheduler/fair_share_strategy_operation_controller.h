@@ -54,8 +54,6 @@ private:
 
     NConcurrency::TReaderWriterSpinLock SaturatedTentativeTreesLock_;
     THashMap<TString, NProfiling::TCpuInstant> TentativeTreeIdToSaturationTime_;
-
-    bool IsBlocked() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairShareStrategyOperationController)
