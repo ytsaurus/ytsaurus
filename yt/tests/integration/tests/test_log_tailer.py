@@ -75,14 +75,16 @@ class TestLogTailer(YTEnvSetup):
             {
                 "dynamic": True,
                 "schema": [
+                    {"name": "job_id_hash", "type": "uint64", "expression": "farm_hash(job_id) % 123", "sort_order": "ascending"},
                     {"name": "timestamp", "type": "string", "sort_order": "ascending"},
+                    {"name": "line_index", "type": "uint64", "sort_order": "ascending"},
+                    {"name": "job_id", "type": "string", "sort_order": "ascending"},
                     {"name": "category", "type": "string"},
                     {"name": "message", "type": "string"},
                     {"name": "log_level", "type": "string"},
                     {"name": "thread_id", "type": "string"},
                     {"name": "fiber_id", "type": "string"},
                     {"name": "trace_id", "type": "string"},
-                    {"name": "job_id", "type": "string"},
                     {"name": "operation_id", "type": "string"},
                 ],
                 "tablet_cell_bundle": "sys"
@@ -102,6 +104,7 @@ class TestLogTailer(YTEnvSetup):
                     {"name": "fiber_id", "type": "string"},
                     {"name": "job_id", "type": "string"},
                     {"name": "operation_id", "type": "string"},
+                    {"name": "line_index", "type": "uint64"},
                 ],
                 "tablet_cell_bundle": "sys"
             })
@@ -123,5 +126,8 @@ class TestLogTailer(YTEnvSetup):
             freeze_table(log_table)
             wait_for_tablet_state(log_table, "frozen")
 
-            assert len(read_table(log_table)) == 1000
+            rows = read_table(log_table)
+            assert len(rows) == 1000
+            for row in rows:
+                assert str(row["line_index"]) == row["timestamp"]
             remove(log_table)

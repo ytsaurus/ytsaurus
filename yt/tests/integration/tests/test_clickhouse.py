@@ -2275,6 +2275,7 @@ class TestClickHouseWithLogTailer(ClickHouseTestBase):
                 "dynamic": True,
                 "schema": [
                     {"name": "timestamp", "type": "string", "sort_order": "ascending"},
+                    {"name": "line_index", "type": "uint64", "sort_order": "ascending"},
                     {"name": "category", "type": "string"},
                     {"name": "message", "type": "string"},
                     {"name": "log_level", "type": "string"},
