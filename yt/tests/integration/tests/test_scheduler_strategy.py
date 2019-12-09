@@ -3438,6 +3438,7 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
+            "snapshot_period": 500,
             "operations_update_period": 100,
             "controller_static_orchid_update_period": 100,
         }
@@ -3502,9 +3503,9 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
         return tree
 
     def _check_tree_for_operation_jobs(self, op, possible_trees, expected_job_count=None):
-        jobs = list_jobs(op.id)["jobs"]
         if expected_job_count is not None:
-            assert len(jobs) == expected_job_count
+            wait(lambda: len(list_jobs(op.id)["jobs"]) == expected_job_count)
+        jobs = list_jobs(op.id)["jobs"]
         op_tree = self._get_tree_for_job(jobs[0])
         assert op_tree in possible_trees
         for job in jobs[1:]:
@@ -3647,6 +3648,7 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=job_count, spec=spec)
         wait_breakpoint()
 
+        op.wait_fresh_snapshot()
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             erased_trees = get(op.get_path() + "/@erased_trees")
             assert len(possible_trees) == len(erased_trees) + 1
@@ -3658,7 +3660,7 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
         release_breakpoint()
         op.track()
 
-        op_tree = self._check_tree_for_operation_jobs(op, possible_trees)
+        op_tree = self._check_tree_for_operation_jobs(op, possible_trees, job_count)
         assert op_tree not in erased_trees
         assert (frozenset(erased_trees) | {op_tree}) == frozenset(possible_trees)
 
@@ -3675,6 +3677,7 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=job_count, spec=spec)
         wait_breakpoint()
 
+        op.wait_fresh_snapshot()
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
             erased_trees = get(op.get_path() + "/@erased_trees")
             assert len(possible_trees) == len(erased_trees) + 1
@@ -3690,7 +3693,7 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
         release_breakpoint()
         op.track()
 
-        op_tree = self._check_tree_for_operation_jobs(op, possible_trees)
+        op_tree = self._check_tree_for_operation_jobs(op, possible_trees, job_count)
         assert op_tree not in erased_trees
         assert (frozenset(erased_trees) | {op_tree}) == frozenset(possible_trees)
 
