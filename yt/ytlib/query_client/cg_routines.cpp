@@ -14,8 +14,6 @@
 #include <yt/client/table_client/unversioned_row.h>
 #include <yt/client/table_client/helpers.h>
 
-#include <yt/ytlib/table_client/pipe.h>
-
 #include <yt/core/yson/lexer.h>
 #include <yt/core/yson/parser.h>
 #include <yt/core/yson/writer.h>

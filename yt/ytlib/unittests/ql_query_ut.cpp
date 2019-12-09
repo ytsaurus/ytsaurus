@@ -24,7 +24,7 @@
 #include <yt/client/table_client/schemaful_reader.h>
 #include <yt/client/table_client/unversioned_writer.h>
 #include <yt/ytlib/table_client/helpers.h>
-#include <yt/ytlib/table_client/pipe.h>
+#include <yt/client/table_client/pipe.h>
 
 #include <yt/core/concurrency/action_queue.h>
 
