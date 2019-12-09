@@ -2,8 +2,6 @@
 
 #include <yt/core/test_framework/framework.h>
 
-#include "ql_helpers.h"
-
 #include <yt/ytlib/table_chunk_format/column_writer.h>
 #include <yt/ytlib/table_chunk_format/column_reader.h>
 #include <yt/ytlib/table_chunk_format/data_block_writer.h>
