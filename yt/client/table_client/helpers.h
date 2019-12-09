@@ -178,6 +178,12 @@ void ToAny(TRowBuffer* context, TUnversionedValue* result, TUnversionedValue* va
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void PrintTo(const TOwningKey& key, ::std::ostream* os);
+void PrintTo(const TUnversionedValue& value, ::std::ostream* os);
+void PrintTo(const TUnversionedRow& value, ::std::ostream* os);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTableClient
 
 #define HELPERS_INL_H_
