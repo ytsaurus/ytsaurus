@@ -1,22 +1,17 @@
 #include "coordinator.h"
 #include "explain.h"
 #include "functions.h"
-#include "functions_cache.h"
 #include "query_helpers.h"
 #include "query_preparer.h"
-
-#include <yt/ytlib/api/native/connection.h>
-#include <yt/ytlib/api/native/config.h>
 
 #include <yt/client/api/public.h>
 
 #include <yt/client/table_client/unversioned_row.h>
 
-#include <yt/ytlib/api/native/client_impl.h>
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT::NQueryClient {
 
-using namespace NApi::NNative;
 using namespace NYTree;
 using namespace NTableClient;
 using namespace NConcurrency;
@@ -104,14 +99,9 @@ void GetFrontQueryInfo(
 
 NYson::TYsonString BuildExplainYson(
     const TString& queryString,
-    const TExplainOptions& options,
     const std::unique_ptr<TPlanFragment>& fragment,
-    const TClientPtr& client)
+    TStringBuf udfRegistryPath)
 {
-    const auto& udfRegistryPath = options.UdfRegistryPath
-        ? *options.UdfRegistryPath
-        : client->GetNativeConnection()->GetConfig()->UdfRegistryPath;
-
     const auto& query = fragment->Query;
 
     return BuildYsonStringFluently()
