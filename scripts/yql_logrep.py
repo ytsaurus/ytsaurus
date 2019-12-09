@@ -134,7 +134,7 @@ SELECT
     `log_category`,
     `cluster`,
     `source_uri`
-FROM {tables}
+FROM CONCAT ({tables})
 WHERE cluster="{cluster}" AND log_message LIKE '%{pattern}%'
 ORDER BY `timestamp`;
 """
