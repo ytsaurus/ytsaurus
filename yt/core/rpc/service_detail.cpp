@@ -999,7 +999,7 @@ void TServiceBase::HandleRequest(
 
     auto traceContext = GetOrCreateTraceContext(*header);
     TTraceContextGuard traceContextGuard(traceContext);
-    traceContext->AddTag("rpc.endpoint", replyBus->GetEndpointDescription());
+    traceContext->AddTag(EndpointAnnotation, replyBus->GetEndpointDescription());
 
     // NOTE: Do not use replyError() after this line.
     TAcceptedRequest acceptedRequest{
@@ -1055,7 +1055,7 @@ void TServiceBase::ReplyError(
         << TErrorAttribute("method", header.method())
         << TErrorAttribute("endpoint", replyBus->GetEndpointDescription());
 
-    NTracing::AddTag("error", TString("true"));
+    NTracing::AddErrorTag();
 
     auto code = richError.GetCode();
     auto logLevel =
