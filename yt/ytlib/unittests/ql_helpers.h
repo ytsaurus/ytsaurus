@@ -17,18 +17,6 @@
 #define _MAX_ "<\"type\"=\"max\">#"
 #define _NULL_ "#"
 
-namespace NYT::NTableClient {
-
-////////////////////////////////////////////////////////////////////////////////
-
-void PrintTo(const TOwningKey& key, ::std::ostream* os);
-void PrintTo(const TUnversionedValue& value, ::std::ostream* os);
-void PrintTo(const TUnversionedRow& value, ::std::ostream* os);
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NYT::NTableClient
-
 namespace NYT::NQueryClient {
 
 using ::testing::_;

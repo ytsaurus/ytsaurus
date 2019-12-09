@@ -7,29 +7,6 @@
 
 #include <yt/core/ytree/convert.h>
 
-namespace NYT::NTableClient {
-
-////////////////////////////////////////////////////////////////////////////////
-
-void PrintTo(const TOwningKey& key, ::std::ostream* os)
-{
-    *os << KeyToYson(key);
-}
-
-void PrintTo(const TUnversionedValue& value, ::std::ostream* os)
-{
-    *os << ToString(value);
-}
-
-void PrintTo(const TUnversionedRow& value, ::std::ostream* os)
-{
-    *os << ToString(value);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NYT::NTableClient
-
 namespace NYT::NQueryClient {
 
 void PrintTo(TConstExpressionPtr expr, ::std::ostream* os)

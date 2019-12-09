@@ -1121,4 +1121,22 @@ void ToAny(TRowBuffer* rowBuffer, TUnversionedValue* result, TUnversionedValue* 
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void PrintTo(const TOwningKey& key, ::std::ostream* os)
+{
+    *os << KeyToYson(key);
+}
+
+void PrintTo(const TUnversionedValue& value, ::std::ostream* os)
+{
+    *os << ToString(value);
+}
+
+void PrintTo(const TUnversionedRow& value, ::std::ostream* os)
+{
+    *os << ToString(value);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+
 } // namespace NYT::NTableClient
