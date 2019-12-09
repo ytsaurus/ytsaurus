@@ -249,6 +249,49 @@ def insert_rows(table, input_stream, update=None, aggregate=None, atomicity=None
         data=input_data,
         client=client).run()
 
+def explain(query, timestamp=None, input_row_limit=None, output_row_limit=None, range_expansion_limit=None,
+            max_subqueries=None, workload_descriptor=None, allow_full_scan=None, allow_join_without_index=None,
+            format=None, raw=None, execution_pool=None, client=None):
+    """Explains a SQL-like query on dynamic table.
+
+    .. seealso:: `supported features <https://wiki.yandex-team.ru/yt/userdoc/queries>`_
+
+    :param str query: for example \"<columns> [as <alias>], ... from \[<table>\] \
+                  [where <predicate> [group by <columns> [as <alias>], ...]]\".
+    :param int timestamp: timestamp.
+    :param format: output format.
+    :type format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
+    :param bool raw: don't parse response to rows.
+    """
+    if raw is None:
+        raw = get_config(client)["default_value_of_raw_option"]
+    format = _prepare_command_format(format, raw, client)
+    params = {
+        "query": query,
+        "output_format": format.to_yson_type()}
+    set_param(params, "timestamp", timestamp)
+    set_param(params, "input_row_limit", input_row_limit)
+    set_param(params, "output_row_limit", output_row_limit)
+    set_param(params, "range_expansion_limit", range_expansion_limit)
+    set_param(params, "max_subqueries", max_subqueries)
+    set_param(params, "workload_descriptor", workload_descriptor)
+    set_param(params, "allow_full_scan", allow_full_scan)
+    set_param(params, "allow_join_without_index", allow_join_without_index)
+    set_param(params, "execution_pool", execution_pool)
+
+    _check_transaction_type(client)
+
+    response = DynamicTableRequestRetrier(
+        get_config(client)["dynamic_table_retries"],
+        "explain",
+        params,
+        client=client).run()
+
+    if raw:
+        return response
+    else:
+        return format.load_rows(response)
+
 def delete_rows(table, input_stream, atomicity=None, durability=None, format=None, raw=None,
                 require_sync_replica=None, client=None):
     """Deletes rows with keys from input_stream from dynamic table.
