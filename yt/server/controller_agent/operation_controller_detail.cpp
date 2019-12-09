@@ -49,7 +49,7 @@
 
 #include <yt/ytlib/scheduler/helpers.h>
 
-#include <yt/ytlib/security_client/acl.h>
+#include <yt/client/security_client/acl.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/columnar_statistics_fetcher.h>

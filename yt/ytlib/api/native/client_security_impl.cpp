@@ -9,7 +9,7 @@
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/ytlib/security_client/group_ypath_proxy.h>
-#include <yt/ytlib/security_client/acl.h>
+#include <yt/client/security_client/acl.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
 

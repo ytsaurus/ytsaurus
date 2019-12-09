@@ -6,7 +6,7 @@
 
 #include <yt/server/master/cypress_server/serialize.h>
 
-#include <yt/ytlib/security_client/acl.h>
+#include <yt/client/security_client/acl.h>
 
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/node.h>

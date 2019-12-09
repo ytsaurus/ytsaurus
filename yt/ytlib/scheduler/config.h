@@ -15,7 +15,7 @@
 #include <yt/ytlib/table_client/helpers.h>
 
 #include <yt/ytlib/security_client/public.h>
-#include <yt/ytlib/security_client/acl.h>
+#include <yt/client/security_client/acl.h>
 
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 
