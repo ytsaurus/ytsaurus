@@ -14,7 +14,7 @@ class YtFsInputStream(in: YtFileInputStream) extends FSInputStream {
     if (in.hasNext) in.next() else -1
   }
 
-  override def read(position: Long, buffer: Array[Byte], offset: Int, length: Int): Int = {
-    in.read(buffer, offset, length)
+  override def read(b: Array[Byte], off: Int, len: Int): Int = {
+    in.read(b, off, len)
   }
 }
