@@ -10,8 +10,6 @@
 #include <yt/ytlib/table_client/unordered_schemaful_reader.h>
 #include <yt/client/table_client/writer.h>
 
-#include <yt/ytlib/tablet_client/public.h>
-
 #include <yt/core/logging/log.h>
 
 #include <numeric>
