@@ -1,7 +1,7 @@
 #include "config.h"
 
-#include <yt/ytlib/security_client/acl.h>
-#include <yt/ytlib/security_client/helpers.h>
+#include <yt/client/security_client/acl.h>
+#include <yt/client/security_client/helpers.h>
 
 #include <yt/client/scheduler/operation_id_or_alias.h>
 

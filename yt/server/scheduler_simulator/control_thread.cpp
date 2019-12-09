@@ -4,7 +4,7 @@
 
 #include <yt/server/scheduler/fair_share_strategy.h>
 
-#include <yt/ytlib/security_client/acl.h>
+#include <yt/client/security_client/acl.h>
 
 #include <yt/core/concurrency/public.h>
 #include <yt/core/concurrency/action_queue.h>

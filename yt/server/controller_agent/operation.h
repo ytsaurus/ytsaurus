@@ -7,7 +7,7 @@
 
 #include <yt/ytlib/controller_agent/proto/controller_agent_service.pb.h>
 
-#include <yt/ytlib/security_client/acl.h>
+#include <yt/client/security_client/acl.h>
 
 #include <yt/ytlib/transaction_client/public.h>
 

@@ -10,7 +10,7 @@
 
 #include <yt/ytlib/scheduler/job_resources.h>
 
-#include <yt/ytlib/security_client/acl.h>
+#include <yt/client/security_client/acl.h>
 
 #include <yt/core/concurrency/async_rw_lock.h>
 #include <yt/core/concurrency/periodic_executor.h>

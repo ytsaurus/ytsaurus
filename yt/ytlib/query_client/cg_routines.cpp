@@ -3,8 +3,8 @@
 #include "evaluation_helpers.h"
 #include "helpers.h"
 
-#include <yt/ytlib/security_client/acl.h>
-#include <yt/ytlib/security_client/helpers.h>
+#include <yt/client/security_client/acl.h>
+#include <yt/client/security_client/helpers.h>
 
 #include <yt/client/query_client/query_statistics.h>
 

@@ -1,6 +1,6 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/ytlib/security_client/acl.h>
+#include <yt/client/security_client/acl.h>
 
 #include <yt/core/yson/pull_parser_deserialize.h>
 

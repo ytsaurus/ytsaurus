@@ -8,7 +8,7 @@
 
 #include <yt/ytlib/scheduler/helpers.h>
 
-#include <yt/ytlib/security_client/acl.h>
+#include <yt/client/security_client/acl.h>
 
 #include <yt/core/concurrency/rw_spinlock.h>
 

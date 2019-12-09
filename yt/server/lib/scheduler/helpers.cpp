@@ -4,7 +4,7 @@
 
 #include <yt/client/object_client/helpers.h>
 
-#include <yt/ytlib/security_client/acl.h>
+#include <yt/client/security_client/acl.h>
 
 #include <yt/core/re2/re2.h>
 

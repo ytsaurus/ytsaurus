@@ -14,7 +14,7 @@
 #include <yt/ytlib/scheduler/proto/output_result.pb.h>
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 
-#include <yt/ytlib/security_client/acl.h>
+#include <yt/client/security_client/acl.h>
 
 #include <yt/ytlib/api/native/connection.h>
 
