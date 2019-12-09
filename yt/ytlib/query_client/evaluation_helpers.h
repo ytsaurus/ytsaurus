@@ -8,8 +8,6 @@
 
 #include <yt/client/table_client/unversioned_row.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
-
 #include <yt/core/codegen/function.h>
 
 #include <yt/core/misc/chunked_memory_pool.h>
