@@ -51,6 +51,9 @@ THeavySchedulerConfig::THeavySchedulerConfig()
     RegisterParameter("concurrent_task_limit", ConcurrentTaskLimit)
         .GreaterThanOrEqual(1)
         .Default(1);
+    RegisterParameter("starving_pods_per_iteration_limit", StarvingPodsPerIterationLimit)
+        .GreaterThanOrEqual(1)
+        .Default(100);
     RegisterParameter("limit_evictions_by_pod_set", LimitEvictionsByPodSet)
         .Default(true);
 

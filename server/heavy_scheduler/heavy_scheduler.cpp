@@ -305,6 +305,11 @@ public:
         Tasks_.push_back(std::move(task));
     }
 
+    int TaskCount() const
+    {
+        return Tasks_.size();
+    }
+
 private:
     const TDuration TaskTimeLimit_;
     const int ConcurrentTaskLimit_;
@@ -494,6 +499,7 @@ private:
         }
 
         try {
+            YT_LOG_DEBUG("Starting Heavy Scheduler iteration");
             GuardedRunIteration();
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Error running Heavy Scheduler iteration");
@@ -524,12 +530,16 @@ private:
 
         Shuffle(starvingPods.begin(), starvingPods.end());
 
-        for (auto pod : starvingPods) {
+        auto podItEnd = static_cast<int>(starvingPods.size()) > Config_->StarvingPodsPerIterationLimit
+            ? starvingPods.begin() + Config_->StarvingPodsPerIterationLimit
+            : starvingPods.end();
+
+        for (auto podIt = starvingPods.begin(); podIt < podItEnd; ++podIt) {
             if (TaskManager_.IsTaskLimitReached()) {
                 YT_LOG_DEBUG("Concurrent task limit is reached, waiting");
                 return;
             }
-            TryCreateSwapTask(pod);
+            TryCreateSwapTask(*podIt);
         }
     }
 
@@ -725,7 +735,8 @@ private:
 
     bool HasEnoughSuitableNodes(TPod* pod) const
     {
-        auto suitableNodesOrError = FindSuitableNodes(pod, Config_->SafeSuitableNodeCount);
+        int minNodeCount = Config_->SafeSuitableNodeCount + TaskManager_.TaskCount();
+        auto suitableNodesOrError = FindSuitableNodes(pod, minNodeCount);
         if (!suitableNodesOrError.IsOK()) {
             YT_LOG_DEBUG_IF(Config_->Verbose,
                 suitableNodesOrError,
@@ -740,13 +751,14 @@ private:
             pod->GetId(),
             suitableNodes.size());
 
-        if (static_cast<int>(suitableNodes.size()) < Config_->SafeSuitableNodeCount) {
+        if (static_cast<int>(suitableNodes.size()) < minNodeCount) {
             YT_LOG_DEBUG_IF(Config_->Verbose,
                 "Pod does not have enough suitable nodes "
-                "(PodId: %v, SuitableNodeCount: %v, SafeSuitableNodeCount: %v)",
+                "(PodId: %v, SuitableNodeCount: %v, SafeSuitableNodeCount: %v, TaskCount: %v)",
                 pod->GetId(),
                 suitableNodes.size(),
-                Config_->SafeSuitableNodeCount);
+                Config_->SafeSuitableNodeCount,
+                TaskManager_.TaskCount());
             return false;
         }
 
