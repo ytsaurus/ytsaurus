@@ -21,6 +21,9 @@ class HttpProxyTestBase(YTEnvSetup):
         "coordination": {
             "heartbeat_interval": 100,
         },
+        "api": {
+            "force_tracing": True,
+        },
     }
 
     def proxy_address(self):

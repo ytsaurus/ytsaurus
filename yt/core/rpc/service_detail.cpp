@@ -715,7 +715,9 @@ private:
             delimitedBuilder->AppendFormat("Cancelable: %v", Cancelable_);
         }
 
-        YT_LOG_EVENT(Logger, LogLevel_, builder.Flush());
+        auto logMessage = builder.Flush();
+        AddTag(RequestInfoAnnotation, logMessage);
+        YT_LOG_EVENT(Logger, LogLevel_, logMessage);
     }
 
     virtual void LogResponse() override
@@ -746,7 +748,9 @@ private:
             ExecutionTime_,
             TotalTime_);
 
-        YT_LOG_EVENT(Logger, LogLevel_, builder.Flush());
+        auto logMessage = builder.Flush();
+        AddTag(ResponseInfoAnnotation, logMessage);
+        YT_LOG_EVENT(Logger, LogLevel_, logMessage);
     }
 
 
@@ -995,6 +999,7 @@ void TServiceBase::HandleRequest(
 
     auto traceContext = GetOrCreateTraceContext(*header);
     TTraceContextGuard traceContextGuard(traceContext);
+    traceContext->AddTag("rpc.endpoint", replyBus->GetEndpointDescription());
 
     // NOTE: Do not use replyError() after this line.
     TAcceptedRequest acceptedRequest{
@@ -1049,6 +1054,8 @@ void TServiceBase::ReplyError(
         << TErrorAttribute("service", ServiceId_.ServiceName)
         << TErrorAttribute("method", header.method())
         << TErrorAttribute("endpoint", replyBus->GetEndpointDescription());
+
+    NTracing::AddTag("error", TString("true"));
 
     auto code = richError.GetCode();
     auto logLevel =

@@ -44,6 +44,7 @@ public:
     std::optional<TString> Token;
 
     std::optional<bool> RewriteOperationPath;
+    bool ForceTracing;
 
     TDriverConfig()
     {
@@ -92,6 +93,9 @@ public:
                     ApiVersion);
             }
         });
+
+        RegisterParameter("force_tracing", ForceTracing)
+            .Default(false);
     }
 };
 

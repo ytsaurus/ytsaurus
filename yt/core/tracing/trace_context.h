@@ -104,7 +104,7 @@ TTraceId GetCurrentTraceId();
 void FlushCurrentTraceContextTime();
 
 TTraceContextPtr CreateRootTraceContext(const TString& spanName);
-TTraceContextPtr CreateChildTraceContext(const TString& spanName);
+TTraceContextPtr CreateChildTraceContext(const TString& spanName, bool forceTracing = false);
 
 template <class T>
 void AddTag(const TString& tagName, const T& tagValue);
@@ -167,7 +167,7 @@ private:
 class TChildTraceContextGuard
 {
 public:
-    explicit TChildTraceContextGuard(const TString& spanName);
+    explicit TChildTraceContextGuard(const TString& spanName, bool forceTracing = false);
     TChildTraceContextGuard(TChildTraceContextGuard&& other) = default;
 
 private:

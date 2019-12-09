@@ -1347,6 +1347,7 @@ public:
             std::move(requestMessage),
             std::move(logger),
             logLevel)
+        , TraceContext_(NTracing::CreateChildTraceContext("YPath.ExecuteVerb"))
     { }
 
     TYPathServiceContext(
@@ -1359,12 +1360,14 @@ public:
             std::move(requestMessage),
             std::move(logger),
             logLevel)
+        , TraceContext_(NTracing::CreateChildTraceContext("YPath.ExecuteVerb"))
     { }
 
 protected:
     std::optional<NProfiling::TWallTimer> Timer_;
 
     const NProto::TYPathHeaderExt* YPathExt_ = nullptr;
+    const NTracing::TTraceContextPtr TraceContext_;
 
     const NProto::TYPathHeaderExt& GetYPathExt()
     {
@@ -1376,7 +1379,11 @@ protected:
 
 
     virtual void DoReply() override
-    { }
+    {
+        if (TraceContext_) {
+            TraceContext_->Finish();
+        }
+    }
 
     virtual void LogRequest() override
     {
@@ -1412,7 +1419,9 @@ protected:
             delimitedBuilder->AppendString(info);
         }
 
-        YT_LOG_DEBUG(builder.Flush());
+        auto logMessage = builder.Flush();
+        NTracing::AddTag(RequestInfoAnnotation, logMessage);
+        YT_LOG_DEBUG(logMessage);
 
         Timer_.emplace();
     }
@@ -1450,7 +1459,9 @@ protected:
 
         delimitedBuilder->AppendFormat("Error: %v", Error_);
 
-        YT_LOG_DEBUG(builder.Flush());
+        auto logMessage = builder.Flush();
+        NTracing::AddTag(ResponseInfoAnnotation, logMessage);
+        YT_LOG_DEBUG(logMessage);
     }
 };
 
