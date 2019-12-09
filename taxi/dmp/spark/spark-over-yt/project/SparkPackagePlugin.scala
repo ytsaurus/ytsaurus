@@ -5,9 +5,10 @@ import sbt._
 
 import scala.annotation.tailrec
 import scala.language.postfixOps
+import ru.yandex.sbt.YtPublishPlugin
 
 object SparkPackagePlugin extends AutoPlugin {
-  override def requires = super.requires && CommonPlugin
+  override def requires = super.requires && CommonPlugin && YtPublishPlugin
 
   override def trigger = NoTrigger
 
@@ -40,7 +41,7 @@ object SparkPackagePlugin extends AutoPlugin {
     }
   }
 
-  import CommonPlugin.autoImport._
+  import YtPublishPlugin.autoImport._
   import autoImport._
 
   override def projectSettings: Seq[Def.Setting[_]] = super.projectSettings ++ Seq(

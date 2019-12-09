@@ -1,3 +1,5 @@
+package ru.yandex.sbt
+
 import com.typesafe.sbt.SbtNativePackager.autoImport.maintainer
 import com.typesafe.sbt.packager.Keys.debianPackageMetadata
 import com.typesafe.sbt.packager.debian.DebianPlugin.autoImport.{Debian, debianChangelog, debianSection}
@@ -66,7 +68,7 @@ object DebianPackagePlugin extends AutoPlugin {
       val debianPath = (target in Debian).value / "debian"
       val output = debianPath / "files"
       val content = s"""${debName}_all.deb misc optional
-                      |$debName.dsc text important""".stripMargin
+                       |$debName.dsc text important""".stripMargin
 
       IO.write(output, content)
       output
@@ -159,3 +161,4 @@ object DebianPackagePlugin extends AutoPlugin {
     runProcess(s"debsign -k $signKey ${file.getAbsolutePath}", "Failed to run debsign")
   }
 }
+
