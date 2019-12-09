@@ -13,8 +13,6 @@
 #include <yt/ytlib/query_client/functions_cg.h>
 #include <yt/ytlib/query_client/coordinator.h>
 
-#include <yt/ytlib/table_client/helpers.h>
-
 // Tests:
 // TCompareExpressionTest
 // TEliminateLookupPredicateTest
