@@ -34,6 +34,11 @@ TSpanContext TSpanContext::CreateChild()
     };
 }
 
+void AddErrorTag()
+{
+    AddTag("error", TString("true"));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void FormatValue(TStringBuilderBase* builder, TSpanContext spanContext, TStringBuf spec)

@@ -109,6 +109,9 @@ TTraceContextPtr CreateChildTraceContext(const TString& spanName, bool forceTrac
 template <class T>
 void AddTag(const TString& tagName, const T& tagValue);
 
+// Add error tag to current span. Spans containing errors are highlited in jaeger UI.
+void AddErrorTag();
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! TTraceContextGuard installs trace into the current fiber implicit trace slot.
