@@ -982,6 +982,7 @@ def start_clickhouse_clique_handler(*args, **kwargs):
 def add_start_clickhouse_clique_parser(add_parser):
     parser = add_parser("start-clickhouse-clique", start_clickhouse_clique_handler)
     parser.add_argument("--instance-count", required=True, type=int)
+    parser.add_argument("--operation-alias", required=True, help="Alias for clique")
     parser.add_argument("--cypress-ytserver-clickhouse-path")
     parser.add_argument("--host-ytserver-clickhouse-path")
     parser.add_argument("--cypress-base-config-path", default="//sys/clickhouse/config")
@@ -990,9 +991,10 @@ def add_start_clickhouse_clique_parser(add_parser):
     parser.add_argument("--enable-monitoring", action="store_true", default=False,
                         help="(only for development use) bind monitoring port to 10142")
     parser.add_argument("--cypress-geodata-path")
-    parser.add_argument("--operation-alias", help="Alias for clique")
     parser.add_argument("--abort-existing", action="store_true", help="Abort existing operation under same alias")
     parser.add_argument("--uncompressed-block-cache-size", type=int, help="Size of uncompressed block cache")
+    parser.add_argument("--enable-job-tables", action="store_true", help="Enable stderr and core tables")
+    parser.add_argument("--enable-log-tailer", action="store_true", help="Enable writing logs to dynamic table")
     add_structured_argument(parser, "--spec")
     add_structured_argument(parser, "--clickhouse-config", "ClickHouse configuration patch")
 
