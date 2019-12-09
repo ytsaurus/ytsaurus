@@ -4,7 +4,7 @@ import __builtin__
 import os
 import os.path
 
-from yt_env_setup import YTEnvSetup, find_ut_file
+from yt_env_setup import YTEnvSetup, find_ut_file, skip_if_rpc_driver_backend
 from yt_commands import *
 
 from yt.environment.helpers import assert_items_equal
@@ -30,9 +30,9 @@ class TestQuery(YTEnvSetup):
             "shard_count": 1
         },
         "function_registry_cache": {
-            "success_expiration_time": 5000,
-            "success_probation_time": 3000,
-            "failure_expiration_time": 5000
+            "success_expiration_time": 3000,
+            "success_probation_time": 2000,
+            "failure_expiration_time": 3000
         }
     }
 
@@ -819,6 +819,7 @@ class TestQuery(YTEnvSetup):
         assert_items_equal(actual, expected)
 
     @authors("lukyan")
+    @skip_if_rpc_driver_backend
     @flaky(max_runs=5)
     def test_udf_cache(self):
         sync_create_cells(1)
@@ -1107,3 +1108,4 @@ class TestQuery(YTEnvSetup):
 class TestQueryRpcProxy(TestQuery):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
+
