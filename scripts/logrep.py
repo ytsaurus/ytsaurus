@@ -773,10 +773,10 @@ def resolve_selector(selector_str):
             service=service,
             instance_list=instance_list
         )
-    elif instance_str.count("@") == 1:
-        service, address = instance_str.split("@")
+    elif selector_str.count("@") == 1:
+        service, address = selector_str.split("@")
         return Selector(
-            selector_str=instance_str,
+            selector_str=selector_str,
             cluster=None,
             service=service,
             instance_list= [Instance(address, service, [], [])],
