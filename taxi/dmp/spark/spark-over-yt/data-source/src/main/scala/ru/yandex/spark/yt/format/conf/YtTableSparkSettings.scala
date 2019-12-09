@@ -1,8 +1,9 @@
-package ru.yandex.spark.yt.conf
+package ru.yandex.spark.yt.format.conf
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.sql.types.StructType
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
+import ru.yandex.spark.yt.fs.conf.{StringConfigEntry, StringListConfigEntry, StructTypeConfigEntry, _}
 import ru.yandex.spark.yt.serializers.SchemaConverter
 import ru.yandex.spark.yt.utils.YtTableSettings
 

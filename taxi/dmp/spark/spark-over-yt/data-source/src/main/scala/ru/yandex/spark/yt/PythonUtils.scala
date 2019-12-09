@@ -1,7 +1,7 @@
 package ru.yandex.spark.yt
 
 import org.apache.spark.sql.SparkSession
-import ru.yandex.spark.yt.format.GlobalTableSettings
+import ru.yandex.spark.yt.fs.GlobalTableSettings
 
 object PythonUtils {
   def restartSparkWithExtensions(spark: SparkSession): SparkSession =

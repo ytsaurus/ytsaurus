@@ -6,14 +6,13 @@ import TarArchiverPlugin.autoImport._
 import DebianPackagePlugin.autoImport._
 
 lazy val `data-source` = (project in file("data-source"))
-  .dependsOn(`yt-utils`)
+  .dependsOn(`yt-utils`, `file-system`, `test-utils` % Test)
   .settings(
     libraryDependencies ++= circe,
     libraryDependencies ++= testDeps,
     libraryDependencies ++= spark,
     libraryDependencies ++= yandexIceberg,
     libraryDependencies ++= logging.map(_ % Provided),
-    test in assembly := {},
     assemblyOption in assembly := (assemblyOption in assembly).value.copy(includeScala = false)
   )
 
@@ -52,6 +51,26 @@ lazy val `yt-utils` = (project in file("yt-utils"))
   .settings(
     libraryDependencies ++= yandexIceberg,
     libraryDependencies ++= logging.map(_ % Provided)
+  )
+
+lazy val `file-system` = (project in file("file-system"))
+  .dependsOn(`yt-utils`)
+  .settings(
+    libraryDependencies ++= testDeps,
+    libraryDependencies ++= spark,
+    libraryDependencies ++= circe,
+    libraryDependencies ++= logging.map(_ % Provided)
+  )
+
+lazy val `test-utils` = (project in file("test-utils"))
+  .dependsOn(`yt-utils`, `file-system`)
+  .settings(
+    libraryDependencies ++= Seq(
+      "org.scalacheck" %% "scalacheck" % "1.14.1",
+      "org.scalactic" %% "scalactic" % scalatestVersion,
+      "org.scalatest" %% "scalatest" % scalatestVersion
+    ),
+    libraryDependencies ++= spark
   )
 
 lazy val `client` = (project in file("client"))

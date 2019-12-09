@@ -13,7 +13,7 @@ import org.apache.spark.sql.execution._
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.util.collection.BitSet
 import org.apache.spark.sql.execution.datasources.parquet.{ParquetFileFormat => ParquetSource}
-import ru.yandex.spark.yt.format.YtFileStatus
+import ru.yandex.spark.yt.fs.YtFileStatus
 
 import scala.collection.mutable.ArrayBuffer
 

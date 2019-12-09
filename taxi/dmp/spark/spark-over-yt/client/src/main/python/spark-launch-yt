@@ -67,12 +67,12 @@ recovery_opts = "-Dspark.deploy.recoveryMode=CUSTOM " \
                 "-Dspark.deploy.yt.path=/home/sashbel/master"
 worker_opts = "-Dspark.worker.cleanup.enabled=true " \
               "-Dspark.shuffle.service.enabled=true " \
-              "-Dspark.hadoop.fs.yt.impl=ru.yandex.spark.yt.format.YtFileSystem " \
+              "-Dspark.hadoop.fs.yt.impl=ru.yandex.spark.yt.fs.YtFileSystem " \
               "-Dspark.port.maxRetries={0} " \
               "-Dspark.shuffle.service.port={1}" \
     .format(get_config("PortMaxRetries"), get_config("ShuffleServicePort"))
 master_opts = "-Dspark.port.maxRetries={0} " \
-              "-Dspark.hadoop.fs.yt.impl=ru.yandex.spark.yt.format.YtFileSystem " \
+              "-Dspark.hadoop.fs.yt.impl=ru.yandex.spark.yt.fs.YtFileSystem " \
               "-Dspark.master.rest.enabled=true " \
               "-Dspark.master.rest.port={1}" \
     .format(get_config("PortMaxRetries"), get_config("StartPort"))

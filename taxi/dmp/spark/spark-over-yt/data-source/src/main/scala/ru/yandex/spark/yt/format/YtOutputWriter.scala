@@ -11,8 +11,8 @@ import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.execution.datasources.OutputWriter
 import org.apache.spark.sql.types.StructType
 import ru.yandex.inside.yt.kosher.common.GUID
-import ru.yandex.spark.yt._
-import ru.yandex.spark.yt.conf.SparkYtWriteConfiguration
+import ru.yandex.spark.yt.format.conf.SparkYtWriteConfiguration
+import ru.yandex.spark.yt.fs.{GlobalTableSettings, YtClientProvider}
 import ru.yandex.spark.yt.serializers.InternalRowSerializer
 import ru.yandex.spark.yt.utils._
 import ru.yandex.yt.ytclient.proxy.TableWriter

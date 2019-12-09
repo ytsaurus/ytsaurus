@@ -2,8 +2,8 @@ package ru.yandex.spark.yt.utils
 
 import org.apache.spark.sql.Row
 import org.scalatest.{FlatSpec, Matchers}
-import ru.yandex.spark.yt.LocalSpark
 import org.apache.spark.sql.functions._
+import ru.yandex.spark.yt.test.LocalSpark
 
 class DataFrameUtilsTest extends FlatSpec with Matchers with LocalSpark {
 

@@ -2,7 +2,7 @@ package org.apache.spark.deploy.master
 
 import org.apache.spark.SparkConf
 import org.apache.spark.serializer.Serializer
-import ru.yandex.spark.yt.{YtClientConfigurationConverter, YtClientProvider}
+import ru.yandex.spark.yt.fs.{YtClientConfigurationConverter, YtClientProvider}
 import ru.yandex.yt.ytclient.proxy.YtClient
 
 class YtRecoveryModeFactory(conf: SparkConf, serializer: Serializer)

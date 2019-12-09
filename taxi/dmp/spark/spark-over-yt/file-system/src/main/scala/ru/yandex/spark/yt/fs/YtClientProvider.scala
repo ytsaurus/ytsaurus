@@ -1,13 +1,14 @@
-package ru.yandex.spark.yt
+package ru.yandex.spark.yt.fs
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.SparkConf
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.sql.SparkSession
 import ru.yandex.inside.yt.kosher.Yt
-import ru.yandex.spark.yt.utils.{YtClientConfiguration, YtRpcClient, YtClientUtils}
+import ru.yandex.spark.yt.utils.{YtClientConfiguration, YtClientUtils, YtRpcClient}
 import ru.yandex.yt.ytclient.proxy.YtClient
 
+import ru.yandex.spark.yt.fs.conf._
 
 object YtClientProvider {
   private val _client: ThreadLocal[Option[YtRpcClient]] = new ThreadLocal[Option[YtRpcClient]]
@@ -38,8 +39,6 @@ object YtClientProvider {
 }
 
 object YtClientConfigurationConverter {
-
-  import ru.yandex.spark.yt.conf._
 
   def apply(spark: SparkSession): YtClientConfiguration = {
     apply(spark.sparkContext.hadoopConfiguration)

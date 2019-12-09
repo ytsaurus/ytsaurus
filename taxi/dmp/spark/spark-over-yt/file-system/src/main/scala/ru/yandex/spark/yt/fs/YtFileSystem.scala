@@ -1,4 +1,4 @@
-package ru.yandex.spark.yt.format
+package ru.yandex.spark.yt.fs
 
 import java.net.URI
 
@@ -8,7 +8,6 @@ import org.apache.hadoop.fs.permission.FsPermission
 import org.apache.hadoop.util.Progressable
 import org.apache.log4j.Logger
 import ru.yandex.spark.yt.utils.{PathType, YtTableUtils}
-import ru.yandex.spark.yt.{YtClientConfigurationConverter, YtClientProvider}
 import ru.yandex.yt.ytclient.proxy.YtClient
 
 class YtFileSystem extends FileSystem {
@@ -29,7 +28,8 @@ class YtFileSystem extends FileSystem {
   override def getUri: URI = _uri
 
   override def open(f: Path, bufferSize: Int): FSDataInputStream = {
-    new FSDataInputStream(YtTableUtils.readFile(ytPath(f))(yt))
+    log.info(s"Open file ${f.toUri.toString}")
+    new FSDataInputStream(new YtFsInputStream(YtTableUtils.readFile(ytPath(f))(yt)))
   }
 
   override def create(f: Path, permission: FsPermission, overwrite: Boolean, bufferSize: Int,

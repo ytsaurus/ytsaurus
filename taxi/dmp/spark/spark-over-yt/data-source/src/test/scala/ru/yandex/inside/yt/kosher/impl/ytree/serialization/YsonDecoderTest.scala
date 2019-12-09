@@ -39,7 +39,7 @@ class YsonDecoderTest extends FlatSpec with Matchers with ScalaCheckPropertyChec
       .readToken(allowEof = false) shouldEqual 15
   }
 
-  it should "decode bytes" in  {
+  it should "decode bytes" in {
     val bytes = readBytes("bytes-struct")
 
     val schema = StructType(Seq(
