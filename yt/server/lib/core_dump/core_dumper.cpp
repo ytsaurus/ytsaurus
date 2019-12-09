@@ -120,12 +120,6 @@ public:
             TUnbufferedFileInput coreInput(coreInputFile);
             TFile coreOutputFile(corePath, CreateNew | WrOnly | Seq | CloseOnExec);
 
-            try {
-                coreOutputFile.SetDirect();
-            } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Error while setting direct IO mode for coredumper output");
-            }
-
             auto asyncResult = BIND([
                 coreInput = std::move(coreInput),
                 coreOutputFile = std::move(coreOutputFile),
