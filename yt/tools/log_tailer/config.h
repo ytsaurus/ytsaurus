@@ -51,13 +51,13 @@ class TLogFileConfig
 {
 public:
     TString Path;
-    NYTree::TYPath Table;
+    std::vector<NYTree::TYPath> TablePaths;
 
     TLogFileConfig()
     {
         RegisterParameter("path", Path)
             .Default();
-        RegisterParameter("table", Table)
+        RegisterParameter("table_paths", TablePaths)
             .Default();
     }
 };
