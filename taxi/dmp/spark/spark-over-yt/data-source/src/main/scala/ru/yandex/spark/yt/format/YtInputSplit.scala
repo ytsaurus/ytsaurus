@@ -2,6 +2,7 @@ package ru.yandex.spark.yt.format
 
 import org.apache.hadoop.mapreduce.InputSplit
 import org.apache.spark.sql.types.StructType
+import ru.yandex.spark.yt.fs.YtPath
 
 case class YtInputSplit(path: YtPath, start: Long, length: Long, schema: StructType) extends InputSplit {
   override def getLength: Long = length

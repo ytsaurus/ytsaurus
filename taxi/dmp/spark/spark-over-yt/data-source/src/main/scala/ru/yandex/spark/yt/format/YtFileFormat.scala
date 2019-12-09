@@ -13,10 +13,10 @@ import org.apache.spark.sql.execution.vectorized.OnHeapColumnVector
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.sources.{DataSourceRegister, Filter}
 import org.apache.spark.sql.types.{StringType, StructType}
-import ru.yandex.spark.yt.conf.{SparkYtWriteConfiguration, YtTableSparkSettings}
+import ru.yandex.spark.yt.format.conf.{SparkYtConfiguration, SparkYtWriteConfiguration, YtTableSparkSettings}
+import ru.yandex.spark.yt.fs.{YtClientConfigurationConverter, YtClientProvider, YtPath}
 import ru.yandex.spark.yt.serializers.{InternalRowDeserializer, SchemaConverter}
 import ru.yandex.spark.yt.utils.YtTableUtils
-import ru.yandex.spark.yt.{YtClientConfigurationConverter, YtClientProvider}
 import ru.yandex.yt.ytclient.proxy.YtClient
 
 import scala.util.{Failure, Success, Try}
@@ -53,7 +53,7 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
                                               filters: Seq[Filter],
                                               options: Map[String, String],
                                               hadoopConf: Configuration): PartitionedFile => Iterator[InternalRow] = {
-    import ru.yandex.spark.yt.conf._
+    import ru.yandex.spark.yt.fs.conf._
     val ytClientConfiguration = YtClientConfigurationConverter(hadoopConf)
     val readBatch = supportBatch(sparkSession, requiredSchema)
     val vectorizedReaderCapacity = hadoopConf.ytConf(SparkYtConfiguration.Read.VectorizedCapacity)

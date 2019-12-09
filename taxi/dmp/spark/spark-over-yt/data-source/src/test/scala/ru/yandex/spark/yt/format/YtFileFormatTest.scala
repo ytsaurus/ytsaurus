@@ -7,8 +7,8 @@ import org.apache.spark.SparkException
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{AnalysisException, Encoders, Row, SaveMode}
 import org.scalatest.{FlatSpec, Matchers}
-import ru.yandex.TestUtils
 import ru.yandex.spark.yt._
+import ru.yandex.spark.yt.test.{TestUtils, TmpTable}
 import ru.yandex.spark.yt.utils.YtTableUtils
 import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
 
@@ -370,9 +370,11 @@ class YtFileFormatTest extends FlatSpec with Matchers with TmpTable with TestUti
     spark.sqlContext.setConf("spark.yt.write.timeout", "0")
 
     try {
+      Logger.getRootLogger.setLevel(Level.OFF)
       a[SparkException] shouldBe thrownBy {
         Seq(1, 2, 3).toDS.coalesce(1).write.yt(tmpPath)
       }
+      Logger.getRootLogger.setLevel(Level.WARN)
 
       YtTableUtils.exists(s"$tmpPath-tmp") shouldEqual false
     } finally {

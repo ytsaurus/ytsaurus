@@ -1,6 +1,6 @@
 package ru.yandex.spark.yt.utils
 
-import java.io.{InputStream, OutputStream}
+import java.io.{BufferedReader, InputStream, InputStreamReader, OutputStream}
 import java.time.{Duration => JavaDuration}
 import java.util.concurrent.CompletableFuture
 
@@ -17,6 +17,8 @@ import ru.yandex.yt.ytclient.`object`.WireRowDeserializer
 import ru.yandex.yt.ytclient.proxy.internal.FileWriterImpl
 import ru.yandex.yt.ytclient.proxy.request._
 import ru.yandex.yt.ytclient.proxy.{FileWriter, YtClient}
+
+import scala.io.Source
 
 object YtTableUtils {
   def createTable(path: String,
@@ -158,9 +160,18 @@ object YtTableUtils {
     }
   }
 
-  def readFile(path: String, transaction: Option[String] = None)(implicit yt: YtClient): InputStream = {
+  def readFile(path: String, transaction: Option[String] = None)(implicit yt: YtClient): YtFileInputStream = {
     val fileReader = yt.readFile(new ReadFile(formatPath(path))).join()
     new YtFileInputStream(fileReader)
+  }
+
+  def readFileString(path: String, transaction: Option[String] = None)(implicit yt: YtClient): String = {
+    val in = readFile(path, transaction)
+    try {
+      Source.fromInputStream(in).mkString
+    } finally {
+      in.close()
+    }
   }
 
   def listDirectory(path: String, transaction: Option[String] = None)(implicit yt: YtClient): Array[String] = {
@@ -189,7 +200,17 @@ object YtTableUtils {
     new YtFileOutputStream(writer)
   }
 
-  def writeFile(req: WriteFile, timeout: JavaDuration)(implicit yt: YtClient): CompletableFuture[FileWriter] = {
+  def writeBytesToFile(path: String, content: Array[Byte],
+                       timeout: JavaDuration = JavaDuration.ofMinutes(1),
+                       transaction: Option[String] = None)
+                      (implicit yt: YtClient): Unit = {
+    val os = writeToFile(path, timeout)
+    try {
+      os.write(content)
+    } finally os.close()
+  }
+
+  private def writeFile(req: WriteFile, timeout: JavaDuration)(implicit yt: YtClient): CompletableFuture[FileWriter] = {
     val builder = yt.getService.writeFile
     builder.setTimeout(timeout)
     req.writeTo(builder.body)

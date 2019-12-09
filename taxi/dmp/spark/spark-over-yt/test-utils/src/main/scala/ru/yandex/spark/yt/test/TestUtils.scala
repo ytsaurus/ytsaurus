@@ -1,4 +1,4 @@
-package ru.yandex
+package ru.yandex.spark.yt.test
 
 import java.io.ByteArrayInputStream
 import java.nio.charset.StandardCharsets

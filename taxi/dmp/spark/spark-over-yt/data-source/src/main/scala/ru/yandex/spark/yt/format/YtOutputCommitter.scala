@@ -6,8 +6,8 @@ import org.apache.hadoop.mapreduce.{JobContext, TaskAttemptContext}
 import org.apache.log4j.Logger
 import org.apache.spark.internal.io.FileCommitProtocol
 import ru.yandex.inside.yt.kosher.Yt
-import ru.yandex.spark.yt._
-import ru.yandex.spark.yt.conf.YtTableSparkSettings
+import ru.yandex.spark.yt.format.conf.YtTableSparkSettings
+import ru.yandex.spark.yt.fs.{GlobalTableSettings, YtClientConfigurationConverter, YtClientProvider}
 import ru.yandex.spark.yt.utils._
 import ru.yandex.yt.ytclient.proxy.YtClient
 
@@ -18,7 +18,7 @@ class YtOutputCommitter(jobId: String,
   private val tmpPath = s"${path}_tmp"
 
   import YtOutputCommitter._
-  import ru.yandex.spark.yt.conf.SparkYtInternalConfiguration._
+  import ru.yandex.spark.yt.format.conf.SparkYtInternalConfiguration._
 
   override def setupJob(jobContext: JobContext): Unit = {
     val conf = jobContext.getConfiguration
@@ -82,8 +82,8 @@ class YtOutputCommitter(jobId: String,
 
 object YtOutputCommitter {
 
-  import ru.yandex.spark.yt.conf._
-  import SparkYtInternalConfiguration._
+  import ru.yandex.spark.yt.format.conf.SparkYtInternalConfiguration._
+  import ru.yandex.spark.yt.fs.conf._
 
   private val log = Logger.getLogger(getClass)
 

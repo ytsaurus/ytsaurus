@@ -1,7 +1,6 @@
-package ru.yandex.spark.yt.conf
+package ru.yandex.spark.yt.fs.conf
 
 import org.apache.spark.sql.types.StructType
-import ru.yandex.spark.yt.serializers.SchemaConverter
 
 abstract class ConfigEntry[T](val name: String,
                               val default: Option[T] = None) {
@@ -27,7 +26,7 @@ class StringListConfigEntry(name: String, default: Option[Seq[String]] = None) e
 }
 
 class StructTypeConfigEntry(name: String) extends ConfigEntry[StructType](name, None) {
-  override def get(value: String): StructType = SchemaConverter.sparkType(value).asInstanceOf[StructType]
+  override def get(value: String): StructType = ConfigTypeConverter.sparkType(value).asInstanceOf[StructType]
 
-  override def set(value: StructType): String = SchemaConverter.stringType(value)
+  override def set(value: StructType): String = ConfigTypeConverter.stringType(value)
 }

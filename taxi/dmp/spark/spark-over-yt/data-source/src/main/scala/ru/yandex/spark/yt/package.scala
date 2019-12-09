@@ -3,8 +3,9 @@ package ru.yandex.spark
 import org.apache.spark.SparkConf
 import org.apache.spark.sql._
 import org.apache.spark.sql.types._
-import ru.yandex.spark.yt.conf.YtTableSparkSettings
-import ru.yandex.spark.yt.format.{GlobalTableSettings, YtSourceStrategy}
+import ru.yandex.spark.yt.format.YtSourceStrategy
+import ru.yandex.spark.yt.format.conf.YtTableSparkSettings
+import ru.yandex.spark.yt.fs.{GlobalTableSettings, YtClientConfigurationConverter, YtClientProvider}
 import ru.yandex.spark.yt.serializers.SchemaConverter
 import ru.yandex.spark.yt.utils.DefaultRpcCredentials
 import ru.yandex.yt.ytclient.proxy.YtClient

@@ -10,8 +10,9 @@ import ru.yandex.yt.ytclient.proxy.internal.FileReaderImpl
 class YtFileInputStream(reader: FileReader) extends InputStream {
   private val log = Logger.getLogger(getClass)
   private var chunk: Iterator[Byte] = _
-  private var pos: Long = 0
   private var closed: Boolean = false
+
+  var pos: Long = 0
 
   override def read(): Int = {
     if (hasNext) next() else -1
