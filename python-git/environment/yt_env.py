@@ -2,7 +2,9 @@ from __future__ import print_function
 
 from .configs_provider import init_logging, get_default_provision, create_configs_provider
 from .default_configs import get_dynamic_master_config
-from .helpers import read_config, write_config, is_dead_or_zombie, OpenPortIterator, wait_for_removing_file_lock, add_binary_path, get_value_from_config
+from .helpers import (
+    read_config, write_config, is_dead_or_zombie, OpenPortIterator,
+    wait_for_removing_file_lock, add_binary_path, get_value_from_config, WaitFailed)
 from .porto_helpers import PortoSubprocess, porto_avaliable
 from .watcher import ProcessWatcher
 
@@ -307,8 +309,9 @@ class YTInstance(object):
             for dir_ in master_dirs[cell_index]:
                 makedirp(dir_)
 
-            if self._tmpfs_path is not None and not self._load_existing_environment:
+            if self._tmpfs_path is not None:
                 master_tmpfs_dirs.append([os.path.join(self._tmpfs_path, name, str(i)) for i in xrange(self.master_count)])
+
                 for dir_ in master_tmpfs_dirs[cell_index]:
                     makedirp(dir_)
 
@@ -317,7 +320,7 @@ class YTInstance(object):
             makedirp(dir_)
 
         clock_tmpfs_dirs = None
-        if self._tmpfs_path is not None and not self._load_existing_environment:
+        if self._tmpfs_path is not None:
             clock_tmpfs_dirs = [os.path.join(self._tmpfs_path, name, str(i)) for i in xrange(self.clock_count)]
             for dir_ in clock_tmpfs_dirs:
                 makedirp(dir_)
@@ -335,7 +338,7 @@ class YTInstance(object):
             makedirp(dir_)
 
         node_tmpfs_dirs = None
-        if self._tmpfs_path is not None and not self._load_existing_environment:
+        if self._tmpfs_path is not None:
             node_tmpfs_dirs = [os.path.join(self._tmpfs_path, "node", str(i)) for i in xrange(self.node_count)]
             for dir_ in node_tmpfs_dirs:
                 makedirp(dir_)
@@ -746,7 +749,15 @@ class YTInstance(object):
 
         logger.info("Sending SIGKILL (pid: {})".format(proc.pid))
         os.killpg(proc.pid, signal.SIGKILL)
-        wait(lambda: is_dead_or_zombie(proc.pid))
+        try:
+            wait(lambda: is_dead_or_zombie(proc.pid))
+        except WaitFailed:
+            try:
+                with open("/proc/{0}/status".format(proc.pid), "r") as fin:
+                    logger.error("Process status: %s", fin.read().replace("\n", "\\n"))
+            except IOError:
+                pass
+            raise
 
     def _append_pid(self, pid):
         self.pids_file.write(str(pid) + "\n")

@@ -744,6 +744,26 @@ def add_select_rows_parser(add_parser):
         parser.add_argument("--execution-pool", type=str)
         parser.add_argument("--format", action=ParseFormat)
 
+@copy_docstring_from(yt.select_rows)
+def explain(**args):
+    write_silently(chunk_iter_stream(yt.explain(raw=True, **args), yt.config["read_buffer_size"]))
+
+def add_explain_parser(add_parser):
+    parser = add_parser("explain", yt.explain)
+    add_hybrid_argument(parser, "query")
+    parser.add_argument("--timestamp", type=int)
+    parser.add_argument("--input-row-limit", type=int)
+    parser.add_argument("--output-row-limit", type=int)
+    group = parser.add_mutually_exclusive_group(required=False)
+    group.add_argument("--allow-full-scan", dest="allow_full_scan", default=None, action="store_true")
+    group.add_argument("--forbid-full-scan", dest="allow_full_scan", default=None, action="store_false")
+    group = parser.add_mutually_exclusive_group(required=False)
+    group.add_argument("--allow-join-without-index", dest="allow_join_without_index", default=None, action="store_true")
+    group.add_argument("--forbid-join-without-index", dest="allow_join_without_index", default=None, action="store_false")
+    parser.add_argument("--execution-pool", type=str)
+    parser.add_argument("--format", action=ParseFormat)
+
+
 @copy_docstring_from(yt.lookup_rows)
 def lookup_rows(**args):
     write_silently(chunk_iter_stream(yt.lookup_rows(raw=True, **args), yt.config["read_buffer_size"]))
@@ -1410,6 +1430,7 @@ def main():
     add_alter_table_replica_parser(add_parser)
 
     add_select_rows_parser(add_parser)
+    add_explain_parser(add_parser)
     add_lookup_rows_parser(add_parser)
     add_insert_rows_parser(add_parser)
     add_delete_rows_parser(add_parser)
