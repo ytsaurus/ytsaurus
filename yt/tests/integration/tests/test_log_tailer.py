@@ -92,6 +92,7 @@ class TestLogTailer(YTEnvSetup):
             {
                 "dynamic": True,
                 "schema": [
+                    {"name": "key_exression_column", "type": "uint64", "expression": "farm_hash(trace_id) % 123", "sort_order": "ascending"},
                     {"name": "trace_id", "type": "string", "sort_order": "ascending"},
                     {"name": "timestamp", "type": "string"},
                     {"name": "category", "type": "string"},
