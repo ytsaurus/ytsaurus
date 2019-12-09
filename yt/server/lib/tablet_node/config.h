@@ -221,7 +221,7 @@ public:
 
         RegisterParameter("max_overlapping_store_count", MaxOverlappingStoreCount)
             .GreaterThan(0)
-            .Default(30);
+            .Default(DefaultMaxOverlappingStoreCount);
         RegisterParameter("critical_overlapping_store_count", CriticalOverlappingStoreCount)
             .GreaterThan(0)
             .Optional();

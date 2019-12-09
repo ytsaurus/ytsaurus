@@ -848,6 +848,28 @@ class TestBulkInsert(DynamicTablesBase):
         assert read_table("//tmp/t_output") == rows[:1]
         assert_items_equal(select_rows("* from [//tmp/t_output]"), rows[:1])
 
+    def test_overlapping_store_count_limit(self):
+        sync_create_cells(1)
+        create("table", "//tmp/t_input")
+        self._create_simple_dynamic_table("//tmp/t_output")
+        set("//tmp/t_output/@max_overlapping_store_count", 3);
+        set("//tmp/t_output/@enable_compaction_and_partitioning", False);
+        sync_mount_table("//tmp/t_output")
+
+        write_table("//tmp/t_input", [{"key": 1, "value": "1"}])
+
+        def _run_op():
+            map(
+                in_="//tmp/t_input",
+                out="<append=%true>//tmp/t_output",
+                command="cat")
+
+        _run_op()
+        _run_op()
+        wait(lambda: get("//tmp/t_output/@tablet_statistics/overlapping_store_count") == 3)
+        with pytest.raises(YtError):
+            _run_op()
+
 ##################################################################
 
 @authors("ifsmirnov")
