@@ -1,7 +1,7 @@
 #include "functions_cg.h"
 #include "cg_fragment_compiler.h"
 
-#include <yt/ytlib/table_client/llvm_types.h>
+#include <yt/client/table_client/llvm_types.h>
 
 #include <yt/client/table_client/row_base.h>
 
