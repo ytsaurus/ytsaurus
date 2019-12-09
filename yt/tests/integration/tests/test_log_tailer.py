@@ -43,7 +43,10 @@ class TestLogTailer(YTEnvSetup):
             "dummy_logger",
             "log")
 
+        log_tables = ["//sys/clickhouse/logs/log1", "//sys/clickhouse/logs/log2"]
+
         log_tailer_config["log_tailer"]["log_files"][0]["path"] = log_path
+        log_tailer_config["log_tailer"]["log_files"][0]["table_paths"] = log_tables
 
         log_tailer_config["logging"]["writers"]["debug"]["file_name"] = \
             os.path.join(self.path_to_run,
@@ -68,7 +71,7 @@ class TestLogTailer(YTEnvSetup):
         create("map_node", "//sys/clickhouse")
         create("map_node", "//sys/clickhouse/logs")
 
-        create("table", "//sys/clickhouse/logs/log", attributes= \
+        create("table", "//sys/clickhouse/logs/log1", attributes= \
             {
                 "dynamic": True,
                 "schema": [
@@ -85,7 +88,25 @@ class TestLogTailer(YTEnvSetup):
                 "tablet_cell_bundle": "sys"
             })
 
-        sync_mount_table("//sys/clickhouse/logs/log")
+        create("table", "//sys/clickhouse/logs/log2", attributes= \
+            {
+                "dynamic": True,
+                "schema": [
+                    {"name": "trace_id", "type": "string", "sort_order": "ascending"},
+                    {"name": "timestamp", "type": "string"},
+                    {"name": "category", "type": "string"},
+                    {"name": "message", "type": "string"},
+                    {"name": "log_level", "type": "string"},
+                    {"name": "thread_id", "type": "string"},
+                    {"name": "fiber_id", "type": "string"},
+                    {"name": "job_id", "type": "string"},
+                    {"name": "operation_id", "type": "string"},
+                ],
+                "tablet_cell_bundle": "sys"
+            })
+
+        for log_table in log_tables:
+            sync_mount_table(log_table)
 
         create_user("yt-log-tailer")
         add_member("yt-log-tailer", "superusers")
@@ -97,9 +118,9 @@ class TestLogTailer(YTEnvSetup):
         log_tailer.terminate()
         dummy_logger.terminate()
 
-        log_table = "//sys/clickhouse/logs/log"
-        freeze_table(log_table)
-        wait_for_tablet_state(log_table, "frozen")
+        for log_table in log_tables:
+            freeze_table(log_table)
+            wait_for_tablet_state(log_table, "frozen")
 
-        assert len(read_table(log_table)) == 1000
-        remove(log_table)
+            assert len(read_table(log_table)) == 1000
+            remove(log_table)

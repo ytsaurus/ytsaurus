@@ -79,7 +79,7 @@ TLogFileReader::TLogFileReader(
     , ExtraLogTableColumns_(std::move(extraLogTableColumns))
 {
     Logger.AddTag("LogFile: %v", Config_->Path);
-    Logger.AddTag("TablePath: %v", Config_->Table);
+    Logger.AddTag("TablePaths: %v", Config_->TablePaths);
 
     try {
         DoOpenLogFile();
@@ -100,8 +100,10 @@ TLogFileReader::TLogFileReader(
         LogTableNameTable_->RegisterName(key);
     }
 
-    if (!WaitFor(Bootstrap_->GetMasterClient()->NodeExists(Config_->Table)).ValueOrThrow()) {
-        YT_LOG_FATAL("Log table does not exist; exiting (TablePath: %v)", Config_->Table);
+    for (const auto& table : Config_->TablePaths) {
+        if (!WaitFor(Bootstrap_->GetMasterClient()->NodeExists(table)).ValueOrThrow()) {
+            YT_LOG_FATAL("Log table does not exist; exiting (TablePath: %v)", table);
+        }
     }
 }
 
@@ -216,10 +218,12 @@ void TLogFileReader::DoWriteRows()
         auto transaction = WaitFor(Bootstrap_->GetMasterClient()->StartTransaction(NTransactionClient::ETransactionType::Tablet))
             .ValueOrThrow();
 
-        transaction->WriteRows(
-            Config_->Table,
-            LogTableNameTable_,
-            TSharedRange<NTableClient::TUnversionedRow>{rows, MakeStrong(this)});
+        for (const auto& table : Config_->TablePaths) {
+            transaction->WriteRows(
+                table,
+                LogTableNameTable_,
+                TSharedRange<NTableClient::TUnversionedRow>{rows, MakeStrong(this)});
+        }
 
         try {
             WaitFor(transaction->Commit())
