@@ -2,13 +2,12 @@
 #include "private.h"
 #include "helpers.h"
 #include "query.h"
-#include "query_helpers.h"
 #include "range_inferrer.h"
 
 #include <yt/client/table_client/schema.h>
 #include <yt/client/table_client/schemaful_reader.h>
-#include <yt/ytlib/table_client/unordered_schemaful_reader.h>
 #include <yt/client/table_client/writer.h>
+#include <yt/client/table_client/unordered_schemaful_reader.h>
 
 #include <yt/core/logging/log.h>
 

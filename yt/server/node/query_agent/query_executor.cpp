@@ -59,7 +59,7 @@
 #include <yt/ytlib/table_client/schemaful_chunk_reader.h>
 #include <yt/client/table_client/schemaful_reader.h>
 #include <yt/client/table_client/unversioned_writer.h>
-#include <yt/ytlib/table_client/unordered_schemaful_reader.h>
+#include <yt/client/table_client/unordered_schemaful_reader.h>
 
 #include <yt/ytlib/tablet_client/public.h>
 

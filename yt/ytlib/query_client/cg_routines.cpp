@@ -1,10 +1,7 @@
 #include "cg_routines.h"
-#include "callbacks.h"
 #include "cg_types.h"
 #include "evaluation_helpers.h"
 #include "helpers.h"
-
-#include <yt/ytlib/chunk_client/chunk_spec.h>
 
 #include <yt/ytlib/security_client/acl.h>
 #include <yt/ytlib/security_client/helpers.h>
@@ -17,7 +14,6 @@
 #include <yt/client/table_client/unversioned_row.h>
 #include <yt/client/table_client/helpers.h>
 
-#include <yt/ytlib/table_client/unordered_schemaful_reader.h>
 #include <yt/ytlib/table_client/pipe.h>
 
 #include <yt/core/yson/lexer.h>

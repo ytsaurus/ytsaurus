@@ -1,7 +1,6 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/ytlib/table_client/unordered_schemaful_reader.h>
-
+#include <yt/client/table_client/unordered_schemaful_reader.h>
 #include <yt/client/table_client/schemaful_reader.h>
 #include <yt/client/table_client/unversioned_row.h>
 
