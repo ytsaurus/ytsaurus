@@ -2,17 +2,13 @@ import sbt.Keys._
 import sbt._
 import sbt.plugins.JvmPlugin
 import sbtassembly.AssemblyPlugin.autoImport._
+import ru.yandex.sbt.YtPublishPlugin
+import ru.yandex.sbt.YtPublishPlugin.autoImport._
 
 object CommonPlugin extends AutoPlugin {
   override def trigger = AllRequirements
 
-  override def requires = JvmPlugin
-
-  object autoImport {
-    val publishYtTo = settingKey[String]("Yt publish path")
-  }
-
-  import autoImport._
+  override def requires = JvmPlugin && YtPublishPlugin
 
   override def projectSettings: Seq[Def.Setting[_]] = Seq(
     resolvers += "Arcadia" at "http://artifactory.yandex.net/artifactory/yandex_media_releases",

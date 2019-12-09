@@ -1,19 +1,21 @@
-import sbt.{Def, _}
+package ru.yandex.sbt
+
 import sbt.Keys._
+import sbt._
 
 object YtPublishPlugin extends AutoPlugin {
 
   override def trigger = AllRequirements
 
-  override def requires = CommonPlugin
+  override def requires = empty
 
   object autoImport {
+    val publishYtTo = settingKey[String]("Yt publish path")
     val publishYt = taskKey[Unit]("Publish to yt directory")
     val publishYtArtifacts = taskKey[Seq[File]]("Yt publish artifacts")
   }
 
   import autoImport._
-  import CommonPlugin.autoImport._
 
   override def projectSettings: Seq[Def.Setting[_]] = Seq(
     publishYtArtifacts := Seq(),
