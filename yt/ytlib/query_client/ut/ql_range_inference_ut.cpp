@@ -4,8 +4,6 @@
 #include <yt/ytlib/query_client/query_helpers.h>
 #include <yt/ytlib/query_client/query_preparer.h>
 
-#include <yt/ytlib/table_client/helpers.h>
-
 // Tests:
 // TKeyRangeTest
 // TRefineKeyRangeTest
