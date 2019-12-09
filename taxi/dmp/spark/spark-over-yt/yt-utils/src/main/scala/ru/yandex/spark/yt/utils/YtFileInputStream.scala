@@ -50,10 +50,6 @@ class YtFileInputStream(reader: FileReader) extends InputStream {
     chunk.next()
   }
 
-  override def read(b: Array[Byte]): Int = {
-    read(b, 0, b.length)
-  }
-
   override def read(b: Array[Byte], off: Int, len: Int): Int = {
     if (!hasNext) {
       -1
