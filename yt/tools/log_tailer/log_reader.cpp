@@ -41,12 +41,14 @@ TLogRecord ParseLogRecord(const TString& rawLogRecord)
 
 TUnversionedRow LogRecordToUnversionedRow(
     const TLogRecord& record,
+    ui64 lineIndex,
     const TRowBufferPtr& rowBuffer,
     const TNameTablePtr& nameTable,
     const std::vector<std::pair<TString, TString>>& extraLogTableColumns = {})
 {
     TUnversionedRowBuilder builder;
     builder.AddValue(ToUnversionedValue(record.Timestamp, rowBuffer, nameTable->GetId("timestamp")));
+    builder.AddValue(ToUnversionedValue(lineIndex, rowBuffer, nameTable->GetId("line_index")));
     builder.AddValue(ToUnversionedValue(record.Category, rowBuffer, nameTable->GetId("category")));
     builder.AddValue(ToUnversionedValue(record.LogLevel, rowBuffer, nameTable->GetId("log_level")));
     builder.AddValue(ToUnversionedValue(record.Message, rowBuffer, nameTable->GetId("message")));
@@ -89,6 +91,7 @@ TLogFileReader::TLogFileReader(
     }
 
     LogTableNameTable_->RegisterName("timestamp");
+    LogTableNameTable_->RegisterName("line_index");
     LogTableNameTable_->RegisterName("category");
     LogTableNameTable_->RegisterName("message");
     LogTableNameTable_->RegisterName("log_level");
@@ -208,6 +211,7 @@ void TLogFileReader::DoWriteRows()
         for (int index = recordsBufferPtr; index < recordsBufferPtr + rowsToWrite; ++index) {
             rows.emplace_back(LogRecordToUnversionedRow(
                 RecordsBuffer_[index],
+                LineIndex_ + index,
                 RowBuffer_,
                 LogTableNameTable_,
                 ExtraLogTableColumns_));
@@ -215,25 +219,35 @@ void TLogFileReader::DoWriteRows()
 
         YT_LOG_DEBUG("Writing rows (RowCount: %v)", rows.size());
 
-        auto transaction = WaitFor(Bootstrap_->GetMasterClient()->StartTransaction(NTransactionClient::ETransactionType::Tablet))
-            .ValueOrThrow();
+        bool writingFailed = false;
 
         for (const auto& table : Config_->TablePaths) {
+            YT_LOG_DEBUG("Writing rows to table (Table: %v)", table);
+
+            auto transaction = WaitFor(Bootstrap_->GetMasterClient()->StartTransaction(NTransactionClient::ETransactionType::Tablet))
+                .ValueOrThrow();
+
             transaction->WriteRows(
                 table,
                 LogTableNameTable_,
                 TSharedRange<NTableClient::TUnversionedRow>{rows, MakeStrong(this)});
+
+            try {
+                WaitFor(transaction->Commit())
+                    .ValueOrThrow();
+            } catch (std::exception& ex) {
+                YT_LOG_WARNING(ex, "Failed to write rows (Table: %v)", table);
+                writingFailed = true;
+                break;
+            }
         }
 
-        try {
-            WaitFor(transaction->Commit())
-                .ValueOrThrow();
-        } catch (std::exception& ex) {
-            YT_LOG_WARNING(ex, "Failed to write rows");
+        if (writingFailed) {
             break;
         }
 
         recordsBufferPtr += rowsToWrite;
+        LineIndex_ += rowsToWrite;
     }
 
     int recordsLeftInBuffer = RecordsBuffer_.size() - recordsBufferPtr;

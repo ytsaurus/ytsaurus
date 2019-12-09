@@ -66,6 +66,8 @@ private:
     i64 FileOffset_ = 0;
 
     std::vector<std::pair<TString, TString>> ExtraLogTableColumns_;
+
+    ui64 LineIndex_ = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TLogFileReader)
