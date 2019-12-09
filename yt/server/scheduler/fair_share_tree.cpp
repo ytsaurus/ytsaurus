@@ -438,7 +438,7 @@ void TFairShareTree::RunWaitingOperations(TCompositeSchedulerElement* pool)
             if (auto element = FindOperationElement(waitingOperationId)) {
                 YT_VERIFY(!element->IsOperationRunningInPool());
                 if (auto violatingPool = FindPoolViolatingMaxRunningOperationCount(element->GetMutableParent())) {
-                    YT_VERIFY(pool != violatingPool);
+                    YT_VERIFY(current != violatingPool);
                     element->MarkWaitingFor(violatingPool);
                 } else {
                     element->MarkOperationRunningInPool();
