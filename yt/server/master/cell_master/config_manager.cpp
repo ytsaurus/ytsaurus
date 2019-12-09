@@ -52,6 +52,8 @@ public:
     {
         Config_ = std::move(config);
         ReplicateConfigToSecondaryMasters();
+
+        NTracing::TNullTraceContextGuard nullTraceContext;
         ConfigChanged_.Fire();
     }
 

@@ -151,14 +151,19 @@ TTraceContextPtr CreateRootTraceContext(const TString& name)
     return New<TTraceContext>(context, name);
 }
 
-TTraceContextPtr CreateChildTraceContext(const TString& spanName)
+TTraceContextPtr CreateChildTraceContext(const TString& spanName, bool forceTracing)
 {
-    auto context = GetCurrentTraceContext();
-    if (!context) {
-        return nullptr;
+    if (auto context = GetCurrentTraceContext()) {
+        return context->CreateChild(spanName);
+    } else {
+        if (!forceTracing) {
+            return nullptr;
+        } else {
+            auto newContext = CreateRootTraceContext(spanName);
+            newContext->SetSampled();
+            return newContext;
+        }
     }
-
-    return context->CreateChild(spanName);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -260,8 +265,9 @@ void TTraceContext::IncrementElapsedCpuTime(NProfiling::TCpuDuration delta)
 ////////////////////////////////////////////////////////////////////////////////
 
 TChildTraceContextGuard::TChildTraceContextGuard(
-    const TString& spanName)
-    : TraceContextGuard_(CreateChildTraceContext(spanName))
+    const TString& spanName,
+    bool forceTracing)
+    : TraceContextGuard_(CreateChildTraceContext(spanName, forceTracing))
     , FinishGuard_(GetCurrentTraceContext())
 { }
 

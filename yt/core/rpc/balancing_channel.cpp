@@ -502,6 +502,7 @@ private:
 
     void OnDiscoverySessionFinished(const TError& /*error*/)
     {
+        NTracing::TNullTraceContextGuard nullTraceContext;
         TWriterGuard guard(SpinLock_);
 
         YT_VERIFY(CurrentDiscoverySession_);

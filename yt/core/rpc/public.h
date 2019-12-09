@@ -99,6 +99,11 @@ constexpr TNetworkId DefaultNetworkId = 0;
 
 constexpr int TypicalMessagePartCount = 8;
 
+extern const TString RequestIdAnnotation;
+extern const TString EndpointAnnotation;
+extern const TString RequestInfoAnnotation;
+extern const TString ResponseInfoAnnotation;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EMultiplexingBand,

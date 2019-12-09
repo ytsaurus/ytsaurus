@@ -55,13 +55,16 @@ public:
 
     void Configure(TTraceManagerConfigPtr config)
     {
+        if (Enabled_.exchange(true)) {
+            return;
+        }
+
         Config_ = std::move(config);
         CleanupExecutor_ = New<TPeriodicExecutor>(
             ActionQueue_->GetInvoker(),
             BIND(&TImpl::Cleanup, this),
             Config_->CleanupPeriod);
         CleanupExecutor_->Start();
-        Enabled_ = true;
     }
 
     void Shutdown()
@@ -115,8 +118,10 @@ private:
         YT_LOG_DEBUG("Running tracing cleanup iteration");
         auto batch = EventQueue_.DequeueAll();
 
+        bool traceDebug = false;
         auto traceDir = GetEnv("YT_TRACE_DUMP_DIR", "");
         if (!traceDir.empty()) {
+            traceDebug = true;
             auto binary = TFsPath(GetExecPath()).Basename();
             auto traceFileName = Format("%v/%v.%v", traceDir, binary, getpid());
 
@@ -125,7 +130,7 @@ private:
                 ToProto(protoBatch.add_spans(), traceContext);
             }
 
-            YT_LOG_DEBUG("Dumping tracing to file (Filename: %Qv, BatchSize: %v)",
+            YT_LOG_DEBUG("Dumping traces to file (Filename: %Qv, BatchSize: %v)",
                 traceFileName,
                 batch.size());
             TString batchDump;
@@ -142,7 +147,7 @@ private:
 
         YT_LOG_DEBUG("Collected %v traces", batch.size());
         auto duration = TInstant::Now() - startTime;
-        if (duration > Config_->CleanupPeriod) {
+        if (!traceDebug && duration > Config_->CleanupPeriod) {
             YT_LOG_WARNING("Trace cleanup iteration took %v; disabling trace collection",
                 duration);
             Enabled_ = false;

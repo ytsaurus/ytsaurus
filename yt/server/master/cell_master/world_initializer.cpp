@@ -138,6 +138,11 @@ private:
     {
         YT_LOG_INFO("World initialization started");
 
+        auto traceContext = NTracing::CreateRootTraceContext("WorldInitializer");
+        traceContext->SetSampled();
+        NTracing::TTraceContextGuard contextGuard(traceContext);
+        NTracing::TTraceContextFinishGuard finishGuard(traceContext);
+
         try {
             // Check for pre-existing transactions to avoid collisions with previous (failed)
             // initialization attempts.

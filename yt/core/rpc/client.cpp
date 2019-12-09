@@ -24,9 +24,6 @@ using NYT::ToProto;
 
 static const auto& Logger = RpcClientLogger;
 
-static const auto ClientHostAnnotation = TString("client_host");
-static const auto RequestIdAnnotation = TString("request_id");
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TClientContext::TClientContext(
@@ -376,6 +373,7 @@ const IInvokerPtr& TClientRequest::GetInvoker() const
 void TClientRequest::TraceRequest(const NTracing::TTraceContextPtr& traceContext)
 {
     traceContext->AddTag(RequestIdAnnotation, ToString(GetRequestId()));
+    traceContext->AddTag(EndpointAnnotation, Channel_->GetEndpointDescription());
 }
 
 void TClientRequest::SetCodecsInHeader()
