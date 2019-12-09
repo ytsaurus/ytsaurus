@@ -55,7 +55,7 @@
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/config.h>
-#include <yt/ytlib/table_client/pipe.h>
+#include <yt/client/table_client/pipe.h>
 #include <yt/ytlib/table_client/schemaful_chunk_reader.h>
 #include <yt/client/table_client/schemaful_reader.h>
 #include <yt/client/table_client/unversioned_writer.h>
