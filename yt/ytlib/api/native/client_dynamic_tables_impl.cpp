@@ -1046,7 +1046,7 @@ NYson::TYsonString TClient::DoExplain(
         fetchFunctions,
         options.Timestamp);
 
-    return BuildExplainYson(queryString, options, fragment, this);
+    return BuildExplainYson(queryString, fragment, udfRegistryPath);
 }
 
 std::unique_ptr<IAttributeDictionary> TClient::ResolveExternalTable(
