@@ -105,6 +105,7 @@
 #include <yt/core/logging/log.h>
 
 #include <yt/core/ytree/virtual.h>
+#include <yt/core/ytree/ypath_resolver.h>
 
 #include <util/generic/cast.h>
 #include <util/generic/vector.h>
@@ -152,6 +153,7 @@ using NTableClient::TTableReaderOptions;
 using NScheduler::TExecNodeDescriptor;
 using NScheduler::NProto::TSchedulerJobResultExt;
 using NScheduler::NProto::TSchedulerJobSpecExt;
+using NTabletNode::DefaultMaxOverlappingStoreCount;
 
 using std::placeholders::_1;
 
@@ -5376,6 +5378,8 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                 "enable_skynet_sharing",
                 "tablet_state",
                 "atomicity",
+                "tablet_statistics",
+                "max_overlapping_store_count",
             });
             SetTransactionId(req, GetTransactionForOutputTable(table)->GetId());
             batchReq->AddRequest(req);
@@ -5416,7 +5420,27 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                         path,
                         atomicity,
                         Spec_->Atomicity);
+                }
 
+                if (table->TableUploadOptions.UpdateMode == EUpdateMode::Append) {
+                    auto overlappingStoreCount = TryGetInt64(
+                        attributes->GetYson("tablet_statistics").GetData(),
+                        "/overlapping_store_count");
+                    if (!overlappingStoreCount) {
+                        THROW_ERROR_EXCEPTION("Output table %v does not have @tablet_statistics/overlapping_store_count attribute",
+                            path);
+                    }
+                    auto maxOverlappingStoreCount = attributes->Get<int>(
+                        "max_overlapping_store_count",
+                        DefaultMaxOverlappingStoreCount);
+
+                    if (*overlappingStoreCount >= maxOverlappingStoreCount) {
+                        THROW_ERROR_EXCEPTION(
+                            "Cannot write to output table %v since overlapping store count limit is exceeded",
+                            path)
+                            << TErrorAttribute("overlapping_store_count", *overlappingStoreCount)
+                            << TErrorAttribute("max_overlapping_store_count", maxOverlappingStoreCount);
+                    }
                 }
             }
 
