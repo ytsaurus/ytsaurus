@@ -984,7 +984,7 @@ def add_start_clickhouse_clique_parser(add_parser):
     parser.add_argument("--instance-count", required=True, type=int)
     parser.add_argument("--operation-alias", required=True, help="Alias for clique")
     parser.add_argument("--cypress-ytserver-clickhouse-path")
-    parser.add_argument("--host-ytserver-clickhouse-path")
+    parser.add_argument("--cypress-clickhouse-trampoline-path")
     parser.add_argument("--cypress-base-config-path", default="//sys/clickhouse/config")
     parser.add_argument("--cpu-limit", type=int)
     parser.add_argument("--memory-limit", type=int)
