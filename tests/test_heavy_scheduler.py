@@ -11,6 +11,7 @@ from .conftest import (
 )
 
 from yp.local import set_account_infinite_resource_limits
+from yp.logger import logger
 
 from yt.wrapper.errors import YtCypressTransactionLockConflict
 
@@ -20,6 +21,9 @@ from yt.packages.six.moves import xrange
 import json
 import pytest
 import time
+import logging
+
+logger.setLevel(logging.DEBUG)
 
 
 @pytest.mark.usefixtures("yp_env_configurable")
@@ -225,9 +229,16 @@ class TestConcurrentHeavySchedulerBase(object):
         return bloat_pod_ids
 
     def _check(self, yp_client, bloat_pod_ids, expected_eviction_count):
-        get_evictions_count = lambda: sum(
-            yp_client.get_object("pod", pod_id, selectors=["/status/eviction/state"])[0] == "requested"
-            for pod_id in bloat_pod_ids)
+
+        def get_evictions_count():
+            states = []
+            for pod_id in bloat_pod_ids:
+                state = yp_client.get_object("pod", pod_id, selectors=["/status/eviction/state"])[0]
+                logger.info("Got eviction state for pod '%s': '%s'", pod_id, state)
+                states.append(state)
+            count = sum(state == "requested" for state in states)
+            logger.info("Evictions count: %d", count)
+            return count
 
         wait(lambda: get_evictions_count() == expected_eviction_count)
         time.sleep(5)
