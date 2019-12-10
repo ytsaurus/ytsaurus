@@ -22,7 +22,9 @@ DEFINE_REFCOUNTED_TYPE(IListener);
 
 IListenerPtr CreateListener(
     const TNetworkAddress& address,
-    const NConcurrency::IPollerPtr& poller);
+    const NConcurrency::IPollerPtr& poller,
+    const NConcurrency::IPollerPtr& acceptor,
+    int maxBacklogSize = 8192);
 
 ////////////////////////////////////////////////////////////////////////////////
 

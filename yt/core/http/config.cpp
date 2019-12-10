@@ -34,6 +34,9 @@ TServerConfig::TServerConfig()
     RegisterParameter("max_simultaneous_connections", MaxSimultaneousConnections)
         .Default(50000);
 
+    RegisterParameter("max_backlog_size", MaxBacklogSize)
+        .Default(8192);
+
     RegisterParameter("bind_retry_count", BindRetryCount)
         .Default(5);
 

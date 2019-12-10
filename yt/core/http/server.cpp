@@ -315,12 +315,21 @@ IServerPtr CreateServer(
     return New<TServer>(config, listener, poller, poller);
 }
 
+IServerPtr CreateServer(
+    const TServerConfigPtr& config,
+    const IListenerPtr& listener,
+    const IPollerPtr& poller,
+    const IPollerPtr& acceptor)
+{
+    return New<TServer>(config, listener, poller, acceptor);
+}
+
 IServerPtr CreateServer(const TServerConfigPtr& config, const IPollerPtr& poller, const IPollerPtr& acceptor)
 {
     auto address = TNetworkAddress::CreateIPv6Any(config->Port);
     for (int i = 0;; ++i) {
         try {
-            auto listener = CreateListener(address, acceptor);
+            auto listener = CreateListener(address, poller, acceptor, config->MaxBacklogSize);
             return New<TServer>(config, listener, poller, acceptor);
         } catch (const std::exception& ex) {
             if (i + 1 == config->BindRetryCount) {

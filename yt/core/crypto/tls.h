@@ -39,11 +39,13 @@ public:
 
     NNet::IListenerPtr CreateListener(
         const NNet::TNetworkAddress& at,
-        const NConcurrency::IPollerPtr& poller);
+        const NConcurrency::IPollerPtr& poller,
+        const NConcurrency::IPollerPtr& acceptor);
 
     NNet::IListenerPtr CreateListener(
         const NNet::IListenerPtr& underlying,
-        const NConcurrency::IPollerPtr& poller);
+        const NConcurrency::IPollerPtr& poller,
+        const NConcurrency::IPollerPtr& acceptor);
 
 private:
     const TIntrusivePtr<TSslContextImpl> Impl_;
