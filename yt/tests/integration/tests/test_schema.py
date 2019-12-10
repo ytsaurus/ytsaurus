@@ -205,19 +205,20 @@ class TestComplexTypes(YTEnvSetup):
         test_table.check_bad_value([1, 3.14])
         test_table.check_bad_value([2, None])
 
+    @pytest.mark.parametrize("null_type", ["null", "void"])
     @authors("ermolovd")
-    def test_null_type(self, optimize_for):
+    def test_null_type(self, optimize_for, null_type):
         def check_schema():
             column_schema = get("//tmp/table/@schema/0")
             assert column_schema["required"] == False
-            assert column_schema["type"] == "null"
-            assert column_schema["type_v2"] == "null"
+            assert column_schema["type"] == null_type
+            assert column_schema["type_v2"] == null_type
 
         create("table", "//tmp/table", force=True, attributes={
             "optimize_for": optimize_for,
             "schema": make_schema([{
                 "name": "column",
-                "type_v2": "null",
+                "type_v2": null_type,
             }])
         })
         check_schema()
@@ -225,7 +226,7 @@ class TestComplexTypes(YTEnvSetup):
         create("table", "//tmp/table", force=True, attributes={
             "schema": make_schema([{
                 "name": "column",
-                "type": "null",
+                "type": null_type,
             }])
         })
         check_schema()
@@ -234,7 +235,7 @@ class TestComplexTypes(YTEnvSetup):
             "optimize_for": optimize_for,
             "schema": make_schema([{
                 "name": "column",
-                "type": "null",
+                "type": null_type,
                 "required": False,
             }]),
         })
@@ -250,7 +251,7 @@ class TestComplexTypes(YTEnvSetup):
             create("table", "//tmp/table", force=True, attributes={
                 "schema": make_schema([{
                     "name": "column",
-                    "type": "null",
+                    "type": null_type,
                     "required": True,
                 }])
         })
@@ -258,7 +259,7 @@ class TestComplexTypes(YTEnvSetup):
         create("table", "//tmp/table", force=True, attributes={
             "schema": make_schema([{
                 "name": "column",
-                "type_v2": list_type("null"),
+                "type_v2": list_type(null_type),
             }])
         })
         write_table("//tmp/table", [{"column": []}, {"column": [None]}])
@@ -269,7 +270,7 @@ class TestComplexTypes(YTEnvSetup):
         create("table", "//tmp/table", force=True, attributes={
             "schema": make_schema([{
                 "name": "column",
-                "type_v2": optional_type("null")
+                "type_v2": optional_type(null_type)
             }])
         })
         write_table("//tmp/table", [{"column": None}, {"column": [None]}])
@@ -556,6 +557,30 @@ class TestComplexTypesMisc(YTEnvSetup):
 
         merge(in_=["//tmp/input1", "//tmp/input2"],
               out="<schema=[{name=value;type_v2=utf8}]>//tmp/output",
+              spec={"schema_inference_mode" : "from_output"},
+              mode="unordered")
+
+    @authors("ermolovd")
+    def test_infer_null_void(self):
+        table = "//tmp/input1"
+        create("table", table, attributes={"schema": make_schema([
+            {"name": "value", "type_v2": "void"},
+        ], unique_keys=False, strict=True)})
+        table = "//tmp/input2"
+        create("table", table, attributes={"schema": make_schema([
+            {"name": "value", "type_v2": "null"},
+        ], unique_keys=False, strict=True)})
+
+        write_table("//tmp/input1", [{"value": None}])
+        write_table("//tmp/input2", [{"value": None}])
+
+        create("table", "//tmp/output")
+
+        with raises_yt_error("tables have incompatible schemas"):
+            merge(in_=["//tmp/input1", "//tmp/input2"], out="//tmp/output", mode="unordered")
+
+        merge(in_=["//tmp/input1", "//tmp/input2"],
+              out="<schema=[{name=value;type_v2=null}]>//tmp/output",
               spec={"schema_inference_mode" : "from_output"},
               mode="unordered")
 
