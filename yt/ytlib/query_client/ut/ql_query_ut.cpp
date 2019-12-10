@@ -873,6 +873,7 @@ TOwningRow YsonToRow(
 }
 
 TQueryStatistics DoExecuteQuery(
+    TEvaluatorPtr evaluator,
     const std::vector<TString>& source,
     TFunctionProfilerMapPtr functionProfilers,
     TAggregateProfilerMapPtr aggregateProfilers,
@@ -903,7 +904,6 @@ TQueryStatistics DoExecuteQuery(
         .WillByDefault(DoAll(SetArgPointee<0>(sourceRows), Return(false)));
     EXPECT_CALL(*readerMock, Read(_));
 
-    auto evaluator = New<TEvaluator>(New<TExecutorConfig>());
     return evaluator->Run(
         query,
         readerMock,
@@ -1141,7 +1141,6 @@ protected:
 
     TQueryPtr Prepare(const TString& query, const std::map<TString, TDataSplit>& dataSplits)
     {
-
         for (const auto& dataSplit : dataSplits) {
             EXPECT_CALL(PrepareMock_, GetInitialSplit(dataSplit.first, _))
                 .WillOnce(Return(MakeFuture(dataSplit.second)));
@@ -1194,6 +1193,7 @@ protected:
                 auto pipe = New<NTableClient::TSchemafulPipe>();
 
                 DoExecuteQuery(
+                    Evaluator_,
                     rows,
                     FunctionProfilers_,
                     AggregateProfilers_,
@@ -1212,6 +1212,7 @@ protected:
             std::tie(writer, asyncResultRowset) = CreateSchemafulRowsetWriter(primaryQuery->GetTableSchema());
 
             DoExecuteQuery(
+                Evaluator_,
                 owningSources.front(),
                 FunctionProfilers_,
                 AggregateProfilers_,
@@ -1234,6 +1235,8 @@ protected:
             return prepareAndExecute();
         }
     }
+
+    TEvaluatorPtr Evaluator_ = New<TEvaluator>(New<TExecutorConfig>());
 
     StrictMock<TPrepareCallbacksMock> PrepareMock_;
     TActionQueuePtr ActionQueue_;
