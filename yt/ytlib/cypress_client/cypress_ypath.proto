@@ -92,9 +92,10 @@ message TSerializedTree
 message TRspBeginCopy
 {
     required TSerializedTree serialized_tree = 1;
-    repeated NYT.NProto.TGuid opaque_child_ids = 2;
+    repeated NYT.NProto.TGuid portal_child_ids = 2;
     repeated int32 external_cell_tags = 3;
     required NYT.NProto.TGuid node_id = 4;
+    repeated string opaque_child_paths = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

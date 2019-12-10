@@ -1584,11 +1584,12 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, BeginCopy)
 
     TBeginCopyContext copyContext(
         Transaction_,
-        mode);
+        mode,
+        node);
     copyContext.SetVersion(NCellMaster::GetCurrentReign());
     handler->BeginCopy(node, &copyContext);
 
-    ToProto(response->mutable_opaque_child_ids(), copyContext.OpaqueRootIds());
+    ToProto(response->mutable_portal_child_ids(), copyContext.PortalRootIds());
     ToProto(response->mutable_external_cell_tags(), copyContext.GetExternalCellTags());
 
     auto uncompressedData = copyContext.Finish();
@@ -1602,6 +1603,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, BeginCopy)
     serializedTree->set_codec_id(static_cast<int>(codecId));
 
     ToProto(response->mutable_node_id(), GetId());
+    ToProto(response->mutable_opaque_child_paths(), copyContext.OpaqueChildPaths());
 
     context->SetResponseInfo("Codec: %v, UncompressedDataSize: %v, CompressedDataSize: %v, ExternalCellTags: %v",
         codecId,

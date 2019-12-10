@@ -109,6 +109,7 @@ DEFINE_ENUM(EMasterReign,
     ((NetworkProject)                                               (2002))  // gritukan
     ((DynamicPeerCount)                                             (2003))  // gritukan
     ((UserManagedPools)                                             (2004))  // renadeen
+    ((GranularCypressTreeCopy)                                      (2005))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////
