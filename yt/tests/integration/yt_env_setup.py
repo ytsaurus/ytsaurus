@@ -238,7 +238,7 @@ def find_ut_file(file_name):
     unittester_path = find_executable("unittester-ytlib")
     assert unittester_path is not None
     for unittests_path in [
-        os.path.join(os.path.dirname(unittester_path), "..", "yt", "ytlib", "unittests"),
+        os.path.join(os.path.dirname(unittester_path), "..", "yt", "ytlib", "query_client", "ut"),
         os.path.dirname(unittester_path)
     ]:
         result_path = os.path.join(unittests_path, file_name)
