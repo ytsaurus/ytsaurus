@@ -1573,7 +1573,31 @@ INSTANTIATE_TEST_CASE_P(
         std::tuple<const char*, const char*, TUnversionedValue>(
             "any=#",
             "list_contains(any, \"1\")",
-            MakeNull())
+            MakeNull()),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "any=[7; 9; 3]",
+            "list_contains(any, 5)",
+            MakeBoolean(false)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "any=[7; 9; 3]",
+            "list_contains(any, 9)",
+            MakeBoolean(true)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "any=[\"x\"; 2.7; 5]",
+            "list_contains(any, 2.7)",
+            MakeBoolean(true)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "any=[%false; \"x\"; 4u]",
+            "list_contains(any, \"y\")",
+            MakeBoolean(false)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "any=[%false; \"y\"; 4u]",
+            "list_contains(any, \"y\")",
+            MakeBoolean(true)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "any=[%false; \"y\"; 4u]",
+            "list_contains(any, 4u)",
+            MakeBoolean(true))
 ));
 
 INSTANTIATE_TEST_CASE_P(
