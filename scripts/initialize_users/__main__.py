@@ -19,10 +19,44 @@ def configure_logger():
 
     logging.basicConfig(
         format="%(asctime)-15s %(levelname)s %(message)s",
-        level=logging.DEBUG,
+        level=logging.INFO,
         stream=sys.stdout,
     )
     logger = logging
+
+
+def format_args(args, kwargs):
+    tokens = []
+    if len(args) > 0:
+        tokens.extend(list(map(repr, args)))
+    if len(kwargs) > 0:
+        tokens.extend(list(map(lambda key: "{} = {}".format(key, kwargs[key]), kwargs)))
+    return ", ".join(tokens)
+
+
+class ClientWrapper(object):
+    def __init__(self, client, dry_run):
+        self._client = client
+        self._dry_run = dry_run
+
+    def create_object(self, *args, **kwargs):
+        logger.info("Creating object: " + format_args(args, kwargs))
+        if not self._dry_run:
+            self._client.create_object(*args, **kwargs)
+
+    def update_object(self, *args, **kwargs):
+        logger.info("Updating object: " + format_args(args, kwargs))
+        if not self._dry_run:
+            self._client.update_object(*args, **kwargs)
+
+    def select_objects(self, *args, **kwargs):
+        return self._client.select_objects(*args, **kwargs)
+
+    def get_object(self, *args, **kwargs):
+        return self._client.get_object(*args, **kwargs)
+
+    def check_object_permissions(self, *args, **kwargs):
+        return self._client.check_object_permissions(*args, **kwargs)
 
 
 def create_user(client, user):
@@ -85,8 +119,6 @@ def set_schema_permissions(client, type, user, rights):
         #                  "permissions": [right]
         #              }})
 
-        logger.debug("Modifying user {}, granting rights={}".format(user, rights_to_add))
-
         if updates_set:
             client.update_object("schema", type, updates_set)
 
@@ -136,12 +168,6 @@ def set_schema_permission_for_attribute(client, type, user, permission, attribut
             )
         )
     ]
-
-    logger.debug("Updating object: type = {}, id = {}, set updates = {}".format(
-        "schema",
-        type,
-        set_updates,
-    ))
 
     client.update_object("schema", type, set_updates=set_updates)
 
@@ -438,7 +464,7 @@ def accounts_override(cluster, accounts, client):
         setup_dev_segment(cluster, accounts, client)
 
 
-def initialize_users(cluster):
+def initialize_users(cluster, dry_run):
     right_crw = ["create", "read", "write"]
     right_ro = ["read"]
     right_rw = ["read", "write"]
@@ -446,7 +472,9 @@ def initialize_users(cluster):
     right_u = ["read", "use"]
 
     token = find_token()
-    with YpClient(cluster, config=dict(token=token)) as client:
+    with YpClient(cluster, config=dict(token=token)) as raw_client:
+        client = ClientWrapper(raw_client, dry_run)
+
         accounts = copy.deepcopy(ACCOUNTS)
         accounts_override(cluster, accounts, client)
 
@@ -504,25 +532,30 @@ def initialize_users(cluster):
 
         set_schema_permissions(client, "dynamic_resource", "robot-yp-dynresource", right_crwu)
 
-        # https://st.yandex-team.ru/DEPLOY-1117
+        # DEPLOY-1117
         set_schema_permissions(client, "dynamic_resource", "everyone", right_crwu)
 
         if cluster == "xdc":
             set_schema_permissions(client, "dns_record_set", "robot-gencfg", right_crw)
 
-        # https://st.yandex-team.ru/YPADMIN-233
+        # YPADMIN-233
         if cluster in ("sas-test", "man-pre"):
             set_schema_permissions(client, "stage", "robot-deploy-test", right_rw)
             set_schema_permissions(client, "account", "robot-deploy-test", right_u)
 
         set_schema_permissions(client, "dns_record_set", "robot-ydnxdns-export", right_crwu)
 
-        # https://st.yandex-team.ru/YPADMIN-257
+        # YPADMIN-257
         set_schema_permissions(client, "pod_disruption_budget", "nanny-robot", right_crw)
         if cluster in ("man-pre", "sas-test"):
             set_schema_permissions(client, "pod_disruption_budget", "abc:service-scope:730:5", right_crw)
 
         set_schema_permission_for_attribute(client, "pod", "robot-yp-heavy-sched", "write", "/control/request_eviction")
+
+        # YPADMIN-266
+        if cluster in ("sas-test", "man-pre"):
+            set_schema_permissions(client, "network_project", "robot-deploy-test", right_u)
+        set_schema_permissions(client, "network_project", "robot-drug-deploy", right_u)
 
         create_accounts(client, cluster, accounts)
 
@@ -534,12 +567,13 @@ def initialize_users(cluster):
 
 def main(args):
     configure_logger()
-    initialize_users(args.cluster)
+    initialize_users(args.cluster, args.dry_run)
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--cluster", required=True)
+    parser.add_argument("--dry-run", action="store_true", default=False)
     return parser.parse_args()
 
 
