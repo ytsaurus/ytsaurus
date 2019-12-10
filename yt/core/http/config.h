@@ -39,6 +39,7 @@ public:
 
     //! Limit for number of open TCP connections.
     int MaxSimultaneousConnections;
+    int MaxBacklogSize;
 
     int BindRetryCount;
     TDuration BindRetryBackoff;

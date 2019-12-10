@@ -22,13 +22,15 @@ public:
         SOCKET serverSocket,
         const TNetworkAddress& address,
         const TString& name,
-        IPollerPtr poller)
+        IPollerPtr poller,
+        IPollerPtr acceptor)
         : Name_(name)
         , Address_(address)
         , ServerSocket_(serverSocket)
         , Poller_(poller)
+        , Acceptor_(acceptor)
     {
-        Poller_->Register(this);
+        Acceptor_->Register(this);
     }
 
     // IPollable implementation
@@ -77,10 +79,21 @@ public:
         {
             auto guard = Guard(Lock_);
             if (Error_.IsOK()) {
-                Queue_.push_back(promise);
-                if (!Active_) {
-                    Active_ = true;
-                    Poller_->Arm(ServerSocket_, this, EPollControl::Read);
+                TNetworkAddress clientAddress;
+                auto clientSocket = AcceptSocket(ServerSocket_, &clientAddress);
+                if (clientSocket != INVALID_SOCKET) {
+                    auto localAddress = GetSocketName(clientSocket);
+                    promise.Set(CreateConnectionFromFD(
+                        clientSocket,
+                        localAddress,
+                        clientAddress,
+                        Poller_));
+                } else {
+                    Queue_.push_back(promise);
+                    if (!Active_) {
+                        Active_ = true;
+                        Acceptor_->Arm(ServerSocket_, this, EPollControl::Read);
+                    }
                 }
             } else {
                 promise.Set(Error_);
@@ -111,6 +124,7 @@ private:
     const TNetworkAddress Address_;
     SOCKET ServerSocket_ = INVALID_SOCKET;
     IPollerPtr Poller_;
+    IPollerPtr Acceptor_;
 
     TSpinLock Lock_;
     bool Active_ = false;
@@ -130,8 +144,8 @@ private:
 
         Error_ = error
             << TErrorAttribute("listener", Name_);
-        Poller_->Unarm(ServerSocket_);
-        Poller_->Unregister(this);
+        Acceptor_->Unarm(ServerSocket_);
+        Acceptor_->Unregister(this);
     }
 
     bool TryAccept()
@@ -155,7 +169,7 @@ private:
         {
             auto guard = Guard(Lock_);
             if (clientSocket == INVALID_SOCKET) {
-                Poller_->Arm(ServerSocket_, this, EPollControl::Read);
+                Acceptor_->Arm(ServerSocket_, this, EPollControl::Read);
                 return false;
             }
 
@@ -181,7 +195,9 @@ DEFINE_REFCOUNTED_TYPE(TListener)
 
 IListenerPtr CreateListener(
     const TNetworkAddress& address,
-    const NConcurrency::IPollerPtr& poller)
+    const NConcurrency::IPollerPtr& poller,
+    const NConcurrency::IPollerPtr& acceptor,
+    int maxBacklogSize)
 {
     auto serverSocket = address.GetSockAddr()->sa_family == AF_UNIX
         ? CreateUnixServerSocket()
@@ -192,13 +208,13 @@ IListenerPtr CreateListener(
         // Client might have specified port == 0, find real address.
         auto realAddress = GetSocketName(serverSocket);
 
-        const int ListenBacklogSize = 128;
-        ListenSocket(serverSocket, ListenBacklogSize);
+        ListenSocket(serverSocket, maxBacklogSize);
         return New<TListener>(
             serverSocket,
             realAddress,
             Format("Listener{%v}", realAddress),
-            poller);
+            poller,
+            acceptor);
     } catch (const std::exception& ) {
         YT_VERIFY(TryClose(serverSocket, false));
         throw;

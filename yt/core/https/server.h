@@ -14,6 +14,11 @@ NHttp::IServerPtr CreateServer(
     const TServerConfigPtr& config,
     const NConcurrency::IPollerPtr& poller);
 
+NHttp::IServerPtr CreateServer(
+    const TServerConfigPtr& config,
+    const NConcurrency::IPollerPtr& poller,
+    const NConcurrency::IPollerPtr& acceptor);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NHttps

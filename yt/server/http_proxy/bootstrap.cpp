@@ -147,11 +147,11 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
         Coordinator_);
 
     Api_ = New<TApi>(this);
-    ApiHttpServer_ = NHttp::CreateServer(Config_->HttpServer, Poller_);
+    ApiHttpServer_ = NHttp::CreateServer(Config_->HttpServer, Poller_, Acceptor_);
     RegisterRoutes(ApiHttpServer_);
 
     if (Config_->HttpsServer) {
-        ApiHttpsServer_ = NHttps::CreateServer(Config_->HttpsServer, Poller_);
+        ApiHttpsServer_ = NHttps::CreateServer(Config_->HttpsServer, Poller_, Acceptor_);
         RegisterRoutes(ApiHttpsServer_);
     }
 }

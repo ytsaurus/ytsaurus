@@ -202,8 +202,8 @@ TEST_F(TNetTest, Bind)
 {
     BIND([&] {
         auto address = TNetworkAddress::CreateIPv6Loopback(0);
-        auto listener = CreateListener(address, Poller);
-        EXPECT_THROW(CreateListener(listener->GetAddress(), Poller), TErrorException);
+        auto listener = CreateListener(address, Poller, Poller);
+        EXPECT_THROW(CreateListener(listener->GetAddress(), Poller, Poller), TErrorException);
     })
         .AsyncVia(Poller->GetInvoker())
         .Run()
@@ -228,7 +228,7 @@ TEST_F(TNetTest, DialSuccess)
 {
     BIND([&] {
         auto address = TNetworkAddress::CreateIPv6Loopback(0);
-        auto listener = CreateListener(address, Poller);
+        auto listener = CreateListener(address, Poller, Poller);
         auto dialer = CreateDialer();
 
         auto futureDial = dialer->Dial(listener->GetAddress());
@@ -247,7 +247,7 @@ TEST_F(TNetTest, ManyDials)
 {
     BIND([&] {
         auto address = TNetworkAddress::CreateIPv6Loopback(0);
-        auto listener = CreateListener(address, Poller);
+        auto listener = CreateListener(address, Poller, Poller);
         auto dialer = CreateDialer();
 
         auto futureAccept1 = listener->Accept();
@@ -268,7 +268,7 @@ TEST_F(TNetTest, AbandonDial)
 {
     BIND([&] {
         auto address = TNetworkAddress::CreateIPv6Loopback(0);
-        auto listener = CreateListener(address, Poller);
+        auto listener = CreateListener(address, Poller, Poller);
         auto dialer = CreateDialer();
 
         dialer->Dial(listener->GetAddress());
@@ -283,7 +283,7 @@ TEST_F(TNetTest, AbandonAccept)
 {
     BIND([&] {
         auto address = TNetworkAddress::CreateIPv6Loopback(0);
-        auto listener = CreateListener(address, Poller);
+        auto listener = CreateListener(address, Poller, Poller);
 
         listener->Accept();
     })

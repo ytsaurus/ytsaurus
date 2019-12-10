@@ -83,7 +83,7 @@ TBootstrap::TBootstrap(TSkynetManagerConfigPtr config)
 
     ActionQueue_ = New<TActionQueue>("SkynetApi");
 
-    HttpListener_ = CreateListener(TNetworkAddress::CreateIPv6Any(Config_->Port), Poller_);
+    HttpListener_ = CreateListener(TNetworkAddress::CreateIPv6Any(Config_->Port), Poller_, Poller_);
     HttpServer_ = CreateServer(Config_->HttpServer, HttpListener_, Poller_);
 
     HttpClient_ = CreateClient(Config_->HttpClient, Poller_);
@@ -98,7 +98,7 @@ TBootstrap::TBootstrap(TSkynetManagerConfigPtr config)
     SetBuildAttributes(OrchidRoot_, "skynet_manager");
 
     auto peerId = GetOrGeneratePeerId(Config_->PeerIdFile);
-    PeerListener_ = CreateListener(TNetworkAddress::CreateIPv6Any(Config_->SkynetPort), Poller_);
+    PeerListener_ = CreateListener(TNetworkAddress::CreateIPv6Any(Config_->SkynetPort), Poller_, Poller_);
     Announcer_ = New<TAnnouncer>(GetInvoker(), Poller_, Config_->Announcer, peerId, Config_->SkynetPort);
 
     for (const auto& clusterConfig : Config_->Clusters) {
