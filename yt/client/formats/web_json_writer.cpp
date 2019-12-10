@@ -189,6 +189,7 @@ TStringBuf GetSimpleYqlTypeName(ESimpleLogicalValueType type)
         case ESimpleLogicalValueType::Interval:
             return AsStringBuf("Interval");
         case ESimpleLogicalValueType::Null:
+        case ESimpleLogicalValueType::Void:
             // This case must have been processed earlier.
             YT_ABORT();
     }
@@ -229,6 +230,9 @@ void SerializeAsYqlType(TFluentAny fluent, const TLogicalTypePtr& type)
                 if (type->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::Null) {
                     fluentList
                         .Item().Value("NullType");
+                } else if (type->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::Void) {
+                    fluentList
+                        .Item().Value("VoidType");
                 } else {
                     fluentList
                         .Item().Value("DataType")

@@ -753,7 +753,7 @@ TYsonToSkiffConverter CreateOptionalYsonToSkiffConverter(
         skiffSchema,
         allowOmitOptional);
 
-    if (*match.InnerTypes.first.GetType() == *NullLogicalType) {
+    if (match.InnerTypes.first.GetType()->IsNullable()) {
         return TOptionalNullYsonToSkiffConverterImpl(
             descriptor,
             match.LogicalNesting,
@@ -1303,7 +1303,7 @@ TSkiffToYsonConverter CreateOptionalSkiffToYsonConverter(
         }
     }
 
-    if (*match.InnerTypes.first.GetType() == *NullLogicalType) {
+    if (match.InnerTypes.first.GetType()->IsNullable()) {
         return TOptionalNullSkiffToYsonConverterImpl(std::move(descriptor), match.LogicalNesting, match.SkiffNesting);
     } else {
         auto innerConverter = CreateSkiffToYsonConverterImpl(

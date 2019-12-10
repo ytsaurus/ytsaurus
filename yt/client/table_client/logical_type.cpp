@@ -337,7 +337,7 @@ void TSimpleLogicalType::ValidateNode(const TWalkContext& context) const
 
 bool TSimpleLogicalType::IsNullable() const
 {
-    return Element_ == ESimpleLogicalValueType::Null;
+    return GetPhysicalType(Element_) == EValueType::Null;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -647,6 +647,7 @@ void TDictLogicalType::ValidateNode(const TWalkContext&) const
                             descriptor.GetDescription(),
                             simpleType);
                     case ESimpleLogicalValueType::Null:
+                    case ESimpleLogicalValueType::Void:
                     case ESimpleLogicalValueType::Boolean:
                     case ESimpleLogicalValueType::Int8:
                     case ESimpleLogicalValueType::Int16:
@@ -1237,6 +1238,8 @@ std::pair<ESimpleLogicalValueType, TString> V3SimpleLogicalValueTypeEncoding[] =
     {ESimpleLogicalValueType::Datetime,  "datetime"},
     {ESimpleLogicalValueType::Timestamp, "timestamp"},
     {ESimpleLogicalValueType::Interval,  "interval"},
+
+    {ESimpleLogicalValueType::Void,      "void"},
 };
 static_assert(std::size(V3SimpleLogicalValueTypeEncoding) == TEnumTraits<ESimpleLogicalValueType>::DomainSize);
 
@@ -1611,7 +1614,7 @@ TLogicalTypePtr SimpleLogicalType(ESimpleLogicalValueType element)
 
 TLogicalTypePtr MakeLogicalType(ESimpleLogicalValueType element, bool required)
 {
-    if (element == ESimpleLogicalValueType::Null) {
+    if (element == ESimpleLogicalValueType::Null || element == ESimpleLogicalValueType::Void) {
         if (required) {
             THROW_ERROR_EXCEPTION("Null type cannot be required");
         }
