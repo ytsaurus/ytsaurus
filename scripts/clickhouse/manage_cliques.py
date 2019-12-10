@@ -25,7 +25,7 @@ def collect_v1_clique_intances(cliques):
         clique_id = str(clique)
         path = "//sys/clickhouse/cliques/" + clique_id
         rsps.append(batch_client.list(path, attributes=["locks", "id"]))
-    batch_client.commit_batch()    
+    batch_client.commit_batch()
 
     for clique, rsp in zip(cliques, rsps):
         fill_instances(clique, rsp.get_result())
@@ -41,11 +41,11 @@ def collect_cliques():
             by_kind["v0"].append(clique)
         else:
             by_kind["v1"].append(clique)
-    
+
     collect_v1_clique_intances(by_kind["v1"])
 
     return by_kind
-    
+
 
 def show_stats(args):
     cliques = collect_cliques()
@@ -80,7 +80,7 @@ def collect_garbage(args):
         for kind, cliques in cliques.iteritems():
             for clique in cliques:
                 rsps += [(path, batch_client.remove(path)) for path in collect_to_delete(kind, clique)]
-        batch_client.commit_batch() 
+        batch_client.commit_batch()
         for path, rsp in rsps:
             print path, rsp.get_result() if rsp.is_ok() else rsp.get_error()
 
@@ -88,7 +88,7 @@ def collect_garbage(args):
 def main():
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers()
-    
+
     stats_subparser = subparsers.add_parser("show-stats", help="print clique statistics")
     stats_subparser.set_defaults(func=show_stats)
 
