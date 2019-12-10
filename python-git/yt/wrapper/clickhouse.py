@@ -123,7 +123,9 @@ def _build_description(cypress_ytserver_clickhouse_path=None, operation_alias=No
 def get_clickhouse_clique_spec_builder(instance_count,
                                        artifact_path=None,
                                        cypress_ytserver_clickhouse_path=None,
+                                       cypress_clickhouse_trampoline_path=None,
                                        host_ytserver_clickhouse_path=None,
+                                       host_clickhouse_trampoline_path=None,
                                        cypress_config_path=None,
                                        max_failed_job_count=None,
                                        cpu_limit=None,
@@ -161,19 +163,6 @@ def get_clickhouse_clique_spec_builder(instance_count,
     require(cypress_config_path is not None,
             lambda: YtError("Cypress config.yson path should be specified; consider using "
                             "prepare_clickhouse_config helper"))
-    file_paths = [FilePath(cypress_config_path, file_name="config.yson")]
-
-    if cypress_ytserver_clickhouse_path is not None:
-        executable_path = "./ytserver-clickhouse"
-        file_paths.append(FilePath(cypress_ytserver_clickhouse_path, file_name="ytserver-clickhouse"))
-    else:
-        executable_path = host_ytserver_clickhouse_path
-
-    if cypress_geodata_path is not None:
-        file_paths.append(FilePath(cypress_geodata_path, file_name="geodata.tgz"))
-        extract_geodata_command = "mkdir geodata ; tar xzf geodata.tgz -C geodata/ ;"
-    else:
-        extract_geodata_command = ""
 
     spec_base = {
         "annotations": {
@@ -198,32 +187,38 @@ def get_clickhouse_clique_spec_builder(instance_count,
 
     spec = update(spec_base, spec)
 
-    monitoring_port = "10142" if enable_monitoring else "$YT_PORT_1"
+    file_paths = [FilePath(cypress_config_path, file_name="config.yson")]
 
-    patch_config_command = "sed -s \"s/\$YT_JOB_INDEX/$YT_JOB_INDEX/g\" config.yson -i ;"
+    if cypress_ytserver_clickhouse_path is not None:
+        executable_path = "./ytserver-clickhouse"
+        file_paths.append(FilePath(cypress_ytserver_clickhouse_path, file_name="ytserver-clickhouse"))
+    else:
+        executable_path = host_ytserver_clickhouse_path
 
-    run_clickhouse_command = "({} --config config.yson --instance-id $YT_JOB_ID " \
-                             "--clique-id $YT_OPERATION_ID --rpc-port $YT_PORT_0 --monitoring-port {} " \
-                             "--tcp-port $YT_PORT_2 --http-port $YT_PORT_3 ;) ".format(executable_path, monitoring_port)
+    if cypress_clickhouse_trampoline_path is not None:
+        trampoline_path = "./clickhouse-trampoline"
+        file_paths.append(FilePath(cypress_clickhouse_trampoline_path, file_name="clickhouse-trampoline"))
+    else:
+        trampoline_path = host_clickhouse_trampoline_path
+
+    args = [trampoline_path, executable_path]
+    if enable_monitoring:
+        args += ["--monitoring-port", "10142"]
+    if cypress_geodata_path is not None:
+        file_paths.append(FilePath(cypress_geodata_path, file_name="geodata.tgz"))
+        args += ["--prepare-geodata"]
 
     if core_dump_destination is not None:
-        copy_core_dumps_command = "exit_code=$? ;" \
-                                  "if compgen -G 'core*' >/dev/null ; then " \
-                                  "    echo 'Core dumps detected' >&2;" \
-                                  "    mv core* {} ; " \
-                                  "fi ;" \
-                                  "exit $exit_code ;".format(core_dump_destination)
-    else:
-        copy_core_dumps_command = ""
+        args += ["--core-dump-destination", core_dump_destination]
 
-    command = "\n".join([patch_config_command, extract_geodata_command, run_clickhouse_command, copy_core_dumps_command])
+    trampoline_command = " ".join(args)
 
     spec_builder = \
         VanillaSpecBuilder() \
             .begin_task("instances") \
                 .job_count(instance_count) \
                 .file_paths(file_paths) \
-                .command(command) \
+                .command(trampoline_command) \
                 .memory_limit(memory_limit + memory_footprint + uncompressed_block_cache_size) \
                 .cpu_limit(cpu_limit) \
                 .max_stderr_size(1024 * 1024 * 1024) \
@@ -416,7 +411,9 @@ def start_clickhouse_clique(instance_count,
                             operation_alias,
                             cypress_base_config_path=None,
                             cypress_ytserver_clickhouse_path=None,
+                            cypress_clickhouse_trampoline_path=None,
                             host_ytserver_clickhouse_path=None,
+                            host_clickhouse_trampoline_path=None,
                             clickhouse_config=None,
                             cpu_limit=None,
                             memory_limit=None,
@@ -514,6 +511,12 @@ def start_clickhouse_clique(instance_count,
             lambda: YtError("Cypress ytserver-clickhouse binary path and host ytserver-clickhouse path "
                             "cannot be specified at the same time"))
 
+    if cypress_clickhouse_trampoline_path is None and host_clickhouse_trampoline_path is None:
+        cypress_clickhouse_trampoline_path = "//sys/clickhouse/bin/clickhouse-trampoline"
+    require(cypress_clickhouse_trampoline_path is None or host_clickhouse_trampoline_path is None,
+            lambda: YtError("Cypress clickhouse-trampoline binary path and host clickhouse-trampoline path "
+                            "cannot be specified at the same time"))
+
     prepare_artifacts(artifact_path,
                       prev_operation,
                       enable_log_tailer=enable_log_tailer,
@@ -546,7 +549,9 @@ def start_clickhouse_clique(instance_count,
                                                           memory_footprint=memory_footprint,
                                                           enable_monitoring=enable_monitoring,
                                                           cypress_ytserver_clickhouse_path=cypress_ytserver_clickhouse_path,
+                                                          cypress_clickhouse_trampoline_path=cypress_clickhouse_trampoline_path,
                                                           host_ytserver_clickhouse_path=host_ytserver_clickhouse_path,
+                                                          host_clickhouse_trampoline_path=host_clickhouse_trampoline_path,
                                                           cypress_geodata_path=cypress_geodata_path,
                                                           operation_alias=operation_alias,
                                                           description=description,
