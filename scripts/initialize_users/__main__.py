@@ -173,38 +173,57 @@ def set_schema_permission_for_attribute(client, type, user, permission, attribut
 
 
 def set_account(client, account_name, segment_name, cpu, memory, hdd, ssd, ipv4):
+    resource_limits = client.get_object(
+        "account",
+        account_name,
+        selectors=["/spec/resource_limits/per_segment"],
+    )[0]
+    resource_limits = resource_limits.get(segment_name, {})
+
+    def get_capacity(path_tokens):
+        node = resource_limits
+        for token in path_tokens:
+            node = node.get(token, {})
+        return node.get("capacity", None)
+
     updates_set = list()
-    updates_set.append(
-        {"path": "/spec/resource_limits/per_segment/{}/cpu/capacity".format(segment_name),
-         "value": long(cpu),
-         "recursive": True
-         })
+    if get_capacity(["cpu"]) != long(cpu):
+        updates_set.append(dict(
+            path="/spec/resource_limits/per_segment/{}/cpu/capacity".format(segment_name),
+            value=long(cpu),
+            recursive=True,
+        ))
 
-    updates_set.append(
-        {"path": "/spec/resource_limits/per_segment/{}/memory/capacity".format(segment_name),
-         "value": long(memory),
-         "recursive": True
-         })
+    if get_capacity(["memory"]) != long(memory):
+        updates_set.append(dict(
+            path="/spec/resource_limits/per_segment/{}/memory/capacity".format(segment_name),
+            value=long(memory),
+            recursive=True,
+        ))
 
-    updates_set.append(
-        {"path": "/spec/resource_limits/per_segment/{}/internet_address/capacity".format(segment_name),
-         "value": long(ipv4),
-         "recursive": True
-         })
+    if get_capacity(["internet_address"]) != long(ipv4):
+        updates_set.append(dict(
+            path="/spec/resource_limits/per_segment/{}/internet_address/capacity".format(segment_name),
+            value=long(ipv4),
+            recursive=True,
+        ))
 
-    updates_set.append(
-        {"path": "/spec/resource_limits/per_segment/{}/disk_per_storage_class/hdd/capacity".format(segment_name),
-         "value": long(hdd),
-         "recursive": True
-         })
+    if get_capacity(["disk_per_storage_class", "hdd"]) != long(hdd):
+        updates_set.append(dict(
+            path="/spec/resource_limits/per_segment/{}/disk_per_storage_class/hdd/capacity".format(segment_name),
+            value=long(hdd),
+            recursive=True,
+        ))
 
-    updates_set.append(
-        {"path": "/spec/resource_limits/per_segment/{}/disk_per_storage_class/ssd/capacity".format(segment_name),
-         "value": long(ssd),
-         "recursive": True
-         })
+    if get_capacity(["disk_per_storage_class", "ssd"]) != long(ssd):
+        updates_set.append(dict(
+            path="/spec/resource_limits/per_segment/{}/disk_per_storage_class/ssd/capacity".format(segment_name),
+            value=long(ssd),
+            recursive=True,
+        ))
 
-    client.update_object("account", account_name, updates_set)
+    if updates_set:
+        client.update_object("account", account_name, updates_set)
 
 
 def create_account(client, account_name, allow_use_for_all):
