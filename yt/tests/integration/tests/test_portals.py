@@ -31,7 +31,7 @@ class TestPortals(YTEnvSetup):
     ENABLE_BULK_INSERT = True
     NUM_SCHEDULERS = 1
 
-    
+
     @authors("babenko")
     def test_cannot_create_portal_exit(self):
         with pytest.raises(YtError):
@@ -155,7 +155,7 @@ class TestPortals(YTEnvSetup):
     def test_read_write_table_in_portal(self, with_outer_tx, external_cell_tag, purge_resolve_cache):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
         create("map_node", "//tmp/p/m")
-        
+
         PAYLOAD = [{"key": "value"}]
 
         if with_outer_tx:
@@ -188,7 +188,7 @@ class TestPortals(YTEnvSetup):
     def test_read_write_file_in_portal(self, with_outer_tx, external_cell_tag, purge_resolve_cache):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
         create("map_node", "//tmp/p/m")
-        
+
         PAYLOAD = "a" *  100
 
         if with_outer_tx:
@@ -203,7 +203,7 @@ class TestPortals(YTEnvSetup):
         assert get("//tmp/p/m/f/@chunk_count", tx=tx) == 1
         _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p")
         assert read_file("//tmp/p/m/f", tx=tx) == PAYLOAD
-        
+
         if with_outer_tx:
             commit_transaction(tx)
 
@@ -360,12 +360,12 @@ class TestPortals(YTEnvSetup):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
         create("table", "//tmp/p/t")
         assert exists("//tmp/p/t")
-        
+
         _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p")
         copy("//tmp/p/t", "//tmp/p/t1")
         assert exists("//tmp/p/t")
         assert exists("//tmp/p/t1")
-        
+
         _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p")
         move("//tmp/p/t", "//tmp/p/t2")
 
@@ -402,7 +402,7 @@ class TestPortals(YTEnvSetup):
         assert get("//tmp/p1/m/t/@account") == "tmp"
         TABLE_PAYLOAD = [{"key": "value"}]
         write_table("//tmp/p1/m/t", TABLE_PAYLOAD)
-        
+
         if in_tx:
             tx = start_transaction()
         else:
@@ -659,7 +659,7 @@ class TestPortals(YTEnvSetup):
         assert read_table("//tmp/m/t") == TABLE_PAYLOAD
         assert get("//tmp/m/t/@account") == "a"
         assert get("//tmp/m/t/@attr") == "t"
-        
+
         assert read_file("//tmp/m/f") == FILE_PAYLOAD
         assert get("//tmp/m/f/@account") == "b"
         assert get("//tmp/m/f/@attr") == "f"
@@ -710,9 +710,9 @@ class TestPortals(YTEnvSetup):
         assert_items_equal(ls("//tmp"), ["m1", "m2"]) 
         assert get("//tmp/m1/@key") == "m1"
         assert get("//tmp/m2/@key") == "m2"
-        
+
         externalize("//tmp/m2", 2)
-        
+
         shard_id2 = get("//tmp/m2/@shard_id")
         assert shard_id1 != shard_id2
         assert get("//tmp/m2/t/@shard_id") == shard_id2
@@ -777,7 +777,7 @@ class TestPortals(YTEnvSetup):
         assert read_table("//tmp/m/t") == TABLE_PAYLOAD
         assert get("//tmp/m/t/@account") == "a"
         assert get("//tmp/m/t/@attr") == "t"
-        
+
         assert read_file("//tmp/m/f") == FILE_PAYLOAD
         assert get("//tmp/m/f/@account") == "b"
         assert get("//tmp/m/f/@attr") == "f"
@@ -799,7 +799,7 @@ class TestPortals(YTEnvSetup):
     @authors("babenko")
     def test_bulk_insert_yt_11194(self):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
-        
+
         sync_create_cells(1)
         create("table", "//tmp/p/target", attributes={
             "dynamic": True,
@@ -867,6 +867,72 @@ class TestPortals(YTEnvSetup):
         commit_transaction(tx)
         assert read_table("//tmp/p/t3") == [{"key": "value1"}, {"key": "value2"}]
 
+    @authors("gritukan")
+    def test_granular_externalize(self):
+        create("map_node", "//tmp/m1", attributes={"opaque": True})
+        create("map_node", "//tmp/m1/m21", attributes={"opaque": True})
+        create("map_node", "//tmp/m1/m22", attributes={"opaque": True})
+        create("map_node", "//tmp/m1/m21/m31", attributes={"opaque": True})
+        create("map_node", "//tmp/m1/m21/m32", attributes={"opaque": True})
+        create("map_node", "//tmp/m1/m22/m33", attributes={"opaque": True})
+        create("map_node", "//tmp/m1/m22/m34", attributes={"opaque": True})
+
+        for table_directory in ["/m21/m31", "/m21/m32", "/m22/m33", "/m22/m34"]:
+            table_path = "//tmp/m1" + table_directory + "/table"
+            create("table", table_path, attributes={"external": True, "external_cell_tag": 1})
+            write_table(table_path, [{"key": table_directory}])
+
+        externalize("//tmp/m1", 2)
+
+        for table_directory in ["/m21/m31", "/m21/m32", "/m22/m33", "/m22/m34"]:
+            table_path = "//tmp/m1" + table_directory + "/table"
+            assert read_table(table_path) == [{"key": table_directory}]
+
+    @authors("gritukan")
+    def test_granular_internalize(self):
+        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 1, "opaque": True})
+        create("map_node", "//tmp/p1/m21", attributes={"opaque": True})
+        create("map_node", "//tmp/p1/m22", attributes={"opaque": True})
+        create("map_node", "//tmp/p1/m21/m31", attributes={"opaque": True})
+        create("map_node", "//tmp/p1/m21/m32", attributes={"opaque": True})
+        create("map_node", "//tmp/p1/m22/m33", attributes={"opaque": True})
+        create("map_node", "//tmp/p1/m22/m34", attributes={"opaque": True})
+
+        for table_directory in ["/m21/m31", "/m21/m32", "/m22/m33", "/m22/m34"]:
+            table_path = "//tmp/p1" + table_directory + "/table"
+            create("table", table_path, attributes={"external": True, "external_cell_tag": 2})
+            write_table(table_path, [{"key": table_directory}])
+
+        internalize("//tmp/p1")
+
+        for table_directory in ["/m21/m31", "/m21/m32", "/m22/m33", "/m22/m34"]:
+            table_path = "//tmp/p1" + table_directory + "/table"
+            assert read_table(table_path) == [{"key": table_directory}]
+
+    @authors("gritukan")
+    def test_granular_cross_cell_copy(self):
+        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 1, "opaque": True})
+        create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 1, "opaque": True})
+
+        create("map_node", "//tmp/p1/m1", attributes={"opaque": True})
+        create("map_node", "//tmp/p1/m1/m21", attributes={"opaque": True})
+        create("map_node", "//tmp/p1/m1/m22", attributes={"opaque": True})
+        create("map_node", "//tmp/p1/m1/m21/m31", attributes={"opaque": True})
+        create("map_node", "//tmp/p1/m1/m21/m32", attributes={"opaque": True})
+        create("map_node", "//tmp/p1/m1/m22/m33", attributes={"opaque": True})
+        create("map_node", "//tmp/p1/m1/m22/m34", attributes={"opaque": True})
+
+        for table_directory in ["/m21/m31", "/m21/m32", "/m22/m33", "/m22/m34"]:
+            table_path = "//tmp/p1/m1" + table_directory + "/table"
+            create("table", table_path, attributes={"external": True, "external_cell_tag": 2})
+            write_table(table_path, [{"key": table_directory}])
+
+        copy("//tmp/p1/m1", "//tmp/p2/m1")
+
+        for table_directory in ["/m21/m31", "/m21/m32", "/m22/m33", "/m22/m34"]:
+            table_path = "//tmp/p2/m1" + table_directory + "/table"
+            assert read_table(table_path) == [{"key": table_directory}]
+
     @authors("shakurov")
     def test_link_not_externalizable(self):
         create("map_node", "//tmp/m")
@@ -912,10 +978,10 @@ class TestResolveCache(YTEnvSetup):
         assert not get("//tmp/dir1/@resolve_cached")
         assert not get("//tmp/dir1/dir2/@resolve_cached")
         assert not get("//tmp/dir1/dir2/p&/@resolve_cached")
-        
+
         create("table", "//tmp/dir1/dir2/p/t")
         assert get("//tmp/dir1/dir2/p&/@resolve_cached")
-        
+
         link("//tmp/dir1/dir2", "//tmp/l")
         assert not get("//tmp/l&/@resolve_cached")
         assert get("//tmp/l/p/t/@type") == "table"

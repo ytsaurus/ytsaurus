@@ -128,7 +128,7 @@ private:
         using NYT::Save;
         auto exitId = MakePortalExitNodeId(node->GetId(), node->GetExitCellTag());
         Save(*context, exitId);
-        context->RegisterOpaqueRootId(exitId);
+        context->RegisterPortalRootId(exitId);
     }
 
     virtual void DoEndCopy(
