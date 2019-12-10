@@ -1223,6 +1223,7 @@ protected:
 
             auto resultRowset = WaitFor(asyncResultRowset)
                 .ValueOrThrow();
+
             resultMatcher(resultRowset->GetRows(), TTableSchema(primaryQuery->GetTableSchema()));
 
             return primaryQuery;
@@ -5646,8 +5647,6 @@ TEST_F(TQueryEvaluateTest, MakeMapFailure)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#if 0
-
 struct TJoinColumns
 {
     const char* Self = nullptr;
@@ -5660,16 +5659,6 @@ struct TGroupColumns
     const char* Y = nullptr;
     const char* Z = nullptr;
 };
-
-class TQueryEvaluateComplexTest
-    : public TQueryEvaluateTest
-    , public ::testing::WithParamInterface<std::tuple<
-        const char*, // left or inner
-        TJoinColumns, // join equation
-        TGroupColumns, // group key
-        const char* // totals
-    >>
-{ };
 
 struct TIntValue
     : public std::optional<int>
@@ -5706,13 +5695,16 @@ void FormatValue(TStringBuilderBase* builder, const TIntValue& value, TStringBuf
     }
 }
 
-TEST_P(TQueryEvaluateComplexTest, All)
+class TQueryEvaluateComplexTest
+    : public TQueryEvaluateTest
+    , public ::testing::WithParamInterface<std::tuple<
+        const char*, // left or inner
+        TJoinColumns, // join equation
+        TGroupColumns, // group key
+        const char* // totals
+    >>
 {
-    int M = 7;
-    // Primary columns: (a, b, c) -> v
-    // Secondary columns: (d, e) -> w
-    // Group columns x, y, z
-
+protected:
     struct TPrimaryKey
     {
         TIntValue a, b, c;
@@ -5778,32 +5770,49 @@ TEST_P(TQueryEvaluateComplexTest, All)
         }
     };
 
-    std::vector<TPrimaryRow> primaryTable;
-    std::vector<TSecondaryRow> secondaryTable;
+    struct TAggregates
+    {
+        TIntValue count, sumv, sumw;
 
-    for (int i = 0; i < M * M * M; ++i) {
-        if (rand() % 7 == 0) {
-            continue;
+        void operator+= (const TAggregates& other)
+        {
+            count += other.count;
+            sumv += other.sumv;
+            sumw += other.sumw;
         }
-        primaryTable.push_back({i / (M * M), i % (M * M) / M, i % M, i});
-    }
+    };
 
-    for (int i = 0; i < M * M; ++i) {
-        if (rand() % 7 == 0) {
-            continue;
-        }
-        secondaryTable.push_back({i / M, i % M, i});
-    }
+    struct TResultRow
+        : TGroupKey
+        , TAggregates
+    { };
 
-    const auto& param = GetParam();
+    void DoTest(
+        const std::vector<TPrimaryRow>& primaryTable,
+        const std::vector<TSecondaryRow>& secondaryTable,
+        size_t offset,
+        size_t limit,
+        TStringBuf joinType,
+        TJoinColumns joinEq,
+        TGroupColumns groupEq,
+        TStringBuf groupTotals);
 
-    TStringBuf joinType = std::get<0>(param);
-    TJoinColumns joinEq = std::get<1>(param);
-    TGroupColumns groupEq = std::get<2>(param);
-    TStringBuf groupTotals = std::get<3>(param);
+};
 
-    auto offset = 3;
-    auto limit = 3;
+
+void TQueryEvaluateComplexTest::DoTest(
+    const std::vector<TPrimaryRow>& primaryTable,
+    const std::vector<TSecondaryRow>& secondaryTable,
+    size_t offset,
+    size_t limit,
+    TStringBuf joinType,
+    TJoinColumns joinEq,
+    TGroupColumns groupEq,
+    TStringBuf groupTotals)
+{
+    // Primary columns: (a, b, c) -> v
+    // Secondary columns: (d, e) -> w
+    // Group columns x, y, z
 
     TString queryString = Format(
         "x, y, z, sum(1) as count, sum(v) as sumv, sum(w) as sumw "
@@ -5817,22 +5826,6 @@ TEST_P(TQueryEvaluateComplexTest, All)
         groupTotals,
         offset,
         limit);
-
-    struct TAggregates
-    {
-        TIntValue count, sumv, sumw;
-
-        void operator+= (const TAggregates& other) {
-            count += other.count;
-            sumv += other.sumv;
-            sumw += other.sumw;
-        }
-    };
-
-    struct TResultRow
-        : TGroupKey
-        , TAggregates
-    { };
 
     TStringBuf s1, s2;
     StringSplitter(joinEq.Self)
@@ -5959,12 +5952,10 @@ TEST_P(TQueryEvaluateComplexTest, All)
         {"sumw", EValueType::Int64},
     });
 
-    std::sort(groupedKeys.begin(), groupedKeys.end());
-
     std::vector<TResultRow> resultData;
     TAggregates totals;
 
-    for (int index = offset; index < std::min(offset + limit, int(groupedKeys.size())); ++index) {
+    for (size_t index = offset; index < std::min(offset + limit, groupedKeys.size()); ++index) {
         auto groupKey = groupedKeys[index];
         auto groupValue = lookup[groupKey];
 
@@ -5981,15 +5972,6 @@ TEST_P(TQueryEvaluateComplexTest, All)
 
     std::vector<TOwningRow> result;
 
-    if (groupTotals == "with totals") {
-        auto rowString = Format(
-            "count=%v;sumv=%v;sumw=%v",
-            totals.count,
-            totals.sumv,
-            totals.sumw);
-        result.push_back(YsonToRow(rowString, resultSplit, true));
-    }
-
     for (const auto& row : resultData) {
         auto resultRow = Format(
             "x=%v;y=%v;z=%v;count=%v;sumv=%v;sumw=%v",
@@ -6003,13 +5985,91 @@ TEST_P(TQueryEvaluateComplexTest, All)
         result.push_back(YsonToRow(resultRow, resultSplit, true));
     }
 
+    if (groupTotals == "with totals" && !resultData.empty()) {
+        auto rowString = Format(
+            "count=%v;sumv=%v;sumw=%v",
+            totals.count,
+            totals.sumv,
+            totals.sumw);
+        result.push_back(YsonToRow(rowString, resultSplit, true));
+    }
+
+    auto resultMatcher = [&] (TRange<TRow> actualResult, const TTableSchema& tableSchema) {
+        EXPECT_EQ(result.size(), actualResult.Size());
+
+        bool print = false;
+
+        for (int i = 0; i < result.size(); ++i) {
+            print |= actualResult[i] != result[i];
+            EXPECT_EQ(actualResult[i], result[i]);
+        }
+        if (print) {
+            Cout << "expectedResult:" << Endl;
+            for (int i = 0; i < result.size(); ++i) {
+                Cout << ToString(result[i]) << Endl;
+            }
+
+            Cout << "actualResult:" << Endl;
+            for (int i = 0; i < actualResult.size(); ++i) {
+                Cout << ToString(actualResult[i]) << Endl;
+            }
+
+            Cout << "primary:" << Endl;
+            for (const auto& row : primaryTable) {
+                Cout << Format("{%v, %v, %v, %v},", row.a, row.b, row.c, row.v) << Endl;
+            }
+
+            Cout << "secondary:" << Endl;
+            for (const auto& row : secondaryTable) {
+                Cout << Format("{%v, %v, %v},", row.d, row.e, row.w) << Endl;
+            }
+        }
+    };
+
     auto query = Evaluate(
         queryString,
         splits,
         sources,
-        OrderedResultMatcher(result, {"x", "y", "z"}));
+        resultMatcher);
 
     EXPECT_TRUE(query->IsOrdered());
+}
+
+TEST_P(TQueryEvaluateComplexTest, All)
+{
+    int M = 7;
+
+    const auto& param = GetParam();
+
+    TStringBuf joinType = std::get<0>(param);
+    TJoinColumns joinEq = std::get<1>(param);
+    TGroupColumns groupEq = std::get<2>(param);
+    TStringBuf groupTotals = std::get<3>(param);
+
+    for (size_t repeat = 0; repeat < 10; ++repeat) {
+        std::vector<TPrimaryRow> primaryTable;
+        std::vector<TSecondaryRow> secondaryTable;
+
+        for (int i = 0; i < M * M * M; ++i) {
+            if (rand() % 7 == 0) {
+                continue;
+            }
+            primaryTable.push_back({i / (M * M), i % (M * M) / M, i % M, i});
+        }
+
+        for (int i = 0; i < M * M; ++i) {
+            if (rand() % 7 == 0) {
+                continue;
+            }
+            secondaryTable.push_back({i / M, i % M, i});
+        }
+
+        auto shareSize = primaryTable.size() / 3;
+        auto offset = rand() % shareSize;
+        auto limit = rand() % shareSize + 1;
+
+        DoTest(primaryTable, secondaryTable, offset, limit, joinType, joinEq, groupEq, groupTotals);
+    }
 }
 
 INSTANTIATE_TEST_CASE_P(1, TQueryEvaluateComplexTest,
@@ -6035,8 +6095,6 @@ INSTANTIATE_TEST_CASE_P(1, TQueryEvaluateComplexTest,
         "",
         "with totals"
     })));
-
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
