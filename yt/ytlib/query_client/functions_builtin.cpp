@@ -1019,6 +1019,10 @@ void RegisterBuiltinFunctions(
         std::vector<TType>{
             EValueType::Any,
             TUnionType{
+                EValueType::Int64,
+                EValueType::Uint64,
+                EValueType::Double,
+                EValueType::Boolean,
                 EValueType::String,
             }},
         EValueType::Boolean,
