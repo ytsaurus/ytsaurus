@@ -20,7 +20,6 @@ from datetime import datetime
 import copy
 import json
 import os
-import pprint
 import pytest
 import random
 import threading
@@ -29,18 +28,23 @@ import subprocess
 
 TEST_DIR = os.path.join(os.path.dirname(__file__))
 
-YTSERVER_CLICKHOUSE_BINARY = os.environ.get("YTSERVER_CLICKHOUSE_PATH")
-if YTSERVER_CLICKHOUSE_BINARY is None:
-    YTSERVER_CLICKHOUSE_BINARY = find_executable("ytserver-clickhouse")
+YTSERVER_CLICKHOUSE_PATH = os.environ.get("YTSERVER_CLICKHOUSE_PATH")
+if YTSERVER_CLICKHOUSE_PATH is None:
+    YTSERVER_CLICKHOUSE_PATH = find_executable("ytserver-clickhouse")
 
-YT_LOG_TAILER_BINARY = os.environ.get("YT_LOG_TAILER_BINARY")
-if YT_LOG_TAILER_BINARY is None:
-    YT_LOG_TAILER_BINARY = find_executable("ytserver-log-tailer")
+CLICKHOUSE_TRAMPOLINE_PATH = os.environ.get("CLICKHOUSE_TRAMPOLINE_PATH")
+if CLICKHOUSE_TRAMPOLINE_PATH is None:
+    CLICKHOUSE_TRAMPOLINE_PATH = find_executable("clickhouse-trampoline")
+
+YT_LOG_TAILER_PATH = os.environ.get("YT_LOG_TAILER_PATH")
+if YT_LOG_TAILER_PATH is None:
+    YT_LOG_TAILER_PATH = find_executable("ytserver-log-tailer")
 
 DEFAULTS = {
     "memory_footprint": 2 * 1000**3,
     "memory_limit": 5 * 1000**3,
-    "host_ytserver_clickhouse_path": YTSERVER_CLICKHOUSE_BINARY,
+    "host_ytserver_clickhouse_path": YTSERVER_CLICKHOUSE_PATH,
+    "host_clickhouse_trampoline_path": CLICKHOUSE_TRAMPOLINE_PATH,
     "cpu_limit": 1,
     "enable_monitoring": False,
     "clickhouse_config": {},
@@ -333,7 +337,7 @@ class ClickHouseTestBase(YTEnvSetup):
             os.mkdir(Clique.core_dump_path)
             os.chmod(Clique.core_dump_path, 0777)
 
-        if YTSERVER_CLICKHOUSE_BINARY is None:
+        if YTSERVER_CLICKHOUSE_PATH is None:
             pytest.skip("This test requires ytserver-clickhouse binary being built")
 
         create_user("yt-clickhouse-cache")
@@ -2237,7 +2241,7 @@ class TestTracing(ClickHouseTestBase):
 class TestClickHouseWithLogTailer(ClickHouseTestBase):
     def setup(self):
         self._setup()
-        if YT_LOG_TAILER_BINARY is None:
+        if YT_LOG_TAILER_PATH is None:
             pytest.skip("This test requires log_tailer binary being built")
 
     @authors("gritukan")
@@ -2296,7 +2300,7 @@ class TestClickHouseWithLogTailer(ClickHouseTestBase):
         with Clique(1) as clique:
             instance = clique.get_active_instances()[0]
             pid = clique.make_direct_query(instance, "select * from system.clique", verbose=False)[0]["pid"]
-            log_tailer = subprocess.Popen([YT_LOG_TAILER_BINARY, str(pid), "--config", log_tailer_config_file])
+            log_tailer = subprocess.Popen([YT_LOG_TAILER_PATH, str(pid), "--config", log_tailer_config_file])
             log_table = "//sys/clickhouse/logs/log"
 
             def cleanup():

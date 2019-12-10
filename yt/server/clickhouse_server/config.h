@@ -209,8 +209,8 @@ public:
     std::vector<TString> ListenHosts;
 
     //! Paths to geodata stuff.
-    TString PathToRegionsHierarchyFile;
-    TString PathToRegionsNameFiles;
+    std::optional<TString> PathToRegionsHierarchyFile;
+    std::optional<TString> PathToRegionsNameFiles;
 
     //! Subquery logic configuration.
     TSubqueryConfigPtr Subquery;
@@ -242,10 +242,10 @@ public:
             .Default();
 
         RegisterParameter("path_to_regions_hierarchy_file", PathToRegionsHierarchyFile)
-            .Default("./geodata/regions_hierarchy.txt");
+            .Default();
 
         RegisterParameter("path_to_regions_name_files", PathToRegionsNameFiles)
-            .Default("./geodata/");
+            .Default();
 
         RegisterParameter("subquery", Subquery)
             .DefaultNew();
