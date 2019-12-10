@@ -59,45 +59,50 @@ class ClientWrapper(object):
         return self._client.check_object_permissions(*args, **kwargs)
 
 
-def create_user(client, user):
-    if user == "everyone":
+def infer_subject_type(subject):
+    if subject.startswith("abc:"):
+        return "group"
+    return "user"
+
+
+def create_subject(client, subject):
+    if subject == "everyone":
         return
 
-    # type: (YpClient, basestring, basestring) -> None
+    type_name = infer_subject_type(subject)
+
     try:
-        client.get_object("user", user, ["/meta"])
+        client.get_object(type_name, subject, ["/meta"])
     except YpNoSuchObjectError:
-        client.create_object(object_type="user",
-                             attributes={
-                                 "meta": {
-                                     "id": user
-                                 }
-                             })
+        client.create_object(
+            object_type=type_name,
+            attributes=dict(meta=dict(id=subject)),
+        )
 
 
-def set_schema_permissions(client, type, user, rights):
+def set_schema_permissions(client, type, subject, rights):
     # type: (YpClient, basestring, basestring, list, basestring) -> None
 
-    create_user(client, user)
+    create_subject(client, subject)
 
-    logger.debug("Set schema permission user {}, type={}, rights={}".format(user, type, rights))
+    logger.debug("Set schema permission subject={}, type={}, rights={}".format(subject, type, rights))
 
     rights_to_grant = set(rights)
     schema_rights = client.get_object("schema", type, ["/meta/acl"])
 
-    logger.debug("Current schema permissions for user {}, type={}, rights={}".format(user, type, schema_rights))
+    logger.debug("Current schema permissions for subject={}, type={}, rights={}".format(subject, type, schema_rights))
 
     if schema_rights:
-        actual_user_permissions = set()
+        actual_subject_permissions = set()
         for record in schema_rights[0]:
             action, subjects, permissions = record["action"], record["subjects"], record["permissions"]
             assert action == "allow"
-            if user in subjects or "everyone" in subjects:
+            if subject in subjects or "everyone" in subjects:
                 for permission in permissions:
-                    actual_user_permissions.add(permission)
+                    actual_subject_permissions.add(permission)
 
-        rights_to_add = rights_to_grant.difference(actual_user_permissions)
-        # rights_to_revoke = actual_user_permissions.difference(rights_to_grant)
+        rights_to_add = rights_to_grant.difference(actual_subject_permissions)
+        # rights_to_revoke = actual_subject_permissions.difference(rights_to_grant)
 
         updates_set = []
         for right in rights_to_add:
@@ -105,7 +110,7 @@ def set_schema_permissions(client, type, user, rights):
                 {"path": "/meta/acl/end",
                  "value": {
                      "action": "allow",
-                     "subjects": [user],
+                     "subjects": [subject],
                      "permissions": [right]
                  }})
 
@@ -115,7 +120,7 @@ def set_schema_permissions(client, type, user, rights):
         #             {"path": "/meta/acl/end",
         #              "value": {
         #                  "action": "allow",
-        #                  "subjects": [user],
+        #                  "subjects": [subject],
         #                  "permissions": [right]
         #              }})
 
@@ -123,12 +128,12 @@ def set_schema_permissions(client, type, user, rights):
             client.update_object("schema", type, updates_set)
 
 
-def set_schema_permission_for_attribute(client, type, user, permission, attribute):
-    create_user(client, user)
+def set_schema_permission_for_attribute(client, type, subject, permission, attribute):
+    create_subject(client, subject)
 
-    logger.debug("Setting schema permission for attribute: type = {}, user = {}, permission = {}, attribute = {}".format(
+    logger.debug("Setting schema permission for attribute: type = {}, subject = {}, permission = {}, attribute = {}".format(
         type,
-        user,
+        subject,
         permission,
         attribute,
     ))
@@ -139,7 +144,7 @@ def set_schema_permission_for_attribute(client, type, user, permission, attribut
     for ace in acl:
         if ace["action"] != "allow":
             continue
-        if user not in ace["subjects"]:
+        if subject not in ace["subjects"]:
             continue
         if permission not in ace["permissions"]:
             continue
@@ -162,7 +167,7 @@ def set_schema_permission_for_attribute(client, type, user, permission, attribut
             path="/meta/acl/end",
             value=dict(
                 action="allow",
-                subjects=[user],
+                subjects=[subject],
                 permissions=[permission],
                 attributes=[attribute],
             )
@@ -294,12 +299,12 @@ def assign_podsets_to_accounts(client, cluster):
     setup_tentacles_podset(client, cluster)
 
 
-def allow_account_usage(client, account, user):
+def allow_account_usage(client, account, subject):
     can_use = client.check_object_permissions(
         [
             {"object_type": "account",
              "object_id": account,
-             "subject_id": user,
+             "subject_id": subject,
              "permission": "use"}])
 
     if len(can_use) == 0 or can_use[0]["action"] != "allow":
@@ -309,7 +314,7 @@ def allow_account_usage(client, account, user):
              "value": {
                  "action": "allow",
                  "permissions": ["use"],
-                 "subjects": [user]
+                 "subjects": [subject]
              }
              })
 
@@ -497,9 +502,8 @@ def initialize_users(cluster, dry_run):
         accounts = copy.deepcopy(ACCOUNTS)
         accounts_override(cluster, accounts, client)
 
-        create_user(client, "odin")
-        create_user(client, "nanny-robot")
-        create_user(client, "robot-yp-export")
+        for subject in ("odin", "nanny-robot", "robot-yp-export"):
+            create_subject(client, subject)
 
         set_schema_permissions(client, "pod_set", "robot-yp-export", right_crw)
         set_schema_permissions(client, "pod_set", "robot-yp-hfsm", right_rw)
@@ -578,8 +582,8 @@ def initialize_users(cluster, dry_run):
 
         create_accounts(client, cluster, accounts)
 
-        allow_account_usage(client, account="odin", user="odin")
-        allow_account_usage(client, account="odin", user="robot-yt-odin")
+        allow_account_usage(client, account="odin", subject="odin")
+        allow_account_usage(client, account="odin", subject="robot-yt-odin")
 
         assign_podsets_to_accounts(client, cluster)
 
