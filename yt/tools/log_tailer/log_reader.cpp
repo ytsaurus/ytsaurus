@@ -124,10 +124,12 @@ void TLogFileReader::Stop()
 void TLogFileReader::OnLogRotation()
 {
     YT_LOG_DEBUG("Log is rotating");
-    // Stop log reader.
-    Stop();
     // Read the old log file till the end.
-    DoReadLog();
+    WaitFor(LogReaderExecutor_->GetExecutedEvent())
+        .ThrowOnError();
+    // Stop the log reader.
+    WaitFor(LogReaderExecutor_->Stop())
+        .ThrowOnError();
     // Reopen log.
     Log_ = std::nullopt;
     try {
@@ -142,6 +144,8 @@ void TLogFileReader::OnLogRotation()
 
 void TLogFileReader::DoReadLog()
 {
+    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetReaderInvoker());
+
     try {
         DoOpenLogFile();
     } catch (const std::exception& ex) {
@@ -167,6 +171,8 @@ void TLogFileReader::DoOpenLogFile()
 
 void TLogFileReader::DoReadBuffer()
 {
+    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetReaderInvoker());
+
     auto bufferSize = Bootstrap_->GetConfig()->ReadBufferSize;
     TBuffer buffer(bufferSize);
     while (true) {
@@ -202,6 +208,8 @@ void TLogFileReader::DoReadBuffer()
 
 void TLogFileReader::DoWriteRows()
 {
+    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetReaderInvoker());
+
     int recordsBufferPtr = 0;
     while (recordsBufferPtr < RecordsBuffer_.size()) {
         i64 rowsToWrite = std::min<i64>(RecordsBuffer_.size() - recordsBufferPtr, Bootstrap_->GetConfig()->MaxRecordsPerTransaction);
@@ -211,7 +219,7 @@ void TLogFileReader::DoWriteRows()
         for (int index = recordsBufferPtr; index < recordsBufferPtr + rowsToWrite; ++index) {
             rows.emplace_back(LogRecordToUnversionedRow(
                 RecordsBuffer_[index],
-                LineIndex_ + index,
+                LineIndex_ + index - recordsBufferPtr,
                 RowBuffer_,
                 LogTableNameTable_,
                 ExtraLogTableColumns_));
