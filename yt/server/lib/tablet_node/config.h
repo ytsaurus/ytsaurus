@@ -88,6 +88,7 @@ public:
     int MaxReadFanIn;
 
     int MaxOverlappingStoreCount;
+    int OverlappingStoreImmediateSplitThreshold;
 
     NTabletClient::EInMemoryMode InMemoryMode;
 
@@ -224,6 +225,9 @@ public:
         RegisterParameter("critical_overlapping_store_count", CriticalOverlappingStoreCount)
             .GreaterThan(0)
             .Optional();
+        RegisterParameter("overlapping_store_immediate_split_threshold", OverlappingStoreImmediateSplitThreshold)
+            .GreaterThan(0)
+            .Default(20);
 
         RegisterParameter("in_memory_mode", InMemoryMode)
             .Default(NTabletClient::EInMemoryMode::None);

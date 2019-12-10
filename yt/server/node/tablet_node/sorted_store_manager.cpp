@@ -837,6 +837,8 @@ void TSortedStoreManager::TrySplitPartitionByAddedStores(
 
     const auto& config = partition->GetTablet()->GetConfig();
 
+    int formerPartitionStoreCount = partition->Stores().size() - addedStores.size();
+
     std::vector<TOwningKey> proposedPivots{partition->GetPivotKey()};
     i64 cumulativeDataSize = 0;
     int cumulativeStoreCount = 0;
@@ -851,11 +853,12 @@ void TSortedStoreManager::TrySplitPartitionByAddedStores(
 
         i64 dataSize = store->GetCompressedDataSize();
 
-        if (cumulativeDataSize >= config->DesiredPartitionDataSize ||
-            (cumulativeDataSize + dataSize > config->MaxPartitionDataSize &&
-                cumulativeDataSize >= config->MinPartitionDataSize) ||
-            cumulativeStoreCount >= config->MaxOverlappingStoreCount)
-        {
+        bool strongEvidence = cumulativeDataSize >= config->DesiredPartitionDataSize ||
+            cumulativeStoreCount >= config->OverlappingStoreImmediateSplitThreshold;
+        bool weakEvidence = cumulativeDataSize + dataSize > config->MaxPartitionDataSize ||
+            cumulativeStoreCount + formerPartitionStoreCount >= config->OverlappingStoreImmediateSplitThreshold;
+
+        if (strongEvidence || (weakEvidence && cumulativeDataSize >= config->MinPartitionDataSize)) {
             proposedPivots.push_back(store->GetMinKey());
             cumulativeDataSize = 0;
             cumulativeStoreCount = 0;
