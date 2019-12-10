@@ -17,6 +17,11 @@ TProject::TSpec::TSpec(TProject* project)
     : Account_(project, &AccountSchema)
 { }
 
+const TScalarAttributeSchema<TProject, TString> TProject::OwnerIdSchema{
+    &ProjectsTable.Fields.Meta_OwnerId,
+    [] (TProject* project) { return &project->OwnerId(); }
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 const TScalarAttributeSchema<TProject, TProject::TStatus> TProject::StatusSchema{
@@ -29,6 +34,7 @@ TProject::TProject(
     IObjectTypeHandler* typeHandler,
     ISession* session)
     : TObject(id, TObjectId(), typeHandler, session)
+    , OwnerId_(this, &OwnerIdSchema)
     , Spec_(this)
     , Status_(this, &StatusSchema)
 { }

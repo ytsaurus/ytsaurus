@@ -32,11 +32,21 @@ public:
     {
         TObjectTypeHandlerBase::Initialize();
 
+        MetaAttributeSchema_
+            ->AddChildren({
+                MakeAttributeSchema("owner_id")
+                    ->SetAttribute(TProject::OwnerIdSchema)
+                    ->SetUpdatable()
+                    ->SetMandatory()
+                    ->SetValidator<TProject>(std::bind(&TProjectTypeHandler::ValidateOwnerId, this, _1, _2)),
+            });
+
         SpecAttributeSchema_
             ->AddChildren({
                 MakeAttributeSchema("account_id")
                     ->SetAttribute(TProject::TSpec::AccountSchema
                         .SetNullable(false))
+                    ->SetMandatory()
                     ->SetValidator<TProject>(std::bind(&TProjectTypeHandler::ValidateAccount, this, _1, _2)),
             })
             ->SetUpdatable()
@@ -78,6 +88,16 @@ private:
         TObject* account = project->Spec().Account().Load();
         const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
         accessControlManager->ValidatePermission(account, EAccessControlPermission::Use);
+    }
+
+    void ValidateOwnerId(TTransaction* /*transaction*/, TProject* project)
+    {
+        TString owner = project->OwnerId().Load();
+        static const TString description = "Project owner";
+
+        if (owner.empty()) {
+            THROW_ERROR_EXCEPTION("%v must not be empty", description);
+        }
     }
 
     static void ValidateId(TTransaction* /*transaction*/, TProject* project)

@@ -22,6 +22,13 @@ option (NYP.NClient.NApi.NProto.object_type) = {
 
 // Project - see https://wiki.yandex-team.ru/deploy/docs/ierarxija-sushhnostejj-v-y.deploy/#project
 
+// For field descriptions see NYP.NClient.NApi.NProto.TProjectMeta.
+message TProjectMetaBase
+{
+    // Subject.
+    string owner_id = 4;
+}
+
 message TProjectSpec
 {
     // In form "abc:service:<int id>".

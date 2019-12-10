@@ -3,7 +3,7 @@ from yp.common import YtResponseError, YpAuthorizationError
 import pytest
 
 
-def permissions_test_template(yp_env, object_type, account_is_mandatory=False):
+def permissions_test_template(yp_env, object_type, account_is_mandatory=False, meta_specific_fields = {}):
     yp_client = yp_env.yp_client
 
     account_id = yp_client.create_object("account")
@@ -13,7 +13,7 @@ def permissions_test_template(yp_env, object_type, account_is_mandatory=False):
             yp_client.create_object(object_type)
         object_spec = {"account_id": account_id}
 
-    object_id = yp_client.create_object(object_type, attributes={"spec": object_spec})
+    object_id = yp_client.create_object(object_type, attributes={"meta": meta_specific_fields, "spec": object_spec})
 
     with pytest.raises(YtResponseError) as exc:
         yp_client.update_object(object_type, object_id, set_updates=[{"path": "/spec/account_id", "value": ""}])
@@ -24,9 +24,9 @@ def permissions_test_template(yp_env, object_type, account_is_mandatory=False):
 
     with yp_env.yp_instance.create_client(config={"user": user_id}) as client:
         if not account_is_mandatory:
-            client.create_object(object_type)
+            client.create_object(object_type, attributes={"meta": meta_specific_fields})
         with pytest.raises(YpAuthorizationError):
-            client.create_object(object_type, attributes={"spec": {"account_id": account_id}})
+            client.create_object(object_type, attributes={"meta": meta_specific_fields, "spec": {"account_id": account_id}})
 
     yp_client.update_object("account", account_id, set_updates=[
         {"path": "/meta/acl/end", "value": {"action": "allow", "permissions": ["use"], "subjects": [user_id]}}
@@ -34,7 +34,7 @@ def permissions_test_template(yp_env, object_type, account_is_mandatory=False):
     yp_env.sync_access_control()
 
     with yp_env.yp_instance.create_client(config={"user": user_id}) as client:
-        client.create_object(object_type, attributes={"spec": {"account_id": account_id}})
+        client.create_object(object_type, attributes={"meta": meta_specific_fields, "spec": {"account_id": account_id}})
 
 
 def update_spec_test_template(yp_client, object_type, initial_spec, update_path, update_value):

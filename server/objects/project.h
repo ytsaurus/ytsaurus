@@ -25,6 +25,9 @@ public:
 
     virtual EObjectType GetType() const override;
 
+    static const TScalarAttributeSchema<TProject, TString> OwnerIdSchema;
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TString>, OwnerId);
+
     class TSpec
     {
     public:

@@ -619,6 +619,8 @@ message TProjectMeta
     uint64 creation_time = 3;
     bool inherit_acl = 10;
     repeated TAccessControlEntry acl = 11;
+    // Custom fields:
+    string owner_id = 4;
 }
 
 message TProject
