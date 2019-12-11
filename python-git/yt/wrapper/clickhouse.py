@@ -91,13 +91,33 @@ def _format_url(url):
     return to_yson_type(url, attributes={"_type_tag": "url"})
 
 
-def _build_description(cypress_ytserver_clickhouse_path=None, operation_alias=None, prev_operation_id=None, enable_monitoring=None, client=None):
+def _build_description(cypress_ytserver_clickhouse_path=None,
+                       cypress_ytserver_log_tailer_path=None,
+                       cypress_clickhouse_trampoline_path=None,
+                       artifact_path=None,
+                       operation_alias=None,
+                       prev_operation_id=None,
+                       enable_monitoring=None,
+                       client=None):
     # Inherit all custom attributes from the ytserver-clickhouse.
     # TODO(max42): YT-11099.
+
+    def get_user_attributes(path):
+        attr_keys = get(path + "/@user_attribute_keys", client=client)
+        return get(path + "/@", attributes=attr_keys, client=client)
+
     description = {}
     if cypress_ytserver_clickhouse_path is not None:
-        attr_keys = get(cypress_ytserver_clickhouse_path + "/@user_attribute_keys", client=client)
-        description = update(description, get(cypress_ytserver_clickhouse_path + "/@", attributes=attr_keys, client=client))
+        description = update(description, {"ytserver-clickhouse": get_user_attributes(cypress_ytserver_clickhouse_path)})
+
+    if cypress_ytserver_log_tailer_path is not None:
+        description = update(description, {"ytserver-log-tailer": get_user_attributes(cypress_ytserver_log_tailer_path)})
+
+    if cypress_clickhouse_trampoline_path is not None:
+        description = update(description, {"clickhouse-trampoline": get_user_attributes(cypress_clickhouse_trampoline_path)})
+
+    if artifact_path is not None:
+        description = update(description, {"artifact_path": _format_url()})
 
     # Put information about previous incarnation of the operation by the given alias (if any).
     if prev_operation_id is not None:
@@ -126,8 +146,10 @@ def get_clickhouse_clique_spec_builder(instance_count,
                                        artifact_path=None,
                                        cypress_ytserver_clickhouse_path=None,
                                        cypress_clickhouse_trampoline_path=None,
+                                       cypress_ytserver_log_tailer_path=None,
                                        host_ytserver_clickhouse_path=None,
                                        host_clickhouse_trampoline_path=None,
+                                       host_ytserver_log_tailer_path=None,
                                        cypress_config_paths=None,
                                        max_failed_job_count=None,
                                        cpu_limit=None,
@@ -192,19 +214,20 @@ def get_clickhouse_clique_spec_builder(instance_count,
     file_paths = [FilePath(cypress_config_path, file_name=file_name) for cypress_config_path, file_name
                   in cypress_config_paths.itervalues()]
 
-    if cypress_ytserver_clickhouse_path is not None:
-        executable_path = "./ytserver-clickhouse"
-        file_paths.append(FilePath(cypress_ytserver_clickhouse_path, file_name="ytserver-clickhouse"))
-    else:
-        executable_path = host_ytserver_clickhouse_path
+    def add_file(cypress_bin_path, host_bin_path, bin_name):
+        if cypress_bin_path is not None:
+            file_paths.append(FilePath(cypress_bin_path, file_name=bin_name))
+            return "./" + bin_name
+        elif host_bin_path is not None:
+            return host_bin_path
+        else:
+            return None
 
-    if cypress_clickhouse_trampoline_path is not None:
-        trampoline_path = "./clickhouse-trampoline"
-        file_paths.append(FilePath(cypress_clickhouse_trampoline_path, file_name="clickhouse-trampoline"))
-    else:
-        trampoline_path = host_clickhouse_trampoline_path
+    ytserver_clickhouse_path = add_file(cypress_ytserver_clickhouse_path, host_ytserver_clickhouse_path, "ytserver-clickhouse")
+    clickhouse_trampoline_path = add_file(cypress_clickhouse_trampoline_path, host_clickhouse_trampoline_path, "clickhouse-trampoline")
+    ytserver_log_tailer_path = add_file(cypress_ytserver_log_tailer_path, host_ytserver_log_tailer_path, "ytserver-log-tailer")
 
-    args = [trampoline_path, executable_path]
+    args = [clickhouse_trampoline_path, ytserver_clickhouse_path]
     if enable_monitoring:
         args += ["--monitoring-port", "10142"]
     if cypress_geodata_path is not None:
@@ -215,7 +238,7 @@ def get_clickhouse_clique_spec_builder(instance_count,
         args += ["--core-dump-destination", core_dump_destination]
 
     if enable_log_tailer:
-        args += ["--run-log-tailer"]
+        args += ["--log-tailer-bin", ytserver_log_tailer_path]
 
     trampoline_command = " ".join(args)
 
@@ -326,7 +349,7 @@ def prepare_log_tailer_table(log_file,
                              artifact_path,
                              client=None):
     ORDERED_NORMALLY_SCHEMA = [
-        {"name": "hash(job_id)", "type": "string", "sort_order": "ascending"},
+        {"name": "farm_hash(job_id) % 100", "type": "uint64", "sort_order": "ascending", "expression": "farm_hash(job_id) % 100"},
         {"name": "timestamp", "type": "string", "sort_order": "ascending"},
         {"name": "job_id", "type": "string", "sort_order": "ascending"},
         {"name": "line_index", "type": "uint64", "sort_order": "ascending"},
@@ -342,7 +365,7 @@ def prepare_log_tailer_table(log_file,
         {"name": "trace_id", "type": "string", "sort_order": "ascending"},
         {"name": "timestamp", "type": "string", "sort_order": "ascending"},
         {"name": "job_id", "type": "string", "sort_order": "ascending"},
-        {"name": "line_index", "type": "string", "sort_order": "ascending"},
+        {"name": "line_index", "type": "uint64", "sort_order": "ascending"},
         {"name": "category", "type": "string"},
         {"name": "message", "type": "string"},
         {"name": "log_level", "type": "string"},
@@ -436,8 +459,10 @@ def start_clickhouse_clique(instance_count,
                             cypress_base_config_path=None,
                             cypress_ytserver_clickhouse_path=None,
                             cypress_clickhouse_trampoline_path=None,
+                            cypress_ytserver_log_tailer_path=None,
                             host_ytserver_clickhouse_path=None,
                             host_clickhouse_trampoline_path=None,
+                            host_ytserver_log_tailer_path=None,
                             clickhouse_config=None,
                             cpu_limit=None,
                             memory_limit=None,
@@ -459,11 +484,21 @@ def start_clickhouse_clique(instance_count,
 
     :param operation_alias alias for the underlying YT operation
     :type operation_alias: str
-    :param cypress_base_config_path path for the base clickhouse config in Cypress
+    :param cypress_base_config_path: path for the base clickhouse config in Cypress
     :type cypress_base_config_path: str or None
     :param cypress_ytserver_clickhouse_path path to the ytserver-clickhouse binary in Cypress
     :type cypress_ytserver_clickhouse_path: str or None
+    :param cypress_clickhouse_trampoline_path: path to the clickhouse-trampoline binary in Cypress
+    :type cypress_clickhouse_trampoline_path: str or None
+    :param cypress_ytserver_log_tailer_path: path to the ytserver-log-tailer binary in Cypress
+    :type cypress_ytserver_log_tailer_path: str or None
     :param host_ytserver_clickhouse_path path to the ytserver-clickhouse binary on the destination host (useful for
+    integration tests)
+    :type host_ytserver_clickhouse_path: str or None
+    :param host_clickhouse_trampoline_path: path to the clickhouse-trampoline binary on the destination host (useful for
+    integration tests)
+    :type host_clickhouse_trampoline_path: str or None
+    :param host_ytserver_log_tailer_path: path to the ytserver-log-tailer binary on the destination host (useful for
     integration tests)
     :type host_ytserver_clickhouse_path: str or None
     :param instance_count: number of instances (also the number of jobs in the underlying vanilla operation).
@@ -483,6 +518,8 @@ def start_clickhouse_clique(instance_count,
     :type dump_tables: bool or None
     :param description: YSON document which will be placed in corresponding operation description.
     :type description: str or None
+    :param spec: additional operation spec
+    :type spec: dict or None
     :param abort_existing: Should we abort the existing operation with the given alias?
     :type abort_existing: bool or None
     :param cypress_log_tailer_config_path: path for the log tailer config in Cypress
@@ -524,20 +561,30 @@ def start_clickhouse_clique(instance_count,
     log_tailer_config = None
     if enable_log_tailer:
         log_tailer_config = get(cypress_log_tailer_config_path or defaults["cypress_log_tailer_config_path"], client=client)
+        if cypress_ytserver_log_tailer_path is None and host_ytserver_log_tailer_path is None:
+            cypress_ytserver_log_tailer_path = "//sys/clickhouse/bin/ytserver-log-tailer"
 
     prev_operation_id = prev_operation["id"] if prev_operation is not None else None
 
-    if cypress_ytserver_clickhouse_path is None and host_ytserver_clickhouse_path is None:
-        cypress_ytserver_clickhouse_path = "//sys/clickhouse/bin/ytserver-clickhouse"
-    require(cypress_ytserver_clickhouse_path is None or host_ytserver_clickhouse_path is None,
-            lambda: YtError("Cypress ytserver-clickhouse binary path and host ytserver-clickhouse path "
-                            "cannot be specified at the same time"))
+    def resolve_path(cypress_bin_path, host_bin_path, cypress_default_bin_path, bin_name, optional=False):
+        if cypress_bin_path is None and host_bin_path is None and not optional:
+            cypress_bin_path = cypress_default_bin_path
+        require(cypress_bin_path is None or host_bin_path is None,
+                lambda: YtError("Cypress {0} binary path and host {0} path "
+                                "cannot be specified at the same time").format(bin_name))
+        return cypress_bin_path, host_bin_path
 
-    if cypress_clickhouse_trampoline_path is None and host_clickhouse_trampoline_path is None:
-        cypress_clickhouse_trampoline_path = "//sys/clickhouse/bin/clickhouse-trampoline"
-    require(cypress_clickhouse_trampoline_path is None or host_clickhouse_trampoline_path is None,
-            lambda: YtError("Cypress clickhouse-trampoline binary path and host clickhouse-trampoline path "
-                            "cannot be specified at the same time"))
+    cypress_ytserver_clickhouse_path, host_ytserver_clickhouse_path = \
+        resolve_path(cypress_ytserver_clickhouse_path, host_ytserver_clickhouse_path,
+                     "//sys/clickhouse/bin/ytserver-clickhouse", "ytserver-clickhouse")
+
+    cypress_clickhouse_trampoline_path, host_clickhouse_trampoline_path = \
+        resolve_path(cypress_clickhouse_trampoline_path, host_clickhouse_trampoline_path,
+                     "//sys/clickhouse/bin/clickhouse-trampoline", "clickhouse-trampoline")
+
+    cypress_ytserver_log_tailer_path, host_ytserver_log_tailer_path = \
+        resolve_path(cypress_ytserver_log_tailer_path, host_ytserver_log_tailer_path,
+                     "//sys/clickhouse/bin/ytserver-log-tailer", "ytserver-log-tailer", optional=True)
 
     prepare_artifacts(artifact_path,
                       prev_operation,
@@ -560,6 +607,8 @@ def start_clickhouse_clique(instance_count,
                                                    client=client)
 
     description = update(description, _build_description(cypress_ytserver_clickhouse_path=cypress_ytserver_clickhouse_path,
+                                                         cypress_ytserver_log_tailer_path=cypress_ytserver_log_tailer_path,
+                                                         cypress_clickhouse_trampoline_path=cypress_clickhouse_trampoline_path,
                                                          operation_alias=operation_alias,
                                                          prev_operation_id=prev_operation_id,
                                                          enable_monitoring=enable_monitoring,
@@ -574,8 +623,10 @@ def start_clickhouse_clique(instance_count,
                                                           enable_monitoring=enable_monitoring,
                                                           cypress_ytserver_clickhouse_path=cypress_ytserver_clickhouse_path,
                                                           cypress_clickhouse_trampoline_path=cypress_clickhouse_trampoline_path,
+                                                          cypress_ytserver_log_tailer_path=cypress_ytserver_log_tailer_path,
                                                           host_ytserver_clickhouse_path=host_ytserver_clickhouse_path,
                                                           host_clickhouse_trampoline_path=host_clickhouse_trampoline_path,
+                                                          host_ytserver_log_tailer_path=host_ytserver_log_tailer_path,
                                                           cypress_geodata_path=cypress_geodata_path,
                                                           operation_alias=operation_alias,
                                                           description=description,
