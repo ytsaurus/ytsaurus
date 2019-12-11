@@ -222,64 +222,6 @@ class TestOperations(object):
         assert sorted([rec["c"] for rec in records]) == []
         assert get_operation_error(operation.id) is None
 
-    def test_stderr_table(self):
-        table = TEST_DIR + "/table"
-        other_table = TEST_DIR + "/other_table"
-        yt.write_table(TablePath(table, sorted_by=["x"]), [{"x": 1}, {"x": 2}])
-
-        stderr_table = TEST_DIR + "/stderr_table"
-
-        yt.run_map("echo map >&2 ; cat", table, other_table, stderr_table=stderr_table)
-        row_list = list(yt.read_table(stderr_table, raw=False))
-        assert len(row_list) > 0
-        assert yt.has_attribute(stderr_table, "part_size")
-        for r in row_list:
-            assert r["data"] == "map\n"
-
-
-        yt.run_reduce("echo reduce >&2 ; cat",
-                      table, other_table, stderr_table=stderr_table,
-                      reduce_by=["x"])
-        row_list = list(yt.read_table(stderr_table, raw=False))
-        assert len(row_list) > 0
-        assert yt.has_attribute(stderr_table, "part_size")
-        for r in row_list:
-            assert r["data"] == "reduce\n"
-
-        yt.run_map_reduce(
-            "echo mr-map >&2 ; cat",
-            "echo mr-reduce >&2 ; cat",
-            table, other_table,
-            stderr_table=stderr_table, reduce_by=["x"])
-
-        row_list = list(yt.read_table(stderr_table, raw=False))
-        assert len(row_list) > 0
-        assert yt.has_attribute(stderr_table, "part_size")
-        for r in row_list:
-            assert r["data"] in ["mr-map\n", "mr-reduce\n"]
-
-    def test_stderr_table_inside_transaction(self):
-        table = TEST_DIR + "/table"
-        other_table = TEST_DIR + "/other_table"
-        yt.write_table(TablePath(table, sorted_by=["x"]), [{"x": 1}, {"x": 2}])
-
-        stderr_table = TEST_DIR + "/stderr_table"
-        try:
-            with yt.Transaction():
-                yt.run_map("echo map >&2 ; cat", table, other_table, stderr_table=stderr_table)
-                raise RuntimeError
-        except RuntimeError:
-            pass
-
-        assert not yt.exists(other_table)
-
-        # We expect stderr to be saved nevertheless.
-        row_list = list(yt.read_table(stderr_table, raw=False))
-        assert len(row_list) > 0
-        assert yt.has_attribute(stderr_table, "part_size")
-        for r in row_list:
-            assert r["data"] == "map\n"
-
     @add_failed_operation_stderrs_to_error_message
     def test_run_join_operation(self):
         table1 = TEST_DIR + "/first"
@@ -407,49 +349,6 @@ print(op.id)
         op_id = subprocess.check_output([get_python(), file.name, table, table],
                                         env=self.env, stderr=sys.stderr).strip()
         wait(lambda: yt.get(get_operation_path(op_id) + "/@state") == "aborted")
-
-    def test_abort_operation(self):
-        table = TEST_DIR + "/table"
-        yt.write_table(table, [{"x": 1}])
-        op = yt.run_map("sleep 15; cat", table, table, sync=False)
-        op.abort()
-        assert op.get_state() == "aborted"
-
-    def test_complete_operation(self):
-        table = TEST_DIR + "/table"
-        yt.write_table(table, [{"x": 1}])
-        op = yt.run_map("sleep 15; cat", table, table, sync=False)
-        while not op.get_state().is_running():
-            time.sleep(0.2)
-        op.complete()
-        assert op.get_state() == "completed"
-        op.complete()
-
-    def test_suspend_resume(self):
-        table = TEST_DIR + "/table"
-        yt.write_table(table, [{"key": 1}])
-        try:
-            op = yt.run_map_reduce(
-                "sleep 0.5; cat",
-                "sleep 0.5; cat",
-                table,
-                table,
-                sync=False,
-                reduce_by=["key"],
-                spec={"map_locality_timeout": 0, "reduce_locality_timeout": 0})
-
-            wait(lambda: op.get_state() == "running")
-
-            op.suspend()
-            assert op.get_state() == "running"
-            time.sleep(2.5)
-            assert op.get_state() == "running"
-            op.resume()
-            op.wait(timeout=60 * 1000)
-            assert op.get_state() == "completed"
-        finally:
-            if op.get_state() not in ["completed", "failed", "aborted"]:
-                op.abort()
 
     def test_reduce_combiner(self):
         table = TEST_DIR + "/table"
@@ -693,6 +592,81 @@ print(op.id)
             with pytest.raises(yt.YtError):
                 yt.run_map("cat; echo 'Hello %username%!' >&2; exit 1", tableX, tableY)
 
+    def test_empty_job_command(self):
+        table = TEST_DIR + "/table"
+        output_table = TEST_DIR + "/output_table"
+        yt.write_table(table, [{"x": 1}, {"y": 2}])
+
+        spec = {"mapper": {"copy_files": True}, "reduce_combiner": {"copy_files": True}}
+        yt.run_map_reduce(mapper=None, reduce_combiner="cat", reducer="cat", reduce_by=["x"],
+                          source_table=table, destination_table=output_table, spec=spec)
+        check([{"x": 1}, {"y": 2}], list(yt.read_table(table)))
+        yt.run_map_reduce(mapper=None, reducer="cat", reduce_by=["x"],
+                          source_table=table, destination_table=output_table, spec=spec)
+        check([{"x": 1}, {"y": 2}], list(yt.read_table(table)))
+
+@pytest.mark.usefixtures("yt_env_with_rpc")
+class TestStderrTable(object):
+    def test_stderr_table(self):
+        table = TEST_DIR + "/table"
+        other_table = TEST_DIR + "/other_table"
+        yt.write_table(TablePath(table, sorted_by=["x"]), [{"x": 1}, {"x": 2}])
+
+        stderr_table = TEST_DIR + "/stderr_table"
+
+        yt.run_map("echo map >&2 ; cat", table, other_table, stderr_table=stderr_table)
+        row_list = list(yt.read_table(stderr_table, raw=False))
+        assert len(row_list) > 0
+        assert yt.has_attribute(stderr_table, "part_size")
+        for r in row_list:
+            assert r["data"] == "map\n"
+
+
+        yt.run_reduce("echo reduce >&2 ; cat",
+                      table, other_table, stderr_table=stderr_table,
+                      reduce_by=["x"])
+        row_list = list(yt.read_table(stderr_table, raw=False))
+        assert len(row_list) > 0
+        assert yt.has_attribute(stderr_table, "part_size")
+        for r in row_list:
+            assert r["data"] == "reduce\n"
+
+        yt.run_map_reduce(
+            "echo mr-map >&2 ; cat",
+            "echo mr-reduce >&2 ; cat",
+            table, other_table,
+            stderr_table=stderr_table, reduce_by=["x"])
+
+        row_list = list(yt.read_table(stderr_table, raw=False))
+        assert len(row_list) > 0
+        assert yt.has_attribute(stderr_table, "part_size")
+        for r in row_list:
+            assert r["data"] in ["mr-map\n", "mr-reduce\n"]
+
+    def test_stderr_table_inside_transaction(self):
+        table = TEST_DIR + "/table"
+        other_table = TEST_DIR + "/other_table"
+        yt.write_table(TablePath(table, sorted_by=["x"]), [{"x": 1}, {"x": 2}])
+
+        stderr_table = TEST_DIR + "/stderr_table"
+        try:
+            with yt.Transaction():
+                yt.run_map("echo map >&2 ; cat", table, other_table, stderr_table=stderr_table)
+                raise RuntimeError
+        except RuntimeError:
+            pass
+
+        assert not yt.exists(other_table)
+
+        # We expect stderr to be saved nevertheless.
+        row_list = list(yt.read_table(stderr_table, raw=False))
+        assert len(row_list) > 0
+        assert yt.has_attribute(stderr_table, "part_size")
+        for r in row_list:
+            assert r["data"] == "map\n"
+
+@pytest.mark.usefixtures("yt_env_with_rpc")
+class TestOperationCommands(object):
     def test_get_operation_command(self):
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"x": 1}, {"x": 2}])
@@ -762,19 +736,6 @@ print(op.id)
         assert past_to_future == future_to_past[::-1]
         assert future_to_past == operations[1:]
 
-    def test_empty_job_command(self):
-        table = TEST_DIR + "/table"
-        output_table = TEST_DIR + "/output_table"
-        yt.write_table(table, [{"x": 1}, {"y": 2}])
-
-        spec = {"mapper": {"copy_files": True}, "reduce_combiner": {"copy_files": True}}
-        yt.run_map_reduce(mapper=None, reduce_combiner="cat", reducer="cat", reduce_by=["x"],
-                          source_table=table, destination_table=output_table, spec=spec)
-        check([{"x": 1}, {"y": 2}], list(yt.read_table(table)))
-        yt.run_map_reduce(mapper=None, reducer="cat", reduce_by=["x"],
-                          source_table=table, destination_table=output_table, spec=spec)
-        check([{"x": 1}, {"y": 2}], list(yt.read_table(table)))
-
     def test_update_operation_parameters(self):
         if "update_op_parameters" not in yt.driver.get_command_list():
             pytest.skip()
@@ -789,6 +750,50 @@ print(op.id)
         wait(lambda: are_almost_equal(
             yt.get_operation(op.id, include_scheduler=True)["progress"]["scheduling_info_per_pool_tree"]["default"]["weight"],
             10.0))
+
+    def test_abort_operation(self):
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": 1}])
+        op = yt.run_map("sleep 15; cat", table, table, sync=False)
+        op.abort()
+        assert op.get_state() == "aborted"
+
+    def test_complete_operation(self):
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": 1}])
+        op = yt.run_map("sleep 15; cat", table, table, sync=False)
+        while not op.get_state().is_running():
+            time.sleep(0.2)
+        op.complete()
+        assert op.get_state() == "completed"
+        op.complete()
+
+    def test_suspend_resume(self):
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"key": 1}])
+        try:
+            op = yt.run_map_reduce(
+                "sleep 0.5; cat",
+                "sleep 0.5; cat",
+                table,
+                table,
+                sync=False,
+                reduce_by=["key"],
+                spec={"map_locality_timeout": 0, "reduce_locality_timeout": 0})
+
+            wait(lambda: op.get_state() == "running")
+
+            op.suspend()
+            assert op.get_state() == "running"
+            time.sleep(2.5)
+            assert op.get_state() == "running"
+            op.resume()
+            op.wait(timeout=60 * 1000)
+            assert op.get_state() == "completed"
+        finally:
+            if op.get_state() not in ["completed", "failed", "aborted"]:
+                op.abort()
+
 
 
 @pytest.mark.usefixtures("yt_env_with_rpc")
