@@ -995,6 +995,8 @@ def add_start_clickhouse_clique_parser(add_parser):
     parser.add_argument("--uncompressed-block-cache-size", type=int, help="Size of uncompressed block cache")
     parser.add_argument("--enable-job-tables", action="store_true", help="Enable stderr and core tables")
     parser.add_argument("--enable-log-tailer", action="store_true", help="Enable writing logs to dynamic table")
+    parser.add_argument("--artifact-path", help="path for artifact directory; by default equals to "
+                                                "//sys/clickhouse/kolkhoz/<operation_alias>")
     add_structured_argument(parser, "--spec")
     add_structured_argument(parser, "--clickhouse-config", "ClickHouse configuration patch")
 
