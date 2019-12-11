@@ -885,6 +885,7 @@ void TFairShareTree::BuildPoolsInformation(TFluentMap fluent)
     };
 
     fluent
+        .Item("pool_count").Value(GetPoolCount())
         .Item("pools").BeginMap()
             .DoFor(Pools_, [&] (TFluentMap fluent, const TPoolMap::value_type& pair) {
                 buildPoolInfo(FindRecentPoolSnapshot(pair.first), fluent);
@@ -1525,6 +1526,12 @@ void TFairShareTree::DoProfileFairShare(const TRootElementSnapshotPtr& rootEleme
         }
     }
 
+    accumulator.Add(
+        "/pool_count",
+        rootElementSnapshotPtr->PoolNameToElement.size(),
+        EMetricType::Gauge,
+        {TreeIdProfilingTag_});
+
     accumulator.Publish(&Profiler);
 }
 
@@ -1769,6 +1776,11 @@ TPool* TFairShareTree::FindRecentPoolSnapshot(const TString& poolName) const
         }
     }
     return FindPool(poolName).Get();
+}
+
+int TFairShareTree::GetPoolCount() const
+{
+    return Pools_.size();
 }
 
 TPoolPtr TFairShareTree::GetOrCreatePool(const TPoolName& poolName, TString userName)

@@ -1710,6 +1710,9 @@ class TestSchedulerPools(YTEnvSetup):
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "watchers_update_period": 100,
+            "fair_share_update_period": 300,
+            "profiling_update_period": 300,
+            "fair_share_profiling_period": 300,
             "event_log": {
                 "flush_period": 300,
                 "retry_backoff_time": 300
@@ -1922,6 +1925,35 @@ class TestSchedulerPools(YTEnvSetup):
             return True
         wait(lambda: check_pools())
 
+    @authors("eshcherbin")
+    def test_pool_count(self):
+        def get_orchid_pool_count():
+            return get_from_tree_orchid("default", "fair_share_info/pool_count")
+
+        pool_count_last = Metric.at_scheduler(
+            "scheduler/pool_count",
+            with_tags={"tree": "default"},
+            aggr_method="last")
+
+        def check_pool_count(expected_pool_count):
+            wait(lambda: get_orchid_pool_count() == expected_pool_count)
+            wait(lambda: pool_count_last.update().get(verbose=True) == expected_pool_count)
+
+        check_pool_count(0)
+
+        create_pool("first_pool")
+        create_pool("second_pool")
+        check_pool_count(2)
+
+        op = run_sleeping_vanilla(spec={"pool": "first_pool"})
+        check_pool_count(2)
+        op.abort()
+
+        # Ephemeral pool.
+        op = run_sleeping_vanilla()
+        check_pool_count(3)
+        op.abort()
+        check_pool_count(2)
 
 class TestSchedulerPoolsReconfigurationOld(YTEnvSetup):
     NUM_MASTERS = 1

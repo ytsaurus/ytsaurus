@@ -388,6 +388,8 @@ private:
     TPoolPtr GetPool(const TString& id) const;
     TPool* FindRecentPoolSnapshot(const TString& id) const;
 
+    int GetPoolCount() const;
+
     TPoolPtr GetOrCreatePool(const TPoolName& poolName, TString userName);
 
     NProfiling::TTagId GetPoolProfilingTag(const TString& id);
