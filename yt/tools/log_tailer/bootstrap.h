@@ -13,6 +13,8 @@ namespace NYT::NLogTailer {
 class TBootstrap
 {
 public:
+    static constexpr int InterruptionExitCode = 0;
+
     TBootstrap(TLogTailerBootstrapConfigPtr config);
 
     void Run();
@@ -38,6 +40,10 @@ private:
     NConcurrency::TActionQueuePtr ReaderQueue_;
 
     TLogTailerPtr LogTailer_;
+
+    std::atomic<int> SigintCounter_ = {0};
+
+    void SigintHandler();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

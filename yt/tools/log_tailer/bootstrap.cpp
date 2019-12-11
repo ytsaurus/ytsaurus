@@ -3,6 +3,8 @@
 #include "log_reader.h"
 #include "log_tailer.h"
 
+#include <yt/core/misc/signal_registry.h>
+
 #include <yt/ytlib/api/native/connection.h>
 
 namespace NYT::NLogTailer {
@@ -35,7 +37,19 @@ void TBootstrap::Run()
 
     LogTailer_->Run();
 
+    // Bootstrap never dies, so it is _kinda_ safe.
+    TSignalRegistry::Get()->PushCallback(SIGINT, [=] { SigintHandler(); });
+
     Sleep(TDuration::Max());
+}
+
+void TBootstrap::SigintHandler()
+{
+    ++SigintCounter_;
+    if (SigintCounter_ > 1) {
+        _exit(InterruptionExitCode);
+    }
+    YT_LOG_INFO("Ignoring first SIGINT");
 }
 
 const TLogTailerConfigPtr& TBootstrap::GetConfig()
