@@ -67,11 +67,17 @@ message TTableReplicaInfo
 {
     required NYT.NProto.TGuid replica_id = 1;
     required TTableReplicaStatistics statistics = 2;
-    optional NYT.NProto.TError error = 3;
+
+    // COMPAT(ifsmirnov)
+    optional NYT.NProto.TError error_compat = 3; // deprecated
+
+    optional bool has_error = 4 [default = false];
+
 }
 
 message TTabletInfo
 {
+    // COMPAT(ifsmirnov)
     message TErrorEntry
     {
         required int32 key = 1;
@@ -83,7 +89,11 @@ message TTabletInfo
     repeated TTableReplicaInfo replicas = 3;
     required TTabletPerformanceCounters performance_counters = 4;
     // repeated NYT.NProto.TError errors = 5; deprecated
-    repeated TErrorEntry errors = 6;
+
+    // COMPAT(ifsmirnov)
+    repeated TErrorEntry errors = 6; // deprecated
+
+    optional int32 error_count = 7 [default = 0];
 }
 
 message TCreateTabletSlotInfo

@@ -213,7 +213,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(ETableReplicaState, State, ETableReplicaState::None);
     DEFINE_BYVAL_RW_PROPERTY(i64, CurrentReplicationRowIndex, 0);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, CurrentReplicationTimestamp, NTransactionClient::NullTimestamp);
-    DEFINE_BYREF_RW_PROPERTY(TError, Error);
+    DEFINE_BYVAL_RW_PROPERTY(bool, HasError);
 
 public:
     void Save(NCellMaster::TSaveContext& context) const;
@@ -248,7 +248,7 @@ public:
     //! Only used for ordered tablets.
     DEFINE_BYVAL_RW_PROPERTY(i64, TrimmedRowCount);
 
-    DEFINE_BYVAL_RO_PROPERTY(int, ErrorCount);
+    DEFINE_BYVAL_RW_PROPERTY(i64, ReplicationErrorCount);
 
     using TReplicaMap = THashMap<TTableReplica*, TTableReplicaInfo>;
     DEFINE_BYREF_RW_PROPERTY(TReplicaMap, Replicas);
@@ -262,8 +262,8 @@ public:
     DECLARE_BYVAL_RW_PROPERTY(ETabletState, ExpectedState);
     DECLARE_BYVAL_RW_PROPERTY(NTableServer::TTableNode*, Table);
 
-    void SetErrors(const TTabletErrors& errors);
-    std::vector<TError> GetErrors() const;
+    int GetTabletErrorCount() const;
+    void SetTabletErrorCount(int tabletErrorCount);
 
 public:
     explicit TTablet(TTabletId id);
@@ -290,11 +290,10 @@ public:
     i64 GetTabletStaticMemorySize() const;
 
 private:
-
     ETabletState State_ = ETabletState::Unmounted;
     ETabletState ExpectedState_ = ETabletState::Unmounted;
     NTableServer::TTableNode* Table_ = nullptr;
-    TTabletErrors Errors_;
+    int TabletErrorCount_ = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

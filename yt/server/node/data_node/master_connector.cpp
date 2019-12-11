@@ -72,6 +72,7 @@ using namespace NJobTrackerClient;
 using namespace NJobTrackerClient::NProto;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
+using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTabletClient::NProto;
 using namespace NTabletNode;
@@ -91,6 +92,10 @@ using NYT::ToProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = DataNodeLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const TError RedirectToOrchidCompatError("Compat. See tablet orchid for real error");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -765,8 +770,8 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
         }
     }
 
-    THashMap<TTabletId, int> tabletErrorCount;
-    THashMap<TTableReplicaId, int> replicationErrorCount;
+    THashSet<TTableId> tablesWithTabletErrors;
+    THashSet<TTableReplicaId> replicasWithErrors;
 
     auto tabletSnapshots = slotManager->GetTabletSnapshots();
     for (const auto& tabletSnapshot : tabletSnapshots) {
@@ -805,18 +810,25 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
                 }
             }
 
-            TEnumIndexedVector<NTabletClient::ETabletBackgroundActivity, TError> errors;
+            int tabletErrorCount = 0;
+
+            // COMPAT(ifsmirnov)
+            TEnumIndexedVector<NTabletClient::ETabletBackgroundActivity, TError> dummyErrors;
+
             for (auto key : TEnumTraits<ETabletBackgroundActivity>::GetDomainValues()) {
-                if (tabletErrorCount[tabletSnapshot->TableId] >= Config_->MaxTabletErrorsInHeartbeat) {
-                    break;
-                }
                 auto error = tabletSnapshot->TabletRuntimeData->Errors[key].Load();
                 if (!error.IsOK()) {
-                    errors[key] = error;
-                    ++tabletErrorCount[tabletSnapshot->TableId];
+                    ++tabletErrorCount;
+
+                    // COMPAT(ifsmirnov)
+                    dummyErrors[key] = RedirectToOrchidCompatError;
                 }
             }
-            ToProto(protoTabletInfo->mutable_errors(), errors);
+            protoTabletInfo->set_error_count(tabletErrorCount);
+            if (tabletErrorCount > 0 && !tablesWithTabletErrors.contains(tabletSnapshot->TableId)) {
+                ToProto(protoTabletInfo->mutable_errors(), dummyErrors);
+                tablesWithTabletErrors.insert(tabletSnapshot->TableId);
+            }
 
             for (const auto& pair : tabletSnapshot->Replicas) {
                 auto replicaId = pair.first;
@@ -825,13 +837,16 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
                 ToProto(protoReplicaInfo->mutable_replica_id(), replicaId);
                 replicaSnapshot->RuntimeData->Populate(protoReplicaInfo->mutable_statistics());
 
-                auto error = replicationErrorCount[replicaId] < Config_->MaxReplicationErrorsInHeartbeat
-                    ? replicaSnapshot->RuntimeData->Error.Load()
-                    : TError();
+                auto error = replicaSnapshot->RuntimeData->Error.Load();
                 if (!error.IsOK()) {
-                    ++replicationErrorCount[replicaId];
+                    protoReplicaInfo->set_has_error(true);
+
+                    // COMPAT(ifsmirnov)
+                    if (!replicasWithErrors.contains(replicaId)) {
+                        ToProto(protoReplicaInfo->mutable_error_compat(), RedirectToOrchidCompatError);
+                        replicasWithErrors.insert(replicaId);
+                    }
                 }
-                ToProto(protoReplicaInfo->mutable_error(), error);
             }
 
             auto* protoPerformanceCounters = protoTabletInfo->mutable_performance_counters();

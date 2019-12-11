@@ -67,9 +67,7 @@ private:
         attributes->push_back(EInternedAttributeKey::Mode);
         attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::Tablets)
             .SetOpaque(true));
-        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::Errors)
-            .SetOpaque(true));
-        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::ErrorsUntrimmed)
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationErrorCount)
             .SetOpaque(true));
         attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationLagTime)
             .SetOpaque(true));
@@ -144,23 +142,16 @@ private:
                                 .Item("current_replication_timestamp").Value(replicaInfo->GetCurrentReplicationTimestamp())
                                 .Item("replication_lag_time").Value(tablet->ComputeReplicationLagTime(
                                     timestampProvider->GetLatestTimestamp(), *replicaInfo))
-                                .DoIf(!replicaInfo->Error().IsOK(), [&] (TFluentMap fluent) {
-                                    fluent.Item("replication_error").Value(replicaInfo->Error());
-                                })
+                                .Item("has_error").Value(replicaInfo->GetHasError())
                                 .Item("trimmed_row_count").Value(tablet->GetTrimmedRowCount())
                                 .Item("flushed_row_count").Value(chunkList->Statistics().LogicalRowCount)
                             .EndMap();
                     });
                 return true;
 
-            case EInternedAttributeKey::Errors:
+            case EInternedAttributeKey::ReplicationErrorCount:
                 BuildYsonFluently(consumer)
-                    .Value(replica->GetErrors(ReplicationErrorCountViewLimit));
-                return true;
-
-            case EInternedAttributeKey::ErrorsUntrimmed:
-                BuildYsonFluently(consumer)
-                    .Value(replica->GetErrors());
+                    .Value(replica->GetErrorCount());
                 return true;
 
             case EInternedAttributeKey::ReplicationLagTime:
