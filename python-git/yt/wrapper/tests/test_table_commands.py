@@ -219,21 +219,6 @@ class TestTableCommands(object):
                 yt.write_table("<append=%true>" + table, [{"x": 1}, {"y": 2}, {"z": 3}])
             assert yt.get(table + "/@chunk_count") == 9
 
-    @pytest.mark.parametrize("use_tmp_dir_for_intermediate_data", [True, False])
-    def test_write_parallel_huge_table(self, use_tmp_dir_for_intermediate_data):
-        override_options = {
-            "write_parallel/concatenate_size": 7,
-            "write_parallel/enable": True,
-            "write_parallel/use_tmp_dir_for_intermediate_data": use_tmp_dir_for_intermediate_data,
-            "write_retries/chunk_size": 1
-        }
-        with set_config_options(override_options):
-            table = TEST_DIR + "/table"
-            for i in xrange(3):
-                yt.write_table("<append=%true>" + table, [{"x": i, "y": j} for j in xrange(100)])
-            assert yt.get(table + "/@chunk_count") == 300
-            assert list(yt.read_table(table)) == [{"x": i, "y": j} for i in xrange(3) for j in xrange(100)]
-
     def test_binary_data_with_dsv(self):
         with set_config_option("tabular_data_format", yt.DsvFormat()):
             record = {"\tke\n\\\\y=": "\\x\\y\tz\n"}
@@ -776,4 +761,20 @@ class TestTableCommandsHuge(object):
 
         with set_config_option("read_parallel/enable", True):
             self.test_huge_table()
+
+    @pytest.mark.parametrize("use_tmp_dir_for_intermediate_data", [True, False])
+    def test_write_parallel_huge_table(self, use_tmp_dir_for_intermediate_data):
+        override_options = {
+            "write_parallel/concatenate_size": 7,
+            "write_parallel/enable": True,
+            "write_parallel/use_tmp_dir_for_intermediate_data": use_tmp_dir_for_intermediate_data,
+            "write_retries/chunk_size": 1
+        }
+        with set_config_options(override_options):
+            table = TEST_DIR + "/table"
+            for i in xrange(3):
+                yt.write_table("<append=%true>" + table, [{"x": i, "y": j} for j in xrange(100)])
+            assert yt.get(table + "/@chunk_count") == 300
+            assert list(yt.read_table(table)) == [{"x": i, "y": j} for i in xrange(3) for j in xrange(100)]
+
 
