@@ -26,6 +26,8 @@ def main():
         16 if args.type != "prestable" else 4,
         cpu_limit=8,
         enable_monitoring=True,
+        enable_job_tables=True,
+        enable_log_tailer=True,
         cypress_geodata_path="//sys/clickhouse/geodata/geodata.tgz",
         cypress_ytserver_clickhouse_path=args.bin,
         spec={
@@ -37,14 +39,12 @@ def main():
             "title": args.type.capitalize() + " clique",
             "pool": "chyt",
             "preemption_mode": "graceful" if args.graceful_preemption else "normal",
-            "core_table_path": "//sys/clickhouse/kolkhoz/core_table_" + args.type,
-            "stderr_table_path": "//sys/clickhouse/kolkhoz/stderr_table_" + args.type,
         },
         operation_alias=alias,
         abort_existing=True,
         dump_tables=True)
 
 
-if __name__ == "__main__": 
+if __name__ == "__main__":
     main()
 
