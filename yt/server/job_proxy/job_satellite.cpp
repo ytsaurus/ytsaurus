@@ -18,7 +18,7 @@
 #include <yt/core/logging/log_manager.h>
 
 #include <yt/core/misc/fs.h>
-#include <yt/core/misc/process.h>
+#include <yt/library/process/process.h>
 
 #include <yt/core/rpc/bus/server.h>
 #include <yt/core/rpc/server.h>

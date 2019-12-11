@@ -1,6 +1,6 @@
 #include "input_chunk.h"
 
-#include <yt/core/erasure/codec.h>
+#include <yt/library/erasure/codec.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 

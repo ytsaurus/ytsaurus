@@ -14,7 +14,7 @@
 
 #include <yt/client/object_client/helpers.h>
 
-#include <yt/core/erasure/codec.h>
+#include <yt/library/erasure/codec.h>
 
 namespace NYT::NChunkServer {
 

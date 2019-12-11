@@ -14,7 +14,7 @@
 
 #include <yt/core/compression/public.h>
 
-#include <yt/core/erasure/public.h>
+#include <yt/library/erasure/public.h>
 
 #include <yt/core/misc/config.h>
 #include <yt/core/misc/error.h>

@@ -5,7 +5,7 @@
 #include <yt/client/table_client/row_buffer.h>
 #include <yt/client/table_client/serialize.h>
 
-#include <yt/core/erasure/codec.h>
+#include <yt/library/erasure/codec.h>
 #include <yt/core/misc/numeric_helpers.h>
 #include <yt/core/ytree/fluent.h>
 

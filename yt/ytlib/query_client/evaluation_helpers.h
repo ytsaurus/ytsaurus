@@ -8,7 +8,7 @@
 
 #include <yt/client/table_client/unversioned_row.h>
 
-#include <yt/core/codegen/function.h>
+#include <yt/library/codegen/function.h>
 
 #include <yt/core/misc/chunked_memory_pool.h>
 

@@ -6,7 +6,7 @@
 
 #include <yt/client/security_client/acl.h>
 
-#include <yt/core/re2/re2.h>
+#include <yt/library/re2/re2.h>
 
 namespace NYT::NScheduler {
 

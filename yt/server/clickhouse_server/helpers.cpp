@@ -25,7 +25,7 @@
 
 #include <yt/core/logging/log.h>
 
-#include <yt/core/re2/re2.h>
+#include <yt/library/re2/re2.h>
 
 #include <Common/FieldVisitors.h>
 #include <Interpreters/ExpressionActions.h>

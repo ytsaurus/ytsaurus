@@ -53,7 +53,7 @@
 
 #include <yt/core/profiling/profiler.h>
 
-#include <yt/core/erasure/public.h>
+#include <yt/library/erasure/public.h>
 
 namespace NYT::NApi {
 

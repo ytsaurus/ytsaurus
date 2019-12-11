@@ -52,7 +52,7 @@
 
 #include <yt/ytlib/hive/cell_directory.h>
 
-#include <yt/core/erasure/public.h>
+#include <yt/library/erasure/public.h>
 
 #include <yt/core/profiling/profiler.h>
 #include <yt/core/profiling/profile_manager.h>

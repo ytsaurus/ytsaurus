@@ -1,8 +1,8 @@
 #pragma once
 
 #include "public.h"
+#include "process.h"
 
-#include <yt/core/misc/process.h>
 #include <yt/core/misc/ref.h>
 
 namespace NYT {

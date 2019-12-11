@@ -25,7 +25,7 @@
 #include <yt/core/ytree/yson_serializable.h>
 #include <yt/core/ytree/fluent.h>
 
-#include <yt/core/re2/public.h>
+#include <yt/library/re2/public.h>
 
 #include <yt/core/misc/phoenix.h>
 

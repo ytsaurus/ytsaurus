@@ -3,7 +3,7 @@
 #include <yt/client/table_client/public.h>
 #include <yt/client/table_client/row_base.h>
 
-#include <yt/core/skiff/public.h>
+#include <yt/library/skiff/public.h>
 #include <yt/core/yson/public.h>
 
 namespace NYT::NFormats {

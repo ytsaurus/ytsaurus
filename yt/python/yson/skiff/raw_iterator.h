@@ -7,8 +7,8 @@
 #include <yt/python/common/helpers.h>
 #include <yt/python/common/stream.h>
 
-#include <yt/core/skiff/parser.h>
-#include <yt/core/skiff/skiff_schema.h>
+#include <yt/library/skiff/parser.h>
+#include <yt/library/skiff/skiff_schema.h>
 
 #include <Extensions.hxx> // pycxx
 #include <Objects.hxx> // pycxx

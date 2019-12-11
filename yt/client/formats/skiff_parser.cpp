@@ -5,8 +5,8 @@
 #include "parser.h"
 #include "yson_map_to_unversioned_value.h"
 
-#include <yt/core/skiff/schema_match.h>
-#include <yt/core/skiff/parser.h>
+#include <yt/library/skiff/schema_match.h>
+#include <yt/library/skiff/parser.h>
 
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/table_consumer.h>

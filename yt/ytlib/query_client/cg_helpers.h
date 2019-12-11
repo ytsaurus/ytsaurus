@@ -3,8 +3,8 @@
 #include "cg_ir_builder.h"
 #include "cg_types.h"
 
-#include <yt/core/codegen/module.h>
-#include <yt/core/codegen/llvm_migrate_helpers.h>
+#include <yt/library/codegen/module.h>
+#include <yt/library/codegen/llvm_migrate_helpers.h>
 
 namespace NYT::NQueryClient {
 

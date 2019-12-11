@@ -30,7 +30,7 @@
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 
-#include <yt/core/erasure/codec.h>
+#include <yt/library/erasure/codec.h>
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/async_semaphore.h>

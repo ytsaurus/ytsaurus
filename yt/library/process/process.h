@@ -1,12 +1,12 @@
 #pragma once
 
-#include "error.h"
+#include "pipe.h"
+
+#include <yt/core/misc/error.h>
 
 #include <yt/core/actions/future.h>
 
 #include <yt/core/concurrency/public.h>
-
-#include <yt/core/pipes/pipe.h>
 
 #include <atomic>
 #include <vector>

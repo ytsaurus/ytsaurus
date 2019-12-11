@@ -1,6 +1,6 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/core/numeric/util.h>
+#include <yt/library/numeric/util.h>
 
 #include <limits>
 

@@ -1,7 +1,7 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/core/skiff/skiff.h>
-#include <yt/core/skiff/skiff_schema.h>
+#include <yt/library/skiff/skiff.h>
+#include <yt/library/skiff/skiff_schema.h>
 
 #include <util/stream/buffer.h>
 

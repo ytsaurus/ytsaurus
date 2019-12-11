@@ -86,7 +86,7 @@
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/throughput_throttler.h>
 
-#include <yt/core/erasure/codec.h>
+#include <yt/library/erasure/codec.h>
 
 #include <yt/core/misc/algorithm_helpers.h>
 #include <yt/core/misc/chunked_input_stream.h>
@@ -97,7 +97,7 @@
 #include <yt/core/misc/fs.h>
 #include <yt/core/misc/numeric_helpers.h>
 
-#include <yt/core/re2/re2.h>
+#include <yt/library/re2/re2.h>
 
 #include <yt/core/profiling/timing.h>
 #include <yt/core/profiling/profiler.h>

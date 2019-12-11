@@ -4,7 +4,7 @@
 
 #include <yt/core/concurrency/action_queue.h>
 
-#include <yt/core/misc/subprocess.h>
+#include <yt/library/process/subprocess.h>
 
 namespace NYT {
 namespace {
