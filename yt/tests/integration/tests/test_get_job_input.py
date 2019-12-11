@@ -436,6 +436,38 @@ class TestGetJobInput(YTEnvSetup):
 
         self.check_job_ids(job_ids)
 
+    @authors("ermolovd")
+    def test_bad_format_spec(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+
+        write_table("//tmp/t_input", [{"a": i, "b": i*3} for i in xrange(10)])
+
+        op = map(
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            command="tee {0}/$YT_JOB_ID".format(self._tmpdir),
+            # NB. yamr format will throw error because it expects key/subkey/value fields
+            spec={"mapper": {"format": "yamr"}, "max_failed_job_count": 1},
+            dont_track=True,
+        )
+        with raises_yt_error("Failed jobs limit exceeded"):
+            op.track()
+
+        job_info_list = list_jobs(op.id, state="failed")["jobs"]
+        assert len(job_info_list) > 0
+        job_id_list = []
+        for job in job_info_list:
+            assert job["state"] == "failed"
+            job_id_list.append(job["id"])
+
+        wait_for_data_in_job_archive(op.id, job_id_list)
+
+        for job_id in job_id_list:
+            with raises_yt_error("Failed to get job input"):
+                get_job_input(job_id)
+
+
     @authors("iskhakovt")
     @pytest.mark.parametrize("successfull_jobs", [False, True])
     def test_archive_job_spec(self, successfull_jobs):
@@ -464,6 +496,7 @@ class TestGetJobInput(YTEnvSetup):
         else:
             # TODO(babenko): maybe stricter condition?
             wait(lambda: len(get_job_spec_rows_for_jobs(job_ids)) > 0)
+
 
 class TestGetJobInputRpcProxy(TestGetJobInput):
     DRIVER_BACKEND = "rpc"
