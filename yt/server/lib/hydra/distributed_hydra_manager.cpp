@@ -1510,11 +1510,14 @@ private:
             case EFinalRecoveryAction::BuildSnapshotAndRestart:
                 SetReadOnly(true);
                 if (isLeader || Options_.WriteSnapshotsAtFollowers) {
+                    YT_LOG_INFO("Building compatibility snapshot");
+
                     DecoratedAutomaton_->RotateAutomatonVersionAfterRecovery();
-                    WaitFor(DecoratedAutomaton_->BuildSnapshot())
-                        .ThrowOnError();
-                    YT_LOG_INFO("Compatibility snapshot saved, stopping Hydra instance");
+                    auto resultOrError = WaitFor(DecoratedAutomaton_->BuildSnapshot());
+
+                    YT_LOG_INFO_IF(!resultOrError.IsOK(), resultOrError, "Error while compatibility snapshot construction");
                 }
+                YT_LOG_INFO("Stopping Hydra instance and wait for resurrection");
                 SwitchTo(ControlEpochContext_->EpochControlInvoker);
                 WaitFor(Finalize())
                     .ThrowOnError();
