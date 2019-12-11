@@ -342,4 +342,81 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest_Complex)
 
         UNIT_ASSERT(schema.Strict_);
     }
+
+    Y_UNIT_TEST(NoOptionInheritance)
+    {
+        auto deepestEmbedded = TNode()
+            ("metatype", "optional")
+            ("element", TNode()
+                ("metatype", "struct")
+                ("fields", TNode()
+                    .Add(TNode()
+                        ("name", "x")
+                        ("type", MakeLogicalType(EValueType::VT_INT64, false)))));
+
+        const auto schema = Canonize(CreateTableSchema<NTesting::TNoOptionInheritance>());
+        UNIT_ASSERT_VALUES_EQUAL(schema.Columns_.size(), 9);
+
+        TEST_FIELD(
+            schema.Columns_[0],
+            "EmbeddedYt_YtOption",
+            TNode()
+                ("metatype", "optional")
+                ("element", TNode()
+                    ("metatype", "struct")
+                    ("fields", TNode()
+                        .Add(TNode()
+                            ("name", "embedded")
+                            ("type", deepestEmbedded)))));
+        TEST_FIELD(
+            schema.Columns_[1],
+            "EmbeddedYt_ProtobufOption",
+            MakeLogicalType(EValueType::VT_STRING, false));
+        TEST_FIELD(
+            schema.Columns_[2],
+            "EmbeddedYt_NoOption",
+            MakeLogicalType(EValueType::VT_STRING, false));
+
+        TEST_FIELD(
+            schema.Columns_[3],
+            "EmbeddedProtobuf_YtOption",
+            TNode()
+                ("metatype", "optional")
+                ("element", TNode()
+                    ("metatype", "struct")
+                    ("fields", TNode()
+                        .Add(TNode()
+                            ("name", "embedded")
+                            ("type", MakeLogicalType(EValueType::VT_STRING, false))))));
+        TEST_FIELD(
+            schema.Columns_[4],
+            "EmbeddedProtobuf_ProtobufOption",
+            MakeLogicalType(EValueType::VT_STRING, false));
+        TEST_FIELD(
+            schema.Columns_[5],
+            "EmbeddedProtobuf_NoOption",
+            MakeLogicalType(EValueType::VT_STRING, false));
+
+        TEST_FIELD(
+            schema.Columns_[6],
+            "Embedded_YtOption",
+            TNode()
+                ("metatype", "optional")
+                ("element", TNode()
+                    ("metatype", "struct")
+                    ("fields", TNode()
+                        .Add(TNode()
+                            ("name", "embedded")
+                            ("type", MakeLogicalType(EValueType::VT_STRING, false))))));
+        TEST_FIELD(
+            schema.Columns_[7],
+            "Embedded_ProtobufOption",
+            MakeLogicalType(EValueType::VT_STRING, false));
+        TEST_FIELD(
+            schema.Columns_[8],
+            "Embedded_NoOption",
+            MakeLogicalType(EValueType::VT_STRING, false));
+
+        UNIT_ASSERT(schema.Strict_);
+    }
 }

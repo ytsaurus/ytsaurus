@@ -46,8 +46,10 @@ message TWithTypeOptions
         RED = -1;
     }
 
-    message Embedded
+    message TEmbedded
     {
+        option (NYT.default_field_flags) = EXPERIMENTAL_SERIALIZATION_YT;
+
         optional Color ColorIntField = 1 [(NYT.flags) = ENUM_INT];
         optional Color ColorStringField = 2 [(NYT.flags) = ENUM_STRING];
         optional bytes AnyField = 3 [(NYT.flags) = ANY];
@@ -57,7 +59,7 @@ message TWithTypeOptions
     optional Color ColorStringField = 2 [(NYT.flags) = ENUM_STRING];
     optional bytes AnyField = 3 [(NYT.flags) = ANY];
     optional bytes OtherColumnsField = 4 [(NYT.flags) = OTHER_COLUMNS];
-    optional Embedded EmbeddedField = 5 [(NYT.flags) = EXPERIMENTAL_SERIALIZATION_YT];
+    optional TEmbedded EmbeddedField = 5 [(NYT.flags) = EXPERIMENTAL_SERIALIZATION_YT];
     repeated Color RepeatedEnumIntField = 6 [(NYT.flags) = EXPERIMENTAL_SERIALIZATION_YT, (NYT.flags) = ENUM_INT];
 }
 
@@ -162,4 +164,41 @@ message TRowMixedSerializationOptions_ColumnNames
     option (NYT.default_field_flags) = EXPERIMENTAL_SERIALIZATION_YT;
     optional TUrlRowWithColumnNames UrlRow_1 = 1;
     optional TUrlRowWithColumnNames UrlRow_2 = 2 [(NYT.flags) = SERIALIZATION_PROTOBUF];
+}
+
+message TNoOptionInheritance
+{
+    message TDeepestEmbedded
+    {
+        optional int64 x = 1;
+    }
+
+    message TEmbedded
+    {
+        optional TDeepestEmbedded embedded = 1;
+    }
+
+    message TEmbeddedYt
+    {
+        option (NYT.default_field_flags) = EXPERIMENTAL_SERIALIZATION_YT;
+
+        optional TDeepestEmbedded embedded = 1;
+    }
+
+    message TEmbeddedProtobuf
+    {
+        option (NYT.default_field_flags) = SERIALIZATION_PROTOBUF;
+
+        optional TDeepestEmbedded embedded = 1;
+    }
+
+    optional TEmbeddedYt EmbeddedYt_YtOption = 1 [(NYT.flags) = EXPERIMENTAL_SERIALIZATION_YT];
+    optional TEmbeddedYt EmbeddedYt_ProtobufOption = 2 [(NYT.flags) = SERIALIZATION_PROTOBUF];
+    optional TEmbeddedYt EmbeddedYt_NoOption = 3;
+    optional TEmbeddedProtobuf EmbeddedProtobuf_YtOption = 4 [(NYT.flags) = EXPERIMENTAL_SERIALIZATION_YT];
+    optional TEmbeddedProtobuf EmbeddedProtobuf_ProtobufOption = 5 [(NYT.flags) = SERIALIZATION_PROTOBUF];
+    optional TEmbeddedProtobuf EmbeddedProtobuf_NoOption = 6;
+    optional TEmbedded Embedded_YtOption = 7 [(NYT.flags) = EXPERIMENTAL_SERIALIZATION_YT];
+    optional TEmbedded Embedded_ProtobufOption = 8 [(NYT.flags) = SERIALIZATION_PROTOBUF];
+    optional TEmbedded Embedded_NoOption = 9;
 }

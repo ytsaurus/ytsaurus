@@ -361,12 +361,17 @@ TVariant<TNode, TOtherColumns> CreateFieldRawTypeV2(
         options.SerializationMode == EProtobufSerializationMode::Yt)
     {
         const auto& messageDescriptor = *fieldDescriptor.message_type();
+        TProtobufFieldOptions embeddedMessageDefaultOptions;
+        ParseProtobufFieldOptions(
+            messageDescriptor.options().GetRepeatedExtension(default_field_flags),
+            &embeddedMessageDefaultOptions);
+
         auto fields = TNode::CreateList();
         for (int fieldIndex = 0; fieldIndex < messageDescriptor.field_count(); ++fieldIndex) {
             const auto& innerFieldDescriptor = *messageDescriptor.field(fieldIndex);
             auto type = CreateFieldRawTypeV2(
                 innerFieldDescriptor,
-                options);
+                embeddedMessageDefaultOptions);
 
             if (HoldsAlternative<TOtherColumns>(type)) {
                 ythrow TApiUsageError() <<
