@@ -63,6 +63,11 @@ const TLogTailerPtr& TBootstrap::GetLogTailer() const
     return LogTailer_;
 }
 
+void TBootstrap::Terminate()
+{
+    _exit(0);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NLogTailer

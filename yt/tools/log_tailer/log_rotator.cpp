@@ -82,13 +82,25 @@ void TLogRotator::RotateLogs()
         }
     }
 
-    YT_LOG_DEBUG("Sending SIGHUP to process (Pid: %v)", *Config_->LogWriterPid);
-    kill(*Config_->LogWriterPid, SIGHUP);
+
+    auto logWriterPid = *Config_->LogWriterPid;
+    bool logWriterStopped = false;
+
+    YT_LOG_DEBUG("Sending SIGHUP to process (LogWriterPid: %v)", logWriterPid);
+    if (kill(logWriterPid, SIGHUP) == ESRCH) {
+        YT_LOG_DEBUG("Log writer has stopped; uploading rest of the log (LogWriterPid: %v)", logWriterPid);
+        logWriterStopped = true;
+    }
 
     Sleep(Config_->RotationDelay);
 
     for (const auto& reader : Bootstrap_->GetLogTailer()->GetLogReaders()) {
         reader->OnLogRotation();
+    }
+
+    if (logWriterStopped) {
+        YT_LOG_DEBUG("Log writer has stopped; terminating (LogWriterPid: %v)", logWriterPid);
+        Bootstrap_->Terminate();
     }
 }
 
