@@ -3593,8 +3593,10 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
     def test_two_trees_with_unequal_demand(self):
         for busy_tree, expected_tree in [("default", "nirvana"), ("nirvana", "default")]:
             wait(lambda: get_from_tree_orchid(expected_tree, "fair_share_info/pools/research/resource_demand/cpu") == 0.0)
+            time.sleep(0.5)
             other_op = run_sleeping_vanilla(spec={"pool_trees": [busy_tree], "pool": "research"})
             wait(lambda: get_from_tree_orchid(busy_tree, "fair_share_info/pools/research/resource_demand/cpu") > 0.0)
+            time.sleep(0.5)
 
             spec = {
                 "pool_trees": ["default", "nirvana"],
