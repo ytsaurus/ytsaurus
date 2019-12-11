@@ -8,7 +8,7 @@
 
 #include <yt/client/security_client/public.h>
 
-#include <yt/core/erasure/public.h>
+#include <yt/library/erasure/public.h>
 
 #include <yt/core/compression/public.h>
 

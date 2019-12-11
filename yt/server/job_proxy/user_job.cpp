@@ -64,9 +64,9 @@
 #include <yt/core/misc/numeric_helpers.h>
 #include <yt/core/misc/pattern_formatter.h>
 #include <yt/core/misc/proc.h>
-#include <yt/core/misc/process.h>
+#include <yt/library/process/process.h>
 #include <yt/core/misc/public.h>
-#include <yt/core/misc/subprocess.h>
+#include <yt/library/process/subprocess.h>
 
 #include <yt/core/misc/statistics.h>
 

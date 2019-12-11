@@ -8,8 +8,8 @@
 #include <yt/client/table_client/schema.h>
 #include <yt/client/table_client/unversioned_row.h>
 
-#include <yt/core/codegen/module.h>
-#include <yt/core/codegen/public.h>
+#include <yt/library/codegen/module.h>
+#include <yt/library/codegen/public.h>
 
 #include <yt/core/logging/log.h>
 

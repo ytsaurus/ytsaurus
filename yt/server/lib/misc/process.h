@@ -6,7 +6,7 @@
 
 #include <yt/server/lib/containers/public.h>
 
-#include <yt/core/misc/process.h>
+#include <yt/library/process/process.h>
 
 #include <yt/contrib/portoapi/libporto.hpp>
 

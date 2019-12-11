@@ -24,7 +24,7 @@
 
 #include <yt/core/actions/public.h>
 
-#include <yt/core/erasure/public.h>
+#include <yt/library/erasure/public.h>
 
 #include <yt/core/rpc/public.h>
 

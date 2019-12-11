@@ -1,6 +1,7 @@
 #include "subprocess.h"
-#include "finally.h"
-#include "proc.h"
+
+#include <yt/core/misc/proc.h>
+#include <yt/core/misc/finally.h>
 
 #include <yt/core/logging/log.h>
 

@@ -2,7 +2,7 @@
 
 #include <yt/server/lib/chunk_pools/config.h>
 
-#include <yt/core/re2/re2.h>
+#include <yt/library/re2/re2.h>
 
 namespace NYT::NControllerAgent {
 

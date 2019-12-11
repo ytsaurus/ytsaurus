@@ -5,7 +5,7 @@
 #include <yt/core/logging/log.h>
 #include <yt/core/logging/log_manager.h>
 
-#include <yt/core/misc/subprocess.h>
+#include <yt/library/process/subprocess.h>
 
 #include <yt/core/ytree/fluent.h>
 

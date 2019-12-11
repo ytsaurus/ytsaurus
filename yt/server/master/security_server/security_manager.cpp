@@ -48,7 +48,7 @@
 
 #include <yt/core/concurrency/fls.h>
 
-#include <yt/core/erasure/codec.h>
+#include <yt/library/erasure/codec.h>
 
 #include <yt/core/misc/optional.h>
 #include <yt/core/misc/intern_registry.h>

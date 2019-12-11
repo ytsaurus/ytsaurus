@@ -14,7 +14,7 @@
 
 #include <yt/core/misc/finally.h>
 #include <yt/core/misc/proc.h>
-#include <yt/core/misc/subprocess.h>
+#include <yt/library/process/subprocess.h>
 
 #include <yt/ytlib/api/native/client.h>
 

@@ -12,11 +12,11 @@
 
 #include <yt/core/misc/fs.h>
 #include <yt/core/misc/proc.h>
-#include <yt/core/misc/process.h>
+#include <yt/library/process/process.h>
 
 #include <yt/core/net/connection.h>
 
-#include <yt/core/pipes/pty.h>
+#include <yt/library/process/pty.h>
 
 #include <util/stream/file.h>
 

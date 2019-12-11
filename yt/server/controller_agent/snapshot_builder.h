@@ -7,7 +7,7 @@
 
 #include <yt/client/api/public.h>
 
-#include <yt/core/pipes/pipe.h>
+#include <yt/library/process/pipe.h>
 
 #include <yt/core/profiling/profiler.h>
 

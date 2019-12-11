@@ -24,7 +24,7 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
-#include <yt/core/re2/re2.h>
+#include <yt/library/re2/re2.h>
 
 namespace NYT::NScheduler {
 

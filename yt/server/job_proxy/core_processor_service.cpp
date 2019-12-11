@@ -20,7 +20,7 @@
 
 #include <yt/core/net/connection.h>
 
-#include <yt/core/pipes/pipe.h>
+#include <yt/library/process/pipe.h>
 
 #include <yt/core/ytree/convert.h>
 

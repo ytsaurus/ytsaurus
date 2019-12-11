@@ -12,7 +12,7 @@
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 
-#include <yt/core/erasure/public.h>
+#include <yt/library/erasure/public.h>
 
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/protobuf_helpers.h>

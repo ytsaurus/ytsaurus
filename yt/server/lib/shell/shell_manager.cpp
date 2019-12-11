@@ -9,7 +9,7 @@
 
 #include <yt/core/misc/fs.h>
 
-#include <yt/core/pipes/public.h>
+#include <yt/library/process/public.h>
 
 #include <yt/core/net/public.h>
 

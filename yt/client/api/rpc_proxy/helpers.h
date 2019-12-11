@@ -4,7 +4,7 @@
 
 #include <yt/core/misc/ref.h>
 
-#include <yt/core/re2/re2.h>
+#include <yt/library/re2/re2.h>
 
 #include <yt/core/rpc/public.h>
 

@@ -29,7 +29,7 @@
 
 #include <yt/core/concurrency/scheduler.h>
 
-#include <yt/core/misc/process.h>
+#include <yt/library/process/process.h>
 #include <yt/core/misc/proc.h>
 
 #include <util/generic/guid.h>

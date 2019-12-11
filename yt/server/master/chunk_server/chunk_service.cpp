@@ -22,7 +22,7 @@
 
 #include <yt/ytlib/hive/cell_directory.h>
 
-#include <yt/core/erasure/codec.h>
+#include <yt/library/erasure/codec.h>
 
 namespace NYT::NChunkServer {
 

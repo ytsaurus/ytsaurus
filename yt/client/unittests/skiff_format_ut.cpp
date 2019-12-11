@@ -9,10 +9,10 @@
 #include <yt/client/formats/format.h>
 #include <yt/client/table_client/name_table.h>
 
-#include <yt/core/skiff/schema_match.h>
+#include <yt/library/skiff/schema_match.h>
 
-#include <yt/core/skiff/skiff.h>
-#include <yt/core/skiff/skiff_schema.h>
+#include <yt/library/skiff/skiff.h>
+#include <yt/library/skiff/skiff_schema.h>
 
 #include <yt/core/yson/string.h>
 #include <yt/core/ytree/convert.h>

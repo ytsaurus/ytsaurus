@@ -1,6 +1,6 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/core/numeric/binary_search.h>
+#include <yt/library/numeric/binary_search.h>
 
 namespace NYT {
 namespace {

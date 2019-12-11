@@ -29,13 +29,13 @@
 
 #include <yt/client/object_client/helpers.h>
 
-#include <yt/core/erasure/codec.h>
+#include <yt/library/erasure/codec.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/compression/codec.h>
 
-#include <yt/core/erasure/codec.h>
+#include <yt/library/erasure/codec.h>
 
 #include <yt/core/net/local_address.h>
 

@@ -7,7 +7,7 @@
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/core/erasure/public.h>
+#include <yt/library/erasure/public.h>
 
 #include <yt/core/misc/protobuf_helpers.h>
 

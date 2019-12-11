@@ -15,7 +15,7 @@
 #include <yt/core/misc/config.h>
 #include <yt/core/misc/arithmetic_formula.h>
 
-#include <yt/core/re2/re2.h>
+#include <yt/library/re2/re2.h>
 
 namespace NYT::NDataNode {
 
