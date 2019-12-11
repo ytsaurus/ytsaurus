@@ -163,6 +163,7 @@ class TestMasterCellsSync(YTEnvSetup):
             lambda driver: "b" not in ls("//sys/tablet_cell_bundles", driver=driver))
 
     @authors("savrus")
+    @flaky(max_runs=5)
     def test_tablet_cell_sync(self):
         create_tablet_cell_bundle("b")
         set("//sys/tablet_cell_bundles/b/@dynamic_options/suppress_tablet_cell_decommission", True)
