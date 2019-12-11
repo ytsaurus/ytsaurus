@@ -2143,6 +2143,7 @@ class TestSchedulerPoolsReconfigurationOld(YTEnvSetup):
         wait(lambda: get("//sys/scheduler/@alerts"))
         return get("//sys/scheduler/@alerts")[0]["inner_errors"][0]["inner_errors"][0]["message"]
 
+
 class TestSchedulerPoolsReconfigurationNew(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
@@ -2211,13 +2212,34 @@ class TestSchedulerPoolsReconfigurationNew(YTEnvSetup):
         parent = None
         for i in range(10):
             pool = "pool" + str(i)
-            create_pool(pool, parent_name= parent)
+            create_pool(pool, parent_name=parent)
             parent = pool
 
         self.wait_pool_exists("pool9")
 
         remove("//sys/pools/pool0")
         wait(lambda: len(ls(self.orchid_pools)) == 1)  # only <Root> must remain
+
+    @authors("renadeen")
+    def test_subtle_reconfiguration_crash(self):
+        # 1. there are two pools - parent (max_running_operation_count=1) and child (max_running_operation_count=2)
+        # 2. launch first operation in child - it runs
+        # 3. launch second operation in child - it will wait at parent as parent reached its max_running_operation_count
+        # 4. set child's max_running_operation_count to 0
+        # 5. first operation completes
+        # 6. scheduler wakes up second operation
+        # 7. operation is stuck in child - the pool where operation just finished - scheduler crash here
+
+        create_pool("parent", attributes={"max_running_operation_count": 1})
+        create_pool("child", parent_name="parent", attributes={"max_running_operation_count": 2})
+        self.wait_pool_exists("child")
+        running_op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=1, spec={"pool": "child"})
+        wait_breakpoint()
+        waiting_op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=1, spec={"pool": "child"})
+        waiting_op.wait_for_state("pending")
+        set("//sys/pools/parent/child/@max_running_operation_count", 0)
+        release_breakpoint()
+        running_op.track()
 
     @authors("renadeen", "ignat")
     def test_ephemeral_to_explicit_pool_transformation(self):
