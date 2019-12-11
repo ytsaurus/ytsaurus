@@ -412,6 +412,23 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
 
         op.track()
 
+    @authors("gritukan")
+    def test_yt_job_cookie_in_env(self):
+        create("table", "//tmp/stderr")
+
+        op = vanilla(
+            spec={
+                "tasks": {
+                    "task": {
+                        "job_count": 3,
+                        "command": 'echo $YT_JOB_COOKIE >&2; if [[ "$YT_JOB_INDEX" == 0 ]] ; then exit 1; fi',
+                    },
+                },
+                "stderr_table_path": "//tmp/stderr"
+            })
+
+        assert Counter(row["data"] for row in read_table("//tmp/stderr")) == {"0\n": 2, "1\n": 1, "2\n": 1}
+
 ##################################################################
 
 class TestSchedulerVanillaCommandsMulticell(TestSchedulerVanillaCommands):
