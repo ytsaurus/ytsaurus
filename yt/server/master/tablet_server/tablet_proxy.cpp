@@ -80,8 +80,8 @@ private:
         descriptors->push_back(EInternedAttributeKey::UnflushedTimestamp);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UnconfirmedDynamicTableLocks)
             .SetOpaque(true));
-        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Errors)
-            .SetOpaque(true));
+        descriptors->push_back(EInternedAttributeKey::TabletErrorCount);
+        descriptors->push_back(EInternedAttributeKey::ReplicationErrorCount);
     }
 
     virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
@@ -225,9 +225,14 @@ private:
                     .Value(tablet->UnconfirmedDynamicTableLocks());
                 return true;
 
-            case EInternedAttributeKey::Errors:
+            case EInternedAttributeKey::TabletErrorCount:
                 BuildYsonFluently(consumer)
-                    .Value(tablet->GetErrors());
+                    .Value(tablet->GetTabletErrorCount());
+                return true;
+
+            case EInternedAttributeKey::ReplicationErrorCount:
+                BuildYsonFluently(consumer)
+                    .Value(tablet->GetReplicationErrorCount());
                 return true;
 
             default:

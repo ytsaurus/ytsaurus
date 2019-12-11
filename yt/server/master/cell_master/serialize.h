@@ -110,6 +110,7 @@ DEFINE_ENUM(EMasterReign,
     ((DynamicPeerCount)                                             (2003))  // gritukan
     ((UserManagedPools)                                             (2004))  // renadeen
     ((GranularCypressTreeCopy)                                      (2005))  // gritukan
+    ((NoTabletErrorsOnMaster)                                       (2006))  // ifsmirnov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

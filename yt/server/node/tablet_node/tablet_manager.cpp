@@ -3082,6 +3082,25 @@ private:
                         .Item("dynamic_table_locks").DoMap(
                             BIND(&TLockManager::BuildOrchidYson, tablet->GetLockManager()));
                 })
+                .Item("errors").DoListFor(
+                    TEnumTraits<ETabletBackgroundActivity>::GetDomainValues(),
+                    [&] (TFluentList fluent, auto activity) {
+                        auto error = tablet->RuntimeData()->Errors[activity].Load();
+                        if (!error.IsOK()) {
+                            fluent
+                                .Item().Value(error);
+                        }
+                    })
+                .Item("replication_errors").DoMapFor(
+                    tablet->Replicas(),
+                    [&] (TFluentMap fluent, const auto& replica) {
+                        auto replicaId = replica.first;
+                        auto error = replica.second.GetError();
+                        if (!error.IsOK()) {
+                            fluent
+                                .Item(ToString(replicaId)).Value(error);
+                        }
+                    })
             .EndMap();
     }
 

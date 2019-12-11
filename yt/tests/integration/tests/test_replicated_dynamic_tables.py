@@ -238,21 +238,19 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         tablet_id = tablets[0]["tablet_id"]
 
         def check_error(message=None):
-            errors = get("//tmp/t/@replicas/%s/errors" % replica_id)
-            replica_table_tablets = get("#{0}/@tablets".format(replica_id))
-            assert len(replica_table_tablets) == 1
-            replica_table_tablet = replica_table_tablets[0]
-            assert replica_table_tablet["tablet_id"] == tablet_id
-            if len(errors) == 0:
-                return \
-                    message == None and \
-                    "replication_error" not in replica_table_tablet
+            error_count = get("//tmp/t/@replicas/{}/error_count".format(replica_id))
+            if error_count != get("#{}/@replication_error_count".format(replica_id)):
+                return False
+            if error_count != int(get("#{}/@tablets/0/has_error".format(replica_id))):
+                return False
+
+            orchid = self._find_tablet_orchid(get_tablet_leader_address(tablet_id), tablet_id)
+            errors = orchid["replication_errors"]
+
+            if message is None:
+                return error_count == 0 and len(errors) == 0
             else:
-                return \
-                    len(errors) == 1 and \
-                    errors[0]["message"] == message and \
-                    replica_table_tablet["replication_error"]["message"] == message and \
-                    errors[0]["attributes"]["tablet_id"] == tablet_id
+                return error_count == 1 and len(errors) == 1 and errors[replica_id]["message"] == message
 
         assert check_error()
 
@@ -1610,9 +1608,14 @@ class TestReplicatedDynamicTablesSafeMode(TestReplicatedDynamicTablesBase):
             insert_rows("//tmp/t", [{"key": 2, "value1": "test", "value2": 10}], require_sync_replica=False)
             sleep(1)
             assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test", "value2": 10}]
-            errors = get("//tmp/t/@replicas/{}/errors".format(replica_id))
+            wait(lambda: get("//tmp/t/@replicas/{}/error_count".format(replica_id)) == 1)
+
+            tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+            address = get_tablet_leader_address(tablet_id)
+            orchid = self._find_tablet_orchid(address, tablet_id)
+            errors = orchid["replication_errors"]
             assert len(errors) == 1
-            assert YtResponseError(errors[0]).is_access_denied()
+            assert YtResponseError(errors.values()[0]).is_access_denied()
 
         set("//sys/@config/enable_safe_mode", False, driver=self.replica_driver)
 
@@ -1623,7 +1626,7 @@ class TestReplicatedDynamicTablesSafeMode(TestReplicatedDynamicTablesBase):
             {"key": 1, "value1": "test", "value2": 10},
             {"key": 2, "value1": "test", "value2": 10}])
 
-        wait(lambda: len(get("//tmp/t/@replicas/{}/errors".format(replica_id))) == 0)
+        wait(lambda: get("//tmp/t/@replicas/{}/error_count".format(replica_id)) == 0)
 
 ##################################################################
 

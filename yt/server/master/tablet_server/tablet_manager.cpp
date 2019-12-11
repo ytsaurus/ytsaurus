@@ -3734,7 +3734,7 @@ private:
                     if (table->IsDynamic()) {
                         int errorCount = 0;
                         for (const auto* tablet : table->Tablets()) {
-                            errorCount += tablet->GetErrorCount();
+                            errorCount += tablet->GetTabletErrorCount();
                         }
                         table->SetTabletErrorCount(errorCount);
                     }
@@ -4145,8 +4145,9 @@ private:
             #undef XX
             tablet->PerformanceCounters().Timestamp = now;
 
-            tablet->SetErrors(FromProto<TTabletErrors>(tabletInfo.errors()));
+            tablet->SetTabletErrorCount(tabletInfo.error_count());
 
+            int replicationErrorCount = 0;
             for (const auto& protoReplicaInfo : tabletInfo.replicas()) {
                 auto replicaId = FromProto<TTableReplicaId>(protoReplicaInfo.replica_id());
                 auto* replica = FindTableReplica(replicaId);
@@ -4159,11 +4160,13 @@ private:
                     continue;
                 }
 
+
                 PopulateTableReplicaInfoFromStatistics(replicaInfo, protoReplicaInfo.statistics());
-                if (protoReplicaInfo.has_error()) {
-                    replicaInfo->Error() = FromProto<TError>(protoReplicaInfo.error());
-                }
+
+                replicaInfo->SetHasError(protoReplicaInfo.has_error());
+                replicationErrorCount += protoReplicaInfo.has_error();
             }
+            tablet->SetReplicationErrorCount(replicationErrorCount);
 
             TabletBalancer_->OnTabletHeartbeat(tablet);
         }

@@ -77,24 +77,16 @@ TDuration TTableReplica::ComputeReplicationLagTime(TTimestamp latestTimestamp) c
     return result;
 }
 
-std::vector<TError> TTableReplica::GetErrors(std::optional<int> limit) const
+int TTableReplica::GetErrorCount() const
 {
-    std::vector<TError> errors;
-    errors.reserve(Table_->Tablets().size());
+    int errorCount = 0;
     for (auto* tablet : Table_->Tablets()) {
         const auto* replicaInfo = tablet->GetReplicaInfo(this);
-        const auto& error = replicaInfo->Error();
-        if (!error.IsOK()) {
-            errors.push_back(error);
-            if (limit && errors.size() >= *limit) {
-                break;
-            }
-        }
+        errorCount += replicaInfo->GetHasError();
     }
-    return errors;
+    return errorCount;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletServer
-
