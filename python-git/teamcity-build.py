@@ -341,6 +341,7 @@ def run_python_ya_tests(options):
         "--junit", junit_output,
         "--test-param", "inside_arcadia=0",
         "-ttt",
+        "--dont-merge-split-tests",
     ]
     args += ya_make_args(options)
     args += targets
