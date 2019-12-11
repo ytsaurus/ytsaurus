@@ -74,6 +74,16 @@ def patch_config(prepare_geodata):
     logger.info("Config patched")
 
 
+def start_process(args):
+    logger.info("Going to invoke following command: %s", args)
+    # NB: without preexec_fn=os.setpgrp any signal coming to the parent will always be immediately propagated to
+    # children.
+    # See https://stackoverflow.com/questions/3791398/how-to-stop-python-from-propagating-signals-to-subprocesses for
+    # more details.
+    process = subprocess.Popen(args, preexec_fn=os.setpgrp)
+    logger.info("Process started, pid = %d", process.pid)
+
+
 def run_ytserver_clickhouse(ytserver_clickhouse_bin, monitoring_port):
     logger.info("Starting ytserver-clickhouse")
     args = [ytserver_clickhouse_bin]
@@ -84,14 +94,13 @@ def run_ytserver_clickhouse(ytserver_clickhouse_bin, monitoring_port):
     args += ["--monitoring-port", monitoring_port or os.environ["YT_PORT_1"]]
     args += ["--tcp-port", os.environ["YT_PORT_2"]]
     args += ["--http-port", os.environ["YT_PORT_3"]]
-    logger.info("Going to invoke following command: %s", args)
-    # NB: without preexec_fn=os.setpgrp any signal coming to the parent will always be immediately propagated to
-    # children.
-    # See https://stackoverflow.com/questions/3791398/how-to-stop-python-from-propagating-signals-to-subprocesses for
-    # more details.
-    process = subprocess.Popen(args, preexec_fn=os.setpgrp)
-    logger.info("Process started, pid = %d", process.pid)
-    return process
+    return start_process(args)
+
+
+def run_log_tailer(log_tailer_bin, ytserver_clickhouse_pid):
+    logger.info("Running log tailer over pid %d", ytserver_clickhouse_pid)
+    args = [log_tailer_bin, str(ytserver_clickhouse_pid), "--config", "./log_tailer_config.yson"]
+    return start_process(args)
 
 
 def move_core_dumps(destination):
@@ -115,6 +124,7 @@ def setup_logging():
     stderr_handler.setFormatter(formatter)
     logger.addHandler(stderr_handler)
 
+
 def main():
     parser = argparse.ArgumentParser(description="Process that setups environment for running ytserver-clickhouse")
     parser.add_argument("--version", action="store_true", help="Print commit this binary is built from")
@@ -126,6 +136,8 @@ def main():
                         help="Whether child should be interrupted on first SIGINT coming to trampoline; note that it "
                              "happens automatically in YT job environment, so this option should be used only for "
                              "manual trampoline invocations")
+    parser.add_argument("--log-tailer-bin", help="Log tailer binary path; log tailer will be run over "
+                                                 "ytserver-clickhouse process")
     args = parser.parse_args()
 
     setup_logging()
@@ -144,8 +156,15 @@ def main():
     patch_config(args.prepare_geodata)
     ytserver_clickhouse_process = run_ytserver_clickhouse(args.ytserver_clickhouse_bin, args.monitoring_port)
     sigint_handler = SigintHandler(ytserver_clickhouse_process, args.interrupt_child)
+    log_tailer_process = None
+    if args.log_tailer_bin:
+        log_tailer_process = run_log_tailer(args.log_tailer_bin, ytserver_clickhouse_process.pid)
+    logger.info("Waiting for ytserver-clickhouse to finish")
     exit_code = ytserver_clickhouse_process.wait()
     logger.info("ytserver-clickhouse exit code is %d", exit_code)
+    logger.info("Waiting for log tailer to finish")
+    log_tailer_exit_code = log_tailer_process.wait()
+    logger.info("Log tailer exit code is %d", log_tailer_exit_code)
     if args.core_dump_destination:
         move_core_dumps(args.core_dump_destination)
     exit(exit_code)
