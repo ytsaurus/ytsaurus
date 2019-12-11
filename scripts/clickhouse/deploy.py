@@ -12,14 +12,16 @@ def main():
     parser = argparse.ArgumentParser(description="Deploy CHYT binary")
     parser.add_argument("--src", help="Path of binary to be deployed; by default one from /home/max42/yt/build-rel/bin is taken")
     parser.add_argument("--tags", metavar="TAG", nargs="*", help="tags that will be appended like +tag1+tag2", default=[])
-    parser.add_argument("--kind", default="ytserver-clickhouse", choices=["ytserver-clickhouse", "clickhouse-trampoline"], help="Kind of binary to be deployed")
+    parser.add_argument("--kind", default="ytserver-clickhouse",
+                        choices=["ytserver-clickhouse", "clickhouse-trampoline", "ytserver-log-tailer"],
+                        help="Kind of binary to be deployed")
     args = parser.parse_args()
 
     src = args.src or ("/home/max42/yt/build-rel/bin/" + args.kind)
 
     print >>sys.stderr, "Invoking {} to find out commit".format([src, "--version"])
-    version = subprocess.check_output([src, "--version"]).strip()[:15]
-    yt_commit = re.match(".*~([0-9a-z]*).*", version).groups()[0][:10]
+    version = subprocess.check_output([src, "--version"]).strip()
+    yt_commit = re.match(".*~([0-9a-z]*).*", version).groups()[0]
 
     attrs = {
         "executable": True,

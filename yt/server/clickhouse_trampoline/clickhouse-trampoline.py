@@ -82,6 +82,7 @@ def start_process(args):
     # more details.
     process = subprocess.Popen(args, preexec_fn=os.setpgrp)
     logger.info("Process started, pid = %d", process.pid)
+    return process
 
 
 def run_ytserver_clickhouse(ytserver_clickhouse_bin, monitoring_port):
@@ -113,7 +114,7 @@ def move_core_dumps(destination):
 
 
 def print_version():
-    print "smth~" + library.python.svn_version.commit_id()
+    print "smth~" + library.python.svn_version.commit_id()[:10]
 
 
 def setup_logging():
