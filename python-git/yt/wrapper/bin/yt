@@ -1110,7 +1110,13 @@ def add_list_operations_parser(add_parser):
     parser.add_argument("--filter", help="filter operation by some text factor. "
                                          "For example, part of the title can be passed to this option")
     parser.add_argument("--pool", help="filter operations by pool")
-    parser.add_argument("--with-failed-jobs", action="store_true", help="show only operations with failed jobs")
+
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--with-failed-jobs", action="store_const", const=True,
+                       help="show only operations with failed jobs")
+    group.add_argument("--without-failed-jobs", action="store_const", dest="with_failed_jobs", const=False,
+                       help="show only operations without failed jobs")
+
     add_time_argument(parser, "--from-time", help="lower limit for operations start time")
     add_time_argument(parser, "--to-time", help="upper limit for operations start time")
     add_time_argument(parser, "--cursor-time", help="cursor time. Used in combination with --cursor-direction and --limit")
