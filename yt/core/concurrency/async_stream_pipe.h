@@ -20,6 +20,8 @@ public:
     virtual TFuture<void> Write(const TSharedRef& buffer) override;
     virtual TFuture<void> Close() override;
 
+    TFuture<void> Abort(const TError& error);
+
 private:
     struct TItem
     {

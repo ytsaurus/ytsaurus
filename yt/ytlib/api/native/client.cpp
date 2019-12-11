@@ -240,6 +240,12 @@ public:
         TransferResultFuture_ = transferClosure
             .AsyncVia(Invoker_)
             .Run();
+
+        TransferResultFuture_.Subscribe(BIND([pipe=AsyncStreamPipe_](const TError& error) {
+            if (!error.IsOK()) {
+                pipe->Abort(TError("Failed to get job input") << error);
+            }
+        }));
     }
 
     virtual TFuture<TSharedRef> Read() override
