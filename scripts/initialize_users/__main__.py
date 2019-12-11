@@ -282,17 +282,19 @@ def create_accounts(client, cluster, accounts):
 def setup_tentacles_podset(client, cluster):
     tentacles_podset_name = "yp-rtc-sla-tentacles-production-{}".format(cluster)
     try:
-        client.get_object("pod_set", tentacles_podset_name, ["/meta/id"])
+        account_id = client.get_object("pod_set", tentacles_podset_name, ["/spec/account_id"])[0]
     except YpNoSuchObjectError:
         return
 
-    updates_set = list()
-    updates_set.append(
-        {"path": "/spec/account_id",
-         "value": "tentacles",
-         })
+    updates_set = []
+    if account_id != "tentacles":
+        updates_set.append(dict(
+            path="/spec/account_id",
+            value="tentacles",
+        ))
 
-    client.update_object("pod_set", tentacles_podset_name, updates_set)
+    if updates_set:
+        client.update_object("pod_set", tentacles_podset_name, updates_set)
 
 
 def assign_podsets_to_accounts(client, cluster):
