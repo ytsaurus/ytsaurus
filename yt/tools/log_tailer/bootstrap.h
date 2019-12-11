@@ -26,6 +26,8 @@ public:
 
     const TLogTailerPtr& GetLogTailer() const;
 
+    void Terminate();
+
 private:
     TLogTailerBootstrapConfigPtr Config_;
 

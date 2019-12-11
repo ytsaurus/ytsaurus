@@ -119,8 +119,14 @@ class TestLogTailer(YTEnvSetup):
         log_tailer = subprocess.Popen([YT_LOG_TAILER_BINARY, str(dummy_logger.pid), "--config", log_tailer_config_file])
 
         time.sleep(6)
-        log_tailer.terminate()
         dummy_logger.terminate()
+        os.wait()
+
+        try:
+            wait(lambda: log_tailer.poll() is None)
+        except:
+            log_tailer.kill()
+            raise
 
         for log_table in log_tables:
             freeze_table(log_table)
