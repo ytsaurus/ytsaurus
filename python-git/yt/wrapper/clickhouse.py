@@ -15,6 +15,7 @@ from .yson import dumps, to_yson_type
 import yt.logger as logger
 
 from yt.packages.six import iteritems
+from yt.yson import YsonUint64
 
 from tempfile import NamedTemporaryFile
 from inspect import getargspec
@@ -347,9 +348,11 @@ def prepare_cypress_configs(instance_count,
 
 def prepare_log_tailer_table(log_file,
                              artifact_path,
+                             instance_count=None,
                              client=None):
+    job_id_shard_count = instance_count * 5
     ORDERED_NORMALLY_SCHEMA = [
-        {"name": "farm_hash(job_id) % 100", "type": "uint64", "sort_order": "ascending", "expression": "farm_hash(job_id) % 100"},
+        {"name": "job_id_shard", "type": "uint64", "sort_order": "ascending", "expression": "farm_hash(job_id) % " + str(job_id_shard_count)},
         {"name": "timestamp", "type": "string", "sort_order": "ascending"},
         {"name": "job_id", "type": "string", "sort_order": "ascending"},
         {"name": "line_index", "type": "uint64", "sort_order": "ascending"},
@@ -383,20 +386,25 @@ def prepare_log_tailer_table(log_file,
 
     log_file["table_paths"] = [ordered_normally_path, ordered_by_trace_id_path]
 
-    def prepare_table(path, schema, ttl):
+    def prepare_table(path, schema, ttl, extra_attributes={}):
         if not exists(path, client=client):
             logger.info("Table %s does not exist, creating it", path)
-            create("table", path, attributes={
+            attributes = {
                 "dynamic": True,
                 "schema": schema,
                 "min_data_versions": 0,
                 "max_data_versions": 1,
                 "min_data_ttl": ttl,
                 "max_data_ttl": ttl,
-            }, client=client)
+            }
+            attributes = update(attributes, extra_attributes)
+            create("table", path, attributes=attributes, client=client)
         mount_table(path)
 
-    prepare_table(ordered_normally_path, ORDERED_NORMALLY_SCHEMA, log_file["ttl"])
+    prepare_table(ordered_normally_path, ORDERED_NORMALLY_SCHEMA, log_file["ttl"], extra_attributes={
+        "tablet_balancer_config": {"enable_auto_reshard": False},
+        "pivot_keys": [[]] + [[YsonUint64(i), None, None, None] for i in range(1, job_id_shard_count)],
+    })
     prepare_table(ordered_by_trace_id_path, ORDERED_BY_TRACE_ID_SCHEMA, log_file["ttl"])
 
 
@@ -406,6 +414,7 @@ def prepare_artifacts(artifact_path,
                       enable_log_tailer=None,
                       enable_job_tables=None,
                       dump_tables=None,
+                      instance_count=None,
                       log_tailer_config=None,
                       client=None):
     if not enable_log_tailer and not enable_job_tables:
@@ -447,10 +456,9 @@ def prepare_artifacts(artifact_path,
                 logger.info("Dumping %s into %s", table_path, new_path)
                 copy(table_path, new_path, client=client)
 
-
     if enable_log_tailer:
         for log_file in log_tailer_config["log_tailer"]["log_files"]:
-            prepare_log_tailer_table(log_file, artifact_path, client=client)
+            prepare_log_tailer_table(log_file, artifact_path, instance_count=instance_count, client=client)
 
 
 
@@ -592,6 +600,7 @@ def start_clickhouse_clique(instance_count,
                       enable_job_tables=enable_job_tables,
                       dump_tables=dump_tables,
                       defaults=defaults,
+                      instance_count=instance_count,
                       log_tailer_config=log_tailer_config,
                       client=client)
 
