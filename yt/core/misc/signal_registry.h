@@ -21,9 +21,6 @@ public:
     //! By default any signal touched by PushCallback(...) will be set up with default flags.
     void SetupSignal(int signal, int flags = 0);
 
-    //! Reset signal handler for given signal.
-    void ResetSignal(int signal);
-
     //! Add simple callback which should be called for signal. Different signatures are supported for convenience.
     void PushCallback(int signal, std::function<void(void)> callback);
     void PushCallback(int signal, std::function<void(int)> callback);
