@@ -9,32 +9,30 @@ namespace NYT::NLogTailer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLogRotator
+class TLogWriterLivenessChecker
     : public TRefCounted
 {
 public:
-    TLogRotator(const TLogRotationConfigPtr& config, TBootstrap* bootstrap);
+    TLogWriterLivenessChecker(
+        const TLogWriterLivenessCheckerConfigPtr& config,
+        TBootstrap* bootstrap);
 
     void Start();
 
     void Stop();
 
 private:
-    void RotateLogs();
-
-    static TString GetLogSegmentPath(const TString& logFilePath, int segmentId);
+    void DoCheckLiveness();
 
     TBootstrap* const Bootstrap_;
-    const TLogRotationConfigPtr Config_;
+    const TLogWriterLivenessCheckerConfigPtr Config_;
 
-    NConcurrency::TPeriodicExecutorPtr LogRotatorExecutor_;
-    std::vector<TString> LogFilePaths_;
-
-    int RotationCount_ = 0;
+    NConcurrency::TPeriodicExecutorPtr LogWriterLivenessCheckerExeuctor_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TLogRotator)
+DEFINE_REFCOUNTED_TYPE(TLogWriterLivenessChecker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NLogTailer
+

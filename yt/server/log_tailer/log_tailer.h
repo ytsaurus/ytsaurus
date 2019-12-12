@@ -19,12 +19,15 @@ public:
 
     const std::vector<TLogFileReaderPtr>& GetLogReaders() const;
 
+    const TLogRotatorPtr& GetLogRotator() const;
+
 private:
     TBootstrap* const Bootstrap_;
 
     TLogTailerConfigPtr Config_;
 
     TLogRotatorPtr LogRotator_;
+    TLogWriterLivenessCheckerPtr LogWriterLivenessChecker_;
     std::vector<TLogFileReaderPtr> LogReaders_;
 };
 

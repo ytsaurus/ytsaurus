@@ -13,6 +13,10 @@
             "rotation_period" = 100;
             "rotation_delay" = 3;
         };
+        "log_writer_liveness_checker" = {
+            "enable" = %true;
+            "liveness_check_period" = 50;
+        };
         "read_frequency" = 50;
     };
     "logging" = {

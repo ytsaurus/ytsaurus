@@ -20,6 +20,7 @@ static const NLogging::TLogger Logger("Bootstrap");
 
 TBootstrap::TBootstrap(NYT::NLogTailer::TLogTailerBootstrapConfigPtr config)
     : Config_(std::move(config))
+    , LogWriterLivenessCheckerQueue_(New<TActionQueue>())
     , RotatorQueue_(New<TActionQueue>())
     , ReaderQueue_(New<TActionQueue>())
     , LogTailer_(New<TLogTailer>(this, Config_->LogTailer))
@@ -60,6 +61,11 @@ const TLogTailerConfigPtr& TBootstrap::GetConfig()
 const IClientPtr& TBootstrap::GetMasterClient() const
 {
     return Client_;
+}
+
+const IInvokerPtr& TBootstrap::GetLogWriterLivenessCheckerInvoker() const
+{
+    return LogWriterLivenessCheckerQueue_->GetInvoker();
 }
 
 const IInvokerPtr& TBootstrap::GetReaderInvoker() const

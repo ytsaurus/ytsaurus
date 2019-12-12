@@ -40,6 +40,7 @@ public:
 
     void OnLogRotation();
 
+    void OnTermination();
 private:
     void DoReadLog();
     void DoOpenLogFile();

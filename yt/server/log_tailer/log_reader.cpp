@@ -142,10 +142,15 @@ void TLogFileReader::OnLogRotation()
     Start();
 }
 
+void TLogFileReader::OnTermination()
+{
+    WaitFor(LogReaderExecutor_->Stop())
+        .ThrowOnError();
+    DoReadLog();
+}
+
 void TLogFileReader::DoReadLog()
 {
-    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetReaderInvoker());
-
     try {
         DoOpenLogFile();
     } catch (const std::exception& ex) {
@@ -171,8 +176,6 @@ void TLogFileReader::DoOpenLogFile()
 
 void TLogFileReader::DoReadBuffer()
 {
-    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetReaderInvoker());
-
     auto bufferSize = Bootstrap_->GetConfig()->ReadBufferSize;
     TBuffer buffer(bufferSize);
     while (true) {
@@ -208,8 +211,6 @@ void TLogFileReader::DoReadBuffer()
 
 void TLogFileReader::DoWriteRows()
 {
-    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetReaderInvoker());
-
     int recordsBufferPtr = 0;
     while (recordsBufferPtr < RecordsBuffer_.size()) {
         i64 rowsToWrite = std::min<i64>(RecordsBuffer_.size() - recordsBufferPtr, Bootstrap_->GetConfig()->MaxRecordsPerTransaction);
