@@ -13,4 +13,10 @@ resolvers += Resolver.url("Arcadia2", url("http://artifactory.yandex.net/artifac
       .withArtifactPatterns(Vector("[organisation]/[module]_2.12_1.0/[revision]/[artifact]-[revision].[ext]"))
   )
 
-addSbtPlugin("ru.yandex" % "sbt-yandex" % "0.0.1-2-SNAPSHOT")
+resolvers += Resolver.url("Arcadia2", url("http://artifactory.yandex.net/artifactory/yandex_spark_releases"))(
+    Patterns()
+      .withIvyPatterns(Vector("[organisation]/[module]_2.12_1.0/[revision]/[artifact]-[revision].[ext]"))
+      .withArtifactPatterns(Vector("[organisation]/[module]_2.12_1.0/[revision]/[artifact]-[revision].[ext]"))
+  )
+
+addSbtPlugin("ru.yandex" % "sbt-yandex" % "0.0.1")
