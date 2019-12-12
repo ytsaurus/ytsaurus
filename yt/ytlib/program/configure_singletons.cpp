@@ -11,6 +11,7 @@
 
 #include <yt/core/concurrency/execution_stack.h>
 
+#include <yt/core/net/address.h>
 #include <yt/core/net/local_address.h>
 
 #include <yt/core/rpc/dispatcher.h>
