@@ -7,19 +7,17 @@ from yt.wrapper.cypress_commands import list
 
 parser = argparse.ArgumentParser(description="Spark Shell")
 parser.add_argument("--id", required=True)
-parser.add_argument("--working-dir", required=False)
-parser.add_argument("--auto-auth", required=False, default=True, type=bool)
+parser.add_argument("--discovery-dir", required=False)
 parser.add_argument("--proxy", required=False)
 
 args, unknown_args = parser.parse_known_args()
 
-id = args.id
 user = os.getenv("USER")
 proxy = args.proxy or os.getenv("YT_PROXY")
-working_dir = args.working_dir or "//home/{0}/spark-tmp".format(user)
+discovery_dir = args.discovery_dir or "//home/{0}/spark-tmp".format(user)
 
 yt.wrapper.config.config['proxy']['url'] = proxy
-master = list("{0}/instances/{1}/address".format(working_dir, id))[0]
+master = list("{0}/instances/{1}/address".format(discovery_dir, args.id))[0]
 
 spark_args = ["spark-shell", "--master", "spark://{0}".format(master)]
 spark_env = os.environ.copy()
@@ -28,17 +26,14 @@ spark_args.append("--conf")
 spark_args.append("spark.hadoop.yt.proxy={}".format(proxy))
 
 spark_args.append("--conf")
-spark_args.append("spark.eventLog.dir=yt:/{}/logs/{}".format(working_dir, args.id))
+spark_args.append("spark.hadoop.yt.user={}".format(user))
 
-if args.auto_auth:
-    token = os.getenv("YT_TOKEN")
-    if token is None:
-        with open("{0}/.yt/token".format(os.getenv("HOME"))) as f:
-            token = f.readline().strip()
-    spark_args.append("--conf")
-    spark_args.append("spark.hadoop.yt.user={}".format(user))
-    spark_args.append("--conf")
-    spark_args.append("spark.hadoop.yt.token={}".format(token))
-    spark_env["SPARK_USER"] = user
+spark_args.append("--conf")
+spark_args.append("spark.master.rest.enabled=true")
+
+spark_args.append("--conf")
+spark_args.append("spark.eventLog.dir=yt:/{}/logs/{}".format(discovery_dir, args.id))
+
+spark_env["SPARK_USER"] = user
 
 os.execve("/usr/local/bin/spark-shell", spark_args + unknown_args, spark_env)

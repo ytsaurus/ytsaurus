@@ -1,6 +1,7 @@
 package ru.yandex.spark.yt.utils
 
 import java.io.{BufferedReader, InputStream, InputStreamReader, OutputStream}
+import java.nio.file.Paths
 import java.time.{Duration => JavaDuration}
 import java.util.concurrent.CompletableFuture
 
@@ -32,6 +33,7 @@ object YtTableUtils {
       key -> builder.build()
     } + ("schema" -> settings.ytSchema)
 
+    createDir(Paths.get(path).getParent.toString, Some(transaction), ignoreExisting = true)
     createTable(path, ytOptions.asJava, transaction)
   }
 

@@ -14,7 +14,6 @@ object SparkPackagePlugin extends AutoPlugin {
 
   object autoImport {
     val sparkPackage = taskKey[File]("Build spark and add custom files")
-    val sparkGenerateProfile = taskKey[File]("Generate spark-profile.sh with env variables")
 
     val sparkAdditionalJars = taskKey[Seq[File]]("Additional spark jars")
     val sparkDefaults = settingKey[File]("spark-defaults.conf")
@@ -84,11 +83,6 @@ object SparkPackagePlugin extends AutoPlugin {
       ), sparkDist / "conf" / "spark-launch.ini")
 
       sparkDist
-    },
-    sparkGenerateProfile := {
-      val file = target.value / "spark-profile.sh"
-      IO.write(file, s"export SPARK_HOME=/opt/${sparkName.value}")
-      file
     }
   )
 
