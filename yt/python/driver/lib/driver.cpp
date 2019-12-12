@@ -15,6 +15,8 @@
 #include <yt/core/logging/log_manager.h>
 #include <yt/core/logging/config.h>
 
+#include <yt/core/net/address.h>
+
 #include <yt/core/tracing/trace_manager.h>
 #include <yt/core/tracing/config.h>
 

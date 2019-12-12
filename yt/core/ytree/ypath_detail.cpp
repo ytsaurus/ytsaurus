@@ -16,15 +16,12 @@
 #include <yt/core/rpc/server_detail.h>
 #include <yt/core/rpc/message.h>
 
-#include <yt/core/bus/bus.h>
-
 #include <yt/core/net/address.h>
 
 #include <yt/core/profiling/timing.h>
 
 namespace NYT::NYTree {
 
-using namespace NBus;
 using namespace NRpc;
 using namespace NYPath;
 using namespace NRpc::NProto;
