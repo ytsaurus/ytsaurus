@@ -303,7 +303,7 @@ def get_operation_progress(operation, with_build_time=False, client=None):
         return progress
 
 def order_progress(progress):
-    filter_out = ("completed_details")
+    filter_out = ("completed_details",)
     keys = ("running", "completed", "pending", "failed", "aborted", "lost", "total")
     result = []
     for key in keys:
