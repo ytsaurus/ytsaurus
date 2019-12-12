@@ -17,15 +17,18 @@ public:
     ui64 MinVcpuGuarantee;
     ui64 DefaultVcpuGuarantee;
     ui64 DefaultMemoryGuarantee;
+    ui64 DefaultSlot;
 
     TPodTypeHandlerConfig()
     {
         RegisterParameter("min_vcpu_guarantee", MinVcpuGuarantee)
-                .Default(100);
+            .Default(100);
         RegisterParameter("default_vcpu_guarantee", DefaultVcpuGuarantee)
-                .Default(1000);
+            .Default(1000);
         RegisterParameter("default_memory_guarantee", DefaultMemoryGuarantee)
-                .Default(100_MB);
+            .Default(100_MB);
+        RegisterParameter("default_slot", DefaultSlot)
+            .Default(1);
     }
 };
 

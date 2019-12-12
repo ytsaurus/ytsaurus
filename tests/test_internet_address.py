@@ -77,6 +77,11 @@ class TestInternetAddresses(object):
                 "spec": { "cpu": {"total_capacity": 100} }
             })
 
+        yp_client.create_object("resource", attributes={
+                "meta": { "node_id": node_id },
+                "spec": { "slot": {"total_capacity": 300} }
+            })
+
         return node_id
 
     def _create_pod(self, yp_client, pod_set_id, enable_internet, resource_request=None):

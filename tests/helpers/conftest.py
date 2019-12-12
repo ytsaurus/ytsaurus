@@ -53,7 +53,8 @@ ZERO_RESOURCE_REQUESTS = {
     "vcpu_guarantee": 0,
     "vcpu_limit": 0,
     "memory_guarantee": 0,
-    "memory_limit": 0
+    "memory_limit": 0,
+    "slot": 0,
 }
 
 DEFAULT_YP_MASTER_CONFIG = {
@@ -217,7 +218,7 @@ def create_nodes(
         cpu_total_capacity=100,
         memory_total_capacity=1000000000,
         network_bandwidth=None,
-        slot_capacity=None,
+        slot_capacity=300,
         disk_specs=None,
         gpu_specs=None,
         vlan_id="backbone",

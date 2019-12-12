@@ -24,7 +24,8 @@ class TestPodsWithLimitedVcpuGuarantee(object):
             "pod_type_handler": {
                 "min_vcpu_guarantee": 150,
                 "default_vcpu_guarantee": 500,
-                "default_memory_guarantee": 1500
+                "default_memory_guarantee": 1500,
+                "default_slot": 0,
             }
         }
     }
@@ -56,15 +57,16 @@ class TestPodsWithLimitedVcpuGuarantee(object):
     def test_master_config_params(self, yp_env_configurable):
         yp_client = yp_env_configurable.yp_client
         pod_set_id = yp_client.create_object("pod_set")
-        pod_id = yp_client.create_object("pod", attributes={
+        yp_client.create_object("pod", attributes={
             "meta": {
                 "pod_set_id": pod_set_id
             }
         })
         assert yp_client.select_objects("pod", selectors=[
             "/spec/resource_requests/vcpu_guarantee",
-            "/spec/resource_requests/memory_guarantee"
-        ]) == [[500, 1500]]
+            "/spec/resource_requests/memory_guarantee",
+            "/spec/resource_requests/slot"
+        ]) == [[500, 1500, 0]]
 
 
 @pytest.mark.usefixtures("yp_env")
@@ -1179,3 +1181,15 @@ class TestPods(object):
                 ],
                 "enable_scheduling": True
             })
+
+    def test_default_slot(self, yp_env):
+        yp_client = yp_env.yp_client
+        pod_set_id = yp_client.create_object("pod_set")
+        pod_id = yp_client.create_object("pod", attributes={
+            "meta": {
+                "pod_set_id": pod_set_id
+            }
+        })
+        assert yp_client.get_object("pod", pod_id, selectors=[
+            "/spec/resource_requests/slot"
+        ]) == [1]

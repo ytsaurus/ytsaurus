@@ -259,7 +259,7 @@ TEST_F(TNativeClientTestSuite, RequestAbortPodEvictionTest)
         .ValueOrThrow()
         .ObjectId;
 
-    for (TStringBuf kind : {"cpu", "memory"}) {
+    for (TStringBuf kind : {"cpu", "memory", "slot"}) {
         WaitFor(client->CreateObject(
             EObjectType::Resource,
             BuildYsonPayload(BIND([&nodeId, kind] (IYsonConsumer* consumer) {

@@ -1482,7 +1482,7 @@ class TestSchedulerEveryNodeSelectionStrategy(object):
     def test_slot_scheduling_error(self, yp_env_configurable):
         pod_spec = dict(
             enable_scheduling=True,
-            resource_requests=dict(slot=1),
+            resource_requests=dict(slot=100500),
         )
         status_check = partial(self._error_status_check, "Slot")
         self._test_scheduling_error(yp_env_configurable, pod_spec, status_check)

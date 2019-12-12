@@ -284,6 +284,10 @@ public:
             resourceRequests->set_memory_limit(resourceRequests->memory_guarantee());
         }
 
+        if (!resourceRequests->has_slot()) {
+            resourceRequests->set_slot(Config_->DefaultSlot);
+        }
+
         const auto* node = pod->Spec().Node().Load();
 
         if (pod->Spec().EnableScheduling().Load()) {
