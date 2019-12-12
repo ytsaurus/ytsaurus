@@ -3574,9 +3574,12 @@ private:
     {
         for (auto& operation : operations) {
             if (operation->GetRefCount() == 1) {
-                YT_LOG_DEBUG("Destroying operation %Qv now", operation->GetId());
+                YT_LOG_DEBUG("Destroying operation (OperationId: %v)", operation->GetId());
             } else {
-                YT_LOG_DEBUG("Operation %Qv is still in use and will be destroyed later", operation->GetId());
+                YT_LOG_DEBUG(
+                    "Operation is still in use and will be destroyed later (OperationId: %v, ResidualRefCount: %v)",
+                    operation->GetId(),
+                    operation->GetRefCount() - 1);
             }
             operation.Reset();
         }
