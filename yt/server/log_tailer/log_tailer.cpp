@@ -2,6 +2,7 @@
 
 #include "log_reader.h"
 #include "log_rotator.h"
+#include "log_writer_liveness_checker.h"
 
 #include <util/system/env.h>
 
@@ -39,12 +40,20 @@ void TLogTailer::Run()
     LogRotator_ = New<TLogRotator>(Config_->LogRotation, Bootstrap_);
     LogRotator_->Start();
 
+    LogWriterLivenessChecker_ = New<TLogWriterLivenessChecker>(Config_->LogWriterLivenessChecker, Bootstrap_);
+    LogWriterLivenessChecker_->Start();
+
     YT_LOG_INFO("Log tailer started");
 }
 
 const std::vector<TLogFileReaderPtr>& TLogTailer::GetLogReaders() const
 {
     return LogReaders_;
+}
+
+const TLogRotatorPtr& TLogTailer::GetLogRotator() const
+{
+    return LogRotator_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

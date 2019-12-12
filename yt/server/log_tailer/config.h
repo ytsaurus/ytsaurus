@@ -66,6 +66,34 @@ DEFINE_REFCOUNTED_TYPE(TLogFileConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TLogWriterLivenessCheckerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool Enable;
+
+    TDuration LivenessCheckPeriod;
+
+    TLogWriterLivenessCheckerConfig()
+    {
+        RegisterParameter("enable", Enable)
+            .Default(false);
+
+        RegisterParameter("liveness_check_period", LivenessCheckPeriod)
+            .Default();
+
+        RegisterPostprocessor([&] {
+            if (Enable && !LivenessCheckPeriod) {
+                THROW_ERROR_EXCEPTION("Log writer liveness checker is enabled while liveness_check_period is not set");
+            }
+        });
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TLogWriterLivenessCheckerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TLogTailerConfig
     : public NYTree::TYsonSerializable
 {
@@ -73,6 +101,8 @@ public:
     TLogRotationConfigPtr LogRotation;
 
     std::vector<TLogFileConfigPtr> LogFiles;
+
+    TLogWriterLivenessCheckerConfigPtr LogWriterLivenessChecker;
 
     TDuration ReadPeriod;
 
@@ -87,6 +117,9 @@ public:
             .DefaultNew();
 
         RegisterParameter("log_files", LogFiles)
+            .Default();
+
+        RegisterParameter("log_writer_liveness_checker", LogWriterLivenessChecker)
             .Default();
 
         RegisterParameter("read_period", ReadPeriod)

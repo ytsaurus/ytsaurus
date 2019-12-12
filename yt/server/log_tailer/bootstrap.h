@@ -23,6 +23,7 @@ public:
 
     const NApi::NNative::IClientPtr& GetMasterClient() const;
 
+    const IInvokerPtr& GetLogWriterLivenessCheckerInvoker() const;
     const IInvokerPtr& GetRotatorInvoker() const;
     const IInvokerPtr& GetReaderInvoker() const;
 
@@ -36,6 +37,7 @@ private:
     NApi::NNative::IConnectionPtr Connection_;
     NApi::NNative::IClientPtr Client_;
 
+    NConcurrency::TActionQueuePtr LogWriterLivenessCheckerQueue_;
     NConcurrency::TActionQueuePtr RotatorQueue_;
     NConcurrency::TActionQueuePtr ReaderQueue_;
 

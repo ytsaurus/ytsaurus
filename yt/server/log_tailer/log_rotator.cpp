@@ -53,7 +53,15 @@ void TLogRotator::Stop()
 
 void TLogRotator::RotateLogs()
 {
-    YT_LOG_INFO("Rotating log");
+    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetRotatorInvoker());
+
+    ++RotationCount_;
+    YT_LOG_INFO("Rotating log (RotationCount: %v)", RotationCount_);
+    if (RotationCount_ == 1) {
+        YT_LOG_INFO("Ignoring first rotation");
+        return;
+    }
+
     for (const auto& file : LogFilePaths_) {
         int segmentCount = 0;
         while (Exists(GetLogSegmentPath(file, segmentCount))) {
@@ -82,25 +90,20 @@ void TLogRotator::RotateLogs()
         }
     }
 
-
     auto logWriterPid = *Config_->LogWriterPid;
-    bool logWriterStopped = false;
 
     YT_LOG_DEBUG("Sending SIGHUP to process (LogWriterPid: %v)", logWriterPid);
-    if (kill(logWriterPid, SIGHUP) == ESRCH) {
-        YT_LOG_DEBUG("Log writer has stopped; uploading rest of the log (LogWriterPid: %v)", logWriterPid);
-        logWriterStopped = true;
+    int killResult = kill(logWriterPid, SIGHUP);
+    if (killResult != 0 && LastSystemError() != ESRCH) {
+        YT_LOG_ERROR("Unexpected kill result (LogWriterPid: %v, KillResult: %v)",
+            logWriterPid,
+            LastSystemErrorText());
     }
 
     Sleep(Config_->RotationDelay);
 
     for (const auto& reader : Bootstrap_->GetLogTailer()->GetLogReaders()) {
         reader->OnLogRotation();
-    }
-
-    if (logWriterStopped) {
-        YT_LOG_DEBUG("Log writer has stopped; terminating (LogWriterPid: %v)", logWriterPid);
-        Bootstrap_->Terminate();
     }
 }
 
