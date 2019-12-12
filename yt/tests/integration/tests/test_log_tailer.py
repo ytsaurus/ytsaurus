@@ -35,7 +35,7 @@ class TestLogTailer(YTEnvSetup):
             pytest.skip("This test requires dummy_logger binary being built")
 
     @authors("gritukan")
-    def test_log_rotation(self):
+    def DISABLE_test_log_rotation(self):
         log_tailer_config = yson.loads(open(os.path.join(TEST_DIR, "test_clickhouse", "log_tailer_config.yson")).read())
         log_path = \
             os.path.join(self.path_to_run,
