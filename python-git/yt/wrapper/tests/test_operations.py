@@ -667,6 +667,17 @@ class TestStderrTable(object):
 
 @pytest.mark.usefixtures("yt_env_with_rpc")
 class TestOperationCommands(object):
+    def setup(self):
+        yt.config["tabular_data_format"] = yt.format.JsonFormat()
+        self.env = {
+            "YT_CONFIG_PATCHES": dumps_yt_config(),
+            "PYTHONPATH": os.environ.get("PYTHONPATH", "")
+        }
+
+    def teardown(self):
+        yt.config["tabular_data_format"] = None
+        yt.remove("//tmp/yt_wrapper/file_storage", recursive=True, force=True)
+
     def test_get_operation_command(self):
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"x": 1}, {"x": 2}])
