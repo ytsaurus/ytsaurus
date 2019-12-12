@@ -163,14 +163,7 @@ bool TContext::TryParseUser()
     if (!authResult.IsOK()) {
         YT_LOG_DEBUG(authResult, "Authentication error");
 
-        if (authResult.FindMatching(NRpc::EErrorCode::InvalidCredentials)) {
-            Response_->SetStatus(EStatusCode::Unauthorized);
-        } else if (authResult.FindMatching(NRpc::EErrorCode::InvalidCsrfToken)) {
-            Response_->SetStatus(EStatusCode::Unauthorized);
-        } else {
-            Response_->SetStatus(EStatusCode::ServiceUnavailable);
-        }
-
+        SetStatusFromAuthError(Response_, TError(authResult));
         FillYTErrorHeaders(Response_, TError(authResult));
         DispatchJson([&] (auto consumer) {
             BuildYsonFluently(consumer)

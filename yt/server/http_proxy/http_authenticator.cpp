@@ -25,6 +25,19 @@ DEFINE_REFCOUNTED_TYPE(THttpAuthenticator)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void SetStatusFromAuthError(const NHttp::IResponseWriterPtr& rsp, const TError& error)
+{
+    if (error.FindMatching(NRpc::EErrorCode::InvalidCredentials)) {
+        rsp->SetStatus(EStatusCode::Unauthorized);
+    } else if (error.FindMatching(NRpc::EErrorCode::InvalidCsrfToken)) {
+        rsp->SetStatus(EStatusCode::Unauthorized);
+    } else {
+        rsp->SetStatus(EStatusCode::ServiceUnavailable);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 THttpAuthenticator::THttpAuthenticator(
     TAuthenticationManagerConfigPtr config,
     ITokenAuthenticatorPtr tokenAuthenticator,
@@ -62,7 +75,7 @@ void THttpAuthenticator::HandleRequest(const IRequestPtr& req, const IResponseWr
                 .EndMap();
         });
     } else {
-        rsp->SetStatus(EStatusCode::InternalServerError);
+        SetStatusFromAuthError(rsp, TError(result));
         ReplyJson(rsp, [&] (auto consumer) {
             BuildYsonFluently(consumer)
                 .Value(TError(result));
