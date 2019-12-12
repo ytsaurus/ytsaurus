@@ -843,13 +843,13 @@ public:
             Location_->GetIOEngine(),
             MultiplexedChangelogConfig_,
             "MFlush:" + Location_->GetId(),
-            DataNodeProfiler.AppendPath("/multiplexed_changelogs"));
+            Location_->GetProfiler().AppendPath("/multiplexed_changelogs"));
 
         SplitChangelogDispatcher_ = New<TFileChangelogDispatcher>(
             Location_->GetIOEngine(),
             MultiplexedChangelogConfig_,
             "SFlush:" + Location_->GetId(),
-            DataNodeProfiler.AppendPath("/split_changelogs"));
+            Location_->GetProfiler().AppendPath("/split_changelogs"));
 
         MultiplexedWriter_ = New<TMultiplexedWriter>(
             MultiplexedChangelogConfig_,
