@@ -6245,7 +6245,7 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersione
             auto fetcher = New<TDataSliceFetcher>(
                 Config->Fetcher,
                 sliceSize,
-                table->Schema.GetKeyColumns(),
+                table->Schema.GetKeyColumns().size(),
                 true,
                 InputNodeDirectory_,
                 GetCancelableInvoker(),

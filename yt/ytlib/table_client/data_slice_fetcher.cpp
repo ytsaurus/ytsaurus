@@ -16,7 +16,7 @@ using namespace NChunkClient;
 TDataSliceFetcher::TDataSliceFetcher(
     TFetcherConfigPtr config,
     i64 chunkSliceSize,
-    const TKeyColumns& keyColumns,
+    int keyColumnCount,
     bool sliceByKeys,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     IInvokerPtr invoker,
@@ -27,7 +27,7 @@ TDataSliceFetcher::TDataSliceFetcher(
     : ChunkSliceFetcher_(CreateChunkSliceFetcher(
         std::move(config),
         chunkSliceSize,
-        keyColumns,
+        keyColumnCount,
         sliceByKeys,
         std::move(nodeDirectory),
         std::move(invoker),

@@ -297,7 +297,10 @@ message TRspGetTableSamples
 message TReqGetChunkSlices
 {
     repeated TSliceRequest slice_requests = 1;
+
+    // COMPAT(gritukan): drop it in 19.9.
     repeated string key_columns = 2;
+
     required int64 slice_data_size = 3;
     // If false, chunks are sliced by row indexes and
     // lower_key and upper_key contain estimated values.
@@ -307,6 +310,8 @@ message TReqGetChunkSlices
 
     // COMPAT(babenko)
     optional bool keys_in_attachment = 6;
+
+    optional int32 key_column_count = 7;
 }
 
 message TRspGetChunkSlices

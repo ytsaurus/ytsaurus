@@ -25,7 +25,7 @@ public:
     TDataSliceFetcher(
         NChunkClient::TFetcherConfigPtr config,
         i64 chunkSliceSize,
-        const TKeyColumns& keyColumns,
+        int keyColumnCount,
         bool sliceByKeys,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         IInvokerPtr invoker,

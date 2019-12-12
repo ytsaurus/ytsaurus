@@ -725,15 +725,22 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkSlices)
     {
         auto requestCount = request->slice_requests_size();
-        auto keyColumns = FromProto<TKeyColumns>(request->key_columns());
         auto sliceDataSize = request->slice_data_size();
         auto sliceByKeys = request->slice_by_keys();
         auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
 
+        // COMPAT(gritukan): drop key_column_count in 19.9.
+        int keyColumnCount;
+        if (request->has_key_column_count()) {
+            keyColumnCount = request->key_column_count();
+        } else {
+            keyColumnCount = request->key_columns().size();
+        }
+
         context->SetRequestInfo(
-            "KeyColumns: %v, RequestCount: %v, "
+            "KeyColumnCount: %v, RequestCount: %v, "
             "SliceDataSize: %v, SliceByKeys: %v, Workload: %v",
-            keyColumns,
+            keyColumnCount,
             requestCount,
             sliceDataSize,
             sliceByKeys,
@@ -761,7 +768,7 @@ private:
                     ProcessSlice(
                         request->slice_requests(requestIndex),
                         response->add_slice_responses(),
-                        keyColumns,
+                        keyColumnCount,
                         sliceDataSize,
                         sliceByKeys,
                         keySetWriter,
@@ -778,7 +785,7 @@ private:
     void ProcessSlice(
         const TSliceRequest& sliceRequest,
         TRspGetChunkSlices::TSliceResponse* sliceResponse,
-        const TKeyColumns& keyColumns,
+        int keyColumnCount,
         i64 sliceDataSize,
         bool sliceByKeys,
         const TKeySetWriterPtr& keySetWriter,
@@ -819,17 +826,16 @@ private:
                 format == ETableChunkFormat::VersionedColumnar;
 
             // NB(psushin): we don't validate key names, because possible column renaming could have happened.
-            ValidateKeyColumns(
-                keyColumns,
-                chunkKeyColumns,
-                versioned,
-                /* validateColumnNames */ false);
+            ValidateKeyColumnCount(
+                keyColumnCount,
+                chunkKeyColumns.size(),
+                versioned);
 
             auto slices = SliceChunk(
                 sliceRequest,
                 *chunkMeta,
                 sliceDataSize,
-                keyColumns.size(),
+                keyColumnCount,
                 sliceByKeys);
 
             for (const auto& slice : slices) {
