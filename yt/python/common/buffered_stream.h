@@ -13,7 +13,7 @@ namespace NYT::NPython {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBufferedStream
-    : public NConcurrency::IAsyncOutputStream
+    : public NConcurrency::IFlushableAsyncOutputStream
 {
 public:
     explicit TBufferedStream(size_t capacity);
@@ -35,7 +35,10 @@ public:
     // Called from YT.
     virtual TFuture<void> Write(const TSharedRef& data) override;
 
+    virtual TFuture<void> Flush() override;
+
     virtual TFuture<void> Close() override;
+
 
 private:
     TSharedMutableRef Data_;

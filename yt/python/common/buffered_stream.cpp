@@ -127,6 +127,11 @@ TFuture<void> TBufferedStream::Write(const TSharedRef& data)
     }
 }
 
+TFuture<void> TBufferedStream::Flush()
+{
+    return VoidFuture;
+}
+
 void TBufferedStream::Reallocate(size_t len)
 {
     YT_VERIFY(len >= Size_);
