@@ -244,7 +244,7 @@ private:
 
     TString Output_;
     TStringOutput SyncOutput_;
-    IAsyncOutputStreamPtr AsyncOutput_;
+    IFlushableAsyncOutputStreamPtr AsyncOutput_;
 
     TYsonString OnResponse(const TError& error)
     {

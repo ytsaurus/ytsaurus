@@ -239,7 +239,7 @@ DEFINE_REFCOUNTED_TYPE(IRequest)
 
 struct IResponseWriter
     : public virtual TRefCounted
-    , public virtual NConcurrency::IAsyncOutputStream
+    , public virtual NConcurrency::IFlushableAsyncOutputStream
 {
     virtual const THeadersPtr& GetHeaders() = 0;
     virtual const THeadersPtr& GetTrailers() = 0;

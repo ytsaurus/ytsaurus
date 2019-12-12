@@ -701,6 +701,11 @@ TFuture<void> THttpOutput::Write(const TSharedRef& data)
         .Apply(OnWriteFinish_);
 }
 
+TFuture<void> THttpOutput::Flush()
+{
+    return VoidFuture;
+}
+
 TFuture<void> THttpOutput::Close()
 {
     if (MessageFinished_) {

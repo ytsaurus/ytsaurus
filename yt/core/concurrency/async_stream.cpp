@@ -292,11 +292,11 @@ std::unique_ptr<ICheckpointableOutputStream> CreateBufferedCheckpointableSyncAda
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAsyncOutputStreamAdapter
-    : public IAsyncOutputStream
+class TFlushableAsyncOutputStreamAdapter
+    : public IFlushableAsyncOutputStream
 {
 public:
-    TAsyncOutputStreamAdapter(
+    TFlushableAsyncOutputStreamAdapter(
         IOutputStream* underlyingStream,
         IInvokerPtr invoker)
         : UnderlyingStream_(underlyingStream)
@@ -305,14 +305,21 @@ public:
 
     virtual TFuture<void> Write(const TSharedRef& buffer) override
     {
-        return BIND(&TAsyncOutputStreamAdapter::DoWrite, MakeStrong(this), buffer)
+        return BIND(&TFlushableAsyncOutputStreamAdapter::DoWrite, MakeStrong(this), buffer)
+            .AsyncVia(Invoker_)
+            .Run();
+    }
+
+    virtual TFuture<void> Flush() override
+    {
+        return BIND(&TFlushableAsyncOutputStreamAdapter::DoFlush, MakeStrong(this))
             .AsyncVia(Invoker_)
             .Run();
     }
 
     virtual TFuture<void> Close() override
     {
-        return BIND(&TAsyncOutputStreamAdapter::DoFinish, MakeStrong(this))
+        return BIND(&TFlushableAsyncOutputStreamAdapter::DoFinish, MakeStrong(this))
             .AsyncVia(Invoker_)
             .Run();
     }
@@ -321,6 +328,11 @@ private:
     void DoWrite(const TSharedRef& buffer) const
     {
         UnderlyingStream_->Write(buffer.Begin(), buffer.Size());
+    }
+
+    void DoFlush() const
+    {
+        UnderlyingStream_->Flush();
     }
 
     void DoFinish() const
@@ -333,13 +345,14 @@ private:
     const IInvokerPtr Invoker_;
 };
 
-IAsyncOutputStreamPtr CreateAsyncAdapter(
+IFlushableAsyncOutputStreamPtr CreateAsyncAdapter(
     IOutputStream* underlyingStream,
     IInvokerPtr invoker)
 {
     YT_VERIFY(underlyingStream);
-    return New<TAsyncOutputStreamAdapter>(underlyingStream, std::move(invoker));
+    return New<TFlushableAsyncOutputStreamAdapter>(underlyingStream, std::move(invoker));
 }
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
