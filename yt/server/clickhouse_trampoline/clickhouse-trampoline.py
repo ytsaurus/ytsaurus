@@ -61,15 +61,26 @@ def extract_geodata():
     logger.info("Geodata extracted")
 
 
-def patch_config(prepare_geodata):
+def patch_ytserver_clickhouse_config(prepare_geodata):
     logger.info("Patching config")
     assert os.path.exists("./config.yson")
     with open("./config.yson", "r") as f:
         content = f.read()
-    content = content.replace("$YT_JOB_ID", os.environ["YT_JOB_ID"])
+    content = content.replace("$YT_JOB_INDEX", os.environ["YT_JOB_INDEX"])
     if not prepare_geodata:
         content = "\n".join(filter(lambda line: "./geodata" not in line, content.split("\n")))
     with open("./config_patched.yson", "w") as f:
+        f.write(content)
+    logger.info("Config patched")
+
+
+def patch_log_tailer_config():
+    logger.info("Patching log tailer config")
+    assert os.path.exists("./log_tailer_config.yson")
+    with open("./log_tailer_config.yson", "r") as f:
+        content = f.read()
+    content = content.replace("$YT_JOB_INDEX", os.environ["YT_JOB_INDEX"])
+    with open("./log_tailer_config_patched.yson", "w") as f:
         f.write(content)
     logger.info("Config patched")
 
@@ -100,7 +111,7 @@ def run_ytserver_clickhouse(ytserver_clickhouse_bin, monitoring_port):
 
 def run_log_tailer(log_tailer_bin, ytserver_clickhouse_pid):
     logger.info("Running log tailer over pid %d", ytserver_clickhouse_pid)
-    args = [log_tailer_bin, str(ytserver_clickhouse_pid), "--config", "./log_tailer_config.yson"]
+    args = [log_tailer_bin, str(ytserver_clickhouse_pid), "--config", "./log_tailer_config_patched.yson"]
     return start_process(args)
 
 
@@ -154,18 +165,20 @@ def main():
 
     if args.prepare_geodata:
         extract_geodata()
-    patch_config(args.prepare_geodata)
+    patch_ytserver_clickhouse_config(args.prepare_geodata)
     ytserver_clickhouse_process = run_ytserver_clickhouse(args.ytserver_clickhouse_bin, args.monitoring_port)
     sigint_handler = SigintHandler(ytserver_clickhouse_process, args.interrupt_child)
     log_tailer_process = None
     if args.log_tailer_bin:
+        patch_log_tailer_config()
         log_tailer_process = run_log_tailer(args.log_tailer_bin, ytserver_clickhouse_process.pid)
     logger.info("Waiting for ytserver-clickhouse to finish")
     exit_code = ytserver_clickhouse_process.wait()
     logger.info("ytserver-clickhouse exit code is %d", exit_code)
     logger.info("Waiting for log tailer to finish")
-    log_tailer_exit_code = log_tailer_process.wait()
-    logger.info("Log tailer exit code is %d", log_tailer_exit_code)
+    if log_tailer_process is not None:
+        log_tailer_exit_code = log_tailer_process.wait()
+        logger.info("Log tailer exit code is %d", log_tailer_exit_code)
     if args.core_dump_destination:
         move_core_dumps(args.core_dump_destination)
     exit(exit_code)

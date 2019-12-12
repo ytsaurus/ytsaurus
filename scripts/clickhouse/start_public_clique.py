@@ -24,10 +24,11 @@ def main():
 
     yt.start_clickhouse_clique(
         16 if args.type != "prestable" else 4,
+        alias,
         cpu_limit=8,
         enable_monitoring=True,
         enable_job_tables=True,
-        enable_log_tailer=True,
+        enable_log_tailer=args.type == "prestable",
         cypress_geodata_path="//sys/clickhouse/geodata/geodata.tgz",
         cypress_ytserver_clickhouse_path=args.bin,
         spec={
@@ -40,7 +41,6 @@ def main():
             "pool": "chyt",
             "preemption_mode": "graceful" if args.graceful_preemption else "normal",
         },
-        operation_alias=alias,
         abort_existing=True,
         dump_tables=True)
 
