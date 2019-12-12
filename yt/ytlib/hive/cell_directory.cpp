@@ -181,11 +181,8 @@ public:
         TReaderGuard guard(SpinLock_);
         std::vector<TCellInfo> result;
         result.reserve(RegisteredCellMap_.size());
-        for (const auto& pair : RegisteredCellMap_) {
-            TCellInfo info;
-            info.CellId = pair.first;
-            info.ConfigVersion = pair.second.Descriptor.ConfigVersion;
-            result.push_back(info);
+        for (const auto& [cellId, entry] : RegisteredCellMap_) {
+            result.push_back({cellId, entry.Descriptor.ConfigVersion});
         }
         return result;
     }
@@ -211,6 +208,53 @@ public:
                 cellId);
         }
         return *result;
+    }
+
+    TSynchronizationResult Synchronize(const std::vector<TCellInfo>& knownCells)
+    {
+        TReaderGuard guard(SpinLock_);
+
+        TSynchronizationResult result;
+        auto trySynchronize = [&] (bool trackMissingCells) {
+            result = {};
+
+            THashMap<TCellId, const TEntry*> missingMap;
+            if (trackMissingCells) {
+                for (const auto& [cellId, entry] : RegisteredCellMap_) {
+                    YT_VERIFY(missingMap.emplace(cellId, &entry).second);
+                }
+            }
+
+            for (const auto& knownCell : knownCells) {
+                auto cellId = knownCell.CellId;
+                if (auto it = RegisteredCellMap_.find(cellId)) {
+                    if (trackMissingCells) {
+                        YT_VERIFY(missingMap.erase(cellId) == 1);
+                    }
+                    const auto& entry = it->second;
+                    if (knownCell.ConfigVersion < entry.Descriptor.ConfigVersion) {
+                        result.ReconfigureRequests.push_back({entry.Descriptor, knownCell.ConfigVersion});
+                    }
+                } else {
+                    if (!trackMissingCells) {
+                        return false;
+                    }
+                    result.UnregisterRequests.push_back({cellId});
+                }
+            }
+
+            for (auto [cellId, entry] : missingMap) {
+                result.ReconfigureRequests.push_back({entry->Descriptor, -1});
+            }
+
+            return true;
+        };
+
+        if (!trySynchronize(knownCells.size() < RegisteredCellMap_.size())) {
+            YT_VERIFY(trySynchronize(true));
+        }
+
+        return result;
     }
 
     bool ReconfigureCell(TCellConfigPtr config, int configVersion)
@@ -243,7 +287,7 @@ public:
         }
         auto it = RegisteredCellMap_.find(descriptor.CellId);
         if (it == RegisteredCellMap_.end()) {
-            it = RegisteredCellMap_.insert(std::make_pair(descriptor.CellId, TEntry(descriptor))).first;
+            it = RegisteredCellMap_.emplace(descriptor.CellId, TEntry(descriptor)).first;
             if (descriptor.ConfigVersion >= 0) {
                 InitChannel(&it->second);
             }
@@ -341,9 +385,6 @@ TCellDirectory::TCellDirectory(
         logger))
 { }
 
-TCellDirectory::~TCellDirectory()
-{ }
-
 IChannelPtr TCellDirectory::FindChannel(TCellId cellId, EPeerKind peerKind)
 {
     return Impl_->FindChannel(cellId, peerKind);
@@ -377,6 +418,11 @@ std::vector<TCellInfo> TCellDirectory::GetRegisteredCells()
 bool TCellDirectory::IsCellUnregistered(TCellId cellId)
 {
     return Impl_->IsCellUnregistered(cellId);
+}
+
+TCellDirectory::TSynchronizationResult TCellDirectory::Synchronize(const std::vector<TCellInfo>& knownCells)
+{
+    return Impl_->Synchronize(knownCells);
 }
 
 bool TCellDirectory::ReconfigureCell(TCellConfigPtr config, int configVersion)

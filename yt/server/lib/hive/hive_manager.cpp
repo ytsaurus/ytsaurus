@@ -340,58 +340,23 @@ private:
         ValidatePeer(EPeerKind::LeaderOrFollower);
         SyncWithUpstream();
 
-        auto registeredCellList = CellDirectory_->GetRegisteredCells();
-        THashMap<TCellId, TCellInfo> registeredCellMap;
-        for (const auto& cellInfo : registeredCellList) {
-            YT_VERIFY(registeredCellMap.insert(std::make_pair(cellInfo.CellId, cellInfo)).second);
-        }
+        auto knownCells = FromProto<std::vector<TCellInfo>>(request->known_cells());
+        auto syncResult = CellDirectory_->Synchronize(knownCells);
 
-        THashSet<TCellId> missingCellIds;
-        for (const auto& cellInfo : registeredCellList) {
-            YT_VERIFY(missingCellIds.insert(cellInfo.CellId).second);
-        }
-
-        auto requestReconfigure = [&] (const TCellDescriptor& cellDescriptor, int oldVersion) {
+        for (const auto& request : syncResult.ReconfigureRequests) {
             YT_LOG_DEBUG("Requesting cell reconfiguration (CellId: %v, ConfigVersion: %v -> %v)",
-                cellDescriptor.CellId,
-                oldVersion,
-                cellDescriptor.ConfigVersion);
+                request.NewDescriptor.CellId,
+                request.OldConfigVersion,
+                request.NewDescriptor.ConfigVersion);
             auto* protoInfo = response->add_cells_to_reconfigure();
-            ToProto(protoInfo->mutable_cell_descriptor(), cellDescriptor);
-        };
-
-        auto requestUnregister = [&] (TCellId cellId) {
-            YT_LOG_DEBUG("Requesting cell unregistration (CellId: %v)",
-                cellId);
-            auto* unregisterInfo = response->add_cells_to_unregister();
-            ToProto(unregisterInfo->mutable_cell_id(), cellId);
-        };
-
-        for (const auto& protoCellInfo : request->known_cells()) {
-            auto cellId = FromProto<TCellId>(protoCellInfo.cell_id());
-            auto it = registeredCellMap.find(cellId);
-            if (it == registeredCellMap.end()) {
-                requestUnregister(cellId);
-            } else {
-                YT_VERIFY(missingCellIds.erase(cellId) == 1);
-                const auto& cellInfo = it->second;
-                if (protoCellInfo.config_version() < cellInfo.ConfigVersion) {
-                    auto cellDescriptor = CellDirectory_->FindDescriptor(cellId);
-                    // If cell descriptor is already missing then just skip this cell and
-                    // postpone it for another heartbeat.
-                    if (cellDescriptor) {
-                        requestReconfigure(*cellDescriptor, protoCellInfo.config_version());
-                    }
-                }
-            }
+            ToProto(protoInfo->mutable_cell_descriptor(), request.NewDescriptor);
         }
 
-        for (auto cellId : missingCellIds) {
-            auto cellDescriptor = CellDirectory_->FindDescriptor(cellId);
-            // See above.
-            if (cellDescriptor) {
-                requestReconfigure(*cellDescriptor, -1);
-            }
+        for (const auto& request : syncResult.UnregisterRequests) {
+            YT_LOG_DEBUG("Requesting cell unregistration (CellId: %v)",
+                request.CellId);
+            auto* unregisterInfo = response->add_cells_to_unregister();
+            ToProto(unregisterInfo->mutable_cell_id(), request.CellId);
         }
 
         context->Reply();
