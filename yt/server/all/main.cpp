@@ -7,6 +7,7 @@
 #include <yt/server/tools/program.h>
 #include <yt/server/node/cell_node/program.h>
 #include <yt/server/exec/program.h>
+#include <yt/server/log_tailer/program.h>
 
 int main(int argc, const char** argv)
 {
@@ -20,6 +21,7 @@ int main(int argc, const char** argv)
         {"ytserver-tools", [&] { return NYT::TToolsProgram().Run(argc, argv); }},
         {"ytserver-scheduler", [&] { return NYT::NScheduler::TSchedulerProgram().Run(argc, argv); }},
         {"ytserver-controller-agent", [&] { return NYT::NControllerAgent::TControllerAgentProgram().Run(argc, argv); }},
+        {"ytserver-log-tailer", [&] { return NYT::NLogTailer::TLogTailerProgram().Run(argc, argv); }},
     };
 
     for (const auto program : programs) {
