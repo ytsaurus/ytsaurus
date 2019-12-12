@@ -25,6 +25,7 @@ object DebianPackagePlugin extends AutoPlugin {
     val debPackageSourceControlFile = taskKey[File]("Build control file for dpkg-source")
     val debPackageFilesList = taskKey[File]("Create debian/files file")
 
+    val debPackagePrefixPath = settingKey[String]("Base directory to add files")
     val debPackageSourceFormat = settingKey[String]("Required format of .dsc file")
     val debPackageVersion = settingKey[String]("Debian package version")
     val debPackageSignKey = settingKey[String]("Sign key for debsign")

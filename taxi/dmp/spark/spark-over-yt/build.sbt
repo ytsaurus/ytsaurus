@@ -83,6 +83,8 @@ lazy val `client` = (project in file("client"))
     sparkLauncherName := (name in `spark-launcher`).value
   )
   .settings(
+    debPackagePrefixPath := "/usr/lib/yandex",
+    debPackagePublishRepo := "yandex-taxi-common",
     debPackageVersion := {
       val debBuildNumber = Option(System.getProperty("build")).getOrElse("")
       val beta = if ((version in ThisBuild).value.contains("SNAPSHOT")) "~beta1" else ""
@@ -93,23 +95,26 @@ lazy val `client` = (project in file("client"))
     packageDescription := "Client spark libraries and Spark over YT binaries",
     linuxPackageMappings ++= {
       val sparkDist = sparkPackage.value
+      val sparkBasePath = s"${debPackagePrefixPath.value}/spark"
       Seq(
-        createPackageMapping(sparkDist, s"/opt/${sparkName.value}"),
+        createPackageMapping(sparkDist, sparkBasePath),
         LinuxPackageMapping(Map(
-          sparkGenerateProfile.value -> "/etc/profile.d/spark-profile.sh",
-          (resourceDirectory in Compile).value / "log4j.local.properties" -> s"/opt/${sparkName.value}/conf/log4j.properties"
+          (resourceDirectory in Compile).value / "log4j.local.properties" -> s"$sparkBasePath/conf/log4j.properties"
         ))
       )
     },
-    linuxPackageSymlinks ++= Seq(
-      LinuxSymlink("/usr/local/bin/spark-shell", s"/opt/${sparkName.value}/bin/spark-shell"),
-      LinuxSymlink("/usr/local/bin/find-spark-home", s"/opt/${sparkName.value}/bin/find-spark-home"),
-      LinuxSymlink("/usr/local/bin/spark-class", s"/opt/${sparkName.value}/bin/spark-class"),
-      LinuxSymlink("/usr/local/bin/spark-submit", s"/opt/${sparkName.value}/bin/spark-submit"),
-      LinuxSymlink("/usr/local/bin/spark-shell-yt", s"/opt/${sparkName.value}/bin/spark-shell-yt"),
-      LinuxSymlink("/usr/local/bin/spark-submit-yt", s"/opt/${sparkName.value}/bin/spark-submit-yt"),
-      LinuxSymlink("/usr/local/bin/spark-launch-yt", s"/opt/${sparkName.value}/bin/spark-launch-yt")
-    )
+    linuxPackageSymlinks ++= {
+      val sparkBasePath = s"${debPackagePrefixPath.value}/spark"
+      Seq(
+        LinuxSymlink("/usr/local/bin/spark-shell", s"$sparkBasePath/bin/spark-shell"),
+        LinuxSymlink("/usr/local/bin/find-spark-home", s"$sparkBasePath/bin/find-spark-home"),
+        LinuxSymlink("/usr/local/bin/spark-class", s"$sparkBasePath/bin/spark-class"),
+        LinuxSymlink("/usr/local/bin/spark-submit", s"$sparkBasePath/bin/spark-submit"),
+        LinuxSymlink("/usr/local/bin/spark-shell-yt", s"$sparkBasePath/bin/spark-shell-yt"),
+        LinuxSymlink("/usr/local/bin/spark-submit-yt", s"$sparkBasePath/bin/spark-submit-yt"),
+        LinuxSymlink("/usr/local/bin/spark-launch-yt", s"$sparkBasePath/bin/spark-launch-yt")
+      )
+    }
   )
   .settings(
     tarArchiveMapping += sparkPackage.value -> sparkName.value,

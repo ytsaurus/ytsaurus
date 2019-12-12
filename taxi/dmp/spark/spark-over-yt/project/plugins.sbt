@@ -13,4 +13,4 @@ resolvers += Resolver.url("Arcadia2", url("http://artifactory.yandex.net/artifac
       .withArtifactPatterns(Vector("[organisation]/[module]_2.12_1.0/[revision]/[artifact]-[revision].[ext]"))
   )
 
-addSbtPlugin("ru.yandex" % "sbt-yandex" % "0.0.1-1-SNAPSHOT")
+addSbtPlugin("ru.yandex" % "sbt-yandex" % "0.0.1-2-SNAPSHOT")
