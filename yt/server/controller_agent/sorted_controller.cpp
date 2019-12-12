@@ -622,7 +622,7 @@ private:
         auto fetcher = NTableClient::CreateChunkSliceFetcher(
             Config->Fetcher,
             InputSliceDataWeight_,
-            PrimaryKeyColumns_,
+            PrimaryKeyColumns_.size(),
             ShouldSlicePrimaryTableByKeys(),
             InputNodeDirectory_,
             GetCancelableInvoker(),

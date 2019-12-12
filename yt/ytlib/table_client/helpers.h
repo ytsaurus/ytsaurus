@@ -50,11 +50,14 @@ TUnversionedValue MakeUnversionedValue(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ValidateKeyColumnCount(
+    int keyColumnCount,
+    int chunkKeyColumnCount,
+    bool requireUniqueKeys);
 void ValidateKeyColumns(
     const TKeyColumns& keyColumns,
     const TKeyColumns& chunkKeyColumns,
-    bool requireUniqueKeys,
-    bool validateColumnNames);
+    bool requireUniqueKeys);
 TColumnFilter CreateColumnFilter(
     const std::optional<std::vector<TString>>& columns,
     const TNameTablePtr& nameTable);

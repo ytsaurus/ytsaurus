@@ -44,7 +44,7 @@ public:
     TChunkSliceFetcher(
         TFetcherConfigPtr config,
         i64 chunkSliceSize,
-        const TKeyColumns& keyColumns,
+        int keyColumnCount,
         bool sliceByKeys,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         IInvokerPtr invoker,
@@ -61,7 +61,7 @@ public:
             logger)
         , RowBuffer_(std::move(rowBuffer))
         , ChunkSliceSize_(chunkSliceSize)
-        , KeyColumns_(keyColumns)
+        , KeyColumnCount_(keyColumnCount)
         , SliceByKeys_(sliceByKeys)
     {
         YT_VERIFY(ChunkSliceSize_ > 0);
@@ -87,7 +87,7 @@ public:
 private:
     const NTableClient::TRowBufferPtr RowBuffer_;
     const i64 ChunkSliceSize_;
-    const TKeyColumns KeyColumns_;
+    const int KeyColumnCount_;
     const bool SliceByKeys_;
 
     //! All slices fetched so far.
@@ -117,14 +117,13 @@ private:
         req->SetMultiplexingBand(EMultiplexingBand::Heavy);
         req->set_slice_data_size(ChunkSliceSize_);
         req->set_slice_by_keys(SliceByKeys_);
-        ToProto(req->mutable_key_columns(), KeyColumns_);
+        req->set_key_column_count(KeyColumnCount_);
         // TODO(babenko): make configurable
         ToProto(req->mutable_workload_descriptor(), TWorkloadDescriptor(EWorkloadCategory::UserBatch));
         // COMPAT(babenko)
         req->set_keys_in_attachment(true);
 
         std::vector<int> requestedChunkIndexes;
-        int keyColumnCount = KeyColumns_.size();
 
         for (auto index : chunkIndexes) {
             const auto& chunk = Chunks_[index];
@@ -138,10 +137,10 @@ private:
             const auto& maxKey = chunk->BoundaryKeys()->MaxKey;
 
             if (chunkDataSize < ChunkSliceSize_ ||
-                (SliceByKeys_ && CompareRows(minKey, maxKey, keyColumnCount) == 0))
+                (SliceByKeys_ && CompareRows(minKey, maxKey, KeyColumnCount_) == 0))
             {
                 auto slice = CreateInputChunkSlice(chunk);
-                InferLimitsFromBoundaryKeys(slice, RowBuffer_, keyColumnCount);
+                InferLimitsFromBoundaryKeys(slice, RowBuffer_, KeyColumnCount_);
 
                 if (SlicesByChunkIndex_.size() <= index) {
                     SlicesByChunkIndex_.resize(index + 1, std::vector<NChunkClient::TInputChunkSlicePtr>());
@@ -236,7 +235,7 @@ private:
 IChunkSliceFetcherPtr CreateChunkSliceFetcher(
     TFetcherConfigPtr config,
     i64 chunkSliceSize,
-    const TKeyColumns& keyColumns,
+    int keyColumnCount,
     bool sliceByKeys,
     TNodeDirectoryPtr nodeDirectory,
     IInvokerPtr invoker,
@@ -248,7 +247,7 @@ IChunkSliceFetcherPtr CreateChunkSliceFetcher(
     return New<TChunkSliceFetcher>(
         config,
         chunkSliceSize,
-        keyColumns,
+        keyColumnCount,
         sliceByKeys,
         nodeDirectory,
         invoker,
