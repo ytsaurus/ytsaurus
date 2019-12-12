@@ -842,6 +842,8 @@ private:
         int firstRecordId,
         const std::vector<TSharedRef>& records)
     {
+        i64 bytesWritten = 0;
+
         try {
             AppendSizes_.clear();
             AppendSizes_.reserve(records.size());
@@ -895,6 +897,7 @@ private:
             // Process written records (update index etc).
             IndexFile_.Append(firstRecordId, CurrentFilePosition_, AppendSizes_);
             RecordCount_ += records.size();
+            bytesWritten = data.Size();
 
             for (int index = 0; index < records.size(); ++index) {
                 CurrentFilePosition_ += AppendSizes_[index];
@@ -905,7 +908,7 @@ private:
             throw;
         }
 
-        YT_LOG_DEBUG("Finished appending to changelog");
+        YT_LOG_DEBUG("Finished appending to changelog (BytesWritten: %v)", bytesWritten);
     }
 
     template <class TRecordHeader>
