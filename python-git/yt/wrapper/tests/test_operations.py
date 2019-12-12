@@ -607,6 +607,17 @@ print(op.id)
 
 @pytest.mark.usefixtures("yt_env_with_rpc")
 class TestStderrTable(object):
+    def setup(self):
+        yt.config["tabular_data_format"] = yt.format.JsonFormat()
+        self.env = {
+            "YT_CONFIG_PATCHES": dumps_yt_config(),
+            "PYTHONPATH": os.environ.get("PYTHONPATH", "")
+        }
+
+    def teardown(self):
+        yt.config["tabular_data_format"] = None
+        yt.remove("//tmp/yt_wrapper/file_storage", recursive=True, force=True)
+
     def test_stderr_table(self):
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
@@ -804,7 +815,6 @@ class TestOperationCommands(object):
         finally:
             if op.get_state() not in ["completed", "failed", "aborted"]:
                 op.abort()
-
 
 
 @pytest.mark.usefixtures("yt_env_with_rpc")
