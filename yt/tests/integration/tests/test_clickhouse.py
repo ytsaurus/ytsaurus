@@ -82,8 +82,13 @@ class Clique(object):
         Clique.clique_index += 1
         create("file", filename)
         write_file(filename, yson.dumps(config, yson_format="pretty"))
+
+        cypress_config_paths = {"clickhouse_server": (filename, "config.yson")}
+        if "cypress_ytserver_log_tailer_config_path" in kwargs:
+            cypress_config_paths["log_tailer"] = (kwargs.pop("cypress_ytserver_log_tailer_config_path"), "log_tailer_config.yson")
+
         spec_builder = get_clickhouse_clique_spec_builder(instance_count,
-                                                          cypress_config_path=filename,
+                                                          cypress_config_paths=cypress_config_paths,
                                                           max_failed_job_count=max_failed_job_count,
                                                           defaults=DEFAULTS,
                                                           spec=spec,
