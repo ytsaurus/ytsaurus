@@ -2753,7 +2753,8 @@ private:
                 // No break intentionally.
             case ETabletActionState::Failed: {
                 UnbindTabletAction(action);
-                if (action->GetExpirationTime() <= Now()) {
+                const auto now = GetCurrentMutationContext()->GetTimestamp();
+                if (action->GetExpirationTime() <= now) {
                     const auto& objectManager = Bootstrap_->GetObjectManager();
                     objectManager->UnrefObject(action);
                 }
