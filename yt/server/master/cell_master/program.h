@@ -10,7 +10,7 @@
 #include <yt/core/logging/log_manager.h>
 #include <yt/core/logging/config.h>
 
-#include <yt/core/phdr_cache/phdr_cache.h>
+#include <yt/library/phdr_cache/phdr_cache.h>
 
 #include <library/ytalloc/api/ytalloc.h>
 

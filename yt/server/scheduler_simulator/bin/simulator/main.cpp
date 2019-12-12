@@ -29,7 +29,7 @@
 #include <yt/core/misc/shutdown.h>
 #include <yt/core/misc/property.h>
 
-#include <yt/core/phdr_cache/phdr_cache.h>
+#include <yt/library/phdr_cache/phdr_cache.h>
 
 #include <yt/core/ytalloc/bindings.h>
 

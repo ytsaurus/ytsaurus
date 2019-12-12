@@ -8,7 +8,7 @@
 
 #include <yt/core/json/json_parser.h>
 
-#include <yt/core/phdr_cache/phdr_cache.h>
+#include <yt/library/phdr_cache/phdr_cache.h>
 
 #include <library/ytalloc/api/ytalloc.h>
 
