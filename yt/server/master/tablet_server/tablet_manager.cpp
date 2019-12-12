@@ -3472,7 +3472,8 @@ private:
 
     void SetSyncTabletActionsKeepalive(const std::vector<TTabletActionId>& actionIds)
     {
-        const auto expirationTime = Now() + DefaultSyncTabletActionKeepalivePeriod;
+        const auto* context = GetCurrentMutationContext();
+        const auto expirationTime = context->GetTimestamp() + DefaultSyncTabletActionKeepalivePeriod;
         for (const auto actionId : actionIds) {
             auto* action = GetTabletAction(actionId);
             action->SetExpirationTime(expirationTime);
