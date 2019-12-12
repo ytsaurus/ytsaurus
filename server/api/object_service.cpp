@@ -1071,9 +1071,15 @@ private:
         const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
         for (const auto& subrequest : request->subrequests()) {
             auto objectType = CheckedEnumCastToObjectType(subrequest.object_type());
+
             auto permission = CheckedEnumCast<NAccessControl::EAccessControlPermission>(
                 subrequest.permission());
+
             const auto& attributePath = subrequest.attribute_path();
+
+            auto filter = subrequest.has_filter()
+                ? std::make_optional(TObjectFilter{subrequest.filter().query()})
+                : std::nullopt;
 
             NYP::NServer::NAccessControl::TGetUserAccessAllowedToOptions options;
             if (subrequest.has_continuation_token()) {
@@ -1088,6 +1094,7 @@ private:
                 objectType,
                 permission,
                 attributePath,
+                filter,
                 options);
 
             auto subresponse = response->add_subresponses();

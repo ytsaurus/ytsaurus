@@ -679,6 +679,9 @@ message TReqGetUserAccessAllowedTo
 
         // Attribute path to check.
         optional string attribute_path = 6;
+        
+        // Provides means for filtering certain objects.
+        optional TObjectFilter filter = 7;
 
         // Continuation token indicates the next record to be fetched. Opaque for the client.
         optional string continuation_token = 4;

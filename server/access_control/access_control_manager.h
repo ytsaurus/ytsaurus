@@ -2,9 +2,11 @@
 
 #include "public.h"
 
+#include <yp/server/master/public.h>
+
 #include <yp/server/objects/public.h>
 
-#include <yp/server/master/public.h>
+#include <yp/server/lib/objects/object_filter.h>
 
 #include <yt/core/rpc/public.h>
 
@@ -99,6 +101,7 @@ public:
         NObjects::EObjectType objectType,
         EAccessControlPermission permission,
         const NYPath::TYPath& attributePath = "",
+        const std::optional<NObjects::TObjectFilter>& filter = std::nullopt,
         const TGetUserAccessAllowedToOptions& options = TGetUserAccessAllowedToOptions());
 
     void SetAuthenticatedUser(const NObjects::TObjectId& userId);

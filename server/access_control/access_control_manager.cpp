@@ -17,13 +17,17 @@
 #include <yp/server/objects/transaction_manager.h>
 #include <yp/server/objects/type_handler.h>
 
+#include <yp/server/lib/objects/object_filter.h>
 #include <yp/server/lib/objects/type_info.h>
+
+#include <yp/server/lib/query_helpers/query_evaluator.h>
+#include <yp/server/lib/query_helpers/query_rewriter.h>
 
 #include <yt/client/api/rowset.h>
 
 #include <yt/client/table_client/helpers.h>
-
-#include <yt/ytlib/api/native/client.h>
+#include <yt/client/table_client/row_buffer.h>
+#include <yt/client/table_client/schema.h>
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/fls.h>
@@ -33,6 +37,7 @@
 
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/property.h>
+#include <yt/core/misc/ref_counted.h>
 #include <yt/core/misc/ref_tracked.h>
 
 namespace NYP::NServer::NAccessControl {
@@ -42,6 +47,54 @@ using namespace NApi;
 using namespace NRpc;
 using namespace NTableClient;
 using namespace NConcurrency;
+
+using namespace NQueryClient;
+using namespace NTableClient;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+const THashMap<NYPath::TYPath, TString> ColumnNameByAttributePathFirstToken({
+    std::make_pair<NYPath::TYPath, TString>("labels", "labels"),
+});
+
+std::vector<TColumnSchema> GenerateFakeTableColumns()
+{
+    std::vector<TColumnSchema> columns;
+    for (const auto& [attributePathFirstToken, columnName] : ColumnNameByAttributePathFirstToken) {
+        columns.emplace_back(columnName, EValueType::Any);
+    }
+    return columns;
+}
+
+const TTableSchema& GetFakeTableSchema()
+{
+    static const TTableSchema schema(GenerateFakeTableColumns());
+    return schema;
+}
+
+std::unique_ptr<NQueryHelpers::TQueryEvaluationContext> CreateQueryEvaluationContext(
+    const std::optional<NObjects::TObjectFilter>& filter)
+{
+    if (!filter) {
+        return nullptr;
+    }
+    return std::make_unique<NQueryHelpers::TQueryEvaluationContext>(NQueryHelpers::CreateQueryEvaluationContext(
+        NQueryHelpers::BuildFakeTableFilterExpression(filter->Query, ColumnNameByAttributePathFirstToken),
+        GetFakeTableSchema()));
+}
+
+bool ContainsPermission(const NClient::NApi::NProto::TAccessControlEntry& ace, EAccessControlPermission permission)
+{
+    return std::find(
+        ace.permissions().begin(),
+        ace.permissions().end(),
+        static_cast<NClient::NApi::NProto::EAccessControlPermission>(permission)) !=
+        ace.permissions().end();
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -141,7 +194,7 @@ public:
 
 class TUser
     : public TSubject
-    , public NYT::TRefTracked<TUser>
+    , public TRefTracked<TUser>
 {
 public:
     TUser(
@@ -164,7 +217,7 @@ TUser* TSubject::AsUser()
 
 class TGroup
     : public TSubject
-    , public NYT::TRefTracked<TGroup>
+    , public TRefTracked<TGroup>
 {
 public:
     DEFINE_BYREF_RW_PROPERTY(THashSet<TObjectId>, RecursiveUserIds);
@@ -192,7 +245,7 @@ TGroup* TSubject::AsGroup()
 
 // Represents object snapshot for the access control purpose.
 class TObject
-    : public NYT::TRefTracked<TObject>
+    : public TRefTracked<TObject>
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(EObjectType, Type);
@@ -200,6 +253,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TObjectId, ParentId);
     DEFINE_BYREF_RO_PROPERTY(TAcl, Acl);
     DEFINE_BYVAL_RO_PROPERTY(bool, InheritAcl);
+    DEFINE_BYREF_RO_PROPERTY(NYson::TYsonString, Labels);
 
 public:
     TObject(
@@ -207,29 +261,16 @@ public:
         TObjectId id,
         TObjectId parentId,
         TAcl acl,
-        bool inheritAcl)
+        bool inheritAcl,
+        NYson::TYsonString labels)
         : Type_(type)
         , Id_(std::move(id))
         , ParentId_(std::move(parentId))
         , Acl_(std::move(acl))
         , InheritAcl_(inheritAcl)
+        , Labels_(std::move(labels))
     { }
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace {
-
-bool ContainsPermission(const NClient::NApi::NProto::TAccessControlEntry& ace, EAccessControlPermission permission)
-{
-    return std::find(
-        ace.permissions().begin(),
-        ace.permissions().end(),
-        static_cast<NClient::NApi::NProto::EAccessControlPermission>(permission)) !=
-        ace.permissions().end();
-}
-
-} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -471,7 +512,8 @@ std::vector<std::unique_ptr<TObject>> SelectObjects(
     std::vector<const TDBField*> fields{
         &ObjectsTable.Fields.Meta_Id,
         &ObjectsTable.Fields.Meta_Acl,
-        &ObjectsTable.Fields.Meta_InheritAcl};
+        &ObjectsTable.Fields.Meta_InheritAcl,
+        &ObjectsTable.Fields.Labels};
     auto* typeHandler = transaction->GetSession()->GetTypeHandler(type);
     bool hasParentIdField = false;
     if (typeHandler->GetParentType() != EObjectType::Null) {
@@ -488,6 +530,7 @@ std::vector<std::unique_ptr<TObject>> SelectObjects(
         TObjectId id;
         TAcl acl;
         bool inheritAcl;
+        NYson::TYsonString labels;
         TObjectId parentId;
         if (hasParentIdField) {
             FromUnversionedRow(
@@ -495,20 +538,23 @@ std::vector<std::unique_ptr<TObject>> SelectObjects(
                 &id,
                 &acl,
                 &inheritAcl,
+                &labels,
                 &parentId);
         } else {
             FromUnversionedRow(
                 row,
                 &id,
                 &acl,
-                &inheritAcl);
+                &inheritAcl,
+                &labels);
         }
         result.push_back(std::make_unique<TObject>(
             type,
             std::move(id),
             std::move(parentId),
             std::move(acl),
-            inheritAcl));
+            inheritAcl,
+            std::move(labels)));
     }
     return result;
 }
@@ -757,6 +803,52 @@ TClusterObjectSnapshotPtr BuildClusterObjectSnapshot(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TLabelFilterMatcher
+{
+public:
+    TLabelFilterMatcher(std::optional<NObjects::TObjectFilter> filter)
+        : Filter_(std::move(filter))
+        , EvaluationContext_(CreateQueryEvaluationContext(Filter_))
+        , RowBuffer_(New<TRowBuffer>(TRowBufferTag()))
+    { }
+
+    TErrorOr<bool> Match(const TObject* object)
+    {
+        if (!Filter_) {
+            return true;
+        }
+
+        try {
+            auto labelsValue = MakeUnversionedAnyValue(object->Labels().GetData());
+
+            YT_VERIFY(EvaluationContext_);
+            auto resultValue = NQueryHelpers::EvaluateQuery(
+                *EvaluationContext_,
+                &labelsValue,
+                RowBuffer_.Get());
+
+            return resultValue.Type == EValueType::Boolean && resultValue.Data.Boolean;
+        } catch (const std::exception& ex) {
+            return TError("Error matching %Qlv object (Id: %v)",
+                object->GetType(),
+                object->Id())
+                << TErrorAttribute("query", Filter_->Query)
+                << ex;
+        }
+    }
+
+private:
+    struct TRowBufferTag
+    { };
+
+    const std::optional<NObjects::TObjectFilter> Filter_;
+    const std::unique_ptr<NQueryHelpers::TQueryEvaluationContext> EvaluationContext_;
+
+    TRowBufferPtr RowBuffer_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TAccessControlManager::TImpl
     : public TRefCounted
 {
@@ -879,6 +971,7 @@ public:
         NObjects::EObjectType objectType,
         EAccessControlPermission permission,
         const NYPath::TYPath& attributePath,
+        const std::optional<NObjects::TObjectFilter>& filter,
         const TGetUserAccessAllowedToOptions& options)
     {
         if (options.Limit && *options.Limit < 0) {
@@ -919,6 +1012,8 @@ public:
             : static_cast<int>(objects.size());
         result.ObjectIds.reserve(maxObjectCount);
 
+        auto filterMatcher = TLabelFilterMatcher(filter);
+
         for (auto it = beginIt; it != objects.end(); ++it) {
             auto* object = *it;
             if (options.Limit && static_cast<int>(result.ObjectIds.size()) >= *options.Limit) {
@@ -931,7 +1026,7 @@ public:
                 attributePath,
                 clusterSubjectSnapshot,
                 snapshotAccessControlHierarchy);
-            if (permissionCheckResult.Action == EAccessControlAction::Allow) {
+            if (permissionCheckResult.Action == EAccessControlAction::Allow && filterMatcher.Match(object).ValueOrThrow()) {
                 result.ObjectIds.push_back(object->Id());
             }
         }
@@ -1399,6 +1494,7 @@ TGetUserAccessAllowedToResult TAccessControlManager::GetUserAccessAllowedTo(
     NObjects::EObjectType objectType,
     EAccessControlPermission permission,
     const NYPath::TYPath& attributePath,
+    const std::optional<NObjects::TObjectFilter>& filter,
     const TGetUserAccessAllowedToOptions& options)
 {
     return Impl_->GetUserAccessAllowedTo(
@@ -1406,6 +1502,7 @@ TGetUserAccessAllowedToResult TAccessControlManager::GetUserAccessAllowedTo(
         objectType,
         permission,
         attributePath,
+        filter,
         options);
 }
 

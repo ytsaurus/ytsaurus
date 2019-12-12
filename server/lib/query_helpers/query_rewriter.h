@@ -26,4 +26,10 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NYT::NQueryClient::NAst::TExpressionPtr BuildFakeTableFilterExpression(
+    const TString& filterQuery,
+    const THashMap<NYT::NYPath::TYPath, TString>& columnNameByAttributePathFirstToken);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYP::NServer::NQueryHelpers

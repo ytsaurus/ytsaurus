@@ -710,8 +710,8 @@ public:
 
         auto filterExpression = BuildAndExpression(
             filter
-            ? BuildFilterExpression(&queryContext, *filter)
-            : nullptr,
+                ? BuildFilterExpression(&queryContext, *filter)
+                : nullptr,
             BuildObjectFilterByRemovalTime());
 
         if (continuationToken) {

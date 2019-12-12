@@ -143,6 +143,7 @@ class TestCli(object):
             "root",
             "account",
             "read",
+            "--filter", "true"
         ]
         result = cli.check_yson_output(command)
         assert result["object_ids"] == ["tmp"]
@@ -161,6 +162,18 @@ class TestCli(object):
             continuation_token = result["continuation_token"]
 
         assert object_ids == ["tmp"]
+
+        def _prepare_pod_set(field_value):
+            return ("pod_set", dict(labels=dict(some_field=field_value)))
+
+        pod_set_ids = yp_env.yp_client.create_objects([_prepare_pod_set(1), _prepare_pod_set(2)])
+        yp_env.yp_client.create_objects([_prepare_pod_set(3), _prepare_pod_set(4)])
+
+        assert set(cli.check_yson_output([
+            "get-user-access-allowed-to",
+            "root", "pod_set", "read",
+            "--filter", "[/labels/some_field]<={}".format(2)
+        ])["object_ids"]) == set(pod_set_ids)
 
     def test_binary_data(self, yp_env):
         cli = create_cli(yp_env)

@@ -24,6 +24,8 @@ from yt.packages.six.moves import xrange
 import itertools
 import pytest
 
+from yp.logger import logger
+
 
 @pytest.mark.usefixtures("yp_env")
 class TestAcls(object):
@@ -524,6 +526,67 @@ class TestAcls(object):
                 continuation_token = response["continuation_token"]
 
             assert got_objects == set(object_ids)
+
+    def test_get_user_access_allowed_to_filter(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        yp_client.create_object("user", attributes=dict(meta=dict(id="user_id1")))
+
+        object_count = 26
+        label_values = ["label_value_{}".format(chr(ord('a') + index)) for index in xrange(object_count)]
+        object_ids = [yp_client.create_object(
+            "account", attributes=dict(
+                labels=dict(some_label_field=label_values[index]),
+                meta=dict(
+                    acl=[dict(
+                        action="allow",
+                        permissions=["read"],
+                        subjects=["user_id1"],
+                    )],
+                ),
+            ))
+            for index in xrange(object_count)
+        ]
+
+        yp_env.sync_access_control()
+
+        def _get_object_ids(filter_request, limit=None):
+            return yp_client.get_user_access_allowed_to([
+                dict(
+                    user_id="user_id1",
+                    object_type="account",
+                    permission="read",
+                    filter=filter_request,
+                    limit=limit
+                ),
+            ])[0]["object_ids"]
+
+        for field in ["/labels", "meta/id", "/meta", "/spec", "/meta/id", "/meta/acl/action", "/meta/nonexistent_field"]:
+            with pytest.raises(YtResponseError):
+                _get_object_ids("[{}]='dummy'".format(field))
+
+        assert _get_object_ids("[/labels/nonexistent_field]='dummy'") == []
+        assert set(_get_object_ids(None)) == set(object_ids)
+        assert set(_get_object_ids("true")) == set(object_ids)
+
+        LABELS_QUERY_BODY = "[/labels/some_label_field]='{}'"
+        query_or = lambda queries: " OR ".join(queries)
+
+        assert _get_object_ids(LABELS_QUERY_BODY.format("label_value_aaa")) == []
+        assert _get_object_ids(LABELS_QUERY_BODY.format(label_values[5])) == [object_ids[5]]
+        assert set(_get_object_ids(query_or(LABELS_QUERY_BODY.format(label_values[index])
+                                            for index in [10, 15, 20]))) == set(object_ids[index] for index in [10, 15, 20])
+        assert set(_get_object_ids(query_or(
+            (LABELS_QUERY_BODY.format(label_values[3]), "[/labels/some_label_field]>'{}'".format(label_values[6]))))) \
+            == set([object_ids[3]] + object_ids[7:])
+
+        response_object_limit = 4
+        object_indices = [0, 16, 25, 7, 20]
+        assert len(object_indices) >= response_object_limit
+
+        response_object_ids = _get_object_ids(query_or(LABELS_QUERY_BODY.format(label_values[index]) for index in object_indices), response_object_limit)
+        assert len(response_object_ids) == response_object_limit
+        assert len(set(object_ids[index] for index in object_indices) - set(response_object_ids)) == len(object_indices) - response_object_limit
 
     def test_only_superuser_can_force_assign_pod1(self, yp_env):
         yp_client = yp_env.yp_client
