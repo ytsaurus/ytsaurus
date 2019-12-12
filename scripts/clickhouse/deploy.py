@@ -23,10 +23,18 @@ def main():
     version = subprocess.check_output([src, "--version"]).strip()
     yt_commit = re.match(".*~([0-9a-z]*).*", version).groups()[0]
 
+    kind_to_server_path = {
+        "ytserver-clickhouse": "clickhouse_server",
+        "clickhouse-trampoline": "clickhouse_trampoline",
+        "ytserver-log-tailer": "log_tailer",
+    }
+
+    server_path = kind_to_server_path[args.kind]
+
     attrs = {
         "executable": True,
         "yt_version": version,
-        "yt_version_url": yson.to_yson_type("https://github.yandex-team.ru/yt/yt/tree/" + yt_commit + "/yt/server/clickhouse_server", attributes={"_type_tag": "url"}),
+        "yt_version_url": yson.to_yson_type("https://github.yandex-team.ru/yt/yt/tree/" + yt_commit + "/yt/server/" + server_path, attributes={"_type_tag": "url"}),
     }
 
     if args.kind == "ytserver-clickhouse":
