@@ -26,8 +26,6 @@ using namespace NProfiling;
 
 static const auto& Logger = HydraLogger;
 
-static const auto FlushThreadQuantum = TDuration::MilliSeconds(10);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFileChangelogQueue
@@ -290,7 +288,7 @@ public:
         , PeriodicExecutor_(New<TPeriodicExecutor>(
             ActionQueue_->GetInvoker(),
             ProcessQueuesCallback_,
-            FlushThreadQuantum))
+            Config_->FlushQuantum))
         , Profiler(profiler)
         , RecordCounter_("/records")
         , ByteCounter_("/bytes")

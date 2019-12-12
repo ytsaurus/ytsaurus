@@ -63,6 +63,7 @@ class TFileChangelogDispatcherConfig
 public:
     int IOClass;
     int IOPriority;
+    TDuration FlushQuantum;
 
     TFileChangelogDispatcherConfig()
     {
@@ -70,6 +71,8 @@ public:
             .Default(1); // IOPRIO_CLASS_RT
         RegisterParameter("io_priority", IOPriority)
             .Default(3);
+        RegisterParameter("flush_quantum", FlushQuantum)
+            .Default(TDuration::MilliSeconds(10));
     }
 };
 
