@@ -469,6 +469,7 @@ void TBootstrap::DoInitialize()
     }
     if (JobProxyConfigTemplate_->ClusterConnection->MasterCache) {
         patchMasterConnectionConfig(JobProxyConfigTemplate_->ClusterConnection->MasterCache);
+        JobProxyConfigTemplate_->ClusterConnection->MasterCache->EnableMasterCacheDiscovery = false;
     }
 
     JobProxyConfigTemplate_->SupervisorConnection = New<NYT::NBus::TTcpBusClientConfig>();
