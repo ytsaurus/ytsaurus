@@ -226,7 +226,7 @@ private:
                 refreshSecondaryRevision);
 
             // COMPAT(akozhikhov)
-            IChannelPtr channel = Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Cache, CellTag_);
+            auto channel = Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Cache, CellTag_);
             if (Connection_->GetConfig()->EnableBuiltinTabletSystemUsers) {
                 channel = CreateAuthenticatedChannel(
                     std::move(channel),
