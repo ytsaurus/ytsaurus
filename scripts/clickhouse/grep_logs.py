@@ -94,6 +94,14 @@ def format_query(input_table_path, conditions):
     return "* FROM [{}] WHERE {} ORDER BY (timestamp, line_index) LIMIT {}".format(input_table_path, " AND ".join(conditions), LIMIT)
 
 
+def get_current_time():
+    # :))))))
+    try:
+        yt.list("//non/existent/path")
+    except yt.YtHttpResponseError as err:
+        return parse_ts(err.inner_errors[0]["attributes"]["datetime"])
+
+
 def select_rows_batched(input_table_path, conditions, from_ts, to_ts, window_size, tail):
     if window_size is None:
         logger.debug("Window batching is disabled, making single query")
@@ -101,6 +109,7 @@ def select_rows_batched(input_table_path, conditions, from_ts, to_ts, window_siz
             yield row
     else:
         cur_ts = from_ts
+        batch_index = 0
         while cur_ts <= to_ts:
             lhs = format_ts(cur_ts)
             rhs = format_ts(min(to_ts, cur_ts + window_size))
@@ -114,7 +123,8 @@ def select_rows_batched(input_table_path, conditions, from_ts, to_ts, window_siz
             for row in yt.select_rows(subquery):
                 row_count += 1
                 last_row_ts = parse_ts(row["timestamp"])
-                yield row
+                if batch_index > 0 or not tail:
+                    yield row
             logger.debug("Last batch consisted of %d rows, last row ts = %s", row_count, last_row_ts)
             if row_count == LIMIT:
                 incomplete = True
@@ -129,12 +139,30 @@ def select_rows_batched(input_table_path, conditions, from_ts, to_ts, window_siz
                     continue
                 else:
                     logger.debug("Moving current ts to last row ts")
+                    batch_index += 1
                     cur_ts = last_row_ts
             else:
+                batch_index += 1
                 cur_ts += window_size
 
 def main():
-    parser = argparse.ArgumentParser(description="Grep logs from log tailer dynamic table")
+    description = """
+    Grep logs from log tailer dynamic table\n
+    Examples:
+        * Find all initial queries from beginning of time till now:
+          ./grep_logs.py ch_prestable --log-level info --message-like 'QueryKind: Initial' -w 5s
+        * Grep given trace:
+          ./grep_logs.py ch_prestable --trace-id 3ce27-02240b70-2a811a92-7b2b4520
+        * Find query coordinator:
+          ./grep_logs.py ch_prestable --trace-id 3ce27-02240b70-2a811a92-7b2b4520 --message-like 'QueryKind: Initial'
+        * Grep only coordinator:
+          ./grep_logs.py ch_prestable --trace-id 3ce27-02240b70-2a811a92-7b2b4520 --job-id e4d33a76-24c57246-3fe0384-10284
+        * Grep everything from minute to minute: 
+          ./grep_logs.py ch_prestable --from-ts "12:03" --to-ts "12:05" --window-size 10s
+        * Tail mode:
+          ./grep_logs.pt ch_prestable --tail --window-size 10s
+    """
+    parser = argparse.ArgumentParser(description=description, formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument("operation_alias", help="Operation alias of clique to grep (either with * or without)")
     parser.add_argument("--message-like", help="Message pattern substring")
     parser.add_argument("--artifact-path", help="Path of artifact directory of clique; by default "
@@ -149,8 +177,9 @@ def main():
     parser.add_argument("--from-ts", help="'From' timestamp, empty means the creation time of table; "
                                           "for example 2019-07-12 10:00 or 05:05:42")
     parser.add_argument("--to-ts", help="'To' timestamp, empty means now() + 5min; see --from-ts for examples")
-    parser.add_argument("--window-size", help="Size of time window for batching; for example 10min, 5sec, 1hr, 1day")
-    parser.add_argument("--tail", help="Imitate tail -f; from-ts is assumed to be now() - 10 sec", action="store_true")
+    parser.add_argument("-w", "--window-size", help="Size of time window for batching; for example 10min, 5sec, 1hr, "
+                                                    "1day")
+    parser.add_argument("--tail", help="Imitate tail -f; from-ts is assumed to be now()", action="store_true")
     parser.add_argument('-v', '--verbose', action='count', default=0, help="Log stuff, more v's for more logging")
     args = parser.parse_args()
 
@@ -175,7 +204,7 @@ def main():
         parser.error("Invalid from ts: {}".format(args.from_ts))
         sys.exit(1)
 
-    to_ts = parse_ts(args.to_ts, default=datetime.datetime.now() + datetime.timedelta(minutes=5))
+    to_ts = parse_ts(args.to_ts, default=get_current_time() + datetime.timedelta(minutes=5))
     if to_ts is None:
         parser.error("Invalid to ts: {}".format(args.to_ts))
         sys.exit(1)
@@ -199,7 +228,7 @@ def main():
     from_ts = max(from_ts, creation_time)
 
     if args.tail:
-        from_ts = datetime.datetime.now() - datetime.timedelta(seconds=10)
+        from_ts = get_current_time() - datetime.timedelta(seconds=10)
 
     omit_job_id = args.omit_job_id or args.job_id is not None
     logger.info("Omit job id: %s", omit_job_id)
