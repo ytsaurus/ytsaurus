@@ -33,8 +33,8 @@ TIntrusiveLockFreeStack<TItem>::~TIntrusiveLockFreeStack()
 template <class TItem>
 void TIntrusiveLockFreeStack<TItem>::Put(TItem* head, TItem* tail)
 {
-    auto* current = Head_.Pointer.load();
-    auto popCount = Head_.PopCount;
+    auto* current = Head_.Pointer.load(std::memory_order_relaxed);
+    auto popCount = Head_.PopCount.load(std::memory_order_relaxed);
 
     do {
         tail->Next = current;
@@ -50,8 +50,8 @@ void TIntrusiveLockFreeStack<TItem>::Put(TItem* item)
 template <class TItem>
 TItem* TIntrusiveLockFreeStack<TItem>::Extract()
 {
-    auto* current = Head_.Pointer.load();
-    auto popCount = Head_.PopCount;
+    auto* current = Head_.Pointer.load(std::memory_order_relaxed);
+    auto popCount = Head_.PopCount.load(std::memory_order_relaxed);
 
     while (current) {
         if (CompareAndSet(&AtomicHead_, current, popCount, current->Next, popCount + 1)) {
@@ -66,8 +66,8 @@ TItem* TIntrusiveLockFreeStack<TItem>::Extract()
 template <class TItem>
 TItem* TIntrusiveLockFreeStack<TItem>::ExtractAll()
 {
-    auto* current = Head_.Pointer.load();
-    auto popCount = Head_.PopCount;
+    auto* current = Head_.Pointer.load(std::memory_order_relaxed);
+    auto popCount = Head_.PopCount.load(std::memory_order_relaxed);
 
     while (current) {
         if (CompareAndSet<TItem*, size_t>(&AtomicHead_, current, popCount, nullptr, popCount + 1)) {

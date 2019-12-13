@@ -50,7 +50,7 @@ private:
     struct THead
     {
         std::atomic<TItem*> Pointer = {nullptr};
-        size_t PopCount = 0;
+        std::atomic<size_t> PopCount = 0;
 
         THead() = default;
 
