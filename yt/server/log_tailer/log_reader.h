@@ -7,6 +7,8 @@
 
 #include <yt/core/concurrency/periodic_executor.h>
 
+#include <util/generic/iterator_range.h>
+
 namespace NYT::NLogTailer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -41,12 +43,8 @@ public:
     void OnLogRotation();
 
     void OnTermination();
-private:
-    void DoReadLog();
-    void DoOpenLogFile();
-    void DoReadBuffer();
-    void DoWriteRows();
 
+private:
     TLogFileConfigPtr Config_;
     TBootstrap* const Bootstrap_;
 
@@ -62,13 +60,20 @@ private:
 
     NLogging::TLogger Logger;
 
-    std::deque<TLogRecord> RecordsBuffer_;
+    using TLogRecordBuffer = std::deque<TLogRecord>;
+    TLogRecordBuffer RecordsBuffer_;
 
     i64 FileOffset_ = 0;
 
     std::vector<std::pair<TString, TString>> ExtraLogTableColumns_;
 
     ui64 LineIndex_ = 0;
+
+    void DoReadLog();
+    void DoOpenLogFile();
+    void DoReadBuffer();
+    void DoWriteRows();
+    bool TryProcessRecordRange(TIteratorRange<TLogRecordBuffer::iterator> recordRange, i64 lineIndexOffset);
 };
 
 DEFINE_REFCOUNTED_TYPE(TLogFileReader)

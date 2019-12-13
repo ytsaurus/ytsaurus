@@ -36,6 +36,13 @@ TNameTablePtr TNameTable::FromKeyColumns(const TKeyColumns& keyColumns)
     return nameTable;
 }
 
+TNameTable::TNameTable(const TNameTable& other)
+    : EnableColumnNameValidation_(other.EnableColumnNameValidation_)
+    , IdToName_(other.IdToName_)
+    , NameToId_(other.NameToId_)
+    , ByteSize_(other.ByteSize_)
+{ }
+
 int TNameTable::GetSize() const
 {
     TGuard<TSpinLock> guard(SpinLock_);

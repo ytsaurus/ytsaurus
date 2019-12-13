@@ -11,7 +11,8 @@
         "log_rotation" = {
             "enable" = %true;
             "rotation_period" = 100;
-            "rotation_delay" = 3;
+            "rotation_delay" = 50;
+            "log_segment_count" = 100000;
         };
         "log_writer_liveness_checker" = {
             "enable" = %true;
@@ -25,6 +26,10 @@
                 "file_name" = "LOG";
                 "type" = "file";
             };
+            "info" = {
+                "file_name" = "LOG";
+                "type" = "file";
+            };
         };
         "rules" = [
             {
@@ -33,6 +38,13 @@
                     "debug";
                 ];
             };
+            {
+                "min_level" = "info";
+                "writers" = [
+                    "info";
+                ];
+            };
+
         ];
         "flush_period" = 1000;
         "watch_period" = 5000;
