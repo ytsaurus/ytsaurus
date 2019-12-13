@@ -28,6 +28,7 @@ type Decoder struct {
 	tableIndex, rangeIndex int
 	rowIndex               int64
 	keySwitch              bool
+	keySwitchCol           bool
 }
 
 // NewDecoder creates decoder for reading rows from input stream formatted by format.
@@ -63,7 +64,14 @@ func NewDecoder(r io.Reader, format Format) (*Decoder, error) {
 		// System columns are decoded by hand.
 		// TODO(prime@): validate schema is statring with system columns.
 		s := *d.schemas[i]
-		s.Children = s.Children[len(systemPrefix):]
+		sysCols := 0
+		for _, col := range s.Children {
+			if col.IsSystem() {
+				sysCols++
+			}
+		}
+		d.keySwitchCol = sysCols > 0
+		s.Children = s.Children[sysCols:]
 		d.schemas[i] = &s
 	}
 
@@ -90,16 +98,20 @@ func (d *Decoder) Next() bool {
 		return false
 	}
 
-	d.keySwitch = d.r.readUint8() != 0
+	if d.keySwitchCol {
+		d.keySwitch = d.r.readUint8() != 0
 
-	if d.r.readUint8() == 1 {
-		d.rowIndex = d.r.readInt64()
+		if d.r.readUint8() == 1 {
+			d.rowIndex = d.r.readInt64()
+		} else {
+			d.rowIndex++
+		}
+
+		if d.r.readUint8() == 1 {
+			d.rangeIndex = int(d.r.readInt64())
+		}
 	} else {
 		d.rowIndex++
-	}
-
-	if d.r.readUint8() == 1 {
-		d.rangeIndex = int(d.r.readInt64())
 	}
 
 	if d.Err() != nil {
