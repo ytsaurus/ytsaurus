@@ -103,6 +103,7 @@ object YtTableUtils {
                (implicit yt: YtClient): Unit = {
     yt.createNode(
       new CreateNode(formatPath(path), ObjectType.MapNode)
+        .setRecursive(true)
         .setIgnoreExisting(ignoreExisting)
         .optionalTransaction(transaction)
     ).join()
