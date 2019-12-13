@@ -1059,7 +1059,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         wait(wait_func)
 
         assert len(_get_errors()) == 1
-        assert get("//tmp/t/@tablet_error_count") == 1
+        wait(lambda: get("//tmp/t/@tablet_error_count") == 1)
 
         sync_unmount_table("//tmp/t")
         set("//tmp/t/@enable_compaction_and_partitioning", False)
