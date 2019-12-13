@@ -5,6 +5,8 @@
 #include "log_reader.h"
 #include "log_tailer.h"
 
+#include <yt/core/logging/log_manager.h>
+
 namespace NYT::NLogTailer {
 
 using namespace NConcurrency;
@@ -53,11 +55,13 @@ void TLogWriterLivenessChecker::DoCheckLiveness()
     } else if (LastSystemError() == ESRCH) {
         YT_LOG_INFO("Log writer is dead; uploading rest of the log (LogWriterPid: %v)", logWriterPid);
         Bootstrap_->GetLogTailer()->GetLogRotator()->Stop();
+        YT_LOG_INFO("Log rotator stopped working");
         for (const auto& reader : Bootstrap_->GetLogTailer()->GetLogReaders()) {
             reader->OnTermination();
         }
 
         YT_LOG_INFO("Log writer has stopped; terminating (LogWriterPid: %v)", logWriterPid);
+        NLogging::TLogManager::Get()->Shutdown();
         Bootstrap_->Terminate();
     } else {
         YT_LOG_ERROR("Unexpected kill result (LogWriterPid: %v, KillResult: %v)",
