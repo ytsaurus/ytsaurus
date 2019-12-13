@@ -131,6 +131,15 @@ type Schema struct {
 	Children []Schema `yson:"children,omitempty"`
 }
 
+func (c Schema) IsSystem() bool {
+	for _, col := range systemPrefix {
+		if col.Name == c.Name && col.Type == c.Type {
+			return true
+		}
+	}
+	return false
+}
+
 func init() {
 	gob.Register(&Schema{})
 }
