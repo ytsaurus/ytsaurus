@@ -3475,7 +3475,7 @@ private:
     {
         const auto* context = GetCurrentMutationContext();
         const auto expirationTime = context->GetTimestamp() + DefaultSyncTabletActionKeepalivePeriod;
-        for (const auto actionId : actionIds) {
+        for (auto actionId : actionIds) {
             auto* action = GetTabletAction(actionId);
             action->SetExpirationTime(expirationTime);
         }
@@ -3637,7 +3637,7 @@ private:
         // COMPAT(savrus)
         if (RecomputeTabletCountByState_) {
             const auto& cypressManager = Bootstrap_->GetCypressManager();
-            for (const auto [nodeId, node] : cypressManager->Nodes()) {
+            for (auto [nodeId, node] : cypressManager->Nodes()) {
                 if (node->IsTrunk() && IsTableType(node->GetType())) {
                     auto* table = node->As<TTableNode>();
                     if (table->IsDynamic()) {
@@ -3657,7 +3657,7 @@ private:
         // COMPAT(savrus)
         if (RecomputeExpectedTabletStates_) {
             const auto& cypressManager = Bootstrap_->GetCypressManager();
-            for (const auto [nodeId, node] : cypressManager->Nodes()) {
+            for (auto [nodeId, node] : cypressManager->Nodes()) {
                 if (!node->IsTrunk() || !IsTableType(node->GetType())) {
                     continue;
                 }
@@ -3713,7 +3713,7 @@ private:
         // COMPAT(savrus)
         if (ValidateAllTablesUnmounted_) {
             const auto& cypressManager = Bootstrap_->GetCypressManager();
-            for (const auto [nodeId, node] : cypressManager->Nodes()) {
+            for (auto [nodeId, node] : cypressManager->Nodes()) {
                 if (!node->IsTrunk() || node->IsExternal() || !IsTableType(node->GetType())) {
                     continue;
                 }
@@ -3730,7 +3730,7 @@ private:
         // COMPAT(ifsmirnov)
         if (RecomputeTabletErrorCount_) {
             const auto& cypressManager = Bootstrap_->GetCypressManager();
-            for (const auto [nodeId, node] : cypressManager->Nodes()) {
+            for (auto [nodeId, node] : cypressManager->Nodes()) {
                 if (node->IsTrunk() && node->GetType() == EObjectType::Table) {
                     auto* table = node->As<TTableNode>();
                     if (table->IsDynamic()) {
@@ -3751,7 +3751,7 @@ private:
 
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
 
-        for (const auto [cellId, cellBase] : cellManager->Cells()) {
+        for (auto [cellId, cellBase] : cellManager->Cells()) {
             if (cellBase->GetType() != EObjectType::TabletCell) {
                 continue;
             }
@@ -3762,7 +3762,7 @@ private:
 
         // COMPAT(savrus)
         if (RecomputeTabletCellStatistics_) {
-            for (const auto [cellId, cellBase] : cellManager->Cells()) {
+            for (auto [cellId, cellBase] : cellManager->Cells()) {
                 if (cellBase->GetType() != EObjectType::TabletCell) {
                     continue;
                 }
@@ -3775,7 +3775,7 @@ private:
             }
         }
 
-        for (const auto [actionId, action] : TabletActionMap_) {
+        for (auto [actionId, action] : TabletActionMap_) {
             // NB: Process non-alive objects to pair with DestroyTabletAction.
             auto bundle = action->GetTabletCellBundle();
             bundle->TabletActions().insert(action);
@@ -4018,7 +4018,7 @@ private:
         request.set_cell_tag(multicellManager->GetCellTag());
 
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
-        for (const auto [cellId, cellBase] : cellManager->Cells()) {
+        for (auto [cellId, cellBase] : cellManager->Cells()) {
             if (!IsObjectAlive(cellBase) || cellBase->GetType() != EObjectType::TabletCell) {
                 continue;
             }
@@ -4670,7 +4670,7 @@ private:
             CheckTransitioningReplicaTablets(replica);
         }
 
-        for (const auto& transactionId : tablet->UnconfirmedDynamicTableLocks()) {
+        for (auto transactionId : tablet->UnconfirmedDynamicTableLocks()) {
             table->ConfirmDynamicTableLock(transactionId);
         }
         tablet->UnconfirmedDynamicTableLocks().clear();
