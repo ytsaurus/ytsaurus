@@ -1,5 +1,7 @@
 import pytest
 
+from yt.wrapper.errors import YtResponseError
+
 
 @pytest.mark.usefixtures("yp_env")
 class TestEndpointSets(object):
@@ -48,3 +50,35 @@ class TestEndpointSets(object):
 
         assert get_last_endpoints_update_timestamp(endpoint_set_id_1) == timestamp_4
         assert get_last_endpoints_update_timestamp(endpoint_set_id_2) == timestamp_1
+
+    def test_liveness_limit_ratio(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        for liveness_limit_ratio in [0.0, 0.111, 0.555, 0.999, 1.0]:
+            # test created with correct value
+            endpoint_set_id = yp_client.create_object("endpoint_set", attributes={"spec": {"liveness_limit_ratio": liveness_limit_ratio}})
+            assert yp_client.get_object("endpoint_set", endpoint_set_id, selectors=["/spec/liveness_limit_ratio"])[0] == liveness_limit_ratio
+
+            # test updated with correct value
+            yp_client.update_object("endpoint_set", endpoint_set_id, set_updates=[{"path": "/spec/liveness_limit_ratio", "value": liveness_limit_ratio}])
+            assert yp_client.get_object("endpoint_set", endpoint_set_id, selectors=["/spec/liveness_limit_ratio"])[0] == liveness_limit_ratio
+
+        def assert_exception(func):
+            try:
+                func()
+            except YtResponseError:
+                return
+
+            raise AssertionError("Expected exception was not thrown")
+
+        for liveness_limit_ratio in [-100.0, -0.1, 1.1, 100.0]:
+            # test created with wrong value
+            assert_exception(
+                lambda: yp_client.create_object("endpoint_set", attributes={"spec": {"liveness_limit_ratio": liveness_limit_ratio}})
+            )
+
+            # test updated with wrong value
+            endpoint_set_id = yp_client.create_object("endpoint_set", attributes={"spec": {"liveness_limit_ratio": 0.0}})
+            assert_exception(
+                lambda: yp_client.update_object("endpoint_set", endpoint_set_id, set_updates=[{"path": "/spec/liveness_limit_ratio", "value": liveness_limit_ratio}])
+            )

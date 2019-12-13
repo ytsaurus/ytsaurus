@@ -50,6 +50,10 @@ public:
 
         LabelsAttributeSchema_
             ->SetUpdateHandler<TEndpoint>(std::bind(&TEndpointTypeHandler::UpdateParentLastChangeTimestamp, this, _1, _2));
+
+        StatusAttributeSchema_
+            ->SetAttribute(TEndpoint::StatusSchema)
+            ->SetUpdatable();
     }
 
     virtual const NYson::TProtobufMessageType* GetRootProtobufType() override

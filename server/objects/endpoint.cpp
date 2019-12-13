@@ -11,6 +11,11 @@ const TScalarAttributeSchema<TEndpoint, TEndpoint::TSpec> TEndpoint::SpecSchema{
     [] (TEndpoint* endpoint) { return &endpoint->Spec(); }
 };
 
+const TScalarAttributeSchema<TEndpoint, TEndpoint::TStatus> TEndpoint::StatusSchema{
+    &EndpointsTable.Fields.Status,
+    [] (TEndpoint* endpoint) { return &endpoint->Status(); }
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEndpoint::TEndpoint(
@@ -21,6 +26,7 @@ TEndpoint::TEndpoint(
     : TObject(id, endpointSetId, typeHandler, session)
     , EndpointSet_(this)
     , Spec_(this, &SpecSchema)
+    , Status_(this, &StatusSchema)
 { }
 
 EObjectType TEndpoint::GetType() const

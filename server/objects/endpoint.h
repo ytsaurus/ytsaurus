@@ -31,6 +31,10 @@ public:
     using TSpec = NYP::NClient::NApi::NProto::TEndpointSpec;
     static const TScalarAttributeSchema<TEndpoint, TSpec> SpecSchema;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TSpec>, Spec);
+
+    using TStatus = NYP::NClient::NApi::NProto::TEndpointStatus;
+    static const TScalarAttributeSchema<TEndpoint, TStatus> StatusSchema;
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TStatus>, Status);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

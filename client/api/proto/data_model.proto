@@ -1414,7 +1414,12 @@ message TEndpointSpec
 }
 
 message TEndpointStatus
-{ }
+{
+    /* True, if pod relating to this endpoint is "ready".
+     * Conditions when pod is considered as "ready": @see TEndpointSetSpec.pod_filter comments.
+     */
+    optional bool ready = 1;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1426,7 +1431,11 @@ option (NYP.NClient.NApi.NProto.object_type) = {
 
 message TEndpointSetSpec
 {
-    // If given, for each pod matching this filter, an endpoint will be created.
+    /* If given, for each "ready" pod matching this filter, an endpoint will be created
+     * Pod considers as "ready" (has endpoint) when all described below conditions are true:
+     *     1. Pod's state is ACTIVE or pod's target state is ACTIVE.
+     *     2. Pod has backbone vlan in status.ip6_address_allocations.
+     */
     optional string pod_filter = 1;
 
     // If given, this value will be propagated to /endpoint/spec/protocol of each created endpoint.
@@ -1434,6 +1443,21 @@ message TEndpointSetSpec
 
     // If given, this value will be propagated to /endpoint/spec/port of each created endpoint.
     optional int32 port = 3;
+
+    /* If given, guarantees that endpoints_count >= ceil(liveness_limit_ratio * pods_count).
+     * Where endpoints_count - endpoints count within endpoint set, pods_count - pod count within endpoint set.
+     *
+     * Will start working after YP-1502.
+     *
+     * If "ready" pods count >= ceil(liveness_limit_ratio * pods_count) - liveness_limit_ratio has no affect.
+     * Else - irrelevant endpoints will be deleted one by one (in unspecified order)
+     * until number of endpoints reaches ceil(liveness_limit_ratio * pods_count)
+     *
+     * In case, when liveness_limit_ratio is increased (e.g 0.0 -> 0.5), but endpoints count
+     * is less than ceil(liveness_limit_ratio(increased value) * pods_count) - enpoints will be created
+     * one by one (in unspecified order) until number of endpoints reaches ceil(liveness_limit_ratio * pods_count).
+     */
+    optional double liveness_limit_ratio = 4 [default = 0.0];
 }
 
 message TEndpointSetStatus

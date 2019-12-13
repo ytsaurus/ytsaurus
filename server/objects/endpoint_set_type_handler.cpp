@@ -29,7 +29,8 @@ public:
         TObjectTypeHandlerBase::Initialize();
 
         SpecAttributeSchema_
-            ->SetAttribute(TEndpointSet::SpecSchema);
+            ->SetAttribute(TEndpointSet::SpecSchema)
+            ->SetValidator<TEndpointSet>(std::bind(&TEndpointSetTypeHandler::ValidateLivenessLimitRatio, this, _1, _2));
 
         StatusAttributeSchema_
             ->AddChildren({
@@ -79,6 +80,15 @@ private:
     {
         BuildYsonFluently(consumer)
             .Value(endpointSet->Status().LastEndpointsUpdateTimestamp().Load());
+    }
+
+    void ValidateLivenessLimitRatio(TTransaction* /*transaction*/, TEndpointSet* endpointSet)
+    {
+        const auto livenessLimitRatio = endpointSet->Spec().Get()->liveness_limit_ratio();
+        if (livenessLimitRatio < 0 || livenessLimitRatio > 1) {
+            THROW_ERROR_EXCEPTION("Liveness limit ratio value %v must be in range [0, 1]",
+                livenessLimitRatio);
+        }
     }
 };
 
