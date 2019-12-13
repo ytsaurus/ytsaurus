@@ -1406,6 +1406,7 @@ private:
         }
 
         i64 bytesReceived = 0;
+        int invalidBlockCount = 0;
         std::vector<int> receivedBlockIndexes;
 
         auto blocks = GetRpcAttachedBlocks(rsp);
@@ -1426,9 +1427,8 @@ private:
                     << TErrorAttribute("actual", ex.GetActual())
                     << TErrorAttribute("expected", ex.GetExpected()));
 
-                BanPeer(peerAddressWithNetwork.Address, false);
-                RequestBlocks();
-                return;
+                ++invalidBlockCount;
+                continue;
             }
 
             auto sourceDescriptor = ReaderOptions_->EnableP2P
@@ -1442,6 +1442,9 @@ private:
             TotalBytesReceived_ += block.Size();
             receivedBlockIndexes.push_back(blockIndex);
         }
+        if (invalidBlockCount > 0) {
+            BanPeer(peerAddressWithNetwork.Address, false);
+        }
 
         BanSeedIfUncomplete(rsp, peerAddressWithNetwork.Address);
 
@@ -1450,12 +1453,14 @@ private:
             ReinstallPeer(peerAddressWithNetwork.Address);
         }
 
-        YT_LOG_DEBUG("Finished processing block response (Address: %v, PeerType: %v, BlocksReceived: %v, BytesReceived: %v, PeersSuggested: %v)",
+        YT_LOG_DEBUG("Finished processing block response (Address: %v, PeerType: %v, BlocksReceived: %v, BytesReceived: %v, PeersSuggested: %v, "
+              "InvalidBlockCount: %v)",
               peerAddressWithNetwork,
               optionalPeer->Type,
               MakeShrunkFormattableView(receivedBlockIndexes, TDefaultFormatter(), 3),
               bytesReceived,
-              rsp->peer_descriptors_size());
+              rsp->peer_descriptors_size(),
+              invalidBlockCount);
 
         if (peerAddressWithNetwork.Address != GetLocalHostName() && TotalBytesReceived_ > BytesThrottled_) {
             auto delta = TotalBytesReceived_ - BytesThrottled_;
@@ -1697,12 +1702,13 @@ private:
                     << TErrorAttribute("expected", ex.GetExpected()));
 
                 BanPeer(peerAddressWithNetwork.Address, false);
+                FetchedBlocks_.clear();
                 RequestBlocks();
                 return;
-             }
+            }
 
-             FetchedBlocks_.emplace_back(std::move(block));
-         }
+            FetchedBlocks_.push_back(std::move(block));
+        }
 
         BanSeedIfUncomplete(rsp, peerAddressWithNetwork.Address);
 
