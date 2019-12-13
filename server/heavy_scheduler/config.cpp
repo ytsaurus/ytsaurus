@@ -50,7 +50,7 @@ THeavySchedulerConfig::THeavySchedulerConfig()
         .Default(TDuration::Minutes(30));
     RegisterParameter("concurrent_task_limit", ConcurrentTaskLimit)
         .GreaterThanOrEqual(1)
-        .Default(1);
+        .Default(10);
     RegisterParameter("starving_pods_per_iteration_limit", StarvingPodsPerIterationLimit)
         .GreaterThanOrEqual(1)
         .Default(100);
