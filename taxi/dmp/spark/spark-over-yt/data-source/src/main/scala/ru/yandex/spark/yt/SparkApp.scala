@@ -4,7 +4,6 @@ import org.apache.log4j.Logger
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.SparkSession
 import ru.yandex.spark.yt.fs.YtClientProvider
-import ru.yandex.spark.yt.utils.DefaultRpcCredentials
 import ru.yandex.yt.ytclient.proxy.YtClient
 
 trait SparkApp extends App {
@@ -12,10 +11,7 @@ trait SparkApp extends App {
 
   def run(args: Array[String])(implicit spark: SparkSession, yt: YtClient): Unit
 
-  def sparkConf: SparkConf = {
-    new SparkConf()
-      .set("spark.hadoop.yt.token", sys.env.getOrElse("YT_TOKEN", DefaultRpcCredentials.token))
-  }
+  def sparkConf: SparkConf = new SparkConf()
 
   override def main(args: Array[String]): Unit = {
     try {
