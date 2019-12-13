@@ -1,5 +1,7 @@
 #pragma once
 
+#include <algorithm>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -12,6 +14,9 @@ size_t LowerBound(size_t lowerIndex, size_t upperIndex, TPredicate less);
 //! Input ranges must be sorted.
 template <class TInputIt1, class TInputIt2>
 bool Intersects(TInputIt1 first1, TInputIt1 last1, TInputIt2 first2, TInputIt2 last2);
+
+template <class T, typename TGetKey>
+std::pair<const T&, const T&> MinMaxBy(const T& first, const T& second, const TGetKey& getKey);
 
 ////////////////////////////////////////////////////////////////////////////////
 
