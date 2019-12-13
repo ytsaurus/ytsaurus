@@ -547,8 +547,8 @@ public:
         }
 
         // COMPAT(akozhikhov)
-        IClientPtr snapshotClient = Bootstrap_->GetMasterClient();
-        IClientPtr changelogClient = Bootstrap_->GetMasterClient();
+        auto snapshotClient = Bootstrap_->GetMasterClient();
+        auto changelogClient = Bootstrap_->GetMasterClient();
         auto connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
         if (connection->GetConfig()->EnableBuiltinTabletSystemUsers) {
             snapshotClient = connection->CreateNativeClient(TClientOptions(NSecurityClient::TabletCellSnapshotterUserName));
