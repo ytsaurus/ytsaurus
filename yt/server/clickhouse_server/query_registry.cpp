@@ -254,7 +254,7 @@ public:
     {
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
-        YT_LOG_INFO("Saving query registry state (StatePointer: %v)", StatePointer_);
+        YT_LOG_DEBUG("Saving query registry state (StatePointer: %v)", StatePointer_);
         while (StateBuffer_[StatePointer_] != 0) {
             ++StatePointer_;
         }

@@ -315,7 +315,7 @@ public:
             user);
 
         auto attributesFuture = TableAttributeCache_->GetFromClient(missedPaths, client);
-        
+
         auto permissionOrErrors = WaitFor(PermissionCache_->CheckPermissions(hitPaths, user, EPermission::Read, client))
             .ValueOrThrow();
 
@@ -332,7 +332,7 @@ public:
 
         std::reverse(attributeOrErrors.begin(), attributeOrErrors.end());
         std::reverse(permissionOrErrors.begin(), permissionOrErrors.end());
-        
+
         std::vector<TErrorOr<NYTree::TAttributeMap>> result;
         result.reserve(paths.size());
 
@@ -630,7 +630,7 @@ private:
     {
         auto usage = GetProcessMemoryUsage();
         auto total = usage.Rss + usage.Shared;
-        YT_LOG_INFO(
+        YT_LOG_DEBUG(
             "Checking memory usage "
             "(Rss: %v, Shared: %v, Total: %v, MemoryLimit: %v, CodicilWatermark: %v)",
             usage.Rss,
@@ -650,7 +650,7 @@ private:
 
     void MakeGossip()
     {
-        YT_LOG_INFO("Gossip started");
+        YT_LOG_DEBUG("Gossip started");
         auto nodes = Discovery_->List();
         std::vector<TFuture<NRpc::TTypedClientResponse<TRspProcessGossip>::TResult>> futures;
         futures.reserve(nodes.size());
@@ -686,7 +686,7 @@ private:
             ++responseIt;
         }
 
-        YT_LOG_INFO("Gossip completed (Alive: %v, Banned: %v)", nodes.size() - bannedCount, bannedCount);
+        YT_LOG_DEBUG("Gossip completed (Alive: %v, Banned: %v)", nodes.size() - bannedCount, bannedCount);
     }
 
     void DoHandleIncomingGossip(const TString& instanceId, EInstanceState state)
