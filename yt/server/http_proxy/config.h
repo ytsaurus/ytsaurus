@@ -1,5 +1,6 @@
 #pragma once
 
+#include "private.h"
 #include "public.h"
 
 #include <yt/server/lib/misc/config.h>
@@ -75,6 +76,40 @@ DEFINE_REFCOUNTED_TYPE(TCoordinatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TApiTestingOptions
+    : public NYTree::TYsonSerializable
+{
+public:
+    class TDelayInsideGet
+        : public NYTree::TYsonSerializable
+    {
+    public:
+        TDuration Delay;
+        TString Path;
+
+        TDelayInsideGet()
+        {
+            RegisterParameter("delay", Delay);
+            RegisterParameter("path", Path);
+        }
+    };
+    using TDelayInsideGetPtr = TIntrusivePtr<TDelayInsideGet>;
+
+public:
+    TDelayInsideGetPtr DelayInsideGet;
+
+    TApiTestingOptions()
+    {
+        RegisterParameter("delay_inside_get", DelayInsideGet)
+            .Optional();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TApiTestingOptions);
+DEFINE_REFCOUNTED_TYPE(TApiTestingOptions::TDelayInsideGet);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TApiConfig
     : public NYTree::TYsonSerializable
 {
@@ -85,6 +120,10 @@ public:
     bool DisableCorsCheck;
 
     bool ForceTracing;
+
+    TDuration FramingKeepAlivePeriod;
+
+    TApiTestingOptionsPtr TestingOptions;
 
     TApiConfig()
     {
@@ -99,6 +138,12 @@ public:
 
         RegisterParameter("force_tracing", ForceTracing)
             .Default(false);
+
+        RegisterParameter("framing_keep_alive_period", FramingKeepAlivePeriod)
+            .Default();
+
+        RegisterParameter("testing", TestingOptions)
+            .Default();
     }
 };
 

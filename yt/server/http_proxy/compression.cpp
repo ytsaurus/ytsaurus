@@ -328,6 +328,15 @@ bool IsCompressionSupported(const TContentEncoding& contentEncoding)
     return false;
 }
 
+std::vector<TContentEncoding> GetSupportedCompressions()
+{
+    auto result = SupportedCompressions;
+    for (auto blockCodec : NBlockCodecs::ListAllCodecs()) {
+        result.push_back(TString("z-") + blockCodec);
+    }
+    return result;
+}
+
 // NOTE: Does not implement the spec, but a reasonable approximation.
 TErrorOr<TContentEncoding> GetBestAcceptedEncoding(const TString& clientAcceptEncodingHeader)
 {

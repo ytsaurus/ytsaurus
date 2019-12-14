@@ -15,6 +15,10 @@ extern const NLogging::TLogger HttpStructuredProxyLogger;
 
 extern const TString ClickHouseUserName;
 
+DECLARE_REFCOUNTED_CLASS(TFramingAsyncOutputStream);
+
+DECLARE_REFCOUNTED_CLASS(TApiTestingOptions);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NHttpProxy
