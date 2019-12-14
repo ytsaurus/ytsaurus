@@ -1,6 +1,7 @@
 #!/usr/bin/python2.7
 
 import argparse
+import sys
 import logging
 import yt.wrapper as yt
 import yt.yson as yson
@@ -16,7 +17,14 @@ def main():
     parser.add_argument("-b", "--bin", default="//sys/clickhouse/bin/ytserver-clickhouse", help="ytserver-clickhouse binary to use")
     parser.add_argument("-t", "--type", default="public", help="Clique type; for example 'public' or 'prestable'")
     parser.add_argument("-g", "--graceful-preemption", action="store_true", help="Enable graceful preemption")
+    parser.add_argument("--skip-wrapper-version-check", action="store_true", help="NOT RECOMMENDED: try to run script with yt wrapper from package rather than from working copy")
     args = parser.parse_args()
+
+    if args.skip_wrapper_version_check:
+        logger.warning("Running with wrapper version %s, it may miss some important clickhouse functional to run public cliques", yt.VERSION)
+    elif yt.VERSION != "unknown":
+        logger.error("Running with wrapper not from working copy (wrapper version %s) is not recommended; if you still want to proceed, use --skip-wrapper-version-check flag", yt.VERSION)
+        sys.exit(1)
 
     assert args.type in ("prestable", "datalens", "public")
 
@@ -28,7 +36,7 @@ def main():
         cpu_limit=8,
         enable_monitoring=True,
         enable_job_tables=True,
-        enable_log_tailer=args.type == "prestable",
+        enable_log_tailer=True,
         cypress_geodata_path="//sys/clickhouse/geodata/geodata.tgz",
         cypress_ytserver_clickhouse_path=args.bin,
         spec={
