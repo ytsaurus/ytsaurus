@@ -82,7 +82,7 @@ void ApplyMembershipHint(DB::IAST& ast, const TYsonString& hint, const TLogger& 
 {
     const auto& Logger = logger;
 
-    YT_LOG_INFO("Applying membership hint to AST (AST: %v, Hint: %v)", ast, hint);
+    YT_LOG_DEBUG("Applying membership hint to AST (AST: %v, Hint: %v)", ast, hint);
     auto hintNode = ConvertToNode(hint);
     TModificationVector modifications;
     ApplyMembership(ast, hintNode, "" /* path */, modifications);
@@ -92,7 +92,7 @@ void ApplyMembershipHint(DB::IAST& ast, const TYsonString& hint, const TLogger& 
             membership);
         DB::IdentifierSemantic::setMembership(*identifier, membership);
     }
-    YT_LOG_INFO("AST hint successfully appclied");
+    YT_LOG_DEBUG("AST hint successfully applied");
 }
 
 TYsonString DumpMembershipHint(const DB::IAST& ast, const TLogger& logger)
@@ -100,7 +100,7 @@ TYsonString DumpMembershipHint(const DB::IAST& ast, const TLogger& logger)
     const auto& Logger = logger;
     auto hintNode = DumpMembership(ast, logger);
     auto hint = ConvertToYsonString(hintNode, EYsonFormat::Text);
-    YT_LOG_INFO("Dumped membership hint for AST (AST: %v, Hint: %v)", ast, hint);
+    YT_LOG_DEBUG("Dumped membership hint for AST (AST: %v, Hint: %v)", ast, hint);
     return hint;
 }
 
