@@ -136,7 +136,7 @@ void TDiscovery::DoEnter(TString name, TAttributeMap attributes)
 
     WaitFor(Client_->CreateNode(Config_->Directory + "/" + name, NObjectClient::EObjectType::MapNode, createOptions))
         .ThrowOnError();
-        
+
     YT_LOG_DEBUG("Instance node created (Name: %v)",
         name);
 
@@ -147,7 +147,7 @@ void TDiscovery::DoEnter(TString name, TAttributeMap attributes)
 
     TransactionRestorer_ = BIND(&TDiscovery::OnTransactionAborted, MakeWeak(this), Epoch_)
         .Via(Invoker_);
-    
+
     DoLockNode(Epoch_);
 
     YT_LOG_INFO("Entered the group");
@@ -174,10 +174,10 @@ void TDiscovery::DoLeave()
         TWriterGuard guard(Lock_);
         SelfAttributes_.reset();
     }
-    
+
     Transaction_.Reset();
 }
-    
+
 void TDiscovery::DoUpdateList()
 {
     auto list = ConvertToNode(WaitFor(Client_->ListNode(Config_->Directory, ListOptions_))
@@ -217,7 +217,7 @@ void TDiscovery::DoUpdateList()
         swap(List_, newList);
         LastUpdate_ = TInstant::Now();
     }
-    YT_LOG_INFO("List of participants updated (Alive: %v, Dead: %v)", aliveCount, deadCount);
+    YT_LOG_DEBUG("List of participants updated (Alive: %v, Dead: %v)", aliveCount, deadCount);
 }
 
 void TDiscovery::DoLockNode(int epoch)
@@ -254,7 +254,7 @@ void TDiscovery::DoLockNode(int epoch)
     Transaction_ = std::move(transaction);
     // Set it here to avoid restoring transaction without lock.
     Transaction_->SubscribeAborted(TransactionRestorer_);
-    
+
     YT_LOG_DEBUG("Lock completed (TransactionId: %v, LockId: %v)",
         Transaction_->GetId(),
         lock.LockId);
