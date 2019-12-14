@@ -27,12 +27,13 @@ bool TryParseInstantFromLogInstant(TString logInstant, TInstant& instant)
 {
     //          01234567890123456789012
     // Log:     2019-07-12 13:43:05,183
-    // Iso8601: 2019-07-12T13:43:05.183
+    // Iso8601: 2019-07-12T13:43:05.183+0300
     if (static_cast<int>(logInstant.size()) != 23) {
         return false;
     }
     logInstant[10] = 'T';
     logInstant[19] = '.';
+    logInstant += "+0300";
     return TInstant::TryParseIso8601(logInstant, instant);
 }
 
@@ -291,7 +292,7 @@ bool TLogFileReader::TryProcessRecordRange(TIteratorRange<TLogRecordBuffer::iter
             transaction->GetId(),
             timer.GetElapsedValue() / 1e6);
         if (boundaryTimestampsWellFormed) {
-            YT_LOG_INFO("Row boundary timestamps (MinTimestamps: %v, MaxTimestamps: %v, Lag: %v)",
+            YT_LOG_INFO("Row boundary timestamps (MinTimestamp: %v, MaxTimestamp: %v, Lag: %v)",
                 minTimestamp,
                 maxTimestamp,
                 GetInstant() - maxTimestamp);
