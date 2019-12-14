@@ -1,5 +1,7 @@
 #pragma once
 
+#include "guid.h"
+
 #include <algorithm>
 #include <array>
 
@@ -151,6 +153,21 @@ public:
             std::copy(begin, Cursor_, begin + delta);
             std::fill(begin, begin + delta, ' ');
             Cursor_ = begin + width;
+        }
+    }
+
+    //! Formats |guid| and updates the internal cursor.
+    void AppendGuid(TGuid guid)
+    {
+        constexpr int MaxGuidLength = 8 * 4 + 3;
+        if (Y_LIKELY(End_ - Cursor_ >= MaxGuidLength)) {
+            // Fast path.
+            Cursor_ = WriteGuidToBuffer(Cursor_, guid);
+        } else {
+            // Slow path.
+            std::array<char, MaxGuidLength> buffer;
+            auto* end = WriteGuidToBuffer(buffer.data(), guid);
+            AppendString(TStringBuf(buffer.data(), end));
         }
     }
 
