@@ -46,10 +46,6 @@ def get_input_table_path(artifact_path, trace_id_present=False, log_level=None):
     return "{}/clickhouse{}.log{}".format(artifact_path, log_level_suffix, table_kind_suffix)
 
 
-def parse_trace_id(trace_id):
-    return trace_id.replace("-", "").lower()
-
-
 def select_rows(query):
     logger.debug("Making query: %s", query)
     return yt.select_rows(query)
@@ -218,12 +214,7 @@ def main():
     artifact_path = args.artifact_path or "//home/clickhouse-kolkhoz/" + operation_alias
     logger.info("Artifact path: %s", artifact_path)
 
-    trace_id = None
-    if args.trace_id:
-        trace_id = parse_trace_id(args.trace_id)
-        logger.info("Trace id: %s", trace_id)
-
-    input_table_path = get_input_table_path(artifact_path, trace_id_present=trace_id is not None, log_level=log_level)
+    input_table_path = get_input_table_path(artifact_path, trace_id_present=args.trace_id is not None, log_level=log_level)
     creation_time = parse_ts(yt.get(input_table_path + "/@creation_time"))
     logger.info("Input table: %s, creation_time: %s", input_table_path, format_ts(creation_time))
     from_ts = max(from_ts, creation_time)
@@ -236,8 +227,9 @@ def main():
 
     conditions = []
 
-    if trace_id:
-        conditions.append("trace_id = '{}'".format(trace_id))
+    if args.trace_id:
+        logger.info("Trace id: %s", args.trace_id)
+        conditions.append("trace_id = '{}'".format(args.trace_id))
 
     if args.message_like:
         conditions.append("is_substr('{}', message)".format(args.message_like))
