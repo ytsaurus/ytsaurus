@@ -2100,9 +2100,10 @@ std::tuple<size_t, size_t, size_t> MakeCodegenSplitterOp(
 
             builder->SetInsertPoint(endIfBB);
 
-            return builder->CreateAnd(
+            // FIXME(lukyan): This is logically wrong but fixes YT-11823
+            return builder->CreateOr(
                 builder->CreateLoad(finalFinishRef),
-                builder->CreateAnd(
+                builder->CreateOr(
                     builder->CreateLoad(intermediateFinishRef),
                     builder->CreateLoad(totalsFinishRef)));
         };
