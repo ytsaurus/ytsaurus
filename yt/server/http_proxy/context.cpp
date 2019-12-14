@@ -4,9 +4,12 @@
 #include "coordinator.h"
 #include "helpers.h"
 #include "formats.h"
+#include "framing.h"
 #include "compression.h"
 #include "private.h"
 #include "config.h"
+
+#include <yt/client/api/connection.h>
 
 #include <yt/core/json/json_writer.h>
 #include <yt/core/json/config.h>
@@ -16,6 +19,7 @@
 #include <yt/core/logging/fluent_log.h>
 
 #include <yt/core/concurrency/async_stream.h>
+#include <yt/core/concurrency/periodic_executor.h>
 
 #include <yt/core/http/http.h>
 #include <yt/core/http/helpers.h>
@@ -87,6 +91,11 @@ bool TContext::TryParseRequest()
 
     if (Request_->GetHeaders()->Find("X-YT-Omit-Trailers")) {
         OmitTrailers_ = true;
+    }
+
+    if (Request_->GetHeaders()->Find("X-YT-Accept-Framing")) {
+        Response_->GetHeaders()->Set("X-YT-Framing", "1");
+        IsFramingEnabled_ = true;
     }
 
     return true;
@@ -607,6 +616,30 @@ void TContext::SetupOutputStream()
             DriverRequest_.OutputStream,
             *OutputContentEncoding_);
     }
+
+    if (IsFramingEnabled_) {
+        auto framingStream = New<TFramingAsyncOutputStream>(DriverRequest_.OutputStream);
+        DriverRequest_.OutputStream = framingStream;
+
+        // NB: This lambda should not capture |this| (by strong reference) to avoid cyclic references.
+        auto sendKeepAliveFrame = [] (const TFramingAsyncOutputStreamPtr& stream) {
+            // All errors are ignored.
+            auto error = WaitFor(stream->WriteKeepAliveFrame());
+            if (!error.IsOK()) {
+                return;
+            }
+            error = WaitFor(stream->Flush());
+        };
+
+        if (Api_->GetConfig()->FramingKeepAlivePeriod) {
+            auto connection = Api_->GetDriverV4()->GetConnection();
+            SendKeepAliveExecutor_ = New<TPeriodicExecutor>(
+                connection->GetInvoker(),
+                BIND(sendKeepAliveFrame, framingStream),
+                Api_->GetConfig()->FramingKeepAlivePeriod);
+            SendKeepAliveExecutor_->Start();
+        }
+    }
 }
 
 void TContext::SetupOutputParameters()
@@ -679,6 +712,15 @@ void TContext::FinishPrepare()
 
 void TContext::Run()
 {
+    if (const auto& testingOptions = Api_->GetConfig()->TestingOptions; testingOptions) {
+        if (testingOptions->DelayInsideGet && DriverRequest_.CommandName == "get") {
+            const auto& path = DriverRequest_.Parameters->FindChild("path");
+            if (path && path->GetValue<TString>() == testingOptions->DelayInsideGet->Path) {
+                TDelayedExecutor::WaitForDuration(testingOptions->DelayInsideGet->Delay);
+            }
+        }
+    }
+
     Response_->SetStatus(EStatusCode::OK);
     if (*ApiVersion_ == 4) {
         WaitFor(Api_->GetDriverV4()->Execute(DriverRequest_))

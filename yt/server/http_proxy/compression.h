@@ -22,12 +22,13 @@ private:
     std::vector<TSharedRef> Refs_;
 };
 
-
 DEFINE_REFCOUNTED_TYPE(TSharedRefOutputStream)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 bool IsCompressionSupported(const TContentEncoding& contentEncoding);
+
+std::vector<TContentEncoding> GetSupportedCompressions();
 
 extern TContentEncoding IdentityContentEncoding;
 
