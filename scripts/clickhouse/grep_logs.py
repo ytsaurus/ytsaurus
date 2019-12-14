@@ -147,7 +147,8 @@ def select_rows_batched(input_table_path, conditions, from_ts, to_ts, window_siz
 
 def main():
     description = """
-    Grep logs from log tailer dynamic table\n
+    Grep logs from log tailer dynamic table
+    
     Examples:
         * Find all initial queries from beginning of time till now:
           ./grep_logs.py ch_prestable --log-level info --message-like 'QueryKind: Initial' -w 5s
