@@ -446,6 +446,8 @@ public:
     std::vector<TProtobufTableConfigPtr> Tables;
     NYTree::IMapNodePtr Enumerations;
 
+    EComplexTypeMode ComplexTypeMode;
+
     TProtobufFormatConfig()
     {
         RegisterParameter("file_descriptor_set", FileDescriptorSet)
@@ -463,6 +465,9 @@ public:
             .Default();
         RegisterParameter("enumerations", Enumerations)
             .Default();
+
+        RegisterParameter("complex_type_mode", ComplexTypeMode)
+            .Default(EComplexTypeMode::Named);
     }
 
 private:
