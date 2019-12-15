@@ -13,7 +13,7 @@ int GetCurrentSnapshotVersion()
 
 bool ValidateSnapshotVersion(int version)
 {
-    return version >= ToUnderlying(ESnapshotVersion::ExternalizedTransactions) &&
+    return version >= ToUnderlying(ESnapshotVersion::GroupedSpeculativeJobs) &&
            version <= GetCurrentSnapshotVersion();
 }
 

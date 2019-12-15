@@ -2705,7 +2705,8 @@ void TOperationControllerBase::BuildJobAttributes(
             fluent.Item("statistics")
                 .Value(job->StatisticsYson ? job->StatisticsYson : EmptyMapYson);
         })
-        .Item("suspicious").Value(job->Suspicious);
+        .Item("suspicious").Value(job->Suspicious)
+        .Item("job_competition_id").Value(job->JobCompetitionId);
 }
 
 void TOperationControllerBase::BuildFinishedJobAttributes(
@@ -2753,7 +2754,8 @@ TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(
         .Item("resource_limits").Value(joblet->ResourceLimits)
         .Item("statistics").Value(jobSummary.Statistics)
         .Item("node_address").Value(joblet->NodeDescriptor.Address)
-        .Item("job_type").Value(joblet->JobType);
+        .Item("job_type").Value(joblet->JobType)
+        .Item("job_competition_id").Value(joblet->JobCompetitionId);
 }
 
 IYsonConsumer* TOperationControllerBase::GetEventLogConsumer()

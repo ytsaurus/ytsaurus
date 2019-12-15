@@ -128,6 +128,7 @@ void Serialize(const TJob& job, NYson::IYsonConsumer* consumer, TStringBuf idKey
             .OptionalItem("start_time", job.StartTime)
             .OptionalItem("finish_time", job.FinishTime)
             .OptionalItem("has_spec", job.HasSpec)
+            .OptionalItem("job_competition_id", job.JobCompetitionId)
             .OptionalItem("progress", job.Progress)
             .OptionalItem("stderr_size", job.StderrSize)
             .OptionalItem("fail_context_size", job.FailContextSize)

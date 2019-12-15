@@ -1964,6 +1964,9 @@ private:
         if (request->has_with_spec()) {
             options.WithSpec = request->with_spec();
         }
+        if (request->has_job_competition_id()) {
+            options.JobCompetitionId = FromProto<NJobTrackerClient::TJobId>(request->job_competition_id());
+        }
 
         options.SortField = static_cast<EJobSortField>(request->sort_field());
         options.SortOrder = static_cast<EJobSortDirection>(request->sort_order());
@@ -1979,15 +1982,16 @@ private:
         options.RunningJobsLookbehindPeriod = FromProto<TDuration>(request->running_jobs_lookbehind_period());
 
         context->SetRequestInfo(
-            "OperationId: %v, Type: %v, State: %v, Address: %v, "
-            "IncludeCypress: %v, IncludeControllerAgent: %v, IncludeArchive: %v",
+            "OperationId: %v, Type: %v, State: %v, Address: %v, IncludeCypress: %v, "
+            "IncludeControllerAgent: %v, IncludeArchive: %v, JobCompetitionId: %v",
             operationId,
             options.Type,
             options.State,
             options.Address,
             options.IncludeCypress,
             options.IncludeControllerAgent,
-            options.IncludeArchive);
+            options.IncludeArchive,
+            options.JobCompetitionId);
 
         CompleteCallWith(
             client,

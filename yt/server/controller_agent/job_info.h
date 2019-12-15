@@ -48,6 +48,7 @@ struct TJobInfoBase
     i64 StderrSize = 0;
     NYson::TYsonString StatisticsYson;
     EJobPhase Phase = EJobPhase::Missing;
+    TJobId JobCompetitionId;
 
     virtual void Persist(const TPersistenceContext& context);
 };
