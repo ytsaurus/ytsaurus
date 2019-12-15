@@ -79,12 +79,6 @@ void TInputChunkBase::SetReplicaList(const TChunkReplicaList& replicas)
     }
 }
 
-// Workaround for TSerializationDumpPodWriter.
-TString ToString(const TInputChunkBase&)
-{
-    YT_ABORT();
-}
-
 // Intentionally used.
 void TInputChunkBase::CheckOffsets()
 {
