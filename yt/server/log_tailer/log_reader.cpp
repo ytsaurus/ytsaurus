@@ -74,14 +74,14 @@ TLogRecord ParseLogRecord(const TString& rawLogRecord)
 
 TUnversionedRow LogRecordToUnversionedRow(
     const TLogRecord& record,
-    ui64 lineIndex,
+    ui64 increment,
     const TRowBufferPtr& rowBuffer,
     const TNameTablePtr& nameTable,
     const std::vector<std::pair<TString, TString>>& extraLogTableColumns = {})
 {
     TUnversionedRowBuilder builder;
     builder.AddValue(ToUnversionedValue(record.Timestamp, rowBuffer, nameTable->GetId("timestamp")));
-    builder.AddValue(ToUnversionedValue(lineIndex, rowBuffer, nameTable->GetId("line_index")));
+    builder.AddValue(ToUnversionedValue(increment, rowBuffer, nameTable->GetId("increment")));
     builder.AddValue(ToUnversionedValue(record.Category, rowBuffer, nameTable->GetId("category")));
     builder.AddValue(ToUnversionedValue(record.LogLevel, rowBuffer, nameTable->GetId("log_level")));
     builder.AddValue(ToUnversionedValue(record.Message, rowBuffer, nameTable->GetId("message")));
@@ -133,7 +133,7 @@ TLogFileReader::TLogFileReader(
     }
 
     LogTableNameTable_->RegisterName("timestamp");
-    LogTableNameTable_->RegisterName("line_index");
+    LogTableNameTable_->RegisterName("increment");
     LogTableNameTable_->RegisterName("category");
     LogTableNameTable_->RegisterName("message");
     LogTableNameTable_->RegisterName("log_level");
@@ -255,20 +255,25 @@ void TLogFileReader::DoReadBuffer()
     }
 }
 
-bool TLogFileReader::TryProcessRecordRange(TIteratorRange<TLogRecordBuffer::iterator> recordRange, i64 lineIndexOffset)
+bool TLogFileReader::TryProcessRecordRange(TIteratorRange<TLogRecordBuffer::iterator> recordRange)
 {
     auto rowsToWrite = recordRange.size();
     YT_ASSERT(rowsToWrite > 0);
 
     auto boundaryTimestamps = GetBoundaryTimestampString(*recordRange.begin(), *(recordRange.end() - 1));
 
-    YT_LOG_INFO("Processing rows (LineIndexOffset: %v, RecordCount: %v, BoundaryTimestamps: %v)",
-        lineIndexOffset,
+    YT_LOG_INFO("Processing rows (Increment: %v, RecordCount: %v, BoundaryTimestamps: %v)",
+        Increment_,
         recordRange.size(),
         boundaryTimestamps);
 
-    auto transaction = WaitFor(Bootstrap_->GetMasterClient()->StartTransaction(NTransactionClient::ETransactionType::Tablet))
-        .ValueOrThrow();
+    auto transactionOrError = WaitFor(Bootstrap_->GetMasterClient()->StartTransaction(NTransactionClient::ETransactionType::Tablet));
+    if (!transactionOrError.IsOK()) {
+        YT_LOG_WARNING(transactionOrError, "Error starting transaction");
+        return false;
+    }
+
+    const auto& transaction = transactionOrError.Value();
 
     TWallTimer timer;
 
@@ -284,7 +289,7 @@ bool TLogFileReader::TryProcessRecordRange(TIteratorRange<TLogRecordBuffer::iter
             }
             rowsPerTable[tableIndex].emplace_back(LogRecordToUnversionedRow(
                 RecordsBuffer_[index],
-                lineIndexOffset + index,
+                Increment_++,
                 RowBuffer_,
                 LogTableNameTable_,
                 ExtraLogTableColumns_));
@@ -334,14 +339,12 @@ void TLogFileReader::DoWriteRows()
         YT_ASSERT(rowsToWrite > 0);
 
         auto success = TryProcessRecordRange(
-            MakeIteratorRange(RecordsBuffer_.begin() + recordsBufferPtr, RecordsBuffer_.begin() + recordsBufferPtr + rowsToWrite),
-            LineIndex_ + recordsBufferPtr);
+            MakeIteratorRange(RecordsBuffer_.begin() + recordsBufferPtr, RecordsBuffer_.begin() + recordsBufferPtr + rowsToWrite));
         if (!success) {
             break;
         }
 
         recordsBufferPtr += rowsToWrite;
-        LineIndex_ += rowsToWrite;
     }
 
     int recordsLeftInBuffer = RecordsBuffer_.size() - recordsBufferPtr;
