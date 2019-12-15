@@ -52,12 +52,15 @@ class TLogFileConfig
 public:
     TString Path;
     std::vector<NYTree::TYPath> TablePaths;
+    bool RequireTraceId;
 
     TLogFileConfig()
     {
         RegisterParameter("path", Path)
             .Default();
         RegisterParameter("table_paths", TablePaths)
+            .Default();
+        RegisterParameter("require_trace_id", RequireTraceId)
             .Default();
     }
 };
@@ -126,13 +129,13 @@ public:
             .Default(TDuration::Seconds(1));
 
         RegisterParameter("read_buffer_size", ReadBufferSize)
-            .Default(64_KB);
+            .Default(16_MB);
 
         RegisterParameter("max_records_per_transaction", MaxRecordsPerTransaction)
-            .Default(100);
+            .Default(10 * 1000);
 
         RegisterParameter("max_records_in_buffer", MaxRecordsInBuffer)
-            .Default(1000);
+            .Default(100 * 1000);
     }
 };
 

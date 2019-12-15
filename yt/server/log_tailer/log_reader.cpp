@@ -37,6 +37,21 @@ bool TryParseInstantFromLogInstant(TString logInstant, TInstant& instant)
     return TInstant::TryParseIso8601(logInstant, instant);
 }
 
+TString GetBoundaryTimestampString(const TLogRecord& firstRecord, const TLogRecord& lastRecord)
+{
+    // It may happen that boundary timestamps are ill-formed as there may appear arbitrary garbage in logs.
+    bool boundaryTimestampsWellFormed = true;
+    TInstant minTimestamp;
+    boundaryTimestampsWellFormed &= TryParseInstantFromLogInstant(firstRecord.Timestamp, minTimestamp);
+    TInstant maxTimestamp;
+    boundaryTimestampsWellFormed &= TryParseInstantFromLogInstant(lastRecord.Timestamp, maxTimestamp);
+    if (boundaryTimestampsWellFormed) {
+        return Format("{Min: %v, Max: %v, Lag: %v}", minTimestamp, maxTimestamp, GetInstant() - minTimestamp);
+    } else {
+        return "(n/a)";
+    }
+}
+
 TLogRecord ParseLogRecord(const TString& rawLogRecord)
 {
     TVector<TString> tokens;
@@ -207,10 +222,8 @@ void TLogFileReader::DoReadBuffer()
     while (true) {
         YT_LOG_INFO("Reading from log file");
         TWallTimer timer;
-        timer.Start();
         int bytesRead = Log_->Read(buffer.data(), bufferSize);
-        timer.Stop();
-        YT_LOG_INFO("Read from log file (ByteCount: %v, ElapsedTimeSec: %v)", bytesRead, timer.GetElapsedValue() / 1e6);
+        YT_LOG_INFO("Read from log file (ByteCount: %v, ElapsedTime: %v)", bytesRead, timer.GetElapsedTime());
         if (bytesRead == 0) {
             break;
         }
@@ -244,29 +257,27 @@ bool TLogFileReader::TryProcessRecordRange(TIteratorRange<TLogRecordBuffer::iter
     auto rowsToWrite = recordRange.size();
     YT_ASSERT(rowsToWrite > 0);
 
-    YT_LOG_INFO("Writing rows (LineIndexOffset: %v, RowCount: %v)", lineIndexOffset, recordRange.size());
+    auto boundaryTimestamps = GetBoundaryTimestampString(*recordRange.begin(), *(recordRange.end() - 1));
 
-    // It may happen that boundary timestamps are ill-formed as there may appear arbitrary garbage in logs.
-    bool boundaryTimestampsWellFormed = true;
-    TInstant minTimestamp;
-    boundaryTimestampsWellFormed &= TryParseInstantFromLogInstant(recordRange[0].Timestamp, minTimestamp);
-    TInstant maxTimestamp;
-    boundaryTimestampsWellFormed &= TryParseInstantFromLogInstant(recordRange[rowsToWrite - 1].Timestamp, maxTimestamp);
-    if (boundaryTimestampsWellFormed) {
-        YT_LOG_INFO("Row boundary timestamps (MinTimestamp: %v, MaxTimestamp: %v)", minTimestamp, maxTimestamp);
-    }
+    YT_LOG_INFO("Processing rows (LineIndexOffset: %v, RecordCount: %v, BoundaryTimestamps: %v)",
+        lineIndexOffset,
+        recordRange.size(),
+        boundaryTimestamps);
 
     auto transaction = WaitFor(Bootstrap_->GetMasterClient()->StartTransaction(NTransactionClient::ETransactionType::Tablet))
         .ValueOrThrow();
 
     TWallTimer timer;
-    timer.Start();
 
     std::vector<TUnversionedRow> rows;
 
     rows.reserve(rowsToWrite);
 
     for (size_t index = 0; index < rowsToWrite; ++index) {
+        const auto& record = RecordsBuffer_[index];
+        if (Config_->RequireTraceId && record.TraceId.empty()) {
+            continue;
+        }
         rows.emplace_back(LogRecordToUnversionedRow(
             RecordsBuffer_[index],
             lineIndexOffset + index,
@@ -276,7 +287,7 @@ bool TLogFileReader::TryProcessRecordRange(TIteratorRange<TLogRecordBuffer::iter
     }
 
     for (const auto& table : Config_->TablePaths) {
-        YT_LOG_INFO("Writing rows to table (Table: %v, RowCount: %v, TransactionId: %v)", table, rows.size(), transaction->GetId());
+        YT_LOG_DEBUG("Writing rows to table (Table: %v, RowCount: %v, TransactionId: %v)", table, rows.size(), transaction->GetId());
         transaction->WriteRows(
             table,
             // TODO(max42): remove this when YT-11869 is fixed.
@@ -285,24 +296,21 @@ bool TLogFileReader::TryProcessRecordRange(TIteratorRange<TLogRecordBuffer::iter
     }
 
     auto commitResultOrError = WaitFor(transaction->Commit());
-    timer.Stop();
+    RowBuffer_->Clear();
+
     if (commitResultOrError.IsOK()) {
-        YT_LOG_INFO("Rows committed (RowCount: %v, TransactionId: %v, ElapsedTimeSec: %v)",
+        YT_LOG_INFO("Rows committed (RowCount: %v, TransactionId: %v, ElapsedTime: %v, BoundaryTimestamps: %v)",
             recordRange.size(),
             transaction->GetId(),
-            timer.GetElapsedValue() / 1e6);
-        if (boundaryTimestampsWellFormed) {
-            YT_LOG_INFO("Row boundary timestamps (MinTimestamp: %v, MaxTimestamp: %v, Lag: %v)",
-                minTimestamp,
-                maxTimestamp,
-                GetInstant() - maxTimestamp);
-        }
+            timer.GetElapsedTime(),
+            boundaryTimestamps);
         return true;
     } else {
-        YT_LOG_WARNING(commitResultOrError, "Error committing rows (RowCount: %v, TransactionId: %v, ElapsedTimeSec: %v)",
+        YT_LOG_WARNING(commitResultOrError, "Error committing rows (RowCount: %v, TransactionId: %v, ElapsedTime: %v, BoundaryTimestamps: %v)",
             recordRange.size(),
             transaction->GetId(),
-            timer.GetElapsedValue() / 1e6);
+            timer.GetElapsedTime(),
+            boundaryTimestamps);
         return false;
     }
 }
@@ -329,9 +337,11 @@ void TLogFileReader::DoWriteRows()
 
     i64 maxRecordsInBuffer = Bootstrap_->GetConfig()->MaxRecordsInBuffer;
     if (recordsLeftInBuffer > maxRecordsInBuffer) {
-        YT_LOG_WARNING("Too many records in buffer; trimming (RecordCount: %v, MaxRecordCount: %v)",
+        YT_LOG_WARNING("Too many records in buffer; trimming (RecordCount: %v, MaxRecordCount: %v, TrimmedBoundaryTimestamps: %v)",
             recordsLeftInBuffer,
-            maxRecordsInBuffer);
+            maxRecordsInBuffer,
+            GetBoundaryTimestampString(*(RecordsBuffer_.end() - recordsLeftInBuffer), *(RecordsBuffer_.end() - maxRecordsInBuffer - 1)));
+
         recordsLeftInBuffer = maxRecordsInBuffer;
     }
 
