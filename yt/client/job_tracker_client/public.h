@@ -65,6 +65,7 @@ DEFINE_ENUM(EJobState,
     // Initial state of newly created job.
     ((None)       (8))
 );
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NJobTrackerClient
