@@ -16,6 +16,8 @@
 #include <yt/client/chunk_client/chunk_replica.h>
 #include <yt/client/chunk_client/read_limit.h>
 
+#include <yt/client/job_tracker_client/helpers.h>
+
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/client/security_client/helpers.h>
@@ -2844,6 +2846,12 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsyncImpl(
                             fluent.Item("job_proxy_cpu_usage").Value(jobProxyCpuUsage->AsInt64()->GetValue());
                         })
                     .EndMap();
+            }
+
+            // We intentionally mark stderr as missing if job has no spec since
+            // it is impossible to check permissions without spec.
+            if (job.State && NJobTrackerClient::IsJobFinished(*job.State) && !job.HasSpec) {
+                job.StderrSize = std::nullopt;
             }
         }
         return jobs;
