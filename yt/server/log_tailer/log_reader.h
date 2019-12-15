@@ -67,13 +67,13 @@ private:
 
     std::vector<std::pair<TString, TString>> ExtraLogTableColumns_;
 
-    ui64 LineIndex_ = 0;
+    ui64 Increment_ = 0;
 
     void DoReadLog();
     void DoOpenLogFile();
     void DoReadBuffer();
     void DoWriteRows();
-    bool TryProcessRecordRange(TIteratorRange<TLogRecordBuffer::iterator> recordRange, i64 lineIndexOffset);
+    bool TryProcessRecordRange(TIteratorRange<TLogRecordBuffer::iterator> recordRange);
 };
 
 DEFINE_REFCOUNTED_TYPE(TLogFileReader)

@@ -35,7 +35,7 @@ class TestLogTailer(YTEnvSetup):
             pytest.skip("This test requires dummy_logger binary being built")
 
     @authors("gritukan")
-    def DISABLE_test_log_rotation(self):
+    def DISABLED_test_log_rotation(self):
         log_tailer_config = yson.loads(open(os.path.join(TEST_DIR, "test_clickhouse", "log_tailer_config.yson")).read())
         log_path = \
             os.path.join(self.path_to_run,
@@ -71,13 +71,12 @@ class TestLogTailer(YTEnvSetup):
         create("map_node", "//sys/clickhouse")
         create("map_node", "//sys/clickhouse/logs")
 
-        create("table", "//sys/clickhouse/logs/log1", attributes= \
-            {
+        create("table", "//sys/clickhouse/logs/log1", attributes={
                 "dynamic": True,
                 "schema": [
-                    {"name": "job_id_hash", "type": "uint64", "expression": "farm_hash(job_id) % 123", "sort_order": "ascending"},
+                    {"name": "job_id_shard", "type": "uint64", "expression": "farm_hash(job_id) % 123", "sort_order": "ascending"},
                     {"name": "timestamp", "type": "string", "sort_order": "ascending"},
-                    {"name": "line_index", "type": "uint64", "sort_order": "ascending"},
+                    {"name": "increment", "type": "uint64", "sort_order": "ascending"},
                     {"name": "job_id", "type": "string", "sort_order": "ascending"},
                     {"name": "category", "type": "string"},
                     {"name": "message", "type": "string"},
@@ -90,21 +89,20 @@ class TestLogTailer(YTEnvSetup):
                 "tablet_cell_bundle": "sys"
             })
 
-        create("table", "//sys/clickhouse/logs/log2", attributes= \
-            {
+        create("table", "//sys/clickhouse/logs/log2", attributes={
                 "dynamic": True,
                 "schema": [
-                    {"name": "key_exression_column", "type": "uint64", "expression": "farm_hash(trace_id) % 123", "sort_order": "ascending"},
+                    {"name": "trace_id_hash", "type": "uint64", "expression": "farm_hash(trace_id)", "sort_order": "ascending"},
                     {"name": "trace_id", "type": "string", "sort_order": "ascending"},
-                    {"name": "timestamp", "type": "string"},
+                    {"name": "timestamp", "type": "string", "sort_order": "ascending"},
+                    {"name": "job_id", "type": "string", "sort_order": "ascending"},
+                    {"name": "increment", "type": "uint64", "sort_order": "ascending"},
                     {"name": "category", "type": "string"},
                     {"name": "message", "type": "string"},
                     {"name": "log_level", "type": "string"},
                     {"name": "thread_id", "type": "string"},
                     {"name": "fiber_id", "type": "string"},
-                    {"name": "job_id", "type": "string"},
                     {"name": "operation_id", "type": "string"},
-                    {"name": "line_index", "type": "uint64"},
                 ],
                 "tablet_cell_bundle": "sys"
             })
@@ -134,6 +132,4 @@ class TestLogTailer(YTEnvSetup):
 
             rows = read_table(log_table)
             assert len(rows) == 1000
-            for row in rows:
-                assert str(row["line_index"]) == row["timestamp"]
             remove(log_table)
