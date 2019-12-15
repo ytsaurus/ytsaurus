@@ -283,7 +283,7 @@ public:
         }
 
         strcpy(&StateBuffer_[StatePointer_], result.data());
-        YT_LOG_INFO("Query registry state saved (StatePointer: %v, Length: %v)", StatePointer_, result.size());
+        YT_LOG_DEBUG("Query registry state saved (StatePointer: %v, Length: %v)", StatePointer_, result.size());
     }
 
 private:
