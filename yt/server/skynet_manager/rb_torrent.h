@@ -44,13 +44,15 @@ struct TRowRangeLocation
     NChunkClient::TChunkId ChunkId;
 
     std::vector<TString> Nodes;
+    std::vector<TString> FastboneNodes;
 
     friend bool operator < (const TRowRangeLocation& rhs, const TRowRangeLocation& lhs);
 };
 
 NYTree::INodePtr MakeLinks(
     const NProto::TResource& resource,
-    const std::vector<TRowRangeLocation>& locations);
+    const std::vector<TRowRangeLocation>& locations,
+    bool fastbone);
 
 ////////////////////////////////////////////////////////////////////////////////
 

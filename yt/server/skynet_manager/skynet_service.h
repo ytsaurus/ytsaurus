@@ -5,6 +5,7 @@
 #include "tables.h"
 
 #include <yt/core/net/public.h>
+#include <yt/core/net/address.h>
 
 #include <yt/core/http/public.h>
 
@@ -98,7 +99,7 @@ class TSkynetService
     , public TAsyncExpiringCache<TCacheKey, TCachedResourcePtr>
 {
 public:
-    TSkynetService(TBootstrap* bootstrap, const TString& peerId);
+    TSkynetService(TBootstrap* bootstrap, const TString& peerId, std::optional<NNet::TIP6Address> fastboneAddress);
 
     void Start();
 
@@ -117,6 +118,7 @@ private:
     std::vector<TClusterConnectionPtr> Clusters_;
     TString SelfPeerId_;
     TString SelfPeerName_;
+    std::optional<NNet::TIP6Address> SelfFastboneAddress_;
 
     void AcceptPeers();
     void SyncResourcesLoop(TClusterConnectionPtr cluster);

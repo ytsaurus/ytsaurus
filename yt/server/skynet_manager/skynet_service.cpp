@@ -25,6 +25,8 @@
 
 #include <yt/ytlib/table_client/skynet_column_evaluator.h>
 
+#include <library/cgiparam/cgiparam.h>
+
 namespace NYT::NSkynetManager {
 
 using namespace NApi;
@@ -90,6 +92,10 @@ void TShareOperation::Run()
                 Request_.TablePath,
                 Request_.KeyColumns,
                 updateProgress);
+
+            for (auto& shard : shards) {
+                shard.Resource.set_enable_fastbone(Request_.EnableFastbone);
+            }
             YT_LOG_INFO("Finished reading hashes");
             resources = Cluster_->GetTables()->FinishRequest(Request_, shards);
             YT_LOG_INFO("Resources created");
@@ -228,7 +234,7 @@ static const TString DebugLinksEndpoint = "/debug/links/";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSkynetService::TSkynetService(TBootstrap* bootstrap, const TString& peerId)
+TSkynetService::TSkynetService(TBootstrap* bootstrap, const TString& peerId, std::optional<TIP6Address> fastboneAddress)
     : TAsyncExpiringCache<TCacheKey, TCachedResourcePtr>(bootstrap->GetConfig()->Cache)
     , Config_(bootstrap->GetConfig())
     , Announcer_(bootstrap->GetAnnouncer())
@@ -237,6 +243,7 @@ TSkynetService::TSkynetService(TBootstrap* bootstrap, const TString& peerId)
     , Clusters_(bootstrap->GetClusters())
     , SelfPeerId_(peerId)
     , SelfPeerName_(GetLocalHostName())
+    , SelfFastboneAddress_(fastboneAddress)
 {
     auto http = bootstrap->GetHttpServer();
     http->AddHandler(
@@ -347,6 +354,7 @@ public:
     TString Cluster;
     TRichYPath Path;
     std::vector<TString> KeyColumns;
+    bool EnableFastbone;
 
     TShareParameters()
     {
@@ -354,6 +362,8 @@ public:
         RegisterParameter("path", Path);
         RegisterParameter("key_columns", KeyColumns)
             .Default();
+        RegisterParameter("enable_fastbone", EnableFastbone)
+            .Default(false);
     }
 };
 
@@ -389,7 +399,8 @@ void TSkynetService::HandleShare(const IRequestPtr& req, const IResponseWriterPt
     TRequestKey request{
         ToString(params.Path),
         tableRevision,
-        params.KeyColumns
+        params.KeyColumns,
+        params.EnableFastbone,
     };
 
     TRequestState requestState;
@@ -487,7 +498,9 @@ void TSkynetService::HandleDebugLinks(const IRequestPtr& req, const IResponseWri
 
     auto locations = clusterConnection->FetchSkynetPartsLocations(tableRange);
 
-    auto links = MakeLinks(resource, locations);
+    TCgiParameters params(req->GetUrl().RawQuery);
+
+    auto links = MakeLinks(resource, locations, params.Has("fastbone"));
     rsp->SetStatus(EStatusCode::OK);
     ReplyJson(rsp, [&] (NYson::IYsonConsumer* json) {
         Serialize(links, json);
@@ -509,7 +522,9 @@ TClusterConnectionPtr TSkynetService::GetClusterOrThrow(const TString& clusterNa
 
 void TSkynetService::HandlePeerConnection(TPeerConnectionPtr peer)
 {
-    YT_LOG_INFO("Accepted peer connection (Address: %v)", peer->PeerAddress());
+    auto fastboneClient = (peer->LocalAddress().ToIP6Address() == SelfFastboneAddress_);
+
+    YT_LOG_INFO("Accepted peer connection (Address: %v, Fastbone: %v)", peer->PeerAddress(), fastboneClient);
     try {
         auto handshake = peer->ReceiveHandshake();
         auto resourceId = handshake.ResourceId;
@@ -535,9 +550,10 @@ void TSkynetService::HandlePeerConnection(TPeerConnectionPtr peer)
 
         auto cachedResource = WaitFor(Get({clusterName, resourceId}))
             .ValueOrThrow();
-        YT_LOG_DEBUG("Found resource (Cluster: %v, TableRange: %v)",
+        YT_LOG_DEBUG("Found resource (Cluster: %v, TableRange: %v, Fastbone: %v)",
             clusterName,
-            cachedResource->TableRange);
+            cachedResource->TableRange,
+            cachedResource->Resource.enable_fastbone());
 
         peer->SendHasResource();
 
@@ -567,7 +583,8 @@ void TSkynetService::HandlePeerConnection(TPeerConnectionPtr peer)
                 auto locations = clusterConnection->FetchSkynetPartsLocations(cachedResource->TableRange);
                 YT_LOG_INFO("Sending links");
 
-                auto links = MakeLinks(cachedResource->Resource, locations);
+                auto useFastbone = fastboneClient && cachedResource->Resource.enable_fastbone();
+                auto links = MakeLinks(cachedResource->Resource, locations, useFastbone);
                 peer->SendLinks(links);
                 linksSent = true;
             }

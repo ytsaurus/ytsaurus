@@ -17,6 +17,7 @@ message TFile
 message TResource
 {
     repeated TFile files = 1;
+    optional bool enable_fastbone = 2 [default=false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

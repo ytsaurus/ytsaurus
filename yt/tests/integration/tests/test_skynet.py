@@ -431,6 +431,21 @@ class TestSkynetManager(YTEnvSetup):
         subprocess.check_call(["sky", "get", "-p", "-d", self.path_to_run + "/test_download_0", rbtorrentid])
 
     @authors("prime")
+    def test_fastbone_download(self):
+        self.prepare_table("//tmp/table_fastbone")
+        rbtorrentid = self.share("//tmp/table_fastbone")
+        resource_id = rbtorrentid.split(":")[1]
+
+        links = self.get_debug_links(resource_id, fastbone=True)
+        assert links is not None
+        for filename, chunks in links.items():
+            for chunk in chunks:
+                assert len(chunk[2]) == 0
+
+        # No reliable way of checking for fastbone download in tests :(
+        # subprocess.check_call(["sky", "get", "-N", "Fastbone", "-p", "-d", self.path_to_run + "/test_download_3", rbtorrentid])
+
+    @authors("prime")
     def test_no_table(self):
         with pytest.raises(YtError):
             self.share("//tmp/no_table")
@@ -451,12 +466,16 @@ class TestSkynetManager(YTEnvSetup):
 
         subprocess.check_call(["sky", "get", "-p", "-d", self.path_to_run + "/test_download_2", rbtorrentid])
 
-    def get_debug_links(self, rbtorrentid, manager_index=0):
+    def get_debug_links(self, rbtorrentid, manager_index=0, fastbone=False):
         url = "http://localhost:{}/debug/links/{}".format(
             self.Env.configs["skynet_manager"][manager_index]["port"],
             rbtorrentid)
 
-        rsp = requests.get(url)
+        params = {}
+        if fastbone:
+            params["fastbone"] = 1
+        
+        rsp = requests.get(url, params=params)
         if rsp.status_code == 404:
             return None
         elif rsp.status_code == 200:

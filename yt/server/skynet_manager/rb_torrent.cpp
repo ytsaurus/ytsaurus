@@ -6,6 +6,7 @@
 
 #include <util/stream/str.h>
 #include <util/string/split.h>
+#include <util/string/subst.h>
 
 #include <util/string/hex.h>
 
@@ -345,9 +346,12 @@ TString MakeFileUrl(
     i64 upperRowIndex,
     i64 partIndex)
 {
+    TString workaround = node;
+    SubstGlobal(workaround, ":9012", ":10080");
+
     return Format(
         "http://%v/read_skynet_part?chunk_id=%v&lower_row_index=%v&upper_row_index=%v&start_part_index=%v",
-        node,
+        workaround,
         chunkId,
         lowerRowIndex,
         upperRowIndex,
@@ -361,7 +365,7 @@ struct TSkynetLink
     std::vector<TString> Urls;
 };
 
-INodePtr MakeLinks(const NProto::TResource& resource, const std::vector<TRowRangeLocation>& locations)
+INodePtr MakeLinks(const NProto::TResource& resource, const std::vector<TRowRangeLocation>& locations, bool fastbone)
 {
     std::map<TString, std::vector<TSkynetLink>> links;
 
@@ -409,7 +413,7 @@ INodePtr MakeLinks(const NProto::TResource& resource, const std::vector<TRowRang
             link.Start = fileStart;
             link.Size = fileEnd - fileStart;
 
-            for (const auto& node : it->Nodes) {
+            for (const auto& node : (fastbone ? it->FastboneNodes : it->Nodes)) {
                 link.Urls.push_back(MakeFileUrl(
                     node,
                     it->ChunkId,

@@ -29,9 +29,11 @@ static const ui32 ClientPacketMagic = 4079332072;
 TTrackerConnection::TTrackerConnection(
     IPacketConnectionPtr connection,
     TNetworkAddress trackerAddress,
+    std::optional<TString> backboneIP, std::optional<TString> fastboneIP,
     TString peerId)
     : Connection_(connection)
     , TrackerAddress_(trackerAddress)
+    , BackboneIP_(backboneIP), FastboneIP_(fastboneIP)
     , PeerId_(peerId)
     , NextTransactionId_(RandomNumber<TTrackerTransactionId>())
     , SuccessfullPackets_("/successfull_packets", {
@@ -56,9 +58,9 @@ TFuture<TDuration> TTrackerConnection::Connect(ui16 dataPort)
             .Item().Value(PeerId_)
             .Item().BeginList() // List of backbone and fastbone v6/v4 addresses.
                 .Item().Entity()
+                .Item().Value(BackboneIP_)
                 .Item().Entity()
-                .Item().Entity()
-                .Item().Entity()
+                .Item().Value(FastboneIP_)
             .EndList()
             .Item().Value(dataPort)
             .Item().BeginList()
@@ -230,6 +232,7 @@ TAnnouncer::TAnnouncer(
     const IInvokerPtr& invoker,
     const IPollerPtr& poller,
     const TAnnouncerConfigPtr& config,
+    std::optional<TString> backboneIP, std::optional<TString> fastboneIP,
     TString peerId,
     ui16 selfDataPort)
     : Invoker_(invoker)
@@ -250,7 +253,7 @@ TAnnouncer::TAnnouncer(
         trackerAddress = TNetworkAddress(trackerAddress, GetServicePort(tracker));
         Trackers_.emplace_back(
             trackerAddress,
-            New<TTrackerConnection>(Connection_, trackerAddress, peerId));
+            New<TTrackerConnection>(Connection_, trackerAddress, backboneIP, fastboneIP, peerId));
     }
 }
 

@@ -151,6 +151,11 @@ const TNetworkAddress& TPeerConnection::PeerAddress() const
     return Connection_->RemoteAddress();
 }
 
+const TNetworkAddress& TPeerConnection::LocalAddress() const
+{
+    return Connection_->LocalAddress();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSkynetManager
