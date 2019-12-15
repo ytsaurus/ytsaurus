@@ -43,6 +43,7 @@ public:
     EPeerMessage ReceiveMessage();
 
     const NNet::TNetworkAddress& PeerAddress() const;
+    const NNet::TNetworkAddress& LocalAddress() const;
 
 private:
     const TGuid ConnectionId_;

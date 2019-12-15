@@ -333,13 +333,19 @@ std::vector<TRowRangeLocation> FetchSkynetPartsLocations(
     CheckTrailers(response);
 
     auto nodes = ysonResponse->AsMap()->GetChild("nodes")->AsList();
-    THashMap<i64, TString> nodeAddresses;
+    THashMap<i64, TString> nodeAddresses, fastboneNodeAddresses;
     for (const auto& node : nodes->GetChildren()) {
         auto nodeNode = node->AsMap()->GetChild("node_id");
         i64 nodeId = ConvertTo<i64>(nodeNode);
-        auto address = node->AsMap()->GetChild("addresses")->AsMap()->GetChild("default")->AsString()->GetValue();
 
-        nodeAddresses[nodeId] = address;
+        auto addresses = node->AsMap()->GetChild("addresses")->AsMap();
+        
+        nodeAddresses[nodeId] = addresses->GetChild("default")->AsString()->GetValue();
+
+        auto fastbone = addresses->FindChild("fastbone");
+        if (fastbone) {
+            fastboneNodeAddresses[nodeId] = fastbone->AsString()->GetValue();
+        }
     }
 
     auto chunks = ysonResponse->AsMap()->GetChild("chunk_specs")->AsList();
@@ -358,6 +364,11 @@ std::vector<TRowRangeLocation> FetchSkynetPartsLocations(
         }
         for (auto nodeId : spec.Replicas) {
             location.Nodes.push_back(nodeAddresses.at(nodeId));
+
+            auto fastboneReplica = fastboneNodeAddresses.find(nodeId);
+            if (fastboneReplica != fastboneNodeAddresses.end()) {           
+                location.FastboneNodes.push_back(fastboneReplica->second);
+            }
         }
 
         locations.push_back(location);

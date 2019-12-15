@@ -34,6 +34,7 @@ public:
     TTrackerConnection(
         NNet::IPacketConnectionPtr connection,
         NNet::TNetworkAddress trackerAddress,
+        std::optional<TString> backboneIP, std::optional<TString> fastboneIP,
         TString peerId);
 
     TFuture<TDuration> Connect(ui16 dataPort);
@@ -45,6 +46,7 @@ public:
 private:
     const NNet::IPacketConnectionPtr Connection_;
     const NNet::TNetworkAddress TrackerAddress_;
+    const std::optional<TString> BackboneIP_, FastboneIP_;
     const TString PeerId_;
 
     using TTrackerTransactionId = ui32;
@@ -112,7 +114,8 @@ public:
         const IInvokerPtr& invoker,
         const NConcurrency::IPollerPtr& poller,
         const TAnnouncerConfigPtr& config,
-        const TString peerId,
+        std::optional<TString> backboneIP, std::optional<TString> fastboneIP,
+        TString peerId,
         ui16 selfDataPort);
 
     TFuture<void> AddOutOfOrderAnnounce(const TString& cluster, const TResourceId& resource);

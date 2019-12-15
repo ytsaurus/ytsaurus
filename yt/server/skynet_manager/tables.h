@@ -46,6 +46,7 @@ struct TRequestKey
     NYPath::TYPath TablePath;
     NHydra::TRevision TableRevision;
     std::vector<TString> KeyColumns;
+    bool EnableFastbone = false;
 
     NTableClient::TKey ToRow(
         const NTableClient::TNameTablePtr& nameTable,

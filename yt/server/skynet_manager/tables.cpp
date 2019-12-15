@@ -41,6 +41,7 @@ void Serialize(const TRequestKey& key, IYsonConsumer* consumer)
             .Item("table_path").Value(key.TablePath)
             .Item("revision").Value(key.TableRevision)
             .Item("key_columns").Value(key.KeyColumns)
+            .Item("enable_fastbone").Value(key.EnableFastbone)
         .EndMap();
 }
 
@@ -69,6 +70,11 @@ TRequestKey TRequestKey::FromRow(
     key.TableRevision = optionsNode->GetChild("revision")->GetValue<ui64>();
     key.KeyColumns = ConvertTo<std::vector<TString>>(optionsNode->GetChild("key_columns"));
 
+    auto enableFastbone = optionsNode->GetChild("enable_fastbone");
+    if (enableFastbone) {
+        key.EnableFastbone = ConvertTo<bool>(enableFastbone);
+    }
+
     return key;
 }
 
@@ -87,6 +93,7 @@ void TRequestKey::FillRow(
         .BeginMap()
             .Item("revision").Value(TableRevision)
             .Item("key_columns").Value(KeyColumns)
+            .Item("enable_fastbone").Value(EnableFastbone)
         .EndMap().GetData();
     (*row)[1] = rowBuffer->Capture(MakeUnversionedStringValue(optionsString, optionsId));
 }

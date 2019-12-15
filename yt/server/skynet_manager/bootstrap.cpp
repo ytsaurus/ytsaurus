@@ -49,6 +49,8 @@ using namespace NLogging;
 using namespace NApi;
 using namespace NApi::NRpcProxy;
 
+static const auto& Logger = SkynetManagerLogger;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TString GetOrGeneratePeerId(const TString& filename)
@@ -97,9 +99,30 @@ TBootstrap::TBootstrap(TSkynetManagerConfigPtr config)
     NMonitoring::Initialize(MonitoringHttpServer_, &MonitoringManager_, &OrchidRoot_);
     SetBuildAttributes(OrchidRoot_, "skynet_manager");
 
+    auto hostname = GetLocalHostName();
+    auto selfAddress = WaitFor(TAddressResolver::Get()->Resolve(hostname)).ValueOrThrow();
+
+    std::optional<TString> fastboneAddressStr;
+    std::optional<TIP6Address> fastboneAddress;
+    auto selfFastboneAddress = WaitFor(TAddressResolver::Get()->Resolve("fb-" + hostname));
+    if (selfFastboneAddress.IsOK()) {
+        fastboneAddress = selfFastboneAddress.Value().ToIP6Address();
+        fastboneAddressStr = ToString(*fastboneAddress);
+        YT_LOG_ERROR("Detected fastbone address (Address: %s)", *fastboneAddressStr);
+    } else {
+        YT_LOG_ERROR("Failed to detect fastbone address (Hostname: %s)", hostname);
+    }
+
     auto peerId = GetOrGeneratePeerId(Config_->PeerIdFile);
     PeerListener_ = CreateListener(TNetworkAddress::CreateIPv6Any(Config_->SkynetPort), Poller_, Poller_);
-    Announcer_ = New<TAnnouncer>(GetInvoker(), Poller_, Config_->Announcer, peerId, Config_->SkynetPort);
+    Announcer_ = New<TAnnouncer>(
+        GetInvoker(),
+        Poller_,
+        Config_->Announcer,
+        ToString(selfAddress.ToIP6Address()),
+        fastboneAddressStr,
+        peerId,
+        Config_->SkynetPort);
 
     for (const auto& clusterConfig : Config_->Clusters) {
         clusterConfig->LoadToken();
@@ -117,7 +140,7 @@ TBootstrap::TBootstrap(TSkynetManagerConfigPtr config)
         Clusters_.push_back(clusterConnection);
     }
 
-    SkynetService_ = New<TSkynetService>(this, peerId);
+    SkynetService_ = New<TSkynetService>(this, peerId, fastboneAddress);
 }
 
 void TBootstrap::Run()
