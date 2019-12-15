@@ -46,21 +46,37 @@ DEFINE_REFCOUNTED_TYPE(TLogRotationConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TLogTableConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    NYTree::TYPath Path;
+    bool RequireTraceId;
+
+    TLogTableConfig()
+    {
+        RegisterParameter("path", Path);
+        RegisterParameter("require_trace_id", RequireTraceId)
+            .Default(false);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TLogTableConfig);
+
+/////////////////////////////////////////////////////////////////////////////
+
 class TLogFileConfig
     : public NYTree::TYsonSerializable
 {
 public:
     TString Path;
-    std::vector<NYTree::TYPath> TablePaths;
-    bool RequireTraceId;
+    std::vector<TLogTableConfigPtr> Tables;
 
     TLogFileConfig()
     {
         RegisterParameter("path", Path)
             .Default();
-        RegisterParameter("table_paths", TablePaths)
-            .Default();
-        RegisterParameter("require_trace_id", RequireTraceId)
+        RegisterParameter("tables", Tables)
             .Default();
     }
 };

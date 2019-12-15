@@ -3,8 +3,14 @@
         "log_files" = [
             {
                 "path" = "LOG";
-                "table_paths" = [
-                    "//sys/clickhouse/logs/log";
+                "tables" = [
+                    {
+                        "path" = "//sys/clickhouse/logs/log1";
+                    };
+                    {
+                        "path" = "//sys/clickhouse/logs/log2";
+                        "require_trace_id" = %true;
+                    };
                 ];
             }
         ];
