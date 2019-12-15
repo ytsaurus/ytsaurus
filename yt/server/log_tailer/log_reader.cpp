@@ -114,7 +114,16 @@ TLogFileReader::TLogFileReader(
     , ExtraLogTableColumns_(std::move(extraLogTableColumns))
 {
     Logger.AddTag("LogFile: %v", Config_->Path);
-    Logger.AddTag("TablePaths: %v", Config_->TablePaths);
+
+    std::vector<TYPath> paths;
+    for (const auto& tableConfig : Config_->Tables) {
+        const auto& path = tableConfig->Path;
+        if (!WaitFor(Bootstrap_->GetMasterClient()->NodeExists(path)).ValueOrThrow()) {
+            YT_LOG_FATAL("Log table does not exist; exiting (TablePath: %v)", path);
+        }
+        paths.emplace_back(path);
+    }
+    Logger.AddTag("TablePaths: %v", paths);
 
     try {
         DoOpenLogFile();
@@ -134,12 +143,6 @@ TLogFileReader::TLogFileReader(
 
     for (const auto& [key, value] : ExtraLogTableColumns_) {
         LogTableNameTable_->RegisterName(key);
-    }
-
-    for (const auto& table : Config_->TablePaths) {
-        if (!WaitFor(Bootstrap_->GetMasterClient()->NodeExists(table)).ValueOrThrow()) {
-            YT_LOG_FATAL("Log table does not exist; exiting (TablePath: %v)", table);
-        }
     }
 }
 
@@ -269,27 +272,35 @@ bool TLogFileReader::TryProcessRecordRange(TIteratorRange<TLogRecordBuffer::iter
 
     TWallTimer timer;
 
-    std::vector<TUnversionedRow> rows;
+    std::vector<std::vector<TUnversionedRow>> rowsPerTable;
 
-    rows.reserve(rowsToWrite);
+    rowsPerTable.resize(Config_->Tables.size());
 
     for (size_t index = 0; index < rowsToWrite; ++index) {
         const auto& record = RecordsBuffer_[index];
-        if (Config_->RequireTraceId && record.TraceId.empty()) {
-            continue;
+        for (size_t tableIndex = 0; tableIndex < Config_->Tables.size(); ++tableIndex) {
+            if (Config_->Tables[tableIndex]->RequireTraceId && record.TraceId.empty()) {
+                continue;
+            }
+            rowsPerTable[tableIndex].emplace_back(LogRecordToUnversionedRow(
+                RecordsBuffer_[index],
+                lineIndexOffset + index,
+                RowBuffer_,
+                LogTableNameTable_,
+                ExtraLogTableColumns_));
         }
-        rows.emplace_back(LogRecordToUnversionedRow(
-            RecordsBuffer_[index],
-            lineIndexOffset + index,
-            RowBuffer_,
-            LogTableNameTable_,
-            ExtraLogTableColumns_));
     }
 
-    for (const auto& table : Config_->TablePaths) {
-        YT_LOG_DEBUG("Writing rows to table (Table: %v, RowCount: %v, TransactionId: %v)", table, rows.size(), transaction->GetId());
+    for (size_t tableIndex = 0; tableIndex < Config_->Tables.size(); ++tableIndex) {
+        const auto& tableConfig = Config_->Tables[tableIndex];
+        const auto& rows = rowsPerTable[tableIndex];
+        YT_LOG_DEBUG("Writing rows to table (TableIndex: %v, Path: %v, RowCount: %v, TransactionId: %v)",
+            tableIndex,
+            tableConfig->Path,
+            rows.size(),
+            transaction->GetId());
         transaction->WriteRows(
-            table,
+            tableConfig->Path,
             // TODO(max42): remove this when YT-11869 is fixed.
             New<TNameTable>(*LogTableNameTable_),
             TSharedRange<NTableClient::TUnversionedRow>{rows, MakeStrong(this)});
@@ -299,14 +310,14 @@ bool TLogFileReader::TryProcessRecordRange(TIteratorRange<TLogRecordBuffer::iter
     RowBuffer_->Clear();
 
     if (commitResultOrError.IsOK()) {
-        YT_LOG_INFO("Rows committed (RowCount: %v, TransactionId: %v, ElapsedTime: %v, BoundaryTimestamps: %v)",
+        YT_LOG_INFO("Rows committed (RecordCount: %v, TransactionId: %v, ElapsedTime: %v, BoundaryTimestamps: %v)",
             recordRange.size(),
             transaction->GetId(),
             timer.GetElapsedTime(),
             boundaryTimestamps);
         return true;
     } else {
-        YT_LOG_WARNING(commitResultOrError, "Error committing rows (RowCount: %v, TransactionId: %v, ElapsedTime: %v, BoundaryTimestamps: %v)",
+        YT_LOG_WARNING(commitResultOrError, "Error committing rows (RecordCount: %v, TransactionId: %v, ElapsedTime: %v, BoundaryTimestamps: %v)",
             recordRange.size(),
             transaction->GetId(),
             timer.GetElapsedTime(),
