@@ -365,6 +365,7 @@ def prepare_log_tailer_table(log_file,
         {"name": "operation_id", "type": "string"}
     ]
     ORDERED_BY_TRACE_ID_SCHEMA = [
+        {"name": "trace_id_hash", "type": "uint64", "sort_order": "ascending", "expression": "farm_hash(trace_id)"},
         {"name": "trace_id", "type": "string", "sort_order": "ascending"},
         {"name": "timestamp", "type": "string", "sort_order": "ascending"},
         {"name": "job_id", "type": "string", "sort_order": "ascending"},
@@ -377,14 +378,17 @@ def prepare_log_tailer_table(log_file,
         {"name": "operation_id", "type": "string"}
     ]
 
-    assert len(log_file.get("table_paths", [])) == 0
+    assert len(log_file.get("tables", [])) == 0
 
     base_path = os.path.basename(log_file["path"])
 
     ordered_normally_path = artifact_path + "/" + base_path
     ordered_by_trace_id_path = artifact_path + "/" + base_path + ".ordered_by_trace_id"
 
-    log_file["table_paths"] = [ordered_normally_path, ordered_by_trace_id_path]
+    log_file["tables"] = [
+        {"path": ordered_normally_path},
+        {"path": ordered_by_trace_id_path, "require_trace_id": True},
+    ]
 
     def prepare_table(path, schema, ttl, extra_attributes={}):
         if not exists(path, client=client):
