@@ -60,6 +60,7 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TOutputOrder);
 
+void FormatValue(TStringBuilderBase* builder, const TOutputOrder::TEntry& entry, TStringBuf format);
 TString ToString(const TOutputOrder::TEntry& entry);
 
 ////////////////////////////////////////////////////////////////////////////////
