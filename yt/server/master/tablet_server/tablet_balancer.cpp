@@ -1028,7 +1028,7 @@ private:
 
         const auto& config = tablet->GetCell()->GetTabletCellBundle()->TabletBalancerConfig();
         auto* table = tablet->GetTable();
-        const auto& desiredTabletCount = table->GetDesiredTabletCount();
+        auto desiredTabletCount = table->GetDesiredTabletCount();
         auto statistics = table->ComputeTotalStatistics();
         i64 tableSize = tablet->GetInMemoryMode() == EInMemoryMode::Compressed
             ? statistics.compressed_data_size()
