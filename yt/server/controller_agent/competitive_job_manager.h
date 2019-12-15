@@ -53,6 +53,7 @@ private:
     {
         ECompetitionStatus Status = ECompetitionStatus::SingleJobOnly;
         std::vector<TJobId> Competitors;
+        TJobId JobCompetitionId;
         i64 PendingDataWeight;
 
         void Persist(const TPersistenceContext& context)
@@ -61,6 +62,7 @@ private:
 
             Persist(context, Status);
             Persist(context, Competitors);
+            Persist(context, JobCompetitionId);
             Persist(context, PendingDataWeight);
         }
     };

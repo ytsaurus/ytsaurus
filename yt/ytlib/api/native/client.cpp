@@ -674,6 +674,7 @@ static const THashSet<TString> SupportedJobAttributes = {
     "statistics",
     "events",
     "has_spec",
+    "job_competition_id",
 };
 
 // Map operation attribute names as they are requested in 'get_operation' or 'list_operations'
@@ -2651,6 +2652,7 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsyncImpl(
     auto stderrSizeIndex = builder.AddSelectExpression("stderr_size");
     auto hasSpecIndex = builder.AddSelectExpression("has_spec");
     auto failContextSizeIndex = builder.AddSelectExpression("fail_context_size");
+    auto jobCompetitionIdIndex = builder.AddSelectExpression("job_competition_id");
 
     int coreInfosIndex = -1;
     {
@@ -2690,6 +2692,10 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsyncImpl(
 
     if (options.State) {
         builder.AddWhereConjunct(Format("job_state = %Qv", FormatEnum(*options.State)));
+    }
+
+    if (options.JobCompetitionId) {
+        builder.AddWhereConjunct(Format("job_competition_id = %Qv", options.JobCompetitionId));
     }
 
     if (options.SortField != EJobSortField::None) {
@@ -2784,6 +2790,10 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsyncImpl(
 
             if (row[failContextSizeIndex].Type != EValueType::Null) {
                 job.FailContextSize = row[failContextSizeIndex].Data.Uint64;
+            }
+
+            if (row[jobCompetitionIdIndex].Type != EValueType::Null) {
+                job.JobCompetitionId = TJobId::FromString(FromUnversionedValue<TStringBuf>(row[jobCompetitionIdIndex]));
             }
 
             if (row[hasSpecIndex].Type != EValueType::Null) {
@@ -2998,7 +3008,8 @@ TFuture<std::pair<std::vector<TJob>, int>> TClient::DoListJobsFromCypressAsync(
         "brief_statistics",
         "input_paths",
         "core_infos",
-        "uncompressed_data_size"
+        "uncompressed_data_size",
+        "job_competition_id",
     };
 
     auto batchReq = proxy.ExecuteBatch();
@@ -3061,6 +3072,12 @@ TFuture<std::pair<std::vector<TJob>, int>> TClient::DoListJobsFromCypressAsync(
                     continue;
                 }
             }
+            
+            if (options.JobCompetitionId) {
+                if (options.JobCompetitionId != attributes.Find<TJobId>("job_competition_id")) {
+                    continue;
+                }
+            }
 
             jobs.emplace_back();
             auto& job = jobs.back();
@@ -3082,6 +3099,7 @@ TFuture<std::pair<std::vector<TJob>, int>> TClient::DoListJobsFromCypressAsync(
             job.BriefStatistics = attributes.FindYson("brief_statistics");
             job.InputPaths = attributes.FindYson("input_paths");
             job.CoreInfos = attributes.FindYson("core_infos");
+            job.JobCompetitionId = attributes.Find<TJobId>("job_competition_id").value_or(TJobId());
         }
 
         return result;
@@ -3091,7 +3109,7 @@ TFuture<std::pair<std::vector<TJob>, int>> TClient::DoListJobsFromCypressAsync(
 static void ParseJobsFromControllerAgentResponse(
     TOperationId operationId,
     const std::vector<std::pair<TString, INodePtr>>& jobNodes,
-    std::function<bool(const INodePtr&)> filter,
+    const std::function<bool(const INodePtr&)>& filter,
     const THashSet<TString>& attributes,
     std::vector<TJob>* jobs)
 {
@@ -3106,6 +3124,7 @@ static void ParseJobsFromControllerAgentResponse(
     auto needProgress = attributes.contains("progress");
     auto needStderrSize = attributes.contains("stderr_size");
     auto needBriefStatistics = attributes.contains("brief_statistics");
+    auto needJobCompetitionId = attributes.contains("job_competition_id");
 
     for (const auto& [jobIdString, jobNode] : jobNodes) {
         if (!filter(jobNode)) {
@@ -3153,6 +3172,11 @@ static void ParseJobsFromControllerAgentResponse(
         if (needBriefStatistics) {
             job.BriefStatistics = ConvertToYsonString(jobMapNode->GetChild("brief_statistics"));
         }
+        if (needJobCompetitionId) {
+            if (auto child = jobMapNode->FindChild("job_competition_id")) {  //COMPAT(renadeen): can remove this check when this commit will be on all clusters
+                job.JobCompetitionId = ConvertTo<TJobId>(child);
+            }
+        }
     }
 }
 
@@ -3183,9 +3207,14 @@ static void ParseJobsFromControllerAgentResponse(
         auto failContextSize = failContextSizeNode
             ? failContextSizeNode->GetValue<i64>()
             : 0;
+        auto jobCompetitionIdNode = jobNode->AsMap()->FindChild("job_competition_id");
+        auto jobCompetitionId = jobCompetitionIdNode  //COMPAT(renadeen): can remove this check when this commit will be on all clusters
+            ? ConvertTo<TJobId>(jobCompetitionIdNode)
+            : TJobId();
         return
             (!options.WithStderr || *options.WithStderr == (stderrSize > 0)) &&
-            (!options.WithFailContext || *options.WithFailContext == (failContextSize > 0));
+            (!options.WithFailContext || *options.WithFailContext == (failContextSize > 0)) &&
+            (!options.JobCompetitionId || options.JobCompetitionId == jobCompetitionId);
     };
 
     ParseJobsFromControllerAgentResponse(
@@ -3217,6 +3246,7 @@ TFuture<TClient::TListJobsFromControllerAgentResult> TClient::DoListJobsFromCont
         "progress",
         "stderr_size",
         "brief_statistics",
+        "job_competition_id",
     };
 
     TObjectServiceProxy proxy(GetMasterChannelOrThrow(EMasterChannelKind::Follower));
@@ -3338,6 +3368,7 @@ static void MergeJob(TSourceJob&& source, TJob* target)
     MERGE_NULLABLE_FIELD(BriefStatistics);
     MERGE_NULLABLE_FIELD(InputPaths);
     MERGE_NULLABLE_FIELD(CoreInfos);
+    MERGE_NULLABLE_FIELD(JobCompetitionId);
 #undef MERGE_NULLABLE_FIELD
     if (source.StderrSize && target->StderrSize.value_or(0) < source.StderrSize) {
         target->StderrSize = source.StderrSize;
@@ -3693,7 +3724,7 @@ std::vector<TString> TClient::MakeJobArchiveAttributes(const THashSet<TString>& 
         if (!SupportedJobAttributes.contains(attribute)) {
             THROW_ERROR_EXCEPTION("Job attribute %Qv is not supported", attribute);
         }
-        if (attribute.EndsWith("_id")) {
+        if (attribute == "operation_id" || attribute == "job_id") {
             result.push_back(attribute + "_hi");
             result.push_back(attribute + "_lo");
         } else if (attribute == "state") {
@@ -3804,6 +3835,9 @@ std::optional<TJob> TClient::DoGetJobFromArchive(
     if (auto events = FindValue<TYsonString>(row, columnFilter, table.Index.Events)) {
         job.Events = std::move(*events);
     }
+    if (auto jobCompetitionId = FindValue<TJobId>(row, columnFilter, table.Index.JobCompetitionId)) {
+        job.JobCompetitionId = *jobCompetitionId;
+    }
 
     return job;
 }
@@ -3883,6 +3917,7 @@ TYsonString TClient::DoGetJob(
         "statistics",
         "events",
         "has_spec",
+        "job_competition_id",
     };
 
     const auto& attributes = options.Attributes.value_or(DefaultAttributes);

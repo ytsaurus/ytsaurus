@@ -111,14 +111,13 @@ public:
         , TrafficMeter_(New<TTrafficMeter>(
             Bootstrap_->GetMasterConnector()->GetLocalDescriptor().GetDataCenter()))
         , JobSpec_(std::move(jobSpec))
+        , SchedulerJobSpecExt_(&JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext))
+        , AbortJobIfAccountLimitExceeded_(SchedulerJobSpecExt_->abort_job_if_account_limit_exceeded())
         , ResourceUsage_(resourceUsage)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         TrafficMeter_->Start();
-
-        const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        AbortJobIfAccountLimitExceeded_ = schedulerJobSpecExt.abort_job_if_account_limit_exceeded();
 
         Logger.AddTag("JobId: %v, OperationId: %v, JobType: %v",
             Id_,
@@ -152,9 +151,8 @@ public:
 
             i64 diskSpaceLimit = Config_->MinRequiredDiskSpace;
 
-            const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-            if (schedulerJobSpecExt.has_user_job_spec()) {
-                const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
+            if (SchedulerJobSpecExt_->has_user_job_spec()) {
+                const auto& userJobSpec = SchedulerJobSpecExt_->user_job_spec();
                 if (userJobSpec.has_disk_space_limit()) {
                     diskSpaceLimit = userJobSpec.disk_space_limit();
                 }
@@ -181,8 +179,8 @@ public:
                     GpuStatistics_.emplace_back(std::move(statistics));
                 }
 
-                if (schedulerJobSpecExt.has_user_job_spec()) {
-                    const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
+                if (SchedulerJobSpecExt_->has_user_job_spec()) {
+                    const auto& userJobSpec = SchedulerJobSpecExt_->user_job_spec();
                     if (userJobSpec.has_cuda_toolkit_version()) {
                         Bootstrap_->GetGpuManager()->VerifyToolkitDriverVersion(userJobSpec.cuda_toolkit_version());
                     }
@@ -303,9 +301,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        if (schedulerJobSpecExt.has_user_job_spec()) {
-            return schedulerJobSpecExt.user_job_spec().port_count();
+        if (SchedulerJobSpecExt_->has_user_job_spec()) {
+            return SchedulerJobSpecExt_->user_job_spec().port_count();
         }
 
         return 0;
@@ -707,8 +704,9 @@ private:
     const TTrafficMeterPtr TrafficMeter_;
 
     TJobSpec JobSpec_;
+    const TSchedulerJobSpecExt* const SchedulerJobSpecExt_;
 
-    bool AbortJobIfAccountLimitExceeded_;
+    const bool AbortJobIfAccountLimitExceeded_;
 
     // Used to terminate artifacts downloading in case of cancelation.
     TFuture<void> ArtifactsFuture_ = VoidFuture;
@@ -971,9 +969,8 @@ private:
 
             RootVolume_ = volumeOrError.Value();
 
-            const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-            if (schedulerJobSpecExt.has_user_job_spec()) {
-                const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
+            if (SchedulerJobSpecExt_->has_user_job_spec()) {
+                const auto& userJobSpec = SchedulerJobSpecExt_->user_job_spec();
                 if (userJobSpec.enable_setup_commands()) {
                     SetJobPhase(EJobPhase::RunningSetupCommands);
                     YT_LOG_INFO("Running setup commands");
@@ -1332,10 +1329,8 @@ private:
 
         TUserSandboxOptions options;
 
-        const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-
-        if (schedulerJobSpecExt.has_user_job_spec()) {
-            const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
+        if (SchedulerJobSpecExt_->has_user_job_spec()) {
+            const auto& userJobSpec = SchedulerJobSpecExt_->user_job_spec();
             for (const auto& tmpfsVolumeProto : userJobSpec.tmpfs_volumes()) {
                 TTmpfsVolume tmpfsVolume;
                 tmpfsVolume.Size = tmpfsVolumeProto.size();
@@ -1370,10 +1365,9 @@ private:
     void InitializeArtifacts()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
-        if (schedulerJobSpecExt.has_user_job_spec()) {
-            const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
+        if (SchedulerJobSpecExt_->has_user_job_spec()) {
+            const auto& userJobSpec = SchedulerJobSpecExt_->user_job_spec();
             for (const auto& descriptor : userJobSpec.files()) {
                 Artifacts_.push_back(TArtifact{
                     ESandboxKind::User,
@@ -1398,12 +1392,12 @@ private:
             }
 
             for (const auto& descriptor : userJobSpec.layers()) {
-                LayerArtifactKeys_.push_back(TArtifactKey(descriptor));
+                LayerArtifactKeys_.emplace_back(descriptor);
             }
         }
 
-        if (schedulerJobSpecExt.has_input_query_spec()) {
-            const auto& querySpec = schedulerJobSpecExt.input_query_spec();
+        if (SchedulerJobSpecExt_->has_input_query_spec()) {
+            const auto& querySpec = SchedulerJobSpecExt_->input_query_spec();
             for (const auto& function : querySpec.external_functions()) {
                 TArtifactKey key;
                 key.mutable_data_source()->set_type(static_cast<int>(EDataSourceType::File));
@@ -1490,8 +1484,7 @@ private:
         } else {
             YT_VERIFY(artifact.Chunk);
 
-            const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-            bool copyFiles = schedulerJobSpecExt.has_user_job_spec() && schedulerJobSpecExt.user_job_spec().copy_files();
+            bool copyFiles = SchedulerJobSpecExt_->has_user_job_spec() && SchedulerJobSpecExt_->user_job_spec().copy_files();
             if (copyFiles) {
                 YT_LOG_INFO("Copying artifact (FileName: %v, Executable: %v, SandboxKind: %v)",
                     artifact.Name,
@@ -1534,8 +1527,7 @@ private:
 
         // When all artifacts are prepared we can finally change permission for sandbox which will
         // take away write access from the current user (see slot_location.cpp for details).
-        const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        if (schedulerJobSpecExt.has_user_job_spec()) {
+        if (SchedulerJobSpecExt_->has_user_job_spec()) {
             YT_LOG_INFO("Setting sandbox permissions");
             WaitFor(Slot_->FinalizePreparation())
                 .ThrowOnError();
@@ -1794,6 +1786,10 @@ private:
         if (FinishTime_) {
             statistics.SetFinishTime(*FinishTime_);
         }
+        if (SchedulerJobSpecExt_->has_job_competition_id()) {
+            FromProto(&statistics.JobCompetitionId(), SchedulerJobSpecExt_->job_competition_id());
+        }
+
         return statistics;
     }
 

@@ -102,10 +102,7 @@ void TJoblet::Persist(const TPersistenceContext& context)
     Persist(context, TreeId);
     Persist(context, TreeIsTentative);
     Persist(context, Speculative);
-    // COMPAT(gritukan)
-    if (context.GetVersion() >= ToUnderlying(ESnapshotVersion::JobSpeculationTimeout)) {
-        Persist(context, JobSpeculationTimeout);
-    }
+    Persist(context, JobSpeculationTimeout);
 
     if (context.IsLoad()) {
         Revived = true;
@@ -140,6 +137,7 @@ void TJobInfoBase::Persist(const TPersistenceContext& context)
     // NB(max42): JobStatistics is not persisted intentionally since
     // it can increase the size of snapshot significantly.
     Persist(context, Phase);
+    Persist(context, JobCompetitionId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

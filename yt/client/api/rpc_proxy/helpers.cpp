@@ -756,6 +756,9 @@ void ToProto(NProto::TJob* protoJob, const NApi::TJob& job)
     if (job.CoreInfos) {
         protoJob->set_core_infos(job.CoreInfos.GetData());
     }
+    if (job.JobCompetitionId) {
+        ToProto(protoJob->mutable_job_competition_id(), job.JobCompetitionId);
+    }
 }
 
 void FromProto(NApi::TJob* job, const NProto::TJob& protoJob)
@@ -844,6 +847,11 @@ void FromProto(NApi::TJob* job, const NProto::TJob& protoJob)
         job->CoreInfos = NYson::TYsonString(protoJob.core_infos());
     } else {
         job->CoreInfos = NYson::TYsonString();
+    }
+    if (protoJob.has_job_competition_id()) {
+        FromProto(&job->JobCompetitionId, protoJob.job_competition_id());
+    } else {
+        job->JobCompetitionId = {};
     }
 }
 

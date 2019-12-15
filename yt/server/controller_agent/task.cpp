@@ -986,6 +986,9 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet)
             TaskHost_->GetSpec()->MaxDataWeightPerJob));
     }
 
+    YT_VERIFY(joblet->JobCompetitionId);
+    ToProto(schedulerJobSpecExt->mutable_job_competition_id(), joblet->JobCompetitionId);
+
     return SerializeProtoToRefWithEnvelope(*jobSpec, TaskHost_->GetConfig()->JobSpecCodec);
 }
 

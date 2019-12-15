@@ -856,6 +856,7 @@ struct TListJobsOptions
     : public TTimeoutOptions
     , public TMasterReadOptions
 {
+    NJobTrackerClient::TJobId JobCompetitionId;
     std::optional<NJobTrackerClient::EJobType> Type;
     std::optional<NJobTrackerClient::EJobState> State;
     std::optional<TString> Address;
@@ -1001,6 +1002,7 @@ struct TJob
     std::optional<ui64> StderrSize;
     std::optional<ui64> FailContextSize;
     std::optional<bool> HasSpec;
+    NJobTrackerClient::TJobId JobCompetitionId;
     NYson::TYsonString Error;
     NYson::TYsonString BriefStatistics;
     NYson::TYsonString Statistics;

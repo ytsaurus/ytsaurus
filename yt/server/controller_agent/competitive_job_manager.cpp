@@ -73,18 +73,19 @@ void TCompetitiveJobManager::OnJobScheduled(const TJobletPtr& joblet)
         YT_LOG_DEBUG("Scheduling speculative job (JobId: %v, Cookie: %v)",
             joblet->JobId,
             joblet->OutputCookie);
-        YT_VERIFY(CookieToCompetition_.contains(joblet->OutputCookie));
-        auto& competition = CookieToCompetition_[joblet->OutputCookie];
+        auto& competition = GetOrCrash(CookieToCompetition_, joblet->OutputCookie);
         YT_VERIFY(competition.Status == ECompetitionStatus::SingleJobOnly);
         competition.Competitors.push_back(joblet->JobId);
         competition.Status = ECompetitionStatus::TwoCompetitiveJobs;
         PendingDataWeight_ -= competition.PendingDataWeight;
         SpeculativeCandidates_.erase(joblet->OutputCookie);
         JobCounter_->Start(1);
+        joblet->JobCompetitionId = competition.JobCompetitionId;
     } else {
-        auto insertedIt = CookieToCompetition_.insert(std::make_pair(joblet->OutputCookie, TCompetition()));
-        YT_VERIFY(insertedIt.second);
-        insertedIt.first->second.Competitors.push_back(joblet->JobId);
+        auto [it, inserted] = CookieToCompetition_.emplace(joblet->OutputCookie, TCompetition{ .JobCompetitionId = joblet->JobId });
+        YT_VERIFY(inserted);
+        it->second.Competitors.push_back(joblet->JobId);
+        joblet->JobCompetitionId = it->second.JobCompetitionId;
     }
 }
 
