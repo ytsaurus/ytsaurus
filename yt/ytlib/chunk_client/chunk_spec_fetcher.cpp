@@ -33,7 +33,7 @@ TChunkSpecFetcher::TChunkSpecFetcher(
     const IInvokerPtr& invoker,
     int maxChunksPerFetch,
     int maxChunksPerLocateRequest,
-    const std::function<void(const TChunkOwnerYPathProxy::TReqFetchPtr&)>& initializeFetchRequest,
+    const std::function<void(const TChunkOwnerYPathProxy::TReqFetchPtr&, int)>& initializeFetchRequest,
     const TLogger& logger,
     bool skipUnavailableChunks)
     : Client_(client)
@@ -62,23 +62,29 @@ void TChunkSpecFetcher::Add(
     auto oldReqCount = state.ReqCount;
 
     for (int rangeIndex = 0; rangeIndex < static_cast<int>(ranges.size()); ++rangeIndex) {
-        for (i64 index = 0; index < (chunkCount + MaxChunksPerFetch_ - 1) / MaxChunksPerFetch_; ++index) {
+        // XXX(gritukan, babenko): YT-11825
+        i64 subrequestCount = chunkCount < 0 ? 1 : (chunkCount + MaxChunksPerFetch_ - 1) / MaxChunksPerFetch_;
+        for (i64 index = 0; index < subrequestCount; ++index) {
             auto adjustedRange = ranges[rangeIndex];
-            auto chunkCountLowerLimit = index * MaxChunksPerFetch_;
-            if (adjustedRange.LowerLimit().HasChunkIndex()) {
-                chunkCountLowerLimit = std::max(chunkCountLowerLimit, adjustedRange.LowerLimit().GetChunkIndex());
-            }
-            adjustedRange.LowerLimit().SetChunkIndex(chunkCountLowerLimit);
 
-            auto chunkCountUpperLimit = (index + 1) * MaxChunksPerFetch_;
-            if (adjustedRange.UpperLimit().HasChunkIndex()) {
-                chunkCountUpperLimit = std::min(chunkCountUpperLimit, adjustedRange.UpperLimit().GetChunkIndex());
+            // XXX(gritukan, babenko): YT-11825
+            if (chunkCount >= 0) {
+                auto chunkCountLowerLimit = index * MaxChunksPerFetch_;
+                if (adjustedRange.LowerLimit().HasChunkIndex()) {
+                    chunkCountLowerLimit = std::max(chunkCountLowerLimit, adjustedRange.LowerLimit().GetChunkIndex());
+                }
+                adjustedRange.LowerLimit().SetChunkIndex(chunkCountLowerLimit);
+
+                auto chunkCountUpperLimit = (index + 1) * MaxChunksPerFetch_;
+                if (adjustedRange.UpperLimit().HasChunkIndex()) {
+                    chunkCountUpperLimit = std::min(chunkCountUpperLimit, adjustedRange.UpperLimit().GetChunkIndex());
+                }
+                adjustedRange.UpperLimit().SetChunkIndex(chunkCountUpperLimit);
             }
-            adjustedRange.UpperLimit().SetChunkIndex(chunkCountUpperLimit);
 
             auto req = TChunkOwnerYPathProxy::Fetch(FromObjectId(objectId));
             AddCellTagToSyncWith(req, objectId);
-            InitializeFetchRequest_(req.Get());
+            InitializeFetchRequest_(req.Get(), tableIndex);
             ToProto(req->mutable_ranges(), std::vector<NChunkClient::TReadRange>{adjustedRange});
             state.BatchReq->AddRequest(req, "fetch");
             ++state.ReqCount;
@@ -86,6 +92,10 @@ void TChunkSpecFetcher::Add(
             state.TableIndices.push_back(tableIndex);
         }
     }
+
+    ++TableCount_;
+    // XXX(gritukan, babenko): YT-11825
+    TotalChunkCount_ += chunkCount < 0 ? 1 : chunkCount;
 
     YT_LOG_DEBUG("Table added for chunk spec fetching (ObjectId: %v, ExternalCellTag: %v, ChunkCount: %v, RangeCount: %v, "
         "TableIndex: %v, ReqCount: %v)",
@@ -118,7 +128,11 @@ TFuture<void> TChunkSpecFetcher::Fetch()
 
 void TChunkSpecFetcher::DoFetch()
 {
-    YT_LOG_INFO("Fetching chunk specs (CellCount: %v)", CellTagToState_.size());
+    YT_LOG_INFO("Fetching chunk specs (CellCount: %v, TotalChunkCount: %v, TableCount: %v)",
+        CellTagToState_.size(),
+        TotalChunkCount_,
+        TableCount_);
+
     std::vector<TFuture<void>> asyncResults;
     for (auto& [cellTag, cellState] : CellTagToState_) {
         asyncResults.emplace_back(BIND(&TChunkSpecFetcher::DoFetchFromCell, MakeWeak(this), cellTag)

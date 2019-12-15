@@ -23,6 +23,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
+#include <yt/ytlib/chunk_client/chunk_spec_fetcher.h>
 #include <yt/ytlib/chunk_client/chunk_teleporter.h>
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/data_source.h>
@@ -4889,6 +4890,27 @@ void TOperationControllerBase::FetchInputTables()
         InputClient,
         Logger);
 
+    auto chunkSpecFetcher = New<TChunkSpecFetcher>(
+        InputClient,
+        InputNodeDirectory_,
+        CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
+        Config->MaxChunksPerFetch,
+        Config->MaxChunksPerLocateRequest,
+        [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req, int tableIndex) {
+            const auto& table = InputTables_[tableIndex];
+            req->set_fetch_all_meta_extensions(false);
+            req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+            if (table->Dynamic || IsBoundaryKeysFetchEnabled()) {
+                req->add_extension_tags(TProtoExtensionTag<TBoundaryKeysExt>::Value);
+            }
+            // NB: we always fetch parity replicas since
+            // erasure reader can repair data on flight.
+            req->set_fetch_parity_replicas(true);
+            AddCellTagToSyncWith(req, table->ObjectId);
+            SetTransactionId(req, table->ExternalTransactionId);
+        },
+        Logger);
+
     // We fetch columnar statistics only for the tables that have column selectors specified.
     for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables_.size()); ++tableIndex) {
         auto& table = InputTables_[tableIndex];
@@ -4934,57 +4956,49 @@ void TOperationControllerBase::FetchInputTables()
                 << TErrorAttribute("table_path", table->Path);
         }
 
-        YT_LOG_INFO("Fetching input table (Path: %v, RangeCount: %v, InferredRangeCount: %v, HasColumnSelectors: %v)",
+        YT_LOG_INFO("Adding input table for fetch (Path: %v, RangeCount: %v, InferredRangeCount: %v, HasColumnSelectors: %v)",
             table->GetPath(),
             originalRangeCount,
             ranges.size(),
             hasColumnSelectors);
 
-        auto chunkSpecs = FetchChunkSpecs(
-            InputClient,
-            InputNodeDirectory_,
-            *table,
-            ranges,
-            // XXX(babenko): YT-11825
+        chunkSpecFetcher->Add(
+            table->ObjectId,
+            table->ExternalCellTag,
             table->Dynamic && !table->Schema.IsSorted() ? -1 : table->ChunkCount,
-            Config->MaxChunksPerFetch,
-            Config->MaxChunksPerLocateRequest,
-            [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req) {
-                req->set_fetch_all_meta_extensions(false);
-                req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-                if (table->Dynamic || IsBoundaryKeysFetchEnabled()) {
-                    req->add_extension_tags(TProtoExtensionTag<TBoundaryKeysExt>::Value);
-                }
-                // NB: we always fetch parity replicas since
-                // erasure reader can repair data on flight.
-                req->set_fetch_parity_replicas(true);
-                AddCellTagToSyncWith(req, table->ObjectId);
-                SetTransactionId(req, table->ExternalTransactionId);
-            },
-            Logger);
+            tableIndex,
+            ranges);
+    }
 
-        for (const auto& chunkSpec : chunkSpecs) {
-            auto inputChunk = New<TInputChunk>(chunkSpec);
-            inputChunk->SetTableIndex(tableIndex);
-            inputChunk->SetChunkIndex(totalChunkCount++);
+    YT_LOG_INFO("Fetching input tables");
 
-            if (inputChunk->GetRowCount() > 0) {
-                // Input chunks may have zero row count in case of unsensible read range with coinciding
-                // lower and upper row index. We skip such chunks.
-                table->Chunks.emplace_back(inputChunk);
-                for (const auto& extension : chunkSpec.chunk_meta().extensions().extensions()) {
-                    totalExtensionSize += extension.data().size();
-                }
-                RegisterInputChunk(table->Chunks.back());
-                if (hasColumnSelectors && Spec_->UseColumnarStatistics) {
-                    columnarStatisticsFetcher->AddChunk(inputChunk, *table->Path.GetColumns());
-                }
+    WaitFor(chunkSpecFetcher->Fetch())
+        .ThrowOnError();
+
+    YT_LOG_INFO("Input tables fetched");
+
+    for (const auto& chunkSpec : chunkSpecFetcher->ChunkSpecs()) {
+        int tableIndex = chunkSpec.table_index();
+        auto& table = InputTables_[tableIndex];
+
+        auto inputChunk = New<TInputChunk>(chunkSpec);
+        inputChunk->SetTableIndex(tableIndex);
+        inputChunk->SetChunkIndex(totalChunkCount++);
+
+        if (inputChunk->GetRowCount() > 0) {
+            // Input chunks may have zero row count in case of unsensible read range with coinciding
+            // lower and upper row index. We skip such chunks.
+            table->Chunks.emplace_back(inputChunk);
+            for (const auto& extension : chunkSpec.chunk_meta().extensions().extensions()) {
+                totalExtensionSize += extension.data().size();
+            }
+            RegisterInputChunk(table->Chunks.back());
+
+            auto hasColumnSelectors = table->Path.GetColumns().operator bool();
+            if (hasColumnSelectors && Spec_->UseColumnarStatistics) {
+                columnarStatisticsFetcher->AddChunk(inputChunk, *table->Path.GetColumns());
             }
         }
-
-        YT_LOG_INFO("Input table fetched (Path: %v, ChunkCount: %v)",
-            table->GetPath(),
-            table->Chunks.size());
     }
 
     if (columnarStatisticsFetcher->GetChunkCount() > 0) {
@@ -5591,97 +5605,72 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
     }
 }
 
-void TOperationControllerBase::DoFetchUserFiles(const TUserJobSpecPtr& userJobSpec, std::vector<TUserFile>& files)
-{
-    for (auto& file : files) {
-        auto Logger = TLogger(this->Logger)
-            .AddTag("Path: %v, TaskTitle: %v",
-                file.Path.GetPath(),
-                userJobSpec->TaskTitle);
-
-        YT_LOG_INFO("Fetching user file");
-
-        switch (file.Type) {
-            case EObjectType::Table:
-                file.ChunkSpecs = FetchChunkSpecs(
-                    InputClient,
-                    InputNodeDirectory_,
-                    file,
-                    file.Path.GetRanges(),
-                    file.ChunkCount,
-                    Config->MaxChunksPerFetch,
-                    Config->MaxChunksPerLocateRequest,
-                    [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req) {
-                        req->set_fetch_all_meta_extensions(false);
-                        req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-                        if (file.Dynamic || IsBoundaryKeysFetchEnabled()) {
-                            req->add_extension_tags(TProtoExtensionTag<TBoundaryKeysExt>::Value);
-                        }
-                        // NB: we always fetch parity replicas since
-                        // erasure reader can repair data on flight.
-                        req->set_fetch_parity_replicas(true);
-                        AddCellTagToSyncWith(req, file.ObjectId);
-                        SetTransactionId(req, file.ExternalTransactionId);
-                    },
-                    Logger);
-
-                break;
-
-            case EObjectType::File: {
-                // TODO(max42): use FetchChunkSpecs here.
-                auto channel = InputClient->GetMasterChannelOrThrow(
-                    EMasterChannelKind::Follower,
-                    file.ExternalCellTag);
-                TObjectServiceProxy proxy(channel);
-
-                auto batchReq = proxy.ExecuteBatch();
-
-                auto req = TFileYPathProxy::Fetch(file.GetObjectIdPath());
-                AddCellTagToSyncWith(req, file.ObjectId);
-                ToProto(req->mutable_ranges(), std::vector<TReadRange>({TReadRange()}));
-                req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-                AddCellTagToSyncWith(req, file.ObjectId);
-                SetTransactionId(req, file.ExternalTransactionId);
-                batchReq->AddRequest(req);
-
-                auto batchRspOrError = WaitFor(batchReq->Invoke());
-                THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error fetching user file %v",
-                     file.GetPath());
-                const auto& batchRsp = batchRspOrError.Value();
-
-                auto rsp = batchRsp->GetResponse<TFileYPathProxy::TRspFetch>(0).Value();
-                ProcessFetchResponse(
-                    InputClient,
-                    rsp,
-                    file.ExternalCellTag,
-                    nullptr,
-                    Config->MaxChunksPerLocateRequest,
-                    std::nullopt,
-                    Logger,
-                    &file.ChunkSpecs);
-
-                break;
-            }
-
-            default:
-                YT_ABORT();
-        }
-
-        YT_LOG_INFO("User file fetched (FileName: %v)",
-            file.FileName);
-    }
-}
-
 void TOperationControllerBase::FetchUserFiles()
 {
+    std::vector<TUserFile*> userFiles;
+
+    auto chunkSpecFetcher = New<TChunkSpecFetcher>(
+        InputClient,
+        InputNodeDirectory_,
+        CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
+        Config->MaxChunksPerFetch,
+        Config->MaxChunksPerLocateRequest,
+        [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req, int fileIndex) {
+            const auto& file = *userFiles[fileIndex];
+            req->set_fetch_all_meta_extensions(false);
+            req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+            if (file.Dynamic || IsBoundaryKeysFetchEnabled()) {
+                req->add_extension_tags(TProtoExtensionTag<TBoundaryKeysExt>::Value);
+            }
+            // NB: we always fetch parity replicas since
+            // erasure reader can repair data on flight.
+            req->set_fetch_parity_replicas(true);
+            AddCellTagToSyncWith(req, file.ObjectId);
+            SetTransactionId(req, file.ExternalTransactionId);
+        },
+        Logger);
+
     for (auto& [userJobSpec, files] : UserJobFiles_) {
-        try {
-            DoFetchUserFiles(userJobSpec, files);
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error fetching user files")
-                << TErrorAttribute("task_title", userJobSpec->TaskTitle)
-                << ex;
+        for (auto& file : files) {
+            int fileIndex = userFiles.size();
+            userFiles.push_back(&file);
+
+            YT_LOG_INFO("Adding user file for fetch (Path: %v, TaskTitle: %v)",
+                file.Path,
+                userJobSpec->TaskTitle);
+
+            std::vector<TReadRange> readRanges;
+            if (file.Type == EObjectType::Table) {
+                readRanges = file.Path.GetRanges();
+            } else if (file.Type == EObjectType::File) {
+                readRanges = {TReadRange()};
+            } else {
+                YT_ABORT();
+            }
+
+            chunkSpecFetcher->Add(
+                file.ObjectId,
+                file.ExternalCellTag,
+                file.ChunkCount,
+                fileIndex,
+                readRanges);
         }
+    }
+
+    YT_LOG_INFO("Fetching user files");
+
+    WaitFor(chunkSpecFetcher->Fetch())
+        .ThrowOnError();
+
+    YT_LOG_INFO("User files fetched (ChunkCount: %v)",
+        chunkSpecFetcher->ChunkSpecs().size());
+
+    for (auto& chunkSpec : chunkSpecFetcher->ChunkSpecs()) {
+        // NB(gritukan): all user files chunks should have table_index = 0.
+        int tableIndex = chunkSpec.table_index();
+        chunkSpec.set_table_index(0);
+
+        userFiles[tableIndex]->ChunkSpecs.push_back(chunkSpec);
     }
 }
 
