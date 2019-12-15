@@ -144,7 +144,7 @@ def select_rows_batched(input_table_path, conditions, from_ts, to_ts, window_siz
 def main():
     description = """
     Grep logs from log tailer dynamic table
-    
+
     Examples:
         * Find all initial queries from beginning of time till now:
           ./grep_logs.py ch_prestable --log-level info --message-like 'QueryKind: Initial' -w 5s
@@ -154,7 +154,7 @@ def main():
           ./grep_logs.py ch_prestable --trace-id 3ce27-02240b70-2a811a92-7b2b4520 --message-like 'QueryKind: Initial'
         * Grep only coordinator:
           ./grep_logs.py ch_prestable --trace-id 3ce27-02240b70-2a811a92-7b2b4520 --job-id e4d33a76-24c57246-3fe0384-10284
-        * Grep everything from minute to minute: 
+        * Grep everything from minute to minute:
           ./grep_logs.py ch_prestable --from-ts "12:03" --to-ts "12:05" --window-size 10s
         * Tail mode:
           ./grep_logs.pt ch_prestable --tail --window-size 10s
@@ -177,6 +177,7 @@ def main():
     parser.add_argument("-w", "--window-size", help="Size of time window for batching; for example 10min, 5sec, 1hr, "
                                                     "1day")
     parser.add_argument("--tail", help="Imitate tail -f; from-ts is assumed to be now()", action="store_true")
+    parser.add_argument("--raw", help="Print raw dicts rather than formatted log lines", action="store_true")
     parser.add_argument('-v', '--verbose', action='count', default=0, help="Log stuff, more v's for more logging")
     args = parser.parse_args()
 
@@ -251,9 +252,12 @@ def main():
         if index >= args.limit:
             break
         job_id_prefix = "[{}]\t".format(row["job_id"]) if not omit_job_id else ""
-        print "{}{}\t{}\t{}\t{}\t{}\t{}\t{}".format(job_id_prefix, row["timestamp"], row["log_level"],
-                                                    row["category"], row["message"], row["thread_id"], row["fiber_id"],
-                                                    row["trace_id"])
+        if args.raw:
+            print "{}{}".format(job_id_prefix, row)
+        else:
+            print "{}{}\t{}\t{}\t{}\t{}\t{}\t{}".format(job_id_prefix, row["timestamp"], row["log_level"],
+                                                        row["category"], row["message"], row["thread_id"], row["fiber_id"],
+                                                        row["trace_id"])
 
 
 if __name__ == "__main__":
