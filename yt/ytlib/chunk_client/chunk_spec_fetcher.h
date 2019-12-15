@@ -32,7 +32,7 @@ public:
         const IInvokerPtr& invoker,
         int maxChunksPerFetch,
         int maxChunksPerLocateRequest,
-        const std::function<void(const TChunkOwnerYPathProxy::TReqFetchPtr&)>& initializeFetchRequest,
+        const std::function<void(const TChunkOwnerYPathProxy::TReqFetchPtr&, int /*tableIndex*/)>& initializeFetchRequest,
         const NLogging::TLogger& logger,
         bool skipUnavailableChunks = false);
 
@@ -51,10 +51,12 @@ private:
     IInvokerPtr Invoker_;
     int MaxChunksPerFetch_;
     int MaxChunksPerLocateRequest_;
-    std::function<void(const TChunkOwnerYPathProxy::TReqFetchPtr&)> InitializeFetchRequest_;
+    std::function<void(const TChunkOwnerYPathProxy::TReqFetchPtr&, int)> InitializeFetchRequest_;
     NLogging::TLogger Logger;
     bool SkipUnavailableChunks_;
     std::vector<NProto::TChunkSpec*> ForeignChunkSpecs_;
+    i64 TotalChunkCount_ = 0;
+    int TableCount_ = 0;
 
     struct TCellState
     {
