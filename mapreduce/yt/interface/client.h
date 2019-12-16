@@ -283,12 +283,6 @@ public:
         const TString& query,
         const TSelectRowsOptions& options = TSelectRowsOptions()) = 0;
 
-    // Is not supported since YT 19.2 version
-    virtual void EnableTableReplica(const TReplicaId& replicaid) = 0;
-
-    // Is not supported since YT 19.2 version
-    virtual void DisableTableReplica(const TReplicaId& replicaid) = 0;
-
     ///
     /// @brief Change properties of table replica.
     ///

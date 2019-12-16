@@ -386,10 +386,6 @@ public:
         const TString& query,
         const TSelectRowsOptions& options) override;
 
-    void EnableTableReplica(const TReplicaId& replicaid) override;
-
-    void DisableTableReplica(const TReplicaId& replicaid) override;
-
     void AlterTableReplica(
         const TReplicaId& replicaId,
         const TAlterTableReplicaOptions& alterTableReplicaOptions) override;

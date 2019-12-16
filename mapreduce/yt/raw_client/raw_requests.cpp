@@ -843,26 +843,6 @@ void DeleteRows(
     RetryRequestWithPolicy(retryPolicy, auth, header, body, requestConfig);
 }
 
-void EnableTableReplica(
-    const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
-    const TReplicaId& replicaId)
-{
-    THttpHeader header("POST", "enable_table_replica");
-    header.MergeParameters(SerializeParamsForEnableTableReplica(replicaId));
-    RetryRequestWithPolicy(retryPolicy, auth, header);
-}
-
-void DisableTableReplica(
-    const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
-    const TReplicaId& replicaId)
-{
-    THttpHeader header("POST", "disable_table_replica");
-    header.MergeParameters(SerializeParamsForDisableTableReplica(replicaId));
-    RetryRequestWithPolicy(retryPolicy, auth, header);
-}
-
 void FreezeTable(
     const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,

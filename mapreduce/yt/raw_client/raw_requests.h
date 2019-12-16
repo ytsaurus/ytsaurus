@@ -299,16 +299,6 @@ void DeleteRows(
     const TNode::TListType& keys,
     const TDeleteRowsOptions& options);
 
-void EnableTableReplica(
-    const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
-    const TReplicaId& replicaId);
-
-void DisableTableReplica(
-    const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
-    const TReplicaId& replicaId);
-
 void FreezeTable(
     const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
