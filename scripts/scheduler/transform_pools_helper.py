@@ -9,7 +9,7 @@ def transform(src_cluster, src_path, dst_cluster, dst_path):
     dst_yt = yt.YtClient(dst_cluster)
 
     node = src_yt.get(src_path, attributes=["user_attribute_keys"])
-    attribute_keys = set()
+    attribute_keys = {"acl", "inherit_acl"}
     collect(node, attribute_keys)
 
     full_node = src_yt.get(src_path, attributes=attribute_keys)
