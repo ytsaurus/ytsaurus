@@ -240,7 +240,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
         time.sleep(1)
 
         create("table", "//tmp/t2")
-        op = remote_copy(dont_track=True, in_="//tmp/t1", out="//tmp/t2",
+        op = remote_copy(track=False, in_="//tmp/t1", out="//tmp/t2",
                             spec={"cluster_name": self.REMOTE_CLUSTER_NAME,
                                   "unavailable_chunk_strategy": "wait",
                                   "network_name": "interconnect"})
@@ -262,7 +262,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
 
         create("table", "//tmp/t2")
 
-        op = remote_copy(dont_track=True, in_="//tmp/t1", out="//tmp/t2",
+        op = remote_copy(track=False, in_="//tmp/t1", out="//tmp/t2",
                          spec={"cluster_name": self.REMOTE_CLUSTER_NAME})
 
         wait(lambda: op.get_state() == "running")
@@ -294,7 +294,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
         try:
             set("//sys/clusters", {})
             time.sleep(2)
-            op = remote_copy(dont_track=True, in_="//tmp/t1", out="//tmp/t2",
+            op = remote_copy(track=False, in_="//tmp/t1", out="//tmp/t2",
                     spec={"cluster_connection": cluster_connection, "job_count": 100})
 
             wait(lambda: op.get_state() == "running")

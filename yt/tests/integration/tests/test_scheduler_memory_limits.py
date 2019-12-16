@@ -75,7 +75,7 @@ while True:
 
         create("table", "//tmp/t_out")
 
-        op = map(dont_track=True,
+        op = map(track=False,
             in_="//tmp/t_in",
             out="//tmp/t_out",
             command="python mapper.py",

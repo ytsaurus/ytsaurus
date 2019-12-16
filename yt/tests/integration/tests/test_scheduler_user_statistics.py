@@ -124,7 +124,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
         write_table("//tmp/t1", [{"a": "b"} for i in xrange(2)])
 
         op = map(
-            dont_track=True,
+            track=False,
             label="job_statistics_progress",
             in_="//tmp/t1",
             out="//tmp/t2",

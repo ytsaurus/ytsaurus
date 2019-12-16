@@ -157,7 +157,7 @@ class TestEventLog(YTEnvSetup):
 
         time.sleep(2)
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t1",
             out="//tmp/t2",
             command="cat")
@@ -209,7 +209,7 @@ class TestSchedulerControllerThrottling(YTEnvSetup):
 
         create("table", "//tmp/output")
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/input",
             out="//tmp/output",
             command="cat",
@@ -282,7 +282,7 @@ class TestJobStderr(YTEnvSetup):
 
         command = "echo stderr 1>&2 ; exit 1"
 
-        op = map(dont_track=True, in_="//tmp/t1", out="//tmp/t2", command=command)
+        op = map(track=False, in_="//tmp/t1", out="//tmp/t2", command=command)
 
         with pytest.raises(YtError):
             op.track()
@@ -296,7 +296,7 @@ class TestJobStderr(YTEnvSetup):
         write_table("//tmp/t1", {"foo": "bar"})
 
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t1",
             out="//tmp/t2",
             command="cat > /dev/null; echo stderr 1>&2; exit 125",
@@ -346,7 +346,7 @@ class TestJobStderr(YTEnvSetup):
                 fi;"""
 
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t1",
             out="//tmp/t2",
             command=command,
@@ -387,7 +387,7 @@ class TestJobStderr(YTEnvSetup):
                 fi;"""
                     .format(lock_dir=events_on_fs()._get_event_filename("lock_dir")))
         op = map(
-            dont_track=True,
+            track=False,
             label="stderr_of_failed_jobs",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -753,7 +753,7 @@ class TestSchedulerOperationNodeFlush(YTEnvSetup):
         for i in range(20):
             create("table", "//tmp/out" + str(i))
             op = map(
-                dont_track=True,
+                track=False,
                 in_="//tmp/in",
                 out="//tmp/out" + str(i),
                 command="cat > /dev/null; echo stderr 1>&2; exit 125",
@@ -808,7 +808,7 @@ class TestSchedulerCommon(YTEnvSetup):
         write_table("//tmp/t1", [{"foo": "bar"} for _ in xrange(200)])
 
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t1",
             out="//tmp/t2",
             command='trap "" HUP; bash -c "sleep 60" &; sleep $[( $RANDOM % 5 )]s; exit 42;',
@@ -829,7 +829,7 @@ class TestSchedulerCommon(YTEnvSetup):
         write_table("//tmp/t1", [{"foo": "bar"} for _ in xrange(10)])
 
         op = map(
-            dont_track=True,
+            track=False,
             label="job_progress",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -854,7 +854,7 @@ class TestSchedulerCommon(YTEnvSetup):
         write_table("//tmp/t1", [{"foo": "bar"} for _ in xrange(10)])
 
         op = map(
-            dont_track=True,
+            track=False,
             label="job_progress",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -905,7 +905,7 @@ class TestSchedulerCommon(YTEnvSetup):
         write_table("//tmp/t1", {"foo": "bar"})
 
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t1",
             out="//tmp/t2",
             command='python -c "import os; os.read(0, 1);"',
@@ -927,7 +927,7 @@ class TestSchedulerCommon(YTEnvSetup):
         write_table("//tmp/t1", {"foo": "bar"})
 
         op = map(
-            dont_track=True,
+            track=False,
             label="dump_job_context",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -962,7 +962,7 @@ class TestSchedulerCommon(YTEnvSetup):
         write_table("//tmp/t1", {"foo": "bar"})
 
         op = map(
-            dont_track=True,
+            track=False,
             label="dump_job_context",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -1002,7 +1002,7 @@ class TestSchedulerCommon(YTEnvSetup):
         write_table("//tmp/t_input", {"foo": "bar"})
 
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t_input",
             out="//tmp/t_output",
             command='set -e; /non_existed_command; echo stderr >&2;',
@@ -1228,7 +1228,7 @@ class TestSchedulerCommon(YTEnvSetup):
         write_table("//tmp/t2", [{"key": 8}, {"key": 12}])
 
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t1",
             out="<append=%true>//tmp/sorted_table",
             command="sleep 10; cat")
@@ -1260,7 +1260,7 @@ class TestSchedulerCommon(YTEnvSetup):
                     out=[output],
                     command="sleep 0.1; cat",
                     spec={"data_size_per_job": 1, "testing": testing_options},
-                    dont_track=True))
+                    track=False))
 
         failed_ops = []
         for index in range(operation_count):
@@ -1271,7 +1271,7 @@ class TestSchedulerCommon(YTEnvSetup):
                     out=[output],
                     command="sleep 0.1; exit 1",
                     spec={"data_size_per_job": 1, "max_failed_job_count": 1, "testing": testing_options},
-                    dont_track=True))
+                    track=False))
 
         for index, op in enumerate(failed_ops):
             "//tmp/failed_output" + str(index)
@@ -1347,7 +1347,7 @@ class TestSchedulerCommon(YTEnvSetup):
             write_table("<append=true>//tmp/t1", {"key": str(i), "value": "foo"})
 
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t1",
             out="//tmp/t2",
             command=with_breakpoint("echo job_index=$YT_JOB_INDEX ; BREAKPOINT"),
@@ -1377,7 +1377,7 @@ class TestSchedulerCommon(YTEnvSetup):
         create("table", "//tmp/t")
         write_table("//tmp/t", {"foo": "bar"})
 
-        op = map(dont_track=True,
+        op = map(track=False,
             in_="//tmp/t",
             out="//tmp/t",
             command="sleep 1")
@@ -1412,7 +1412,7 @@ class TestSchedulerCommon(YTEnvSetup):
             map(command="sleep 100", in_="//tmp/in", out="//tmp/out")
 
         op = map(
-            dont_track=True,
+            track=False,
             command=with_breakpoint("BREAKPOINT; sleep 100"),
             in_='<transaction_id="{}">//tmp/in'.format(custom_tx),
             out="//tmp/out")
@@ -1450,7 +1450,7 @@ class TestSchedulerCommon(YTEnvSetup):
         create("table", "//tmp/t2")
 
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t1",
             out="//tmp/t2",
             command="exit 1",
@@ -1508,7 +1508,7 @@ class TestIgnoreJobFailuresAtBannedNodes(YTEnvSetup):
         create("table", "//tmp/t2", attributes={"replication_factor": 1})
 
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t1",
             out="//tmp/t2",
             command=with_breakpoint("BREAKPOINT ; exit 1"),
@@ -1538,7 +1538,7 @@ class TestIgnoreJobFailuresAtBannedNodes(YTEnvSetup):
         create("table", "//tmp/t2", attributes={"replication_factor": 1})
 
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t1",
             out="//tmp/t2",
             job_count=10,
@@ -1625,9 +1625,9 @@ class TestPreserveSlotIndexAfterRevive(YTEnvSetup, PrepareTables):
         for i in xrange(3):
             self._create_table("//tmp/t_out_" + str(i))
 
-        op1 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_0", dont_track=True)
-        op2 = map(command="sleep 2; cat", in_="//tmp/t_in", out="//tmp/t_out_1", dont_track=True)
-        op3 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_2", dont_track=True)
+        op1 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_0", track=False)
+        op2 = map(command="sleep 2; cat", in_="//tmp/t_in", out="//tmp/t_out_1", track=False)
+        op3 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_2", track=False)
 
         assert get_slot_index(op1.id) == 0
         assert get_slot_index(op2.id) == 1
@@ -1643,7 +1643,7 @@ class TestPreserveSlotIndexAfterRevive(YTEnvSetup, PrepareTables):
         assert get_slot_index(op1.id) == 0
         assert get_slot_index(op3.id) == 2
 
-        op2 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_1", dont_track=True)
+        op2 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_1", track=False)
 
         assert get_slot_index(op2.id) == 1
 
@@ -1703,7 +1703,7 @@ class TestSchedulerRevive(YTEnvSetup):
         ops = []
         for index in xrange(self.OP_COUNT):
             op = map(
-                dont_track=True,
+                track=False,
                 command="sleep 1; echo 'AAA' >&2; cat",
                 in_="//tmp/t_in",
                 out="//tmp/t_out" + str(index),
@@ -1731,7 +1731,7 @@ class TestSchedulerRevive(YTEnvSetup):
         ops = []
         for index in xrange(self.OP_COUNT):
             op = map(
-                dont_track=True,
+                track=False,
                 command="sleep 20; echo 'AAA' >&2; cat",
                 in_="//tmp/t_in",
                 out="//tmp/t_out" + str(index),
@@ -1766,7 +1766,7 @@ class TestSchedulerRevive(YTEnvSetup):
         ops = []
         for index in xrange(self.OP_COUNT):
             op = map(
-                dont_track=True,
+                track=False,
                 command="sleep 20; echo 'AAA' >&2; cat",
                 in_="//tmp/t_in",
                 out="//tmp/t_out" + str(index),
@@ -1807,7 +1807,7 @@ class TestSchedulerRevive(YTEnvSetup):
 
         op = map(
             wait_for_jobs=True,
-            dont_track=True,
+            track=False,
             command=with_breakpoint("BREAKPOINT ; cat"),
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -1853,7 +1853,7 @@ class TestSchedulerRevive(YTEnvSetup):
 
         op = map(
             wait_for_jobs=True,
-            dont_track=True,
+            track=False,
             command=with_breakpoint("BREAKPOINT ; cat"),
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -1958,7 +1958,7 @@ class TestJobRevival(TestJobRevivalBase):
             events_on_fs().wait_event_cmd("scheduler_reconnected"),
             "echo {a=1}"])
         op = map(
-            dont_track=True,
+            track=False,
             command=map_cmd,
             in_="//tmp/t_in",
             out="//tmp/t_out")
@@ -2003,7 +2003,7 @@ class TestJobRevival(TestJobRevivalBase):
 
         for i in range(op_count):
             ops.append(map(
-                dont_track=True,
+                track=False,
                 command="sleep 0.$(($RANDOM)); cat",
                 in_="//tmp/t_in",
                 out=output_tables[i],
@@ -2074,7 +2074,7 @@ class TestJobRevival(TestJobRevivalBase):
             events_on_fs().wait_event_cmd("complete_operation"),
             "echo '{a=2};'"])
 
-        op = map(dont_track=True,
+        op = map(track=False,
                  command=map_cmd,
                  in_="//tmp/t_in",
                  out="//tmp/t_out",
@@ -2164,7 +2164,7 @@ class TestDisabledJobRevival(TestJobRevivalBase):
             events_on_fs().wait_event_cmd("scheduler_reconnected"),
             "echo {a=1}"])
         op = map(
-            dont_track=True,
+            track=False,
             command=map_cmd,
             in_="//tmp/t_in",
             out="//tmp/t_out")
@@ -2227,7 +2227,7 @@ class TestMultipleSchedulers(YTEnvSetup, PrepareTables):
     def test_hot_standby(self):
         self._prepare_tables()
 
-        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 5")
+        op = map(track=False, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 5")
 
         op.wait_fresh_snapshot()
 
@@ -2337,7 +2337,7 @@ class TestSchedulerMaxChildrenPerAttachRequest(YTEnvSetup):
         write_table("//tmp/in", data)
 
         op = map(
-            dont_track=True,
+            track=False,
             command=with_breakpoint("cat ; BREAKPOINT"),
             in_="//tmp/in",
             out="//tmp/out",
@@ -2496,7 +2496,7 @@ class TestSchedulingTags(YTEnvSetup):
                 custom_node = str(node)
 
         op = map(
-            dont_track=True,
+            track=False,
             command="sleep 1000",
             in_=["//tmp/t_in"],
             out="//tmp/t_out",
@@ -2609,7 +2609,7 @@ class TestSchedulerConfig(YTEnvSetup):
 
         create("table", "//tmp/t_out")
 
-        op = map(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", dont_track=True)
+        op = map(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", track=False)
         wait(lambda: exists(op.get_path() + "/@full_spec"))
         # XXX(ignat)
         for spec_type in ("full_spec",):
@@ -2618,7 +2618,7 @@ class TestSchedulerConfig(YTEnvSetup):
             assert get("//sys/scheduler/orchid/scheduler/operations/{0}/{1}/max_failed_job_count".format(op.id, spec_type)) == 10
         op.abort()
 
-        op = reduce(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", reduce_by=["foo"], dont_track=True)
+        op = reduce(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", reduce_by=["foo"], track=False)
         wait(lambda: op.get_state() == "running")
         time.sleep(1)
         # XXX(ignat)
@@ -2645,7 +2645,7 @@ class TestSchedulerConfig(YTEnvSetup):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"a": "b"}])
         create("table", "//tmp/t_out")
-        op = map(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", dont_track=True, spec={"xxx": "yyy"})
+        op = map(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", track=False, spec={"xxx": "yyy"})
 
         wait(lambda: exists(op.get_path() + "/@unrecognized_spec"))
         assert get(op.get_path() + "/@unrecognized_spec") == {"xxx": "yyy"}
@@ -2655,7 +2655,7 @@ class TestSchedulerConfig(YTEnvSetup):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"a": "b"}])
         create("table", "//tmp/t_out")
-        op = map(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", dont_track=True)
+        op = map(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", track=False)
 
         wait(lambda: exists(op.get_path() + "/@brief_progress"))
         assert "jobs" in list(get(op.get_path() + "/@brief_progress"))
@@ -2719,7 +2719,7 @@ class TestSchedulerSnapshots(YTEnvSetup):
         testing_options = {"scheduling_delay": 500}
 
         op = map(
-            dont_track=True,
+            track=False,
             command=with_breakpoint("cat ; BREAKPOINT"),
             in_="//tmp/in",
             out="//tmp/out",
@@ -2755,7 +2755,7 @@ class TestSchedulerSnapshots(YTEnvSetup):
             output = "//tmp/output" + str(index)
             create("table", output)
             ops.append(
-                map(dont_track=True,
+                map(track=False,
                     command=with_breakpoint("cat ; BREAKPOINT"),
                     in_="//tmp/input",
                     out=[output],
@@ -2785,7 +2785,7 @@ class TestSchedulerSnapshots(YTEnvSetup):
 
         while True:
             op2 = map(
-                dont_track=True,
+                track=False,
                 command="cat",
                 in_="//tmp/in",
                 out="//tmp/out2",
@@ -2800,7 +2800,7 @@ class TestSchedulerSnapshots(YTEnvSetup):
                 break
 
         op1 = map(
-            dont_track=True,
+            track=False,
             command="sleep 10; cat",
             in_="//tmp/in",
             out="//tmp/out1",
@@ -2844,7 +2844,7 @@ class TestSchedulerHeterogeneousConfiguration(YTEnvSetup):
         assert get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/resource_usage/user_slots") == 0
 
         op = map(
-            dont_track=True,
+            track=False,
             command="sleep 100",
             in_="//tmp/in",
             out="//tmp/out",
@@ -2893,7 +2893,7 @@ class TestSchedulerGpu(YTEnvSetup):
                 "gpu_limit": 1,
                 "enable_gpu_layers": False,
             }},
-            dont_track=True)
+            track=False)
 
         wait_breakpoint()
 
@@ -2935,7 +2935,7 @@ class TestSchedulerJobStatistics(YTEnvSetup):
         write_table("//tmp/in", [{"foo": i} for i in xrange(10)])
 
         op = map(
-            dont_track=True,
+            track=False,
             label="scheduler_job_statistics",
             in_="//tmp/in",
             out="//tmp/out",
@@ -2965,7 +2965,7 @@ class TestSchedulerJobStatistics(YTEnvSetup):
         write_table("//tmp/in", [{"foo": i} for i in xrange(10)])
 
         op = map(
-            dont_track=True,
+            track=False,
             label="scheduler_job_statistics",
             in_="//tmp/in",
             out="//tmp/out",
@@ -3088,7 +3088,7 @@ class TestSecureVault(YTEnvSetup):
         if spec is not None:
             merged_spec = update(merged_spec, spec)
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec=merged_spec,
@@ -3160,13 +3160,13 @@ class TestSecureVault(YTEnvSetup):
         write_table("//tmp/t_in", {"foo": "bar"})
         create("table", "//tmp/t_out")
         with pytest.raises(YtError):
-            map(dont_track=True,
+            map(track=False,
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
                 spec={"secure_vault": {"=_=": 42}},
                 command="cat")
         with pytest.raises(YtError):
-            map(dont_track=True,
+            map(track=False,
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
                 spec={"secure_vault": {"x" * (2**16 + 1): 42}},
@@ -3206,7 +3206,7 @@ class TestSafeAssertionsMode(YTEnvSetup):
         create("table", "//tmp/t_out")
 
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={"testing": {"controller_failure": "assertion_failure_in_prepare"}},
@@ -3257,7 +3257,7 @@ class TestSafeAssertionsMode(YTEnvSetup):
         create("table", "//tmp/t_out")
 
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={"testing": {"controller_failure": "exception_thrown_in_on_job_completed"}},
@@ -3487,7 +3487,7 @@ class TestPoolMetrics(YTEnvSetup):
             in_="//tmp/t_input",
             out="//tmp/t_output",
             spec={"data_size_per_job": 1, "pool": "child"},
-            dont_track=True)
+            track=False)
 
         jobs = wait_breakpoint(job_count=2)
         assert len(jobs) == 2
@@ -3540,9 +3540,9 @@ class TestPoolMetrics(YTEnvSetup):
             "scheduler/pools/metrics/total_time_operation_aborted",
             grouped_by_tags=["pool"])
 
-        op1 = map(command=("sleep 5; cat"), in_="//tmp/t_input", out="//tmp/t_output_1", spec={"pool": "child1"}, dont_track=True)
-        op2 = map(command=("sleep 5; cat; exit 1"), in_="//tmp/t_input", out="//tmp/t_output_2", spec={"pool": "child2", "max_failed_job_count": 1}, dont_track=True)
-        op3 = map(command=("sleep 100; cat"), in_="//tmp/t_input", out="//tmp/t_output_3", spec={"pool": "child3"}, dont_track=True)
+        op1 = map(command=("sleep 5; cat"), in_="//tmp/t_input", out="//tmp/t_output_1", spec={"pool": "child1"}, track=False)
+        op2 = map(command=("sleep 5; cat; exit 1"), in_="//tmp/t_input", out="//tmp/t_output_2", spec={"pool": "child2", "max_failed_job_count": 1}, track=False)
+        op3 = map(command=("sleep 100; cat"), in_="//tmp/t_input", out="//tmp/t_output_3", spec={"pool": "child3"}, track=False)
 
         # Wait until at least some metrics are reported for op3
         wait(lambda: total_time_delta.update().get("child3", verbose=True) > 0)
@@ -3601,7 +3601,7 @@ class TestPoolMetrics(YTEnvSetup):
             in_="//tmp/t_input",
             out="//tmp/t_output",
             spec={"data_size_per_job": 1, "pool": "unique_pool", "max_speculative_job_count_per_task": 0},
-            dont_track=True)
+            track=False)
 
         jobs = wait_breakpoint(job_count=2)
         assert len(jobs) == 2
@@ -3671,7 +3671,7 @@ class TestPoolMetrics(YTEnvSetup):
                   "pool": "unique_pool",
                   "mapper": {"input_format": "json",
                              "check_input_fully_consumed": True}},
-            dont_track=True)
+            track=False)
         op.track(raise_on_failed=False)
 
         wait(lambda: total_time_delta.update().get(verbose=True)
@@ -3747,7 +3747,7 @@ class TestPoolMetrics(YTEnvSetup):
             in_="//tmp/t_input",
             out="//tmp/t_output",
             spec={"pool": "unique_pool"},
-            dont_track=True)
+            track=False)
 
         jobs = wait_breakpoint()
         assert len(jobs) == 1
@@ -3801,7 +3801,7 @@ class TestGetJobSpecFailed(YTEnvSetup):
                     "fail_get_job_spec": True
                 },
             },
-            dont_track=True)
+            track=False)
 
         def check():
             jobs = get(op.get_path() + "/controller_orchid/progress/jobs", default=None)
@@ -3845,7 +3845,7 @@ class TestResourceLimitsOverrides(YTEnvSetup):
             command='if [ "$YT_JOB_INDEX" == "0" ]; then sleep 1000; else cat; fi',
             in_="//tmp/t_input",
             out="//tmp/t_output",
-            dont_track=True)
+            track=False)
 
         jobs = self._wait_for_jobs(op.id)
         job_id = jobs.keys()[0]
@@ -3870,7 +3870,7 @@ class TestResourceLimitsOverrides(YTEnvSetup):
             in_="//tmp/t_input",
             out="//tmp/t_output",
             spec={"mapper": {"memory_limit": 100 * 1024 * 1024}},
-            dont_track=True)
+            track=False)
 
         jobs = self._wait_for_jobs(op.id)
         job_id = jobs.keys()[0]
@@ -3920,7 +3920,7 @@ fi
                     "data_size_per_job": 1,
                     "enable_compatible_storage_mode": i == 0
                 },
-                dont_track=True)
+                track=False)
 
             state_path = "//sys/scheduler/orchid/scheduler/operations/{0}/state".format(op.id)
             wait(lambda: get(state_path) == "running")
@@ -3970,7 +3970,7 @@ fi
             in_="//tmp/t_input",
             out="//tmp/t_output",
             spec=spec,
-            dont_track=True,
+            track=False,
         )
 
         state_path = "//sys/scheduler/orchid/scheduler/operations/{0}/state".format(op.id)
@@ -4009,7 +4009,7 @@ fi
                 spec={
                     "data_size_per_job": 1
                 },
-                dont_track=True)
+                track=False)
 
             wait(lambda: op.get_job_count("failed") == 1 and op.get_job_count("running") >= 1)
 
@@ -4191,7 +4191,7 @@ class TestControllerMemoryUsage(YTEnvSetup):
             assert entry["alive"] == False
 
         op_small = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t_in",
             out="<sorted_by=[a]>//tmp/t_out",
             command="sleep 3600")
@@ -4209,7 +4209,7 @@ class TestControllerMemoryUsage(YTEnvSetup):
 
 
         op_large = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t_in",
             out="<sorted_by=[a]>//tmp/t_out",
             command="sleep 3600",
@@ -4299,7 +4299,7 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
                         "allocation_size": 1024 ** 2,
                     }
                 },
-                dont_track=True)
+                track=False)
             wait(lambda: op.get_state() == "running")
             ops.append(op)
 
@@ -4342,7 +4342,7 @@ class TestPorts(YTEnvSetup):
         create("table", "//tmp/t_out_other", attributes={"replication_factor": 1})
 
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t_in",
             out="//tmp/t_out",
             command=with_breakpoint("echo $YT_PORT_0 >&2; echo $YT_PORT_1 >&2; if [ -n \"$YT_PORT_2\" ]; then echo 'FAILED' >&2; fi; cat; BREAKPOINT"),
@@ -4459,7 +4459,7 @@ class TestNewLivePreview(YTEnvSetup):
 
         op = map(
             wait_for_jobs=True,
-            dont_track=True,
+            track=False,
             command=with_breakpoint("BREAKPOINT ; cat"),
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -4492,7 +4492,7 @@ class TestNewLivePreview(YTEnvSetup):
 
         op = map(
             wait_for_jobs=True,
-            dont_track=True,
+            track=False,
             command=with_breakpoint("BREAKPOINT ; cat"),
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -4525,7 +4525,7 @@ class TestNewLivePreview(YTEnvSetup):
 
         op = map_reduce(
             wait_for_jobs=True,
-            dont_track=True,
+            track=False,
             mapper_command='for ((i=0; i<3; i++)); do echo "{a=$(($YT_JOB_INDEX*3+$i))};"; done',
             reducer_command=with_breakpoint("cat; BREAKPOINT"),
             reduce_by="a",
@@ -4603,7 +4603,7 @@ class TestNewLivePreview(YTEnvSetup):
         def check_live_preview(enable_legacy_live_preview=None, authenticated_user=None, index=None):
             op = map(
                 wait_for_jobs=True,
-                dont_track=True,
+                track=False,
                 command=with_breakpoint("BREAKPOINT ; cat", breakpoint_name=str(index)),
                 in_="//tmp/t1",
                 out="//tmp/t2",
@@ -4698,7 +4698,7 @@ class TestOperationAliases(YTEnvSetup):
 
         op = vanilla(spec={"tasks": {"main": {"command": "sleep 1000", "job_count": 1}},
                            "alias": "*my_op"},
-                     dont_track=True)
+                     track=False)
 
         assert ls("//sys/scheduler/orchid/scheduler/operations") == [op.id, "*my_op"]
         assert get("//sys/scheduler/orchid/scheduler/operations/" + op.id) == get("//sys/scheduler/orchid/scheduler/operations/\\*my_op")
@@ -4729,7 +4729,7 @@ class TestOperationAliases(YTEnvSetup):
         # Now using alias *my_op is ok.
         op = vanilla(spec={"tasks": {"main": {"command": "sleep 1000", "job_count": 1}},
                            "alias": "*my_op"},
-                     dont_track=True)
+                     track=False)
 
         wait(lambda: (sys.stderr.write(op.get_path() + "/@error"), get(op.get_path() + "/@state"))[1] == "running")
 
@@ -4746,7 +4746,7 @@ class TestOperationAliases(YTEnvSetup):
 
         op = vanilla(spec={"tasks": {"main": {"command": "sleep 1000", "job_count": 1}},
                            "alias": "*my_op"},
-                     dont_track=True)
+                     track=False)
         wait(lambda: get(op.get_path() + "/@state") == "running")
 
         with pytest.raises(YtError):
@@ -4923,7 +4923,7 @@ class TestNodeMultipleUnregistrations(YTEnvSetup):
         def start_op():
             tag = str(random.randint(0, 1000000))
             op = map(
-                dont_track=True,
+                track=False,
                 command=with_breakpoint("BREAKPOINT", tag),
                 in_="//tmp/t1",
                 out="//tmp/t2",

@@ -92,7 +92,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
             assert get("//tmp/t_in/@chunk_count") == row_count
 
             op = run_op(
-                dont_track=True,
+                track=False,
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
                 command="cat",
@@ -128,7 +128,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
 
         run_op = map if op_type == "map" else reduce
         op = run_op(
-            dont_track=True,
+            track=False,
             in_="//tmp/t_in",
             out="//tmp/t_out",
             reduce_by=["a"], # ignored for maps
@@ -158,7 +158,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         write_table("//tmp/t_in", [{"a" : i} for i in range(row_count)])
 
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t_in",
             out=["//tmp/t_out1", "//tmp/t_out2"],
             command="read x; echo $x >&$(($x % 2 * 3 + 1))",
@@ -195,7 +195,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         write_table("//tmp/t_in", [{"a" : i} for i in range(row_count)])
 
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t_in",
             out=["<auto_merge=%false>//tmp/t_out1", "//tmp/t_out2"],
             command="read x; if [[ $(($x % 10)) == 0 ]]; then echo $x >&1; else echo $x >&4; fi",
@@ -458,7 +458,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         write_table("//tmp/t_in", [{"a" : i} for i in range(row_count)])
 
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t_in",
             out=["//tmp/t_out1", "//tmp/t_out2"],
             command="read x; echo $x >&$(($x % 2 * 3 + 1))",

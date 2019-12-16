@@ -430,7 +430,7 @@ class TestListJobs(YTEnvSetup):
             breakpoint_name="reducer",
         )
         op = map_reduce(
-            dont_track=True,
+            track=False,
             label="list_jobs",
             in_=input_table,
             out=output_table,
@@ -567,7 +567,7 @@ class TestListJobs(YTEnvSetup):
     def test_running_jobs_stderr_size(self, data_source):
         input_table, output_table = self._create_tables()
         op = map(
-            dont_track=True,
+            track=False,
             in_=input_table,
             out=output_table,
             command=with_breakpoint("echo MAPPER-STDERR-OUTPUT >&2 ; cat ; BREAKPOINT"),
@@ -608,7 +608,7 @@ class TestListJobs(YTEnvSetup):
         input_table, output_table = self._create_tables()
         before_start = datetime.utcnow()
         op = map(
-            dont_track=True,
+            track=False,
             in_=input_table,
             out=output_table,
             command=with_breakpoint("echo MAPPER-STDERR-OUTPUT >&2 ; cat ; BREAKPOINT"),
@@ -632,7 +632,7 @@ class TestListJobs(YTEnvSetup):
     def test_running_aborted_jobs(self):
         input_table, output_table = self._create_tables()
         op = map(
-            dont_track=True,
+            track=False,
             in_=input_table,
             out=output_table,
             command='if [ "$YT_JOB_INDEX" = "0" ]; then sleep 1000; fi;',
@@ -654,7 +654,7 @@ class TestListJobs(YTEnvSetup):
     def test_stderrs_and_hash_buckets_storage(self):
         input_table, output_table = self._create_tables()
         op = map(
-            dont_track=True,
+            track=False,
             in_=input_table,
             out=output_table,
             command="echo foo >&2; false",
@@ -681,7 +681,7 @@ class TestListJobs(YTEnvSetup):
             "max_failed_job_count": 1,
         }
 
-        op = vanilla(spec=spec, dont_track=True)
+        op = vanilla(spec=spec, track=False)
         with pytest.raises(YtError):
             op.track()
 
@@ -693,7 +693,7 @@ class TestListJobs(YTEnvSetup):
     def test_errors(self):
         input_table, output_table = self._create_tables()
         op = map(
-            dont_track=True,
+            track=False,
             in_=input_table,
             out=output_table,
             command=with_breakpoint("BREAKPOINT"),

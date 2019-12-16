@@ -1238,7 +1238,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         for i in range(25):
             write_table("<append=%true>//tmp/t_in", {"a": i})
         op = merge(
-            dont_track=True,
+            track=False,
             in_=["//tmp/t_in"],
             out="//tmp/t_out",
             spec={
@@ -1278,7 +1278,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             expected.append(row)
 
         op = merge(
-            dont_track=True,
+            track=False,
             in_=["//tmp/t_in"],
             out="//tmp/t_out",
             spec={
@@ -1383,7 +1383,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         for i in range(12):
             merge(in_=["//tmp/t1", "//tmp/t1"], out="//tmp/t1")
         create("table", "//tmp/t2")
-        op = merge(dont_track=True,
+        op = merge(track=False,
                    in_="//tmp/t1",
                    out="//tmp/t2",
                    mode=mode,

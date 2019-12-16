@@ -302,7 +302,7 @@ class TestBulkInsert(DynamicTablesBase):
                 in_="//tmp/t_input",
                 out="<append=%true>//tmp/t_output",
                 command=command,
-                dont_track=True)
+                track=False)
             operations.append(op)
 
         for op in operations:
@@ -552,7 +552,7 @@ class TestBulkInsert(DynamicTablesBase):
                     "delay_inside_operation_commit_stage": stage,
                 },
             },
-            dont_track=True)
+            track=False)
 
         op.wait_for_state("completing")
         tx = get(op.get_path() + "/@output_transaction_id")

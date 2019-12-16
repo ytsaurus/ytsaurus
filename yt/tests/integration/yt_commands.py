@@ -1045,9 +1045,9 @@ def start_op(op_type, **kwargs):
     change(kwargs, "reduce_combiner_command", ["spec", "reduce_combiner", "command"])
     change(kwargs, "reducer_command", ["spec", "reducer", "command"])
 
-    track = not kwargs.get("dont_track", False)
-    if "dont_track" in kwargs:
-        del kwargs["dont_track"]
+    track = kwargs.get("track", True)
+    if "track" in kwargs:
+        del kwargs["track"]
 
     kwargs["operation_type"] = op_type
 
@@ -1214,12 +1214,12 @@ def create_test_tables(row_count=1, **kwargs):
     write_table("//tmp/t_in", [{"x": str(i)} for i in xrange(row_count)])
     create("table", "//tmp/t_out", **kwargs)
 
-def run_test_vanilla(command, spec=None, job_count=1, dont_track=True, task_patch=None, **kwargs):
+def run_test_vanilla(command, spec=None, job_count=1, track=False, task_patch=None, **kwargs):
     spec = spec or {}
     spec["tasks"] = {
         "task": update({"job_count": job_count, "command": command}, task_patch)
     }
-    return vanilla(spec=spec, dont_track=dont_track, **kwargs)
+    return vanilla(spec=spec, track=track, **kwargs)
 
 def run_sleeping_vanilla(**kwargs):
     return run_test_vanilla("sleep 1000", **kwargs)

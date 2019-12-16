@@ -212,7 +212,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
                 "unavailable_chunk_strategy": "wait",
                 "unavailable_chunk_tactics": "wait"
             },
-            dont_track=True)
+            track=False)
 
         wait(lambda: op.get_state() == "running")
         wait(lambda: "lost_input_chunks" in op.get_alerts())
@@ -251,7 +251,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={"data_size_per_job": 1},
-            dont_track=True)
+            track=False)
 
         self.wait_for_running_jobs(op)
 
@@ -285,7 +285,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={"data_size_per_job": 1},
-            dont_track=True)
+            track=False)
 
         self.wait_for_running_jobs(op)
         wait(lambda: "operation_too_long" in op.get_alerts())
@@ -352,7 +352,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
             spec={
                 "testing": testing_options,
             },
-            dont_track=True)
+            track=False)
 
         time.sleep(8)
 
@@ -443,7 +443,7 @@ class TestSchedulerJobSpecThrottlerOperationAlert(YTEnvSetup):
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={"job_count": 3},
-            dont_track=True)
+            track=False)
 
         wait(lambda: "excessive_job_spec_throttling" in op.get_alerts())
 

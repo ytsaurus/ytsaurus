@@ -119,7 +119,7 @@ class TestSchedulerAcls(YTEnvSetup):
         if should_update_operation_parameters:
             del spec["acl"]
         op = map(
-            dont_track=True,
+            track=False,
             in_=input_path,
             out=output_path,
             command=with_breakpoint("cat; echo SOME-STDERR >&2; BREAKPOINT; exit 1", breakpoint_name=breakpoint_name),
@@ -144,7 +144,7 @@ class TestSchedulerAcls(YTEnvSetup):
         if should_update_operation_parameters:
             saved_acl = spec.pop("acl")
         op = map(
-            dont_track=True,
+            track=False,
             in_=input_path,
             out=output_path,
             command=command,
@@ -368,7 +368,7 @@ class TestSchedulerAcls(YTEnvSetup):
         input_path, output_path = self._create_tables()
         breakpoint_name = "breakpoint_" + self._random_string(10)
         op = map_reduce(
-            dont_track=True,
+            track=False,
             mapper_command="cat",
             reducer_command=with_breakpoint("cat; BREAKPOINT", breakpoint_name=breakpoint_name),
             in_=input_path,

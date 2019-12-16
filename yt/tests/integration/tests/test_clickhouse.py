@@ -125,7 +125,7 @@ class Clique(object):
     def __enter__(self):
         self.op = start_op("vanilla",
                            spec=self.spec,
-                           dont_track=True)
+                           track=False)
 
         self.log_root_alternative = os.path.realpath(os.path.join(self.log_root, "..",
                                                                   "clickhouse-{}".format(self.op.id)))

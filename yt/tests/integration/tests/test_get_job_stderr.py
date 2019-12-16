@@ -63,7 +63,7 @@ class TestGetJobStderr(YTEnvSetup):
         write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
 
         op = map(
-            dont_track=True,
+            track=False,
             label="get_job_stderr",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -110,7 +110,7 @@ class TestGetJobStderr(YTEnvSetup):
             write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}, {"foo": "lev"}], authenticated_user="u")
 
             op = map(
-                dont_track=True,
+                track=False,
                 label="get_job_stderr",
                 in_="//tmp/t1",
                 out="//tmp/t2",

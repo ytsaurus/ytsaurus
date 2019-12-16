@@ -82,7 +82,7 @@ class TestRpcProxyBase(YTEnvSetup):
 
         return map(in_="//tmp/t_in",
                    out="//tmp/t_out",
-                   dont_track=True,
+                   track=False,
                    mapper_command=cmd,
                    **kwargs)
 
@@ -254,7 +254,7 @@ class TestDumpJobContextRpcProxy(TestRpcProxyBase):
         write_table("//tmp/t1", {"foo": "bar"})
 
         op = map(
-            dont_track=True,
+            track=False,
             label="dump_job_context",
             in_="//tmp/t1",
             out="//tmp/t2",

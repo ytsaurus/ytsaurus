@@ -29,7 +29,7 @@ class TestRuntimeParameters(YTEnvSetup):
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={"weight": 5},
-            dont_track=True)
+            track=False)
         wait(lambda: op.get_state() == "running", iter=10)
 
         progress_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default".format(op.id)

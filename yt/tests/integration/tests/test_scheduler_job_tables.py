@@ -115,7 +115,7 @@ class TestStderrTable(YTEnvSetup):
             in_="//tmp/t_input",
             out="//tmp/t_output",
             command=with_breakpoint("""BREAKPOINT ; echo GG >&2 ; cat"""),
-            dont_track=True,
+            track=False,
             spec={
                 "stderr_table_path": "//tmp/t_stderr",
                 "job_count": 2,
@@ -416,7 +416,7 @@ class TestStderrTable(YTEnvSetup):
         write_table("<append=%true>//tmp/t_input", [{"key": "complete_while_scheduler_dead   "}])
 
         op = map(
-            dont_track=True,
+            track=False,
             command=(
                 "cat > input\n"
 
@@ -566,7 +566,7 @@ class TestCoreTable(YTEnvSetup):
             command += "kill -ABRT $$ ;"
 
         op = vanilla(
-            dont_track=True,
+            track=False,
             spec={
                 "tasks": {
                     "main": {

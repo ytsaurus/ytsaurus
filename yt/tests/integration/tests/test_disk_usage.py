@@ -57,7 +57,7 @@ class TestDiskUsage(QuotaMixin):
         options = {
             "in_": tables[0],
             "out": tables[1],
-            "dont_track": True,
+            "track": False,
         }
 
         options.update(fatty_options)
@@ -73,7 +73,7 @@ class TestDiskUsage(QuotaMixin):
             "spec": {"mapper": {"disk_space_limit": 1024 * 1024 / 2}, "max_failed_job_count": 1}
         }
 
-        op = map(dont_track=True, **check_op)
+        op = map(track=False, **check_op)
         wait(lambda: exists(op.get_path() + "/controller_orchid/progress/jobs"))
         for type in ("running", "aborted", "failed"):
             assert op.get_job_count(type) == 0
@@ -117,7 +117,7 @@ class TestDiskUsage(QuotaMixin):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"foo": "bar"}])
 
-        op = map(dont_track=True, command="cat", in_="//tmp/t1", out="//tmp/t2",
+        op = map(track=False, command="cat", in_="//tmp/t1", out="//tmp/t2",
                  spec={"mapper": {"disk_space_limit": 2 * 1024 * 1024}, "max_failed_job_count": 1})
         wait(lambda: op.get_state() == "running")
 
@@ -134,13 +134,13 @@ class TestDiskUsage(QuotaMixin):
         create("table", "//tmp/t3")
         write_table("//tmp/t1", [{"foo": "bar"}])
 
-        op1 = map(dont_track=True, command="sleep 1000", in_="//tmp/t1", out="//tmp/t2",
+        op1 = map(track=False, command="sleep 1000", in_="//tmp/t1", out="//tmp/t2",
                   spec={"mapper": {"disk_space_limit": 2 * 1024 * 1024 / 3}, "max_failed_job_count": 1})
         wait(lambda: op1.get_state() == "running")
         wait(lambda: op1.get_job_count("running") == 1)
 
 
-        op2 = map(dont_track=True, command="sleep 1000", in_="//tmp/t1", out="//tmp/t3",
+        op2 = map(track=False, command="sleep 1000", in_="//tmp/t1", out="//tmp/t3",
                   spec={"mapper": {"disk_space_limit": 2 * 1024 * 1024 / 3}, "max_failed_job_count": 1})
         wait(lambda: op2.get_state() == "running")
         for type in ("running", "aborted", "failed"):

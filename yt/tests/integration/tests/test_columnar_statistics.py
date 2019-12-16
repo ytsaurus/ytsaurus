@@ -199,7 +199,6 @@ class TestColumnarStatistics(YTEnvSetup):
             write_table("<append=%true>//tmp/t", [{"a": s, "b": s, "c": s, "d": s, "e": s}])
         with pytest.raises(YtError):
             op = vanilla(
-                dont_track=False,
                 spec={
                     "tasks": {
                         "task": {
@@ -211,7 +210,6 @@ class TestColumnarStatistics(YTEnvSetup):
                 })
 
         op = vanilla(
-            dont_track=False,
             spec={
                 "tasks": {
                     "task": {
@@ -223,7 +221,6 @@ class TestColumnarStatistics(YTEnvSetup):
             })
 
         op = vanilla(
-            dont_track=False,
             spec={
                 "tasks": {
                     "task": {
@@ -283,7 +280,7 @@ class TestColumnarStatistics(YTEnvSetup):
         assert len(controller_agents) == 1
         controller_agent_orchid = "//sys/controller_agents/instances/{}/orchid/controller_agent".format(controller_agents[0])
 
-        op = map(dont_track=True,
+        op = map(track=False,
                  in_="//tmp/t{b}",
                  out="//tmp/d",
                  spec={"data_weight_per_job": 1000,
