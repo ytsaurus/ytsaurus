@@ -34,6 +34,8 @@ struct TChunkExportData
 
 static_assert(sizeof(TChunkExportData) == 8, "sizeof(TChunkExportData) != 8");
 
+using TChunkExportDataList = std::array<TChunkExportData, NObjectClient::MaxSecondaryMasterCells>;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TChunkDynamicData
@@ -288,8 +290,7 @@ private:
     ui8 ExportCounter_ = 0;
 
     //! Per-cell data, indexed by cell index; cf. TMulticellManager::GetRegisteredMasterCellIndex.
-    //! The array, if any, always has MaxSecondaryMasterCells elements.
-    std::unique_ptr<TChunkExportData[]> ExportDataList_;
+    std::unique_ptr<TChunkExportDataList> ExportDataList_;
 
     struct TReplicasData
     {
@@ -325,6 +326,8 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer
+
+Y_DECLARE_PODTYPE(NYT::NChunkServer::TChunkExportDataList);
 
 #define CHUNK_INL_H_
 #include "chunk-inl.h"
