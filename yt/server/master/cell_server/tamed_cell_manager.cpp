@@ -759,12 +759,22 @@ private:
 
         // COMPAT(savrus)
         const auto& tabletManager = Bootstrap_->GetTabletManager();
+
         auto& bundleMap = tabletManager->CompatTabletCellBundleMap();
-        auto& cellMap = tabletManager->CompatTabletCellMap();
+        std::vector<TCellBundleId> bundleIds;
         for (const auto [bundleId, holder] : bundleMap) {
+            bundleIds.push_back(bundleId);
+        }
+        for (const auto bundleId : bundleIds) {
             CellBundleMap_.Insert(bundleId, bundleMap.Release(bundleId));
         }
+
+        auto& cellMap = tabletManager->CompatTabletCellMap();
+        std::vector<TCellBundleId> cellIds;
         for (const auto [cellId, holder] : cellMap) {
+            cellIds.push_back(cellId);
+        }
+        for (const auto cellId : cellIds) {
             CellMap_.Insert(cellId, cellMap.Release(cellId));
         }
 
