@@ -209,20 +209,6 @@ void TYtError::ParseFrom(const TString& jsonError)
     *this = TYtError(value);
 }
 
-int TYtError::GetInnerCode() const
-{
-    if (Code_ >= 100) {
-        return Code_;
-    }
-    for (const auto& error : InnerErrors_) {
-        int code = error.GetInnerCode();
-        if (code) {
-            return code;
-        }
-    }
-    return 0;
-}
-
 TSet<int> TYtError::GetAllErrorCodes() const
 {
     TDeque<const TYtError*> queue = {this};
