@@ -17,11 +17,11 @@
 /// To access full powers of YT dynamic tables one should use
 /// [yt/client](https://a.yandex-team.ru/arc/trunk/arcadia/yt/19_4/yt/client) library.
 ///
-/// Entry points to this library.
-///   - @ref NYT::Initialize() initialization function for this library
-///   - @ref NYT::IClient main interface to work with YT cluster
-///   - @ref NYT::CreateClient() function that creates client for particular cluster
-///   - @ref NYT::IOperationClient ancestor of IClient containing the set of methods to run operations
+/// Entry points to this library:
+///   - @ref NYT::Initialize() initialization function for this library;
+///   - @ref NYT::IClient main interface to work with YT cluster;
+///   - @ref NYT::CreateClient() function that creates client for particular cluster;
+///   - @ref NYT::IOperationClient ancestor of IClient containing the set of methods to run operations.
 ///
 /// Tutorial on using this library can be found [here](https://wiki.yandex-team.ru/yt/userdoc/cppapi/tutorial/).
 
