@@ -155,7 +155,7 @@ public:
         SchedulingStatusSketchAfterVictimEviction_.Update(starvingPod);
 
         // Ensure at least one scheduling iteration after victim eviction.
-        if (SchedulingStatusSketchAfterVictimEviction_.ErrorIterationCount > 1) {
+        if (SchedulingStatusSketchAfterVictimEviction_.ErrorIterationCount >= 3) {
             YT_LOG_DEBUG(
                 "Swap task is considered finished; "
                 "passed at least one scheduling iteration after victim eviction");
