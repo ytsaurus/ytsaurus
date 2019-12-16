@@ -17,7 +17,7 @@ proxy = args.proxy or os.getenv("YT_PROXY")
 discovery_dir = args.discovery_dir or "//home/{0}/spark-tmp".format(user)
 
 yt.wrapper.config.config['proxy']['url'] = proxy
-master = list("{0}/instances/{1}/rest".format(discovery_dir, args.id))[0]
+master = list("{0}/instances/{1}/rest".format(discovery_dir, args.id))[0].replace("#", "[", 1).replace("#", "]", 1)
 
 spark_args = ["spark-submit", "--master", "spark://{0}".format(master)]
 spark_env = os.environ.copy()
