@@ -160,9 +160,16 @@ static std::pair<bool,TDuration> GetRetryInfo(const TErrorResponse& errorRespons
     bool retriable = true;
     TDuration retryInterval = TConfig::Get()->RetryInterval;
 
-    int code = errorResponse.GetError().GetInnerCode();
     auto allCodes = errorResponse.GetError().GetAllErrorCodes();
     int httpCode = errorResponse.GetHttpCode();
+
+    bool isChunkError = false;
+    for (const auto code : allCodes) {
+        if (code / 100 == 7) {
+            isChunkError = true;
+        }
+    }
+
     using namespace NClusterErrorCodes;
     if (httpCode / 100 == 4) {
         if (httpCode == 429
@@ -174,7 +181,7 @@ static std::pair<bool,TDuration> GetRetryInfo(const TErrorResponse& errorRespons
         } else if (errorResponse.IsConcurrentOperationsLimitReached()) {
             // limit for the number of concurrent operations exceeded
             retryInterval = TConfig::Get()->StartOperationRetryInterval;
-        } else if (code / 100 == 7) {
+        } else if (isChunkError) {
             // chunk client errors
             retryInterval = TConfig::Get()->ChunkErrorsRetryInterval;
         } else if (

@@ -125,9 +125,7 @@ public:
     /// Parse error from json string.
     void ParseFrom(const TString& jsonError);
 
-    /// @deprecated This method must not be used.
-    int GetInnerCode() const;
-    /// @deprecated This method must not be used.
+    /// Collect error codes from entire error tree.
     TSet<int> GetAllErrorCodes() const;
 
     /// Check if error has any attributes.
