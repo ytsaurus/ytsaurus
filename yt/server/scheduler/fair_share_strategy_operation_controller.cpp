@@ -19,14 +19,16 @@ TFairShareStrategyOperationController::TFairShareStrategyOperationController(
     YT_VERIFY(Controller_);
 }
 
-void TFairShareStrategyOperationController::IncreaseConcurrentScheduleJobCalls()
+void TFairShareStrategyOperationController::IncreaseConcurrentScheduleJobCalls(int nodeShardId)
 {
-    ++ConcurrentScheduleJobCalls_;
+    auto& shard = StateShards_[nodeShardId];
+    ++shard.ConcurrentScheduleJobCalls;
 }
 
-void TFairShareStrategyOperationController::DecreaseConcurrentScheduleJobCalls()
+void TFairShareStrategyOperationController::DecreaseConcurrentScheduleJobCalls(int nodeShardId)
 {
-    --ConcurrentScheduleJobCalls_;
+    auto& shard = StateShards_[nodeShardId];
+    --shard.ConcurrentScheduleJobCalls;
 }
 
 void TFairShareStrategyOperationController::SetLastScheduleJobFailTime(NProfiling::TCpuInstant now)
@@ -55,39 +57,18 @@ void TFairShareStrategyOperationController::UpdateMinNeededJobResources()
 }
 
 bool TFairShareStrategyOperationController::IsMaxConcurrentScheduleJobCallsViolated(
+    const ISchedulingContextPtr& schedulingContext,
     int maxConcurrentScheduleJobCalls) const
 {
-    auto concurrentScheduleJobCalls = ConcurrentScheduleJobCalls_.load();
-    if (concurrentScheduleJobCalls >= maxConcurrentScheduleJobCalls) {
-        YT_LOG_DEBUG_UNLESS(MaxConcurrentScheduleJobCallsViolated_,
-            "Operation blocked in fair share strategy due to violation of maximum concurrent schedule job calls (ConcurrentScheduleJobCalls: %v)",
-            concurrentScheduleJobCalls);
-        MaxConcurrentScheduleJobCallsViolated_.store(true);
-        return true;
-    }
-
-    // NB(eshcherbin): Races are not fully avoided by these atomics, but this is used only for diagnostics, so we don't care.
-    YT_LOG_DEBUG_IF(MaxConcurrentScheduleJobCallsViolated_ && !RecentScheduleJobFailed_,
-        "Operation unblocked in fair share strategy");
-    MaxConcurrentScheduleJobCallsViolated_.store(false);
-    return false;
+    auto& shard = StateShards_[schedulingContext->GetNodeShardId()];
+    return shard.ConcurrentScheduleJobCalls >= maxConcurrentScheduleJobCalls;
 }
 
 bool TFairShareStrategyOperationController::HasRecentScheduleJobFailure(
     NYT::NProfiling::TCpuInstant now,
     TDuration scheduleJobFailBackoffTime) const
 {
-    if (LastScheduleJobFailTime_ + NProfiling::DurationToCpuDuration(scheduleJobFailBackoffTime) > now) {
-        YT_LOG_DEBUG_UNLESS(RecentScheduleJobFailed_, "Operation blocked in fair share strategy due to a recent schedule job failure");
-        RecentScheduleJobFailed_.store(true);
-        return true;
-    }
-
-    // NB(eshcherbin): Races are not fully avoided by these atomics, but this is used only for diagnostics, so we don't care.
-    YT_LOG_DEBUG_IF(RecentScheduleJobFailed_ && !MaxConcurrentScheduleJobCallsViolated_,
-        "Operation unblocked in fair share strategy");
-    RecentScheduleJobFailed_.store(false);
-    return false;
+    return LastScheduleJobFailTime_ + NProfiling::DurationToCpuDuration(scheduleJobFailBackoffTime) > now;
 }
 
 void TFairShareStrategyOperationController::AbortJob(TJobId jobId, EAbortReason abortReason)

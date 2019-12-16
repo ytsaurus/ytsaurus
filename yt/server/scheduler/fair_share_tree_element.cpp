@@ -2236,7 +2236,7 @@ std::optional<EDeactivationReason> TOperationElement::TryStartScheduleJob(
         return EDeactivationReason::ResourceLimitsExceeded;
     }
 
-    Controller_->IncreaseConcurrentScheduleJobCalls();
+    Controller_->IncreaseConcurrentScheduleJobCalls(context.SchedulingContext->GetNodeShardId());
 
     *precommittedResourcesOutput = minNeededResources;
     *availableResourcesOutput = Min(availableResourceLimits, nodeFreeResources);
@@ -2244,10 +2244,11 @@ std::optional<EDeactivationReason> TOperationElement::TryStartScheduleJob(
 }
 
 void TOperationElement::FinishScheduleJob(
+    const ISchedulingContextPtr& schedulingContext,
     bool enableBackoff,
     NProfiling::TCpuInstant now)
 {
-    Controller_->DecreaseConcurrentScheduleJobCalls();
+    Controller_->DecreaseConcurrentScheduleJobCalls(schedulingContext->GetNodeShardId());
 
     if (enableBackoff) {
         Controller_->SetLastScheduleJobFailTime(now);
@@ -2450,7 +2451,7 @@ void TOperationElement::PrescheduleJob(TFairShareContext* context, bool starving
         return;
     }
 
-    if (auto blockedReason = CheckBlocked(context->SchedulingContext->GetNow())) {
+    if (auto blockedReason = CheckBlocked(context->SchedulingContext)) {
         onOperationDeactivated(*blockedReason);
         return;
     }
@@ -2578,8 +2579,7 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
         context->StageState->PackingRecordHeartbeatDuration += timer.GetElapsedTime();
     };
 
-    auto now = context->SchedulingContext->GetNow();
-    if (auto blockedReason = CheckBlocked(now)) {
+    if (auto blockedReason = CheckBlocked(context->SchedulingContext)) {
         disableOperationElement(*blockedReason);
         return TFairShareScheduleJobResult(/* finished */ true, /* scheduled */ false);
     }
@@ -2603,6 +2603,7 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
         return TFairShareScheduleJobResult(/* finished */ true, /* scheduled */ false);
     }
 
+    auto now = context->SchedulingContext->GetNow();
     std::optional<TPackingHeartbeatSnapshot> heartbeatSnapshot;
     if (GetPackingConfig()->Enable && !ignorePacking) {
         heartbeatSnapshot = CreateHeartbeatSnapshot(context->SchedulingContext);
@@ -2619,7 +2620,7 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
             TreeHost_->GetResourceTree()->IncreaseHierarchicalResourceUsagePrecommit(ResourceTreeElement_, -precommittedResources);
             disableOperationElement(EDeactivationReason::BadPacking);
             context->BadPackingOperations.emplace_back(this);
-            FinishScheduleJob(/* enableBackoff */ false, now);
+            FinishScheduleJob(context->SchedulingContext, /* enableBackoff */ false, now);
             return TFairShareScheduleJobResult(/* finished */ true, /* scheduled */ false);
         }
     }
@@ -2646,7 +2647,7 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
             scheduleJobResult->Failed);
 
         TreeHost_->GetResourceTree()->IncreaseHierarchicalResourceUsagePrecommit(ResourceTreeElement_, -precommittedResources);
-        FinishScheduleJob(/* enableBackoff */ enableBackoff, now);
+        FinishScheduleJob(context->SchedulingContext, /* enableBackoff */ enableBackoff, now);
         return TFairShareScheduleJobResult(/* finished */ true, /* scheduled */ false);
     }
 
@@ -2655,7 +2656,7 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
         Controller_->AbortJob(startDescriptor.Id, EAbortReason::SchedulingOperationDisabled);
         disableOperationElement(EDeactivationReason::OperationDisabled);
         TreeHost_->GetResourceTree()->IncreaseHierarchicalResourceUsagePrecommit(ResourceTreeElement_, -precommittedResources);
-        FinishScheduleJob(/* enableBackoff */ false, now);
+        FinishScheduleJob(context->SchedulingContext, /* enableBackoff */ false, now);
         return TFairShareScheduleJobResult(/* finished */ true, /* scheduled */ false);
     }
 
@@ -2673,7 +2674,7 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
         recordHeartbeatWithTimer(*heartbeatSnapshot);
     }
 
-    FinishScheduleJob(/* enableBackoff */ false, now);
+    FinishScheduleJob(context->SchedulingContext, /* enableBackoff */ false, now);
 
     OPERATION_LOG_DETAILED(this,
         "Scheduled a job (SatisfactionRatio: %v, NodeId: %v, JobId: %v, JobResourceLimits: %v)",
@@ -2920,10 +2921,13 @@ bool TOperationElement::IsSchedulable() const
     return !UnschedulableReason_;
 }
 
-bool TOperationElement::IsMaxConcurrentScheduleJobCallsViolated() const
+bool TOperationElement::IsMaxConcurrentScheduleJobCallsViolated(
+    const ISchedulingContextPtr& schedulingContext) const
 {
     return Controller_->IsMaxConcurrentScheduleJobCallsViolated(
-        Spec_->MaxConcurrentControllerScheduleJobCalls.value_or(ControllerConfig_->MaxConcurrentControllerScheduleJobCalls));
+        schedulingContext,
+        Spec_->MaxConcurrentControllerScheduleJobCalls.value_or(
+            ControllerConfig_->MaxConcurrentControllerScheduleJobCalls));
 }
 
 bool TOperationElement::HasRecentScheduleJobFailure(NYT::NProfiling::TCpuInstant now) const
@@ -2931,13 +2935,14 @@ bool TOperationElement::HasRecentScheduleJobFailure(NYT::NProfiling::TCpuInstant
     return Controller_->HasRecentScheduleJobFailure(now, ControllerConfig_->ScheduleJobFailBackoffTime);
 }
 
-std::optional<EDeactivationReason> TOperationElement::CheckBlocked(NYT::NProfiling::TCpuInstant now) const
+std::optional<EDeactivationReason> TOperationElement::CheckBlocked(
+    const ISchedulingContextPtr& schedulingContext) const
 {
-    if (IsMaxConcurrentScheduleJobCallsViolated()) {
+    if (IsMaxConcurrentScheduleJobCallsViolated(schedulingContext)) {
         return EDeactivationReason::MaxConcurrentScheduleJobCallsViolated;
     }
 
-    if (HasRecentScheduleJobFailure(now)) {
+    if (HasRecentScheduleJobFailure(schedulingContext->GetNow())) {
         return EDeactivationReason::RecentScheduleJobFailed;
     }
 
