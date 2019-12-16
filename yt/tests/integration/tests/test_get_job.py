@@ -90,7 +90,7 @@ class TestGetJob(YTEnvSetup):
         write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
         before_start_time = datetime.datetime.utcnow()
         op = map(
-            dont_track=True,
+            track=False,
             label="get_job",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -125,7 +125,7 @@ class TestGetJob(YTEnvSetup):
         write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
         before_start_time = datetime.datetime.utcnow()
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t1",
             out="//tmp/t2",
             command=with_breakpoint("echo SOME-STDERR >&2; cat; BREAKPOINT"),

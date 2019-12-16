@@ -30,7 +30,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
             events_on_fs().wait_event_cmd("finish")
         ])
         op = vanilla(
-            dont_track=True,
+            track=False,
             spec={
                 "tasks": {
                     "master": {
@@ -73,7 +73,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         ])
 
         op = vanilla(
-            dont_track=True,
+            track=False,
             spec={
                 "tasks": {
                     "master": {
@@ -177,7 +177,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
     @authors("max42")
     def test_revival_with_fail_on_job_restart(self):
         op = vanilla(
-            dont_track=True,
+            track=False,
             spec={
                 "tasks": {
                     "task_a": {
@@ -201,7 +201,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
 
         with pytest.raises(YtError):
             op = vanilla(
-                dont_track=True,
+                track=False,
                 spec={
                     "tasks": {
                         "task_a": {
@@ -226,7 +226,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
     def test_abandon_job(self):
         # Abandoning vanilla job is ok.
         op = vanilla(
-            dont_track=True,
+            track=False,
             spec={
                 "tasks": {
                     "tasks_a": {
@@ -246,7 +246,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
     @authors("max42")
     def test_non_interruptible(self):
         op = vanilla(
-            dont_track=True,
+            track=False,
             spec={
                 "tasks": {
                     "tasks_a": {
@@ -269,7 +269,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
     def test_fail_on_manually_stopped_job(self, action):
         with pytest.raises(YtError):
             op = vanilla(
-                dont_track=True,
+                track=False,
                 spec={
                     "tasks": {
                         "task_a": {

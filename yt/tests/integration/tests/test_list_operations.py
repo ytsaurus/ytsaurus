@@ -46,7 +46,7 @@ class ListOperationsSetup(YTEnvSetup):
             op_type,
             in_=cls._input_path,
             out=cls._output_path,
-            dont_track=True,
+            track=False,
             authenticated_user=user,
             **kwargs)
 
@@ -492,7 +492,7 @@ class TestListOperationsCypressOnly(_TestListOperationsBase):
             },
         }
         before_start_time = datetime.utcnow().strftime(YT_DATETIME_FORMAT_STRING)
-        cls.op6 = start_op("sort", in_=cls._input_path, out=cls._output_path, dont_track=True, authenticated_user="user5", spec=op6_spec, sort_by="key")
+        cls.op6 = start_op("sort", in_=cls._input_path, out=cls._output_path, track=False, authenticated_user="user5", spec=op6_spec, sort_by="key")
         cls.op6.before_start_time = before_start_time
         wait(lambda: get(cls.op6.get_path() + "/@state") == "pending")
 

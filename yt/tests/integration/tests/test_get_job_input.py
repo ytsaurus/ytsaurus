@@ -106,7 +106,7 @@ class TestGetJobInput(YTEnvSetup):
                 notify=events_on_fs().notify_event_cmd("job_is_running"),
                 wait=events_on_fs().wait_event_cmd("job_can_finish")),
             format=format,
-            dont_track=True,
+            track=False,
             spec={"job_count": 1})
 
         events_on_fs().wait_event("job_is_running")
@@ -167,7 +167,7 @@ class TestGetJobInput(YTEnvSetup):
                 "data_size_per_sort_job": 10,
                 "force_reduce_combiners": True,
             },
-            dont_track=True)
+            track=False)
 
         events_on_fs().wait_event("reducer_almost_complete", timeout=datetime.timedelta(300))
 
@@ -278,7 +278,7 @@ class TestGetJobInput(YTEnvSetup):
         create("table", "//tmp/out")
         in2 = '//tmp/in2["00001":"00004","00005":"00006"]'
         op = map(
-            dont_track=True,
+            track=False,
             in_=["//tmp/in1", in2],
             out="//tmp/out",
             command="cat > {0}/$YT_JOB_ID && exit 1".format(self._tmpdir),
@@ -449,7 +449,7 @@ class TestGetJobInput(YTEnvSetup):
             command="tee {0}/$YT_JOB_ID".format(self._tmpdir),
             # NB. yamr format will throw error because it expects key/subkey/value fields
             spec={"mapper": {"format": "yamr"}, "max_failed_job_count": 1},
-            dont_track=True,
+            track=False,
         )
         with raises_yt_error("Failed jobs limit exceeded"):
             op.track()
@@ -480,7 +480,7 @@ class TestGetJobInput(YTEnvSetup):
             out="//tmp/t_output",
             command="cat > {0}/$YT_JOB_ID; exit {1}".format(self._tmpdir, 0 if successfull_jobs else 1),
             spec={"data_size_per_job": 1, "max_failed_job_count": 25},
-            dont_track=True
+            track=False
         )
 
         if successfull_jobs:

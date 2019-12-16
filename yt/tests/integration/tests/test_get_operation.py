@@ -72,7 +72,7 @@ class TestGetOperation(YTEnvSetup):
         write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
 
         op = map(
-            dont_track=True,
+            track=False,
             label="get_job_stderr",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -146,7 +146,7 @@ class TestGetOperation(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t1",
             out="//tmp/t2",
             command=with_breakpoint("cat ; BREAKPOINT"),
@@ -177,7 +177,7 @@ class TestGetOperation(YTEnvSetup):
         write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
 
         op = map(
-            dont_track=True,
+            track=False,
             label="get_job_stderr",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -224,7 +224,7 @@ class TestGetOperation(YTEnvSetup):
         write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
 
         op = map(
-            dont_track=True,
+            track=False,
             label="get_job_stderr",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -307,7 +307,7 @@ class TestGetOperation(YTEnvSetup):
         write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
 
         op = map(
-            dont_track=True,
+            track=False,
             label="get_job_stderr",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -339,7 +339,7 @@ class TestGetOperation(YTEnvSetup):
         sync_unmount_table("//sys/operations_archive/ordered_by_id")
 
         op = map(
-            dont_track=True,
+            track=False,
             label="get_job_stderr",
             in_="//tmp/t1",
             out="//tmp/t2",

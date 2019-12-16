@@ -56,7 +56,7 @@ class TestJobProber(YTEnvSetup):
         write_table("//tmp/t1", {"foo": "bar"})
 
         op = map(
-            dont_track=True,
+            track=False,
             label="strace_job",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -80,7 +80,7 @@ class TestJobProber(YTEnvSetup):
         write_table("//tmp/t1", {"foo": "bar"})
 
         op = map(
-            dont_track=True,
+            track=False,
             label="signal_job_with_no_job_restart",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -112,7 +112,7 @@ class TestJobProber(YTEnvSetup):
         write_table("//tmp/t1", {"foo": "bar"})
 
         op = map(
-            dont_track=True,
+            track=False,
             label="signal_job_with_job_restart",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -149,7 +149,7 @@ class TestJobProber(YTEnvSetup):
             write_table("<append=true>//tmp/t1", {"key": str(i), "value": "foo"})
 
         op = map(
-            dont_track=True,
+            track=False,
             label="abandon_job",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -173,7 +173,7 @@ class TestJobProber(YTEnvSetup):
         write_table("<append=true>//tmp/t1", {"key": "foo", "value": "bar"})
 
         op = map(
-            dont_track=True,
+            track=False,
             label="abandon_job",
             in_="//tmp/t1",
             out="<sorted_by=[key]>//tmp/t2",
@@ -197,7 +197,7 @@ class TestJobProber(YTEnvSetup):
             write_table("<append=true>//tmp/t1", {"key": str(i), "value": "foo"})
 
         op = map(
-            dont_track=True,
+            track=False,
             label="abandon_job",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -248,7 +248,7 @@ class TestJobProber(YTEnvSetup):
         write_table("//tmp/t1", {"key": "foo"})
 
         op = map(
-            dont_track=True,
+            track=False,
             label="poll_job_shell",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -284,7 +284,7 @@ class TestJobProber(YTEnvSetup):
         write_table("//tmp/t1", {"key": "foo"})
 
         op = map(
-            dont_track=True,
+            track=False,
             label="poll_job_shell",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -317,7 +317,7 @@ class TestJobProber(YTEnvSetup):
         write_table("//tmp/t1", {"key": "foo"})
 
         op = map(
-            dont_track=True,
+            track=False,
             label="poll_job_shell",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -346,7 +346,7 @@ class TestJobProber(YTEnvSetup):
             write_table("<append=true>//tmp/t1", {"key": str(i), "value": "foo"})
 
         op = map(
-            dont_track=True,
+            track=False,
             label="abort_job",
             in_="//tmp/t1",
             out="//tmp/t2",

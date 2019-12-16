@@ -158,7 +158,7 @@ class TestSpeculativeJobEngine(YTEnvSetup):
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={"testing": {"register_speculative_job_on_job_scheduled": True}},
-            dont_track=True)
+            track=False)
         wait_breakpoint(job_count=2)
         original, speculative = get_sorted_jobs(op)
 
@@ -256,7 +256,7 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
         create_test_tables(row_count=2*self.ROW_COUNT_TO_FILL_PIPE)
 
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t_in",
             out="//tmp/t_out",
             command=with_breakpoint("BREAKPOINT; cat"),
@@ -277,7 +277,7 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
         create_test_tables(row_count=2*self.ROW_COUNT_TO_FILL_PIPE)
 
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t_in",
             out="//tmp/t_out",
             command=with_breakpoint("BREAKPOINT; cat"),
@@ -301,7 +301,7 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
 
         # Job is unslplittable since min_total_data_size is very large
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t_in",
             out="//tmp/t_out",
             command=with_breakpoint(command),

@@ -324,7 +324,7 @@ print "x={0}\ty={1}".format(x, y)
             create("table", "//tmp/t2")
 
             op = map_reduce(
-                dont_track=True,
+                track=False,
                 mapper_command="cat",
                 reducer_command="cat; sleep 3",
                 in_="//tmp/t1",
@@ -367,7 +367,7 @@ print "x={0}\ty={1}".format(x, y)
             create("table", "//tmp/t2")
 
             op = map_reduce(
-                dont_track=True,
+                track=False,
                 mapper_command="cat",
                 reducer_command=with_breakpoint("cat; BREAKPOINT"),
                 in_="//tmp/t1",
@@ -397,7 +397,7 @@ print "x={0}\ty={1}".format(x, y)
         write_table("//tmp/t1", {"foo": "bar"})
         create("table", "//tmp/t2")
 
-        op = map_reduce(dont_track=True,
+        op = map_reduce(track=False,
                         mapper_command="cat", reducer_command="sleep 5; cat",
                         in_="//tmp/t1", out="//tmp/t2",
                         sort_by=["foo"], spec={"intermediate_compression_codec": "brotli_3"})
@@ -489,7 +489,7 @@ print "x={0}\ty={1}".format(x, y)
                    "sort_job_io" : {"table_reader" : {"retry_count" : 1, "pass_count" : 1}},
                    "resource_limits" : { "user_slots" : 1},
                    "ordered": ordered},
-             dont_track=True)
+             track=False)
 
         # We wait for the first reducer to start (second is pending due to resource_limits).
         events_on_fs().wait_event("reducer_started", timeout=datetime.timedelta(1000))
@@ -532,7 +532,7 @@ print "x={0}\ty={1}".format(x, y)
                    "partition_count": 2,
                    "resource_limits" : { "user_slots" : 1},
                    "ordered": ordered},
-             dont_track=True)
+             track=False)
 
         # We wait for the first reducer to start (the second one is pending due to resource_limits).
         events_on_fs().wait_event("reducer_started", timeout=datetime.timedelta(1000))
@@ -580,7 +580,7 @@ print "x={0}\ty={1}".format(x, y)
                         sort_by="x",
                         reducer_command=reducer_cmd,
                         spec={"partition_count": 1, "ordered": ordered},
-                        dont_track=True)
+                        track=False)
 
         events_on_fs().wait_event("reducer_started", timeout=datetime.timedelta(1000))
 

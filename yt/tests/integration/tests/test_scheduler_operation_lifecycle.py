@@ -78,7 +78,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         self._prepare_tables()
 
-        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="echo '{foo=bar}'; sleep 4")
+        op = map(track=False, in_="//tmp/t_in", out="//tmp/t_out", command="echo '{foo=bar}'; sleep 4")
 
         time.sleep(3)
 
@@ -101,8 +101,8 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         self._create_table("//tmp/t_out1")
         self._create_table("//tmp/t_out2")
 
-        op1 = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out1", command="sleep 1000")
-        op2 = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out2", command="sleep 1000")
+        op1 = map(track=False, in_="//tmp/t_in", out="//tmp/t_out1", command="sleep 1000")
+        op2 = map(track=False, in_="//tmp/t_in", out="//tmp/t_out2", command="sleep 1000")
         wait(lambda: op1.get_state() == "running")
         wait(lambda: op2.get_state() == "running")
 
@@ -126,7 +126,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         ops = []
         for i in xrange(1, op_count):
             ops.append(
-                map(dont_track=True,
+                map(track=False,
                     # Sleep is necessary since we not support revive for completing operations.
                     command="sleep 3; cat",
                     in_=["//tmp/t_in"],
@@ -153,7 +153,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         self._prepare_tables()
 
         transaction_id = start_transaction(timeout=300 * 1000)
-        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="echo '{foo=bar}'; sleep 50", transaction_id=transaction_id)
+        op = map(track=False, in_="//tmp/t_in", out="//tmp/t_out", command="echo '{foo=bar}'; sleep 50", transaction_id=transaction_id)
 
         wait(lambda: op.get_job_count("running") == 1)
 
@@ -168,7 +168,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
     def test_scheduler_transaction_abort_when_scheduler_is_down(self):
         self._prepare_tables()
 
-        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="echo '{foo=bar}'; sleep 3")
+        op = map(track=False, in_="//tmp/t_in", out="//tmp/t_out", command="echo '{foo=bar}'; sleep 3")
 
         time.sleep(2)
 
@@ -187,7 +187,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         self._create_table("//tmp/out")
         write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
 
-        op = map(dont_track=True,
+        op = map(track=False,
             command="sleep 1000",
             in_=["//tmp/in"],
             out="//tmp/out")
@@ -218,13 +218,13 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
 
         # Default infinite time limit.
-        op1 = map(dont_track=True,
+        op1 = map(track=False,
             command="sleep 1.0; cat >/dev/null",
             in_=["//tmp/in"],
             out="//tmp/out1")
 
         # Operation specific time limit.
-        op2 = map(dont_track=True,
+        op2 = map(track=False,
             command="sleep 3.0; cat >/dev/null",
             in_=["//tmp/in"],
             out="//tmp/out2",
@@ -250,7 +250,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         set("//tmp/out/@account", "limited")
         write_table("//tmp/in", [{"foo": i} for i in xrange(3)])
 
-        op = map(dont_track=True,
+        op = map(track=False,
             command="sleep $YT_JOB_INDEX; cat",
             in_=["//tmp/in"],
             out="//tmp/out",
@@ -283,7 +283,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         self._create_table("//tmp/out")
         write_table("//tmp/in", [{"foo": 0}])
 
-        op = map(dont_track=True,
+        op = map(track=False,
                  command="cat",
                  in_="//tmp/in",
                  out="//tmp/out",
@@ -303,7 +303,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
 
-        op = map(dont_track=True,
+        op = map(track=False,
             command="sleep 1000.0; cat >/dev/null",
             in_=["//tmp/in"],
             out="//tmp/out",
@@ -342,7 +342,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         ops = []
         for i in xrange(1, 4):
             ops.append(
-                map(dont_track=True,
+                map(track=False,
                     command="sleep 3; cat >/dev/null",
                     in_=["//tmp/in"],
                     out="//tmp/out" + str(i),
@@ -378,7 +378,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         ops = []
         for i in xrange(1, op_count + 1):
             ops.append(
-                map(dont_track=True,
+                map(track=False,
                     command="sleep 2.0; cat >/dev/null",
                     in_=["//tmp/in" + str(i)],
                     out="//tmp/out" + str(i),
@@ -401,7 +401,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         set_banned_flag(True)
         op = sort(
-            dont_track=True,
+            track=False,
             in_="//tmp/t_in",
             out="//tmp/t_in",
             sort_by=["foo"])
@@ -427,7 +427,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
     def test_abort_custom_error_message(self):
         self._prepare_tables()
 
-        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="echo '{foo=bar}'; sleep 3")
+        op = map(track=False, in_="//tmp/t_in", out="//tmp/t_out", command="echo '{foo=bar}'; sleep 3")
         op.abort(abort_message="Test abort")
 
         assert op.get_state() == "aborted"
@@ -465,7 +465,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         self._prepare_tables()
 
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t_in",
             out="//tmp/t_out",
             command="sleep 3 ; cat",
@@ -498,7 +498,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         write_table("//tmp/t_in", [{"foo": i} for i in xrange(10)])
 
         op = map(
-            dont_track=True,
+            track=False,
             command="sleep 1; cat",
             in_="//tmp/t_in",
             out="//tmp/t_out",
@@ -528,7 +528,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         self._prepare_tables()
 
         op1 = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t_in",
             out="<append=true>//tmp/t_in",
             command="cat",
@@ -542,7 +542,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         assert sorted(read_table("//tmp/t_in")) == [{"foo": "bar"} for _ in xrange(2)]
 
         op2 = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t_in",
             out="<append=true>//tmp/t_in",
             command="cat",
@@ -556,7 +556,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         wait(lambda: op2.get_state() == "failed")
 
         op3 = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t_in",
             out="<append=true>//tmp/t_in",
             command="cat",
@@ -752,9 +752,9 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
             grouped_by_tags=["slot_index"],
             aggr_method="last")
 
-        op1 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_1", spec={"pool": "some_pool"}, dont_track=True)
+        op1 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_1", spec={"pool": "some_pool"}, track=False)
         wait(lambda: op1.get_job_count("running") == 1)
-        op2 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_2", spec={"pool": "some_pool"}, dont_track=True)
+        op2 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_2", spec={"pool": "some_pool"}, track=False)
         wait(lambda: op2.get_state() == "running")
 
         get_slot_index = lambda op_id: \
@@ -837,13 +837,13 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
             grouped_by_tags=["pool", "user_name", "custom"],
             aggr_method="last")
 
-        op1 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_1", spec={"pool": "some_pool", "custom_profiling_tag": "hello"}, dont_track=True, authenticated_user="ignat")
+        op1 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_1", spec={"pool": "some_pool", "custom_profiling_tag": "hello"}, track=False, authenticated_user="ignat")
         wait(lambda: op1.get_job_count("running") == 1)
-        op2 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_2", spec={"pool": "other_pool", "custom_profiling_tag": "world"}, dont_track=True, authenticated_user="egor")
+        op2 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_2", spec={"pool": "other_pool", "custom_profiling_tag": "world"}, track=False, authenticated_user="egor")
         wait(lambda: op2.get_state() == "running")
-        op3 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_3", spec={"pool": "other_pool", "custom_profiling_tag": "hello"}, dont_track=True, authenticated_user="egor")
+        op3 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_3", spec={"pool": "other_pool", "custom_profiling_tag": "hello"}, track=False, authenticated_user="egor")
         wait(lambda: op3.get_state() == "running")
-        op4 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_4", spec={"pool": "other_pool", "custom_profiling_tag": "hello"}, dont_track=True, authenticated_user="egor")
+        op4 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_4", spec={"pool": "other_pool", "custom_profiling_tag": "hello"}, track=False, authenticated_user="egor")
         wait(lambda: op4.get_state() == "running")
 
         range_1 = (49998, 49999, 50000, 50001)
@@ -926,7 +926,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
             return current_profiling["state"][state] - start_profiling["state"][state]
 
         op = map(
-            dont_track=True,
+            track=False,
             command=with_breakpoint("echo '{foo=bar}'; BREAKPOINT"),
             in_=["//tmp/t_in"],
             out="//tmp/t_out")
@@ -1035,7 +1035,7 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
             with_tags={"pool": "unique_pool"})
 
         op = map(command=map_cmd, in_="//tmp/t_in", out="//tmp/t_out",
-                 spec={"max_failed_job_count": 1, "pool": "unique_pool"}, dont_track=True)
+                 spec={"max_failed_job_count": 1, "pool": "unique_pool"}, track=False)
         op.track(raise_on_failed=False)
 
         wait(lambda: metric_failed_delta.update().get(verbose=True) == 225)
@@ -1082,7 +1082,7 @@ class SchedulerReviveBase(YTEnvSetup):
     def test_missing_transactions(self):
         self._prepare_tables()
 
-        op = self._start_op(with_breakpoint("echo '{foo=bar}'; BREAKPOINT"), dont_track=True)
+        op = self._start_op(with_breakpoint("echo '{foo=bar}'; BREAKPOINT"), track=False)
 
         for iter in xrange(5):
             self._wait_for_state(op, "running")
@@ -1101,7 +1101,7 @@ class SchedulerReviveBase(YTEnvSetup):
     def test_aborting(self):
         self._prepare_tables()
 
-        op = self._start_op("echo '{foo=bar}'; sleep 10", dont_track=True)
+        op = self._start_op("echo '{foo=bar}'; sleep 10", track=False)
 
         self._wait_for_state(op, "running")
 
@@ -1123,7 +1123,7 @@ class SchedulerReviveBase(YTEnvSetup):
     def test_completing(self):
         self._prepare_tables()
 
-        op = self._start_op("echo '{foo=bar}'; sleep 10", dont_track=True)
+        op = self._start_op("echo '{foo=bar}'; sleep 10", track=False)
 
         self._wait_for_state(op, "running")
 
@@ -1153,7 +1153,7 @@ class SchedulerReviveBase(YTEnvSetup):
 
         op = self._start_op(
             "echo '{foo=bar}'; " + events_on_fs().execute_once("sleep 100"),
-            dont_track=True,
+            track=False,
             spec={
                 "testing": {
                     "delay_inside_operation_commit": 5000,
@@ -1226,7 +1226,7 @@ class SchedulerReviveBase(YTEnvSetup):
 
         op = self._start_op(
             "echo '{foo=bar}'; " + events_on_fs().execute_once("sleep 100"),
-            dont_track=True,
+            track=False,
             spec={
                 "testing": {
                     "delay_inside_operation_commit": 4000,
@@ -1255,7 +1255,7 @@ class SchedulerReviveBase(YTEnvSetup):
     def test_failing(self):
         self._prepare_tables()
 
-        op = self._start_op("exit 1", dont_track=True, spec={"max_failed_job_count": 1})
+        op = self._start_op("exit 1", track=False, spec={"max_failed_job_count": 1})
 
         self._wait_for_state(op, "failing")
 
@@ -1276,7 +1276,7 @@ class SchedulerReviveBase(YTEnvSetup):
         op = self._start_op(
             "sleep 1; false",
             spec={"max_failed_job_count": 10000},
-            dont_track=True)
+            track=False)
 
         self._wait_for_state(op, "running")
 
@@ -1370,7 +1370,7 @@ class TestControllerAgentReconnection(YTEnvSetup):
                     command="sleep 1000",
                     in_=["//tmp/t_in"],
                     out="//tmp/t_out",
-                    dont_track=True)
+                    track=False)
 
                 self._wait_for_state(op, "running")
 
@@ -1391,7 +1391,7 @@ class TestControllerAgentReconnection(YTEnvSetup):
             command="sleep 1000",
             in_=["//tmp/t_in"],
             out="//tmp/t_out",
-            dont_track=True)
+            track=False)
         self._wait_for_state(op, "running")
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
@@ -1417,7 +1417,7 @@ class TestControllerAgentReconnection(YTEnvSetup):
                     "delay_inside_revive": 10000,
                 }
             },
-            dont_track=True)
+            track=False)
         self._wait_for_state(op, "running")
 
         snapshot_path = op.get_path() + "/snapshot"
@@ -1449,7 +1449,7 @@ class TestControllerAgentReconnection(YTEnvSetup):
                     "delay_inside_revive": 10000,
                 }
             },
-            dont_track=True)
+            track=False)
         self._wait_for_state(op, "running")
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
@@ -1573,7 +1573,7 @@ class TestSchedulerErrorTruncate(YTEnvSetup):
                     "delay_inside_revive": 10000,
                 }
             },
-            dont_track=True)
+            track=False)
 
         wait(lambda: op.get_running_jobs())
         running_job = op.get_running_jobs().keys()[0]

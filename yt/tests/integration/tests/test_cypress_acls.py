@@ -350,7 +350,7 @@ class TestCypressAcls(CheckPermissionBase):
         self._prepare_scheduler_test()
         create_user("u1")
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t1",
             out="//tmp/t2",
             command="cat; while true; do sleep 1; done",

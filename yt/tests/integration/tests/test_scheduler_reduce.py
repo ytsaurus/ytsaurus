@@ -1226,7 +1226,7 @@ echo {v = 2} >&7
 
         create("table", "//tmp/out")
         op = reduce(
-            dont_track=True,
+            track=False,
             in_=["<foreign=true>//tmp/in1", '//tmp/in2["00001":"00004"]'],
             out="//tmp/out",
             command="exit 1",
@@ -1399,7 +1399,7 @@ echo {v = 2} >&7
         create("table", "//tmp/output")
 
         op = reduce(
-            dont_track=True,
+            track=False,
             label="interrupt_job",
             in_=in_,
             out="<sorted_by=[key]>//tmp/output",
@@ -1498,7 +1498,7 @@ done
 """
 
         op = reduce(
-            dont_track=True,
+            track=False,
             label="split_job",
             in_=input_,
             out=output,
@@ -1529,7 +1529,7 @@ done
         write_table("//tmp/t1", {"foo": "bar"})
         create("table", "//tmp/t2")
 
-        op = reduce(dont_track=True, command="cat; sleep 3",
+        op = reduce(track=False, command="cat; sleep 3",
                     in_="//tmp/t1", out="//tmp/t2",
                     reduce_by=["foo"])
 

@@ -94,7 +94,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b"})
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t1",
             out="//tmp/t2",
             command=r'cat; echo "{v1=\"$V1\"};{v2=\"$TMPDIR\"}"',
@@ -336,7 +336,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         for job_count in xrange(976, 950, -1):
             op = map(
-                dont_track=True,
+                track=False,
                 in_="//tmp/input",
                 out="//tmp/output",
                 command="sleep 100",
@@ -486,7 +486,7 @@ print row + table_index
         t_in = '<ranges=[{lower_limit={key=["00002"]};upper_limit={key=["00003"]}};{lower_limit={key=["00002"]};upper_limit={key=["00003"]}}]>//tmp/t_in'
 
         op = map(
-            dont_track=True,
+            track=False,
             in_=[t_in],
             out="//tmp/out",
             command="cat >& 2",
@@ -527,7 +527,7 @@ print row + table_index
         op = map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            dont_track=True,
+            track=False,
             command=cmd,
             spec={
                 "mapper": {
@@ -580,7 +580,7 @@ print row + table_index
         alter_table("//tmp/t2", schema=schema)
 
         op = map(
-            dont_track=True,
+            track=False,
             command=with_breakpoint("cat && BREAKPOINT"),
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -621,7 +621,7 @@ print row + table_index
         create("table", "//tmp/t_out2")
 
         op = map(
-            dont_track=True,
+            track=False,
             command=with_breakpoint('echo "{a=$YT_JOB_INDEX}" >&1; echo "{b=$YT_JOB_INDEX}" >&4; BREAKPOINT'),
             in_="//tmp/t_in",
             out=["//tmp/t_out1", "//tmp/t_out2"],
@@ -682,7 +682,7 @@ print row + table_index
 
         create("table", "//tmp/output")
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/input",
             out="<row_count_limit=3>//tmp/output",
             command=with_breakpoint("cat ; BREAKPOINT"),
@@ -710,7 +710,7 @@ print row + table_index
 
         create("table", "//tmp/output")
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/input",
             out="//tmp/output",
             command=with_breakpoint("cat && BREAKPOINT"),
@@ -741,7 +741,7 @@ print row + table_index
         create("table", "//tmp/out_1")
         create("table", "//tmp/out_2")
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/input",
             out=["//tmp/out_1", "<row_count_limit=3>//tmp/out_2"],
             command=with_breakpoint("cat >&4 ; BREAKPOINT"),
@@ -961,7 +961,7 @@ print row + table_index
         write_table("//tmp/t_input", {"foo": "bar"})
 
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t_input",
             out="//tmp/t_output",
             command='cat',
@@ -1021,7 +1021,7 @@ print row + table_index
 
         op = map(
             ordered=ordered,
-            dont_track=True,
+            track=False,
             label="interrupt_job",
             in_="//tmp/in_1",
             out=output,
@@ -1074,7 +1074,7 @@ print('{interrupt=43};')"
 """
 
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t_in",
             out="//tmp/t_out",
             command=with_breakpoint(command),
@@ -1112,7 +1112,7 @@ print('{interrupt=43};')"
 
         op = map(
             ordered=ordered,
-            dont_track=True,
+            track=False,
             label="interrupt_job",
             in_="//tmp/in_1",
             out=output,
@@ -1217,7 +1217,7 @@ done
 
         op = map(
             ordered=ordered,
-            dont_track=True,
+            track=False,
             label="split_job",
             in_=input_,
             out=output,
@@ -1262,7 +1262,7 @@ done
             in_=[input_] * 10,
             out=output,
             command="sleep 5; echo '{a=1}'",
-            dont_track=True)
+            track=False)
         time.sleep(2.0)
         assert len(get(op.get_path() + "/controller_orchid/job_splitter")) == 0
         op.track()
@@ -1412,7 +1412,7 @@ class TestJobSizeAdjuster(YTEnvSetup):
         assert len(chunk_ids) == len(original_data)
 
         create("table", "//tmp/t_output")
-        op = map(dont_track=True,
+        op = map(track=False,
                  command="sleep $YT_JOB_INDEX; cat",
                  in_="//tmp/t_input",
                  out="//tmp/t_output",

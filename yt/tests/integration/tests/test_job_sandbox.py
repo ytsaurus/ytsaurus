@@ -447,7 +447,6 @@ class TestSandboxTmpfs(YTEnvSetup):
     @authors("ignat")
     def test_vanilla(self):
         op = vanilla(
-            dont_track=False,
             spec={
                 "tasks": {
                     "a": {
@@ -534,7 +533,7 @@ class TestSandboxTmpfsOverflow(YTEnvSetup):
         write_table("//tmp/t_input", {"foo": "bar"})
 
         op = map(
-            dont_track=True,
+            track=False,
             command=with_breakpoint(
                 "dd if=/dev/zero of=tmpfs_1/file  bs=1M  count=2048; ls tmpfs_1/ >&2; "
                 "dd if=/dev/zero of=tmpfs_2/file  bs=1M  count=2048; ls tmpfs_2/ >&2; "
@@ -669,7 +668,7 @@ class TestFilesInSandbox(YTEnvSetup):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
         write_table("//tmp/t_input", {"foo": "bar"})
-        op = map(dont_track=True,
+        op = map(track=False,
                  command="./script",
                  in_="//tmp/t_input",
                  out="//tmp/t_output",
@@ -793,7 +792,7 @@ class TestNetworkIsolation(YTEnvSetup):
                 },
                 authenticated_user="u2")
 
-        op = map(dont_track=True,
+        op = map(track=False,
                  command=with_breakpoint("echo $YT_NETWORK_PROJECT_ID >&2; hostname >&2; BREAKPOINT; cat"),
                  in_="//tmp/t_input",
                  out="//tmp/t_output",
