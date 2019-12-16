@@ -53,10 +53,11 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/// Configuration controlling retries of single request.
 struct TRetryConfig
 {
-    // RetriesTimeLimit controls how long retries can go on.
-    // If this limit is reached while retry count is not yet exceeded TRequestRetriesTimeout exception is thrown.
+    /// RetriesTimeLimit controls how long retries can go on.
+    /// If this limit is reached while retry count is not yet exceeded @ref TRequestRetriesTimeout exception is thrown.
     TDuration RetriesTimeLimit = TDuration::Max();
 };
 
