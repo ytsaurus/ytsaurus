@@ -124,6 +124,8 @@ b"""
 
     cell_directory_synchronizer = {
         sync_period = 500;
+        success_expiration_time = 500;
+        failure_expiration_time = 500;
     };
 }
 """)
