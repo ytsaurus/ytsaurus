@@ -215,30 +215,60 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/// Info about failed jobs.
+///
+/// @see NYT::TOperationFailedError
 struct TFailedJobInfo
 {
+    /// Id of a job.
     TJobId JobId;
+
+    /// Error describing job failure.
     TYtError Error;
+
+    /// Stderr of job.
+    ///
+    /// @note YT doesn't store all job stderrs, check @ref NYT::IOperationClient::GetJobStderr
+    /// for list of limitations.
+    ///
+    /// @see NYT::IOperaitonClient::GetJobStderr
     TString Stderr;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+///
+/// @brief Error that is thrown when operation watched by library fails.
+///
+/// This error is thrown from operation starting methods when they are started in sync mode (@ refNYT::TOperationOptions::Wait == true)
+/// or from future returned by NYT::IOperation::Watch.
+///
+/// @see NYT::IOperationClient
 class TOperationFailedError
     : public yexception
 {
 public:
+    /// Final state of operation.
     enum EState {
+        /// Operation was failed due to some error.
         Failed,
+        /// Operation didn't experienced errors, but was aborted by user request or by YT.
         Aborted,
     };
 
 public:
     TOperationFailedError(EState state, TOperationId id, TYtError ytError, TVector<TFailedJobInfo> failedJobInfo);
 
+    /// Get final state of operation.
     EState GetState() const;
+
+    /// Get operation id.
     TOperationId GetOperationId() const;
+
+    /// Return operation error.
     const TYtError& GetError() const;
+
+    /// Return info about failed jobs (if any).
     const TVector<TFailedJobInfo>& GetFailedJobInfo() const;
 
 private:

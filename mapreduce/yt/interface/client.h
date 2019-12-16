@@ -342,6 +342,12 @@ public:
     /// @brief Get stderr of a running or failed job
     ///
     /// TErrorResponse exception is thrown if it is missing.
+    ///
+    /// @note YT doesn't store all job stderrs
+    ///
+    /// @note If job stderr exceeds few megabytes YT will store only head and tail of stderr.
+    ///
+    /// @see https://yt.yandex-team.ru/docs//description/mr/operations_options.html
     virtual IFileReaderPtr GetJobStderr(
         const TOperationId& operationId,
         const TJobId& jobId,
