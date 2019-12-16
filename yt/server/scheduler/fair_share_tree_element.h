@@ -920,9 +920,9 @@ private:
 
     bool HasJobsSatisfyingResourceLimits(const TFairShareContext& context) const;
 
-    bool IsMaxConcurrentScheduleJobCallsViolated() const;
+    bool IsMaxConcurrentScheduleJobCallsViolated(const ISchedulingContextPtr& schedulingContext) const;
     bool HasRecentScheduleJobFailure(NProfiling::TCpuInstant now) const;
-    std::optional<EDeactivationReason> CheckBlocked(NProfiling::TCpuInstant now) const;
+    std::optional<EDeactivationReason> CheckBlocked(const ISchedulingContextPtr& schedulingContext) const;
 
     void RecordHeartbeat(const TPackingHeartbeatSnapshot& heartbeatSnapshot);
     bool CheckPacking(const TPackingHeartbeatSnapshot& heartbeatSnapshot) const;
@@ -935,6 +935,7 @@ private:
         TJobResources* availableResourcesOutput);
 
     void FinishScheduleJob(
+        const ISchedulingContextPtr& schedulingContext,
         bool enableBackoff,
         NProfiling::TCpuInstant now);
 
