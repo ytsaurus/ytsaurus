@@ -908,16 +908,6 @@ TNode::TListType TClient::SelectRows(
     return NodeFromYsonString(result.Response, YT_LIST_FRAGMENT).AsList();
 }
 
-void TClient::EnableTableReplica(const TReplicaId& replicaId)
-{
-    NRawClient::EnableTableReplica(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, replicaId);
-}
-
-void TClient::DisableTableReplica(const TReplicaId& replicaId)
-{
-    NRawClient::DisableTableReplica(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, replicaId);
-}
-
 void TClient::AlterTableReplica(const TReplicaId& replicaId, const TAlterTableReplicaOptions& options)
 {
     NRawClient::AlterTableReplica(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, replicaId, options);
