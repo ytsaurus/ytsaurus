@@ -283,7 +283,7 @@ public:
                 "tablet_cell_bundle",
                 TabletCellBundle ? TabletCellBundle : UnknownProfilingTag)
         }
-        , OptionsString_(TYsonString(createInfo.options()))
+        , Options_(ConvertTo<TTabletCellOptionsPtr>(TYsonString(createInfo.options())))
         , Logger(GetLogger())
     {
         VERIFY_INVOKER_THREAD_AFFINITY(GetAutomatonInvoker(), AutomatonThread);
@@ -438,8 +438,6 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(!Initialized_);
-
-        Options_ = ConvertTo<TTabletCellOptionsPtr>(OptionsString_);
 
         Initialized_ = true;
 
@@ -799,8 +797,7 @@ private:
 
     const NProfiling::TTagIdList ProfilingTagIds_;
 
-    const TYsonString OptionsString_;
-    TTabletCellOptionsPtr Options_;
+    const TTabletCellOptionsPtr Options_;
 
     TSpinLock DynamicOptionsLock;
     TDynamicTabletCellOptionsPtr DynamicOptions_ = New<TDynamicTabletCellOptions>();
