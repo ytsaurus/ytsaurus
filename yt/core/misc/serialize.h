@@ -25,21 +25,25 @@ namespace NYT {
 constexpr size_t SerializationAlignment = 8;
 static_assert(
     (SerializationAlignment & (SerializationAlignment - 1)) == 0,
-    "SerializationAlignment should be a power of two.");
+    "SerializationAlignment should be a power of two");
 
-//! Array of zeroes.
-constexpr ui8 SerializationPadding[SerializationAlignment] = {};
+//! The size of the zero buffer used by #WriteZeroes and #WritePadding.
+constexpr size_t ZeroBufferSize = 64_KB;
+static_assert(
+    ZeroBufferSize >= SerializationAlignment,
+    "ZeroBufferSize < SerializationAlignment");
+extern std::array<ui8, ZeroBufferSize> ZeroBuffer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TOutput>
-void Write(TOutput& output, TRef ref)
+void WriteRef(TOutput& output, TRef ref)
 {
     output.Write(ref.Begin(), ref.Size());
 }
 
 template <class TInput>
-size_t Read(TInput& input, TRef& ref)
+size_t ReadRef(TInput& input, TRef& ref)
 {
     auto loadBytes = input.Load(ref.Begin(), ref.Size());
     YT_VERIFY(loadBytes == ref.Size());
@@ -60,22 +64,35 @@ template <class TInput, class T>
 void ReadPodOrThrow(TInput& input, T& obj);
 
 template <class TOutput>
+size_t WriteZeroes(TOutput& output, size_t count)
+{
+    size_t written = 0;
+    while (written < count) {
+        size_t toWrite = Min(ZeroBufferSize, count - written);
+        output.Write(ZeroBuffer.data(), toWrite);
+        written += toWrite;
+    }
+    YT_VERIFY(written == count);
+    return written;
+}
+
+template <class TOutput>
 size_t WritePadding(TOutput& output, size_t writtenSize)
 {
-    output.Write(SerializationPadding, AlignUpSpace(writtenSize, SerializationAlignment));
+    output.Write(ZeroBuffer.data(), AlignUpSpace(writtenSize, SerializationAlignment));
     return AlignUp(writtenSize, SerializationAlignment);
 }
 
 template <class TOutput>
-size_t WritePadded(TOutput& output, TRef ref)
+size_t WriteRefPadded(TOutput& output, TRef ref)
 {
     output.Write(ref.Begin(), ref.Size());
-    output.Write(SerializationPadding, AlignUpSpace(ref.Size(), SerializationAlignment));
+    output.Write(ZeroBuffer.data(), AlignUpSpace(ref.Size(), SerializationAlignment));
     return AlignUp(ref.Size(), SerializationAlignment);
 }
 
 template <class TInput>
-size_t ReadPadded(TInput& input, const TMutableRef& ref)
+size_t ReadRefPadded(TInput& input, TMutableRef ref)
 {
     auto loadBytes = input.Load(ref.Begin(), ref.Size());
     YT_VERIFY(loadBytes == ref.Size());
@@ -87,14 +104,14 @@ template <class TInput, class T>
 size_t ReadPodPadded(TInput& input, T& obj)
 {
     static_assert(TTypeTraits<T>::IsPod, "T must be a pod-type.");
-    return ReadPadded(input, TMutableRef::FromPod(obj));
+    return ReadRefPadded(input, TMutableRef::FromPod(obj));
 }
 
 template <class TOutput, class T>
 size_t WritePodPadded(TOutput& output, const T& obj)
 {
     static_assert(TTypeTraits<T>::IsPod, "T must be a pod-type.");
-    return WritePadded(output, TRef::FromPod(obj));
+    return WriteRefPadded(output, TRef::FromPod(obj));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -120,7 +137,7 @@ TSharedRef PackRefs(const T& parts)
     WritePod(output, static_cast<i32>(parts.size()));
     for (const auto& ref : parts) {
         WritePod(output, static_cast<i64>(ref.Size()));
-        Write(output, ref);
+        WriteRef(output, ref);
     }
 
     return result;
@@ -463,6 +480,7 @@ struct TRangeSerializer
     template <class C>
     static void Save(C& context, TRef value)
     {
+        // XXX
         auto* output = context.GetOutput();
         output->Write(value.Begin(), value.Size());
     }
@@ -470,6 +488,7 @@ struct TRangeSerializer
     template <class C>
     static void Load(C& context, const TMutableRef& value)
     {
+        // XXX
         auto* input = context.GetInput();
         YT_VERIFY(input->Load(value.Begin(), value.Size()) == value.Size());
 
@@ -537,7 +556,7 @@ struct TSharedRefSerializer
     static void Save(C& context, const TSharedRef& value)
     {
         TSizeSerializer::Save(context, value.Size());
-
+        // XXX
         auto* output = context.GetOutput();
         output->Write(value.Begin(), value.Size());
     }
@@ -554,6 +573,7 @@ struct TSharedRefSerializer
         size_t size = TSizeSerializer::LoadSuspended(context);
         auto mutableValue = TSharedMutableRef::Allocate<TTag>(size, false);
 
+        // XXX
         auto* input = context.GetInput();
         YT_VERIFY(input->Load(mutableValue.Begin(), mutableValue.Size()) == mutableValue.Size());
         value = mutableValue;

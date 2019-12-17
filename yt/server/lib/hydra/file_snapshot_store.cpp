@@ -146,7 +146,7 @@ private:
             }
 
             auto serializedMeta = TSharedMutableRef::Allocate(Header_.MetaSize, false);
-            ReadPadded(input, serializedMeta);
+            ReadRefPadded(input, serializedMeta);
             DeserializeProto(&Meta_, serializedMeta);
 
             if (Raw_) {
@@ -322,7 +322,7 @@ private:
                 TSnapshotHeader header;
                 Zero(header);
                 WritePod(*File_, header);
-                WritePadded(*File_, SerializedMeta_);
+                WriteRefPadded(*File_, SerializedMeta_);
                 File_->Flush();
 
                 ChecksumOutput_.reset(new TChecksumOutput(FileOutput_.get()));
