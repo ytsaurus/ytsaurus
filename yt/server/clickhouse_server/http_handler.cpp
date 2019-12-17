@@ -126,6 +126,11 @@ TTraceContextPtr SetupTraceContext(
         traceContext->SetSampled();
     }
 
+    auto maybeDatalensRequestId = request.get("X-Request-Id", "");
+    if (!maybeDatalensRequestId.empty()) {
+        YT_LOG_INFO("Request contains DataLens request id (RequestId: %v)", maybeDatalensRequestId);
+    }
+
     return traceContext;
 }
 
