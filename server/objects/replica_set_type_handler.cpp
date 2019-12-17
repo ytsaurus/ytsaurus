@@ -3,6 +3,8 @@
 #include "type_handler_detail.h"
 #include "replica_set.h"
 #include "db_schema.h"
+#include "pod_type_handler.h"
+#include "config.h"
 
 #include <yp/server/master/bootstrap.h>
 
@@ -21,8 +23,9 @@ class TReplicaSetTypeHandler
     : public TObjectTypeHandlerBase
 {
 public:
-    explicit TReplicaSetTypeHandler(NMaster::TBootstrap* bootstrap)
+    TReplicaSetTypeHandler(NMaster::TBootstrap* bootstrap, TPodSpecValidationConfigPtr validationConfig)
         : TObjectTypeHandlerBase(bootstrap, EObjectType::ReplicaSet)
+        , PodSpecValidationConfig_(std::move(validationConfig))
     { }
 
     virtual void Initialize() override
@@ -41,6 +44,7 @@ public:
                 MakeEtcAttributeSchema()
                     ->SetAttribute(TReplicaSet::TSpec::EtcSchema)
                     ->SetUpdatable()
+                    ->SetValidator<TReplicaSet>(std::bind(&TReplicaSetTypeHandler::ValidateSpec, this, _1, _2)),
             })
             ->SetExtensible()
             ->EnableHistory();
@@ -75,17 +79,26 @@ public:
         return std::unique_ptr<TObject>(new TReplicaSet(id, this, session));
     }
 
+    void ValidateSpec(TTransaction* transaction, TReplicaSet* replicaSet)
+    {
+        ValidateDeployPodSpecTemplate(Bootstrap_->GetAccessControlManager(), transaction, replicaSet->Spec().Etc().Load().pod_template_spec().spec(),
+            PodSpecValidationConfig_);
+    }
+
     void ValidateAccount(TTransaction* /*transaction*/, TReplicaSet* replicaSet)
     {
         auto* account = replicaSet->Spec().Account().Load();
         const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
         accessControlManager->ValidatePermission(account, EAccessControlPermission::Use);
     }
+
+private:
+    const TPodSpecValidationConfigPtr PodSpecValidationConfig_;
 };
 
-std::unique_ptr<IObjectTypeHandler> CreateReplicaSetTypeHandler(NMaster::TBootstrap* bootstrap)
+std::unique_ptr<IObjectTypeHandler> CreateReplicaSetTypeHandler(NMaster::TBootstrap* bootstrap, TPodSpecValidationConfigPtr validationConfig)
 {
-    return std::unique_ptr<IObjectTypeHandler>(new TReplicaSetTypeHandler(bootstrap));
+    return std::unique_ptr<IObjectTypeHandler>(new TReplicaSetTypeHandler(bootstrap, std::move(validationConfig)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -22,11 +22,13 @@ class TestPodsWithLimitedVcpuGuarantee(object):
     YP_MASTER_CONFIG = {
         "object_manager": {
             "pod_type_handler": {
-                "min_vcpu_guarantee": 150,
                 "default_vcpu_guarantee": 500,
                 "default_memory_guarantee": 1500,
                 "default_slot": 0,
-            }
+                "spec_validation": {
+                    "min_vcpu_guarantee": 150,
+                },
+            },
         }
     }
 

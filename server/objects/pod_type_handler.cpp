@@ -46,6 +46,18 @@ using std::placeholders::_1;
 using std::placeholders::_2;
 using std::placeholders::_3;
 
+using ::google::protobuf::RepeatedPtrField;
+
+namespace {
+// Common checks for pod spec used in Pod objects for TPodSpecEtc and objects which aggregate TPodSpec.
+template <class TPodSpecBase>
+void ValidatePodSpecParts(
+    TAccessControlManagerPtr accessControlManager,
+    TTransaction* transaction,
+    const TPodSpecBase& spec,
+    const TPodSpecValidationConfigPtr& config);
+}
+
 class TPodTypeHandler
     : public TObjectTypeHandlerBase
 {
@@ -397,21 +409,7 @@ private:
         }
 
         if (specEtc.IsChanged()) {
-            for (const auto& spec : specEtc.Load().host_devices()) {
-                ValidateHostDeviceSpec(spec);
-            }
-
-            for (const auto& spec : specEtc.Load().sysctl_properties()) {
-                ValidateSysctlProperty(spec);
-            }
-
-            ValidateDiskVolumeRequests(pod);
-
-            ValidateGpuRequests(pod);
-
-            ValidateNetworkRequests(transaction, pod);
-
-            ValidateResourceRequests(pod);
+            ValidatePodSpecParts(Bootstrap_->GetAccessControlManager(), transaction, specEtc.Load(), Config_->SpecValidation);
         }
 
         if (spec.IssPayload().IsChanged()) {
@@ -525,88 +523,6 @@ private:
         pod->Spec().UpdateTimestamp().Touch();
     }
 
-    template <class T>
-    static void ValidateNoDuplicateResourceRequestIds(const T& items, TStringBuf resourceName)
-    {
-        THashSet<TString> ids;
-        for (const auto& item : items) {
-            if (!ids.insert(item.id()).second) {
-                THROW_ERROR_EXCEPTION("Duplicate %Qv request %Qv",
-                    resourceName,
-                    item.id());
-            }
-        }
-    }
-
-    static void ValidateDiskVolumeRequests(TPod* pod)
-    {
-        const auto& requests = pod->Spec().Etc().Load().disk_volume_requests();
-        ValidateNoDuplicateResourceRequestIds(requests, "disk volume");
-        for (const auto& request : requests) {
-            if (!request.has_quota_policy() &&
-                !request.has_exclusive_policy())
-            {
-                THROW_ERROR_EXCEPTION("Missing policy in disk volume request %Qv",
-                    request.id());
-            }
-        }
-    }
-
-    static void ValidateGpuRequests(TPod* pod)
-    {
-        const auto& requests = pod->Spec().Etc().Load().gpu_requests();
-        ValidateNoDuplicateResourceRequestIds(requests, "GPU");
-    }
-
-    void ValidateNetworkRequests(TTransaction* transaction, TPod* pod)
-    {
-        auto validateUsePermission = [&] (TObject* object) {
-            const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
-            accessControlManager->ValidatePermission(object, EAccessControlPermission::Use);
-        };
-
-        auto validateNetworkProject = [&] (const TObjectId& networkProjectId) {
-            auto* networkProject = transaction->GetNetworkProject(networkProjectId);
-            validateUsePermission(networkProject);
-        };
-
-        for (const auto& request : pod->Spec().Etc().Load().ip6_address_requests()) {
-            validateNetworkProject(request.network_id());
-
-            for (const auto& virtualServiceId : request.virtual_service_ids()) {
-                ValidateObjectId(EObjectType::VirtualService, virtualServiceId);
-            }
-
-            if (const auto& poolId = request.ip4_address_pool_id(); !poolId.empty()) {
-                auto* pool = transaction->GetIP4AddressPool(poolId);
-                validateUsePermission(pool);
-            } else if (request.enable_internet()) {
-                auto* pool = transaction->GetIP4AddressPool(DefaultIP4AddressPoolId);
-                validateUsePermission(pool);
-            }
-        }
-
-        for (const auto& request : pod->Spec().Etc().Load().ip6_subnet_requests()) {
-            if (request.has_network_id()) {
-                validateNetworkProject(request.network_id());
-            } else {
-                const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
-                accessControlManager->ValidateSuperuser("configure IP6 subnet request without network id");
-            }
-        }
-    }
-
-    void ValidateResourceRequests(TPod* pod)
-    {
-        const auto& resourceRequests = pod->Spec().Etc().Load().resource_requests();
-
-        if (resourceRequests.has_vcpu_guarantee() && resourceRequests.vcpu_guarantee() < Config_->MinVcpuGuarantee) {
-            THROW_ERROR_EXCEPTION("Invalid vcpu_gurantee value: expected >= %v, got %v",
-                                  Config_->MinVcpuGuarantee,
-                                  resourceRequests.vcpu_guarantee());
-        }
-    }
-
     void ValidateAccount(TTransaction* /*transaction*/, TPod* pod)
     {
         auto* account = pod->Spec().Account().Load();
@@ -707,6 +623,130 @@ private:
         return false;
     }
 };
+
+namespace {
+
+void ValidateNetworkRequests(
+    TAccessControlManagerPtr accessControlManager,
+    TTransaction* transaction,
+    const RepeatedPtrField<NClient::NApi::NProto::TPodSpec_TIP6AddressRequest>& ip6AddressRequests,
+    const RepeatedPtrField<NClient::NApi::NProto::TPodSpec_TIP6SubnetRequest>& ip6SubnetRequests)
+{
+    auto validateUsePermission = [&] (TObject* object) {
+        accessControlManager->ValidatePermission(object, NAccessControl::EAccessControlPermission::Use);
+    };
+
+    auto validateNetworkProject = [&] (const TObjectId& networkProjectId) {
+        auto* networkProject = transaction->GetNetworkProject(networkProjectId);
+        validateUsePermission(networkProject);
+    };
+
+    for (const auto& request : ip6AddressRequests) {
+        validateNetworkProject(request.network_id());
+
+        for (const auto& virtualServiceId : request.virtual_service_ids()) {
+            ValidateObjectId(EObjectType::VirtualService, virtualServiceId);
+        }
+
+        if (const auto& poolId = request.ip4_address_pool_id(); !poolId.empty()) {
+            auto* pool = transaction->GetIP4AddressPool(poolId);
+            validateUsePermission(pool);
+        } else if (request.enable_internet()) {
+            auto* pool = transaction->GetIP4AddressPool(DefaultIP4AddressPoolId);
+            validateUsePermission(pool);
+        }
+    }
+
+    for (const auto& request : ip6SubnetRequests) {
+        if (request.has_network_id()) {
+            validateNetworkProject(request.network_id());
+        } else {
+            accessControlManager->ValidateSuperuser("configure IP6 subnet request without network id");
+        }
+    }
+}
+
+template <class T>
+void ValidateNoDuplicateResourceRequestIds(const T& items, TStringBuf resourceName)
+{
+    THashSet<TString> ids;
+    for (const auto& item : items) {
+        if (!ids.insert(item.id()).second) {
+            THROW_ERROR_EXCEPTION("Duplicate %Qv request %Qv",
+                resourceName,
+                item.id());
+        }
+    }
+}
+
+void ValidateGpuRequests(const RepeatedPtrField<NClient::NApi::NProto::TPodSpec_TGpuRequest>& requests)
+{
+    ValidateNoDuplicateResourceRequestIds(requests, "GPU");
+}
+
+void ValidateResourceRequests(
+    const NClient::NApi::NProto::TPodSpec_TResourceRequests& resourceRequests,
+    ui64 minVcpuGuarantee)
+{
+    if (resourceRequests.has_vcpu_guarantee() && resourceRequests.vcpu_guarantee() < minVcpuGuarantee) {
+        THROW_ERROR_EXCEPTION("Invalid vcpu_gurantee value: expected >= %v, got %v",
+            minVcpuGuarantee,
+            resourceRequests.vcpu_guarantee());
+    }
+}
+
+void ValidateDiskVolumeRequests(const RepeatedPtrField<NClient::NApi::NProto::TPodSpec_TDiskVolumeRequest>& requests)
+{
+    ValidateNoDuplicateResourceRequestIds(requests, "disk volume");
+    for (const auto& request : requests) {
+        if (!request.has_quota_policy() &&
+            !request.has_exclusive_policy())
+        {
+            THROW_ERROR_EXCEPTION("Missing policy in disk volume request %Qv",
+                request.id());
+        }
+    }
+}
+
+template <class TPodSpecBase>
+void ValidatePodSpecParts(
+    TAccessControlManagerPtr accessControlManager,
+    TTransaction* transaction,
+    const TPodSpecBase& podSpec,
+    const TPodSpecValidationConfigPtr& config)
+{
+    for (const auto& spec : podSpec.host_devices()) {
+        ValidateHostDeviceSpec(spec);
+    }
+
+    for (const auto& spec : podSpec.sysctl_properties()) {
+        ValidateSysctlProperty(spec);
+    }
+
+    ValidateGpuRequests(podSpec.gpu_requests());
+
+    ValidateDiskVolumeRequests(podSpec.disk_volume_requests());
+
+    ValidateNetworkRequests(std::move(accessControlManager), transaction, podSpec.ip6_address_requests(),
+        podSpec.ip6_subnet_requests());
+
+    ValidateResourceRequests(podSpec.resource_requests(), config->MinVcpuGuarantee);
+}
+
+}
+
+void ValidateDeployPodSpecTemplate(
+    const TAccessControlManagerPtr& accessControlManager,
+    TTransaction* transaction,
+    const NClient::NApi::NProto::TPodSpec& podSpec,
+    const TPodSpecValidationConfigPtr& config)
+{
+    ValidatePodSpecParts(std::move(accessControlManager), transaction, podSpec, config);
+
+    if (podSpec.has_iss_payload()) {
+        THROW_ERROR_EXCEPTION("ISS payload is not supported in Deploy");
+    }
+}
 
 std::unique_ptr<IObjectTypeHandler> CreatePodTypeHandler(NMaster::TBootstrap* bootstrap, TPodTypeHandlerConfigPtr config)
 {

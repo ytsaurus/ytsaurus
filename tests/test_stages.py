@@ -34,3 +34,45 @@ class TestStages(object):
         yp_client = yp_env.yp_client
         stage_id = yp_client.create_object("stage", attributes={"meta": {"id": "stage_id", "project_id": "project1"}, "spec": {"account_id": "tmp"}})
         yp_client.update_object("stage", stage_id, set_updates=[{"path": "/meta/project_id", "value": "project2"}])
+
+    def test_default_network_project_permissions(self, yp_env):
+        project_id = "project_id"
+
+        spec = {
+            "account_id": "tmp",
+            "deploy_units": {
+                "Unit": {
+                    "network_defaults": {
+                        "network_id": project_id
+                    }
+                }
+            }
+
+        }
+
+        templates.network_project_permissions_test_template(yp_env, "stage", project_id, spec)
+
+    def test_template_network_project_permissions(self, yp_env):
+        project_id = "project_id"
+
+        spec = {
+            "account_id": "tmp",
+            "deploy_units": {
+                "Unit": {
+                    "replica_set": {
+                        "replica_set_template": {
+                            "pod_template_spec": {
+                                "spec": {
+                                    "ip6_address_requests": [{
+                                        "network_id": project_id,
+                                        "vlan_id": "backbone"
+                                    }]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        templates.network_project_permissions_test_template(yp_env, "stage", project_id, spec)

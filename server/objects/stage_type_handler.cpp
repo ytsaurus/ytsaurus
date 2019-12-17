@@ -3,10 +3,15 @@
 #include "stage.h"
 #include "stage_type_handler.h"
 #include "type_handler_detail.h"
+#include "network_project.h"
+#include "pod_type_handler.h"
+#include "config.h"
 
 #include <yp/server/master/bootstrap.h>
 
 #include <yp/server/access_control/access_control_manager.h>
+
+#include <yp/client/api/proto/stage.pb.h>
 
 #include <contrib/libs/re2/re2/re2.h>
 
@@ -23,8 +28,9 @@ class TStageTypeHandler
     : public TObjectTypeHandlerBase
 {
 public:
-    explicit TStageTypeHandler(NMaster::TBootstrap* bootstrap)
+    TStageTypeHandler(NMaster::TBootstrap* bootstrap, TPodSpecValidationConfigPtr validationConfig)
         : TObjectTypeHandlerBase(bootstrap, EObjectType::Stage)
+        , PodSpecValidationConfig_(std::move(validationConfig))
     { }
 
     virtual void Initialize() override
@@ -52,7 +58,7 @@ public:
                     ->SetUpdatable()
             })
             // TODO(YP-1389) Move validator to EtcAttributeSchema after the bug is fixed.
-            ->SetValidator<TStage>(ValidateSpec)
+            ->SetValidator<TStage>(std::bind(&TStageTypeHandler::ValidateSpec, this, _1, _2))
             ->SetExtensible()
             ->EnableHistory();
 
@@ -89,6 +95,8 @@ public:
     }
 
 private:
+    const TPodSpecValidationConfigPtr PodSpecValidationConfig_;
+
     void ValidateAccount(TTransaction* /*transaction*/, TStage* stage)
     {
         auto* account = stage->Spec().Account().Load();
@@ -106,7 +114,7 @@ private:
             << ex;
     }
 
-    static void ValidateSpec(TTransaction* /*transaction*/, TStage* stage)
+    void ValidateSpec(TTransaction* transaction, TStage* stage)
     {
         try {
             for (const auto& idAndDeployUnit : stage->Spec().Etc().Load().deploy_units()) {
@@ -117,14 +125,28 @@ private:
                     ? deployUnit.replica_set().replica_set_template().pod_template_spec()
                     : deployUnit.multi_cluster_replica_set().replica_set().pod_template_spec();
                 ValidatePodSpecResourceRequests(podTemplateSpec.spec().resource_requests());
+                ValidateDeployPodSpecTemplate(Bootstrap_->GetAccessControlManager(), transaction, podTemplateSpec.spec(), PodSpecValidationConfig_);
                 ValidatePodAgentSpec(podTemplateSpec.spec().pod_agent_payload().spec());
 
                 if (deployUnit.has_tvm_config()) {
                     ValidateTvmConfig(deployUnit.tvm_config());
                 }
+
+                if (deployUnit.has_network_defaults()) {
+                    ValidateDefaultNetworkProject(transaction, deployUnit.network_defaults());
+                }
             }
         } catch (const std::exception& ex) {
             ThrowValidationError(ex, NClient::NApi::EErrorCode::InvalidObjectSpec, stage->GetId());
+        }
+    }
+
+    void ValidateDefaultNetworkProject(TTransaction* transaction, const NClient::NApi::NProto::TNetworkDefaults& networkDefaults)
+    {
+        if (!networkDefaults.network_id().empty()) {
+            auto* networkProject = transaction->GetNetworkProject(networkDefaults.network_id());
+            const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
+            accessControlManager->ValidatePermission(networkProject, NAccessControl::EAccessControlPermission::Use);
         }
     }
 
@@ -154,9 +176,9 @@ private:
     }
 };
 
-std::unique_ptr<IObjectTypeHandler> CreateStageTypeHandler(NMaster::TBootstrap* bootstrap)
+std::unique_ptr<IObjectTypeHandler> CreateStageTypeHandler(NMaster::TBootstrap* bootstrap, TPodSpecValidationConfigPtr validationConfig)
 {
-    return std::unique_ptr<IObjectTypeHandler>(new TStageTypeHandler(bootstrap));
+    return std::unique_ptr<IObjectTypeHandler>(new TStageTypeHandler(bootstrap, std::move(validationConfig)));
 }
 
 void ValidateTvmConfig(const NClient::NApi::NProto::TTvmConfig& config)

@@ -107,3 +107,7 @@ class TestReplicaSets(object):
 
         yp_client.update_object("replica_set", rs_id, remove_updates=[{"path": "/status/hello"}])
         assert yp_client.get_object("replica_set", rs_id, selectors=["/status/hello"])[0] == YsonEntity()
+
+
+    def test_network_project_permissions(self, yp_env):
+        templates.replica_set_network_project_permissions_test_template(yp_env, "replica_set")

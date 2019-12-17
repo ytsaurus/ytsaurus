@@ -89,7 +89,7 @@ public:
         RegisterTypeHandler(CreatePodSetTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateEndpointTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateEndpointSetTypeHandler(Bootstrap_));
-        RegisterTypeHandler(CreateStageTypeHandler(Bootstrap_));
+        RegisterTypeHandler(CreateStageTypeHandler(Bootstrap_, Config_->PodTypeHandler->SpecValidation));
         RegisterTypeHandler(CreateNetworkProjectTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateNodeSegmentTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateVirtualServiceTypeHandler(Bootstrap_));
@@ -98,10 +98,10 @@ public:
         RegisterTypeHandler(CreateInternetAddressTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateIP4AddressPoolsTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateAccountTypeHandler(Bootstrap_));
-        RegisterTypeHandler(CreateReplicaSetTypeHandler(Bootstrap_));
+        RegisterTypeHandler(CreateReplicaSetTypeHandler(Bootstrap_, Config_->PodTypeHandler->SpecValidation));
         RegisterTypeHandler(CreateDnsRecordSetTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateResourceCacheTypeHandler(Bootstrap_));
-        RegisterTypeHandler(CreateMultiClusterReplicaSetTypeHandler(Bootstrap_));
+        RegisterTypeHandler(CreateMultiClusterReplicaSetTypeHandler(Bootstrap_, Config_->PodTypeHandler->SpecValidation));
         RegisterTypeHandler(CreateDynamicResourceTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreatePodDisruptionBudgetTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateProjectTypeHandler(Bootstrap_));

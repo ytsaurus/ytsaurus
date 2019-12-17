@@ -10,25 +10,43 @@ namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPodTypeHandlerConfig
+// Config shared by classes that aggregate pod spec.
+class TPodSpecValidationConfig
     : public NYT::NYTree::TYsonSerializable
 {
 public:
     ui64 MinVcpuGuarantee;
-    ui64 DefaultVcpuGuarantee;
-    ui64 DefaultMemoryGuarantee;
-    ui64 DefaultSlot;
 
-    TPodTypeHandlerConfig()
+    TPodSpecValidationConfig()
     {
         RegisterParameter("min_vcpu_guarantee", MinVcpuGuarantee)
             .Default(100);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TPodSpecValidationConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TPodTypeHandlerConfig
+    : public NYT::NYTree::TYsonSerializable
+{
+public:
+    ui64 DefaultVcpuGuarantee;
+    ui64 DefaultMemoryGuarantee;
+    ui64 DefaultSlot;
+    TPodSpecValidationConfigPtr SpecValidation;
+
+    TPodTypeHandlerConfig()
+    {
         RegisterParameter("default_vcpu_guarantee", DefaultVcpuGuarantee)
             .Default(1000);
         RegisterParameter("default_memory_guarantee", DefaultMemoryGuarantee)
             .Default(100_MB);
         RegisterParameter("default_slot", DefaultSlot)
             .Default(1);
+        RegisterParameter("spec_validation", SpecValidation)
+            .DefaultNew();
     }
 };
 
@@ -44,6 +62,7 @@ public:
     TDuration RemovedObjectsGraceTimeout;
     int RemovedObjectsDropBatchSize;
     TPodTypeHandlerConfigPtr PodTypeHandler;
+    TPodSpecValidationConfigPtr PodSpecValidationConfig;
     bool EnableExtensibleAttributes;
     bool EnableHistory;
 
@@ -57,6 +76,8 @@ public:
             .GreaterThanOrEqual(1)
             .Default(50000);
         RegisterParameter("pod_type_handler", PodTypeHandler)
+            .DefaultNew();
+        RegisterParameter("pod_spec_validation", PodSpecValidationConfig)
             .DefaultNew();
         RegisterParameter("enable_extensible_attributes", EnableExtensibleAttributes)
             .Default(false);

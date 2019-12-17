@@ -3,6 +3,8 @@
 #include "multi_cluster_replica_set.h"
 #include "account.h"
 #include "db_schema.h"
+#include "pod_type_handler.h"
+#include "config.h"
 
 #include <yp/server/master/bootstrap.h>
 
@@ -21,8 +23,9 @@ class TMultiClusterReplicaSetTypeHandler
     : public TObjectTypeHandlerBase
 {
 public:
-    explicit TMultiClusterReplicaSetTypeHandler(NMaster::TBootstrap* bootstrap)
+    TMultiClusterReplicaSetTypeHandler(NMaster::TBootstrap* bootstrap, TPodSpecValidationConfigPtr validationConfig)
         : TObjectTypeHandlerBase(bootstrap, EObjectType::MultiClusterReplicaSet)
+        , PodSpecValidationConfig_(std::move(validationConfig))
     { }
 
     virtual void Initialize() override
@@ -40,6 +43,7 @@ public:
                 MakeEtcAttributeSchema()
                     ->SetAttribute(TMultiClusterReplicaSet::TSpec::EtcSchema)
                     ->SetUpdatable()
+                    ->SetValidator<TMultiClusterReplicaSet>(std::bind(&TMultiClusterReplicaSetTypeHandler::ValidateSpec, this, _1, _2))
             })
             ->SetExtensible()
             ->EnableHistory();
@@ -74,6 +78,14 @@ public:
     }
 
 private:
+    const TPodSpecValidationConfigPtr PodSpecValidationConfig_;
+
+    void ValidateSpec(TTransaction* transaction, TMultiClusterReplicaSet* replicaSet)
+    {
+        ValidateDeployPodSpecTemplate(Bootstrap_->GetAccessControlManager(), transaction, replicaSet->Spec().Etc().Load().pod_template_spec().spec(),
+            PodSpecValidationConfig_);
+    }
+
     void ValidateAccount(TTransaction* /*transaction*/, TMultiClusterReplicaSet* replicaSet)
     {
         auto* account = replicaSet->Spec().Account().Load();
@@ -82,9 +94,9 @@ private:
     }
 };
 
-std::unique_ptr<IObjectTypeHandler> CreateMultiClusterReplicaSetTypeHandler(NMaster::TBootstrap* bootstrap)
+std::unique_ptr<IObjectTypeHandler> CreateMultiClusterReplicaSetTypeHandler(NMaster::TBootstrap* bootstrap, TPodSpecValidationConfigPtr validationConfig)
 {
-    return std::unique_ptr<IObjectTypeHandler>(new TMultiClusterReplicaSetTypeHandler(bootstrap));
+    return std::unique_ptr<IObjectTypeHandler>(new TMultiClusterReplicaSetTypeHandler(bootstrap, std::move(validationConfig)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

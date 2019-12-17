@@ -23,6 +23,7 @@ class TPodStatusEtc;
 } // namespace NProto
 
 DECLARE_REFCOUNTED_CLASS(TPodTypeHandlerConfig)
+DECLARE_REFCOUNTED_CLASS(TPodSpecValidationConfig)
 
 DECLARE_REFCOUNTED_CLASS(TObjectManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TObjectManager)

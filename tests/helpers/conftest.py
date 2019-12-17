@@ -60,7 +60,9 @@ ZERO_RESOURCE_REQUESTS = {
 DEFAULT_YP_MASTER_CONFIG = {
     "object_manager": {
         "pod_type_handler": {
-            "min_vcpu_guarantee": 0
+            "spec_validation": {
+                "min_vcpu_guarantee": 0
+            }
         }
     }
 }

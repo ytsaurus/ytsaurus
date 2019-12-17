@@ -53,3 +53,45 @@ def update_spec_test_template(yp_client, object_type, initial_spec, update_path,
 
 def update_spec_revision_test_template(yp_client, object_type):
     update_spec_test_template(yp_client, object_type, {"revision": 1}, "/spec/revision", 2)
+
+
+def replica_set_network_project_permissions_test_template(yp_env, replica_set_object_type):
+    network_project = "project"
+
+    spec = {
+        "account_id": "tmp",
+        "pod_template_spec": {
+            "spec": {
+                "ip6_address_requests": [{
+                    "network_id": network_project,
+                    "vlan_id": "backbone"
+                }]
+            }
+        }
+    }
+
+    network_project_permissions_test_template(yp_env, replica_set_object_type, network_project, spec)
+
+
+def network_project_permissions_test_template(yp_env, object_type, network_project, spec):
+    yp_client = yp_env.yp_client
+
+    yp_client.create_object("network_project", attributes={
+        "spec": {"project_id": 1234},
+        "meta": {"id": network_project}
+    })
+
+    user_id = yp_client.create_object("user", attributes={"meta": {"id": "u"}})
+    yp_env.sync_access_control()
+
+    with yp_env.yp_instance.create_client(config={"user": user_id}) as client:
+        with pytest.raises(YpAuthorizationError):
+            client.create_object(object_type, attributes={"spec": spec})
+
+    yp_client.update_object("network_project", network_project, set_updates=[
+        {"path": "/meta/acl/end", "value": {"action": "allow", "permissions": ["use"], "subjects": [user_id]}}
+    ])
+    yp_env.sync_access_control()
+
+    with yp_env.yp_instance.create_client(config={"user": user_id}) as client:
+        client.create_object(object_type, attributes={"spec": spec})
