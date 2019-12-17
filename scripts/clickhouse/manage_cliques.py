@@ -53,10 +53,13 @@ def collect_cliques():
             by_kind["empty"].append(clique)
         elif str(clique) not in op_id_to_op:
             by_kind["not_running_with_discovery"].append(clique)
-        elif attributes.get("discovery_version", 0) == 0:
-            by_kind["v0"].append(clique)
         else:
-            by_kind["v1"].append(clique)
+            op = op_id_to_op[str(clique)]
+            clique.attributes["pools"] = set(scheduling_options["pool"] for scheduling_options in op["runtime_parameters"]["scheduling_options_per_pool_tree"].itervalues())
+            if attributes.get("discovery_version", 0) == 0:
+                by_kind["v0"].append(clique)
+            else:
+                by_kind["v1"].append(clique)
         cypress_cliques.add(str(clique))
 
     collect_v1_clique_intances(by_kind["v1"])
