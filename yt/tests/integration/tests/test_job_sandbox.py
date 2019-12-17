@@ -755,6 +755,10 @@ class TestNetworkIsolation(YTEnvSetup):
     USE_PORTO_FOR_SERVERS = True
 
     @authors("gritukan")
+    def test_create_network_project_map(self):
+        create("network_project_map", "//tmp/n")
+
+    @authors("gritukan")
     def test_network_project_in_spec(self):
         create_user("u1")
         create_user("u2")
