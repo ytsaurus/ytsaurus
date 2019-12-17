@@ -17,17 +17,13 @@ public:
         const TLogWriterLivenessCheckerConfigPtr& config,
         TBootstrap* bootstrap);
 
-    void Start();
-
-    void Stop();
-
+    void CheckLiveness();
 private:
-    void DoCheckLiveness();
 
     TBootstrap* const Bootstrap_;
     const TLogWriterLivenessCheckerConfigPtr Config_;
 
-    NConcurrency::TPeriodicExecutorPtr LogWriterLivenessCheckerExeuctor_;
+    TInstant LastLogWriterLivenessCheckTime_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TLogWriterLivenessChecker)

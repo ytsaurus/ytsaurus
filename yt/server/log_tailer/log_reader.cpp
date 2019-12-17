@@ -104,10 +104,6 @@ TLogFileReader::TLogFileReader(
     std::vector<std::pair<TString, TString>> extraLogTableColumns)
     : Config_(std::move(config))
     , Bootstrap_(bootstrap)
-    , LogReaderExecutor_(New<TPeriodicExecutor>(
-        Bootstrap_->GetReaderInvoker(),
-        BIND(&TLogFileReader::DoReadLog, MakeStrong(this)),
-        Bootstrap_->GetConfig()->ReadPeriod))
     , RowBuffer_(New<TRowBuffer>())
     , LogTableNameTable_(New<TNameTable>())
     , Logger("LogReader")
@@ -146,29 +142,21 @@ TLogFileReader::TLogFileReader(
     }
 }
 
-void TLogFileReader::Start()
+void TLogFileReader::ReadLog()
 {
-    LogReaderExecutor_->Start();
-}
+    if (TInstant::Now() - LastLogReadTime_ < Bootstrap_->GetConfig()->ReadPeriod) {
+        return;
+    }
 
-void TLogFileReader::Stop()
-{
-    WaitFor(LogReaderExecutor_->Stop())
-        .ThrowOnError();
+    LastLogReadTime_ = TInstant::Now();
+
+    DoReadLog();
 }
 
 void TLogFileReader::OnLogRotation()
 {
-    YT_LOG_DEBUG("Log is rotating");
-    // Read the old log file till the end.
-    WaitFor(LogReaderExecutor_->GetExecutedEvent())
-        .ThrowOnError();
-    YT_LOG_DEBUG("Log rotator executor set executed event");
-    // Stop the log reader.
-    WaitFor(LogReaderExecutor_->Stop())
-        .ThrowOnError();
-    YT_LOG_DEBUG("Log rotator executor stopped");
-    // Reopen log.
+    DoReadLog();
+
     Log_ = std::nullopt;
     try {
         DoOpenLogFile();
@@ -176,15 +164,10 @@ void TLogFileReader::OnLogRotation()
         YT_LOG_WARNING(ex, "Cannot reopen log file");
         Log_ = std::nullopt;
     }
-    // Start log reader over the new log file.
-    Start();
 }
 
 void TLogFileReader::OnTermination()
 {
-    YT_LOG_INFO("Terminating log reader");
-    WaitFor(LogReaderExecutor_->Stop())
-        .ThrowOnError();
     DoReadLog();
 }
 

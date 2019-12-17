@@ -130,6 +130,8 @@ public:
     i64 MaxRecordsPerTransaction;
     i64 MaxRecordsInBuffer;
 
+    TDuration TickPeriod;
+
     TLogTailerConfig()
     {
         RegisterParameter("log_rotation", LogRotation)
@@ -152,6 +154,9 @@ public:
 
         RegisterParameter("max_records_in_buffer", MaxRecordsInBuffer)
             .Default(100 * 1000);
+
+        RegisterParameter("tick_period", TickPeriod)
+            .Default(TDuration::MilliSeconds(500));
     }
 };
 

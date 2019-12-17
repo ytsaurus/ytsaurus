@@ -20,10 +20,6 @@ static const NLogging::TLogger Logger("LogRotator");
 TLogRotator::TLogRotator(const TLogRotationConfigPtr& config, TBootstrap* bootstrap)
     : Bootstrap_(bootstrap)
     , Config_(config)
-    , LogRotatorExecutor_(New<TPeriodicExecutor>(
-        Bootstrap_->GetRotatorInvoker(),
-        BIND(&TLogRotator::RotateLogs, MakeWeak(this)),
-        config->RotationPeriod))
 {
     if (Config_->Enable && !Config_->LogWriterPid) {
         THROW_ERROR_EXCEPTION("Log rotation is enabled while writer pid is not set");
@@ -35,25 +31,17 @@ TLogRotator::TLogRotator(const TLogRotationConfigPtr& config, TBootstrap* bootst
     }
 }
 
-void TLogRotator::Start()
-{
-    if (Config_->Enable) {
-        LogRotatorExecutor_->Start();
-        YT_LOG_INFO("Log rotation started (RotationPeriod: %v)", Config_->RotationPeriod);
-    }
-}
-
-void TLogRotator::Stop()
-{
-    if (Config_->Enable) {
-        WaitFor(LogRotatorExecutor_->Stop())
-           .ThrowOnError();
-    }
-}
-
 void TLogRotator::RotateLogs()
 {
-    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetRotatorInvoker());
+    if (!Config_->Enable) {
+        return;
+    }
+
+    if (TInstant::Now() - LastLogRotationTime_ < Config_->RotationPeriod) {
+        return;
+    }
+
+    LastLogRotationTime_ = TInstant::Now();
 
     ++RotationCount_;
     YT_LOG_INFO("Rotating log (RotationCount: %v)", RotationCount_);
