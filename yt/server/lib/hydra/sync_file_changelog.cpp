@@ -139,8 +139,8 @@ public:
             DeserializeProto(&Meta_, serializedMeta);
             SerializedMeta_ = serializedMeta;
 
-            ReadIndex(dataFile);
-            ReadChangelogUntilEnd(dataFile, header.FirstRecordOffset);
+            ReadIndex(dataFile.get(), header.FirstRecordOffset);
+            ReadChangelogUntilEnd(dataFile.get(), header.FirstRecordOffset);
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Error opening changelog");
             Error_ = ex;
@@ -559,11 +559,11 @@ private:
     }
 
     //! Reads the maximal valid prefix of index, truncates bad index records.
-    void ReadIndex(const std::unique_ptr<TFileWrapper>& dataFile)
+    void ReadIndex(TFileWrapper* dataFile, i64 firstRecordOffset)
     {
         NFS::ExpectIOErrors([&] {
             IndexFile_.Read(TruncatedRecordCount_);
-            auto validPrefixSize = ComputeValidIndexPrefix(IndexFile_.Records(), &*dataFile);
+            auto validPrefixSize = ComputeValidIndexPrefix(dataFile, firstRecordOffset);
             IndexFile_.TruncateInvalidRecords(validPrefixSize);
         });
     }
@@ -586,7 +586,7 @@ private:
     }
 
     //! Reads changelog starting from the last indexed record until the end of file.
-    void ReadChangelogUntilEnd(const std::unique_ptr<TFileWrapper>& dataFile, i64 firstRecordOffset)
+    void ReadChangelogUntilEnd(TFileWrapper* dataFile, i64 firstRecordOffset)
     {
         // Extract changelog properties from index.
         i64 fileLength = dataFile->GetLength();
@@ -795,21 +795,18 @@ private:
     }
 
     // Computes the length of the maximal valid prefix of index records sequence.
-    size_t ComputeValidIndexPrefix(
-        const std::vector<TChangelogIndexRecord>& index,
-        TFileWrapper* file)
+    int ComputeValidIndexPrefix(TFileWrapper* file, i64 firstRecordOffset)
     {
         // Validate index records.
-        size_t result = 0;
-        for (int i = 0; i < index.size(); ++i) {
-            const auto& record = index[i];
+        int result = 0;
+        const auto& records = IndexFile_.Records();
+        for (int i = 0; i < records.size(); ++i) {
+            const auto& record = records[i];
             bool valid;
             if (i == 0) {
-                valid =
-                    record.FilePosition == FileHeaderSize_ &&
-                    record.RecordId == 0;
+                valid = record.FilePosition == firstRecordOffset && record.RecordId == 0;
             } else {
-                const auto& prevRecord = index[i - 1];
+                const auto& prevRecord = records[i - 1];
                 valid =
                     record.FilePosition > prevRecord.FilePosition &&
                     record.RecordId > prevRecord.RecordId;
@@ -822,7 +819,7 @@ private:
 
         // Truncate invalid records.
         i64 fileLength = file->GetLength();
-        while (result > 0 && index[result - 1].FilePosition > fileLength) {
+        while (result > 0 && records[result - 1].FilePosition > fileLength) {
             --result;
         }
 
@@ -831,7 +828,7 @@ private:
         }
 
         // Truncate the last index entry if the corresponding changelog record is corrupt.
-        file->Seek(index[result - 1].FilePosition, sSet);
+        file->Seek(records[result - 1].FilePosition, sSet);
         TCheckedReader<TFileWrapper> changelogReader(*file);
         if (!TryReadRecord(changelogReader).IsOK()) {
             --result;

@@ -217,11 +217,15 @@ void TAsyncFileChangelogIndex::Read(std::optional<int> truncatedRecordCount)
     }
 }
 
-void TAsyncFileChangelogIndex::TruncateInvalidRecords(i64 correctPrefixSize)
+void TAsyncFileChangelogIndex::TruncateInvalidRecords(i64 validPrefixSize)
 {
-    YT_LOG_WARNING_IF(correctPrefixSize < Index_.size(), "Changelog index contains invalid records, truncated");
-    YT_VERIFY(correctPrefixSize <= Index_.size());
-    Index_.resize(correctPrefixSize);
+    YT_VERIFY(validPrefixSize <= Index_.size());
+    YT_LOG_WARNING_IF(
+        validPrefixSize < Index_.size(),
+        "Changelog index contains invalid records, truncated (ValidPrefixSize: %v, IndexSize: %v)",
+        validPrefixSize,
+        Index_.size());
+    Index_.resize(validPrefixSize);
 
     FirstIndexBucket_->UpdateRecordCount(Index_.size());
 
@@ -383,7 +387,7 @@ void TAsyncFileChangelogIndex::Append(int firstRecordId, i64 filePosition, const
 
 void TAsyncFileChangelogIndex::Append(int firstRecordId, i64 filePosition, int recordSize)
 {
-    return Append(firstRecordId, filePosition, std::vector<int>({recordSize}));
+    return Append(firstRecordId, filePosition, std::vector{recordSize});
 }
 
 TFuture<void> TAsyncFileChangelogIndex::FlushData()
