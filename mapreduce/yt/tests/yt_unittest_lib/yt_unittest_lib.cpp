@@ -8,6 +8,7 @@
 #include <util/stream/printf.h>
 
 #include <util/system/env.h>
+#include <util/system/hostname.h>
 
 #include <util/random/fast.h>
 
@@ -37,6 +38,25 @@ namespace NTesting {
 
 ////////////////////////////////////////////////////////////////////
 
+static void VerifyLocalMode(TStringBuf proxy, const IClientBasePtr& client)
+{
+    static const TVector<TString> AllowedClusters = {"socrates"};
+    if (std::find(begin(AllowedClusters), end(AllowedClusters), proxy) != end(AllowedClusters)) {
+        return;
+    }
+
+    TString fqdn;
+    try {
+        fqdn = client->Get("//sys/@local_mode_fqdn").AsString();
+    } catch (const TErrorResponse& error) {
+        Y_FAIL("Attribute //sys/@local_mode_fqdn not found; are you trying to run tests on a real cluster?");
+    }
+    Y_ENSURE(
+        fqdn == ::HostName(),
+        "FQDN from cluster differs from host name: " << fqdn << ' ' << ::HostName()
+            << "; are you trying to run tests on a real cluster?");
+}
+
 IClientPtr CreateTestClient(TString proxy, const TCreateClientOptions& options)
 {
     if (proxy.empty()) {
@@ -44,6 +64,7 @@ IClientPtr CreateTestClient(TString proxy, const TCreateClientOptions& options)
     }
     Y_ENSURE(!proxy.empty(), "YT_PROXY env variable must be set or 'proxy' argument nonempty");
     auto client = CreateClient(proxy, options);
+    VerifyLocalMode(proxy, client);
     client->Remove("//testing", TRemoveOptions().Recursive(true).Force(true));
     client->Create("//testing", ENodeType::NT_MAP, TCreateOptions());
     return client;
