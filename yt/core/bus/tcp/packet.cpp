@@ -246,23 +246,9 @@ bool TPacketEncoder::Start(
     AllocateVariableHeader();
 
     if (type == EPacketType::Message) {
-        if (Message_.Size() > MaxMessagePartCount) {
-            YT_LOG_ERROR("Message exceeds part count limit: %v > %v",
-                Message_.Size(),
-                MaxMessagePartCount);
-            return false;
-        }
-
         for (int index = 0; index < Message_.Size(); ++index) {
             const auto& part = Message_[index];
             if (part) {
-                if (part.Size() > MaxMessagePartSize) {
-                    YT_LOG_ERROR("Part %v exceeds size limit: %v > %v",
-                        index,
-                        part.Size(),
-                        MaxMessagePartSize);
-                    return false;
-                }
                 PartSizes_[index] = part.Size();
                 PartChecksums_[index] =
                     generateChecksums && (index < checksummedPartCount || checksummedPartCount == TSendOptions::AllParts)

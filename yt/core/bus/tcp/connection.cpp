@@ -393,6 +393,23 @@ TTcpDispatcherStatistics TTcpConnection::GetStatistics() const
 
 TFuture<void> TTcpConnection::Send(TSharedRefArray message, const TSendOptions& options)
 {
+    if (message.Size() > MaxMessagePartCount) {
+        return MakeFuture<void>(TError(
+            NRpc::EErrorCode::TransportError,
+            "Message exceeds part count limit: %v > %v",
+            message.Size(),
+            MaxMessagePartCount));
+    }
+
+    for (const auto& part : message) {
+        return MakeFuture<void>(TError(
+            NRpc::EErrorCode::TransportError,
+            "Message part %v exceeds size limit: %v > %v",
+            index,
+            part.Size(),
+            MaxMessagePartSize));
+    }
+
     TQueuedMessage queuedMessage(std::move(message), options);
 
     auto pendingOutPayloadBytes = PendingOutPayloadBytes_.fetch_add(queuedMessage.PayloadSize);
