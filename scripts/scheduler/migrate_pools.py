@@ -36,8 +36,8 @@ def migrate(cluster, current_pool_trees_path, backup_path, tmp_path):
     logging.info("Transformation successful!")
 
     logging.info("Creating links to pool and pool tree schema")
-    client.link("#" + get_schema_id(client.get("//@id"), SCHEDULER_POOL_OBJECT_ID), "//sys/schemas/pool")
-    client.link("#" + get_schema_id(client.get("//@id"), SCHEDULER_POOL_TREE_OBJECT_ID), "//sys/schemas/pool_tree")
+    client.link("#" + get_schema_id(client.get("//@id"), SCHEDULER_POOL_OBJECT_ID), "//sys/schemas/scheduler_pool", force=True)
+    client.link("#" + get_schema_id(client.get("//@id"), SCHEDULER_POOL_TREE_OBJECT_ID), "//sys/schemas/scheduler_pool_tree", force=True)
 
     logging.info("Initializing acl of schemas")
     ace = {
