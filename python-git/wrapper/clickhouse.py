@@ -2,7 +2,8 @@ from .operation_commands import TimeWatcher, process_operation_unsuccesful_finis
 from .common import YtError, require, update
 from .spec_builders import VanillaSpecBuilder
 from .run_operation_commands import run_operation
-from .cypress_commands import get, exists, copy
+from .dynamic_table_commands import mount_table
+from .cypress_commands import get, exists, copy, create
 from .transaction_commands import _make_transactional_request
 from .operation_commands import get_operation_url, abort_operation
 from .http_helpers import get_proxy_url
@@ -14,17 +15,22 @@ from .yson import dumps, to_yson_type
 import yt.logger as logger
 
 from yt.packages.six import iteritems
+from yt.yson import YsonUint64
 
 from tempfile import NamedTemporaryFile
 from inspect import getargspec
 
+import os.path
 import json
+import random
 
 CYPRESS_DEFAULTS_PATH = "//sys/clickhouse/defaults"
 BUNDLED_DEFAULTS = {
     "memory_footprint": 16 * 1000**3,
     "memory_limit": 15 * 1000**3,
     "cypress_base_config_path": "//sys/clickhouse/config",
+    "cypress_log_tailer_config_path": "//sys/clickhouse/log_tailer_config",
+    "dump_tables": True,
     "cpu_limit": 8,
     "enable_monitoring": False,
     "clickhouse_config": {},
@@ -86,13 +92,33 @@ def _format_url(url):
     return to_yson_type(url, attributes={"_type_tag": "url"})
 
 
-def _build_description(cypress_ytserver_clickhouse_path=None, operation_alias=None, prev_operation_id=None, enable_monitoring=None, client=None):
+def _build_description(cypress_ytserver_clickhouse_path=None,
+                       cypress_ytserver_log_tailer_path=None,
+                       cypress_clickhouse_trampoline_path=None,
+                       artifact_path=None,
+                       operation_alias=None,
+                       prev_operation_id=None,
+                       enable_monitoring=None,
+                       client=None):
     # Inherit all custom attributes from the ytserver-clickhouse.
     # TODO(max42): YT-11099.
+
+    def get_user_attributes(path):
+        attr_keys = get(path + "/@user_attribute_keys", client=client)
+        return get(path + "/@", attributes=attr_keys, client=client)
+
     description = {}
     if cypress_ytserver_clickhouse_path is not None:
-        attr_keys = get(cypress_ytserver_clickhouse_path + "/@user_attribute_keys", client=client)
-        description = update(description, get(cypress_ytserver_clickhouse_path + "/@", attributes=attr_keys, client=client))
+        description = update(description, {"ytserver-clickhouse": get_user_attributes(cypress_ytserver_clickhouse_path)})
+
+    if cypress_ytserver_log_tailer_path is not None:
+        description = update(description, {"ytserver-log-tailer": get_user_attributes(cypress_ytserver_log_tailer_path)})
+
+    if cypress_clickhouse_trampoline_path is not None:
+        description = update(description, {"clickhouse-trampoline": get_user_attributes(cypress_clickhouse_trampoline_path)})
+
+    if artifact_path is not None:
+        description = update(description, {"artifact_path": _format_url()})
 
     # Put information about previous incarnation of the operation by the given alias (if any).
     if prev_operation_id is not None:
@@ -118,9 +144,14 @@ def _build_description(cypress_ytserver_clickhouse_path=None, operation_alias=No
 
 @_patch_defaults
 def get_clickhouse_clique_spec_builder(instance_count,
+                                       artifact_path=None,
                                        cypress_ytserver_clickhouse_path=None,
+                                       cypress_clickhouse_trampoline_path=None,
+                                       cypress_ytserver_log_tailer_path=None,
                                        host_ytserver_clickhouse_path=None,
-                                       cypress_config_path=None,
+                                       host_clickhouse_trampoline_path=None,
+                                       host_ytserver_log_tailer_path=None,
+                                       cypress_config_paths=None,
                                        max_failed_job_count=None,
                                        cpu_limit=None,
                                        memory_limit=None,
@@ -130,6 +161,8 @@ def get_clickhouse_clique_spec_builder(instance_count,
                                        core_dump_destination=None,
                                        description=None,
                                        operation_alias=None,
+                                       enable_job_tables=None,
+                                       enable_log_tailer=None,
                                        uncompressed_block_cache_size=None,
                                        spec=None):
     """Returns a spec builder for the clickhouse clique consisting of a given number of instances.
@@ -152,22 +185,9 @@ def get_clickhouse_clique_spec_builder(instance_count,
     .. seealso::  :ref:`operation_parameters`.
     """
 
-    require(cypress_config_path is not None,
-            lambda: YtError("Cypress config.yson path should be specified; consider using "
-                            "prepare_clickhouse_config helper"))
-    file_paths = [FilePath(cypress_config_path, file_name="config.yson")]
-
-    if cypress_ytserver_clickhouse_path is not None:
-        executable_path = "./ytserver-clickhouse"
-        file_paths.append(FilePath(cypress_ytserver_clickhouse_path, file_name="ytserver-clickhouse"))
-    else:
-        executable_path = host_ytserver_clickhouse_path
-
-    if cypress_geodata_path is not None:
-        file_paths.append(FilePath(cypress_geodata_path, file_name="geodata.tgz"))
-        extract_geodata_command = "mkdir geodata ; tar xzf geodata.tgz -C geodata/ ;"
-    else:
-        extract_geodata_command = ""
+    require(cypress_config_paths is not None,
+            lambda: YtError("At least cypress clickhouse server config.yson path should be specified as cypress_config_"
+                            "paths dictionary; consider using prepare_cypress_configs helper"))
 
     spec_base = {
         "annotations": {
@@ -183,34 +203,52 @@ def get_clickhouse_clique_spec_builder(instance_count,
         },
     }
 
+    stderr_table_path = None
+    core_table_path = None
+
+    if enable_job_tables:
+        stderr_table_path = artifact_path + "/stderr_table"
+        core_table_path = artifact_path + "/core_table"
+
     spec = update(spec_base, spec)
 
-    monitoring_port = "10142" if enable_monitoring else "$YT_PORT_1"
+    file_paths = [FilePath(cypress_config_path, file_name=file_name) for cypress_config_path, file_name
+                  in cypress_config_paths.itervalues()]
 
-    patch_config_command = "sed -s \"s/\$YT_JOB_INDEX/$YT_JOB_INDEX/g\" config.yson -i ;"
+    def add_file(cypress_bin_path, host_bin_path, bin_name):
+        if cypress_bin_path is not None:
+            file_paths.append(FilePath(cypress_bin_path, file_name=bin_name))
+            return "./" + bin_name
+        elif host_bin_path is not None:
+            return host_bin_path
+        else:
+            return None
 
-    run_clickhouse_command = "({} --config config.yson --instance-id $YT_JOB_ID " \
-                             "--clique-id $YT_OPERATION_ID --rpc-port $YT_PORT_0 --monitoring-port {} " \
-                             "--tcp-port $YT_PORT_2 --http-port $YT_PORT_3 ;) ".format(executable_path, monitoring_port)
+    ytserver_clickhouse_path = add_file(cypress_ytserver_clickhouse_path, host_ytserver_clickhouse_path, "ytserver-clickhouse")
+    clickhouse_trampoline_path = add_file(cypress_clickhouse_trampoline_path, host_clickhouse_trampoline_path, "clickhouse-trampoline")
+    ytserver_log_tailer_path = add_file(cypress_ytserver_log_tailer_path, host_ytserver_log_tailer_path, "ytserver-log-tailer")
+
+    args = [clickhouse_trampoline_path, ytserver_clickhouse_path]
+    if enable_monitoring:
+        args += ["--monitoring-port", "10142"]
+    if cypress_geodata_path is not None:
+        file_paths.append(FilePath(cypress_geodata_path, file_name="geodata.tgz"))
+        args += ["--prepare-geodata"]
 
     if core_dump_destination is not None:
-        copy_core_dumps_command = "exit_code=$? ;" \
-                                  "if compgen -G 'core*' >/dev/null ; then " \
-                                  "    echo 'Core dumps detected' >&2;" \
-                                  "    mv core* {} ; " \
-                                  "fi ;" \
-                                  "exit $exit_code ;".format(core_dump_destination)
-    else:
-        copy_core_dumps_command = ""
+        args += ["--core-dump-destination", core_dump_destination]
 
-    command = "\n".join([patch_config_command, extract_geodata_command, run_clickhouse_command, copy_core_dumps_command])
+    if enable_log_tailer:
+        args += ["--log-tailer-bin", ytserver_log_tailer_path]
+
+    trampoline_command = " ".join(args)
 
     spec_builder = \
         VanillaSpecBuilder() \
             .begin_task("instances") \
                 .job_count(instance_count) \
                 .file_paths(file_paths) \
-                .command(command) \
+                .command(trampoline_command) \
                 .memory_limit(memory_limit + memory_footprint + uncompressed_block_cache_size) \
                 .cpu_limit(cpu_limit) \
                 .max_stderr_size(1024 * 1024 * 1024) \
@@ -219,6 +257,8 @@ def get_clickhouse_clique_spec_builder(instance_count,
             .max_failed_job_count(max_failed_job_count) \
             .description(description) \
             .max_stderr_count(150) \
+            .stderr_table_path(stderr_table_path) \
+            .core_table_path(core_table_path) \
             .alias(operation_alias) \
             .spec(spec)
 
@@ -230,16 +270,17 @@ def get_clickhouse_clique_spec_builder(instance_count,
 
 
 @_patch_defaults
-def prepare_clickhouse_config(instance_count,
-                              cypress_base_config_path=None,
-                              clickhouse_config=None,
-                              cpu_limit=None,
-                              memory_limit=None,
-                              memory_footprint=None,
-                              use_exact_thread_count=None,
-                              operation_alias=None,
-                              uncompressed_block_cache_size=None,
-                              client=None):
+def prepare_cypress_configs(instance_count,
+                            cypress_base_config_path=None,
+                            clickhouse_config=None,
+                            log_tailer_config=None,
+                            cpu_limit=None,
+                            memory_limit=None,
+                            memory_footprint=None,
+                            use_exact_thread_count=None,
+                            operation_alias=None,
+                            uncompressed_block_cache_size=None,
+                            client=None):
     """Merges a document pointed by `config_template_cypress_path`,  and `config` and uploads the
     result as a config.yson file suitable for specifying as a config file for clickhouse clique.
 
@@ -286,20 +327,154 @@ def prepare_clickhouse_config(instance_count,
     }
 
     clickhouse_config_cypress_base = get(cypress_base_config_path, client=client) if cypress_base_config_path != "" else None
-    resulting_config = update(clickhouse_config_cypress_base, update(clickhouse_config_base, clickhouse_config))
+    resulting_clickhouse_config = update(clickhouse_config_cypress_base, update(clickhouse_config_base, clickhouse_config))
 
     with NamedTemporaryFile() as temp:
-        temp.write(dumps(resulting_config, yson_format="pretty"))
+        temp.write(dumps(resulting_clickhouse_config, yson_format="pretty"))
         temp.flush()
-        result = smart_upload_file(temp.name, client=client)
+        resulting_clickhouse_config_path = smart_upload_file(temp.name, client=client)
 
-    return str(result)
+    result = {"clickhouse_server": (resulting_clickhouse_config_path, "config.yson")}
+
+    if log_tailer_config:
+        with NamedTemporaryFile() as temp:
+            temp.write(dumps(log_tailer_config, yson_format="pretty"))
+            temp.flush()
+            resulting_log_tailer_config_path = smart_upload_file(temp.name, client=client)
+        result["log_tailer"] = (resulting_log_tailer_config_path, "log_tailer_config.yson")
+
+    return result
+
+
+def prepare_log_tailer_table(log_file,
+                             artifact_path,
+                             instance_count=None,
+                             client=None):
+    job_id_shard_count = instance_count * 5
+    ORDERED_NORMALLY_SCHEMA = [
+        {"name": "job_id_shard", "type": "uint64", "sort_order": "ascending", "expression": "farm_hash(job_id) % " + str(job_id_shard_count)},
+        {"name": "timestamp", "type": "string", "sort_order": "ascending"},
+        {"name": "job_id", "type": "string", "sort_order": "ascending"},
+        {"name": "increment", "type": "uint64", "sort_order": "ascending"},
+        {"name": "category", "type": "string"},
+        {"name": "message", "type": "string"},
+        {"name": "log_level", "type": "string"},
+        {"name": "thread_id", "type": "string"},
+        {"name": "fiber_id", "type": "string"},
+        {"name": "trace_id", "type": "string"},
+        {"name": "operation_id", "type": "string"}
+    ]
+    ORDERED_BY_TRACE_ID_SCHEMA = [
+        {"name": "trace_id_hash", "type": "uint64", "sort_order": "ascending", "expression": "farm_hash(trace_id)"},
+        {"name": "trace_id", "type": "string", "sort_order": "ascending"},
+        {"name": "timestamp", "type": "string", "sort_order": "ascending"},
+        {"name": "job_id", "type": "string", "sort_order": "ascending"},
+        {"name": "increment", "type": "uint64", "sort_order": "ascending"},
+        {"name": "category", "type": "string"},
+        {"name": "message", "type": "string"},
+        {"name": "log_level", "type": "string"},
+        {"name": "thread_id", "type": "string"},
+        {"name": "fiber_id", "type": "string"},
+        {"name": "operation_id", "type": "string"}
+    ]
+
+    assert len(log_file.get("tables", [])) == 0
+
+    base_path = os.path.basename(log_file["path"])
+
+    ordered_normally_path = artifact_path + "/" + base_path
+    ordered_by_trace_id_path = artifact_path + "/" + base_path + ".ordered_by_trace_id"
+
+    log_file["tables"] = [
+        {"path": ordered_normally_path},
+        {"path": ordered_by_trace_id_path, "require_trace_id": True},
+    ]
+
+    def prepare_table(path, schema, ttl, extra_attributes={}):
+        if not exists(path, client=client):
+            logger.info("Table %s does not exist, creating it", path)
+            attributes = {
+                "dynamic": True,
+                "schema": schema,
+                "min_data_versions": 0,
+                "max_data_versions": 1,
+                "min_data_ttl": ttl,
+                "max_data_ttl": ttl,
+            }
+            attributes = update(attributes, extra_attributes)
+            create("table", path, attributes=attributes, client=client)
+        mount_table(path)
+
+    prepare_table(ordered_normally_path, ORDERED_NORMALLY_SCHEMA, log_file["ttl"], extra_attributes={
+        "tablet_balancer_config": {"enable_auto_reshard": False},
+        "pivot_keys": [[]] + [[YsonUint64(i), None, None, None] for i in range(1, job_id_shard_count)],
+    })
+    prepare_table(ordered_by_trace_id_path, ORDERED_BY_TRACE_ID_SCHEMA, log_file["ttl"])
+
+
+@_patch_defaults
+def prepare_artifacts(artifact_path,
+                      prev_operation,
+                      enable_log_tailer=None,
+                      enable_job_tables=None,
+                      dump_tables=None,
+                      instance_count=None,
+                      log_tailer_config=None,
+                      client=None):
+    if not enable_log_tailer and not enable_job_tables:
+        return
+
+    if not exists(artifact_path, client=client):
+        logger.info("Creating artifact directory %s", artifact_path)
+        create("map_node", artifact_path, client=client)
+
+    if enable_job_tables:
+        if not dump_tables:
+            logger.warning("Job tables are enabled but dump_tables is not set; existing stderr and core tables may "
+                           "be overridden")
+
+        stderr_table_path = artifact_path + "/stderr_table"
+        core_table_path = artifact_path + "/core_table"
+
+        dump_suffix = None
+        if dump_tables:
+            if prev_operation is not None:
+                dump_suffix = prev_operation["id"]
+                name_collision = False
+                for table_path in (stderr_table_path, core_table_path):
+                    if exists(table_path + "." + dump_suffix, client=client):
+                        name_collision = True
+                if not name_collision:
+                    logger.debug("Dumping suffix is previous operation id = %s", dump_suffix)
+                else:
+                    dump_suffix = None
+            if dump_suffix is None:
+                dump_suffix = ''.join(random.choice("0123456789abcdef") for i in xrange(16))
+                logger.debug("Dumping suffix is random = %s", dump_suffix)
+
+        for table_path in (stderr_table_path, core_table_path):
+            if not exists(table_path, client=client):
+                create("table", table_path)
+            elif dump_tables:
+                new_path = table_path + "." + dump_suffix
+                logger.info("Dumping %s into %s", table_path, new_path)
+                copy(table_path, new_path, client=client)
+
+    if enable_log_tailer:
+        for log_file in log_tailer_config["log_tailer"]["log_files"]:
+            prepare_log_tailer_table(log_file, artifact_path, instance_count=instance_count, client=client)
+
 
 
 def start_clickhouse_clique(instance_count,
+                            operation_alias,
                             cypress_base_config_path=None,
                             cypress_ytserver_clickhouse_path=None,
+                            cypress_clickhouse_trampoline_path=None,
+                            cypress_ytserver_log_tailer_path=None,
                             host_ytserver_clickhouse_path=None,
+                            host_clickhouse_trampoline_path=None,
+                            host_ytserver_log_tailer_path=None,
                             clickhouse_config=None,
                             cpu_limit=None,
                             memory_limit=None,
@@ -309,30 +484,64 @@ def start_clickhouse_clique(instance_count,
                             description=None,
                             abort_existing=None,
                             dump_tables=None,
-                            operation_alias=None,
                             spec=None,
                             uncompressed_block_cache_size=None,
+                            cypress_log_tailer_config_path=None,
+                            enable_log_tailer=None,
+                            enable_job_tables=None,
+                            artifact_path=None,
                             client=None,
                             **kwargs):
     """Starts a clickhouse clique consisting of a given number of instances.
 
+    :param operation_alias alias for the underlying YT operation
+    :type operation_alias: str
+    :param cypress_base_config_path: path for the base clickhouse config in Cypress
+    :type cypress_base_config_path: str or None
+    :param cypress_ytserver_clickhouse_path path to the ytserver-clickhouse binary in Cypress
+    :type cypress_ytserver_clickhouse_path: str or None
+    :param cypress_clickhouse_trampoline_path: path to the clickhouse-trampoline binary in Cypress
+    :type cypress_clickhouse_trampoline_path: str or None
+    :param cypress_ytserver_log_tailer_path: path to the ytserver-log-tailer binary in Cypress
+    :type cypress_ytserver_log_tailer_path: str or None
+    :param host_ytserver_clickhouse_path path to the ytserver-clickhouse binary on the destination host (useful for
+    integration tests)
+    :type host_ytserver_clickhouse_path: str or None
+    :param host_clickhouse_trampoline_path: path to the clickhouse-trampoline binary on the destination host (useful for
+    integration tests)
+    :type host_clickhouse_trampoline_path: str or None
+    :param host_ytserver_log_tailer_path: path to the ytserver-log-tailer binary on the destination host (useful for
+    integration tests)
+    :type host_ytserver_clickhouse_path: str or None
     :param instance_count: number of instances (also the number of jobs in the underlying vanilla operation).
-    :type instance_count: int
+    :type instance_count: int or None
     :param clickhouse_config: patch to be applied to clickhouse config.
     :type clickhouse_config: dict or None
     :param cpu_limit: number of cores that will be available to each instance
-    :type cpu_limit: int
+    :type cpu_limit: int or None
     :param memory_limit: amount of memory that will be available to each instance
-    :type memory_limit: int
+    :type memory_limit: int or None
     :param memory_footprint: amount of memory that goes to the YT runtime
-    :type memory_footprint: int
+    :type memory_footprint: int or None
     :param enable_monitoring: (only for development use) option that makes clickhouse bind monitoring port to 10042.
-    :type enable_monitoring: bool
-    :param description: YSON document which will be placed in cooresponding operation description.
+    :type enable_monitoring: bool or None
+    :param dump_tables: if stderr and/or core tables are specified, copy their incarnations from the previous operation
+    to separate tables in order not to rewrite them
+    :type dump_tables: bool or None
+    :param description: YSON document which will be placed in corresponding operation description.
     :type description: str or None
+    :param spec: additional operation spec
+    :type spec: dict or None
     :param abort_existing: Should we abort the existing operation with the given alias?
     :type abort_existing: bool or None
-    "param dump_tables: Should we dump stderr and/or core tables of the operationn with the given alias?
+    :param cypress_log_tailer_config_path: path for the log tailer config in Cypress
+    :type cypress_log_tailer_config_path: str or None
+    :param enable_log_tailer: write logs to dynamic tables
+    :type enable_log_tailer: bool or None
+    :param enable_job_tables: enable core and stderr tables
+    :type enable_job_tables: bool or None
+    :param artifact_path: path for artifact directory; by default equals to //sys/clickhouse/kolkhoz/<operation_alias>
+    :type artifact_path: str or None
     :param cypress_geodata_path: path to archive with geodata in Cypress
     :type cypress_geodata_path str or None
     .. seealso::  :ref:`operation_parameters`.
@@ -340,15 +549,12 @@ def start_clickhouse_clique(instance_count,
 
     defaults = get("//sys/clickhouse/defaults", client=client) if exists("//sys/clickhouse/defaults", client=client) else BUNDLED_DEFAULTS
 
+    require(operation_alias.startswith("*"), lambda: YtError("Operation alias should start with '*' character"))
+
+    artifact_path = artifact_path or "//home/clickhouse-kolkhoz/" + operation_alias[1:]
+
     if abort_existing is None:
         abort_existing = False
-    if dump_tables is None:
-        dump_tables = False
-
-    if (abort_existing or dump_tables) and operation_alias is None:
-        logger.warning("abort_existing and dump_tables are meaningless without specifying operation alias")
-        abort_existing = False
-        dump_tables = False
 
     prev_operation = _resolve_alias(operation_alias, client=client)
     if operation_alias is not None:
@@ -358,69 +564,89 @@ def start_clickhouse_clique(instance_count,
             logger.info("There was no operation with alias %s before", operation_alias)
 
     if abort_existing:
-        if prev_operation is not None and prev_operation["state"] == "running":
+        if prev_operation is not None and not prev_operation["state"].endswith("ed"):
             logger.info("Aborting previous operation with alias %s", operation_alias)
             abort_operation(prev_operation["id"], client=client)
         else:
             logger.info("There is no running operation with alias %s; not aborting anything", operation_alias)
 
-    if dump_tables:
-        if prev_operation is not None:
-            stderr_table_path = spec.get("stderr_table_path")
-            core_table_path = spec.get("core_table_path")
-            table_paths = []
-            if stderr_table_path is not None:
-                table_paths.append(stderr_table_path)
-            if core_table_path is not None:
-                table_paths.append(core_table_path)
-            logger.info("Tables for dumping: %s", table_paths)
-            for table_path in table_paths:
-                if exists(table_path, client=client):
-                    new_path = table_path + "." + prev_operation["id"]
-                    logger.info("Dumping %s into %s", table_path, new_path)
-                    copy(table_path, new_path, client=client)
-                else:
-                    logger.info("Table %s does not exist, not dumping anything", table_path)
-        else:
-            logger.info("There was no operation with alias %s; not dumping anything", operation_alias)
+    log_tailer_config = None
+    if enable_log_tailer:
+        log_tailer_config = get(cypress_log_tailer_config_path or defaults["cypress_log_tailer_config_path"], client=client)
+        if cypress_ytserver_log_tailer_path is None and host_ytserver_log_tailer_path is None:
+            cypress_ytserver_log_tailer_path = "//sys/clickhouse/bin/ytserver-log-tailer"
 
     prev_operation_id = prev_operation["id"] if prev_operation is not None else None
 
-    if cypress_ytserver_clickhouse_path is None and host_ytserver_clickhouse_path is None:
-        cypress_ytserver_clickhouse_path = "//sys/clickhouse/bin/ytserver-clickhouse"
-    require(cypress_ytserver_clickhouse_path is None or host_ytserver_clickhouse_path is None,
-            lambda: YtError("Cypress ytserver-clickhouse binary path and host ytserver-clickhouse path "
-                            "cannot be specified at the same time"))
+    def resolve_path(cypress_bin_path, host_bin_path, cypress_default_bin_path, bin_name, optional=False):
+        if cypress_bin_path is None and host_bin_path is None and not optional:
+            cypress_bin_path = cypress_default_bin_path
+        require(cypress_bin_path is None or host_bin_path is None,
+                lambda: YtError("Cypress {0} binary path and host {0} path "
+                                "cannot be specified at the same time").format(bin_name))
+        return cypress_bin_path, host_bin_path
 
-    cypress_config_path = prepare_clickhouse_config(instance_count,
-                                                    cypress_base_config_path=cypress_base_config_path,
-                                                    clickhouse_config=clickhouse_config,
-                                                    cpu_limit=cpu_limit,
-                                                    memory_limit=memory_limit,
-                                                    defaults=defaults,
-                                                    operation_alias=operation_alias,
-                                                    uncompressed_block_cache_size=uncompressed_block_cache_size,
-                                                    client=client)
+    cypress_ytserver_clickhouse_path, host_ytserver_clickhouse_path = \
+        resolve_path(cypress_ytserver_clickhouse_path, host_ytserver_clickhouse_path,
+                     "//sys/clickhouse/bin/ytserver-clickhouse", "ytserver-clickhouse")
+
+    cypress_clickhouse_trampoline_path, host_clickhouse_trampoline_path = \
+        resolve_path(cypress_clickhouse_trampoline_path, host_clickhouse_trampoline_path,
+                     "//sys/clickhouse/bin/clickhouse-trampoline", "clickhouse-trampoline")
+
+    cypress_ytserver_log_tailer_path, host_ytserver_log_tailer_path = \
+        resolve_path(cypress_ytserver_log_tailer_path, host_ytserver_log_tailer_path,
+                     "//sys/clickhouse/bin/ytserver-log-tailer", "ytserver-log-tailer", optional=True)
+
+    prepare_artifacts(artifact_path,
+                      prev_operation,
+                      enable_log_tailer=enable_log_tailer,
+                      enable_job_tables=enable_job_tables,
+                      dump_tables=dump_tables,
+                      defaults=defaults,
+                      instance_count=instance_count,
+                      log_tailer_config=log_tailer_config,
+                      client=client)
+
+    cypress_config_paths = prepare_cypress_configs(instance_count,
+                                                   cypress_base_config_path=cypress_base_config_path,
+                                                   clickhouse_config=clickhouse_config,
+                                                   cpu_limit=cpu_limit,
+                                                   memory_limit=memory_limit,
+                                                   defaults=defaults,
+                                                   operation_alias=operation_alias,
+                                                   uncompressed_block_cache_size=uncompressed_block_cache_size,
+                                                   log_tailer_config=log_tailer_config,
+                                                   client=client)
 
     description = update(description, _build_description(cypress_ytserver_clickhouse_path=cypress_ytserver_clickhouse_path,
+                                                         cypress_ytserver_log_tailer_path=cypress_ytserver_log_tailer_path,
+                                                         cypress_clickhouse_trampoline_path=cypress_clickhouse_trampoline_path,
                                                          operation_alias=operation_alias,
                                                          prev_operation_id=prev_operation_id,
                                                          enable_monitoring=enable_monitoring,
                                                          client=client))
 
     op = run_operation(get_clickhouse_clique_spec_builder(instance_count,
-                                                          cypress_config_path=cypress_config_path,
+                                                          artifact_path=artifact_path,
+                                                          cypress_config_paths=cypress_config_paths,
                                                           cpu_limit=cpu_limit,
                                                           memory_limit=memory_limit,
                                                           memory_footprint=memory_footprint,
                                                           enable_monitoring=enable_monitoring,
                                                           cypress_ytserver_clickhouse_path=cypress_ytserver_clickhouse_path,
+                                                          cypress_clickhouse_trampoline_path=cypress_clickhouse_trampoline_path,
+                                                          cypress_ytserver_log_tailer_path=cypress_ytserver_log_tailer_path,
                                                           host_ytserver_clickhouse_path=host_ytserver_clickhouse_path,
+                                                          host_clickhouse_trampoline_path=host_clickhouse_trampoline_path,
+                                                          host_ytserver_log_tailer_path=host_ytserver_log_tailer_path,
                                                           cypress_geodata_path=cypress_geodata_path,
                                                           operation_alias=operation_alias,
                                                           description=description,
                                                           uncompressed_block_cache_size=uncompressed_block_cache_size,
                                                           spec=spec,
+                                                          enable_job_tables=enable_job_tables,
+                                                          enable_log_tailer=enable_log_tailer,
                                                           defaults=defaults,
                                                           **kwargs),
                        client=client,
@@ -430,6 +656,7 @@ def start_clickhouse_clique(instance_count,
         if state.is_running() and \
                 exists("//sys/clickhouse/cliques/{0}".format(op.id), client=client) and \
                 get("//sys/clickhouse/cliques/{0}/@count".format(op.id), client=client) == instance_count:
+            logger.info("Clique started and ready for serving under alias %s", operation_alias)
             return op
         elif state.is_unsuccessfully_finished():
             process_operation_unsuccesful_finish_state(op, state)

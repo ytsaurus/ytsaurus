@@ -503,7 +503,39 @@ TRANSFORMS[31] = [
                 ("update_time", "int64"),
                 ("core_infos", "any"),
             ],
-        attributes={"atomicity": "none"})),
+            attributes={"atomicity": "none"})),
+]
+
+TRANSFORMS[32] = [
+    Conversion(
+        "jobs",
+        table_info=TableInfo([
+                ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
+                ("operation_id_hi", "uint64"),
+                ("operation_id_lo", "uint64"),
+                ("job_id_hi", "uint64"),
+                ("job_id_lo", "uint64")
+            ], [
+                ("type", "string"),
+                ("state", "string"),
+                ("start_time", "int64"),
+                ("finish_time", "int64"),
+                ("address", "string"),
+                ("error", "any"),
+                ("statistics", "any"),
+                ("stderr_size", "uint64"),
+                ("spec", "string"),
+                ("spec_version", "int64"),
+                ("has_spec", "boolean"),
+                ("has_fail_context", "boolean"),
+                ("fail_context_size", "uint64"),
+                ("events", "any"),
+                ("transient_state", "string"),
+                ("update_time", "int64"),
+                ("core_infos", "any"),
+                ("job_competition_id", "string")
+            ],
+            attributes={"atomicity": "none"})),
 ]
 
 def swap_table(client, target, source, version):

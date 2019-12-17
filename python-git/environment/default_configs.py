@@ -124,6 +124,8 @@ b"""
 
     cell_directory_synchronizer = {
         sync_period = 500;
+        success_expiration_time = 500;
+        failure_expiration_time = 500;
     };
 }
 """)
@@ -515,5 +517,5 @@ def get_watcher_config():
     return {
         "logs_rotate_max_part_count": 1000,
         "logs_rotate_size": "1M",
-        "logs_rotate_interval": 10,
+        "logs_rotate_interval": 5,
     }

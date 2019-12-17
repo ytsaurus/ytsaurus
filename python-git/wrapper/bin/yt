@@ -982,17 +982,22 @@ def start_clickhouse_clique_handler(*args, **kwargs):
 def add_start_clickhouse_clique_parser(add_parser):
     parser = add_parser("start-clickhouse-clique", start_clickhouse_clique_handler)
     parser.add_argument("--instance-count", required=True, type=int)
+    parser.add_argument("--operation-alias", required=True, help="Alias for clique")
     parser.add_argument("--cypress-ytserver-clickhouse-path")
-    parser.add_argument("--host-ytserver-clickhouse-path")
+    parser.add_argument("--cypress-clickhouse-trampoline-path")
+    parser.add_argument("--cypress-ytserver-log-tailer-path")
     parser.add_argument("--cypress-base-config-path", default="//sys/clickhouse/config")
     parser.add_argument("--cpu-limit", type=int)
     parser.add_argument("--memory-limit", type=int)
     parser.add_argument("--enable-monitoring", action="store_true", default=False,
                         help="(only for development use) bind monitoring port to 10142")
     parser.add_argument("--cypress-geodata-path")
-    parser.add_argument("--operation-alias", help="Alias for clique")
     parser.add_argument("--abort-existing", action="store_true", help="Abort existing operation under same alias")
     parser.add_argument("--uncompressed-block-cache-size", type=int, help="Size of uncompressed block cache")
+    parser.add_argument("--enable-job-tables", action="store_true", help="Enable stderr and core tables")
+    parser.add_argument("--enable-log-tailer", action="store_true", help="Enable writing logs to dynamic table")
+    parser.add_argument("--artifact-path", help="path for artifact directory; by default equals to "
+                                                "//sys/clickhouse/kolkhoz/<operation_alias>")
     add_structured_argument(parser, "--spec")
     add_structured_argument(parser, "--clickhouse-config", "ClickHouse configuration patch")
 
@@ -1110,7 +1115,13 @@ def add_list_operations_parser(add_parser):
     parser.add_argument("--filter", help="filter operation by some text factor. "
                                          "For example, part of the title can be passed to this option")
     parser.add_argument("--pool", help="filter operations by pool")
-    parser.add_argument("--with-failed-jobs", action="store_true", help="show only operations with failed jobs")
+
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--with-failed-jobs", action="store_const", const=True,
+                       help="show only operations with failed jobs")
+    group.add_argument("--without-failed-jobs", action="store_const", dest="with_failed_jobs", const=False,
+                       help="show only operations without failed jobs")
+
     add_time_argument(parser, "--from-time", help="lower limit for operations start time")
     add_time_argument(parser, "--to-time", help="upper limit for operations start time")
     add_time_argument(parser, "--cursor-time", help="cursor time. Used in combination with --cursor-direction and --limit")
