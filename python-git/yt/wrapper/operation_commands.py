@@ -47,13 +47,14 @@ def abort_operation(operation, reason=None, client=None):
     command_name = "abort_operation" if get_api_version(client) == "v4" else "abort_op"
     make_request(command_name, params, client=client)
 
-def suspend_operation(operation, client=None):
+def suspend_operation(operation, abort_running_jobs=False, client=None):
     """Suspends operation.
 
     :param str operation: operation id.
     """
     command_name = "suspend_operation" if get_api_version(client) == "v4" else "suspend_op"
-    return make_request(command_name, {"operation_id": operation}, client=client)
+    params = {"operation_id": operation, "abort_running_jobs": abort_running_jobs}
+    return make_request(command_name, params, client=client)
 
 def resume_operation(operation, client=None):
     """Continues operation after suspending.
