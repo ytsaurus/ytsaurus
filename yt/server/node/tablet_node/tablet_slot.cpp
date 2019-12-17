@@ -772,6 +772,13 @@ public:
         return options;
     }
 
+    const TTabletCellOptionsPtr& GetOptions() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return Options_;
+    }
+
 private:
     TTabletSlot* const Owner_;
     const int SlotIndex_;
@@ -884,13 +891,6 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return PrerequisiteTransactionId_;
-    }
-
-    const TTabletCellOptionsPtr& GetOptions() const
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        return Options_;
     }
 
     NLogging::TLogger GetLogger() const
@@ -1172,6 +1172,11 @@ double TTabletSlot::GetUsedCpu(double cpuPerTabletSlot) const
 TDynamicTabletCellOptionsPtr TTabletSlot::GetDynamicOptions() const
 {
     return Impl_->GetDynamicOptions();
+}
+
+TTabletCellOptionsPtr TTabletSlot::GetOptions() const
+{
+    return Impl_->GetOptions();
 }
 
 int TTabletSlot::GetDynamicConfigVersion() const

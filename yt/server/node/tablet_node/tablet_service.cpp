@@ -16,13 +16,15 @@
 #include <yt/server/lib/hydra/hydra_service.h>
 #include <yt/server/lib/hydra/mutation.h>
 
+#include <yt/ytlib/tablet_client/config.h>
 #include <yt/ytlib/tablet_client/tablet_service_proxy.h>
-#include <yt/client/table_client/wire_protocol.h>
-
-#include <yt/client/table_client/row_buffer.h>
-#include <yt/client/security_client/public.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
+
+#include <yt/client/security_client/public.h>
+
+#include <yt/client/table_client/row_buffer.h>
+#include <yt/client/table_client/wire_protocol.h>
 
 #include <yt/core/compression/codec.h>
 
@@ -146,6 +148,16 @@ private:
             tabletSnapshot->WriterOptions->Account,
             tabletSnapshot->WriterOptions->MediumName,
             tabletSnapshot->Config->InMemoryMode);
+
+        auto slotOptions = Slot_->GetOptions();
+        securityManager->ValidateResourceLimits(
+            slotOptions->ChangelogAccount,
+            slotOptions->ChangelogPrimaryMedium,
+            EInMemoryMode::None);
+        securityManager->ValidateResourceLimits(
+            slotOptions->SnapshotAccount,
+            slotOptions->SnapshotPrimaryMedium,
+            EInMemoryMode::None);
 
         tabletSnapshot->WaitOnLocks(0); // XXX fix timestamp
 

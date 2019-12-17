@@ -1766,6 +1766,34 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         sleep(10)
         assert sorted(changelogs) == sorted(ls("//sys/tablet_cells/{0}/changelogs".format(id)))
 
+    @authors("ifsmirnov")
+    def test_snapshot_account_resource_limits_violation(self):
+        create_account("test_account")
+        create_tablet_cell_bundle("custom", attributes={"options": {
+            "snapshot_account": "test_account"}})
+
+        sync_create_cells(1, tablet_cell_bundle="custom")
+        self._create_sorted_table("//tmp/t", tablet_cell_bundle="custom")
+        create("table", "//tmp/junk", attributes={"account": "test_account"})
+        write_table("//tmp/junk", [{"key": "value"}])
+        set("//sys/accounts/test_account/@resource_limits/disk_space_per_medium/default", 0)
+        wait(lambda: get("//sys/accounts/test_account/@violated_resource_limits/disk_space_per_medium/default"))
+
+        sync_mount_table("//tmp/t")
+
+        with pytest.raises(YtError):
+            insert_rows("//tmp/t", [{"key": 1}])
+
+        set("//sys/accounts/test_account/@resource_limits/disk_space_per_medium/default", 10**9)
+
+        def _wait_func():
+            try:
+                insert_rows("//tmp/t", [{"key": 1}])
+                return True
+            except:
+                return False
+        wait(_wait_func)
+
     @authors("savrus", "ifsmirnov")
     def test_chunk_view_accounting(self):
         create_account("test_account")
