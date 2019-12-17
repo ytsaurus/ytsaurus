@@ -19,9 +19,9 @@ public:
 
     const std::vector<TLogFileReaderPtr>& GetLogReaders() const;
 
-    const TLogRotatorPtr& GetLogRotator() const;
-
 private:
+    void OnTick();
+
     TBootstrap* const Bootstrap_;
 
     TLogTailerConfigPtr Config_;
@@ -29,6 +29,8 @@ private:
     TLogRotatorPtr LogRotator_;
     TLogWriterLivenessCheckerPtr LogWriterLivenessChecker_;
     std::vector<TLogFileReaderPtr> LogReaders_;
+
+    NConcurrency::TPeriodicExecutorPtr LogTailerExecutor_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TLogTailer)

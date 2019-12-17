@@ -36,9 +36,7 @@ public:
         TBootstrap* bootstrap,
         std::vector<std::pair<TString, TString>> extraLogTableColumns);
 
-    void Start();
-
-    void Stop();
+    void ReadLog();
 
     void OnLogRotation();
 
@@ -47,8 +45,6 @@ public:
 private:
     TLogFileConfigPtr Config_;
     TBootstrap* const Bootstrap_;
-
-    NConcurrency::TPeriodicExecutorPtr LogReaderExecutor_;
 
     std::optional<TUnbufferedFileInput> Log_;
 
@@ -68,6 +64,8 @@ private:
     std::vector<std::pair<TString, TString>> ExtraLogTableColumns_;
 
     ui64 Increment_ = 0;
+
+    TInstant LastLogReadTime_;
 
     void DoReadLog();
     void DoOpenLogFile();

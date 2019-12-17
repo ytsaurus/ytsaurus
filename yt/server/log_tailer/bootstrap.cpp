@@ -20,9 +20,7 @@ static const NLogging::TLogger Logger("Bootstrap");
 
 TBootstrap::TBootstrap(NYT::NLogTailer::TLogTailerBootstrapConfigPtr config)
     : Config_(std::move(config))
-    , LogWriterLivenessCheckerQueue_(New<TActionQueue>())
-    , RotatorQueue_(New<TActionQueue>())
-    , ReaderQueue_(New<TActionQueue>())
+    , LogTailerQueue_(New<TActionQueue>())
     , LogTailer_(New<TLogTailer>(this, Config_->LogTailer))
 { }
 
@@ -47,6 +45,7 @@ void TBootstrap::Run()
 void TBootstrap::SigintHandler()
 {
     ++SigintCounter_;
+    YT_LOG_INFO("Received SIGINT (SigintCount: %v)", static_cast<int>(SigintCounter_));
     if (SigintCounter_ > 1) {
         _exit(InterruptionExitCode);
     }
@@ -63,19 +62,9 @@ const IClientPtr& TBootstrap::GetMasterClient() const
     return Client_;
 }
 
-const IInvokerPtr& TBootstrap::GetLogWriterLivenessCheckerInvoker() const
+const IInvokerPtr& TBootstrap::GetLogTailerInvoker() const
 {
-    return LogWriterLivenessCheckerQueue_->GetInvoker();
-}
-
-const IInvokerPtr& TBootstrap::GetReaderInvoker() const
-{
-    return ReaderQueue_->GetInvoker();
-}
-
-const IInvokerPtr& TBootstrap::GetRotatorInvoker() const
-{
-    return RotatorQueue_->GetInvoker();
+    return LogTailerQueue_->GetInvoker();
 }
 
 const TLogTailerPtr& TBootstrap::GetLogTailer() const

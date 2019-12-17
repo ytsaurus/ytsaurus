@@ -15,12 +15,9 @@ class TLogRotator
 public:
     TLogRotator(const TLogRotationConfigPtr& config, TBootstrap* bootstrap);
 
-    void Start();
-
-    void Stop();
+    void RotateLogs();
 
 private:
-    void RotateLogs();
 
     static TString GetLogSegmentPath(const TString& logFilePath, int segmentId);
 
@@ -31,6 +28,8 @@ private:
     std::vector<TString> LogFilePaths_;
 
     int RotationCount_ = 0;
+
+    TInstant LastLogRotationTime_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TLogRotator)

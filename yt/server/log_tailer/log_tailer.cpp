@@ -1,5 +1,6 @@
 #include "log_tailer.h"
 
+#include "bootstrap.h"
 #include "log_reader.h"
 #include "log_rotator.h"
 #include "log_writer_liveness_checker.h"
@@ -7,6 +8,8 @@
 #include <util/system/env.h>
 
 namespace NYT::NLogTailer {
+
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,6 +22,10 @@ TLogTailer::TLogTailer(
     TLogTailerConfigPtr config)
     : Bootstrap_(bootstrap)
     , Config_(std::move(config))
+    , LogTailerExecutor_(New<TPeriodicExecutor>(
+        Bootstrap_->GetLogTailerInvoker(),
+        BIND(&TLogTailer::OnTick, MakeStrong(this)),
+        Bootstrap_->GetConfig()->TickPeriod))
 { }
 
 void TLogTailer::Run()
@@ -33,15 +40,11 @@ void TLogTailer::Run()
         LogReaders_.emplace_back(New<TLogFileReader>(file, Bootstrap_, extraLogTableColumns));
     }
 
-    for (auto& reader : LogReaders_) {
-        reader->Start();
-    }
-
     LogRotator_ = New<TLogRotator>(Config_->LogRotation, Bootstrap_);
-    LogRotator_->Start();
 
     LogWriterLivenessChecker_ = New<TLogWriterLivenessChecker>(Config_->LogWriterLivenessChecker, Bootstrap_);
-    LogWriterLivenessChecker_->Start();
+
+    LogTailerExecutor_->Start();
 
     YT_LOG_INFO("Log tailer started");
 }
@@ -51,9 +54,19 @@ const std::vector<TLogFileReaderPtr>& TLogTailer::GetLogReaders() const
     return LogReaders_;
 }
 
-const TLogRotatorPtr& TLogTailer::GetLogRotator() const
+void TLogTailer::OnTick()
 {
-    return LogRotator_;
+    YT_LOG_DEBUG("Tick started");
+
+    LogRotator_->RotateLogs();
+
+    for (auto& reader : LogReaders_) {
+        reader->ReadLog();
+    }
+
+    LogWriterLivenessChecker_->CheckLiveness();
+
+    YT_LOG_DEBUG("Tick finished");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
