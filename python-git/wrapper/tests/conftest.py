@@ -203,6 +203,9 @@ class YtTestEnvironment(object):
         self.config["enable_logging_for_params_changes"] = True
         self.config["allow_fallback_to_native_driver"] = False
 
+        # Interrupt main in tests is unrelaible and can cause 'Test crashed' or other errors in case of flaps.
+        self.config["ping_failed_mode"] = "pass"
+
         # NB: temporary hack
         if arcadia_interop.yatest_common is not None:
             self.config["is_local_mode"] = True
