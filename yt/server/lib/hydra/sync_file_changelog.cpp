@@ -134,7 +134,7 @@ public:
             struct TMetaTag { };
             auto serializedMeta = TSharedMutableRef::Allocate<TMetaTag>(header.MetaSize);
             NFS::ExpectIOErrors([&] {
-                ReadPadded(*dataFile, serializedMeta);
+                ReadRefPadded(*dataFile, serializedMeta);
             });
             DeserializeProto(&Meta_, serializedMeta);
             SerializedMeta_ = serializedMeta;
@@ -496,7 +496,7 @@ private:
                 auto header = MakeChangelogHeader<TFileHeader>();
                 WritePod(tempFile, header);
 
-                Write(tempFile, SerializedMeta_);
+                WriteRef(tempFile, SerializedMeta_);
                 WriteZeroes(tempFile, header.PaddingSize);
 
                 YT_VERIFY(tempFile.GetPosition() == header.FirstRecordOffset);
@@ -695,22 +695,6 @@ private:
         YT_VERIFY(validSize == CurrentFilePosition_);
     }
 
-    template <class TOutput>
-    int WriteZeroes(TOutput& output, int count)
-    {
-        int written = 0;
-
-        while (written < count) {
-            int toWrite = Min<int>(ZeroBuffer_.Size(), count - written);
-            output.Write(ZeroBuffer_.Begin(), toWrite);
-            written += toWrite;
-        }
-
-        YT_VERIFY(written == count);
-
-        return written;
-    }
-
     struct TRecordInfo
     {
         int Id;
@@ -754,7 +738,7 @@ private:
 
         NFS::ExpectIOErrors([&] {
             NTracing::TNullTraceContextGuard nullTraceContextGuard;
-            totalSize += ReadPadded(input, data);
+            totalSize += ReadRefPadded(input, data);
         });
 
         if (header.PaddingSize > 0) {
@@ -896,7 +880,7 @@ private:
                 }
 
                 totalSize += WritePodPadded(AppendOutput_, header);
-                totalSize += WritePadded(AppendOutput_, record);
+                totalSize += WriteRefPadded(AppendOutput_, record);
                 totalSize += WriteZeroes(AppendOutput_, paddingSize);
 
                 AppendSizes_.push_back(totalSize);
@@ -1019,7 +1003,6 @@ private:
     // Reused by Append.
     std::vector<int> AppendSizes_;
     TBlobOutput AppendOutput_;
-    const TBlob ZeroBuffer_{TDefaultBlobTag(), 64_KB, true};
 
     //! Auxiliary data.
     //! Protects file resources.

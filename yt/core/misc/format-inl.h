@@ -552,7 +552,8 @@ inline void FormatValue(TStringBuilderBase* builder, TDuration value, TStringBuf
 // TInstant (specialize for TFormatTraits)
 inline void FormatValue(TStringBuilderBase* builder, TInstant value, TStringBuf format)
 {
-    builder->AppendFormat("%v", value, format);
+    // TODO(babenko): optimize
+    builder->AppendFormat("%v", ToString(value), format);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
