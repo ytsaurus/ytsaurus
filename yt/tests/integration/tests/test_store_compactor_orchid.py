@@ -45,27 +45,26 @@ class TestStoreCompactorOrchid(TestSortedDynamicTablesBase):
 
         tablets = [get("//tmp/t{0}/@tablets/0".format(tablet_idx)) for tablet_idx in range(NUM_TABLES)]
         tablet_ids = [tablets[i]["tablet_id"] for i in range(NUM_TABLES)]
-        addresses = [get_tablet_leader_address(tablet_ids[i]) for i in range(NUM_TABLES)]
-        orchids = [self._find_tablet_orchid(address, tablet_id) for address, tablet_id in zip(addresses, tablet_ids)]
-        partitions = []
-        for orchid in orchids:
-            partitions.append(orchid["partitions"][0]["id"])
 
-        compaction_tasks = get("//sys/cluster_nodes/{0}/orchid/store_compactor/compaction_tasks".format(node))
-        for task in compaction_tasks["finished_tasks"]:
-            # We don't want to predict priorities in integration test
-            del task["task_priority"]
-        compaction_tasks["finished_tasks"].sort()
+        def _compaction_task_finished():
+            compaction_tasks = get("//sys/cluster_nodes/{0}/orchid/store_compactor/compaction_tasks".format(node))
+            for task in compaction_tasks["finished_tasks"]:
+                # We don't want to predict priorities in integration test
+                del task["task_priority"]
+                del task["partition_id"]
+            compaction_tasks["finished_tasks"].sort()
 
-        expected_compaction_tasks = {
-            "task_count": 0,
-            "finished_task_count": NUM_TABLES,
-            "pending_tasks": [],
-            "finished_tasks": [
-                {"tablet_id": tablet_ids[i], "partition_id": partitions[i], "store_count": 5} for i in range(NUM_TABLES)]
-        }
+            expected_compaction_tasks = {
+                "task_count": 0,
+                "finished_task_count": NUM_TABLES,
+                "pending_tasks": [],
+                "finished_tasks": [
+                    {"tablet_id": tablet_ids[i], "store_count": 5} for i in range(NUM_TABLES)]
+            }
 
-        assert compaction_tasks == expected_compaction_tasks
+            return compaction_tasks == expected_compaction_tasks
+
+        wait(lambda: _compaction_task_finished())
         assert get("//sys/cluster_nodes/{0}/orchid/store_compactor/partitioning_tasks".format(node)) == empty_task_dict
 
     @authors("akozhikhov")
