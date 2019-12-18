@@ -5,7 +5,6 @@
 #include "default_tvm_service.h"
 #include "ticket_authenticator.h"
 #include "token_authenticator.h"
-#include "void_tvm_service.h"
 
 #include <yt/ytlib/auth/config.h>
 
@@ -39,13 +38,10 @@ public:
                     profiler.AppendPath("/tvm/remote")),
                 config->TvmService,
                 profiler.AppendPath("/tvm/cache"));
-        } else {
-            // TODO: configure TVM everywhere, only do this if (!config->RequireAuthentication)
-            TvmService_ = CreateVoidTvmService();
         }
 
         IBlackboxServicePtr blackboxService;
-        if (config->BlackboxService && TvmService_ && poller) {
+        if (config->BlackboxService && poller) {
             blackboxService = CreateDefaultBlackboxService(
                 config->BlackboxService,
                 TvmService_,
