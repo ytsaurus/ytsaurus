@@ -401,7 +401,8 @@ TFuture<void> TTcpConnection::Send(TSharedRefArray message, const TSendOptions& 
             MaxMessagePartCount));
     }
 
-    for (const auto& part : message) {
+    for (size_t index = 0; index < message.Size(); ++index) {
+        const auto& part = message[index];
         if (part.Size() > MaxMessagePartSize) {
             return MakeFuture<void>(TError(
                 NRpc::EErrorCode::TransportError,
