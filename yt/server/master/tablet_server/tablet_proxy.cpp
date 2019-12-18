@@ -80,7 +80,7 @@ private:
         descriptors->push_back(EInternedAttributeKey::UnflushedTimestamp);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UnconfirmedDynamicTableLocks)
             .SetOpaque(true));
-        descriptors->push_back(EInternedAttributeKey::TabletErrorCount);
+        descriptors->push_back(EInternedAttributeKey::ErrorCount);
         descriptors->push_back(EInternedAttributeKey::ReplicationErrorCount);
     }
 

@@ -105,6 +105,7 @@
     XX(ErasureCodec, erasure_codec) \
     XX(ErasureStatistics, erasure_statistics) \
     XX(Error, error) \
+    XX(ErrorCount, error_count) \
     XX(Errors, errors) \
     XX(ErrorsUntrimmed, errors_untrimmed) \
     XX(EstimatedCreationTime, estimated_creation_time) \
