@@ -1316,7 +1316,7 @@ private:
     THashMap<TString, NApi::ITransactionPtr> ClusterNameToSyncReplicaTransaction_;
 
     //! Caches mappings from name table ids to schema ids.
-    THashMap<std::pair<TNameTablePtr, ETableSchemaKind>, TNameTableToSchemaIdMapping> IdMappingCache_;
+    THashMap<std::tuple<TTableId, TNameTablePtr, ETableSchemaKind>, TNameTableToSchemaIdMapping> IdMappingCache_;
 
 
     IInvokerPtr GetThreadPoolInvoker()
@@ -1329,11 +1329,11 @@ private:
         const TNameTablePtr& nameTable,
         ETableSchemaKind kind)
     {
-        auto key = std::make_pair(nameTable, kind);
+        auto key = std::make_tuple(tableInfo->TableId, nameTable, kind);
         auto it = IdMappingCache_.find(key);
         if (it == IdMappingCache_.end()) {
             auto mapping = BuildColumnIdMapping(tableInfo->Schemas[kind], nameTable);
-            it = IdMappingCache_.insert(std::make_pair(key, std::move(mapping))).first;
+            it = IdMappingCache_.emplace(key, std::move(mapping)).first;
         }
         return it->second;
     }
