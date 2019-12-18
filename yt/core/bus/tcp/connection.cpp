@@ -402,12 +402,14 @@ TFuture<void> TTcpConnection::Send(TSharedRefArray message, const TSendOptions& 
     }
 
     for (const auto& part : message) {
-        return MakeFuture<void>(TError(
-            NRpc::EErrorCode::TransportError,
-            "Message part %v exceeds size limit: %v > %v",
-            index,
-            part.Size(),
-            MaxMessagePartSize));
+        if (part.Size() > MaxMessagePartSize) {
+            return MakeFuture<void>(TError(
+                NRpc::EErrorCode::TransportError,
+                "Message part %v exceeds size limit: %v > %v",
+                index,
+                part.Size(),
+                MaxMessagePartSize));
+        }
     }
 
     TQueuedMessage queuedMessage(std::move(message), options);
