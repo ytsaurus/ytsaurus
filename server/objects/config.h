@@ -62,7 +62,6 @@ public:
     TDuration RemovedObjectsGraceTimeout;
     int RemovedObjectsDropBatchSize;
     TPodTypeHandlerConfigPtr PodTypeHandler;
-    TPodSpecValidationConfigPtr PodSpecValidationConfig;
     bool EnableExtensibleAttributes;
     bool EnableHistory;
 
@@ -76,8 +75,6 @@ public:
             .GreaterThanOrEqual(1)
             .Default(50000);
         RegisterParameter("pod_type_handler", PodTypeHandler)
-            .DefaultNew();
-        RegisterParameter("pod_spec_validation", PodSpecValidationConfig)
             .DefaultNew();
         RegisterParameter("enable_extensible_attributes", EnableExtensibleAttributes)
             .Default(false);
