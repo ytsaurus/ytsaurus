@@ -12,7 +12,7 @@ object CommonPlugin extends AutoPlugin {
 
   override def projectSettings: Seq[Def.Setting[_]] = Seq(
     resolvers += "Arcadia" at "http://artifactory.yandex.net/artifactory/yandex_media_releases",
-    version in ThisBuild := "0.0.10",
+    version in ThisBuild := "0.0.11",
     organization := "ru.yandex",
     name := s"spark-yt-${name.value}",
     scalaVersion := "2.12.8",
