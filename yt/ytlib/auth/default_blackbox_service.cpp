@@ -48,13 +48,26 @@ public:
         const THashMap<TString, TString>& params) override
     {
         auto deadline = TInstant::Now() + Config_->RequestTimeout;
-        return TvmService_->GetTicket(Config_->BlackboxServiceId)
-            .Apply(BIND(
-                &TDefaultBlackboxService::OnTvmCallResult,
+        if (TvmService_) {
+            return TvmService_->GetTicket(Config_->BlackboxServiceId)
+                .Apply(BIND(
+                    &TDefaultBlackboxService::DoCall,
+                    MakeStrong(this),
+                    method,
+                    params,
+                    deadline));
+        } else {
+            // TODO: configure TVM everywhere, only do this if (!config->RequireAuthentication)
+            return BIND(
+                &TDefaultBlackboxService::DoCall,
                 MakeStrong(this),
                 method,
-	       	params,
-	       	deadline));
+                params,
+                deadline,
+                TString())
+                .AsyncVia(NRpc::TDispatcher::Get()->GetLightInvoker())
+                .Run();
+        }
     }
 
     virtual TErrorOr<TString> GetLogin(const NYTree::INodePtr& reply) const override
@@ -79,7 +92,7 @@ private:
     NProfiling::TAggregateGauge BlackboxCallTime_{"/blackbox_call_time", {}, NProfiling::EAggregateMode::All};
 
 private:
-    INodePtr OnTvmCallResult(
+    INodePtr DoCall(
         const TString& method,
         const THashMap<TString, TString>& params,
         TInstant deadline,
