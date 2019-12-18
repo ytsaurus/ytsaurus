@@ -118,10 +118,12 @@ void Serialize(const TColumnSchema& columnSchema, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer).BeginMap()
         .Item("name").Value(columnSchema.Name_)
-        .DoIf(!columnSchema.RawTypeV2_.Defined(), [&] (TFluentMap fluent) {
-            fluent.Item("type").Value(NDetail::ToString(columnSchema.Type_));
-            fluent.Item("required").Value(columnSchema.Required_);
-        })
+        .DoIf(!columnSchema.RawTypeV2_.Defined() && !columnSchema.RawTypeV3_.Defined(),
+            [&] (TFluentMap fluent) {
+                fluent.Item("type").Value(NDetail::ToString(columnSchema.Type_));
+                fluent.Item("required").Value(columnSchema.Required_);
+            }
+        )
         .DoIf(columnSchema.RawTypeV2_.Defined(), [&] (TFluentMap fluent) {
             const auto& rawTypeV2 = *columnSchema.RawTypeV2_;
             fluent.Item("type_v2").Value(rawTypeV2);
@@ -138,6 +140,61 @@ void Serialize(const TColumnSchema& columnSchema, IYsonConsumer* consumer)
                 fluent
                     .Item("type").Value(rawTypeV2["element"].AsString())
                     .Item("required").Value(false);
+            }
+        })
+        .DoIf(columnSchema.RawTypeV3_.Defined(), [&] (TFluentMap fluent) {
+            const auto& rawTypeV3 = *columnSchema.RawTypeV3_;
+            fluent.Item("type_v3").Value(rawTypeV3);
+
+            // We going set old fields `type` and `required` to be compatible
+            // with old clusters that doesn't support type_v3 yet.
+
+            // if type is simple return its name otherwise return empty optional
+            auto isRequired = [](TStringBuf simpleType) {
+                return simpleType != "null";
+            };
+            auto getSimple = [] (const TNode& typeV3) -> TMaybe<TString> {
+                static const THashMap<TString,TString> typeV3ToOld = {
+                    {"bool", "boolean"},
+                    {"yson", "any"},
+                };
+                TMaybe<TString> result;
+                if (typeV3.IsString()) {
+                    result = typeV3.AsString();
+                } else if (typeV3.IsMap() && typeV3.Size() == 1) {
+                    Y_VERIFY(typeV3["type_name"].IsString(), "invalid type is passed");
+                    result = typeV3["type_name"].AsString();
+                }
+                if (result) {
+                    auto it = typeV3ToOld.find(*result);
+                    if (it != typeV3ToOld.end()) {
+                        result = it->second;
+                    }
+                }
+                return result;
+            };
+            auto simplify = [&](const TNode& typeV3) -> TMaybe<std::pair<TString, bool>> {
+                auto simple = getSimple(typeV3);
+                if (simple) {
+                    return std::make_pair(*simple, isRequired(*simple));
+                }
+                if (typeV3.IsMap() && typeV3["type_name"] == "optional") {
+                    auto simpleItem = getSimple(typeV3["item"]);
+                    if (simpleItem && isRequired(*simpleItem)) {
+                        return std::make_pair(*simpleItem, false);
+                    }
+                }
+                return {};
+            };
+
+            auto simplified = simplify(rawTypeV3);
+
+            if (simplified) {
+                const auto& [simpleType, required] = *simplified;
+                fluent
+                    .Item("type").Value(simpleType)
+                    .Item("required").Value(required);
+                return;
             }
         })
         .DoIf(columnSchema.SortOrder_.Defined(), [&] (TFluentMap fluent) {
@@ -165,6 +222,7 @@ void Deserialize(TColumnSchema& columnSchema, const TNode& node)
     DESERIALIZE_ITEM("type", columnSchema.Type_);
     DESERIALIZE_ITEM("required", columnSchema.Required_);
     DESERIALIZE_ITEM("type_v2", columnSchema.RawTypeV2_);
+    DESERIALIZE_ITEM("type_v3", columnSchema.RawTypeV3_);
     DESERIALIZE_ITEM("sort_order", columnSchema.SortOrder_);
     DESERIALIZE_ITEM("lock", columnSchema.Lock_);
     DESERIALIZE_ITEM("expression", columnSchema.Expression_);
