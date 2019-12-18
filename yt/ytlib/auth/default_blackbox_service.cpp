@@ -3,6 +3,7 @@
 #include "config.h"
 #include "helpers.h"
 #include "private.h"
+#include "tvm_service.h"
 
 #include <yt/core/json/json_parser.h>
 
@@ -31,9 +32,11 @@ class TDefaultBlackboxService
 public:
     TDefaultBlackboxService(
         TDefaultBlackboxServiceConfigPtr config,
+        ITvmServicePtr tvmService,
         IPollerPtr poller,
         NProfiling::TProfiler profiler)
         : Config_(std::move(config))
+        , TvmService_(std::move(tvmService))
         , Profiler_(std::move(profiler))
         , HttpClient_(Config_->Secure
             ? NHttps::CreateClient(Config_->HttpClient, std::move(poller))
@@ -42,12 +45,14 @@ public:
 
     virtual TFuture<INodePtr> Call(
         const TString& method,
-        const THashMap<TString, TString>& params,
-        const THashMap<TString, TString>& headers) override
+        const THashMap<TString, TString>& params) override
     {
-        return BIND(&TDefaultBlackboxService::DoCall, MakeStrong(this), method, params, headers)
-            .AsyncVia(NRpc::TDispatcher::Get()->GetLightInvoker())
-            .Run();
+        auto deadline = TInstant::Now() + Config_->RequestTimeout;
+        return TvmService_->GetTicket(Config_->BlackboxServiceId)
+            .Apply(BIND(
+                &TDefaultBlackboxService::OnTvmCallResult,
+                MakeStrong(this),
+                method, params, deadline));
     }
 
     virtual TErrorOr<TString> GetLogin(const NYTree::INodePtr& reply) const override
@@ -61,6 +66,7 @@ public:
 
 private:
     const TDefaultBlackboxServiceConfigPtr Config_;
+    ITvmServicePtr TvmService_;
     const NProfiling::TProfiler Profiler_;
 
     const NHttp::IClientPtr HttpClient_;
@@ -71,13 +77,12 @@ private:
     NProfiling::TAggregateGauge BlackboxCallTime_{"/blackbox_call_time", {}, NProfiling::EAggregateMode::All};
 
 private:
-    INodePtr DoCall(
+    INodePtr OnTvmCallResult(
         const TString& method,
         const THashMap<TString, TString>& params,
-        const THashMap<TString, TString>& headers)
+        TInstant deadline,
+        const TString& blackboxTicket)
     {
-        auto deadline = TInstant::Now() + Config_->RequestTimeout;
-
         TSafeUrlBuilder builder;
         builder.AppendString(Format("%v://%v:%v/blackbox?",
             Config_->Secure ? "https" : "http",
@@ -96,7 +101,10 @@ private:
         auto realUrl = builder.FlushRealUrl();
         auto safeUrl = builder.FlushSafeUrl();
 
-        auto httpHeaders = MakeHeaders(headers);
+        auto httpHeaders = New<THeaders>();
+        if (!blackboxTicket.empty()) {
+            httpHeaders->Add("X-Ya-Service-Ticket", blackboxTicket);
+        }
 
         auto callId = TGuid::Create();
 
@@ -191,15 +199,6 @@ private:
         return config;
     }
 
-    static THeadersPtr MakeHeaders(const THashMap<TString, TString>& headers)
-    {
-        auto httpHeaders = New<THeaders>();
-        for (const auto& [key, value] : headers) {
-            httpHeaders->Add(key, value);
-        }
-        return httpHeaders;
-    }
-
     INodePtr DoCallOnce(
         TGuid callId,
         int attempt,
@@ -278,11 +277,13 @@ private:
 
 IBlackboxServicePtr CreateDefaultBlackboxService(
     TDefaultBlackboxServiceConfigPtr config,
+    ITvmServicePtr tvmService,
     IPollerPtr poller,
     NProfiling::TProfiler profiler)
 {
     return New<TDefaultBlackboxService>(
         std::move(config),
+        std::move(tvmService),
         std::move(poller),
         std::move(profiler));
 }
