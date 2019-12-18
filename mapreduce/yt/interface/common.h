@@ -197,6 +197,7 @@ struct TColumnSchema
 
     // Experimental feature
     FLUENT_FIELD_OPTION(TNode, RawTypeV2);
+    FLUENT_FIELD_OPTION(TNode, RawTypeV3);
 
     FLUENT_FIELD_OPTION(ESortOrder, SortOrder);
     FLUENT_FIELD_OPTION(TString, Lock);
