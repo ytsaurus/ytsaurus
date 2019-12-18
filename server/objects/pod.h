@@ -155,6 +155,8 @@ public:
         ESchedulingState state,
         const TString& message,
         const TObjectId& nodeId = TObjectId());
+
+    void ResetAgentStatus();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

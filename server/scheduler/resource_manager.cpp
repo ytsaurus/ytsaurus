@@ -200,6 +200,8 @@ private:
                 }
             }
 
+            pod->ResetAgentStatus();
+
             // NB! Overwrite eviction status even if there is no actual eviction
             // to prevent concurrent pod assignment / eviction status changes.
             pod->UpdateEvictionStatus(

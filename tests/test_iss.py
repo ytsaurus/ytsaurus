@@ -13,6 +13,7 @@ from .conftest import (
 
 import os
 import pytest
+import random
 import time
 
 
@@ -107,38 +108,133 @@ def yp_env_iss(request, test_environment_iss):
     return test_environment_iss
 
 
+class Resources(object):
+    def __init__(self, pod_agent_rootfs, pod_agent_binary, workload_rootfs):
+        self.pod_agent_rootfs = pod_agent_rootfs
+        self.pod_agent_binary = pod_agent_binary
+        self.workload_rootfs = workload_rootfs
+
+    @staticmethod
+    def load(iss_resource_manager):
+        with open(POD_AGENT_ROOTFS_FILE_PATH, "rb") as pod_agent_rootfs_file:
+            pod_agent_rootfs = iss_resource_manager.put_resource(
+                "pod_agent_rootfs.tar.gz",
+                pod_agent_rootfs_file.read()
+            )
+
+        with open(POD_AGENT_BINARY_FILE_PATH, "rb") as pod_agent_binary_file:
+            pod_agent_binary = iss_resource_manager.put_resource(
+                "pod_agent",
+                pod_agent_binary_file.read()
+            )
+
+        with open(WORKLOAD_ROOTFS_FILE_PATH, "rb") as workload_rootfs_file:
+            workload_rootfs = iss_resource_manager.put_resource(
+                "workload_rootfs.tar.gz",
+                workload_rootfs_file.read()
+            )
+
+        return Resources(
+            pod_agent_rootfs=pod_agent_rootfs,
+            pod_agent_binary=pod_agent_binary,
+            workload_rootfs=workload_rootfs,
+        )
+
+
 @pytest.mark.skipif(
     not is_in_arcadia(),
     reason="YP Iss tests are disabled outside Arcadia environment",
 )
 @pytest.mark.usefixtures("yp_env_iss", "iss_agent", "iss_resource_manager")
 class TestSchedulePod(object):
-    def test_pod_agent(self, yp_env_iss, iss_agent, iss_resource_manager):
-        with open(POD_AGENT_ROOTFS_FILE_PATH, "rb") as pod_agent_rootfs_file:
-            pod_agent_rootfs_resource = iss_resource_manager.put_resource(
-                "pod_agent_rootfs.tar.gz",
-                pod_agent_rootfs_file.read()
-            )
+    def is_workload_active(self, yp_client, pod_id, workload_id):
+        status_response = yp_client.get_object(
+            "pod",
+            pod_id,
+            selectors=["/status/agent/pod_agent_payload/status"]
+        )[0]
+        if status_response == None: # Check for YsonEntity or None.
+            return False
+        workloads = status_response.get("workloads", [])
+        if len(workloads) < 1:
+            return False
+        assert len(workloads) == 1
+        workload_status = workloads[0]
+        return workload_status.get("id") == workload_id and \
+            workload_status.get("state") == "active"
 
-        with open(POD_AGENT_BINARY_FILE_PATH, "rb") as pod_agent_binary_file:
-            pod_agent_binary_resource = iss_resource_manager.put_resource(
-                "pod_agent",
-                pod_agent_binary_file.read()
-            )
+    def get_agent_initialization_time_limit(self):
+        return 300
 
-        with open(WORKLOAD_ROOTFS_FILE_PATH, "rb") as workload_rootfs_file:
-            workload_rootfs_resource = iss_resource_manager.put_resource(
-                "workload_rootfs.tar.gz",
-                workload_rootfs_file.read()
-            )
-
-        self._test_pod_agent_impl(
-            yp_env_iss.yp_client,
-            iss_agent,
-            pod_agent_rootfs_resource,
-            pod_agent_binary_resource,
-            workload_rootfs_resource,
+    def wait_for_active_workload(self, *args, **kwargs):
+        wait(
+            lambda: self.is_workload_active(*args, **kwargs),
+            iter=self.get_agent_initialization_time_limit(),
+            sleep_backoff=1,
         )
+
+    def test_pod_agent(self, yp_env_iss, iss_agent, iss_resource_manager):
+        yp_client = yp_env_iss.yp_client
+
+        resources = Resources.load(iss_resource_manager)
+
+        pod_id, workload_id = self._start_workload(
+            yp_client,
+            iss_agent,
+            resources,
+        )
+
+        self.wait_for_active_workload(yp_client, pod_id, workload_id)
+
+    def test_pod_status_reset(self, yp_env_iss, iss_agent, iss_resource_manager):
+        yp_client = yp_env_iss.yp_client
+
+        resources = Resources.load(iss_resource_manager)
+
+        pod_id, workload_id = self._start_workload(
+            yp_client,
+            iss_agent,
+            resources,
+        )
+
+        # Try to interfere with the agent.
+        time.sleep(random.randint(1, self.get_agent_initialization_time_limit()))
+
+        yp_client.update_object(
+            "pod",
+            pod_id,
+            remove_updates=[
+                dict(
+                    path="/spec/node_id",
+                ),
+            ],
+            set_updates=[
+                dict(
+                    path="/spec/enable_scheduling",
+                    value=False,
+                ),
+            ],
+        )
+
+        def validate_status():
+            status = yp_client.get_object(
+                "pod",
+                pod_id,
+                selectors=["/status"],
+            )[0]
+
+            assert status["agent"] == dict(
+                iss=dict(),
+                state="unknown",
+                iss_payload="",
+                pod_agent_payload=dict(),
+            )
+
+            assert status["agent_spec_timestamp"] == 0
+
+        validate_status()
+        time.sleep(10)
+        validate_status()
 
     def prepare_objects(self, yp_client, iss_agent, pod_spec, network_project_id):
         node_id = iss_agent.hostname
@@ -166,12 +262,10 @@ class TestSchedulePod(object):
             spec=pod_spec,
         )
 
-    def _test_pod_agent_impl(self,
-                             yp_client,
-                             iss_agent,
-                             pod_agent_rootfs_resource,
-                             pod_agent_binary_resource,
-                             workload_rootfs_resource):
+    def _start_workload(self,
+                        yp_client,
+                        iss_agent,
+                        resources):
         workload_id = "workload-id"
         box_id = "box-id"
         layer_id = "layer-id"
@@ -180,11 +274,11 @@ class TestSchedulePod(object):
             "enable_scheduling": True,
             "pod_agent_payload": {
                 "meta": {
-                    "url": pod_agent_binary_resource.url,
-                    "checksum": pod_agent_binary_resource.verification,
+                    "url": resources.pod_agent_binary.url,
+                    "checksum": resources.pod_agent_binary.verification,
                     "layers": [{
-                        "url": pod_agent_rootfs_resource.url,
-                        "checksum": pod_agent_rootfs_resource.verification,
+                        "url": resources.pod_agent_rootfs.url,
+                        "checksum": resources.pod_agent_rootfs.verification,
                     }]
                 },
                 "spec": {
@@ -219,8 +313,8 @@ class TestSchedulePod(object):
                     "resources": {
                         "layers": [{
                             "id": layer_id,
-                            "url": workload_rootfs_resource.url,
-                            "checksum": workload_rootfs_resource.verification
+                            "url": resources.workload_rootfs.url,
+                            "checksum": resources.workload_rootfs.verification
                         }]
                     },
                     "mutable_workloads": [{
@@ -249,23 +343,7 @@ class TestSchedulePod(object):
 
         iss_agent.client.start()
 
-        def is_workload_active():
-            status_response = yp_client.get_object(
-                "pod",
-                pod_id,
-                selectors=["/status/agent/pod_agent_payload/status"]
-            )[0]
-            if status_response == None: # Check for YsonEntity or None.
-                return False
-            workloads = status_response.get("workloads", [])
-            if len(workloads) < 1:
-                return False
-            assert len(workloads) == 1
-            workload_status = workloads[0]
-            return workload_status.get("id") == workload_id and \
-                workload_status.get("state") == "active"
-
-        wait(is_workload_active, iter=300, sleep_backoff=1)
+        return pod_id, workload_id
 
         expected_spec_timestamp = yp_client.get_object(
             "pod",

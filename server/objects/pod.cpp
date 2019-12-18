@@ -236,6 +236,15 @@ void TPod::UpdateSchedulingStatus(
     schedulingEtc->clear_error();
 }
 
+void TPod::ResetAgentStatus()
+{
+    Status().Agent().State() = EPodCurrentState::Unknown;
+    Status().Agent().IssPayload()->clear();
+    Status().Agent().PodAgentPayload()->Clear();
+    Status().Agent().Etc()->Clear();
+    Status().AgentSpecTimestamp() = NullTimestamp;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // Cf. YP-626

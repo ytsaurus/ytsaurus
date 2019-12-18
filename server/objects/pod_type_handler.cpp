@@ -267,9 +267,9 @@ public:
         const auto& netManager = Bootstrap_->GetNetManager();
         pod->Status().Etc()->mutable_dns()->set_persistent_fqdn(netManager->BuildPersistentPodFqdn(pod));
 
-        pod->UpdateEvictionStatus(EEvictionState::None, EEvictionReason::None, "Pod created");
+        pod->ResetAgentStatus();
 
-        pod->Status().Agent().State() = EPodCurrentState::Unknown;
+        pod->UpdateEvictionStatus(EEvictionState::None, EEvictionReason::None, "Pod created");
     }
 
     virtual void AfterObjectCreated(
