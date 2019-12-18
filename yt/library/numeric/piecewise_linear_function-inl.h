@@ -912,7 +912,7 @@ TPiecewiseLinearFunction<TValue> TPiecewiseLinearFunction<TValue>::Compose(const
     YT_VERIFY(IsDefinedAt(other.RightLimitAt(other.RightFunctionBound())));
 
     // Prepare critical points with the expected values of the rhs function at these points.
-    std::vector<std::pair<double, TValue>> criticalPoints;
+    std::vector<std::pair<double, double>> criticalPoints;
     ExtractCriticalPointsFromFunctionWithValues(other, &criticalPoints);
 
     {
