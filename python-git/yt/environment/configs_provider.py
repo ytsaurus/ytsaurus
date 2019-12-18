@@ -503,10 +503,14 @@ class ConfigsProvider_19(ConfigsProvider):
                 "hard_backoff_time": 100
             },
             "cell_directory_synchronizer": {
-                "sync_period": 500
+                "sync_period": 500,
+                "success_expiration_time": 500,
+                "failure_expiration_time": 500
             },
             "cluster_directory_synchronizer": {
-                "sync_period": 500
+                "sync_period": 500,
+                "success_expiration_time": 500,
+                "failure_expiration_time": 500
             },
             "table_mount_cache": {
                 "expire_after_successful_update_time": 0,

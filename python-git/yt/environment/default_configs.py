@@ -245,6 +245,8 @@ b"""
         };
         node_directory_synchronizer = {
             sync_period = 100;
+            success_expiration_time = 100;
+            failure_expiration_time = 100;
         };
     };
 
@@ -319,6 +321,8 @@ b"""
 
         node_directory_synchronizer = {
             sync_period = 100;
+            success_expiration_time = 100;
+            failure_expiration_time = 100;
         };
 
         enable_udf = %true;
