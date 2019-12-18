@@ -239,7 +239,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         def check_error(message=None):
             error_count = get("//tmp/t/@replicas/{}/error_count".format(replica_id))
-            if error_count != get("#{}/@replication_error_count".format(replica_id)):
+            if error_count != get("#{}/@error_count".format(replica_id)):
                 return False
             if error_count != int(get("#{}/@tablets/0/has_error".format(replica_id))):
                 return False

@@ -67,7 +67,7 @@ private:
         attributes->push_back(EInternedAttributeKey::Mode);
         attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::Tablets)
             .SetOpaque(true));
-        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationErrorCount)
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::ErrorCount)
             .SetOpaque(true));
         attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationLagTime)
             .SetOpaque(true));
@@ -149,7 +149,7 @@ private:
                     });
                 return true;
 
-            case EInternedAttributeKey::ReplicationErrorCount:
+            case EInternedAttributeKey::ErrorCount:
                 BuildYsonFluently(consumer)
                     .Value(replica->GetErrorCount());
                 return true;
