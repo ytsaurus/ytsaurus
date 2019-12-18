@@ -52,7 +52,9 @@ public:
             .Apply(BIND(
                 &TDefaultBlackboxService::OnTvmCallResult,
                 MakeStrong(this),
-                method, params, deadline));
+                method,
+	       	params,
+	       	deadline));
     }
 
     virtual TErrorOr<TString> GetLogin(const NYTree::INodePtr& reply) const override
