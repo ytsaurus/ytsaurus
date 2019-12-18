@@ -87,7 +87,7 @@ def format_ts(ts):
 LIMIT = 1000000
 
 def format_query(input_table_path, conditions):
-    return "* FROM [{}] WHERE {} ORDER BY (timestamp, line_index) LIMIT {}".format(input_table_path, " AND ".join(conditions), LIMIT)
+    return "* FROM [{}] WHERE {} ORDER BY (timestamp, timestamp) LIMIT {}".format(input_table_path, " AND ".join(conditions), LIMIT)
 
 
 def get_current_time():
