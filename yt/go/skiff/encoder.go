@@ -1,6 +1,7 @@
 package skiff
 
 import (
+	"bytes"
 	"io"
 	"reflect"
 
@@ -99,10 +100,12 @@ func (e *Encoder) encodeStruct(ops []fieldOp, value reflect.Value) error {
 					}
 
 				case TypeYSON32:
-					w := yson.NewWriterFormat(e.w.w, yson.FormatBinary)
+					var bw bytes.Buffer
+					w := yson.NewWriterFormat(&bw, yson.FormatBinary)
 					if e.w.err = yson.NewEncoderWriter(w).Encode(f.Interface()); e.w.err != nil {
 						return e.w.err
 					}
+					e.w.writeBytes(bw.Bytes())
 				}
 			} else {
 				emitZero(e.w, op)
