@@ -57,7 +57,9 @@
 
 #include <yt/core/misc/finally.h>
 #include <yt/core/misc/heap.h>
+
 #include <yt/core/yson/consumer.h>
+
 #include <yt/core/ytalloc/memory_zone.h>
 
 namespace NYT::NTabletNode {
@@ -156,7 +158,6 @@ private:
     }
 
     struct TTask
-        : public TRefCounted
     {
         TTabletSlotPtr Slot;
         IInvokerPtr Invoker;
@@ -269,28 +270,28 @@ private:
 
             BuildYsonFluently(consumer)
                 .BeginMap()
-                .Item("task_count").Value(taskQueue.size())
-                .Item("finished_task_count").Value(finishedTaskQueue.size())
-                .Item("pending_tasks")
-                .DoListFor(
-                    taskQueue,
-                    [&](TFluentList fluent, const auto& task) {
-                        task->Serialize(fluent);
-                    })
-                .Item("finished_tasks")
-                .DoListFor(
-                    finishedTaskQueue,
-                    [&](TFluentList fluent, const auto& task) {
-                        task->Serialize(fluent);
-                    })
+                    .Item("task_count").Value(taskQueue.size())
+                    .Item("finished_task_count").Value(finishedTaskQueue.size())
+                    .Item("pending_tasks")
+                        .DoListFor(
+                            taskQueue,
+                            [&](TFluentList fluent, const auto& task) {
+                                task->Serialize(fluent);
+                            })
+                    .Item("finished_tasks")
+                        .DoListFor(
+                            finishedTaskQueue,
+                            [&](TFluentList fluent, const auto& task) {
+                                task->Serialize(fluent);
+                            })
                 .EndMap();
         }
 
     private:
         struct TTaskInfo
-            : TIntrinsicRefCounted
+            : public TIntrinsicRefCounted
         {
-            TTaskInfo(const TTask& task)
+            explicit TTaskInfo(const TTask& task)
                 : TabletId(task.TabletId)
                 , PartitionId(task.PartitionId)
                 , StoreCount(task.StoreIds.size())
