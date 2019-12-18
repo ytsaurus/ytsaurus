@@ -34,7 +34,7 @@ public:
         auto ticketHash = GetCryptoHash(ticket);
 
         YT_LOG_DEBUG("Validating ticket via Blackbox (TicketHash: %v)",
-                     ticketHash);
+            ticketHash);
 
         return BlackboxService_->Call("user_ticket", {{"user_ticket", ticket}})
             .Apply(BIND(
