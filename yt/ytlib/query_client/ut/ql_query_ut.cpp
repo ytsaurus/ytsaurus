@@ -708,6 +708,34 @@ TEST_F(TQueryPrepareTest, WronglyTypedAggregate)
     }, HasSubstr("Type mismatch in function \"avg\""));
 }
 
+TEST_F(TQueryPrepareTest, OrderByWithoutLimit)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::String}
+    });
+
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+        .WillRepeatedly(Return(MakeFuture(split)));
+
+    EXPECT_THROW_THAT({
+        PreparePlanFragment(&PrepareMock_, "* from [//t] order by a");
+    }, HasSubstr("ORDER BY used without LIMIT"));
+}
+
+TEST_F(TQueryPrepareTest, OffsetLimit)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::String}
+    });
+
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+        .WillRepeatedly(Return(MakeFuture(split)));
+
+    EXPECT_THROW_THAT({
+        PreparePlanFragment(&PrepareMock_, "* from [//t] offset 5");
+    }, HasSubstr("OFFSET used without LIMIT"));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobQueryPrepareTest

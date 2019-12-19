@@ -2758,7 +2758,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
         if (!query->OrderClause && query->HavingClause) {
             THROW_ERROR_EXCEPTION("HAVING with LIMIT is not allowed");
         }
-    } else if (query->OrderClause) {
+    } else if (!ast.OrderExpressions.empty()) {
         THROW_ERROR_EXCEPTION("ORDER BY used without LIMIT");
     }
 
@@ -2768,6 +2768,10 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
         }
 
         query->Offset = *ast.Offset;
+
+        if (!ast.Limit) {
+            THROW_ERROR_EXCEPTION("OFFSET used without LIMIT");
+        }
     }
 
     auto queryFingerprint = InferName(query, true);
