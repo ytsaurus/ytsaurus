@@ -16,6 +16,8 @@ TPeerConnectionConfig::TPeerConnectionConfig()
     RegisterPreprocessor([&] () {
         // Query all peers in parallel.
         MaxConcurrentDiscoverRequests = std::numeric_limits<int>::max();
+        RediscoverPeriod = TDuration::Seconds(10);
+        RediscoverSplay = TDuration::Seconds(2);
     });
 
     RegisterPostprocessor([&] () {
