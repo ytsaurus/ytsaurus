@@ -109,6 +109,7 @@ REQUIREMENTS(
 )
 TAG(
     ya:fat
+    ya:force_distbuild
 )
 
 NO_LINT()
