@@ -591,6 +591,26 @@ def find_files_to_grep(log_directories, expected_log_prefix, start_time_str, end
         assert end_idx >= begin_idx
         return log_list[begin_idx:end_idx + 1]
 
+    def post_filter(log_list):
+        files_inside_time_interval = []
+        max_file_before = None
+        max_file_before_first_line = None
+        for fname in log_list:
+            line = get_first_file_line(fname)
+            if start_time_str <= line <= end_time_str:
+                files_inside_time_interval.append((line, fname))
+
+            if line < start_time_str:
+                if max_file_before_first_line is None or max_file_before_first_line < line:
+                    max_file_before = fname
+                    max_file_before_first_line = line
+
+        if max_file_before is not None:
+            files_inside_time_interval.append((max_file_before_first_line, max_file_before))
+
+        files_inside_time_interval.sort()
+        return [f for _, f in files_inside_time_interval]
+
     log_file_list = []
     for log_dir in log_directories:
         for filename in os.listdir(log_dir):
@@ -617,7 +637,7 @@ def find_files_to_grep(log_directories, expected_log_prefix, start_time_str, end
 
     digit_files.sort(reverse=True)
     date_files.sort()
-    return pick_files([f for _, f in date_files]) + pick_files([f for _, f in digit_files])
+    return post_filter(pick_files([f for _, f in date_files]) + pick_files([f for _, f in digit_files]))
 
 
 def get_first_file_line(filename):
