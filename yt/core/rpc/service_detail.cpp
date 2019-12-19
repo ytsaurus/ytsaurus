@@ -576,8 +576,7 @@ private:
         auto timeout = GetTimeout();
         if (timeout && NProfiling::GetCpuInstant() > ArriveInstant_ + NProfiling::DurationToCpuDuration(*timeout)) {
             if (!TimedOutLatch_.test_and_set()) {
-                YT_LOG_DEBUG("Request dropped due to timeout before being run (RequestId: %v)",
-                    RequestId_);
+                Reply(TError(NYT::EErrorCode::Timeout, "Request dropped due to timeout before being run"));
                 Profiler.Increment(PerformanceCounters_->TimedOutRequestCounter);
             }
             return;
