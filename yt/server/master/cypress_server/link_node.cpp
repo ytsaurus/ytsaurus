@@ -36,7 +36,7 @@ void TLinkNode::Load(NCellMaster::TLoadContext& context)
 
 TYPath TLinkNode::ComputeEffectiveTargetPath(const TYPath& targetPath, TCypressShard* shard)
 {
-    if (shard->GetRoot()->GetType() == EObjectType::PortalExit) {
+    if (shard && shard->GetRoot()->GetType() == EObjectType::PortalExit) {
         const auto* portalExit = shard->GetRoot()->As<TPortalExitNode>();
         auto optionalSuffix = NYPath::TryComputeYPathSuffix(targetPath, portalExit->GetPath());
         if (!optionalSuffix) {
