@@ -251,13 +251,15 @@ private:
             TaskQueue_.pop_front();
         }
 
-        void ResetTaskQueue(const std::vector<std::unique_ptr<TTask>>& tasks)
+        void ResetTaskQueue(
+            std::vector<std::unique_ptr<TTask>>::iterator begin,
+            std::vector<std::unique_ptr<TTask>>::iterator end)
         {
             auto guard = Guard(QueueSpinLock_);
 
             TaskQueue_.clear();
-            for (const auto& task : tasks) {
-                TaskQueue_.push_back(New<TTaskInfo>(*task));
+            for (auto it = begin; it != end; ++it) {
+                TaskQueue_.push_back(New<TTaskInfo>(*it->get()));
             }
         }
 
@@ -753,7 +755,7 @@ private:
 
         {
             auto guard = Guard(TaskSpinLock_);
-            orchidServiceManager->ResetTaskQueue(*candidates);
+            orchidServiceManager->ResetTaskQueue(candidates->begin(), candidates->end());
             tasks->swap(*candidates);
             *index = tasks->size();
         }
@@ -815,7 +817,7 @@ private:
                     }
                     guard.Release();
                     MakeHeap(tasks->begin(), tasks->begin() + *index, TTask::Comparer);
-                    orchidServiceManager->ResetTaskQueue(*tasks);
+                    orchidServiceManager->ResetTaskQueue(tasks->begin(), tasks->begin() + *index);
                 }
             }
 
