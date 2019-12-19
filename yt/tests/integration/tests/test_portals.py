@@ -325,6 +325,17 @@ class TestPortals(YTEnvSetup):
         wait(lambda: not exists("#{}".format(shard_id)))
 
     @authors("babenko")
+    def test_link_shard_in_tx_yt_11898(self):
+        create("table", "//tmp/t")
+        tx = start_transaction()
+        link("//tmp/t", "//tmp/l", tx=tx)
+        # This list call must not crash.
+        for x in ls("//tmp", attributes=["shard_id", "target_path", "broken"], tx=tx):
+            if str(x) == "l":
+                assert not x.attributes["broken"]
+                assert x.attributes["target_path"] == "//tmp/t"
+
+    @authors("babenko")
     def test_special_exit_attrs(self):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
         assert get("//tmp/p/@key") == "p"
