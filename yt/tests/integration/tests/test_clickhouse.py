@@ -2250,41 +2250,51 @@ class TestClickHouseWithLogTailer(ClickHouseTestBase):
             pytest.skip("This test requires log_tailer binary being built")
 
     @authors("gritukan")
-    def DISABLED_test_log_tailer(self):
+    def test_log_tailer(self):
         clique_index = Clique.clique_index
 
+        # Prepare log tailer config and upload it to Cypress.
         log_tailer_config = yson.loads(self._read_local_config_file("log_tailer_config.yson"))
-        log_tailer_config["log_tailer"]["log_files"][0]["path"] = \
+        log_file_path = \
             os.path.join(self.path_to_run,
             "logs",
             "clickhouse-{}".format(clique_index),
             "clickhouse-{}.debug.log".format(clique_index))
 
+        log_table = "//sys/clickhouse/logs/log"
+        log_tailer_config["log_tailer"]["log_files"] = [
+            {
+                "path" : log_file_path,
+                "tables": [
+                    {
+                        "path": log_table
+                    }
+                ]
+            }
+        ]
+
         log_tailer_config["logging"]["writers"]["debug"]["file_name"] = \
             os.path.join(self.path_to_run,
             "logs",
+            "clickhouse-{}".format(clique_index),
             "log_tailer-{}.debug.log".format(clique_index))
         log_tailer_config["cluster_connection"] = self.__class__.Env.configs["driver"]
+        log_tailer_config_filename = "//sys/clickhouse/log_tailer_config.yson"
+        create("file", log_tailer_config_filename)
+        write_file(log_tailer_config_filename, yson.dumps(log_tailer_config, yson_format="pretty"))
 
-        log_tailer_config_file = \
-            os.path.join(self.path_to_run,
-            "logs",
-            "log_tailer_config.yson")
-
-        with open(log_tailer_config_file, "w") as config:
-            config.write(yson.dumps(log_tailer_config, yson_format="pretty"))
-
+        # Create dynamic tables for logs.
         create_tablet_cell_bundle("sys")
         sync_create_cells(1, tablet_cell_bundle="sys")
 
         create("map_node", "//sys/clickhouse/logs")
 
-        create("table", "//sys/clickhouse/logs/log", attributes= \
+        create("table", log_table, attributes= \
             {
                 "dynamic": True,
                 "schema": [
                     {"name": "timestamp", "type": "string", "sort_order": "ascending"},
-                    {"name": "line_index", "type": "uint64", "sort_order": "ascending"},
+                    {"name": "increment", "type": "uint64", "sort_order": "ascending"},
                     {"name": "category", "type": "string"},
                     {"name": "message", "type": "string"},
                     {"name": "log_level", "type": "string"},
@@ -2297,54 +2307,38 @@ class TestClickHouseWithLogTailer(ClickHouseTestBase):
                 "tablet_cell_bundle": "sys"
             })
 
-        sync_mount_table("//sys/clickhouse/logs/log")
+        sync_mount_table(log_table)
 
+        # Create log tailer user and make it superuser.
         create_user("yt-log-tailer")
         add_member("yt-log-tailer", "superusers")
 
-        with Clique(1) as clique:
-            instance = clique.get_active_instances()[0]
-            pid = clique.make_direct_query(instance, "select * from system.clique", verbose=False)[0]["pid"]
-            log_tailer = subprocess.Popen([YT_LOG_TAILER_PATH, str(pid), "--config", log_tailer_config_file])
-            log_table = "//sys/clickhouse/logs/log"
+        # Create clique with log tailer enabled.
+        with Clique(instance_count=1,
+                    cypress_ytserver_log_tailer_config_path=log_tailer_config_filename,
+                    host_ytserver_log_tailer_path=YT_LOG_TAILER_PATH,
+                    enable_log_tailer=True) as clique:
 
-            def cleanup():
-                log_tailer.terminate()
-                remove(log_table)
+            # Make some queries.
+            create("table", "//tmp/t", attributes={"schema": [{"name": "key1", "type": "string"},
+                                                              {"name": "key2", "type": "string"},
+                                                              {"name": "value", "type": "int64"}]})
+            for i in range(5):
+                write_table("<append=%true>//tmp/t", [{"key1": "dream", "key2": "theater", "value": i * 5 + j} for j in range(5)])
+            total = 24 * 25 // 2
 
-            try:
-                create("table", "//tmp/t", attributes={"schema": [{"name": "key1", "type": "string"},
-                                                                  {"name": "key2", "type": "string"},
-                                                                  {"name": "value", "type": "int64"}]})
-                for i in range(5):
-                    write_table("<append=%true>//tmp/t", [{"key1": "dream", "key2": "theater", "value": i * 5 + j} for j in range(5)])
-                total = 24 * 25 // 2
+            for _ in range(10):
+                result = clique.make_query('select key1, key2, sum(value) from "//tmp/t" group by key1, key2')
+                assert result == [{"key1": "dream", "key2": "theater", "sum(value)": total}]
 
-                # Work for sufficient time to make sure that log was rotated.
-                for _ in range(10):
-                    result = clique.make_query('select key1, key2, sum(value) from "//tmp/t" group by key1, key2')
-                    assert result == [{"key1": "dream", "key2": "theater", "sum(value)": total}]
+        # Freeze table to flush logs.
+        freeze_table(log_table)
+        wait_for_tablet_state(log_table, "frozen")
 
-                # Check whether log was rotated.
-                old_log = \
-                    os.path.join(self.path_to_run,
-                    "logs",
-                    "clickhouse-{}".format(clique_index),
-                    "clickhouse-{}.debug.log.1".format(clique_index))
-                assert os.path.exists(old_log)
-                assert os.stat(old_log).st_size > 0
-
-                # Wait logger to flush records and kill it.
-                time.sleep(1.1)
-
-                # Freeze table with log.
-                freeze_table(log_table)
-                wait_for_tablet_state(log_table, "frozen")
-
-                # Check whether log was written.
-                assert len(read_table(log_table)) > 0
-            except:
-                cleanup()
-                raise
-            else:
-                cleanup()
+        # Check whether log was written.
+        try:
+            assert len(read_table(log_table)) > 0
+        except:
+            remove(log_table)
+            raise
+        remove(log_table)

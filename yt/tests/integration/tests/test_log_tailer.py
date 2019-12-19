@@ -35,7 +35,7 @@ class TestLogTailer(YTEnvSetup):
             pytest.skip("This test requires dummy_logger binary being built")
 
     @authors("gritukan")
-    def DISABLED_test_log_rotation(self):
+    def test_log_rotation(self):
         log_tailer_config = yson.loads(open(os.path.join(TEST_DIR, "test_clickhouse", "log_tailer_config.yson")).read())
         log_path = \
             os.path.join(self.path_to_run,
@@ -116,20 +116,34 @@ class TestLogTailer(YTEnvSetup):
         dummy_logger = subprocess.Popen([YT_DUMMY_LOGGER_BINARY, log_path, "5", "1000"])
         log_tailer = subprocess.Popen([YT_LOG_TAILER_BINARY, str(dummy_logger.pid), "--config", log_tailer_config_file])
 
-        time.sleep(6)
-        dummy_logger.terminate()
-        os.wait()
+        def cleanup():
+            # NB(gritukan): some of the processes are already terminated.
+            # Calling `terminate` on them will result in OSError.
+            try:
+                dummy_logger.terminate()
+            except:
+                pass
+
+            try:
+                log_tailer.terminate()
+            except:
+                pass
+
+            for log_table in log_tables:
+                remove(log_table)
 
         try:
-            wait(lambda: log_tailer.poll() is None)
+            os.wait()
+
+            wait(lambda: dummy_logger.poll() is not None)
+            wait(lambda: log_tailer.poll() is not None)
+
+            for log_table in log_tables:
+                freeze_table(log_table)
+                wait_for_tablet_state(log_table, "frozen")
+
+                rows = read_table(log_table)
+                assert len(rows) == 1000
+            cleanup()
         except:
-            log_tailer.kill()
-            raise
-
-        for log_table in log_tables:
-            freeze_table(log_table)
-            wait_for_tablet_state(log_table, "frozen")
-
-            rows = read_table(log_table)
-            assert len(rows) == 1000
-            remove(log_table)
+            cleanup()
