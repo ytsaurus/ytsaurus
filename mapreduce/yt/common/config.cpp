@@ -152,7 +152,7 @@ void TConfig::LoadTimings()
         TDuration::Seconds(60));
 }
 
-TConfig::TConfig()
+void TConfig::Reset()
 {
     Hosts = GetEnv("YT_HOSTS", "hosts");
     Pool = GetEnv("YT_POOL");
@@ -192,6 +192,11 @@ TConfig::TConfig()
     ConnectionPoolSize = GetInt("YT_CONNECTION_POOL_SIZE", 16);
 
     TraceHttpRequestsMode = FromString<ETraceHttpRequestsMode>(to_lower(GetEnv("YT_TRACE_HTTP_REQUESTS", "never")));
+}
+
+TConfig::TConfig()
+{
+    Reset();
 }
 
 TConfig* TConfig::Get()
