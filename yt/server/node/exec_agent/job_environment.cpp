@@ -564,7 +564,7 @@ private:
                 actions.push_back(PortoExecutor_->DestroyContainer(name));
             } catch (const TErrorException& ex) {
                 // If container disappeared, we don't care.
-                if (ex.Error().FindMatching(EContainerErrorCode::ContainerDoesNotExist)) {
+                if (ex.Error().FindMatching(EPortoErrorCode::ContainerDoesNotExist)) {
                     YT_LOG_DEBUG(ex, "Failed to clean container; it vanished");
                 } else {
                     throw;
@@ -577,7 +577,7 @@ private:
 
         for (const auto& error : errors.Value()) {
             if (error.IsOK() ||
-                error.FindMatching(EContainerErrorCode::ContainerDoesNotExist))
+                error.FindMatching(EPortoErrorCode::ContainerDoesNotExist))
             {
                 continue;
             }
@@ -611,7 +611,7 @@ private:
                         .ThrowOnError();
                 } catch (const TErrorException& ex) {
                     // If container doesn't exist it's ok.
-                    if (!ex.Error().FindMatching(EContainerErrorCode::ContainerDoesNotExist)) {
+                    if (!ex.Error().FindMatching(EPortoErrorCode::ContainerDoesNotExist)) {
                         throw;
                     }
                 }

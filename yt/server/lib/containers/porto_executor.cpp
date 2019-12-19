@@ -12,12 +12,14 @@
 
 #include <yt/core/ytree/convert.h>
 
-#include <yt/contrib/portoapi/rpc.pb.h>
+#include <infra/porto/proto/rpc.pb.h>
+
+#include <string>
 
 namespace NYT::NContainers {
 
 using namespace NConcurrency;
-using ::rpc::EError;
+using Porto::EError;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,22 +27,33 @@ static const NLogging::TLogger& Logger = ContainersLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TPortoResult = std::map<TString, std::map<TString, Porto::GetResponse>>;
-
-static std::map<TString, TErrorOr<TString>> ParsePortoResult(
-    const TString& name,
-    const TPortoResult& portoResult)
+EPortoErrorCode ConvertPortoErrorCode(EError portoError)
 {
-    std::map<TString, TErrorOr<TString>> result;
-    for (const auto& portoProperty : portoResult.at(name)) {
-        if (portoProperty.second.Error == 0) {
-            result[portoProperty.first] = portoProperty.second.Value;
-        } else {
-            result[portoProperty.first] = TError(ContainerErrorCodeBase + portoProperty.second.Error, portoProperty.second.ErrorMsg)
-                << TErrorAttribute("porto_error", portoProperty.second.Error);
+    return static_cast<EPortoErrorCode>(PortoErrorCodeBase + portoError);
+}
+
+std::map<TString, TErrorOr<TString>> ParsePortoGetResponse(
+    const TString& name,
+    const Porto::TGetResponse& getResponse)
+{
+    for (const auto& container : getResponse.list()) {
+        if (container.name() == name) {
+            std::map<TString, TErrorOr<TString>> result;
+            for (const auto& property : container.keyval()) {
+                if (property.error() == EError::Success) {
+                    result[property.variable()] = property.value();
+                } else {
+                    result[property.variable()] = TError(ConvertPortoErrorCode(property.error()), property.errormsg())
+                        << TErrorAttribute("porto_error", ConvertPortoErrorCode(property.error()));
+                }
+            }
+
+            return result;
         }
     }
-    return result;
+
+    THROW_ERROR_EXCEPTION("Unable to get properties from porto")
+        << TErrorAttribute("container", name);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -51,7 +64,7 @@ class TPortoExecutor
 public:
     TPortoExecutor(
         const TString& name,
-        std::unique_ptr<Porto::Connection> api,
+        std::unique_ptr<Porto::TPortoApi> api,
         TDuration retryTime,
         TDuration pollPeriod)
         : Queue_(New<TActionQueue>(Format("Porto:%v", name)))
@@ -134,21 +147,15 @@ public:
     virtual TFuture<std::map<TString, TErrorOr<TString>>> GetProperties(const TString& name, const std::vector<TString>& properties) override
     {
         return BIND([=, this_ = MakeStrong(this)] () {
-            TPortoResult portoResult;
             const std::vector<TString> containers{name};
-            DoGet(containers, properties, portoResult);
-            if (portoResult.empty() || portoResult.at(name).empty()) {
-                THROW_ERROR_EXCEPTION("Unable to get %v properties from porto", properties.size())
-                    << TErrorAttribute("container", name)
-                    << TErrorAttribute("properties", properties);
-            }
-            return ParsePortoResult(name, portoResult);
+            auto getResponse = DoGet(containers, properties);
+            return ParsePortoGetResponse(name, getResponse);
         })
         .AsyncVia(Queue_->GetInvoker())
         .Run();
     }
 
-    virtual TFuture<TVolumeId> CreateVolume(
+    virtual TFuture<TString> CreateVolume(
         const TString& path,
         const std::map<TString, TString>& properties) override
     {
@@ -175,9 +182,9 @@ public:
             .Run();
     }
 
-    virtual TFuture<std::vector<Porto::Volume>> ListVolumes() override
+    virtual TFuture<std::vector<TString>> ListVolumePaths() override
     {
-        return BIND(&TPortoExecutor::DoListVolumes, MakeStrong(this))
+        return BIND(&TPortoExecutor::DoListVolumePaths, MakeStrong(this))
             .AsyncVia(Queue_->GetInvoker())
             .Run();
     }
@@ -205,7 +212,7 @@ public:
 
 private:
     const TActionQueuePtr Queue_;
-    const std::unique_ptr<Porto::Connection> Api_;
+    const std::unique_ptr<Porto::TPortoApi> Api_;
     const TDuration RetryTime_;
 
     TPeriodicExecutorPtr PollExecutor_;
@@ -215,10 +222,10 @@ private:
 
     static const std::vector<TString> ContainerRequestVars_;
 
-    static TError ConvertPortoError(int errorCode, const TString& message)
+    static TError CreatePortoError(EPortoErrorCode errorCode, const TString& message)
     {
-        return TError(errorCode + ContainerErrorCodeBase, "Porto API error")
-            << TErrorAttribute("original_porto_error_code", errorCode)
+        return TError(errorCode, "Porto API error")
+            << TErrorAttribute("original_porto_error_code", static_cast<int>(errorCode) - PortoErrorCodeBase)
             << TErrorAttribute("porto_error_message", message);
     }
 
@@ -229,10 +236,9 @@ private:
 
     void HandleApiErrors(const TString& command, TInstant time)
     {
-        int error;
         TString message;
-        Api_->GetLastError(error, message);
-        if (error == EError::ContainerDoesNotExist || error == EError::InvalidState) {
+        auto error = ConvertPortoErrorCode(Api_->GetLastError(message));
+        if (error == EPortoErrorCode::ContainerDoesNotExist || error == EPortoErrorCode::InvalidState) {
             // This is typical during job cleanup: we might try to kill a container that is already stopped.
             YT_LOG_DEBUG("Porto API error (Error: %v, Command: %v, Message: %v)",
                 error,
@@ -245,11 +251,11 @@ private:
                 message);
         }
 
-        if (error == EError::Unknown && TInstant::Now() - time < RetryTime_) {
+        if (error == EPortoErrorCode::Unknown && TInstant::Now() - time < RetryTime_) {
             return;
         }
 
-        THROW_ERROR_EXCEPTION(ConvertPortoError(error, message));
+        THROW_ERROR_EXCEPTION(CreatePortoError(error, message));
     }
 
     void DoCreate(const TString& name)
@@ -267,7 +273,7 @@ private:
         try {
             RunWithRetries([&] () { return Api_->Destroy(name); }, "Destroy");
         } catch (const TErrorException& ex) {
-            if (!ex.Error().FindMatching(EContainerErrorCode::ContainerDoesNotExist)) {
+            if (!ex.Error().FindMatching(EPortoErrorCode::ContainerDoesNotExist)) {
                 throw;
             }
         }
@@ -290,9 +296,10 @@ private:
 
     std::vector<TString> DoList()
     {
-        std::vector<TString> clist;
+        TVector<TString> clist;
         RunWithRetries([&] () { return Api_->List(clist); }, "List");
-        return clist;
+
+        return std::vector<TString>(clist.begin(), clist.end());
     }
 
     TFuture<int> AddToPoll(const TString& name)
@@ -307,38 +314,60 @@ private:
         return entry.first->second.ToFuture();
     }
 
-    void DoGet(
+    Porto::TGetResponse DoGet(
         const std::vector<TString>& containers,
-        const std::vector<TString>& vars,
-        std::map<TString, std::map<TString, Porto::GetResponse>>& result)
+        const std::vector<TString>& vars)
     {
-        RunWithRetries([&]() { return Api_->Get(containers, vars, result); }, "Get");
+        TVector<TString> containers_(containers.begin(), containers.end());
+        TVector<TString> vars_(vars.begin(), vars.end());
+
+        const Porto::TGetResponse* getResponse;
+
+        RunWithRetries([&]() {
+            getResponse = Api_->Get(containers_, vars_);
+            if (getResponse) {
+                return EError::Success;
+            } else {
+                return EError::Unknown;
+            }
+        }, "Get");
+
+        YT_VERIFY(getResponse);
+        return *getResponse;
     }
 
     void DoPoll()
     {
-        std::map<TString, std::map<TString, Porto::GetResponse>> pollResults;
         try {
-            pollResults.clear();
             if (Containers_.empty()) {
                 return;
             }
 
-            DoGet(Containers_, ContainerRequestVars_, pollResults);
+            auto getResponse = DoGet(Containers_, ContainerRequestVars_);
 
-            if (pollResults.empty()) {
+            if (getResponse.list().empty()) {
                 return;
             }
 
-            for (auto& container: pollResults) {
-                auto state = container.second["state"];
-                // Someone destroyed container before us.
-                if (state.Error == EError::ContainerDoesNotExist) {
-                    HandleResult(container.first, state);
-                } else if (state.Value == "dead") {
-                    HandleResult(container.first, container.second["exit_status"]);
-                } else if (state.Value == "stopped") {
-                    HandleResult(container.first, container.second["exit_status"]);
+            auto getProperty = [](
+                const Porto::TGetResponse::TContainerGetListResponse& container,
+                const TString& name) -> Porto::TGetResponse::TContainerGetValueResponse
+            {
+                for (const auto& property : container.keyval()) {
+                    if (property.variable() == name) {
+                        return property;
+                    }
+                }
+
+                return {};
+            };
+
+            for (const auto& container : getResponse.list()) {
+                auto state = getProperty(container, "state");
+                if (state.error() == EError::ContainerDoesNotExist) {
+                    HandleResult(container.name(), state);
+                } else if (state.value() == "dead" || state.value() == "stopped") {
+                    HandleResult(container.name(), getProperty(container, "exit_status"));
                 }
                 //TODO(dcherednik): other states
             }
@@ -348,13 +377,16 @@ private:
         }
     }
 
-    TVolumeId DoCreateVolume(
+    TString DoCreateVolume(
         const TString& path,
         const std::map<TString, TString>& properties)
     {
-        Porto::Volume volume;
-        RunWithRetries([&]() { return Api_->CreateVolume(path, properties, volume); }, "CreateVolume");
-        return { volume.Path };
+        TString volume = path;
+        RunWithRetries([&]() {
+            return Api_->CreateVolume(volume, TMap<TString, TString>(properties.begin(), properties.end()));
+        }, "CreateVolume");
+
+        return volume;
     }
 
     void DoLinkVolume(const TString& path, const TString& container)
@@ -367,11 +399,12 @@ private:
         RunWithRetries([&]() { return Api_->UnlinkVolume(path, container); }, "UnlinkVolume");
     }
 
-    std::vector<Porto::Volume> DoListVolumes()
+    std::vector<TString> DoListVolumePaths()
     {
-        std::vector<Porto::Volume> volumes;
+        TVector<TString> volumes;
         RunWithRetries([&]() { return Api_->ListVolumes(volumes); }, "ListVolume");
-        return volumes;
+
+        return std::vector<TString>(volumes.begin(), volumes.end());
     }
 
     void DoImportLayer(const TString& archivePath, const TString& layerId, const TString& place)
@@ -386,42 +419,43 @@ private:
 
     std::vector<TString> DoListLayers(const TString& place)
     {
-        std::vector<TString> layers;
+        TVector<TString> layers;
         RunWithRetries([&]() { return Api_->ListLayers(layers, place); }, "ListLayers");
-        return layers;
+        return std::vector<TString>(layers.begin(), layers.end());
     }
 
-    void RunWithRetries(std::function<bool()> action, const TString& name) {
+    void RunWithRetries(std::function<EError()> action, const TString& name) {
         TInstant now = TInstant::Now();
-        while (action()) {
+        while (action() != EError::Success) {
             HandleApiErrors(name, now);
             RetrySleep();
         }
     }
 
-    void HandleResult(const TString& name, const Porto::GetResponse& rsp)
+    void HandleResult(const TString& name, const Porto::TGetResponse::TContainerGetValueResponse& rsp)
     {
+        auto portoErrorCode = ConvertPortoErrorCode(rsp.error());
         auto it = ContainersMap_.find(name);
         if (it == ContainersMap_.end()) {
             YT_LOG_ERROR("Got an unexpected container "
                 "(Container: %v, ResponseError: %v, ErrorMessage: %v, Value: %v)",
                 name,
-                rsp.Error,
-                rsp.ErrorMsg,
-                rsp.Value);
+                portoErrorCode,
+                rsp.errormsg(),
+                rsp.value());
             return;
         } else {
-            if (rsp.Error) {
+            if (portoErrorCode != EPortoErrorCode::Success) {
                 YT_LOG_ERROR("Container finished with porto API error "
                     "(Container: %v, ResponseError: %v, ErrorMessage: %v, Value: %v)",
                     name,
-                    rsp.Error,
-                    rsp.ErrorMsg,
-                    rsp.Value);
-                it->second.Set(ConvertPortoError(rsp.Error, rsp.ErrorMsg));
+                    portoErrorCode,
+                    rsp.errormsg(),
+                    rsp.value());
+                it->second.Set(CreatePortoError(portoErrorCode, rsp.errormsg()));
             } else {
                 try {
-                    int exitStatus = std::stoi(rsp.Value);
+                    int exitStatus = std::stoi(rsp.value());
                     YT_LOG_DEBUG("Container finished with exit code (Container: %v, ExitCode: %v)",
                         name,
                         exitStatus);
@@ -455,7 +489,7 @@ const std::vector<TString> TPortoExecutor::ContainerRequestVars_ = {
 
 IPortoExecutorPtr CreatePortoExecutor(const TString& name, TDuration retryTime, TDuration pollPeriod)
 {
-    auto api = std::make_unique<Porto::Connection>();
+    auto api = std::make_unique<Porto::TPortoApi>();
     return New<TPortoExecutor>(name, std::move(api), retryTime, pollPeriod);
 }
 
