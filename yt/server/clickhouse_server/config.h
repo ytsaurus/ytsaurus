@@ -194,6 +194,9 @@ public:
     //! Path in Cypress with coordination map node, external dictionaries etc.
     TString CypressRootPath;
 
+    //! Test query that is used for checking if instance acts in sane manner.
+    std::optional<TString> SanityCheckQuery;
+
     //! Log level for internal CH logging.
     TString LogLevel;
 
@@ -230,6 +233,9 @@ public:
 
         RegisterParameter("cypress_root_path", CypressRootPath)
             .Default("//sys/clickhouse");
+
+        RegisterParameter("sanity_check_query", SanityCheckQuery)
+            .Default();
 
         RegisterParameter("listen_hosts", ListenHosts)
             .Default(std::vector<TString> {"::"});
