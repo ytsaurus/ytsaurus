@@ -81,7 +81,7 @@ public:
 
 private:
     const TDefaultBlackboxServiceConfigPtr Config_;
-    ITvmServicePtr TvmService_;
+    const ITvmServicePtr TvmService_;
     const NProfiling::TProfiler Profiler_;
 
     const NHttp::IClientPtr HttpClient_;
