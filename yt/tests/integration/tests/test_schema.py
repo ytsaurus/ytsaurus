@@ -481,7 +481,7 @@ class TestComplexTypesMisc(YTEnvSetup):
     @authors("ermolovd")
     def test_complex_types_disallowed_in_dynamic_tables(self):
         sync_create_cells(1)
-        with raises_yt_error("Dynamic table cannot have key column of type"):
+        with raises_yt_error("Complex types are not allowed in dynamic tables"):
             create("table", "//test-dynamic-table", attributes={
                 "schema": make_schema([
                     {
@@ -492,6 +492,21 @@ class TestComplexTypesMisc(YTEnvSetup):
                     {
                         "name": "value",
                         "type_v2": "string",
+                    },
+                ], unique_keys=True),
+                "dynamic": True})
+
+        with raises_yt_error("Complex types are not allowed in dynamic tables"):
+            create("table", "//test-dynamic-table", attributes={
+                "schema": make_schema([
+                    {
+                        "name": "key",
+                        "type_v2": "string",
+                        "sort_order": "ascending",
+                    },
+                    {
+                        "name": "value",
+                        "type_v2": optional_type(optional_type("string")),
                     },
                 ], unique_keys=True),
                 "dynamic": True})
