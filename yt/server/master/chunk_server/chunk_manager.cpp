@@ -107,7 +107,7 @@ using NYT::ToProto;
 static const auto& Logger = ChunkServerLogger;
 static const auto ProfilingPeriod = TDuration::MilliSeconds(1000);
 
-static NProfiling::TAggregateGauge ChunkTreeRebalacnceTimeCounter("/chunk_tree_rebalance_time");
+static NProfiling::TAggregateGauge ChunkTreeRebalanceTimeCounter("/chunk_tree_rebalance_time");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -899,7 +899,7 @@ public:
         if (!ChunkTreeBalancer_.IsRebalanceNeeded(chunkList))
             return;
 
-        PROFILE_AGGREGATED_TIMING (ChunkTreeRebalacnceTimeCounter) {
+        PROFILE_AGGREGATED_TIMING (ChunkTreeRebalanceTimeCounter) {
             YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk tree rebalancing started (RootId: %v)",
                 chunkList->GetId());
             ChunkTreeBalancer_.Rebalance(chunkList);
