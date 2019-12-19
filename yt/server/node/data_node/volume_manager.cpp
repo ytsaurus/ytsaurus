@@ -162,13 +162,13 @@ public:
                 .ThrowOnError();
 
             // Volumes are not expected to be used since all jobs must be dead by now.
-            auto volumes = WaitFor(VolumeExecutor_->ListVolumes())
+            auto volumePaths = WaitFor(VolumeExecutor_->ListVolumePaths())
                 .ValueOrThrow();
 
             std::vector<TFuture<void>> unlinkFutures;
-            for (const auto& volume : volumes) {
-                if (volume.Path.StartsWith(VolumesPath_)) {
-                    unlinkFutures.push_back(VolumeExecutor_->UnlinkVolume(volume.Path, "self"));
+            for (const auto& volumePath : volumePaths) {
+                if (volumePath.StartsWith(VolumesPath_)) {
+                    unlinkFutures.push_back(VolumeExecutor_->UnlinkVolume(volumePath, "self"));
                 }
             }
             WaitFor(Combine(unlinkFutures))
@@ -657,10 +657,10 @@ private:
 
             parameters["layers"] = builder.Flush();
 
-            auto volumeId = WaitFor(VolumeExecutor_->CreateVolume(mountPath, parameters))
+            auto volumePath = WaitFor(VolumeExecutor_->CreateVolume(mountPath, parameters))
                 .ValueOrThrow();
 
-            YT_VERIFY(volumeId.Path == mountPath);
+            YT_VERIFY(volumePath == mountPath);
 
             YT_LOG_INFO("Volume created (VolumeId: %v, VolumeMountPath: %v)",
                 id,

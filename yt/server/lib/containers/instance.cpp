@@ -11,11 +11,12 @@
 
 #include <yt/core/misc/error.h>
 
-#include <yt/contrib/portoapi/libporto.hpp>
+#include <infra/porto/api/libporto.hpp>
 
 #include <util/string/cast.h>
 
 #include <initializer_list>
+#include <string>
 
 namespace NYT::NContainers {
 
@@ -147,7 +148,7 @@ public:
     {
         auto error = WaitFor(Executor_->Kill(Name_, signal));
         // Killing already finished process is not an error.
-        if (error.FindMatching(EContainerErrorCode::InvalidState)) {
+        if (error.FindMatching(EPortoErrorCode::InvalidState)) {
             return;
         }
         if (!error.IsOK()) {

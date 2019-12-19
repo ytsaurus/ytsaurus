@@ -8,7 +8,7 @@
 
 #include <yt/library/process/process.h>
 
-#include <yt/contrib/portoapi/libporto.hpp>
+#include <infra/porto/api/libporto.hpp>
 
 namespace NYT {
 
