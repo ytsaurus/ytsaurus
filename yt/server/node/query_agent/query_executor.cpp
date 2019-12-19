@@ -696,7 +696,22 @@ private:
 
         bool hasRanges = false;
         for (const auto& source : DataSources_) {
-            hasRanges |= !source.Ranges.Empty();
+            for (const auto& range : source.Ranges) {
+                auto lowerBound = range.first;
+                auto upperBound = range.second;
+
+                if (source.LookupSupported &&
+                    keySize == lowerBound.GetCount() &&
+                    keySize + 1 == upperBound.GetCount() &&
+                    upperBound[keySize].Type == EValueType::Max &&
+                    CompareRows(lowerBound.Begin(), lowerBound.End(), upperBound.Begin(), upperBound.Begin() + keySize) == 0)
+                {
+                    continue;
+                }
+
+                hasRanges = true;
+                break;
+            }
         }
 
         size_t rangesCount = 0;
