@@ -46,7 +46,6 @@ public:
 private:
     const TBlackboxTicketAuthenticatorConfigPtr Config_;
     const IBlackboxServicePtr BlackboxService_;
-    const ITvmServicePtr TvmService_;
 
 private:
     TAuthenticationResult OnBlackboxCallResult(const TString& ticketHash, const INodePtr& data)

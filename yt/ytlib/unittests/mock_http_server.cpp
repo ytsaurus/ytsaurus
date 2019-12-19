@@ -1,4 +1,4 @@
-#include "http_server_mock.h"
+#include "mock_http_server.h"
 
 #include <yt/core/misc/assert.h>
 #include <yt/core/misc/error.h>
@@ -41,7 +41,7 @@ TString CollectMessages(const TError& error)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void THttpServerMock::SetCallback(TCallback callback)
+void TMockHttpServer::SetCallback(TCallback callback)
 {
     Callback_ = std::move(callback);
     if (ServerImpl_) {
@@ -49,7 +49,7 @@ void THttpServerMock::SetCallback(TCallback callback)
     }
 }
 
-void THttpServerMock::Start()
+void TMockHttpServer::Start()
 {
     YT_VERIFY(!IsStarted());
 
@@ -62,7 +62,7 @@ void THttpServerMock::Start()
     Server_->Start();
 }
 
-void THttpServerMock::Stop()
+void TMockHttpServer::Stop()
 {
     YT_VERIFY(IsStarted());
 
@@ -72,40 +72,40 @@ void THttpServerMock::Stop()
     ServerImpl_.reset();
 }
 
-bool THttpServerMock::IsStarted() const
+bool TMockHttpServer::IsStarted() const
 {
     return Server_.operator bool();
 }
 
-TString THttpServerMock::GetHost() const
+TString TMockHttpServer::GetHost() const
 {
     return Server_->Options().Host;
 }
 
-int THttpServerMock::GetPort() const
+int TMockHttpServer::GetPort() const
 {
     return Server_->Options().Port;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void THttpServerMock::THttpServerImpl::SetCallback(TCallback callback)
+void TMockHttpServer::THttpServerImpl::SetCallback(TCallback callback)
 {
     Callback_ = std::move(callback);
 }
 
-TClientRequest* THttpServerMock::THttpServerImpl::CreateClient()
+TClientRequest* TMockHttpServer::THttpServerImpl::CreateClient()
 {
     return new TRequest(this);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THttpServerMock::THttpServerImpl::TRequest::TRequest(THttpServerMock::THttpServerImpl* owner)
+TMockHttpServer::THttpServerImpl::TRequest::TRequest(TMockHttpServer::THttpServerImpl* owner)
     : Owner_(owner)
 { }
 
-bool THttpServerMock::THttpServerImpl::TRequest::Reply(void* /*opaque*/)
+bool TMockHttpServer::THttpServerImpl::TRequest::Reply(void* /*opaque*/)
 {
     if (!Owner_ || !Owner_->Callback_) {
         Output() << "HTTP/1.0 501 Not Implemented\r\n\r\n";

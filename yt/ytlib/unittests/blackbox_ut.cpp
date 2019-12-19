@@ -1,4 +1,4 @@
-#include "http_server_mock.h"
+#include "mock_http_server.h"
 #include "mock_tvm_service.h"
 
 #include <yt/ytlib/auth/token_authenticator.h>
@@ -36,8 +36,8 @@ protected:
     TDefaultBlackboxServiceConfigPtr CreateDefaultBlackboxServiceConfig()
     {
         auto config = New<TDefaultBlackboxServiceConfig>();
-        config->Host = ServerMock_.IsStarted() ? ServerMock_.GetHost() : "localhost";
-        config->Port = ServerMock_.IsStarted() ? ServerMock_.GetPort() : static_cast<ui16>(0);
+        config->Host = MockHttpServer_.IsStarted() ? MockHttpServer_.GetHost() : "localhost";
+        config->Port = MockHttpServer_.IsStarted() ? MockHttpServer_.GetPort() : static_cast<ui16>(0);
         config->Secure = false;
         config->RequestTimeout = TDuration::MilliSeconds(10);
         config->AttemptTimeout = TDuration::MilliSeconds(10);
@@ -59,22 +59,22 @@ protected:
 
     virtual void SetUp() override
     {
-        ServerMock_.Start();
+        MockHttpServer_.Start();
     }
 
     virtual void TearDown() override
     {
-        if (ServerMock_.IsStarted()) {
-            ServerMock_.Stop();
+        if (MockHttpServer_.IsStarted()) {
+            MockHttpServer_.Stop();
         }
     }
 
-    void SetCallback(THttpServerMock::TCallback callback)
+    void SetCallback(TMockHttpServer::TCallback callback)
     {
-        ServerMock_.SetCallback(std::move(callback));
+        MockHttpServer_.SetCallback(std::move(callback));
     }
 
-    THttpServerMock ServerMock_;
+    TMockHttpServer MockHttpServer_;
     TIntrusivePtr<TMockTvmService> MockTvmService_;
 };
 
