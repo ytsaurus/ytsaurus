@@ -313,6 +313,13 @@ struct TRichYPath
     FLUENT_FIELD_OPTION(EErasureCodecAttr, ErasureCodec);
     FLUENT_FIELD_OPTION(EOptimizeForAttr, OptimizeFor);
 
+    // @brief This attribute is used when specifying the files required for an operation.
+    //
+    // If BypassArtifactCache == true, file will be loaded into the job's sandbox bypassing the cache on the YT node.
+    // It helps jobs that use tmpfs to start faster,
+    // because files will be loaded into tmpfs directly bypassing disk cache
+    FLUENT_FIELD_OPTION(bool, BypassArtifactCache);
+
     // Timestamp of dynamic table.
     // NOTE: it is _not_ unix timestamp
     // (instead it's transaction timestamp, that is more complex structure).

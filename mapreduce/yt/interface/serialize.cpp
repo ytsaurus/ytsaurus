@@ -363,6 +363,9 @@ void Serialize(const TRichYPath& path, IYsonConsumer* consumer)
         .DoIf(path.RenameColumns_.Defined(), [&] (TFluentAttributes fluent) {
             fluent.Item("rename_columns").Value(*path.RenameColumns_);
         })
+        .DoIf(path.BypassArtifactCache_.Defined(), [&] (TFluentAttributes fluent) {
+            fluent.Item("bypass_artifact_cache").Value(*path.BypassArtifactCache_);
+        })
     .EndAttributes()
     .Value(path.Path_);
 }
@@ -389,6 +392,7 @@ void Deserialize(TRichYPath& path, const TNode& node)
     DESERIALIZE_ATTR("optimize_for", path.OptimizeFor_);
     DESERIALIZE_ATTR("transaction_id", path.TransactionId_);
     DESERIALIZE_ATTR("rename_columns", path.RenameColumns_);
+    DESERIALIZE_ATTR("bypass_artifact_cache", path.BypassArtifactCache_);
     Deserialize(path.Path_, node);
 }
 
