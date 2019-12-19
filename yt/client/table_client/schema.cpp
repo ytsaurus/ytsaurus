@@ -1132,6 +1132,9 @@ void ValidateDynamicTableConstraints(const TTableSchema& schema)
 
     for (const auto& column : schema.Columns()) {
         try {
+            if (!column.SimplifiedLogicalType()) {
+                THROW_ERROR_EXCEPTION("Complex types are not allowed in dynamic tables yet");
+            }
             if (column.SortOrder() && column.GetPhysicalType() == EValueType::Any) {
                 THROW_ERROR_EXCEPTION("Dynamic table cannot have key column of type: %Qv",
                     *column.LogicalType());
