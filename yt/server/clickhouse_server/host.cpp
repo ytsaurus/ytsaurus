@@ -59,6 +59,9 @@
 #include <Interpreters/Context.h>
 #include <Interpreters/ProcessList.h>
 #include <Interpreters/IRuntimeComponentsFactory.h>
+#include <Interpreters/InterpreterSelectWithUnionQuery.h>
+#include <Parsers/ParserQuery.h>
+#include <Parsers/parseQuery.h>
 #include <server/IServer.h>
 #include <Storages/System/attachSystemTables.h>
 #include <Storages/StorageFactory.h>
@@ -95,6 +98,7 @@ using namespace NRpc::NBus;
 using namespace NProto;
 using namespace NSecurityClient;
 using namespace NObjectClient;
+using namespace NTracing;
 
 static const auto& Logger = ServerLogger;
 
@@ -265,6 +269,46 @@ public:
             BIND(&TImpl::MakeGossip, MakeWeak(this)),
             Config_->GossipPeriod);
         GossipExecutor_->Start();
+
+        Bootstrap_->GetSerializedWorkerInvoker()->Invoke(BIND(&TImpl::FireSanityCheckQuery, MakeWeak(this)));
+    }
+
+    void FireSanityCheckQuery()
+    {
+        if (!Config_->Engine->SanityCheckQuery) {
+            return;
+        }
+        const auto& query = *Config_->Engine->SanityCheckQuery;
+
+        try {
+            YT_LOG_INFO("Firing sanity check query (Query: %v))", query);
+            ParserQuery parser(query.end(), false /* enableExplain */);
+            auto ast = parseQuery(parser, query.begin(), query.end(), "", 0 /* unlimited query size */);
+            auto context = *Context;
+            context.setUser(Config_->User, "", Poco::Net::SocketAddress(), "");
+            auto& clientInfo = context.getClientInfo();
+            clientInfo.initial_user = clientInfo.current_user;
+            clientInfo.query_kind = ClientInfo::QueryKind::INITIAL_QUERY;
+            auto queryId = TQueryId::Create();
+            clientInfo.initial_query_id = ToString(queryId);
+            context.makeQueryContext();
+            TSpanContext parentSpan{TTraceId::Create(), InvalidSpanId, false, false};
+            auto traceContext = New<TTraceContext>(parentSpan, "TestQuery");
+            SetupHostContext(Bootstrap_, context, queryId, std::move(traceContext));
+            InterpreterSelectWithUnionQuery interpreter(ast, context, SelectQueryOptions());
+            auto result = interpreter.execute();
+            i64 totalRowCount = 0;
+            while (true) {
+                auto block = result.in->read();
+                if (!block) {
+                    break;
+                }
+                totalRowCount += block.rows();
+            }
+            YT_LOG_INFO("Sanity check query succeeded (Query: %Qv, RowCount: %v)", query, totalRowCount);
+        } catch (const std::exception& ex) {
+            YT_LOG_WARNING(ex, "Error while performing sanity check query (Query: %Qv)", query);
+        }
     }
 
     void HandleIncomingGossip(const TString& instanceId, EInstanceState state)
