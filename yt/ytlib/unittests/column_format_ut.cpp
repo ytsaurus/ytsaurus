@@ -96,8 +96,8 @@ std::pair<TSharedRef, NProto::TColumnMeta> TSingleColumnWriter::WriteSingleSegme
     std::vector<TUnversionedRow> nonOwningRows;
     nonOwningRows.reserve(rows.size());
 
-    for (const auto& r : rows) {
-        nonOwningRows.emplace_back(r);
+    for (auto row : rows) {
+        nonOwningRows.emplace_back(row);
     }
 
     ValueColumnWriter_->WriteUnversionedValues(nonOwningRows);

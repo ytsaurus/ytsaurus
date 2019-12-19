@@ -156,9 +156,9 @@ TString ToString(const TColumnFilter& columnFilter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-[[ noreturn ]] void ThrowUnexpectedValueType(EValueType valueType)
+[[noreturn]] void ThrowUnexpectedValueType(EValueType valueType)
 {
-    THROW_ERROR_EXCEPTION("Unexpected EValueType value: %Qv",
+    THROW_ERROR_EXCEPTION("Unexpected EValueType value: %Qlv",
         valueType);
 }
 
