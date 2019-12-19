@@ -56,6 +56,7 @@ import socket
 import sys
 import tarfile
 import tempfile
+import time
 import urlparse
 import xml.etree.ElementTree as etree
 import xml.parsers.expat
@@ -988,11 +989,22 @@ def run_ya_tests(options, suite_name, test_paths):
         args += ["--sanitize=address"]
 
     try:
-        run(args, env=env, cwd=options.checkout_directory)
-    except ChildHasNonZeroExitCode as err:
-        # In case of yatest artifacts are rebuilded in dist build and included to the sandbox.
-        save_failed_test(options, suite_name, save_artifacts=False)
-        raise StepFailedWithNonCriticalError(str(err))
+        retry_count = 10
+        backoff = 10
+        backoff_multiplier = 2
+        for iter in xrange(1, retry_count + 1):
+            try:
+                run(args, env=env, cwd=options.checkout_directory)
+                break
+            except ChildHasNonZeroExitCode as err:
+                # Special code that means non-persistent problem.
+                if err.return_code == 12 and iter < retry_count:
+                    time.sleep(backoff)
+                    backoff *= backoff_multiplier
+                    continue
+                # In case of yatest artifacts are rebuilded in dist build and included to the sandbox.
+                save_failed_test(options, suite_name, save_artifacts=False)
+                raise StepFailedWithNonCriticalError(str(err))
     finally:
         if os.path.exists(sandbox_storage):
             sudo_rmtree(sandbox_storage)
