@@ -124,6 +124,8 @@ struct TConfig
     void LoadSpec();
     void LoadTimings();
 
+    void Reset();
+
     TConfig();
 
     static TConfig* Get();
