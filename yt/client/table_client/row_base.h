@@ -292,7 +292,7 @@ TValue MakeAnyValue(TStringBuf value, int id = 0, bool aggregate = false)
     return result;
 }
 
-[[ noreturn ]] void ThrowUnexpectedValueType(EValueType valueType);
+[[noreturn]] void ThrowUnexpectedValueType(EValueType valueType);
 
 ////////////////////////////////////////////////////////////////////////////////
 

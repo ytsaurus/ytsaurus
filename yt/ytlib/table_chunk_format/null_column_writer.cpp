@@ -14,7 +14,7 @@ class TUnversionedNullColumnWriter
     : public TColumnWriterBase
 {
 public:
-    TUnversionedNullColumnWriter(TDataBlockWriter* blockWriter)
+    explicit TUnversionedNullColumnWriter(TDataBlockWriter* blockWriter)
         : TColumnWriterBase(blockWriter)
     { }
 
