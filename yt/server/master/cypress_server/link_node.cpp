@@ -51,7 +51,7 @@ TYPath TLinkNode::ComputeEffectiveTargetPath(const TYPath& targetPath, TCypressS
 
 TYPath TLinkNode::ComputeEffectiveTargetPath() const
 {
-    return ComputeEffectiveTargetPath(TargetPath_, Shard_);
+    return ComputeEffectiveTargetPath(TargetPath_, GetTrunkNode()->GetShard());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
