@@ -80,13 +80,16 @@ private:
     {
         auto deadline = TInstant::Now() + Config_->RequestTimeout;
 
-        auto rspOrError = WaitFor(TvmService_->GetTicket(Config_->BlackboxServiceId));
-        if (!rspOrError.IsOK()) {
-            AuthProfiler.Increment(BlackboxCallFatalErrors_);
-            YT_LOG_ERROR(rspOrError);
-            THROW_ERROR_EXCEPTION("TVM call failed") << rspOrError;
+        TString blackboxTicket;
+        if (TvmService_) {
+            auto rspOrError = WaitFor(TvmService_->GetTicket(Config_->BlackboxServiceId));
+            if (!rspOrError.IsOK()) {
+                AuthProfiler.Increment(BlackboxCallFatalErrors_);
+                YT_LOG_ERROR(rspOrError);
+                THROW_ERROR_EXCEPTION("TVM call failed") << rspOrError;
+            }
+            blackboxTicket = rspOrError.Value();
         }
-        const TString blackboxTicket = rspOrError.Value();
 
         TSafeUrlBuilder builder;
         builder.AppendString(Format("%v://%v:%v/blackbox?",
