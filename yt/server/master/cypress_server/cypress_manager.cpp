@@ -756,6 +756,7 @@ public:
         YT_VERIFY(handler);
 
         auto type = handler->GetObjectType();
+        YT_VERIFY(IsVersionedType(type));
         YT_VERIFY(!TypeToHandler_[type]);
         TypeToHandler_[type] = handler;
 
