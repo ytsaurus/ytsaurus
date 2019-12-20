@@ -47,22 +47,9 @@ public:
         const TString& method,
         const THashMap<TString, TString>& params) override
     {
-        auto deadline = TInstant::Now() + Config_->RequestTimeout;
-        auto callback = TvmService_ ?
-            BIND(
-                &TDefaultBlackboxService::DoCallWithTvm,
-                MakeStrong(this),
-                method,
-                params,
-                deadline) :
-            BIND(
-                &TDefaultBlackboxService::DoCall,
-                MakeStrong(this),
-                method,
-                params,
-                deadline,
-                TString());
-        return callback.AsyncVia(NRpc::TDispatcher::Get()->GetLightInvoker()).Run();
+        return BIND(&TDefaultBlackboxService::DoCall, MakeStrong(this), method, params)
+            .AsyncVia(NRpc::TDispatcher::Get()->GetLightInvoker())
+            .Run();
     }
 
     virtual TErrorOr<TString> GetLogin(const NYTree::INodePtr& reply) const override
@@ -87,26 +74,20 @@ private:
     NProfiling::TAggregateGauge BlackboxCallTime_{"/blackbox_call_time", {}, NProfiling::EAggregateMode::All};
 
 private:
-    INodePtr DoCallWithTvm(
+    INodePtr DoCall(
         const TString& method,
-        const THashMap<TString, TString>& params,
-        TInstant deadline)
+        const THashMap<TString, TString>& params)
     {
+        auto deadline = TInstant::Now() + Config_->RequestTimeout;
+
         auto rspOrError = WaitFor(TvmService_->GetTicket(Config_->BlackboxServiceId));
         if (!rspOrError.IsOK()) {
             AuthProfiler.Increment(BlackboxCallFatalErrors_);
             YT_LOG_ERROR(rspOrError);
             THROW_ERROR_EXCEPTION("TVM call failed") << rspOrError;
         }
-        return DoCall(method, params, deadline, rspOrError.Value());
-    }
+        const TString blackboxTicket = rspOrError.Value();
 
-    INodePtr DoCall(
-        const TString& method,
-        const THashMap<TString, TString>& params,
-        TInstant deadline,
-        const TString& blackboxTicket)
-    {
         TSafeUrlBuilder builder;
         builder.AppendString(Format("%v://%v:%v/blackbox?",
             Config_->Secure ? "https" : "http",
