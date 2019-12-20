@@ -48,26 +48,21 @@ public:
         const THashMap<TString, TString>& params) override
     {
         auto deadline = TInstant::Now() + Config_->RequestTimeout;
-        if (TvmService_) {
-            return TvmService_->GetTicket(Config_->BlackboxServiceId)
-                .Apply(BIND(
-                    &TDefaultBlackboxService::DoCall,
-                    MakeStrong(this),
-                    method,
-                    params,
-                    deadline));
-        } else {
-            // TODO: configure TVM everywhere, only do this if (!config->RequireAuthentication)
-            return BIND(
+        auto callback = TvmService_ ?
+            BIND(
+                &TDefaultBlackboxService::DoCallWithTvm,
+                MakeStrong(this),
+                method,
+                params,
+                deadline) :
+            BIND(
                 &TDefaultBlackboxService::DoCall,
                 MakeStrong(this),
                 method,
                 params,
                 deadline,
-                TString())
-                .AsyncVia(NRpc::TDispatcher::Get()->GetLightInvoker())
-                .Run();
-        }
+                TString());
+        return callback.AsyncVia(NRpc::TDispatcher::Get()->GetLightInvoker()).Run();
     }
 
     virtual TErrorOr<TString> GetLogin(const NYTree::INodePtr& reply) const override
@@ -92,6 +87,20 @@ private:
     NProfiling::TAggregateGauge BlackboxCallTime_{"/blackbox_call_time", {}, NProfiling::EAggregateMode::All};
 
 private:
+    INodePtr DoCallWithTvm(
+        const TString& method,
+        const THashMap<TString, TString>& params,
+        TInstant deadline)
+    {
+        auto rspOrError = WaitFor(TvmService_->GetTicket(Config_->BlackboxServiceId));
+        if (!rspOrError.IsOK()) {
+            AuthProfiler.Increment(BlackboxCallFatalErrors_);
+            YT_LOG_ERROR(rspOrError);
+            THROW_ERROR_EXCEPTION("TVM call failed") << rspOrError;
+        }
+        return DoCall(method, params, deadline, rspOrError.Value());
+    }
+
     INodePtr DoCall(
         const TString& method,
         const THashMap<TString, TString>& params,
