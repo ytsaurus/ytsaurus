@@ -778,8 +778,7 @@ class ConfigsProvider_19(ConfigsProvider):
                 "cluster_connection": master_connection_configs,
                 "discovery_service": {
                     "liveness_update_period": 500,
-                    "proxy_update_period": 500,
-                    "backoff_period": 500
+                    "proxy_update_period": 500
                 },
                 "rpc_port": next(ports_generator),
                 "grpc_server": grpc_server_config,
