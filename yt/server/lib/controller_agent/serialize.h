@@ -19,6 +19,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((JobSpeculationTimeout)              (300202))
     // 19.8 starts here
     ((GroupedSpeculativeJobs)             (300220))
+    ((ImproveSpeculativeHeuristic)        (300221))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

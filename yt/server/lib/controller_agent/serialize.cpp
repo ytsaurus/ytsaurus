@@ -13,7 +13,7 @@ int GetCurrentSnapshotVersion()
 
 bool ValidateSnapshotVersion(int version)
 {
-    return version >= ToUnderlying(ESnapshotVersion::GroupedSpeculativeJobs) &&
+    return version >= ToUnderlying(ESnapshotVersion::ImproveSpeculativeHeuristic) &&
            version <= GetCurrentSnapshotVersion();
 }
 
