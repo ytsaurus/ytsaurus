@@ -12,6 +12,8 @@
 
 #include <yp/client/nodes/node_tracker_service_proxy.h>
 
+#include <yt/client/tablet_client/public.h>
+
 #include <yt/core/rpc/grpc/proto/grpc.pb.h>
 
 namespace NYP::NServer::NNodes {
@@ -99,23 +101,46 @@ private:
 
         ValidateCallerCertificate(context, nodeId);
 
-        const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        auto transaction = WaitFor(transactionManager->StartReadWriteTransaction())
-            .ValueOrThrow();
+        auto processAttempt = [&] {
+            const auto& transactionManager = Bootstrap_->GetTransactionManager();
+            auto transaction = WaitFor(transactionManager->StartReadWriteTransaction())
+                .ValueOrThrow();
 
-        auto* node = transaction->GetNode(nodeId);
+            auto* node = transaction->GetNode(nodeId);
 
-        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        nodeTracker->ProcessHeartbeat(
-            transaction,
-            node,
-            epochId,
-            sequenceNumber,
-            request,
-            response);
+            const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+            nodeTracker->ProcessHeartbeat(
+                transaction,
+                node,
+                epochId,
+                sequenceNumber,
+                request,
+                response);
 
-        WaitFor(transaction->Commit())
-            .ThrowOnError();
+            WaitFor(transaction->Commit())
+                .ThrowOnError();
+        };
+
+        int attempt = 1;
+        while (true) {
+            try {
+                processAttempt();
+                break;
+            } catch (const TErrorException& ex) {
+                const auto& error = ex.Error();
+                if (attempt < Config_->ProcessHeartbeatAttemptCount &&
+                    error.FindMatching(NTabletClient::EErrorCode::TransactionLockConflict))
+                {
+                    YT_LOG_DEBUG(error, "Heartbeat processing failed, retrying (Attempt: %v)",
+                        attempt);
+                    ++attempt;
+                    response->Clear();
+                    continue;
+                } else {
+                    throw;
+                }
+            }
+        }
 
         context->Reply();
     }

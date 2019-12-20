@@ -17,10 +17,10 @@ from yp.common import (
     wait,
 )
 
-from yt.wrapper.ypath import ypath_join
-
 from yt.wrapper.common import generate_uuid
+from yt.wrapper.errors import YtTabletTransactionLockConflict
 from yt.wrapper.retries import run_with_retries
+from yt.wrapper.ypath import ypath_join
 
 from yt.common import update, get_value
 
@@ -207,7 +207,7 @@ def update_node_id(yp_client, pod_id, node_id, other_updates=None, with_retries=
             ] + other_updates)
 
     if with_retries:
-        run_with_retries(impl, exceptions=(YtResponseError,))
+        run_with_retries(impl, exceptions=(YtTabletTransactionLockConflict,))
     else:
         impl()
 

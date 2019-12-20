@@ -7,9 +7,14 @@ from .conftest import (
     # Make sure these methods do not start with "test" prefix.
     test_method_setup as _test_method_setup,
     test_method_teardown as _test_method_teardown,
+    update_node_id,
     wait,
     yatest_save_sandbox,
 )
+
+from yt.wrapper.errors import YtTabletTransactionLockConflict
+
+from yt.packages.six.moves import xrange
 
 import os
 import pytest
@@ -186,6 +191,67 @@ class TestSchedulePod(object):
 
         self.wait_for_active_workload(yp_client, pod_id, workload_id)
 
+    def test_process_heartbeat_retries(self, yp_env_iss, iss_agent, iss_resource_manager):
+        yp_client = yp_env_iss.yp_client
+
+        resources = Resources.load(iss_resource_manager)
+
+        pod_id, workload_id = self._start_workload(
+            yp_client,
+            iss_agent,
+            resources,
+        )
+
+        def get_master_spec_timestamp():
+            return yp_client.get_object(
+                "pod",
+                pod_id,
+                selectors=["/status/master_spec_timestamp"],
+            )[0]
+
+        def get_agent_spec_timestamp():
+            return yp_client.get_object(
+                "pod",
+                pod_id,
+                selectors=["/status/agent_spec_timestamp"],
+            )[0]
+
+        def sync():
+            wait(
+                lambda: get_master_spec_timestamp() == get_agent_spec_timestamp(),
+                iter=self.get_agent_initialization_time_limit(),
+                sleep_backoff=1,
+            )
+
+        assert get_master_spec_timestamp() > 0
+        sync()
+
+        update_count = 20
+        successful_update_count = 0
+        for _ in xrange(update_count):
+            try:
+                yp_client.update_object(
+                    "pod",
+                    pod_id,
+                    set_updates=[
+                        dict(
+                            path="/status/agent/pod_agent_payload",
+                            value=dict(),
+                        ),
+                        dict(
+                            path="/spec/enable_scheduling",
+                            value=True,
+                        ),
+                    ],
+                )
+                successful_update_count += 1
+            except YtTabletTransactionLockConflict:
+                continue
+
+        assert successful_update_count * 2 > update_count
+
+        sync()
+
     def test_pod_status_reset(self, yp_env_iss, iss_agent, iss_resource_manager):
         yp_client = yp_env_iss.yp_client
 
@@ -200,20 +266,18 @@ class TestSchedulePod(object):
         # Try to interfere with the agent.
         time.sleep(random.randint(1, self.get_agent_initialization_time_limit()))
 
-        yp_client.update_object(
-            "pod",
+        # Retry possible lock conflicts with the node agent.
+        update_node_id(
+            yp_client,
             pod_id,
-            remove_updates=[
-                dict(
-                    path="/spec/node_id",
-                ),
-            ],
-            set_updates=[
+            node_id="",
+            other_updates=[
                 dict(
                     path="/spec/enable_scheduling",
                     value=False,
                 ),
             ],
+            with_retries=True,
         )
 
         def validate_status():

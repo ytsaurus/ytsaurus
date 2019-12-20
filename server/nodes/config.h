@@ -21,6 +21,8 @@ public:
     TDuration AgentNotificationRpcTimeout;
     NConcurrency::TThroughputThrottlerConfigPtr AgentNotificationThrottler;
 
+    int ProcessHeartbeatAttemptCount;
+
     TNodeTrackerConfig()
     {
         RegisterParameter("validate_caller_certificate", ValidateCallerCertificate)
@@ -38,6 +40,9 @@ public:
             .Default(TDuration::Seconds(5));
         RegisterParameter("agent_notification_throttler", AgentNotificationThrottler)
             .DefaultNew();
+        RegisterParameter("process_heartbeat_attempt_count", ProcessHeartbeatAttemptCount)
+            .GreaterThanOrEqual(1)
+            .Default(3);
         RegisterPreprocessor([&] {
             AgentNotificationThrottler->Limit = 10;
         });
