@@ -2259,7 +2259,7 @@ class TestClickHouseWithLogTailer(ClickHouseTestBase):
             os.path.join(self.path_to_run,
             "logs",
             "clickhouse-{}".format(clique_index),
-            "clickhouse-{}.debug.log".format(clique_index))
+            "clickhouse-{}.debug.log".format(0))
 
         log_table = "//sys/clickhouse/logs/log"
         log_tailer_config["log_tailer"]["log_files"] = [
@@ -2277,7 +2277,7 @@ class TestClickHouseWithLogTailer(ClickHouseTestBase):
             os.path.join(self.path_to_run,
             "logs",
             "clickhouse-{}".format(clique_index),
-            "log_tailer-{}.debug.log".format(clique_index))
+            "log_tailer-{}.debug.log".format(0))
         log_tailer_config["cluster_connection"] = self.__class__.Env.configs["driver"]
         log_tailer_config_filename = "//sys/clickhouse/log_tailer_config.yson"
         create("file", log_tailer_config_filename)
