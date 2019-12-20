@@ -377,7 +377,7 @@ TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetExternalBuiltinAttribu
         externalCellTag);
 
     auto key = TString(GetUninternedAttributeKey(internedKey));
-    
+
     auto req = TYPathProxy::Get(FromObjectId(GetId()) + "/@" + key);
     AddCellTagToSyncWith(req, GetId());
     SetTransactionId(req, transactionId);
@@ -1686,7 +1686,7 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
         THROW_ERROR_EXCEPTION("Cannot inplace copy to missing node");
     }
 
-    context->SetRequestInfo("TransactionId: %v "
+    context->SetRequestInfo("TransactionId: %v, "
         "PreserveAccount: %v, PreserveCreationTime: %v, PreserveModificationTime: %v, PreserveExpirationTime: %v, "
         "PreserveOwner: %v, PreserveAcl: %v, Recursive: %v, IgnoreExisting: %v,  LockExisting: %v, "
         "Force: %v, PessimisticQuotaCheck: %v",
