@@ -98,6 +98,7 @@ TEST_F(TDefaultBlackboxTest, FailOn5xxResponse)
     auto service = CreateDefaultBlackboxService();
     auto result = service->Call("hello", {}).Get();
     ASSERT_TRUE(!result.IsOK());
+    Cerr << ToString(result) << Endl;
     EXPECT_THAT(CollectMessages(result), HasSubstr("Blackbox call returned HTTP status code 500"));
 }
 
@@ -153,8 +154,9 @@ TEST_F(TDefaultBlackboxTest, FailOnTvmException)
 {
     auto service = CreateDefaultBlackboxService();
     EXPECT_CALL(*MockTvmService_, GetTicket("blackbox"))
-        .WillOnce(Throw(TError()));
-    EXPECT_THROW(service->Call("hello", {}), TError);
+        .WillOnce(Return(MakeFuture<TString>(TError("TVM out of tickets."))));
+    auto result = service->Call("hello", {}).Get();
+    EXPECT_FALSE(result.IsOK());
 }
 
 TEST_F(TDefaultBlackboxTest, Success)
