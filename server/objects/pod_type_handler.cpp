@@ -708,6 +708,15 @@ void ValidateDiskVolumeRequests(const RepeatedPtrField<NClient::NApi::NProto::TP
     }
 }
 
+void ValidateCapabilities(const RepeatedPtrField<TString>& capabilities)
+{
+    for (const auto& capability : capabilities) {
+        if (capability.Empty()) {
+            THROW_ERROR_EXCEPTION("Capability name cannot be empty string");
+        }
+    }
+}
+
 template <class TPodSpecBase>
 void ValidatePodSpecParts(
     TAccessControlManagerPtr accessControlManager,
@@ -731,6 +740,8 @@ void ValidatePodSpecParts(
         podSpec.ip6_subnet_requests());
 
     ValidateResourceRequests(podSpec.resource_requests(), config->MinVcpuGuarantee);
+
+    ValidateCapabilities(podSpec.capabilities());
 }
 
 }

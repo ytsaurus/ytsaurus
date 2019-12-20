@@ -1195,3 +1195,31 @@ class TestPods(object):
         assert yp_client.get_object("pod", pod_id, selectors=[
             "/spec/resource_requests/slot"
         ]) == [1]
+
+    def test_capabilities(self, yp_env):
+        yp_client = yp_env.yp_client
+        pod_set_id = yp_client.create_object("pod_set")
+        pod_id = yp_client.create_object("pod", attributes={
+            "meta": {
+                "pod_set_id": pod_set_id
+            },
+        })
+        capabilities, spec_timestamp = yp_client.get_object("pod", pod_id, selectors=[
+            "/spec/capabilities",
+            "/status/master_spec_timestamp",
+        ])
+        assert capabilities == YsonEntity()
+
+        req_capabilities = ["CAP_NET_RAW", "foobar"]
+        yp_client.update_object("pod", pod_id, set_updates=[dict(path="/spec/capabilities",
+                                                                 value=req_capabilities)])
+        new_capabilities, new_spec_timestamp = yp_client.get_object("pod", pod_id, selectors=[
+            "/spec/capabilities",
+            "/status/master_spec_timestamp",
+        ])
+        assert new_capabilities == req_capabilities
+        assert spec_timestamp < new_spec_timestamp
+
+        with pytest.raises(YtResponseError):
+            yp_client.update_object("pod", pod_id, set_updates=[dict(path="/spec/capabilities",
+                                                                     value=[""])])

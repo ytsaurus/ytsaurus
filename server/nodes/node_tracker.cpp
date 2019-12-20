@@ -560,6 +560,10 @@ public:
                 protoSpec->mutable_network_allocation()->set_rx_bandwidth_limit(
                     specEtc.resource_requests().network_bandwidth_limit());
             }
+
+            for (const auto& capability : specEtc.capabilities()) {
+                *protoSpec->add_capabilities() = capability;
+            }
         }
 
         void PopulateDynamicAttributes(

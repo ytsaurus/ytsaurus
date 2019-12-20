@@ -49,6 +49,7 @@ message TPodSpecEtc
     NYP.NClient.NApi.NProto.EPodHostNameKind host_name_kind = 15;
     NYP.NClient.NApi.NProto.EPodOutOfMemoryPolicy out_of_memory_policy = 21;
     NYP.NClient.NApi.NProto.THostInfraInfo host_infra = 22;
+    repeated string capabilities = 24;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
