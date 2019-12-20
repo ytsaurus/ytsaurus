@@ -86,13 +86,13 @@ public:
             }
         }
 
-        auto noProgressJobTotalTimeThreshold = MaxSuccessJobPrepareDuration_ * Config_->NoProgressJobTotalToPrepareTimeRatio;
-        auto minJobTotalTime = std::max(noProgressJobTotalTimeThreshold, Config_->MinJobTime);
+        auto noProgressJobTimeLimit = GetAverageSuccessJobPrepareDuration() * Config_->NoProgressJobTimeToAveragePrepareTimeRatio;
+        auto minJobTotalTime = std::max(noProgressJobTimeLimit, Config_->MinJobTime);
         TDuration totalDuration = job.GetPrepareDuration() + job.GetExecDuration();
         if (totalDuration > minJobTotalTime &&
             job.GetRowCount() == 0 &&
             isResidual &&
-            MaxSuccessJobPrepareDuration_ > TDuration::Zero())
+            noProgressJobTimeLimit > TDuration::Zero())
         {
             YT_LOG_DEBUG("Job splitter detected long job without any progress (JobId: %v)", jobId);
             return EJobSplitterVerdict::LaunchSpeculative;
@@ -107,10 +107,10 @@ public:
             YT_LOG_DEBUG(
                 "Job splitter detailed information (JobId: %v, PrepareDuration: %v, PrepareWithoutDownloadDuration: %v, "
                 "ExecDuration: %v, RemainingDuration: %v, TotalDataWeight: %v, RowCount: %v, IsLongAmongRunning: %v, "
-                "IsResidual: %v, IsSplittable: %v, SplitDeadline: %v, MaxSuccessJobPrepareDuration: %v)",
+                "IsResidual: %v, IsSplittable: %v, SplitDeadline: %v, SuccessJobPrepareDurationSum: %v, SuccessJobCount: %v)",
                 jobId, job.GetPrepareDuration(), job.GetPrepareWithoutDownloadDuration(), job.GetExecDuration(),
                 job.GetRemainingDuration(), job.GetTotalDataWeight(), job.GetRowCount(), isLongAmongRunning, isResidual,
-                job.GetIsSplittable(), job.GetSplitDeadline(), MaxSuccessJobPrepareDuration_);
+                job.GetIsSplittable(), job.GetSplitDeadline(), SuccessJobPrepareDurationSum_, SuccessJobCount_);
         }
 
         return EJobSplitterVerdict::DoNothing;
@@ -144,10 +144,8 @@ public:
     virtual void OnJobCompleted(const TCompletedJobSummary& summary) override
     {
         OnJobFinished(summary);
-        auto prepareDuration = summary.PrepareDuration.value_or(TDuration());
-        if (prepareDuration > MaxSuccessJobPrepareDuration_) {
-            MaxSuccessJobPrepareDuration_ = prepareDuration;
-        }
+        SuccessJobPrepareDurationSum_ += summary.PrepareDuration.value_or(TDuration());
+        ++SuccessJobCount_;
     }
 
     virtual int EstimateJobCount(
@@ -233,6 +231,8 @@ public:
         Persist(context, JobTimeTracker_);
         Persist(context, MaxRunningJobCount_);
         Persist(context, OperationId_);
+        Persist(context, SuccessJobPrepareDurationSum_);
+        Persist(context, SuccessJobCount_);
 
         if (context.IsLoad()) {
             Logger = NLogging::TLogger(ControllerLogger)
@@ -440,7 +440,8 @@ private:
     THashMap<TJobId, TRunningJob> RunningJobs_;
     TJobTimeTracker JobTimeTracker_;
     i64 MaxRunningJobCount_ = 0;
-    TDuration MaxSuccessJobPrepareDuration_;
+    TDuration SuccessJobPrepareDurationSum_;
+    int SuccessJobCount_ = 0;
 
     TOperationId OperationId_;
 
@@ -460,6 +461,13 @@ private:
         i64 runningJobCount = RunningJobs_.size();
         int smallJobCount = std::max(Config_->ResidualJobCountMinThreshold, static_cast<int>(Config_->ResidualJobFactor * MaxRunningJobCount_));
         return runningJobCount <= smallJobCount;
+    }
+
+    TDuration GetAverageSuccessJobPrepareDuration()
+    {
+        return SuccessJobCount_ == 0
+            ? TDuration::Zero()
+            : SuccessJobPrepareDurationSum_ / SuccessJobCount_;
     }
 };
 
