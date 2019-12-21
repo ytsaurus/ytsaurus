@@ -469,10 +469,18 @@ void TFairShareTree::OnOperationRemovedFromPool(
             blockedPool->WaitingOperationIds().remove(operationId);
         }
     }
-    if (!parent->IsRoot() && parent->IsEmpty()) {
-        auto* pool = static_cast<TPool*>(parent.Get());
-        if (pool->IsDefaultConfigured()) {
-            UnregisterPool(pool);
+
+    // We must do this recursively cause when ephemeral pool parent is deleted, it also become ephemeral.
+    RemoveEmptyEphemeralPoolsRecursive(parent.Get());
+}
+
+void TFairShareTree::RemoveEmptyEphemeralPoolsRecursive(TCompositeSchedulerElement* compositeElement)
+{
+    if (!compositeElement->IsRoot() && compositeElement->IsEmpty()) {
+        auto* parentPool = static_cast<TPool*>(compositeElement);
+        if (parentPool->IsDefaultConfigured()) {
+            UnregisterPool(parentPool);
+            RemoveEmptyEphemeralPoolsRecursive(parentPool->GetMutableParent());
         }
     }
 }
@@ -535,11 +543,15 @@ TPoolsUpdateResult TFairShareTree::UpdatePools(const INodePtr& poolsNode)
     LastPoolsNodeUpdate_ = poolsNode;
 
     THashMap<TString, TString> poolToParentMap;
+    THashSet<TString> ephemeralPools;
     for (const auto& [poolId, pool] : Pools_) {
         poolToParentMap[poolId] = pool->GetParent()->GetId();
+        if (pool->IsDefaultConfigured()) {
+            ephemeralPools.insert(poolId);
+        }
     }
 
-    TPoolsConfigParser poolsConfigParser(poolToParentMap);
+    TPoolsConfigParser poolsConfigParser(std::move(poolToParentMap), std::move(ephemeralPools));
 
     TError parseResult = poolsConfigParser.TryParse(poolsNode);
     if (!parseResult.IsOK()) {

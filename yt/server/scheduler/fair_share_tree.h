@@ -417,6 +417,7 @@ private:
     void ProfileOperationElement(NProfiling::TMetricsAccumulator& accumulator, TOperationElementPtr element) const;
     void ProfileCompositeSchedulerElement(NProfiling::TMetricsAccumulator& accumulator, TCompositeSchedulerElementPtr element) const;
     void ProfileSchedulerElement(NProfiling::TMetricsAccumulator& accumulator, const TSchedulerElementPtr& element, const TString& profilingPrefix, const NProfiling::TTagIdList& tags) const;
+    void RemoveEmptyEphemeralPoolsRecursive(TCompositeSchedulerElement* compositeElement);
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairShareTree)

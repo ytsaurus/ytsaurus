@@ -1702,7 +1702,7 @@ class TestSchedulerAggressiveStarvationPreemption(YTEnvSetup):
 
 ##################################################################
 
-class TestSchedulerPools(YTEnvSetup):
+class TestSchedulerPoolsCommon(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -1813,6 +1813,42 @@ class TestSchedulerPools(YTEnvSetup):
         pool = get(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool$root")
         assert pool["parent"] == "custom_pool"
         assert pool["mode"] == "fair_share"
+
+    @authors("renadeen")
+    def test_custom_ephemeral_pool_persists_after_pool_update(self):
+        create_pool("custom_pool")
+        set("//sys/pools/custom_pool/@create_ephemeral_subpools", True)
+        time.sleep(0.2)
+
+        op = run_sleeping_vanilla(spec={"pool": "custom_pool"})
+        wait(lambda: len(list(op.get_running_jobs())) == 1)
+        assert get(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool$root/parent") == "custom_pool"
+
+        create_pool("trigger_pool_update")
+        wait(lambda: exists(scheduler_orchid_default_pool_tree_path() + "/pools/trigger_pool_update"))
+        time.sleep(0.5)  # wait orchid update
+        # after pools update all ephemeral pools where mistakenly moved to default pool
+        assert get(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool$root/parent") == "custom_pool"
+
+    @authors("renadeen")
+    def test_ephemeral_pool_parent_is_removed_after_operation_complete(self):
+        create_pool("custom_pool")
+        set("//sys/pools/custom_pool/@create_ephemeral_subpools", True)
+        time.sleep(0.2)
+
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"pool": "custom_pool"})
+        wait_breakpoint()
+
+        remove("//sys/pools/custom_pool")
+        time.sleep(0.2)
+        assert exists(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool")
+        assert exists(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool$root")
+
+        release_breakpoint()
+        op.track()
+        time.sleep(0.2)  # wait orchid update
+        assert not exists(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool")
+        assert not exists(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool$root")
 
     @authors("renadeen")
     def test_ephemeral_pool_scheduling_mode(self):
