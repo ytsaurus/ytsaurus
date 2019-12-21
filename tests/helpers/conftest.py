@@ -453,30 +453,43 @@ def _insert_environ_path(path):
         os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
 
 
-def prepare_test_sandbox(sandbox_name):
-    test_sandbox_base_path = TESTS_SANDBOX
-    if yatest_common is not None:
-        if yatest_common.get_param("ram_drive_path") is None:
-            test_sandbox_base_path = yatest_common.output_path()
+def _try_makedirs(path):
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+
+class SandboxBase(object):
+    def __init__(self):
+        self._path = self._infer_path()
+        _try_makedirs(self.get_port_locks_path())
+
+    def _infer_path(self):
+        if yatest_common is None:
+            return TESTS_SANDBOX
         else:
-            test_sandbox_base_path = arcadia_interop.yatest_common.output_ram_drive_path()
-    test_sandbox_path = os.path.join(test_sandbox_base_path, sandbox_name + "_" + generate_uuid())
-    os.makedirs(test_sandbox_path)
-    return test_sandbox_path
+            if yatest_common.get_param("ram_drive_path") is None:
+                return yatest_common.output_path()
+            else:
+                return arcadia_interop.yatest_common.output_ram_drive_path()
+
+    def get_port_locks_path(self):
+        return os.path.join(self._path, "ports")
+
+    def make_sandbox(self, name):
+        path = os.path.join(self._path, name + "_" + generate_uuid())
+        os.makedirs(path)
+        return path
 
 
-def prepare_yp_test_sandbox():
+def prepare_yp_sandbox(sandbox_base):
     if yatest_common is not None:
         destination = os.path.join(yatest_common.work_path(), "yt_build_" + generate_uuid())
         os.makedirs(destination)
-
         path = arcadia_interop.prepare_yt_environment(destination)
-
         ypserver_master_binary = yatest_common.binary_path("yp/server/master/bin/ypserver-master")
         os.symlink(ypserver_master_binary, os.path.join(path, "ypserver-master"))
-
         _insert_environ_path(path)
-    return prepare_test_sandbox("yp")
+    return sandbox_base.make_sandbox("yp")
 
 
 def yatest_save_sandbox(sandbox_path):
@@ -512,16 +525,20 @@ class YpTestEnvironment(object):
                  db_version=ACTUAL_DB_VERSION,
                  local_yt_options=None,
                  start_yp_heavy_scheduler=False,
-                 yp_heavy_scheduler_config=None):
+                 yp_heavy_scheduler_config=None,
+                 sandbox_base=None):
         yp_master_config = update(DEFAULT_YP_MASTER_CONFIG, get_value(yp_master_config, {}))
-        self.test_sandbox_path = prepare_yp_test_sandbox()
-        self.test_sandbox_base_path = os.path.dirname(self.test_sandbox_path)
+
+        if sandbox_base is None:
+            sandbox_base = SandboxBase()
+        self._sandbox_base = sandbox_base
+        self._test_sandbox_path = prepare_yp_sandbox(self._sandbox_base)
 
         self.yp_heavy_scheduler_instance = None
         if start_yp_heavy_scheduler:
             self.yp_heavy_scheduler_instance = YpHeavySchedulerInstance(
                 yt_root_path="//yp/heavy_scheduler",
-                working_directory_path=os.path.join(self.test_sandbox_path, "yp_heavy_scheduler"),
+                working_directory_path=os.path.join(self._test_sandbox_path, "yp_heavy_scheduler"),
                 config_patch=yp_heavy_scheduler_config,
             )
 
@@ -530,14 +547,12 @@ class YpTestEnvironment(object):
             self._ensure_option_value_greater_or_equal(local_yt_options, "http_proxy_count", 1)
             self._ensure_option_value_greater_or_equal(local_yt_options, "rpc_proxy_count", 1)
 
-        self._port_locks_path = os.path.join(self.test_sandbox_base_path, "ports")
-
         self.yp_instance = YpInstance(
-            self.test_sandbox_path,
+            self._test_sandbox_path,
             yp_master_config=yp_master_config,
             enable_ssl=enable_ssl,
             db_version=db_version,
-            port_locks_path=self._port_locks_path,
+            port_locks_path=self._sandbox_base.get_port_locks_path(),
             local_yt_options=local_yt_options,
         )
 
@@ -585,10 +600,10 @@ class YpTestEnvironment(object):
                 self.yp_heavy_scheduler_instance.start(
                     yt_http_proxy_address=self.yp_instance.yt_instance.get_http_proxy_address(),
                     yp_master_grpc_address=self.yp_instance.yp_client_grpc_address,
-                    port_locks_path=self._port_locks_path,
+                    port_locks_path=self._sandbox_base.get_port_locks_path(),
                 )
         except:
-            yatest_save_sandbox(self.test_sandbox_path)
+            yatest_save_sandbox(self._test_sandbox_path)
             raise
 
     def create_orchid_client(self):
@@ -653,7 +668,7 @@ class YpTestEnvironment(object):
             if self.yp_client is not None:
                 self.yp_client.close()
             self.yp_instance.stop()
-            yatest_save_sandbox(self.test_sandbox_path)
+            yatest_save_sandbox(self._test_sandbox_path)
         except:
             # Additional logging added due to https://github.com/pytest-dev/pytest/issues/2237
             logger.exception("YpTestEnvironment cleanup failed")

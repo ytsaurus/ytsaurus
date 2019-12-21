@@ -1,16 +1,21 @@
 from .conftest import (
     DEFAULT_POD_SET_SPEC,
+    SandboxBase,
     YpTestEnvironment,
     create_nodes,
     create_pod_with_boilerplate,
-    prepare_test_sandbox,
-    # Make sure these methods do not start with "test" prefix.
-    test_method_setup as _test_method_setup,
-    test_method_teardown as _test_method_teardown,
     update_node_id,
     wait,
     yatest_save_sandbox,
 )
+
+# Make sure these methods do not start with "test" prefix.
+from .conftest import (
+    test_method_setup as _test_method_setup,
+    test_method_teardown as _test_method_teardown,
+)
+
+from yt.environment.helpers import OpenPortIterator
 
 from yt.wrapper.errors import YtTabletTransactionLockConflict
 
@@ -29,9 +34,7 @@ def is_in_arcadia():
 
 if is_in_arcadia():
     from iss.local import IssLocal, ResourceManager
-
     from iss.common.qemu import get_default_route_addresses
-    from iss.common.utils import get_free_port_in_range
 
 
 # Test resources.
@@ -50,20 +53,34 @@ def iss_agent_address():
     return get_default_route_addresses()
 
 
+@pytest.fixture(scope="module")
+def sandbox_base():
+    return SandboxBase()
+
+
+@pytest.fixture(scope="module")
+def open_port_iterator(sandbox_base):
+    return OpenPortIterator(sandbox_base.get_port_locks_path())
+
+
 @pytest.fixture(scope="class")
-def yp_agent_grpc_port():
-    return next(get_free_port_in_range(1024, 10240))
+def yp_agent_grpc_port(open_port_iterator):
+    return next(open_port_iterator)
 
 
 @pytest.fixture(scope="function")
-def iss_agent(request, iss_agent_address, yp_agent_grpc_port):
-    qemu_sandbox_path = prepare_test_sandbox("iss_local_qemu")
+def iss_agent(request,
+              iss_agent_address,
+              yp_agent_grpc_port,
+              sandbox_base,
+              open_port_iterator):
+    qemu_sandbox_path = sandbox_base.make_sandbox("iss_local_qemu")
     iss_local = IssLocal(
         dom0_address=iss_agent_address,
         qemu_image=get_iss_local_qemu_image_file_path(),
         qemu_work_dir=qemu_sandbox_path,
         yp_agent_port=yp_agent_grpc_port,
-        port_generator=get_free_port_in_range(1024, 10240),
+        port_generator=open_port_iterator,
     )
     iss_agent = iss_local.start()
     def finalizer():
@@ -75,8 +92,8 @@ def iss_agent(request, iss_agent_address, yp_agent_grpc_port):
 
 
 @pytest.fixture(scope="function")
-def iss_resource_manager(request, iss_agent_address):
-    sandbox_path = prepare_test_sandbox("iss_resource_manager")
+def iss_resource_manager(request, iss_agent_address, sandbox_base):
+    sandbox_path = sandbox_base.make_sandbox("iss_resource_manager")
     resource_manager = ResourceManager(
         sandbox_path,
         ssl=False,
@@ -91,7 +108,7 @@ def iss_resource_manager(request, iss_agent_address):
 
 
 @pytest.fixture(scope="class")
-def test_environment_iss(request, iss_agent_address, yp_agent_grpc_port):
+def test_environment_iss(request, iss_agent_address, yp_agent_grpc_port, sandbox_base):
     yp_master_config = dict( # TODO: Fix addresses overriding in the yp/local.py::YpInstance.
         agent_grpc_server=dict(
             addresses=[
@@ -101,7 +118,7 @@ def test_environment_iss(request, iss_agent_address, yp_agent_grpc_port):
             ]
         )
     )
-    environment = YpTestEnvironment(yp_master_config=yp_master_config)
+    environment = YpTestEnvironment(yp_master_config=yp_master_config, sandbox_base=sandbox_base)
     request.addfinalizer(lambda: environment.cleanup())
     return environment
 

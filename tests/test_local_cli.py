@@ -1,4 +1,10 @@
-from .conftest import Cli, generate_uuid, prepare_yp_test_sandbox, yatest_save_sandbox
+from .conftest import (
+    Cli,
+    SandboxBase,
+    generate_uuid,
+    prepare_yp_sandbox,
+    yatest_save_sandbox,
+)
 
 from yp.client import YpClient
 from yp.common import GrpcUnavailableError
@@ -19,20 +25,17 @@ class YpLocalCli(Cli):
 def start_yp_local():
     cli = YpLocalCli()
 
-    sandbox_path = prepare_yp_test_sandbox()
+    sandbox_base = SandboxBase()
+    sandbox_path = prepare_yp_sandbox(sandbox_base)
+
     sandbox_name = os.path.basename(sandbox_path)
-    sandbox_directory_path = os.path.dirname(sandbox_path)
-
-    # Keep it in sync with YpTestEnvironment to prevent port conflicts.
-    ports_lock_path = os.path.join(sandbox_directory_path, "ports")
-
-    os.chdir(sandbox_directory_path)
+    os.chdir(os.path.dirname(sandbox_path))
 
     try:
         cli_stderr_file_path = os.path.join(sandbox_path, "yp_local_stderr_" + generate_uuid())
         with open(cli_stderr_file_path, "w") as cli_stderr_file:
             cli.check_call(
-                ["start", "--id", sandbox_name, "--port-locks-path", ports_lock_path],
+                ["start", "--id", sandbox_name, "--port-locks-path", sandbox_base.get_port_locks_path()],
                 stdout=sys.stdout,
                 stderr=cli_stderr_file
             )
