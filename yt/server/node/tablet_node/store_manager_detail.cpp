@@ -368,10 +368,10 @@ void TStoreManagerBase::EndStorePreload(IChunkStorePtr store)
 
 void TStoreManagerBase::BackoffStorePreload(IChunkStorePtr store)
 {
-    std::vector<IInvokerPtr> feasibleInvokers{
+    VERIFY_INVOKERS_AFFINITY(std::vector{
         Tablet_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Default),
-        Tablet_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Mutation)};
-    VERIFY_INVOKERS_AFFINITY(feasibleInvokers);
+        Tablet_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Mutation)
+    });
 
     YT_VERIFY(store->GetPreloadState() == EStorePreloadState::Running);
 
