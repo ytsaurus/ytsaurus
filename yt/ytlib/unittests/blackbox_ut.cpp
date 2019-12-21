@@ -1,4 +1,5 @@
-#include "http_server_mock.h"
+#include "mock_http_server.h"
+#include "mock_tvm_service.h"
 
 #include <yt/ytlib/auth/token_authenticator.h>
 #include <yt/ytlib/auth/cookie_authenticator.h>
@@ -19,10 +20,12 @@ using namespace NTests;
 using namespace NYTree;
 using namespace NYson;
 
-using ::testing::_;
-using ::testing::HasSubstr;
-using ::testing::Return;
 using ::testing::AllOf;
+using ::testing::HasSubstr;
+using ::testing::NiceMock;
+using ::testing::Return;
+using ::testing::Throw;
+using ::testing::_;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,8 +36,8 @@ protected:
     TDefaultBlackboxServiceConfigPtr CreateDefaultBlackboxServiceConfig()
     {
         auto config = New<TDefaultBlackboxServiceConfig>();
-        config->Host = ServerMock_.IsStarted() ? ServerMock_.GetHost() : "localhost";
-        config->Port = ServerMock_.IsStarted() ? ServerMock_.GetPort() : static_cast<ui16>(0);
+        config->Host = MockHttpServer_.IsStarted() ? MockHttpServer_.GetHost() : "localhost";
+        config->Port = MockHttpServer_.IsStarted() ? MockHttpServer_.GetPort() : static_cast<ui16>(0);
         config->Secure = false;
         config->RequestTimeout = TDuration::MilliSeconds(10);
         config->AttemptTimeout = TDuration::MilliSeconds(10);
@@ -44,30 +47,35 @@ protected:
 
     IBlackboxServicePtr CreateDefaultBlackboxService(TDefaultBlackboxServiceConfigPtr config = {})
     {
+        MockTvmService_ = New<NiceMock<TMockTvmService>>();
+        ON_CALL(*MockTvmService_, GetTicket("blackbox"))
+            .WillByDefault(Return(MakeFuture(TString("blackbox_ticket"))));
+
         return NAuth::CreateDefaultBlackboxService(
             config ? config : CreateDefaultBlackboxServiceConfig(),
+            MockTvmService_,
             CreateThreadPoolPoller(1, "HttpPoller"));
     }
 
     virtual void SetUp() override
     {
-        ServerMock_.Start();
+        MockHttpServer_.Start();
     }
 
     virtual void TearDown() override
     {
-        if (ServerMock_.IsStarted()) {
-            ServerMock_.Stop();
+        if (MockHttpServer_.IsStarted()) {
+            MockHttpServer_.Stop();
         }
     }
 
-    void SetCallback(THttpServerMock::TCallback callback)
+    void SetCallback(TMockHttpServer::TCallback callback)
     {
-        ServerMock_.SetCallback(std::move(callback));
+        MockHttpServer_.SetCallback(std::move(callback));
     }
 
-private:
-    THttpServerMock ServerMock_;
+    TMockHttpServer MockHttpServer_;
+    TIntrusivePtr<TMockTvmService> MockTvmService_;
 };
 
 TEST_F(TDefaultBlackboxTest, FailOnBadHost)
@@ -90,6 +98,7 @@ TEST_F(TDefaultBlackboxTest, FailOn5xxResponse)
     auto service = CreateDefaultBlackboxService();
     auto result = service->Call("hello", {}).Get();
     ASSERT_TRUE(!result.IsOK());
+    Cerr << ToString(result) << Endl;
     EXPECT_THAT(CollectMessages(result), HasSubstr("Blackbox call returned HTTP status code 500"));
 }
 
@@ -141,11 +150,22 @@ TEST_F(TDefaultBlackboxTest, FailOnBlackboxException)
     EXPECT_THAT(CollectMessages(result), HasSubstr("Blackbox has raised an exception"));
 }
 
+TEST_F(TDefaultBlackboxTest, FailOnTvmException)
+{
+    auto service = CreateDefaultBlackboxService();
+    EXPECT_CALL(*MockTvmService_, GetTicket("blackbox"))
+        .WillOnce(Return(MakeFuture<TString>(TError("TVM out of tickets."))));
+    auto result = service->Call("hello", {}).Get();
+    EXPECT_FALSE(result.IsOK());
+}
 
 TEST_F(TDefaultBlackboxTest, Success)
 {
     SetCallback([&] (TClientRequest* request) {
         EXPECT_THAT(request->Input().FirstLine(), HasSubstr("/blackbox?method=hello&foo=bar&spam=ham"));
+        auto header = request->Input().Headers().FindHeader("X-Ya-Service-Ticket");
+        EXPECT_NE(nullptr, header);
+        EXPECT_EQ("blackbox_ticket", header->Value());
         request->Output() << HttpResponse(200, R"jj({"status": "ok"})jj");
     });
     auto service = CreateDefaultBlackboxService();
@@ -186,9 +206,8 @@ class TMockBlackboxService
     : public IBlackboxService
 {
 public:
-    MOCK_METHOD3(Call, TFuture<INodePtr>(
+    MOCK_METHOD2(Call, TFuture<INodePtr>(
         const TString&,
-        const THashMap<TString, TString>&,
         const THashMap<TString, TString>&));
 
     virtual TErrorOr<TString> GetLogin(const NYTree::INodePtr& reply) const override
@@ -211,7 +230,7 @@ protected:
 
     void MockCall(const TString& yson)
     {
-        EXPECT_CALL(*Blackbox_, Call("oauth", _, _))
+        EXPECT_CALL(*Blackbox_, Call("oauth", _))
             .WillOnce(Return(MakeFuture<INodePtr>(ConvertTo<INodePtr>(TYsonString(yson)))));
     }
 
@@ -230,7 +249,7 @@ protected:
 
 TEST_F(TTokenAuthenticatorTest, FailOnUnderlyingFailure)
 {
-    EXPECT_CALL(*Blackbox_, Call("oauth", _, _))
+    EXPECT_CALL(*Blackbox_, Call("oauth", _))
         .WillOnce(Return(MakeFuture<INodePtr>(TError("Underlying failure"))));
     auto result = Invoke("mytoken", "127.0.0.1").Get();
     ASSERT_TRUE(!result.IsOK());
@@ -298,7 +317,7 @@ protected:
 
     void MockCall(const TString& yson)
     {
-        EXPECT_CALL(*Blackbox_, Call("sessionid", _, _))
+        EXPECT_CALL(*Blackbox_, Call("sessionid", _))
             .WillOnce(Return(MakeFuture<INodePtr>(ConvertTo<INodePtr>(TYsonString(yson)))));
     }
 
@@ -329,7 +348,7 @@ protected:
 
 TEST_F(TCookieAuthenticatorTest, FailOnUnderlyingFailure)
 {
-    EXPECT_CALL(*Blackbox_, Call("sessionid", _, _))
+    EXPECT_CALL(*Blackbox_, Call("sessionid", _))
         .WillOnce(Return(MakeFuture<INodePtr>(TError("Underlying failure"))));
     auto result = Authenticate("mysessionid", "mysslsessionid", "127.0.0.1").Get();
     ASSERT_TRUE(!result.IsOK());

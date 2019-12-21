@@ -22,6 +22,7 @@ public:
     TString Host;
     int Port;
     bool Secure;
+    TString BlackboxServiceId;
 
     TDuration RequestTimeout;
     TDuration AttemptTimeout;
@@ -38,6 +39,8 @@ public:
             .Default(443);
         RegisterParameter("secure", Secure)
             .Default(true);
+        RegisterParameter("blackbox_service_id", BlackboxServiceId)
+            .Default("blackbox");
         RegisterParameter("request_timeout", RequestTimeout)
             .Default(TDuration::Seconds(15));
         RegisterParameter("attempt_timeout", AttemptTimeout)
@@ -113,12 +116,8 @@ class TBlackboxTicketAuthenticatorConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
-    TString BlackboxServiceId;
-
     TBlackboxTicketAuthenticatorConfig()
     {
-        RegisterParameter("blackbox_service_id", BlackboxServiceId)
-            .Default("blackbox");
     }
 };
 
