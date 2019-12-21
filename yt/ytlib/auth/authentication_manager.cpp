@@ -1,10 +1,10 @@
 #include "authentication_manager.h"
-#include "token_authenticator.h"
-#include "ticket_authenticator.h"
+#include "caching_tvm_service.h"
 #include "cookie_authenticator.h"
 #include "default_blackbox_service.h"
-#include "caching_tvm_service.h"
 #include "default_tvm_service.h"
+#include "ticket_authenticator.h"
+#include "token_authenticator.h"
 
 #include <yt/ytlib/auth/config.h>
 
@@ -30,14 +30,6 @@ public:
         std::vector<NRpc::IAuthenticatorPtr> rpcAuthenticators;
         std::vector<NAuth::ITokenAuthenticatorPtr> tokenAuthenticators;
 
-        IBlackboxServicePtr blackboxService;
-        if (config->BlackboxService && poller) {
-            blackboxService = CreateDefaultBlackboxService(
-                config->BlackboxService,
-                poller,
-                profiler.AppendPath("/blackbox"));
-        }
-
         if (config->TvmService && poller) {
             TvmService_ = CreateCachingTvmService(
                 CreateDefaultTvmService(
@@ -46,6 +38,15 @@ public:
                     profiler.AppendPath("/tvm/remote")),
                 config->TvmService,
                 profiler.AppendPath("/tvm/cache"));
+        }
+
+        IBlackboxServicePtr blackboxService;
+        if (config->BlackboxService && poller) {
+            blackboxService = CreateDefaultBlackboxService(
+                config->BlackboxService,
+                TvmService_,
+                poller,
+                profiler.AppendPath("/blackbox"));
         }
 
         if (config->BlackboxTokenAuthenticator && blackboxService) {
@@ -80,11 +81,10 @@ public:
                 CreateCookieAuthenticatorWrapper(CookieAuthenticator_));
         }
 
-        if (blackboxService && TvmService_  && config->BlackboxTicketAuthenticator) {
+        if (blackboxService && config->BlackboxTicketAuthenticator) {
             TicketAuthenticator_ = CreateBlackboxTicketAuthenticator(
                 config->BlackboxTicketAuthenticator,
-                blackboxService,
-                TvmService_ );
+                blackboxService);
             rpcAuthenticators.push_back(
                 CreateTicketAuthenticatorWrapper(TicketAuthenticator_));
         }

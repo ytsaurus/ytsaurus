@@ -1,6 +1,5 @@
 #include "ticket_authenticator.h"
 #include "blackbox_service.h"
-#include "tvm_service.h"
 #include "helpers.h"
 #include "config.h"
 #include "private.h"
@@ -23,30 +22,13 @@ class TBlackboxTicketAuthenticator
 public:
     TBlackboxTicketAuthenticator(
         TBlackboxTicketAuthenticatorConfigPtr config,
-        IBlackboxServicePtr blackboxService,
-        ITvmServicePtr tvmService)
+        IBlackboxServicePtr blackboxService)
         : Config_(std::move(config))
         , BlackboxService_(std::move(blackboxService))
-        , TvmService_(std::move(tvmService))
     { }
 
     virtual TFuture<TAuthenticationResult> Authenticate(
         const TTicketCredentials& credentials) override
-    {
-        return TvmService_->GetTicket(Config_->BlackboxServiceId)
-            .Apply(BIND(
-                &TBlackboxTicketAuthenticator::OnTvmCallResult,
-                MakeStrong(this),
-                credentials));
-    }
-
-private:
-    const TBlackboxTicketAuthenticatorConfigPtr Config_;
-    const IBlackboxServicePtr BlackboxService_;
-    const ITvmServicePtr TvmService_;
-
-private:
-    TFuture<TAuthenticationResult> OnTvmCallResult(const TTicketCredentials& credentials, const TString& blackboxTicket)
     {
         const auto& ticket = credentials.Ticket;
         auto ticketHash = GetCryptoHash(ticket);
@@ -54,16 +36,18 @@ private:
         YT_LOG_DEBUG("Validating ticket via Blackbox (TicketHash: %v)",
             ticketHash);
 
-        return BlackboxService_->Call(
-            "user_ticket",
-            {{"user_ticket", ticket}},
-            {{"X-Ya-Service-Ticket", blackboxTicket}})
+        return BlackboxService_->Call("user_ticket", {{"user_ticket", ticket}})
             .Apply(BIND(
                 &TBlackboxTicketAuthenticator::OnBlackboxCallResult,
                 MakeStrong(this),
                 ticketHash));
     }
 
+private:
+    const TBlackboxTicketAuthenticatorConfigPtr Config_;
+    const IBlackboxServicePtr BlackboxService_;
+
+private:
     TAuthenticationResult OnBlackboxCallResult(const TString& ticketHash, const INodePtr& data)
     {
         auto result = OnCallResultImpl(data);
@@ -101,13 +85,11 @@ private:
 
 ITicketAuthenticatorPtr CreateBlackboxTicketAuthenticator(
     TBlackboxTicketAuthenticatorConfigPtr config,
-    IBlackboxServicePtr blackboxService,
-    ITvmServicePtr tvmService)
+    IBlackboxServicePtr blackboxService)
 {
     return New<TBlackboxTicketAuthenticator>(
         std::move(config),
-        std::move(blackboxService),
-        std::move(tvmService));
+        std::move(blackboxService));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
