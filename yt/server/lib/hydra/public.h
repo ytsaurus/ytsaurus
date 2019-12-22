@@ -29,11 +29,10 @@ DECLARE_REFCOUNTED_STRUCT(ISnapshotWriter)
 DECLARE_REFCOUNTED_STRUCT(ISnapshotStore)
 DECLARE_REFCOUNTED_CLASS(TFileSnapshotStore)
 DECLARE_REFCOUNTED_CLASS(TFileChangelog)
+DECLARE_REFCOUNTED_CLASS(TLocalHydraJanitor)
 
 DECLARE_REFCOUNTED_CLASS(TSnapshotStoreThunk)
 DECLARE_REFCOUNTED_CLASS(TChangelogStoreFactoryThunk)
-
-DECLARE_REFCOUNTED_STRUCT(ILocalSnapshotJanitor)
 
 struct TDistributedHydraManagerOptions;
 
@@ -55,9 +54,9 @@ DECLARE_REFCOUNTED_CLASS(TFileChangelogStoreConfig)
 DECLARE_REFCOUNTED_CLASS(TLocalSnapshotStoreConfig)
 DECLARE_REFCOUNTED_CLASS(TRemoteSnapshotStoreConfig)
 DECLARE_REFCOUNTED_CLASS(TRemoteChangelogStoreConfig)
-DECLARE_REFCOUNTED_CLASS(TSnapshotKeeperConfig)
-DECLARE_REFCOUNTED_CLASS(TLocalSnapshotJanitorConfig)
 DECLARE_REFCOUNTED_CLASS(TDistributedHydraManagerConfig)
+DECLARE_REFCOUNTED_CLASS(THydraJanitorConfig)
+DECLARE_REFCOUNTED_CLASS(TLocalHydraJanitorConfig)
 
 using TReign = int;
 

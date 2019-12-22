@@ -44,7 +44,7 @@ namespace NYT::NCellMaster {
 
 class TMasterHydraManagerConfig
     : public NHydra::TDistributedHydraManagerConfig
-    , public NHydra::TSnapshotKeeperConfig
+    , public NHydra::TLocalHydraJanitorConfig
 {
 public:
     NRpc::TResponseKeeperConfigPtr ResponseKeeper;

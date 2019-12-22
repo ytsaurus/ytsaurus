@@ -14,7 +14,7 @@
 #include <yt/server/lib/hydra/changelog.h>
 #include <yt/server/lib/hydra/composite_automaton.h>
 #include <yt/server/lib/hydra/distributed_hydra_manager.h>
-#include <yt/server/lib/hydra/local_snapshot_janitor.h>
+#include <yt/server/lib/hydra/local_hydra_janitor.h>
 #include <yt/server/lib/hydra/private.h>
 #include <yt/server/lib/hydra/snapshot.h>
 
@@ -103,14 +103,10 @@ public:
 
         electionManagerThunk->SetUnderlying(ElectionManager_);
 
-        auto janitorConfig = New<TLocalSnapshotJanitorConfig>();
-        janitorConfig->Changelogs = Config_->Changelogs;
-        janitorConfig->Snapshots = Config_->Snapshots;
-        janitorConfig->MaxSnapshotCountToKeep = Config_->HydraManager->MaxSnapshotCountToKeep;
-        janitorConfig->MaxSnapshotSizeToKeep = Config_->HydraManager->MaxSnapshotSizeToKeep;
-
-        SnapshotJanitor_ = CreateLocalSnapshotJanitor(
-            std::move(janitorConfig),
+        LocalJanitor_ = New<TLocalHydraJanitor>(
+            Config_->Snapshots->Path,
+            Config_->Changelogs->Path,
+            Config_->HydraManager,
             GetHydraIOInvoker());
     }
 
@@ -118,7 +114,7 @@ public:
     {
         HydraManager_->Initialize();
 
-        SnapshotJanitor_->Start();
+        LocalJanitor_->Start();
     }
 
     void LoadSnapshot(ISnapshotReaderPtr reader, bool dump)
@@ -180,10 +176,10 @@ private:
 
     TResponseKeeperPtr ResponseKeeper_;
 
+    TLocalHydraJanitorPtr LocalJanitor_;
+
     TEnumIndexedVector<EAutomatonThreadQueue, IInvokerPtr> GuardedInvokers_;
     TEnumIndexedVector<EAutomatonThreadQueue, IInvokerPtr> EpochInvokers_;
-
-    ILocalSnapshotJanitorPtr SnapshotJanitor_;
 
     void OnStartEpoch()
     {

@@ -108,6 +108,8 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TFileChangelogStoreConfig)
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TLocalSnapshotStoreConfig
     : public NYTree::TYsonSerializable
 {
@@ -127,6 +129,8 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TLocalSnapshotStoreConfig)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TRemoteSnapshotStoreConfig
     : public NYTree::TYsonSerializable
@@ -154,6 +158,8 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TRemoteSnapshotStoreConfig)
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TRemoteChangelogStoreConfig
     : public NYTree::TYsonSerializable
 {
@@ -177,14 +183,18 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TRemoteChangelogStoreConfig)
 
-class TSnapshotKeeperConfig
+////////////////////////////////////////////////////////////////////////////////
+
+class THydraJanitorConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
     std::optional<int> MaxSnapshotCountToKeep;
     std::optional<i64> MaxSnapshotSizeToKeep;
+    std::optional<int> MaxChangelogCountToKeep;
+    std::optional<i64> MaxChangelogSizeToKeep;
 
-    TSnapshotKeeperConfig()
+    THydraJanitorConfig()
     {
         RegisterParameter("max_snapshot_count_to_keep", MaxSnapshotCountToKeep)
             .GreaterThanOrEqual(0)
@@ -192,30 +202,33 @@ public:
         RegisterParameter("max_snapshot_size_to_keep", MaxSnapshotSizeToKeep)
             .GreaterThanOrEqual(0)
             .Default();
+        RegisterParameter("max_changelog_count_to_keep", MaxChangelogCountToKeep)
+            .GreaterThanOrEqual(0)
+            .Default();
+        RegisterParameter("max_changelog_size_to_keep", MaxChangelogSizeToKeep)
+            .GreaterThanOrEqual(0)
+            .Default();
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TSnapshotKeeperConfig)
+DEFINE_REFCOUNTED_TYPE(THydraJanitorConfig)
 
-class TLocalSnapshotJanitorConfig
-    : public TSnapshotKeeperConfig
+////////////////////////////////////////////////////////////////////////////////
+
+class TLocalHydraJanitorConfig
+    : public THydraJanitorConfig
 {
 public:
     TDuration CleanupPeriod;
 
-    NHydra::TFileChangelogStoreConfigPtr Changelogs;
-    NHydra::TLocalSnapshotStoreConfigPtr Snapshots;
-
-    TLocalSnapshotJanitorConfig()
+    TLocalHydraJanitorConfig()
     {
         RegisterParameter("cleanup_period", CleanupPeriod)
             .Default(TDuration::Seconds(10));
-        RegisterParameter("changelogs", Changelogs);
-        RegisterParameter("snapshots", Snapshots);
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TLocalSnapshotJanitorConfig)
+DEFINE_REFCOUNTED_TYPE(TLocalHydraJanitorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
