@@ -477,7 +477,7 @@ void TFairShareTree::OnOperationRemovedFromPool(
 void TFairShareTree::RemoveEmptyEphemeralPoolsRecursive(TCompositeSchedulerElement* compositeElement)
 {
     if (!compositeElement->IsRoot() && compositeElement->IsEmpty()) {
-        auto* parentPool = static_cast<TPool*>(compositeElement);
+        TPoolPtr parentPool = static_cast<TPool*>(compositeElement);
         if (parentPool->IsDefaultConfigured()) {
             UnregisterPool(parentPool);
             RemoveEmptyEphemeralPoolsRecursive(parentPool->GetMutableParent());
