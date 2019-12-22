@@ -67,12 +67,19 @@ struct TGenerateTimestampResult;
 struct TAttributeList;
 
 struct TSelectObjectsResult;
+struct TGetObjectResult;
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TUpdateObjectResult;
-
 struct TCreateObjectResult;
+struct TRemoveObjectResult;
 
-struct TGetObjectResult;
+////////////////////////////////////////////////////////////////////////////////
+
+struct TStartTransactionResult;
+struct TAbortTransactionResult;
+struct TCommitTransactionResult;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -38,6 +38,8 @@ struct TGetObjectResult
     TTimestamp Timestamp;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 struct TUpdateObjectResult
 {
     TTimestamp CommitTimestamp;
@@ -46,6 +48,27 @@ struct TUpdateObjectResult
 struct TCreateObjectResult
 {
     TObjectId ObjectId;
+    TTimestamp CommitTimestamp;
+};
+
+struct TRemoveObjectResult
+{
+    TTimestamp CommitTimestamp;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TStartTransactionResult
+{
+    TTransactionId TransactionId;
+    TTimestamp StartTimestamp;
+};
+
+struct TAbortTransactionResult
+{ };
+
+struct TCommitTransactionResult
+{
     TTimestamp CommitTimestamp;
 };
 

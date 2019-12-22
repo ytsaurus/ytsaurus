@@ -83,83 +83,6 @@ public:
             options.FetchTimestamps));
     }
 
-    virtual TFuture<TUpdateObjectResult> UpdateObject(
-        TObjectId objectId,
-        EObjectType objectType,
-        std::vector<TUpdate> updates,
-        std::vector<TAttributeTimestampPrerequisite> attributeTimestampPrerequisites) override
-    {
-        TObjectServiceProxy proxy(Connection_->GetChannel());
-        auto req = proxy.UpdateObject();
-        SetupRequest(req);
-
-        YT_LOG_DEBUG("Invoking request ("
-            "Method: %v, "
-            "ObjectId: %v, "
-            "ObjectType: %v, "
-            "Updates: %v, "
-            "AttributeTimestampPrerequisites: %v)",
-            req->GetMethod(),
-            objectId,
-            objectType,
-            updates,
-            attributeTimestampPrerequisites);
-
-        req->set_object_id(std::move(objectId));
-        req->set_object_type(static_cast<NProto::EObjectType>(objectType));
-
-        for (auto& update : updates) {
-            Visit(update,
-                [&] (TSetUpdate& setUpdate) {
-                    auto* protoSetUpdate = req->add_set_updates();
-                    protoSetUpdate->set_path(std::move(setUpdate.Path));
-                    ToProto(protoSetUpdate->mutable_value_payload(), setUpdate.Payload);
-                    protoSetUpdate->set_recursive(setUpdate.Recursive);
-                },
-                [&] (TRemoveUpdate& removeUpdate) {
-                    auto* protoRemoveUpdate = req->add_remove_updates();
-                    protoRemoveUpdate->set_path(std::move(removeUpdate.Path));
-                });
-        }
-
-        for (auto& attributeTimestampPrerequisite : attributeTimestampPrerequisites) {
-            auto* protoAttributeTimestampPrerequisite = req->add_attribute_timestamp_prerequisites();
-            protoAttributeTimestampPrerequisite->set_path(std::move(attributeTimestampPrerequisite.Path));
-            protoAttributeTimestampPrerequisite->set_timestamp(attributeTimestampPrerequisite.Timestamp);
-        }
-
-        return req->Invoke().Apply(BIND(
-            [] (const TErrorOr<TObjectServiceProxy::TRspUpdateObjectPtr>& rspOrError) {
-                const auto& rsp = rspOrError.ValueOrThrow();
-                return TUpdateObjectResult{rsp->commit_timestamp()};
-            }));
-    }
-
-    virtual TFuture<TCreateObjectResult> CreateObject(
-        EObjectType objectType,
-        TPayload attributesPayload) override
-    {
-        TObjectServiceProxy proxy(Connection_->GetChannel());
-        auto req = proxy.CreateObject();
-        SetupRequest(req);
-
-        YT_LOG_DEBUG("Invoking request (Method: %v, ObjectType: %v, AttributesPayload: %v)",
-            req->GetMethod(),
-            objectType,
-            attributesPayload);
-
-        req->set_object_type(static_cast<NProto::EObjectType>(objectType));
-        ToProto(req->mutable_attributes_payload(), attributesPayload);
-
-        return req->Invoke().Apply(BIND(
-            [] (const TErrorOr<TObjectServiceProxy::TRspCreateObjectPtr>& rspOrError) {
-                const auto& rsp = rspOrError.ValueOrThrow();
-                return TCreateObjectResult{
-                    std::move(*rsp->mutable_object_id()),
-                    rsp->commit_timestamp()};
-            }));
-    }
-
     virtual TFuture<TGetObjectResult> GetObject(
         TObjectId objectId,
         EObjectType objectType,
@@ -193,6 +116,197 @@ public:
             options.Format,
             selector.size(),
             options.FetchTimestamps));
+    }
+
+    virtual TFuture<TUpdateObjectResult> UpdateObject(
+        TObjectId objectId,
+        EObjectType objectType,
+        std::vector<TUpdate> updates,
+        std::vector<TAttributeTimestampPrerequisite> attributeTimestampPrerequisites,
+        const TTransactionId& transactionId) override
+    {
+        TObjectServiceProxy proxy(Connection_->GetChannel());
+        auto req = proxy.UpdateObject();
+        SetupRequest(req);
+
+        YT_LOG_DEBUG("Invoking request ("
+            "Method: %v, "
+            "ObjectId: %v, "
+            "ObjectType: %v, "
+            "Updates: %v, "
+            "AttributeTimestampPrerequisites: %v, "
+            "TransactionId: %v)",
+            req->GetMethod(),
+            objectId,
+            objectType,
+            updates,
+            attributeTimestampPrerequisites,
+            transactionId);
+
+        req->set_object_id(std::move(objectId));
+        req->set_object_type(static_cast<NProto::EObjectType>(objectType));
+
+        for (auto& update : updates) {
+            Visit(update,
+                [&] (TSetUpdate& setUpdate) {
+                    auto* protoSetUpdate = req->add_set_updates();
+                    protoSetUpdate->set_path(std::move(setUpdate.Path));
+                    ToProto(protoSetUpdate->mutable_value_payload(), setUpdate.Payload);
+                    protoSetUpdate->set_recursive(setUpdate.Recursive);
+                },
+                [&] (TRemoveUpdate& removeUpdate) {
+                    auto* protoRemoveUpdate = req->add_remove_updates();
+                    protoRemoveUpdate->set_path(std::move(removeUpdate.Path));
+                });
+        }
+
+        for (auto& attributeTimestampPrerequisite : attributeTimestampPrerequisites) {
+            auto* protoAttributeTimestampPrerequisite = req->add_attribute_timestamp_prerequisites();
+            protoAttributeTimestampPrerequisite->set_path(std::move(attributeTimestampPrerequisite.Path));
+            protoAttributeTimestampPrerequisite->set_timestamp(attributeTimestampPrerequisite.Timestamp);
+        }
+
+        ToProto(req->mutable_transaction_id(), transactionId);
+
+        return req->Invoke().Apply(BIND(
+            [] (const TErrorOr<TObjectServiceProxy::TRspUpdateObjectPtr>& rspOrError) {
+                const auto& rsp = rspOrError.ValueOrThrow();
+                return TUpdateObjectResult{rsp->commit_timestamp()};
+            }));
+    }
+
+    virtual TFuture<TCreateObjectResult> CreateObject(
+        EObjectType objectType,
+        TPayload attributesPayload,
+        const TTransactionId& transactionId) override
+    {
+        TObjectServiceProxy proxy(Connection_->GetChannel());
+        auto req = proxy.CreateObject();
+        SetupRequest(req);
+
+        YT_LOG_DEBUG("Invoking request ("
+            "Method: %v, "
+            "ObjectType: %v, "
+            "AttributesPayload: %v, "
+            "TransactionId: %v)",
+            req->GetMethod(),
+            objectType,
+            attributesPayload,
+            transactionId);
+
+        req->set_object_type(static_cast<NProto::EObjectType>(objectType));
+        ToProto(req->mutable_attributes_payload(), attributesPayload);
+        ToProto(req->mutable_transaction_id(), transactionId);
+
+        return req->Invoke().Apply(BIND(
+            [] (const TErrorOr<TObjectServiceProxy::TRspCreateObjectPtr>& rspOrError) {
+                const auto& rsp = rspOrError.ValueOrThrow();
+                return TCreateObjectResult{
+                    std::move(*rsp->mutable_object_id()),
+                    rsp->commit_timestamp()};
+            }));
+    }
+
+    virtual TFuture<TRemoveObjectResult> RemoveObject(
+        TObjectId objectId,
+        EObjectType objectType,
+        const TTransactionId& transactionId) override
+    {
+        TObjectServiceProxy proxy(Connection_->GetChannel());
+        auto req = proxy.RemoveObject();
+        SetupRequest(req);
+
+        YT_LOG_DEBUG("Invoking request ("
+            "Method: %v, "
+            "ObjectId: %v, "
+            "ObjectType: %v, "
+            "TransactionId: %v)",
+            req->GetMethod(),
+            objectId,
+            objectType,
+            transactionId);
+
+        req->set_object_id(std::move(objectId));
+        req->set_object_type(static_cast<NProto::EObjectType>(objectType));
+        ToProto(req->mutable_transaction_id(), transactionId);
+
+        return req->Invoke().Apply(BIND(
+            [] (const TErrorOr<TObjectServiceProxy::TRspRemoveObjectPtr>& rspOrError) {
+                const auto& rsp = rspOrError.ValueOrThrow();
+                return TRemoveObjectResult{
+                    rsp->commit_timestamp()};
+            }));
+    }
+
+    virtual TFuture<TStartTransactionResult> StartTransaction() override
+    {
+        TObjectServiceProxy proxy(Connection_->GetChannel());
+        auto req = proxy.StartTransaction();
+        SetupRequest(req);
+
+        YT_LOG_DEBUG("Invoking request (Method: %v)",
+            req->GetMethod());
+
+        return req->Invoke().Apply(BIND(
+            [] (const TErrorOr<TObjectServiceProxy::TRspStartTransactionPtr>& rspOrError) {
+                const auto& rsp = rspOrError.ValueOrThrow();
+                if (rsp->start_timestamp() == NullTimestamp) {
+                    THROW_ERROR_EXCEPTION("Expected non-null start timestamp");
+                }
+                TTransactionId transactionId;
+                FromProto(&transactionId, rsp->transaction_id());
+                if (!transactionId) {
+                    THROW_ERROR_EXCEPTION("Expected non-null transaction id");
+                }
+                return TStartTransactionResult{
+                    std::move(transactionId),
+                    rsp->start_timestamp()};
+            }));
+    }
+
+    virtual TFuture<TAbortTransactionResult> AbortTransaction(
+        const TTransactionId& id) override
+    {
+        TObjectServiceProxy proxy(Connection_->GetChannel());
+        auto req = proxy.AbortTransaction();
+        SetupRequest(req);
+
+        ToProto(req->mutable_transaction_id(), id);
+
+        YT_LOG_DEBUG("Invoking request (Method: %v, TransactionId: %v)",
+            req->GetMethod(),
+            req->transaction_id());
+
+        return req->Invoke().Apply(BIND(
+            [] (const TErrorOr<TObjectServiceProxy::TRspAbortTransactionPtr>& rspOrError) {
+                const auto& rsp = rspOrError.ValueOrThrow();
+                Y_UNUSED(rsp);
+                return TAbortTransactionResult{};
+            }));
+    }
+
+    virtual TFuture<TCommitTransactionResult> CommitTransaction(
+        const TTransactionId& id) override
+    {
+        TObjectServiceProxy proxy(Connection_->GetChannel());
+        auto req = proxy.CommitTransaction();
+        SetupRequest(req);
+
+        ToProto(req->mutable_transaction_id(), id);
+
+        YT_LOG_DEBUG("Invoking request (Method: %v, TransactionId: %v)",
+            req->GetMethod(),
+            req->transaction_id());
+
+        return req->Invoke().Apply(BIND(
+            [] (const TErrorOr<TObjectServiceProxy::TRspCommitTransactionPtr>& rspOrError) {
+                const auto& rsp = rspOrError.ValueOrThrow();
+                if (rsp->commit_timestamp() == NullTimestamp) {
+                    THROW_ERROR_EXCEPTION("Expected non-null commit timestamp");
+                }
+                return TCommitTransactionResult{
+                    rsp->commit_timestamp()};
+            }));
     }
 
 private:

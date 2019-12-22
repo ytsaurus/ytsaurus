@@ -7,6 +7,8 @@
 
 #include <yp/client/api/proto/data_model.pb.h>
 
+#include <yt/client/tablet_client/public.h>
+
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/scheduler.h>
 
@@ -27,6 +29,10 @@ using namespace NYT;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const NLogging::TLogger Logger("NativeClientTest");
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TNativeClientTestSuite
     : public ::testing::Test
 {
@@ -38,6 +44,46 @@ public:
 
     virtual void TearDown() override
     {
+        static const std::vector<EObjectType> ObjectTypesToRemove = {
+            EObjectType::Pod,
+            EObjectType::PodSet,
+            EObjectType::Resource,
+            EObjectType::Node};
+
+        static const int AttemptCount = 10;
+
+        const auto tryRemove = [&] {
+            for (auto objectType : ObjectTypesToRemove) {
+                auto objectIds = ParseObjectIds(WaitFor(Client_->SelectObjects(
+                    objectType,
+                    {"/meta/id"}))
+                    .ValueOrThrow());
+
+                for (const auto& objectId : objectIds) {
+                    WaitFor(Client_->RemoveObject(
+                        objectId,
+                        objectType))
+                        .ThrowOnError();
+                }
+            }
+        };
+
+        bool success = false;
+        for (int attempt = 1; attempt < AttemptCount; ++attempt) {
+            try {
+                tryRemove();
+                success = true;
+                break;
+            } catch (const std::exception& ex) {
+                YT_LOG_WARNING(ex, "Error removing objects during test tear down");
+                TDelayedExecutor::WaitForDuration(TDuration::Seconds(2));
+            }
+        }
+
+        if (!success) {
+            tryRemove();
+        }
+
         Client_.Reset();
     }
 
@@ -101,6 +147,66 @@ public:
             &evictionStatus);
 
         return evictionStatus;
+    }
+
+    static std::vector<TObjectId> ParseObjectIds(
+        const TSelectObjectsResult& selectResult)
+    {
+        std::vector<TObjectId> ids;
+        ids.reserve(selectResult.Results.size());
+        for (const auto& result : selectResult.Results) {
+            auto& id = ids.emplace_back();
+            ParsePayloads(
+                result.ValuePayloads,
+                &id);
+        }
+        return ids;
+    }
+
+    static TString GetPodSetNodeFilter(
+        const IClientPtr& client,
+        const TObjectId& podSetId,
+        TTimestamp timestamp = NullTimestamp)
+    {
+        TGetObjectOptions options;
+        options.Timestamp = timestamp;
+        auto payloads = WaitFor(client->GetObject(
+            podSetId,
+            EObjectType::PodSet,
+            {"/spec/node_filter"},
+            options))
+            .ValueOrThrow()
+            .Result
+            .ValuePayloads;
+
+        TString nodeFilter;
+        ParsePayloads(
+            payloads,
+            &nodeFilter);
+
+        return nodeFilter;
+    }
+
+    static void UpdatePodSetNodeFilter(
+        const IClientPtr& client,
+        const TObjectId& podSetId,
+        TString nodeFilter,
+        const TTransactionId& transactionId = TTransactionId())
+    {
+        auto nodeFilterPayload = BuildYsonPayload(BIND(
+            [&] (IYsonConsumer* consumer) {
+                BuildYsonFluently(consumer)
+                    .Value(std::move(nodeFilter));
+            }));
+        WaitFor(client->UpdateObject(
+            podSetId,
+            EObjectType::PodSet,
+            std::vector<TUpdate>{TSetUpdate{
+                "/spec/node_filter",
+                std::move(nodeFilterPayload)}},
+            /* attributeTimestampPrerequisites */ {},
+            transactionId))
+            .ThrowOnError();
     }
 
 private:
@@ -358,19 +464,7 @@ TEST_F(TNativeClientTestSuite, BatchSelectObjects)
             .ValueOrThrow();
     }
 
-    auto parseObjectIds = [] (const TSelectObjectsResult& selectResult) {
-        std::vector<TObjectId> ids;
-        ids.reserve(selectResult.Results.size());
-        for (const auto& result : selectResult.Results) {
-            auto& id = ids.emplace_back();
-            ParsePayloads(
-                result.ValuePayloads,
-                &id);
-        }
-        return ids;
-    };
-
-    auto expectedIds = parseObjectIds(WaitFor(client->SelectObjects(
+    auto expectedIds = ParseObjectIds(WaitFor(client->SelectObjects(
         EObjectType::PodSet,
         {"/meta/id"}))
         .ValueOrThrow());
@@ -378,7 +472,7 @@ TEST_F(TNativeClientTestSuite, BatchSelectObjects)
 
     TSelectObjectsOptions options;
     options.Limit = 3;
-    auto ids = parseObjectIds(BatchSelectObjects(
+    auto ids = ParseObjectIds(BatchSelectObjects(
         client,
         EObjectType::PodSet,
         {"/meta/id"},
@@ -415,6 +509,122 @@ TEST_F(TNativeClientTestSuite, BatchSelectObjectsOptions)
     options.Offset = std::nullopt;
     options.Limit = 10;
     select(options);
+}
+
+TEST_F(TNativeClientTestSuite, TransactionCreate)
+{
+    auto getPodSetIds = [] (const IClientPtr& client) {
+        return ParseObjectIds(WaitFor(client->SelectObjects(
+            EObjectType::PodSet,
+            {"/meta/id"}))
+            .ValueOrThrow());
+    };
+
+    const auto& client = GetClient();
+
+    EXPECT_EQ(0u, getPodSetIds(client).size());
+
+    auto transactionId = WaitFor(client->StartTransaction())
+        .ValueOrThrow()
+        .TransactionId;
+
+    auto podSetId = WaitFor(client->CreateObject(
+        EObjectType::PodSet,
+        TNullPayload(),
+        transactionId))
+        .ValueOrThrow()
+        .ObjectId;
+
+    EXPECT_EQ(0u, getPodSetIds(client).size());
+
+    WaitFor(client->CommitTransaction(transactionId))
+        .ThrowOnError();
+
+    auto podSetIds = getPodSetIds(client);
+    EXPECT_EQ(1u, podSetIds.size());
+    EXPECT_EQ(podSetId, podSetIds[0]);
+}
+
+TEST_F(TNativeClientTestSuite, TransactionUpdate)
+{
+    const auto& client = GetClient();
+
+    auto podSetId = WaitFor(client->CreateObject(EObjectType::PodSet))
+        .ValueOrThrow()
+        .ObjectId;
+
+    static const TString nodeFilter = "%true";
+
+    for (bool commit : {false, true}) {
+        EXPECT_EQ("", GetPodSetNodeFilter(client, podSetId));
+
+        auto transactionId = WaitFor(client->StartTransaction())
+            .ValueOrThrow()
+            .TransactionId;
+
+        UpdatePodSetNodeFilter(client, podSetId, nodeFilter, transactionId);
+
+        EXPECT_EQ("", GetPodSetNodeFilter(client, podSetId));
+
+        if (commit) {
+            WaitFor(client->CommitTransaction(transactionId))
+                .ThrowOnError();
+        } else {
+            WaitFor(client->AbortTransaction(transactionId))
+                .ThrowOnError();
+        }
+    }
+
+    EXPECT_EQ(nodeFilter, GetPodSetNodeFilter(client, podSetId));
+}
+
+TEST_F(TNativeClientTestSuite, TransactionLockConflict)
+{
+    const auto& client = GetClient();
+
+    auto podSetId = WaitFor(client->CreateObject(EObjectType::PodSet))
+        .ValueOrThrow()
+        .ObjectId;
+
+    auto transactionId1 = WaitFor(client->StartTransaction())
+        .ValueOrThrow()
+        .TransactionId;
+
+    auto transactionId2 = WaitFor(client->StartTransaction())
+        .ValueOrThrow()
+        .TransactionId;
+
+    static const TString nodeFilter1 = "%false";
+    static const TString nodeFilter2 = "%true";
+
+    EXPECT_EQ("", GetPodSetNodeFilter(client, podSetId));
+
+    UpdatePodSetNodeFilter(client, podSetId, nodeFilter1, transactionId1);
+    UpdatePodSetNodeFilter(client, podSetId, nodeFilter2, transactionId2);
+
+    EXPECT_EQ("", GetPodSetNodeFilter(client, podSetId));
+
+    WaitFor(client->CommitTransaction(transactionId1))
+        .ThrowOnError();
+
+    EXPECT_EQ(nodeFilter1, GetPodSetNodeFilter(client, podSetId));
+
+    bool caught = false;
+    try {
+        WaitFor(client->CommitTransaction(transactionId2))
+            .ThrowOnError();
+    } catch (const TErrorException& ex) {
+        const auto& error = ex.Error();
+        if (error.FindMatching(NTabletClient::EErrorCode::TransactionLockConflict)) {
+            caught = true;
+        } else {
+            throw;
+        }
+    }
+
+    EXPECT_EQ(true, caught);
+
+    EXPECT_EQ(nodeFilter1, GetPodSetNodeFilter(client, podSetId));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
