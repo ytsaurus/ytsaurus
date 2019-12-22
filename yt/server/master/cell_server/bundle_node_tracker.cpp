@@ -172,8 +172,6 @@ TBundleNodeTracker::TBundleNodeTracker(NCellMaster::TBootstrap* bootstrap)
     : Impl_(New<TImpl>(bootstrap))
 { }
 
-TBundleNodeTracker::~TBundleNodeTracker() = default;
-
 void TBundleNodeTracker::Initialize()
 {
     Impl_->Initialize();
