@@ -43,8 +43,6 @@
 #include <yt/server/master/security_server/group.h>
 #include <yt/server/master/security_server/subject.h>
 
-#include <yt/server/lib/hydra/hydra_janitor_helpers.h>
-
 #include <yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
 #include <yt/server/lib/cell_server/proto/cell_manager.pb.h>
@@ -709,7 +707,6 @@ private:
     THashMap<TString, TCellSet> AddressToCell_;
     THashMap<TTransaction*, TCellBase*> TransactionToCellMap_;
 
-    TPeriodicExecutorPtr CleanupExecutor_;
     TPeriodicExecutorPtr CellStatusGossipExecutor_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
@@ -724,9 +721,6 @@ private:
     {
         const auto& config = GetDynamicConfig();
 
-        if (CleanupExecutor_) {
-            CleanupExecutor_->SetPeriod(config->TabletCellsCleanupPeriod);
-        }
         if (CellStatusGossipExecutor_) {
             CellStatusGossipExecutor_->SetPeriod(config->MulticellGossip->TabletCellStatisticsGossipPeriod);
         }
@@ -1388,26 +1382,17 @@ private:
 
         TMasterAutomatonPart::OnLeaderActive();
 
-        OnDynamicConfigChanged();
-
-        const auto& dynamicConfig = GetDynamicConfig();
-
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster()) {
             CellTracker_->Start();
-
-            CleanupExecutor_ = New<TPeriodicExecutor>(
-                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletCellJanitor),
-                BIND(&TImpl::OnJanitorCleanup, MakeWeak(this)),
-                dynamicConfig->TabletCellsCleanupPeriod);
-            CleanupExecutor_->Start();
         }
 
         CellStatusGossipExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletGossip),
-            BIND(&TImpl::OnCellStatusGossip, MakeWeak(this)),
-            dynamicConfig->MulticellGossip->TabletCellStatisticsGossipPeriod);
+            BIND(&TImpl::OnCellStatusGossip, MakeWeak(this)));
         CellStatusGossipExecutor_->Start();
+
+        OnDynamicConfigChanged();
     }
 
     virtual void OnStopLeading() override
@@ -1417,11 +1402,6 @@ private:
         TMasterAutomatonPart::OnStopLeading();
 
         CellTracker_->Stop();
-
-        if (CleanupExecutor_) {
-            CleanupExecutor_->Stop();
-            CleanupExecutor_.Reset();
-        }
 
         if (CellStatusGossipExecutor_) {
             CellStatusGossipExecutor_->Stop();
@@ -1667,118 +1647,6 @@ private:
         return cellMapNodeProxy->FindChild(ToString(cellId));
     }
 
-
-    std::optional<std::vector<THydraFileInfo>> ListHydraFiles(const TYPath& path)
-    {
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto rootService = objectManager->GetRootService();
-
-        auto listReq = TYPathProxy::List(TYPath(path));
-        ToProto(listReq->mutable_attributes()->mutable_keys(), std::vector<TString>{
-            "compressed_data_size"
-        });
-
-        auto listRsp = WaitFor(ExecuteVerb(rootService, listReq))
-            .ValueOrThrow();
-        auto list = ConvertTo<IListNodePtr>(TYsonString(listRsp->value()));
-        auto children = list->GetChildren();
-
-        std::vector<THydraFileInfo> result;
-        result.reserve(children.size());
-        for (const auto& child : children) {
-            auto key = ConvertTo<TString>(child);
-            int id;
-            if (!TryFromString<int>(key, id)) {
-                YT_LOG_WARNING("Janitor has found a broken Hydra file (Path: %v, Key: %v)",
-                    path,
-                    key);
-                return std::nullopt;
-            }
-
-            const auto& attributes = child->Attributes();
-            result.push_back({id, attributes.Get<i64>("compressed_data_size")});
-        }
-
-        return result;
-    }
-
-    void RemoveHydraFiles(const TYPath& path, int thresholdId, int* budget)
-    {
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto rootService = objectManager->GetRootService();
-
-        auto listReq = TYPathProxy::List(path);
-        auto listRsp = WaitFor(ExecuteVerb(rootService, listReq))
-            .ValueOrThrow();
-        auto list = ConvertTo<IListNodePtr>(TYsonString(listRsp->value()));
-        auto children = list->GetChildren();
-
-        for (const auto& child : children) {
-            if (*budget <= 0) {
-                break;
-            }
-
-            auto key = ConvertTo<TString>(child);
-            int id;
-            if (!TryFromString<int>(key, id)) {
-                continue;
-            }
-
-            if (id >= thresholdId) {
-                continue;
-            }
-
-            auto filePath = path + "/" + ToYPathLiteral(key);
-            YT_LOG_INFO("Janitor is removing Hydra file (Path: %v)", filePath);
-
-            --(*budget);
-
-            auto removeReq = TYPathProxy::Remove(filePath);
-            ExecuteVerb(rootService, removeReq)
-                .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TYPathProxy::TErrorOrRspRemovePtr& removeRspOrError) {
-                    if (removeRspOrError.IsOK()) {
-                        YT_LOG_INFO("Janitor has successfully removed Hydra file (Path: %v)", filePath);
-                    } else {
-                        YT_LOG_INFO(removeRspOrError, "Janitor has failed to remove Hydra file (Path: %v)", filePath);
-                    }
-                }));
-        }
-    }
-
-    void OnJanitorCleanup()
-    {
-        int snapshotBudget = GetDynamicConfig()->MaxSnapshotCountToRemovePerCheck;
-        int changelogBudget = GetDynamicConfig()->MaxChangelogCountToRemovePerCheck;
-
-        auto cellIds = GetKeys(CellMap_);
-        for (auto cellId : cellIds) {
-            if (!IsObjectAlive(FindCell(cellId))) {
-                continue;
-            }
-
-            try {
-                auto snapshotPath = Format("//sys/tablet_cells/%v/snapshots", ToYPathLiteral(ToString(cellId)));
-                auto changelogPath = Format("//sys/tablet_cells/%v/changelogs", ToYPathLiteral(ToString(cellId)));
-
-                auto snapshots = ListHydraFiles(snapshotPath);
-                auto changelogs = ListHydraFiles(changelogPath);
-
-                if (!snapshots || !changelogs) {
-                    continue;
-                }
-
-                auto thresholdId = NHydra::ComputeJanitorThresholdId(
-                    *snapshots,
-                    *changelogs,
-                    GetDynamicConfig());
-
-                RemoveHydraFiles(snapshotPath, thresholdId, &snapshotBudget);
-                RemoveHydraFiles(changelogPath, thresholdId, &changelogBudget);
-            } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Janitor cleanup failed (CellId: %v)", cellId);
-            }
-        }
-    }
 
     void OnReplicateKeysToSecondaryMaster(TCellTag cellTag)
     {
