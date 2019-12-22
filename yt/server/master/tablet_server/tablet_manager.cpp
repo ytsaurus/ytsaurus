@@ -46,7 +46,7 @@
 #include <yt/server/master/security_server/group.h>
 #include <yt/server/master/security_server/subject.h>
 
-#include <yt/server/lib/hydra/snapshot_quota_helpers.h>
+#include <yt/server/lib/hydra/hydra_janitor_helpers.h>
 
 #include <yt/server/master/table_server/table_node.h>
 #include <yt/server/master/table_server/replicated_table_node.h>
