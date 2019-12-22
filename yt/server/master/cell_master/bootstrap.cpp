@@ -39,6 +39,7 @@
 #include <yt/server/master/journal_server/journal_node_type_handler.h>
 
 #include <yt/server/master/cell_server/tamed_cell_manager.h>
+#include <yt/server/master/cell_server/cell_hydra_janitor.h>
 
 #include <yt/server/master/node_tracker_server/cypress_integration.h>
 #include <yt/server/master/node_tracker_server/node_tracker.h>
@@ -640,6 +641,8 @@ void TBootstrap::DoInitialize()
 
     TamedCellManager_ = New<TTamedCellManager>(this);
 
+    CellHydraJanitor_ = New<TCellHydraJanitor>(this);
+
     TabletManager_ = New<TTabletManager>(Config_->TabletManager, this);
 
     ReplicatedTableTracker_ = New<TReplicatedTableTracker>(Config_->ReplicatedTableTracker, this);
@@ -686,6 +689,7 @@ void TBootstrap::DoInitialize()
     CypressManager_->Initialize();
     ChunkManager_->Initialize();
     TamedCellManager_->Initialize();
+    CellHydraJanitor_->Initialize();
     TabletManager_->Initialize();
     MulticellManager_->Initialize();
     SchedulerPoolManager_->Initialize();

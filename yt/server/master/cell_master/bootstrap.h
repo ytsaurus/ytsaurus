@@ -146,6 +146,7 @@ private:
     NJournalServer::TJournalManagerPtr JournalManager_;
     NSecurityServer::TSecurityManagerPtr SecurityManager_;
     NCellServer::TTamedCellManagerPtr TamedCellManager_;
+    NCellServer::TCellHydraJanitorPtr CellHydraJanitor_;
     NTabletServer::TTabletManagerPtr TabletManager_;
     NSchedulerPoolServer::TSchedulerPoolManagerPtr SchedulerPoolManager_;
     NTabletServer::TReplicatedTableTrackerPtr ReplicatedTableTracker_;
