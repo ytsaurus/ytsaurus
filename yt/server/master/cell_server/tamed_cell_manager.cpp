@@ -164,15 +164,15 @@ public:
         RegisterMethod(BIND(&TImpl::HydraSetCellStatus, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateCellHealth, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdatePeerCount, Unretained(this)));
-
-        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        nodeTracker->SubscribeIncrementalHeartbeat(BIND(&TImpl::OnIncrementalHeartbeat, MakeWeak(this)));
-        nodeTracker->SubscribeNodeRegistered(BIND(&TImpl::OnNodeRegistered, MakeWeak(this)));
-        nodeTracker->SubscribeNodeUnregistered(BIND(&TImpl::OnNodeUnregistered, MakeWeak(this)));
     }
 
     void Initialize()
     {
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        nodeTracker->SubscribeIncrementalHeartbeat(BIND(&TImpl::OnIncrementalHeartbeat, MakeWeak(this)));
+        nodeTracker->SubscribeNodeRegistered(BIND(&TImpl::OnNodeRegistered, MakeWeak(this)));
+        nodeTracker->SubscribeNodeUnregistered(BIND(&TImpl::OnNodeUnregistered, MakeWeak(this)));
+
         const auto& configManager = Bootstrap_->GetConfigManager();
         configManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
 
