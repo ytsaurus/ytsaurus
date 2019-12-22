@@ -18,9 +18,7 @@ class TBundleNodeTracker
 public:
     using TNodeSet = THashSet<const NNodeTrackerServer::TNode*>;
 
-    explicit TBundleNodeTracker(
-        NCellMaster::TBootstrap* bootstrap);
-    ~TBundleNodeTracker();
+    explicit TBundleNodeTracker(NCellMaster::TBootstrap* bootstrap);
 
     void Initialize();
     void Clear();
