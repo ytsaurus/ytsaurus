@@ -308,6 +308,10 @@ b"""
 {
     orchid_cache_update_period = 0;
 
+    master_cache_service = {
+        capacity = 16777216;
+    };
+
     node_directory_synchronizer = {
         sync_period = 100;
     };
