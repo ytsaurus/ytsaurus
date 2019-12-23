@@ -1,8 +1,9 @@
 #include "block_input_stream.h"
 
-#include "type_translation.h"
-#include "helpers.h"
+#include "bootstrap.h"
 #include "db_helpers.h"
+#include "helpers.h"
+#include "type_translation.h"
 
 #include <yt/client/table_client/schemaless_reader.h>
 #include <yt/client/table_client/name_table.h>
@@ -23,14 +24,77 @@ using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DB::Block ConvertRowsToBlock(
+    const std::vector<TUnversionedRow>& rows,
+    const TTableSchema& readSchema,
+    const std::vector<int>& idToColumnIndex,
+    TRowBufferPtr rowBuffer,
+    DB::Block block)
+{
+    std::vector<bool> presentValueMask;
+
+    for (const auto& row : rows) {
+        presentValueMask.assign(readSchema.GetColumnCount(), false);
+        for (int index = 0; index < static_cast<int>(row.GetCount()); ++index) {
+            auto value = row[index];
+            auto id = value.Id;
+            int columnIndex = (id < idToColumnIndex.size()) ? idToColumnIndex[id] : -1;
+            YT_VERIFY(columnIndex != -1);
+            presentValueMask[columnIndex] = true;
+            switch (value.Type) {
+                case EValueType::Null:
+                    // TODO(max42): consider transforming to Y_ASSERT.
+                    YT_VERIFY(!readSchema.Columns()[columnIndex].Required());
+                    block.getByPosition(columnIndex).column->assumeMutable()->insertDefault();
+                    break;
+
+                // NB(max42): When rewriting this properly, remember that Int64 may
+                // correspond to shorter integer columns.
+                case EValueType::String:
+                case EValueType::Any:
+                case EValueType::Int64:
+                case EValueType::Uint64:
+                case EValueType::Double:
+                case EValueType::Boolean: {
+                    if (readSchema.Columns()[columnIndex].GetPhysicalType() == EValueType::Any) {
+                        ToAny(rowBuffer.Get(), &value, &value);
+                    }
+                    auto field = ConvertToField(value);
+                    block.getByPosition(columnIndex).column->assumeMutable()->insert(field);
+                    break;
+                }
+                default:
+                    Y_UNREACHABLE();
+            }
+        }
+        for (int columnIndex = 0; columnIndex < readSchema.GetColumnCount(); ++columnIndex) {
+            if (!presentValueMask[columnIndex]) {
+                YT_VERIFY(!readSchema.Columns()[columnIndex].Required());
+                block.getByPosition(columnIndex).column->assumeMutable()->insertDefault();
+            }
+        }
+    }
+
+    return block;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+}  //  namespace NDetail
+
 class TBlockInputStream
     : public DB::IBlockInputStream
 {
 public:
-    TBlockInputStream(ISchemalessReaderPtr reader, TTableSchema readSchema, TTraceContextPtr traceContext,  TLogger logger)
+    TBlockInputStream(ISchemalessReaderPtr reader, TTableSchema readSchema, TTraceContextPtr traceContext, TBootstrap* bootstrap, TLogger logger)
         : Reader_(std::move(reader))
         , ReadSchema_(std::move(readSchema))
         , TraceContext_(std::move(traceContext))
+        , Bootstrap_(bootstrap)
         , Logger(std::move(logger))
     {
         PrepareHeader();
@@ -60,6 +124,7 @@ private:
     ISchemalessReaderPtr Reader_;
     TTableSchema ReadSchema_;
     TTraceContextPtr TraceContext_;
+    TBootstrap* Bootstrap_;
     TLogger Logger;
     DB::Block HeaderBlock_;
     std::vector<int> IdToColumnIndex_;
@@ -67,8 +132,6 @@ private:
 
     DB::Block readImpl() override
     {
-        auto block = HeaderBlock_.cloneEmpty();
-
         TTraceContextGuard guard(TraceContext_);
 
         // TODO(max42): consult with psushin@ about contract here.
@@ -98,49 +161,17 @@ private:
         // going to receive some of the unversioned values with nulls. We still need
         // to provide them to CH, though, so we keep track of present columns for each
         // row we get and add nulls for all unpresent columns.
-        std::vector<bool> presentValueMask;
 
-        for (const auto& row : rows) {
-            presentValueMask.assign(ReadSchema_.GetColumnCount(), false);
-            for (int index = 0; index < static_cast<int>(row.GetCount()); ++index) {
-                auto value = row[index];
-                auto id = value.Id;
-                int columnIndex = (id < IdToColumnIndex_.size()) ? IdToColumnIndex_[id] : -1;
-                YT_VERIFY(columnIndex != -1);
-                presentValueMask[columnIndex] = true;
-                switch (value.Type) {
-                    case EValueType::Null:
-                        // TODO(max42): consider transforming to Y_ASSERT.
-                        YT_VERIFY(!ReadSchema_.Columns()[columnIndex].Required());
-                        block.getByPosition(columnIndex).column->assumeMutable()->insertDefault();
-                        break;
-
-                    // NB(max42): When rewriting this properly, remember that Int64 may
-                    // correspond to shorter integer columns.
-                    case EValueType::String:
-                    case EValueType::Any:
-                    case EValueType::Int64:
-                    case EValueType::Uint64:
-                    case EValueType::Double:
-                    case EValueType::Boolean: {
-                        if (ReadSchema_.Columns()[columnIndex].GetPhysicalType() == EValueType::Any) {
-                            ToAny(RowBuffer_.Get(), &value, &value);
-                        }
-                        auto field = ConvertToField(value);
-                        block.getByPosition(columnIndex).column->assumeMutable()->insert(field);
-                        break;
-                    }
-                    default:
-                        Y_UNREACHABLE();
-                }
-            }
-            for (int columnIndex = 0; columnIndex < ReadSchema_.GetColumnCount(); ++columnIndex) {
-                if (!presentValueMask[columnIndex]) {
-                    YT_VERIFY(!ReadSchema_.Columns()[columnIndex].Required());
-                    block.getByPosition(columnIndex).column->assumeMutable()->insertDefault();
-                }
-            }
-        }
+        auto block = WaitFor(BIND(
+            &NDetail::ConvertRowsToBlock,
+            rows,
+            ReadSchema_,
+            IdToColumnIndex_,
+            RowBuffer_,
+            HeaderBlock_.cloneEmpty())
+            .AsyncVia(Bootstrap_->GetWorkerInvoker())
+            .Run())
+            .ValueOrThrow();
 
         // NB: ConvertToField copies all strings, so clearing row buffer is safe here.
         RowBuffer_->Clear();
@@ -177,9 +208,10 @@ DB::BlockInputStreamPtr CreateBlockInputStream(
     ISchemalessReaderPtr reader,
     TTableSchema readSchema,
     TTraceContextPtr traceContext,
+    TBootstrap* bootstrap,
     TLogger logger)
 {
-    return std::make_shared<TBlockInputStream>(std::move(reader), std::move(readSchema), std::move(traceContext), logger);
+    return std::make_shared<TBlockInputStream>(std::move(reader), std::move(readSchema), std::move(traceContext), bootstrap, logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

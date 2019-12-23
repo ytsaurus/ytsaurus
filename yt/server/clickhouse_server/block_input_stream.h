@@ -1,5 +1,7 @@
 #pragma once
 
+#include "private.h"
+
 #include <yt/ytlib/table_client/public.h>
 
 #include <yt/client/table_client/schema.h>
@@ -16,6 +18,7 @@ DB::BlockInputStreamPtr CreateBlockInputStream(
     NTableClient::ISchemalessReaderPtr reader,
     NTableClient::TTableSchema readSchema,
     NTracing::TTraceContextPtr traceContext,
+    TBootstrap* bootstrap,
     NLogging::TLogger logger);
 
 DB::BlockInputStreamPtr CreateBlockInputStreamLoggingAdapter(
