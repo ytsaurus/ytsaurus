@@ -4,22 +4,22 @@ import java.util.Set;
 
 import ru.yandex.bolts.collection.Cf;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.AbstractYTreeCollectionSerializer;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.AbstractYTreeSerializerForCollections;
 
-public class YTreeCustomSetSerializer<T> extends AbstractYTreeCollectionSerializer<T, Set<T>> {
+public class YTreeCustomSetSerializer<T> extends AbstractYTreeSerializerForCollections<T, Set<T>> {
 
     public YTreeCustomSetSerializer(YTreeSerializer<T> elemSerializer) {
         super(elemSerializer);
     }
 
     @Override
-    public Set<T> getEmptyCollection() {
+    public Set<T> getEmptyImmutableCollection() {
         return Cf.set();
     }
 
     @Override
-    public Set<T> getCollection(int size) {
-        return Cf.hashSetWithExpectedSize(size);
+    public Set<T> getCollection(int initialCapacity) {
+        return Cf.hashSetWithExpectedSize(initialCapacity);
     }
 
     @Override

@@ -4,22 +4,22 @@ import java.util.List;
 
 import ru.yandex.bolts.collection.Cf;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.AbstractYTreeCollectionSerializer;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.AbstractYTreeSerializerForCollections;
 
-public class YTreeCustomListSerializer<T> extends AbstractYTreeCollectionSerializer<T, List<T>> {
+public class YTreeCustomListSerializer<T> extends AbstractYTreeSerializerForCollections<T, List<T>> {
 
     public YTreeCustomListSerializer(YTreeSerializer<T> elemSerializer) {
         super(elemSerializer);
     }
 
     @Override
-    public List<T> getEmptyCollection() {
+    public List<T> getEmptyImmutableCollection() {
         return Cf.list();
     }
 
     @Override
-    public List<T> getCollection(int size) {
-        return Cf.arrayListWithCapacity(size);
+    public List<T> getCollection(int initialCapacity) {
+        return Cf.arrayListWithCapacity(initialCapacity);
     }
 
     @Override
