@@ -4,22 +4,22 @@ import java.util.Map;
 
 import ru.yandex.bolts.collection.Cf;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.AbstractYTreeMapSerializer;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.AbstractYTreeSerializerForMaps;
 
-public class YTreeCustomMapSerializer<T> extends AbstractYTreeMapSerializer<T> {
+public class YTreeCustomMapSerializer<T> extends AbstractYTreeSerializerForMaps<T> {
 
     public YTreeCustomMapSerializer(YTreeSerializer<T> valueSerializer) {
         super(valueSerializer);
     }
 
     @Override
-    public Map<String, T> getEmptyMap() {
+    public Map<String, T> getEmptyImmutableMap() {
         return Cf.map();
     }
 
     @Override
-    public Map<String, T> getMap(int size) {
-        return Cf.hashMapWithExpectedSize(size);
+    public Map<String, T> getMap(int initialCapacity) {
+        return Cf.hashMapWithExpectedSize(initialCapacity);
     }
 
     @Override
