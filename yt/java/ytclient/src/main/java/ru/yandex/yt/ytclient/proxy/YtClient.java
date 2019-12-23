@@ -34,13 +34,13 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
     private final List<PeriodicDiscovery> discovery;
     private final Random rnd = new Random();
 
-    final private DataCenter[] dataCenters;
-    final private ScheduledExecutorService executorService;
-    final private RpcOptions options;
-    final private DataCenter localDataCenter;
+    private final DataCenter[] dataCenters;
+    private final ScheduledExecutorService executorService;
+    private final RpcOptions options;
+    private final DataCenter localDataCenter;
 
-    final private CompletableFuture<Void> waiting = new CompletableFuture<>();
-    final private ConcurrentHashMap<PeriodicDiscoveryListener, Boolean> discoveriesFailed = new ConcurrentHashMap<>();
+    private final CompletableFuture<Void> waiting = new CompletableFuture<>();
+    private final ConcurrentHashMap<PeriodicDiscoveryListener, Boolean> discoveriesFailed = new ConcurrentHashMap<>();
 
 
     public YtClient(
@@ -255,5 +255,9 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
     protected <RequestType extends MessageLite.Builder, ResponseType> RpcClientStreamControl startStream(
             RpcClientRequestBuilder<RequestType, ResponseType> builder) {
         return builder.startStream(selectDestinations());
+    }
+
+    protected DataCenter[] getDataCenters() {
+        return this.dataCenters;
     }
 }
