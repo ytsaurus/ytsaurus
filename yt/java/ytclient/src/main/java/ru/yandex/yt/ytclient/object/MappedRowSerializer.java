@@ -12,6 +12,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.AbstractYTreeDateSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeNullSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeOptionSerializer;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeOptionalSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeBooleanSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeDoubleSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeDurationSerializer;
@@ -86,6 +87,8 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
     public static YTreeSerializer<?> unwrap(YTreeSerializer serializer) {
         if (serializer instanceof YTreeOptionSerializer) {
             return unwrap(((YTreeOptionSerializer<?>) serializer).getDelegate());
+        } else if (serializer instanceof YTreeOptionalSerializer) {
+            return unwrap(((YTreeOptionalSerializer<?>) serializer).getDelegate());
         } else if (serializer instanceof YTreeNullSerializer) {
             return unwrap(((YTreeNullSerializer<?>) serializer).getDelegate());
         } else {

@@ -14,14 +14,13 @@ import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeObjectField;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializerForCollections;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializerForMaps;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.AbstractYTreeDateSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeArraySerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeBytesSerializer;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeListSerializer;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeMapSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeSetSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeBooleanSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeDoubleSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeDurationSerializer;
@@ -128,25 +127,22 @@ public class ObjectsGenerators {
                     YTreeInstantSerializer || serializer instanceof YTreeDurationSerializer ||
                     serializer instanceof YTreeJavaInstantSerializer) {
                 return new YTreeLongGenerator();
-            } else if (serializer instanceof YTreeListSerializer) {
+            } else if (serializer instanceof YTreeSerializerForCollections) {
                 return new YTreeListGenerator(
-                        generator(((YTreeListSerializer<?>) serializer).getElemSerializer(), flatten));
+                        generator(((YTreeSerializerForCollections<?, ?>) serializer).getComponent(), flatten));
+            } else if (serializer instanceof YTreeSerializerForMaps) {
+                return new YTreeMapGenerator(
+                        generator(((YTreeSerializerForMaps<?>) serializer).getComponent(), flatten));
             } else if (serializer instanceof YTreeStringEnumSerializer) {
                 return new YTreeStringEnumGenerator(((YTreeStringEnumSerializer<?>) serializer).getResolver());
             } else if (serializer instanceof YTreeEnumSerializer) {
                 return new YTreeEnumGenerator(((YTreeEnumSerializer<?>) serializer).getClazz());
-            } else if (serializer instanceof YTreeSetSerializer) {
-                return new YTreeListGenerator(
-                        generator(((YTreeSetSerializer<?>) serializer).getElemSerializer(), flatten));
             } else if (serializer instanceof YTreeBooleanSerializer) {
                 return new YTreeBooleanGenerator();
             } else if (serializer instanceof YTreeLocalDateTimeSerializer) {
                 return new YTreeLocalDateTimeGenerator();
             } else if (serializer instanceof YTreeIntEnumSerializer) {
                 return new YTreeIntEnumGenerator(((YTreeIntEnumSerializer<?>) serializer).getResolver());
-            } else if (serializer instanceof YTreeMapSerializer) {
-                return new YTreeMapGenerator(
-                        generator(((YTreeMapSerializer<?>) serializer).getValueSerializer(), flatten));
             } else if (serializer instanceof YTreeObjectSerializer) {
                 return new YTreeObjectGenerator((YTreeObjectSerializer<?>) serializer, flatten);
             } else if (serializer instanceof YTreeStringSerializer) {
@@ -159,7 +155,7 @@ public class ObjectsGenerators {
                 return new YTreeDateTimeGenerator(((AbstractYTreeDateSerializer) serializer).getDateFormatter());
             } else if (serializer instanceof YTreeArraySerializer) {
                 return new YTreeListGenerator(
-                        generator(((YTreeArraySerializer<?, ?>) serializer).getElemSerializer(), flatten));
+                        generator(((YTreeArraySerializer<?, ?>) serializer).getComponent(), flatten));
             } else if (serializer instanceof YTreeFloatSerializer) {
                 return new YTreeFloatGenerator();
             } else {
