@@ -185,6 +185,7 @@ public:
                 std::move(reader),
                 readSchema,
                 queryContext->TraceContext,
+                QueryContext_->Bootstrap,
                 TLogger(Logger)
                     .AddTag("ReadSessionId: %v", blockReadOptions.ReadSessionId)));
         }
