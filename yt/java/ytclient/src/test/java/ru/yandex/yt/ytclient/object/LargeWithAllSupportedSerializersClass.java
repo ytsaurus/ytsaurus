@@ -81,10 +81,22 @@ public class LargeWithAllSupportedSerializersClass {
     private List<Long> longListValue;
     private List<Duration> durationListValue;
     private List<InternalObject1> internalObjectListValue;
+    @YTreeSerializerClass(YTreeCustomListSerializer.class)
+    private List<Long> longListValueCustom;
+    @YTreeSerializerClass(YTreeCustomListSerializer.class)
+    private List<Duration> durationListValueCustom;
+    @YTreeSerializerClass(YTreeCustomListSerializer.class)
+    private List<InternalObject1> internalObjectListValueCustom;
     private StringEnum stringEnumValue;
     private Set<Long> longSetValue;
     private Set<Duration> durationSetValue;
     private Set<InternalObject1> internalObjectSetValue;
+    @YTreeSerializerClass(YTreeCustomSetSerializer.class)
+    private Set<Long> longSetValueCustom;
+    @YTreeSerializerClass(YTreeCustomSetSerializer.class)
+    private Set<Duration> durationSetValueCustom;
+    @YTreeSerializerClass(YTreeCustomSetSerializer.class)
+    private Set<InternalObject1> internalObjectSetValueCustom;
     private boolean booleanValue;
     private Boolean booleanObjectValue;
     private LocalDateTime localDateTimeValue;
@@ -93,6 +105,12 @@ public class LargeWithAllSupportedSerializersClass {
     private Map<String, Long> longMapValue;
     private Map<String, Duration> durationMapValue;
     private Map<String, InternalObject1> internalObjectMapValue;
+    @YTreeSerializerClass(YTreeCustomMapSerializer.class)
+    private Map<String, Long> longMapValueCustom;
+    @YTreeSerializerClass(YTreeCustomMapSerializer.class)
+    private Map<String, Duration> durationMapValueCustom;
+    @YTreeSerializerClass(YTreeCustomMapSerializer.class)
+    private Map<String, InternalObject1> internalObjectMapValueCustom;
     private InternalObject1 internalObject;
 
     @YTreeFlattenField
@@ -198,6 +216,30 @@ public class LargeWithAllSupportedSerializersClass {
         this.internalObjectListValue = internalObjectListValue;
     }
 
+    public List<Long> getLongListValueCustom() {
+        return longListValueCustom;
+    }
+
+    public void setLongListValueCustom(List<Long> longListValueCustom) {
+        this.longListValueCustom = longListValueCustom;
+    }
+
+    public List<Duration> getDurationListValueCustom() {
+        return durationListValueCustom;
+    }
+
+    public void setDurationListValueCustom(List<Duration> durationListValueCustom) {
+        this.durationListValueCustom = durationListValueCustom;
+    }
+
+    public List<InternalObject1> getInternalObjectListValueCustom() {
+        return internalObjectListValueCustom;
+    }
+
+    public void setInternalObjectListValueCustom(List<InternalObject1> internalObjectListValueCustom) {
+        this.internalObjectListValueCustom = internalObjectListValueCustom;
+    }
+
     public StringEnum getStringEnumValue() {
         return stringEnumValue;
     }
@@ -228,6 +270,30 @@ public class LargeWithAllSupportedSerializersClass {
 
     public void setInternalObjectSetValue(Set<InternalObject1> internalObjectSetValue) {
         this.internalObjectSetValue = internalObjectSetValue;
+    }
+
+    public Set<Long> getLongSetValueCustom() {
+        return longSetValueCustom;
+    }
+
+    public void setLongSetValueCustom(Set<Long> longSetValueCustom) {
+        this.longSetValueCustom = longSetValueCustom;
+    }
+
+    public Set<Duration> getDurationSetValueCustom() {
+        return durationSetValueCustom;
+    }
+
+    public void setDurationSetValueCustom(Set<Duration> durationSetValueCustom) {
+        this.durationSetValueCustom = durationSetValueCustom;
+    }
+
+    public Set<InternalObject1> getInternalObjectSetValueCustom() {
+        return internalObjectSetValueCustom;
+    }
+
+    public void setInternalObjectSetValueCustom(Set<InternalObject1> internalObjectSetValueCustom) {
+        this.internalObjectSetValueCustom = internalObjectSetValueCustom;
     }
 
     public boolean isBooleanValue() {
@@ -292,6 +358,30 @@ public class LargeWithAllSupportedSerializersClass {
 
     public void setInternalObjectMapValue(Map<String, InternalObject1> internalObjectMapValue) {
         this.internalObjectMapValue = internalObjectMapValue;
+    }
+
+    public Map<String, Long> getLongMapValueCustom() {
+        return longMapValueCustom;
+    }
+
+    public void setLongMapValueCustom(Map<String, Long> longMapValueCustom) {
+        this.longMapValueCustom = longMapValueCustom;
+    }
+
+    public Map<String, Duration> getDurationMapValueCustom() {
+        return durationMapValueCustom;
+    }
+
+    public void setDurationMapValueCustom(Map<String, Duration> durationMapValueCustom) {
+        this.durationMapValueCustom = durationMapValueCustom;
+    }
+
+    public Map<String, InternalObject1> getInternalObjectMapValueCustom() {
+        return internalObjectMapValueCustom;
+    }
+
+    public void setInternalObjectMapValueCustom(Map<String, InternalObject1> internalObjectMapValueCustom) {
+        this.internalObjectMapValueCustom = internalObjectMapValueCustom;
     }
 
     public InternalObject1 getInternalObject() {
@@ -437,10 +527,16 @@ public class LargeWithAllSupportedSerializersClass {
                 Objects.equals(longListValue, that.longListValue) &&
                 Objects.equals(durationListValue, that.durationListValue) &&
                 Objects.equals(internalObjectListValue, that.internalObjectListValue) &&
+                Objects.equals(longListValueCustom, that.longListValueCustom) &&
+                Objects.equals(durationListValueCustom, that.durationListValueCustom) &&
+                Objects.equals(internalObjectListValueCustom, that.internalObjectListValueCustom) &&
                 stringEnumValue == that.stringEnumValue &&
                 Objects.equals(longSetValue, that.longSetValue) &&
                 Objects.equals(durationSetValue, that.durationSetValue) &&
                 Objects.equals(internalObjectSetValue, that.internalObjectSetValue) &&
+                Objects.equals(longSetValueCustom, that.longSetValueCustom) &&
+                Objects.equals(durationSetValueCustom, that.durationSetValueCustom) &&
+                Objects.equals(internalObjectSetValueCustom, that.internalObjectSetValueCustom) &&
                 Objects.equals(booleanObjectValue, that.booleanObjectValue) &&
                 Objects.equals(localDateTimeValue, that.localDateTimeValue) &&
                 intEnumValue == that.intEnumValue &&
@@ -448,6 +544,9 @@ public class LargeWithAllSupportedSerializersClass {
                 Objects.equals(longMapValue, that.longMapValue) &&
                 Objects.equals(durationMapValue, that.durationMapValue) &&
                 Objects.equals(internalObjectMapValue, that.internalObjectMapValue) &&
+                Objects.equals(longMapValueCustom, that.longMapValueCustom) &&
+                Objects.equals(durationMapValueCustom, that.durationMapValueCustom) &&
+                Objects.equals(internalObjectMapValueCustom, that.internalObjectMapValueCustom) &&
                 Objects.equals(internalObject, that.internalObject) &&
                 Objects.equals(internalFlattenObject, that.internalFlattenObject) &&
                 Objects.equals(stringValue, that.stringValue) &&
@@ -465,12 +564,14 @@ public class LargeWithAllSupportedSerializersClass {
     @Override
     public int hashCode() {
         int result = Objects.hash(unsignedLongValue, longValue, longObjectValue, instantValue, javaInstantValue,
-                durationValue, longListValue, durationListValue, internalObjectListValue, stringEnumValue,
-                longSetValue, durationSetValue, internalObjectSetValue, booleanValue, booleanObjectValue,
-                localDateTimeValue, intEnumValue, intEnumSerialized, longMapValue, durationMapValue,
-                internalObjectMapValue, internalObject, internalFlattenObject, stringValue, doubleValue,
-                doubleObjectValue, integerValue, integerObjectValue, dateTimeValueDateTimeSerializer,
-                dateTimeValueDateSerializer, floatValue, floatObjectValue);
+                durationValue, longListValue, durationListValue, internalObjectListValue, longListValueCustom,
+                durationListValueCustom, internalObjectListValueCustom, stringEnumValue, longSetValue,
+                durationSetValue, internalObjectSetValue, longSetValueCustom, durationSetValueCustom,
+                internalObjectSetValueCustom, booleanValue, booleanObjectValue, localDateTimeValue, intEnumValue,
+                intEnumSerialized, longMapValue, durationMapValue, internalObjectMapValue, longMapValueCustom,
+                durationMapValueCustom, internalObjectMapValueCustom, internalObject, internalFlattenObject,
+                stringValue, doubleValue, doubleObjectValue, integerValue, integerObjectValue,
+                dateTimeValueDateTimeSerializer, dateTimeValueDateSerializer, floatValue, floatObjectValue);
         result = 31 * result + Arrays.hashCode(bytesValues);
         result = 31 * result + Arrays.hashCode(longArrayValue);
         result = 31 * result + Arrays.hashCode(longObjectArrayValue);
@@ -492,10 +593,16 @@ public class LargeWithAllSupportedSerializersClass {
                 ", longListValue=" + longListValue +
                 ", durationListValue=" + durationListValue +
                 ", internalObjectListValue=" + internalObjectListValue +
+                ", longListValueCustom=" + longListValueCustom +
+                ", durationListValueCustom=" + durationListValueCustom +
+                ", internalObjectListValueCustom=" + internalObjectListValueCustom +
                 ", stringEnumValue=" + stringEnumValue +
                 ", longSetValue=" + longSetValue +
                 ", durationSetValue=" + durationSetValue +
                 ", internalObjectSetValue=" + internalObjectSetValue +
+                ", longSetValueCustom=" + longSetValueCustom +
+                ", durationSetValueCustom=" + durationSetValueCustom +
+                ", internalObjectSetValueCustom=" + internalObjectSetValueCustom +
                 ", booleanValue=" + booleanValue +
                 ", booleanObjectValue=" + booleanObjectValue +
                 ", localDateTimeValue=" + localDateTimeValue +
@@ -504,6 +611,9 @@ public class LargeWithAllSupportedSerializersClass {
                 ", longMapValue=" + longMapValue +
                 ", durationMapValue=" + durationMapValue +
                 ", internalObjectMapValue=" + internalObjectMapValue +
+                ", longMapValueCustom=" + longMapValueCustom +
+                ", durationMapValueCustom=" + durationMapValueCustom +
+                ", internalObjectMapValueCustom=" + internalObjectMapValueCustom +
                 ", internalObject=" + internalObject +
                 ", internalFlattenObject=" + internalFlattenObject +
                 ", stringValue='" + stringValue + '\'' +
