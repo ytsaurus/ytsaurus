@@ -116,7 +116,7 @@ bool TSimpleVersionedBlockReader::SkipToKey(TKey key)
         return true;
     }
 
-    auto index = LowerBound(
+    auto index = BinarySearch(
         RowIndex_,
         Meta_.row_count(),
         [&] (int index) -> bool {
@@ -182,10 +182,10 @@ TVersionedRow TSimpleVersionedBlockReader::ReadAllVersions(TChunkedMemoryPool* m
     int deleteTimestampIndex = 0;
 
     if (Timestamp_ < MaxTimestamp) {
-        writeTimestampIndex = LowerBound(0, WriteTimestampCount_, [&] (int index) {
+        writeTimestampIndex = BinarySearch(0, WriteTimestampCount_, [&] (int index) {
             return ReadTimestamp(TimestampOffset_ + index) > Timestamp_;
         });
-        deleteTimestampIndex = LowerBound(0, DeleteTimestampCount_, [&] (int index) {
+        deleteTimestampIndex = BinarySearch(0, DeleteTimestampCount_, [&] (int index) {
             return ReadTimestamp(TimestampOffset_ + WriteTimestampCount_ + index) > Timestamp_;
         });
 
@@ -260,10 +260,10 @@ TVersionedRow TSimpleVersionedBlockReader::ReadOneVersion(TChunkedMemoryPool* me
     int deleteTimestampIndex = 0;
 
     if (Timestamp_ < MaxTimestamp) {
-        writeTimestampIndex = LowerBound(0, WriteTimestampCount_, [&] (int index) {
+        writeTimestampIndex = BinarySearch(0, WriteTimestampCount_, [&] (int index) {
             return ReadTimestamp(TimestampOffset_ + index) > Timestamp_;
         });
-        deleteTimestampIndex = LowerBound(0, DeleteTimestampCount_, [&] (int index) {
+        deleteTimestampIndex = BinarySearch(0, DeleteTimestampCount_, [&] (int index) {
             return ReadTimestamp(TimestampOffset_ + WriteTimestampCount_ + index) > Timestamp_;
         });
     }
@@ -328,7 +328,7 @@ TVersionedRow TSimpleVersionedBlockReader::ReadOneVersion(TChunkedMemoryPool* me
         int lowerValueIndex = chunkSchemaId == ChunkKeyColumnCount_ ? 0 : GetColumnValueCount(chunkSchemaId - 1);
         int upperValueIndex = GetColumnValueCount(chunkSchemaId);
 
-        int valueBeginIndex = LowerBound(
+        int valueBeginIndex = BinarySearch(
             lowerValueIndex,
             upperValueIndex,
             [&] (int index) {
@@ -337,7 +337,7 @@ TVersionedRow TSimpleVersionedBlockReader::ReadOneVersion(TChunkedMemoryPool* me
         int valueEndIndex = valueBeginIndex;
 
         if (ChunkSchema_.Columns()[chunkSchemaId].Aggregate()) {
-            valueEndIndex = LowerBound(lowerValueIndex, upperValueIndex, isValueAlive);
+            valueEndIndex = BinarySearch(lowerValueIndex, upperValueIndex, isValueAlive);
         } else if (valueBeginIndex < upperValueIndex && isValueAlive(valueBeginIndex)) {
             valueEndIndex = valueBeginIndex + 1;
         }

@@ -9,18 +9,71 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TPredicate>
-size_t LowerBound(size_t lowerIndex, size_t upperIndex, TPredicate less)
+template <class TIter, class TPredicate>
+TIter BinarySearch(TIter begin, TIter end, TPredicate pred)
 {
-    while (lowerIndex < upperIndex) {
-        auto middle = (upperIndex + lowerIndex) / 2;
-        if (less(middle)) {
-            lowerIndex = middle + 1;
+    while (begin < end) {
+        TIter middle = begin + (end - begin) / 2;
+        if (pred(middle)) {
+            begin = middle + 1;
         } else {
-            upperIndex = middle;
+            end = middle;
         }
     }
-    return lowerIndex;
+
+    return begin;
+}
+
+template <class TPredicate>
+size_t BinarySearch(size_t begin, size_t end, TPredicate pred)
+{
+    return BinarySearch<size_t, TPredicate>(begin, end, pred);
+}
+
+template <class TIter, class TPredicate>
+TIter ExponentialSearch(TIter begin, TIter end, TPredicate pred)
+{
+    size_t step = 1;
+    TIter next = begin;
+    while (next < end && pred(next++)) {
+        begin = next;
+        next += step;
+        step *= 2;
+    }
+
+    return BinarySearch(begin, std::min(next, end), pred);
+}
+
+template <class TIter, class T>
+TIter LowerBound(TIter begin, TIter end, const T& value)
+{
+    return BinarySearch(begin, end, [&] (TIter it) {
+        return *it < value;
+    });
+}
+
+template <class TIter, class T>
+TIter UpperBound(TIter begin, TIter end, const T& value)
+{
+    return BinarySearch(begin, end, [&] (TIter it) {
+        return !(value < *it);
+    });
+}
+
+template <class TIter, class T>
+TIter ExpLowerBound(TIter begin, TIter end, const T& value)
+{
+    return ExponentialSearch(begin, end, [&] (TIter it) {
+        return *it < value;
+    });
+}
+
+template <class TIter, class T>
+TIter ExpUpperBound(TIter begin, TIter end, const T& value)
+{
+    return ExponentialSearch(begin, end, [&] (TIter it) {
+        return !(value < *it);
+    });
 }
 
 template <class TInputIt1, class TInputIt2>

@@ -2002,14 +2002,14 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                     auto& minKey = chunk->BoundaryKeys()->MinKey;
                     auto& maxKey = chunk->BoundaryKeys()->MaxKey;
 
-                    auto start = LowerBound(0, tabletChunks.size(), [&] (size_t index) {
+                    auto start = BinarySearch(0, tabletChunks.size(), [&] (size_t index) {
                         return CompareRows(table->PivotKeys[index], minKey) <= 0;
                     });
                     if (start > 0) {
                         --start;
                     }
 
-                    auto end = LowerBound(0, tabletChunks.size() - 1, [&] (size_t index) {
+                    auto end = BinarySearch(0, tabletChunks.size() - 1, [&] (size_t index) {
                         return CompareRows(table->PivotKeys[index], maxKey) <= 0;
                     });
 

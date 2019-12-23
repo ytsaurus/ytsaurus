@@ -587,11 +587,11 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
 
         auto blockMetaExt = GetProtoExtension<TBlockMetaExt>(meta->extensions());
 
-        startBlockIndex = LowerBound(0, blocksExt.blocks_size(), [&] (int index) {
+        startBlockIndex = BinarySearch(0, blocksExt.blocks_size(), [&] (int index) {
             return chunkData->ChunkMeta->BlockLastKeys()[index] < lowerBound;
         });
 
-        endBlockIndex = LowerBound(0, blocksExt.blocks_size(), [&] (int index) {
+        endBlockIndex = BinarySearch(0, blocksExt.blocks_size(), [&] (int index) {
             return chunkData->ChunkMeta->BlockLastKeys()[index] < upperBound;
         });
         if (endBlockIndex < blocksExt.blocks_size()) {

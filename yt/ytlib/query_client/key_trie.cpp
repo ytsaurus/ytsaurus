@@ -289,7 +289,7 @@ bool Covers(const std::vector<TBound>& bounds, const TValue& point)
 {
     YT_VERIFY(!(bounds.size() & 1));
 
-    auto index = LowerBound(
+    auto index = BinarySearch(
         0,
         bounds.size() / 2,
         [&] (int index) -> bool {
