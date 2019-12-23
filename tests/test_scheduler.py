@@ -3,6 +3,7 @@ from .conftest import (
     DEFAULT_POD_SET_SPEC,
     ZERO_RESOURCE_REQUESTS,
     are_pods_assigned,
+    are_pods_touched_by_scheduler,
     assert_over_time,
     create_nodes,
     create_pod_set,
@@ -880,7 +881,73 @@ class TestScheduler(object):
         wait(lambda: sum(get_delta_profiling_values()) == 2)
         assert_over_time(lambda: sum(get_delta_profiling_values()) == 2)
 
+
 @pytest.mark.usefixtures("yp_env_configurable")
+class TestSchedulerPartialAssignment:
+    # Need failed_allocation_backoff_time bigger than loop_period
+    YP_MASTER_CONFIG = {
+        "scheduler": {
+            "loop_period": 1000,
+            "failed_allocation_backoff_time": 15 * 1000,
+        },
+    }
+
+    def test(self, yp_env_configurable):
+        yp_client = yp_env_configurable.yp_client
+
+        create_nodes(yp_client, 1)
+        pod_set_id = create_pod_set(yp_client)
+
+        erroneous_pod_id = yp_client.create_object("pod", {
+            "meta": {
+                "pod_set_id": pod_set_id
+            },
+            "spec": {
+                "enable_scheduling": True,
+                "ip6_address_requests": [{"network_id": "nonexisting", "vlan_id": "backbone"}],
+                "resource_requests": {
+                    "vcpu_guarantee": 100,
+                    "vcpu_limit": 100,
+                    "memory_guarantee": 128 * 1024 * 1024,
+                    "memory_limit": 128 * 1024 * 1024,
+                },
+            },
+        })
+
+        initial_pod_dump = yp_client.get_object("pod", erroneous_pod_id, [""])[0]
+
+        pod_ids = yp_client.create_objects([
+            ("pod", {"meta": {"pod_set_id": pod_set_id}, "spec": {
+                "enable_scheduling": True,
+                "resource_requests": ZERO_RESOURCE_REQUESTS,
+            }}) for _ in xrange(2)
+        ])
+
+        def _test_got_error_and_not_partially_assigned(old_pod_dump, pod_id):
+            new_pod_dump = yp_client.get_object("pod", pod_id, [""])[0]
+
+            assert old_pod_dump["status"]["scheduling"]["last_updated"] == new_pod_dump["status"]["scheduling"]["last_updated"]
+
+            assert "error" in new_pod_dump["status"]["scheduling"]
+            assert new_pod_dump["status"].get("state", None) != "assigned"
+            assert new_pod_dump["status"].get("node_id", "") == ""
+
+            assert not new_pod_dump["status"].get("scheduled_resource_allocations", None)
+            assert not new_pod_dump["status"].get("ip6_address_allocations", None)
+            assert not new_pod_dump["status"]["dns"].get("transient_fqdn", None)
+
+            return True
+
+        # Pod with request of ip address with invalid network_id
+        # must not be assigned, its resources must not be allocated
+        # and this pod must get field /status/scheduling/error after assign.
+        wait(lambda: are_pods_touched_by_scheduler(yp_client, [erroneous_pod_id]))
+        assert_over_time(lambda: _test_got_error_and_not_partially_assigned(initial_pod_dump, erroneous_pod_id))
+
+        wait(lambda: are_pods_assigned(yp_client, pod_ids))
+
+
+@pytest.mark.usefixtures("yp_env")
 class TestSchedulerGpu(object):
     def test_gpu_resource_scheduling(self, yp_env):
         yp_client = yp_env.yp_client

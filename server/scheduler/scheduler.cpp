@@ -709,16 +709,16 @@ private:
                             try {
                                 resourceManager->AssignPodToNode(transaction, &resourceManagerContext, transactionNode, transactionPod);
                             } catch (const TErrorException& ex) {
-                                if (ex.Error().GetCode() != NClient::NApi::EErrorCode::PodSchedulingFailure) {
-                                    throw;
+                                if (ex.Error().GetCode() == NClient::NApi::EErrorCode::PodSchedulingFailure) {
+                                    auto error = TError("Error assigning pod to node %Qv",
+                                        transactionNode->GetId())
+                                        << ex;
+                                    YT_LOG_DEBUG(error, "Pod scheduling failure (PodId: %v)",
+                                        pod->GetId());
+                                    BackoffScheduling(pod);
+                                    AllocationPlan_.RecordAssignPodToNodeFailure(pod, error);
                                 }
-                                auto error = TError("Error assigning pod to node %Qv",
-                                    transactionNode->GetId())
-                                    << ex;
-                                YT_LOG_DEBUG(error, "Pod scheduling failure (PodId: %v)",
-                                    pod->GetId());
-                                BackoffScheduling(pod);
-                                AllocationPlan_.RecordAssignPodToNodeFailure(pod, error);
+                                throw;
                             }
                         } else if (podRequest.Type == EAllocationPlanPodRequestType::RevokePodFromNode) {
                             if (transactionPod->Spec().Node().Load() != transactionNode) {
