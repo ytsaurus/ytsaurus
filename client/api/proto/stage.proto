@@ -58,6 +58,9 @@ message TStageSpec
 
 message TStageStatus
 {
+    reserved 5;
+    reserved "history";
+
     // <unit id> -> <unit status>.
     map<string, TDeployUnitStatus> deploy_units = 1 [(NYT.NYson.NProto.yson_map) = true];
     // Revision of spec last treated by controller.
@@ -68,19 +71,6 @@ message TStageStatus
     NYP.NClient.NApi.NProto.TCondition validated = 3;
     // YP timestamp of spec last treated by controller.
     uint64 spec_timestamp = 4;
-    
-    message THistoryEntry
-    {
-        // YP timestamp of spec.
-        // To get unix timestamp, right-shift by 30 bits (divide by 1024**3).
-        uint64 timestamp = 1;
-        TStageSpec spec = 2;        
-    }
-    
-    // Last valid specs seen by controller, including the current one.
-    // Ordered by timestamp descending.
-    // TODO: temporary history implementation until YP-863 is deployed.
-    repeated THistoryEntry history = 5;
 }
 
 // Deploy unit
@@ -262,6 +252,9 @@ message TTvmClient
 // See https://wiki.yandex-team.ru/deploy/docs/sidecars/tvmtool for details.
 message TTvmConfig
 {
+    reserved "ping_port", "tvmtool_binary";
+    reserved 5, 6;
+
     enum EMode
     {
         UNKNOWN = 0
@@ -281,16 +274,12 @@ message TTvmConfig
     // Port number on which tvmtool listens. It binds to loopback interface only.
     // If unset, port 2 will be used - https://wiki.yandex-team.ru/deploy/docs/#portyvpodezanjatyeinfrastrukturojj.
     uint32 client_port = 4;
-    // Port number to ping tvmtool. It binds to all interfaces.
-    // TODO: DEPLOY-1462 - deprecated and will be removed.
-    uint32 ping_port = 5;
-    // Custom tvmtool layer.
-    // TODO: DEPLOY-1371 - rename field.
-    TDownloadableResource tvmtool_binary = 6;
+    // Custom tvmtool layer. For development purposes only.
+    TDownloadableResource tvmtool_layer = 7;
 }
 
 message TLogbrokerConfig {
-    // Custom push agent.
+    // Custom push agent. For development purposes only.
     TDownloadableResource push_agent_layer = 1;
     reserved 6;
     reserved "push_agent_binary";
