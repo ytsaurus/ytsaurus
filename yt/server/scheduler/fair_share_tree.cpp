@@ -720,7 +720,7 @@ void TFairShareTree::UpdateConfig(const TFairShareStrategyTreeConfigPtr& config)
     RootElement_->UpdateTreeConfig(Config_);
 
     if (!FindPool(Config_->DefaultParentPool) && Config_->DefaultParentPool != RootPoolName) {
-        auto error = TError("Default parent pool %Qv is not registered", Config_->DefaultParentPool);
+        auto error = TError("Default parent pool %Qv in tree %Qv is not registered", Config_->DefaultParentPool, TreeId_);
         Host_->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, error);
     }
 }
@@ -1980,7 +1980,7 @@ TCompositeSchedulerElementPtr TFairShareTree::GetDefaultParentPool()
     auto defaultPool = FindPool(Config_->DefaultParentPool);
     if (!defaultPool) {
         if (Config_->DefaultParentPool != RootPoolName) {
-            auto error = TError("Default parent pool %Qv is not registered", Config_->DefaultParentPool);
+            auto error = TError("Default parent pool %Qv in tree %Qv is not registered", Config_->DefaultParentPool, TreeId_);
             Host_->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, error);
         }
         return RootElement_;
