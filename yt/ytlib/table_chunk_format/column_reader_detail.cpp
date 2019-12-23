@@ -72,7 +72,7 @@ TDenseVersionedValueExtractorBase::TDenseVersionedValueExtractorBase(const TSegm
 std::pair<ui32, ui32> TDenseVersionedValueExtractorBase::GetValueIndexRange(i64 segmentRowIndex, ui32 lowerTimestampIndex)
 {
     i64 upperValueIndex = GetLowerValueIndex(segmentRowIndex + 1);
-    i64 valueIndex = LowerBound(
+    i64 valueIndex = BinarySearch(
         GetLowerValueIndex(segmentRowIndex),
         upperValueIndex,
         [&] (i64 currentValueIndex) {
@@ -123,7 +123,7 @@ TSparseVersionedValueExtractorBase::TSparseVersionedValueExtractorBase(const TSe
 
 i64 TSparseVersionedValueExtractorBase::GetLowerValueIndex(i64 segmentRowIndex, int valueIndex) const
 {
-    return LowerBound(
+    return BinarySearch(
         valueIndex,
         RowIndexReader_.GetSize(),
         [&] (i64 currentValueIndex) {
@@ -144,7 +144,7 @@ i64 TSparseVersionedValueExtractorBase::GetValueCount() const
 std::pair<ui32, ui32> TSparseVersionedValueExtractorBase::GetValueIndexRange(i64 segmentRowIndex, i64 valueIndex, ui32 lowerTimestampIndex)
 {
     i64 upperValueIndex = GetLowerValueIndex(segmentRowIndex + 1, valueIndex);
-    i64 currentValueIndex = LowerBound(
+    i64 currentValueIndex = BinarySearch(
         valueIndex,
         upperValueIndex,
         [&] (i64 currentValueIndex) {

@@ -47,7 +47,7 @@ void TTimestampSegmentReader::SkipToRowIndex(i64 rowIndex)
     ui32 lowerDeleteIndex = GetLowerDeleteIndex(rowIndex);
     ui32 upperDeleteIndex = GetLowerDeleteIndex(rowIndex + 1);
 
-    ui32 deleteIndex = LowerBound(
+    ui32 deleteIndex = BinarySearch(
         lowerDeleteIndex,
         upperDeleteIndex,
         [&] (ui32 index) {
@@ -63,7 +63,7 @@ void TTimestampSegmentReader::SkipToRowIndex(i64 rowIndex)
     ui32 lowerWriteIndex = GetLowerWriteIndex(rowIndex);
     ui32 upperWriteIndex = GetLowerWriteIndex(rowIndex + 1);
 
-    ui32 writeIndex = LowerBound(
+    ui32 writeIndex = BinarySearch(
         lowerWriteIndex,
         upperWriteIndex,
         [&] (ui32 index) {
@@ -81,7 +81,7 @@ void TTimestampSegmentReader::SkipToRowIndex(i64 rowIndex)
         if (DeleteTimestamp_ == NullTimestamp) {
             adjustedUpperWriteIndex = upperWriteIndex;
         } else {
-            adjustedUpperWriteIndex = LowerBound(
+            adjustedUpperWriteIndex = BinarySearch(
                 writeIndex + 1,
                 upperWriteIndex,
                 [&] (ui32 index) {
