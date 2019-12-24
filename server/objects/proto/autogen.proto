@@ -14,6 +14,7 @@ import "yp/client/api/proto/stage.proto";
 import "yp/client/api/proto/host_infra.proto";
 import "yp/client/api/proto/deploy.proto";
 import "yp/client/api/proto/project.proto";
+import "yp/client/api/proto/release_rule.proto";
 import "yt/core/misc/proto/error.proto";
 import "yt/core/ytree/proto/attributes.proto";
 import "yt/core/yson/proto/protobuf_interop.proto";
@@ -123,6 +124,21 @@ message TStageSpecEtc
     uint64 revision = 1;
     map<string, NYP.NClient.NApi.NProto.TDeployUnitSpec> deploy_units = 2 [(NYT.NYson.NProto.yson_map) = true];
     NYP.NClient.NApi.NProto.TStageSpec.TRevisionInfo revision_info = 4;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReleaseRuleSpecEtc
+{
+    NYP.NClient.NApi.NProto.TSandboxSelector sandbox = 10;
+    NYP.NClient.NApi.NProto.TDockerSelector docker = 11;
+    NYP.NClient.NApi.NProto.TStaticSandboxResourcePatchPolicy static_sandbox_resource = 20;
+    NYP.NClient.NApi.NProto.TDynamicSandboxResourcePatchPolicy dynamic_sandbox_resource = 21;
+    NYP.NClient.NApi.NProto.TDockerImagePatchPolicy docker_image = 22;
+    string description = 2;
+    repeated string responsibles = 3;
+    NYP.NClient.NApi.NProto.TAutoCommitPolicy auto_commit_policy = 4;
+    string recipe_id = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

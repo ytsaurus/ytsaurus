@@ -843,6 +843,45 @@ extern const struct TAccountToProjectsTable
 
 ////////////////////////////////////////////////////////////////////////////////
 
+extern const struct TReleaseRulesTable
+    : public TDBTable
+    , public TObjectTableBase
+{
+    TReleaseRulesTable()
+        : TDBTable("release_rules")
+    {
+        Key = {&TObjectTableBase::Fields.Meta_Id};
+    }
+
+    struct TFields
+        : public TObjectTableBase::TFields
+    {
+        TDBField Spec_StageId{"spec.stage_id", NTableClient::EValueType::String};
+        TDBField Spec_Etc{"spec.etc", NTableClient::EValueType::Any};
+        TDBField Status{"status", NTableClient::EValueType::Any};
+    } Fields;
+} ReleaseRulesTable;
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const struct TStageToReleaseRulesTable
+    : public TDBTable
+{
+    TStageToReleaseRulesTable()
+        : TDBTable("stage_to_release_rules")
+    {
+        Key = {&Fields.StageId, &Fields.ReleaseRuleId};
+    }
+
+    struct TFields
+    {
+        TDBField StageId{"stage_id", NTableClient::EValueType::String};
+        TDBField ReleaseRuleId{"release_rule_id", NTableClient::EValueType::String};
+    } Fields;
+} StageToReleaseRulesTable;
+
+////////////////////////////////////////////////////////////////////////////////
+
 extern const std::vector<const TDBTable*> Tables;
 
 ////////////////////////////////////////////////////////////////////////////////

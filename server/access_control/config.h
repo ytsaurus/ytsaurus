@@ -49,7 +49,8 @@ public:
                 NObjects::EObjectType::PodSet,
                 NObjects::EObjectType::Stage,
                 NObjects::EObjectType::DynamicResource,
-                NObjects::EObjectType::Project});
+                NObjects::EObjectType::Project,
+                NObjects::EObjectType::ReleaseRule});
     }
 };
 

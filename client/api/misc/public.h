@@ -97,6 +97,7 @@ DEFINE_ENUM(EObjectType,
     ((PodDisruptionBudget)    (20))
     ((IP4AddressPool)         (21))
     ((Project)                (22))
+    ((ReleaseRule)            (23))
     ((NetworkModule)         (100)) // internal, not present in data_model.proto
     ((Schema)                (256))
 );

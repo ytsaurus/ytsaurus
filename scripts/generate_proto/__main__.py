@@ -16,6 +16,7 @@ def get_modules():
     import yp_proto.yp.client.api.proto.host_infra_pb2 as host_infra_pb2
     import yp_proto.yp.client.api.proto.deploy_pb2 as deploy_pb2
     import yp_proto.yp.client.api.proto.project_pb2 as project_pb2
+    import yp_proto.yp.client.api.proto.release_rule_pb2 as release_rule_pb2
 
     return [
         data_model_pb2,
@@ -26,7 +27,8 @@ def get_modules():
         stage_pb2,
         host_infra_pb2,
         deploy_pb2,
-        project_pb2
+        project_pb2,
+        release_rule_pb2
     ]
 
 

@@ -47,6 +47,7 @@ SET(YP_TEST_SRCS
     test_pods.py
     test_projects.py
     test_proto_conversion.py
+    test_release_rules.py
     test_replica_sets.py
     test_resource_cache.py
     test_resources.py

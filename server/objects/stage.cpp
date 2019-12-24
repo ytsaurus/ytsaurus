@@ -1,6 +1,7 @@
 #include "stage.h"
 
 #include "account.h"
+#include "release_rule.h"
 #include "db_schema.h"
 
 namespace NYP::NServer::NObjects {
@@ -11,6 +12,14 @@ const TManyToOneAttributeSchema<TStage, TAccount> TStage::TSpec::AccountSchema{
     &StagesTable.Fields.Spec_AccountId,
     [] (TStage* Stage) { return &Stage->Spec().Account(); },
     [] (TAccount* account) { return &account->Stages(); }
+};
+
+const TOneToManyAttributeSchema<TStage, TReleaseRule> TStage::ReleaseRulesSchema{
+    &StageToReleaseRulesTable,
+    &StageToReleaseRulesTable.Fields.StageId,
+    &StageToReleaseRulesTable.Fields.ReleaseRuleId,
+    [] (TStage* stage) { return &stage->ReleaseRules(); },
+    [] (TReleaseRule* releaseRule) { return &releaseRule->Spec().Stage(); },
 };
 
 const TScalarAttributeSchema<TStage, TStage::TSpec::TEtc> TStage::TSpec::EtcSchema{
@@ -41,6 +50,7 @@ TStage::TStage(
     ISession* session)
     : TObject(id, TObjectId(), typeHandler, session)
     , ProjectId_(this, &ProjectIdSchema)
+    , ReleaseRules_(this, &ReleaseRulesSchema)
     , Spec_(this)
     , Status_(this, &StatusSchema)
 { }

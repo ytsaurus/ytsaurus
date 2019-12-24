@@ -44,6 +44,8 @@ const TPodDisruptionBudgetsTable PodDisruptionBudgetsTable;
 const TPodDisruptionBudgetToPodSetsTable PodDisruptionBudgetToPodSetsTable;
 const THistoryEventsTable HistoryEventsTable;
 const TProjectsTable ProjectsTable;
+const TReleaseRulesTable ReleaseRulesTable;
+const TStageToReleaseRulesTable StageToReleaseRulesTable;
 
 const TWatchLogSchema WatchLogSchema;
 
@@ -87,6 +89,8 @@ const std::vector<const TDBTable*> Tables = {
     &PodDisruptionBudgetToPodSetsTable,
     &HistoryEventsTable,
     &ProjectsTable,
+    &ReleaseRulesTable,
+    &StageToReleaseRulesTable,
 };
 
 ////////////////////////////////////////////////////////////////////////////////

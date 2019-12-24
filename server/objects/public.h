@@ -87,6 +87,7 @@ class TStage;
 class TPodDisruptionBudget;
 class TIP4AddressPool;
 class TProject;
+class TReleaseRule;
 
 class TAttributeSchema;
 

@@ -1,0 +1,168 @@
+syntax = "proto3";
+
+package NYP.NClient.NApi.NProto;
+
+import "yp/client/api/proto/data_model.proto";
+
+import "yt/core/yson/proto/protobuf_interop.proto";
+
+option python_package = "yp_proto.yp.client.api.proto";
+
+option go_package = "a.yandex-team.ru/yp/go/proto/api";
+
+option java_package = "ru.yandex.yp.client.api";
+option java_outer_classname = "ReleaseRule";
+option java_multiple_files = true;
+
+option (NYP.NClient.NApi.NProto.object_type) = {
+    camel_case_name: "ReleaseRule"
+    snake_case_name: "release_rule"
+    type_value: 23
+};
+
+message TSandboxSelector
+{
+    // Task type of Sandbox release to be matched with release rule.
+    string task_type = 1;
+    // Resource types of Sandbox release to be matched with release rule.
+    repeated string resource_types = 2;
+    // Release types (stable, testing, etc) of Sandbox release to be matched
+    // with release rule.
+    repeated string release_types = 3;
+    repeated string task_authors = 4;
+}
+
+message TDockerSelector
+{
+    // Image name of Docker release to be matched with release rule.
+    string image_name = 1;
+    // Release types (stable, testing, etc) of Docker release to be matched
+    // with release rule.
+    string release_type = 2;
+}
+
+message TDeployUnitBoxRef
+{
+    string deploy_unit_id = 1;
+    string box_id = 2;
+}
+
+message TStaticResourceRef
+{
+    // Deploy units where to patch static resource.
+    repeated string deploy_unit_ids = 1;
+    // static_resource_ref or layer_ref from pod agent spec.
+    oneof resource_ref
+    {
+        string static_resource_ref = 10;
+        string layer_ref = 11;
+    }
+}
+
+message TDynamicResourceRef
+{
+    // Dynamic resource spec where to patch url.
+    string dynamic_resource_id = 1;
+    // Deploy group in dynamic resource spec where to patch url.
+    // All urls in the first deploy group with equal mark will be replaced to
+    // url from release.
+    string deploy_group_mark = 2;
+}
+
+message TDockerImageRef
+{
+    // Box ids from stage spec where to patch docker image description.
+    repeated TDeployUnitBoxRef deploy_unit_box_ids = 1;
+}
+
+message TStaticSandboxResourcePatch
+{
+    // Resource from Sandbox release with which patch will be applied.
+    string sandbox_resource_type = 1;
+    // resource_ref is used to address static resource in stage spec to patch.
+    TStaticResourceRef resource_ref = 2;
+}
+
+message TStaticSandboxResourcePatchPolicy
+{
+    // List of static resource patches to apply.
+    repeated TStaticSandboxResourcePatch patches = 1;
+}
+
+message TDynamicSandboxResourcePatch
+{
+    // Resource from Sandbox release with which patch will be applied.
+    string sandbox_resource_type = 1;
+    // resource_ref is used to address url in dynamic resource spec to patch.
+    TDynamicResourceRef resource_ref = 2;
+}
+
+message TDynamicSandboxResourcePatchPolicy
+{
+    // List of dynamic resource patches to apply.
+    repeated TDynamicSandboxResourcePatch patches = 1;
+}
+
+message TDockerImagePatch
+{
+    // docker_image_ref is used to address boxes in stage spec to patch
+    // docker image info.
+    TDockerImageRef docker_image_ref = 1;
+}
+
+message TDockerImagePatchPolicy
+{
+    // List of docker image patches to apply.
+    repeated TDockerImagePatch patches = 1;
+}
+
+message TAutoCommitPolicy
+{
+    enum EType
+    {
+        // Do not auto commit ticket, only manual commit is allowed.
+        NONE = 0
+        [(NYT.NYson.NProto.enum_value_name) = "none"];
+
+        // Auto commit first created ticket for this release rule.
+        MAINTAIN_ACTIVE_TRUNK = 1
+        [(NYT.NYson.NProto.enum_value_name) = "maintain_active_trunk"];
+
+        // Auto commit last created ticket for this release rule.
+        SEQUENTIAL_COMMIT = 2
+        [(NYT.NYson.NProto.enum_value_name) = "sequential_commit"];
+    }
+    EType type = 1;
+}
+
+message TReleaseRuleSpec
+{
+    string stage_id = 1;
+    // Selector describes how release rule will be matched with release.
+    oneof selector
+    {
+        TSandboxSelector sandbox = 10 [(NYP.NClient.NApi.NProto.etc) = true];
+        TDockerSelector docker = 11 [(NYP.NClient.NApi.NProto.etc) = true];
+    }
+    // Patch policy describes how to patch stage spec or dynamic resource spec
+    // with release data.
+    oneof patch_policy
+    {
+        TStaticSandboxResourcePatchPolicy static_sandbox_resource = 20 [(NYP.NClient.NApi.NProto.etc) = true];
+        TDynamicSandboxResourcePatchPolicy dynamic_sandbox_resource = 21 [(NYP.NClient.NApi.NProto.etc) = true];
+        TDockerImagePatchPolicy docker_image = 22 [(NYP.NClient.NApi.NProto.etc) = true];
+    }
+    string description = 2 [(NYP.NClient.NApi.NProto.etc) = true];
+    // Users who recieve notifications on release commit.
+    repeated string responsibles = 3 [(NYP.NClient.NApi.NProto.etc) = true];
+    // Auto commit policy describes how to commit tickets created by
+    // release rule.
+    TAutoCommitPolicy auto_commit_policy = 4 [(NYP.NClient.NApi.NProto.etc) = true];
+    // Recipe which will be used for auto commit.
+    string recipe_id = 5 [(NYP.NClient.NApi.NProto.etc) = true];
+}
+
+message TReleaseRuleStatus
+{
+    uint32 created_ticket_count = 1;
+}

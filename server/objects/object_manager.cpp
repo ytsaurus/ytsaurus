@@ -20,6 +20,7 @@
 #include "pod_type_handler.h"
 #include "private.h"
 #include "project_type_handler.h"
+#include "release_rule_type_handler.h"
 #include "replica_set_type_handler.h"
 #include "resource_cache_type_handler.h"
 #include "resource_type_handler.h"
@@ -105,6 +106,7 @@ public:
         RegisterTypeHandler(CreateDynamicResourceTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreatePodDisruptionBudgetTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateProjectTypeHandler(Bootstrap_));
+        RegisterTypeHandler(CreateReleaseRuleTypeHandler(Bootstrap_));
 
         for (auto type : TEnumTraits<EObjectType>::GetDomainValues()) {
             if (auto typeHandler = FindTypeHandler(type)) {
