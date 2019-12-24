@@ -1829,7 +1829,7 @@ class TestSchedulerRevive(YTEnvSetup):
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             abort_transaction(async_transaction_id)
 
-
+        jobs = wait_breakpoint(job_count=1)
         wait(lambda: op.get_state() == "running")
 
         new_async_transaction_id = get(op.get_path() + "/@async_scheduler_transaction_id")
