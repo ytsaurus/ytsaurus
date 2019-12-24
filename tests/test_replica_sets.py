@@ -111,3 +111,19 @@ class TestReplicaSets(object):
 
     def test_network_project_permissions(self, yp_env):
         templates.replica_set_network_project_permissions_test_template(yp_env, "replica_set")
+
+
+    def test_custom_pods_labels_annotations(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        account_id = yp_client.create_object("account")
+        rs_id = yp_client.create_object(object_type="replica_set", attributes={"spec": {"replica_count": 1, "account_id": account_id}})
+
+        yp_client.update_object("replica_set", rs_id, set_updates=[{
+            "path": "/spec/pod_template_spec/labels", "value": {"label_key": "label_value"}, "recursive": True
+        }, {
+            "path": "/spec/pod_template_spec/annotations", "value": {"annotation_key": "annotation_value"}, "recursive": True
+        }])
+
+        assert yp_client.get_object("replica_set", rs_id, selectors=["/spec/pod_template_spec/labels"]) == [{"label_key": "label_value"}]
+        assert yp_client.get_object("replica_set", rs_id, selectors=["/spec/pod_template_spec/annotations"]) == [{"annotation_key": "annotation_value"}]

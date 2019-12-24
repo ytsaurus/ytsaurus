@@ -54,4 +54,5 @@ message TPodTemplateSpec
 {
     TPodSpec spec = 1;
     NYT.NYTree.NProto.TAttributeDictionary labels = 2;
+    NYT.NYTree.NProto.TAttributeDictionary annotations = 3;
 }
