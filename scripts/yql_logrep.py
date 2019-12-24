@@ -109,7 +109,7 @@ SELECT
     "log_message",
     "log_level",
     "log_category",
-    "cluster"
+    "cluster",
     "source_uri"
 FROM {tables}
 WHERE cluster='{cluster}' AND log_message LIKE '%{pattern}%'
