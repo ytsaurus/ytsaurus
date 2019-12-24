@@ -81,8 +81,6 @@ def create_subject(client, subject):
 
 
 def set_schema_permissions(client, type, subject, rights):
-    # type: (YpClient, basestring, basestring, list, basestring) -> None
-
     create_subject(client, subject)
 
     logger.debug("Set schema permission subject={}, type={}, rights={}".format(subject, type, rights))
@@ -491,6 +489,7 @@ def accounts_override(cluster, accounts, client):
 
 
 def initialize_users(cluster, dry_run):
+    right_c = ["create"]
     right_crw = ["create", "read", "write"]
     right_ro = ["read"]
     right_rw = ["read", "write"]
@@ -581,6 +580,10 @@ def initialize_users(cluster, dry_run):
         if cluster in ("sas-test", "man-pre"):
             set_schema_permissions(client, "network_project", "robot-deploy-test", right_u)
         set_schema_permissions(client, "network_project", "robot-drug-deploy", right_u)
+
+        # YPADMIN-282
+        if cluster == "sas-test":
+            set_schema_permissions(client, "group", "robot-deploy-auth-t", right_c)
 
         create_accounts(client, cluster, accounts)
 
