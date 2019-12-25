@@ -1,13 +1,18 @@
 #!/usr/bin/env python2
 
-import yt.wrapper as yt
-from yt.wrapper.http_helpers import get_token
-
 import argparse
 import json
 import subprocess
 import time
-import yt.packages.requests as requests
+
+import yt.wrapper as yt
+
+from yt.wrapper.http_helpers import get_token
+from yt.packages import requests
+
+
+class BuildSnapshotError(RuntimeError):
+    pass
 
 
 def build_snapshot(proxy, cell, set_read_only):
@@ -34,6 +39,20 @@ def build_snapshot(proxy, cell, set_read_only):
         print(r.text)
 
 
+def verify_proxy(proxy):
+    url = 'https://' + proxy + "/api/v4"
+    try:
+        r = requests.get(url)
+    except requests.exceptions.SSLError as e:
+        raise BuildSnapshotError(
+            "got SSL error for {url} ({err}) try to restart script from dev server".format(
+                url=url,
+                err=str(e),
+            ))
+    if r.status_code != 200:
+        raise BuildSnapshotError("unexpected HTTP code: {} for {}".format(r.status_code, url))
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--proxy", help="proxy", required=True)
@@ -44,6 +63,8 @@ def main():
 
     read_only = args.read_only
     proxy = yt.config["proxy"]["url"]
+
+    verify_proxy(proxy)
 
     cells = {}
     sys_preffix = '//sys/'
@@ -100,4 +121,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except BuildSnapshotError as e:
+        print "build_snapshot.py:", str(e)
+        exit(1)
