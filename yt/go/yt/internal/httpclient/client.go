@@ -289,7 +289,16 @@ func (c *httpClient) doReadRow(ctx context.Context, call *internal.Call) (r yt.T
 		return
 	}
 
-	r = newTableReader(rr)
+	tr := newTableReader(rr)
+
+	if rsp, ok := rr.(interface{ RspParams() ([]byte, bool) }); ok {
+		if rspParams, ok := rsp.RspParams(); ok {
+			if err = tr.decodeRspParams(rspParams); err != nil {
+				err = xerrors.Errorf("error decoding rsp params: %v", err)
+			}
+		}
+	}
+	r = tr
 	return
 }
 
@@ -319,7 +328,10 @@ func (c *httpClient) doRead(ctx context.Context, call *internal.Call) (r io.Read
 	}
 
 	if err == nil {
-		r = &httpReader{body: rsp.Body, rsp: rsp}
+		r = &httpReader{
+			body: rsp.Body,
+			rsp:  rsp,
+		}
 	}
 
 	return

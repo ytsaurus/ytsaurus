@@ -18,6 +18,14 @@ func (r *loggingReader) Close() error {
 	return r.r.Close()
 }
 
+func (r *loggingReader) RspParams() ([]byte, bool) {
+	rsp, ok := r.r.(interface{ RspParams() ([]byte, bool) })
+	if !ok {
+		return nil, false
+	}
+	return rsp.RspParams()
+}
+
 func (r *loggingReader) Read(p []byte) (n int, err error) {
 	n, err = r.r.Read(p)
 	r.byteCount += int64(n)

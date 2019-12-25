@@ -46,6 +46,8 @@ const (
 	VerbUnmountTable Verb = "unmount_table"
 	VerbRemountTable Verb = "remount_table"
 	VerbReshardTable Verb = "reshard_table"
+
+	VerbLocateSkynetShare Verb = "locate_skynet_share"
 )
 
 func (v Verb) hasInput() bool {
@@ -65,6 +67,9 @@ func (v Verb) IsHeavy() bool {
 	case VerbReadFile, VerbWriteFile, VerbReadTable, VerbWriteTable:
 		return true
 
+	case VerbLocateSkynetShare:
+		return true
+
 	case VerbLookupRows, VerbDeleteRows, VerbSelectRows, VerbInsertRows:
 		return true
 	}
@@ -75,6 +80,9 @@ func (v Verb) IsHeavy() bool {
 func (v Verb) volatile() bool {
 	switch v {
 	case VerbGet, VerbList, VerbExists, VerbReadFile, VerbReadTable, VerbGetOperation, VerbGetFileFromCache, VerbListJobs, VerbJobStderr:
+		return false
+
+	case VerbLocateSkynetShare:
 		return false
 
 	case VerbSelectRows, VerbLookupRows:
