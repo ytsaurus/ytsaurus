@@ -17,13 +17,67 @@ TEST(TDelayedExecutorTest, Submit)
 
     auto cookie = TDelayedExecutor::Submit(
         BIND([&fired, probe = TProbe(&state)] () { ++fired; }),
-        TDuration::MilliSeconds(10));
+        TDuration::MilliSeconds(100));
 
     Sleep(TDuration::MilliSeconds(50));
+
+    EXPECT_EQ(0, fired);
+
+    Sleep(TDuration::MilliSeconds(70));
 
     EXPECT_EQ(1, fired);
     EXPECT_EQ(1, state.Constructors);
     EXPECT_EQ(1, state.Destructors);
+}
+
+TEST(TDelayedExecutorTest, SubmitZeroDelay)
+{
+    std::atomic<int> fired = {0};
+    TProbeState state;
+
+    auto cookie1 = TDelayedExecutor::Submit(
+        BIND([&fired, probe = TProbe(&state)] () { ++fired; }),
+        TDuration::MilliSeconds(0));
+
+    Sleep(TDuration::MilliSeconds(10));
+
+    EXPECT_EQ(1, fired);
+
+    auto cookie2 = TDelayedExecutor::Submit(
+        BIND([&fired, probe = TProbe(&state)] () { ++fired; }),
+        TDuration::MilliSeconds(10));
+
+    Sleep(TDuration::MilliSeconds(20));
+
+    EXPECT_EQ(2, fired);
+    EXPECT_EQ(2, state.Constructors);
+    EXPECT_EQ(2, state.Destructors);
+}
+
+TEST(TDelayedExecutorTest, StressTest)
+{
+    std::atomic<int> fired = {0};
+
+    int total = 100;
+    for (int i = 0; i < total; ++i) {
+        auto start = TInstant::Now();
+        auto delay = rand() % 50;
+
+        auto cookie = TDelayedExecutor::Submit(
+            BIND([start, delay, &fired] () {
+                auto diff = (TInstant::Now() - start).MilliSeconds();
+                EXPECT_LE(delay, diff + 1);
+                EXPECT_LE(diff, delay + 15);
+                ++fired;
+            }),
+            TDuration::MilliSeconds(delay));
+
+        Sleep(TDuration::MilliSeconds(rand() % 50));
+    }
+
+    Sleep(TDuration::MilliSeconds(50));
+
+    EXPECT_EQ(total, fired);
 }
 
 TEST(TDelayedExecutorTest, SubmitAndCancel)
@@ -97,4 +151,3 @@ TEST(TDelayedExecutorTest, DISABLED_SubmitAndCancelAfterShutdown)
 
 } // namespace
 } // namespace NYT
-
