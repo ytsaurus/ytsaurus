@@ -162,6 +162,7 @@ class YtTestEnvironment(object):
             self.env.start(start_secondary_master_cells=True)
         except:
             self.save_sandbox()
+            raise
 
         self.version = "{0}.{1}".format(*self.env.abi_version)
 
