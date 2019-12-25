@@ -404,6 +404,11 @@ IClientPtr CreateClient(
     const TString& serverName,
     const TCreateClientOptions& options = TCreateClientOptions());
 
+
+/// Create a client for mapreduce cluster specified in `YT_PROXY` environment variable.
+IClientPtr CreateClientFromEnv(
+    const TCreateClientOptions& options = TCreateClientOptions());
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
