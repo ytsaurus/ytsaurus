@@ -1281,7 +1281,7 @@ def subcommand_pgrep(selector_list, args):
 
     if args.instance_limit and len(instance_list) > args.instance_limit:
         raise LogrepError(
-            "Too many instances is selected.\n"
+            "Too many instances selected.\n"
             "Currently selected: {}\n"
             "Current limit: {}\n"
             .format(len(instance_list), args.instance_limit)
