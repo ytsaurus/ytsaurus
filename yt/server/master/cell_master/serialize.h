@@ -104,7 +104,6 @@ DEFINE_ENUM(EMasterReign,
     ((BranchedAndLockedNodeCountMismatchFix)                         (921))  // shakurov
     ((FixParentTxForConcatUpload)                                    (922))  // babenko
     ((DynamicMasterCacheDiscovery)                                  (1001))  // aleksandra-zh
-    ((TwoLevelMasterCache)                                          (1002))  // aleksandra-zh
     ((CellServer)                                                   (1100))  // savrus
     ((EnableDelayedMembershipClosureRecomputationByDefault)         (1101))  // babenko
     ((NetworkProject)                                               (1102))  // gritukan
@@ -112,6 +111,7 @@ DEFINE_ENUM(EMasterReign,
     ((UserManagedPools)                                             (1104))  // renadeen
     ((GranularCypressTreeCopy)                                      (1105))  // gritukan
     ((NoTabletErrorsOnMaster)                                       (1106))  // ifsmirnov
+    ((TwoLevelMasterCache)                                          (1107))  // aleksandra-zh
 );
 
 ////////////////////////////////////////////////////////////////////////////////
