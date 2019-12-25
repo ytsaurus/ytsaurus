@@ -1,3 +1,5 @@
+#!/usr/bin/env python2
+
 import yt.wrapper as yt
 from yt.wrapper.http_helpers import get_token
 
