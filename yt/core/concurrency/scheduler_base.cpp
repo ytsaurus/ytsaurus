@@ -118,7 +118,6 @@ void TSchedulerThreadBase::ThreadMain()
         while (!IsShutdown()) {
             auto cookie = CallbackEventCount_->PrepareWait();
 
-            YT_LOG_DEBUG_IF(EnableLogging_, "On loop");
             if (OnLoop(&cookie)) {
                 continue;
             }
