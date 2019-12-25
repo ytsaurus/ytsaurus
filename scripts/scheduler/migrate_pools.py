@@ -59,14 +59,19 @@ def migrate(cluster, current_pool_trees_path, backup_path, tmp_path):
     client.link("#" + get_schema_id(client.get("//@id"), SCHEDULER_POOL_TREE_OBJECT_ID), "//sys/schemas/scheduler_pool_tree", force=True)
 
     logging.info("Initializing acl of schemas")
-    ace = {
+    acl = [{
         "action": "allow",
         "subjects": ["users"],
-        "permissions": ["create"],
-        "inheritance_mode": "objects_and_descendants"
-    }
-    client.set("//sys/schemas/pool/@acl", [ace])
-    client.set("//sys/schemas/pool_tree/@acl", [ace])
+        "permissions": ["create", "read", "use"],
+        "inheritance_mode": "object_and_descendants"
+    }, {
+        "action": "allow",
+        "subjects": ["admins"],
+        "permissions": ["create", "read", "write", "remove", "administer", "use"],
+        "inheritance_mode": "object_and_descendants"
+    }]
+    client.set("//sys/schemas/scheduler_pool/@acl", acl)
+    client.set("//sys/schemas/scheduler_pool_tree/@acl", acl)
 
     logging.info("Backing up old config: %s to %s", current_pool_trees_path, backup_path)
     client.move(current_pool_trees_path, backup_path)
