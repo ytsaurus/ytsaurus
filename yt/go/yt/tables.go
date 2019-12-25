@@ -26,6 +26,17 @@ type TableWriter interface {
 	Rollback() error
 }
 
+// StartRowIndex returns row index of the first row in table reader.
+//
+// Index might not be available, depending on the underlying implementation
+func StartRowIndex(r TableReader) (rowIndex int64, ok bool) {
+	indexer, ok := r.(interface{ StartRowIndex() int64 })
+	if ok {
+		rowIndex = indexer.StartRowIndex()
+	}
+	return
+}
+
 type TableReader interface {
 	Scan(value interface{}) error
 	Next() bool

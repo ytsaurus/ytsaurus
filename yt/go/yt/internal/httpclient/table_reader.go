@@ -16,6 +16,8 @@ type tableReader struct {
 	err     error
 	end     bool
 	started bool
+
+	startRowIndex int64
 }
 
 func (r *tableReader) Scan(value interface{}) error {
@@ -69,6 +71,23 @@ func (r *tableReader) Close() error {
 	}
 
 	return r.err
+}
+
+func (r *tableReader) decodeRspParams(ys []byte) error {
+	var params struct {
+		StartRowIndex int64 `yson:"start_row_index"`
+	}
+
+	if err := yson.Unmarshal(ys, &params); err != nil {
+		return err
+	}
+
+	r.startRowIndex = params.StartRowIndex
+	return nil
+}
+
+func (r *tableReader) StartRowIndex() int64 {
+	return r.startRowIndex
 }
 
 var _ yt.TableReader = (*tableReader)(nil)

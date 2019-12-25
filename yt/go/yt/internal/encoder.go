@@ -585,3 +585,17 @@ func (e *Encoder) UnfreezeTable(
 ) (err error) {
 	return e.do(ctx, e.newCall(NewUnfreezeTableParams(path, options)), func(res *CallResult) error { return nil })
 }
+
+func (e *Encoder) LocateSkynetShare(
+	ctx context.Context,
+	path ypath.YPath,
+	options *yt.LocateSkynetShareOptions,
+) (l yt.ShareLocation, err error) {
+	err = e.do(
+		ctx,
+		e.newCall(NewLocateSkynetShareParams(path, options)),
+		func(res *CallResult) error {
+			return res.decode(&l)
+		})
+	return
+}

@@ -736,6 +736,12 @@ func writeStartTabletTxOptions(w *yson.Writer, o *yt.StartTabletTxOptions) {
 	}
 }
 
+func writeLocateSkynetShareOptions(w *yson.Writer, o *yt.LocateSkynetShareOptions) {
+	if o == nil {
+		return
+	}
+}
+
 type CreateNodeParams struct {
 	verb    Verb
 	path    ypath.YPath
@@ -2716,4 +2722,39 @@ func (p *UnfreezeTableParams) TabletRangeOptions() **yt.TabletRangeOptions {
 
 func (p *UnfreezeTableParams) MutatingOptions() **yt.MutatingOptions {
 	return &p.options.MutatingOptions
+}
+
+type LocateSkynetShareParams struct {
+	verb    Verb
+	path    ypath.YPath
+	options *yt.LocateSkynetShareOptions
+}
+
+func NewLocateSkynetShareParams(
+	path ypath.YPath,
+	options *yt.LocateSkynetShareOptions,
+) *LocateSkynetShareParams {
+	if options == nil {
+		options = &yt.LocateSkynetShareOptions{}
+	}
+	return &LocateSkynetShareParams{
+		Verb("locate_skynet_share"),
+		path,
+		options,
+	}
+}
+
+func (p *LocateSkynetShareParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *LocateSkynetShareParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("path", p.path),
+	}
+}
+
+func (p *LocateSkynetShareParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("path")
+	w.Any(p.path)
+	writeLocateSkynetShareOptions(w, p.options)
 }

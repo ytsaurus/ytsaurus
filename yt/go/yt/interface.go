@@ -950,6 +950,9 @@ type TabletTx interface {
 	Abort() error
 }
 
+type LocateSkynetShareOptions struct {
+}
+
 type Client interface {
 	CypressClient
 	FileClient
@@ -969,6 +972,14 @@ type Client interface {
 	LowLevelSchedulerClient
 
 	AdminClient
+
+	// http:verb:"locate_skynet_share"
+	// http:params:"path"
+	LocateSkynetShare(
+		ctx context.Context,
+		path ypath.YPath,
+		options *LocateSkynetShareOptions,
+	) (l ShareLocation, err error)
 
 	// Stop() cancels and waits for completion of all background activity associated with this client.
 	//
