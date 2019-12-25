@@ -348,6 +348,55 @@ public:
         TExpressionFragments* fragments,
         bool isIsolated = false);
 
+private:
+    size_t Profile(
+        const TLiteralExpression* literalExpr,
+        const TTableSchema& schema,
+        TExpressionFragments* fragments,
+        bool isIsolated);
+
+    size_t Profile(
+        const TReferenceExpression* referenceExpr,
+        const TTableSchema& schema,
+        TExpressionFragments* fragments,
+        bool isIsolated);
+
+    size_t Profile(
+        const TFunctionExpression* functionExpr,
+        const TTableSchema& schema,
+        TExpressionFragments* fragments,
+        bool isIsolated);
+
+    size_t Profile(
+        const TUnaryOpExpression* unaryOp,
+        const TTableSchema& schema,
+        TExpressionFragments* fragments,
+        bool isIsolated);
+
+    size_t Profile(
+        const TBinaryOpExpression* binaryOp,
+        const TTableSchema& schema,
+        TExpressionFragments* fragments,
+        bool isIsolated);
+
+    size_t Profile(
+        const TInExpression* inExpr,
+        const TTableSchema& schema,
+        TExpressionFragments* fragments,
+        bool isIsolated);
+
+    size_t Profile(
+        const TBetweenExpression* betweenExpr,
+        const TTableSchema& schema,
+        TExpressionFragments* fragments,
+        bool isIsolated);
+
+    size_t Profile(
+        const TTransformExpression* transformExpr,
+        const TTableSchema& schema,
+        TExpressionFragments* fragments,
+        bool isIsolated);
+
 protected:
     TCGVariables* const Variables_;
     const TConstFunctionProfilerMapPtr FunctionProfilers_;
@@ -355,119 +404,160 @@ protected:
 };
 
 size_t TExpressionProfiler::Profile(
-    const TConstExpressionPtr& expr,
+    const TLiteralExpression* literalExpr,
     const TTableSchema& schema,
     TExpressionFragments* fragments,
     bool isIsolated)
 {
     llvm::FoldingSetNodeID id;
-    id.AddInteger(static_cast<ui16>(expr->Type));
-    if (auto literalExpr = expr->As<TLiteralExpression>()) {
-        id.AddInteger(static_cast<int>(EFoldingObjectType::LiteralExpr));
+    id.AddInteger(static_cast<ui16>(literalExpr->Type));
 
-        auto savedId = id;
-        id.AddString(ToString(TValue(literalExpr->Value)).c_str());
+    id.AddInteger(static_cast<int>(EFoldingObjectType::LiteralExpr));
 
-        auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());
-        if (emplaced.second || isIsolated) {
-            Fold(savedId);
+    auto savedId = id;
+    id.AddString(ToString(TValue(literalExpr->Value)).c_str());
 
-            int index = Variables_->AddLiteralValue(literalExpr->Value);
-            Fold(index);
+    auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());
+    if (emplaced.second || isIsolated) {
+        Fold(savedId);
 
-            bool nullable = TValue(literalExpr->Value).Type == EValueType::Null;
-            Fold(nullable);
+        int index = Variables_->AddLiteralValue(literalExpr->Value);
+        Fold(index);
 
-            fragments->DebugInfos.emplace_back(expr, std::vector<size_t>());
-            fragments->Items.emplace_back(
-                MakeCodegenLiteralExpr(index, nullable, literalExpr->Type),
-                expr->Type,
-                nullable,
-                true);
+        bool nullable = TValue(literalExpr->Value).Type == EValueType::Null;
+        Fold(nullable);
+
+        fragments->DebugInfos.emplace_back(literalExpr, std::vector<size_t>());
+        fragments->Items.emplace_back(
+            MakeCodegenLiteralExpr(index, nullable, literalExpr->Type),
+            literalExpr->Type,
+            nullable,
+            true);
+    }
+
+    return emplaced.first->second;
+}
+
+size_t TExpressionProfiler::Profile(
+    const TReferenceExpression* referenceExpr,
+    const TTableSchema& schema,
+    TExpressionFragments* fragments,
+    bool isIsolated)
+{
+    llvm::FoldingSetNodeID id;
+    id.AddInteger(static_cast<ui16>(referenceExpr->Type));
+
+    id.AddInteger(static_cast<int>(EFoldingObjectType::ReferenceExpr));
+    auto indexInSchema = schema.GetColumnIndexOrThrow(referenceExpr->ColumnName);
+    id.AddInteger(indexInSchema);
+
+    auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());
+    if (emplaced.second || isIsolated) {
+        Fold(id);
+        fragments->DebugInfos.emplace_back(referenceExpr, std::vector<size_t>());
+        fragments->Items.emplace_back(
+            MakeCodegenReferenceExpr(
+                indexInSchema,
+                referenceExpr->Type,
+                referenceExpr->ColumnName),
+            referenceExpr->Type,
+            true,
+            true);
+    }
+    return emplaced.first->second;
+}
+
+size_t TExpressionProfiler::Profile(
+    const TFunctionExpression* functionExpr,
+    const TTableSchema& schema,
+    TExpressionFragments* fragments,
+    bool isIsolated)
+{
+    llvm::FoldingSetNodeID id;
+    id.AddInteger(static_cast<ui16>(functionExpr->Type));
+
+    id.AddInteger(static_cast<int>(EFoldingObjectType::FunctionExpr));
+    id.AddString(functionExpr->FunctionName.c_str());
+
+    std::vector<size_t> argIds;
+    std::vector<EValueType> argumentTypes;
+    auto literalArgs = std::make_unique<bool[]>(functionExpr->Arguments.size());
+    size_t index = 0;
+    for (const auto& argument : functionExpr->Arguments) {
+        argIds.push_back(Profile(argument, schema, fragments, isIsolated));
+        id.AddInteger(argIds.back());
+        argumentTypes.push_back(argument->Type);
+        literalArgs[index++] = argument->As<TLiteralExpression>() != nullptr;
+    }
+
+    auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());
+    if (emplaced.second || isIsolated) {
+        Fold(id);
+        const auto& function = FunctionProfilers_->GetFunction(functionExpr->FunctionName);
+
+        std::vector<bool> nullableArgs;
+        for (size_t argId : argIds) {
+            ++fragments->Items[argId].UseCount;
+            nullableArgs.push_back(fragments->Items[argId].Nullable);
         }
-        return emplaced.first->second;
-    } else if (auto referenceExpr = expr->As<TReferenceExpression>()) {
-        id.AddInteger(static_cast<int>(EFoldingObjectType::ReferenceExpr));
-        auto indexInSchema = schema.GetColumnIndexOrThrow(referenceExpr->ColumnName);
-        id.AddInteger(indexInSchema);
 
-        auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());
-        if (emplaced.second || isIsolated) {
-            Fold(id);
-            fragments->DebugInfos.emplace_back(expr, std::vector<size_t>());
-            fragments->Items.emplace_back(
-                MakeCodegenReferenceExpr(
-                    indexInSchema,
-                    referenceExpr->Type,
-                    referenceExpr->ColumnName),
-                expr->Type,
-                true,
-                true);
-        }
-        return emplaced.first->second;
-    } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
-        id.AddInteger(static_cast<int>(EFoldingObjectType::FunctionExpr));
-        id.AddString(functionExpr->FunctionName.c_str());
+        fragments->DebugInfos.emplace_back(functionExpr, argIds);
+        fragments->Items.emplace_back(
+            function->Profile(
+                Variables_,
+                std::move(argIds),
+                std::move(literalArgs),
+                std::move(argumentTypes),
+                functionExpr->Type,
+                "{" + InferName(functionExpr, true) + "}",
+                Id_),
+            functionExpr->Type,
+            function->IsNullable(nullableArgs));
+    }
+    return emplaced.first->second;
+}
 
-        std::vector<size_t> argIds;
-        std::vector<EValueType> argumentTypes;
-        auto literalArgs = std::make_unique<bool[]>(functionExpr->Arguments.size());
-        size_t index = 0;
-        for (const auto& argument : functionExpr->Arguments) {
-            argIds.push_back(Profile(argument, schema, fragments, isIsolated));
-            id.AddInteger(argIds.back());
-            argumentTypes.push_back(argument->Type);
-            literalArgs[index++] = argument->As<TLiteralExpression>() != nullptr;
-        }
+size_t TExpressionProfiler::Profile(
+    const TUnaryOpExpression* unaryOp,
+    const TTableSchema& schema,
+    TExpressionFragments* fragments,
+    bool isIsolated)
+{
+    llvm::FoldingSetNodeID id;
+    id.AddInteger(static_cast<ui16>(unaryOp->Type));
 
-        auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());
-        if (emplaced.second || isIsolated) {
-            Fold(id);
-            const auto& function = FunctionProfilers_->GetFunction(functionExpr->FunctionName);
+    id.AddInteger(static_cast<int>(EFoldingObjectType::UnaryOpExpr));
+    id.AddInteger(static_cast<int>(unaryOp->Opcode));
 
-            std::vector<bool> nullableArgs;
-            for (size_t argId : argIds) {
-                ++fragments->Items[argId].UseCount;
-                nullableArgs.push_back(fragments->Items[argId].Nullable);
-            }
+    size_t operand = Profile(unaryOp->Operand, schema, fragments, isIsolated);
+    id.AddInteger(operand);
 
-            fragments->DebugInfos.emplace_back(expr, argIds);
-            fragments->Items.emplace_back(
-                function->Profile(
-                    Variables_,
-                    std::move(argIds),
-                    std::move(literalArgs),
-                    std::move(argumentTypes),
-                    functionExpr->Type,
-                    "{" + InferName(functionExpr, true) + "}",
-                    Id_),
-                expr->Type,
-                function->IsNullable(nullableArgs));
-        }
-        return emplaced.first->second;
-    } else if (auto unaryOp = expr->As<TUnaryOpExpression>()) {
-        id.AddInteger(static_cast<int>(EFoldingObjectType::UnaryOpExpr));
-        id.AddInteger(static_cast<int>(unaryOp->Opcode));
+    auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());
+    if (emplaced.second || isIsolated) {
+        Fold(id);
+        ++fragments->Items[operand].UseCount;
+        fragments->DebugInfos.emplace_back(unaryOp, std::vector<size_t>{operand});
+        fragments->Items.emplace_back(MakeCodegenUnaryOpExpr(
+            unaryOp->Opcode,
+            operand,
+            unaryOp->Type,
+            "{" + InferName(unaryOp, true) + "}"),
+            unaryOp->Type,
+            fragments->Items[operand].Nullable);
+    }
+    return emplaced.first->second;
+}
 
-        size_t operand = Profile(unaryOp->Operand, schema, fragments, isIsolated);
-        id.AddInteger(operand);
+size_t TExpressionProfiler::Profile(
+    const TBinaryOpExpression* binaryOp,
+    const TTableSchema& schema,
+    TExpressionFragments* fragments,
+    bool isIsolated)
+{
+    llvm::FoldingSetNodeID id;
+    id.AddInteger(static_cast<ui16>(binaryOp->Type));
 
-        auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());
-        if (emplaced.second || isIsolated) {
-            Fold(id);
-            ++fragments->Items[operand].UseCount;
-            fragments->DebugInfos.emplace_back(expr, std::vector<size_t>{operand});
-            fragments->Items.emplace_back(MakeCodegenUnaryOpExpr(
-                unaryOp->Opcode,
-                operand,
-                unaryOp->Type,
-                "{" + InferName(unaryOp, true) + "}"),
-                expr->Type,
-                fragments->Items[operand].Nullable);
-        }
-        return emplaced.first->second;
-    } else if (auto binaryOp = expr->As<TBinaryOpExpression>()) {
-        id.AddInteger(static_cast<int>(EFoldingObjectType::BinaryOpExpr));
+    id.AddInteger(static_cast<int>(EFoldingObjectType::BinaryOpExpr));
         id.AddInteger(static_cast<int>(binaryOp->Opcode));
 
         size_t lhsOperand = Profile(binaryOp->Lhs, schema, fragments, isIsolated);
@@ -480,7 +570,7 @@ size_t TExpressionProfiler::Profile(
             Fold(id);
             ++fragments->Items[lhsOperand].UseCount;
             ++fragments->Items[rhsOperand].UseCount;
-            fragments->DebugInfos.emplace_back(expr, std::vector<size_t>{lhsOperand, rhsOperand});
+            fragments->DebugInfos.emplace_back(binaryOp, std::vector<size_t>{lhsOperand, rhsOperand});
             bool nullable = IsRelationalBinaryOp(binaryOp->Opcode)
                 ? false
                 : fragments->Items[lhsOperand].Nullable || fragments->Items[rhsOperand].Nullable;
@@ -490,120 +580,175 @@ size_t TExpressionProfiler::Profile(
                 rhsOperand,
                 binaryOp->Type,
                 "{" + InferName(binaryOp, true) + "}"),
-                expr->Type,
+                binaryOp->Type,
                 nullable);
         }
         return emplaced.first->second;
+}
+
+size_t TExpressionProfiler::Profile(
+    const TInExpression* inExpr,
+    const TTableSchema& schema,
+    TExpressionFragments* fragments,
+    bool isIsolated)
+{
+    llvm::FoldingSetNodeID id;
+    id.AddInteger(static_cast<ui16>(inExpr->Type));
+
+    id.AddInteger(static_cast<int>(EFoldingObjectType::InExpr));
+
+    std::vector<size_t> argIds;
+    for (const auto& argument : inExpr->Arguments) {
+        argIds.push_back(Profile(argument, schema, fragments, isIsolated));
+        id.AddInteger(argIds.back());
+    }
+
+    auto savedId = id;
+    for (const auto& value : inExpr->Values) {
+        id.AddString(ToString(value).c_str());
+    }
+
+    auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());
+    if (emplaced.second || isIsolated) {
+        Fold(savedId);
+        for (size_t argId : argIds) {
+            ++fragments->Items[argId].UseCount;
+        }
+
+        int index = Variables_->AddOpaque<TSharedRange<TRow>>(inExpr->Values);
+        int hashtableIndex = Variables_->AddOpaque<std::unique_ptr<TLookupRows>>();
+        fragments->DebugInfos.emplace_back(inExpr, argIds);
+        fragments->Items.emplace_back(
+            MakeCodegenInExpr(argIds, index, hashtableIndex, ComparerManager_),
+            inExpr->Type,
+            false);
+    }
+    return emplaced.first->second;
+}
+
+size_t TExpressionProfiler::Profile(
+    const TBetweenExpression* betweenExpr,
+    const TTableSchema& schema,
+    TExpressionFragments* fragments,
+    bool isIsolated)
+{
+    llvm::FoldingSetNodeID id;
+    id.AddInteger(static_cast<ui16>(betweenExpr->Type));
+
+    id.AddInteger(static_cast<int>(EFoldingObjectType::BetweenExpr));
+
+    std::vector<size_t> argIds;
+    for (const auto& argument : betweenExpr->Arguments) {
+        argIds.push_back(Profile(argument, schema, fragments, isIsolated));
+        id.AddInteger(argIds.back());
+    }
+
+    auto savedId = id;
+    for (const auto& range : betweenExpr->Ranges) {
+        id.AddString(ToString(range.first).c_str());
+        id.AddString(ToString(range.second).c_str());
+    }
+
+    auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());
+    if (emplaced.second || isIsolated) {
+        Fold(savedId);
+        for (size_t argId : argIds) {
+            ++fragments->Items[argId].UseCount;
+        }
+
+        int index = Variables_->AddOpaque<TSharedRange<TRowRange>>(betweenExpr->Ranges);
+        fragments->DebugInfos.emplace_back(betweenExpr, argIds);
+        fragments->Items.emplace_back(
+            MakeCodegenBetweenExpr(argIds, index, ComparerManager_),
+            betweenExpr->Type,
+            false);
+    }
+    return emplaced.first->second;
+}
+
+size_t TExpressionProfiler::Profile(
+    const TTransformExpression* transformExpr,
+    const TTableSchema& schema,
+    TExpressionFragments* fragments,
+    bool isIsolated)
+{
+    llvm::FoldingSetNodeID id;
+    id.AddInteger(static_cast<ui16>(transformExpr->Type));
+
+    id.AddInteger(static_cast<int>(EFoldingObjectType::TransformExpr));
+
+    std::vector<size_t> argIds;
+    for (const auto& argument : transformExpr->Arguments) {
+        argIds.push_back(Profile(argument, schema, fragments, isIsolated));
+        id.AddInteger(argIds.back());
+    }
+
+    std::optional<size_t> defaultExprId;
+    if (const auto& defaultExpression = transformExpr->DefaultExpression) {
+        defaultExprId = Profile(defaultExpression, schema, fragments, isIsolated);
+        id.AddInteger(*defaultExprId);
+    }
+
+    auto savedId = id;
+    for (const auto& value : transformExpr->Values) {
+        id.AddString(ToString(value).c_str());
+    }
+
+    auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());
+    if (emplaced.second || isIsolated) {
+        Fold(savedId);
+        for (size_t argId : argIds) {
+            ++fragments->Items[argId].UseCount;
+        }
+
+        bool nullable = true;
+
+        if (defaultExprId) {
+            ++fragments->Items[*defaultExprId].UseCount;
+
+            nullable = false;
+            nullable |= fragments->Items[*defaultExprId].Nullable;
+
+            for (TRow row : transformExpr->Values) {
+                nullable |= row[argIds.size()].Type == EValueType::Null;
+            }
+        }
+
+        int index = Variables_->AddOpaque<TSharedRange<TRow>>(transformExpr->Values);
+        int hashtableIndex = Variables_->AddOpaque<std::unique_ptr<TLookupRows>>();
+
+        fragments->DebugInfos.emplace_back(transformExpr, argIds, defaultExprId);
+        fragments->Items.emplace_back(
+            MakeCodegenTransformExpr(argIds, defaultExprId, index, hashtableIndex, transformExpr->Type, ComparerManager_),
+            transformExpr->Type,
+            nullable);
+    }
+    return emplaced.first->second;
+
+}
+
+size_t TExpressionProfiler::Profile(
+    const TConstExpressionPtr& expr,
+    const TTableSchema& schema,
+    TExpressionFragments* fragments,
+    bool isIsolated)
+{
+    if (auto literalExpr = expr->As<TLiteralExpression>()) {
+        return Profile(literalExpr, schema, fragments, isIsolated);
+    } else if (auto referenceExpr = expr->As<TReferenceExpression>()) {
+        return Profile(referenceExpr, schema, fragments, isIsolated);
+    } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
+        return Profile(functionExpr, schema, fragments, isIsolated);
+    } else if (auto unaryOp = expr->As<TUnaryOpExpression>()) {
+        return Profile(unaryOp, schema, fragments, isIsolated);
+    } else if (auto binaryOp = expr->As<TBinaryOpExpression>()) {
+        return Profile(binaryOp, schema, fragments, isIsolated);
     } else if (auto inExpr = expr->As<TInExpression>()) {
-        id.AddInteger(static_cast<int>(EFoldingObjectType::InExpr));
-
-        std::vector<size_t> argIds;
-        for (const auto& argument : inExpr->Arguments) {
-            argIds.push_back(Profile(argument, schema, fragments, isIsolated));
-            id.AddInteger(argIds.back());
-        }
-
-        auto savedId = id;
-        for (const auto& value : inExpr->Values) {
-            id.AddString(ToString(value).c_str());
-        }
-
-        auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());
-        if (emplaced.second || isIsolated) {
-            Fold(savedId);
-            for (size_t argId : argIds) {
-                ++fragments->Items[argId].UseCount;
-            }
-
-            int index = Variables_->AddOpaque<TSharedRange<TRow>>(inExpr->Values);
-            int hashtableIndex = Variables_->AddOpaque<std::unique_ptr<TLookupRows>>();
-            fragments->DebugInfos.emplace_back(expr, argIds);
-            fragments->Items.emplace_back(
-                MakeCodegenInExpr(argIds, index, hashtableIndex, ComparerManager_),
-                expr->Type,
-                false);
-        }
-        return emplaced.first->second;
+        return Profile(inExpr, schema, fragments, isIsolated);
     } else if (auto betweenExpr = expr->As<TBetweenExpression>()) {
-        id.AddInteger(static_cast<int>(EFoldingObjectType::BetweenExpr));
-
-        std::vector<size_t> argIds;
-        for (const auto& argument : betweenExpr->Arguments) {
-            argIds.push_back(Profile(argument, schema, fragments, isIsolated));
-            id.AddInteger(argIds.back());
-        }
-
-        auto savedId = id;
-        for (const auto& range : betweenExpr->Ranges) {
-            id.AddString(ToString(range.first).c_str());
-            id.AddString(ToString(range.second).c_str());
-        }
-
-        auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());
-        if (emplaced.second || isIsolated) {
-            Fold(savedId);
-            for (size_t argId : argIds) {
-                ++fragments->Items[argId].UseCount;
-            }
-
-            int index = Variables_->AddOpaque<TSharedRange<TRowRange>>(betweenExpr->Ranges);
-            fragments->DebugInfos.emplace_back(expr, argIds);
-            fragments->Items.emplace_back(
-                MakeCodegenBetweenExpr(argIds, index, ComparerManager_),
-                expr->Type,
-                false);
-        }
-        return emplaced.first->second;
+        return Profile(betweenExpr, schema, fragments, isIsolated);
     } else if (auto transformExpr = expr->As<TTransformExpression>()) {
-        id.AddInteger(static_cast<int>(EFoldingObjectType::TransformExpr));
-
-        std::vector<size_t> argIds;
-        for (const auto& argument : transformExpr->Arguments) {
-            argIds.push_back(Profile(argument, schema, fragments, isIsolated));
-            id.AddInteger(argIds.back());
-        }
-
-        std::optional<size_t> defaultExprId;
-        if (const auto& defaultExpression = transformExpr->DefaultExpression) {
-            defaultExprId = Profile(defaultExpression, schema, fragments, isIsolated);
-            id.AddInteger(*defaultExprId);
-        }
-
-        auto savedId = id;
-        for (const auto& value : transformExpr->Values) {
-            id.AddString(ToString(value).c_str());
-        }
-
-        auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());
-        if (emplaced.second || isIsolated) {
-            Fold(savedId);
-            for (size_t argId : argIds) {
-                ++fragments->Items[argId].UseCount;
-            }
-
-            bool nullable = true;
-
-            if (defaultExprId) {
-                ++fragments->Items[*defaultExprId].UseCount;
-
-                nullable = false;
-                nullable |= fragments->Items[*defaultExprId].Nullable;
-
-                for (TRow row : transformExpr->Values) {
-                    nullable |= row[argIds.size()].Type == EValueType::Null;
-                }
-            }
-
-            int index = Variables_->AddOpaque<TSharedRange<TRow>>(transformExpr->Values);
-            int hashtableIndex = Variables_->AddOpaque<std::unique_ptr<TLookupRows>>();
-
-            fragments->DebugInfos.emplace_back(expr, argIds, defaultExprId);
-            fragments->Items.emplace_back(
-                MakeCodegenTransformExpr(argIds, defaultExprId, index, hashtableIndex, transformExpr->Type, ComparerManager_),
-                expr->Type,
-                nullable);
-        }
-        return emplaced.first->second;
+        return Profile(transformExpr, schema, fragments, isIsolated);
     }
 
     YT_ABORT();
