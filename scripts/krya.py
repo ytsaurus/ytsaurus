@@ -53,8 +53,14 @@ DEFAULT_CONFIG = """\
 
     // Arguments that will be used when yall is invoked.
     // Example:
-    // "yall_arguments": ["--do-not-force-vcs-info"] 
-    "yall_arguments": [] 
+    // "yall_arguments": ["--do-not-force-vcs-info"],
+    "yall_arguments": [],
+
+    // Environment variables of yall.
+    // Example:
+    // "yall_env": {"YT_BUILD_PYTHON_VERSION": "3.6"}
+
+    "yall_env": {}
 }
 """
 
@@ -129,6 +135,7 @@ def load_config():
         "enable_yt_store",
         "enable_dist_build",
         "yall_arguments",
+        "yall_env",
     ])
     return config_cls(
         local_build=cfg.get("local_build", False),
@@ -138,6 +145,7 @@ def load_config():
         enable_yt_store=cfg.get("enable_yt_store", False),
         enable_dist_build=cfg.get("enable_dist_build", False),
         yall_arguments=cfg.get("yall_arguments", []),
+        yall_env=cfg.get("yall_env", {})
     )
 
 
@@ -226,6 +234,12 @@ def create_build_command(build_cmd, args, rest_args, remote):
 
     if cfg.yall_arguments and build_cmd[0] == "./yall":
         ya_args += cfg.yall_arguments
+
+    if cfg.yall_env and build_cmd[0] == "./yall":
+        env_args = ["env"]
+        for k, v in cfg.yall_env.items():
+            env_args.append("{}={}".format(k,v))
+        ya_args = env_args + ya_args
 
     return ya_args
 
