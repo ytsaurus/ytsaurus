@@ -2290,7 +2290,7 @@ class TestSchedulerPoolsReconfigurationNew(YTEnvSetup):
 
         wait(lambda: self.get_pool_parent("test_pool") == "<Root>")
         ephemeral_pools = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/user_to_ephemeral_pools/root"
-        assert get(ephemeral_pools) == []
+        wait(lambda: get(ephemeral_pools) == [])
 
     def wait_pool_exists(self, pool):
         wait(lambda: exists(self.orchid_pools + "/" + pool), sleep_backoff=0.1)
