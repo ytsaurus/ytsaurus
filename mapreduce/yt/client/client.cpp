@@ -1096,6 +1096,16 @@ IClientPtr CreateClient(
     return new NDetail::TClient(auth, globalTxId, CreateDefaultClientRetryPolicy(retryConfigProvider));
 }
 
+IClientPtr CreateClientFromEnv(const TCreateClientOptions& options)
+{
+    auto serverName = GetEnv("YT_PROXY");
+    if (!serverName) {
+        ythrow yexception() << "YT_PROXY is not set";
+    }
+
+    return CreateClient(serverName, options);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

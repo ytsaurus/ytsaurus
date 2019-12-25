@@ -97,15 +97,18 @@ TNode TConfig::LoadJsonSpec(const TString& strSpec)
 
 void TConfig::LoadToken()
 {
-    TString envToken = GetEnv("YT_TOKEN");
-    if (envToken) {
+    if (auto envToken = GetEnv("YT_TOKEN")) {
         Token = envToken;
-    } else {
-        TString tokenPath = GetEnv("YT_TOKEN_PATH");
-        if (!tokenPath) {
-            tokenPath = GetHomeDir() + "/.yt/token";
-        }
+    } else if (auto envToken = GetEnv("YT_SECURE_VAULT_YT_TOKEN")) {
+        // If this code runs inside an vanilla peration in YT
+        // it should not use regular environment variable `YT_TOKEN`
+        // because it would be visible in UI.
+        // Token should be passed via `secure_vault` parameter in operation spec.
+        Token = envToken;
+    } else if (auto tokenPath = GetEnv("YT_TOKEN_PATH")) {
         Token = LoadTokenFromFile(tokenPath);
+    } else {
+        Token = LoadTokenFromFile(GetHomeDir() + "/.yt/token");
     }
     ValidateToken(Token);
 }
