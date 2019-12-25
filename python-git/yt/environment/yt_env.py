@@ -215,7 +215,9 @@ class YTInstance(object):
         makedirp(self.runtime_data_path)
 
         self.stderrs_path = os.path.join(self.path, "stderrs")
+        self.backtraces_path = os.path.join(self.path, "backtraces")
         makedirp(self.stderrs_path)
+        makedirp(self.backtraces_path)
         self._stderr_paths = defaultdict(list)
 
         self._tmpfs_path = tmpfs_path
@@ -1425,6 +1427,17 @@ class YTInstance(object):
             current_wait_time += sleep_quantum
 
         self._process_stderrs(name)
+
+        for index, process in enumerate(self._service_processes[name]):
+            if process is None:
+                continue
+            if process.poll() is None:
+                subprocess.check_call(
+                    "gdb -p {} -ex 'set confirm off' -ex 'set pagination off' -ex 'thread apply all bt' -ex 'quit'".format(process.pid),
+                    stdout=open(os.path.join(self.backtraces_path, "gdb.{}-{}".format(name, index)), "w"),
+                    shell=True
+                )
+
 
         error = YtError("{0} still not ready after {1} seconds. See logs in working dir for details."
                         .format(name.capitalize(), max_wait_time))
