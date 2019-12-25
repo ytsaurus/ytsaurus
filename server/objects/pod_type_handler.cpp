@@ -201,7 +201,10 @@ public:
                     ->SetControl<TPod, NClient::NApi::NProto::TPodControl_TAbortEviction>(std::bind(&TPodTypeHandler::AbortEviction, this, _1, _2, _3)),
 
                 MakeAttributeSchema("touch_master_spec_timestamp")
-                    ->SetControl<TPod, NClient::NApi::NProto::TPodControl_TTouchMasterSpecTimestamp>(std::bind(&TPodTypeHandler::TouchMasterSpecTimestamp, this, _1, _2, _3))
+                    ->SetControl<TPod, NClient::NApi::NProto::TPodControl_TTouchMasterSpecTimestamp>(std::bind(&TPodTypeHandler::TouchMasterSpecTimestamp, this, _1, _2, _3)),
+
+                MakeAttributeSchema("reallocate_resources")
+                    ->SetControl<TPod, NClient::NApi::NProto::TPodControl_TReallocateResources>(std::bind(&TPodTypeHandler::ReallocateResources, this, _1, _2, _3))
             });
 
         LabelsAttributeSchema_
@@ -521,6 +524,29 @@ private:
             message);
 
         pod->Spec().UpdateTimestamp().Touch();
+    }
+
+    void ReallocateResources(
+        TTransaction* transaction,
+        TPod* pod,
+        const NClient::NApi::NProto::TPodControl_TReallocateResources& control)
+    {
+        // NB! We want to notify node about updates.
+        pod->Spec().UpdateTimestamp().Touch();
+        if (auto* node = pod->Spec().Node().Load(); node) {
+            transaction->ScheduleNotifyAgent(node);
+        }
+
+        auto message = control.message();
+        if (!message) {
+            message = "Pod resources reallocation requested by client";
+        }
+
+        YT_LOG_DEBUG("Pod resources reallocation requested (PodId: %v, Message: %v)",
+            pod->GetId(),
+            message);
+
+        transaction->ScheduleAllocateResources(pod);
     }
 
     void ValidateAccount(TTransaction* /*transaction*/, TPod* pod)

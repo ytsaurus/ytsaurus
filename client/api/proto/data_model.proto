@@ -1343,24 +1343,35 @@ message TPodControl
         optional string message = 1;
     }
 
-    // Acknowledges eviction of a pod.
+    message TReallocateResources
+    {
+        // Comment for the reallocation.
+        optional string message = 1;
+    }
+
+    // Acknowledges eviction of the pod.
     // Pod must have /status/eviction/state == "requested" prior to this call and
     // the latter changes it to "acknowledged".
     optional TAcknowledgeEviction acknowledge_eviction = 1;
 
-    // Requests eviction of a pod.
+    // Requests eviction of the pod.
     // Pod must have /status/eviction/state == "none" prior to this call and
     // the latter changes it to "requested".
     // Successful request decrements pod disruption budget if any.
     optional TRequestEviction request_eviction = 2;
 
-    // Aborts eviction of a pod.
+    // Aborts eviction of the pod.
     // Pod must have /status/eviction/state == "requested" prior to this call and
     // the latter changes it to "none".
     optional TAbortEviction abort_eviction = 3;
 
     // Updates master spec timestamp.
     optional TTouchMasterSpecTimestamp touch_master_spec_timestamp = 4;
+
+    // Reallocates resources of the pod.
+    // The method just schedules reallocation;
+    // actual reallocation is deferred to the transaction commit.
+    optional TReallocateResources reallocate_resources = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

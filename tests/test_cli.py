@@ -4,6 +4,7 @@ from .conftest import (
     create_pod_with_boilerplate,
     get_pod_scheduling_status,
     is_assigned_pod_scheduling_status,
+    is_pod_assigned,
 )
 
 from yp.common import wait
@@ -216,7 +217,7 @@ class TestCli(object):
         cli = create_cli(yp_env)
         yp_client = yp_env.yp_client
 
-        create_nodes(yp_client, 1)[0]
+        create_nodes(yp_client, 1)
         pod_set_id = yp_client.create_object("pod_set")
         pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, dict(enable_scheduling=True))
         wait(lambda: is_assigned_pod_scheduling_status(get_pod_scheduling_status(yp_client, pod_id)))
@@ -290,7 +291,97 @@ class TestCli(object):
         yp_client.commit_transaction(tx_id)
         timestamps2 = get_timestamps()
         assert all(timestamps2[i] > timestamps1[i] for i in range(5)) and timestamps1[5:] == timestamps2[5:]
-        timestamps1 = timestamps2
+
+    def test_pod_resources_reallocation(self, yp_env):
+        cli = create_cli(yp_env)
+        yp_client = yp_env.yp_client
+
+        def _get_the_only_ip6_address_allocation(pod_dump):
+            allocations = pod_dump["status"]["ip6_address_allocations"]
+            assert len(allocations) == 1
+            return allocations[0]
+
+        def _get_the_only_address_by_fqdn(fqdn):
+            records = yp_client.get_object(
+                "dns_record_set",
+                fqdn,
+                selectors=["/spec/records"],
+            )[0]
+            assert len(records) == 1
+            return records[0]["data"]
+
+        node_count = 2
+        vlan_id = "backbone"
+
+        create_nodes(yp_client, node_count, cpu_total_capacity=200, vlan_id=vlan_id)
+        pod_set_id = create_pod_set(yp_client)
+        network_project_id = yp_client.create_object("network_project", {
+            "meta": {"id": "somenet"},
+            "spec": {"project_id": 42},
+        })
+
+        def _create_pod(enable_scheduling):
+            return yp_client.create_object("pod", {
+                "meta": {"pod_set_id": pod_set_id},
+                "spec": {
+                    "enable_scheduling": enable_scheduling,
+                    "ip6_address_requests": [{
+                        "vlan_id": vlan_id,
+                        "network_id": network_project_id,
+                        "enable_dns": True,
+                        "labels": {"some_key": "some_value"},
+                    }],
+                    "resource_requests": {
+                        "vcpu_guarantee": 100,
+                        "vcpu_limit": 100,
+                        "memory_guarantee": 128 * 1024 * 1024,
+                        "memory_limit": 128 * 1024 * 1024,
+                    },
+                }
+            })
+
+        pod_id = _create_pod(True)
+        nonschedulable_pod_id = _create_pod(False)
+
+        wait(lambda: is_pod_assigned(yp_client, pod_id))
+
+        initial_pod_dump = yp_client.get_object("pod", pod_id, [""])[0]
+        initial_pod_dump_nonschedulable = yp_client.get_object("pod", nonschedulable_pod_id, [""])[0]
+
+        initial_allocation = _get_the_only_ip6_address_allocation(initial_pod_dump)
+        assert _get_the_only_address_by_fqdn(initial_allocation["persistent_fqdn"]) == initial_allocation["address"]
+
+        node_id = initial_pod_dump["spec"]["node_id"]
+        yp_client.update_object("node", node_id, [{
+            "path": "/spec/ip6_subnets/0/subnet",
+            "value": "4:3:2:1::/64",
+        }])
+
+        cli.check_output(["reallocate-pod-resources", pod_id])
+        cli.check_output(["reallocate-pod-resources", nonschedulable_pod_id])
+
+        updated_pod_dump = yp_client.get_object("pod", pod_id, [""])[0]
+        updated_pod_dump_nonschedulable = yp_client.get_object("pod", nonschedulable_pod_id, [""])[0]
+        updated_allocation = _get_the_only_ip6_address_allocation(updated_pod_dump)
+
+        assert "ip6_address_allocations" not in updated_pod_dump_nonschedulable
+        assert initial_allocation["address"] != updated_allocation["address"]
+        assert _get_the_only_address_by_fqdn(updated_allocation["persistent_fqdn"]) == updated_allocation["address"]
+
+        for field_name in ("vlan_id", "labels", "persistent_fqdn", "transient_fqdn"):
+            assert initial_allocation[field_name] == updated_allocation[field_name]
+
+        assert initial_pod_dump["status"]["master_spec_timestamp"] < updated_pod_dump["status"]["master_spec_timestamp"]
+        assert initial_pod_dump_nonschedulable["status"]["master_spec_timestamp"] < updated_pod_dump_nonschedulable["status"]["master_spec_timestamp"]
+
+        for pod_dump in [initial_pod_dump, updated_pod_dump, initial_pod_dump_nonschedulable, updated_pod_dump_nonschedulable]:
+            del pod_dump["spec"]["ip6_address_requests"]
+            del pod_dump["status"]["master_spec_timestamp"]
+            if pod_dump["status"].get("ip6_address_allocations", None):
+                del pod_dump["status"]["ip6_address_allocations"]
+
+        assert initial_pod_dump_nonschedulable == updated_pod_dump_nonschedulable
+        assert initial_pod_dump == updated_pod_dump
 
     def test_aggregate(self, yp_env):
         cli = create_cli(yp_env)
