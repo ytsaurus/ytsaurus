@@ -154,7 +154,9 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeShardEvent& event)
     // Prepare scheduling context.
     const auto& jobsSet = node->Jobs();
     std::vector<TJobPtr> nodeJobs(jobsSet.begin(), jobsSet.end());
-    auto context = New<TSchedulingContext>(SchedulerConfig_, node, nodeJobs);
+    // NB(eshcherbin): We usually create a lot of simulator node shards running over a small thread pool to
+    // introduce artificial contention. Thus we need to reduce the shard id to the range [0, MaxNodeShardCount).
+    auto context = New<TSchedulingContext>(ShardId_ % MaxNodeShardCount, SchedulerConfig_, node, nodeJobs);
     context->SetNow(NProfiling::InstantToCpuInstant(event.Time));
 
     SchedulingStrategy_->ScheduleJobs(context);
