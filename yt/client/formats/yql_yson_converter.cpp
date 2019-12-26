@@ -558,8 +558,8 @@ public:
             weight += consumer->OnBeginList();
         }
 
-        if (Y_UNLIKELY(value.Type != Type)) {
-            THROW_ERROR_EXCEPTION("Bad value type: expected %Qlv, got %Qlv",
+        if (Y_UNLIKELY(Type != EValueType::Any && value.Type != Type)) {
+            THROW_ERROR_EXCEPTION("Bad value Type: expected %Qlv, got %Qlv",
                 Type,
                 value.Type);
         }
@@ -578,7 +578,7 @@ public:
         } else if constexpr (Type == EValueType::Any) {
             weight += consumer->TransferYsonWeightLimited(
                 [value] (IYsonConsumer* ysonConsumer) {
-                    ParseYsonStringBuffer(TStringBuf(value.Data.String, value.Length), EYsonType::Node, ysonConsumer);
+                    Serialize(value, ysonConsumer);
                 },
                 weightLimit);
         } else if constexpr (Type == EValueType::Null) {

@@ -1334,6 +1334,75 @@ TEST_F(TWriterForWebJson, YqlValueFormat_Incomplete)
     CheckYqlTypeAndValue(row, "column_c", yqlTypeC, rowCValue, yqlTypes);
 }
 
+
+TEST_F(TWriterForWebJson, YqlValueFormat_Any)
+{
+    Config_->ValueFormat = EWebJsonValueFormat::Yql;
+
+    auto schema = TTableSchema({
+        {"column_a", MakeLogicalType(ESimpleLogicalValueType::Any, false)},
+    });
+
+    auto yqlTypeA = ConvertToNode(TYsonString(R"([
+        "OptionalType";
+        ["DataType"; "Yson"]
+    ])"));
+
+    CreateStandardWriter({schema});
+    {
+        TUnversionedOwningRowBuilder builder;
+        builder.AddValue(MakeUnversionedAnyValue("{x=y;z=2}", KeyAId_));
+        EXPECT_EQ(true, Writer_->Write({builder.FinishRow()}));
+        builder.AddValue(MakeUnversionedBooleanValue(true, KeyAId_));
+        EXPECT_EQ(true, Writer_->Write({builder.FinishRow()}));
+        builder.AddValue(MakeUnversionedInt64Value(-42, KeyAId_));
+        EXPECT_EQ(true, Writer_->Write({builder.FinishRow()}));
+        builder.AddValue(MakeUnversionedUint64Value(42u, KeyAId_));
+        EXPECT_EQ(true, Writer_->Write({builder.FinishRow()}));
+
+        Writer_->Close().Get().ThrowOnError();
+    }
+
+    auto result = ParseJsonToNode(OutputStream_.Str());
+    ASSERT_EQ(result->GetType(), ENodeType::Map);
+
+    auto rows = result->AsMap()->FindChild("rows");
+    ASSERT_TRUE(rows);
+    auto yqlTypeRegistry = result->AsMap()->FindChild("yql_type_registry");
+    ASSERT_TRUE(yqlTypeRegistry);
+
+    ASSERT_EQ(yqlTypeRegistry->GetType(), ENodeType::List);
+    auto yqlTypes = ConvertTo<std::vector<INodePtr>>(yqlTypeRegistry);
+
+    ASSERT_EQ(rows->GetType(), ENodeType::List);
+    ASSERT_EQ(rows->AsList()->GetChildCount(), 4);
+
+    {
+        auto row = rows->AsList()->GetChild(0);
+        ASSERT_EQ(row->GetType(), ENodeType::Map);
+        auto rowAValue = ConvertToNode(TYsonString(R"(["{\"x\"=\"y\";\"z\"=2;}"])"));
+        CheckYqlTypeAndValue(row, "column_a", yqlTypeA, rowAValue, yqlTypes);
+    }
+    {
+        auto row = rows->AsList()->GetChild(1);
+        ASSERT_EQ(row->GetType(), ENodeType::Map);
+        auto rowAValue = ConvertToNode(TYsonString(R"(["%true"])"));
+        CheckYqlTypeAndValue(row, "column_a", yqlTypeA, rowAValue, yqlTypes);
+    }
+    {
+        auto row = rows->AsList()->GetChild(2);
+        ASSERT_EQ(row->GetType(), ENodeType::Map);
+        auto rowAValue = ConvertToNode(TYsonString(R"(["-42"])"));
+        CheckYqlTypeAndValue(row, "column_a", yqlTypeA, rowAValue, yqlTypes);
+    }
+    {
+        auto row = rows->AsList()->GetChild(3);
+        ASSERT_EQ(row->GetType(), ENodeType::Map);
+        auto rowAValue = ConvertToNode(TYsonString(R"(["42u"])"));
+        CheckYqlTypeAndValue(row, "column_a", yqlTypeA, rowAValue, yqlTypes);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

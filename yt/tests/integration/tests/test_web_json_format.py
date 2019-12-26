@@ -38,7 +38,7 @@ COLUMN_LIST = [
         optional_type("any"),
         [
             [110, "xxx", {"foo": "bar"}],
-            {"f": "b"},
+            "just a string",
         ],
         [
             {
@@ -48,8 +48,8 @@ COLUMN_LIST = [
             },
             {
                 "$incomplete": True,
-                "$type": "any",
-                "$value": ""
+                "$type": "string",
+                "$value": "just a ",
             },
         ],
         False),
@@ -303,7 +303,7 @@ def get_output_yql_rows():
                 ["OptionalType", ["DataType", "String"]]
             ],
             "yson32_column": [
-                ["{\"f\"=\"b\";}"],
+                ['"just a string"'],
                 ["OptionalType", ["DataType", "Yson"]]
             ],
             "int64_column": [
@@ -372,6 +372,14 @@ def get_expected_output(dynamic=False, ordered=False):
             continue
         for i in xrange(2):
             rows[i][column.name] = column.expected[i]
+
+    if dynamic:
+        # insert_rows actually writes value with type "any".
+        rows[1]["yson32_column"] = {
+            "$incomplete": True,
+            "$type": "any",
+            "$value": "",
+        }
 
     return {
         "rows": rows,
@@ -504,6 +512,8 @@ class TestWebJsonFormat(YTEnvSetup):
 
         expected_output = get_expected_output(dynamic=True)
         expected_output["rows"].sort(key=lambda c: c["string32_column"]["$value"])
+        print(output)
+        print(expected_output)
         assert output == expected_output
 
         sync_unmount_table(TABLE_PATH)
