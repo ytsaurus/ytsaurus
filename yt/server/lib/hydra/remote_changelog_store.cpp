@@ -77,11 +77,11 @@ public:
         return ReachableVersion_;
     }
 
-    virtual TFuture<IChangelogPtr> CreateChangelog(int id, const TChangelogMeta& meta) override
+    virtual TFuture<IChangelogPtr> CreateChangelog(int id, const TChangelogMeta& /*meta*/) override
     {
         return BIND(&TRemoteChangelogStore::DoCreateChangelog, MakeStrong(this))
             .AsyncVia(GetHydraIOInvoker())
-            .Run(id, meta);
+            .Run(id);
     }
 
     virtual TFuture<IChangelogPtr> OpenChangelog(int id) override
@@ -110,7 +110,7 @@ private:
     const NLogging::TLogger Logger;
 
 
-    IChangelogPtr DoCreateChangelog(int id, const TChangelogMeta& meta)
+    IChangelogPtr DoCreateChangelog(int id)
     {
         auto path = GetChangelogPath(Path_, id);
         try {
@@ -129,7 +129,6 @@ private:
                 attributes->Set("write_quorum", Options_->ChangelogWriteQuorum);
                 attributes->Set("account", Options_->ChangelogAccount);
                 attributes->Set("primary_medium", Options_->ChangelogPrimaryMedium);
-                attributes->Set("prev_record_count", meta.prev_record_count());
                 options.Attributes = std::move(attributes);
                 options.PrerequisiteTransactionIds.push_back(PrerequisiteTransaction_->GetId());
 
@@ -160,7 +159,6 @@ private:
             return CreateRemoteChangelog(
                 id,
                 path,
-                meta,
                 writer,
                 0,
                 0);
@@ -175,7 +173,6 @@ private:
     {
         auto path = GetChangelogPath(Path_, id);
         try {
-            TChangelogMeta meta;
             int recordCount;
             i64 dataSize;
 
@@ -183,7 +180,7 @@ private:
                 id);
             {
                 TGetNodeOptions options;
-                options.Attributes = {"prev_record_count", "uncompressed_data_size", "quorum_row_count"};
+                options.Attributes = {"uncompressed_data_size", "quorum_row_count"};
                 auto result = WaitFor(Client_->GetNode(path, options));
                 if (result.FindMatching(NYTree::EErrorCode::ResolveError)) {
                     THROW_ERROR_EXCEPTION(
@@ -196,7 +193,6 @@ private:
                 auto node = ConvertToNode(result.ValueOrThrow());
                 const auto& attributes = node->Attributes();
 
-                meta.set_prev_record_count(attributes.Get<int>("prev_record_count"));
                 dataSize = attributes.Get<i64>("uncompressed_data_size");
                 recordCount = attributes.Get<int>("quorum_row_count");
             }
@@ -206,7 +202,6 @@ private:
             return CreateRemoteChangelog(
                 id,
                 path,
-                meta,
                 nullptr,
                 recordCount,
                 dataSize);
@@ -220,14 +215,12 @@ private:
     IChangelogPtr CreateRemoteChangelog(
         int id,
         const TYPath& path,
-        const TChangelogMeta& meta,
         IJournalWriterPtr writer,
         int recordCount,
         i64 dataSize)
     {
         return New<TRemoteChangelog>(
             path,
-            meta,
             recordCount,
             dataSize,
             writer,
@@ -241,13 +234,11 @@ private:
     public:
         TRemoteChangelog(
             const TYPath& path,
-            const TChangelogMeta& meta,
             int recordCount,
             i64 dataSize,
             IJournalWriterPtr writer,
             TRemoteChangelogStorePtr owner)
             : Path_(path)
-            , Meta_(meta)
             , Writer_(writer)
             , Owner_(owner)
             , RecordCount_(recordCount)

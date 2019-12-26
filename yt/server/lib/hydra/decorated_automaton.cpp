@@ -939,19 +939,65 @@ void TDecoratedAutomaton::DoRotateChangelog()
     auto rotatedVersion = loggedVersion.Rotate();
 
     if (Changelog_) {
+        int currentChangelogId = loggedVersion.SegmentId;
+        int nextChangelogId = rotatedVersion.SegmentId;
+
+        YT_LOG_INFO("Started flushing changelog (ChangelogId: %v)",
+            currentChangelogId);
         WaitFor(Changelog_->Flush())
             .ThrowOnError();
+        YT_LOG_INFO("Finished flushing changelog (ChangelogId: %v)",
+            currentChangelogId);
 
         YT_VERIFY(loggedVersion.RecordId == Changelog_->GetRecordCount());
 
-        TChangelogMeta meta;
-        meta.set_prev_record_count(loggedVersion.RecordId);
+        YT_LOG_INFO("Started closing changelog (ChangelogId: %v)",
+            currentChangelogId);
+        Changelog_->Close()
+            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+                if (error.IsOK()) {
+                    YT_LOG_INFO("Finished closing changelog (ChangelogId: %v)",
+                        currentChangelogId);
+                } else {
+                    YT_LOG_WARNING(error, "Error closing changelog (ChangelogId: %v)",
+                        currentChangelogId);
+                }
+            }));
 
-        auto asyncNewChangelog = EpochContext_->ChangelogStore->CreateChangelog(
-            rotatedVersion.SegmentId,
-            meta);
-        Changelog_ = WaitFor(asyncNewChangelog)
+        if (!NextChangelogFuture_) {
+            YT_LOG_INFO("Creating changelog (ChangelogId: %v)",
+                nextChangelogId);
+            TChangelogMeta meta;
+            meta.set_prev_record_count(loggedVersion.RecordId);
+            NextChangelogFuture_ = EpochContext_->ChangelogStore->CreateChangelog(nextChangelogId, meta);
+        }
+
+        YT_LOG_INFO("Waiting for changelog to open (ChangelogId: %v)",
+            nextChangelogId);
+        Changelog_ = WaitFor(NextChangelogFuture_)
             .ValueOrThrow();
+        YT_LOG_INFO("Changelog opened (ChangelogId: %v)",
+            nextChangelogId);
+
+        NextChangelogFuture_.Reset();
+
+        if (Config_->PreallocateChangelogs) {
+            int preallocatedChangelogId = rotatedVersion.SegmentId + 1;
+            YT_LOG_INFO("Started preallocating changelog (ChangelogId: %v)",
+                preallocatedChangelogId);
+            NextChangelogFuture_ =
+                EpochContext_->ChangelogStore->CreateChangelog(preallocatedChangelogId, {})
+                    .Apply(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<IChangelogPtr>& changelogOrError) {
+                        if (changelogOrError.IsOK()) {
+                            YT_LOG_INFO("Finished preallocating changelog (ChangelogId: %v)",
+                                preallocatedChangelogId);
+                        } else {
+                            YT_LOG_WARNING(changelogOrError, "Error preallocating changelog (ChangelogId: %v)",
+                                preallocatedChangelogId);
+                        }
+                        return changelogOrError;
+                    }));
+        }
     }
 
     LoggedVersion_ = rotatedVersion;
@@ -1250,6 +1296,7 @@ void TDecoratedAutomaton::StopEpoch()
 
     RotatingChangelog_ = false;
     Changelog_.Reset();
+    NextChangelogFuture_.Reset();
     {
         TWriterGuard guard(EpochContextLock_);
         TEpochContextPtr epochContext;

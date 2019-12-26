@@ -308,6 +308,9 @@ public:
      */
     i64 MaxChangelogDataSize;
 
+    //! If true, empty changelogs are preallocated to avoid hiccups of segment rotation.
+    bool PreallocateChangelogs;
+
     //! Interval between automatic "heartbeat" mutations commit.
     /*!
      *  These mutations are no-ops. Committing them regularly helps to ensure
@@ -388,6 +391,8 @@ public:
         RegisterParameter("max_changelog_data_size", MaxChangelogDataSize)
             .Default(1_GB)
             .GreaterThan(0);
+        RegisterParameter("preallocate_changelogs", PreallocateChangelogs)
+            .Default(false);
 
         RegisterParameter("heartbeat_mutation_period", HeartbeatMutationPeriod)
             .Default(TDuration::Seconds(60));

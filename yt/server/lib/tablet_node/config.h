@@ -38,6 +38,10 @@ public:
     {
         RegisterParameter("response_keeper", ResponseKeeper)
             .DefaultNew();
+
+        RegisterPreprocessor([&] {
+            PreallocateChangelogs = true;
+        });
     }
 };
 
