@@ -172,6 +172,7 @@ public:
             builder.AppendString(bind.TargetPath);
             builder.AppendString(" ");
             builder.AppendString(bind.IsReadOnly ? "ro" : "rw");
+            builder.AppendString(",rec");
             builder.AppendString(" ; ");
         }
 
@@ -358,6 +359,17 @@ public:
 
         return properties.at("absolute_name")
              .ValueOrThrow();
+    }
+
+    virtual TString GetStderr() const override
+    {
+        auto properties = WaitFor(Executor_->GetProperties(
+            Name_,
+            std::vector<TString>{"stderr"}))
+            .ValueOrThrow();
+
+        return properties.at("stderr")
+            .ValueOrThrow();
     }
 
     virtual void SetCpuShare(double cores) override

@@ -96,8 +96,6 @@ public:
 
     std::optional<TDuration> ResourceLimitsUpdatePeriod;
 
-    THashMap<TString, TString> ExternalBinds;
-
     double JobsIOWeight;
     double NodeDedicatedCpu;
 
@@ -113,8 +111,6 @@ public:
             .Default(false);
 
         RegisterParameter("resource_limits_update_period", ResourceLimitsUpdatePeriod)
-            .Default();
-        RegisterParameter("external_binds", ExternalBinds)
             .Default();
 
         RegisterParameter("jobs_io_weight", JobsIOWeight)
@@ -300,8 +296,6 @@ public:
     //! Instead of actually setting root fs, it just provides special environment variable.
     bool TestRootFS;
 
-    std::vector<TBindConfigPtr> RootFSBinds;
-
     int NodeDirectoryPrepareRetryCount;
     TDuration NodeDirectoryPrepareBackoffTime;
 
@@ -343,9 +337,6 @@ public:
 
         RegisterParameter("test_root_fs", TestRootFS)
             .Default(false);
-
-        RegisterParameter("root_fs_binds", RootFSBinds)
-            .Default();
 
         RegisterParameter("node_directory_prepare_retry_count", NodeDirectoryPrepareRetryCount)
             .Default(10);
