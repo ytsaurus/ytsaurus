@@ -1301,6 +1301,7 @@ def add_list_jobs_parser(add_parser):
     parser.add_argument("--job-type", help="filter jobs by job type")
     parser.add_argument("--job-state", help="filter jobs by job state")
     parser.add_argument("--address", help="filter jobs by node address")
+    parser.add_argument("--job-competition-id", help="filter jobs by job competition id")
     parser.add_argument("--sort-field", help='field to sort jobs by. Can be one of ("none", "type", "state", "start_time", '
                                              '"finish_time", "address", "duration", "progress", "id")')
     parser.add_argument("--sort-order", help='sort order. Can be either "ascending" or "descending"')

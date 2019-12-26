@@ -4,7 +4,7 @@ from .common import set_param
 from .ypath import YPath
 
 def list_jobs(operation_id,
-              job_type=None, job_state=None, address=None,
+              job_type=None, job_state=None, address=None, job_competition_id=None,
               sort_field=None, sort_order=None,
               limit=None, offset=None, with_stderr=None, with_spec=None, with_fail_context=None,
               include_cypress=None, include_runtime=None, include_archive=None,
@@ -14,6 +14,7 @@ def list_jobs(operation_id,
     set_param(params, "job_type", job_type)
     set_param(params, "job_state", job_state)
     set_param(params, "address", address)
+    set_param(params, "job_competition_id", job_competition_id)
     set_param(params, "sort_field", sort_field)
     set_param(params, "sort_order", sort_order)
     set_param(params, "limit", limit)
