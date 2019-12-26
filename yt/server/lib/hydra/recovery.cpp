@@ -120,7 +120,7 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
     if (targetVersion == TVersion() && !IsLeader() && !Options_.WriteChangelogsAtFollowers)
         return;
 
-    YT_LOG_INFO("Replaying changelogs %v-%v to reach version %v",
+    YT_LOG_INFO("Replaying changelogs (ChangelogIds: %v-%v, TargetVersion: %v)",
         initialChangelogId,
         targetVersion.SegmentId,
         targetVersion);
@@ -137,7 +137,7 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
 
             auto currentVersion = DecoratedAutomaton_->GetAutomatonVersion();
 
-            YT_LOG_INFO("Changelog %v is missing and will be created at version %v",
+            YT_LOG_INFO("Changelog is missing and will be created (ChangelogId: %v, Version: %v)",
                 changelogId,
                 currentVersion);
 
@@ -159,6 +159,9 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
 
         if (changelogId == targetVersion.SegmentId) {
             targetChangelog = changelog;
+        } else {
+            WaitFor(changelog->Close())
+                .ThrowOnError();
         }
     }
 
@@ -233,7 +236,7 @@ void TRecoveryBase::ReplayChangelog(IChangelogPtr changelog, int changelogId, in
         YT_VERIFY(currentVersion.SegmentId == changelogId - 1);
 
         const auto& meta = changelog->GetMeta();
-        YT_VERIFY(meta.prev_record_count() == currentVersion.RecordId);
+        YT_VERIFY(!meta.has_prev_record_count() || meta.prev_record_count() == currentVersion.RecordId);
 
         // Prepare to apply mutations at the rotated version.
         DecoratedAutomaton_->RotateAutomatonVersion(changelogId);

@@ -1471,10 +1471,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
                     "expire_after_access_time": 0,
                 },
             },
-        },
-        "master_cache_service": {
-            "capacity": 0
-        },
+        }
     }
 
     def _verify_resource_usage(self, account, resource, expected):
@@ -1744,27 +1741,6 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         self._create_sorted_table("//tmp/t2", account="test_account")
         sync_mount_table("//tmp/t2")
         insert_rows("//tmp/t2", [{"key": 2, "value": "2"}])
-
-    @authors("lukyan")
-    @flaky(max_runs=5)
-    @pytest.mark.parametrize("resource", ["chunk_count", "disk_space_per_medium/default"])
-    def test_changelog_resource_limits(self, resource):
-        create_account("test_account")
-        create_tablet_cell_bundle("custom", attributes={"options": {
-            "changelog_account": "test_account"}})
-
-        id = sync_create_cells(1, tablet_cell_bundle="custom")[0]
-        self._create_sorted_table("//tmp/t", tablet_cell_bundle="custom")
-        sync_mount_table("//tmp/t")
-
-        set("//sys/accounts/test_account/@resource_limits/" + resource, 0)
-
-        with pytest.raises(YtError):
-            build_snapshot(cell_id=id)
-
-        changelogs = ls("//sys/tablet_cells/{0}/changelogs".format(id))
-        sleep(10)
-        assert sorted(changelogs) == sorted(ls("//sys/tablet_cells/{0}/changelogs".format(id)))
 
     @authors("ifsmirnov")
     def test_snapshot_account_resource_limits_violation(self):
