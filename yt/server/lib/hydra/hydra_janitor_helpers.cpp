@@ -73,7 +73,7 @@ int ComputeJanitorThresholdId(
         YT_VERIFY(thresholdId == 0);
     } else {
         // Some snapshot exists: one must not delete anything past the latest snapshot.
-        YT_VERIFY(thresholdId <= snapshots.back().Id);
+        YT_VERIFY(thresholdId <= maxSnapshotId);
     }
 
     return thresholdId;
