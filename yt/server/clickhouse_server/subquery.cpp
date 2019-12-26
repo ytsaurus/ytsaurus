@@ -2,11 +2,13 @@
 
 #include "query_context.h"
 #include "config.h"
+
 #include "subquery_spec.h"
 #include "table_schema.h"
 #include "table.h"
 #include "helpers.h"
-#include "query_analyzer.h"
+
+#include "private.h"
 
 #include <yt/server/lib/chunk_pools/chunk_stripe.h>
 #include <yt/server/lib/chunk_pools/helpers.h>
@@ -102,16 +104,17 @@ public:
         TBootstrap* bootstrap,
         NNative::IClientPtr client,
         IInvokerPtr invoker,
-        const TQueryAnalysisResult& queryAnalysisResult,
+        std::vector<TTableSchema> tableSchemas,
+        std::vector<std::vector<TRichYPath>> inputTablePaths,
+        std::vector<std::optional<KeyCondition>> keyConditions,
         TRowBufferPtr rowBuffer,
         TSubqueryConfigPtr config)
         : Bootstrap_(bootstrap)
         , Client_(std::move(client))
         , Invoker_(std::move(invoker))
-        , TableSchemas_(queryAnalysisResult.TableSchemas)
-        , InputTablePaths_(queryAnalysisResult.TablePaths)
-        , KeyConditions_(queryAnalysisResult.KeyConditions)
-        , KeyColumnCount_(queryAnalysisResult.KeyColumnCount)
+        , TableSchemas_(std::move(tableSchemas))
+        , InputTablePaths_(std::move(inputTablePaths))
+        , KeyConditions_(std::move(keyConditions))
         , RowBuffer_(std::move(rowBuffer))
         , Config_(std::move(config))
     { }
@@ -136,7 +139,9 @@ private:
     std::vector<std::vector<TRichYPath>> InputTablePaths_;
     std::vector<std::optional<KeyCondition>> KeyConditions_;
 
-    std::optional<int> KeyColumnCount_ = 0;
+    int KeyColumnCount_ = 0;
+    TKeyColumns KeyColumns_;
+
     DataTypes KeyColumnDataTypes_;
 
     std::vector<TInputTable> InputTables_;
@@ -150,17 +155,7 @@ private:
     void DoFetch()
     {
         CollectTablesAttributes();
-
-        // TODO(max42): do we need this check?
-        if (!TableSchemas_.empty()) {
-            auto commonSchemaPart = TableSchemas_.front().Columns();
-            if (KeyColumnCount_) {
-                commonSchemaPart.resize(*KeyColumnCount_);
-            }
-            // TODO(max42): rewrite this!
-            KeyColumnDataTypes_ = TClickHouseTableSchema::From(TClickHouseTable("", TTableSchema(commonSchemaPart))).GetKeyDataTypes();
-        }
-
+        ValidateSchema();
         FetchChunks();
 
         std::vector<TChunkStripePtr> stripes;
@@ -242,6 +237,35 @@ private:
         }
     }
 
+    void ValidateSchema()
+    {
+        if (InputTables_.empty()) {
+            return;
+        }
+
+        const auto& representativeTable = InputTables_.front();
+        for (size_t i = 1; i < InputTables_.size(); ++i) {
+            const auto& table = InputTables_[i];
+            if (table.IsDynamic != representativeTable.IsDynamic) {
+                THROW_ERROR_EXCEPTION(
+                    "Table dynamic flag mismatch: %v and %v",
+                    representativeTable.Path.GetPath(),
+                    table.Path.GetPath());
+            }
+        }
+
+        TTableSchema commonSchema;
+        if (TableSchemas_.size() == 1) {
+            commonSchema = TableSchemas_.front();
+        } else {
+            commonSchema = GetCommonSchema(TableSchemas_);
+        }
+
+        KeyColumnCount_ = commonSchema.GetKeyColumnCount();
+        KeyColumns_ = commonSchema.GetKeyColumns();
+        KeyColumnDataTypes_ = TClickHouseTableSchema::From(TClickHouseTable("", commonSchema)).GetKeyDataTypes();
+    }
+
     void FetchChunks()
     {
         i64 totalChunkCount = 0;
@@ -313,17 +337,16 @@ private:
         if (!KeyConditions_[tableIndex]) {
             return BoolMask(true, true);
         }
-        YT_VERIFY(KeyColumnCount_);
 
-        YT_VERIFY(static_cast<int>(lowerKey.GetCount()) >= *KeyColumnCount_);
-        YT_VERIFY(static_cast<int>(upperKey.GetCount()) >= *KeyColumnCount_);
+        YT_VERIFY(static_cast<int>(lowerKey.GetCount()) >= KeyColumnCount_);
+        YT_VERIFY(static_cast<int>(upperKey.GetCount()) >= KeyColumnCount_);
 
-        Field minKey[*KeyColumnCount_];
-        Field maxKey[*KeyColumnCount_];
-        ConvertToFieldRow(lowerKey, *KeyColumnCount_, minKey);
-        ConvertToFieldRow(upperKey, *KeyColumnCount_, maxKey);
+        Field minKey[KeyColumnCount_];
+        Field maxKey[KeyColumnCount_];
+        ConvertToFieldRow(lowerKey, KeyColumnCount_, minKey);
+        ConvertToFieldRow(upperKey, KeyColumnCount_, maxKey);
 
-        return KeyConditions_[tableIndex]->checkInRange(*KeyColumnCount_, minKey, maxKey, KeyColumnDataTypes_);
+        return KeyConditions_[tableIndex]->checkInRange(KeyColumnCount_, minKey, maxKey, KeyColumnDataTypes_);
     }
 };
 
@@ -335,7 +358,9 @@ TQueryInput FetchInput(
     TBootstrap* bootstrap,
     NNative::IClientPtr client,
     const IInvokerPtr& invoker,
-    const TQueryAnalysisResult& queryAnalysisResult,
+    std::vector<TTableSchema> tableSchemas,
+    std::vector<std::vector<TRichYPath>> inputTablePaths,
+    std::vector<std::optional<KeyCondition>> keyConditions,
     TRowBufferPtr rowBuffer,
     TSubqueryConfigPtr config,
     TSubquerySpec& specTemplate)
@@ -344,7 +369,9 @@ TQueryInput FetchInput(
         bootstrap,
         std::move(client),
         invoker,
-        queryAnalysisResult,
+        std::move(tableSchemas),
+        std::move(inputTablePaths),
+        std::move(keyConditions),
         std::move(rowBuffer),
         std::move(config));
     WaitFor(dataSliceFetcher->Fetch())

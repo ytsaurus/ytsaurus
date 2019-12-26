@@ -408,13 +408,15 @@ private:
         auto* queryContext = GetQueryContext(context);
 
         QueryAnalyzer_.emplace(context, queryInfo);
-        auto queryAnalysisResult = QueryAnalyzer_->Analyze();
+        auto analyzerResult = QueryAnalyzer_->Analyze();
 
         auto input = FetchInput(
             queryContext->Bootstrap,
             queryContext->Client(),
             queryContext->Bootstrap->GetSerializedWorkerInvoker(),
-            queryAnalysisResult,
+            analyzerResult.TableSchemas,
+            analyzerResult.TablePaths,
+            analyzerResult.KeyConditions,
             queryContext->RowBuffer,
             queryContext->Bootstrap->GetConfig()->Engine->Subquery,
             SpecTemplate_);
@@ -435,8 +437,8 @@ private:
 
         Subqueries_ = BuildSubqueries(
             std::move(input.StripeList),
-            queryAnalysisResult.KeyColumnCount,
-            queryAnalysisResult.PoolKind,
+            analyzerResult.KeyColumnCount,
+            analyzerResult.PoolKind,
             std::max<int>(1, subqueryCount * context.getSettings().max_threads),
             samplingRate,
             context,
