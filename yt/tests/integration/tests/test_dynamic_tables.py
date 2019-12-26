@@ -1459,6 +1459,31 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         wait(lambda: get("//tmp/t2/@access_time") != t2_access_time)
         assert get("//tmp/t1/@access_time") == t1_access_time
 
+    @authors("ifsmirnov")
+    def test_changelog_id_attribute(self):
+        cell_id = sync_create_cells(1)[0]
+
+        def _get_latest_file(dir_name):
+            files = ls("//sys/tablet_cells/{}/{}".format(cell_id, dir_name))
+            return int(max(files)) if files else -1
+
+        def _get_attr(attr):
+            return get("#{}/@{}".format(cell_id, attr))
+
+        wait(lambda: _get_attr("health") == "good")
+        wait(lambda: _get_latest_file("snapshots") == _get_attr("max_snapshot_id"))
+        wait(lambda: _get_latest_file("changelogs") == _get_attr("max_changelog_id"))
+
+        def _try_build_snapshot():
+            try:
+                build_snapshot(cell_id=cell_id)
+                return True
+            except:
+                return False
+
+        wait(_try_build_snapshot)
+        wait(lambda: _get_latest_file("snapshots") == _get_attr("max_snapshot_id"))
+        wait(lambda: _get_latest_file("changelogs") == _get_attr("max_changelog_id"))
 
 ##################################################################
 

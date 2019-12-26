@@ -6,6 +6,8 @@
 
 #include <yt/server/master/cell_master/bootstrap.h>
 
+#include <yt/server/master/cypress_server/node_detail.h>
+
 #include <yt/server/master/node_tracker_server/node.h>
 
 #include <yt/server/master/cell_server/cell_proxy_base.h>
@@ -23,6 +25,8 @@
 
 #include <yt/core/misc/protobuf_helpers.h>
 
+#include <util/string/cast.h>
+
 namespace NYT::NTabletServer {
 
 using namespace NConcurrency;
@@ -31,9 +35,11 @@ using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NRpc;
 using namespace NYTree;
+using namespace NYPath;
 using namespace NYson;
 using namespace NTabletClient;
 using namespace NCellServer;
+using namespace NCypressServer;
 
 using NYT::ToProto;
 using ::ToString;
@@ -131,6 +137,34 @@ private:
             .SetWritable(true)
             .SetRemovable(true)
             .SetReplicated(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MaxChangelogId)
+            .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MaxSnapshotId)
+            .SetOpaque(true));
+    }
+
+    int GetMaxHydraFileId(const TYPath& path) const
+    {
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+
+        auto* node = cypressManager->ResolvePathToTrunkNode(path);
+        if (node->GetType() != EObjectType::MapNode) {
+            THROW_ERROR_EXCEPTION("Unexpected node type: expected %Qlv, got %Qlv",
+                EObjectType::MapNode,
+                node->GetType())
+                << TErrorAttribute("path", path);
+        }
+        auto* mapNode = node->As<TMapNode>();
+
+        int maxId = -1;
+        for (const auto& [key, child] : mapNode->KeyToChild()) {
+            int id;
+            if (TryFromString<int>(key, id)) {
+                maxId = std::max(maxId, id);
+            }
+        }
+
+        return maxId;
     }
 
     virtual bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
@@ -200,6 +234,22 @@ private:
                 BuildYsonFluently(consumer)
                     .Value(cell->GetCellBundle()->GetName());
                 return true;
+
+            case EInternedAttributeKey::MaxChangelogId: {
+                auto changelogPath = Format("//sys/tablet_cells/%v/changelogs", cell->GetId());
+                int maxId = GetMaxHydraFileId(changelogPath);
+                BuildYsonFluently(consumer)
+                    .Value(maxId);
+                return true;
+            }
+
+            case EInternedAttributeKey::MaxSnapshotId: {
+                auto snapshotPath = Format("//sys/tablet_cells/%v/snapshots", cell->GetId());
+                int maxId = GetMaxHydraFileId(snapshotPath);
+                BuildYsonFluently(consumer)
+                    .Value(maxId);
+                return true;
+            }
 
             default:
                 break;
@@ -310,4 +360,3 @@ IObjectProxyPtr CreateTabletCellProxy(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletServer
-

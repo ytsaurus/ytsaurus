@@ -179,6 +179,7 @@
     XX(MasterCacheNodes, master_cache_nodes) \
     XX(MasterMetaSize, master_meta_size) \
     XX(MaxBlockSize, max_block_size) \
+    XX(MaxChangelogId, max_changelog_id) \
     XX(MaxEphemeralPoolsPerUser, max_ephemeral_pools_per_user) \
     XX(MaxKey, max_key) \
     XX(MaxRunningOperationCount, max_running_operation_count) \
@@ -186,6 +187,7 @@
     XX(MaxOperationCount, max_operation_count) \
     XX(MaxOperationCountPerPool, max_operation_count_per_pool) \
     XX(MaxShareRatio, max_share_ratio) \
+    XX(MaxSnapshotId, max_snapshot_id) \
     XX(MaxTabletSize, max_tablet_size) \
     XX(MaxTimestamp, max_timestamp) \
     XX(MaxUnpreemptableRunningJobCount, max_unpreemptable_running_job_count) \
