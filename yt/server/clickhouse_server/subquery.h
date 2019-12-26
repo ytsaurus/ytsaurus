@@ -36,7 +36,9 @@ TQueryInput FetchInput(
     TBootstrap* bootstrap,
     NApi::NNative::IClientPtr client,
     const IInvokerPtr& invoker,
-    const TQueryAnalysisResult& queryAnalysisResult,
+    std::vector<NTableClient::TTableSchema> tableSchemas,
+    std::vector<std::vector<NYPath::TRichYPath>> inputTablePaths,
+    std::vector<std::optional<DB::KeyCondition>> keyConditions,
     NTableClient::TRowBufferPtr rowBuffer,
     TSubqueryConfigPtr config,
     TSubquerySpec& specTemplate);

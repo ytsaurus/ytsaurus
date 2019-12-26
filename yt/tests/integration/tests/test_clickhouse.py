@@ -2016,19 +2016,6 @@ class TestJoinAndIn(ClickHouseTestBase):
         with Clique(2, config_patch={"engine": {"subquery": {"min_data_weight_per_thread": 5000}}}) as clique:
             assert clique.make_query("select * from \"//tmp/t1\" join \"//tmp/t2\" using key") == [{"key": 0}, {"key": 1}]
 
-    @authors("max42")
-    def test_join_under_different_names(self):
-        # CHYT-270.
-        create("table", "//tmp/t1", attributes={"schema": [{"name": "key1", "type": "int64", "sort_order": "ascending"}]})
-        create("table", "//tmp/t2", attributes={"schema": [{"name": "key2", "type": "int64", "sort_order": "ascending"}]})
-        for i in range(3):
-            write_table("<append=%true>//tmp/t1", [{"key1": i}])
-            write_table("<append=%true>//tmp/t2", [{"key2": i}])
-        with Clique(1) as clique:
-            assert len(clique.make_query("select * from \"//tmp/t1\" A inner join \"//tmp/t2\" B on A.key1 = B.key2 where "
-                                         "A.key1 in (1, 2) and B.key2 in (2, 3)")) == 1
-
-
 
 class TestClickHouseHttpProxy(ClickHouseTestBase):
     def setup(self):
