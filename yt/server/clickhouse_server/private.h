@@ -42,6 +42,7 @@ struct TQueryContext;
 class TBootstrap;
 class TSubquerySpec;
 struct TSubquery;
+struct TQueryAnalysisResult;
 
 //! This enum corresponds to DB::ClientInfo::QueryKind.
 DEFINE_ENUM(EQueryKind,
