@@ -493,10 +493,21 @@ public:
     {
         return BIND([this_ = MakeStrong(this), slotIndex, jobId, commands, rootFS, user] {
             for (const auto& command : commands) {
-                YT_LOG_DEBUG("Running setup command; path: %v args: %v", command->Path, command->Args);
+                YT_LOG_DEBUG("Running setup command (JobId: %v, Path: %v, Args: %v)",
+                    jobId,
+                    command->Path,
+                    command->Args);
                 auto instance = this_->CreateSetupInstance(slotIndex, jobId, rootFS, user);
-                auto process = CreateSetupProcess(instance, command);
-                WaitFor(process->Spawn()).ThrowOnError();
+                try {
+                    auto process = CreateSetupProcess(instance, command);
+                    WaitFor(process->Spawn())
+                        .ThrowOnError();
+                } catch (const std::exception& ex) {
+                    YT_LOG_WARNING(ex, "Setup command failed (JobId: %v, Stderr: %v)",
+                        jobId,
+                        instance->GetStderr());
+                    throw;
+                }
             }
         })
             .AsyncVia(ActionQueue_->GetInvoker())
