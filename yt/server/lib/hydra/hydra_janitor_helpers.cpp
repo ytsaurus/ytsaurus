@@ -20,13 +20,13 @@ int ComputeJanitorThresholdId(
         return lhs.Id < rhs.Id;
     });
 
-    int thresholdIdByCount = files[0].Id;
+    int thresholdIdByCount = Min<int>();
     if (maxCountToKeep && files.size() > *maxCountToKeep) {
         auto index = files.size() - std::max(1, *maxCountToKeep);
         thresholdIdByCount = files[index].Id;
     }
 
-    int thresholdIdBySize = files[0].Id;
+    int thresholdIdBySize = Min<int>();
     if (maxSizeToKeep) {
         i64 totalSize = 0;
         for (auto it = files.rbegin(); it != files.rend(); ++it) {
@@ -64,7 +64,7 @@ int ComputeJanitorThresholdId(
             config->MaxChangelogSizeToKeep),
         maxSnapshotId);
 
-    int thresholdId = std::min(snapshotThresholdId, changelogThresholdId);
+    int thresholdId = std::max(snapshotThresholdId, changelogThresholdId);
 
     // Sanity checks, please take them very seriously.
     // Deleting wrong changelogs and snapshots may cause unrecoverable data loss.

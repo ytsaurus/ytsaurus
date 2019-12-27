@@ -22,7 +22,7 @@ TEST(TJanitorFileThresholdTest, ShortVector)
         {1, 10},
         {2, 11}
     };
-    ASSERT_EQ(1, ComputeJanitorThresholdId(files, 3, std::nullopt));
+    ASSERT_EQ(Min<int>(), ComputeJanitorThresholdId(files, 3, std::nullopt));
 }
 
 TEST(TJanitorFileThresholdTest, LongVector)
@@ -212,6 +212,23 @@ TEST(TJanitorSnapshotChangelogTest, NoSnapshotSizeCleanupPastLastSnapshot)
     auto config = New<THydraJanitorConfig>();
     config->MaxSnapshotSizeToKeep = 200;
     ASSERT_EQ(3, ComputeJanitorThresholdId(snapshots, changelogs, config));
+}
+
+TEST(TJanitorSnapshotChangelogTest, JustMaxSnapshotCountToKeep)
+{
+    std::vector<THydraFileInfo> snapshots{
+        {1, 0},
+        {2, 0},
+        {3, 0}
+    };
+    std::vector<THydraFileInfo> changelogs{
+        {1, 0},
+        {2, 0},
+        {3, 0}
+    };
+    auto config = New<THydraJanitorConfig>();
+    config->MaxSnapshotCountToKeep = 2;
+    ASSERT_EQ(2, ComputeJanitorThresholdId(snapshots, changelogs, config));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
