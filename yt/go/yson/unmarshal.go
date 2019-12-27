@@ -40,7 +40,7 @@ type Unmarshaler interface {
 	UnmarshalYSON([]byte) error
 }
 
-// StreamUnmarshaler is an interface implemented by types that can unmarhsal themselves from YSON reader.
+// StreamUnmarshaler is an interface implemented by types that can unmarshal themselves from YSON reader.
 type StreamUnmarshaler interface {
 	UnmarshalYSON(*Reader) error
 }
