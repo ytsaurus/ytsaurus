@@ -13,20 +13,20 @@ int ComputeJanitorThresholdId(
     std::optional<i64> maxSizeToKeep)
 {
     if (files.empty()) {
-        return Max<int>();
+        return 0;
     }
 
     std::sort(files.begin(), files.end(), [] (const auto& lhs, const auto& rhs) {
         return lhs.Id < rhs.Id;
     });
 
-    int thresholdIdByCount = Min<int>();
+    int thresholdIdByCount = 0;
     if (maxCountToKeep && files.size() > *maxCountToKeep) {
         auto index = files.size() - std::max(1, *maxCountToKeep);
         thresholdIdByCount = files[index].Id;
     }
 
-    int thresholdIdBySize = Min<int>();
+    int thresholdIdBySize = 0;
     if (maxSizeToKeep) {
         i64 totalSize = 0;
         for (auto it = files.rbegin(); it != files.rend(); ++it) {
@@ -48,10 +48,12 @@ int ComputeJanitorThresholdId(
     const std::vector<THydraFileInfo>& changelogs,
     const THydraJanitorConfigPtr& config)
 {
-    int snapshotThresholdId = ComputeJanitorThresholdId(
-        snapshots,
-        config->MaxSnapshotCountToKeep,
-        config->MaxSnapshotSizeToKeep);
+    int snapshotThresholdId = snapshots.empty()
+        ? 0
+        : ComputeJanitorThresholdId(
+            snapshots,
+            config->MaxSnapshotCountToKeep,
+            config->MaxSnapshotSizeToKeep);
 
     int maxSnapshotId = 0;
     for (const auto& snapshot : snapshots) {

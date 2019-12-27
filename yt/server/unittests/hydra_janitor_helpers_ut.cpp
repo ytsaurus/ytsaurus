@@ -13,7 +13,7 @@ namespace {
 
 TEST(TJanitorFileThresholdTest, EmptyVector)
 {
-    ASSERT_EQ(Max<int>(), ComputeJanitorThresholdId({}, 1, 1));
+    ASSERT_EQ(0, ComputeJanitorThresholdId({}, 1, 1));
 }
 
 TEST(TJanitorFileThresholdTest, ShortVector)
@@ -22,7 +22,7 @@ TEST(TJanitorFileThresholdTest, ShortVector)
         {1, 10},
         {2, 11}
     };
-    ASSERT_EQ(Min<int>(), ComputeJanitorThresholdId(files, 3, std::nullopt));
+    ASSERT_EQ(0, ComputeJanitorThresholdId(files, 3, std::nullopt));
 }
 
 TEST(TJanitorFileThresholdTest, LongVector)
@@ -214,7 +214,20 @@ TEST(TJanitorSnapshotChangelogTest, NoSnapshotSizeCleanupPastLastSnapshot)
     ASSERT_EQ(3, ComputeJanitorThresholdId(snapshots, changelogs, config));
 }
 
-TEST(TJanitorSnapshotChangelogTest, JustMaxSnapshotCountToKeep)
+TEST(TJanitorSnapshotChangelogTest, NoSnapshotsPresent)
+{
+    std::vector<THydraFileInfo> snapshots{};
+    std::vector<THydraFileInfo> changelogs{
+        {1, 100},
+        {2, 200},
+        {3, 300}
+    };
+    auto config = New<THydraJanitorConfig>();
+    config->MaxChangelogCountToKeep = 2;
+    ASSERT_EQ(0, ComputeJanitorThresholdId(snapshots, changelogs, config));
+}
+
+TEST(TJanitorSnapshotChangelogTest, JustMaxSnapshotCountToKeep1)
 {
     std::vector<THydraFileInfo> snapshots{
         {1, 0},
@@ -229,6 +242,21 @@ TEST(TJanitorSnapshotChangelogTest, JustMaxSnapshotCountToKeep)
     auto config = New<THydraJanitorConfig>();
     config->MaxSnapshotCountToKeep = 2;
     ASSERT_EQ(2, ComputeJanitorThresholdId(snapshots, changelogs, config));
+}
+
+TEST(TJanitorSnapshotChangelogTest, JustMaxSnapshotCountToKeep2)
+{
+    std::vector<THydraFileInfo> snapshots{
+        {1, 0},
+        {2, 0},
+        {3, 0},
+        {4, 0},
+        {5, 0}
+    };
+    std::vector<THydraFileInfo> changelogs{};
+    auto config = New<THydraJanitorConfig>();
+    config->MaxSnapshotCountToKeep = 3;
+    ASSERT_EQ(3, ComputeJanitorThresholdId(snapshots, changelogs, config));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
