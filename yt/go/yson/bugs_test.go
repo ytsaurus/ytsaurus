@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 
 	"a.yandex-team.ru/yt/go/yson"
@@ -268,5 +269,42 @@ func TestHookPriority(t *testing.T) {
 		ys, err := yson.Marshal(v)
 		require.NoError(t, err)
 		require.NoError(t, yson.Unmarshal(ys, v))
+	}
+}
+
+type User struct {
+	ID *uuid.UUID
+}
+
+func TestNilPointerMarshal(t *testing.T) {
+	var u User
+
+	_, err := json.Marshal(u)
+	require.NoError(t, err)
+
+	_, err = yson.Marshal(u)
+	require.NoError(t, err)
+}
+
+func TestNilPointerUnmarshal(t *testing.T) {
+	id, err := uuid.NewV4()
+	require.NoError(t, err)
+
+	u := User{ID: &id}
+
+	{
+		var u2 User
+
+		js, err := json.Marshal(u)
+		require.NoError(t, err)
+		require.NoError(t, json.Unmarshal(js, &u2))
+	}
+
+	{
+		var u2 User
+
+		ys, err := yson.Marshal(u)
+		require.NoError(t, err)
+		require.NoError(t, yson.Unmarshal(ys, &u2))
 	}
 }

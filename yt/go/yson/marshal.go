@@ -107,7 +107,8 @@ func MarshalFormat(value interface{}, format Format) ([]byte, error) {
 }
 
 func encodeAny(w *Writer, value interface{}) (err error) {
-	if value == nil {
+	vv := reflect.ValueOf(value)
+	if value == nil || vv.Kind() == reflect.Ptr && vv.IsNil() {
 		w.Entity()
 		return w.Err()
 	}
