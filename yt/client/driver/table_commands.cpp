@@ -1055,6 +1055,22 @@ void TGetTabletInfosCommand::DoExecute(ICommandContextPtr context)
                             .Item("total_row_count").Value(tablet.TotalRowCount)
                             .Item("trimmed_row_count").Value(tablet.TrimmedRowCount)
                             .Item("barrier_timestamp").Value(tablet.BarrierTimestamp)
+                            .Item("last_write_timestamp").Value(tablet.LastWriteTimestamp)
+                            .DoIf(tablet.TableReplicaInfos.has_value(), [&] (TFluentMap fluent) {
+                                fluent
+                                    .Item("replica_infos").DoListFor(
+                                        *tablet.TableReplicaInfos,
+                                        [&] (TFluentList fluent, const auto& replicaInfo) {
+                                            fluent
+                                                .Item()
+                                                .BeginMap()
+                                                    .Item("replica_id").Value(replicaInfo.ReplicaId)
+                                                    .Item("last_replication_timestamp").Value(replicaInfo.LastReplicationTimestamp)
+                                                    .Item("mode").Value(replicaInfo.Mode)
+                                                    .Item("current_replication_row_index").Value(replicaInfo.CurrentReplicationRowIndex)
+                                                .EndMap();
+                                        });
+                            })
                         .EndMap();
                 })
             .EndMap();

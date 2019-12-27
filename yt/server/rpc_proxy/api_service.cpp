@@ -491,7 +491,8 @@ private:
     void CompleteCallWith(
         NNative::IClientPtr client,
         const TIntrusivePtr<TContext>& context,
-        TFuture<TResult>&& future, F&& functor)
+        TFuture<TResult>&& future,
+        F&& functor)
     {
         future.Subscribe(
             BIND([client = std::move(client), context, functor = std::move(functor)] (const TErrorOr<TResult>& valueOrError) {
@@ -2559,6 +2560,17 @@ private:
                     protoTabletInfo->set_total_row_count(tabletInfo.TotalRowCount);
                     protoTabletInfo->set_trimmed_row_count(tabletInfo.TrimmedRowCount);
                     protoTabletInfo->set_barrier_timestamp(tabletInfo.BarrierTimestamp);
+                    protoTabletInfo->set_last_write_timestamp(tabletInfo.LastWriteTimestamp);
+
+                    if (tabletInfo.TableReplicaInfos) {
+                        for (const auto& replicaInfo : *tabletInfo.TableReplicaInfos) {
+                            auto* protoReplicaInfo = protoTabletInfo->add_replicas();
+                            ToProto(protoReplicaInfo->mutable_replica_id(), replicaInfo.ReplicaId);
+                            protoReplicaInfo->set_last_replication_timestamp(replicaInfo.LastReplicationTimestamp);
+                            protoReplicaInfo->set_mode(static_cast<NApi::NRpcProxy::NProto::ETableReplicaMode>(replicaInfo.Mode));
+                            protoReplicaInfo->set_current_replication_row_index(replicaInfo.CurrentReplicationRowIndex);
+                        }
+                    }
                 }
             });
     }
