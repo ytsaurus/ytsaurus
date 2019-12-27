@@ -383,6 +383,11 @@ message TTimeLimitStatus {
 message SecretSelector {
     string alias = 2;
     string id = 1;
+
+    // Если этот флаг выставлен, то значение секрета будет base64 декодированно
+    // Этот флаг нужен поскольку секретница кодирует содержимое секретов-файлов в base64
+    // Более подробно в DEPLOY-1336
+    bool decode_base64 = 3;
 }
 
 message LiteralEnvSelector {
