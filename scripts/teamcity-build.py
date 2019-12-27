@@ -39,6 +39,8 @@ from teamcity.pytest_helpers import (
     prepare_python_bindings,
 )
 
+from teamcity.ya import run_ya_command_with_retries
+
 from datetime import datetime
 
 import argparse
@@ -989,22 +991,12 @@ def run_ya_tests(options, suite_name, test_paths):
         args += ["--sanitize=address"]
 
     try:
-        retry_count = 10
-        backoff = 10
-        backoff_multiplier = 2
-        for iter in xrange(1, retry_count + 1):
-            try:
-                run(args, env=env, cwd=options.checkout_directory)
-                break
-            except ChildHasNonZeroExitCode as err:
-                # Special code that means non-persistent problem.
-                if err.return_code == 12 and iter < retry_count:
-                    time.sleep(backoff)
-                    backoff *= backoff_multiplier
-                    continue
-                # In case of yatest artifacts are rebuilded in dist build and included to the sandbox.
-                save_failed_test(options, suite_name, save_artifacts=False)
-                raise StepFailedWithNonCriticalError(str(err))
+        run_ya_command_with_retries(
+            args,
+            env=env,
+            cwd=options.checkout_directory,
+            # In case of yatest artifacts are rebuilded in dist build and included to the sandbox.
+            except_action=lambda: save_failed_test(options, suite_name, save_artifacts=False))
     finally:
         if os.path.exists(sandbox_storage):
             sudo_rmtree(sandbox_storage)
