@@ -632,6 +632,8 @@ message TProject
     TProjectMeta meta = 1;
     TProjectSpec spec = 2;
     TProjectStatus status = 3;
+    NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
