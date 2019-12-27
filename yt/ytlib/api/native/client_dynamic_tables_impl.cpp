@@ -1269,7 +1269,7 @@ void TClient::DoRemountTable(
             req.set_first_tablet_index(*options.FirstTabletIndex);
         }
         if (options.LastTabletIndex) {
-            req.set_first_tablet_index(*options.LastTabletIndex);
+            req.set_last_tablet_index(*options.LastTabletIndex);
         }
 
         ExecuteTabletServiceRequest(path, "Remounting", &req);
@@ -1280,7 +1280,7 @@ void TClient::DoRemountTable(
             req->set_first_tablet_index(*options.FirstTabletIndex);
         }
         if (options.LastTabletIndex) {
-            req->set_first_tablet_index(*options.LastTabletIndex);
+            req->set_last_tablet_index(*options.LastTabletIndex);
         }
 
         auto proxy = CreateWriteProxy<TObjectServiceProxy>();
