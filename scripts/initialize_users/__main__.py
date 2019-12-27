@@ -14,6 +14,39 @@ import sys
 logger = None
 
 
+class Subject(object):
+    def __init__(self, id, type):
+        self.id = id
+        self.type = type
+
+
+class User(Subject):
+    def __init__(self, id):
+        super(User, self).__init__(id, "user")
+
+
+class Group(Subject):
+    def __init__(self, id):
+        super(Group, self).__init__(id, "group")
+
+
+def create(client, subject):
+    global_subject_ids = (
+        "everyone",
+    )
+
+    if subject.id in global_subject_ids:
+        return
+
+    try:
+        client.get_object(subject.type, subject.id, ["/meta"])
+    except YpNoSuchObjectError:
+        client.create_object(
+            object_type=subject.type,
+            attributes=dict(meta=dict(id=subject.id)),
+        )
+
+
 def configure_logger():
     global logger
 
@@ -58,91 +91,62 @@ class ClientWrapper(object):
     def check_object_permissions(self, *args, **kwargs):
         return self._client.check_object_permissions(*args, **kwargs)
 
+    def start_transaction(self, *args, **kwargs):
+        return self._client.start_transaction(*args, **kwargs)
 
-def infer_subject_type(subject):
-    if subject.startswith("abc:"):
-        return "group"
-    return "user"
+    def commit_transaction(self, *args, **kwargs):
+        return self._client.commit_transaction(*args, **kwargs)
 
 
-def create_subject(client, subject):
-    if subject == "everyone":
-        return
+def add_group_members(client, group, subjects):
+    create(client, group)
 
-    type_name = infer_subject_type(subject)
+    transaction = client.start_transaction(enable_structured_response=True)
+    transaction_id = transaction["transaction_id"]
+    start_timestamp = transaction["start_timestamp"]
 
-    try:
-        client.get_object(type_name, subject, ["/meta"])
-    except YpNoSuchObjectError:
-        client.create_object(
-            object_type=type_name,
-            attributes=dict(meta=dict(id=subject)),
+    spec = client.get_object("group", group.id, ["/spec"], timestamp=start_timestamp)[0]
+    members = spec.get("members", [])
+
+    old_members = set(members)
+    new_members = set(members + list(map(lambda subject: subject.id, subjects)))
+
+    if old_members != new_members:
+        new_members = list(new_members)
+
+        client.update_object(
+            "group",
+            group.id,
+            set_updates=[
+                dict(
+                    path="/spec/members",
+                    value=new_members,
+                ),
+            ],
+            transaction_id=transaction_id,
         )
 
-
-def set_schema_permissions(client, type, subject, rights):
-    create_subject(client, subject)
-
-    logger.debug("Set schema permission subject={}, type={}, rights={}".format(subject, type, rights))
-
-    rights_to_grant = set(rights)
-    schema_rights = client.get_object("schema", type, ["/meta/acl"])
-
-    logger.debug("Current schema permissions for subject={}, type={}, rights={}".format(subject, type, schema_rights))
-
-    if schema_rights:
-        actual_subject_permissions = set()
-        for record in schema_rights[0]:
-            action, subjects, permissions = record["action"], record["subjects"], record["permissions"]
-            assert action == "allow"
-            if subject in subjects or "everyone" in subjects:
-                for permission in permissions:
-                    actual_subject_permissions.add(permission)
-
-        rights_to_add = rights_to_grant.difference(actual_subject_permissions)
-        # rights_to_revoke = actual_subject_permissions.difference(rights_to_grant)
-
-        updates_set = []
-        for right in rights_to_add:
-            updates_set.append(
-                {"path": "/meta/acl/end",
-                 "value": {
-                     "action": "allow",
-                     "subjects": [subject],
-                     "permissions": [right]
-                 }})
-
-        # if len(rights_to_revoke):
-        #     for right in rights_to_revoke:
-        #         updates_remove.append(
-        #             {"path": "/meta/acl/end",
-        #              "value": {
-        #                  "action": "allow",
-        #                  "subjects": [subject],
-        #                  "permissions": [right]
-        #              }})
-
-        if updates_set:
-            client.update_object("schema", type, updates_set)
+        client.commit_transaction(transaction_id)
 
 
-def set_schema_permission_for_attribute(client, type, subject, permission, attribute):
-    create_subject(client, subject)
+def add_permission(client, object_type, object_id, subject, permission, attribute):
+    create(client, subject)
 
-    logger.debug("Setting schema permission for attribute: type = {}, subject = {}, permission = {}, attribute = {}".format(
-        type,
-        subject,
+    logger.debug("Adding permission: object_type = {}, object_id = {}, subject = {}, permission = {}, attribute = {}".format(
+        object_type,
+        object_id,
+        subject.id,
         permission,
         attribute,
     ))
 
     matching_ace = None
 
-    acl = client.get_object("schema", type, ["/meta/acl"])[0]
+    acl = client.get_object(object_type, object_id, ["/meta/acl"])[0]
     for ace in acl:
         if ace["action"] != "allow":
             continue
-        if subject not in ace["subjects"]:
+        if (subject.id not in ace["subjects"]) and not ("everyone" in ace["subjects"]):
             continue
         if permission not in ace["permissions"]:
             continue
@@ -160,19 +164,28 @@ def set_schema_permission_for_attribute(client, type, subject, permission, attri
         logger.debug("Found matching ace = {}".format(matching_ace))
         return
 
+    attributes = []
+    if attribute != "":
+        attributes.append(attribute)
+
     set_updates = [
         dict(
             path="/meta/acl/end",
             value=dict(
                 action="allow",
-                subjects=[subject],
+                subjects=[subject.id],
                 permissions=[permission],
-                attributes=[attribute],
+                attributes=attributes,
             )
         )
     ]
 
-    client.update_object("schema", type, set_updates=set_updates)
+    client.update_object(object_type, object_id, set_updates=set_updates)
+
+
+def add_schema_permissions(client, type, subject, permissions):
+    for permission in permissions:
+        add_permission(client, "schema", type, subject, permission, attribute="")
 
 
 def set_account(client, account_name, segment_name, cpu, memory, hdd, ssd, ipv4):
@@ -230,7 +243,6 @@ def set_account(client, account_name, segment_name, cpu, memory, hdd, ssd, ipv4)
 
 
 def create_account(client, account_name, allow_use_for_all):
-    # type: (YpClient, basestring, basestring) -> None
     try:
         client.get_object("account", account_name, ["/meta"])
     except YpNoSuchObjectError:
@@ -276,7 +288,6 @@ def create_accounts(client, cluster, accounts):
                             ipv4=limits.get("ipv4", 0))
 
 
-# setup tentacles
 def setup_tentacles_podset(client, cluster):
     tentacles_podset_name = "yp-rtc-sla-tentacles-production-{}".format(cluster)
     try:
@@ -304,7 +315,7 @@ def allow_account_usage(client, account, subject):
         [
             {"object_type": "account",
              "object_id": account,
-             "subject_id": subject,
+             "subject_id": subject.id,
              "permission": "use"}])
 
     if len(can_use) == 0 or can_use[0]["action"] != "allow":
@@ -314,7 +325,7 @@ def allow_account_usage(client, account, subject):
              "value": {
                  "action": "allow",
                  "permissions": ["use"],
-                 "subjects": [subject]
+                 "subjects": [subject.id]
              }
              })
 
@@ -322,7 +333,7 @@ def allow_account_usage(client, account, subject):
 
 
 class Account(object):
-    def __init__(self, name, quotas_per_segment, allow_use_for_all=False, use_allowed_to=None):
+    def __init__(self, name, quotas_per_segment, allow_use_for_all=False):
         for segment in quotas_per_segment:
             if segment == "*":
                 assert len(quotas_per_segment) == 1
@@ -330,7 +341,6 @@ class Account(object):
         self.name = name
         self.quotas_per_segment = quotas_per_segment
         self.allow_use_for_all = allow_use_for_all
-        self.use_allowed_to = use_allowed_to
 
 KB = 1024
 MB = 1024 * KB
@@ -418,8 +428,8 @@ def is_cluster_with_qyp_dev_segment(cluster, client):
 
 
 def setup_dev_segment(cluster, accounts, client):
-    if cluster == "sas":
-        accounts.append(
+    cluster_to_accounts = {
+        "sas": [
             Account("tmp", {
                     "dev": {
                         "cpu": 159500,
@@ -429,9 +439,8 @@ def setup_dev_segment(cluster, accounts, client):
                         "ipv4": 0
                         }
                     })
-        )
-    elif cluster == "man":
-        accounts.append(
+        ],
+        "man": [
             Account("tmp", {
                     "dev": {
                         "cpu": 156202,
@@ -441,9 +450,8 @@ def setup_dev_segment(cluster, accounts, client):
                         "ipv4": 0
                         }
                     })
-        )
-    elif cluster == "vla":
-        accounts.append(
+        ],
+        "vla": [
             Account("tmp", {
                     "dev": {
                         "cpu": 283000,
@@ -453,9 +461,8 @@ def setup_dev_segment(cluster, accounts, client):
                         "ipv4": 0
                         }
                     })
-        )
-    elif cluster == "sas-test":
-        accounts.append(
+        ],
+        "sas-test": [
             Account("tmp", {
                     "dev": {
                         "cpu": 283000,
@@ -465,10 +472,9 @@ def setup_dev_segment(cluster, accounts, client):
                         "ipv4": 100
                         }
                     })
-        )
-
-    else:
-        assert not "Should not be here"
+        ],
+    }
+    accounts.extend(cluster_to_accounts.get(cluster, []))
 
 
 def accounts_override(cluster, accounts, client):
@@ -488,6 +494,53 @@ def accounts_override(cluster, accounts, client):
         setup_dev_segment(cluster, accounts, client)
 
 
+####################################################################################################
+
+
+# YPADMIN-287
+def configure_pod_eviction_requesters_group(client):
+    pod_eviction_requesters = Group("pod-eviction-requesters")
+    members = (
+        User("robot-yp-heavy-sched"),
+        Group("abc:service:1171"),
+    )
+    add_group_members(client, pod_eviction_requesters, members)
+    for attribute in ("/control/request_eviction", "/control/abort_eviction"):
+        add_permission(
+            client,
+            object_type="schema",
+            object_id="pod",
+            subject=pod_eviction_requesters,
+            permission="write",
+            attribute=attribute,
+        )
+
+
+# YPADMIN-286
+def configure_admins_group(client):
+    admins = Group("admins")
+    members = (
+        User("babenko"),
+        User("bidzilya"),
+        User("deep"),
+        User("ignat"),
+        User("se4min"),
+        User("slonnn"),
+    )
+    add_group_members(client, admins, members)
+    add_permission(
+        client,
+        object_type="group",
+        object_id="pod-eviction-requesters",
+        subject=admins,
+        permission="write",
+        attribute="/spec/members",
+    )
+
+
+####################################################################################################
+
+
 def initialize_users(cluster, dry_run):
     right_c = ["create"]
     right_crw = ["create", "read", "write"]
@@ -500,95 +553,104 @@ def initialize_users(cluster, dry_run):
     with YpClient(cluster, config=dict(token=token)) as raw_client:
         client = ClientWrapper(raw_client, dry_run)
 
+        configurators = (
+            configure_pod_eviction_requesters_group,
+            configure_admins_group,
+        )
+
+        for configurator in configurators:
+            try:
+                configurator(client)
+            except Exception:
+                logger.exception("Error running %s", configurator.func_name)
+
         accounts = copy.deepcopy(ACCOUNTS)
         accounts_override(cluster, accounts, client)
 
-        for subject in ("odin", "nanny-robot", "robot-yp-export"):
-            create_subject(client, subject)
+        for subject_id in ("odin", "nanny-robot", "robot-yp-export"):
+            create(client, User(subject_id))
 
-        set_schema_permissions(client, "pod_set", "robot-yp-export", right_crw)
-        set_schema_permissions(client, "pod_set", "robot-yp-hfsm", right_rw)
+        add_schema_permissions(client, "pod_set", User("robot-yp-export"), right_crw)
+        add_schema_permissions(client, "pod_set", User("robot-yp-hfsm"), right_rw)
 
-        set_schema_permissions(client, "replica_set", "robot-rsc", right_crw)
+        add_schema_permissions(client, "replica_set", User("robot-rsc"), right_crw)
 
-        set_schema_permissions(client, "node", "robot-yp-export", right_crw)
-        set_schema_permissions(client, "node", "robot-yp-hfsm", right_crw)
-        set_schema_permissions(client, "node", "robot-yp-inet-mngr", right_rw)
-        set_schema_permissions(client, "node", "robot-yp-eviction-st", right_rw)
+        add_schema_permissions(client, "node", User("robot-yp-export"), right_crw)
+        add_schema_permissions(client, "node", User("robot-yp-hfsm"), right_crw)
+        add_schema_permissions(client, "node", User("robot-yp-inet-mngr"), right_rw)
+        add_schema_permissions(client, "node", User("robot-yp-eviction-st"), right_rw)
 
-        set_schema_permissions(client, "node_segment", "robot-yp-export", right_crw)
-        set_schema_permissions(client, "resource", "robot-yp-export", right_crw)
-        set_schema_permissions(client, "user", "robot-yp-export", right_crw)
-        set_schema_permissions(client, "group", "robot-yp-export", right_crw)
-        set_schema_permissions(client, "group", "robot-yp-idm", right_rw)
-        set_schema_permissions(client, "virtual_service", "robot-yp-export", right_crw)
+        add_schema_permissions(client, "node_segment", User("robot-yp-export"), right_crw)
+        add_schema_permissions(client, "resource", User("robot-yp-export"), right_crw)
+        add_schema_permissions(client, "user", User("robot-yp-export"), right_crw)
+        add_schema_permissions(client, "group", User("robot-yp-export"), right_crw)
+        add_schema_permissions(client, "group", User("robot-yp-idm"), right_rw)
+        add_schema_permissions(client, "virtual_service", User("robot-yp-export"), right_crw)
 
-        set_schema_permissions(client, "pod", "robot-yp-hfsm", right_rw)
-        set_schema_permissions(client, "pod", "robot-yp-pdns", right_ro)
-        set_schema_permissions(client, "pod", "robot-yp-cauth", right_ro)
+        add_schema_permissions(client, "pod", User("robot-yp-hfsm"), right_rw)
+        add_schema_permissions(client, "pod", User("robot-yp-pdns"), right_ro)
+        add_schema_permissions(client, "pod", User("robot-yp-cauth"), right_ro)
 
-        set_schema_permissions(client, "network_project", "nanny-robot", right_u)
-        set_schema_permissions(client, "network_project", "robot-yp-export", right_crw)
-        set_schema_permissions(client, "network_project", "odin", right_u)
-        set_schema_permissions(client, "network_project", "robot-rsc", right_u)
-        set_schema_permissions(client, "network_project", "robot-mcrsc", right_u)
-        set_schema_permissions(client, "network_project", "robot-vmagent-rtc", right_u)
+        add_schema_permissions(client, "network_project", User("nanny-robot"), right_u)
+        add_schema_permissions(client, "network_project", User("robot-yp-export"), right_crw)
+        add_schema_permissions(client, "network_project", User("odin"), right_u)
+        add_schema_permissions(client, "network_project", User("robot-rsc"), right_u)
+        add_schema_permissions(client, "network_project", User("robot-mcrsc"), right_u)
+        add_schema_permissions(client, "network_project", User("robot-vmagent-rtc"), right_u)
 
-        set_schema_permissions(client, "account", "robot-yp-export", right_crw)
-        set_schema_permissions(client, "account", "nanny-robot", right_u)
-        set_schema_permissions(client, "account", "robot-drug-deploy", right_u)
-        set_schema_permissions(client, "account", "robot-mcrsc", right_u)
-        set_schema_permissions(client, "account", "robot-rsc", right_u)
-        set_schema_permissions(client, "account", "robot-vmagent-rtc", right_u)
+        add_schema_permissions(client, "account", User("robot-yp-export"), right_crw)
+        add_schema_permissions(client, "account", User("nanny-robot"), right_u)
+        add_schema_permissions(client, "account", User("robot-drug-deploy"), right_u)
+        add_schema_permissions(client, "account", User("robot-mcrsc"), right_u)
+        add_schema_permissions(client, "account", User("robot-rsc"), right_u)
+        add_schema_permissions(client, "account", User("robot-vmagent-rtc"), right_u)
 
-        set_schema_permissions(client, "internet_address", "robot-yp-inet-mngr", right_crwu)
-        set_schema_permissions(client, "ip4_address_pool", "robot-yp-inet-mngr", right_crwu)
+        add_schema_permissions(client, "internet_address", User("robot-yp-inet-mngr"), right_crwu)
+        add_schema_permissions(client, "ip4_address_pool", User("robot-yp-inet-mngr"), right_crwu)
 
-        set_schema_permissions(client, "endpoint_set", "robot-srv-ctl", right_rw)
+        add_schema_permissions(client, "endpoint_set", User("robot-srv-ctl"), right_rw)
 
-        set_schema_permissions(client, "replica_set", "robot-rsc", right_rw)
-        set_schema_permissions(client, "replica_set", "robot-drug-deploy", right_crwu)
+        add_schema_permissions(client, "replica_set", User("robot-rsc"), right_rw)
+        add_schema_permissions(client, "replica_set", User("robot-drug-deploy"), right_crwu)
 
-        set_schema_permissions(client, "multi_cluster_replica_set", "robot-mcrsc", right_rw)
-        set_schema_permissions(client, "multi_cluster_replica_set", "robot-drug-deploy", right_crw)
+        add_schema_permissions(client, "multi_cluster_replica_set", User("robot-mcrsc"), right_rw)
+        add_schema_permissions(client, "multi_cluster_replica_set", User("robot-drug-deploy"), right_crw)
 
-        set_schema_permissions(client, "stage", "robot-drug-deploy", right_rw)
+        add_schema_permissions(client, "stage", User("robot-drug-deploy"), right_rw)
 
-        set_schema_permissions(client, "dynamic_resource", "robot-yp-dynresource", right_crwu)
+        add_schema_permissions(client, "dynamic_resource", User("robot-yp-dynresource"), right_crwu)
 
         # DEPLOY-1117
-        set_schema_permissions(client, "dynamic_resource", "everyone", right_crwu)
+        add_schema_permissions(client, "dynamic_resource", Group("everyone"), right_crwu)
 
         if cluster == "xdc":
-            set_schema_permissions(client, "dns_record_set", "robot-gencfg", right_crw)
+            add_schema_permissions(client, "dns_record_set", User("robot-gencfg"), right_crw)
 
         # YPADMIN-233
         if cluster in ("sas-test", "man-pre"):
-            set_schema_permissions(client, "stage", "robot-deploy-test", right_rw)
-            set_schema_permissions(client, "account", "robot-deploy-test", right_u)
+            add_schema_permissions(client, "stage", User("robot-deploy-test"), right_rw)
+            add_schema_permissions(client, "account", User("robot-deploy-test"), right_u)
 
-        set_schema_permissions(client, "dns_record_set", "robot-ydnxdns-export", right_crwu)
+        add_schema_permissions(client, "dns_record_set", User("robot-ydnxdns-export"), right_crwu)
 
         # YPADMIN-257
-        set_schema_permissions(client, "pod_disruption_budget", "nanny-robot", right_crw)
+        add_schema_permissions(client, "pod_disruption_budget", User("nanny-robot"), right_crw)
         if cluster in ("man-pre", "sas-test"):
-            set_schema_permissions(client, "pod_disruption_budget", "abc:service-scope:730:5", right_crw)
-
-        set_schema_permission_for_attribute(client, "pod", "robot-yp-heavy-sched", "write", "/control/request_eviction")
+            add_schema_permissions(client, "pod_disruption_budget", Group("abc:service-scope:730:5"), right_crw)
 
         # YPADMIN-266
         if cluster in ("sas-test", "man-pre"):
-            set_schema_permissions(client, "network_project", "robot-deploy-test", right_u)
-        set_schema_permissions(client, "network_project", "robot-drug-deploy", right_u)
+            add_schema_permissions(client, "network_project", User("robot-deploy-test"), right_u)
+        add_schema_permissions(client, "network_project", User("robot-drug-deploy"), right_u)
 
         # YPADMIN-282
         if cluster == "sas-test":
-            set_schema_permissions(client, "group", "robot-deploy-auth-t", right_c)
+            add_schema_permissions(client, "group", User("robot-deploy-auth-t"), right_c)
 
         create_accounts(client, cluster, accounts)
 
-        allow_account_usage(client, account="odin", subject="odin")
-        allow_account_usage(client, account="odin", subject="robot-yt-odin")
+        allow_account_usage(client, account="odin", subject=User("odin"))
+        allow_account_usage(client, account="odin", subject=User("robot-yt-odin"))
 
         assign_podsets_to_accounts(client, cluster)
 
