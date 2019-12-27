@@ -1019,7 +1019,7 @@ void ValidateColumnSchema(
         "max",
         "first"
     };
-;
+
     static const auto allowedSortedTablesSystemColumns = THashMap<TString, EValueType>{
     };
 

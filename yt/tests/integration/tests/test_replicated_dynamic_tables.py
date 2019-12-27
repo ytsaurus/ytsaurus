@@ -1577,6 +1577,51 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == rows
 
+    @authors("akozhikhov")
+    def test_get_tablet_infos(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t", schema=self.AGGREGATE_SCHEMA)
+        replica_id1 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1", attributes={"mode": "async"})
+        replica_id2 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r2", attributes={"mode": "sync"})
+        self._create_replica_table("//tmp/r1", replica_id1, schema=self.AGGREGATE_SCHEMA)
+        self._create_replica_table("//tmp/r2", replica_id2, schema=self.AGGREGATE_SCHEMA)
+
+        sync_enable_table_replica(replica_id1)
+        sync_enable_table_replica(replica_id2)
+
+        for i in xrange(3):
+            insert_rows("//tmp/t", [{"key": i, "value1": "test" + str(i)}])
+
+        for i in xrange(2):
+            assert lookup_rows("//tmp/t", [{"key": i}, {"key": i + 1}], column_names=["key", "value1"]) == \
+                   [{"key": i, "value1": "test" + str(i)}, {"key": i + 1, "value1": "test" + str(i + 1)}]
+
+
+        tablet_infos = get_tablet_infos("//tmp/t", [0])
+        assert tablet_infos.keys() == ["tablets"] and len(tablet_infos["tablets"]) == 1
+        tablet_info = tablet_infos["tablets"][0]
+
+        assert tablet_info["total_row_count"] == 3
+        assert tablet_info["trimmed_row_count"] == 0
+        barrier_timestamp = tablet_info["barrier_timestamp"]
+        assert barrier_timestamp >= tablet_info["last_write_timestamp"]
+
+        sync_replica = None
+        async_replica = None
+        assert len(tablet_info["replica_infos"]) == 2
+        for replica in tablet_info["replica_infos"]:
+            assert replica["last_replication_timestamp"] <= barrier_timestamp
+            if replica["mode"] == "sync":
+                sync_replica = replica
+            elif replica["mode"] == "async":
+                async_replica = replica
+
+        assert sync_replica["replica_id"] == replica_id2
+        assert sync_replica["current_replication_row_index"] == 3
+
+        assert async_replica["replica_id"] == replica_id1
+        assert async_replica["current_replication_row_index"] <= 3
+
     ##################################################################
 
 class TestReplicatedDynamicTablesSafeMode(TestReplicatedDynamicTablesBase):

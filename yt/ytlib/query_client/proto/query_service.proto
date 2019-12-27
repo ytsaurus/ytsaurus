@@ -88,6 +88,7 @@ message TTabletInfo
     required int64 total_row_count = 3;
     required int64 trimmed_row_count = 4;
     optional uint64 barrier_timestamp = 5;
+    optional uint64 last_write_timestamp = 6;
 }
 
 message TRspGetTabletInfo

@@ -462,6 +462,18 @@ TFuture<std::vector<TTabletInfo>> TClient::GetTabletInfos(
             tabletInfo.TotalRowCount = protoTabletInfo.total_row_count();
             tabletInfo.TrimmedRowCount = protoTabletInfo.trimmed_row_count();
             tabletInfo.BarrierTimestamp = protoTabletInfo.barrier_timestamp();
+            tabletInfo.LastWriteTimestamp = protoTabletInfo.last_write_timestamp();
+            tabletInfo.TableReplicaInfos = protoTabletInfo.replicas().empty()
+                ? std::nullopt
+                : std::make_optional(std::vector<TTabletInfo::TTableReplicaInfo>());
+
+            for (const auto& protoReplicaInfo : protoTabletInfo.replicas()) {
+                auto& currentReplica = tabletInfo.TableReplicaInfos->emplace_back();
+                currentReplica.ReplicaId = FromProto<TGuid>(protoReplicaInfo.replica_id());
+                currentReplica.LastReplicationTimestamp = protoReplicaInfo.last_replication_timestamp();
+                currentReplica.Mode = CheckedEnumCast<ETableReplicaMode>(protoReplicaInfo.mode());
+                currentReplica.CurrentReplicationRowIndex = protoReplicaInfo.current_replication_row_index();
+            }
         }
         return tabletInfos;
     }));

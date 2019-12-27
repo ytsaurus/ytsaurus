@@ -224,6 +224,14 @@ struct TGetTabletsInfoOptions
 
 struct TTabletInfo
 {
+    struct TTableReplicaInfo
+    {
+        NTabletClient::TTableReplicaId ReplicaId;
+        NTransactionClient::TTimestamp LastReplicationTimestamp;
+        NTabletClient::ETableReplicaMode Mode;
+        i64 CurrentReplicationRowIndex;
+    };
+
     //! Currently only provided for ordered tablets.
     //! Indicates the total number of rows added to the tablet (including trimmed ones).
     // TODO(babenko): implement for sorted tablets
@@ -238,6 +246,12 @@ struct TTabletInfo
     //! It is guaranteed that all transactions with commit timestamp not exceeding the barrier
     //! are fully committed; e.g. all their addes rows are visible (and are included in TTabletInfo::TotalRowCount).
     NTransactionClient::TTimestamp BarrierTimestamp;
+
+    //! Contains maximum timestamp of committed transactions.
+    NTransactionClient::TTimestamp LastWriteTimestamp;
+
+    //! Only makes sense for replicated tablets.
+    std::optional<std::vector<TTableReplicaInfo>> TableReplicaInfos;
 };
 
 struct TBalanceTabletCellsOptions
