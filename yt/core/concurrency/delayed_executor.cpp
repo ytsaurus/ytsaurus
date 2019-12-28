@@ -71,8 +71,8 @@ public:
     TImpl()
         : PollerThread_(&PollerThreadMain, static_cast<void*>(this))
 #if defined(HAVE_TIMERFD)
-        , TimerFD_(timerfd_create(CLOCK_MONOTONIC, 0))
-        , EventFD_(eventfd(0, 0))
+        , TimerFD_(timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC|TFD_NONBLOCK))
+        , EventFD_(eventfd(0, EFD_CLOEXEC|EFD_NONBLOCK))
 #endif
     {
 #if defined(HAVE_TIMERFD)
@@ -218,6 +218,7 @@ private:
     TPollerImpl<TMutexLocking> Poller_;
     std::atomic<TInstant> CurrentTimerValue_ = {TInstant::Max()};
 #endif
+
     TSpinLock SpinLock_;
     TActionQueuePtr DelayedQueue_;
     IInvokerPtr DelayedInvoker_;
