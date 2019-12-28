@@ -299,12 +299,7 @@ private:
         // Run the main loop.
         while (!Stopping_) {
 #if defined(HAVE_TIMERFD)
-            decltype(Poller_)::TEvent event;
-            Poller_.Wait(&event, 1, std::numeric_limits<int>::max());
-            if (event.data.ptr == &EventFD_) {
-                eventfd_t value;
-                YT_VERIFY(eventfd_read(EventFD_, &value) == 0);
-            }
+            RunPoll();
 #else
             Sleep(SleepQuantum);
 #endif
@@ -350,6 +345,24 @@ private:
 
         // Release those waiting for shutdown.
         Exited_.Set();
+    }
+
+    void RunPoll()
+    {
+        std::array<decltype(Poller_)::TEvent, 2> events;
+        auto eventCount = Poller_.Wait(events.data(), events.size(), std::numeric_limits<int>::max());
+        for (auto eventIndex = 0; eventIndex < eventCount; ++eventIndex) {
+            const auto& event = events[eventIndex];
+            if (event.data.ptr == &EventFD_) {
+                eventfd_t value;
+                YT_VERIFY(eventfd_read(EventFD_, &value) == 0);
+            } else if (event.data.ptr == &TimerFD_) {
+                uint64_t value;
+                YT_VERIFY(read(TimerFD_, &value, sizeof(value)) == sizeof(value));
+            } else {
+                YT_ABORT();
+            }
+        }
     }
 
     void PollerThreadStep()
