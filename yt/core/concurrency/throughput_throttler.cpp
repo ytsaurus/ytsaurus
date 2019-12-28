@@ -76,7 +76,7 @@ public:
         // Slow lane.
         TGuard<TSpinLock> guard(SpinLock_);
 
-        if (!Limit_) {
+        if (!Limit_.load()) {
             return VoidFuture;
         }
 
@@ -193,16 +193,15 @@ public:
         // Slow lane (only).
         TGuard<TSpinLock> guard(SpinLock_);
 
-        Limit_ = config->Limit;
-        HasLimit_ = Limit_.operator bool();
+        auto limit = config->Limit;
+        Limit_ = limit;
+        HasLimit_ = limit.operator bool();
         LastUpdated_ = NProfiling::GetInstant();
         TDelayedExecutor::CancelAndClear(UpdateCookie_);
-        if (Limit_) {
+        if (limit) {
             Period_ = config->Period;
-            ThroughputPerPeriod_ = static_cast<i64>(Period_.SecondsFloat() * (*Limit_));
-            Available_ = ThroughputPerPeriod_;
+            Available_ = static_cast<i64>(config->Period.SecondsFloat() * (*limit));
         } else {
-            ThroughputPerPeriod_ = 0;
             Available_ = 0;
         }
 
@@ -231,9 +230,8 @@ private:
 
     //! Protects the section immediately following it.
     TSpinLock SpinLock_;
-    std::optional<i64> Limit_;
-    i64 ThroughputPerPeriod_ = 0;
-    TDuration Period_;
+    std::atomic<std::optional<i64>> Limit_;
+    std::atomic<TDuration> Period_;
     TDelayedExecutorCookie UpdateCookie_;
 
     std::queue<TThrottlerRequestPtr> Requests_;
@@ -246,7 +244,8 @@ private:
             return;
         }
 
-        auto delay = (-Available_ + *Limit_) * 1000 / *Limit_;
+        auto limit = *Limit_.load();
+        auto delay = (-Available_ + limit) * Period_.load().MilliSeconds() / limit;
         if (delay < 0) {
             delay = 0;
         }
@@ -261,23 +260,31 @@ private:
         if (!HasLimit_) {
             return;
         }
+        auto limitOptional = Limit_.load();
+        if (!limitOptional) {
+            return;
+        }
+        auto limit = *limitOptional;
+        auto period = Period_.load();
 
         auto current = NProfiling::GetInstant();
         auto lastUpdated = LastUpdated_.load();
 
         auto millisecondsPassed = (current - lastUpdated).MilliSeconds();
-        auto deltaAvailable = millisecondsPassed * *Limit_ / 1000;
+        auto deltaAvailable = static_cast<i64>(millisecondsPassed * limit / period.MilliSeconds());
         if (deltaAvailable == 0) {
             return;
         }
 
-        current = lastUpdated + TDuration::MilliSeconds(millisecondsPassed);
+        current = lastUpdated + TDuration::MilliSeconds(deltaAvailable * period.MilliSeconds() / limit);
         if (LastUpdated_.compare_exchange_strong(lastUpdated, current)) {
             auto available = Available_.load();
+            auto throughputPerPeriod = static_cast<i64>(period.SecondsFloat()) * limit;
+
             while (true) {
                 auto newAvailable = available + deltaAvailable;
-                if (newAvailable > ThroughputPerPeriod_) {
-                    newAvailable = ThroughputPerPeriod_;
+                if (newAvailable > throughputPerPeriod) {
+                    newAvailable = throughputPerPeriod;
                 }
                 if (Available_.compare_exchange_weak(available, newAvailable)) {
                     break;
@@ -303,11 +310,12 @@ private:
 
         std::vector<TThrottlerRequestPtr> readyList;
 
-        while (!Requests_.empty() && (!Limit_ || Available_ > 0)) {
+        auto limit = Limit_.load();
+        while (!Requests_.empty() && (!limit || Available_ > 0)) {
             const auto& request = Requests_.front();
             if (!request->Set.test_and_set()) {
                 YT_LOG_DEBUG("Finished waiting for throttler (Count: %v)", request->Count);
-                if (Limit_) {
+                if (limit) {
                     Available_ -= request->Count;
                 }
                 readyList.push_back(request);
