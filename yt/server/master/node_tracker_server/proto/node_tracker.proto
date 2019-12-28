@@ -29,6 +29,7 @@ message TReqSetCellNodeDescriptors
     message TStatistics
     {
         repeated TMediumStatistics medium_statistics = 1;
+        required int64 destroyed_chunk_replica_count = 2;
     }
 
     message TNodeDescriptor

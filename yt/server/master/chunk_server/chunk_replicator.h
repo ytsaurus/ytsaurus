@@ -43,7 +43,6 @@ public:
     void Start(TChunk* frontChunk, int chunkCount);
     void Stop();
 
-    void OnNodeRegistered(TNode* node);
     void OnNodeUnregistered(TNode* node);
     void OnNodeDisposed(TNode* node);
 

@@ -33,6 +33,7 @@ namespace NYT::NNodeTrackerServer {
 struct TCellNodeStatistics
 {
     NChunkClient::TMediumMap<i64> ChunkReplicaCount;
+    i64 DestroyedChunkReplicaCount = 0;
 };
 
 TCellNodeStatistics& operator+=(TCellNodeStatistics& lhs, const TCellNodeStatistics& rhs);
@@ -139,6 +140,9 @@ public:
     //! Maps replicas to the leader timestamp when this replica was registered by a client.
     using TUnapprovedReplicaMap = THashMap<TChunkPtrWithIndexes, TInstant>;
     DEFINE_BYREF_RW_PROPERTY(TUnapprovedReplicaMap, UnapprovedReplicas);
+
+    using TDestroyedReplicaSet = THashSet<NChunkClient::TChunkIdWithIndexes>;
+    DEFINE_BYREF_RW_PROPERTY(TDestroyedReplicaSet, DestroyedReplicas);
 
     using TJobMap = THashMap<TJobId, TJobPtr>;
     DEFINE_BYREF_RO_PROPERTY(TJobMap, IdToJob);

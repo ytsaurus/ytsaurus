@@ -95,6 +95,7 @@ TCellNodeStatistics& operator+=(TCellNodeStatistics& lhs, const TCellNodeStatist
     for (const auto& [mediumIndex, chunkReplicaCount] : rhs.ChunkReplicaCount) {
         lhs.ChunkReplicaCount[mediumIndex] += chunkReplicaCount;
     }
+    lhs.DestroyedChunkReplicaCount += rhs.DestroyedChunkReplicaCount;
     return lhs;
 }
 
@@ -109,6 +110,7 @@ void ToProto(
             mediumStatistics->set_chunk_replica_count(replicaCount);
         }
     }
+    protoStatistics->set_destroyed_chunk_replica_count(statistics.DestroyedChunkReplicaCount);
 }
 
 void FromProto(
@@ -121,6 +123,7 @@ void FromProto(
         auto replicaCount = mediumStatistics.chunk_replica_count();
         statistics->ChunkReplicaCount[mediumIndex] = replicaCount;
     }
+    statistics->DestroyedChunkReplicaCount = protoStatistics.destroyed_chunk_replica_count();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -354,6 +357,7 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, ResourceLimitsOverrides_);
     Save(context, Rack_);
     Save(context, LeaseTransaction_);
+    Save(context, DestroyedReplicas_);
 
     // The format is:
     //  (replicaCount, mediumIndex) pairs
@@ -418,6 +422,12 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, ResourceLimitsOverrides_);
     Load(context, Rack_);
     Load(context, LeaseTransaction_);
+
+    // COMPAT(aleksandra-zh)
+    if (context.GetVersion() >= EMasterReign::DestroyedChunkRemoval) {
+        Load(context, DestroyedReplicas_);
+    }
+
     while (true) {
         auto replicaCount = TSizeSerializer::Load(context);
         if (replicaCount == 0) {
@@ -522,6 +532,7 @@ void TNode::ClearReplicas()
     Replicas_.clear();
     UnapprovedReplicas_.clear();
     RandomReplicaIters_.clear();
+    DestroyedReplicas_.clear();
 }
 
 void TNode::AddUnapprovedReplica(TChunkPtrWithIndexes replica, TInstant timestamp)
@@ -920,9 +931,9 @@ TCellNodeStatistics TNode::ComputeCellStatistics() const
 {
     TCellNodeStatistics result = TCellNodeStatistics();
     for (const auto& [mediumIndex, replicas] :  Replicas_) {
-        auto replicaCount = replicas.size();
-        result.ChunkReplicaCount[mediumIndex] = replicaCount;
+        result.ChunkReplicaCount[mediumIndex] = replicas.size();
     }
+    result.DestroyedChunkReplicaCount = DestroyedReplicas_.size();
     return result;
 }
 

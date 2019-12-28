@@ -97,11 +97,13 @@ struct TChunkIdWithIndexes
 
 bool operator==(const TChunkIdWithIndex& lhs, const TChunkIdWithIndex& rhs);
 bool operator!=(const TChunkIdWithIndex& lhs, const TChunkIdWithIndex& rhs);
+bool operator<(const TChunkIdWithIndex& lhs, const TChunkIdWithIndex& rhs);
 
 TString ToString(const TChunkIdWithIndex& id);
 
 bool operator==(const TChunkIdWithIndexes& lhs, const TChunkIdWithIndexes& rhs);
 bool operator!=(const TChunkIdWithIndexes& lhs, const TChunkIdWithIndexes& rhs);
+bool operator<(const TChunkIdWithIndexes& lhs, const TChunkIdWithIndexes& rhs);
 
 TString ToString(const TChunkIdWithIndexes& id);
 
