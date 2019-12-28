@@ -58,7 +58,7 @@ public:
 
         Profiler.Increment(ValueCounter_, count);
 
-        if (!HasLimit_) {
+        if (Limit_.load() < 0) {
             return VoidFuture;
         }
 
@@ -113,7 +113,7 @@ public:
             return true;
         }
 
-        if (HasLimit_) {
+        if (Limit_.load() >= 0) {
             while (true) {
                 TryUpdateAvailable();
                 auto available = Available_.load();
@@ -140,7 +140,7 @@ public:
             return 0;
         }
 
-        if (HasLimit_) {
+        if (Limit_.load() >= 0) {
             while (true) {
                 TryUpdateAvailable();
                 auto available = Available_.load();
@@ -170,7 +170,7 @@ public:
         }
 
         TryUpdateAvailable();
-        if (HasLimit_) {
+        if (Limit_.load() >= 0) {
             Available_ -= count;
         }
 
@@ -194,8 +194,7 @@ public:
         TGuard<TSpinLock> guard(SpinLock_);
 
         auto limit = config->Limit;
-        Limit_ = limit;
-        HasLimit_ = limit.operator bool();
+        Limit_ = limit.value_or(-1);
         LastUpdated_ = NProfiling::GetInstant();
         TDelayedExecutor::CancelAndClear(UpdateCookie_);
         if (limit) {
@@ -225,12 +224,12 @@ private:
 
     std::atomic<TInstant> LastUpdated_;
     std::atomic<i64> Available_ = {0};
-    std::atomic<bool> HasLimit_ = {true};
     std::atomic<i64> QueueTotalCount_ = {0};
 
     //! Protects the section immediately following it.
     TSpinLock SpinLock_;
-    std::atomic<std::optional<i64>> Limit_;
+    // -1 indicates no limit
+    std::atomic<i64> Limit_;
     std::atomic<TDuration> Period_;
     TDelayedExecutorCookie UpdateCookie_;
 
@@ -244,7 +243,9 @@ private:
             return;
         }
 
-        auto limit = *Limit_.load();
+        auto limit = Limit_.load();
+        YT_VERIFY(limit >= 0);
+
         auto delay = (-Available_ + limit) * Period_.load().MilliSeconds() / limit;
         if (delay < 0) {
             delay = 0;
@@ -257,16 +258,12 @@ private:
 
     void TryUpdateAvailable()
     {
-        if (!HasLimit_) {
+        auto limit = Limit_.load();
+        if (limit < 0) {
             return;
         }
-        auto limitOptional = Limit_.load();
-        if (!limitOptional) {
-            return;
-        }
-        auto limit = *limitOptional;
-        auto period = Period_.load();
 
+        auto period = Period_.load();
         auto current = NProfiling::GetInstant();
         auto lastUpdated = LastUpdated_.load();
 
@@ -311,7 +308,7 @@ private:
         std::vector<TThrottlerRequestPtr> readyList;
 
         auto limit = Limit_.load();
-        while (!Requests_.empty() && (!limit || Available_ > 0)) {
+        while (!Requests_.empty() && (limit < 0 || Available_ > 0)) {
             const auto& request = Requests_.front();
             if (!request->Set.test_and_set()) {
                 YT_LOG_DEBUG("Finished waiting for throttler (Count: %v)", request->Count);
