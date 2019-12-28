@@ -347,6 +347,7 @@ private:
         Exited_.Set();
     }
 
+#if defined(HAVE_TIMERFD)
     void RunPoll()
     {
         std::array<decltype(Poller_)::TEvent, 2> events;
@@ -364,6 +365,7 @@ private:
             }
         }
     }
+#endif
 
     void PollerThreadStep()
     {
