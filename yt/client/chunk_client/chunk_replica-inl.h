@@ -125,6 +125,14 @@ Y_FORCE_INLINE bool operator!=(const TChunkIdWithIndex& lhs, const TChunkIdWithI
     return !(lhs == rhs);
 }
 
+Y_FORCE_INLINE bool operator<(const TChunkIdWithIndex& lhs, const TChunkIdWithIndex& rhs)
+{
+    if (lhs.Id == rhs.Id) {
+        return lhs.ReplicaIndex < rhs.ReplicaIndex;
+    }
+    return lhs.Id < rhs.Id;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 Y_FORCE_INLINE TChunkIdWithIndexes::TChunkIdWithIndexes()
@@ -153,6 +161,15 @@ Y_FORCE_INLINE bool operator!=(const TChunkIdWithIndexes& lhs, const TChunkIdWit
     return !(lhs == rhs);
 }
 
+Y_FORCE_INLINE bool operator<(const TChunkIdWithIndexes& lhs, const TChunkIdWithIndexes& rhs)
+{
+    const auto& lhs_ = static_cast<const TChunkIdWithIndex&>(lhs);
+    const auto& rhs_ = static_cast<const TChunkIdWithIndex&>(rhs);
+    if (lhs_ == rhs_) {
+        return lhs.MediumIndex < rhs.MediumIndex;
+    }
+    return lhs_ < rhs_;
+}
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkClient

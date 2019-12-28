@@ -82,6 +82,7 @@
     XX(DependentTransactionIds, dependent_transaction_ids) \
     XX(DesiredTabletCount, desired_tablet_count) \
     XX(DesiredTabletSize, desired_tablet_size) \
+    XX(DestroyedChunkReplicaCount, destroyed_chunk_replica_count) \
     XX(DisableSchedulerJobs, disable_scheduler_jobs) \
     XX(DisableTabletBalancer, disable_tablet_balancer) \
     XX(DisableTabletCells, disable_tablet_cells) \

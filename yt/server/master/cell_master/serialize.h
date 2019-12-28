@@ -113,6 +113,7 @@ DEFINE_ENUM(EMasterReign,
     ((GranularCypressTreeCopy)                                      (1105))  // gritukan
     ((NoTabletErrorsOnMaster)                                       (1106))  // ifsmirnov
     ((TwoLevelMasterCache)                                          (1107))  // aleksandra-zh
+    ((DestroyedChunkRemoval)                                        (1108))  // aleksandra-zh
 );
 
 ////////////////////////////////////////////////////////////////////////////////

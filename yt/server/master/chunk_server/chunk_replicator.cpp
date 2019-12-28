@@ -145,6 +145,15 @@ TChunkReplicator::TChunkReplicator(
         DecommissionedPartChunkRepairQueueBalancer_.AddContender(i);
     }
 
+    for (auto [_, node] : Bootstrap_->GetNodeTracker()->Nodes()) {
+        if (node->GetLocalState() != ENodeState::Online) {
+            continue;
+        }
+        for (const auto& replica : node->DestroyedReplicas()) {
+            node->AddToChunkRemovalQueue(replica);
+        }
+    }
+
     InitInterDCEdges();
 }
 
@@ -972,9 +981,6 @@ void TChunkReplicator::ScheduleJobs(
         jobsToAbort);
 }
 
-void TChunkReplicator::OnNodeRegistered(TNode* /*node*/)
-{ }
-
 void TChunkReplicator::OnNodeUnregistered(TNode* node)
 {
     auto idToJob = node->IdToJob();
@@ -1052,6 +1058,7 @@ void TChunkReplicator::ProcessExistingJobs(
 
     for (const auto& job : currentJobs) {
         auto jobId = job->GetJobId();
+        auto jobType = job->GetType();
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         YT_VERIFY(CellTagFromId(jobId) == multicellManager->GetCellTag());
@@ -1063,8 +1070,9 @@ void TChunkReplicator::ProcessExistingJobs(
             case EJobState::Waiting: {
                 if (TInstant::Now() - job->GetStartTime() > GetDynamicConfig()->JobTimeout) {
                     jobsToAbort->push_back(job);
-                    YT_LOG_WARNING("Job timed out (JobId: %v, Address: %v, Duration: %v)",
+                    YT_LOG_WARNING("Job timed out (JobId: %v, JobType: %v, Address: %v, Duration: %v)",
                         jobId,
+                        jobType,
                         address,
                         TInstant::Now() - job->GetStartTime());
                     break;
@@ -1072,14 +1080,16 @@ void TChunkReplicator::ProcessExistingJobs(
 
                 switch (job->GetState()) {
                     case EJobState::Running:
-                        YT_LOG_DEBUG("Job is running (JobId: %v, Address: %v)",
+                        YT_LOG_DEBUG("Job is running (JobId: %v, JobType: %v, Address: %v)",
                             jobId,
+                            jobType,
                             address);
                         break;
 
                     case EJobState::Waiting:
-                        YT_LOG_DEBUG("Job is waiting (JobId: %v, Address: %v)",
+                        YT_LOG_DEBUG("Job is waiting (JobId: %v, JobType: %v, Address: %v)",
                             jobId,
+                            jobType,
                             address);
                         break;
 
@@ -1093,23 +1103,37 @@ void TChunkReplicator::ProcessExistingJobs(
             case EJobState::Failed:
             case EJobState::Aborted: {
                 jobsToRemove->push_back(job);
+                auto rescheduleChunkRemoval = [&] {
+                    if (jobType == EJobType::RemoveChunk &&
+                        !job->Error().FindMatching(NChunkClient::EErrorCode::NoSuchChunk))
+                    {
+                        const auto& replica = job->GetChunkIdWithIndexes();
+                        node->AddToChunkRemovalQueue(replica);
+                    }
+                };
+
                 switch (job->GetState()) {
                     case EJobState::Completed:
-                        YT_LOG_DEBUG("Job completed (JobId: %v, Address: %v)",
+                        YT_LOG_DEBUG("Job completed (JobId: %v, JobType: %v, Address: %v)",
                             jobId,
+                            jobType,
                             address);
                         break;
 
                     case EJobState::Failed:
-                        YT_LOG_WARNING(job->Error(), "Job failed (JobId: %v, Address: %v)",
+                        YT_LOG_WARNING(job->Error(), "Job failed (JobId: %v, JobType: %v, Address: %v)",
                             jobId,
+                            jobType,
                             address);
+                        rescheduleChunkRemoval();
                         break;
 
                     case EJobState::Aborted:
-                        YT_LOG_WARNING(job->Error(), "Job aborted (JobId: %v, Address: %v)",
+                        YT_LOG_WARNING(job->Error(), "Job aborted (JobId: %v, JobType: %v, Address: %v)",
                             jobId,
+                            jobType,
                             address);
+                        rescheduleChunkRemoval();
                         break;
 
                     default:
@@ -1131,8 +1155,9 @@ void TChunkReplicator::ProcessExistingJobs(
         const auto& job = pair.second;
         if (currentJobSet.find(job) == currentJobSet.end()) {
             missingJobs.push_back(job);
-            YT_LOG_WARNING("Job is missing (JobId: %v, Address: %v)",
+            YT_LOG_WARNING("Job is missing (JobId: %v, JobType: %v, Address: %v)",
                 job->GetJobId(),
+                job->GetType(),
                 address);
         }
     }
