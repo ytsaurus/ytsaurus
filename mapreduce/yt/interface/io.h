@@ -134,8 +134,13 @@ class TTableReaderIterator
 {
 public:
     explicit TTableReaderIterator<T>(TTableReader<T>* reader)
-        : Reader_(reader)
-    { }
+    {
+        if (reader && reader->IsValid()) {
+            Reader_ = reader;
+        } else {
+            Reader_ = nullptr;
+        }
+    }
 
     bool operator==(const TTableReaderIterator& it) const
     {

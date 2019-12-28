@@ -1038,6 +1038,31 @@ Y_UNIT_TEST_SUITE(Operations)
         UNIT_ASSERT_VALUES_EQUAL(data, result);
     }
 
+    Y_UNIT_TEST(RangeBasedReaderEmptyTable)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        auto outputTable = workingDir + "/output";
+        {
+            auto writer = client->CreateTableWriter<TNode>(workingDir + "/input");
+            writer->Finish();
+        }
+
+        client->Map(
+            TMapOperationSpec()
+                .AddInput<TNode>(workingDir + "/input")
+                .AddOutput<TNode>(outputTable),
+            new TRangeBasedTIdMapper);
+        auto reader = client->CreateTableReader<TNode>(outputTable);
+
+        TVector<TNode> result;
+        for (const auto& cursor : *reader) {
+            result.push_back(cursor.GetRow());
+        }
+        UNIT_ASSERT(result.empty());
+    }
+
     Y_UNIT_TEST(MaxFailedJobCount)
     {
         TTestFixture fixture;
