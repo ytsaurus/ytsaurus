@@ -219,6 +219,9 @@ public:
         RegisterParameter("cpu_overdraft_timeout", CpuOverdraftTimeout)
             .Default(TDuration::Minutes(10));
 
+        RegisterParameter("resource_adjustment_period", ResourceAdjustmentPeriod)
+            .Default(TDuration::Seconds(5));
+
         RegisterParameter("recently_removed_jobs_clean_period", RecentlyRemovedJobsCleanPeriod)
             .Default(TDuration::Seconds(5));
 
