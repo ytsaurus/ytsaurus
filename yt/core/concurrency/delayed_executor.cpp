@@ -366,12 +366,25 @@ private:
 
     void RunPoll()
     {
-        decltype(Poller_)::TEvent event;
-        YT_VERIFY(Poller_.Wait(&event, 1, std::numeric_limits<int>::max()) == 1);
-        YT_VERIFY(event.data.ptr == &TimerFD_);
+        {
+            decltype(Poller_)::TEvent event;
+            YT_VERIFY(Poller_.Wait(&event, 1, std::numeric_limits<int>::max()) == 1);
+            YT_VERIFY(event.data.ptr == &TimerFD_);
+        }
 
-        uint64_t value;
-        YT_VERIFY(read(TimerFD_, &value, sizeof(value)) == sizeof(value));
+        while (true) {
+            uint64_t value;
+            int result = read(TimerFD_, &value, sizeof(value));
+            if (result >= 0) {
+                YT_VERIFY(result == sizeof(value));
+                break;
+            }
+            auto error = errno;
+            YT_VERIFY(error == EAGAIN || result == EINTR);
+            if (error == EAGAIN) {
+                break;
+            }
+        }
     }
 #endif
 
