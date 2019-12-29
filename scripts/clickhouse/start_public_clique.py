@@ -49,6 +49,9 @@ def main():
             "pool": "chyt",
             "preemption_mode": "graceful" if args.graceful_preemption else "normal",
         },
+        clickhouse_config={
+            "validate_operation_access": False,
+        },
         abort_existing=True,
         dump_tables=True)
 
