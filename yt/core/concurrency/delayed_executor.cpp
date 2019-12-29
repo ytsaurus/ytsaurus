@@ -15,7 +15,6 @@
 #include <util/network/pollerimpl.h>
 
 #include <sys/timerfd.h>
-#include <sys/eventfd.h>
 #endif
 
 namespace NYT::NConcurrency {
@@ -72,13 +71,10 @@ public:
         : PollerThread_(&PollerThreadMain, static_cast<void*>(this))
 #if defined(HAVE_TIMERFD)
         , TimerFD_(timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC|TFD_NONBLOCK))
-        , EventFD_(eventfd(0, EFD_CLOEXEC|EFD_NONBLOCK))
 #endif
     {
 #if defined(HAVE_TIMERFD)
         YT_VERIFY(TimerFD_ >= 0);
-        YT_VERIFY(EventFD_ >= 0);
-        Poller_.Set(&EventFD_, EventFD_, CONT_POLL_READ);
         Poller_.Set(&TimerFD_, TimerFD_, CONT_POLL_READ);
 #endif
     }
@@ -86,7 +82,6 @@ public:
 #if defined(HAVE_TIMERFD)
     ~TImpl()
     {
-        YT_VERIFY(close(EventFD_) == 0);
         YT_VERIFY(close(TimerFD_) == 0);
     }
 #endif
@@ -151,16 +146,7 @@ public:
         SubmitQueue_.Enqueue(entry);
 
 #if defined(HAVE_TIMERFD)
-        auto currentTimerValue = CurrentTimerValue_.load();
-        while (true) {
-            if (currentTimerValue < deadline) {
-                break;
-            }
-            if (CurrentTimerValue_.compare_exchange_weak(currentTimerValue, TInstant::Zero())) {
-                YT_VERIFY(eventfd_write(EventFD_, 1) == 0);
-                break;
-            }
-        }
+        ScheduleImmediateWakeup();
 #endif
 
         if (!EnsureStarted()) {
@@ -189,12 +175,17 @@ public:
 
     void Shutdown()
     {
-        auto guard = Guard(SpinLock_);
-        Stopping_ = true;
-        if (Started_) {
-            guard.Release();
-            Exited_.Get();
+        {
+            auto guard = Guard(SpinLock_);
+            Stopping_ = true;
+            if (!Started_) {
+                return;
+            }
         }
+#if defined(HAVE_TIMERFD)
+        ScheduleImmediateWakeup();
+#endif
+        Exited_.Get();
     }
 
 private:
@@ -209,14 +200,13 @@ private:
 
 #if defined(HAVE_TIMERFD)
     int TimerFD_;
-    int EventFD_;
 
     struct TMutexLocking
     {
         using TMyMutex = TMutex;
     };
     TPollerImpl<TMutexLocking> Poller_;
-    std::atomic<TInstant> CurrentTimerValue_ = {TInstant::Max()};
+    std::atomic<TInstant> ScheduledWakeupTime_ = {TInstant::Max()};
 #endif
 
     TSpinLock SpinLock_;
@@ -333,7 +323,7 @@ private:
         // Finally we wait for all callbacks in the Delayed Executor thread to finish running.
         // This certainly cannot prevent any malicious code in the callbacks from starting new fibers there
         // but we don't care.
-        BIND([] () { })
+        BIND([] { })
             .AsyncVia(DelayedInvoker_)
             .Run()
             .Get();
@@ -348,22 +338,40 @@ private:
     }
 
 #if defined(HAVE_TIMERFD)
-    void RunPoll()
+    void ScheduleImmediateWakeup()
     {
-        std::array<decltype(Poller_)::TEvent, 2> events;
-        auto eventCount = Poller_.Wait(events.data(), events.size(), std::numeric_limits<int>::max());
-        for (auto eventIndex = 0; eventIndex < eventCount; ++eventIndex) {
-            const auto& event = events[eventIndex];
-            if (event.data.ptr == &EventFD_) {
-                eventfd_t value;
-                YT_VERIFY(eventfd_read(EventFD_, &value) == 0);
-            } else if (event.data.ptr == &TimerFD_) {
-                uint64_t value;
-                YT_VERIFY(read(TimerFD_, &value, sizeof(value)) == sizeof(value));
-            } else {
-                YT_ABORT();
+        auto delay = CoalescingInterval;
+        auto desiredWakeupTime = NProfiling::GetInstant() + delay;
+        auto scheduledWakeupTime = ScheduledWakeupTime_.load();
+        while (true) {
+            if (scheduledWakeupTime <= desiredWakeupTime) {
+                break;
+            }
+            if (ScheduledWakeupTime_.compare_exchange_weak(scheduledWakeupTime, desiredWakeupTime)) {
+                ScheduleDelayedWakeup(delay);
+                break;
             }
         }
+    }
+
+    void ScheduleDelayedWakeup(TDuration delay)
+    {
+        itimerspec timerValue;
+        timerValue.it_value.tv_sec = delay.Seconds();
+        timerValue.it_value.tv_nsec = delay.NanoSecondsOfSecond();
+        timerValue.it_interval.tv_sec = 0;
+        timerValue.it_interval.tv_nsec = 0;
+        YT_VERIFY(timerfd_settime(TimerFD_, 0, &timerValue, &timerValue) == 0);
+    }
+
+    void RunPoll()
+    {
+        decltype(Poller_)::TEvent event;
+        YT_VERIFY(Poller_.Wait(&event, 1, std::numeric_limits<int>::max()) == 1);
+        YT_VERIFY(event.data.ptr == &TimerFD_);
+
+        uint64_t value;
+        YT_VERIFY(read(TimerFD_, &value, sizeof(value)) == sizeof(value));
     }
 #endif
 
@@ -372,19 +380,13 @@ private:
         ProcessQueues();
 
 #if defined(HAVE_TIMERFD)
-        if (!ScheduledEntries_.empty()) {
-            auto deadline = (*ScheduledEntries_.begin())->Deadline;
-            auto timeDelta = std::max(TDuration::MicroSeconds(1), deadline - NProfiling::GetInstant());
-
-            itimerspec timerValue;
-            timerValue.it_value.tv_sec = timeDelta.Seconds();
-            timerValue.it_value.tv_nsec = timeDelta.NanoSecondsOfSecond();
-            timerValue.it_interval.tv_sec = 0;
-            timerValue.it_interval.tv_nsec = 0;
-            YT_VERIFY(timerfd_settime(TimerFD_, 0, &timerValue, &timerValue) == 0);
-            CurrentTimerValue_.store(deadline);
+        if (ScheduledEntries_.empty()) {
+            ScheduledWakeupTime_.store(TInstant::Max());
         } else {
-            CurrentTimerValue_.store(TInstant::Max());
+            auto deadline = (*ScheduledEntries_.begin())->Deadline;
+            auto delay = std::max(CoalescingInterval, deadline - NProfiling::GetInstant());
+            ScheduleDelayedWakeup(delay);
+            ScheduledWakeupTime_.store(deadline);
         }
 
         ProcessQueues();
