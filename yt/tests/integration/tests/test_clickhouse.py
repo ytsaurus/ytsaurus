@@ -1799,6 +1799,7 @@ class TestJoinAndIn(ClickHouseTestBase):
             assert clique.make_query("select * from \"//tmp/t1\" t1 global join \"//tmp/t3\" t3 on t3.a = t1.a order by t3.a") == expected_on
 
     @authors("max42")
+    @pytest.mark.skipif(is_gcc_build(), reason="https://github.com/yandex/ClickHouse/issues/6187")
     def test_global_in(self):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64", "required": True}]})
         create("table", "//tmp/t2", attributes={"schema": [{"name": "a", "type": "int64", "required": True}]})
@@ -2017,6 +2018,7 @@ class TestJoinAndIn(ClickHouseTestBase):
             assert clique.make_query("select * from \"//tmp/t1\" join \"//tmp/t2\" using key") == [{"key": 0}, {"key": 1}]
 
     @authors("max42")
+    @pytest.mark.skipif(is_gcc_build(), reason="https://github.com/yandex/ClickHouse/issues/6187")
     def test_join_under_different_names(self):
         # CHYT-270.
         create("table", "//tmp/t1", attributes={"schema": [{"name": "key1", "type": "int64", "sort_order": "ascending"}]})
