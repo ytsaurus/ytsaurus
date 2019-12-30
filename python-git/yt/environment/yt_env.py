@@ -1435,6 +1435,7 @@ class YTInstance(object):
                 subprocess.check_call(
                     "gdb -p {} -ex 'set confirm off' -ex 'set pagination off' -ex 'thread apply all bt' -ex 'quit'".format(process.pid),
                     stdout=open(os.path.join(self.backtraces_path, "gdb.{}-{}".format(name, index)), "w"),
+                    stderr=sys.stderr,
                     shell=True
                 )
 
