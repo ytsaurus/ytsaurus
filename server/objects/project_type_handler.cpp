@@ -49,8 +49,7 @@ public:
                     ->SetMandatory()
                     ->SetValidator<TProject>(std::bind(&TProjectTypeHandler::ValidateAccount, this, _1, _2)),
             })
-            ->SetUpdatable()
-            ->SetExtensible();
+            ->SetUpdatable();
 
         StatusAttributeSchema_
             ->SetAttribute(TProject::StatusSchema);
