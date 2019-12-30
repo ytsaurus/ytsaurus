@@ -2031,6 +2031,18 @@ class TestJoinAndIn(ClickHouseTestBase):
                                          "A.key1 in (1, 2) and B.key2 in (2, 3)")) == 1
 
 
+    @authors("max42")
+    @pytest.mark.skipif(is_gcc_build(), reason="https://github.com/yandex/ClickHouse/issues/6187")
+    def test_tricky_join2(self):
+        # CHYT-273.
+        create("table", "//tmp/t1", attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]})
+        create("table", "//tmp/t2", attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]})
+        write_table("//tmp/t1", [{"key": 0, "key": 1}])
+        write_table("//tmp/t2", [{"key": 4, "key": 5}])
+        with Clique(1) as clique:
+            assert len(clique.make_query("select * from \"//tmp/t1\" A inner join \"//tmp/t2\" B on A.key = B.key where "
+                                         "A.key = 1")) == 0
+
 
 class TestClickHouseHttpProxy(ClickHouseTestBase):
     def setup(self):
