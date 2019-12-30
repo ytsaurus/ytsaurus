@@ -151,7 +151,7 @@ public:
     TBalancingChannelConfigBase()
     {
         RegisterParameter("discover_timeout", DiscoverTimeout)
-            .Default(TDuration::Seconds(5));
+            .Default(TDuration::Seconds(15));
         RegisterParameter("hard_backoff_time", HardBackoffTime)
             .Default(TDuration::Seconds(10));
         RegisterParameter("soft_backoff_time", SoftBackoffTime)
@@ -193,9 +193,9 @@ public:
             .GreaterThan(0)
             .Default(1);
         RegisterParameter("rediscover_period", RediscoverPeriod)
-            .Default(TDuration::Minutes(5));
+            .Default(TDuration::Seconds(10));
         RegisterParameter("rediscover_splay", RediscoverSplay)
-            .Default(TDuration::Minutes(1));
+            .Default(TDuration::Seconds(2));
         RegisterParameter("hashes_per_peer", HashesPerPeer)
             .Default(10);
     }
