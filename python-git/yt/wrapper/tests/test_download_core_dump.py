@@ -49,6 +49,7 @@ class TestDownloadCoreDump(object):
         assert len(files) == 1
         core_output_file = os.path.join(core_output_dir, files[0])
 
+        gdb_binary = "gdb" if yatest_common is None else yatest_common.gdb_path()
         gdb_output = os.path.join(test_core_dumps_dir, "gdb_output.log")
         gdb_command = ["gdb",
                        "-ex", "set logging file " + gdb_output,
