@@ -314,7 +314,7 @@ class TestCli(object):
         vlan_id = "backbone"
 
         create_nodes(yp_client, node_count, cpu_total_capacity=200, vlan_id=vlan_id)
-        pod_set_id = create_pod_set(yp_client)
+        pod_set_id = create_pod_set(cli)
         network_project_id = yp_client.create_object("network_project", {
             "meta": {"id": "somenet"},
             "spec": {"project_id": 42},
