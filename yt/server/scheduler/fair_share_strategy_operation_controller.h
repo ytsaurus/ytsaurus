@@ -14,6 +14,7 @@ public:
 
     void DecreaseConcurrentScheduleJobCalls(int nodeShardId);
     void IncreaseConcurrentScheduleJobCalls(int nodeShardId);
+    void IncreaseScheduleJobCallsSinceLastUpdate(int nodeShardId);
 
     void SetLastScheduleJobFailTime(NProfiling::TCpuInstant now);
 
@@ -21,9 +22,10 @@ public:
     TJobResources GetAggregatedMinNeededJobResources() const;
     void UpdateMinNeededJobResources();
 
-    bool IsMaxConcurrentScheduleJobCallsViolated(
+    void CheckMaxScheduleJobCallsOverdraft(int maxScheduleJobCalls, bool* isMaxScheduleJobCallsViolated) const;
+    bool IsMaxConcurrentScheduleJobCallsPerNodeShardViolated(
         const ISchedulingContextPtr& schedulingContext,
-        int maxConcurrentScheduleJobCalls) const;
+        int maxConcurrentScheduleJobCallsPerNodeShard) const;
     bool HasRecentScheduleJobFailure(NProfiling::TCpuInstant now, TDuration scheduleJobFailBackoffTime) const;
 
     TControllerScheduleJobResultPtr ScheduleJob(
@@ -51,9 +53,12 @@ private:
     struct TStateShard
     {
         std::atomic<int> ConcurrentScheduleJobCalls = 0;
+        mutable std::atomic<int> ScheduleJobCallsSinceLastUpdate = 0;
         char Padding[64];
     };
     std::array<TStateShard, MaxNodeShardCount> StateShards_;
+
+    mutable int ScheduleJobCallsOverdraft_ = 0;
 
     std::atomic<NProfiling::TCpuInstant> LastScheduleJobFailTime_ = ::Min<NProfiling::TCpuInstant>();
 

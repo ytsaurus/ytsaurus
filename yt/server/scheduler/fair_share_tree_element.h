@@ -920,7 +920,10 @@ private:
 
     bool HasJobsSatisfyingResourceLimits(const TFairShareContext& context) const;
 
-    bool IsMaxConcurrentScheduleJobCallsViolated(const ISchedulingContextPtr& schedulingContext) const;
+    std::optional<EUnschedulableReason> ComputeUnschedulableReason() const;
+
+    bool IsMaxScheduleJobCallsViolated() const;
+    bool IsMaxConcurrentScheduleJobCallsPerNodeShardViolated(const ISchedulingContextPtr& schedulingContext) const;
     bool HasRecentScheduleJobFailure(NProfiling::TCpuInstant now) const;
     std::optional<EDeactivationReason> CheckBlocked(const ISchedulingContextPtr& schedulingContext) const;
 

@@ -42,7 +42,7 @@ DEFINE_ENUM(EDeactivationReason,
     (OperationDisabled)
     (BadPacking)
     (FairShareExceeded)
-    (MaxConcurrentScheduleJobCallsViolated)
+    (MaxConcurrentScheduleJobCallsPerNodeShardViolated)
     (RecentScheduleJobFailed)
 );
 
@@ -52,8 +52,13 @@ class TFairShareStrategyOperationControllerConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
+    // NB(eshcherbin): This limit is only checked once every fair share update. Finer throttling is achieved
+    // via the "per node shard" limit.
     //! Limit on the number of concurrent calls to ScheduleJob of single controller.
     int MaxConcurrentControllerScheduleJobCalls;
+
+    //! Limit on the number of concurrent calls to ScheduleJob of single controller per node shard.
+    int MaxConcurrentControllerScheduleJobCallsPerNodeShard;
 
     //! Maximum allowed time for single job scheduling.
     TDuration ScheduleJobTimeLimit;

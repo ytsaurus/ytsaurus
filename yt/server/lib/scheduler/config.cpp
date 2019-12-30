@@ -7,7 +7,11 @@ namespace NYT::NScheduler {
 TFairShareStrategyOperationControllerConfig::TFairShareStrategyOperationControllerConfig()
 {
     RegisterParameter("max_concurrent_controller_schedule_job_calls", MaxConcurrentControllerScheduleJobCalls)
-        .Default(10)
+        .Default(100)
+        .GreaterThan(0);
+
+    RegisterParameter("max_concurrent_controller_schedule_job_calls_per_node_shard", MaxConcurrentControllerScheduleJobCallsPerNodeShard)
+        .Default(5)
         .GreaterThan(0);
 
     RegisterParameter("schedule_job_time_limit", ScheduleJobTimeLimit)
