@@ -1,0 +1,21 @@
+[case colDateTimeCompare]
+import datetime
+from pyspark.sql.functions import col
+
+today = datetime.date.today()
+now = datetime.datetime.now()
+a_col = col("")
+
+a_col < today
+a_col <= today
+a_col == today
+a_col >= today
+a_col > today
+
+
+a_col < now
+a_col <= now
+a_col == now
+a_col >= now
+a_col > now
+[out]

@@ -10,6 +10,7 @@ TypeCheckSuite.files = [
         "ml-param.test",
         "ml-readable.test",
         "resultiterable.test",
+        "sql-column.test",
         "sql-readwriter.test",
         "sql-udf.test",
     ]
