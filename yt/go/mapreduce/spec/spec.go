@@ -29,6 +29,8 @@ type UserScript struct {
 	StderrTablePath ypath.YPath       `yson:"stderr_table_path,omitempty"`
 	CoreTablePath   ypath.YPath       `yson:"core_table_path,omitempty"`
 
+	TmpfsPath string `yson:"tmpfs_path,omitempty"`
+
 	CPULimit    float32 `yson:"cpu_limit,omitempty"`
 	MemoryLimit int64   `yson:"memory_limit,omitempty"`
 
@@ -47,6 +49,22 @@ type JobIO struct {
 	TableReader       interface{}        `yson:"table_reader,omitempty"`
 	TableWriter       interface{}        `yson:"table_writer,omitempty"`
 	ControlAttributes *ControlAttributes `yson:"control_attributes,omitempty"`
+}
+
+const (
+	AutoMergeRelaxed  = "relaxed"
+	AutoMergeEconomic = "economic"
+	AutoMergeDisabled = "disabled"
+	AutoMergeManual   = "manual"
+)
+
+type AutoMerge struct {
+	Mode string `yson:"mode"`
+
+	// Setting for manual mode.
+	MaxIntermediateChunkCount int `yson:"max_intermediate_chunk_count,omitempty"`
+	ChunkCountPerMergeJob     int `yson:"chunk_count_per_merge_job,omitempty"`
+	ChunkSizeThreshold        int `yson:"chunk_size_threshold,omitempty"`
 }
 
 type Spec struct {
@@ -93,6 +111,8 @@ type Spec struct {
 	JobIO       *JobIO `yson:"job_io,omitempty"`
 	MapJobIO    *JobIO `yson:"map_job_io,omitempty"`
 	ReduceJobIO *JobIO `yson:"reduce_job_io,omitempty"`
+
+	AutoMerge *AutoMerge `yson:"auto_merge,omitempty"`
 
 	ACL []yt.ACE `yson:"acl,omitempty"`
 }
