@@ -270,6 +270,41 @@ class TestEviction(object):
 
         yp_client.abort_pod_eviction(pod_id, "Test")
 
+    def test_request_eviction_reason(self, yp_env_configurable):
+        yp_client = yp_env_configurable.yp_client
+
+        node_id, _, pod_id = prepare_objects(yp_client)
+
+        def get_reason():
+            return yp_client.get_object(
+                "pod",
+                pod_id,
+                selectors=["/status/eviction/reason"],
+            )[0]
+
+        # Specified reason.
+        yp_client.request_pod_eviction(
+            pod_id,
+            "Test",
+            reason="scheduler",
+        )
+        assert "scheduler" == get_reason()
+        yp_client.abort_pod_eviction(pod_id, "Test")
+
+        # Default reason.
+        yp_client.request_pod_eviction(pod_id, "Test")
+        assert "client" == get_reason()
+        yp_client.abort_pod_eviction(pod_id, "Test")
+
+        # Unknown reason.
+        with pytest.raises(YtResponseError):
+            yp_client.request_pod_eviction(
+                pod_id,
+                "Test",
+                reason="abracadabra",
+            )
+
+
 
 @pytest.mark.usefixtures("yp_env_configurable")
 class TestEvictionAcknowledgement(object):

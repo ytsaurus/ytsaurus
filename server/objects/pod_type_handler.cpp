@@ -474,12 +474,18 @@ private:
             message = "Eviction requested by client";
         }
 
-        YT_LOG_DEBUG("Pod eviction requested (PodId: %v, Message: %v)",
+        auto reason = CheckedEnumCast<EEvictionReason>(control.reason());
+        if (reason == EEvictionReason::None) {
+            reason = EEvictionReason::Client;
+        }
+
+        YT_LOG_DEBUG("Pod eviction requested (PodId: %v, Message: %v, Reason: %v)",
             pod->GetId(),
-            message);
+            message,
+            reason);
 
         pod->RequestEviction(
-            EEvictionReason::Client,
+            reason,
             message,
             control.validate_disruption_budget());
     }

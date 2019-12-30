@@ -1329,6 +1329,9 @@ message TPodControl
         // If false, eviction can be successfully requested even for the existent
         // and empty pod disruption budget.
         optional bool validate_disruption_budget = 2 [default = true];
+
+        // Reason of the request.
+        optional EEvictionReason reason = 3;
     }
 
     message TAbortEviction
