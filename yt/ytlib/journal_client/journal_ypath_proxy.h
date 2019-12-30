@@ -15,7 +15,9 @@ struct TJournalYPathProxy
 {
     DEFINE_YPATH_PROXY(Journal);
 
+    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, UpdateStatistics);
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, Seal);
+    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, Truncate);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

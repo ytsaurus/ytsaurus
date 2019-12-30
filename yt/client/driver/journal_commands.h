@@ -42,4 +42,17 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTruncateJournalCommand
+    : public TTypedCommand<NApi::TTruncateJournalOptions>
+{
+public:
+    TTruncateJournalCommand();
+
+private:
+    NYPath::TYPath Path;
+    i64 RowCount;
+
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
 } // namespace NYT::NDriver

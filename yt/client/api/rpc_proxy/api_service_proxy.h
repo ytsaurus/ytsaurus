@@ -106,6 +106,7 @@ public:
         .SetStreamingEnabled(true));
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, WriteJournal,
         .SetStreamingEnabled(true));
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, TruncateJournal);
 
     // Tables
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ReadTable,

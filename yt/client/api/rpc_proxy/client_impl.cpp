@@ -1087,6 +1087,23 @@ TFuture<std::vector<TColumnarStatistics>> TClient::GetColumnarStatistics(
     }));
 }
 
+TFuture<void> TClient::TruncateJournal(
+    const NYPath::TYPath& path,
+    i64 rowCount,
+    const NApi::TTruncateJournalOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.TruncateJournal();
+    SetTimeoutOptions(*req, options);
+
+    req->set_path(path);
+    req->set_row_count(rowCount);
+    ToProto(req->mutable_mutating_options(), options);
+    ToProto(req->mutable_prerequisite_options(), options);
+
+    return req->Invoke().As<void>();
+}
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi::NRpcProxy

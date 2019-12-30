@@ -236,6 +236,11 @@ public:
         const std::vector<NYPath::TRichYPath>& path,
         const TGetColumnarStatisticsOptions& options));
 
+    MOCK_METHOD3(TruncateJournal, TFuture<void>(
+        const NYPath::TYPath& path,
+        i64 rowCount,
+        const TTruncateJournalOptions& options));
+
     MOCK_METHOD2(GetFileFromCache, TFuture<TGetFileFromCacheResult>(
         const TString& md5,
         const TGetFileFromCacheOptions& options));

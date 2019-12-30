@@ -1690,6 +1690,11 @@ def sync_create_cells(cell_count, tablet_cell_bundle="default", driver=None):
 def wait_until_sealed(path, driver=None):
     wait(lambda: get(path + "/@sealed", driver=driver))
 
+def truncate_journal(path, row_count, **kwargs):
+    kwargs["path"] = path
+    kwargs["row_count"] = row_count
+    return execute_command("truncate_journal", kwargs)
+
 def wait_for_tablet_state(path, state, **kwargs):
     print_debug("Waiting for tablets to become %s..." % (state))
     driver = kwargs.pop("driver", None)
