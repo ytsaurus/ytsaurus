@@ -321,6 +321,8 @@ public:
     //! is not specified.
     std::optional<THashSet<TString>> PoolTrees;
 
+    // NB(eshcherbin): This limit is only checked once every fair share update. Finer throttling is achieved
+    // via the "per node shard" limit in controller config.
     //! Limit on the number of concurrent calls to ScheduleJob of single controller.
     std::optional<int> MaxConcurrentControllerScheduleJobCalls;
 

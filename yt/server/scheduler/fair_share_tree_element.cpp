@@ -2237,6 +2237,7 @@ std::optional<EDeactivationReason> TOperationElement::TryStartScheduleJob(
     }
 
     Controller_->IncreaseConcurrentScheduleJobCalls(context.SchedulingContext->GetNodeShardId());
+    Controller_->IncreaseScheduleJobCallsSinceLastUpdate(context.SchedulingContext->GetNodeShardId());
 
     *precommittedResourcesOutput = minNeededResources;
     *availableResourcesOutput = Min(availableResourceLimits, nodeFreeResources);
@@ -2346,7 +2347,7 @@ void TOperationElement::UpdateBottomUp(TDynamicAttributesList* dynamicAttributes
 {
     YT_VERIFY(Mutable_);
 
-    UnschedulableReason_ = Operation_->CheckUnschedulable();
+    UnschedulableReason_ = ComputeUnschedulableReason();
     SlotIndex_ = Operation_->FindSlotIndex(GetTreeId());
     ResourceDemand_ = ComputeResourceDemand();
     ResourceLimits_ = ComputeResourceLimits();
@@ -2921,13 +2922,31 @@ bool TOperationElement::IsSchedulable() const
     return !UnschedulableReason_;
 }
 
-bool TOperationElement::IsMaxConcurrentScheduleJobCallsViolated(
+std::optional<EUnschedulableReason> TOperationElement::ComputeUnschedulableReason() const
+{
+    auto result = Operation_->CheckUnschedulable();
+    if (!result && IsMaxScheduleJobCallsViolated()) {
+        result = EUnschedulableReason::MaxScheduleJobCallsViolated;
+    }
+    return result;
+}
+
+bool TOperationElement::IsMaxScheduleJobCallsViolated() const
+{
+    bool result = false;
+    Controller_->CheckMaxScheduleJobCallsOverdraft(
+        Spec_->MaxConcurrentControllerScheduleJobCalls.value_or(
+            ControllerConfig_->MaxConcurrentControllerScheduleJobCalls),
+        &result);
+    return result;
+}
+
+bool TOperationElement::IsMaxConcurrentScheduleJobCallsPerNodeShardViolated(
     const ISchedulingContextPtr& schedulingContext) const
 {
-    return Controller_->IsMaxConcurrentScheduleJobCallsViolated(
+    return Controller_->IsMaxConcurrentScheduleJobCallsPerNodeShardViolated(
         schedulingContext,
-        Spec_->MaxConcurrentControllerScheduleJobCalls.value_or(
-            ControllerConfig_->MaxConcurrentControllerScheduleJobCalls));
+        ControllerConfig_->MaxConcurrentControllerScheduleJobCallsPerNodeShard);
 }
 
 bool TOperationElement::HasRecentScheduleJobFailure(NYT::NProfiling::TCpuInstant now) const
@@ -2938,8 +2957,8 @@ bool TOperationElement::HasRecentScheduleJobFailure(NYT::NProfiling::TCpuInstant
 std::optional<EDeactivationReason> TOperationElement::CheckBlocked(
     const ISchedulingContextPtr& schedulingContext) const
 {
-    if (IsMaxConcurrentScheduleJobCallsViolated(schedulingContext)) {
-        return EDeactivationReason::MaxConcurrentScheduleJobCallsViolated;
+    if (IsMaxConcurrentScheduleJobCallsPerNodeShardViolated(schedulingContext)) {
+        return EDeactivationReason::MaxConcurrentScheduleJobCallsPerNodeShardViolated;
     }
 
     if (HasRecentScheduleJobFailure(schedulingContext->GetNow())) {
