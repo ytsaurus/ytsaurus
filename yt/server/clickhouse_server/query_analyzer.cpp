@@ -317,17 +317,7 @@ DB::ASTPtr TQueryAnalyzer::RewriteQuery(
 
         std::vector<TChunkStripePtr> stripes;
         for (const auto& subquery : threadSubqueries) {
-            TChunkStripePtr currentTableStripe;
-            for (const auto& stripe : subquery.StripeList->Stripes) {
-                if (stripe->GetTableIndex() == index) {
-                    YT_VERIFY(!currentTableStripe);
-                    currentTableStripe = stripe;
-                }
-            }
-            if (!currentTableStripe) {
-                currentTableStripe = New<TChunkStripe>();
-            }
-            stripes.emplace_back(std::move(currentTableStripe));
+            stripes.emplace_back(subquery.StripeList->Stripes[index]);
         }
 
         auto spec = specTemplate;
