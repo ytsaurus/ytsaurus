@@ -298,4 +298,24 @@ void TWriteJournalCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTruncateJournalCommand::TTruncateJournalCommand()
+{
+    RegisterParameter("path", Path);
+    RegisterParameter("row_count", RowCount);
+}
+
+void TTruncateJournalCommand::DoExecute(NYT::NDriver::ICommandContextPtr context)
+{
+    auto client = context->GetClient();
+    auto asyncResult = client->TruncateJournal(
+        Path,
+        RowCount,
+        Options);
+
+    WaitFor(asyncResult)
+        .ThrowOnError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NDriver

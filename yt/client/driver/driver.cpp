@@ -252,6 +252,7 @@ public:
         REGISTER    (TWriteJournalCommand,                "write_journal",                 Tabular,    Null,       true,  true , ApiVersion3);
         REGISTER    (TWriteJournalCommand,                "write_journal",                 Tabular,    Structured, true,  true , ApiVersion4);
         REGISTER_ALL(TReadJournalCommand,                 "read_journal",                  Null,       Tabular,    false, true );
+        REGISTER    (TTruncateJournalCommand,             "truncate_journal",              Null,       Null,       true,  false, ApiVersion4);
 
         REGISTER_ALL(TGetJobInputCommand,                 "get_job_input",                 Null,       Binary,     false, true );
         REGISTER_ALL(TGetJobInputPathsCommand,            "get_job_input_paths",           Null,       Structured, false, true );

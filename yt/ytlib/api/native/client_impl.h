@@ -286,6 +286,12 @@ public:
         const TGetColumnarStatisticsOptions& options),
         (paths, options))
 
+    IMPLEMENT_METHOD(void, TruncateJournal, (
+        const NYPath::TYPath& path,
+        i64 rowCount,
+        const TTruncateJournalOptions& options),
+        (path, rowCount, options))
+
     IMPLEMENT_METHOD(TGetFileFromCacheResult, GetFileFromCache, (
         const TString& md5,
         const TGetFileFromCacheOptions& options),
@@ -558,6 +564,11 @@ private:
     std::vector<NTableClient::TColumnarStatistics> DoGetColumnarStatistics(
         const std::vector<NYPath::TRichYPath>& paths,
         const TGetColumnarStatisticsOptions& options);
+
+    void DoTruncateJournal(
+        const NYPath::TYPath& path,
+        i64 rowCount,
+        const TTruncateJournalOptions& options);
 
     // Dynamic tables
     std::vector<TTabletInfo> DoGetTabletInfos(

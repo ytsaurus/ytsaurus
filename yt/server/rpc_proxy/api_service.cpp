@@ -346,6 +346,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(WriteJournal)
             .SetStreamingEnabled(true)
             .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(TruncateJournal));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadTable)
             .SetStreamingEnabled(true)
@@ -3096,6 +3097,35 @@ private:
             }),
             BIND(&IJournalWriter::Close, journalWriter),
             true /* feedbackEnabled */);
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, TruncateJournal)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        const auto& path = request->path();
+        auto rowCount = request->row_count();
+
+        TTruncateJournalOptions options;
+        SetTimeoutOptions(&options, context.Get());
+        if (request->has_mutating_options()) {
+            FromProto(&options, request->mutating_options());
+        }
+        if (request->has_prerequisite_options()) {
+            FromProto(&options, request->prerequisite_options());
+        }
+
+        context->SetRequestInfo("Path: %v, RowCount: %v",
+            path,
+            rowCount);
+
+        CompleteCallWith(
+            client,
+            context,
+            client->TruncateJournal(
+                path,
+                rowCount,
+                options));
     }
 
     ////////////////////////////////////////////////////////////////////////////////

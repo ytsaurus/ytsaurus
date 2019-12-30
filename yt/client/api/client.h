@@ -699,6 +699,12 @@ struct TJournalWriterOptions
     NProfiling::TProfiler Profiler;
 };
 
+struct TTruncateJournalOptions
+    : public TTimeoutOptions
+    , public TMutatingOptions
+    , public TPrerequisiteOptions
+{ };
+
 struct TTableReaderOptions
     : public TTransactionalOptions
 {
@@ -1296,6 +1302,12 @@ struct IClient
     virtual TFuture<std::vector<NTableClient::TColumnarStatistics>> GetColumnarStatistics(
         const std::vector<NYPath::TRichYPath>& path,
         const TGetColumnarStatisticsOptions& options = {}) = 0;
+
+    // Journals
+    virtual TFuture<void> TruncateJournal(
+        const NYPath::TYPath& path,
+        i64 rowCount,
+        const TTruncateJournalOptions& options = {}) = 0;
 
     // Files
     virtual TFuture<TGetFileFromCacheResult> GetFileFromCache(
