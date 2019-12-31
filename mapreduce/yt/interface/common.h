@@ -252,7 +252,7 @@ inline TTableSchema CreateTableSchema(
         keepFieldsWithoutExtension);
 }
 
-TTableSchema CreateTableSchema(NTi::TType::TPtr type);
+TTableSchema CreateTableSchema(NTi::TTypePtr type);
 
 ////////////////////////////////////////////////////////////////////////////////
 

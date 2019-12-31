@@ -265,7 +265,7 @@ public:
     const U& GetRow() const
     {
         AssertIsOneOf<U>();
-        Reader_->VerifyRowType(NYdl::TYdlTraits<U>::Reflect()->AsStruct().GetNameHash());
+        Reader_->VerifyRowType(NYdl::TYdlTraits<U>::ReflectRaw()->GetHash());
         if (RowState_ == None) {
             std::get<U>(CachedRows_) = U::DeserializeFromYson(Reader_->GetRow());
             RowState_ = Cached;
@@ -279,7 +279,7 @@ public:
     void MoveRow(U* result)
     {
         AssertIsOneOf<U>();
-        Reader_->VerifyRowType(NYdl::TYdlTraits<U>::Reflect()->AsStruct().GetNameHash());
+        Reader_->VerifyRowType(NYdl::TYdlTraits<U>::ReflectRaw()->GetHash());
         Y_VERIFY(result);
         switch (RowState_) {
             case None:
@@ -826,7 +826,7 @@ public:
     template<class U, std::enable_if_t<NYdl::TIsYdlGenerated<U>::value>* = nullptr>
     void AddRow(const U& row, size_t tableIndex = 0)
     {
-        GetWriterImpl()->VerifyRowType(NYdl::TYdlTraits<U>::Reflect()->AsStruct().GetNameHash(), tableIndex);
+        GetWriterImpl()->VerifyRowType(NYdl::TYdlTraits<U>::ReflectRaw()->GetHash(), tableIndex);
         TNode node;
         TNodeBuilder builder(&node);
         row.SerializeAsYson(builder);

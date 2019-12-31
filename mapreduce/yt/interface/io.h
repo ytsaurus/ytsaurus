@@ -288,7 +288,7 @@ private:
     virtual ::TIntrusivePtr<IYdlReaderImpl> CreateYdlReader(
         const TRichYPath& /*path*/,
         const TTableReaderOptions& /*options*/,
-        NTi::TType::TPtr /*type*/)
+        NTi::TTypePtr /*type*/)
     {
         Y_FAIL("Uimplemented");
     }
@@ -307,7 +307,7 @@ private:
     virtual ::TIntrusivePtr<IYdlWriterImpl> CreateYdlWriter(
         const TRichYPath& /*path*/,
         const TTableWriterOptions& /*options*/,
-        NTi::TType::TPtr /*type*/)
+        NTi::TTypePtr /*type*/)
     {
         Y_FAIL("Uimplemented");
     }

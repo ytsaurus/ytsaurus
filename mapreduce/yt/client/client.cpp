@@ -529,11 +529,11 @@ THolder<TClientWriter> TClientBase::CreateClientWriter(
 ::TIntrusivePtr<IYdlReaderImpl> TClientBase::CreateYdlReader(
     const TRichYPath& path,
     const TTableReaderOptions& options,
-    NTi::TType::TPtr type)
+    NTi::TTypePtr type)
 {
     return MakeIntrusive<TNodeYdlTableReader>(
         CreateClientReader(path, TFormat::YsonBinary(), options),
-        TVector({type->AsStruct().GetNameHash()}));
+        TVector({type->GetHash()}));
 }
 
 ::TIntrusivePtr<IProtoReaderImpl> TClientBase::CreateProtoReader(
@@ -579,7 +579,7 @@ THolder<TClientWriter> TClientBase::CreateClientWriter(
 ::TIntrusivePtr<IYdlWriterImpl> TClientBase::CreateYdlWriter(
     const TRichYPath& path,
     const TTableWriterOptions& options,
-    NTi::TType::TPtr type)
+    NTi::TTypePtr type)
 {
     auto pathWithSchema = path;
     if (!path.Schema_) {
@@ -590,7 +590,7 @@ THolder<TClientWriter> TClientBase::CreateClientWriter(
     ApplyFormatHints<TNode>(&format, options.FormatHints_);
     return MakeIntrusive<TNodeYdlTableWriter>(
         CreateClientWriter(pathWithSchema, format, options),
-        TVector({type->AsStruct().GetNameHash()}));
+        TVector({type->GetHash()}));
 }
 
 ::TIntrusivePtr<IProtoWriterImpl> TClientBase::CreateProtoWriter(

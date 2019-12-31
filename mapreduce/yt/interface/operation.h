@@ -32,7 +32,7 @@ struct TProtobufTableStructure
 
 struct TYdlTableStructure
 {
-    NTi::TType::TPtr Type = nullptr;
+    NTi::TTypePtr Type = nullptr;
 };
 
 using TTableStructure = ::TVariant<
@@ -63,7 +63,7 @@ struct TStructuredTablePath
         , Description(TUnspecifiedTableStructure())
     { }
 
-    TStructuredTablePath(TRichYPath richYPath, NTi::TType::TPtr typePtr)
+    TStructuredTablePath(TRichYPath richYPath, NTi::TTypePtr typePtr)
         : RichYPath(std::move(richYPath))
         , Description(TYdlTableStructure{std::move(typePtr)})
     { }
@@ -91,7 +91,7 @@ struct TTYaMRRowStructuredRowStream
 
 struct TYdlStructuredRowStream
 {
-    NTi::TType::TPtr Type = nullptr;
+    NTi::TTypePtr Type = nullptr;
 };
 
 struct TProtobufStructuredRowStream

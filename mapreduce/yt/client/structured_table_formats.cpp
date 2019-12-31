@@ -64,11 +64,11 @@ TString CreateProtoConfig(const TVector<const ::google::protobuf::Descriptor*>& 
     return result;
 }
 
-TString CreateYdlConfig(const TVector<NTi::TType::TPtr>& descriptorList)
+TString CreateYdlConfig(const TVector<NTi::TTypePtr>& descriptorList)
 {
     TStringStream structHashList;
     for (const auto& descriptor : descriptorList) {
-        structHashList << descriptor->AsStruct().GetNameHash() << Endl;
+        structHashList << descriptor->GetHash() << Endl;
     }
     return structHashList.Str();
 }
@@ -92,8 +92,8 @@ struct TGetTableStructureDescriptionStringImpl {
             return res;
         } else if constexpr (std::is_same_v<T, TYdlTableStructure>) {
             TString name;
-            if (description.Type->AsStruct().GetName().Defined()) {
-                name = *description.Type->AsStruct().GetName();
+            if (description.Type->AsStruct()->GetName().Defined()) {
+                name = *description.Type->AsStruct()->GetName();
             } else {
                 name = "<unknown>";
             }
@@ -407,8 +407,8 @@ std::pair<TFormat, TMaybe<TSmallJobFile>> TFormatBuilder::CreateNodeFormat(
     const EIODirection& direction,
     const TStructuredJobTable& table,
     const IStructuredJob& job,
-    const TMaybe<TString>& jobDescriptorName,
-    const TMaybe<TString>& descriptorName)
+    const TMaybe<TStringBuf> jobDescriptorName,
+    const TMaybe<TStringBuf> descriptorName)
 {
     ythrow TApiUsageError()
         << "Job " << TJobFactory::Get()->GetJobName(&job) << " expects "
@@ -424,15 +424,15 @@ std::pair<TFormat, TMaybe<TSmallJobFile>> TFormatBuilder::CreateNodeYdlFormat(
     ENodeReaderFormat /*nodeReaderFormat*/,
     bool /*allowFormatFromTableAttribute*/)
 {
-    TVector<NTi::TType::TPtr> descriptorList;
+    TVector<NTi::TTypePtr> descriptorList;
 
-    NTi::TType::TPtr jobDescriptor =
+    NTi::TTypePtr jobDescriptor =
         Get<TYdlStructuredRowStream>(GetJobStreamDescription(job, direction)).Type;
     Y_ENSURE(!structuredTableList.empty(),
              "empty " << direction << " tables for job " << TJobFactory::Get()->GetJobName(&job));
 
     for (const auto& table : structuredTableList) {
-        NTi::TType::TPtr descriptor = nullptr;
+        NTi::TTypePtr descriptor = nullptr;
         if (HoldsAlternative<TYdlTableStructure>(table.Description)) {
             descriptor = Get<TYdlTableStructure>(table.Description).Type;
         } else if (table.RichYPath) {
@@ -448,13 +448,13 @@ std::pair<TFormat, TMaybe<TSmallJobFile>> TFormatBuilder::CreateNodeYdlFormat(
                 ThrowTypeDeriveFail(direction, job, "ydl");
             }
         }
-        if (jobDescriptor && descriptor->AsStruct().GetName() != jobDescriptor->AsStruct().GetName()) {
+        if (jobDescriptor && descriptor->AsStruct()->GetName() != jobDescriptor->AsStruct()->GetName()) {
             ThrowUnexpectedDifferentDescriptors(
                 direction,
                 table,
                 job,
-                jobDescriptor->AsStruct().GetName(),
-                descriptor->AsStruct().GetName());
+                jobDescriptor->AsStruct()->GetName(),
+                descriptor->AsStruct()->GetName());
         }
         descriptorList.push_back(descriptor);
     }
