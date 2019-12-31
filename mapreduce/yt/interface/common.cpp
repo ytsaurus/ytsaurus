@@ -103,11 +103,11 @@ TTableSchema CreateTableSchema(
     return result;
 }
 
-TTableSchema CreateTableSchema(NTi::TType::TPtr type)
+TTableSchema CreateTableSchema(NTi::TTypePtr type)
 {
     Y_VERIFY(type);
     TTableSchema schema;
-    Deserialize(schema, type->AsYtSchema());
+    Deserialize(schema, NTi::NIo::AsYtSchema(type.Get()));
     return schema;
 }
 
