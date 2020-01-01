@@ -282,7 +282,7 @@ private:
         // NB: block checksums are validated before writing to disk.
         auto result = session->PutBlocks(
             firstBlockIndex,
-            GetRpcAttachedBlocks(request, /* validateChecksum */ false),
+            GetRpcAttachedBlocks(request, /* validateChecksums */ false),
             populateCache);
 
         // Flush blocks if needed.
