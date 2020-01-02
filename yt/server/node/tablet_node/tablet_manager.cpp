@@ -1139,17 +1139,6 @@ private:
         CheckIfTabletFullyUnlocked(tablet);
     }
 
-    void ReportTabletLocked(TTablet* tablet)
-    {
-        if (IsRecovery()) {
-            return;
-        }
-
-        TReqReportTabletLocked request;
-        ToProto(request.mutable_tablet_id(), tablet->GetId());
-        CommitTabletMutation(request);
-    }
-
     void HydraReportTabletLocked(TReqReportTabletLocked* request)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
@@ -1160,19 +1149,18 @@ private:
 
         const auto& lockManager = tablet->GetLockManager();
         auto transactionIds = lockManager->RemoveUnconfirmedTransactions();
-
         if (transactionIds.empty()) {
             return;
         }
+
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Tablet lock confirmed (TabletId: %v, TransactionIds: %v)",
+            tabletId,
+            transactionIds);
 
         TRspLockTablet response;
         ToProto(response.mutable_tablet_id(), tabletId);
         ToProto(response.mutable_transaction_ids(), transactionIds);
         PostMasterMutation(tabletId, response);
-
-        YT_LOG_INFO_UNLESS(IsRecovery(), "Tablet lock confirmed (TabletId: %v, TransactionIds: %v)",
-            tabletId,
-            transactionIds);
     }
 
     void HydraUnlockTablet(TReqUnlockTablet* request)
@@ -1191,8 +1179,6 @@ private:
         auto transactionId = FromProto<TTabletId>(request->transaction_id());
         auto updateMode = FromProto<EUpdateMode>(request->update_mode());
 
-        const auto& storeManager = tablet->GetStoreManager();
-
         std::vector<TStoreId> addedStoreIds;
         std::vector<IStorePtr> storesToAdd;
         for (const auto& descriptor : request->stores_to_add()) {
@@ -1203,6 +1189,8 @@ private:
             auto store = CreateStore(tablet, storeType, storeId, &descriptor)->AsChunk();
             storesToAdd.push_back(std::move(store));
         }
+
+        const auto& storeManager = tablet->GetStoreManager();
 
         if (updateMode == EUpdateMode::Overwrite) {
             YT_LOG_INFO_UNLESS(IsRecovery(),
@@ -1222,7 +1210,7 @@ private:
 
             // COMPAT(ifsmirnov)
             auto commitTimestamp = request->has_commit_timestamp()
-                ? ToProto<TTimestamp>(request->commit_timestamp())
+                ? request->commit_timestamp()
                 : MinTimestamp;
             lockManager->Unlock(commitTimestamp, transactionId);
         } else {
@@ -2831,7 +2819,13 @@ private:
             return;
         }
 
-        ReportTabletLocked(tablet);
+        NTracing::TNullTraceContextGuard guard;
+
+        {
+            TReqReportTabletLocked request;
+            ToProto(request.mutable_tablet_id(), tablet->GetId());
+            CommitTabletMutation(request);
+        }
 
         auto state = tablet->GetState();
         if (state != ETabletState::UnmountWaitingForLocks && state != ETabletState::FreezeWaitingForLocks) {
@@ -2858,11 +2852,13 @@ private:
             tablet->GetLoggingId(),
             newTransientState);
 
-        TReqSetTabletState request;
-        ToProto(request.mutable_tablet_id(), tablet->GetId());
-        request.set_mount_revision(tablet->GetMountRevision());
-        request.set_state(static_cast<int>(newPersistentState));
-        CommitTabletMutation(request);
+        {
+            TReqSetTabletState request;
+            ToProto(request.mutable_tablet_id(), tablet->GetId());
+            request.set_mount_revision(tablet->GetMountRevision());
+            request.set_state(static_cast<int>(newPersistentState));
+            CommitTabletMutation(request);
+        }
     }
 
     void CheckIfTabletFullyFlushed(TTablet* tablet)
