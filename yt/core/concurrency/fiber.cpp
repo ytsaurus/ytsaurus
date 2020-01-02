@@ -165,6 +165,16 @@ TFiber::~TFiber()
     GetFiberRegistry()->Unregister(Iterator_);
 }
 
+TFiberId TFiber::GetId()
+{
+    return Id_;
+}
+
+bool TFiber::CheckFreeStackSpace(size_t space) const
+{
+    return reinterpret_cast<char*>(Stack_->GetStack()) + space < __builtin_frame_address(0);
+}
+
 TExceptionSafeContext* TFiber::GetContext()
 {
     return &Context_;
@@ -193,7 +203,7 @@ void TFiber::InvokeContextInHandlers()
     }
 }
 
-void TFiber::OnSwitchInto()
+void TFiber::OnSwitchIn()
 {
     OnStartRunning();
 
@@ -216,8 +226,7 @@ NProfiling::TCpuDuration TFiber::GetRunCpuTime() const
 
 void TFiber::OnStartRunning()
 {
-    auto isRunning = IsRunning_.exchange(true);
-    YT_VERIFY(!isRunning);
+    YT_VERIFY(!Running_.exchange(true));
 
     YT_VERIFY(CurrentFiberId == InvalidFiberId);
     SetCurrentFiberId(Id_);
@@ -230,7 +239,7 @@ void TFiber::OnStartRunning()
 
 void TFiber::OnFinishRunning()
 {
-    auto isRunning = IsRunning_.exchange(false);
+    auto isRunning = Running_.exchange(false);
     YT_VERIFY(isRunning);
 
     auto now = NProfiling::GetCpuInstant();

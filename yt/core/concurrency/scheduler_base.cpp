@@ -227,7 +227,7 @@ void SwitchFromFiber(TFiberPtr target)
 
     YT_LOG_TRACE("Switched into fiber (Id: %llx)", id);
 
-    currentFiber->OnSwitchInto();
+    currentFiber->OnSwitchIn();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
