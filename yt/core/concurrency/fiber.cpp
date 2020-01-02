@@ -286,6 +286,7 @@ void TFiber::ResetForReuse()
 
     RunCpuTime_ = 0;
     RunStartInstant_ = NProfiling::GetCpuInstant();
+    SavedTraceContext_.Reset();
 
     auto oldId = Id_;
     RegenerateId();
