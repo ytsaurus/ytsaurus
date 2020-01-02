@@ -54,6 +54,21 @@ struct TBlock
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TBlockChecksumValidationException
+    : public std::exception
+{
+public:
+    TBlockChecksumValidationException(TChecksum expected, TChecksum actual)
+        : Expected_(expected)
+        , Actual_(actual)
+    { }
+
+    DEFINE_BYVAL_RO_PROPERTY(TChecksum, Expected);
+    DEFINE_BYVAL_RO_PROPERTY(TChecksum, Actual);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChunkClient
 
 #define BLOCK_INL_H_

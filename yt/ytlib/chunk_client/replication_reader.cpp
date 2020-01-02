@@ -1409,7 +1409,7 @@ private:
         int invalidBlockCount = 0;
         std::vector<int> receivedBlockIndexes;
 
-        auto blocks = GetRpcAttachedBlocks(rsp, /* validateChecksums */ false);
+        auto blocks = GetRpcAttachedBlocks(rsp);
         for (int index = 0; index < blocks.size(); ++index) {
             const auto& block = blocks[index];
             if (!block)
@@ -1418,12 +1418,14 @@ private:
             int blockIndex = req->block_indexes(index);
             auto blockId = TBlockId(reader->ChunkId_, blockIndex);
 
-            if (!block.IsChecksumValid()) {
+            try {
+                block.ValidateChecksum();
+            } catch (const TBlockChecksumValidationException& ex) {
                 RegisterError(TError("Failed to validate received block checksum")
                     << TErrorAttribute("block_id", ToString(blockId))
                     << TErrorAttribute("peer", peerAddressWithNetwork)
-                    << TErrorAttribute("actual", GetChecksum(block.Data))
-                    << TErrorAttribute("expected", block.Checksum));
+                    << TErrorAttribute("actual", ex.GetActual())
+                    << TErrorAttribute("expected", ex.GetExpected()));
 
                 ++invalidBlockCount;
                 continue;
@@ -1676,7 +1678,7 @@ private:
             UpdateFromProto(&SessionOptions_.ChunkReaderStatistics, rsp->chunk_reader_statistics());
         }
 
-        auto blocks = GetRpcAttachedBlocks(rsp, /* validateChecksums */ false);
+        auto blocks = GetRpcAttachedBlocks(rsp);
 
         int blocksReceived = 0;
         i64 bytesReceived = 0;
@@ -1686,22 +1688,24 @@ private:
                 break;
             }
 
-            if (!block.IsChecksumValid()) {
+            blocksReceived += 1;
+            bytesReceived += block.Size();
+            TotalBytesReceived_ += block.Size();
+
+            try {
+                block.ValidateChecksum();
+            } catch (const TBlockChecksumValidationException& ex) {
                 RegisterError(TError("Failed to validate received block checksum")
                     << TErrorAttribute("block_id", ToString(TBlockId(reader->ChunkId_, FirstBlockIndex_ + blocksReceived)))
                     << TErrorAttribute("peer", peerAddressWithNetwork)
-                    << TErrorAttribute("actual", GetChecksum(block.Data))
-                    << TErrorAttribute("expected", block.Checksum));
+                    << TErrorAttribute("actual", ex.GetActual())
+                    << TErrorAttribute("expected", ex.GetExpected()));
 
                 BanPeer(peerAddressWithNetwork.Address, false);
                 FetchedBlocks_.clear();
                 RequestBlocks();
                 return;
             }
-
-            blocksReceived += 1;
-            bytesReceived += block.Size();
-            TotalBytesReceived_ += block.Size();
 
             FetchedBlocks_.push_back(std::move(block));
         }
