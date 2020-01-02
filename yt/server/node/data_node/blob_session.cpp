@@ -18,6 +18,7 @@
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/connection.h>
 
+#include <yt/core/misc/checksum.h>
 #include <yt/core/misc/fs.h>
 
 #include <yt/core/profiling/timing.h>
@@ -288,6 +289,20 @@ void TBlobSession::DoWriteBlocks(const std::vector<TBlock>& blocks, int beginBlo
 
         TWallTimer timer;
         TBlockId blockId(GetChunkId(), blockIndex);
+
+        if (!block.IsChecksumValid()) {
+            SetFailed(
+                TError(
+                    NChunkClient::EErrorCode::InvalidBlockChecksum,
+                    "Invalid checksum detected in chunk block %v",
+                    blockId)
+                    << TErrorAttribute("expected_checksum", block.Checksum)
+                    << TErrorAttribute("actual_checksum", GetChecksum(block.Data)),
+                /* fatal */ false);
+
+            THROW_ERROR_EXCEPTION(Error_);
+        }
+
         try {
             if (!Writer_->WriteBlock(block)) {
                 auto result = Writer_->GetReadyEvent().Get();
@@ -301,14 +316,6 @@ void TBlobSession::DoWriteBlocks(const std::vector<TBlock>& blocks, int beginBlo
                 THROW_ERROR_EXCEPTION_IF_FAILED(result);
                 YT_ABORT();
             }
-        } catch (const TBlockChecksumValidationException& ex) {
-            SetFailed(TError(
-                NChunkClient::EErrorCode::InvalidBlockChecksum,
-                "Invalid checksum detected in chunk block %v",
-                blockId)
-                << TErrorAttribute("expected_checksum", ex.GetExpected())
-                << TErrorAttribute("actual_checksum", ex.GetActual()),
-                /* fatal */ false);
         } catch (const std::exception& ex) {
             SetFailed(TError(
                 NChunkClient::EErrorCode::IOError,
