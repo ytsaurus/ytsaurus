@@ -390,46 +390,11 @@ IChannelPtr CreateFailureDetectingChannel(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSpanContext GetSpanContext(const TRequestHeader& header)
+TTraceContextPtr CreateHandlerTraceContext(const NProto::TRequestHeader& header)
 {
-    if (!header.HasExtension(TTracingExt::tracing_ext)) {
-        return {};
-    }
-
-    const auto& ext = header.GetExtension(TTracingExt::tracing_ext);
-
-    auto traceId = InvalidTraceId;
-    if (ext.has_trace_id()) {
-        FromProto(&traceId, ext.trace_id());
-    } else if (ext.has_trace_id_old()) {
-        // COMPAT(prime)
-        traceId.Parts64[0] = ext.trace_id_old();
-    }
-
-    auto spanId = InvalidSpanId;
-    if (ext.has_span_id()) {
-        spanId = ext.span_id();
-    } else if (ext.has_span_id_old()) {
-        spanId = ext.span_id_old();
-    }
-
-    return {
-        traceId,
-        spanId,
-        ext.sampled(),
-        ext.debug()
-    };
-}
-
-TTraceContextPtr GetOrCreateTraceContext(const NProto::TRequestHeader& header)
-{
-    auto clientSpan = GetSpanContext(header);
-    auto spanName = header.service() + "." + header.method();
-    if (clientSpan.TraceId != InvalidTraceId) {
-        return New<NTracing::TTraceContext>(clientSpan, spanName);
-    } else {
-        return CreateRootTraceContext(spanName);
-    }
+    // XXX(babenko): optimize
+    auto spanName = "RpcServer:" + header.service() + "." + header.method();
+    return NTracing::CreateChildTraceContext(header.GetExtension(NProto::TRequestHeader::tracing_ext), spanName);
 }
 
 TTraceContextPtr CreateCallTraceContext(const TString& service, const TString& method)
@@ -439,25 +404,9 @@ TTraceContextPtr CreateCallTraceContext(const TString& service, const TString& m
         return nullptr;
     }
 
-    auto spanName = service + "." + method;
-    return CreateChildTraceContext(spanName);
-}
-
-void SetTraceContext(TRequestHeader* header, const TTraceContextPtr& traceContext)
-{
-    if (!traceContext) {
-        return;
-    }
-
-    auto* ext = header->MutableExtension(TTracingExt::tracing_ext);
-    ToProto(ext->mutable_trace_id(), traceContext->GetTraceId());
-    ext->set_span_id(traceContext->GetSpanId());
-    ext->set_sampled(traceContext->IsSampled());
-    ext->set_debug(traceContext->IsDebug());
-
-    // COMPAT(prime)
-    ext->set_trace_id_old(traceContext->GetTraceId().Parts64[0]);
-    ext->set_span_id_old(traceContext->GetSpanId());
+    // XXX(babenko): optimize
+    auto spanName = "RpcClient:" + service + "." + method;
+    return CreateChildTraceContext(std::move(context), spanName);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

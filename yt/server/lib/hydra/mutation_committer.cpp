@@ -112,24 +112,25 @@ public:
         TVersion startVersion)
         : Owner_(owner)
         , StartVersion_(startVersion)
-        , Logger(NLogging::TLogger(owner->Logger))
+        , Logger(owner->Logger)
     { }
 
     void AddMutation(
-        const TMutationRequest& request,
+        const TDecoratedAutomaton::TPendingMutation& pendingMutation,
         TSharedRef recordData,
         TFuture<void> localFlushResult)
     {
-        auto currentVersion = GetStartVersion().Advance(GetMutationCount());
+        YT_VERIFY(GetStartVersion().Advance(GetMutationCount()) == pendingMutation.Version);
 
         BatchedRecordsData_.push_back(std::move(recordData));
         LocalFlushResult_ = std::move(localFlushResult);
 
-        YT_LOG_DEBUG("Mutation batched (Version: %v, StartVersion: %v, MutationType: %v, MutationId: %v)",
-            currentVersion,
+        YT_LOG_DEBUG("Mutation batched (Version: %v, StartVersion: %v, MutationType: %v, MutationId: %v, TraceId: %v)",
+            pendingMutation.Version,
             GetStartVersion(),
-            request.Type,
-            request.MutationId);
+            pendingMutation.Request.Type,
+            pendingMutation.Request.MutationId,
+            pendingMutation.TraceContext ? pendingMutation.TraceContext->GetTraceId() : NTracing::TTraceId());
     }
 
     TFuture<void> GetQuorumFlushResult()
@@ -222,7 +223,7 @@ private:
     const TWeakPtr<TLeaderCommitter> Owner_;
     const TVersion StartVersion_;
 
-    const NLogging::TLogger Logger;
+    const NLogging::TLogger& Logger;
 
     // Counting with the local flush.
     int FlushCount_ = 0;
@@ -401,36 +402,27 @@ TFuture<TMutationResponse> TLeaderCommitter::Commit(TMutationRequest&& request)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    NTracing::TNullTraceContextGuard traceContextGuard;
+
     auto keptResponse = DecoratedAutomaton_->TryBeginKeptRequest(request);
     if (keptResponse) {
         return keptResponse;
     }
 
-    NTracing::TNullTraceContextGuard guard;
-    auto commitStartTime = GetInstant();
+    auto timestamp = GetInstant();
 
     if (LoggingSuspended_) {
-        PendingMutations_.emplace_back(std::move(request), commitStartTime);
-        return PendingMutations_.back().CommitPromise;
+        auto& pendingMutation = PendingMutations_.emplace_back(
+            timestamp,
+            std::move(request),
+            traceContextGuard.GetOldTraceContext());
+        return pendingMutation.CommitPromise;
     }
 
-    auto version = DecoratedAutomaton_->GetLoggedVersion();
-
-    TSharedRef recordData;
-    TFuture<void> localFlushResult;
-    TFuture<TMutationResponse> commitResult;
-    const auto& loggedRequest = DecoratedAutomaton_->LogLeaderMutation(
-        commitStartTime,
+    auto commitFuture = LogLeaderMutation(
+        timestamp,
         std::move(request),
-        &recordData,
-        &localFlushResult,
-        &commitResult);
-
-    AddToBatch(
-        version,
-        loggedRequest,
-        std::move(recordData),
-        std::move(localFlushResult));
+        traceContextGuard.GetOldTraceContext());
 
     if (DecoratedAutomaton_->GetRecordCountSinceLastCheckpoint() >= Config_->MaxChangelogRecordCount) {
         YT_LOG_INFO("Requesting checkpoint due to record count limit (RecordCountSinceLastCheckpoint: %v, MaxChangelogRecordCount: %v)",
@@ -444,7 +436,7 @@ TFuture<TMutationResponse> TLeaderCommitter::Commit(TMutationRequest&& request)
         CheckpointNeeded_.Fire(false);
     }
 
-    return commitResult;
+    return commitFuture;
 }
 
 void TLeaderCommitter::Flush()
@@ -475,25 +467,11 @@ void TLeaderCommitter::DoSuspendLogging()
 void TLeaderCommitter::DoResumeLogging()
 {
     for (auto& pendingMutation : PendingMutations_) {
-        auto version = DecoratedAutomaton_->GetLoggedVersion();
-
-        TSharedRef recordData;
-        TFuture<void> localFlushResult;
-        TFuture<TMutationResponse> commitResult;
-        const auto& loggedMutation = DecoratedAutomaton_->LogLeaderMutation(
+        auto commitFuture = LogLeaderMutation(
             pendingMutation.Timestamp,
             std::move(pendingMutation.Request),
-            &recordData,
-            &localFlushResult,
-            &commitResult);
-
-        AddToBatch(
-            version,
-            loggedMutation,
-            std::move(recordData),
-            std::move(localFlushResult));
-
-        pendingMutation.CommitPromise.SetFrom(std::move(commitResult));
+            std::move(pendingMutation.TraceContext));
+        pendingMutation.CommitPromise.SetFrom(commitFuture);
     }
     PendingMutations_.clear();
 }
@@ -508,18 +486,39 @@ void TLeaderCommitter::Stop()
     }
 }
 
+TFuture<TMutationResponse> TLeaderCommitter::LogLeaderMutation(
+    TInstant timestamp,
+    TMutationRequest&& request,
+    NTracing::TTraceContextPtr traceContext)
+{
+    TSharedRef recordData;
+    TFuture<void> localFlushResult;
+    const auto& loggedMutation = DecoratedAutomaton_->LogLeaderMutation(
+        timestamp,
+        std::move(request),
+        std::move(traceContext),
+        &recordData,
+        &localFlushResult);
+
+    AddToBatch(
+        loggedMutation,
+        std::move(recordData),
+        std::move(localFlushResult));
+
+    return loggedMutation.LocalCommitPromise;
+}
+
 void TLeaderCommitter::AddToBatch(
-    TVersion version,
-    const TMutationRequest& request,
+    const TDecoratedAutomaton::TPendingMutation& pendingMutation,
     TSharedRef recordData,
     TFuture<void> localFlushResult)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     auto guard = Guard(BatchSpinLock_);
-    auto batch = GetOrCreateBatch(version);
+    auto batch = GetOrCreateBatch(pendingMutation.Version);
     batch->AddMutation(
-        request,
+        pendingMutation,
         std::move(recordData),
         std::move(localFlushResult));
     if (batch->GetMutationCount() >= Config_->MaxCommitBatchRecordCount) {

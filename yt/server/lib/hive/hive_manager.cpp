@@ -226,21 +226,21 @@ public:
             cellId);
     }
 
-    void PostMessage(TMailbox* mailbox, TRefCountedEncapsulatedMessagePtr message, bool reliable)
+    void PostMessage(TMailbox* mailbox, const TSerializedMessagePtr& message, bool reliable)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        PostMessage(TMailboxList{mailbox}, std::move(message), reliable);
+        PostMessage(TMailboxList{mailbox}, message, reliable);
     }
 
-    void PostMessage(const TMailboxList& mailboxes, TRefCountedEncapsulatedMessagePtr message, bool reliable)
+    void PostMessage(const TMailboxList& mailboxes, const TSerializedMessagePtr& message, bool reliable)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         if (reliable) {
-            ReliablePostMessage(mailboxes, std::move(message));
+            ReliablePostMessage(mailboxes, message);
         } else {
-            UnreliablePostMessage(mailboxes, std::move(message));
+            UnreliablePostMessage(mailboxes, message);
         }
     }
 
@@ -248,16 +248,14 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto encapsulatedMessage = SerializeMessage(message);
-        PostMessage(mailbox, std::move(encapsulatedMessage), reliable);
+        PostMessage(mailbox, SerializeOutcomingMessage(message), reliable);
     }
 
     void PostMessage(const TMailboxList& mailboxes, const ::google::protobuf::MessageLite& message, bool reliable)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto encapsulatedMessage = SerializeMessage(message);
-        PostMessage(mailboxes, std::move(encapsulatedMessage), reliable);
+        PostMessage(mailboxes, SerializeOutcomingMessage(message), reliable);
     }
 
     TFuture<void> SyncWith(TCellId cellId, bool enableBatching)
@@ -567,24 +565,27 @@ private:
         return channel;
     }
 
-    void ReliablePostMessage(const TMailboxList& mailboxes, const TRefCountedEncapsulatedMessagePtr& message)
+    void ReliablePostMessage(const TMailboxList& mailboxes, const TSerializedMessagePtr& message)
     {
         // A typical mistake is posting a reliable Hive message outside of a mutation.
         YT_VERIFY(HasMutationContext());
 
-        AnnotateWithTraceContext(message.Get());
-
         TStringBuilder logMessageBuilder;
         logMessageBuilder.AppendFormat("Reliable outcoming message added (MutationType: %v, SrcCellId: %v, DstCellIds: {",
-            message->type(),
+            message->Type,
             SelfCellId_);
+
+        auto traceContext = NTracing::GetCurrentTraceContext();
 
         for (auto* mailbox : mailboxes) {
             auto messageId =
                 mailbox->GetFirstOutcomingMessageId() +
                 mailbox->OutcomingMessages().size();
 
-            mailbox->OutcomingMessages().push_back(message);
+            mailbox->OutcomingMessages().push_back({
+                message,
+                traceContext
+            });
 
             if (mailbox != mailboxes.front()) {
                 logMessageBuilder.AppendString(AsStringBuf(", "));
@@ -600,14 +601,16 @@ private:
         YT_LOG_DEBUG_UNLESS(IsRecovery(), logMessageBuilder.Flush());
     }
 
-    void UnreliablePostMessage(const TMailboxList& mailboxes, const TRefCountedEncapsulatedMessagePtr& message)
+    void UnreliablePostMessage(const TMailboxList& mailboxes, const TSerializedMessagePtr& message)
     {
         TCounterIncrementingTimingGuard<TWallTimer> timingGuard(Profiler, &PostingTimeCounter_);
 
         TStringBuilder logMessageBuilder;
         logMessageBuilder.AppendFormat("Sending unreliable outcoming message (MutationType: %v, SrcCellId: %v, DstCellIds: [",
-            message->type(),
+            message->Type,
             SelfCellId_);
+
+        auto traceContext = NTracing::GetCurrentTraceContext();
 
         for (auto* mailbox : mailboxes) {
             if (!mailbox->GetConnected()) {
@@ -625,11 +628,16 @@ private:
             logMessageBuilder.AppendFormat("%v", mailbox->GetCellId());
 
             THiveServiceProxy proxy(std::move(channel));
+
             auto req = proxy.SendMessages();
             req->SetTimeout(Config_->SendRpcTimeout);
             ToProto(req->mutable_src_cell_id(), SelfCellId_);
-            req->add_messages()->CopyFrom(*message);
-            AnnotateWithTraceContext(req->mutable_messages(0));
+            auto* protoMessage = req->add_messages();
+            protoMessage->set_type(message->Type);
+            protoMessage->set_data(message->Data);
+            if (traceContext) {
+                ToProto(protoMessage->mutable_tracing_ext(), traceContext);
+            }
 
             req->Invoke().Subscribe(
                 BIND(&TImpl::OnSendMessagesResponse, MakeStrong(this), mailbox->GetCellId())
@@ -784,6 +792,7 @@ private:
             mailbox->GetCellId());
 
         THiveServiceProxy proxy(std::move(channel));
+
         auto req = proxy.Ping();
         req->SetTimeout(Config_->PingRpcTimeout);
         ToProto(req->mutable_src_cell_id(), SelfCellId_);
@@ -871,6 +880,7 @@ private:
             SelfCellId_);
 
         THiveServiceProxy proxy(std::move(channel));
+
         auto req = proxy.Ping();
         req->SetTimeout(Config_->PingRpcTimeout);
         ToProto(req->mutable_src_cell_id(), SelfCellId_);
@@ -989,7 +999,7 @@ private:
         }
 
         mailbox->SetPostBatchingCookie(TDelayedExecutor::Submit(
-            BIND([this, this_ = MakeStrong(this), cellId = mailbox->GetCellId()] {
+            BIND_DONT_CAPTURE_TRACE_CONTEXT([this, this_ = MakeStrong(this), cellId = mailbox->GetCellId()] {
                 TCounterIncrementingTimingGuard<TWallTimer> timingGuard(Profiler, &PostingTimeCounter_);
 
                 auto* mailbox = FindMailbox(cellId);
@@ -1025,7 +1035,7 @@ private:
         TDelayedExecutor::CancelAndClear(mailbox->IdlePostCookie());
         if (!allowIdle && firstMessageId == mailbox->GetFirstOutcomingMessageId() + outcomingMessages.size()) {
             mailbox->IdlePostCookie() = TDelayedExecutor::Submit(
-                BIND(&TImpl::OnIdlePostOutcomingMessages, MakeWeak(this), mailbox->GetCellId())
+                BIND_DONT_CAPTURE_TRACE_CONTEXT(&TImpl::OnIdlePostOutcomingMessages, MakeWeak(this), mailbox->GetCellId())
                     .Via(EpochAutomatonInvoker_),
                 Config_->IdlePostPeriod);
             return;
@@ -1037,6 +1047,7 @@ private:
         }
 
         THiveServiceProxy proxy(std::move(channel));
+
         auto req = proxy.PostMessages();
         req->SetTimeout(Config_->PostRpcTimeout);
         ToProto(req->mutable_src_cell_id(), SelfCellId_);
@@ -1049,9 +1060,14 @@ private:
                bytesToPost < Config_->MaxBytesPerPost)
         {
             const auto& message = outcomingMessages[firstMessageId + messagesToPost - mailbox->GetFirstOutcomingMessageId()];
-            req->add_messages()->CopyFrom(*message);
+            auto* protoMessage = req->add_messages();
+            protoMessage->set_type(message.SerializedMessage->Type);
+            protoMessage->set_data(message.SerializedMessage->Data);
+            if (message.TraceContext) {
+                ToProto(protoMessage->mutable_tracing_ext(), message.TraceContext);
+            }
             messagesToPost += 1;
-            bytesToPost += message->ByteSize();
+            bytesToPost += message.SerializedMessage->Data.size();
         }
 
         mailbox->SetInFlightOutcomingMessageCount(messagesToPost);
@@ -1274,6 +1290,12 @@ private:
             return;
         }
 
+        // XXX(babenko)
+        auto traceContext = NTracing::CreateChildTraceContext(
+            message.tracing_ext(),
+            "HiveManager:" + message.type());
+        TTraceContextGuard traceContextGuard(std::move(traceContext));
+
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Applying reliable incoming message (SrcCellId: %v, DstCellId: %v, MessageId: %v, MutationType: %v)",
             mailbox->GetCellId(),
             SelfCellId_,
@@ -1305,63 +1327,17 @@ private:
 
     void ApplyMessage(const TEncapsulatedMessage& message)
     {
-        auto reign = GetCurrentMutationContext()->Request().Reign;
-        auto request = TMutationRequest(reign);
+        TMutationRequest request;
+        request.Reign = GetCurrentMutationContext()->Request().Reign;
         request.Type = message.type();
         request.Data = TSharedRef::FromString(message.data());
 
-        TTraceContextGuard traceContextGuard(GetTraceContext(message));
+        TMutationContext mutationContext(GetCurrentMutationContext(), request);
+        TMutationContextGuard mutationContextGuard(&mutationContext);
 
-        {
-            TMutationContext mutationContext(GetCurrentMutationContext(), request);
-            TMutationContextGuard mutationContextGuard(&mutationContext);
+        THiveMutationGuard hiveMutationGuard;
 
-            THiveMutationGuard hiveMutationGuard;
-
-            static_cast<IAutomaton*>(Automaton_)->ApplyMutation(&mutationContext);
-        }
-    }
-
-
-    static TTraceContextPtr GetTraceContext(const TEncapsulatedMessage& message)
-    {
-        TTraceId traceId = InvalidTraceId;
-        if (message.has_trace_id_old()) {
-            traceId.Parts64[0] = message.trace_id_old();
-        }
-        if (message.has_trace_id()) {
-            traceId = FromProto<TTraceId>(message.trace_id());
-        }
-
-        auto sourceSpan = InvalidSpanId;
-        if (message.has_span_id()) {
-            sourceSpan = message.span_id();
-        }
-
-        if (traceId == InvalidTraceId || sourceSpan == InvalidSpanId) {
-            return nullptr;
-        }
-
-        auto spanName = "HiveMessage." + message.type();
-        return New<TTraceContext>(
-            TFollowsFrom{},
-            TSpanContext{traceId, sourceSpan, message.is_sampled(), message.is_debug()},
-            spanName);
-    }
-
-    static void AnnotateWithTraceContext(TEncapsulatedMessage* message)
-    {
-        auto traceContext = GetCurrentTraceContext();
-        if (!traceContext) {
-            return;
-        }
-
-        auto traceId = traceContext->GetTraceId();
-        ToProto(message->mutable_trace_id(), traceId);
-        message->set_span_id(traceContext->GetSpanId());
-
-        // COMPAT(prime)
-        message->set_trace_id_old(traceId.Parts64[0]);
+        static_cast<IAutomaton*>(Automaton_)->ApplyMutation(&mutationContext);
     }
 
 
@@ -1396,12 +1372,13 @@ private:
     {
         return
             version == 3 ||
-            version == 4;
+            version == 4 ||
+            version == 5;
     }
 
     virtual int GetCurrentSnapshotVersion() override
     {
-        return 4;
+        return 5;
     }
 
 
@@ -1549,14 +1526,14 @@ void THiveManager::RemoveMailbox(TMailbox* mailbox)
     Impl_->RemoveMailbox(mailbox);
 }
 
-void THiveManager::PostMessage(TMailbox* mailbox, TRefCountedEncapsulatedMessagePtr message, bool reliable)
+void THiveManager::PostMessage(TMailbox* mailbox, const TSerializedMessagePtr& message, bool reliable)
 {
-    Impl_->PostMessage(mailbox, std::move(message), reliable);
+    Impl_->PostMessage(mailbox, message, reliable);
 }
 
-void THiveManager::PostMessage(const TMailboxList& mailboxes, TRefCountedEncapsulatedMessagePtr message, bool reliable)
+void THiveManager::PostMessage(const TMailboxList& mailboxes, const TSerializedMessagePtr& message, bool reliable)
 {
-    Impl_->PostMessage(mailboxes, std::move(message), reliable);
+    Impl_->PostMessage(mailboxes, message, reliable);
 }
 
 void THiveManager::PostMessage(TMailbox* mailbox, const ::google::protobuf::MessageLite& message, bool reliable)

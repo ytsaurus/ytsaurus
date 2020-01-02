@@ -33,8 +33,18 @@ public:
 
     //! The id of the first message in |OutcomingMessages|.
     DEFINE_BYVAL_RW_PROPERTY(TMessageId, FirstOutcomingMessageId);
+
+    struct TOutcomingMessage
+    {
+        TSerializedMessagePtr SerializedMessage;
+        NTracing::TTraceContextPtr TraceContext;
+
+        void Save(TStreamSaveContext& context) const;
+        void Load(TStreamLoadContext& context);
+    };
+
     //! Messages enqueued for the destination cell, ordered by id.
-    DEFINE_BYREF_RW_PROPERTY(std::vector<TRefCountedEncapsulatedMessagePtr>, OutcomingMessages);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TOutcomingMessage>, OutcomingMessages);
 
     //! The id of the next incoming message to be handled by Hydra.
     DEFINE_BYVAL_RW_PROPERTY(TMessageId, NextIncomingMessageId);

@@ -261,7 +261,7 @@ TClientContextPtr TClientRequest::CreateClientContext()
 {
     auto traceContext = CreateCallTraceContext(GetService(), GetMethod());
     if (traceContext) {
-        SetTraceContext(&Header(), traceContext);
+        ToProto(Header().MutableExtension(NRpc::NProto::TRequestHeader::tracing_ext), traceContext);
         if (traceContext->IsSampled()) {
             TraceRequest(traceContext);
         }

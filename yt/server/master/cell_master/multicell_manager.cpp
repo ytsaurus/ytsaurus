@@ -776,11 +776,10 @@ private:
     }
 
 
-    TRefCountedEncapsulatedMessagePtr BuildHiveMessage(
-        const TCrossCellMessage& crossCellMessage)
+    TSerializedMessagePtr BuildHiveMessage(const TCrossCellMessage& crossCellMessage)
     {
         if (const auto* protoPtr = std::get_if<TCrossCellMessage::TProtoMessage>(&crossCellMessage.Payload)) {
-            return NHiveServer::SerializeMessage(*protoPtr->Message);
+            return NHiveServer::SerializeOutcomingMessage(*protoPtr->Message);
         }
 
         NObjectServer::NProto::TReqExecute hydraRequest;
@@ -806,11 +805,11 @@ private:
         auto* user = securityManager->GetAuthenticatedUser();
         hydraRequest.set_user_name(user->GetName());
 
-        return NHiveServer::SerializeMessage(hydraRequest);
+        return NHiveServer::SerializeOutcomingMessage(hydraRequest);
     }
 
     void DoPostMessage(
-        TRefCountedEncapsulatedMessagePtr message,
+        const TSerializedMessagePtr& message,
         const TCellTagList& cellTags,
         bool reliable)
     {
@@ -826,7 +825,7 @@ private:
         }
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
-        hiveManager->PostMessage(mailboxes, std::move(message), reliable);
+        hiveManager->PostMessage(mailboxes, message, reliable);
     }
 
 

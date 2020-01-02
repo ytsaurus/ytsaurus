@@ -9,6 +9,7 @@ option python_package = "yt_proto.yt.core.rpc.proto";
 
 import "yt/core/misc/proto/guid.proto";
 import "yt/core/misc/proto/error.proto";
+import "yt/core/tracing/proto/tracing_ext.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,24 +64,10 @@ message TRequestHeader
     optional bytes response_format_options = 35; // TYsonString
 
     extensions 100 to max;
-}
-
-message TTracingExt
-{
     extend NRpc.NProto.TRequestHeader
     {
-        optional TTracingExt tracing_ext = 106;
+        optional NYT.NTracing.NProto.TTracingExt tracing_ext = 106;
     }
-
-    optional uint64 trace_id_old = 1;
-    optional uint64 span_id_old = 2;
-    reserved 3; // parent_span_id is removed.
-
-    optional NYT.NProto.TGuid trace_id = 4;
-    optional fixed64 span_id = 5;
-
-    optional bool sampled = 6 [default = false];
-    optional bool debug = 7 [default = false];
 }
 
 message TBalancingExt

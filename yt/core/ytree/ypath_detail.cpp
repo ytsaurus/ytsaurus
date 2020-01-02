@@ -1344,7 +1344,7 @@ public:
             std::move(requestMessage),
             std::move(logger),
             logLevel)
-        , TraceContext_(NTracing::CreateChildTraceContext("YPath.ExecuteVerb"))
+        , TraceContext_(MakeTraceContext())
     { }
 
     TYPathServiceContext(
@@ -1357,14 +1357,27 @@ public:
             std::move(requestMessage),
             std::move(logger),
             logLevel)
-        , TraceContext_(NTracing::CreateChildTraceContext("YPath.ExecuteVerb"))
+        , TraceContext_(MakeTraceContext())
     { }
 
 protected:
-    std::optional<NProfiling::TWallTimer> Timer_;
-
-    const NProto::TYPathHeaderExt* YPathExt_ = nullptr;
     const NTracing::TTraceContextPtr TraceContext_;
+
+    std::optional<NProfiling::TWallTimer> Timer_;
+    const NProto::TYPathHeaderExt* YPathExt_ = nullptr;
+
+
+    NTracing::TTraceContextPtr MakeTraceContext()
+    {
+        auto traceContext = NTracing::GetCurrentTraceContext();
+        if (!traceContext) {
+            return nullptr;
+        }
+        // XXX(babenko): better span name
+        return NTracing::CreateChildTraceContext(
+            std::move(traceContext),
+            "YPath:" + GetService() + "." + GetMethod());
+    }
 
     const NProto::TYPathHeaderExt& GetYPathExt()
     {
