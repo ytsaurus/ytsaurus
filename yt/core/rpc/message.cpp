@@ -360,14 +360,14 @@ void MergeRequestHeaderExtensions(
     NProto::TRequestHeader* to,
     const NProto::TRequestHeader& from)
 {
-#define X(name) \
+#define XX(name) \
     if (from.HasExtension(name)) { \
         to->MutableExtension(name)->CopyFrom(from.GetExtension(name)); \
     }
 
-    X(NProto::TTracingExt::tracing_ext)
+    XX(NRpc::NProto::TRequestHeader::tracing_ext)
 
-#undef X
+#undef XX
 }
 
 bool ParseRequestCancelationHeader(

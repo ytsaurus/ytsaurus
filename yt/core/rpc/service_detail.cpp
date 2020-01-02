@@ -996,9 +996,12 @@ void TServiceBase::HandleRequest(
         return;
     }
 
-    auto traceContext = GetOrCreateTraceContext(*header);
+    auto traceContext = CreateHandlerTraceContext(*header);
+    if (traceContext) {
+        traceContext->AddTag(EndpointAnnotation, replyBus->GetEndpointDescription());
+    }
+
     TTraceContextGuard traceContextGuard(traceContext);
-    traceContext->AddTag(EndpointAnnotation, replyBus->GetEndpointDescription());
 
     // NOTE: Do not use replyError() after this line.
     TAcceptedRequest acceptedRequest{

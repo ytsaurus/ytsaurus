@@ -8,13 +8,16 @@
 
 #include <yt/client/hive/timestamp_map.h>
 
+#include <yt/client/api/public.h>
+
 #include <yt/core/actions/future.h>
 
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref_tracked.h>
 
 #include <yt/core/rpc/public.h>
-#include <yt/client/api/public.h>
+
+#include <yt/core/tracing/public.h>
 
 namespace NYT::NHiveServer {
 
@@ -37,6 +40,7 @@ class TCommit
 public:
     DEFINE_BYVAL_RO_PROPERTY(TTransactionId, TransactionId);
     DEFINE_BYVAL_RO_PROPERTY(NRpc::TMutationId, MutationId);
+    DEFINE_BYVAL_RO_PROPERTY(NTracing::TTraceId, TraceId);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TCellId>, ParticipantCellIds);
     DEFINE_BYVAL_RO_PROPERTY(bool, Distributed);
     DEFINE_BYVAL_RO_PROPERTY(bool, GeneratePrepareTimestamp);

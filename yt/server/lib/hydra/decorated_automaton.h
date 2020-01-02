@@ -172,16 +172,38 @@ public:
 
     TFuture<TMutationResponse> TryBeginKeptRequest(const TMutationRequest& request);
 
-    const TMutationRequest& LogLeaderMutation(
-        TInstant commitStartTime,
-        TMutationRequest&& request,
-        TSharedRef* recordData,
-        TFuture<void>* localFlushResult,
-        TFuture<TMutationResponse>* commitResult);
+    struct TPendingMutation
+    {
+        TPendingMutation(
+            TVersion version,
+            TMutationRequest&& request,
+            TInstant timestamp,
+            ui64 randomSeed,
+            NTracing::TTraceContextPtr traceContext)
+            : Version(version)
+            , Request(request)
+            , Timestamp(timestamp)
+            , RandomSeed(randomSeed)
+            , TraceContext(std::move(traceContext))
+        { }
 
-    void LogFollowerMutation(
+        TVersion Version;
+        TMutationRequest Request;
+        TInstant Timestamp;
+        ui64 RandomSeed;
+        NTracing::TTraceContextPtr TraceContext;
+        TPromise<TMutationResponse> LocalCommitPromise = NewPromise<TMutationResponse>();
+    };
+
+    const TPendingMutation& LogLeaderMutation(
+        TInstant timestamp,
+        TMutationRequest&& request,
+        NTracing::TTraceContextPtr traceContext,
+        TSharedRef* recordData,
+        TFuture<void>* localFlushFuture);
+    const TPendingMutation& LogFollowerMutation(
         const TSharedRef& recordData,
-        TFuture<void>* localFlushResult);
+        TFuture<void>* localFlushFuture);
 
     TFuture<TRemoteSnapshotParams> BuildSnapshot();
 
@@ -248,27 +270,6 @@ private:
     std::atomic<bool> BuildingSnapshot_ = false;
     TInstant LastSnapshotTime_;
     std::atomic<int> LastSuccessfulSnapshotId_ = -1;
-
-    struct TPendingMutation
-    {
-        TPendingMutation(
-            TVersion version,
-            TMutationRequest&& request,
-            TInstant timestamp,
-            ui64 randomSeed)
-            : Version(version)
-            , Request(std::move(request))
-            , Timestamp(timestamp)
-            , RandomSeed(randomSeed)
-            , CommitPromise(NewPromise<TMutationResponse>())
-        { }
-
-        TVersion Version;
-        TMutationRequest Request;
-        TInstant Timestamp;
-        ui64 RandomSeed;
-        TPromise<TMutationResponse> CommitPromise;
-    };
 
     NProto::TMutationHeader MutationHeader_; // pooled instance
     TRingQueue<TPendingMutation> PendingMutations_;

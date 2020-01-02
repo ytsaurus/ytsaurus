@@ -20,6 +20,8 @@
 
 #include <yt/core/yson/null_consumer.h>
 
+#include <yt/core/tracing/trace_context.h>
+
 namespace NYT::NDriver {
 
 using namespace NYTree;
@@ -294,13 +296,20 @@ public:
                 request.CommandName));
         }
 
+        const auto& user = request.AuthenticatedUser;
+
+        NTracing::TChildTraceContextGuard traceContextGuard("NativeDriver." + request.CommandName, true);
+        YT_LOG_DEBUG("Command received (RequestId: %" PRIx64 ", Command: %v, User: %v)",
+            request.Id,
+            request.CommandName,
+            user);
+
         const auto& entry = it->second;
 
         YT_VERIFY(entry.Descriptor.InputType == EDataType::Null || request.InputStream);
         YT_VERIFY(entry.Descriptor.OutputType == EDataType::Null || request.OutputStream);
 
-        const auto& user = request.AuthenticatedUser;
-        const auto& client = ClientCache_->GetClient(user, request.UserToken);
+        auto client = ClientCache_->GetClient(user, request.UserToken);
 
         auto context = New<TCommandContext>(
             this,

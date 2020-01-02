@@ -32,6 +32,8 @@
 
 #include <yt/core/logging/log_manager.h>
 
+#include <yt/core/tracing/trace_context.h>
+
 #include <util/random/random.h>
 
 #include <util/system/file.h>
@@ -780,7 +782,8 @@ void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordDa
     RecoveryRecordCount_ += 1;
     RecoveryDataSize_ += recordData.Size();
 
-    auto request = TMutationRequest(header.reign());
+    TMutationRequest request;
+    request.Reign = header.reign();
     request.Type = header.mutation_type();
     request.MutationId = FromProto<TMutationId>(header.mutation_id());
     request.Data = std::move(requestData);
@@ -794,45 +797,46 @@ void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordDa
     DoApplyMutation(&context);
 }
 
-const TMutationRequest& TDecoratedAutomaton::LogLeaderMutation(
-    TInstant commitStartTime,
+const TDecoratedAutomaton::TPendingMutation& TDecoratedAutomaton::LogLeaderMutation(
+    TInstant timestamp,
     TMutationRequest&& request,
+    NTracing::TTraceContextPtr traceContext,
     TSharedRef* recordData,
-    TFuture<void>* localFlushResult,
-    TFuture<TMutationResponse>* commitResult)
+    TFuture<void>* localFlushFuture)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YT_ASSERT(recordData);
-    YT_ASSERT(localFlushResult);
-    YT_ASSERT(commitResult);
+    YT_ASSERT(localFlushFuture);
     YT_ASSERT(!RotatingChangelog_);
 
-    PendingMutations_.emplace(
-        LoggedVersion_,
+    auto version = LoggedVersion_.load();
+
+    const auto& pendingMutation = PendingMutations_.emplace(
+        version,
         std::move(request),
-        commitStartTime,
-        RandomNumber<ui64>());
-    const auto& pendingMutation = PendingMutations_.back();
+        timestamp,
+        RandomNumber<ui64>(),
+        std::move(traceContext));
 
     MutationHeader_.Clear(); // don't forget to cleanup the pooled instance
+    MutationHeader_.set_reign(pendingMutation.Request.Reign);
     MutationHeader_.set_mutation_type(pendingMutation.Request.Type);
     MutationHeader_.set_timestamp(pendingMutation.Timestamp.GetValue());
     MutationHeader_.set_random_seed(pendingMutation.RandomSeed);
     MutationHeader_.set_segment_id(pendingMutation.Version.SegmentId);
     MutationHeader_.set_record_id(pendingMutation.Version.RecordId);
-    MutationHeader_.set_reign(pendingMutation.Request.Reign);
     if (pendingMutation.Request.MutationId) {
         ToProto(MutationHeader_.mutable_mutation_id(), pendingMutation.Request.MutationId);
     }
 
     *recordData = SerializeMutationRecord(MutationHeader_, pendingMutation.Request.Data);
-    *localFlushResult = Changelog_->Append(*recordData);
-    *commitResult = pendingMutation.CommitPromise;
+    *localFlushFuture = Changelog_->Append(*recordData);
 
-    LoggedVersion_ = pendingMutation.Version.Advance();
-    YT_VERIFY(EpochContext_->ReachableVersion < LoggedVersion_);
+    auto newLoggedVersion = version.Advance();
+    YT_VERIFY(EpochContext_->ReachableVersion < newLoggedVersion);
+    LoggedVersion_ = newLoggedVersion;
 
-    return pendingMutation.Request;
+    return pendingMutation;
 }
 
 TFuture<TMutationResponse> TDecoratedAutomaton::TryBeginKeptRequest(const TMutationRequest& request)
@@ -860,9 +864,9 @@ TFuture<TMutationResponse> TDecoratedAutomaton::TryBeginKeptRequest(const TMutat
     }));
 }
 
-void TDecoratedAutomaton::LogFollowerMutation(
+const TDecoratedAutomaton::TPendingMutation& TDecoratedAutomaton::LogFollowerMutation(
     const TSharedRef& recordData,
-    TFuture<void>* logResult)
+    TFuture<void>* localFlushFuture)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YT_ASSERT(!RotatingChangelog_);
@@ -872,26 +876,31 @@ void TDecoratedAutomaton::LogFollowerMutation(
 
     auto version = LoggedVersion_.load();
 
-    auto request = TMutationRequest(MutationHeader_.reign());
+    TMutationRequest request;
+    request.Reign = MutationHeader_.reign();
     request.Type = std::move(*MutationHeader_.mutable_mutation_type());
     request.Data = std::move(mutationData);
     request.MutationId = FromProto<TMutationId>(MutationHeader_.mutation_id());
 
-    PendingMutations_.emplace(
+    const auto& pendingMutation = PendingMutations_.emplace(
         version,
         std::move(request),
         FromProto<TInstant>(MutationHeader_.timestamp()),
-        MutationHeader_.random_seed());
+        MutationHeader_.random_seed(),
+        nullptr);
 
     if (Changelog_) {
-        auto actualLogResult = Changelog_->Append(recordData);
-        if (logResult) {
-            *logResult = std::move(actualLogResult);
+        auto future = Changelog_->Append(recordData);
+        if (localFlushFuture) {
+            *localFlushFuture = std::move(future);
         }
     }
 
-    LoggedVersion_ = version.Advance();
-    YT_VERIFY(EpochContext_->ReachableVersion < LoggedVersion_);
+    auto newLoggedVersion = version.Advance();
+    YT_VERIFY(EpochContext_->ReachableVersion < newLoggedVersion);
+    LoggedVersion_ = newLoggedVersion;
+
+    return pendingMutation;
 }
 
 TFuture<TRemoteSnapshotParams> TDecoratedAutomaton::BuildSnapshot()
@@ -1051,21 +1060,28 @@ void TDecoratedAutomaton::ApplyPendingMutations(bool mayYield)
 
             RotateAutomatonVersionIfNeeded(pendingMutation.Version);
 
-            TMutationContext context(
+            // Cf. YT-6908; see below.
+            auto commitPromise = pendingMutation.LocalCommitPromise;
+
+            TMutationContext mutationContext(
                 AutomatonVersion_,
                 pendingMutation.Request,
                 pendingMutation.Timestamp,
                 pendingMutation.RandomSeed);
 
-            // Cf. YT-6908; see below.
-            auto commitPromise = pendingMutation.CommitPromise;
-
-            DoApplyMutation(&context);
+            {
+                // XXX(babenko)
+                auto traceContext = NTracing::CreateChildTraceContext(
+                    pendingMutation.TraceContext,
+                    "HydraManager:" + pendingMutation.Request.Type);
+                NTracing::TTraceContextGuard traceContextGuard(std::move(traceContext));
+                DoApplyMutation(&mutationContext);
+            }
 
             if (commitPromise) {
                 commitPromise.Set(TMutationResponse{
                     EMutationResponseOrigin::Commit,
-                    context.GetResponseData()
+                    mutationContext.GetResponseData()
                 });
             }
 
@@ -1109,7 +1125,8 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
     // could submit more mutations and cause #PendingMutations_ to be reallocated.
     // So we'd better make the needed copies right away.
     // Cf. YT-6908.
-    auto mutationId = context->Request().MutationId;
+    const auto& request = context->Request();
+    auto mutationId = request.MutationId;
 
     {
         TMutationContextGuard guard(context);
@@ -1284,8 +1301,8 @@ void TDecoratedAutomaton::StopEpoch()
 
     while (!PendingMutations_.empty()) {
         auto& pendingMutation = PendingMutations_.front();
-        if (pendingMutation.CommitPromise) {
-            pendingMutation.CommitPromise.Set(error);
+        if (pendingMutation.LocalCommitPromise) {
+            pendingMutation.LocalCommitPromise.Set(error);
         }
         PendingMutations_.pop();
     }

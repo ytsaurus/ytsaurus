@@ -19,7 +19,7 @@ Y_FORCE_INLINE bool TTraceContext::IsDebug() const
     return SpanContext_.Debug;
 }
 
-Y_FORCE_INLINE TSpanContext TTraceContext::GetContext() const
+Y_FORCE_INLINE TSpanContext TTraceContext::GetSpanContext() const
 {
     return SpanContext_;
 }
@@ -44,10 +44,10 @@ Y_FORCE_INLINE TSpanId TTraceContext::GetFollowsFromSpanId() const
     return FollowsFromSpanId_;
 }
 
-Y_FORCE_INLINE TString TTraceContext::GetName() const
+Y_FORCE_INLINE TString TTraceContext::GetSpanName() const
 {
     auto guard = Guard(Lock_);
-    return Name_;
+    return SpanName_;
 }
 
 Y_FORCE_INLINE NProfiling::TCpuDuration TTraceContext::GetElapsedCpuTime() const
@@ -90,6 +90,11 @@ Y_FORCE_INLINE void TTraceContextGuard::Release()
     }
 }
 
+Y_FORCE_INLINE const TTraceContextPtr& TTraceContextGuard::GetOldTraceContext() const
+{
+    return OldTraceContext_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 Y_FORCE_INLINE TNullTraceContextGuard::TNullTraceContextGuard()
@@ -120,6 +125,11 @@ Y_FORCE_INLINE void TNullTraceContextGuard::Release()
         SwitchTraceContext(std::move(OldTraceContext_));
         Active_ = false;
     }
+}
+
+Y_FORCE_INLINE const TTraceContextPtr& TNullTraceContextGuard::GetOldTraceContext() const
+{
+    return OldTraceContext_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

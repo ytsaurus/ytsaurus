@@ -9,21 +9,21 @@
 #include <yt/core/misc/random.h>
 #include <yt/core/misc/ref.h>
 
+#include <yt/core/tracing/public.h>
+
 namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TMutationRequest
 {
-    explicit TMutationRequest(TReign reign);
-
+    TReign Reign = 0;
     TString Type;
     TSharedRef Data;
     TCallback<void(TMutationContext*)> Handler;
     bool AllowLeaderForwarding = false;
     NRpc::TMutationId MutationId;
     bool Retry = false;
-    TReign Reign = 0;
 };
 
 DEFINE_ENUM(EMutationResponseOrigin,

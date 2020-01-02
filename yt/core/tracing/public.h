@@ -7,6 +7,12 @@ namespace NYT::NTracing {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NProto {
+
+class TTracingExt;
+
+} // namespace NProto
+
 DECLARE_REFCOUNTED_CLASS(TTraceManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TSamplingConfig)
 

@@ -973,6 +973,8 @@ private:
             return;
         }
 
+        NTracing::TNullTraceContextGuard guard;
+
         YT_LOG_DEBUG("Committing transaction barrier (Timestamp: %llx -> %llx)",
             TransientBarrierTimestamp_,
             minPrepareTimestamp);

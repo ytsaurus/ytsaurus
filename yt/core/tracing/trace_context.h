@@ -26,8 +26,8 @@ struct TSpanContext
     TSpanContext CreateChild();
 };
 
-void FormatValue(TStringBuilderBase* builder, TSpanContext spanContext, TStringBuf spec);
-TString ToString(TSpanContext spanContext);
+void FormatValue(TStringBuilderBase* builder, const TSpanContext& context, TStringBuf spec);
+TString ToString(const TSpanContext& context);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,27 +39,27 @@ class TTraceContext
 {
 public:
     TTraceContext(
-        TSpanContext parent,
-        const TString& name,
-        TTraceContextPtr parentContext = nullptr);
+        TSpanContext parentSpanContext,
+        const TString& spanName,
+        TTraceContextPtr parentTraceContext = nullptr);
     TTraceContext(
         TFollowsFrom,
         TSpanContext parent,
-        const TString& name,
-        TTraceContextPtr parentContext = nullptr);
+        const TString& spanName,
+        TTraceContextPtr parentTraceContext = nullptr);
 
     void Finish();
 
     bool IsSampled() const;
     bool IsDebug() const;
 
-    TSpanContext GetContext() const;
+    TSpanContext GetSpanContext() const;
     TTraceId GetTraceId() const;
     TSpanId GetSpanId() const;
     TSpanId GetParentSpanId() const;
     TSpanId GetFollowsFromSpanId() const;
 
-    TString GetName() const;
+    TString GetSpanName() const;
 
     TInstant GetStartTime() const;
     TDuration GetDuration() const;
@@ -67,12 +67,12 @@ public:
     using TTagList = SmallVector<std::pair<TString, TString>, 4>;
     const TTagList& GetTags() const;
 
-    void SetName(const TString& name);
+    void SetSpanName(const TString& spanName);
     void SetSampled();
     void AddTag(const TString& tagKey, const TString& tagValue);
     void ResetStartTime();
 
-    TTraceContextPtr CreateChild(const TString& name);
+    TTraceContextPtr CreateChild(const TString& spanName);
 
     void IncrementElapsedCpuTime(NProfiling::TCpuDuration delta);
     NProfiling::TCpuDuration GetElapsedCpuTime() const;
@@ -87,7 +87,7 @@ private:
     NProfiling::TCpuInstant StartTime_;
     NProfiling::TCpuDuration Duration_;
     TSpanContext SpanContext_;
-    TString Name_;
+    TString SpanName_;
     TTagList Tags_;
     bool Finished_ = false;
 
@@ -97,14 +97,20 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TTraceContext)
 
+void FormatValue(TStringBuilderBase* builder, const TTraceContextPtr& context, TStringBuf spec);
+TString ToString(const TTraceContextPtr& context);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TTraceContext* GetCurrentTraceContext();
 TTraceId GetCurrentTraceId();
 void FlushCurrentTraceContextTime();
 
+void ToProto(NProto::TTracingExt* ext, const TTraceContextPtr& context);
+
 TTraceContextPtr CreateRootTraceContext(const TString& spanName);
-TTraceContextPtr CreateChildTraceContext(const TString& spanName, bool forceTracing = false);
+TTraceContextPtr CreateChildTraceContext(const TTraceContextPtr& parentContext, const TString& spanName, bool forceTracing = false);
+TTraceContextPtr CreateChildTraceContext(const NProto::TTracingExt& ext, const TString& spanName, bool forceTracing = false);
 
 template <class T>
 void AddTag(const TString& tagName, const T& tagValue);
@@ -125,6 +131,8 @@ public:
     bool IsActive() const;
     void Release();
 
+    const TTraceContextPtr& GetOldTraceContext() const;
+
 private:
     bool Active_;
     TTraceContextPtr OldTraceContext_;
@@ -141,6 +149,8 @@ public:
 
     bool IsActive() const;
     void Release();
+
+    const TTraceContextPtr& GetOldTraceContext() const;
 
 private:
     bool Active_;

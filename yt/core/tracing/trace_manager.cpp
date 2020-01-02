@@ -33,7 +33,7 @@ void ToProto(NProto::TSpan* proto, const TTraceContextPtr& traceContext)
     proto->set_span_id(traceContext->GetSpanId());
     proto->set_parent_span_id(traceContext->GetParentSpanId());
     proto->set_follows_from_span_id(traceContext->GetSpanId());
-    proto->set_name(traceContext->GetName());
+    proto->set_name(traceContext->GetSpanName());
     proto->set_start_time(traceContext->GetStartTime().NanoSeconds());
     proto->set_duration(traceContext->GetDuration().NanoSeconds());
 

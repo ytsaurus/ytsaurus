@@ -906,7 +906,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto mutationRequest = TMutationRequest(request->reign());
+        TMutationRequest mutationRequest;
+        mutationRequest.Reign =request->reign();
         mutationRequest.Type = request->type();
         if (request->has_mutation_id()) {
             mutationRequest.MutationId = FromProto<TMutationId>(request->mutation_id());
@@ -943,7 +944,7 @@ private:
 
         context->SetRequestInfo();
 
-        CommitMutation(TMutationRequest(GetCurrentReign()))
+        CommitMutation(TMutationRequest{.Reign = GetCurrentReign()})
             .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& result) {
                 context->Reply(result);
             }));
@@ -1835,7 +1836,7 @@ private:
 
         YT_LOG_DEBUG("Committing heartbeat mutation");
 
-        CommitMutation(TMutationRequest(GetCurrentReign()))
+        CommitMutation(TMutationRequest{.Reign = GetCurrentReign()})
             .WithTimeout(Config_->HeartbeatMutationTimeout)
             .Subscribe(BIND([=, this_ = MakeStrong(this), weakEpochContext = MakeWeak(AutomatonEpochContext_)] (const TErrorOr<TMutationResponse>& result){
                 if (result.IsOK()) {

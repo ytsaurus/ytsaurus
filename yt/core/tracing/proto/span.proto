@@ -2,6 +2,7 @@ package NYT.NTracing.NProto;
 
 import "yt/core/misc/proto/guid.proto";
 
+option python_package = "yt_proto.yt.core.tracing.proto";
 option go_package = "a.yandex-team.ru/yt/go/proto/core/tracing";
 
 ////////////////////////////////////////////////////////////////////////////////

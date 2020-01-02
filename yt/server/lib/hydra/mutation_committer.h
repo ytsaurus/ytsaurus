@@ -2,11 +2,13 @@
 
 #include "private.h"
 #include "mutation_context.h"
+#include "decorated_automaton.h"
 #include "distributed_hydra_manager.h"
 
 #include <yt/ytlib/election/public.h>
 
 #include <yt/ytlib/hydra/hydra_service_proxy.h>
+
 #include <yt/client/hydra/version.h>
 
 #include <yt/core/actions/signal.h>
@@ -115,14 +117,18 @@ public:
 
 private:
     class TBatch;
-    typedef TIntrusivePtr<TBatch> TBatchPtr;
+    using TBatchPtr = TIntrusivePtr<TBatch>;
+
+    TFuture<TMutationResponse> LogLeaderMutation(
+        TInstant timestamp,
+        TMutationRequest&& request,
+        NTracing::TTraceContextPtr traceContext);
 
     void OnBatchTimeout(const TBatchPtr& batch);
     void OnBatchCommitted(const TBatchPtr& batch, const TError& error);
     TIntrusivePtr<TBatch> GetOrCreateBatch(TVersion version);
     void AddToBatch(
-        TVersion version,
-        const TMutationRequest& request,
+        const TDecoratedAutomaton::TPendingMutation& pendingMutation,
         TSharedRef recordData,
         TFuture<void> localFlushResult);
     void FlushCurrentBatch();
@@ -140,15 +146,19 @@ private:
 
     struct TPendingMutation
     {
-        TPendingMutation(TMutationRequest&& request, TInstant timestamp)
-            : Request(std::move(request))
-            , Timestamp(timestamp)
-            , CommitPromise(NewPromise<TMutationResponse>())
+        TPendingMutation(
+            TInstant timestamp,
+            TMutationRequest&& request,
+            NTracing::TTraceContextPtr traceContext)
+            : Timestamp(timestamp)
+            , Request(request)
+            , TraceContext(std::move(traceContext))
         { }
 
-        TMutationRequest Request;
         TInstant Timestamp;
-        TPromise<TMutationResponse> CommitPromise;
+        TMutationRequest Request;
+        NTracing::TTraceContextPtr TraceContext;
+        TPromise<TMutationResponse> CommitPromise = NewPromise<TMutationResponse>();
     };
 
     std::vector<TPendingMutation> PendingMutations_;

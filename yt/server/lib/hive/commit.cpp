@@ -8,6 +8,7 @@ namespace NYT::NHiveServer {
 
 using namespace NRpc;
 using namespace NHydra;
+using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
