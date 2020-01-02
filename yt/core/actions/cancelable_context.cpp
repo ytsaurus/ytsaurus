@@ -30,7 +30,7 @@ public:
             return;
         }
 
-        return UnderlyingInvoker_->Invoke(BIND([=, this_ = MakeStrong(this), callback = std::move(callback)] {
+        return UnderlyingInvoker_->Invoke(BIND_DONT_CAPTURE_TRACE_CONTEXT([=, this_ = MakeStrong(this), callback = std::move(callback)] {
             if (Context_->Canceled_) {
                 return;
             }
@@ -119,7 +119,7 @@ void TCancelableContext::PropagateTo(const TCancelableContextPtr& context)
         return;
     }
 
-    context->SubscribeCanceled(BIND([=, weakThis = MakeWeak(this)] {
+    context->SubscribeCanceled(BIND_DONT_CAPTURE_TRACE_CONTEXT([=, weakThis = MakeWeak(this)] {
         if (auto this_ = weakThis.Lock()) {
             TGuard<TSpinLock> guard(SpinLock_);
             PropagateToContexts_.erase(context);
@@ -144,7 +144,7 @@ void TCancelableContext::PropagateTo(const TFuture<void>& future)
         return;
     }
 
-    future.Subscribe(BIND([=, weakThis = MakeWeak(this)] (const TError&) {
+    future.Subscribe(BIND_DONT_CAPTURE_TRACE_CONTEXT([=, weakThis = MakeWeak(this)] (const TError&) {
         if (auto this_ = weakThis.Lock()) {
             TGuard<TSpinLock> guard(SpinLock_);
             PropagateToFutures_.erase(future);

@@ -834,7 +834,7 @@ private:
         }
 
         auto batcher = New<TAsyncBatcher<void>>(
-            BIND(&TImpl::DoSyncWith, MakeWeak(this), cellId),
+            BIND_DONT_CAPTURE_TRACE_CONTEXT(&TImpl::DoSyncWith, MakeWeak(this), cellId),
             Config_->SyncDelay);
 
         {
