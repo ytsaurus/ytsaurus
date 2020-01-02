@@ -161,8 +161,8 @@ private:
         context->SetRequestInfo(
             "PopulateNodeDirectory: %v, "
             "PopulateClusterDirectory: %v, "
-            "PopulateMediumDirectory: %v",
-            "PopulateCellDirectory: %v",
+            "PopulateMediumDirectory: %v, "
+            "PopulateCellDirectory: %v, "
             "PopulateMasterCacheNodeAddresses: %v",
             populateNodeDirectory,
             populateClusterDirectory,
