@@ -91,7 +91,7 @@ public:
         auto promise = NewPromise<void>();
 
         auto cookie = Submit(
-            BIND([=] (bool aborted) mutable {
+            BIND_DONT_CAPTURE_TRACE_CONTEXT([=] (bool aborted) mutable {
                 if (aborted) {
                     promise.TrySet(TError(NYT::EErrorCode::Canceled, "Delayed promise aborted"));
                 } else {
@@ -100,7 +100,7 @@ public:
             }),
             delay);
 
-        promise.OnCanceled(BIND([=] () mutable {
+        promise.OnCanceled(BIND_DONT_CAPTURE_TRACE_CONTEXT([=] () mutable {
             promise.TrySet(TError(NYT::EErrorCode::Canceled, "Delayed promise was canceled"));
         }));
 
@@ -121,7 +121,7 @@ public:
     {
         YT_VERIFY(closure);
         return Submit(
-            BIND(&ClosureToDelayedCallbackAdapter, std::move(closure)),
+            BIND_DONT_CAPTURE_TRACE_CONTEXT(&ClosureToDelayedCallbackAdapter, std::move(closure)),
             delay.ToDeadLine());
     }
 
@@ -129,7 +129,7 @@ public:
     {
         YT_VERIFY(closure);
         return Submit(
-            BIND(&ClosureToDelayedCallbackAdapter, std::move(closure)),
+            BIND_DONT_CAPTURE_TRACE_CONTEXT(&ClosureToDelayedCallbackAdapter, std::move(closure)),
             deadline);
     }
 
@@ -303,7 +303,7 @@ private:
         // from leaking to the Delayed Poller thread, which is, e.g., fiber-unfriendly.
         auto runAbort = [&] (const TDelayedExecutorEntryPtr& entry) {
             if (entry->Callback) {
-                DelayedInvoker_->Invoke(BIND(std::move(entry->Callback), true));
+                DelayedInvoker_->Invoke(BIND_DONT_CAPTURE_TRACE_CONTEXT(std::move(entry->Callback), true));
             }
         };
         for (const auto& entry : ScheduledEntries_) {
@@ -449,7 +449,7 @@ private:
                     now);
             }
             YT_VERIFY(entry->Callback);
-            DelayedInvoker_->Invoke(BIND(std::move(entry->Callback), false));
+            DelayedInvoker_->Invoke(BIND_DONT_CAPTURE_TRACE_CONTEXT(std::move(entry->Callback), false));
             entry->Iterator.reset();
             ScheduledEntries_.erase(it);
         }

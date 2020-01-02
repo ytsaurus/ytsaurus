@@ -137,7 +137,7 @@ void GuardedInvoke(
         onSuccess.Run();
     };
 
-    invoker->Invoke(BIND(
+    invoker->Invoke(BIND_DONT_CAPTURE_TRACE_CONTEXT(
         std::move(doInvoke),
         Passed(std::move(onSuccess)),
         Passed(TGuard(std::move(onCancel)))));
