@@ -115,7 +115,7 @@ private:
 
                 const auto& node = ConvertToNode(resultOrError.Value());
 
-                YT_LOG_DEBUG("Got resource limits violations for account %Qv: %Qv",
+                YT_LOG_DEBUG("Resource limits violation check completed (Key: %v, Result: %v)",
                     key.Account,
                     ConvertToYsonString(node, EYsonFormat::Text));
 
