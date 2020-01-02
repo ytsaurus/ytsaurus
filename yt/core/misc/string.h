@@ -96,6 +96,20 @@ TString JoinToString(
     return JoinToString(collection, TDefaultFormatter(), delimiter);
 }
 
+//! Concatenates a bunch of TStringBuf-like instances into TString.
+template <class... Ts>
+TString ConcatToString(Ts... args)
+{
+    size_t length = 0;
+    ((length += args.length()), ...);
+
+    TString result;
+    result.reserve(length);
+    (result.append(args), ...);
+
+    return result;
+}
+
 //! Converts a range of items into strings.
 template <class TIter, class TFormatter>
 std::vector<TString> ConvertToStrings(
