@@ -29,19 +29,12 @@ class TFiber
     , public ITrampoLine
 {
 public:
-    TFiber(EExecutionStackKind stackKind = EExecutionStackKind::Small);
-
+    explicit TFiber(EExecutionStackKind stackKind = EExecutionStackKind::Small);
     ~TFiber();
 
-    TFiberId GetId()
-    {
-        return Id_;
-    }
+    TFiberId GetId();
 
-    bool CheckFreeStackSpace(size_t space) const
-    {
-        return reinterpret_cast<char*>(Stack_->GetStack()) + space < __builtin_frame_address(0);
-    }
+    bool CheckFreeStackSpace(size_t space) const;
 
     TExceptionSafeContext* GetContext();
 
@@ -61,21 +54,17 @@ private:
 public:
     // User-defined context switch handlers (executed only during WaitFor).
     friend void PushContextHandler(std::function<void()> out, std::function<void()> in);
-
     friend void PopContextHandler();
 
     void InvokeContextOutHandlers();
-
     void InvokeContextInHandlers();
 
 private:
     SmallVector<TContextSwitchHandlers, 16> SwitchHandlers_;
 
-
 public:
     // FLS, memory and tracing.
-    void OnSwitchInto();
-
+    void OnSwitchIn();
     void OnSwitchOut();
 
     NProfiling::TCpuDuration GetRunCpuTime() const;
@@ -90,23 +79,19 @@ private:
     NProfiling::TCpuInstant RunStartInstant_ = 0;
     NProfiling::TCpuDuration RunCpuTime_ = 0;
 
-    std::atomic<bool> IsRunning_ = {false};
+    std::atomic<bool> Running_ = {false};
 
 protected:
     void OnStartRunning();
-
     void OnFinishRunning();
 
 public:
-    // WaitFor and cancelation logic.
     void ResetForReuse();
 
     bool IsCanceled() const;
-
     const TClosure& GetCanceler();
 
     void SetAwaitable(TAwaitable awaitable);
-
     void ResetAwaitable();
 
 private:
@@ -118,7 +103,6 @@ private:
     TAwaitable Awaitable_;
 
     void CancelEpoch(size_t epoch);
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TFiber)
