@@ -780,7 +780,7 @@ TTcpConnection::TPacket* TTcpConnection::EnqueuePacket(
     size_t payloadSize)
 {
     size_t packetSize = TPacketEncoder::GetPacketSize(type, message, payloadSize);
-    auto* packet = QueuedPackets_.emplace(
+    auto& packet = QueuedPackets_.emplace(
         type,
         flags,
         checksummedPartCount,
@@ -789,7 +789,7 @@ TTcpConnection::TPacket* TTcpConnection::EnqueuePacket(
         payloadSize,
         packetSize);
     UpdatePendingOut(+1, +packetSize);
-    return packet;
+    return &packet;
 }
 
 void TTcpConnection::OnSocketWrite()
