@@ -15,8 +15,7 @@ from teamcity.teamcity import (
 
 from teamcity.helpers import (mkdirp, run, run_captured, cwd, rm_content,
                               rmtree, parse_yes_no_bool, ChildHasNonZeroExitCode,
-                              postprocess_junit_xml, sudo_rmtree, kill_by_name,
-                              set_yt_binaries_suid_bit)
+                              sudo_rmtree, kill_by_name, set_yt_binaries_suid_bit)
 
 from teamcity.pytest_helpers import (
     copy_artifacts,
@@ -24,6 +23,8 @@ from teamcity.pytest_helpers import (
     copy_failed_tests_and_report_stderrs,
     prepare_python_bindings,
     clean_failed_tests_directory)
+
+from teamcity.ya import run_ya_command_with_retries
 
 import argparse
 import tempfile
@@ -278,8 +279,6 @@ def _run_tests(options, python_version):
 
         junit_path = os.path.join(options.working_directory,
                                   "junit_python_{0}.xml".format(python_version))
-        if not postprocess_junit_xml(handle.name, junit_path):
-            failed = True
 
     if not hasattr(options, "artifacts"):
         # Copying artifacts only once and saving artifact list to options.
@@ -346,16 +345,17 @@ def run_python_ya_tests(options):
     args += ya_make_args(options)
     args += targets
 
-    error = None
     try:
-        run(args, env=env, cwd=os.path.join(options.yt_source_directory, "python"))
+        run_ya_command_with_retries(
+            args,
+            env=env,
+            cwd=os.path.join(options.yt_source_directory, "python"),
+            except_action=lambda: None)
     except ChildHasNonZeroExitCode as err:
-        error = err
-
-    if error is None:
-        shutil.rmtree(archive_dir)
-    else:
-        raise StepFailedWithNonCriticalError("Tests failed: " + str(error))
+        raise StepFailedWithNonCriticalError("Tests failed: " + str(err))
+    finally:
+        if os.path.exists(archive_dir):
+            sudo_rmtree(archive_dir)
 
 @build_step
 def run_python_2_7_tests(options):
