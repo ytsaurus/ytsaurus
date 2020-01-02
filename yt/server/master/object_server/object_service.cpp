@@ -1506,7 +1506,7 @@ private:
                 uncertainIndexes.push_back(index);
                 continue;
             }
-            
+
             const auto& subresponseMessage = subrequest.ResponseMessage;
             NRpc::NProto::TResponseHeader subresponseHeader;
             YT_VERIFY(ParseResponseHeader(subresponseMessage, &subresponseHeader));
@@ -1569,7 +1569,7 @@ private:
             return;
         }
 
-        RpcContext_->SetResponseInfo("SubresponseCount: %v, UncertainSubrequestIndexes : %v",
+        RpcContext_->SetResponseInfo("SubresponseCount: %v, UncertainSubrequestIndexes: %v",
             response.subresponses_size(),
             response.uncertain_subrequest_indexes());
 
