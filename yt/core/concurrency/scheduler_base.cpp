@@ -357,7 +357,7 @@ void TDerivedFiber::Main()
 #else
             SetAfterSwitch(BIND_DONT_CAPTURE_TRACE_CONTEXT([
                 current = MakeStrong(currentFiber),
-                resume = std::move(ResumerFiber)
+                resume = std::move(ResumerFiber())
             ] () mutable {
                 current.Reset();
                 SwitchFromThread(std::move(resume));
