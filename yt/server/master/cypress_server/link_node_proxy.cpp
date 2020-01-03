@@ -121,8 +121,8 @@ private:
                 linkNode->ComputeEffectiveTargetPath(),
                 Transaction_,
                 TObjectManager::TResolvePathOptions{
-                    .FollowPortals = false,
-                    .EnablePartialResolve = false
+                    .EnablePartialResolve = false,
+                    .FollowPortals = false
                 });
             return false;
         } catch (const std::exception&) {
