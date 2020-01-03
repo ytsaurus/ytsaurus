@@ -88,7 +88,7 @@ message TCredentialsExt
         optional TCredentialsExt credentials_ext = 110;
     }
 
-    // optional string user_ip = 1; // This field is removed.
+    reserved 1;
     optional string token = 2;
     optional string session_id = 4;
     optional string ssl_session_id = 5;
