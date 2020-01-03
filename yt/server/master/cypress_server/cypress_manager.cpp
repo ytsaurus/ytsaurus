@@ -1086,7 +1086,10 @@ public:
     TCypressNode* ResolvePathToTrunkNode(const TYPath& path, TTransaction* transaction)
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto* object = objectManager->ResolvePathToObject(path, transaction, false /*portalEntranceAcceptable*/);
+        auto* object = objectManager->ResolvePathToObject(
+            path,
+            transaction,
+            TObjectManager::TResolvePathOptions{});
         if (!IsVersionedType(object->GetType())) {
             THROW_ERROR_EXCEPTION("Path %v points to a nonversioned %Qlv object instead of a node",
                 path,

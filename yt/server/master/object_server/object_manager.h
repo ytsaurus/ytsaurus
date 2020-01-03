@@ -174,12 +174,17 @@ public:
         EObjectType type,
         NYTree::IAttributeDictionary* attributes);
 
+    struct TResolvePathOptions
+    {
+        bool EnablePartialResolve = false;
+        bool FollowPortals = true;
+    };
+
     //! Handles paths to versioned and most unversioned objects.
-    //! Pretty slow.
     TObject* ResolvePathToObject(
         const NYPath::TYPath& path,
         NTransactionServer::TTransaction* transaction,
-        bool portalEntranceAcceptable);
+        const TResolvePathOptions& options);
 
     //! Validates prerequisites, throws on failure.
     void ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites);

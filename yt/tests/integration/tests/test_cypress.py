@@ -913,9 +913,10 @@ class TestCypress(YTEnvSetup):
         create_user("u")
         with pytest.raises(YtError): create_user("u", ignore_existing=True)
 
-    @authors("babenko", "ignat")
+    @authors("babenko")
     def test_link1(self):
-        with pytest.raises(YtError): link("//tmp/a", "//tmp/b")
+        link("//tmp/a", "//tmp/b")
+        assert get("//tmp/b&/@broken")
 
     @authors("babenko")
     def test_link2(self):
@@ -2492,6 +2493,20 @@ class TestCypress(YTEnvSetup):
             create("map_node", "//tmp/x", lock_existing=True)
         with pytest.raises(YtError):
             move("//tmp/x", "//tmp/x1", ignore_existing=True, lock_existing=True)
+
+
+    @authors("babenko")
+    def test_malformed_clone_src(self):
+        create("map_node", "//tmp/m")
+        create("table", "//tmp/m/t1")
+        copy("//tmp/m&/t1", "//tmp/t2", force=True)
+        copy("//tmp/m/t1&", "//tmp/t2", force=True)
+        with pytest.raises(YtError):
+            copy("//tmp/m//t1", "//tmp/t2", force=True)
+        with pytest.raises(YtError):
+            copy("//tmp/m/t1/", "//tmp/t2", force=True)
+        with pytest.raises(YtError):
+            copy("//tmp/m/t1/@attr", "//tmp/t2", force=True)
 
 ##################################################################
 

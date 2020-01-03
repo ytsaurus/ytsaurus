@@ -120,7 +120,10 @@ private:
             objectManager->ResolvePathToObject(
                 linkNode->ComputeEffectiveTargetPath(),
                 Transaction_,
-                true /*portalEntranceAcceptable*/);
+                TObjectManager::TResolvePathOptions{
+                    .FollowPortals = false,
+                    .EnablePartialResolve = false
+                });
             return false;
         } catch (const std::exception&) {
             return true;
