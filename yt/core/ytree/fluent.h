@@ -5,9 +5,6 @@
 #include "tree_builder.h"
 #include "convert.h"
 
-#include <yt/core/json/config.h>
-#include <yt/core/json/json_writer.h>
-
 #include <yt/core/yson/consumer.h>
 #include <yt/core/yson/producer.h>
 #include <yt/core/yson/parser.h>
