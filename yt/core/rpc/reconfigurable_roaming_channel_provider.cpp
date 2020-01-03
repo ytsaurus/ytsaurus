@@ -1,4 +1,5 @@
 #include "reconfigurable_roaming_channel_provider.h"
+#include "channel.h"
 
 #include <yt/core/misc/atomic_object.h>
 
