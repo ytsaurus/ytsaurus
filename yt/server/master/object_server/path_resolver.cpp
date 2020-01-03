@@ -68,6 +68,7 @@ TPathResolver::TPathResolver(
 TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions& options)
 {
     if (Service_ == TMasterYPathProxy::GetDescriptor().ServiceName) {
+        YT_VERIFY(options.EnablePartialResolve);
         return TResolveResult{
             Path_,
             TLocalObjectPayload{
@@ -111,6 +112,7 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
         }
 
         bool ampersandSkipped = Tokenizer_.Skip(NYPath::ETokenType::Ampersand);
+        bool endOfStream = Tokenizer_.GetType() == NYPath::ETokenType::EndOfStream;
         bool slashSkipped = Tokenizer_.Skip(NYPath::ETokenType::Slash);
         auto makeCurrentUnresolvedPath = [&] {
             return
@@ -121,6 +123,11 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
         auto makeCurrentLocalObjectResult = [&] {
             auto* trunkObject = currentObject->IsTrunk() ? currentObject : currentObject->As<TCypressNode>()->GetTrunkNode();
             auto unresolvedPath = makeCurrentUnresolvedPath();
+            if (!options.EnablePartialResolve && !endOfStream) {
+                THROW_ERROR_EXCEPTION("%v has unexpected suffix %v",
+                    Path_,
+                    unresolvedPath);
+            }
             return TResolveResult{
                 std::move(unresolvedPath),
                 TLocalObjectPayload{
@@ -166,7 +173,7 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
 
             if (currentNode->GetNodeType() == ENodeType::List && IsSpecialListKey(key)) {
                 if (!options.EnablePartialResolve) {
-                    Tokenizer_.ThrowUnexpected();
+                    THROW_ERROR_EXCEPTION("Unexpected YPath token %Qv", key);
                 }
                 return makeCurrentLocalObjectResult();
             }
@@ -227,7 +234,7 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
                 return makeCurrentLocalObjectResult();
             }
 
-            if (options.ResolvePortalToEntranceNotExit &&
+            if (!options.FollowPortals &&
                 !slashSkipped &&
                 Tokenizer_.GetType() == NYPath::ETokenType::EndOfStream)
             {

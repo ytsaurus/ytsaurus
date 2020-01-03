@@ -206,7 +206,7 @@ public:
     TObject* ResolvePathToObject(
         const TYPath& path,
         TTransaction* transaction,
-        bool portalEntranceAcceptable);
+        const TResolvePathOptions& options);
 
     void ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites);
 
@@ -1363,7 +1363,7 @@ void TObjectManager::TImpl::AdvanceObjectLifeStageAtSecondaryMasters(NYT::NObjec
     multicellManager->PostToSecondaryMasters(advanceRequest);
 }
 
-TObject* TObjectManager::TImpl::ResolvePathToObject(const TYPath& path, TTransaction* transaction, bool portalEntranceAcceptable)
+TObject* TObjectManager::TImpl::ResolvePathToObject(const TYPath& path, TTransaction* transaction, const TResolvePathOptions& options)
 {
     static const TString NullService;
     static const TString NullMethod;
@@ -1375,8 +1375,8 @@ TObject* TObjectManager::TImpl::ResolvePathToObject(const TYPath& path, TTransac
         transaction);
 
     auto result = resolver.Resolve(TPathResolverOptions{
-        .EnablePartialResolve = false,
-        .ResolvePortalToEntranceNotExit = portalEntranceAcceptable
+        .EnablePartialResolve = options.EnablePartialResolve,
+        .FollowPortals = options.FollowPortals
     });
     const auto* payload = std::get_if<TPathResolver::TLocalObjectPayload>(&result.Payload);
     if (!payload) {
@@ -2203,9 +2203,9 @@ TObject* TObjectManager::FindObjectByAttributes(EObjectType type, const NYTree::
     return Impl_->FindObjectByAttributes(type, attributes);
 }
 
-TObject* TObjectManager::ResolvePathToObject(const TYPath& path, TTransaction* transaction, bool portalEntranceAcceptable)
+TObject* TObjectManager::ResolvePathToObject(const TYPath& path, TTransaction* transaction, const TResolvePathOptions& options)
 {
-    return Impl_->ResolvePathToObject(path, transaction, portalEntranceAcceptable);
+    return Impl_->ResolvePathToObject(path, transaction, options);
 }
 
 void TObjectManager::ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites)

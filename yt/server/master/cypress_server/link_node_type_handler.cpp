@@ -55,14 +55,8 @@ private:
         const TVersionedNodeId& id,
         const TCreateNodeContext& context) override
     {
-        // Make sure that target_path is valid upon creation.
+        // TODO(babenko): Make sure that target_path is valid upon creation.
         auto targetPath = context.ExplicitAttributes->GetAndRemove<TString>("target_path");
-
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        objectManager->ResolvePathToObject(
-            TLinkNode::ComputeEffectiveTargetPath(targetPath, context.Shard),
-            context.Transaction,
-            true /*portalEntranceAcceptable*/);
 
         auto implHolder = TBase::DoCreate(id, context);
         implHolder->SetTargetPath(targetPath);

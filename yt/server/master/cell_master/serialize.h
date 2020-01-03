@@ -104,6 +104,7 @@ DEFINE_ENUM(EMasterReign,
     ((BranchedAndLockedNodeCountMismatchFix)                         (921))  // shakurov
     ((FixParentTxForConcatUpload)                                    (922))  // babenko
     ((DynamicMasterCacheDiscovery)                                  (1001))  // aleksandra-zh
+    ((YT_11927_FixResolve)                                          (1002))  // babenko
     ((CellServer)                                                   (1100))  // savrus
     ((EnableDelayedMembershipClosureRecomputationByDefault)         (1101))  // babenko
     ((NetworkProject)                                               (1102))  // gritukan
