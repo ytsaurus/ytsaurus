@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/ytlib/tablet_client/table_replica_ypath.pb.h>
+#include <yt/ytlib/tablet_client/proto/table_replica_ypath.pb.h>
 
 #include <yt/core/ytree/ypath_proxy.h>
 

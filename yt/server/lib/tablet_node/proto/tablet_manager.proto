@@ -4,7 +4,7 @@ import "yt/core/misc/proto/guid.proto";
 import "yt/client/table_client/proto/chunk_meta.proto";
 import "yt/client/chunk_client/proto/chunk_meta.proto";
 import "yt/client/chunk_client/proto/chunk_view.proto";
-import "yt/ytlib/tablet_client/heartbeat.proto";
+import "yt/ytlib/tablet_client/proto/heartbeat.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
