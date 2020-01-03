@@ -45,7 +45,7 @@ private:
             THROW_ERROR_EXCEPTION("Error parsing request header");
         }
 
-        context->SetRequestInfo("%v:%v %v",
+        context->SetRequestInfo("%v.%v %v",
             requestHeader.service(),
             requestHeader.method(),
             GetRequestTargetYPath(requestHeader));

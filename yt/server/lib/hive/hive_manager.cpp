@@ -1290,10 +1290,11 @@ private:
             return;
         }
 
-        // XXX(babenko)
-        auto traceContext = NTracing::CreateChildTraceContext(
-            message.tracing_ext(),
-            "HiveManager:" + message.type());
+        auto traceContext = message.has_tracing_ext()
+            ? NTracing::CreateChildTraceContext(
+                message.tracing_ext(),
+                ConcatToString(AsStringBuf("HiveManager:"), message.type()))
+            : nullptr;
         TTraceContextGuard traceContextGuard(std::move(traceContext));
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Applying reliable incoming message (SrcCellId: %v, DstCellId: %v, MessageId: %v, MutationType: %v)",

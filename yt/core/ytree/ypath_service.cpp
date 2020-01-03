@@ -51,7 +51,7 @@ struct TCacheKey
 
     friend TString ToString(const TCacheKey& key)
     {
-        return Format("{%v:%v %x}",
+        return Format("{%v %v %x}",
             key.Method,
             key.Path,
             key.RequestBodyHash);

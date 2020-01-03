@@ -79,7 +79,7 @@ public:
     {
         YT_ABORT();
     }
-    
+
     virtual NConcurrency::IAsyncZeroCopyOutputStreamPtr GetRequestAttachmentsStream() const override
     {
         YT_UNIMPLEMENTED();
@@ -253,7 +253,7 @@ IClientRequestControlPtr DoRedirectServiceRequest(
         request,
         std::move(responseMessageHandler));
 
-    YT_LOG_DEBUG("Request redirected (RequestId: %v, Method: %v:%v, RealmId: %v, Timeout: %v)",
+    YT_LOG_DEBUG("Request redirected (RequestId: %v, Method: %v.%v, RealmId: %v, Timeout: %v)",
         request->GetRequestId(),
         request->GetService(),
         request->GetMethod(),

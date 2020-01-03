@@ -71,7 +71,7 @@ bool TObjectServiceCacheKey::operator == (const TObjectServiceCacheKey& other) c
 
 void FormatValue(TStringBuilderBase* builder, const TObjectServiceCacheKey& key, TStringBuf /*format*/)
 {
-    builder->AppendFormat("{%v %v %v:%v %v %x}",
+    builder->AppendFormat("{%v %v %v.%v %v %x}",
         key.CellTag,
         key.User,
         key.Service,
