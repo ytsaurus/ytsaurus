@@ -25,7 +25,7 @@
 #include <yt/ytlib/api/native/connection.h>
 #include <yt/ytlib/api/native/client.h>
 
-#include <yt/ytlib/tablet_client/tablet_service.pb.h>
+#include <yt/ytlib/tablet_client/proto/tablet_service.pb.h>
 
 #include <yt/client/object_client/helpers.h>
 

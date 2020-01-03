@@ -6,7 +6,7 @@
 
 #include <yt/server/lib/hydra/public.h>
 
-#include <yt/ytlib/tablet_client/heartbeat.pb.h>
+#include <yt/ytlib/tablet_client/proto/heartbeat.pb.h>
 
 #include <yt/client/table_client/unversioned_row.h>
 

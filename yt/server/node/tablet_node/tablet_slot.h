@@ -11,7 +11,7 @@
 
 #include <yt/ytlib/hydra/public.h>
 
-#include <yt/ytlib/tablet_client/heartbeat.pb.h>
+#include <yt/ytlib/tablet_client/proto/heartbeat.pb.h>
 
 #include <yt/ytlib/object_client/public.h>
 

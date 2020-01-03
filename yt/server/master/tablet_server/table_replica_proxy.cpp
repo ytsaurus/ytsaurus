@@ -16,7 +16,7 @@
 
 #include <yt/client/transaction_client/timestamp_provider.h>
 
-#include <yt/ytlib/tablet_client/table_replica_ypath.pb.h>
+#include <yt/ytlib/tablet_client/proto/table_replica_ypath.pb.h>
 
 #include <yt/core/ytree/fluent.h>
 
