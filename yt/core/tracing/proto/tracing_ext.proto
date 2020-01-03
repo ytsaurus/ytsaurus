@@ -13,6 +13,6 @@ message TTracingExt
 
     optional NYT.NProto.TGuid trace_id = 4;
     optional fixed64 span_id = 5;
-    optional bool sampled = 6 [default = false];
-    optional bool debug = 7 [default = false];
+    optional bool sampled = 6;
+    optional bool debug = 7;
 }
