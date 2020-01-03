@@ -25,6 +25,8 @@
 
 #include <yt/ytlib/object_client/master_ypath.pb.h>
 
+#include <yt/ytlib/tablet_client/helpers.h>
+
 #include <yt/core/ytree/helpers.h>
 
 namespace NYT::NObjectServer {
@@ -185,7 +187,7 @@ private:
         if (populateClusterDirectory) {
             const auto& objectManager = Bootstrap_->GetObjectManager();
             const auto& rootService = objectManager->GetRootService();
-            auto mapNode = ConvertToNode(SyncYPathGet(rootService, "//sys/clusters"))->AsMap();
+            auto mapNode = ConvertToNode(SyncYPathGet(rootService, NTabletClient::GetCypressClustersPath()))->AsMap();
             auto* protoClusterDirectory = response->mutable_cluster_directory();
             for (const auto& pair : mapNode->GetChildren()) {
                 auto* protoItem = protoClusterDirectory->add_items();
