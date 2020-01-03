@@ -7,6 +7,8 @@
 
 namespace NYT {
 
+////////////////////////////////////////////////////////////////////////////////
+
 // See: |std::bit_cast| from header <bit> from C++2a.
 // Remove this implementation and use the standard one when it becomes available.
 template <class TTo, class TFrom>
@@ -43,5 +45,7 @@ TInt Midpoint(TInt a, TInt b) noexcept
 
     return a + k * TInt(TUInt(mx - mn) >> 1);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
