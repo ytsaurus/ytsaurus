@@ -49,24 +49,30 @@ private:
     const TPeriodicExecutorPtr PeriodicExecutor_;
 
 
-    std::vector<THydraFileInfo> ListFiles(const TString& path, const TString& extension)
+    static int ParseFileId(const TString& fileName, const TString& suffix)
+    {
+        return FromString<int>(fileName.substr(0, fileName.length() - suffix.length()));
+    }
+
+    std::vector<THydraFileInfo> ListFiles(const TString& path, const TString& suffix)
     {
         std::vector<THydraFileInfo> result;
         auto fileNames = NFS::EnumerateFiles(path);
         for (const auto& fileName : fileNames) {
-            if (NFS::GetFileExtension(fileName) != extension) {
+            if (!fileName.EndsWith(suffix)) {
                 continue;
             }
+
+            auto fullFileName = NFS::CombinePaths(path, fileName);
 
             int id;
             i64 size;
             try {
-                id = FromString<int>(NFS::GetFileNameWithoutExtension(fileName));
-                size = NFS::GetFileStatistics(NFS::CombinePaths(path, fileName)).Size;
+                id = ParseFileId(fileName, suffix);
+                size = NFS::GetFileStatistics(fullFileName).Size;
             } catch (const std::exception& ex) {
                 YT_LOG_WARNING(ex, "Janitor has found a broken persistence file (FileName: %v)",
-                    fileName,
-                    path);
+                    fullFileName);
                 continue;
             }
             result.push_back({id, size});
@@ -74,18 +80,18 @@ private:
         return result;
     }
 
-    void RemoveFiles(const TString& path, const TString& extension, int thresholdId)
+    void RemoveFiles(const TString& path, const TString& suffix, int thresholdId)
     {
         std::vector<THydraFileInfo> result;
         auto fileNames = NFS::EnumerateFiles(path);
         for (const auto& fileName : fileNames) {
-            if (NFS::GetFileExtension(fileName) != extension) {
+            if (!fileName.EndsWith(suffix)) {
                 continue;
             }
 
             int id;
             try {
-                id = FromString<int>(NFS::GetFileNameWithoutExtension(fileName));
+                id = ParseFileId(fileName, suffix);
             } catch (const std::exception&) {
                 // Ignore, cf. logging above.
                 continue;
@@ -95,28 +101,32 @@ private:
                 continue;
             }
 
-            YT_LOG_INFO("Janitor is removing persistence file (FileName: %v)", fileName);
+            auto fullFileName = NFS::CombinePaths(path, fileName);
+
+            YT_LOG_INFO("Janitor is removing persistence file (FileName: %v)",
+                fullFileName);
             try {
-                NFS::Remove(NFS::CombinePaths(path, fileName));
+                NFS::Remove(fullFileName);
             } catch (const std::exception& ex) {
                 YT_LOG_WARNING(ex, "Janitor is unable to remove persistence file (FileName: %v)",
-                    fileName);
+                    fullFileName);
             }
         }
     }
 
     void OnCleanup()
     {
-        auto snapshots = ListFiles(SnapshotPath_, SnapshotExtension);
-        auto changelogs = ListFiles(SnapshotPath_, ChangelogExtension);
+        auto snapshots = ListFiles(SnapshotPath_, "." + SnapshotExtension);
+        auto changelogs = ListFiles(ChangelogPath_, "." + ChangelogExtension);
 
         auto thresholdId = ComputeJanitorThresholdId(
             snapshots,
             changelogs,
             Config_);
 
-        RemoveFiles(SnapshotPath_, SnapshotExtension, thresholdId);
-        RemoveFiles(ChangelogPath_, ChangelogExtension, thresholdId);
+        RemoveFiles(SnapshotPath_, "." + SnapshotExtension, thresholdId);
+        RemoveFiles(ChangelogPath_, "." + ChangelogExtension, thresholdId);
+        RemoveFiles(ChangelogPath_, "." + ChangelogExtension + "." + ChangelogIndexExtension, thresholdId);
     }
 };
 
