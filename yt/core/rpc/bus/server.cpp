@@ -171,7 +171,7 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Request cancelation received (Method: %v:%v, RealmId: %v, RequestId: %v)",
+        YT_LOG_DEBUG("Request cancelation received (Method: %v.%v, RealmId: %v, RequestId: %v)",
             serviceName,
             methodName,
             realmId,

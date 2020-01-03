@@ -1070,10 +1070,11 @@ void TDecoratedAutomaton::ApplyPendingMutations(bool mayYield)
                 pendingMutation.RandomSeed);
 
             {
-                // XXX(babenko)
-                auto traceContext = NTracing::CreateChildTraceContext(
-                    pendingMutation.TraceContext,
-                    "HydraManager:" + pendingMutation.Request.Type);
+                auto traceContext = pendingMutation.TraceContext
+                    ? NTracing::CreateChildTraceContext(
+                        pendingMutation.TraceContext,
+                        ConcatToString(AsStringBuf("HydraManager:"), pendingMutation.Request.Type))
+                    : nullptr;
                 NTracing::TTraceContextGuard traceContextGuard(std::move(traceContext));
                 DoApplyMutation(&mutationContext);
             }

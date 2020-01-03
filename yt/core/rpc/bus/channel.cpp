@@ -713,7 +713,7 @@ private:
 
             requestControl->ProfileRequest(requestMessage);
 
-            YT_LOG_DEBUG("Request sent (RequestId: %v, Method: %v:%v, Timeout: %v, TrackingLevel: %v, "
+            YT_LOG_DEBUG("Request sent (RequestId: %v, Method: %v.%v, Timeout: %v, TrackingLevel: %v, "
                 "ChecksummedPartCount: %v, MultiplexingBand: %v, Endpoint: %v, BodySize: %v, AttachmentSize: %v)",
                 requestId,
                 requestControl->GetService(),
@@ -966,7 +966,7 @@ private:
             const IClientResponseHandlerPtr& responseHandler,
             TSharedRefArray message)
         {
-            YT_LOG_DEBUG("Response received (RequestId: %v, Method: %v:%v, TotalTime: %v)",
+            YT_LOG_DEBUG("Response received (RequestId: %v, Method: %v.%v, TotalTime: %v)",
                 requestId,
                 requestControl->GetService(),
                 requestControl->GetMethod(),

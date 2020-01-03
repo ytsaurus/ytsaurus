@@ -392,21 +392,28 @@ IChannelPtr CreateFailureDetectingChannel(
 
 TTraceContextPtr CreateHandlerTraceContext(const NProto::TRequestHeader& header)
 {
-    // XXX(babenko): optimize
-    auto spanName = "RpcServer:" + header.service() + "." + header.method();
-    return NTracing::CreateChildTraceContext(header.GetExtension(NProto::TRequestHeader::tracing_ext), spanName);
+    const auto& ext = header.GetExtension(NProto::TRequestHeader::tracing_ext);
+    // Fast path.
+    if (!ext.has_trace_id()) {
+        return nullptr;
+    }
+    // Slow path.
+    return NTracing::CreateChildTraceContext(
+        ext,
+        ConcatToString(AsStringBuf("RpcServer:"), header.service(), AsStringBuf("."), header.method()));
 }
 
 TTraceContextPtr CreateCallTraceContext(const TString& service, const TString& method)
 {
     auto context = GetCurrentTraceContext();
+    // Fast path.
     if (!context) {
         return nullptr;
     }
-
-    // XXX(babenko): optimize
-    auto spanName = "RpcClient:" + service + "." + method;
-    return CreateChildTraceContext(std::move(context), spanName);
+    // Slow path.
+    return CreateChildTraceContext(
+        std::move(context),
+        ConcatToString(AsStringBuf("RpcClient:"), service, AsStringBuf("."), method));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

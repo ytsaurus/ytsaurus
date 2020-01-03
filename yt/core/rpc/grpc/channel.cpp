@@ -141,7 +141,7 @@ private:
             , CompletionQueue_(TDispatcher::Get()->PickRandomCompletionQueue())
             , Logger(GrpcLogger)
         {
-            YT_LOG_DEBUG("Sending request (RequestId: %v, Method: %v:%v, Timeout: %v)",
+            YT_LOG_DEBUG("Sending request (RequestId: %v, Method: %v.%v, Timeout: %v)",
                 Request_->GetRequestId(),
                 Request_->GetService(),
                 Request_->GetMethod(),
@@ -361,7 +361,7 @@ private:
                 return;
             }
 
-            YT_LOG_DEBUG("Request sent (RequestId: %v, Method: %v:%v)",
+            YT_LOG_DEBUG("Request sent (RequestId: %v, Method: %v.%v)",
                 Request_->GetRequestId(),
                 Request_->GetService(),
                 Request_->GetMethod());
@@ -522,7 +522,7 @@ private:
                 return;
             }
 
-            YT_LOG_DEBUG("Response received (RequestId: %v, Method: %v:%v, TotalTime: %v)",
+            YT_LOG_DEBUG("Response received (RequestId: %v, Method: %v.%v, TotalTime: %v)",
                 Request_->GetRequestId(),
                 Request_->GetService(),
                 Request_->GetMethod(),

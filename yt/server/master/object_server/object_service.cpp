@@ -1035,7 +1035,7 @@ private:
 
             AcquireReplyLock();
 
-            YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v:%v, "
+            YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v.%v, "
                 "%v%v%vUser: %v, Mutating: %v, CellTag: %v, PeerKind: %v)",
                 RequestId_,
                 batch->BatchReq->GetRequestId(),

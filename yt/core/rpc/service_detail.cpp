@@ -267,7 +267,7 @@ public:
     {
         if (!RuntimeInfo_->Descriptor.StreamingEnabled) {
             YT_LOG_DEBUG("Received streaming payload for a method that does not support streaming; ignored "
-                "(Method: %v:%v, RequestId: %v)",
+                "(Method: %v.%v, RequestId: %v)",
                 Service_->ServiceId_.ServiceName,
                 RuntimeInfo_->Descriptor.Method,
                 RequestId_);
@@ -293,7 +293,7 @@ public:
 
         if (!stream) {
             YT_LOG_DEBUG("Received streaming feedback for a method that does not support streaming; ignored "
-                "(Method: %v:%v, RequestId: %v)",
+                "(Method: %v.%v, RequestId: %v)",
                 Service_->ServiceId_.ServiceName,
                 RuntimeInfo_->Descriptor.Method,
                 RequestId_);
@@ -700,7 +700,7 @@ private:
     virtual void LogRequest() override
     {
         TStringBuilder builder;
-        builder.AppendFormat("%v:%v <- ",
+        builder.AppendFormat("%v.%v <- ",
             GetService(),
             GetMethod());
 
@@ -722,7 +722,7 @@ private:
     virtual void LogResponse() override
     {
         TStringBuilder builder;
-        builder.AppendFormat("%v:%v -> ",
+        builder.AppendFormat("%v.%v -> ",
             GetService(),
             GetMethod());
 
@@ -1475,7 +1475,7 @@ void TServiceBase::Configure(INodePtr configNode)
             const auto& methodConfig = pair.second;
             auto runtimeInfo = FindMethodInfo(methodName);
             if (!runtimeInfo) {
-                THROW_ERROR_EXCEPTION("Cannot find RPC method %v:%v to configure",
+                THROW_ERROR_EXCEPTION("Cannot find RPC method %v.%v to configure",
                     ServiceId_.ServiceName,
                     methodName);
             }

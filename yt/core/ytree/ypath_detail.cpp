@@ -1373,10 +1373,9 @@ protected:
         if (!traceContext) {
             return nullptr;
         }
-        // XXX(babenko): better span name
         return NTracing::CreateChildTraceContext(
             std::move(traceContext),
-            "YPath:" + GetService() + "." + GetMethod());
+            ConcatToString(AsStringBuf("YPath:"), GetService(), AsStringBuf("."), GetMethod()));
     }
 
     const NProto::TYPathHeaderExt& GetYPathExt()
@@ -1400,7 +1399,7 @@ protected:
         const auto& ypathExt = GetYPathExt();
 
         TStringBuilder builder;
-        builder.AppendFormat("%v:%v %v <- ",
+        builder.AppendFormat("%v.%v %v <- ",
             GetService(),
             GetMethod(),
             ypathExt.target_path());
@@ -1441,7 +1440,7 @@ protected:
         const auto& ypathExt = GetYPathExt();
 
         TStringBuilder builder;
-        builder.AppendFormat("%v:%v %v -> ",
+        builder.AppendFormat("%v.%v %v -> ",
             GetService(),
             GetMethod(),
             ypathExt.target_path());

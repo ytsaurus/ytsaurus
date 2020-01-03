@@ -289,6 +289,10 @@ public:
 
     virtual TFuture<void> Execute(const TDriverRequest& request) override
     {
+        NTracing::TChildTraceContextGuard traceContextGuard(
+            ConcatToString(AsStringBuf("Driver:"), request.CommandName),
+            true);
+
         auto it = CommandNameToEntry_.find(request.CommandName);
         if (it == CommandNameToEntry_.end()) {
             return MakeFuture(TError(
@@ -296,18 +300,16 @@ public:
                 request.CommandName));
         }
 
+        const auto& entry = it->second;
         const auto& user = request.AuthenticatedUser;
 
-        NTracing::TChildTraceContextGuard traceContextGuard("NativeDriver." + request.CommandName, true);
+        YT_VERIFY(entry.Descriptor.InputType == EDataType::Null || request.InputStream);
+        YT_VERIFY(entry.Descriptor.OutputType == EDataType::Null || request.OutputStream);
+
         YT_LOG_DEBUG("Command received (RequestId: %" PRIx64 ", Command: %v, User: %v)",
             request.Id,
             request.CommandName,
             user);
-
-        const auto& entry = it->second;
-
-        YT_VERIFY(entry.Descriptor.InputType == EDataType::Null || request.InputStream);
-        YT_VERIFY(entry.Descriptor.OutputType == EDataType::Null || request.OutputStream);
 
         auto client = ClientCache_->GetClient(user, request.UserToken);
 
@@ -333,8 +335,8 @@ public:
     {
         std::vector<TCommandDescriptor> result;
         result.reserve(CommandNameToEntry_.size());
-        for (const auto& pair : CommandNameToEntry_) {
-            result.push_back(pair.second.Descriptor);
+        for (const auto& [name, entry] : CommandNameToEntry_) {
+            result.push_back(entry.Descriptor);
         }
         return result;
     }
@@ -402,7 +404,7 @@ private:
             TCommand command;
             command.Execute(context);
         });
-        YT_VERIFY(CommandNameToEntry_.insert(std::make_pair(descriptor.CommandName, entry)).second);
+        YT_VERIFY(CommandNameToEntry_.emplace(descriptor.CommandName, entry).second);
     }
 
     static void DoExecute(TExecuteCallback executeCallback, TCommandContextPtr context)
@@ -426,7 +428,7 @@ private:
         } catch (const std::exception& ex) {
             result = TError(ex);
         }
- 
+
         if (result.IsOK()) {
             YT_LOG_DEBUG("Command completed (RequestId: %" PRIx64 ", Command: %v, User: %v)",
                 request.Id,

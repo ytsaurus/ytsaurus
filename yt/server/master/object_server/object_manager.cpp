@@ -438,7 +438,7 @@ public:
         auto counters = requestProfilingManager->GetCounters(context->GetUser(), context->GetMethod());
         ObjectServerProfiler.Increment(counters->AutomatonForwardingRequestCounter);
 
-        YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v:%v, "
+        YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v.%v, "
             "TargetPath: %v, %v%vUser: %v, Mutating: %v, CellTag: %v, PeerKind: %v)",
             context->GetRequestId(),
             forwardedRequestId,
@@ -1479,7 +1479,7 @@ TFuture<TSharedRefArray> TObjectManager::TImpl::ForwardObjectRequest(
     batchReq->SetUser(header.user());
     batchReq->AddRequestMessage(std::move(requestMessage));
 
-    YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v:%v, Path: %v, User: %v, Mutating: %v, "
+    YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v.%v, Path: %v, User: %v, Mutating: %v, "
         "CellTag: %v, PeerKind: %v)",
         requestId,
         batchReq->GetRequestId(),
