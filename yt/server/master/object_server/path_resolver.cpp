@@ -111,25 +111,19 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
             currentObject = std::get<TLocalObjectPayload>(rootPayload).Object;
         }
 
+        auto unresolvedPathSuffix = Tokenizer_.GetInput();
         bool ampersandSkipped = Tokenizer_.Skip(NYPath::ETokenType::Ampersand);
         bool endOfStream = Tokenizer_.GetType() == NYPath::ETokenType::EndOfStream;
         bool slashSkipped = Tokenizer_.Skip(NYPath::ETokenType::Slash);
-        auto makeCurrentUnresolvedPath = [&] {
-            return
-                (ampersandSkipped ? AmpersandYPath : EmptyYPath) +
-                (slashSkipped ? SlashYPath : EmptyYPath) +
-                Tokenizer_.GetInput();
-        };
         auto makeCurrentLocalObjectResult = [&] {
             auto* trunkObject = currentObject->IsTrunk() ? currentObject : currentObject->As<TCypressNode>()->GetTrunkNode();
-            auto unresolvedPath = makeCurrentUnresolvedPath();
             if (!options.EnablePartialResolve && !endOfStream) {
                 THROW_ERROR_EXCEPTION("%v has unexpected suffix %v",
                     Path_,
-                    unresolvedPath);
+                    unresolvedPathSuffix);
             }
             return TResolveResult{
-                std::move(unresolvedPath),
+                TYPath(unresolvedPathSuffix),
                 TLocalObjectPayload{
                     trunkObject,
                     GetTransaction()
@@ -247,7 +241,7 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
                 portalEntrance->GetExitCellTag());
 
             return TResolveResult{
-                makeCurrentUnresolvedPath(),
+                TYPath(unresolvedPathSuffix),
                 TRemoteObjectPayload{portalExitNodeId},
                 canCacheResolve
             };
