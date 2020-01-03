@@ -146,6 +146,14 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         with pytest.raises(YtError):
             move("//tmp/t", "//tmp/s")
 
+    @authors("babenko")
+    def test_replica_cluster_must_exist(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t", SIMPLE_SCHEMA_SORTED)
+
+        with pytest.raises(YtError):
+            create_table_replica("//tmp/t", "nonexisting", "//tmp/r")
+
     @authors("babenko", "aozeritsky")
     @pytest.mark.parametrize("schema", [SIMPLE_SCHEMA_SORTED, SIMPLE_SCHEMA_ORDERED])
     def test_simple(self, schema):

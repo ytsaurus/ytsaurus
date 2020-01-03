@@ -19,9 +19,11 @@
 
 #include <yt/ytlib/election/cell_manager.h>
 
-#include <yt/client/object_client/helpers.h>
-
 #include <yt/ytlib/transaction_client/transaction_service_proxy.h>
+
+#include <yt/ytlib/tablet_client/helpers.h>
+
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
@@ -242,7 +244,7 @@ private:
                     .EndMap());
 
             ScheduleCreateNode(
-                "//sys/clusters",
+                NTabletClient::GetCypressClustersPath(),
                 transactionId,
                 EObjectType::Document,
                 BuildYsonStringFluently()

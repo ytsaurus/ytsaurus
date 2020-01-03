@@ -20,6 +20,8 @@
 
 #include <yt/ytlib/transaction_client/transaction_manager.h>
 
+#include <yt/ytlib/tablet_client/helpers.h>
+
 #include <yt/core/ypath/helpers.h>
 #include <yt/core/ypath/tokenizer.h>
 
@@ -323,7 +325,7 @@ protected:
 
         YT_LOG_DEBUG("External cells synchronized with the cloned node cell");
     }
-    
+
     void CommitTransaction()
     {
         YT_LOG_DEBUG("Committing transaction");
@@ -1301,13 +1303,23 @@ TObjectId TClient::DoCreateObject(
     auto cellTag = PrimaryMasterCellTag;
     switch (type) {
         case EObjectType::TableReplica: {
-            auto path = attributes->Get<TString>("table_path");
-            InternalValidatePermission(path, EPermission::Write);
+            {
+                auto path = attributes->Get<TString>("table_path");
+                InternalValidatePermission(path, EPermission::Write);
 
-            TTableId tableId;
-            ResolveExternalTable(path, &tableId, &cellTag);
+                TTableId tableId;
+                ResolveExternalTable(path, &tableId, &cellTag);
 
-            attributes->Set("table_path", FromObjectId(tableId));
+                attributes->Set("table_path", FromObjectId(tableId));
+            }
+            {
+                auto clusterName = attributes->Get<TString>("cluster_name");
+                auto result = WaitFor(NodeExists(GetCypressClusterPath(clusterName), {}));
+                THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error checking replica cluster existence");
+                if (!result.Value()) {
+                    THROW_ERROR_EXCEPTION("Replica cluster %Qv does not exist", clusterName);
+                }
+            }
             break;
         }
 
