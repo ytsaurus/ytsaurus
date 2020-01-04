@@ -343,6 +343,7 @@ class TestPortals(YTEnvSetup):
 
     @authors("babenko")
     @pytest.mark.parametrize("purge_resolve_cache", [False, True])
+    @pytest.mark.skipif("True", reason="YT-11197")
     def test_cross_shard_links_forbidden(self, purge_resolve_cache):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
         _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p")
