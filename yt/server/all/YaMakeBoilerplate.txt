@@ -1,0 +1,22 @@
+OWNER(g:yt)
+
+ALLOCATOR(YT)
+
+CXXFLAGS(${YT_ARCADIA_CXXFLAGS})
+CFLAGS(${YT_ARCADIA_CFLAGS})
+
+SRCS(
+    ${YT_ROOT}/yt/server/all/main.cpp
+)
+
+PEERDIR(
+    ${YT_ROOT}/yt/server/master
+    ${YT_ROOT}/yt/server/clock_server
+    ${YT_ROOT}/yt/server/node
+    ${YT_ROOT}/yt/server/scheduler
+    ${YT_ROOT}/yt/server/controller_agent
+    ${YT_ROOT}/yt/server/http_proxy
+    ${YT_ROOT}/yt/server/rpc_proxy
+    ${YT_ROOT}/yt/server/job_proxy
+    ${YT_ROOT}/yt/server/log_tailer
+)
