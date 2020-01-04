@@ -1620,7 +1620,9 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         end_ts = generate_timestamp()
 
         sync_mount_table("//tmp/t")
-        sleep(1.0)
+
+        if in_memory_mode != "none":
+            self._wait_for_in_memory_stores_preload("//tmp/t")
 
         assert lookup_rows("//tmp/t", keys, timestamp=start_ts) == []
         actual = lookup_rows("//tmp/t", keys)
