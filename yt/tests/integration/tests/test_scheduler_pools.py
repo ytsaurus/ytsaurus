@@ -554,7 +554,7 @@ class TestPools(YTEnvSetup):
         set("//sys/pool_trees/my_tree/nirvana/@min_share_resources/cpu", 100.0)
         set("//sys/pool_trees/my_tree/nirvana/prod/@min_share_resources", {"cpu": 100.0})
 
-    @pytest.mark.xfail(run=True, reason="Not important yet(renadeen)")
+    @pytest.mark.skipif(True, reason="Not important yet(renadeen)")
     def test_update_nested_double_with_int(self):
         create_pool_tree("my_tree")
         create_pool("nirvana", pool_tree="my_tree")
