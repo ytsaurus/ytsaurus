@@ -1,4 +1,5 @@
 #include <yt/server/master/cell_master/program.h>
+#include <yt/server/clock_server/cluster_clock/program.h>
 #include <yt/server/http_proxy/program.h>
 #include <yt/server/rpc_proxy/program.h>
 #include <yt/server/job_proxy/program.h>
@@ -13,6 +14,7 @@ int main(int argc, const char** argv)
 {
     std::vector<std::pair<TString, std::function<int()>>> programs = {
         {"ytserver-master", [&] { return NYT::TCellMasterProgram().Run(argc, argv); }},
+        {"ytserver-clock", [&] { return NYT::TClusterClockProgram().Run(argc, argv); }},
         {"ytserver-http-proxy", [&] { return NYT::THttpProxyProgram().Run(argc, argv); }},
         {"ytserver-proxy", [&] { return NYT::NCellProxy::TCellProxyProgram().Run(argc, argv); }},
         {"ytserver-node", [&] { return NYT::NCellNode::TCellNodeProgram().Run(argc, argv); }},
