@@ -35,7 +35,7 @@ class WriteAceRemoved:
 
 class DynamicTablesBase(YTEnvSetup):
     NUM_MASTERS = 1
-    NUM_NODES = 4 # some tests require 2 tablet cell peers + 2 spares
+    NUM_NODES = 6
     NUM_SCHEDULERS = 0
     USE_DYNAMIC_TABLES = True
 
