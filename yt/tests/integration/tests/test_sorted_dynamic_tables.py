@@ -78,6 +78,22 @@ class TestSortedDynamicTablesBase(DynamicTablesBase):
             for address in get_tablet_follower_addresses(tablet_id) + [get_tablet_leader_address(tablet_id)]:
                 wait(lambda: all_preloaded(address))
 
+    def _wait_for_in_memory_stores_preload_failed(self, table):
+        tablets = get(table + "/@tablets")
+        for tablet in tablets:
+            tablet_id = tablet["tablet_id"]
+            orchid = self._find_tablet_orchid(get_tablet_leader_address(tablet_id), tablet_id)
+            if not orchid:
+                return False
+            for store in orchid["eden"]["stores"].itervalues():
+                if store["store_state"] == "persistent" and store["preload_state"] == "failed":
+                    return True
+            for partition in orchid["partitions"]:
+                for store in partition["stores"].itervalues():
+                    if store["preload_state"] == "failed":
+                        return True
+            return False
+
     def _reshard_with_retries(self, path, pivots):
         resharded = False
         for i in xrange(4):
@@ -2047,28 +2063,6 @@ class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
         },
     }
 
-    def _get_statistics(self, table):
-        return get(table + "/@tablets/0/statistics")
-
-    def _wait_preload(self, table):
-        def is_preloaded():
-            statistics = self._get_statistics(table)
-            return (
-                statistics["preload_completed_store_count"] > 0 and
-                statistics["preload_pending_store_count"] == 0 and
-                statistics["preload_failed_store_count"] == 0)
-
-        wait(is_preloaded)
-
-    def _wait_preload_failed(self, table):
-        def is_preload_failed():
-            statistics = self._get_statistics(table)
-            return (
-                statistics["preload_pending_store_count"] == 0 and
-                statistics["preload_failed_store_count"] > 0)
-
-        wait(is_preload_failed)
-
     @authors("savrus", "gridem")
     def test_in_memory_limit_exceeded(self):
         LARGE = "//tmp/large"
@@ -2126,7 +2120,7 @@ class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
 
         # mount large table to trigger memory limit
         sync_mount_table(LARGE)
-        self._wait_preload(LARGE)
+        self._wait_for_in_memory_stores_preload(LARGE)
         check_lookup(LARGE, *large_data)
 
         for node in ls("//sys/cluster_nodes"):
@@ -2135,11 +2129,11 @@ class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
 
         # mount small table, preload must fail
         sync_mount_table(SMALL)
-        self._wait_preload_failed(SMALL)
+        self._wait_for_in_memory_stores_preload_failed(SMALL)
 
         # unmounting large table releases the memory to allow small table to be preloaded
         sync_unmount_table(LARGE)
-        self._wait_preload(SMALL)
+        self._wait_for_in_memory_stores_preload(SMALL)
         check_lookup(SMALL, *small_data)
 
         # cleanup
