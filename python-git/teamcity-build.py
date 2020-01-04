@@ -252,33 +252,33 @@ def _run_tests(options, python_version):
         if token in os.environ:
             env[token] = os.environ[token]
 
+    junit_path = os.path.join(options.working_directory,
+                              "junit_python_{0}.xml".format(python_version))
+
+    additional_args = []
+    if options.enable_parallel_testing:
+        # Currently python tests can only scale up to fifteen processes.
+        additional_args.append("--process-count=10")
+
     failed = False
-    with tempfile.NamedTemporaryFile() as handle:
-        additional_args = []
-        if options.enable_parallel_testing:
-            # Currently python tests can only scale up to fifteen processes.
-            additional_args.append("--process-count=10")
-
-        try:
-            run([
-                    interpreter,
-                    "-m",
-                    "pytest",
-                    "-r", "x",
-                    "--verbose",
-                    "--capture=fd",
-                    "--tb=native",
-                    "--timeout=1200",
-                    "--debug",
-                    "--junitxml={0}".format(handle.name)] + additional_args,
-                    cwd=options.checkout_directory,
-                    env=env)
-        except ChildHasNonZeroExitCode as err:
-            teamcity_interact("buildProblem", description="Pytest failed (python: {}; exit code: {})".format(python_version, err.return_code))
-            failed = True
-
-        junit_path = os.path.join(options.working_directory,
-                                  "junit_python_{0}.xml".format(python_version))
+    try:
+        run([
+                interpreter,
+                "-m",
+                "pytest",
+                "-r", "x",
+                "--verbose",
+                "--capture=fd",
+                "--tb=native",
+                "--timeout=1200",
+                "--debug",
+                "--junitxml={0}".format(junit_path)
+            ] + additional_args,
+            cwd=options.checkout_directory,
+            env=env)
+    except ChildHasNonZeroExitCode as err:
+        teamcity_interact("buildProblem", description="Pytest failed (python: {}; exit code: {})".format(python_version, err.return_code))
+        failed = True
 
     if not hasattr(options, "artifacts"):
         # Copying artifacts only once and saving artifact list to options.
