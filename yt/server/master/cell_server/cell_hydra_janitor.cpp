@@ -128,7 +128,7 @@ private:
             auto key = ConvertTo<TString>(child);
             int id;
             if (!TryFromString<int>(key, id)) {
-                YT_LOG_WARNING("Janitor has found a broken Hydra file (Path: %v, Key: %v)",
+                YT_LOG_WARNING("Janitor has found a broken persistence file (Path: %v, Key: %v)",
                     path,
                     key);
                 return std::nullopt;
