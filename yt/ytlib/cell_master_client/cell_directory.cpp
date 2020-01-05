@@ -281,6 +281,21 @@ private:
         THROW_ERROR_EXCEPTION("Unknown master cell tag %v", cellTag);
     }
 
+
+    TMasterConnectionConfigPtr BuildMasterCacheConfig(const TMasterConnectionConfigPtr& config)
+    {
+        if (!Config_->MasterCache) {
+            return config;
+        }
+
+        auto masterCacheConfig = CloneYsonSerializable(Config_->MasterCache);
+        masterCacheConfig->CellId = config->CellId;
+        if (masterCacheConfig->EnableMasterCacheDiscovery) {
+            masterCacheConfig->Addresses = config->Addresses;
+        }
+        return masterCacheConfig;
+    }
+
     void InitMasterChannels(
         const TMasterConnectionConfigPtr& config,
         const TConnectionOptions& options,
@@ -288,18 +303,8 @@ private:
     {
         InitMasterChannel(EMasterChannelKind::Leader, config, EPeerKind::Leader, options, channelFactory);
         InitMasterChannel(EMasterChannelKind::Follower, config, EPeerKind::Follower, options, channelFactory);
-
-        auto masterCacheConfig = config;
-        if (Config_->MasterCache) {
-            masterCacheConfig = CloneYsonSerializable(Config_->MasterCache);
-            masterCacheConfig->CellId = config->CellId;
-            if (masterCacheConfig->EnableMasterCacheDiscovery) {
-                masterCacheConfig->Addresses = config->Addresses;
-            }
-        }
-
-        InitMasterChannel(EMasterChannelKind::Cache, masterCacheConfig, EPeerKind::Follower, options, channelFactory);
-        InitMasterChannel(EMasterChannelKind::SecondLevelCache, masterCacheConfig, EPeerKind::Follower, options, channelFactory);
+        InitMasterChannel(EMasterChannelKind::Cache, BuildMasterCacheConfig(config), EPeerKind::Follower, options, channelFactory);
+        InitMasterChannel(EMasterChannelKind::SecondLevelCache, config, EPeerKind::Follower, options, channelFactory);
     }
 
     void InitMasterChannel(
