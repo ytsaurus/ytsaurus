@@ -103,10 +103,6 @@ public:
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;
-
-    class TElectionManager;
-    using TElectionManagerPtr = TIntrusivePtr<TElectionManager>;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletSlot)

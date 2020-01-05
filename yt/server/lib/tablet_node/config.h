@@ -6,6 +6,8 @@
 
 #include <yt/server/lib/hydra/config.h>
 
+#include <yt/server/lib/election/config.h>
+
 #include <yt/ytlib/chunk_client/config.h>
 
 #include <yt/ytlib/table_client/config.h>
@@ -659,6 +661,8 @@ public:
     //! Generic configuration for all Hydra instances.
     TTabletHydraManagerConfigPtr HydraManager;
 
+    NElection::TDistributedElectionManagerConfigPtr ElectionManager;
+
     //! Generic configuration for all Hive instances.
     NHiveServer::THiveManagerConfigPtr HiveManager;
 
@@ -716,6 +720,8 @@ public:
         RegisterParameter("changelogs", Changelogs)
             .DefaultNew();
         RegisterParameter("hydra_manager", HydraManager)
+            .DefaultNew();
+        RegisterParameter("election_manager", ElectionManager)
             .DefaultNew();
         RegisterParameter("hive_manager", HiveManager)
             .DefaultNew();
