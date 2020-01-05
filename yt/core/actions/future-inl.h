@@ -597,11 +597,11 @@ TFuture<R> ApplyHelper(TFutureBase<T> this_, TCallback<S> callback)
 
     auto promise = NewPromise<R>();
 
-    this_.Subscribe(BIND([=, callback = std::move(callback)] (const TErrorOr<T>& value) mutable {
+    this_.Subscribe(BIND([=, callback = std::move(callback)] (const TErrorOr<T>& value) {
         ApplyHelperHandler(promise, callback, value);
     }));
 
-    promise.OnCanceled(BIND([=] () mutable {
+    promise.OnCanceled(BIND([=] {
         this_.Cancel();
     }));
 
@@ -820,7 +820,7 @@ TFuture<T> TFutureBase<T>::ToUncancelable() const
 
     auto promise = NewPromise<T>();
 
-    this->Subscribe(BIND([=] (const TErrorOr<T>& value) mutable {
+    this->Subscribe(BIND([=] (const TErrorOr<T>& value) {
         promise.Set(value);
     }));
 
@@ -836,11 +836,11 @@ TFuture<T> TFutureBase<T>::ToImmediatelyCancelable() const
 
     auto promise = NewPromise<T>();
 
-    this->Subscribe(BIND([=] (const TErrorOr<T>& value) mutable {
+    this->Subscribe(BIND([=] (const TErrorOr<T>& value) {
         promise.TrySet(value);
     }));
 
-    promise.OnCanceled(BIND([=, underlying = Impl_] () mutable {
+    promise.OnCanceled(BIND([=, underlying = Impl_] {
         underlying->Cancel();
         promise.TrySet(TError(NYT::EErrorCode::Canceled, "Operation canceled"));
     }));
@@ -861,7 +861,7 @@ TFuture<T> TFutureBase<T>::WithTimeout(TDuration timeout) const
     auto promise = NewPromise<T>();
 
     auto cookie = NConcurrency::TDelayedExecutor::Submit(
-        BIND([=] (bool aborted) mutable {
+        BIND([=] (bool aborted) {
             TError error;
             if (aborted) {
                 error = TError(NYT::EErrorCode::Canceled, "Operation aborted");
@@ -931,12 +931,12 @@ TFuture<U> TFutureBase<T>::As() const
 
     auto promise = NewPromise<U>();
 
-    this->Subscribe(BIND([=] (const TErrorOr<T>& value) mutable {
+    this->Subscribe(BIND([=] (const TErrorOr<T>& value) {
         promise.Set(TErrorOr<U>(value));
     }));
 
     auto this_ = *this;
-    promise.OnCanceled(BIND([this_] () mutable {
+    promise.OnCanceled(BIND([this_] {
         this_.Cancel();
     }));
 
@@ -1057,11 +1057,11 @@ void TPromiseBase<T>::SetFrom(const TFuture<U>& another) const
 
     auto this_ = *this;
 
-    another.Subscribe(BIND([this_] (const TErrorOr<U>& value) mutable {
+    another.Subscribe(BIND([this_] (const TErrorOr<U>& value)   {
         this_.Set(value);
     }));
 
-    OnCanceled(BIND([another] () mutable {
+    OnCanceled(BIND([another] {
         another.Cancel();
     }));
 }
@@ -1088,11 +1088,11 @@ inline void TPromiseBase<T>::TrySetFrom(TFuture<U> another) const
 
     auto this_ = *this;
 
-    another.Subscribe(BIND([this_] (const TErrorOr<U>& value) mutable {
+    another.Subscribe(BIND([this_] (const TErrorOr<U>& value) {
         this_.TrySet(value);
     }));
 
-    OnCanceled(BIND([another] () mutable {
+    OnCanceled(BIND([another] {
         another.Cancel();
     }));
 }
@@ -1279,7 +1279,7 @@ struct TAsyncViaHelper<R(TArgs...)>
         GuardedInvoke(
             invoker,
             BIND(&Inner, this_, promise, args...),
-            BIND([promise, cancellationError = std::move(cancellationError)] () mutable {
+            BIND([promise, cancellationError = std::move(cancellationError)] {
                 promise.Set(std::move(cancellationError));
             }));
         return promise;
