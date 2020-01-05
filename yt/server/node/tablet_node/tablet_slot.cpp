@@ -11,6 +11,7 @@
 #include <yt/server/node/data_node/config.h>
 
 #include <yt/server/lib/election/election_manager.h>
+#include <yt/server/lib/election/distributed_election_manager.h>
 
 #include <yt/server/lib/hive/hive_manager.h>
 #include <yt/server/lib/hive/mailbox.h>
@@ -95,161 +96,6 @@ using namespace NObjectClient;
 using namespace NApi;
 
 using NHydra::EPeerState;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TTabletSlot::TElectionManager
-    : public IElectionManager
-{
-public:
-    TElectionManager(
-        IInvokerPtr controlInvoker,
-        IElectionCallbacksPtr callbacks,
-        TCellManagerPtr cellManager,
-        NLogging::TLogger logger)
-        : ControlInvoker_(std::move(controlInvoker))
-        , Callbacks_(std::move(callbacks))
-        , CellManager_(std::move(cellManager))
-        , Logger(std::move(logger))
-    {
-        VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
-
-        CellManager_->SubscribePeerReconfigured(
-            BIND(&TElectionManager::OnPeerReconfigured, MakeWeak(this)));
-    }
-
-    virtual void Initialize() override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-    }
-
-    virtual void Finalize() override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        Abandon();
-    }
-
-    virtual void Participate() override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        ControlInvoker_->Invoke(BIND(&TElectionManager::DoParticipate, MakeStrong(this)));
-    }
-
-    virtual void Abandon() override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        ControlInvoker_->Invoke(BIND(&TElectionManager::DoAbandon, MakeStrong(this)));
-    }
-
-    virtual TYsonProducer GetMonitoringProducer() override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        YT_ABORT();
-    }
-
-    void SetEpochId(TEpochId epochId)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        YT_VERIFY(epochId);
-        if (EpochId_ == epochId) {
-            return;
-        }
-
-        EpochId_ = epochId;
-        DoAbandon();
-    }
-
-private:
-    const IInvokerPtr ControlInvoker_;
-    const IElectionCallbacksPtr Callbacks_;
-    const TCellManagerPtr CellManager_;
-    const NLogging::TLogger Logger;
-
-    TEpochId EpochId_;
-    TEpochContextPtr EpochContext_;
-
-    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-
-
-    void DoParticipate()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        DoAbandon();
-
-        YT_LOG_INFO("Starting election epoch");
-
-        EpochContext_ = New<TEpochContext>();
-        EpochContext_->LeaderId = GetLeaderId();
-        EpochContext_->EpochId = EpochId_;
-        EpochContext_->StartTime = TInstant::Now();
-
-        if (IsLeader()) {
-            Callbacks_->OnStartLeading(EpochContext_);
-        } else {
-            Callbacks_->OnStartFollowing(EpochContext_);
-        }
-    }
-
-    void DoAbandon()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        if (!EpochContext_) {
-            return;
-        }
-
-        YT_LOG_INFO("Abandoning election epoch");
-
-        EpochContext_->CancelableContext->Cancel();
-
-        if (IsLeader()) {
-            Callbacks_->OnStopLeading();
-        } else {
-            Callbacks_->OnStopFollowing();
-        }
-
-        EpochContext_.Reset();
-    }
-
-    void OnPeerReconfigured(TPeerId peerId)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        if (!EpochContext_) {
-            return;
-        }
-
-        YT_LOG_INFO("Peer reconfigured (PeerId: %v)",
-            peerId);
-
-        auto selfId = CellManager_->GetSelfPeerId();
-        if (peerId == selfId || EpochContext_->LeaderId == selfId || EpochContext_->LeaderId == peerId) {
-            DoAbandon();
-        }
-    }
-
-    TPeerId GetLeaderId()
-    {
-        for (auto peerId = 0; peerId < CellManager_->GetTotalPeerCount(); ++peerId) {
-            const auto& peerConfig = CellManager_->GetPeerConfig(peerId);
-            if (peerConfig.Voting) {
-                return peerId;
-            }
-        }
-        YT_ABORT();
-    }
-
-    bool IsLeader()
-    {
-        return EpochContext_ && EpochContext_->LeaderId == CellManager_->GetSelfPeerId();
-    }
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -532,6 +378,9 @@ public:
                 PrerequisiteTransactionId_,
                 newPrerequisiteTransactionId);
             PrerequisiteTransactionId_ = newPrerequisiteTransactionId;
+            if (ElectionManager_) {
+                ElectionManager_->Abandon();
+            }
         }
 
         PrerequisiteTransaction_.Reset();
@@ -574,7 +423,6 @@ public:
         auto cellConfig = CellDescriptor_.ToConfig(Bootstrap_->GetLocalNetworks());
 
         if (GetHydraManager()) {
-            ElectionManager_->SetEpochId(PrerequisiteTransactionId_);
             CellManager_->Reconfigure(cellConfig, PeerId_);
 
             YT_LOG_INFO("Slot reconfigured (ConfigVersion: %v)",
@@ -639,12 +487,12 @@ public:
                 }
             }
 
-            ElectionManager_ = New<TElectionManager>(
+            ElectionManager_ = CreateDistributedElectionManager(
+                Config_->ElectionManager,
+                CellManager_,
                 Bootstrap_->GetControlInvoker(),
                 hydraManager->GetElectionCallbacks(),
-                CellManager_,
-                Logger);
-            ElectionManager_->SetEpochId(PrerequisiteTransactionId_);
+                rpcServer);
             ElectionManager_->Initialize();
 
             ElectionManagerThunk_->SetUnderlying(ElectionManager_);
@@ -809,7 +657,7 @@ private:
 
     TCellManagerPtr CellManager_;
 
-    TElectionManagerPtr ElectionManager_;
+    IElectionManagerPtr ElectionManager_;
 
     TSpinLock HydraManagerLock_;
     IHydraManagerPtr HydraManager_;
