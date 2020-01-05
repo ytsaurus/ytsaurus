@@ -15,7 +15,7 @@ def get_sorted_jobs(op):
 
 class TestSpeculativeJobEngine(YTEnvSetup):
     NUM_MASTERS = 1
-    NUM_NODES = 2
+    NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
     @authors("renadeen")
@@ -334,7 +334,7 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
 
 class TestListSpeculativeJobs(YTEnvSetup):
     NUM_MASTERS = 1
-    NUM_NODES = 2  # at least two for tablet cells
+    NUM_NODES = 3
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
 
