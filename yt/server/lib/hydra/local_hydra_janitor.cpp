@@ -71,7 +71,7 @@ private:
                 id = ParseFileId(fileName, suffix);
                 size = NFS::GetFileStatistics(fullFileName).Size;
             } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Janitor has found a broken Hydra file (FileName: %v)",
+                YT_LOG_WARNING(ex, "Janitor has found a broken persistence file (FileName: %v)",
                     fullFileName);
                 continue;
             }
@@ -103,12 +103,12 @@ private:
 
             auto fullFileName = NFS::CombinePaths(path, fileName);
 
-            YT_LOG_INFO("Janitor is removing Hydra file (FileName: %v)",
+            YT_LOG_INFO("Janitor is removing persistence file (FileName: %v)",
                 fullFileName);
             try {
                 NFS::Remove(fullFileName);
             } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Janitor is unable to remove Hydra file (FileName: %v)",
+                YT_LOG_WARNING(ex, "Janitor is unable to remove persistence file (FileName: %v)",
                     fullFileName);
             }
         }
