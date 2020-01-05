@@ -187,14 +187,14 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
             insert_rows("//tmp/t", rows)
             assert lookup_rows("//tmp/t", keys) == rows
 
-    def _wait_for_cells_good_after_peer_decommission(self, cell_id, decommissioned_addresses):
+    def _wait_cell_good(self, cell_id, decommissioned_addresses=[]):
         def check():
             peers = get("#{0}/@peers".format(cell_id))
             expected_config_version = get("#{0}/@config_version".format(cell_id))
 
             for peer in peers:
-                address = peer.get("address", decommissioned_addresses[0])
-                if address in decommissioned_addresses:
+                address = peer.get("address", None)
+                if address is None or address in decommissioned_addresses:
                     return False
 
                 try:
@@ -228,7 +228,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         follower_address = list(x["address"] for x in peers if x["state"] == "following")[0]
 
         set_node_decommissioned(follower_address, True)
-        self._wait_for_cells_good_after_peer_decommission(cell_id, [follower_address])
+        self._wait_cell_good(cell_id, [follower_address])
 
         for i in xrange(0, 100):
             rows = [{"key": i, "value": "test"}]
@@ -255,7 +255,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         follower_address = list(x["address"] for x in peers if x["state"] == "following")[0]
 
         set_node_decommissioned(leader_address, True)
-        self._wait_for_cells_good_after_peer_decommission(cell_id, [leader_address])
+        self._wait_cell_good(cell_id, [leader_address])
 
         assert get("#" + cell_id + "/@health") == "good"
         peers = get("#" + cell_id + "/@peers")
@@ -281,9 +281,42 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         cell_id = ls("//sys/tablet_cells")[0]
 
         addresses = self._decommission_all_peers(cell_id)
-        self._wait_for_cells_good_after_peer_decommission(cell_id, addresses)
+        self._wait_cell_good(cell_id, addresses)
 
         assert lookup_rows("//tmp/t", keys) == rows
+
+    @authors("babenko")
+    @pytest.mark.parametrize("peer_count", [1, 2])
+    def test_recover_after_prerequisite_failure(self, peer_count):
+        create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : peer_count}})
+        sync_create_cells(1, tablet_cell_bundle="b")
+        self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": 1, "value": "1"}])
+
+        cell_id = get("//tmp/t/@tablets/0/cell_id")
+        tx_id = get("#{}/@prerequisite_transaction_id".format(cell_id))
+        old_config_version = get("#{}/@config_version".format(cell_id))
+
+        abort_transaction(tx_id)
+
+        def check_config_version():
+            new_config_version = get("#{}/@config_version".format(cell_id))
+            return new_config_version > old_config_version
+        wait(check_config_version)
+
+        self._wait_cell_good(cell_id, [])
+
+        def check_insert():
+            try:
+                insert_rows("//tmp/t", [{"key": 2, "value": "2"}])
+                return True
+            except:
+                return False
+        wait(check_insert)
+
+        assert select_rows("* from [//tmp/t]") == [{"key": 1, "value": "1"}, {"key": 2, "value": "2"}]
 
     @authors("gritukan")
     def test_decommission_through_extra_peers(self):
@@ -310,7 +343,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         wait(lambda: len(get_peers()) == 1)
         assert get_peers()[0]["address"] == second_peer_address
         wait(lambda: get_peers()[0]["state"] == "leading")
-        self._wait_for_cells_good_after_peer_decommission(cell_id, [first_peer_address])
+        self._wait_cell_good(cell_id, [first_peer_address])
 
         assert lookup_rows("//tmp/t", first_keys) == first_rows
 
@@ -340,7 +373,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         wait(lambda: len(get_peers()) == 1)
         assert get_peers()[0]["address"] == first_peer_address
 
-        self._wait_for_cells_good_after_peer_decommission(cell_id, ["non_existent_address"])
+        self._wait_cell_good(cell_id, ["non_existent_address"])
 
         assert lookup_rows("//tmp/t", first_keys) == first_rows
 
@@ -374,7 +407,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         wait(lambda: get_peer_state(first_peer_address) == "leading")
 
         set_node_decommissioned(first_peer_address, True)
-        self._wait_for_cells_good_after_peer_decommission(cell_id, [first_peer_address])
+        self._wait_cell_good(cell_id, [first_peer_address])
 
         wait(lambda: get_peer_state(second_peer_address) == "leading")
         assert len(get_peers()) == 2
