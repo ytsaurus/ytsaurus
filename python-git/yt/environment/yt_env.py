@@ -7,6 +7,7 @@ from .helpers import (
     wait_for_removing_file_lock, add_binary_path, get_value_from_config, WaitFailed)
 from .porto_helpers import PortoSubprocess, porto_avaliable
 from .watcher import ProcessWatcher
+from .arcadia_interop import get_gdb_path
 
 from yt.common import YtError, remove_file, makedirp, set_pdeathsig, which
 from yt.wrapper.common import generate_uuid, flatten
@@ -1432,8 +1433,9 @@ class YTInstance(object):
             if process is None:
                 continue
             if process.poll() is None:
+
                 subprocess.check_call(
-                    "gdb -p {} -ex 'set confirm off' -ex 'set pagination off' -ex 'thread apply all bt' -ex 'quit'".format(process.pid),
+                    "{} -p {} -ex 'set confirm off' -ex 'set pagination off' -ex 'thread apply all bt' -ex 'quit'".format(get_gdb_path(), process.pid),
                     stdout=open(os.path.join(self.backtraces_path, "gdb.{}-{}".format(name, index)), "w"),
                     stderr=sys.stderr,
                     shell=True
