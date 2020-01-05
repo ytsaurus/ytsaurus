@@ -157,3 +157,9 @@ def save_sandbox(sandbox_path, output_subpath):
         return
 
     shutil.move(sandbox_path, output_path)
+
+def get_gdb_path():
+    if yatest_common is None:
+        return "gdb"
+    else:
+        return yatest_common.gdb_path()
