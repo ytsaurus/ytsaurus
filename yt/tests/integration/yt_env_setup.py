@@ -684,10 +684,10 @@ class YTEnvSetup(object):
                 liveness_checker.start()
                 cls.liveness_checkers.append(liveness_checker)
 
-        if cls.remote_envs:
+        if len(cls.Env.configs["master"]) > 0:
             clusters = {}
             for instance in [cls.Env] + cls.remote_envs:
-                connection_config = {
+                clusters[instance._cluster_name] = {
                     "primary_master": instance.configs["master"][0]["primary_master"],
                     "secondary_masters": instance.configs["master"][0]["secondary_masters"],
                     "timestamp_provider": instance.configs["master"][0]["timestamp_provider"],
@@ -696,7 +696,6 @@ class YTEnvSetup(object):
                     "cell_directory_synchronizer": instance.configs["driver"]["cell_directory_synchronizer"],
                     "cluster_directory_synchronizer": instance.configs["driver"]["cluster_directory_synchronizer"]
                 }
-                clusters[instance._cluster_name] = connection_config
 
             for cluster_index in xrange(cls.NUM_REMOTE_CLUSTERS + 1):
                 driver = yt_commands.get_driver(cluster=cls.get_cluster_name(cluster_index))
@@ -704,6 +703,8 @@ class YTEnvSetup(object):
                     continue
                 yt_commands.set("//sys/clusters", clusters, driver=driver)
 
+        # TODO(babenko): get rid of this sleep
+        if cls.remote_envs:
             sleep(1.0)
 
         if yt_commands.is_multicell and cls.START_SECONDARY_MASTER_CELLS:
