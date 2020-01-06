@@ -126,11 +126,18 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
         targetVersion);
 
     IChangelogPtr targetChangelog;
-    for (int changelogId = initialChangelogId; changelogId <= targetVersion.SegmentId; ++changelogId) {
+    int changelogId = initialChangelogId;
+    while (changelogId <= targetVersion.SegmentId) {
+        YT_LOG_INFO("Opening changelog (ChangelogId: %v)",
+            changelogId);
+
         auto changelog = WaitFor(ChangelogStore_->TryOpenChangelog(changelogId))
             .ValueOrThrow();
 
-        if (!changelog) {
+        if (changelog) {
+            YT_LOG_INFO("Changelog opened (ChangelogId: %v)",
+                changelogId);
+        } else {
             if (!IsLeader() && !Options_.WriteChangelogsAtFollowers) {
                 THROW_ERROR_EXCEPTION("Changelog %v is missing", changelogId);
             }
@@ -155,7 +162,15 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
         int targetRecordId = changelogId == targetVersion.SegmentId
             ? targetVersion.RecordId
             : changelog->GetRecordCount();
-        ReplayChangelog(changelog, changelogId, targetRecordId);
+
+        if (!ReplayChangelog(changelog, changelogId, targetRecordId)) {
+            YT_LOG_INFO("Closing changelog and retrying (ChangelogId: %v)",
+                changelogId);
+            WaitFor(changelog->Close())
+                .ThrowOnError();
+            TDelayedExecutor::WaitForDuration(Config_->ChangelogRecordCountCheckRetryPeriod);
+            continue;
+        }
 
         if (changelogId == targetVersion.SegmentId) {
             targetChangelog = changelog;
@@ -163,6 +178,8 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
             WaitFor(changelog->Close())
                 .ThrowOnError();
         }
+
+        ++changelogId;
     }
 
     YT_VERIFY(targetChangelog);
@@ -222,7 +239,7 @@ void TRecoveryBase::SyncChangelog(IChangelogPtr changelog, int changelogId)
     }
 }
 
-void TRecoveryBase::ReplayChangelog(IChangelogPtr changelog, int changelogId, int targetRecordId)
+bool TRecoveryBase::ReplayChangelog(IChangelogPtr changelog, int changelogId, int targetRecordId)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -242,40 +259,53 @@ void TRecoveryBase::ReplayChangelog(IChangelogPtr changelog, int changelogId, in
         DecoratedAutomaton_->RotateAutomatonVersion(changelogId);
     }
 
+    YT_LOG_INFO("Checking changelog record count (ChangelogId: %v)",
+        changelogId);
+
     if (changelog->GetRecordCount() < targetRecordId) {
-        THROW_ERROR_EXCEPTION("Not enough records in changelog %v: needed %v, actual %v",
+        YT_LOG_INFO("Changelog record count is too low (ChangelogId: %v, NeededRecordCount: %v, ActualRecordCount: %v)",
             changelogId,
             targetRecordId,
             changelog->GetRecordCount());
+        return false;
     }
 
-    YT_LOG_INFO("Waiting for quorum record count to become sufficiently high");
+    YT_LOG_INFO("Changelog record count is OK (ChangelogId: %v, NeededRecordCount: %v, ActualRecordCount: %v)",
+        changelogId,
+        targetRecordId,
+        changelog->GetRecordCount());
 
-    while (true) {
-        auto asyncResult = ComputeChangelogQuorumInfo(
-            Config_,
-            CellManager_,
+    YT_LOG_INFO("Checking changelog quorum record count (ChangelogId: %v)",
+        changelogId);
+
+    auto asyncResult = ComputeChangelogQuorumInfo(
+        Config_,
+        CellManager_,
+        changelogId,
+        changelog->GetRecordCount());
+    auto result = WaitFor(asyncResult)
+        .ValueOrThrow();
+
+    if (result.RecordCountLo < targetRecordId) {
+        YT_LOG_INFO("Changelog quorum record count is too low (ChangelogId: %v, NeededRecordCount: %v, ActualRecordCount: %v)",
             changelogId,
-            changelog->GetRecordCount());
-        auto result = WaitFor(asyncResult)
-            .ValueOrThrow();
-
-        if (result.RecordCountLo >= targetRecordId) {
-            YT_LOG_INFO("Quorum record count check succeeded");
-            break;
-        }
-
-        YT_LOG_INFO("Quorum record count check failed; will retry");
-
-        TDelayedExecutor::WaitForDuration(Config_->ChangelogQuorumCheckRetryPeriod);
+            targetRecordId,
+            result.RecordCountLo);
+        return false;
     }
+
+    YT_LOG_INFO("Changelog quorum record count is OK (ChangelogId: %v, NeededRecordCount: %v, ActualRecordCount: %v)",
+        changelogId,
+        targetRecordId,
+        result.RecordCountLo);
 
     while (true) {
         int startRecordId = DecoratedAutomaton_->GetAutomatonVersion().RecordId;
         int recordsNeeded = targetRecordId - startRecordId;
         YT_VERIFY(recordsNeeded >= 0);
-        if (recordsNeeded == 0)
+        if (recordsNeeded == 0) {
             break;
+        }
 
         YT_LOG_INFO("Trying to read records %v-%v from changelog %v",
             startRecordId,
@@ -304,6 +334,8 @@ void TRecoveryBase::ReplayChangelog(IChangelogPtr changelog, int changelogId, in
             DecoratedAutomaton_->ApplyMutationDuringRecovery(data);
         }
     }
+
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
