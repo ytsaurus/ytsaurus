@@ -1,15 +1,10 @@
 #pragma once
 
 #include "public.h"
-#include "config.h"
 
 #include <yt/core/actions/signal.h>
 
 #include <yt/core/logging/log.h>
-
-#include <yt/core/misc/property.h>
-
-#include <yt/core/profiling/public.h>
 
 #include <yt/core/rpc/public.h>
 
@@ -37,11 +32,6 @@ public:
     const TCellPeerConfig& GetPeerConfig(TPeerId id) const;
     NRpc::IChannelPtr GetPeerChannel(TPeerId id) const;
 
-    NProfiling::TTagId GetPeerTag(TPeerId id) const;
-    NProfiling::TTagId GetAllPeersTag() const;
-    NProfiling::TTagId GetPeerQuorumTag() const;
-    NProfiling::TTagId GetCellIdTag() const;
-
     void Reconfigure(TCellConfigPtr newConfig, TPeerId selfId);
 
     DEFINE_SIGNAL(void(TPeerId peerId), PeerReconfigured);
@@ -59,12 +49,6 @@ private:
 
     std::vector<NRpc::IChannelPtr> PeerChannels_;
 
-    NProfiling::TTagIdList PeerTags_;
-    NProfiling::TTagId AllPeersTag_;
-    NProfiling::TTagId PeerQuorumTag_;
-    NProfiling::TTagId CellIdTag_;
-
-    void BuildTags();
     NRpc::IChannelPtr CreatePeerChannel(const TCellPeerConfig& peerConfig);
 };
 

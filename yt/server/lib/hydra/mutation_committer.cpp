@@ -156,10 +156,7 @@ public:
 
         std::vector<TFuture<void>> asyncResults;
 
-        Timer_ = owner->Profiler.TimingStart(
-            "/changelog_flush_time",
-            EmptyTagIds,
-            ETimerMode::Parallel);
+        CommitTimer_.emplace();
 
         if (!BatchedRecordsData_.empty()) {
             YT_VERIFY(LocalFlushResult_);
@@ -233,7 +230,7 @@ private:
     std::vector<TSharedRef> BatchedRecordsData_;
     TVersion CommittedVersion_;
 
-    TTimer Timer_;
+    std::optional<TWallTimer> CommitTimer_;
 
 
     void OnRemoteFlush(TPeerId followerId, const THydraServiceProxy::TErrorOrRspAcceptMutationsPtr& rspOrError)
@@ -244,10 +241,6 @@ private:
         }
 
         VERIFY_THREAD_AFFINITY(owner->ControlThread);
-
-        auto time = owner->Profiler.TimingCheckpoint(
-            Timer_,
-            {owner->CellManager_->GetPeerTag(followerId)});
 
         if (!rspOrError.IsOK()) {
             YT_LOG_DEBUG(rspOrError, "Error logging mutations at follower (PeerId: %v, StartVersion: %v, MutationCount: %v)",
@@ -292,10 +285,6 @@ private:
                     << error);
             return;
         }
-
-        auto time = owner->Profiler.TimingCheckpoint(
-            Timer_,
-            {owner->CellManager_->GetPeerTag(owner->CellManager_->GetSelfPeerId())});
 
         YT_LOG_DEBUG("Mutations are flushed locally (StartVersion: %v, MutationCount: %v, WallTime: %v)",
             GetStartVersion(),
@@ -342,14 +331,12 @@ private:
             return;
         }
 
-        auto time = owner->Profiler.TimingCheckpoint(
-            Timer_,
-            {owner->CellManager_->GetPeerQuorumTag()});
+        owner->Profiler.Update(owner->CommitTimeGauge_, CommitTimer_->GetElapsedValue());
 
         YT_LOG_DEBUG("Mutations are flushed by quorum (StartVersion: %v, MutationCount: %v, WallTime: %v)",
             GetStartVersion(),
             GetMutationCount(),
-            time);
+            CommitTimer_->GetElapsedTime());
 
         QuorumFlushResult_.Set(TError());
     }

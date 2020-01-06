@@ -167,6 +167,8 @@ private:
     TBatchPtr CurrentBatch_;
     TFuture<void> PrevBatchQuorumFlushResult_ = VoidFuture;
     NConcurrency::TDelayedExecutorCookie BatchTimeoutCookie_;
+
+    NProfiling::TSimpleGauge CommitTimeGauge_{"/mutation_commit_time"};
 };
 
 DEFINE_REFCOUNTED_TYPE(TLeaderCommitter)
