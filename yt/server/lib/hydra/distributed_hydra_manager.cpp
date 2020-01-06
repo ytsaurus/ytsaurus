@@ -15,8 +15,10 @@
 #include "snapshot_discovery.h"
 
 #include <yt/server/lib/election/election_manager.h>
+#include <yt/server/lib/election/config.h>
 
 #include <yt/ytlib/election/cell_manager.h>
+#include <yt/ytlib/election/config.h>
 
 #include <yt/ytlib/hydra/hydra_service_proxy.h>
 

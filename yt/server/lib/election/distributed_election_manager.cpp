@@ -3,6 +3,7 @@
 #include "config.h"
 
 #include <yt/ytlib/election/cell_manager.h>
+#include <yt/ytlib/election/config.h>
 #include <yt/ytlib/election/election_service_proxy.h>
 
 #include <yt/core/concurrency/delayed_executor.h>

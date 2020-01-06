@@ -4,6 +4,7 @@
 #include "decorated_automaton.h"
 
 #include <yt/ytlib/election/cell_manager.h>
+#include <yt/ytlib/election/config.h>
 
 #include <yt/core/concurrency/scheduler.h>
 

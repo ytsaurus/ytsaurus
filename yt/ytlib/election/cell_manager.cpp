@@ -9,8 +9,6 @@
 
 #include <yt/core/net/address.h>
 
-#include <yt/core/profiling/profile_manager.h>
-
 #include <yt/core/rpc/helpers.h>
 
 namespace NYT::NElection {
@@ -35,8 +33,6 @@ TCellManager::TCellManager(
     VotingPeerCount_ = Config_->CountVotingPeers();
     QuorumPeerCount_ = VotingPeerCount_ / 2 + 1;
 
-    BuildTags();
-
     PeerChannels_.resize(TotalPeerCount_);
     for (TPeerId id = 0; id < TotalPeerCount_; ++id) {
         PeerChannels_[id] = CreatePeerChannel(Config_->Peers[id]);
@@ -46,23 +42,6 @@ TCellManager::TCellManager(
         SelfId_,
         Config_->Peers,
         VotingPeerCount_);
-}
-
-void TCellManager::BuildTags()
-{
-    PeerTags_.clear();
-    auto* profilingManager = NProfiling::TProfileManager::Get();
-    for (TPeerId id = 0; id < GetTotalPeerCount(); ++id) {
-        const auto& config = GetPeerConfig(id);
-        PeerTags_.push_back(
-            config.Address
-            ? profilingManager->RegisterTag("address", *config.Address)
-            : -1);
-    }
-
-    AllPeersTag_ = profilingManager->RegisterTag("address", "all");
-    PeerQuorumTag_ = profilingManager->RegisterTag("address", "quorum");
-    CellIdTag_ = profilingManager->RegisterTag("cell_id", Config_->CellId);
 }
 
 TCellId TCellManager::GetCellId() const
@@ -103,28 +82,6 @@ const TCellPeerConfig& TCellManager::GetPeerConfig(TPeerId id) const
 IChannelPtr TCellManager::GetPeerChannel(TPeerId id) const
 {
     return PeerChannels_[id];
-}
-
-NProfiling::TTagId TCellManager::GetPeerTag(TPeerId id) const
-{
-    auto tag = PeerTags_[id];
-    YT_VERIFY(tag != -1);
-    return tag;
-}
-
-NProfiling::TTagId TCellManager::GetAllPeersTag() const
-{
-    return AllPeersTag_;
-}
-
-NProfiling::TTagId TCellManager::GetPeerQuorumTag() const
-{
-    return PeerQuorumTag_;
-}
-
-NProfiling::TTagId TCellManager::GetCellIdTag() const
-{
-    return CellIdTag_;
 }
 
 void TCellManager::Reconfigure(TCellConfigPtr newConfig, TPeerId selfId)
@@ -213,8 +170,6 @@ void TCellManager::Reconfigure(TCellConfigPtr newConfig, TPeerId selfId)
             oldPeers.size(),
             newPeers.size());
     }
-
-    BuildTags();
 }
 
 IChannelPtr TCellManager::CreatePeerChannel(const TCellPeerConfig& config)
