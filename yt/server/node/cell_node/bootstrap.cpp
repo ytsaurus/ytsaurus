@@ -327,12 +327,13 @@ void TBootstrap::DoInitialize()
 
     ChunkCache_ = New<TChunkCache>(Config_->DataNode, this);
 
-    auto createThrottler = [] (const TThroughputThrottlerConfigPtr& config, const TString& name) {
+    auto netThrottlerProfiler = DataNodeProfiler.AppendPath("/net_throttler");
+    auto createThrottler = [&] (const TThroughputThrottlerConfigPtr& config, const TString& name) {
         return CreateNamedReconfigurableThroughputThrottler(
             config,
             name,
             DataNodeLogger,
-            DataNodeProfiler);
+            netThrottlerProfiler);
     };
 
     TotalInThrottler_ = createThrottler(Config_->DataNode->TotalInThrottler, "TotalIn");
