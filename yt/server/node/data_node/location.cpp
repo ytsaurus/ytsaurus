@@ -730,21 +730,20 @@ TStoreLocation::TStoreLocation(
         Config_->TrashCheckPeriod,
         EPeriodicExecutorMode::Automatic))
 {
-    auto throttlersProfiler = GetProfiler().AppendPath("/location");
-
+    auto diskThrottlerProfiler = GetProfiler().AppendPath("/location/disk_throttler");
     auto createThrottler = [&] (const auto& config, const auto& name) {
-        return CreateNamedReconfigurableThroughputThrottler(config, name, Logger, throttlersProfiler);
+        return CreateNamedReconfigurableThroughputThrottler(config, name, Logger, diskThrottlerProfiler);
     };
 
-    RepairInThrottler_ = createThrottler(config->RepairInThrottler, "RepairInThrottler");
-    ReplicationInThrottler_ = createThrottler(config->ReplicationInThrottler, "ReplicationInThrottler");
+    RepairInThrottler_ = createThrottler(config->RepairInThrottler, "RepairIn");
+    ReplicationInThrottler_ = createThrottler(config->ReplicationInThrottler, "ReplicationIn");
     TabletCompactionAndPartitioningInThrottler_ = createThrottler(
         config->TabletCompactionAndPartitioningInThrottler,
-        "TabletCompactionAndPartitioningInThrottler");
-    TabletLoggingInThrottler_ = createThrottler(config->TabletLoggingInThrottler, "TabletLoggingInThrottler");
-    TabletSnapshotInThrottler_ = createThrottler(config->TabletSnapshotInThrottler, "TabletSnapshotInThrottler");
-    TabletStoreFlushInThrottler_ = createThrottler(config->TabletStoreFlushInThrottler, "TabletStoreFlushInThrottler");
-    UnlimitedInThrottler_ = CreateNamedUnlimitedThroughputThrottler("UnlimitedInThrottler", throttlersProfiler);
+        "TabletCompactionAndPartitioningIn");
+    TabletLoggingInThrottler_ = createThrottler(config->TabletLoggingInThrottler, "TabletLoggingIn");
+    TabletSnapshotInThrottler_ = createThrottler(config->TabletSnapshotInThrottler, "TabletSnapshotIn");
+    TabletStoreFlushInThrottler_ = createThrottler(config->TabletStoreFlushInThrottler, "TabletStoreFlushIn");
+    UnlimitedInThrottler_ = CreateNamedUnlimitedThroughputThrottler("UnlimitedIn", diskThrottlerProfiler);
 }
 
 TJournalManagerPtr TStoreLocation::GetJournalManager()
