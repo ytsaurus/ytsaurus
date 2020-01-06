@@ -254,6 +254,8 @@ def _run_tests(options, python_version):
 
     junit_path = os.path.join(options.working_directory,
                               "junit_python_{0}.xml".format(python_version))
+    if os.path.exists(junit_path):
+        os.remove(junit_path)
 
     additional_args = []
     if options.enable_parallel_testing:
@@ -330,6 +332,8 @@ def run_python_ya_tests(options):
     mkdirp(archive_dir)
 
     junit_output = os.path.join(options.working_directory, "junit_yatest.xml")
+    if os.path.exists(junit_output):
+        os.remove(junit_output)
 
     env = ya_make_env(options)
     args = [
