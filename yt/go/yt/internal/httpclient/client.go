@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net/http"
 
+	"a.yandex-team.ru/library/go/core/log/ctxlog"
 	"a.yandex-team.ru/yt/go/yterrors"
 
 	"a.yandex-team.ru/library/go/core/log"
@@ -159,7 +160,19 @@ func (c *httpClient) writeHTTPRequest(ctx context.Context, call *internal.Call, 
 		c.credentials.Set(req)
 	}
 
+	c.logRequest(ctx, req)
 	return
+}
+
+func (c *httpClient) logRequest(ctx context.Context, req *http.Request) {
+	ctxlog.Debug(ctx, c.log.Logger(), "sending HTTP request",
+		log.String("proxy", req.URL.Hostname()))
+}
+
+func (c *httpClient) logResponse(ctx context.Context, rsp *http.Response) {
+	ctxlog.Debug(ctx, c.log.Logger(), "received HTTP response",
+		log.String("yt_proxy", rsp.Header.Get("X-YT-Proxy")),
+		log.String("yt_request_id", rsp.Header.Get("X-YT-Request-Id")))
 }
 
 // unexpectedStatusCode is last effort attempt to get useful error message from a failed request.
@@ -215,6 +228,7 @@ func (c *httpClient) do(ctx context.Context, call *internal.Call) (res *internal
 	}
 
 	if err == nil {
+		c.logResponse(ctx, rsp)
 		res, err = c.readResult(rsp)
 	}
 
@@ -244,6 +258,7 @@ func (c *httpClient) doWrite(ctx context.Context, call *internal.Call) (w io.Wri
 			return
 		}
 
+		c.logResponse(ctx, rsp)
 		defer func() { _ = rsp.Body.Close() }()
 
 		if rsp.StatusCode/100 == 2 {
@@ -315,6 +330,7 @@ func (c *httpClient) doRead(ctx context.Context, call *internal.Call) (r io.Read
 		return nil, err
 	}
 
+	c.logResponse(ctx, rsp)
 	if rsp.StatusCode != 200 {
 		defer func() { _ = rsp.Body.Close() }()
 

@@ -17,8 +17,8 @@ import (
 
 type zeroBackoff struct{}
 
-func (b *zeroBackoff) Backoff(int) time.Duration {
-	return 0
+func (b *zeroBackoff) Backoff(int) (time.Duration, bool) {
+	return 0, true
 }
 
 type netError struct {
