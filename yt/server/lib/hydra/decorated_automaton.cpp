@@ -960,19 +960,6 @@ void TDecoratedAutomaton::DoRotateChangelog()
 
         YT_VERIFY(loggedVersion.RecordId == Changelog_->GetRecordCount());
 
-        YT_LOG_INFO("Started closing changelog (ChangelogId: %v)",
-            currentChangelogId);
-        Changelog_->Close()
-            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
-                if (error.IsOK()) {
-                    YT_LOG_INFO("Finished closing changelog (ChangelogId: %v)",
-                        currentChangelogId);
-                } else {
-                    YT_LOG_WARNING(error, "Error closing changelog (ChangelogId: %v)",
-                        currentChangelogId);
-                }
-            }));
-
         if (!NextChangelogFuture_) {
             YT_LOG_INFO("Creating changelog (ChangelogId: %v)",
                 nextChangelogId);

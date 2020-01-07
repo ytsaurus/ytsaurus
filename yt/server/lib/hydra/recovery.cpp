@@ -164,19 +164,12 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
             : changelog->GetRecordCount();
 
         if (!ReplayChangelog(changelog, changelogId, targetRecordId)) {
-            YT_LOG_INFO("Closing changelog and retrying (ChangelogId: %v)",
-                changelogId);
-            WaitFor(changelog->Close())
-                .ThrowOnError();
             TDelayedExecutor::WaitForDuration(Config_->ChangelogRecordCountCheckRetryPeriod);
             continue;
         }
 
         if (changelogId == targetVersion.SegmentId) {
             targetChangelog = changelog;
-        } else {
-            WaitFor(changelog->Close())
-                .ThrowOnError();
         }
 
         ++changelogId;
