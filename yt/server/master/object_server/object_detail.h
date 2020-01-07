@@ -15,7 +15,7 @@
 #include <yt/server/master/transaction_server/public.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
-#include <yt/ytlib/object_client/object_ypath.pb.h>
+#include <yt/ytlib/object_client/proto/object_ypath.pb.h>
 
 #include <yt/core/misc/property.h>
 

@@ -2,7 +2,7 @@
 
 #include <yt/ytlib/table_client/public.h>
 
-#include <yt/ytlib/object_client/object_ypath.pb.h>
+#include <yt/ytlib/object_client/proto/object_ypath.pb.h>
 
 #include <yt/ytlib/chunk_client/public.h>
 

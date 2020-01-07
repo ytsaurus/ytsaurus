@@ -23,7 +23,7 @@
 
 #include <yt/ytlib/election/config.h>
 
-#include <yt/ytlib/object_client/master_ypath.pb.h>
+#include <yt/ytlib/object_client/proto/master_ypath.pb.h>
 
 #include <yt/ytlib/tablet_client/helpers.h>
 
