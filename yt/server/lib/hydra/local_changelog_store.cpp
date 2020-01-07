@@ -36,6 +36,8 @@ TString GetChangelogPath(const TString& path, int id)
 
 } // namespace
 
+
+////////////////////////////////////////////////////////////////////////////////
 class TLocalChangelogStoreLock
     : public TIntrinsicRefCounted
 {
@@ -56,6 +58,8 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TLocalChangelogStoreLock)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TEpochBoundLocalChangelog
     : public IChangelog
@@ -140,18 +144,15 @@ private:
 
     TFuture<void> CheckLock()
     {
-        Y_UNUSED(Epoch_);
-        // TODO(sandello): Currently broken. See YT-7421.
-        return std::nullopt;
-        /*
         return Lock_->IsAcquired(Epoch_)
             ? std::nullopt
             : MakeFuture<void>(TError("Changelog store lock expired"));
-        */
     }
 };
 
 DEFINE_REFCOUNTED_TYPE(TEpochBoundLocalChangelog)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TCachedLocalChangelog
     : public TAsyncCacheValueBase<int, TCachedLocalChangelog>
@@ -219,6 +220,8 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachedLocalChangelog)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TLocalChangelogStoreFactory
     : public TAsyncSlruCacheBase<int, TCachedLocalChangelog>
@@ -396,6 +399,8 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TLocalChangelogStoreFactory)
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TLocalChangelogStore
     : public IChangelogStore
 {
@@ -435,6 +440,8 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TLocalChangelogStore)
+
+////////////////////////////////////////////////////////////////////////////////
 
 IChangelogStorePtr TLocalChangelogStoreFactory::CreateStore(TVersion reachableVersion, ui64 epoch)
 {
