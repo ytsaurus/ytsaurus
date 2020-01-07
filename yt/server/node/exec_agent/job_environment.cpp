@@ -518,6 +518,7 @@ private:
     const TPortoJobEnvironmentConfigPtr Config_;
     IPortoExecutorPtr PortoExecutor_;
 
+    IInstancePtr SelfInstance_;
     IInstancePtr MetaInstance_;
     THashMap<int, IInstancePtr> JobProxyInstances_;
 
@@ -595,10 +596,10 @@ private:
         });
 
         PortoExecutor_->SubscribeFailed(portoFatalErrorHandler);
+        SelfInstance_ = GetSelfPortoInstance(PortoExecutor_);
 
         auto getMetaContainer = [&] () -> IInstancePtr {
-            auto self = GetSelfPortoInstance(PortoExecutor_);
-            auto metaInstanceName = Format("%v/%v", self->GetAbsoluteName(), GetDefaultJobsMetaContainerName());
+            auto metaInstanceName = Format("%v/%v", SelfInstance_->GetAbsoluteName(), GetDefaultJobsMetaContainerName());
 
             try {
                 WaitFor(PortoExecutor_->DestroyContainer(metaInstanceName))
@@ -675,13 +676,13 @@ private:
     void UpdateLimits()
     {
         try {
-            auto limits = MetaInstance_->GetResourceLimitsRecursive();
+            auto limits = SelfInstance_->GetResourceLimitsRecursive();
 
             auto newCpuLimit = std::max<double>(limits.Cpu - Config_->NodeDedicatedCpu, 0);
             bool cpuLimitChanged = false;
 
             auto guard = Guard(LimitsLock_);
-            if (!CpuLimit_ || std::abs(*CpuLimit_ - limits.Cpu) > CpuUpdatePrecision) {
+            if (!CpuLimit_ || std::abs(*CpuLimit_ - newCpuLimit) > CpuUpdatePrecision) {
                 YT_LOG_INFO("Update porto cpu limit (OldCpuLimit: %v, NewCpuLimit: %v)",
                     CpuLimit_,
                     newCpuLimit);

@@ -92,7 +92,6 @@ public:
     TDuration PortoWaitTime;
     TDuration PortoPollPeriod;
     TDuration BlockIOWatchdogPeriod;
-    bool UseResourceLimits;
 
     std::optional<TDuration> ResourceLimitsUpdatePeriod;
 
@@ -107,8 +106,6 @@ public:
             .Default(TDuration::MilliSeconds(100));
         RegisterParameter("block_io_watchdog_period", BlockIOWatchdogPeriod)
             .Default(TDuration::Seconds(60));
-        RegisterParameter("use_resource_limits", UseResourceLimits)
-            .Default(false);
 
         RegisterParameter("resource_limits_update_period", ResourceLimitsUpdatePeriod)
             .Default();
