@@ -201,15 +201,7 @@ TFuture<std::vector<TString>> TSlotLocation::CreateSandboxDirectories(int slotIn
             }
 
             try {
-                auto getTmpfsSize = [=] () {
-                    if (tmpfsPath == sandboxPath && options.DiskSpaceLimit) {
-                        return std::min(*options.DiskSpaceLimit, tmpfsVolume.Size);
-                    } else {
-                        return tmpfsVolume.Size;
-                    }
-                };
-
-                auto properties = TJobDirectoryProperties{getTmpfsSize(), std::nullopt, userId};
+                auto properties = TJobDirectoryProperties{tmpfsVolume.Size, std::nullopt, userId};
                 WaitFor(JobDirectoryManager_->CreateTmpfsDirectory(tmpfsPath, properties))
                     .ThrowOnError();
 
