@@ -11,7 +11,7 @@
 #include <yt/server/master/node_tracker_server/node_directory_builder.h>
 #include <yt/server/master/node_tracker_server/node_tracker.h>
 
-#include <yt/ytlib/chunk_client/job.pb.h>
+#include <yt/ytlib/chunk_client/proto/job.pb.h>
 
 #include <yt/ytlib/job_tracker_client/job_tracker_service_proxy.h>
 #include <yt/ytlib/job_tracker_client/helpers.h>

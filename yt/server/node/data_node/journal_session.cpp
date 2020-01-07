@@ -7,7 +7,7 @@
 
 #include <yt/server/lib/hydra/changelog.h>
 
-#include <yt/ytlib/chunk_client/chunk_info.pb.h>
+#include <yt/ytlib/chunk_client/proto/chunk_info.pb.h>
 
 namespace NYT::NDataNode {
 

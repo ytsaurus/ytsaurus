@@ -5,7 +5,7 @@ import "yt/core/ytree/proto/attributes.proto";
 import "yt/client/cell_master_client/proto/cell_directory.proto";
 import "yt/client/node_tracker_client/proto/node_directory.proto";
 import "yt/client/hive/proto/cluster_directory.proto";
-import "yt/ytlib/chunk_client/medium_directory.proto";
+import "yt/ytlib/chunk_client/proto/medium_directory.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 

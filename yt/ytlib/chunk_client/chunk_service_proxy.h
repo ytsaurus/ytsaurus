@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/chunk_client/chunk_service.pb.h>
+#include <yt/ytlib/chunk_client/proto/chunk_service.pb.h>
 
 #include <yt/core/rpc/client.h>
 

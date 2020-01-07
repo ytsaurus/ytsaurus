@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/chunk_client/chunk_owner_ypath.pb.h>
+#include <yt/ytlib/chunk_client/proto/chunk_owner_ypath.pb.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 

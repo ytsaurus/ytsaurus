@@ -2,7 +2,7 @@
 
 #include <yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/ytlib/chunk_client/data_source.pb.h>
+#include <yt/ytlib/chunk_client/proto/data_source.pb.h>
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/job_spec_extensions.h>
 

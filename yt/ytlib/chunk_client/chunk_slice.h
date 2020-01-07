@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/chunk_client/chunk_slice.pb.h>
+#include <yt/ytlib/chunk_client/proto/chunk_slice.pb.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/client/chunk_client/read_limit.h>
 

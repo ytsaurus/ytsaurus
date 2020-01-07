@@ -4,12 +4,12 @@ import "yt/core/misc/proto/guid.proto";
 import "yt/core/misc/proto/error.proto";
 import "yt/client/misc/proto/workload.proto";
 import "yt/client/node_tracker_client/proto/node.proto";
-import "yt/ytlib/chunk_client/block_id.proto";
-import "yt/ytlib/chunk_client/chunk_info.proto";
+import "yt/ytlib/chunk_client/proto/block_id.proto";
+import "yt/ytlib/chunk_client/proto/chunk_info.proto";
 import "yt/client/chunk_client/proto/chunk_meta.proto";
-import "yt/ytlib/chunk_client/chunk_reader_statistics.proto";
-import "yt/ytlib/chunk_client/chunk_slice.proto";
-import "yt/ytlib/chunk_client/session_id.proto";
+import "yt/ytlib/chunk_client/proto/chunk_reader_statistics.proto";
+import "yt/ytlib/chunk_client/proto/chunk_slice.proto";
+import "yt/ytlib/chunk_client/proto/session_id.proto";
 import "yt/client/table_client/proto/chunk_meta.proto";
 
 ////////////////////////////////////////////////////////////////////////////////

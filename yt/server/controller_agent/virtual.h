@@ -6,7 +6,7 @@
 
 #include <yt/ytlib/chunk_client/public.h>
 
-#include <yt/ytlib/chunk_client/chunk_owner_ypath.pb.h>
+#include <yt/ytlib/chunk_client/proto/chunk_owner_ypath.pb.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
 

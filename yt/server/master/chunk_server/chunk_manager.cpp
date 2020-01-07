@@ -55,7 +55,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/session_id.h>
-#include <yt/ytlib/chunk_client/chunk_service.pb.h>
+#include <yt/ytlib/chunk_client/proto/chunk_service.pb.h>
 
 #include <yt/ytlib/journal_client/helpers.h>
 

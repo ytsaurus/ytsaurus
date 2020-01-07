@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/chunk_client/chunk_reader_statistics.pb.h>
+#include <yt/ytlib/chunk_client/proto/chunk_reader_statistics.pb.h>
 
 #include <yt/ytlib/job_tracker_client/public.h>
 

@@ -22,7 +22,7 @@
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_writer.h>
 #include <yt/ytlib/chunk_client/erasure_repair.h>
-#include <yt/ytlib/chunk_client/job.pb.h>
+#include <yt/ytlib/chunk_client/proto/job.pb.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/ytlib/chunk_client/replication_writer.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>

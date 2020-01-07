@@ -1,6 +1,6 @@
 #include "data_source.h"
 
-#include <yt/ytlib/chunk_client/data_source.pb.h>
+#include <yt/ytlib/chunk_client/proto/data_source.pb.h>
 
 #include <yt/ytlib/table_client/schema_dictionary.h>
 
