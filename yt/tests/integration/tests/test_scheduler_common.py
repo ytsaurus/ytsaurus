@@ -3394,7 +3394,6 @@ class TestConnectToMaster(YTEnvSetup):
                 return True
         return False
 
-
 class TestNodeDoubleRegistration(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
