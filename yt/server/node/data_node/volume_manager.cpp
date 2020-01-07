@@ -775,6 +775,7 @@ private:
                 YT_VERIFY(volumePath == mountPath);
             }
 
+            // ToDo(psushin): remove once we bind artifacts into container one by one.
             if (NFs::Exists("/yt")) {
                 YT_LOG_DEBUG("Mount \"/yt\" into volume (VolumeId: %v)", id);
                 std::map<TString, TString> parameters;
@@ -787,6 +788,7 @@ private:
                     .ValueOrThrow();
             }
 
+            // ToDo(psushin): think about providing special flag to enable skynet inside container.
             if (NFs::Exists("/Berkanavt/supervisor")) {
                 YT_LOG_INFO("Mount \"/Berkanavt/supervisor\" into volume (VolumeId: %v)", id);
                 std::map<TString, TString> parameters;
