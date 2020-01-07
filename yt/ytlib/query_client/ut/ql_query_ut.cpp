@@ -13,7 +13,7 @@
 #include <yt/ytlib/query_client/folding_profiler.h>
 #include <yt/ytlib/query_client/helpers.h>
 #include <yt/ytlib/query_client/query.h>
-#include <yt/ytlib/query_client/query.pb.h>
+#include <yt/ytlib/query_client/proto/query.pb.h>
 #include <yt/ytlib/query_client/query_preparer.h>
 #include <yt/ytlib/query_client/functions.h>
 #include <yt/ytlib/query_client/functions_cg.h>
