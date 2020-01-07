@@ -6,7 +6,7 @@
 
 #include <yt/server/lib/election/public.h>
 
-#include <yt/ytlib/hydra/hydra_manager.pb.h>
+#include <yt/ytlib/hydra/proto/hydra_manager.pb.h>
 
 #include <yt/client/hydra/version.h>
 

@@ -6,7 +6,7 @@
 
 #include <yt/ytlib/chunk_client/io_engine.h>
 
-#include <yt/ytlib/hydra/hydra_manager.pb.h>
+#include <yt/ytlib/hydra/proto/hydra_manager.pb.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
 

@@ -1,6 +1,6 @@
 package NYT.NHydra.NProto;
 
-import "yt/ytlib/hydra/hydra_manager.proto";
+import "yt/ytlib/hydra/proto/hydra_manager.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 

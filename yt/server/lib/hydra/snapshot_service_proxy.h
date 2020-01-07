@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/lib/hydra/snapshot_service.pb.h>
+#include <yt/server/lib/hydra/proto/snapshot_service.pb.h>
 
 #include <yt/core/rpc/client.h>
 
