@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/query_client/query_service.pb.h>
+#include <yt/ytlib/query_client/proto/query_service.pb.h>
 
 #include <yt/core/rpc/client.h>
 

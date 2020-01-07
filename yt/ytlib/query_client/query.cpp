@@ -3,7 +3,7 @@
 
 #include <yt/client/chunk_client/proto/chunk_spec.pb.h>
 
-#include <yt/ytlib/query_client/query.pb.h>
+#include <yt/ytlib/query_client/proto/query.pb.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 

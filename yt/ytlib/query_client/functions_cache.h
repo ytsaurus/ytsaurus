@@ -10,7 +10,7 @@
 #include <yt/ytlib/chunk_client/public.h>
 #include <yt/ytlib/chunk_client/chunk_owner_ypath.pb.h>
 
-#include <yt/ytlib/query_client/functions_cache.pb.h>
+#include <yt/ytlib/query_client/proto/functions_cache.pb.h>
 
 namespace NYT::NQueryClient {
 
