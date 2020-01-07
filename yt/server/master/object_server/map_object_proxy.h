@@ -7,7 +7,7 @@
 #include <yt/core/ytree/node_detail.h>
 #include <yt/core/ytree/ypath_detail.h>
 
-#include <yt/ytlib/cypress_client/cypress_ypath.pb.h>
+#include <yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
 
 #include <yt/server/master/cypress_server/public.h>
 

@@ -1,6 +1,6 @@
 #include "rpc_helpers.h"
 
-#include <yt/ytlib/cypress_client/rpc.pb.h>
+#include <yt/ytlib/cypress_client/proto/rpc.pb.h>
 
 #include <yt/core/rpc/client.h>
 #include <yt/core/rpc/service.h>
