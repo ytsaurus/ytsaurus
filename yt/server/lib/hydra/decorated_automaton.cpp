@@ -11,8 +11,8 @@
 
 #include <yt/ytlib/election/cell_manager.h>
 
-#include <yt/ytlib/hydra/hydra_manager.pb.h>
-#include <yt/ytlib/hydra/hydra_service.pb.h>
+#include <yt/ytlib/hydra/proto/hydra_manager.pb.h>
+#include <yt/ytlib/hydra/proto/hydra_service.pb.h>
 
 #include <yt/core/actions/invoker_detail.h>
 

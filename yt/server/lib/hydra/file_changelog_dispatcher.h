@@ -3,7 +3,7 @@
 #include "public.h"
 
 #include <yt/ytlib/chunk_client/public.h>
-#include <yt/ytlib/hydra/hydra_manager.pb.h>
+#include <yt/ytlib/hydra/proto/hydra_manager.pb.h>
 
 #include <yt/core/actions/public.h>
 

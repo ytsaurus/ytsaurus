@@ -14,7 +14,7 @@
 #include <yt/client/api/journal_reader.h>
 #include <yt/client/api/journal_writer.h>
 
-#include <yt/ytlib/hydra/hydra_manager.pb.h>
+#include <yt/ytlib/hydra/proto/hydra_manager.pb.h>
 #include <yt/ytlib/hydra/config.h>
 
 #include <yt/core/concurrency/scheduler.h>

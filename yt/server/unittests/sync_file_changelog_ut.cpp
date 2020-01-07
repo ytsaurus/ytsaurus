@@ -7,7 +7,7 @@
 #include <yt/server/lib/hydra/sync_file_changelog.h>
 
 #include <yt/ytlib/chunk_client/io_engine.h>
-#include <yt/ytlib/hydra/hydra_manager.pb.h>
+#include <yt/ytlib/hydra/proto/hydra_manager.pb.h>
 
 #include <yt/core/misc/checksum.h>
 #include <yt/core/misc/fs.h>

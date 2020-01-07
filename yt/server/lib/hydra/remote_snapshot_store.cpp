@@ -13,7 +13,7 @@
 
 #include <yt/client/ypath/rich.h>
 
-#include <yt/ytlib/hydra/hydra_manager.pb.h>
+#include <yt/ytlib/hydra/proto/hydra_manager.pb.h>
 #include <yt/ytlib/hydra/config.h>
 
 #include <yt/core/concurrency/async_stream.h>

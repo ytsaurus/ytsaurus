@@ -4,7 +4,7 @@
 #include <yt/server/lib/hydra/config.h>
 #include <yt/server/lib/hydra/local_changelog_store.h>
 
-#include <yt/ytlib/hydra/hydra_manager.pb.h>
+#include <yt/ytlib/hydra/proto/hydra_manager.pb.h>
 
 #include <yt/core/concurrency/action_queue.h>
 

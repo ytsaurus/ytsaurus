@@ -8,7 +8,7 @@
 
 #include <yt/ytlib/hive/proto/hive_service.pb.h>
 
-#include <yt/ytlib/hydra/hydra_manager.pb.h>
+#include <yt/ytlib/hydra/proto/hydra_manager.pb.h>
 
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref_tracked.h>

@@ -8,7 +8,7 @@
 
 #include <yt/ytlib/election/cell_manager.h>
 
-#include <yt/ytlib/hydra/hydra_manager.pb.h>
+#include <yt/ytlib/hydra/proto/hydra_manager.pb.h>
 #include <yt/ytlib/hydra/hydra_service_proxy.h>
 
 #include <yt/core/concurrency/scheduler.h>

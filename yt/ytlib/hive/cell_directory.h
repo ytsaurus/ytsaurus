@@ -6,7 +6,7 @@
 
 #include <yt/ytlib/hive/proto/cell_directory.pb.h>
 
-#include <yt/ytlib/hydra/hydra_manager.pb.h>
+#include <yt/ytlib/hydra/proto/hydra_manager.pb.h>
 #include <yt/ytlib/hydra/public.h>
 
 #include <yt/client/node_tracker_client/node_directory.h>

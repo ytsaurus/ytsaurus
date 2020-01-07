@@ -14,7 +14,7 @@
 #include <yt/server/lib/hydra/lazy_changelog.h>
 #include <yt/server/lib/hydra/private.h>
 
-#include <yt/ytlib/hydra/hydra_manager.pb.h>
+#include <yt/ytlib/hydra/proto/hydra_manager.pb.h>
 #include <yt/client/hydra/version.h>
 
 #include <yt/core/concurrency/periodic_executor.h>

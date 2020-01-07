@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/hydra/hydra_service.pb.h>
+#include <yt/ytlib/hydra/proto/hydra_service.pb.h>
 
 #include <yt/core/rpc/client.h>
 

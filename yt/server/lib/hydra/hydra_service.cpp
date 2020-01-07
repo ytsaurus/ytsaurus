@@ -3,7 +3,7 @@
 
 #include <yt/server/lib/election/election_manager.h>
 
-#include <yt/ytlib/hydra/hydra_service.pb.h>
+#include <yt/ytlib/hydra/proto/hydra_service.pb.h>
 
 #include <yt/core/actions/cancelable_context.h>
 
