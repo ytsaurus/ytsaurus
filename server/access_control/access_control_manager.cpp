@@ -452,7 +452,13 @@ public:
     {
         YT_VERIFY(ObjectTypes_.emplace(objectType).second);
         for (auto& object : objects) {
-            YT_VERIFY(Objects_[objectType].emplace(object->Id(), std::move(object)).second);
+            // NB! It is crucial to construct this argument in a separate code line
+            //     to overcome UB due to unspecified order between
+            //     TObject::Id call and std::unique_ptr<T> move constructor.
+            auto id = object->Id();
+            YT_VERIFY(Objects_[objectType].emplace(
+                std::move(id),
+                std::move(object)).second);
         }
         SortedObjects_[objectType].reserve(objects.size());
         for (const auto& idAndObjectPair : Objects_[objectType]) {
@@ -1012,7 +1018,7 @@ public:
             : static_cast<int>(objects.size());
         result.ObjectIds.reserve(maxObjectCount);
 
-        auto filterMatcher = TLabelFilterMatcher(filter);
+        TLabelFilterMatcher filterMatcher(filter);
 
         for (auto it = beginIt; it != objects.end(); ++it) {
             auto* object = *it;
@@ -1104,6 +1110,7 @@ public:
         EAccessControlPermission permission,
         const NYPath::TYPath& attributePath)
     {
+        YT_VERIFY(object);
         auto userId = GetAuthenticatedUser();
         auto result = CheckPermission(userId, object, permission, attributePath);
         if (result.Action == EAccessControlAction::Deny) {
@@ -1196,6 +1203,8 @@ private:
         TClusterSubjectSnapshotPtr snapshot,
         const TAccessControlHierarchy& hierarchy)
     {
+        YT_VERIFY(rootObject);
+
         TPermissionCheckResult result;
         result.Action = EAccessControlAction::Deny;
 
