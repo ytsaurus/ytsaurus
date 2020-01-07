@@ -12,7 +12,7 @@
 
 #include <yt/server/master/transaction_server/public.h>
 
-#include <yt/ytlib/object_client/object_ypath.pb.h>
+#include <yt/ytlib/object_client/proto/object_ypath.pb.h>
 
 #include <yt/core/profiling/public.h>
 

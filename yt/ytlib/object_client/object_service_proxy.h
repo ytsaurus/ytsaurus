@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/object_client/object_service.pb.h>
+#include <yt/ytlib/object_client/proto/object_service.pb.h>
 
 #include <yt/ytlib/transaction_client/public.h>
 

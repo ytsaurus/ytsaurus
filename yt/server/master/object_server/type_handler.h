@@ -7,7 +7,7 @@
 
 #include <yt/server/master/transaction_server/public.h>
 
-#include <yt/ytlib/object_client/master_ypath.pb.h>
+#include <yt/ytlib/object_client/proto/master_ypath.pb.h>
 
 #include <yt/core/misc/optional.h>
 
