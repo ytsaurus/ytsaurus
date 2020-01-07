@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"a.yandex-team.ru/library/go/core/log"
+	"a.yandex-team.ru/library/go/core/log/ctxlog"
 
 	"a.yandex-team.ru/yt/go/guid"
 
@@ -39,9 +40,13 @@ func (r *MutationRetrier) Intercept(ctx context.Context, call *Call, invoke Call
 
 			(*mut).Retry = true
 
-			backoff := r.Backoff.Backoff(i)
+			backoff, ok := r.Backoff.Backoff(i)
+			if !ok {
+				return
+			}
+
 			if r.Log != nil {
-				r.Log.Warn("retrying mutation",
+				ctxlog.Warn(ctx, r.Log.Logger(), "retrying mutation",
 					log.String("call_id", call.CallID.String()),
 					log.Duration("backoff", backoff),
 					log.Error(err))

@@ -17,7 +17,7 @@
 //   y.SetNode(ctx, p, 1, nil)
 //   y.SetNode(ctx, p, 1, &yt.SetNodeOptions{})
 //
-// By default, client retries all transient errors indefinitely. Use context.WithTimeout to provide timeout for api call.
+// By default, client retries all transient errors 5 times. Use context.WithTimeout to provide timeout for api call.
 //
 // API methods are grouped into interfaces, according to part of the system they interact with:
 //   - CypressClient           - cypress nodes
