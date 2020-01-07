@@ -209,6 +209,35 @@ class TestContainerCpuLimit(YTEnvSetup):
 
 ###############################################################################################
 
+class TestUpdateCpuLimits(YTEnvSetup):
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "slot_manager": {
+                "job_environment": {
+                    "type": "porto",
+                    "resource_limits_update_period" : 200,
+                    "node_dedicated_cpu" : 1,
+                },
+            }
+        }
+    }
+
+    USE_PORTO_FOR_SERVERS = True
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 1
+
+    @authors("psushin")
+    def test_update_cpu_limits(self):
+        nodes = ls("//sys/cluster_nodes")
+        assert len(nodes) == 1
+        node = nodes[0]
+        self.Env.set_nodes_cpu_limit(4)
+        wait(lambda: int(get("//sys/cluster_nodes/{}/@resource_limits/cpu".format(node))) == 3)
+        self.Env.set_nodes_cpu_limit(3)
+        wait(lambda: int(get("//sys/cluster_nodes/{}/@resource_limits/cpu".format(node))) == 2)
+
+###############################################################################################
+
 class TestSchedulerGpu(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
