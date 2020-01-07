@@ -35,6 +35,7 @@ using namespace NYTree;
 // Option cpu.share is limited to [2, 1024], see http://git.kernel.org/cgit/linux/kernel/git/tip/tip.git/tree/kernel/sched/sched.h#n279
 // To overcome this limitation we consider one cpu_limit unit as ten cpu.shares units.
 static constexpr int CpuShareMultiplier = 10;
+static const TString RootFSBinaryDirectory("/ext_bin/");
 
 static const NLogging::TLogger Logger("JobProxyEnvironment");
 
@@ -490,13 +491,11 @@ public:
 
     virtual TProcessBasePtr CreateUserJobProcess(const TString& path, int uid, const std::optional<TString>& coreHandlerSocketPath) override
     {
-        static const TString RootFSBinaryDirectory("/ext_bin/");
-
         if (coreHandlerSocketPath) {
             // We do not want to rely on passing PATH environment to core handler container.
             auto binaryPathOrError = Instance_->HasRoot()
-                ? TErrorOr<TString>(RootFSBinaryDirectory + "ytserver-core-forwarder")
-                : ResolveBinaryPath("ytserver-core-forwarder");
+                ? TErrorOr<TString>(RootFSBinaryDirectory + CoreForwarderProgramName)
+                : ResolveBinaryPath(CoreForwarderProgramName);
 
             if (binaryPathOrError.IsOK()) {
                 auto coreHandler = binaryPathOrError.Value() + " \"${CORE_PID}\" 0 \"${CORE_TASK_NAME}\""
@@ -507,7 +506,8 @@ public:
                 Instance_->SetCoreDumpHandler(coreHandler);
             } else {
                 YT_LOG_ERROR(binaryPathOrError,
-                    "Failed to resolve path for ytserver-core-forwarder");
+                    "Failed to resolve path for %Qv",
+                    CoreForwarderProgramName);
             }
         }
 
@@ -605,6 +605,16 @@ public:
         auto containerName = Format("%v/uj_%v", SlotAbsoluteName_, jobId);
         auto instance = CreatePortoInstance(containerName, PortoExecutor_);
         if (RootFS_) {
+            RootFS_->Binds.emplace_back(TBind {
+                ResolveBinaryPath(CoreForwarderProgramName).ValueOrThrow(),
+                RootFSBinaryDirectory + CoreForwarderProgramName,
+                true});
+
+            RootFS_->Binds.emplace_back(TBind {
+                ResolveBinaryPath(ExecProgramName).ValueOrThrow(),
+                RootFSBinaryDirectory + ExecProgramName,
+                true});
+
             instance->SetRoot(*RootFS_);
         }
 
@@ -645,7 +655,7 @@ public:
     }
 
 private:
-    const std::optional<TRootFS> RootFS_;
+    std::optional<TRootFS> RootFS_;
     const std::vector<TString> GpuDevices_;
     const TDuration BlockIOWatchdogPeriod_;
     TString SlotAbsoluteName_;
