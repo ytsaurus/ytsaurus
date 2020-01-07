@@ -704,6 +704,15 @@ class YTInstance(object):
                 del self._pid_to_process[process.pid]
                 processes[index] = None
 
+    def set_nodes_cpu_limit(self, cpu_limit):
+        with self._lock:
+            logger.info("Setting cpu limit {0} for nodes".format(cpu_limit))
+            processes = self._service_processes["node"]
+            for process in processes:
+                if not isinstance(process, PortoSubprocess):
+                    raise  YtError("Cpu limits are not supported for non-porto environment")
+                process.set_cpu_limit(cpu_limit)
+
     def check_liveness(self, callback_func):
         with self._lock:
             for info in itervalues(self._pid_to_process):

@@ -82,6 +82,9 @@ class PortoSubprocess(object):
     def destroy(self):
         self._container.Destroy()
 
+    def set_cpu_limit(self, cpu_limit):
+        self._container.SetProperty("cpu_limit", "{}c".format(cpu_limit))
+
     @property
     def returncode(self):
         return self._returncode
