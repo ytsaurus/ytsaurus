@@ -34,7 +34,7 @@
 
 #include <yt/client/object_client/helpers.h>
 
-#include <yt/ytlib/transaction_client/transaction_service.pb.h>
+#include <yt/ytlib/transaction_client/proto/transaction_service.pb.h>
 #include <yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
