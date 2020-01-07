@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/ytlib/admin/admin_service.pb.h>
+#include <yt/ytlib/admin/proto/admin_service.pb.h>
 
 #include <yt/core/rpc/client.h>
 
