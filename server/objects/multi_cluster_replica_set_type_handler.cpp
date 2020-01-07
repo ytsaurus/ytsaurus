@@ -82,7 +82,10 @@ private:
 
     void ValidateSpec(TTransaction* transaction, TMultiClusterReplicaSet* replicaSet)
     {
-        ValidateDeployPodSpecTemplate(Bootstrap_->GetAccessControlManager(), transaction, replicaSet->Spec().Etc().Load().pod_template_spec().spec(),
+        ValidateDeployPodSpecTemplate(
+            Bootstrap_->GetAccessControlManager(),
+            transaction,
+            replicaSet->Spec().Etc().Load().pod_template_spec().spec(),
             PodSpecValidationConfig_);
     }
 

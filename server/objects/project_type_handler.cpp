@@ -91,11 +91,8 @@ private:
 
     void ValidateOwnerId(TTransaction* /*transaction*/, TProject* project)
     {
-        TString owner = project->OwnerId().Load();
-        static const TString description = "Project owner";
-
-        if (owner.empty()) {
-            THROW_ERROR_EXCEPTION("%v must not be empty", description);
+        if (project->OwnerId().Load().empty()) {
+            THROW_ERROR_EXCEPTION("Project owner id cannot be null");
         }
     }
 
