@@ -34,7 +34,7 @@
 
 #include <yt/server/master/table_server/shared_table_schema.h>
 
-#include <yt/ytlib/cypress_client/cypress_ypath.pb.h>
+#include <yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <yt/client/object_client/helpers.h>

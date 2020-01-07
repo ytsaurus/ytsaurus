@@ -12,7 +12,7 @@
 
 #include <yt/server/master/transaction_server/public.h>
 
-#include <yt/ytlib/cypress_client/cypress_ypath.pb.h>
+#include <yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
 
 #include <yt/core/ytree/node.h>
 #include <yt/core/ytree/ypath_client.h>
