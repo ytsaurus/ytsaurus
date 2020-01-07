@@ -22,6 +22,7 @@ extern const TString ClusterNodeProgramName;
 extern const TString ClusterSchedulerProgramName;
 extern const TString ExecProgramName;
 extern const TString JobProxyProgramName;
+extern const TString CoreForwarderProgramName;
 
 ////////////////////////////////////////////////////////////////////////////////
 
