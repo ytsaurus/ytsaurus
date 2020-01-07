@@ -22,7 +22,7 @@
 #include <yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
 #include <yt/ytlib/table_client/public.h>
-#include <yt/ytlib/table_client/table_ypath.pb.h>
+#include <yt/ytlib/table_client/proto/table_ypath.pb.h>
 
 #include <yt/core/misc/small_vector.h>
 
