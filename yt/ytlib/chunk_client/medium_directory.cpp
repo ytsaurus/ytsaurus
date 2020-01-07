@@ -2,7 +2,7 @@
 
 #include <yt/core/misc/error.h>
 
-#include <yt/ytlib/chunk_client/medium_directory.pb.h>
+#include <yt/ytlib/chunk_client/proto/medium_directory.pb.h>
 
 namespace NYT::NChunkClient {
 

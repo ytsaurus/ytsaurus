@@ -46,7 +46,7 @@
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/job_spec_extensions.h>
-#include <yt/ytlib/chunk_client/medium_directory.pb.h>
+#include <yt/ytlib/chunk_client/proto/medium_directory.pb.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
@@ -473,7 +473,7 @@ TFuture<T> TClient::Execute(
             if (!client) {
                 return;
             }
-            
+
             if (promise.IsCanceled()) {
                 return;
             }
@@ -3079,7 +3079,7 @@ TFuture<std::pair<std::vector<TJob>, int>> TClient::DoListJobsFromCypressAsync(
                     continue;
                 }
             }
-            
+
             if (options.JobCompetitionId) {
                 if (options.JobCompetitionId != attributes.Find<TJobId>("job_competition_id")) {
                     continue;

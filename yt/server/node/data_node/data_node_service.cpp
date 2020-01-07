@@ -20,7 +20,7 @@
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/chunk_slice.h>
-#include <yt/ytlib/chunk_client/data_node_service.pb.h>
+#include <yt/ytlib/chunk_client/proto/data_node_service.pb.h>
 #include <yt/ytlib/chunk_client/data_node_service_proxy.h>
 #include <yt/ytlib/chunk_client/key_set.h>
 #include <yt/ytlib/chunk_client/helpers.h>
