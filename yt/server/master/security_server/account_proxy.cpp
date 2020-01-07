@@ -11,7 +11,7 @@
 #include <yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/server/master/chunk_server/medium.h>
 
-#include <yt/ytlib/security_client/account_ypath.pb.h>
+#include <yt/ytlib/security_client/proto/account_ypath.pb.h>
 
 #include <yt/core/ytree/fluent.h>
 

@@ -5,7 +5,7 @@
 
 #include <yt/server/lib/misc/interned_attributes.h>
 
-#include <yt/ytlib/security_client/group_ypath.pb.h>
+#include <yt/ytlib/security_client/proto/group_ypath.pb.h>
 
 #include <yt/core/ytree/fluent.h>
 

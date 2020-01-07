@@ -7,7 +7,7 @@
 
 #include <yt/client/object_client/helpers.h>
 
-#include <yt/ytlib/security_client/user_ypath.pb.h>
+#include <yt/ytlib/security_client/proto/user_ypath.pb.h>
 
 #include <yt/core/ytree/fluent.h>
 
