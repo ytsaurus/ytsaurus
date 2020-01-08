@@ -357,9 +357,6 @@ def run_python_ya_tests(options):
             except_action=lambda: None)
     except ChildHasNonZeroExitCode as err:
         raise StepFailedWithNonCriticalError("Tests failed: " + str(err))
-    finally:
-        if os.path.exists(archive_dir):
-            sudo_rmtree(archive_dir)
 
 @build_step
 def run_python_2_7_tests(options):
