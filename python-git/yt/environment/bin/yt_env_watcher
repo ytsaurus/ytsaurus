@@ -21,6 +21,8 @@ def configure_logging(log_path):
 
 def main():
     parser = argparse.ArgumentParser(add_help=False, description="YT watcher")
+    parser.add_argument("--disable-logrotate", action="store_true", default=False,
+                        help="disable log rotation")
     parser.add_argument("--lock-file-path", required=True,
                         help="path of file which will be used to take a file lock")
     parser.add_argument("--logrotate-config-path", required=True, help="path with config for logrotate")
@@ -42,7 +44,7 @@ def main():
             raise
         logger.info("Lock acquired")
 
-    logrotate_enabled = True
+    logrotate_enabled = not options.disable_logrotate
     if not which("logrotate"):
         logrotate_enabled = False
         logger.warning("Logrotate is disabled. Cannot find logrotate binary.")
