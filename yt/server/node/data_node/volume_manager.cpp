@@ -754,53 +754,23 @@ private:
             NFS::MakeDirRecursive(storagePath, 0755);
             NFS::MakeDirRecursive(mountPath, 0755);
 
-            {
-                std::map<TString, TString> parameters;
-                parameters["backend"] = "overlay";
-                parameters["storage"] = storagePath;
+            std::map<TString, TString> parameters;
+            parameters["backend"] = "overlay";
+            parameters["storage"] = storagePath;
 
-                TStringBuilder builder;
-                for (const auto& layer : layers) {
-                    if (builder.GetLength() > 0) {
-                        builder.AppendChar(';');
-                    }
-                    builder.AppendString(layer.Path);
+            TStringBuilder builder;
+            for (const auto& layer : layers) {
+                if (builder.GetLength() > 0) {
+                    builder.AppendChar(';');
                 }
-
-                parameters["layers"] = builder.Flush();
-
-                auto volumePath = WaitFor(VolumeExecutor_->CreateVolume(mountPath, parameters))
-                    .ValueOrThrow();
-
-                YT_VERIFY(volumePath == mountPath);
+                builder.AppendString(layer.Path);
             }
+            parameters["layers"] = builder.Flush();
 
-            // ToDo(psushin): remove once we bind artifacts into container one by one.
-            if (NFs::Exists("/yt")) {
-                YT_LOG_DEBUG("Mount \"/yt\" into volume (VolumeId: %v)", id);
-                std::map<TString, TString> parameters;
-                parameters["backend"] = "rbind";
-                parameters["storage"] = "/yt";
-                parameters["place"] = PlacePath_;
+            auto volumePath = WaitFor(VolumeExecutor_->CreateVolume(mountPath, parameters))
+                .ValueOrThrow();
 
-                auto newPath = NFS::CombinePaths(mountPath, "yt");
-                auto volumePath = WaitFor(VolumeExecutor_->CreateVolume(newPath, parameters))
-                    .ValueOrThrow();
-            }
-
-            // ToDo(psushin): think about providing special flag to enable skynet inside container.
-            if (NFs::Exists("/Berkanavt/supervisor")) {
-                YT_LOG_INFO("Mount \"/Berkanavt/supervisor\" into volume (VolumeId: %v)", id);
-                std::map<TString, TString> parameters;
-                parameters["backend"] = "bind";
-                parameters["read_only"] = "true";
-                parameters["storage"] = "/Berkanavt/supervisor";
-                parameters["place"] = PlacePath_;
-
-                auto newPath = NFS::CombinePaths(mountPath, "Berkanavt/supervisor");
-                auto volumePath = WaitFor(VolumeExecutor_->CreateVolume(newPath, parameters))
-                    .ValueOrThrow();
-            }
+            YT_VERIFY(volumePath == mountPath);
 
             YT_LOG_INFO("Volume created (VolumeId: %v, VolumeMountPath: %v)",
                 id,
