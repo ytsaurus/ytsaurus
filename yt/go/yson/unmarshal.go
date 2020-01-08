@@ -68,22 +68,41 @@ func decodeInt(r *Reader, bits int) (i int64, err error) {
 		return
 	}
 
-	if r.currentType != TypeInt64 {
+	switch r.currentType {
+	case TypeInt64:
+		switch bits {
+		case 16:
+			if r.currentInt > math.MaxInt16 || r.currentInt < math.MinInt16 {
+				return 0, ErrIntegerOverflow
+			}
+		case 32:
+			if r.currentInt > math.MaxInt32 || r.currentInt < math.MinInt32 {
+				return 0, ErrIntegerOverflow
+			}
+		}
+
+		i = r.currentInt
+	case TypeUint64:
+		switch bits {
+		case 16:
+			if r.currentUint > math.MaxInt16 {
+				return 0, ErrIntegerOverflow
+			}
+		case 32:
+			if r.currentUint > math.MaxInt32 {
+				return 0, ErrIntegerOverflow
+			}
+		case 64:
+			if r.currentUint > math.MaxInt64 {
+				return 0, ErrIntegerOverflow
+			}
+		}
+
+		i = int64(r.currentUint)
+	default:
 		return 0, &TypeError{UserType: reflect.TypeOf(i), YSONType: r.currentType}
 	}
 
-	switch bits {
-	case 16:
-		if r.currentInt > math.MaxInt16 || r.currentInt < math.MinInt16 {
-			return 0, ErrIntegerOverflow
-		}
-	case 32:
-		if r.currentInt > math.MaxInt32 || r.currentInt < math.MinInt32 {
-			return 0, ErrIntegerOverflow
-		}
-	}
-
-	i = r.currentInt
 	return
 }
 
@@ -92,22 +111,41 @@ func decodeUint(r *Reader, bits int) (u uint64, err error) {
 		return
 	}
 
-	if r.currentType != TypeUint64 {
+	switch r.currentType {
+	case TypeInt64:
+		if r.currentInt < 0 {
+			return 0, ErrIntegerOverflow
+		}
+
+		switch bits {
+		case 16:
+			if r.currentInt > math.MaxUint16 {
+				return 0, ErrIntegerOverflow
+			}
+		case 32:
+			if r.currentInt > math.MaxUint32 {
+				return 0, ErrIntegerOverflow
+			}
+		}
+
+		u = uint64(r.currentInt)
+	case TypeUint64:
+		switch bits {
+		case 16:
+			if r.currentUint > math.MaxUint16 {
+				return 0, ErrIntegerOverflow
+			}
+		case 32:
+			if r.currentUint > math.MaxUint32 {
+				return 0, ErrIntegerOverflow
+			}
+		}
+
+		u = r.currentUint
+	default:
 		return 0, &TypeError{UserType: reflect.TypeOf(u), YSONType: r.currentType}
 	}
 
-	switch bits {
-	case 16:
-		if r.currentInt > math.MaxUint16 {
-			return 0, ErrIntegerOverflow
-		}
-	case 32:
-		if r.currentInt > math.MaxUint32 {
-			return 0, ErrIntegerOverflow
-		}
-	}
-
-	u = r.currentUint
 	return
 }
 
