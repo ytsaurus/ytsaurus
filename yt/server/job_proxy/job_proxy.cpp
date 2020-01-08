@@ -423,6 +423,11 @@ TJobResult TJobProxy::DoRun()
             TRootFS rootFS;
             rootFS.IsRootReadOnly = true;
             rootFS.RootPath = *Config_->RootPath;
+
+            for (const auto& bind : Config_->Binds) {
+                rootFS.Binds.emplace_back(TBind {bind->ExternalPath, bind->InternalPath, bind->ReadOnly});
+            }
+
             rootFS.Binds.emplace_back(TBind {NFs::CurrentWorkingDirectory(), NFs::CurrentWorkingDirectory(), false});
 
             // Temporary workaround for nirvana - make tmp directories writable.

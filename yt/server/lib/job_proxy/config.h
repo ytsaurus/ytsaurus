@@ -64,6 +64,7 @@ public:
     int SlotIndex = -1;
 
     std::vector<TString> TmpfsPaths;
+    std::vector<NExecAgent::TBindConfigPtr> Binds;
 
     std::vector<TString> GpuDevices;
 
@@ -108,6 +109,9 @@ public:
             .Default();
 
         RegisterParameter("root_path", RootPath)
+            .Default();
+
+        RegisterParameter("binds", Binds)
             .Default();
 
         RegisterParameter("gpu_devices", GpuDevices)

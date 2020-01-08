@@ -1294,6 +1294,7 @@ private:
         proxyConfig->SlotIndex = Slot_->GetSlotIndex();
         if (RootVolume_) {
             proxyConfig->RootPath = RootVolume_->GetPath();
+            proxyConfig->Binds = Config_->RootFSBinds;
         }
 
         for (const auto& slot : GpuSlots_) {
@@ -1764,6 +1765,12 @@ private:
 
         rootFS.RootPath = RootVolume_->GetPath();
         rootFS.IsRootReadOnly = false;
+        rootFS.Binds.reserve(Config_->RootFSBinds.size());
+
+        for (const auto& bind : Config_->RootFSBinds) {
+            rootFS.Binds.push_back({bind->ExternalPath, bind->InternalPath, bind->ReadOnly});
+        }
+
         return rootFS;
     }
 
