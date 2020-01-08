@@ -172,7 +172,6 @@ public:
             builder.AppendString(bind.TargetPath);
             builder.AppendString(" ");
             builder.AppendString(bind.IsReadOnly ? "ro" : "rw");
-            builder.AppendString(",rec");
             builder.AppendString(" ; ");
         }
 

@@ -6,6 +6,8 @@
 
 #include <yt/ytlib/job_proxy/private.h>
 
+#include <util/system/fs.h>
+
 #ifdef _linux_
 #include <yt/server/lib/containers/porto_executor.h>
 #include <yt/server/lib/containers/instance.h>
@@ -605,6 +607,15 @@ public:
         auto containerName = Format("%v/uj_%v", SlotAbsoluteName_, jobId);
         auto instance = CreatePortoInstance(containerName, PortoExecutor_);
         if (RootFS_) {
+            auto newPath = NFS::CombinePaths(RootFS_->RootPath, "slot");
+            YT_LOG_INFO("Mount slot directory into container (Path: %v)", newPath);
+            std::map<TString, TString> parameters;
+            parameters["backend"] = "rbind";
+            parameters["storage"] = NFs::CurrentWorkingDirectory();
+
+            auto volumePath = WaitFor(PortoExecutor_->CreateVolume(newPath, parameters))
+                .ValueOrThrow();
+
             RootFS_->Binds.emplace_back(TBind {
                 ResolveBinaryPath(CoreForwarderProgramName).ValueOrThrow(),
                 RootFSBinaryDirectory + CoreForwarderProgramName,
