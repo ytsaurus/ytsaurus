@@ -3,6 +3,7 @@ from yt.test_helpers import are_almost_equal
 from yt_commands import *
 
 import pytest
+import gzip
 
 
 class TestRuntimeParameters(YTEnvSetup):
@@ -214,7 +215,13 @@ class TestOperationDetailedLogs(YTEnvSetup):
 
     def get_scheduled_job_log_entries(self):
         scheduler_debug_logs_filename = self.Env.configs["scheduler"][0]["logging"]["writers"]["debug"]["file_name"]
-        return [line for line in open(scheduler_debug_logs_filename, "r") if "Scheduled a job" in line]
+
+        if scheduler_debug_logs_filename.endswith(".gz"):
+            logfile = gzip.open(scheduler_debug_logs_filename, "r")
+        else:
+            logfile = open(scheduler_debug_logs_filename, "r")
+        
+        return [line for line in logfile if "Scheduled a job" in line]
 
     @authors("antonkikh")
     def test_enable_detailed_logs(self):
