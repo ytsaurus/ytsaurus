@@ -6,11 +6,11 @@ import (
 	"reflect"
 	"testing"
 
+	"a.yandex-team.ru/library/go/core/log"
+	"a.yandex-team.ru/library/go/core/log/zap"
 	"a.yandex-team.ru/library/go/core/xerrors"
 
 	"go.uber.org/zap/zaptest"
-
-	"a.yandex-team.ru/library/go/core/log/zap"
 
 	"a.yandex-team.ru/yt/go/guid"
 	"a.yandex-team.ru/yt/go/mapreduce"
@@ -24,6 +24,7 @@ type Env struct {
 	Ctx context.Context
 	YT  yt.Client
 	MR  mapreduce.Client
+	L   log.Structured
 }
 
 func NewEnv(t testing.TB) (env *Env, cancel func()) {
@@ -42,6 +43,7 @@ func NewEnv(t testing.TB) (env *Env, cancel func()) {
 	}
 
 	env.MR = mapreduce.New(env.YT)
+	env.L = config.Logger
 
 	cancel = func() {
 		cancelCtx()
