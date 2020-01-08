@@ -38,6 +38,10 @@ func TestParse(t *testing.T) {
 			expected: NewRich("//foo").SetColumns([]string{"bar", "zog"}),
 		},
 		{
+			input:    `//foo\\bar`,
+			expected: NewRich(`//foo\\bar`),
+		},
+		{
 			input:    "//foo{bar,zog}   ",
 			expected: NewRich("//foo").SetColumns([]string{"bar", "zog"}),
 		},
