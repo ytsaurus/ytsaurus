@@ -85,6 +85,13 @@ PySpark Version Compatibility
 Package versions follow PySpark versions with exception to maintenance releases - i.e. `pyspark-stubs==2.3.0` should be compatible with `pyspark>=2.3.0,<2.4.0`.
 Maintenance releases (`post1`, `post2`, ..., `postN`) are reserved for internal annotations updates.
 
+See also
+------------
+
+- `SPARK-17333 <https://issues.apache.org/jira/browse/SPARK-17333>`__ - *Make pyspark interface friendly with static analysis*.
+- `PySpark typing hints <http://apache-spark-developers-list.1001551.n3.nabble.com/PYTHON-PySpark-typing-hints-td21560.html>`__ and `Revisiting PySpark type annotations <http://apache-spark-developers-list.1001551.n3.nabble.com/Re-PySpark-Revisiting-PySpark-type-annotations-td26232.html>`__ on `Apache Spark Developers List <http://apache-spark-developers-list.1001551.n3.nabble.com/>`__.
+
+
 API Coverage
 ------------
 
