@@ -1646,7 +1646,7 @@ void TOperationControllerBase::SafeCommit()
     SleepInCommitStage(EDelayInsideOperationCommitStage::Stage6);
     CommitTransactions();
 
-    CancelableContext->Cancel();
+    CancelableContext->Cancel(TError("Operation committed"));
 
     YT_LOG_INFO("Results committed");
 }
@@ -4259,7 +4259,7 @@ void TOperationControllerBase::Cancel()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    CancelableContext->Cancel();
+    CancelableContext->Cancel(TError("Operation controller canceled"));
 
     YT_LOG_INFO("Operation controller canceled");
 }

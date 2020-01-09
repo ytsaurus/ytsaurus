@@ -688,20 +688,23 @@ void TBlobSession::SetFailed(const TError& error, bool fatal)
     }
 }
 
-void TBlobSession::OnSlotCanceled(int blockIndex)
+void TBlobSession::OnSlotCanceled(int blockIndex, const TError& error)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    Cancel(TError("Session canceled at block %v:%v",
+    Cancel(TError(
+        "Session canceled at block %v:%v",
         GetChunkId(),
-        blockIndex));
+        blockIndex)
+        << error);
 }
 
-void TBlobSession::OnFinishCanceled()
+void TBlobSession::OnFinishCanceled(const TError& error)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    Cancel(TError("Session canceled during finish"));
+    Cancel(TError("Session canceled during finish")
+        << error);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

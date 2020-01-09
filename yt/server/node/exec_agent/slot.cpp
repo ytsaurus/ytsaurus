@@ -68,8 +68,8 @@ public:
     {
         PreparationCanceled_ = true;
 
-        for (auto future : PreparationFutures_) {
-            future.Cancel();
+        for (const auto& future : PreparationFutures_) {
+            future.Cancel(TError("Job preparation canceled"));
         }
     }
 
@@ -221,7 +221,7 @@ private:
     TFuture<T> RunPrepareAction(std::function<TFuture<T>()> action, bool uncancelable = false)
     {
         if (PreparationCanceled_) {
-            return MakeFuture<T>(TError("Slot preparation canceled")
+            return MakeFuture<T>(TError("Job preparation canceled")
                 << TErrorAttribute("slot_index", SlotIndex_));
         } else {
             auto future = action();

@@ -218,7 +218,7 @@ public:
 
         YT_LOG_INFO("Hydra instance is finalizing");
 
-        CancelableContext_->Cancel();
+        CancelableContext_->Cancel(TError("Hydra instance is finalizing"));
 
         ElectionManager_->Abandon();
 
@@ -1651,7 +1651,8 @@ private:
             return;
         }
 
-        ControlEpochContext_->CancelableContext->Cancel();
+        auto error = TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped");
+        ControlEpochContext_->CancelableContext->Cancel(error);
 
         ControlEpochContext_.Reset();
     }

@@ -321,10 +321,10 @@ public:
     const IInvokerPtr& GetCancelableControlInvoker();
 
     //! Cancels the context of the invoker returned by #GetCancelableControlInvoker.
-    void Cancel();
+    void Cancel(const TError& error);
 
     //! Invokes #Cancel and then recreates the context and the invoker.
-    void Restart();
+    void Restart(const TError& error);
 
     //! Builds operation result as YSON string.
     NYson::TYsonString BuildResultString() const;

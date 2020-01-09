@@ -1051,7 +1051,7 @@ private:
         IdToOperation_.clear();
 
         if (CancelableContext_) {
-            CancelableContext_->Cancel();
+            CancelableContext_->Cancel(TError("Scheduler disconnected"));
             CancelableContext_.Reset();
         }
         CancelableControlInvoker_.Reset();

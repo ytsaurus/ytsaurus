@@ -1052,7 +1052,7 @@ void TTablet::StartEpoch(TTabletSlotPtr slot)
 void TTablet::StopEpoch()
 {
     if (CancelableContext_) {
-        CancelableContext_->Cancel();
+        CancelableContext_->Cancel(TError("Tablet epoch canceled"));
         CancelableContext_.Reset();
     }
 

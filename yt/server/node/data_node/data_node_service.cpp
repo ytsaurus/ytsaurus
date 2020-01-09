@@ -1251,8 +1251,8 @@ private:
         }
 
         auto combinedResult = Combine(asyncResults);
-        context->SubscribeCanceled(BIND([combinedResult = combinedResult] () mutable {
-            combinedResult.Cancel();
+        context->SubscribeCanceled(BIND([combinedResult = combinedResult] {
+            combinedResult.Cancel(TError("RPC request canceled"));
         }));
         context->ReplyFrom(combinedResult.Apply(BIND([subresponses = std::move(subresponses), response] () mutable {
             for (int index = 0; index < subresponses.size(); ++index) {

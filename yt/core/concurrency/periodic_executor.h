@@ -90,7 +90,7 @@ private:
     bool Busy_ = false;
     bool OutOfBandRequested_ = false;
     bool ExecutingCallback_ = false;
-    TClosure ExecutionCanceler_;
+    TCallback<void(const TError&)> ExecutionCanceler_;
     TDelayedExecutorCookie Cookie_;
     TPromise<void> IdlePromise_;
     TPromise<void> ExecutedPromise_;

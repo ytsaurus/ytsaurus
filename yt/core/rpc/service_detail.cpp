@@ -583,11 +583,16 @@ private:
         }
 
         if (Cancelable_) {
-            auto canceler = GetCurrentFiberCanceler();
-            if (canceler && !Canceled_.TrySubscribe(std::move(canceler))) {
-                YT_LOG_DEBUG("Request was canceled before being run (RequestId: %v)",
-                    RequestId_);
-                return;
+            auto fiberCanceler = GetCurrentFiberCanceler();
+            if (fiberCanceler) {
+                auto cancelationHandler = BIND([fiberCanceler = std::move(fiberCanceler)] {
+                    fiberCanceler(TError("RPC request canceled"));
+                });
+                if (!Canceled_.TrySubscribe(std::move(cancelationHandler))) {
+                    YT_LOG_DEBUG("Request was canceled before being run (RequestId: %v)",
+                        RequestId_);
+                    return;
+                }
             }
         }
 

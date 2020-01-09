@@ -111,7 +111,7 @@ public:
                 return;
 
             case EJobState::Running:
-                JobFuture_.Cancel();
+                JobFuture_.Cancel(error);
                 SetAborted(error);
                 return;
 

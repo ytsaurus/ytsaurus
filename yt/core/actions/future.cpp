@@ -35,7 +35,7 @@ void TFutureStateBase::Subscribe(TVoidResultHandler handler)
     }
 }
 
-bool TFutureStateBase::Cancel() noexcept
+bool TFutureStateBase::Cancel(const TError& error) noexcept
 {
     // Calling subscribers may release the last reference to this.
     TIntrusivePtr<TFutureStateBase> this_(this);
@@ -45,15 +45,16 @@ bool TFutureStateBase::Cancel() noexcept
         if (Set_ || AbandonedUnset_ || Canceled_) {
             return false;
         }
+        CancelationError_ = error;
         Canceled_ = true;
     }
 
     if (CancelHandlers_.empty()) {
-        DoTrySetCanceledError();
+        DoTrySetCanceledError(error);
     }
 
     for (const auto& handler : CancelHandlers_) {
-        RunNoExcept(handler);
+        RunNoExcept(handler, error);
     }
     CancelHandlers_.clear();
 
@@ -67,7 +68,7 @@ void TFutureStateBase::OnCanceled(TCancelHandler handler)
         return;
     }
     if (Canceled_) {
-        RunNoExcept(handler);
+        RunNoExcept(handler, CancelationError_);
         return;
     }
 
@@ -77,7 +78,7 @@ void TFutureStateBase::OnCanceled(TCancelHandler handler)
         InstallAbandonedError();
         if (Canceled_) {
             guard.Release();
-            RunNoExcept(handler);
+            RunNoExcept(handler, CancelationError_);
         } else if (!Set_) {
             CancelHandlers_.push_back(std::move(handler));
             HasHandlers_ = true;
@@ -105,16 +106,6 @@ bool TFutureStateBase::TimedWait(TDuration timeout) const
     }
 
     return ReadyEvent_->Wait(timeout.ToDeadLine());
-}
-
-TError TFutureStateBase::MakeAbandonedError()
-{
-    return TError(NYT::EErrorCode::Canceled, "Promise abandoned");
-}
-
-TError TFutureStateBase::MakeCanceledError()
-{
-    return TError(NYT::EErrorCode::Canceled, "Operation canceled");
 }
 
 void TFutureStateBase::InstallAbandonedError() const

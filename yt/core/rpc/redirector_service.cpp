@@ -295,10 +295,10 @@ public:
         {
             TGuard<TSpinLock> guard(SpinLock_);
             // NB: We're OK with duplicate request ids.
-            auto pair = ActiveRequestMap_.insert(std::make_pair(requestId, requestControlThunk));
-            if (!pair.second) {
-                existingRequestControl = pair.first->second;
-                pair.first->second = requestControlThunk;
+            auto [it, inserted] = ActiveRequestMap_.emplace(requestId, requestControlThunk);
+            if (!inserted) {
+                existingRequestControl = it->second;
+                it->second = requestControlThunk;
             }
         }
 

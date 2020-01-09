@@ -119,9 +119,9 @@ const TIntrusivePtr<TMessageQueueOutbox<TScheduleJobRequestPtr>>& TControllerAge
     return ScheduleJobRequestsOutbox_;
 }
 
-void TControllerAgent::Cancel()
+void TControllerAgent::Cancel(const TError& error)
 {
-    CancelableContext_->Cancel();
+    CancelableContext_->Cancel(error);
 }
 
 const IInvokerPtr& TControllerAgent::GetCancelableInvoker()

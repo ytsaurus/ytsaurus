@@ -147,7 +147,7 @@ TOperation::TOperation(
     , ErasedTrees_(std::move(erasedTrees))
 {
     YT_VERIFY(SpecString_);
-    Restart();
+    Restart(TError()); // error is fake
 }
 
 EOperationType TOperation::GetType() const
@@ -348,16 +348,16 @@ const IInvokerPtr& TOperation::GetCancelableControlInvoker()
     return CancelableInvoker_;
 }
 
-void TOperation::Cancel()
+void TOperation::Cancel(const TError& error)
 {
     if (CancelableContext_) {
-        CancelableContext_->Cancel();
+        CancelableContext_->Cancel(error);
     }
 }
 
-void TOperation::Restart()
+void TOperation::Restart(const TError& error)
 {
-    Cancel();
+    Cancel(error);
     CancelableContext_ = New<TCancelableContext>();
     CancelableInvoker_ = CancelableContext_->CreateInvoker(ControlInvoker_);
 }

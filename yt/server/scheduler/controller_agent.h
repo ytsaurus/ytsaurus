@@ -125,7 +125,7 @@ public:
     const TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentOperationEvent>>& GetOperationEventsOutbox();
     const TIntrusivePtr<TMessageQueueOutbox<TScheduleJobRequestPtr>>& GetScheduleJobRequestsOutbox();
 
-    void Cancel();
+    void Cancel(const TError& error);
     const IInvokerPtr& GetCancelableInvoker();
 
     std::optional<TControllerAgentMemoryStatistics> GetMemoryStatistics();

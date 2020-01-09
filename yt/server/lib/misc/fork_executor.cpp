@@ -112,7 +112,7 @@ void TForkExecutor::OnWatchdogCheck()
             << TErrorAttribute("timeout", timeout);
         YT_LOG_ERROR(error);
         Result_.Set(error);
-        DoCancel();
+        DoCancel(error);
         return;
     }
 
@@ -143,17 +143,18 @@ void TForkExecutor::DoCleanup()
     Cleanup();
 }
 
-void TForkExecutor::OnCanceled()
+void TForkExecutor::OnCanceled(const TError& error)
 {
-    YT_LOG_INFO("Fork executor canceled");
+    YT_LOG_INFO(error, "Fork executor canceled");
     GetWatchdogInvoker()->Invoke(
-        BIND(&TForkExecutor::DoCancel, MakeStrong(this)));
+        BIND(&TForkExecutor::DoCancel, MakeStrong(this), error));
 }
 
-void TForkExecutor::DoCancel()
+void TForkExecutor::DoCancel(const TError& error)
 {
-    if (ChildPid_ < 0)
+    if (ChildPid_ < 0) {
         return;
+    }
 
     YT_LOG_INFO("Killing child process (ChildPid: %v)", ChildPid_);
 
@@ -164,7 +165,8 @@ void TForkExecutor::DoCancel()
 
     YT_LOG_INFO("Child process killed");
 
-    Result_.TrySet(TError("Fork executor canceled"));
+    Result_.TrySet(TError(NYT::EErrorCode::Canceled, "Fork executor canceled")
+        << error);
     DoCleanup();
 }
 

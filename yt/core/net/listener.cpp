@@ -100,7 +100,7 @@ public:
             }
         }
 
-        promise.OnCanceled(BIND([promise, this, this_ = MakeStrong(this)] () mutable {
+        promise.OnCanceled(BIND([promise, this, this_ = MakeStrong(this)] (const TError& error) {
             {
                 auto guard = Guard(Lock_);
                 auto it = std::find(Queue_.begin(), Queue_.end(), promise);
@@ -108,7 +108,8 @@ public:
                     Queue_.erase(it);
                 }
             }
-            promise.TrySet(TError("The promise was canceled"));
+            promise.TrySet(TError(NYT::EErrorCode::Canceled, "Accept canceled")
+                << error);
         }));
 
         return promise.ToFuture();

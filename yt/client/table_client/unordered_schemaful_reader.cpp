@@ -45,7 +45,7 @@ public:
 
     ~TUnorderedSchemafulReader()
     {
-        CancelableContext_->Cancel();
+        CancelableContext_->Cancel(TError("Reader destroyed"));
     }
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override
@@ -203,10 +203,11 @@ private:
         DoGetReadyEvent().TrySet(value);
     }
 
-    void OnCanceled()
+    void OnCanceled(const TError& error)
     {
-        DoGetReadyEvent().TrySet(TError(NYT::EErrorCode::Canceled, "Table reader canceled"));
-        CancelableContext_->Cancel();
+        DoGetReadyEvent().TrySet(TError(NYT::EErrorCode::Canceled, "Table reader canceled")
+            << error);
+        CancelableContext_->Cancel(error);
     }
 };
 

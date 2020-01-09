@@ -73,7 +73,7 @@ TObjectServiceProxy::TReqExecuteSubbatch::DoInvoke()
         batchRsp->SetEmpty();
     } else {
         auto requestControl = Send(batchRsp);
-        promise.OnCanceled(BIND([=] () {
+        promise.OnCanceled(BIND([=] (const TError& /*error*/) {
             requestControl->Cancel();
         }));
     }

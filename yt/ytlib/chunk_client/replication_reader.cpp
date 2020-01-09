@@ -1542,6 +1542,8 @@ private:
 
     void OnSessionFailed(bool fatal, const TError& error)
     {
+        YT_LOG_DEBUG(error, "Reader session failed (Fatal: %v)", fatal);
+
         if (fatal) {
             SetReaderFailed();
         }
@@ -1678,7 +1680,6 @@ private:
                     NChunkClient::EErrorCode::BandwidthThrottlingFailed,
                     "Failed to throttle bandwidth in reader")
                     << throttleResult;
-                YT_LOG_WARNING(error, "Chunk reader failed");
                 OnSessionFailed(true, error);
                 return;
             }
@@ -1772,7 +1773,6 @@ private:
                     NChunkClient::EErrorCode::BandwidthThrottlingFailed,
                     "Failed to throttle bandwidth in reader")
                     << throttleResult;
-                YT_LOG_WARNING(error, "Chunk reader failed");
                 OnSessionFailed(true, error);
                 return;
             }
@@ -1804,6 +1804,8 @@ private:
 
     void OnSessionFailed(bool fatal, const TError& error)
     {
+        YT_LOG_DEBUG(error, "Reader session failed (Fatal: %v)", fatal);
+
         if (fatal) {
             SetReaderFailed();
         }
