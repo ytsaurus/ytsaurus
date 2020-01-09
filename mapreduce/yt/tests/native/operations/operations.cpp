@@ -4111,6 +4111,68 @@ Y_UNIT_TEST_SUITE(Operations)
             "Job time limit exceeded");
     }
 
+    Y_UNIT_TEST(QLFilter)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        auto inputTable = TRichYPath(workingDir + "/input");
+        auto outputTable = TRichYPath(workingDir + "/output");
+        auto writer = client->CreateTableWriter<TNode>(TRichYPath(inputTable)
+            .Schema(TTableSchema().AddColumn("foo", VT_INT64)));
+        const int n = 10, k = 5;
+        for (int i = 0; i < n; ++i) {
+            writer->AddRow(TNode()("foo", i));
+        }
+        writer->Finish();
+
+        client->Map(
+            TMapOperationSpec()
+                .AddInput<TNode>(inputTable)
+                .AddOutput<TNode>(outputTable),
+            new TIdMapper(),
+            TOperationOptions()
+                .Spec(TNode()("input_query", "foo AS foo WHERE foo >= " + ToString(k))));
+
+        auto reader = client->CreateTableReader<TNode>(outputTable);
+        {
+            int i = k;
+            for (const auto& cursor : *reader) {
+                UNIT_ASSERT(cursor.GetRow() == TNode()("foo", i))
+                ++i;
+            }
+        }
+    }
+
+    Y_UNIT_TEST(QLAndColumnFilter)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        auto inputTable = TRichYPath(workingDir + "/input");
+        auto outputTable = TRichYPath(workingDir + "/output");
+        auto writer = client->CreateTableWriter<TNode>(TRichYPath(inputTable)
+            .Schema(TTableSchema().AddColumn("foo", VT_INT64)));
+        const int n = 10, k = 5;
+        for (int i = 0; i < n; ++i) {
+            writer->AddRow(TNode()("foo", i));
+        }
+        writer->Finish();
+
+        UNIT_ASSERT_EXCEPTION_CONTAINS(
+            client->Map(
+                TMapOperationSpec()
+                    .AddInput<TNode>(inputTable.Columns("key"))
+                    .AddOutput<TNode>(outputTable),
+                new TIdMapper(),
+                TOperationOptions()
+                    .Spec(TNode()("input_query", "foo AS foo WHERE foo >= " + ToString(k)))),
+            TOperationFailedError,
+            "Column filter and QL filter cannot appear in the same operation");
+    }
+
 } // Y_UNIT_TEST_SUITE(Operations)
 
 ////////////////////////////////////////////////////////////////////////////////
