@@ -668,6 +668,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
             _add_chunk()
 
         _trim_chunks(8)
+        wait(lambda: len(get("//tmp/t/@chunk_ids")) == 20 - 8)
         sync_flush_table("//tmp/t")
         _validate_read(3, 5)
         _validate_read(5, 15)
@@ -680,6 +681,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
 
         # NB: chunks are physically removed from the chunk list in portions of at least 17 pcs.
         _trim_chunks(17)
+        wait(lambda: len(get("//tmp/t/@chunk_ids")) == 20 - 17)
         sync_flush_table("//tmp/t")
         _validate_read(10, 18)
         _validate_read(17, 20)
@@ -696,6 +698,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         insert_rows("//tmp/t", [{"a": 0}])
         sync_flush_table("//tmp/t")
         trim_rows("//tmp/t", 0, 1)
+        wait(lambda: len(get("//tmp/t/@chunk_ids")) == 0)
         sync_unmount_table("//tmp/t")
 
         def _get_cumulative_statistics():
