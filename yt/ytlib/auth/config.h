@@ -28,6 +28,7 @@ public:
     TDuration AttemptTimeout;
     TDuration BackoffTimeout;
     bool UseLowercaseLogin;
+    bool UseTvm;
 
     TDefaultBlackboxServiceConfig()
     {
@@ -49,6 +50,8 @@ public:
             .Default(TDuration::Seconds(1));
         RegisterParameter("use_lowercase_login", UseLowercaseLogin)
             .Default(true);
+        RegisterParameter("use_tvm", UseTvm)
+            .Default(false);
     }
 };
 

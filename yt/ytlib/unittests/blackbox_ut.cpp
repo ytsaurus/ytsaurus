@@ -42,6 +42,7 @@ protected:
         config->RequestTimeout = TDuration::MilliSeconds(10);
         config->AttemptTimeout = TDuration::MilliSeconds(10);
         config->BackoffTimeout = TDuration::MilliSeconds(10);
+        config->UseTvm = true;
         return config;
     }
 
@@ -171,6 +172,25 @@ TEST_F(TDefaultBlackboxTest, Success)
     auto service = CreateDefaultBlackboxService();
     auto result = service->Call("hello", {{"foo", "bar"}, {"spam", "ham"}}).Get();
     ASSERT_TRUE(result.IsOK());
+    EXPECT_TRUE(AreNodesEqual(result.ValueOrThrow(), ConvertTo<INodePtr>(TYsonString("{status=ok}"))));
+}
+
+TEST_F(TDefaultBlackboxTest, DoesNotCallTvmWithoutPermission)
+{
+    SetCallback([&] (TClientRequest* request) {
+        EXPECT_THAT(request->Input().FirstLine(), HasSubstr("/blackbox?method=hello&foo=bar&spam=ham"));
+        auto header = request->Input().Headers().FindHeader("X-Ya-Service-Ticket");
+        EXPECT_EQ(nullptr, header);
+        request->Output() << HttpResponse(200, R"jj({"status": "ok"})jj");
+    });
+    auto config = CreateDefaultBlackboxServiceConfig();
+    config->UseTvm = false;
+    auto service = CreateDefaultBlackboxService(config);
+    EXPECT_CALL(*MockTvmService_, GetTicket("blackbox")).Times(0);
+
+    auto result = service->Call("hello", {{"foo", "bar"}, {"spam", "ham"}}).Get();
+
+    EXPECT_TRUE(result.IsOK());
     EXPECT_TRUE(AreNodesEqual(result.ValueOrThrow(), ConvertTo<INodePtr>(TYsonString("{status=ok}"))));
 }
 

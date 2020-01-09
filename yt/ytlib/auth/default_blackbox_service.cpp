@@ -36,7 +36,7 @@ public:
         IPollerPtr poller,
         NProfiling::TProfiler profiler)
         : Config_(std::move(config))
-        , TvmService_(std::move(tvmService))
+        , TvmService_(Config_->UseTvm ? std::move(tvmService) : nullptr)
         , Profiler_(std::move(profiler))
         , HttpClient_(Config_->Secure
             ? NHttps::CreateClient(Config_->HttpClient, std::move(poller))
