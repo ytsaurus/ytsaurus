@@ -1,0 +1,30 @@
+#!/usr/bin/env python
+
+import argparse
+import os
+
+from ytspark import launch, default_token, default_discovery_dir, default_base_log_dir
+
+parser = argparse.ArgumentParser(description="Spark over YT")
+parser.add_argument("--id", required=True)
+parser.add_argument("--worker-cores", required=True, type=int)
+parser.add_argument("--worker-memory", required=True)
+parser.add_argument("--worker-num", required=True, type=int)
+parser.add_argument("--proxy", required=False)
+parser.add_argument("--pool", required=False)
+parser.add_argument("--discovery-dir", required=False)
+parser.add_argument("--log-dir", required=False)
+parser.add_argument("--master-memory-limit", required=False)
+
+args = parser.parse_args()
+
+user = os.getenv("USER")
+proxy = args.proxy or os.getenv("YT_PROXY")
+discovery_dir = args.discovery_dir or default_discovery_dir()
+log_dir = args.log_dir or default_base_log_dir(discovery_dir)
+master_memory_limit = args.master_memory_limit or "2G"
+pool = args.pool or user
+
+launch(args.id, discovery_dir, log_dir,
+       proxy, user, default_token(), pool,
+       args.worker_cores, args.worker_memory, args.worker_num, master_memory_limit)

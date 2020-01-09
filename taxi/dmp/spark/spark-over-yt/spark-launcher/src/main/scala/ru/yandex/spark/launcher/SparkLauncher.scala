@@ -47,6 +47,7 @@ trait SparkLauncher {
                   cores: Int, memory: String, opts: Option[String]): Unit = {
     val env = Map(
       "SPARK_WORKER_OPTS" -> opts,
+      "SPARK_HOME" -> Some(Seq(sys.env("HOME"), sparkHome).mkString(File.separator))
     ).flatMap { case (k, v) => v.map(vv => k -> vv.toString) }
 
     log.info(s"Env: $env")

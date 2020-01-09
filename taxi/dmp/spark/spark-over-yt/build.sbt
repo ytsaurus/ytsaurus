@@ -14,7 +14,8 @@ lazy val `data-source` = (project in file("data-source"))
     libraryDependencies ++= spark,
     libraryDependencies ++= yandexIceberg,
     libraryDependencies ++= logging.map(_ % Provided),
-    assemblyOption in assembly := (assemblyOption in assembly).value.copy(includeScala = false)
+    assemblyOption in assembly := (assemblyOption in assembly).value.copy(includeScala = false),
+    test in assembly := {}
   )
 
 lazy val `spark-launcher` = (project in file("spark-launcher"))
