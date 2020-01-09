@@ -534,7 +534,7 @@ THttpResponse::THttpResponse(
                 HttpCode_,
                 httpHeaders.Str().data());
 
-            LOG_ERROR(errorString.data());
+            LOG_ERROR("%s", errorString.data());
 
             if (auto parsedResponse = ParseError(HttpInput_.Headers())) {
                 ErrorResponse_ = parsedResponse.GetRef();
