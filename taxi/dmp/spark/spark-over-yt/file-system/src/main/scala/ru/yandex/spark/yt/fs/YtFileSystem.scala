@@ -128,6 +128,7 @@ class YtFileSystem extends FileSystem {
   }
 
   override def close(): Unit = {
+    YtClientProvider.close()
     log.info("YtFileSystem closed")
     super.close()
   }
