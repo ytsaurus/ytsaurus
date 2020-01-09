@@ -8,7 +8,7 @@ import scala.language.postfixOps
 import ru.yandex.sbt.YtPublishPlugin
 
 object SparkPackagePlugin extends AutoPlugin {
-  override def requires = super.requires && CommonPlugin && YtPublishPlugin
+  override def requires = super.requires && YtPublishPlugin
 
   override def trigger = NoTrigger
 
@@ -52,11 +52,11 @@ object SparkPackagePlugin extends AutoPlugin {
       (resourceDirectory in Compile).value / "spark-env.sh"
     },
     sparkAdditionalBin := {
-      val pythonDir = sourceDirectory.value / "main" / "python"
+      val pythonDir = sourceDirectory.value / "main" / "python" / "bin"
       pythonDir.listFiles()
     },
     sparkLaunchConfigTemplate := {
-      (resourceDirectory in Compile).value / "spark-launch.ini.template"
+      (resourceDirectory in Compile).value / "spark-launch.yaml.template"
     },
     sparkPackage := {
       val sparkHome = baseDirectory.value.getParentFile.getParentFile / "spark"
@@ -75,12 +75,17 @@ object SparkPackagePlugin extends AutoPlugin {
       sparkAdditionalBin.value.foreach { file =>
         IO.copyFile(file, sparkDist / "bin" / file.name, preserveExecutable = true)
       }
+      IO.createDirectory(sparkDist / "ytspark")
+      IO.copyFile(
+        sourceDirectory.value / "main" / "python" / "ytspark" / "__init__.py",
+        sparkDist / "bin" / "python" / "ytspark" / "__init__.py"
+      )
 
       createFileFromTemplate(sparkLaunchConfigTemplate.value, Map(
         "spark_yt_base_path" -> publishYtTo.value,
         "launcher_name" -> s"${sparkLauncherName.value}-${(version in ThisBuild).value}.jar",
         "spark_name" -> sparkName.value
-      ), sparkDist / "conf" / "spark-launch.ini")
+      ), sparkDist / "conf" / "spark-launch.yaml")
 
       sparkDist
     }
