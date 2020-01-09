@@ -52,8 +52,8 @@ static void VerifyLocalMode(TStringBuf proxy, const IClientBasePtr& client)
         Y_FAIL("Attribute //sys/@local_mode_fqdn not found; are you trying to run tests on a real cluster?");
     }
     Y_ENSURE(
-        fqdn == ::HostName(),
-        "FQDN from cluster differs from host name: " << fqdn << ' ' << ::HostName()
+        fqdn == ::FQDNHostName(),
+        "FQDN from cluster differs from host name: " << fqdn << ' ' << ::FQDNHostName()
             << "; are you trying to run tests on a real cluster?");
 }
 
