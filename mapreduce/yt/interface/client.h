@@ -295,7 +295,7 @@ public:
     ///
     /// When table is in frozen state all its data is flushed to disk and writes are disabled.
     ///
-    /// NOTE: this function launches the process of switching, but doesn't wait until switching is accomplished.
+    /// @note this function launches the process of switching, but doesn't wait until switching is accomplished.
     /// Waiting has to be performed by user.
     ///
     /// @see [YT doc](https://yt.yandex-team.ru/docs/api/commands.html#freeze-table)
@@ -306,7 +306,7 @@ public:
     ///
     /// @brief Switch dynamic table from `frozen` into `mounted` state.
     ///
-    /// NOTE: this function launches the process of switching, but doesn't wait until switching is accomplished.
+    /// @note this function launches the process of switching, but doesn't wait until switching is accomplished.
     /// Waiting has to be performed by user.
     ///
     /// @see [YT doc](https://yt.yandex-team.ru/docs/api/commands.html#unfreeze-table)
