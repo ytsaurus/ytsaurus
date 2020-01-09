@@ -85,7 +85,7 @@ TEST(TReconfigurableThroughputThrottlerTest, TestCancel)
 
     throttler->Throttle(5).Get().ThrowOnError();
     auto future = throttler->Throttle(1);
-    future.Cancel();
+    future.Cancel(TError("Error"));
     auto result = future.Get();
 
     EXPECT_FALSE(result.IsOK());

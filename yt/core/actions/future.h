@@ -141,7 +141,7 @@ public:
 
     //! Notifies the producer that the promised value is no longer needed.
     //! Returns |true| if succeeded, |false| is the promise was already set or canceled.
-    bool Cancel() const;
+    bool Cancel(const TError& error) const;
 
 private:
     explicit TAwaitable(TIntrusivePtr<NYT::NDetail::TFutureStateBase> impl);
@@ -240,7 +240,7 @@ public:
 
     //! Notifies the producer that the promised value is no longer needed.
     //! Returns |true| if succeeded, |false| is the promise was already set or canceled.
-    bool Cancel() const;
+    bool Cancel(const TError& error) const;
 
     //! Returns a wrapper that suppresses cancellation attempts.
     TFuture<T> ToUncancelable() const;
@@ -423,7 +423,7 @@ public:
      *  If the value is set before the call to #handlered, then
      *  #handler is discarded.
      */
-    void OnCanceled(TClosure handler) const;
+    void OnCanceled(TCallback<void (const TError&)> handler) const;
 
     //! Converts promise into future.
     operator TFuture<T>() const;

@@ -32,16 +32,18 @@ TFuture<typename TResponse::TResult> TTypedClientRequest<TRequestMessage, TRespo
     auto promise = response->GetPromise();
     auto requestControl = Send(std::move(response));
     if (requestControl) {
-        auto abortHandler = BIND(&IClientRequestControl::Cancel, requestControl);
         auto subscribeToStreamAbort = [&] (const auto& stream) {
             if (stream) {
-                stream->SubscribeAborted(abortHandler);
+                stream->SubscribeAborted(BIND([=] {
+                    requestControl->Cancel();
+                }));
             }
         };
         subscribeToStreamAbort(requestAttachmentsStream);
         subscribeToStreamAbort(responseAttachmentsStream);
-        // NB: This is the last use of abortHandler; time to move!
-        promise.OnCanceled(std::move(abortHandler));
+        promise.OnCanceled(BIND([=] (const TError& /*error*/) {
+            requestControl->Cancel();
+        }));
     }
     return promise.ToFuture();
 }

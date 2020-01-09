@@ -52,7 +52,7 @@ bool TCancelableContext::IsCanceled() const
     return Canceled_;
 }
 
-void TCancelableContext::Cancel()
+void TCancelableContext::Cancel(const TError& error)
 {
     THashSet<TWeakPtr<TCancelableContext>> propagateToContexts;
     THashSet<TFuture<void>> propagateToFutures;
@@ -61,22 +61,23 @@ void TCancelableContext::Cancel()
         if (Canceled_) {
             return;
         }
+        CancelationError_ = error;
         Canceled_ = true;
         PropagateToContexts_.swap(propagateToContexts);
         PropagateToFutures_.swap(propagateToFutures);
     }
 
-    Handlers_.FireAndClear();
+    Handlers_.FireAndClear(error);
 
     for (const auto& weakContext : propagateToContexts) {
         auto context = weakContext.Lock();
         if (context) {
-            context->Cancel();
+            context->Cancel(error);
         }
     }
 
     for (const auto& future : propagateToFutures) {
-        future.Cancel();
+        future.Cancel(error);
     }
 }
 
@@ -85,18 +86,18 @@ IInvokerPtr TCancelableContext::CreateInvoker(IInvokerPtr underlyingInvoker)
     return New<TCancelableInvoker>(this, std::move(underlyingInvoker));
 }
 
-void TCancelableContext::SubscribeCanceled(const TClosure& callback)
+void TCancelableContext::SubscribeCanceled(const TCallback<void(const TError&)>& callback)
 {
     TGuard<TSpinLock> guard(SpinLock_);
     if (Canceled_) {
         guard.Release();
-        callback.Run();
+        callback.Run(CancelationError_);
         return;
     }
     Handlers_.Subscribe(callback);
 }
 
-void TCancelableContext::UnsubscribeCanceled(const TClosure& /*callback*/)
+void TCancelableContext::UnsubscribeCanceled(const TCallback<void(const TError&)>& /*callback*/)
 {
     YT_ABORT();
 }
@@ -105,21 +106,17 @@ void TCancelableContext::PropagateTo(const TCancelableContextPtr& context)
 {
     auto weakContext = MakeWeak(context);
 
-    bool canceled = [&] {
+    {
         TGuard<TSpinLock> guard(SpinLock_);
         if (Canceled_) {
-            return true;
+            guard.Release();
+            context->Cancel(CancelationError_);
+            return;
         }
         PropagateToContexts_.insert(context);
-        return false;
-    } ();
-
-    if (canceled) {
-        context->Cancel();
-        return;
     }
 
-    context->SubscribeCanceled(BIND_DONT_CAPTURE_TRACE_CONTEXT([=, weakThis = MakeWeak(this)] {
+    context->SubscribeCanceled(BIND_DONT_CAPTURE_TRACE_CONTEXT([=, weakThis = MakeWeak(this)] (const TError& /*error*/) {
         if (auto this_ = weakThis.Lock()) {
             TGuard<TSpinLock> guard(SpinLock_);
             PropagateToContexts_.erase(context);
@@ -129,22 +126,17 @@ void TCancelableContext::PropagateTo(const TCancelableContextPtr& context)
 
 void TCancelableContext::PropagateTo(const TFuture<void>& future)
 {
-    bool canceled = [&] {
+    {
         TGuard<TSpinLock> guard(SpinLock_);
         if (Canceled_) {
-            return true;
+            guard.Release();
+            future.Cancel(CancelationError_);
+            return;
         }
         PropagateToFutures_.insert(future);
-
-        return false;
-    } ();
-
-    if (canceled) {
-        future.Cancel();
-        return;
     }
 
-    future.Subscribe(BIND_DONT_CAPTURE_TRACE_CONTEXT([=, weakThis = MakeWeak(this)] (const TError&) {
+    future.Subscribe(BIND_DONT_CAPTURE_TRACE_CONTEXT([=, weakThis = MakeWeak(this)] (const TError& /*error*/) {
         if (auto this_ = weakThis.Lock()) {
             TGuard<TSpinLock> guard(SpinLock_);
             PropagateToFutures_.erase(future);

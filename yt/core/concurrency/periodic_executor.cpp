@@ -61,11 +61,11 @@ TPeriodicExecutor::TPeriodicExecutor(
 void TPeriodicExecutor::Start()
 {
     TGuard<TSpinLock> guard(SpinLock_);
-    
+
     if (Started_) {
         return;
     }
-    
+
     ExecutedPromise_ = TPromise<void>();
     IdlePromise_ = TPromise<void>();
     Started_ = true;
@@ -93,7 +93,7 @@ void TPeriodicExecutor::DoStop(TGuard<TSpinLock>& guard)
     }
 
     if (executionCanceler) {
-        executionCanceler.Run();
+        executionCanceler.Run(MakeStoppedError());
     }
 }
 
@@ -243,7 +243,7 @@ void TPeriodicExecutor::OnCallbackSuccess()
         if (idlePromise) {
             idlePromise.TrySet();
         }
-        
+
         if (executedPromise) {
             executedPromise.TrySet();
         }
@@ -261,7 +261,7 @@ void TPeriodicExecutor::OnCallbackSuccess()
         // let's forward the call to the delayed executor.
         TDelayedExecutor::Submit(
             BIND([this_ = MakeStrong(this), cleanup = std::move(cleanup)] () mutable { cleanup(); }),
-            TDuration::Zero());  
+            TDuration::Zero());
         throw;
     }
 

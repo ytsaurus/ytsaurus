@@ -220,7 +220,7 @@ public:
             case EJobPhase::DownloadingArtifacts:
             case EJobPhase::Running:
                 startAbortion();
-                ArtifactsFuture_.Cancel();
+                ArtifactsFuture_.Cancel(TError("Job aborted"));
 
                 // Do the actual cleanup asynchronously.
                 BIND(&TJob::Cleanup, MakeStrong(this))

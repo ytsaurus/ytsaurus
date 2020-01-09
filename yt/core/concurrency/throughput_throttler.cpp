@@ -84,10 +84,11 @@ public:
         YT_LOG_DEBUG("Started waiting for throttler (Count: %v)", count);
         auto promise = NewPromise<void>();
         auto request = New<TThrottlerRequest>(count);
-        promise.OnCanceled(BIND([weakRequest = MakeWeak(request), count, this, this_ = MakeStrong(this)] {
+        promise.OnCanceled(BIND([weakRequest = MakeWeak(request), count, this, this_ = MakeStrong(this)] (const TError& error) {
             auto request = weakRequest.Lock();
             if (request && !request->Set.test_and_set()) {
-                request->Promise.Set(TError(NYT::EErrorCode::Canceled, "Throttled request canceled"));
+                request->Promise.Set(TError(NYT::EErrorCode::Canceled, "Throttled request canceled")
+                    << error);
                 QueueTotalCount_ -= count;
                 Profiler.Update(QueueSizeCounter_, QueueTotalCount_);
             }

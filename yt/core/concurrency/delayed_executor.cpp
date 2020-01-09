@@ -100,10 +100,6 @@ public:
             }),
             delay);
 
-        promise.OnCanceled(BIND([=] () mutable {
-            promise.TrySet(TError(NYT::EErrorCode::Canceled, "Delayed promise was canceled"));
-        }));
-
         return promise;
     }
 
@@ -111,7 +107,7 @@ public:
     {
         auto error = WaitFor(MakeDelayed(duration));
         if (error.GetCode() == NYT::EErrorCode::Canceled) {
-            throw TFiberCanceledException{};
+            throw TFiberCanceledException();
         }
 
         error.ThrowOnError();

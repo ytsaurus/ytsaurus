@@ -42,6 +42,7 @@ public:
     void SetUnderlying(IClientRequestControlPtr underlying);
 
     virtual void Cancel() override;
+
     virtual TFuture<void> SendStreamingPayload(const TStreamingPayload& payload) override;
     virtual TFuture<void> SendStreamingFeedback(const TStreamingFeedback& feedback) override;
 

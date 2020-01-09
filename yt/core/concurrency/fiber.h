@@ -24,6 +24,8 @@ DECLARE_REFCOUNTED_CLASS(TFiber)
 
 class TFiberRegistry;
 
+using TFiberCanceler = TCallback<void(const TError&)>;
+
 class TFiber
     : public TRefCounted
     , public ITrampoLine
@@ -89,7 +91,8 @@ public:
     void ResetForReuse();
 
     bool IsCanceled() const;
-    const TClosure& GetCanceler();
+    TError GetCancelationError() const;
+    const TFiberCanceler& GetCanceler();
 
     void SetAwaitable(TAwaitable awaitable);
     void ResetAwaitable();
@@ -98,11 +101,12 @@ private:
     std::atomic<bool> Canceled_ = {false};
     std::atomic<size_t> Epoch_ = {0};
 
-    TSpinLock SpinLock_;
-    TClosure Canceler_;
+    mutable TSpinLock SpinLock_;
+    TError CancelationError_;
+    TFiberCanceler Canceler_;
     TAwaitable Awaitable_;
 
-    void CancelEpoch(size_t epoch);
+    void CancelEpoch(size_t epoch, const TError& error);
 };
 
 DEFINE_REFCOUNTED_TYPE(TFiber)

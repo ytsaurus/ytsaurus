@@ -623,11 +623,16 @@ private:
 
         Enabled_ = false;
 
-        CancelableContext_->Cancel();
+        if (CancelableContext_) {
+            CancelableContext_->Cancel(TError("Operation cleaner stopped"));
+        }
         CancelableContext_.Reset();
+
         CancelableControlInvoker_ = nullptr;
 
-        AnalysisExecutor_->Stop();
+        if (AnalysisExecutor_) {
+            AnalysisExecutor_->Stop();
+        }
         AnalysisExecutor_.Reset();
 
         TDelayedExecutor::CancelAndClear(ArchivationStartCookie_);

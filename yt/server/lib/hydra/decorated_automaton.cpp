@@ -907,7 +907,7 @@ TFuture<TRemoteSnapshotParams> TDecoratedAutomaton::BuildSnapshot()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    CancelSnapshot();
+    CancelSnapshot(TError("Another snapshot is scheduled"));
 
     auto loggedVersion = GetLoggedVersion();
 
@@ -1275,10 +1275,10 @@ void TDecoratedAutomaton::StartEpoch(TEpochContextPtr epochContext)
     std::swap(epochContext, EpochContext_);
 }
 
-void TDecoratedAutomaton::CancelSnapshot()
+void TDecoratedAutomaton::CancelSnapshot(const TError& error)
 {
-    if (SnapshotParamsPromise_ && SnapshotParamsPromise_.ToFuture().Cancel()) {
-        YT_LOG_INFO("Snapshot canceled");
+    if (SnapshotParamsPromise_ && SnapshotParamsPromise_.ToFuture().Cancel(error)) {
+        YT_LOG_INFO(error, "Snapshot canceled");
     }
     SnapshotParamsPromise_.Reset();
 }
@@ -1311,7 +1311,7 @@ void TDecoratedAutomaton::StopEpoch()
     SnapshotVersion_ = TVersion();
     LoggedVersion_ = TVersion();
     CommittedVersion_ = TVersion();
-    CancelSnapshot();
+    CancelSnapshot(error);
     RecoveryRecordCount_ = 0;
     RecoveryDataSize_ = 0;
 }

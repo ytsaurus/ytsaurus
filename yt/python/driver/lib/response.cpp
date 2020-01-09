@@ -99,7 +99,7 @@ Py::Object TDriverResponse::Wait(Py::Tuple& args, Py::Dict& kwargs)
         TReleaseAcquireGilGuard guard;
         auto result = WaitForSettingFuture(Response_);
         if (!result) {
-            Response_.Cancel();
+            Response_.Cancel(TError("Wait canceled"));
         }
     }
 
@@ -140,7 +140,7 @@ TDriverResponse::~TDriverResponse()
 {
     try {
         if (Response_) {
-            Response_.Cancel();
+            Response_.Cancel(TError("Driver response desroyed"));
         }
     } catch (...) {
         // intentionally doing nothing

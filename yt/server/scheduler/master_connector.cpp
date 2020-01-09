@@ -1223,7 +1223,7 @@ private:
         StopPeriodicActivities();
 
         if (CancelableContext_) {
-            CancelableContext_->Cancel();
+            CancelableContext_->Cancel(TError("Master disconnected"));
             CancelableContext_.Reset();
         }
 

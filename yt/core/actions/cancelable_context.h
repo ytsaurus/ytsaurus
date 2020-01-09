@@ -25,10 +25,10 @@ public:
 
     //! Marks the context as canceled raising the handlers
     //! and propagates cancelation.
-    void Cancel();
+    void Cancel(const TError& error);
 
     //! Raised when the context is canceled.
-    DECLARE_SIGNAL(void(), Canceled);
+    DECLARE_SIGNAL(void(const TError&), Canceled);
 
     //! Registers another context for propagating cancelation.
     void PropagateTo(const TCancelableContextPtr& context);
@@ -52,7 +52,8 @@ private:
 
     TSpinLock SpinLock_;
     std::atomic<bool> Canceled_ = {false};
-    TCallbackList<void()> Handlers_;
+    TError CancelationError_;
+    TCallbackList<void(const TError&)> Handlers_;
     THashSet<TWeakPtr<TCancelableContext>> PropagateToContexts_;
     THashSet<TFuture<void>> PropagateToFutures_;
 

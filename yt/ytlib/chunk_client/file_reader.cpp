@@ -86,12 +86,11 @@ TFuture<std::vector<TBlock>> TFileReader::ReadBlocks(
             localIndex = endLocalIndex;
         }
     } catch (const std::exception& ex) {
-
-        for (auto& future : futures) {
-            future.Cancel();
+        TError error(ex);
+        for (const auto& future : futures) {
+            future.Cancel(error);
         }
-
-        return MakeFuture<std::vector<TBlock>>(ex);
+        return MakeFuture<std::vector<TBlock>>(error);
     }
 
     return CombineAll(std::move(futures))

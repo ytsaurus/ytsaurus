@@ -1246,7 +1246,7 @@ TYPED_TEST(TRpcTest, ClientCancel)
     auto asyncRspOrError = req->Invoke();
     Sleep(TDuration::Seconds(0.5));
     EXPECT_FALSE(asyncRspOrError.IsSet());
-    asyncRspOrError.Cancel();
+    asyncRspOrError.Cancel(TError("Error"));
     Sleep(TDuration::Seconds(0.1));
     EXPECT_TRUE(asyncRspOrError.IsSet());
     auto rspOrError = asyncRspOrError.Get();

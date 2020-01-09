@@ -231,7 +231,7 @@ public:
     ~TJobInputReader()
     {
         if (TransferResultFuture_) {
-            TransferResultFuture_.Cancel();
+            TransferResultFuture_.Cancel(TError("Reader destroyed"));
         }
     }
 
@@ -242,7 +242,7 @@ public:
             .AsyncVia(Invoker_)
             .Run();
 
-        TransferResultFuture_.Subscribe(BIND([pipe=AsyncStreamPipe_](const TError& error) {
+        TransferResultFuture_.Subscribe(BIND([pipe = AsyncStreamPipe_] (const TError& error) {
             if (!error.IsOK()) {
                 pipe->Abort(TError("Failed to get job input") << error);
             }

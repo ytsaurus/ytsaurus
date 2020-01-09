@@ -821,7 +821,7 @@ public:
 
         Strategy_->DisableOperation(operation.Get());
 
-        operation->Restart();
+        operation->Restart(TError("Agent unregistered"));
         operation->SetStateAndEnqueueEvent(EOperationState::Orphaned);
 
         for (const auto& nodeShard : NodeShards_) {
@@ -1839,7 +1839,7 @@ private:
                         EOperationState::Aborted,
                         error);
                 }
-                operation->Cancel();
+                operation->Cancel(error);
             }
             OperationAliases_.clear();
             IdToOperation_.clear();
@@ -2765,7 +2765,7 @@ private:
             operation->SetController(nullptr);
             UnregisterOperation(operation);
         }
-        operation->Cancel();
+        operation->Cancel(TError("Operation finished"));
         OperationsToDestroy_.push_back(operation);
     }
 

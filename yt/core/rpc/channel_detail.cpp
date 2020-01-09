@@ -97,7 +97,12 @@ void TClientRequestControlThunk::Cancel()
 
     TGuard<TSpinLock> guard(SpinLock_);
 
+    if (Canceled_) {
+        return;
+    }
+
     Canceled_ = true;
+
     if (Underlying_ && !UnderlyingCanceled_) {
         UnderlyingCanceled_ = true;
         guard.Release();

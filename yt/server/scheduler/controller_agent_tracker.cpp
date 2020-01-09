@@ -1257,8 +1257,10 @@ private:
     {
         TLeaseManager::CloseLease(agent->GetLease());
         agent->SetLease(TLease());
-        agent->GetChannel()->Terminate(TError("Agent disconnected"));
-        agent->Cancel();
+
+        TError error("Agent disconnected");
+        agent->GetChannel()->Terminate(error);
+        agent->Cancel(error);
     }
 
     void OnAgentHeartbeatTimeout(const TWeakPtr<TControllerAgent>& weakAgent)

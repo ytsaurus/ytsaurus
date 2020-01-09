@@ -526,7 +526,7 @@ TFuture<TSharedRef> TRpcClientInputStream::Read()
 TRpcClientInputStream::~TRpcClientInputStream()
 {
     // Here we assume that canceling a completed request is safe.
-    InvokeResult_.Cancel();
+    InvokeResult_.Cancel(TError("RPC input stream destroyed"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -661,7 +661,7 @@ void TRpcClientOutputStream::AbortOnError(const TError& error)
         }
     }
 
-    InvokeResult_.Cancel();
+    InvokeResult_.Cancel(error);
 }
 
 void TRpcClientOutputStream::OnFeedback(const TErrorOr<TSharedRef>& refOrError)
@@ -679,7 +679,7 @@ void TRpcClientOutputStream::OnFeedback(const TErrorOr<TSharedRef>& refOrError)
                 CloseResult_.TrySetFrom(Underlying_->Close());
                 return;
             }
-            error = TError("Expected a positive writer feedback, received a null ref");
+            error = TError(NRpc::EErrorCode::ProtocolError, "Expected a positive writer feedback, received a null ref");
         } else {
             error = CheckWriterFeedback(ref, EWriterFeedback::Success);
         }
@@ -706,13 +706,14 @@ void TRpcClientOutputStream::OnFeedback(const TErrorOr<TSharedRef>& refOrError)
     }
 
     promise.Set();
+
     FeedbackStream_->Read().Subscribe(
         BIND(&TRpcClientOutputStream::OnFeedback, MakeWeak(this)));
 }
 
 TRpcClientOutputStream::~TRpcClientOutputStream()
 {
-    InvokeResult_.Cancel();
+    InvokeResult_.Cancel(TError("RPC output stream destroyed"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -721,8 +722,7 @@ TSharedRef GenerateWriterFeedbackMessage(
     EWriterFeedback feedback)
 {
     NProto::TWriterFeedback protoFeedback;
-    protoFeedback.set_feedback(
-        static_cast<NProto::EWriterFeedback>(feedback));
+    protoFeedback.set_feedback(static_cast<NProto::EWriterFeedback>(feedback));
     return SerializeProtoToRef(protoFeedback);
 }
 

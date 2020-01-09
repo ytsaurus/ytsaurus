@@ -82,6 +82,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NElection::NProto, GetStatus);
 
     void Reset();
+    void CancelContext();
 
     void OnLeaderPingLeaseExpired();
 
@@ -574,8 +575,6 @@ TDistributedElectionManager::TDistributedElectionManager(
     YT_VERIFY(ElectionCallbacks);
     VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker, ControlThread);
 
-    Reset();
-
     RegisterMethod(RPC_SERVICE_METHOD_DESC(PingFollower));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetStatus));
 
@@ -629,22 +628,28 @@ TYsonProducer TDistributedElectionManager::GetMonitoringProducer()
 
 void TDistributedElectionManager::Reset()
 {
-    // May be called from ControlThread and also from ctor.
+    VERIFY_THREAD_AFFINITY(ControlThread);
 
     SetState(EPeerState::Stopped);
 
+    CancelContext();
+
     VoteId = InvalidPeerId;
-
-    if (EpochContext) {
-        EpochContext->CancelableContext->Cancel();
-    }
-    EpochContext.Reset();
-
     AliveFollowers.clear();
     AlivePeers.clear();
     PotentialPeers.clear();
     TLeaseManager::CloseLease(LeaderPingLease);
     LeaderPingLease.Reset();
+}
+
+void TDistributedElectionManager::CancelContext()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    if (EpochContext) {
+        EpochContext->CancelableContext->Cancel(TError("Election epoch canceled"));
+    }
+    EpochContext.Reset();
 }
 
 void TDistributedElectionManager::OnLeaderPingLeaseExpired()
@@ -754,10 +759,7 @@ void TDistributedElectionManager::StartVoting()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    if (EpochContext) {
-        EpochContext->CancelableContext->Cancel();
-        EpochContext.Reset();
-    }
+    CancelContext();
 
     EpochContext = New<TEpochContext>();
     ControlEpochInvoker = EpochContext->CancelableContext->CreateInvoker(ControlInvoker);

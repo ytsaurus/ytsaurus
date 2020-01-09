@@ -571,7 +571,7 @@ private:
             config->Source = layerMeta.Path;
             config->Destination = LayersPath_;
             RunTool<TCopyDirectoryContentTool>(config);
-            
+
             TLayerMeta newMeta = layerMeta;
             newMeta.Path = layerDirectory;
 
@@ -1607,9 +1607,10 @@ public:
         };
 
         auto promise = NewPromise<TVolumeStatePtr>();
-        promise.OnCanceled(BIND([=] () mutable {
-            promise.TrySet(TError(NYT::EErrorCode::Canceled, "Root volume preparation was canceled")
-                << TErrorAttribute("preparation_tag", tag));
+        promise.OnCanceled(BIND([=] (const TError& error) {
+            promise.TrySet(TError(NYT::EErrorCode::Canceled, "Root volume preparation canceled")
+                << TErrorAttribute("preparation_tag", tag)
+                << error);
         }));
 
         std::vector<TFuture<TLayerPtr>> layerFutures;

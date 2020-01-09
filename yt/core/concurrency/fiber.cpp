@@ -252,7 +252,7 @@ void TFiber::OnFinishRunning()
     SetCurrentFiberId(InvalidFiberId);
 }
 
-void TFiber::CancelEpoch(size_t epoch)
+void TFiber::CancelEpoch(size_t epoch, const TError& error)
 {
     TAwaitable awaitable;
 
@@ -268,13 +268,15 @@ void TFiber::CancelEpoch(size_t epoch)
             return;
         }
 
+        CancelationError_ = error;
+
         awaitable = std::move(Awaitable_);
     }
 
     if (awaitable) {
         YT_LOG_DEBUG("Sending cancelation to fiber, propagating to the awaited future (TargetFiberId: %llx)",
             Id_);
-        awaitable.Cancel();
+        awaitable.Cancel(error);
     } else {
         YT_LOG_DEBUG("Sending cancelation to fiber (TargetFiberId: %llx)",
             Id_);
@@ -288,6 +290,7 @@ void TFiber::ResetForReuse()
 
         ++Epoch_;
         Canceled_ = false;
+        CancelationError_ = {};
 
         Canceler_.Reset();
         Awaitable_.Reset();
@@ -307,7 +310,13 @@ bool TFiber::IsCanceled() const
     return Canceled_.load(std::memory_order_relaxed);
 }
 
-const TClosure& TFiber::GetCanceler()
+TError TFiber::GetCancelationError() const
+{
+    TGuard<TSpinLock> guard(SpinLock_);
+    return CancelationError_;
+}
+
+const TFiberCanceler& TFiber::GetCanceler()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -362,10 +371,10 @@ NProfiling::TCpuDuration GetCurrentFiberRunCpuTime()
     return CurrentFiber()->GetRunCpuTime();
 }
 
-TClosure GetCurrentFiberCanceler()
+TFiberCanceler GetCurrentFiberCanceler()
 {
     auto* currentFiber = CurrentFiber().Get();
-    return currentFiber ? currentFiber->GetCanceler() : TClosure();
+    return currentFiber ? currentFiber->GetCanceler() : TFiberCanceler();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

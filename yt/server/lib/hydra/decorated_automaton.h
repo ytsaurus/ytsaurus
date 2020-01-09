@@ -288,7 +288,7 @@ private:
     void AcquireSystemLock();
     void ReleaseSystemLock();
 
-    void CancelSnapshot();
+    void CancelSnapshot(const TError& error);
 
     void StartEpoch(TEpochContextPtr epochContext);
     void StopEpoch();

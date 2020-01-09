@@ -223,7 +223,7 @@ void TNodeShard::DoCleanup()
     Connected_ = false;
 
     if (CancelableContext_) {
-        CancelableContext_->Cancel();
+        CancelableContext_->Cancel(TError("Node shard disconnected"));
         CancelableContext_.Reset();
     }
 

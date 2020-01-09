@@ -418,9 +418,9 @@ void DestroyIdleFibers()
         FiberContext = nullptr;
     });
 
-    for (auto& fiber : fibers) {
+    for (const auto& fiber : fibers) {
         YT_VERIFY(fiber->GetRefCount() == 1);
-        fiber->GetCanceler().Run();
+        fiber->GetCanceler().Run(TError("Idle fiber destroyed"));
 
         SwitchFromThread(std::move(fiber));
     }
@@ -477,7 +477,7 @@ void UnwindFiber(TFiberPtr fiber)
 {
     YT_LOG_TRACE("Unwinding fiber (TargetFiberId: %llx)", fiber->GetId());
 
-    fiber->GetCanceler().Run();
+    fiber->GetCanceler().Run(TError("Fiber is unwinding"));
 
     GetFinalizerInvoker()->Invoke(
         BIND_DONT_CAPTURE_TRACE_CONTEXT(&ResumeFiber, Passed(std::move(fiber))));
@@ -508,12 +508,11 @@ public:
 
     ~TResumeGuard()
     {
-        if (!Fiber_) {
-            return;
+        if (Fiber_) {
+            UnwindFiber(std::move(Fiber_));
         }
-
-        UnwindFiber(std::move(Fiber_));
     }
+
 private:
     TFiberPtr Fiber_;
 };
@@ -538,8 +537,7 @@ void WaitForImpl(TAwaitable awaitable, IInvokerPtr invoker)
 
     if (currentFiber) {
         if (currentFiber->IsCanceled()) {
-            awaitable.Cancel();
-
+            awaitable.Cancel(currentFiber->GetCancelationError());
             YT_LOG_DEBUG("Throwing fiber cancelation exception");
             throw TFiberCanceledException();
         }

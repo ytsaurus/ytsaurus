@@ -1083,7 +1083,7 @@ void TMasterConnector::Reset()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     if (HeartbeatContext_) {
-        HeartbeatContext_->Cancel();
+        HeartbeatContext_->Cancel(TError("Master disconnected"));
     }
 
     HeartbeatContext_ = New<TCancelableContext>();

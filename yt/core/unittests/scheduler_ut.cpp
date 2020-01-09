@@ -171,7 +171,7 @@ TEST_W(TSchedulerTest, SwitchToCancelableInvoker1)
     auto context = New<TCancelableContext>();
     auto invoker = context->CreateInvoker(GetCurrentInvoker());
 
-    context->Cancel();
+    context->Cancel(TError("Error"));
 
     EXPECT_THROW({ SwitchTo(invoker); }, TFiberCanceledException);
 }
@@ -184,7 +184,7 @@ TEST_W(TSchedulerTest, SwitchToCancelableInvoker2)
 
     EXPECT_NO_THROW({ SwitchTo(invoker1); });
 
-    context->Cancel();
+    context->Cancel(TError("Error"));
 
     EXPECT_THROW({ SwitchTo(invoker2); }, TFiberCanceledException);
 }
@@ -201,7 +201,7 @@ TEST_W(TSchedulerTest, SwitchToCancelableInvoker3)
 
     EXPECT_NO_THROW({ SwitchTo(invoker1); });
 
-    context->Cancel();
+    context->Cancel(TError("Error"));
 
     EXPECT_THROW({ SwitchTo(invoker2); }, TFiberCanceledException);
 }
@@ -214,7 +214,7 @@ TEST_W(TSchedulerTest, WaitForCancelableInvoker1)
     auto future = promise.ToFuture();
     TDelayedExecutor::Submit(
         BIND([=] () mutable {
-            context->Cancel();
+            context->Cancel(TError("Error"));
             promise.Set();
         }),
         SleepQuantum);
@@ -232,7 +232,7 @@ TEST_W(TSchedulerTest, WaitForCancelableInvoker2)
     auto promise = NewPromise<void>();
     auto future = promise.ToFuture();
     WaitFor(BIND([=] () mutable {
-            context->Cancel();
+            context->Cancel(TError("Error"));
             promise.Set();
             EXPECT_THROW({ WaitFor(future).ThrowOnError(); }, TFiberCanceledException);
         })
@@ -249,7 +249,7 @@ TEST_W(TSchedulerTest, TerminatedCaught)
 
     SwitchTo(invoker2);
 
-    context->Cancel();
+    context->Cancel(TError("Error"));
 
     EXPECT_THROW({ SwitchTo(invoker1); }, TFiberCanceledException);
 }
@@ -263,7 +263,7 @@ TEST_W(TSchedulerTest, TerminatedPropagated)
 
     SwitchTo(invoker2);
 
-    context->Cancel();
+    context->Cancel(TError("Error"));
 
     SwitchTo(invoker1);
 
@@ -527,7 +527,7 @@ TEST_F(TSchedulerTest, PropagateFiberCancelationToFuture)
 
     Sleep(SleepQuantum);
 
-    f2.Cancel();
+    f2.Cancel(TError("Error"));
 
     Sleep(SleepQuantum);
 
@@ -545,7 +545,7 @@ TEST_F(TSchedulerTest, AsyncViaCanceledBeforeStart)
     }).AsyncVia(invoker).Run();
     EXPECT_FALSE(asyncResult1.IsSet());
     EXPECT_FALSE(asyncResult2.IsSet());
-    asyncResult2.Cancel();
+    asyncResult2.Cancel(TError("Error"));
     EXPECT_TRUE(asyncResult1.Get().IsOK());
     Sleep(SleepQuantum);
     EXPECT_TRUE(asyncResult2.IsSet());
@@ -556,7 +556,7 @@ TEST_F(TSchedulerTest, CancelCurrentFiber)
 {
     auto invoker = Queue1->GetInvoker();
     auto asyncResult = BIND([=] () {
-        NYT::NConcurrency::GetCurrentFiberCanceler().Run();
+        NYT::NConcurrency::GetCurrentFiberCanceler().Run(TError("Error"));
         SwitchTo(invoker);
     }).AsyncVia(invoker).Run();
     asyncResult.Get();
@@ -572,7 +572,7 @@ TEST_F(TSchedulerTest, YieldToFromCanceledFiber)
 
     auto asyncResult = BIND([=] () mutable {
         BIND([=] () {
-            NYT::NConcurrency::GetCurrentFiberCanceler().Run();
+            NYT::NConcurrency::GetCurrentFiberCanceler().Run(TError("Error"));
         }).AsyncVia(invoker2).Run().Get();
         WaitFor(promise.ToFuture(), invoker2)
             .ThrowOnError();
@@ -624,7 +624,7 @@ TEST_F(TSchedulerTest, CancelInAdjacentCallback)
 {
     auto invoker = Queue1->GetInvoker();
     auto asyncResult1 = BIND([=] () {
-        NYT::NConcurrency::GetCurrentFiberCanceler().Run();
+        NYT::NConcurrency::GetCurrentFiberCanceler().Run(TError("Error"));
     }).AsyncVia(invoker).Run().Get();
     auto asyncResult2 = BIND([=] () {
         Yield();
@@ -635,12 +635,12 @@ TEST_F(TSchedulerTest, CancelInAdjacentCallback)
 
 TEST_F(TSchedulerTest, CancelInAdjacentThread)
 {
-    auto closure = TClosure();
+    auto closure = TCallback<void(const TError&)>();
     auto invoker = Queue1->GetInvoker();
     auto asyncResult1 = BIND([=, &closure] () {
         closure = NYT::NConcurrency::GetCurrentFiberCanceler();
     }).AsyncVia(invoker).Run().Get();
-    closure.Run(); // *evil laugh*
+    closure.Run(TError("Error")); // *evil laugh*
     auto asyncResult2 = BIND([=] () {
         Yield();
     }).AsyncVia(invoker).Run().Get();
