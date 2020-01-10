@@ -264,11 +264,19 @@ void TSchedulerElement::UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& 
     TreeConfig_ = config;
 }
 
+void TSchedulerElement::PreUpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
+{
+    YT_VERIFY(Mutable_);
+
+    ResourceLimits_ = ComputeResourceLimits();
+    ResourceTreeElement_->SetResourceLimits(GetSpecifiedResourceLimits());
+    TotalResourceLimits_ = GetHost()->GetResourceLimits(TreeConfig_->NodesFilter);
+}
+
 void TSchedulerElement::UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
 {
     YT_VERIFY(Mutable_);
 
-    TotalResourceLimits_ = GetHost()->GetResourceLimits(TreeConfig_->NodesFilter);
     UpdateAttributes();
     (*dynamicAttributesList)[GetTreeIndex()].Active = true;
     UpdateDynamicAttributes(dynamicAttributesList);
@@ -737,15 +745,28 @@ void TCompositeSchedulerElement::UpdateTreeConfig(const TFairShareStrategyTreeCo
     updateChildrenConfig(DisabledChildren_);
 }
 
+void TCompositeSchedulerElement::PreUpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
+{
+    YT_VERIFY(Mutable_);
+
+    ResourceDemand_ = {};
+
+    for (const auto& child : EnabledChildren_) {
+        child->PreUpdateBottomUp(dynamicAttributesList, context);
+
+        ResourceDemand_ += child->ResourceDemand();
+    }
+
+    TSchedulerElement::PreUpdateBottomUp(dynamicAttributesList, context);
+}
+
 void TCompositeSchedulerElement::UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
 {
     YT_VERIFY(Mutable_);
 
     Attributes_.BestAllocationRatio = 0.0;
     PendingJobCount_ = 0;
-    ResourceDemand_ = {};
-    ResourceLimits_ = ComputeResourceLimits();
-    ResourceTreeElement_->SetResourceLimits(GetSpecifiedResourceLimits());
+
     SchedulableChildren_.clear();
     TJobResources maxPossibleChildrenResourceUsage;
     for (const auto& child : EnabledChildren_) {
@@ -763,15 +784,15 @@ void TCompositeSchedulerElement::UpdateBottomUp(TDynamicAttributesList* dynamicA
         Attributes_.BestAllocationRatio = std::max(
             Attributes_.BestAllocationRatio,
             child->Attributes().BestAllocationRatio);
+        PendingJobCount_ += child->GetPendingJobCount();
+
+        maxPossibleChildrenResourceUsage += child->MaxPossibleResourceUsage();
 
         if (child->IsSchedulable()) {
             SchedulableChildren_.push_back(child);
         }
-
-        PendingJobCount_ += child->GetPendingJobCount();
-        ResourceDemand_ += child->ResourceDemand();
-        maxPossibleChildrenResourceUsage += child->MaxPossibleResourceUsage();
     }
+
     MaxPossibleResourceUsage_ = Min(maxPossibleChildrenResourceUsage, ResourceLimits_);
     TSchedulerElement::UpdateBottomUp(dynamicAttributesList, context);
 }
@@ -1644,13 +1665,6 @@ const TSchedulingTagFilter& TPool::GetSchedulingTagFilter() const
     return SchedulingTagFilter_;
 }
 
-void TPool::UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
-{
-    YT_VERIFY(Mutable_);
-
-    TCompositeSchedulerElement::UpdateBottomUp(dynamicAttributesList, context);
-}
-
 int TPool::GetMaxRunningOperationCount() const
 {
     return Config_->MaxRunningOperationCount.value_or(TreeConfig_->MaxRunningOperationCountPerPool);
@@ -2343,18 +2357,24 @@ TDuration TOperationElement::GetFairSharePreemptionTimeout() const
 void TOperationElement::DisableNonAliveElements()
 { }
 
-void TOperationElement::UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
+void TOperationElement::PreUpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
 {
     YT_VERIFY(Mutable_);
 
     UnschedulableReason_ = ComputeUnschedulableReason();
     SlotIndex_ = Operation_->FindSlotIndex(GetTreeId());
     ResourceDemand_ = ComputeResourceDemand();
-    ResourceLimits_ = ComputeResourceLimits();
-    ResourceTreeElement_->SetResourceLimits(GetSpecifiedResourceLimits());
-    MaxPossibleResourceUsage_ = Min(ResourceLimits_, ResourceDemand_);
-    PendingJobCount_ = ComputePendingJobCount();
     StartTime_ = Operation_->GetStartTime();
+
+    TSchedulerElement::PreUpdateBottomUp(dynamicAttributesList, context);
+}
+
+void TOperationElement::UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
+{
+    YT_VERIFY(Mutable_);
+
+    PendingJobCount_ = ComputePendingJobCount();
+    MaxPossibleResourceUsage_ = Min(ResourceLimits_, ResourceDemand_);
 
     // It should be called after update of ResourceDemand_ and MaxPossibleResourceUsage_ since
     // these fields are used to calculate dominant resource.
@@ -2364,10 +2384,8 @@ void TOperationElement::UpdateBottomUp(TDynamicAttributesList* dynamicAttributes
         ResourceDemand_,
         TotalResourceLimits_,
         GetHost()->GetExecNodeMemoryDistribution(SchedulingTagFilter_ & TreeConfig_->NodesFilter));
-
     auto dominantLimit = GetResource(TotalResourceLimits_, Attributes_.DominantResource);
     auto dominantAllocationLimit = GetResource(allocationLimits, Attributes_.DominantResource);
-
     Attributes_.BestAllocationRatio =
         dominantLimit == 0 ? 1.0 : dominantAllocationLimit / dominantLimit;
 
@@ -3227,7 +3245,7 @@ void TRootElement::PreUpdate(TDynamicAttributesList* dynamicAttributesList, TUpd
     TreeSize_ = TCompositeSchedulerElement::EnumerateElements(0, context);
     dynamicAttributesList->assign(TreeSize_, TDynamicAttributes());
 
-    UpdateBottomUp(dynamicAttributesList, context);
+    PreUpdateBottomUp(dynamicAttributesList, context);
 }
 
 void TRootElement::Update(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
@@ -3237,6 +3255,7 @@ void TRootElement::Update(TDynamicAttributesList* dynamicAttributesList, TUpdate
     VERIFY_INVOKER_AFFINITY(Host_->GetFairShareUpdateInvoker());
     TForbidContextSwitchGuard contextSwitchGuard;
 
+    UpdateBottomUp(dynamicAttributesList, context);
     UpdateTopDown(dynamicAttributesList, context);
 }
 

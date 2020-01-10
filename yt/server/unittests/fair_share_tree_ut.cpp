@@ -420,7 +420,8 @@ private:
     {
         TUpdateFairShareContext updateContext;
         rootElement->PreUpdate(dynamicAttributesList, &updateContext);
-        // We call UpdateTopDown() directly here, because Update() verifies current invoker.
+        // We call UpdateBottomUp() and UpdateTopDown() directly here, because Update() verifies current invoker.
+        rootElement->UpdateBottomUp(dynamicAttributesList, &updateContext);
         rootElement->UpdateTopDown(dynamicAttributesList, &updateContext);
         context->Initialize(rootElement->GetTreeSize(), /*registeredSchedulingTagFilters*/ {});
         rootElement->PrescheduleJob(context, /*starvingOnly*/ false, /*aggressiveStarvationEnabled*/ false);
@@ -466,7 +467,8 @@ TEST_F(TFairShareTreeTest, TestAttributes)
 
         TUpdateFairShareContext updateContext;
         rootElement->PreUpdate(&dynamicAttributes, &updateContext);
-        // We call UpdateTopDown() directly here, because Update() verifies current invoker.
+        // We call UpdateBottomUp() and UpdateTopDown() directly here, because Update() verifies current invoker.
+        rootElement->UpdateBottomUp(&dynamicAttributes, &updateContext);
         rootElement->UpdateTopDown(&dynamicAttributes, &updateContext);
 
         EXPECT_EQ(0.1, rootElement->Attributes().DemandRatio);
@@ -495,7 +497,8 @@ TEST_F(TFairShareTreeTest, TestAttributes)
 
         TUpdateFairShareContext updateContext;
         rootElement->PreUpdate(&dynamicAttributes, &updateContext);
-        // We call UpdateTopDown() directly here, because Update() verifies current invoker.
+        // We call UpdateBottomUp() and UpdateTopDown() directly here, because Update() verifies current invoker.
+        rootElement->UpdateBottomUp(&dynamicAttributes, &updateContext);
         rootElement->UpdateTopDown(&dynamicAttributes, &updateContext);
 
         EXPECT_EQ(0.5, dynamicAttributes[operationElementX->GetTreeIndex()].SatisfactionRatio);
@@ -543,7 +546,8 @@ TEST_F(TFairShareTreeTest, TestUpdatePreemptableJobsList)
 
     TUpdateFairShareContext updateContext;
     rootElement->PreUpdate(&dynamicAttributes, &updateContext);
-    // We call UpdateTopDown() directly here, because Update() verifies current invoker.
+    // We call UpdateBottomUp() and UpdateTopDown() directly here, because Update() verifies current invoker.
+    rootElement->UpdateBottomUp(&dynamicAttributes, &updateContext);
     rootElement->UpdateTopDown(&dynamicAttributes, &updateContext);
 
     EXPECT_EQ(1.6, operationElementX->Attributes().DemandRatio);
@@ -595,7 +599,8 @@ TEST_F(TFairShareTreeTest, TestBestAllocationRatio)
 
     TUpdateFairShareContext updateContext;
     rootElement->PreUpdate(&dynamicAttributes, &updateContext);
-    // We call UpdateTopDown() directly here, because Update() verifies current invoker.
+    // We call UpdateBottomUp() and UpdateTopDown() directly here, because Update() verifies current invoker.
+    rootElement->UpdateBottomUp(&dynamicAttributes, &updateContext);
     rootElement->UpdateTopDown(&dynamicAttributes, &updateContext);
 
     EXPECT_EQ(1.125, operationElementX->Attributes().DemandRatio);
@@ -683,7 +688,8 @@ TEST_F(TFairShareTreeTest, TestMaxPossibleUsageRatioWithoutLimit)
 
     TUpdateFairShareContext updateContext;
     rootElement->PreUpdate(&dynamicAttributes, &updateContext);
-    // We call UpdateTopDown() directly here, because Update() verifies current invoker.
+    // We call UpdateBottomUp() and UpdateTopDown() directly here, because Update() verifies current invoker.
+    rootElement->UpdateBottomUp(&dynamicAttributes, &updateContext);
     rootElement->UpdateTopDown(&dynamicAttributes, &updateContext);
     EXPECT_EQ(0.15, pool->Attributes().MaxPossibleUsageRatio);
 }
@@ -802,7 +808,8 @@ TEST_F(TFairShareTreeTest, DoNotPreemptJobsIfFairShareRatioEqualToDemandRatio)
 
     TUpdateFairShareContext updateContext;
     rootElement->PreUpdate(&dynamicAttributes, &updateContext);
-    // We call UpdateTopDown() directly here, because Update() verifies current invoker.
+    // We call UpdateBottomUp() and UpdateTopDown() directly here, because Update() verifies current invoker.
+    rootElement->UpdateBottomUp(&dynamicAttributes, &updateContext);
     rootElement->UpdateTopDown(&dynamicAttributes, &updateContext);
 
     EXPECT_EQ(0.4, operationElement->Attributes().DemandRatio);
