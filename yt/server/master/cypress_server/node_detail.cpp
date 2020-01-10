@@ -752,8 +752,16 @@ void TMapNodeChildren::Load(NCellMaster::TLoadContext& context)
 
 /*static*/ void TMapNodeChildren::Clear(TMapNodeChildren* children)
 {
-    YT_VERIFY(children->GetRefCount() == 0);
     // NB: does not unref children! This is to be used during automaton clearing only!
+
+    YT_VERIFY(children->GetRefCount() == 0);
+
+    // It's okay to clear and forget. Recursive unref is not necessary here
+    // because, during automaton clearing, all nodes will be destroyed anyway -
+    // regardless of their refcounter.
+    children->KeyToChild.clear();
+    children->ChildToKey.clear();
+
     delete children;
 }
 
