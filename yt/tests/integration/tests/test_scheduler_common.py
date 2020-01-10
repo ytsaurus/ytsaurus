@@ -13,6 +13,7 @@ import pytest
 from flaky import flaky
 
 import os
+import gzip
 import pprint
 import random
 import socket
@@ -4650,7 +4651,7 @@ class TestConnectToMaster(YTEnvSetup):
         wait(lambda: self.has_safe_mode_error_in_log())
 
     def has_safe_mode_error_in_log(self):
-        for line in open(self.path_to_run + "/logs/scheduler-0.log"):
+        for line in gzip.open(self.path_to_run + "/logs/scheduler-0.log.gz"):
             if "Error connecting to master" in line and "Cluster is in safe mode" in line:
                 return True
         return False
