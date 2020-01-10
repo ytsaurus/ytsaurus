@@ -159,7 +159,10 @@ message TResourceMeta {
 
 enum EMultiSecretFileContentFormat {
     EMultiSecretFileContentFormat_JSON = 0 [(NYT.NYson.NProto.enum_value_name) = "json"];
+
+    // NOTE: В отличии от ya vault текст не перекодируется в latin1 и остается в исходной кодировке
     EMultiSecretFileContentFormat_JAVA = 1 [(NYT.NYson.NProto.enum_value_name) = "java"];
+
     EMultiSecretFileContentFormat_YAML = 2 [(NYT.NYson.NProto.enum_value_name) = "yaml"];
 }
 
