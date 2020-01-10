@@ -54,6 +54,11 @@ static TString GetDefaultTransactionTitle(const TProcessState& processState)
     } else {
         res << " command line is unknown probably NYT::Initialize was never called";
     }
+
+#ifndef NDEBUG
+    res << " mode: Debug";
+#endif
+
     return res.Str();
 }
 
