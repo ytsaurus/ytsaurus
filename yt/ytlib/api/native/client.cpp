@@ -3495,11 +3495,6 @@ TListJobsResult TClient::DoListJobs(
             YT_ABORT();
     }
 
-    YT_LOG_DEBUG("Starting list jobs (IncludeCypress: %v, IncludeControllerAgent: %v, IncludeArchive: %v)",
-        includeCypress,
-        includeControllerAgent,
-        includeArchive);
-
     TFuture<std::pair<std::vector<TJob>, int>> cypressResultFuture;
     TFuture<TListJobsFromControllerAgentResult> controllerAgentResultFuture;
     TFuture<TListJobsFromArchiveResult> archiveResultFuture;
@@ -3600,11 +3595,6 @@ TListJobsResult TClient::DoListJobs(
                 << archiveResultOrError);
         }
 
-        std::vector<std::optional<ui64>> v;
-        for (const auto& j : archiveResult.InProgressJobs) {
-            v.push_back(j.StderrSize);
-        }
-        YT_LOG_INFO("ZZZ inProgressJobs: %v", ConvertToYsonString(v, EYsonFormat::Text).GetData());
         if (!controllerAgentAddress && archiveResult.InProgressJobs.empty()) {
             result.Jobs = std::move(archiveResult.FinishedJobs);
             return;
