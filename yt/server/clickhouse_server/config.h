@@ -267,6 +267,7 @@ public:
             Settings["max_memory_usage_for_all_queries"] = NYTree::ConvertToNode(9_GB);
             Settings["max_threads"] = NYTree::ConvertToNode(32);
             Settings["max_concurrent_queries_for_user"] = NYTree::ConvertToNode(10);
+            Settings["connect_timeout_with_failover_ms"] = NYTree::ConvertToNode(1000); // 1 sec.
         });
 
         RegisterPostprocessor([&] {
