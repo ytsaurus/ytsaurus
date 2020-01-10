@@ -146,8 +146,6 @@ TConnectionConfig::TConnectionConfig()
 
     RegisterParameter("use_tablet_service", UseTabletService)
         .Default(true);
-    RegisterParameter("enable_builtin_tablet_system_users", EnableBuiltinTabletSystemUsers)
-        .Default(false);
 
     RegisterParameter("cache_sticky_group_size_override", CacheStickyGroupSizeOverride)
         .Default();

@@ -112,7 +112,6 @@ public:
     TDuration DefaultListOperationsTimeout;
 
     bool UseTabletService;
-    bool EnableBuiltinTabletSystemUsers;
 
     std::optional<int> CacheStickyGroupSizeOverride;
 

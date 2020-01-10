@@ -47,7 +47,6 @@
 
 #include <yt/server/lib/misc/interned_attributes.h>
 
-#include <yt/ytlib/api/native/config.h>
 #include <yt/ytlib/api/native/connection.h>
 #include <yt/ytlib/api/native/client.h>
 
@@ -393,14 +392,9 @@ public:
                 PrerequisiteTransactionId_);
         }
 
-        // COMPAT(akozhikhov)
-        auto snapshotClient = Bootstrap_->GetMasterClient();
-        auto changelogClient = Bootstrap_->GetMasterClient();
         auto connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
-        if (connection->GetConfig()->EnableBuiltinTabletSystemUsers) {
-            snapshotClient = connection->CreateNativeClient(TClientOptions(NSecurityClient::TabletCellSnapshotterUserName));
-            changelogClient = connection->CreateNativeClient(TClientOptions(NSecurityClient::TabletCellChangeloggerUserName));
-        }
+        auto snapshotClient = connection->CreateNativeClient(TClientOptions(NSecurityClient::TabletCellSnapshotterUserName));
+        auto changelogClient = connection->CreateNativeClient(TClientOptions(NSecurityClient::TabletCellChangeloggerUserName));
 
         auto snapshotStore = CreateRemoteSnapshotStore(
             Config_->Snapshots,
