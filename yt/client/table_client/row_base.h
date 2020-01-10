@@ -96,8 +96,10 @@ inline constexpr EValueType GetPhysicalType(ESimpleLogicalValueType type)
 
         case ESimpleLogicalValueType::Void:
             return EValueType::Null;
+
+        default:
+            YT_ABORT();
     }
-    YT_ABORT();
 }
 
 inline constexpr ESimpleLogicalValueType GetLogicalType(EValueType type)
