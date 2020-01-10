@@ -277,7 +277,36 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        YT_VERIFY(!tablet->GetCell());
+        // XXX(savrus): this is a workaround for YTINCIDENTS-42
+        if (auto* cell = tablet->GetCell()) {
+            YT_LOG_ALERT_UNLESS(IsRecovery(), "Destroying tablet with non-null tablet cell (TabletId: %v, CellId: %v)",
+                tablet->GetId(),
+                cell->GetId());
+
+            // Replicated table not supported.
+            YT_VERIFY(tablet->Replicas().empty());
+
+            if (cell->Tablets().erase(tablet) > 0) {
+                YT_LOG_ALERT_UNLESS(IsRecovery(), "Unbinding tablet from tablet cell since tablet is destroyed (TabletId: %v, CellId: %v)",
+                    tablet->GetId(),
+                    cell->GetId());
+            }
+
+            if (tablet->GetState() == ETabletState::Mounted) {
+                YT_LOG_ALERT_UNLESS(IsRecovery(), "Sending force unmount request to node since tablet is destroyed (TabletId: %v, CellId: %v)",
+                    tablet->GetId(),
+                    cell->GetId());
+
+                TReqUnmountTablet request;
+                ToProto(request.mutable_tablet_id(), tablet->GetId());
+                request.set_force(true);
+
+                const auto& hiveManager = Bootstrap_->GetHiveManager();
+                auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+                hiveManager->PostMessage(mailbox, request);
+           }
+        }
+
         YT_VERIFY(!tablet->GetTable());
 
         if (auto* action = tablet->GetAction()) {
