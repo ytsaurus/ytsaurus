@@ -223,9 +223,7 @@ private:
 
     void UnregisterPollable()
     {
-        if (Socket_ != INVALID_SOCKET) {
-            Poller_->Unarm(Socket_);
-        }
+        Poller_->Unarm(Socket_);
         Poller_->Unregister(Pollable_);
         Pollable_.Reset();
     }

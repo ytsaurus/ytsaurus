@@ -50,12 +50,18 @@ class TReadOperation
     : public IIOOperation
 {
 public:
-    explicit TReadOperation(const TSharedMutableRef& buffer)
+    TReadOperation(const TSharedMutableRef& buffer, bool delayFirstRead)
         : Buffer_(buffer)
+        , DelayFirstRead_(delayFirstRead)
     { }
 
     virtual TErrorOr<TIOResult> PerformIO(int fd) override
     {
+        if (DelayFirstRead_) {
+            DelayFirstRead_ = false;
+            return TIOResult(true, 0);
+        }
+
         size_t bytesRead = 0;
         while (true) {
             ssize_t size = HandleEintr(::read, fd, Buffer_.Begin() + Position_, Buffer_.Size() - Position_);
@@ -95,6 +101,7 @@ public:
 private:
     TSharedMutableRef Buffer_;
     size_t Position_ = 0;
+    bool DelayFirstRead_ = false;
 
     TPromise<size_t> ResultPromise_ = NewPromise<size_t>();
 };
@@ -105,7 +112,7 @@ class TReceiveFromOperation
     : public IIOOperation
 {
 public:
-    explicit TReceiveFromOperation(const TSharedMutableRef& buffer)
+    TReceiveFromOperation(const TSharedMutableRef& buffer)
         : Buffer_(buffer)
     { }
 
@@ -340,10 +347,12 @@ public:
     TFDConnectionImpl(
         int fd,
         const TString& filePath,
-        const IPollerPtr& poller)
+        const IPollerPtr& poller,
+        bool delayFirstRead)
         : Name_(Format("File{%v}", filePath))
         , FD_(fd)
         , Poller_(poller)
+        , DelayFirstRead_(delayFirstRead)
     {
         Init();
     }
@@ -370,50 +379,55 @@ public:
 
     virtual void OnEvent(EPollControl control) override
     {
-        DoIO(&WriteDirection_, Any(control & EPollControl::Write));
-        DoIO(&ReadDirection_, Any(control & EPollControl::Read));
+        TShutdownProtector protector;
+        {
+            auto guard = Guard(Lock_);
+            if (!Error_.IsOK()) {
+                return;
+            }
+            protector = TShutdownProtector(this);
+        }
+
+        if (Any(control & EPollControl::Write)) {
+            DoIO(&WriteDirection_, true, std::move(protector));
+        }
+
+        if (Any(control & EPollControl::Read)) {
+            DoIO(&ReadDirection_, true, std::move(protector));
+        }
     }
 
     virtual void OnShutdown() override
     {
+        bool canShutdownNow;
         // Poller guarantees that OnShutdown is never executed concurrently with OnEvent()
+        // but it may execute concurrently with callback what was posted directly to
+        // the poller invoker. In that case we postpone closing the descriptor until
+        // the callback finishes executing.
         {
             auto guard = Guard(Lock_);
-
-            YT_VERIFY(!ReadDirection_.Running);
-            YT_VERIFY(!WriteDirection_.Running);
 
             if (Error_.IsOK()) {
                 Error_ = TError("Connection is shut down");
             }
 
-            ShutdownRequested_ = true;
-            if (SynchronousIOCount_) {
+            if (ShutdownRequested_) {
                 return;
             }
+
+            ShutdownRequested_ = true;
+            canShutdownNow = ShutdownProtectorCount_ == 0;
         }
 
-        if (ReadDirection_.Operation) {
-            ReadDirection_.Operation->Abort(Error_);
-            ReadDirection_.Operation.reset();
+        if (canShutdownNow) {
+            FinishShutdown();
         }
-        if (WriteDirection_.Operation) {
-            WriteDirection_.Operation->Abort(Error_);
-            WriteDirection_.Operation.reset();
-        }
-
-        YT_VERIFY(TryClose(FD_, false));
-        FD_ = -1;
-
-        ShutdownPromise_.Set();
-
-        TDelayedExecutor::CancelAndClear(WriteTimeoutCookie_);
-        TDelayedExecutor::CancelAndClear(ReadTimeoutCookie_);
     }
 
     TFuture<size_t> Read(const TSharedMutableRef& data)
     {
-        auto read = std::make_unique<TReadOperation>(data);
+        auto read = std::make_unique<TReadOperation>(data, DelayFirstRead_);
+        DelayFirstRead_ = false;
         auto future = read->ToFuture();
         StartIO(&ReadDirection_, std::move(read));
         return future;
@@ -429,7 +443,7 @@ public:
 
     void SendTo(const TSharedRef& buffer, const TNetworkAddress& address)
     {
-        auto guard = TSynchronousIOGuard(this);
+        auto guard = EnterSynchronousIO();
         auto res = HandleEintr(
             ::sendto,
             FD_,
@@ -446,13 +460,13 @@ public:
 
     bool SetNoDelay()
     {
-        auto guard = TSynchronousIOGuard(this);
+        auto guard = EnterSynchronousIO();
         return TrySetSocketNoDelay(FD_);
     }
 
     bool SetKeepAlive()
     {
-        auto guard = TSynchronousIOGuard(this);
+        auto guard = EnterSynchronousIO();
         return TrySetSocketKeepAlive(FD_);
     }
 
@@ -572,29 +586,48 @@ private:
     const TNetworkAddress RemoteAddress_;
     int FD_ = -1;
 
+    class TShutdownProtector
+    {
+    public:
+        explicit TShutdownProtector(TFDConnectionImplPtr owner)
+            : Owner_(std::move(owner))
+        {
+            VERIFY_SPINLOCK_AFFINITY(Owner_->Lock_);
+            ++Owner_->ShutdownProtectorCount_;
+        }
+
+        TShutdownProtector() = default;
+        TShutdownProtector(const TShutdownProtector&) = delete;
+        TShutdownProtector(TShutdownProtector&&) = default;
+
+        TShutdownProtector& operator=(const TShutdownProtector&) = delete;
+        TShutdownProtector& operator=(TShutdownProtector&&) = default;
+
+        ~TShutdownProtector()
+        {
+            if (Owner_) {
+                Owner_->OnShutdownProtectorReleased();
+            }
+        }
+
+    private:
+        TFDConnectionImplPtr Owner_;
+    };
 
     class TSynchronousIOGuard
     {
     public:
-        TSynchronousIOGuard(TFDConnectionImplPtr owner)
+        TSynchronousIOGuard(TFDConnectionImplPtr owner, TShutdownProtector protector)
             : Owner_(std::move(owner))
+            , Protector_(std::move(protector))
         {
-            auto guard = Guard(Owner_->Lock_);
-            Owner_->Error_.ThrowOnError();
             ++Owner_->SynchronousIOCount_;
         }
 
         ~TSynchronousIOGuard()
         {
             if (Owner_) {
-                auto guard = Guard(Owner_->Lock_);
-                YT_VERIFY(Owner_->SynchronousIOCount_);
-                if (--Owner_->SynchronousIOCount_ == 0 &&
-                    Owner_->ShutdownRequested_)
-                {
-                    guard.Release();
-                    Owner_->OnShutdown();
-                }
+                --Owner_->SynchronousIOCount_;
             }
         }
 
@@ -606,6 +639,7 @@ private:
 
     private:
         TFDConnectionImplPtr Owner_;
+        TShutdownProtector Protector_;
     };
 
     struct TIODirection
@@ -615,8 +649,7 @@ private:
         TDuration IdleDuration;
         TDuration BusyDuration;
         TCpuInstant StartTime = GetCpuInstant();
-        bool Pending = false;
-        bool Running = false;
+        EPollControl PollFlag;
 
         void StartBusyTimer()
         {
@@ -644,11 +677,14 @@ private:
     TIODirection ReadDirection_;
     TIODirection WriteDirection_;
     bool ShutdownRequested_ = false;
-    unsigned int SynchronousIOCount_ = 0;
+    int ShutdownProtectorCount_ = 0;
+    std::atomic<int> SynchronousIOCount_ = {0};
     TError Error_;
     TPromise<void> ShutdownPromise_ = NewPromise<void>();
 
+    EPollControl Control_ = EPollControl::None;
     IPollerPtr Poller_;
+    bool DelayFirstRead_ = false;
 
     TClosure AbortFromReadTimeout_;
     TClosure AbortFromWriteTimeout_;
@@ -661,15 +697,36 @@ private:
         AbortFromReadTimeout_ = BIND(&TFDConnectionImpl::AbortFromReadTimeout, MakeWeak(this));
         AbortFromWriteTimeout_ = BIND(&TFDConnectionImpl::AbortFromWriteTimeout, MakeWeak(this));
 
+        ReadDirection_.PollFlag = EPollControl::Read;
+        WriteDirection_.PollFlag = EPollControl::Write;
+
         Poller_->Register(this);
-        Poller_->Arm(FD_, this, EPollControl::Read | EPollControl::Write);
+    }
+
+    TSynchronousIOGuard EnterSynchronousIO()
+    {
+        auto guard = Guard(Lock_);
+        Error_.ThrowOnError();
+        return TSynchronousIOGuard(this, TShutdownProtector(this));
+    }
+
+    void OnShutdownProtectorReleased()
+    {
+        {
+            auto guard = Guard(Lock_);
+            YT_VERIFY(--ShutdownProtectorCount_ >= 0);
+            if (ShutdownProtectorCount_ > 0 || !ShutdownRequested_) {
+                return;
+            }
+        }
+
+        FinishShutdown();
     }
 
     void StartIO(TIODirection* direction, std::unique_ptr<IIOOperation> operation)
     {
         TError error;
-        bool needRetry = false;
-
+        TShutdownProtector protector;
         {
             auto guard = Guard(Lock_);
             if (Error_.IsOK()) {
@@ -678,13 +735,9 @@ private:
                         << TErrorAttribute("connection", Name_);
                 }
 
-                YT_VERIFY(!direction->Running);
                 direction->Operation = std::move(operation);
                 direction->StartBusyTimer();
-                // Start operation only if this direction already has pending
-                // event otherwise reading from FIFO before opening by writer
-                // will return EOF immediately.
-                needRetry = direction->Pending;
+                protector = TShutdownProtector(this);
             } else {
                 error = Error_;
             }
@@ -695,12 +748,11 @@ private:
             return;
         }
 
-        if (needRetry) {
-            Poller_->Retry(this);
-        }
+        Poller_->GetInvoker()->Invoke(
+            BIND(&TFDConnectionImpl::DoIO, MakeWeak(this), direction, false, Passed(std::move(protector))));
     }
 
-    void DoIO(TIODirection* direction, bool event)
+    void DoIO(TIODirection* direction, bool filterSpuriousEvent, TShutdownProtector /*protector*/)
     {
         {
             auto guard = Guard(Lock_);
@@ -709,18 +761,19 @@ private:
                 return;
             }
 
-            // Start IO if have both backlog and not running operation.
-            // Otherwise just remember pending backlog.
-            if (direction->Operation && !direction->Running &&
-                    (direction->Pending || event)) {
-                direction->Pending = false;
-                direction->Running = true;
-            } else {
-                direction->Pending |= event;
+            // We use Poller in a way that generates spurious
+            // notifications. Do nothing if we are not interested in
+            // this event.
+            if (filterSpuriousEvent && None(Control_ & direction->PollFlag)) {
                 return;
+            }
+
+            if (filterSpuriousEvent) {
+                Control_ ^= direction->PollFlag;
             }
         }
 
+        YT_VERIFY(direction->Operation);
         auto result = direction->Operation->PerformIO(FD_);
         if (result.IsOK()) {
             direction->BytesTransferred += result.Value().ByteCount;
@@ -729,17 +782,14 @@ private:
         }
 
         bool needUnregister = false;
-        bool needRetry = false;
         std::unique_ptr<IIOOperation> operation;
         {
             auto guard = Guard(Lock_);
-            direction->Running = false;
             if (!result.IsOK()) {
                 // IO finished with error.
                 operation = std::move(direction->Operation);
                 if (Error_.IsOK()) {
                     Error_ = result;
-                    Poller_->Unarm(FD_);
                     needUnregister = true;
                 }
                 direction->StopBusyTimer();
@@ -750,27 +800,23 @@ private:
                 if (result.Value().Retry) {
                     result = Error_;
                 }
-                // FIXME do not set if backlog is empty
-                direction->Pending = true;
                 direction->StopBusyTimer();
             } else if (result.Value().Retry) {
-                // IO not completed. Retry if have backlog.
-                needRetry = direction->Pending;
+                // IO not completed.
+                Control_ |= direction->PollFlag;
             } else {
                 // IO finished successfully.
                 operation = std::move(direction->Operation);
-                // FIXME do not set if backlog is empty
-                direction->Pending = true;
                 direction->StopBusyTimer();
             }
+
+            MaybeRearm();
         }
 
         if (!result.IsOK()) {
             operation->Abort(result);
         } else if (!result.Value().Retry) {
             operation->SetResult();
-        } else if (needRetry) {
-            Poller_->Retry(this, false);
         }
 
         if (needUnregister) {
@@ -788,6 +834,33 @@ private:
             Poller_->Unregister(this);
         }
         return ShutdownPromise_.ToFuture();
+    }
+
+    void MaybeRearm()
+    {
+        if (Control_ != EPollControl::None) {
+            Poller_->Arm(FD_, this, Control_);
+        }
+    }
+
+    void FinishShutdown()
+    {
+        if (ReadDirection_.Operation) {
+            ReadDirection_.Operation->Abort(Error_);
+            ReadDirection_.Operation.reset();
+        }
+        if (WriteDirection_.Operation) {
+            WriteDirection_.Operation->Abort(Error_);
+            WriteDirection_.Operation.reset();
+        }
+
+        YT_VERIFY(TryClose(FD_, false));
+        FD_ = -1;
+
+        ShutdownPromise_.Set();
+
+        TDelayedExecutor::CancelAndClear(WriteTimeoutCookie_);
+        TDelayedExecutor::CancelAndClear(ReadTimeoutCookie_);
     }
 
     void AbortFromReadTimeout()
@@ -814,8 +887,9 @@ public:
         int fd,
         const TString& pipePath,
         const IPollerPtr& poller,
-        TIntrusivePtr<TRefCounted> pipeHolder = nullptr)
-        : Impl_(New<TFDConnectionImpl>(fd, pipePath, poller))
+        TIntrusivePtr<TRefCounted> pipeHolder = nullptr,
+        bool delayFirstRead = true)
+        : Impl_(New<TFDConnectionImpl>(fd, pipePath, poller, delayFirstRead))
         , PipeHolder_(std::move(pipeHolder))
     { }
 
@@ -983,7 +1057,7 @@ IConnectionReaderPtr CreateInputConnectionFromPath(
             << TErrorAttribute("path", pipePath);
     }
 
-    return New<TFDConnection>(fd, pipePath, poller, pipeHolder);
+    return New<TFDConnection>(fd, pipePath, poller, pipeHolder, true);
 }
 
 IConnectionWriterPtr CreateOutputConnectionFromPath(
@@ -1005,7 +1079,7 @@ IConnectionWriterPtr CreateOutputConnectionFromPath(
         SafeClose(fd, false);
         throw;
     }
-    return New<TFDConnection>(fd, pipePath, poller, pipeHolder);
+    return New<TFDConnection>(fd, pipePath, poller, pipeHolder, false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

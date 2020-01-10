@@ -73,11 +73,6 @@ struct IPoller
     //! Arms the poller to handle events of a given type for a given entity.
     virtual void Arm(int fd, const IPollablePtr& pollable, EPollControl control) = 0;
 
-    //! Schedule call of #IPollable::OnEvent with EPollControl::None.
-    //! From OnEvent could be called with wakeup = false to not wake new thread.
-    //! Pollable must be registered - retry queue does not grab own reference.
-    virtual void Retry(const IPollablePtr& pollable, bool wakeup = true) = 0;
-
     //! Unarms the poller.
     virtual void Unarm(int fd) = 0;
 

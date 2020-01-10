@@ -30,7 +30,7 @@ namespace {
 
 EContPoll ToImplControl(EPollControl control)
 {
-    int implControl = CONT_POLL_EDGE_TRIGGERED;
+    int implControl = CONT_POLL_ONE_SHOT;
     if (Any(control & EPollControl::Read)) {
         implControl |= CONT_POLL_READ;
     }
@@ -188,15 +188,6 @@ public:
         Impl_.Remove(fd);
     }
 
-    virtual void Retry(const IPollablePtr& pollable, bool wakeup) override
-    {
-        // Pollable is registered - skip grabbing reference
-        Retry_.Enqueue(pollable.Get());
-        if (wakeup) {
-            Invoker_->RaiseWakeupHandle();
-        }
-    }
-
     virtual IInvokerPtr GetInvoker() const override
     {
         return Invoker_;
@@ -254,7 +245,6 @@ private:
                 .AddTag("ThreadIndex: %v", index))
             , ExecuteCallback_(BIND([this] {
                 HandleEvents();
-                HandleRetry();
                 HandleUnregister();
             }))
         { }
@@ -281,6 +271,7 @@ private:
                 }
 
                 ExecutingCallbacks_ = false;
+                Poller_->Invoker_->ArmPoller();
             }
 
             return ExecuteCallback_;
@@ -331,16 +322,6 @@ private:
             }
         }
 
-        void HandleRetry()
-        {
-            IPollable* pollable;
-
-            // Dequeue one by one to let other threads do their job
-            while (Poller_->Retry_.Dequeue(&pollable)) {
-                pollable->OnEvent(EPollControl::None);
-            }
-        }
-
         void HandleUnregister()
         {
             auto entries = UnregisterEntries_.DequeueAll();
@@ -385,8 +366,6 @@ private:
 
     TSpinLock SpinLock_;
     THashMap<IPollablePtr, TPollableEntryPtr> Pollables_;
-
-    TLockFreeQueue<IPollable*> Retry_;
 
     class TInvoker
         : public IInvoker
@@ -456,12 +435,7 @@ private:
 #endif
         void ArmPoller()
         {
-            Owner_->Impl_.Set(nullptr, WakeupHandle_.GetFD(), CONT_POLL_READ | CONT_POLL_EDGE_TRIGGERED);
-        }
-
-        void RaiseWakeupHandle()
-        {
-            WakeupHandle_.Raise();
+            Owner_->Impl_.Set(nullptr, WakeupHandle_.GetFD(), CONT_POLL_READ|CONT_POLL_ONE_SHOT);
         }
 
         void ClearWakeupHandle()

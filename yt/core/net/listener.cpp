@@ -31,7 +31,6 @@ public:
         , Acceptor_(acceptor)
     {
         Acceptor_->Register(this);
-        Acceptor_->Arm(ServerSocket_, this, EPollControl::Read);
     }
 
     // IPollable implementation
@@ -43,31 +42,8 @@ public:
     virtual void OnEvent(EPollControl control) override
     {
         try {
-            while (true) {
-                TPromise<IConnectionPtr> promise;
-
-                {
-                    auto guard = Guard(Lock_);
-                    if (!Error_.IsOK()) {
-                        break;
-                    }
-                    if (Queue_.empty()) {
-                        Pending_ = true;
-                        break;
-                    }
-                    promise = std::move(Queue_.front());
-                    Queue_.pop_front();
-                    Pending_ = false;
-                }
-
-                if (!TryAccept(promise)) {
-                    auto guard = Guard(Lock_);
-                    Queue_.push_back(promise);
-                    if (!Pending_) {
-                        break;
-                    }
-                }
-            }
+            while (TryAccept())
+            { }
         } catch (const TErrorException& ex) {
             auto error = ex << TErrorAttribute("listener", Name_);
             Abort(error);
@@ -100,14 +76,24 @@ public:
     virtual TFuture<IConnectionPtr> Accept() override
     {
         auto promise = NewPromise<IConnectionPtr>();
-
-        if (!Pending_ || !TryAccept(promise)) {
+        {
             auto guard = Guard(Lock_);
             if (Error_.IsOK()) {
-                Queue_.push_back(promise);
-                if (Pending_) {
-                    Pending_ = false;
-                    Acceptor_->Retry(this);
+                TNetworkAddress clientAddress;
+                auto clientSocket = AcceptSocket(ServerSocket_, &clientAddress);
+                if (clientSocket != INVALID_SOCKET) {
+                    auto localAddress = GetSocketName(clientSocket);
+                    promise.Set(CreateConnectionFromFD(
+                        clientSocket,
+                        localAddress,
+                        clientAddress,
+                        Poller_));
+                } else {
+                    Queue_.push_back(promise);
+                    if (!Active_) {
+                        Active_ = true;
+                        Acceptor_->Arm(ServerSocket_, this, EPollControl::Read);
+                    }
                 }
             } else {
                 promise.Set(Error_);
@@ -141,7 +127,7 @@ private:
     IPollerPtr Acceptor_;
 
     TSpinLock Lock_;
-    std::atomic<bool> Pending_ = {false};
+    bool Active_ = false;
     std::deque<TPromise<IConnectionPtr>> Queue_;
     TError Error_;
 
@@ -156,19 +142,40 @@ private:
             return;
         }
 
-        Pending_ = false;
         Error_ = error
             << TErrorAttribute("listener", Name_);
         Acceptor_->Unarm(ServerSocket_);
         Acceptor_->Unregister(this);
     }
 
-    bool TryAccept(TPromise<IConnectionPtr> &promise)
+    bool TryAccept()
     {
+        {
+            auto guard = Guard(Lock_);
+            if (!Error_.IsOK()) {
+                return false;
+            }
+            if (Queue_.empty()) {
+                Active_ = false;
+                return false;
+            }
+        }
+
         TNetworkAddress clientAddress;
         auto clientSocket = AcceptSocket(ServerSocket_, &clientAddress);
-        if (clientSocket == INVALID_SOCKET) {
-            return false;
+
+        TPromise<IConnectionPtr> promise;
+        bool active = false;
+        {
+            auto guard = Guard(Lock_);
+            if (clientSocket == INVALID_SOCKET) {
+                Acceptor_->Arm(ServerSocket_, this, EPollControl::Read);
+                return false;
+            }
+
+            promise = std::move(Queue_.front());
+            Queue_.pop_front();
+            active = Active_ = !Queue_.empty();
         }
 
         auto localAddress = GetSocketName(clientSocket);
@@ -177,8 +184,7 @@ private:
             localAddress,
             clientAddress,
             Poller_));
-
-        return true;
+        return active;
     }
 };
 

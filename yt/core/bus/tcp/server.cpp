@@ -83,7 +83,7 @@ public:
     {
         OpenServerSocket();
         Poller_->Register(this);
-        ArmPoller();
+        RearmPoller();
     }
 
     TFuture<void> Stop()
@@ -101,6 +101,7 @@ public:
     virtual void OnEvent(EPollControl /*control*/) override
     {
         OnAccept();
+        RearmPoller();
     }
 
     virtual void OnShutdown() override
@@ -284,7 +285,7 @@ protected:
         Poller_->Unarm(ServerSocket_);
     }
 
-    void ArmPoller()
+    void RearmPoller()
     {
         auto guard = Guard(ControlSpinLock_);
         if (ServerSocket_ == INVALID_SOCKET) {
