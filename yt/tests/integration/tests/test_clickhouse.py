@@ -393,6 +393,36 @@ class TestClickHouseCommon(ClickHouseTestBase):
     def setup(self):
         self._setup()
 
+    @authors("evgenstf")
+    def test_discovery_nodes_self_cleaning(self):
+        with Clique(5) as clique:
+            clique_path = "//sys/clickhouse/cliques/{0}".format(clique.op.id)
+
+            nodes_before_resizing = ls(clique_path, verbose=False)
+            assert len(nodes_before_resizing) == 5
+
+            jobs = list(clique.op.get_running_jobs())
+            assert len(jobs) == 5
+
+            clique.resize(3, jobs[:2])
+            wait(lambda: len(ls(clique_path, verbose=False)) == 3, iter=10)
+
+    @authors("evgenstf")
+    def test_discovery_transaction_restore(self):
+        with Clique(1) as clique:
+            instances_before_transaction_abort = clique.get_active_instances()
+            assert len(instances_before_transaction_abort) == 1
+
+            locks = instances_before_transaction_abort[0].attributes["locks"]
+            assert len(locks) == 1
+
+            transaction_id = locks[0]["transaction_id"]
+
+            abort_transaction(transaction_id)
+            time.sleep(5)
+
+            wait(lambda: clique.get_active_instance_count() == 1, iter=10)
+
     @authors("max42")
     @pytest.mark.parametrize("instance_count", [1, 5])
     def test_avg(self, instance_count):

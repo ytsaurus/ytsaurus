@@ -62,19 +62,21 @@ private:
     mutable NConcurrency::TReaderWriterSpinLock Lock_;
     NApi::ITransactionPtr Transaction_;
     const NLogging::TLogger Logger;
-    std::optional<std::pair<TString, NYTree::TAttributeMap>> SelfAttributes_;
+    std::optional<std::pair<TString, NYTree::TAttributeMap>> NameAndAttributes_;
     TFuture<void> ScheduledForceUpdate_;
     TInstant LastUpdate_;
     TCallback<void(void)> TransactionRestorer_;
     int Epoch_;
-    
+
     void DoEnter(TString name, NYTree::TAttributeMap attributes);
     void DoLeave();
-    
+
     void DoUpdateList();
 
+    void DoCreateNode(int epoch);
     void DoLockNode(int epoch);
-    void OnTransactionAborted(int epoch);
+
+    void DoRestoreTransaction(int epoch);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDiscovery)
