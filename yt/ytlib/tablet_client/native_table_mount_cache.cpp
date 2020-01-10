@@ -172,13 +172,9 @@ private:
 
             auto options = GetMasterReadOptions();
 
-            // COMPAT(akozhikhov)
-            auto channel = Connection_->GetMasterChannelOrThrow(options.ReadFrom);
-            if (Connection_->GetConfig()->EnableBuiltinTabletSystemUsers) {
-                channel = CreateAuthenticatedChannel(
-                    std::move(channel),
-                    NSecurityClient::TableMountInformerUserName);
-            }
+            auto channel = CreateAuthenticatedChannel(
+                Connection_->GetMasterChannelOrThrow(options.ReadFrom),
+                NSecurityClient::TableMountInformerUserName);
 
             auto primaryProxy = TObjectServiceProxy(channel);
             auto batchReq = primaryProxy.ExecuteBatch();
@@ -233,13 +229,9 @@ private:
 
             auto options = GetMasterReadOptions();
 
-            // COMPAT(akozhikhov)
-            auto channel = Connection_->GetMasterChannelOrThrow(options.ReadFrom, CellTag_);
-            if (Connection_->GetConfig()->EnableBuiltinTabletSystemUsers) {
-                channel = CreateAuthenticatedChannel(
-                    std::move(channel),
-                    NSecurityClient::TableMountInformerUserName);
-            }
+            auto channel = CreateAuthenticatedChannel(
+                Connection_->GetMasterChannelOrThrow(options.ReadFrom, CellTag_),
+                NSecurityClient::TableMountInformerUserName);
 
             auto secondaryProxy = TObjectServiceProxy(channel);
             auto batchReq = secondaryProxy.ExecuteBatch();
