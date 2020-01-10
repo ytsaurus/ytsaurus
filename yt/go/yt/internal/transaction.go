@@ -22,7 +22,7 @@ type TransactionParams interface {
 	TransactionOptions() **yt.TransactionOptions
 }
 
-func NewTx(ctx context.Context, e Encoder, stop *StopGroup, options *yt.StartTxOptions) (*TxInterceptor, error) {
+func NewTx(ctx context.Context, e Encoder, stop *StopGroup, options *yt.StartTxOptions) (yt.Tx, error) {
 	if options == nil {
 		options = &yt.StartTxOptions{}
 	}
@@ -52,7 +52,7 @@ func NewTx(ctx context.Context, e Encoder, stop *StopGroup, options *yt.StartTxO
 
 	if !stop.TryAdd() {
 		// In this rare event, leave tx running on the master.
-		return tx, xerrors.New("client is stopped")
+		return nil, xerrors.New("client is stopped")
 	}
 
 	go tx.pinger.run()
