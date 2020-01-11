@@ -3,14 +3,14 @@ from mypy.test.testcheck import TypeCheckSuite
 
 
 TypeCheckSuite.files = [
-        "context.test",
-        "ml-classification.test",
-        "ml-evaluation.test",
-        "ml-feature.test",
-        "ml-param.test",
-        "ml-readable.test",
-        "resultiterable.test",
-        "sql-column.test",
-        "sql-readwriter.test",
-        "sql-udf.test",
-    ]
+    "context.test",
+    "ml-classification.test",
+    "ml-evaluation.test",
+    "ml-feature.test",
+    "ml-param.test",
+    "ml-readable.test",
+    "resultiterable.test",
+    "sql-column.test",
+    "sql-readwriter.test",
+    "sql-udf.test",
+]
