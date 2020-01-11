@@ -362,6 +362,8 @@ private:
             }
         }
         peerConfig->DiscoverTimeout = Config_->DiscoverTimeout;
+        peerConfig->RediscoverPeriod = Config_->RediscoverPeriod;
+        peerConfig->RediscoverSplay = Config_->RediscoverSplay;
         peerConfig->SoftBackoffTime = Config_->SoftBackoffTime;
         peerConfig->HardBackoffTime = Config_->HardBackoffTime;
 

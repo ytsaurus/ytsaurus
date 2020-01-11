@@ -140,6 +140,20 @@ public:
     //! Timeout for |Discover| requests.
     TDuration DiscoverTimeout;
 
+    //! Interval between automatic rediscovery of active peers.
+    /*!
+     *  Discovery is started automatically if no active peers are known.
+     *  In some cases, however, this is not enough.
+     *  E.g. a follower may become active and thus eligible for load balancing.
+     *  This setting controls the period of time after which the channel
+     *  starts rediscovering peers even if an active one is known.
+     */
+    TDuration RediscoverPeriod;
+
+    //! A random duration from 0 to #RediscoverSplay is added to #RediscoverPeriod on each
+    //! rediscovery attempt.
+    TDuration RediscoverSplay;
+
     //! Time between consequent attempts to reconnect to a peer, which
     //! returns a hard failure (i.e. non-OK response) to |Discover| request.
     TDuration HardBackoffTime;
@@ -152,6 +166,10 @@ public:
     {
         RegisterParameter("discover_timeout", DiscoverTimeout)
             .Default(TDuration::Seconds(15));
+        RegisterParameter("rediscover_period", RediscoverPeriod)
+            .Default(TDuration::Seconds(10));
+        RegisterParameter("rediscover_splay", RediscoverSplay)
+            .Default(TDuration::Seconds(2));
         RegisterParameter("hard_backoff_time", HardBackoffTime)
             .Default(TDuration::Seconds(10));
         RegisterParameter("soft_backoff_time", SoftBackoffTime)
@@ -169,20 +187,6 @@ public:
     //! Maximum number of peers to query in parallel when locating alive endpoint.
     int MaxConcurrentDiscoverRequests;
 
-    //! Interval between automatic rediscovery of active peers.
-    /*!
-     *  Discovery is started automatically if no active peers are known.
-     *  In some cases, however, this is not enough.
-     *  E.g. a follower may become active and thus eligible for load balancing.
-     *  This setting controls the period of time after which the channel
-     *  starts rediscovering peers even if an active one is known.
-     */
-    TDuration RediscoverPeriod;
-
-    //! A random duration from 0 to #RediscoverSplay is added to #RediscoverPeriod on each
-    //! rediscovery attempt.
-    TDuration RediscoverSplay;
-
     //! For sticky mode: number of consistent hash tokens to assign to each peer.
     int HashesPerPeer;
 
@@ -192,10 +196,6 @@ public:
         RegisterParameter("max_concurrent_discover_requests", MaxConcurrentDiscoverRequests)
             .GreaterThan(0)
             .Default(1);
-        RegisterParameter("rediscover_period", RediscoverPeriod)
-            .Default(TDuration::Seconds(10));
-        RegisterParameter("rediscover_splay", RediscoverSplay)
-            .Default(TDuration::Seconds(2));
         RegisterParameter("hashes_per_peer", HashesPerPeer)
             .Default(10);
     }
