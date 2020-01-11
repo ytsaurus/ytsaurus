@@ -145,11 +145,11 @@ public:
         TCellDirectoryConfigPtr config,
         IChannelFactoryPtr channelFactory,
         const TNetworkPreferenceList& networks,
-        const NLogging::TLogger& logger)
-        : Config_(config)
-        , ChannelFactory_(channelFactory)
+        NLogging::TLogger logger)
+        : Config_(std::move(config))
+        , ChannelFactory_(std::move(channelFactory))
         , Networks_(networks)
-        , Logger(logger)
+        , Logger(std::move(logger))
     { }
 
     IChannelPtr FindChannel(TCellId cellId, EPeerKind peerKind)
@@ -380,12 +380,12 @@ TCellDirectory::TCellDirectory(
     TCellDirectoryConfigPtr config,
     IChannelFactoryPtr channelFactory,
     const TNetworkPreferenceList& networks,
-    const NLogging::TLogger& logger)
+    NLogging::TLogger logger)
     : Impl_(New<TImpl>(
-        config,
-        channelFactory,
+        std::move(config),
+        std::move(channelFactory),
         networks,
-        logger))
+        std::move(logger)))
 { }
 
 IChannelPtr TCellDirectory::FindChannel(TCellId cellId, EPeerKind peerKind)

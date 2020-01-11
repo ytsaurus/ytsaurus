@@ -19,6 +19,7 @@
 
 #include <yt/core/misc/random.h>
 
+#include <yt/core/rpc/caching_channel_factory.h>
 #include <yt/core/rpc/retrying_channel.h>
 #include <yt/core/rpc/reconfigurable_roaming_channel_provider.h>
 
@@ -41,15 +42,16 @@ public:
     TImpl(
         TCellDirectoryConfigPtr config,
         const TConnectionOptions& options,
-        const IChannelFactoryPtr& channelFactory,
-        const TMasterCacheSynchronizerPtr& masterCacheSynchronizer,
-        const NLogging::TLogger& logger)
+        IChannelFactoryPtr channelFactory,
+        TMasterCacheSynchronizerPtr masterCacheSynchronizer,
+        NLogging::TLogger logger)
         : Config_(std::move(config))
         , PrimaryMasterCellId_(Config_->PrimaryMaster->CellId)
         , PrimaryMasterCellTag_(CellTagFromId(PrimaryMasterCellId_))
-        , MasterCacheSynchronizer_(masterCacheSynchronizer)
+        , ChannelFactory_(CreateCachingChannelFactory(std::move(channelFactory)))
+        , MasterCacheSynchronizer_(std::move(masterCacheSynchronizer))
+        , Logger(std::move(logger))
         , RandomGenerator_(TInstant::Now().GetValue())
-        , Logger(logger)
     {
         for (const auto& masterConfig : Config_->SecondaryMasters) {
             SecondaryMasterCellTags_.push_back(CellTagFromId(masterConfig->CellId));
@@ -59,9 +61,9 @@ public:
 
         // NB: unlike channels, roles will be filled on first sync.
 
-        InitMasterChannels(Config_->PrimaryMaster, options, channelFactory);
+        InitMasterChannels(Config_->PrimaryMaster, options);
         for (const auto& masterConfig : Config_->SecondaryMasters) {
-            InitMasterChannels(masterConfig, options, channelFactory);
+            InitMasterChannels(masterConfig, options);
         }
     }
 
@@ -238,7 +240,9 @@ private:
     const TCellDirectoryConfigPtr Config_;
     const TCellId PrimaryMasterCellId_;
     const TCellTag PrimaryMasterCellTag_;
+    const ICachingChannelFactoryPtr  ChannelFactory_;
     const TMasterCacheSynchronizerPtr MasterCacheSynchronizer_;
+    const NLogging::TLogger Logger;
 
     /*const*/ TCellTagList SecondaryMasterCellTags_;
 
@@ -249,8 +253,6 @@ private:
     // The keys are always single roles (i.e. each key is a role set consisting of exactly on member).
     THashMultiMap<EMasterCellRoles, TCellTag> RoleCellsMap_;
     TRandomGenerator RandomGenerator_;
-
-    const NLogging::TLogger Logger;
 
     TCellTagList GetMasterCellTagsWithRole(EMasterCellRoles role) const
     {
@@ -298,24 +300,22 @@ private:
 
     void InitMasterChannels(
         const TMasterConnectionConfigPtr& config,
-        const TConnectionOptions& options,
-        const IChannelFactoryPtr& channelFactory)
+        const TConnectionOptions& options)
     {
-        InitMasterChannel(EMasterChannelKind::Leader, config, EPeerKind::Leader, options, channelFactory);
-        InitMasterChannel(EMasterChannelKind::Follower, config, EPeerKind::Follower, options, channelFactory);
-        InitMasterChannel(EMasterChannelKind::Cache, BuildMasterCacheConfig(config), EPeerKind::Follower, options, channelFactory);
-        InitMasterChannel(EMasterChannelKind::SecondLevelCache, config, EPeerKind::Follower, options, channelFactory);
+        InitMasterChannel(EMasterChannelKind::Leader, config, EPeerKind::Leader, options);
+        InitMasterChannel(EMasterChannelKind::Follower, config, EPeerKind::Follower, options);
+        InitMasterChannel(EMasterChannelKind::Cache, BuildMasterCacheConfig(config), EPeerKind::Follower, options);
+        InitMasterChannel(EMasterChannelKind::SecondLevelCache, config, EPeerKind::Follower, options);
     }
 
     void InitMasterChannel(
         EMasterChannelKind channelKind,
         const TMasterConnectionConfigPtr& config,
         EPeerKind peerKind,
-        const TConnectionOptions& options,
-        const IChannelFactoryPtr& channelFactory)
+        const TConnectionOptions& options)
     {
         auto cellTag = CellTagFromId(config->CellId);
-        auto peerChannel = CreatePeerChannel(config, peerKind, options, channelFactory);
+        auto peerChannel = CreatePeerChannel(config, peerKind, options);
 
         if (channelKind == EMasterChannelKind::Cache && MasterCacheSynchronizer_) {
             auto provider = CreateReconfigurableRoamingChannelProvider(
@@ -330,8 +330,7 @@ private:
                 provider,
                 config,
                 peerKind,
-                options,
-                channelFactory));
+                options));
         }
 
         CellChannelMap_[cellTag][channelKind] = peerChannel;
@@ -342,7 +341,6 @@ private:
         const TMasterConnectionConfigPtr& config,
         EPeerKind peerKind,
         const TConnectionOptions& options,
-        const IChannelFactoryPtr& channelFactory,
         const std::vector<TString>& discoveredAddresses)
     {
         YT_LOG_WARNING_IF(discoveredAddresses.empty(), "Received master cache node list is empty; falling back to masters");
@@ -351,14 +349,13 @@ private:
         peerChannelConfig->Addresses = discoveredAddresses.empty() ? config->Addresses : discoveredAddresses;
         peerChannelConfig->CellId = config->CellId;
 
-        provider->SetUnderlyingChannel(CreatePeerChannel(peerChannelConfig, peerKind, options, channelFactory));
+        provider->SetUnderlyingChannel(CreatePeerChannel(peerChannelConfig, peerKind, options));
     }
 
     IChannelPtr CreatePeerChannel(
         const TMasterConnectionConfigPtr& config,
         EPeerKind kind,
-        const TConnectionOptions& options,
-        const IChannelFactoryPtr& channelFactory)
+        const TConnectionOptions& options)
     {
         auto isRetryableError = BIND([options] (const TError& error) {
             if (error.FindMatching(NChunkClient::EErrorCode::OptimisticLockFailure)) {
@@ -374,7 +371,7 @@ private:
             return IsRetriableError(error);
         });
 
-        auto channel = NHydra::CreatePeerChannel(config, channelFactory, kind);
+        auto channel = NHydra::CreatePeerChannel(config, ChannelFactory_, kind);
         channel = CreateRetryingChannel(config, channel, isRetryableError);
         channel = CreateDefaultTimeoutChannel(channel, config->RpcTimeout);
         return channel;
@@ -386,15 +383,15 @@ private:
 TCellDirectory::TCellDirectory(
     TCellDirectoryConfigPtr config,
     const NApi::NNative::TConnectionOptions& options,
-    const IChannelFactoryPtr& channelFactory,
-    const NNodeTrackerClient::TMasterCacheSynchronizerPtr& masterCacheSynchronizer,
-    const NLogging::TLogger& logger)
+    IChannelFactoryPtr channelFactory,
+    NNodeTrackerClient::TMasterCacheSynchronizerPtr masterCacheSynchronizer,
+    NLogging::TLogger logger)
     : Impl_(New<TCellDirectory::TImpl>(
         std::move(config),
         options,
-        channelFactory,
-        masterCacheSynchronizer,
-        logger))
+        std::move(channelFactory),
+        std::move(masterCacheSynchronizer),
+        std::move(logger)))
 { }
 
 void TCellDirectory::Update(const NCellMasterClient::NProto::TCellDirectory& protoDirectory)
