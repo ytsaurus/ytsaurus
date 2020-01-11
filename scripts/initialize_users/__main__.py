@@ -13,6 +13,19 @@ import sys
 
 logger = None
 
+# Group public-object-creators is allowed to create objects of these types.
+PUBLIC_OBJECT_TYPES = [
+    "pod_set",
+    "pod",
+    "endpoint_set",
+    "endpoint",
+    "replica_set",
+    "multi_cluster_replica_set",
+    "stage",
+    "project",
+    "release_rule"
+]
+
 
 class Subject(object):
     def __init__(self, id, type):
@@ -516,6 +529,24 @@ def configure_pod_eviction_requesters_group(client):
         )
 
 
+# YP-1515
+def configure_public_object_creators(client):
+    public_object_creators = Group("public-object-creators")
+    members = (
+        Group("persons"),
+    )
+    add_group_members(client, public_object_creators, members)
+    for public_object_type in PUBLIC_OBJECT_TYPES:
+        add_permission(
+            client,
+            object_type="schema",
+            object_id=public_object_type,
+            subject=public_object_creators,
+            permission="create",
+            attribute="",
+        )
+
+
 # YPADMIN-286
 def configure_admins_group(client):
     admins = Group("admins")
@@ -528,14 +559,15 @@ def configure_admins_group(client):
         User("slonnn"),
     )
     add_group_members(client, admins, members)
-    add_permission(
-        client,
-        object_type="group",
-        object_id="pod-eviction-requesters",
-        subject=admins,
-        permission="write",
-        attribute="/spec/members",
-    )
+    for group_name in ["public-object-creators", "pod-eviction-requesters"]:
+        add_permission(
+            client,
+            object_type="group",
+            object_id=group_name,
+            subject=admins,
+            permission="write",
+            attribute="/spec/members",
+        )
 
 
 ####################################################################################################
@@ -555,6 +587,7 @@ def initialize_users(cluster, dry_run):
 
         configurators = (
             configure_pod_eviction_requesters_group,
+            configure_public_object_creators,
             configure_admins_group,
         )
 
@@ -562,7 +595,7 @@ def initialize_users(cluster, dry_run):
             try:
                 configurator(client)
             except Exception:
-                logger.exception("Error running %s", configurator.func_name)
+                logger.exception("Error running %s", configurator.__name__)
 
         accounts = copy.deepcopy(ACCOUNTS)
         accounts_override(cluster, accounts, client)
