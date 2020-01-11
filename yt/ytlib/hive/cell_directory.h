@@ -87,7 +87,7 @@ public:
         TCellDirectoryConfigPtr config,
         NRpc::IChannelFactoryPtr channelFactory,
         const NNodeTrackerClient::TNetworkPreferenceList& networks,
-        const NLogging::TLogger& logger);
+        NLogging::TLogger logger);
 
     //! Returns a peer channel of a given kind for a given cell id (|nullptr| if none is known).
     /*!

@@ -24,9 +24,9 @@ public:
     TCellDirectory(
         TCellDirectoryConfigPtr config,
         const NApi::NNative::TConnectionOptions& options,
-        const NRpc::IChannelFactoryPtr& channelFactory,
-        const NNodeTrackerClient::TMasterCacheSynchronizerPtr& masterCacheSynchronizer,
-        const NLogging::TLogger& logger);
+        NRpc::IChannelFactoryPtr channelFactory,
+        NNodeTrackerClient::TMasterCacheSynchronizerPtr masterCacheSynchronizer,
+        NLogging::TLogger logger);
 
     void Update(const NCellMasterClient::NProto::TCellDirectory& protoDirectory);
     void UpdateDefault();
