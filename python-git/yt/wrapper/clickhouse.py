@@ -14,15 +14,15 @@ from .yson import dumps, to_yson_type
 
 import yt.logger as logger
 
-from yt.packages.six import iteritems
+from yt.packages.six import iteritems, PY3
 from yt.yson import YsonUint64
 
 from tempfile import NamedTemporaryFile
-from inspect import getargspec
 
 import os.path
 import json
 import random
+import inspect
 
 CYPRESS_DEFAULTS_PATH = "//sys/clickhouse/defaults"
 BUNDLED_DEFAULTS = {
@@ -41,7 +41,10 @@ BUNDLED_DEFAULTS = {
 
 
 def _get_kwargs_names(fn):
-    argspec = getargspec(fn)
+    if PY3:
+        argspec = inspect.getfullargspec(fn)
+    else:
+        argspec = inspect.getargspec(fn)
     kwargs_len = len(argspec.defaults)
     kwargs_names = argspec.args[-kwargs_len:]
     return kwargs_names

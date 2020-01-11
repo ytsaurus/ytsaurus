@@ -6,7 +6,11 @@ import yt.json_wrapper as json
 # See http://bugs.python.org/issue7980 for more details.
 import _strptime
 
-from collections import Mapping
+# Python3 compatibility
+try:
+    from collections.abc import Mapping
+except ImportError:
+    from collections import Mapping
 from datetime import datetime
 from itertools import chain
 from functools import wraps

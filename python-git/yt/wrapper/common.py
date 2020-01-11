@@ -36,7 +36,11 @@ except ImportError:
 from multiprocessing.pool import ThreadPool
 from multiprocessing.dummy import (Process as DummyProcess,
                                    current_process as dummy_current_process)
-from collections import Mapping
+# Python3 compatibility
+try:
+    from collections.abc import Mapping
+except ImportError:
+    from collections import Mapping
 from itertools import chain, starmap
 from functools import reduce
 from copy import copy, deepcopy
