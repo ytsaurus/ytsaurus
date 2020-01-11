@@ -2098,7 +2098,7 @@ class TestDynamicTablesResourceLimitsPortal(TestDynamicTablesResourceLimitsMulti
 class TestDynamicTableStateTransitionsMulticell(TestDynamicTableStateTransitions):
     NUM_SECONDARY_MASTER_CELLS = 2
 
-class TestDynamicTableStateTransitionsPoral(TestDynamicTableStateTransitionsMulticell):
+class TestDynamicTableStateTransitionsPortal(TestDynamicTableStateTransitionsMulticell):
     ENABLE_TMP_PORTAL = True
 
 ##################################################################
