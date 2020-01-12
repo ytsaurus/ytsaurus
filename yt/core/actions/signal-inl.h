@@ -137,6 +137,7 @@ template <class TResult, class... TArgs>
 template <class... TCallArgs>
 bool TSingleShotCallbackList<TResult(TArgs...)>::Fire(TCallArgs&&... args)
 {
+    TCallbackVector callbacks;
     {
         NConcurrency::TWriterGuard guard(SpinLock_);
         if (Fired_) {
@@ -144,13 +145,12 @@ bool TSingleShotCallbackList<TResult(TArgs...)>::Fire(TCallArgs&&... args)
         }
         Fired_ = true;
         Args_ = std::make_tuple(std::forward<TCallArgs>(args)...);
+        callbacks.swap(Callbacks_);
     }
 
-    for (const auto& callback : Callbacks_) {
+    for (const auto& callback : callbacks) {
         std::apply(callback, Args_);
     }
-
-    Callbacks_.clear();
 
     return true;
 }
