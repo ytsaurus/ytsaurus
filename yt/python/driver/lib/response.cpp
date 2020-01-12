@@ -147,14 +147,15 @@ TDriverResponse::~TDriverResponse()
     }
 }
 
-void TDriverResponse::InitType()
+void TDriverResponse::InitType(const TString& moduleName)
 {
     static bool Initialized_ = false;
     if (Initialized_) {
         return;
     }
 
-    behaviors().name("Response");
+    TString typeName = moduleName + ".Response";
+    behaviors().name(typeName.c_str());
     behaviors().doc("Command response");
     behaviors().supportGetattro();
     behaviors().supportSetattro();

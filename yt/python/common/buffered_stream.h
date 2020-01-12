@@ -89,7 +89,7 @@ public:
 
     virtual ~TBufferedStreamWrap();
 
-    static void InitType();
+    static void InitType(const TString& moduleName);
 
 private:
     TBufferedStreamPtr Stream_;

@@ -30,7 +30,7 @@ public:
 
     virtual ~TCommandDescriptor();
 
-    static void InitType();
+    static void InitType(const TString& moduleName);
 
 private:
     NDriver::TCommandDescriptor Descriptor_;

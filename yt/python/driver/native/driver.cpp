@@ -60,7 +60,7 @@ public:
 
     static void InitType()
     {
-        behaviors().name("Driver");
+        behaviors().name("driver_lib.Driver");
         behaviors().doc("Represents a YT driver");
         behaviors().supportGetattro();
         behaviors().supportSetattro();
@@ -240,6 +240,7 @@ public:
         : Py::ExtensionModule<TDriverModule>("driver_lib")
     {
         TDriverModuleBase::Initialize(
+            "driver_lib",
             [](){TDriver::InitType();},
             [&](){initialize("Python bindings for YT driver");},
             std::bind(&TDriverModule::moduleDictionary, this),
