@@ -108,7 +108,18 @@ public:
 
     virtual TFuture<void> Terminate(const TError& error) override
     {
+        Terminated_.Fire(error);
         return VoidFuture;
+    }
+
+    virtual void SubscribeTerminated(const TCallback<void(const TError&)>& callback) override
+    {
+        Terminated_.Subscribe(callback);
+    }
+
+    virtual void UnsubscribeTerminated(const TCallback<void(const TError&)>& callback) override
+    {
+        Terminated_.Unsubscribe(callback);
     }
 
 private:
@@ -117,6 +128,7 @@ private:
 
     const IServerPtr Server_;
 
+    TSingleShotCallbackList<void(const TError&)> Terminated_;
 
     class TSession
         : public IBus
