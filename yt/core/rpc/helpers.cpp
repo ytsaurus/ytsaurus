@@ -304,7 +304,7 @@ class TFailureDetectingChannel
 public:
     TFailureDetectingChannel(
         IChannelPtr underlyingChannel,
-        TCallback<void(IChannelPtr)> onFailure,
+        TCallback<void(const IChannelPtr&, const TError&)> onFailure,
         TCallback<bool(const TError&)> isError)
         : TChannelWrapper(std::move(underlyingChannel))
         , OnFailure_(std::move(onFailure))
@@ -331,14 +331,14 @@ public:
     }
 
 private:
-    const TCallback<void(IChannelPtr)> OnFailure_;
+    const TCallback<void(const IChannelPtr&, const TError&)> OnFailure_;
     const TCallback<bool(const TError&)> IsError_;
     const TCallback<void(const TError&)> OnTerminated_;
 
 
     void OnTerminated(const TError& error)
     {
-        OnFailure_(this);
+        OnFailure_(this, error);
     }
 
     class TResponseHandler
@@ -348,7 +348,7 @@ private:
         TResponseHandler(
             IChannelPtr channel,
             IClientResponseHandlerPtr underlyingHandler,
-            TCallback<void(IChannelPtr)> onFailure,
+            TCallback<void(const IChannelPtr&, const TError&)> onFailure,
             TCallback<bool(const TError&)> isError)
             : Channel_(std::move(channel))
             , UnderlyingHandler_(std::move(underlyingHandler))
@@ -369,7 +369,7 @@ private:
         virtual void HandleError(const TError& error) override
         {
             if (IsError_(error)) {
-                OnFailure_.Run(Channel_);
+                OnFailure_.Run(Channel_, error);
             }
             UnderlyingHandler_->HandleError(error);
         }
@@ -387,14 +387,14 @@ private:
     private:
         const IChannelPtr Channel_;
         const IClientResponseHandlerPtr UnderlyingHandler_;
-        const TCallback<void(IChannelPtr)> OnFailure_;
+        const TCallback<void(const IChannelPtr&, const TError&)> OnFailure_;
         const TCallback<bool(const TError&)> IsError_;
     };
 };
 
 IChannelPtr CreateFailureDetectingChannel(
     IChannelPtr underlyingChannel,
-    TCallback<void(IChannelPtr)> onFailure,
+    TCallback<void(const IChannelPtr&, const TError& error)> onFailure,
     TCallback<bool(const TError&)> isError)
 {
     return New<TFailureDetectingChannel>(

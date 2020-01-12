@@ -122,7 +122,7 @@ private:
     IChannelPtr CachedChannel_;
 
 
-    void OnChannelFailed(IChannelPtr channel)
+    void OnChannelFailed(const IChannelPtr& channel, const TError& /*error*/)
     {
         TGuard<TSpinLock> guard(SpinLock_);
         if (CachedChannel_ == channel) {
