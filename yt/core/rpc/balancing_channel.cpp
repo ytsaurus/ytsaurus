@@ -643,7 +643,7 @@ private:
         }
     }
 
-    void OnChannelFailed(const TString& address, const IChannelPtr& channel)
+    void OnChannelFailed(const TString& address, const IChannelPtr& channel, const TError& error)
     {
         bool evicted = false;
         {
@@ -655,7 +655,7 @@ private:
             }
         }
 
-        YT_LOG_DEBUG("Peer is no longer viable (Address: %v, Evicted: %v)",
+        YT_LOG_DEBUG(error, "Peer is no longer viable (Address: %v, Evicted: %v)",
             address,
             evicted);
     }

@@ -68,7 +68,7 @@ IChannelFactoryPtr CreateRealmChannelFactory(
  */
 IChannelPtr CreateFailureDetectingChannel(
     IChannelPtr underlyingChannel,
-    TCallback<void(IChannelPtr)> onFailure,
+    TCallback<void(const IChannelPtr&, const TError& error)> onFailure,
     TCallback<bool(const TError&)> isError = BIND(IsChannelFailureError));
 
 NTracing::TTraceContextPtr CreateHandlerTraceContext(const NProto::TRequestHeader& header);
