@@ -3116,6 +3116,7 @@ class TestTentativePoolTrees(YTEnvSetup):
             assert not operations_failed_or_aborted()
             for job_id, tentative in self._iter_running_jobs(op, other_nodes):
                 if not tentative and job_id not in context["completed_jobs"] and len(context["completed_jobs"]) < 20:
+                    print_debug("Complete job {0}".format(job_id))
                     context["completed_jobs"].add(job_id)
                     events.notify_event("continue_job_{0}".format(job_id))
             return len(context["completed_jobs"]) == 20
