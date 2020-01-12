@@ -309,7 +309,15 @@ public:
         : TChannelWrapper(std::move(underlyingChannel))
         , OnFailure_(std::move(onFailure))
         , IsError_(std::move(isError))
-    { }
+        , OnTerminated_(BIND(&TFailureDetectingChannel::OnTerminated, MakeWeak(this)))
+    {
+        UnderlyingChannel_->SubscribeTerminated(OnTerminated_);
+    }
+
+    ~TFailureDetectingChannel()
+    {
+        UnderlyingChannel_->UnsubscribeTerminated(OnTerminated_);
+    }
 
     virtual IClientRequestControlPtr Send(
         IClientRequestPtr request,
@@ -325,6 +333,13 @@ public:
 private:
     const TCallback<void(IChannelPtr)> OnFailure_;
     const TCallback<bool(const TError&)> IsError_;
+    const TCallback<void(const TError&)> OnTerminated_;
+
+
+    void OnTerminated(const TError& error)
+    {
+        OnFailure_(this);
+    }
 
     class TResponseHandler
         : public IClientResponseHandler

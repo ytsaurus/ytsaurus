@@ -6,6 +6,7 @@
 #include "helpers.h"
 
 #include <yt/core/actions/future.h>
+#include <yt/core/actions/signal.h>
 
 #include <yt/core/bus/client.h>
 
@@ -121,6 +122,9 @@ struct IChannel
      *  After the first call the instance is no longer usable.
      */
     virtual TFuture<void> Terminate(const TError& error) = 0;
+
+    //! Raised whenever the channel is terminated.
+    DECLARE_INTERFACE_SIGNAL(void(const TError&), Terminated);
 };
 
 DEFINE_REFCOUNTED_TYPE(IChannel)
@@ -132,7 +136,6 @@ struct IChannelFactory
     : public virtual TRefCounted
 {
     virtual IChannelPtr CreateChannel(const TString& address) = 0;
-
     virtual IChannelPtr CreateChannel(const TAddressWithNetwork& addressWithNetwork) = 0;
 };
 

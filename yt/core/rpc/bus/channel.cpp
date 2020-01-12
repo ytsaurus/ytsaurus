@@ -103,7 +103,7 @@ public:
         {
             TWriterGuard guard(SpinLock_);
 
-            if (Terminated_) {
+            if (!TerminationError_.IsOK()) {
                 return VoidFuture;
             }
 
@@ -114,7 +114,6 @@ public:
                 }
             }
 
-            Terminated_ = true;
             TerminationError_ = error;
         }
 
@@ -122,7 +121,19 @@ public:
             session->Terminate(error);
         }
 
+        Terminated_.Fire(TerminationError_);
+
         return VoidFuture;
+    }
+
+    virtual void SubscribeTerminated(const TCallback<void(const TError&)>& callback) override
+    {
+        Terminated_.Subscribe(callback);
+    }
+
+    virtual void UnsubscribeTerminated(const TCallback<void(const TError&)>& callback) override
+    {
+        Terminated_.Unsubscribe(callback);
     }
 
 private:
@@ -135,8 +146,9 @@ private:
     const IBusClientPtr Client_;
     const TNetworkId NetworkId_;
 
+    TSingleShotCallbackList<void(const TError&)> Terminated_;
+
     TReaderWriterSpinLock SpinLock_;
-    bool Terminated_ = false;
     TError TerminationError_;
     TEnumIndexedVector<EMultiplexingBand, TSessionPtr> Sessions_;
 
@@ -170,7 +182,7 @@ private:
                 return *perBandSession;
             }
 
-            if (Terminated_) {
+            if (!TerminationError_.IsOK()) {
                 THROW_ERROR_EXCEPTION(NRpc::EErrorCode::TransportError, "Channel terminated")
                     << TerminationError_;
             }
@@ -190,6 +202,7 @@ private:
             MakeWeak(this),
             MakeWeak(session),
             band));
+
         return session;
     }
 
@@ -211,7 +224,6 @@ private:
 
         session_->Terminate(error);
     }
-
 
     //! Provides a weak wrapper around a session and breaks the cycle
     //! between the session and its underlying bus.
@@ -242,7 +254,9 @@ private:
         : public IMessageHandler
     {
     public:
-        TSession(EMultiplexingBand band, TNetworkId networkId)
+        TSession(
+            EMultiplexingBand band,
+            TNetworkId networkId)
             : TosLevel_(TDispatcher::Get()->GetTosLevelForBand(band, networkId))
         { }
 
@@ -255,13 +269,14 @@ private:
 
         void Terminate(const TError& error)
         {
+            YT_VERIFY(!error.IsOK());
+
             std::vector<std::tuple<TClientRequestControlPtr, IClientResponseHandlerPtr>> existingRequests;
 
             // Mark the channel as terminated to disallow any further usage.
             {
                 auto guard = Guard(SpinLock_);
 
-                Terminated_ = true;
                 TerminationError_ = error;
 
                 existingRequests.reserve(ActiveRequestMap_.size());
@@ -584,7 +599,6 @@ private:
         IBusPtr Bus_;
 
         TSpinLock SpinLock_;
-        bool Terminated_ = false;
         TError TerminationError_;
         typedef THashMap<TRequestId, TClientRequestControlPtr> TActiveRequestMap;
         TActiveRequestMap ActiveRequestMap_;
@@ -596,7 +610,7 @@ private:
 
             auto guard = Guard(SpinLock_);
 
-            if (Terminated_) {
+            if (!TerminationError_.IsOK()) {
                 return nullptr;
             }
 
@@ -659,7 +673,7 @@ private:
                     return;
                 }
 
-                if (Terminated_) {
+                if (!TerminationError_.IsOK()) {
                     auto responseHandler = requestControl->Finalize(guard);
                     guard.Release();
 
@@ -743,7 +757,7 @@ private:
             {
                 auto guard = Guard(SpinLock_);
 
-                if (Terminated_) {
+                if (!TerminationError_.IsOK()) {
                     YT_LOG_WARNING("Response received via a terminated channel (RequestId: %v)",
                         requestId);
                     return;
@@ -974,7 +988,6 @@ private:
 
             responseHandler->HandleResponse(std::move(message));
         }
-
     };
 
     //! Controls a sent request.

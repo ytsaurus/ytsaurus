@@ -109,12 +109,11 @@ public:
                 MakeWeak(this));
         }
 
-        TerminateIdleChannels_ = New<TPeriodicExecutor>(
+        TerminateIdleChannelsExecutor_ = New<TPeriodicExecutor>(
             GetInvoker(),
-            BIND(&ICachingChannelFactory::TerminateIdleChannels,
-                MakeWeak(CachingChannelFactory_),
-                Config_->IdleChannelTtl),
+            BIND(&ICachingChannelFactory::TerminateIdleChannels, MakeWeak(CachingChannelFactory_), Config_->IdleChannelTtl),
             Config_->IdleChannelTtl);
+        TerminateIdleChannelsExecutor_->Start();
 
         MasterCellDirectory_ = New<NCellMasterClient::TCellDirectory>(
             Config_,
@@ -439,7 +438,7 @@ private:
     // These two fields hold reference to the same object.
     const NRpc::ICachingChannelFactoryPtr CachingChannelFactory_;
     const NRpc::IChannelFactoryPtr ChannelFactory_;
-    TPeriodicExecutorPtr TerminateIdleChannels_;
+    TPeriodicExecutorPtr TerminateIdleChannelsExecutor_;
 
     // NB: there're also CellDirectory_ and CellDirectorySynchronizer_, which are completely different from these.
     NCellMasterClient::TCellDirectoryPtr MasterCellDirectory_;

@@ -45,6 +45,16 @@ TFuture<void> TChannelWrapper::Terminate(const TError& error)
     return UnderlyingChannel_->Terminate(error);
 }
 
+void TChannelWrapper::SubscribeTerminated(const TCallback<void(const TError&)>& callback)
+{
+    UnderlyingChannel_->SubscribeTerminated(callback);
+}
+
+void TChannelWrapper::UnsubscribeTerminated(const TCallback<void(const TError&)>& callback)
+{
+    UnderlyingChannel_->UnsubscribeTerminated(callback);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TClientRequestControlThunk::SetUnderlying(IClientRequestControlPtr underlying)

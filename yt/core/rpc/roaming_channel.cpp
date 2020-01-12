@@ -156,6 +156,12 @@ public:
         return Provider_->Terminate(error);
     }
 
+    virtual void SubscribeTerminated(const TCallback<void(const TError&)>& /*callback*/) override
+    { }
+
+    virtual void UnsubscribeTerminated(const TCallback<void(const TError&)>& /*callback*/) override
+    { }
+
 private:
     const IRoamingChannelProviderPtr Provider_;
 
