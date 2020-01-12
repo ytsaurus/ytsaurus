@@ -5,7 +5,7 @@ from typing import Any, Generic, Optional, Type, TypeVar
 from pyspark.ml._typing import P, T, JM, ParamMap
 
 from pyspark.ml import Estimator, Model, Transformer
-from pyspark.ml.param import Params
+from pyspark.ml.param import Param, Params
 from pyspark.ml.param.shared import HasFeaturesCol, HasLabelCol, HasPredictionCol
 
 xrange = range
@@ -17,6 +17,7 @@ class JavaWrapper:
 class JavaParams(JavaWrapper, Params):
     __metaclass__: Type[abc.ABCMeta]
     def copy(self: P, extra: Optional[ParamMap] = ...) -> P: ...
+    def clear(self, param: Param) -> None: ...
 
 class JavaEstimator(JavaParams, Estimator[JM]):
     __metaclass__: Type[abc.ABCMeta]
