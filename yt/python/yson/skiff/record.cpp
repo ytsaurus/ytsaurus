@@ -300,7 +300,7 @@ void TSkiffRecordPython::SetSkiffRecordObject(TIntrusivePtr<TSkiffRecord> record
 
 void TSkiffRecordPython::InitType()
 {
-    behaviors().name("yt_yson_bindings.SkiffRecord");
+    behaviors().name("yson_lib.SkiffRecord");
     behaviors().doc("Skiff record");
 
     behaviors().supportGetattro();
@@ -427,7 +427,7 @@ PyObject* TSkiffRecordItemsIterator::iternext()
 
 void TSkiffRecordItemsIterator::InitType()
 {
-    behaviors().name("yt_yson_bindings.SkiffRecordIterator");
+    behaviors().name("yson_lib.SkiffRecordIterator");
     behaviors().doc("Iterates over Skiff record");
     behaviors().supportGetattro();
     behaviors().supportSetattro();

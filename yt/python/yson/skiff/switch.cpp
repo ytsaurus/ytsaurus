@@ -29,7 +29,7 @@ ui16 TSkiffTableSwitchPython::GetTableIndex()
 
 void TSkiffTableSwitchPython::InitType()
 {
-    behaviors().name("yt_yson_bindings.SkiffTableSwitcher");
+    behaviors().name("yson_lib.SkiffTableSwitcher");
     behaviors().doc("Skiff table switcher");
 
     behaviors().supportGetattro();

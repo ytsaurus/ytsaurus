@@ -65,7 +65,7 @@ public:
 
     static void InitType()
     {
-        behaviors().name("Driver");
+        behaviors().name("driver_rpc_lib.Driver");
         behaviors().doc("Represents a YT RPC driver");
         behaviors().supportGetattro();
         behaviors().supportSetattro();
@@ -95,6 +95,7 @@ public:
         : Py::ExtensionModule<TDriverRpcModule>("driver_rpc_lib")
     {
         TDriverModuleBase::Initialize(
+            "driver_rpc_lib",
             [](){TDriverRpc::InitType();},
             [&](){initialize("Python RPC bindings for YT driver");},
             std::bind(&TDriverRpcModule::moduleDictionary, this),

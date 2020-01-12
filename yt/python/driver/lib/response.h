@@ -67,7 +67,7 @@ public:
 
     virtual ~TDriverResponse();
 
-    static void InitType();
+    static void InitType(const TString& moduleName);
 
 private:
     TFuture<void> Response_;

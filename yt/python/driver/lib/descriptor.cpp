@@ -33,14 +33,15 @@ Py::Object TCommandDescriptor::IsHeavy(Py::Tuple& args, Py::Dict& kwargs)
     return Py::Boolean(Descriptor_.Heavy);
 }
 
-void TCommandDescriptor::InitType()
+void TCommandDescriptor::InitType(const TString& moduleName)
 {
     static bool Initialized_ = false;
     if (Initialized_) {
         return;
     }
 
-    behaviors().name("CommandDescriptor");
+    TString typeName = moduleName + ".CommandDescriptor";
+    behaviors().name(typeName.c_str());
     behaviors().doc("Describe command properties");
     behaviors().supportGetattro();
     behaviors().supportSetattro();
