@@ -122,7 +122,7 @@ public:
 
 private:
     mutable NConcurrency::TReaderWriterSpinLock SpinLock_;
-    bool Fired_ = false;
+    std::atomic<bool> Fired_ = false;
     using TCallbackVector = SmallVector<TCallback, 4>;
     TCallbackVector Callbacks_;
     std::tuple<typename std::decay<TArgs>::type...> Args_;
