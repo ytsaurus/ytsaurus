@@ -51,9 +51,9 @@ TTcpBusConfig::TTcpBusConfig()
     RegisterParameter("bind_retry_backoff", BindRetryBackoff)
         .Default(TDuration::Seconds(3));
     RegisterParameter("read_stall_timeout", ReadStallTimeout)
-        .Default(TDuration::Minutes(2));
+        .Default(TDuration::Minutes(1));
     RegisterParameter("write_stall_timeout", WriteStallTimeout)
-        .Default(TDuration::Minutes(2));
+        .Default(TDuration::Minutes(1));
     RegisterParameter("verify_checksums", VerifyChecksums)
         .Default(true);
     RegisterParameter("generate_checksum", GenerateChecksums)
