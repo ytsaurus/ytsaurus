@@ -128,7 +128,6 @@ public:
             // COMPAT(max42): remove this, name is misleading.
             ProxiedRequestHeaders_->Add("X-Yt-Request-Id", ToString(Request_->GetRequestId()));
 
-            ProxiedRequestHeaders_->Add("X-Yt-Query-Id", ToString(traceContext->GetTraceId()));
             ProxiedRequestHeaders_->Add("X-Yt-Trace-Id", ToString(traceContext->GetTraceId()));
             ProxiedRequestHeaders_->Add("X-Yt-Span-Id", Format("%" PRIx64, traceContext->GetSpanId()));
             ProxiedRequestHeaders_->Add("X-Yt-Sampled", ToString(traceContext->IsSampled()));
@@ -240,7 +239,7 @@ public:
         Response_->GetHeaders()->MergeFrom(ProxiedResponse_->GetHeaders());
         YT_LOG_DEBUG("Received headers, forwarding proxied response");
         PipeInputToOutput(ProxiedResponse_, Response_);
-        
+
         PROFILE_AGGREGATED_TIMING(Metrics_.ForwardProxiedResponseTime) {
             WaitFor(Response_->Close())
                 .ThrowOnError();

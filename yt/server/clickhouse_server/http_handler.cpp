@@ -150,9 +150,17 @@ Poco::Net::HTTPRequestHandler* THttpHandlerFactory::createRequestHandler(
         virtual void customizeContext(DB::Context& context) override
         {
             YT_VERIFY(TraceContext_);
+
+            // If trace id = 11111111-22222222-33333333-44444444 and span id = 5555555566666666,
+            // then query id will be 33333333-44444444-55555555-66666666.
+            const auto& traceId = TraceContext_->GetTraceId();
+            TGuid queryId;
+            queryId.Parts64[1] = traceId.Parts64[0];
+            queryId.Parts64[0] = TraceContext_->GetSpanId();
+
             // For HTTP queries (which are always initial) query id is same as trace id.
-            context.getClientInfo().current_query_id = context.getClientInfo().initial_query_id = ToString(TraceContext_->GetTraceId());
-            SetupHostContext(Bootstrap_, context, TraceContext_->GetTraceId(), TraceContext_);
+            context.getClientInfo().current_query_id = context.getClientInfo().initial_query_id = ToString(queryId);
+            SetupHostContext(Bootstrap_, context, queryId, TraceContext_);
         }
 
     private:
