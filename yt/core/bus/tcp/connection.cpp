@@ -87,6 +87,7 @@ TTcpConnection::TTcpConnection(
     , WriteStallTimeout_(NProfiling::DurationToCpuDuration(Config_->WriteStallTimeout))
 {
     Poller_->Register(this);
+    TTcpDispatcher::TImpl::Get()->RegisterConnection(this);
     InitBuffers();
 }
 
@@ -149,7 +150,7 @@ void TTcpConnection::Start()
     }
 }
 
-void TTcpConnection::Check()
+void TTcpConnection::CheckLiveness()
 {
     if (State_ != EState::Open) {
         return;
