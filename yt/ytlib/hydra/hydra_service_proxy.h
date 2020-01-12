@@ -32,7 +32,8 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, SyncWithLeader,
         .SetMultiplexingBand(NRpc::EMultiplexingBand::Control));
     DEFINE_RPC_PROXY_METHOD(NProto, CommitMutation);
-    DEFINE_RPC_PROXY_METHOD(NProto, Poke);
+    DEFINE_RPC_PROXY_METHOD(NProto, Poke,
+        .SetMultiplexingBand(NRpc::EMultiplexingBand::Control));
 };
 
 ////////////////////////////////////////////////////////////////////////////////
