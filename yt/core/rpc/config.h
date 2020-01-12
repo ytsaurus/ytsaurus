@@ -167,13 +167,13 @@ public:
         RegisterParameter("discover_timeout", DiscoverTimeout)
             .Default(TDuration::Seconds(15));
         RegisterParameter("rediscover_period", RediscoverPeriod)
-            .Default(TDuration::Seconds(10));
+            .Default(TDuration::Seconds(60));
         RegisterParameter("rediscover_splay", RediscoverSplay)
-            .Default(TDuration::Seconds(2));
+            .Default(TDuration::Seconds(15));
         RegisterParameter("hard_backoff_time", HardBackoffTime)
-            .Default(TDuration::Seconds(10));
+            .Default(TDuration::Seconds(60));
         RegisterParameter("soft_backoff_time", SoftBackoffTime)
-            .Default(TDuration::Seconds(5));
+            .Default(TDuration::Seconds(15));
     }
 };
 
@@ -184,7 +184,7 @@ public:
     //! List of seed addresses.
     std::vector<TString> Addresses;
 
-    //! Maximum number of peers to query in parallel when locating alive endpoint.
+    //! Maximum number of peers to query in parallel when locating alive endpoints.
     int MaxConcurrentDiscoverRequests;
 
     //! For sticky mode: number of consistent hash tokens to assign to each peer.
