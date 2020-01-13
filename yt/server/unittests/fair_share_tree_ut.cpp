@@ -466,7 +466,7 @@ TEST_F(TFairShareTreeTest, TestAttributes)
 
         TUpdateFairShareContext updateContext;
         rootElement->PreUpdate(&dynamicAttributes, &updateContext);
-        rootElement->Update(dynamicAttributesList, &updateContext);
+        rootElement->Update(&dynamicAttributes, &updateContext);
 
         EXPECT_EQ(0.1, rootElement->Attributes().DemandRatio);
         EXPECT_EQ(0.1, poolA->Attributes().DemandRatio);
@@ -494,7 +494,7 @@ TEST_F(TFairShareTreeTest, TestAttributes)
 
         TUpdateFairShareContext updateContext;
         rootElement->PreUpdate(&dynamicAttributes, &updateContext);
-        rootElement->Update(dynamicAttributesList, &updateContext);
+        rootElement->Update(&dynamicAttributes, &updateContext);
 
         EXPECT_EQ(0.5, dynamicAttributes[operationElementX->GetTreeIndex()].SatisfactionRatio);
         EXPECT_EQ(0.5, dynamicAttributes[poolA->GetTreeIndex()].SatisfactionRatio);
@@ -541,7 +541,7 @@ TEST_F(TFairShareTreeTest, TestUpdatePreemptableJobsList)
 
     TUpdateFairShareContext updateContext;
     rootElement->PreUpdate(&dynamicAttributes, &updateContext);
-    rootElement->Update(dynamicAttributesList, &updateContext);
+    rootElement->Update(&dynamicAttributes, &updateContext);
 
     EXPECT_EQ(1.6, operationElementX->Attributes().DemandRatio);
     EXPECT_EQ(1.0, operationElementX->Attributes().FairShareRatio);
@@ -592,7 +592,7 @@ TEST_F(TFairShareTreeTest, TestBestAllocationRatio)
 
     TUpdateFairShareContext updateContext;
     rootElement->PreUpdate(&dynamicAttributes, &updateContext);
-    rootElement->Update(dynamicAttributesList, &updateContext);
+    rootElement->Update(&dynamicAttributes, &updateContext);
 
     EXPECT_EQ(1.125, operationElementX->Attributes().DemandRatio);
     EXPECT_EQ(0.375, operationElementX->Attributes().BestAllocationRatio);
@@ -679,7 +679,7 @@ TEST_F(TFairShareTreeTest, TestMaxPossibleUsageRatioWithoutLimit)
 
     TUpdateFairShareContext updateContext;
     rootElement->PreUpdate(&dynamicAttributes, &updateContext);
-    rootElement->Update(dynamicAttributesList, &updateContext);
+    rootElement->Update(&dynamicAttributes, &updateContext);
     EXPECT_EQ(0.15, pool->Attributes().MaxPossibleUsageRatio);
 }
 
@@ -797,7 +797,7 @@ TEST_F(TFairShareTreeTest, DoNotPreemptJobsIfFairShareRatioEqualToDemandRatio)
 
     TUpdateFairShareContext updateContext;
     rootElement->PreUpdate(&dynamicAttributes, &updateContext);
-    rootElement->Update(dynamicAttributesList, &updateContext);
+    rootElement->Update(&dynamicAttributes, &updateContext);
 
     EXPECT_EQ(0.4, operationElement->Attributes().DemandRatio);
     EXPECT_EQ(0.4, operationElement->Attributes().FairShareRatio);
