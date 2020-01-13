@@ -15,14 +15,9 @@ import os
 
 
 DEFAULT_YP_MASTER_OPTIONS = {
-    "address_resolver": {
-        "localhost_fqdn": "localhost"
-    },
 }
 
-
 DEFAULT_LOCAL_YT_OPTIONS = {
-    "fqdn": "localhost",
     "http_proxy_count": 1,
 }
 
