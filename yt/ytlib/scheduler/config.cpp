@@ -1642,6 +1642,8 @@ TSchedulerConnectionConfig::TSchedulerConnectionConfig()
 {
     RegisterParameter("rpc_timeout", RpcTimeout)
         .Default(TDuration::Seconds(60));
+    RegisterParameter("rpc_acknowledgement_timeout", RpcAcknowledgementTimeout)
+        .Default(TDuration::Seconds(15));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

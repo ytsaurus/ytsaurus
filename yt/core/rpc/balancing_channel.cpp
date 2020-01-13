@@ -621,6 +621,7 @@ private:
     {
         auto wrappedChannel = CreateFailureDetectingChannel(
             channel,
+            Config_->AcknowledgementTimeout,
             BIND(&TBalancingChannelSubprovider::OnChannelFailed, MakeWeak(this), address));
 
         bool updated;

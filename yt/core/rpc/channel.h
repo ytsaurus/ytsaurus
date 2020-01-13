@@ -77,7 +77,7 @@ DEFINE_REFCOUNTED_TYPE(IClientRequestControl)
 struct TSendOptions
 {
     std::optional<TDuration> Timeout;
-    bool RequestAck = true;
+    std::optional<TDuration> AcknowledgementTimeout;
     bool GenerateAttachmentChecksums = true;
     NYTAlloc::EMemoryZone MemoryZone = NYTAlloc::EMemoryZone::Normal;
     EMultiplexingBand MultiplexingBand = EMultiplexingBand::Default;

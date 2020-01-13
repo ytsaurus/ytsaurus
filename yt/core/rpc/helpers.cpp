@@ -304,9 +304,11 @@ class TFailureDetectingChannel
 public:
     TFailureDetectingChannel(
         IChannelPtr underlyingChannel,
+        std::optional<TDuration> acknowledgementTimeout,
         TCallback<void(const IChannelPtr&, const TError&)> onFailure,
         TCallback<bool(const TError&)> isError)
         : TChannelWrapper(std::move(underlyingChannel))
+        , AcknowledgementTimeout_(acknowledgementTimeout)
         , OnFailure_(std::move(onFailure))
         , IsError_(std::move(isError))
         , OnTerminated_(BIND(&TFailureDetectingChannel::OnTerminated, MakeWeak(this)))
@@ -324,13 +326,18 @@ public:
         IClientResponseHandlerPtr responseHandler,
         const TSendOptions& options) override
     {
+        auto updatedOptions = options;
+        if (AcknowledgementTimeout_) {
+            updatedOptions.AcknowledgementTimeout = AcknowledgementTimeout_;
+        }
         return UnderlyingChannel_->Send(
             request,
             New<TResponseHandler>(this, std::move(responseHandler), OnFailure_, IsError_),
-            options);
+            updatedOptions);
     }
 
 private:
+    const std::optional<TDuration> AcknowledgementTimeout_;
     const TCallback<void(const IChannelPtr&, const TError&)> OnFailure_;
     const TCallback<bool(const TError&)> IsError_;
     const TCallback<void(const TError&)> OnTerminated_;
@@ -394,11 +401,13 @@ private:
 
 IChannelPtr CreateFailureDetectingChannel(
     IChannelPtr underlyingChannel,
+    std::optional<TDuration> acknowledgementTimeout,
     TCallback<void(const IChannelPtr&, const TError& error)> onFailure,
     TCallback<bool(const TError&)> isError)
 {
     return New<TFailureDetectingChannel>(
         std::move(underlyingChannel),
+        acknowledgementTimeout,
         std::move(onFailure),
         std::move(isError));
 }

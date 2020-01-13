@@ -262,6 +262,7 @@ void TDynamicChannelPool::SetAddressList(const TErrorOr<std::vector<TString>>& a
             auto channel = CreateChannel(address);
             channel = CreateFailureDetectingChannel(
                 std::move(channel),
+                Config_->RpcAcknowledgementTimeout,
                 BIND([weakSlot = MakeWeak(replaced[i])] (const IChannelPtr& channel, const TError& /*error*/) {
                     if (auto slot = weakSlot.Lock()) {
                         slot->SeemsBroken = true;

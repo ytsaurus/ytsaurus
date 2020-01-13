@@ -309,20 +309,22 @@ private:
             auto requestControl = New<TClientRequestControl>(
                 this,
                 request,
-                options.Timeout,
+                options,
                 std::move(responseHandler));
 
             auto& header = request->Header();
             header.set_start_time(ToProto<i64>(TInstant::Now()));
 
-            // NB: Requests without timeout are rare but may occur.
-            // For these requests we still need to register a timeout cookie with TDelayedExecutor
-            // since this also provides proper cleanup and cancelation when global shutdown happens.
-            auto effectiveTimeout = options.Timeout.value_or(TDuration::Hours(24));
-            auto timeoutCookie = TDelayedExecutor::Submit(
-                BIND(&TSession::HandleTimeout, MakeWeak(this), requestControl),
-                effectiveTimeout);
-            requestControl->SetTimeoutCookie(Guard(SpinLock_), std::move(timeoutCookie));
+            {
+                // NB: Requests without timeout are rare but may occur.
+                // For these requests we still need to register a timeout cookie with TDelayedExecutor
+                // since this also provides proper cleanup and cancelation when global shutdown happens.
+                auto effectiveTimeout = options.Timeout.value_or(TDuration::Hours(24));
+                auto timeoutCookie = TDelayedExecutor::Submit(
+                    BIND(&TSession::HandleTimeout, MakeWeak(this), requestControl),
+                    effectiveTimeout);
+                requestControl->SetTimeoutCookie(Guard(SpinLock_), std::move(timeoutCookie));
+            }
 
             if (options.Timeout) {
                 header.set_timeout(ToProto<i64>(*options.Timeout));
@@ -516,6 +518,47 @@ private:
                     : "Request timed out"));
         }
 
+        void HandleAcknowledgementTimeout(const TClientRequestControlPtr& requestControl, bool aborted)
+        {
+            VERIFY_THREAD_AFFINITY_ANY();
+
+            auto requestId = requestControl->GetRequestId();
+
+            IClientResponseHandlerPtr responseHandler;
+            {
+                auto guard = Guard(SpinLock_);
+
+                if (!requestControl->IsActive(guard)) {
+                    return;
+                }
+
+                auto it = ActiveRequestMap_.find(requestId);
+                if (it != ActiveRequestMap_.end() && requestControl == it->second) {
+                    ActiveRequestMap_.erase(it);
+                } else {
+                    YT_LOG_DEBUG("Acknowledgement timeout occurred for an unknown or resent request (RequestId: %v)",
+                        requestId);
+                }
+
+                requestControl->ProfileTimeout();
+                responseHandler = requestControl->Finalize(guard);
+            }
+
+            if (aborted) {
+                return;
+            }
+
+            auto error = TError(NYT::EErrorCode::Timeout, "Request acknowledgement timed out");
+
+            NotifyError(
+                requestControl,
+                responseHandler,
+                AsStringBuf("Request acknowledgement timed out"),
+                error);
+
+            Bus_->Terminate(error);
+        }
+
         virtual void HandleMessage(TSharedRefArray message, IBusPtr /*replyBus*/) noexcept override
         {
             VERIFY_THREAD_AFFINITY_ANY();
@@ -694,6 +737,13 @@ private:
                     pair.first->second = requestControl;
                 }
 
+                if (options.AcknowledgementTimeout) {
+                    auto timeoutCookie = TDelayedExecutor::Submit(
+                        BIND(&TSession::HandleAcknowledgementTimeout, MakeWeak(this), requestControl),
+                        *options.AcknowledgementTimeout);
+                    requestControl->SetAcknowledgementTimeoutCookie(guard, std::move(timeoutCookie));
+                }
+
                 bus = Bus_;
             }
 
@@ -712,7 +762,7 @@ private:
             const auto& requestMessage = requestMessageOrError.Value();
 
             NBus::TSendOptions busOptions;
-            busOptions.TrackingLevel = options.RequestAck
+            busOptions.TrackingLevel = options.AcknowledgementTimeout
                 ? EDeliveryTrackingLevel::Full
                 : EDeliveryTrackingLevel::ErrorOnly;
             busOptions.ChecksummedPartCount = options.GenerateAttachmentChecksums
@@ -722,7 +772,7 @@ private:
             bus->Send(requestMessage, busOptions).Subscribe(BIND(
                 &TSession::OnAcknowledgement,
                 MakeStrong(this),
-                options.RequestAck,
+                options.AcknowledgementTimeout.has_value(),
                 requestId));
 
             requestControl->ProfileRequest(requestMessage);
@@ -895,11 +945,11 @@ private:
             responseHandler->HandleStreamingFeedback(feedback);
         }
 
-        void OnAcknowledgement(bool requestAck, TRequestId requestId, const TError& error)
+        void OnAcknowledgement(bool requestAcknowledgement, TRequestId requestId, const TError& error)
         {
             VERIFY_THREAD_AFFINITY_ANY();
 
-            if (!requestAck && error.IsOK()) {
+            if (!requestAcknowledgement && error.IsOK()) {
                 return;
             }
 
@@ -917,7 +967,8 @@ private:
                 }
 
                 requestControl = it->second;
-                requestControl->ProfileAck();
+                requestControl->SetAcknowledgementTimeoutCookie(guard, nullptr);
+                requestControl->ProfileAcknowledgement();
                 if (!error.IsOK()) {
                     responseHandler = requestControl->Finalize(guard);
                     ActiveRequestMap_.erase(it);
@@ -998,14 +1049,14 @@ private:
         TClientRequestControl(
             TSessionPtr session,
             IClientRequestPtr request,
-            std::optional<TDuration> timeout,
+            const TSendOptions& options,
             IClientResponseHandlerPtr responseHandler)
             : Session_(std::move(session))
             , RealmId_(request->GetRealmId())
             , Service_(request->GetService())
             , Method_(request->GetMethod())
             , RequestId_(request->GetRequestId())
-            , Timeout_(timeout)
+            , Options_(options)
             , MethodMetadata_(Session_->GetMethodMetadata(Service_, Method_))
             , ResponseHandler_(std::move(responseHandler))
         { }
@@ -1013,6 +1064,7 @@ private:
         ~TClientRequestControl()
         {
             TDelayedExecutor::CancelAndClear(TimeoutCookie_);
+            TDelayedExecutor::CancelAndClear(AcknowledgementTimeoutCookie_);
         }
 
         TRealmId GetRealmId() const
@@ -1037,7 +1089,7 @@ private:
 
         std::optional<TDuration> GetTimeout() const
         {
-            return Timeout_;
+            return Options_.Timeout;
         }
 
         TDuration GetTotalTime() const
@@ -1050,10 +1102,16 @@ private:
             return static_cast<bool>(ResponseHandler_);
         }
 
-        void SetTimeoutCookie(const TGuard<TSpinLock>&, TDelayedExecutorEntryPtr newTimeoutCookie)
+        void SetTimeoutCookie(const TGuard<TSpinLock>&, TDelayedExecutorEntryPtr cookie)
         {
             TDelayedExecutor::CancelAndClear(TimeoutCookie_);
-            TimeoutCookie_ = std::move(newTimeoutCookie);
+            TimeoutCookie_ = std::move(cookie);
+        }
+
+        void SetAcknowledgementTimeoutCookie(const TGuard<TSpinLock>&, TDelayedExecutorEntryPtr cookie)
+        {
+            TDelayedExecutor::CancelAndClear(AcknowledgementTimeoutCookie_);
+            AcknowledgementTimeoutCookie_ = std::move(cookie);
         }
 
         IClientResponseHandlerPtr GetResponseHandler(const TGuard<TSpinLock>&)
@@ -1065,6 +1123,7 @@ private:
         {
             TotalTime_ = DoProfile(MethodMetadata_->TotalTimeCounter);
             TDelayedExecutor::CancelAndClear(TimeoutCookie_);
+            TDelayedExecutor::CancelAndClear(AcknowledgementTimeoutCookie_);
             return std::move(ResponseHandler_);
         }
 
@@ -1090,7 +1149,7 @@ private:
                 GetTotalMessageAttachmentSize(responseMessage));
         }
 
-        void ProfileAck()
+        void ProfileAcknowledgement()
         {
             DoProfile(MethodMetadata_->AckTimeCounter);
         }
@@ -1127,10 +1186,11 @@ private:
         const TString Service_;
         const TString Method_;
         const TRequestId RequestId_;
-        const std::optional<TDuration> Timeout_;
+        const TSendOptions Options_;
         TSession::TMethodMetadata* const MethodMetadata_;
 
         TDelayedExecutorCookie TimeoutCookie_;
+        TDelayedExecutorCookie AcknowledgementTimeoutCookie_;
         IClientResponseHandlerPtr ResponseHandler_;
 
         NProfiling::TWallTimer Timer_;

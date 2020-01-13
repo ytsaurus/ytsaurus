@@ -762,7 +762,7 @@ bool TTcpConnection::OnMessagePacketReceived()
         Decoder_.GetPacketId(),
         Decoder_.GetPacketSize());
 
-    if (Any(Decoder_.GetPacketFlags() & EPacketFlags::RequestAck)) {
+    if (Any(Decoder_.GetPacketFlags() & EPacketFlags::RequestAcknowledgement)) {
         EnqueuePacket(EPacketType::Ack, EPacketFlags::None, 0, Decoder_.GetPacketId());
     }
 
@@ -1075,7 +1075,7 @@ void TTcpConnection::ProcessQueuedMessages()
 
         auto packetId = queuedMessage.PacketId;
         auto flags = queuedMessage.Options.TrackingLevel == EDeliveryTrackingLevel::Full
-            ? EPacketFlags::RequestAck
+            ? EPacketFlags::RequestAcknowledgement
             : EPacketFlags::None;
         if (queuedMessage.Options.MemoryZone == EMemoryZone::Undumpable) {
             flags |= EPacketFlags::UseUndumpableMemoryZone;
@@ -1094,7 +1094,7 @@ void TTcpConnection::ProcessQueuedMessages()
             packet->PacketSize,
             flags);
 
-        if (Any(flags & EPacketFlags::RequestAck)) {
+        if (Any(flags & EPacketFlags::RequestAcknowledgement)) {
             UnackedMessages_.push(TUnackedMessage(packetId, std::move(queuedMessage.Promise)));
         } else if (queuedMessage.Promise) {
             queuedMessage.Promise.Set();

@@ -1190,7 +1190,7 @@ TYPED_TEST(TRpcTest, NoAck)
 {
     TMyProxy proxy(this->CreateChannel());
     auto req = proxy.DoNothing();
-    req->SetRequestAck(false);
+    req->SetAcknowledgementTimeout(std::nullopt);
     auto rspOrError = req->Invoke().Get();
     EXPECT_TRUE(rspOrError.IsOK());
 }
