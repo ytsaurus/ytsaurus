@@ -112,7 +112,7 @@ TIntrusivePtr<T> TProxyBase::CreateRequest(const TMethodDescriptor& methodDescri
         ServiceDescriptor_,
         methodDescriptor);
     request->SetTimeout(DefaultTimeout_);
-    request->SetRequestAck(DefaultRequestAck_);
+    request->SetAcknowledgementTimeout(DefaultAcknowledgementTimeout_);
     request->SetRequestCodec(DefaultRequestCodec_);
     request->SetResponseCodec(DefaultResponseCodec_);
     request->SetEnableLegacyRpcCodecs(DefaultEnableLegacyRpcCodecs_);

@@ -1310,6 +1310,8 @@ class TSchedulerConnectionConfig
 public:
     //! Timeout for RPC requests to schedulers.
     TDuration RpcTimeout;
+    //! Timeout for acknowledgements for all RPC requests to schedulers.
+    TDuration RpcAcknowledgementTimeout;
 
     TSchedulerConnectionConfig();
 };

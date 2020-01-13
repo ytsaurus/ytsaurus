@@ -140,6 +140,9 @@ public:
     //! Timeout for |Discover| requests.
     TDuration DiscoverTimeout;
 
+    //! Timeout for acknowledgement of all RPC requests going through the channel.
+    TDuration AcknowledgementTimeout;
+
     //! Interval between automatic rediscovery of active peers.
     /*!
      *  Discovery is started automatically if no active peers are known.
@@ -165,6 +168,8 @@ public:
     TBalancingChannelConfigBase()
     {
         RegisterParameter("discover_timeout", DiscoverTimeout)
+            .Default(TDuration::Seconds(15));
+        RegisterParameter("acknowledgement_timeout", AcknowledgementTimeout)
             .Default(TDuration::Seconds(15));
         RegisterParameter("rediscover_period", RediscoverPeriod)
             .Default(TDuration::Seconds(60));

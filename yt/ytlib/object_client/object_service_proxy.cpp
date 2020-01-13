@@ -763,6 +763,7 @@ template <class TBatchReqPtr>
 void TObjectServiceProxy::PrepareBatchRequest(const TBatchReqPtr& batchReq)
 {
     batchReq->SetTimeout(DefaultTimeout_);
+    batchReq->SetAcknowledgementTimeout(DefaultAcknowledgementTimeout_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

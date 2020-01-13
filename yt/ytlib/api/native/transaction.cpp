@@ -1113,7 +1113,7 @@ private:
 
             TTabletServiceProxy proxy(InvokeChannel_);
             proxy.SetDefaultTimeout(Config_->WriteRowsTimeout);
-            proxy.SetDefaultRequestAck(false);
+            proxy.SetDefaultAcknowledgementTimeout(std::nullopt);
 
             auto req = proxy.Write();
             req->SetMultiplexingBand(EMultiplexingBand::Heavy);

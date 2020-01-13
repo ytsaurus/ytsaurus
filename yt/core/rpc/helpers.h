@@ -68,6 +68,7 @@ IChannelFactoryPtr CreateRealmChannelFactory(
  */
 IChannelPtr CreateFailureDetectingChannel(
     IChannelPtr underlyingChannel,
+    std::optional<TDuration> acknowledgementTimeout,
     TCallback<void(const IChannelPtr&, const TError& error)> onFailure,
     TCallback<bool(const TError&)> isError = BIND(IsChannelFailureError));
 

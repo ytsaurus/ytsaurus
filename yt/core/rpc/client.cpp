@@ -67,7 +67,7 @@ TClientRequest::TClientRequest(
 TClientRequest::TClientRequest(const TClientRequest& other)
     : Attachments_(other.Attachments_)
     , Timeout_(other.Timeout_)
-    , RequestAck_(other.RequestAck_)
+    , AcknowledgementTimeout_(other.AcknowledgementTimeout_)
     , Heavy_(other.Heavy_)
     , RequestCodec_(other.RequestCodec_)
     , ResponseCodec_(other.ResponseCodec_)
@@ -104,7 +104,7 @@ IClientRequestControlPtr TClientRequest::Send(IClientResponseHandlerPtr response
 {
     TSendOptions options;
     options.Timeout = Timeout_;
-    options.RequestAck = RequestAck_;
+    options.AcknowledgementTimeout = AcknowledgementTimeout_;
     options.GenerateAttachmentChecksums = GenerateAttachmentChecksums_;
     options.MemoryZone = MemoryZone_;
     options.MultiplexingBand = MultiplexingBand_;
@@ -626,7 +626,7 @@ TProxyBase::TProxyBase(
     : Channel_(std::move(channel))
     , ServiceDescriptor_(descriptor)
 {
-    YT_ASSERT(Channel_);
+    YT_VERIFY(Channel_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
