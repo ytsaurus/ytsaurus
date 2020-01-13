@@ -19,7 +19,11 @@
 
 #include <yt/core/rpc/client.h>
 #include <yt/core/rpc/retrying_channel.h>
+#include <yt/core/rpc/caching_channel_factory.h>
+#include <yt/core/rpc/static_channel_factory.h>
 #include <yt/core/rpc/server.h>
+#include <yt/core/rpc/local_server.h>
+#include <yt/core/rpc/local_channel.h>
 #include <yt/core/rpc/service_detail.h>
 #include <yt/core/rpc/stream.h>
 
@@ -1730,6 +1734,47 @@ TEST_F(TAttachmentsOutputStreamTest, CloseTimeout2)
     auto error = future3.Get();
     EXPECT_FALSE(error.IsOK());
     EXPECT_EQ(NYT::EErrorCode::Timeout, error.GetCode());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TCachingChannelFactoryTest, IdleChannels)
+{
+    class TChannelFactory
+        : public IChannelFactory
+    {
+    public:
+        virtual IChannelPtr CreateChannel(const TString& address) override
+        {
+            return CreateLocalChannel(Server_);
+        }
+
+        virtual IChannelPtr CreateChannel(const TAddressWithNetwork& addressWithNetwork) override
+        {
+            return CreateChannel(addressWithNetwork.Address);
+        }
+
+    private:
+        const IServerPtr Server_ = CreateLocalServer();
+    };
+
+    auto factory = New<TChannelFactory>();
+    auto cachingFactory = CreateCachingChannelFactory(factory);
+    auto channel = cachingFactory->CreateChannel("");
+    EXPECT_EQ(channel, cachingFactory->CreateChannel(""));
+
+    Sleep(TDuration::MilliSeconds(1000));
+    cachingFactory->TerminateIdleChannels(TDuration::MilliSeconds(500));
+    EXPECT_EQ(channel, cachingFactory->CreateChannel(""));
+
+    auto weakChannel = MakeWeak(channel);
+    channel.Reset();
+
+    Sleep(TDuration::MilliSeconds(1000));
+    EXPECT_FALSE(weakChannel.IsExpired());
+
+    cachingFactory->TerminateIdleChannels(TDuration::MilliSeconds(500));
+    EXPECT_TRUE(weakChannel.IsExpired());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
