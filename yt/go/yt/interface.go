@@ -946,6 +946,7 @@ type MountClient interface {
 type TabletTx interface {
 	TabletClient
 
+	ID() TxID
 	Commit() error
 	Abort() error
 }

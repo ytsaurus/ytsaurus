@@ -76,6 +76,10 @@ func (tx *tabletTx) doWriteRow(ctx context.Context, call *internal.Call) (r yt.T
 	return tx.c.InvokeWriteRow(ctx, call)
 }
 
+func (tx *tabletTx) ID() yt.TxID {
+	return tx.txID
+}
+
 func (tx *tabletTx) Commit() error {
 	var opts yt.CommitTxOptions
 	if tx.commitOptions != nil {
