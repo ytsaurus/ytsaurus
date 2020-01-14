@@ -218,7 +218,7 @@ public:
 
         InvokeProxy_ = std::make_unique<TQueryServiceProxy>(std::move(channel));
         InvokeProxy_->SetDefaultTimeout(Options_.Timeout.value_or(Config_->DefaultLookupRowsTimeout));
-        InvokeProxy_->SetDefaultRequestAck(false);
+        InvokeProxy_->SetDefaultAcknowledgementTimeout(std::nullopt);
 
         InvokeNextBatch();
         return InvokePromise_;
@@ -749,7 +749,7 @@ TRowset TClient::DoLookupRowsOnce(
 
             TQueryServiceProxy proxy(channel);
             proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultLookupRowsTimeout));
-            proxy.SetDefaultRequestAck(false);
+            proxy.SetDefaultAcknowledgementTimeout(std::nullopt);
 
             auto req = proxy.Multiread();
             req->SetMultiplexingBand(options.MultiplexingBand);
