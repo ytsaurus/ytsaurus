@@ -4,7 +4,7 @@ DESCRIPTION = """Tool for code generation for C++ YT API.\n
 Available commands:
     add_command"""
 
-EPILOG="""Example use (run from <arcadia root>/mapreduce/yt or set --arcadia-root option):
+EPILOG = """Example use (run from <arcadia root>/mapreduce/yt or set --arcadia-root option):
     $ codegen add_command \\
             --method CheckPermission \\
             --command check_permission \\

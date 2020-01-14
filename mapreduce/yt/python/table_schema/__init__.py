@@ -2,6 +2,7 @@ import copy
 
 _well_known_attributes = ["name", "type", "required", "sort_order", "aggregate", "expression", "lock", "group"]
 
+
 def extract_column_attributes(schema, attributes=_well_known_attributes):
     def delete_other_attributes(schema):
         for column in schema:
