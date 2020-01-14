@@ -361,6 +361,7 @@ def set_log_tailer_table_attributes(table_kind, table_path, ttl, client=None):
         "optimize_for": "scan",
         "backing_store_retention_time": 0,
         "auto_compaction_period": 86400000,
+        "enable_lsm_verbose_logging": True,
     }
 
     for attribute, value in attributes.iteritems():
@@ -371,7 +372,7 @@ def set_log_tailer_table_attributes(table_kind, table_path, ttl, client=None):
 
 def set_log_tailer_table_dynamic_attributes(table_kind, table_path, client=None):
     if table_kind == "ordered_normally":
-        logger.debug("Resharding %s")
+        logger.debug("Resharding %s", table_path)
         pivot_keys = [[]] + [[YsonUint64(i), None, None, None] for i in xrange(1, 100)]
         reshard_table(table_path, pivot_keys=pivot_keys, sync=True, client=client)
 
