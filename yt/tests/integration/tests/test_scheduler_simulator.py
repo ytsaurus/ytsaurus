@@ -340,6 +340,7 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
 
         with open(simulator_files_path["simulator_input_bin_file"]) as fin:
             subprocess.check_call(["scheduler_simulator",
+                                   "--allow-debug-mode",
                                    simulator_files_path["scheduler_simulator_config_yson_file"]],
                                   stdin=fin)
 
