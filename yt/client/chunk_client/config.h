@@ -85,6 +85,9 @@ public:
     //! Timeout for a block request.
     TDuration BlockRpcTimeout;
 
+    //! Timeout for a lookup request.
+    TDuration LookupRpcTimeout;
+
     //! Timeout for a meta request.
     TDuration MetaRpcTimeout;
 
@@ -145,10 +148,24 @@ public:
     //! Total session timeout (for ReadBlocks and GetMeta calls).
     TDuration SessionTimeout;
 
+    //! Duration between lookup requests to different peers in one pass.
+    TDuration LookupSleepDuration;
+
+    //! Number of lookup requests to single peer in one pass.
+    int SinglePassIterationLimitForLookup;
+
+    //! Number of peers processed in one pass.
+    int LookupRequestPeerCount;
+
+    //! Maximum number of passes with same seeds for lookup request.
+    int LookupRequestPassCount;
+
     TReplicationReaderConfig()
     {
         RegisterParameter("block_rpc_timeout", BlockRpcTimeout)
             .Default(TDuration::Seconds(120));
+        RegisterParameter("lookup_rpc_timeout", LookupRpcTimeout)
+            .Default(TDuration::Seconds(10));
         RegisterParameter("meta_rpc_timeout", MetaRpcTimeout)
             .Default(TDuration::Seconds(30));
         RegisterParameter("probe_rpc_timeout", ProbeRpcTimeout)
@@ -193,16 +210,30 @@ public:
             .Default(TDuration::Minutes(3));
         RegisterParameter("session_timeout", SessionTimeout)
             .Default(TDuration::Minutes(20));
+        RegisterParameter("lookup_sleep_duration", LookupSleepDuration)
+            .Default(TDuration::MilliSeconds(10));
+        RegisterParameter("single_pass_iteration_limit_for_lookup", SinglePassIterationLimitForLookup)
+            .Default(3);
+        RegisterParameter("lookup_request_peer_count", LookupRequestPeerCount)
+            .GreaterThan(0)
+            .Default(5);
+        RegisterParameter("lookup_request_pass_count", LookupRequestPassCount)
+            .GreaterThan(0)
+            .Default(10);
 
-        RegisterPostprocessor([&]() {
+        RegisterPostprocessor([&] {
             // Seems unreasonable to make backoff greater than half of total session timeout.
             MaxBackoffTime = std::min(MaxBackoffTime, SessionTimeout / 2);
             RetryTimeout = std::min(RetryTimeout, SessionTimeout);
 
             // Rpc timeout should not exceed session timeout.
             BlockRpcTimeout = std::min(BlockRpcTimeout, RetryTimeout);
+            LookupRpcTimeout = std::min(LookupRpcTimeout, RetryTimeout);
             MetaRpcTimeout = std::min(MetaRpcTimeout, RetryTimeout);
             ProbeRpcTimeout = std::min(ProbeRpcTimeout, RetryTimeout);
+
+            // LookupRequestPassCount is supposed to be not greater than PassCount.
+            LookupRequestPassCount = std::min(LookupRequestPassCount, PassCount);
         });
     }
 };

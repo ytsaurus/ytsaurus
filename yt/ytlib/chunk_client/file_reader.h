@@ -61,6 +61,16 @@ public:
         std::optional<int> partitionTag = std::nullopt,
         const std::optional<std::vector<int>>& extensionTags = std::nullopt) override;
 
+    virtual TFuture<TSharedRef> LookupRows(
+        const TClientBlockReadOptions& options,
+        const TSharedRange<NTableClient::TKey>& lookupKeys,
+        NCypressClient::TObjectId tableId,
+        NHydra::TRevision revision,
+        const NTableClient::TTableSchema& tableSchema,
+        std::optional<i64> estimatedSize,
+        std::atomic<i64>* uncompressedDataSize,
+        bool produceAllVersions) override;
+
     virtual TChunkId GetChunkId() const override;
 
     virtual bool IsValid() const override;

@@ -8,12 +8,13 @@
 #include "config.h"
 #include "location.h"
 #include "master_connector.h"
+#include "network_statistics.h"
 #include "peer_block_table.h"
 #include "peer_block_updater.h"
 #include "peer_block_distributor.h"
 #include "session.h"
 #include "session_manager.h"
-#include "network_statistics.h"
+#include "table_schema_cache.h"
 
 #include <yt/server/node/cell_node/bootstrap.h>
 
@@ -21,17 +22,29 @@
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/chunk_slice.h>
 #include <yt/ytlib/chunk_client/proto/data_node_service.pb.h>
+#include <yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/ytlib/chunk_client/data_node_service_proxy.h>
-#include <yt/ytlib/chunk_client/key_set.h>
 #include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/ytlib/chunk_client/key_set.h>
 
+#include <yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/chunk_state.h>
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/samples_fetcher.h>
+#include <yt/ytlib/table_client/versioned_chunk_reader.h>
 
 #include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/row_buffer.h>
 #include <yt/client/table_client/schema.h>
 #include <yt/client/table_client/unversioned_row.h>
+#include <yt/client/table_client/versioned_reader.h>
+
+#include <yt/server/node/data_node/local_chunk_reader.h>
+#include <yt/server/node/data_node/lookup_session.h>
+
+#include <yt/server/node/tablet_node/sorted_dynamic_comparer.h>
+#include <yt/server/node/tablet_node/versioned_chunk_meta_manager.h>
 
 #include <yt/client/chunk_client/proto/chunk_spec.pb.h>
 #include <yt/client/chunk_client/read_limit.h>
@@ -42,8 +55,8 @@
 
 #include <yt/core/bus/bus.h>
 
-#include <yt/core/concurrency/thread_pool.h>
 #include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/thread_pool.h>
 
 #include <yt/core/misc/optional.h>
 #include <yt/core/misc/protobuf_helpers.h>
@@ -122,6 +135,11 @@ public:
             .SetConcurrencyLimit(5000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockRange)
             .SetInvoker(Bootstrap_->GetStorageLightInvoker())
+            .SetCancelable(true)
+            .SetQueueSizeLimit(5000)
+            .SetConcurrencyLimit(5000));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupRows)
+            .SetInvoker(Bootstrap_->GetStorageLookupInvoker())
             .SetCancelable(true)
             .SetQueueSizeLimit(5000)
             .SetConcurrencyLimit(5000));
@@ -632,6 +650,64 @@ private:
         } else {
             context->Reply();
         }
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, LookupRows)
+    {
+        auto chunkId = FromProto<TChunkId>(request->chunk_id());
+        auto readSessionId = FromProto<TReadSessionId >(request->read_session_id());
+        auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
+
+        context->SetRequestInfo("ChunkId: %v, ReadSessionId: %v, Workload: %v",
+            chunkId,
+            readSessionId,
+            workloadDescriptor);
+
+        ValidateConnected();
+
+        auto schemaData = request->schema_data();
+        auto [tableSchema, schemaRequested] = TLookupSession::FindTableSchema(
+            chunkId,
+            readSessionId,
+            schemaData,
+            Bootstrap_->GetTableSchemaCache());
+
+        if (!tableSchema) {
+            // NB: No throttling here.
+            response->set_fetched_rows(false);
+            response->set_request_schema(schemaRequested);
+            context->SetResponseInfo("ChunkId: %v, ReadSessionId: %v, Workload: %v, SchemaRequested: %v",
+                chunkId,
+                readSessionId,
+                workloadDescriptor,
+                schemaRequested);
+            context->Reply();
+            return;
+        }
+        YT_VERIFY(!schemaRequested);
+
+        auto produceAllVersions = FromProto<bool>(request->produce_all_versions());
+
+        TLookupSession lookupSession(
+            Bootstrap_,
+            chunkId,
+            readSessionId,
+            workloadDescriptor,
+            produceAllVersions,
+            tableSchema,
+            request->lookup_keys());
+        response->Attachments().push_back(lookupSession.Run());
+
+        response->set_fetched_rows(true);
+        ToProto(response->mutable_chunk_reader_statistics(), lookupSession.GetChunkReaderStatistics());
+
+        context->SetResponseInfo("ChunkId: %v, ReadSessionId: %v",
+            chunkId,
+            readSessionId);
+
+        auto throttler = Bootstrap_->GetOutThrottler(workloadDescriptor);
+        context->SetComplete();
+        context->ReplyFrom(throttler->Throttle(GetByteSize(response->Attachments())));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkMeta)

@@ -113,12 +113,12 @@ public:
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Read)
             .SetCancelable(true)
-            .SetInvoker(bootstrap->GetLookupPoolInvoker()));
+            .SetInvoker(bootstrap->GetTabletLookupPoolInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Multiread)
             .SetCancelable(true)
-            .SetInvoker(bootstrap->GetLookupPoolInvoker()));
+            .SetInvoker(bootstrap->GetTabletLookupPoolInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTabletInfo)
-            .SetInvoker(bootstrap->GetLookupPoolInvoker()));
+            .SetInvoker(bootstrap->GetTabletLookupPoolInvoker()));
     }
 
 private:
@@ -372,7 +372,7 @@ private:
 
                     throw;
                 }
-            }).AsyncVia(Bootstrap_->GetLookupPoolInvoker());
+            }).AsyncVia(Bootstrap_->GetTabletLookupPoolInvoker());
 
             batchCallbacks.push_back(callback);
         }
