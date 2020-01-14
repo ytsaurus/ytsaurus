@@ -586,7 +586,7 @@ class TestAcls(object):
         assert len(response_object_ids) == response_object_limit
         assert len(set(object_ids[index] for index in object_indices) - set(response_object_ids)) == len(object_indices) - response_object_limit
 
-    def test_only_superuser_can_force_assign_pod1(self, yp_env):
+    def test_assign_pod_to_node_permission1(self, yp_env):
         yp_client = yp_env.yp_client
 
         yp_client.create_object("user", attributes={"meta": {"id": "u"}})
@@ -615,15 +615,27 @@ class TestAcls(object):
             with pytest.raises(YpAuthorizationError):
                 try_create()
 
-            yp_client.update_object("group", "superusers", set_updates=[
-                {"path": "/spec/members", "value": ["u"]}
-            ])
+            yp_client.update_object(
+                "node_segment",
+                "default",
+                set_updates=[
+                    dict(
+                        path="/meta/acl/end",
+                        value=dict(
+                            action="allow",
+                            permissions=["use"],
+                            subjects=["u"],
+                            attributes=["/access/scheduling/assign_pod_to_node"],
+                        ),
+                    ),
+                ],
+            )
 
             yp_env.sync_access_control()
 
             try_create()
 
-    def test_only_superuser_can_force_assign_pod2(self, yp_env):
+    def test_assign_pod_to_node_permission2(self, yp_env):
         yp_client = yp_env.yp_client
 
         yp_client.create_object("user", attributes={"meta": {"id": "u"}})
@@ -654,9 +666,21 @@ class TestAcls(object):
             with pytest.raises(YpAuthorizationError):
                 try_update()
 
-            yp_client.update_object("group", "superusers", set_updates=[
-                {"path": "/spec/members", "value": ["u"]}
-            ])
+            yp_client.update_object(
+                "node_segment",
+                "default",
+                set_updates=[
+                    dict(
+                        path="/meta/acl/end",
+                        value=dict(
+                            action="allow",
+                            permissions=["use"],
+                            subjects=["u"],
+                            attributes=["/access/scheduling/assign_pod_to_node"],
+                        ),
+                    ),
+                ],
+            )
 
             yp_env.sync_access_control()
 

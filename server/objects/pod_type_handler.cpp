@@ -435,7 +435,12 @@ private:
 
         if (spec.Node().IsChanged()) {
             const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
-            accessControlManager->ValidateSuperuser(AsStringBuf("change /spec/node_id"));
+            auto* podSet = pod->PodSet().Load();
+            auto* nodeSegment = podSet->Spec().NodeSegment().Load();
+            accessControlManager->ValidatePermission(
+                nodeSegment,
+                EAccessControlPermission::Use,
+                "/access/scheduling/assign_pod_to_node");
         }
 
         if (spec.EnableScheduling().IsChanged() &&
