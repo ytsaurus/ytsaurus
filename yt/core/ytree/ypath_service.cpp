@@ -260,6 +260,7 @@ struct TCacheProfilingCounters
         , CacheHitCounter("/cache_hit")
         , CacheMissCounter("/cache_miss")
         , RedundantCacheMissCounter("/redundant_cache_miss")
+        , ByteSize("/byte_size")
     { }
 
     const NProfiling::TProfiler Profiler;
@@ -267,6 +268,7 @@ struct TCacheProfilingCounters
     NProfiling::TMonotonicCounter CacheMissCounter;
     NProfiling::TMonotonicCounter RedundantCacheMissCounter;
     NProfiling::TMonotonicCounter InvalidCacheCounter;
+    NProfiling::TSimpleGauge ByteSize;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCacheProfilingCounters);
@@ -508,6 +510,8 @@ void TCachedYPathService::RebuildCache()
 
         auto yson = WaitFor(asyncYson)
             .ValueOrThrow();
+
+        ProfilingCounters_->Profiler.Update(ProfilingCounters_->ByteSize, yson.GetData().Size());
 
         UpdateCachedTree(ConvertToNode(yson));
     } catch (const std::exception& ex) {
