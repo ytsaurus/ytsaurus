@@ -243,6 +243,24 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t/@attr", tx = tx) == 100
         assert "attr" in get("//tmp/t/@", tx = tx)
 
+    @authors("shakurov")
+    def test_attributes_yt_11973(self):
+        create("table", "//tmp/test_node")
+
+        set("//tmp/test_node/@opaque", True)
+        set("//tmp/test_node/@expiration_time", "2100-01-01T00:00:00.000000Z")
+        set("//tmp/test_node/@desired_tablet_count", 42)
+        assert get("//tmp/test_node/@opaque")
+        assert get("//tmp/test_node/@expiration_time") == "2100-01-01T00:00:00.000000Z"
+        assert get("//tmp/test_node/@desired_tablet_count") == 42
+
+        # Mustn't throw.
+        set("//tmp/test_node/@", {"foo": "bar", "baz": 1})
+
+        assert not get("//tmp/test_node/@opaque")
+        assert not exists("//tmp/test_node/@expiration_time")
+        assert not exists("//tmp/test_node/@desired_tablet_count")
+
     @authors("panin", "ignat")
     def test_format_json(self):
         # check input format for json
