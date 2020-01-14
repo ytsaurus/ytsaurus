@@ -497,6 +497,19 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey
 bool TNontemplateCypressNodeProxyBase::RemoveBuiltinAttribute(TInternedAttributeKey key)
 {
     switch (key) {
+        case EInternedAttributeKey::Annotation: {
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            const auto& handler = objectManager->GetHandler(Object_);
+
+            if (Any(handler->GetFlags() & ETypeFlags::ForbidAnnotationRemoval)) {
+                THROW_ERROR_EXCEPTION("Cannot remove annotation from portal node; consider overriding it somewhere down the tree or setting it to an empty string");
+            }
+
+            auto* lockedNode = LockThisImpl();
+            lockedNode->SetAnnotation(std::nullopt);
+            return true;
+        }
+
         case EInternedAttributeKey::ExpirationTime: {
             auto lockRequest = TLockRequest::MakeSharedAttribute(GetUninternedAttributeKey(key));
             auto* node = LockThisImpl(lockRequest);
@@ -2078,19 +2091,6 @@ bool TNontemplateCompositeCypressNodeProxyBase::RemoveBuiltinAttribute(TInterned
     auto* node = GetThisImpl<TCompositeNodeBase>();
 
     switch (key) {
-
-        case EInternedAttributeKey::Annotation: {
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            const auto& handler = objectManager->GetHandler(Object_);
-
-            if (Any(handler->GetFlags() & ETypeFlags::ForbidAnnotationRemoval)) {
-                THROW_ERROR_EXCEPTION("Cannot remove annotation from portal node; consider overriding it somewhere down the tree or setting it to an empty string");
-            }
-
-            auto* lockedNode = LockThisImpl();
-            lockedNode->SetAnnotation(std::nullopt);
-            return true;
-        }
 
 #define XX(camelCaseName, snakeCaseName) \
         case EInternedAttributeKey::camelCaseName: \
