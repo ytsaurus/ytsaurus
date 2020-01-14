@@ -248,7 +248,7 @@ void DumpSigcontext(void* uc)
     formatter.AppendNumber(context->uc_mcontext.gregs[REG_OLDMASK], 16);
     formatter.AppendString("\nCR2 ");
     formatter.AppendNumber(context->uc_mcontext.gregs[REG_CR2], 16);
-    formatter.AppendString("*** End Context ***\n");
+    formatter.AppendString("\n*** End Context ***\n");
 
     WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
 #endif
