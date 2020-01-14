@@ -75,36 +75,13 @@ class TestStoreCompactorOrchid(TestSortedDynamicTablesBase):
         node = nodes[0]
 
         sync_create_cells(1)
-
-        def _wait_not_in_eden(chunk_index):
-            set("//tmp/t/@forced_compaction_revision", 1)
-            chunk_id = get("//tmp/t/@chunk_ids/{0}".format(chunk_index))
-            sync_mount_table("//tmp/t")
-            wait(lambda: chunk_id != get("//tmp/t/@chunk_ids/{0}".format(chunk_index)))
-            assert not get("#{}/@eden".format(get("//tmp/t/@chunk_ids/{0}".format(chunk_index))))
-            sync_unmount_table("//tmp/t")
-
         self._create_simple_table("//tmp/t")
-        set("//tmp/t/@min_partition_data_size", 1)
 
-        sync_mount_table("//tmp/t")
-        insert_rows("//tmp/t", [{"key": 1}, {"key": 2}])
-        sync_unmount_table("//tmp/t")
-        _wait_not_in_eden(chunk_index=0)
-
-        sync_reshard_table("//tmp/t", [[], [2]])
-
-        sync_mount_table("//tmp/t", first_tablet_index=1, last_tablet_index=1)
-        insert_rows("//tmp/t", [{"key": 3}, {"key": 4}])
-        sync_unmount_table("//tmp/t")
-        _wait_not_in_eden(chunk_index=1)
-
-        set("//tmp/t/@enable_compaction_and_partitioning", False)
-        sync_reshard_table("//tmp/t", [[]])
+        self._create_partitions(partition_count=2)
 
         # Now add store to eden
         sync_mount_table("//tmp/t")
-        insert_rows("//tmp/t", [{"key": 1}, {"key": 2}, {"key": 3}, {"key": 4}])
+        insert_rows("//tmp/t", [{"key": i} for i in xrange(2, 6)])
         sync_flush_table("//tmp/t")
         assert len(get("//tmp/t/@chunk_ids")) == 3
         assert get("#{}/@eden".format(get("//tmp/t/@chunk_ids/{0}".format(2))))

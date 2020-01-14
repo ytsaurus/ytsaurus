@@ -109,6 +109,42 @@ class TestSortedDynamicTablesBase(DynamicTablesBase):
             sleep(5)
         assert resharded
 
+    def _create_partitions(self, partition_count, do_overlap = False):
+        assert partition_count > 1
+        partition_count += 1 - int(do_overlap)
+
+        def _wait_not_in_eden(tablet_index):
+            set("//tmp/t/@forced_compaction_revision", 1)
+            sync_mount_table("//tmp/t", first_tablet_index=tablet_index, last_tablet_index=tablet_index)
+            tablet_id = get("//tmp/t/@tablets/{0}/tablet_id".format(tablet_index))
+            address = get_tablet_leader_address(tablet_id)
+            # Only dynamic store should be in eden.
+            wait(lambda: len(self._find_tablet_orchid(address, tablet_id)["eden"]["stores"]) == 1)
+            sync_unmount_table("//tmp/t")
+
+        def _write_row(tablet_index, key_count=2):
+            sync_mount_table("//tmp/t", first_tablet_index=tablet_index, last_tablet_index=tablet_index)
+            rows = [{"key": tablet_index * 2 + i} for i in range(key_count)]
+            insert_rows("//tmp/t", rows)
+            sync_unmount_table("//tmp/t")
+            _wait_not_in_eden(tablet_index=tablet_index)
+
+        set("//tmp/t/@min_partition_data_size", 1)
+
+        if do_overlap:
+            # We write overlapping chunk to trigger creation of chunk view.
+            _write_row(tablet_index=0, key_count=3)
+
+        partition_boundaries = [[]] + [[2 * i] for i in range(1, partition_count)]
+        sync_reshard_table("//tmp/t", partition_boundaries)
+
+        for tablet_index in range(1, partition_count):
+            _write_row(tablet_index=tablet_index)
+
+        set("//tmp/t/@enable_compaction_and_partitioning", False)
+        sync_reshard_table("//tmp/t", [[]])
+
+
 ##################################################################
 
 class TestSortedDynamicTables(TestSortedDynamicTablesBase):
