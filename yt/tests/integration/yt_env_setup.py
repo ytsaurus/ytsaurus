@@ -812,12 +812,12 @@ class YTEnvSetup(object):
             if cls.run_id:
                 destination_path = os.path.join(destination_path, cls.run_id)
             if os.path.exists(destination_path):
-                shutil.rmtree(destination_path)
+                shutil.rmtree(destination_path, ignore_errors=True)
 
             runtime_data = [os.path.join(cls.path_to_run, "runtime_data")] + glob.glob(cls.path_to_run + "/*/runtime_data")
             for dir in runtime_data:
                 if os.path.exists(dir):
-                    shutil.rmtree(dir)
+                    shutil.rmtree(dir, ignore_errors=True)
             shutil.move(cls.path_to_run, destination_path)
 
 
