@@ -221,6 +221,9 @@ public:
     TSchedulerSimulatorProgram()
         : TProgramPdeathsigMixin(Opts_)
     {
+        Opts_.AddLongOption("allow-debug-mode", "allow running simulator in debug mode")
+            .NoArgument()
+            .StoreTrue(&AllowDebugMode_);
         Opts_.SetFreeArgsNum(1);
         Opts_.SetFreeArgTitle(0, "SIMULATOR_CONFIG_FILENAME");
         SetCrashOnError();
@@ -229,6 +232,15 @@ public:
 protected:
     virtual void DoRun(const NLastGetopt::TOptsParseResult& parseResult) override
     {
+        // NB(eshcherbin): It usually doesn't make much sense running the simulator built in debug mode
+        // but this occasionally still happens by mistake. Thus we now immediately crash unless debug
+        // mode has been explicitly allowed.
+#ifndef NDEBUG
+        YT_LOG_FATAL_IF(
+            !AllowDebugMode_,
+            "Running the simulator in debug mode is forbidden by default. Use '--allow-debug-mode' to allow it explicitly.");
+#endif
+
         // TODO(antonkikh): Which of these are actually needed?
         ConfigureUids();
         ConfigureSignals();
@@ -268,6 +280,9 @@ protected:
 
         NYT::Shutdown();
     }
+
+private:
+    bool AllowDebugMode_ = false;
 };
 
 } // namespace NYT
