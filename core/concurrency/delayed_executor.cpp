@@ -368,7 +368,11 @@ private:
     {
         {
             decltype(Poller_)::TEvent event;
-            YT_VERIFY(Poller_.Wait(&event, 1, std::numeric_limits<int>::max()) == 1);
+            auto eventCount = Poller_.Wait(&event, 1, std::numeric_limits<int>::max());
+            if (eventCount == 0) {
+                return;
+            }
+            YT_VERIFY(eventCount == 1);
             YT_VERIFY(event.data.ptr == &TimerFD_);
         }
 
