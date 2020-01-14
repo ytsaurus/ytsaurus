@@ -8,7 +8,9 @@ namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IObjectTypeHandler> CreateNodeSegmentTypeHandler(NMaster::TBootstrap* bootstrap);
+std::unique_ptr<IObjectTypeHandler> CreateNodeSegmentTypeHandler(
+    NMaster::TBootstrap* bootstrap,
+    TNodeSegmentTypeHandlerConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

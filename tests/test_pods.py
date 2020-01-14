@@ -677,7 +677,7 @@ class TestPods(object):
 
         yp_client.get_object("pod", pod_id, selectors=["/spec/iss_payload"])[0]
 
-        yp_client.update_object("pod",pod_id, set_updates=[{"path": "/spec/iss/instances/0/id/slot/service", "value": "another-service"}])
+        yp_client.update_object("pod", pod_id, set_updates=[{"path": "/spec/iss/instances/0/id/slot/service", "value": "another-service"}])
         assert yp_client.get_object("pod", pod_id, selectors=["/spec/iss/instances/0/id/slot/service"])[0] == "another-service"
 
     def test_iss_status(self, yp_env):

@@ -1404,6 +1404,15 @@ message TPodSetSpec
     // This filter is only active for a pod of this pod set if this pod's own node_filter is empty.
     // Filter is a query language predicate; it can only refer to node labels, not other attributes.
     optional string node_filter = 5;
+
+    message TViolateNodeSegmentConstraints
+    {
+        // If true then pods of this pod set can violate pod vcpu guarantee to limit constraint.
+        optional bool vcpu_guarantee_to_limit_ratio = 1;
+    }
+
+    // Permissions to violate constraints applied to all pods of the pod set.
+    optional TViolateNodeSegmentConstraints violate_node_segment_constraints = 6 [(NYP.NClient.NApi.NProto.etc) = true];
 }
 
 message TPodSetStatus
@@ -1517,6 +1526,21 @@ message TNodeSegmentSpec
 
     // If enable_unsafe_porto is false, all pods in this segment must be safe.
     optional bool enable_unsafe_porto = 2;
+
+    message TPodConstraints
+    {
+        message TVcpuGuaranteeToLimitRatioConstraint
+        {
+            optional double multiplier = 1;
+            optional uint64 additive = 2;
+        }
+
+        // Vcpu guarantee to limit ratio (vcpu_limit <= multiplier * vcpu_guarantee + additive).
+        optional TVcpuGuaranteeToLimitRatioConstraint vcpu_guarantee_to_limit_ratio = 1;
+    }
+
+    // Constraints that will be applied to all pods in this node segment.
+    optional TPodConstraints pod_constraints = 3;
 }
 
 message TNodeSegmentStatus

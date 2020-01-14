@@ -24,6 +24,8 @@ class TPodStatusEtc;
 
 DECLARE_REFCOUNTED_CLASS(TPodTypeHandlerConfig)
 DECLARE_REFCOUNTED_CLASS(TPodSpecValidationConfig)
+DECLARE_REFCOUNTED_CLASS(TNodeSegmentTypeHandlerConfig)
+DECLARE_REFCOUNTED_CLASS(TPodVcpuGuaranteeToLimitRatioConstraintConfig)
 
 DECLARE_REFCOUNTED_CLASS(TObjectManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TObjectManager)

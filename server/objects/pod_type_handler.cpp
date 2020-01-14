@@ -49,14 +49,16 @@ using std::placeholders::_3;
 using ::google::protobuf::RepeatedPtrField;
 
 namespace {
+
 // Common checks for pod spec used in Pod objects for TPodSpecEtc and objects which aggregate TPodSpec.
-template <class TPodSpecBase>
-void ValidatePodSpecParts(
+template <class TPodSpecEtc>
+void ValidatePodSpecEtc(
     TAccessControlManagerPtr accessControlManager,
     TTransaction* transaction,
-    const TPodSpecBase& spec,
+    const TPodSpecEtc& podSpecEtc,
     const TPodSpecValidationConfigPtr& config);
-}
+
+} // namespace
 
 class TPodTypeHandler
     : public TObjectTypeHandlerBase
@@ -391,6 +393,41 @@ private:
         }
     }
 
+    void ValidateNodeSegmentConstraints(TPod* pod)
+    {
+        const auto& resourceRequests = pod->Spec().Etc().Load().resource_requests();
+        const auto& oldResourceRequests = pod->Spec().Etc().LoadOld().resource_requests();
+
+        if (oldResourceRequests.vcpu_limit() != resourceRequests.vcpu_limit() ||
+            oldResourceRequests.vcpu_guarantee() != resourceRequests.vcpu_guarantee())
+        {
+            const auto* podSet = pod->PodSet().Load();
+
+            podSet->Spec().Etc().ScheduleLoad();
+            podSet->Spec().NodeSegment().ScheduleLoad();
+
+            if (!podSet->Spec().Etc().Load().violate_node_segment_constraints().vcpu_guarantee_to_limit_ratio()) {
+                const auto* nodeSegment = podSet->Spec().NodeSegment().Load();
+                if (const auto& nodeSegmentSpec = nodeSegment->Spec().Load();
+                    nodeSegmentSpec.pod_constraints().has_vcpu_guarantee_to_limit_ratio())
+                {
+                    const auto& constraint = nodeSegmentSpec.pod_constraints().vcpu_guarantee_to_limit_ratio();
+                    ui64 vcpuLimitConstraint = constraint.multiplier() * resourceRequests.vcpu_guarantee() + constraint.additive();
+
+                    if (resourceRequests.vcpu_limit() > vcpuLimitConstraint) {
+                        THROW_ERROR_EXCEPTION("Violating node segment %Qv constraint of vcpu guarantee to limit ratio: "
+                            "expected limit <= %v * guarantee + %v, got %v > %v",
+                            nodeSegment->GetId(),
+                            constraint.multiplier(),
+                            constraint.additive(),
+                            resourceRequests.vcpu_limit(),
+                            vcpuLimitConstraint);
+                    }
+                }
+            }
+        }
+    }
+
     void ValidateSpec(TTransaction* transaction, TPod* pod)
     {
         const auto& spec = pod->Spec();
@@ -412,7 +449,8 @@ private:
         }
 
         if (specEtc.IsChanged()) {
-            ValidatePodSpecParts(Bootstrap_->GetAccessControlManager(), transaction, specEtc.Load(), Config_->SpecValidation);
+            ValidatePodSpecEtc(Bootstrap_->GetAccessControlManager(), transaction, specEtc.Load(), Config_->SpecValidation);
+            ValidateNodeSegmentConstraints(pod);
         }
 
         if (spec.IssPayload().IsChanged()) {
@@ -749,34 +787,34 @@ void ValidateCapabilities(const RepeatedPtrField<TString>& capabilities)
     }
 }
 
-template <class TPodSpecBase>
-void ValidatePodSpecParts(
+template <class TPodSpecEtc>
+void ValidatePodSpecEtc(
     TAccessControlManagerPtr accessControlManager,
     TTransaction* transaction,
-    const TPodSpecBase& podSpec,
+    const TPodSpecEtc& podSpecEtc,
     const TPodSpecValidationConfigPtr& config)
 {
-    for (const auto& spec : podSpec.host_devices()) {
+    for (const auto& spec : podSpecEtc.host_devices()) {
         ValidateHostDeviceSpec(spec);
     }
 
-    for (const auto& spec : podSpec.sysctl_properties()) {
+    for (const auto& spec : podSpecEtc.sysctl_properties()) {
         ValidateSysctlProperty(spec);
     }
 
-    ValidateGpuRequests(podSpec.gpu_requests());
+    ValidateGpuRequests(podSpecEtc.gpu_requests());
 
-    ValidateDiskVolumeRequests(podSpec.disk_volume_requests());
+    ValidateDiskVolumeRequests(podSpecEtc.disk_volume_requests());
 
-    ValidateNetworkRequests(std::move(accessControlManager), transaction, podSpec.ip6_address_requests(),
-        podSpec.ip6_subnet_requests());
+    ValidateNetworkRequests(std::move(accessControlManager), transaction, podSpecEtc.ip6_address_requests(),
+        podSpecEtc.ip6_subnet_requests());
 
-    ValidateResourceRequests(podSpec.resource_requests(), config->MinVcpuGuarantee);
+    ValidateResourceRequests(podSpecEtc.resource_requests(), config->MinVcpuGuarantee);
 
-    ValidateCapabilities(podSpec.capabilities());
+    ValidateCapabilities(podSpecEtc.capabilities());
 }
 
-}
+} // namespace
 
 void ValidateDeployPodSpecTemplate(
     const TAccessControlManagerPtr& accessControlManager,
@@ -784,7 +822,7 @@ void ValidateDeployPodSpecTemplate(
     const NClient::NApi::NProto::TPodSpec& podSpec,
     const TPodSpecValidationConfigPtr& config)
 {
-    ValidatePodSpecParts(std::move(accessControlManager), transaction, podSpec, config);
+    ValidatePodSpecEtc(accessControlManager, transaction, podSpec, config);
 
     if (podSpec.has_iss_payload()) {
         THROW_ERROR_EXCEPTION("ISS payload is not supported in Deploy");

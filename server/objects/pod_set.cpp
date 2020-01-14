@@ -39,12 +39,18 @@ const TScalarAttributeSchema<TPodSet, TString> TPodSet::TSpec::NodeFilterSchema{
     [] (TPodSet* podSet) { return &podSet->Spec().NodeFilter(); }
 };
 
+const TScalarAttributeSchema<TPodSet, TPodSet::TSpec::TEtc> TPodSet::TSpec::EtcSchema{
+    &PodSetsTable.Fields.Spec_Etc,
+    [] (TPodSet* podSet) { return &podSet->Spec().Etc(); }
+};
+
 TPodSet::TSpec::TSpec(TPodSet* podSet)
     : AntiaffinityConstraints_(podSet, &AntiaffinityConstraintsSchema)
     , NodeSegment_(podSet, &NodeSegmentSchema)
     , Account_(podSet, &AccountSchema)
     , PodDisruptionBudget_(podSet, &PodDisruptionBudgetSchema)
     , NodeFilter_(podSet, &NodeFilterSchema)
+    , Etc_(podSet, &EtcSchema)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

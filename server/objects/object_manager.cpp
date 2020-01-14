@@ -92,7 +92,7 @@ public:
         RegisterTypeHandler(CreateEndpointSetTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateStageTypeHandler(Bootstrap_, Config_->PodTypeHandler->SpecValidation));
         RegisterTypeHandler(CreateNetworkProjectTypeHandler(Bootstrap_));
-        RegisterTypeHandler(CreateNodeSegmentTypeHandler(Bootstrap_));
+        RegisterTypeHandler(CreateNodeSegmentTypeHandler(Bootstrap_, Config_->NodeSegmentTypeHandler));
         RegisterTypeHandler(CreateVirtualServiceTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateUserTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateGroupTypeHandler(Bootstrap_));

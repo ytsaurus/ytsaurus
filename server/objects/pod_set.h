@@ -2,6 +2,8 @@
 
 #include "object.h"
 
+#include <yp/server/objects/proto/autogen.pb.h>
+
 #include <yp/client/api/proto/data_model.pb.h>
 
 #include <yt/core/misc/ref_tracked.h>
@@ -56,6 +58,10 @@ public:
 
         static const TScalarAttributeSchema<TPodSet, TString> NodeFilterSchema;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TString>, NodeFilter);
+
+        using TEtc = NProto::TPodSetSpecEtc;
+        static const TScalarAttributeSchema<TPodSet, TEtc> EtcSchema;
+        DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TEtc>, Etc);
     };
 
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TSpec, Spec);

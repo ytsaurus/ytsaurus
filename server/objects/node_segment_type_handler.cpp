@@ -1,9 +1,11 @@
 #include "node_segment_type_handler.h"
-#include "type_handler_detail.h"
+
+#include "config.h"
+#include "db_schema.h"
 #include "node_segment.h"
 #include "pod.h"
 #include "pod_set.h"
-#include "db_schema.h"
+#include "type_handler_detail.h"
 
 namespace NYP::NServer::NObjects {
 
@@ -16,8 +18,9 @@ class TNodeSegmentTypeHandler
     : public TObjectTypeHandlerBase
 {
 public:
-    explicit TNodeSegmentTypeHandler(NMaster::TBootstrap* bootstrap)
+    TNodeSegmentTypeHandler(NMaster::TBootstrap* bootstrap, TNodeSegmentTypeHandlerConfigPtr config)
         : TObjectTypeHandlerBase(bootstrap, EObjectType::NodeSegment)
+        , Config_(std::move(config))
     { }
 
     virtual void Initialize() override
@@ -74,6 +77,8 @@ public:
     }
 
 private:
+    const TNodeSegmentTypeHandlerConfigPtr Config_;
+
     static void InitializeSpec(
         TTransaction* /*transaction*/,
         TNodeSegment* /*segment*/,
@@ -88,24 +93,50 @@ private:
     {
         const auto& spec = nodeSegment->Spec();
 
-        if (spec.IsChanged() &&
-            !spec.Load().enable_unsafe_porto() &&
-            spec.LoadOld().enable_unsafe_porto())
-        {
-            auto podSets = nodeSegment->PodSets().Load();
-            for (auto* podSet : podSets) {
-                auto pods = podSet->Pods().Load();
-                for (auto* pod : pods) {
-                    ValidateIssPodSpecSafe(pod);
+        if (spec.IsChanged()) {
+            const auto& specLoaded = spec.Load();
+            const auto& specLoadedOld = spec.LoadOld();
+
+            if (!specLoaded.enable_unsafe_porto() &&
+                specLoadedOld.enable_unsafe_porto())
+            {
+                auto podSets = nodeSegment->PodSets().Load();
+                for (auto* podSet : podSets) {
+                    auto pods = podSet->Pods().Load();
+                    for (auto* pod : pods) {
+                        ValidateIssPodSpecSafe(pod);
+                    }
+                }
+            }
+
+            if (specLoaded.pod_constraints().has_vcpu_guarantee_to_limit_ratio()) {
+                const auto& vcpuConstraints = specLoaded.pod_constraints().vcpu_guarantee_to_limit_ratio();
+                const auto& vcpuConstraintsOld = specLoadedOld.pod_constraints().vcpu_guarantee_to_limit_ratio();
+
+                if ((vcpuConstraints.multiplier() != vcpuConstraintsOld.multiplier() || !vcpuConstraintsOld.has_multiplier()) &&
+                    (vcpuConstraints.multiplier() < 1.0 || vcpuConstraints.multiplier() > Config_->PodVcpuGuaranteeToLimitRatioConstraint->MaxMultiplier))
+                {
+                    THROW_ERROR_EXCEPTION("Invalid vcpu guarantee to limit ratio constraint: multiplier expected to be in range [1.0, %v], but got %v",
+                        Config_->PodVcpuGuaranteeToLimitRatioConstraint->MaxMultiplier,
+                        vcpuConstraints.multiplier());
+                }
+                if (vcpuConstraints.additive() != vcpuConstraintsOld.additive() &&
+                    vcpuConstraints.additive() > Config_->PodVcpuGuaranteeToLimitRatioConstraint->MaxAdditive)
+                {
+                    THROW_ERROR_EXCEPTION("Invalid vcpu guarantee to limit ratio constraint: additive expected to be in range [0, %v], but got %v",
+                        Config_->PodVcpuGuaranteeToLimitRatioConstraint->MaxAdditive,
+                        vcpuConstraints.additive());
                 }
             }
         }
     }
 };
 
-std::unique_ptr<IObjectTypeHandler> CreateNodeSegmentTypeHandler(NMaster::TBootstrap* bootstrap)
+std::unique_ptr<IObjectTypeHandler> CreateNodeSegmentTypeHandler(
+    NMaster::TBootstrap* bootstrap,
+    TNodeSegmentTypeHandlerConfigPtr config)
 {
-    return std::unique_ptr<IObjectTypeHandler>(new TNodeSegmentTypeHandler(bootstrap));
+    return std::unique_ptr<IObjectTypeHandler>(new TNodeSegmentTypeHandler(bootstrap, std::move(config)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -91,6 +91,13 @@ message TPodStatusSchedulingEtc
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TPodSetSpecEtc
+{
+    NYP.NClient.NApi.NProto.TPodSetSpec.TViolateNodeSegmentConstraints violate_node_segment_constraints = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TAccountSpecEtc
 {
     NYP.NClient.NApi.NProto.TResourceTotals resource_limits = 2;

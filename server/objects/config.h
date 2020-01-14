@@ -54,6 +54,44 @@ DEFINE_REFCOUNTED_TYPE(TPodTypeHandlerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TPodVcpuGuaranteeToLimitRatioConstraintConfig
+    : public NYT::NYTree::TYsonSerializable
+{
+public:
+    double MaxMultiplier;
+    ui64 MaxAdditive;
+
+    TPodVcpuGuaranteeToLimitRatioConstraintConfig()
+    {
+        RegisterParameter("max_multiplier", MaxMultiplier)
+            .GreaterThanOrEqual(1.0)
+            .Default(1000.0);
+        RegisterParameter("max_additive", MaxAdditive)
+            .Default(1000000);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TPodVcpuGuaranteeToLimitRatioConstraintConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TNodeSegmentTypeHandlerConfig
+    : public NYT::NYTree::TYsonSerializable
+{
+public:
+    TPodVcpuGuaranteeToLimitRatioConstraintConfigPtr PodVcpuGuaranteeToLimitRatioConstraint;
+
+    TNodeSegmentTypeHandlerConfig()
+    {
+        RegisterParameter("pod_vcpu_guarantee_to_limit_ratio_constraint", PodVcpuGuaranteeToLimitRatioConstraint)
+            .DefaultNew();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TNodeSegmentTypeHandlerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TObjectManagerConfig
     : public NYT::NYTree::TYsonSerializable
 {
@@ -62,6 +100,7 @@ public:
     TDuration RemovedObjectsGraceTimeout;
     int RemovedObjectsDropBatchSize;
     TPodTypeHandlerConfigPtr PodTypeHandler;
+    TNodeSegmentTypeHandlerConfigPtr NodeSegmentTypeHandler;
     bool EnableExtensibleAttributes;
     bool EnableHistory;
 
@@ -75,6 +114,8 @@ public:
             .GreaterThanOrEqual(1)
             .Default(50000);
         RegisterParameter("pod_type_handler", PodTypeHandler)
+            .DefaultNew();
+        RegisterParameter("node_segment_type_handler", NodeSegmentTypeHandler)
             .DefaultNew();
         RegisterParameter("enable_extensible_attributes", EnableExtensibleAttributes)
             .Default(false);

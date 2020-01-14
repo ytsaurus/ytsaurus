@@ -39,6 +39,7 @@ SET(YP_TEST_SRCS
     test_multi_cluster_replica_sets.py
     test_net.py
     test_network_projects.py
+    test_node_segment_pod_constraints.py
     test_node_segments.py
     test_nodes.py
     test_object_service.py

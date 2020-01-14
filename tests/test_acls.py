@@ -24,8 +24,6 @@ from yt.packages.six.moves import xrange
 import itertools
 import pytest
 
-from yp.logger import logger
-
 
 @pytest.mark.usefixtures("yp_env")
 class TestAcls(object):

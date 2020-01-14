@@ -58,6 +58,11 @@ public:
                 MakeAttributeSchema("node_filter")
                     ->SetAttribute(TPodSet::TSpec::NodeFilterSchema)
                     ->SetUpdatable(),
+
+                MakeEtcAttributeSchema()
+                    ->SetAttribute(TPodSet::TSpec::EtcSchema)
+                    ->SetUpdatable()
+                    ->SetValidator<TPodSet>(std::bind(&TPodSetTypeHandler::ValidateEtc, this, _1, _2)),
             });
 
         StatusAttributeSchema_
@@ -138,6 +143,23 @@ private:
         auto* account = podSet->Spec().Account().Load();
         const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
         accessControlManager->ValidatePermission(account, EAccessControlPermission::Use);
+    }
+
+    void ValidateEtc(TTransaction* /*transaction*/, TPodSet* podSet)
+    {
+        const auto& podSetSpecEtcOld = podSet->Spec().Etc().LoadOld();
+        const auto& podSetSpecEtc = podSet->Spec().Etc().Load();
+
+        if (!podSetSpecEtcOld.violate_node_segment_constraints().vcpu_guarantee_to_limit_ratio() &&
+            podSetSpecEtc.violate_node_segment_constraints().vcpu_guarantee_to_limit_ratio())
+        {
+            auto* nodeSegment = podSet->Spec().NodeSegment().Load();
+            const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
+            accessControlManager->ValidatePermission(
+                nodeSegment,
+                EAccessControlPermission::Use,
+                "/access/pod_constraints/violate/vcpu_guarantee_to_limit_ratio");
+        }
     }
 
     void OnAccountUpdated(TTransaction* transaction, TPodSet* podSet)

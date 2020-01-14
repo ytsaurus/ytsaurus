@@ -209,6 +209,7 @@ extern const struct TPodSetsTable
         TDBField Spec_AccountId{"spec.account_id", NTableClient::EValueType::String};
         TDBField Spec_PodDisruptionBudgetId{"spec.pod_disruption_budget_id", NTableClient::EValueType::String};
         TDBField Spec_NodeFilter{"spec.node_filter", NTableClient::EValueType::String};
+        TDBField Spec_Etc{"spec.etc", NTableClient::EValueType::Any};
     } Fields;
 } PodSetsTable;
 
