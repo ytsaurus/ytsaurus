@@ -23,6 +23,7 @@
 #include <yt/server/node/data_node/peer_block_updater.h>
 #include <yt/server/node/data_node/private.h>
 #include <yt/server/node/data_node/session_manager.h>
+#include <yt/server/node/data_node/table_schema_cache.h>
 #include <yt/server/node/data_node/ytree_integration.h>
 #include <yt/server/node/data_node/chunk_meta_manager.h>
 #include <yt/server/node/data_node/skynet_http_handler.h>
@@ -110,6 +111,7 @@
 #include <yt/core/http/server.h>
 
 #include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/fair_share_thread_pool.h>
 #include <yt/core/concurrency/thread_pool.h>
 #include <yt/core/concurrency/periodic_executor.h>
 
@@ -254,9 +256,9 @@ void TBootstrap::DoInitialize()
 
     MasterCacheQueue_ = New<TActionQueue>("MasterCache");
     JobThrottlerQueue_ = New<TActionQueue>("JobThrottler");
-    LookupThreadPool_ = New<TThreadPool>(
+    TabletLookupThreadPool_ = New<TThreadPool>(
         Config_->QueryAgent->LookupThreadPoolSize,
-        "Lookup");
+        "TabletLookup");
     TableReplicatorThreadPool_ = New<TThreadPool>(
         Config_->TabletNode->TabletManager->ReplicatorThreadPoolSize,
         "Replicator");
@@ -268,6 +270,9 @@ void TBootstrap::DoInitialize()
     StorageLightThreadPool_ = New<TThreadPool>(
         Config_->DataNode->StorageLightThreadCount,
         "StorageLight");
+    StorageLookupThreadPool_ = CreateFairShareThreadPool(
+        Config_->DataNode->StorageLookupThreadCount,
+        "StorageLookup");
 
     BusServer_ = CreateTcpBusServer(Config_->BusServer);
 
@@ -287,6 +292,8 @@ void TBootstrap::DoInitialize()
     }
 
     BlobReaderCache_ = New<TBlobReaderCache>(Config_->DataNode, this);
+
+    TableSchemaCache_ = New<TTableSchemaCache>(Config_->DataNode->TableSchemaCache);
 
     JournalDispatcher_ = New<TJournalDispatcher>(Config_->DataNode);
 
@@ -762,9 +769,9 @@ IInvokerPtr TBootstrap::GetQueryPoolInvoker(
     return QueryThreadPool_->GetInvoker(poolName, weight, tag);
 }
 
-const IInvokerPtr& TBootstrap::GetLookupPoolInvoker() const
+const IInvokerPtr& TBootstrap::GetTabletLookupPoolInvoker() const
 {
-    return LookupThreadPool_->GetInvoker();
+    return TabletLookupThreadPool_->GetInvoker();
 }
 
 const IInvokerPtr& TBootstrap::GetTableReplicatorPoolInvoker() const
@@ -785,6 +792,12 @@ const IPrioritizedInvokerPtr& TBootstrap::GetStorageHeavyInvoker() const
 const IInvokerPtr& TBootstrap::GetStorageLightInvoker() const
 {
     return StorageLightThreadPool_->GetInvoker();
+}
+
+// NB: Despite other getters we need to return pointer, not a reference to pointer.
+IInvokerPtr TBootstrap::GetStorageLookupInvoker() const
+{
+    return StorageLookupThreadPool_->GetInvoker("default");
 }
 
 const IInvokerPtr& TBootstrap::GetJobThrottlerInvoker() const
@@ -920,6 +933,11 @@ const TPeerBlockUpdaterPtr& TBootstrap::GetPeerBlockUpdater() const
 const TBlobReaderCachePtr& TBootstrap::GetBlobReaderCache() const
 {
     return BlobReaderCache_;
+}
+
+const TTableSchemaCachePtr& TBootstrap::GetTableSchemaCache() const
+{
+    return TableSchemaCache_;
 }
 
 const TJournalDispatcherPtr& TBootstrap::GetJournalDispatcher() const

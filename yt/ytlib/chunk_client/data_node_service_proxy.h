@@ -26,6 +26,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, FlushBlocks);
     DEFINE_RPC_PROXY_METHOD(NProto, GetBlockSet);
     DEFINE_RPC_PROXY_METHOD(NProto, GetBlockRange);
+    DEFINE_RPC_PROXY_METHOD(NProto, LookupRows);
     DEFINE_RPC_PROXY_METHOD(NProto, PingSession,
         .SetMultiplexingBand(NRpc::EMultiplexingBand::Control));
     DEFINE_RPC_PROXY_METHOD(NProto, GetChunkMeta);

@@ -133,6 +133,8 @@ public:
 
     bool EnablePartitionSplitWhileEdenPartitioning;
 
+    bool EnableDataNodeLookup;
+
     TTableMountConfig()
     {
         RegisterParameter("tablet_cell_bundle", TabletCellBundle)
@@ -298,6 +300,9 @@ public:
             .Default(false);
 
         RegisterParameter("enable_partition_split_while_eden_partitioning", EnablePartitionSplitWhileEdenPartitioning)
+            .Default(false);
+
+        RegisterParameter("enable_data_node_lookup", EnableDataNodeLookup)
             .Default(false);
 
         RegisterPostprocessor([&] () {

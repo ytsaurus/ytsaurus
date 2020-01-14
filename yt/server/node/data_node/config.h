@@ -462,6 +462,28 @@ DEFINE_REFCOUNTED_TYPE(TTmpfsLayerCacheConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTableSchemaCacheConfig
+    : public TSlruCacheConfig
+{
+public:
+    //! Timeout for table schema request.
+    TDuration TableSchemaCacheRequestTimeout;
+
+    TTableSchemaCacheConfig()
+    {
+        RegisterParameter("table_schema_cache_request_timeout", TableSchemaCacheRequestTimeout)
+            .Default(TDuration::Seconds(3));
+
+        RegisterPreprocessor([&] {
+            Capacity = 100_MB;
+        });
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TTableSchemaCacheConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TVolumeManagerConfig
     : public NYTree::TYsonSerializable
 {
@@ -557,6 +579,9 @@ public:
 
     //! Opened changelogs cache.
     TSlruCacheConfigPtr ChangelogReaderCache;
+
+    //! Table schema and row key comparer cache.
+    TTableSchemaCacheConfigPtr TableSchemaCache;
 
     //! Multiplexed changelog configuration.
     TMultiplexedChangelogConfigPtr MultiplexedChangelog;
@@ -736,6 +761,9 @@ public:
     //! Number of tablet errors sent in heartbeat.
     int MaxTabletErrorsInHeartbeat;
 
+    //! Number of threads in DataNodeLookup thread pool (used for row lookups).
+    int StorageLookupThreadCount;
+
     TDataNodeConfig()
     {
         RegisterParameter("lease_transaction_timeout", LeaseTransactionTimeout)
@@ -770,6 +798,8 @@ public:
         RegisterParameter("blob_reader_cache", BlobReaderCache)
             .DefaultNew();
         RegisterParameter("changelog_reader_cache", ChangelogReaderCache)
+            .DefaultNew();
+        RegisterParameter("table_schema_cache", TableSchemaCache)
             .DefaultNew();
 
         RegisterParameter("multiplexed_changelog", MultiplexedChangelog)
@@ -913,6 +943,9 @@ public:
             .GreaterThan(0)
             .Default(2);
         RegisterParameter("storage_light_thread_count", StorageLightThreadCount)
+            .GreaterThan(0)
+            .Default(2);
+        RegisterParameter("storage_lookup_thread_count", StorageLookupThreadCount)
             .GreaterThan(0)
             .Default(2);
 
