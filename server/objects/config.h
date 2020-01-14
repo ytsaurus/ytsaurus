@@ -96,13 +96,21 @@ class TObjectManagerConfig
     : public NYT::NYTree::TYsonSerializable
 {
 public:
+    // Sweep.
     TDuration RemovedObjectsSweepPeriod;
     TDuration RemovedObjectsGraceTimeout;
     int RemovedObjectsDropBatchSize;
+
+    // Type handlers.
     TPodTypeHandlerConfigPtr PodTypeHandler;
     TNodeSegmentTypeHandlerConfigPtr NodeSegmentTypeHandler;
+
+    // Extensible attributes.
     bool EnableExtensibleAttributes;
+
+    // History.
     bool EnableHistory;
+    THashSet<EObjectType> HistoryDisabledTypes;
 
     TObjectManagerConfig()
     {
@@ -113,14 +121,19 @@ public:
         RegisterParameter("removed_objects_drop_batch_size", RemovedObjectsDropBatchSize)
             .GreaterThanOrEqual(1)
             .Default(50000);
+
         RegisterParameter("pod_type_handler", PodTypeHandler)
             .DefaultNew();
         RegisterParameter("node_segment_type_handler", NodeSegmentTypeHandler)
             .DefaultNew();
+
         RegisterParameter("enable_extensible_attributes", EnableExtensibleAttributes)
             .Default(false);
+
         RegisterParameter("enable_history", EnableHistory)
             .Default(true);
+        RegisterParameter("history_disabled_types", HistoryDisabledTypes)
+            .Default();
     }
 };
 

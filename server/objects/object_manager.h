@@ -28,6 +28,7 @@ public:
 
     bool AreExtensibleAttributesEnabled() const;
     bool IsHistoryEnabled() const;
+    bool IsHistoryDisabledForType(EObjectType type) const;
 
 private:
     class TImpl;

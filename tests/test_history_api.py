@@ -15,6 +15,34 @@ from yt.yson import YsonEntity
 import pytest
 
 
+@pytest.mark.usefixtures("yp_env_configurable")
+class TestHistoryApiDisabledTypes(object):
+    YP_MASTER_CONFIG = dict(
+        object_manager = dict(
+            history_disabled_types = [
+                "pod",
+            ],
+        ),
+    )
+
+    def test(self, yp_env_configurable):
+        yp_client = yp_env_configurable.yp_client
+
+        # History is not disabled for stages.
+        stage_id = yp_client.create_object(object_type="stage", attributes={"spec": {"revision": 42}})
+        yp_client.update_object("stage", stage_id, set_updates=[{"path": "/spec/revision", "value": 123}])
+
+        history_events = yp_client.select_object_history("stage", stage_id, ["/spec"])["events"]
+        assert len(history_events) > 0
+
+        # History is disabled for pods.
+        pod_set_id = create_pod_set(yp_client)
+        pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, spec=dict(enable_scheduling=True))
+
+        wait(lambda: is_error_pod_scheduling_status(get_pod_scheduling_status(yp_client, pod_id)))
+        assert 0 == len(yp_client.select_object_history("pod", pod_id, ["/status/scheduling"])["events"])
+
+
 @pytest.mark.usefixtures("yp_env")
 class TestHistoryApi(object):
     def test_filters(self, yp_env):

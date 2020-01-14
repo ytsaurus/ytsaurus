@@ -158,6 +158,11 @@ public:
         return Config_->EnableHistory;
     }
 
+    bool IsHistoryDisabledForType(EObjectType type) const
+    {
+        return Config_->HistoryDisabledTypes.contains(type);
+    }
+
 private:
     TBootstrap* const Bootstrap_;
     const TObjectManagerConfigPtr Config_;
@@ -364,6 +369,11 @@ bool TObjectManager::AreExtensibleAttributesEnabled() const
 bool TObjectManager::IsHistoryEnabled() const
 {
     return Impl_->IsHistoryEnabled();
+}
+
+bool TObjectManager::IsHistoryDisabledForType(EObjectType type) const
+{
+    return Impl_->IsHistoryDisabledForType(type);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

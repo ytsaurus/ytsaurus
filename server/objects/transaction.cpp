@@ -2413,47 +2413,64 @@ private:
 
         void FlushHistoryEvents()
         {
+            const auto& objectManager = Owner_->Bootstrap_->GetObjectManager();
+
+            auto isHistoryDisabledForType = [&] (auto* typeHandler) -> bool {
+                return objectManager->IsHistoryDisabledForType(typeHandler->GetType());
+            };
+
             const auto time = TInstant::Now();
 
-            i64 eventCount = 0;
+            i64 writtenEventCount = 0;
 
             TStoreContext storeContext(Owner_);
-            const auto& objectManager = Owner_->Bootstrap_->GetObjectManager();
             for (auto type : TEnumTraits<EObjectType>::GetDomainValues()) {
                 auto* typeHandler = objectManager->FindTypeHandler(type);
-                if (!typeHandler || !typeHandler->HasHistoryEnabledAttributes()) {
+                if (!typeHandler || isHistoryDisabledForType(typeHandler)) {
+                    continue;
+                }
+
+                if (!typeHandler->HasHistoryEnabledAttributes()) {
                     continue;
                 }
 
                 for (const auto& [objectType, object] : RemovedObjects_[type]) {
-                    ++eventCount;
+                    ++writtenEventCount;
                     WriteHistoryEvent(storeContext, object, EEventType::ObjectRemoved, time);
                 }
             }
 
             for (const auto& [objectType, object] : InstantiatedObjects_) {
+                auto* typeHandler = object->GetTypeHandler();
+                if (isHistoryDisabledForType(typeHandler)) {
+                    continue;
+                }
+
                 if (!object->IsStoreScheduled() || object->GetState() != EObjectState::Instantiated) {
                     continue;
                 }
 
-                auto* typeHandler = object->GetTypeHandler();
                 if (typeHandler->HasHistoryEnabledAttributeForStore(object.get())) {
-                    ++eventCount;
+                    ++writtenEventCount;
                     WriteHistoryEvent(storeContext, object.get(), EEventType::ObjectUpdated, time);
                 }
             }
 
             for (const auto& [objectType, object] : CreatedObjects_) {
                 auto* typeHandler = object->GetTypeHandler();
+                if (isHistoryDisabledForType(typeHandler)) {
+                    continue;
+                }
+
                 if (typeHandler->HasHistoryEnabledAttributes()) {
-                    ++eventCount;
+                    ++writtenEventCount;
                     WriteHistoryEvent(storeContext, object, EEventType::ObjectCreated, time);
                 }
             }
 
             storeContext.FillTransaction(Owner_->UnderlyingTransaction_);
 
-            YT_LOG_DEBUG_UNLESS(eventCount == 0, "History events write prepared (Count: %v)", eventCount);
+            YT_LOG_DEBUG_UNLESS(writtenEventCount == 0, "History events written (Count: %v)", writtenEventCount);
         }
 
         void FlushLoadsOnce(std::vector<TError>* errors)
