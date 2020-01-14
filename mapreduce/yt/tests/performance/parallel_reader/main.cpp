@@ -1,4 +1,4 @@
-#include <mapreduce/yt/tests/performance/parallel/jupiter_log.pb.h>
+#include <mapreduce/yt/tests/performance/parallel_reader/jupiter_log.pb.h>
 
 #include <mapreduce/yt/interface/client.h>
 
