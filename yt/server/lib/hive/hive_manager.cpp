@@ -502,9 +502,8 @@ private:
 
         auto srcCellId = FromProto<TCellId>(request->src_cell_id());
         if (RemovedCellIds_.contains(srcCellId)) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Received messages from a removed cell; ignored (SrcCellId: %v)",
+            THROW_ERROR_EXCEPTION("Cell %v is removed",
                 srcCellId);
-            return;
         }
 
         auto firstMessageId = request->first_message_id();
