@@ -1,8 +1,6 @@
 #pragma once
 
 #include "object.h"
-#include "replica_set.h"
-#include "multi_cluster_replica_set.h"
 
 #include <yp/server/nodes/public.h>
 
