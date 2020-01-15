@@ -14,6 +14,7 @@ public class SelectRowsRequest {
     private Boolean failOnIncompleteResult;
     private Integer maxSubqueries;
     private Boolean allowJoinWithoutIndex;
+    private String udfRegistryPath;
 
     private SelectRowsRequest(String query) {
         this.query = query;
@@ -80,4 +81,12 @@ public class SelectRowsRequest {
         return Optional.ofNullable(allowJoinWithoutIndex);
     }
 
+    public SelectRowsRequest setUdfRegistryPath(String udfRegistryPath) {
+        this.udfRegistryPath = udfRegistryPath;
+        return this;
+    }
+
+    public Optional<String> getUdfRegistryPath() {
+        return Optional.ofNullable(udfRegistryPath);
+    }
 }

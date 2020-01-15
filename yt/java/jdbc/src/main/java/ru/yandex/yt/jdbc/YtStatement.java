@@ -28,6 +28,7 @@ public class YtStatement extends AbstractWrapper implements Statement {
     private final YtClient client;
     private final int inputLimit;
     private final boolean allowJoinWithoutIndex;
+    private final String udfRegistryPath;
 
     private boolean closed;
     private int maxRows = 10_000;
@@ -46,6 +47,7 @@ public class YtStatement extends AbstractWrapper implements Statement {
         final YtClientProperties props = wrapper.getProperties();
         this.inputLimit = props.getMaxInputLimit();
         this.allowJoinWithoutIndex = props.isAllowJoinWithoutIndex();
+        this.udfRegistryPath = props.getUdfRegistryPath();
     }
 
     YtConnection getYtConnection() {
@@ -70,7 +72,8 @@ public class YtStatement extends AbstractWrapper implements Statement {
                 .setInputRowsLimit(inputLimit)
                 .setOutputRowsLimit(maxRows)
                 .setFailOnIncompleteResult(false)
-                .setAllowJoinWithoutIndex(allowJoinWithoutIndex);
+                .setAllowJoinWithoutIndex(allowJoinWithoutIndex)
+                .setUdfRegistryPath(udfRegistryPath);
 
         this.future = client.selectRows(request);
         final UnversionedRowset rowSet;

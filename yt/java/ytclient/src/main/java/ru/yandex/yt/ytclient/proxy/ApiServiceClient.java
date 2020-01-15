@@ -654,6 +654,9 @@ public class ApiServiceClient implements TransactionalClient {
         if (request.getAllowJoinWithoutIndex().isPresent()) {
             builder.body().setAllowJoinWithoutIndex(request.getAllowJoinWithoutIndex().get());
         }
+        if (request.getUdfRegistryPath().isPresent()) {
+            builder.body().setUdfRegistryPath(request.getUdfRegistryPath().get());
+        }
         return handleHeavyResponse(invoke(builder), response -> {
             logger.trace("SelectRows incoming rowset descriptor: {}", response.body().getRowsetDescriptor());
             return responseReader.apply(response);

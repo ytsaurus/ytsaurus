@@ -13,6 +13,7 @@ import static ru.yandex.yt.jdbc.YtClientParameters.HOME;
 import static ru.yandex.yt.jdbc.YtClientParameters.MAX_INPUT_LIMIT;
 import static ru.yandex.yt.jdbc.YtClientParameters.SCAN_RECURSIVE;
 import static ru.yandex.yt.jdbc.YtClientParameters.TOKEN;
+import static ru.yandex.yt.jdbc.YtClientParameters.UDF_REGISTRY_PATH;
 import static ru.yandex.yt.jdbc.YtClientParameters.USERNAME;
 
 public class YtClientProperties {
@@ -26,6 +27,7 @@ public class YtClientProperties {
     private final String home;
     private final boolean scanRecursive;
     private final boolean allowJoinWithoutIndex;
+    private final String udfRegistryPath;
 
     YtClientProperties(String proxy, Properties properties) {
         this.proxy = Objects.requireNonNull(proxy, "'proxy' is mandatory");
@@ -37,6 +39,7 @@ public class YtClientProperties {
         this.home = HOME.readValue(properties);
         this.scanRecursive = Boolean.parseBoolean(SCAN_RECURSIVE.readValue(properties));
         this.allowJoinWithoutIndex = Boolean.parseBoolean(ALLOW_JOIN_WITHOUT_INDEX.readValue(properties));
+        this.udfRegistryPath = UDF_REGISTRY_PATH.readValue(properties);
     }
 
     String getProxy() {
@@ -75,6 +78,10 @@ public class YtClientProperties {
         return allowJoinWithoutIndex;
     }
 
+    String getUdfRegistryPath() {
+        return udfRegistryPath;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -92,13 +99,14 @@ public class YtClientProperties {
                 Objects.equals(username, that.username) &&
                 Objects.equals(token, that.token) &&
                 compression == that.compression &&
-                Objects.equals(home, that.home);
+                Objects.equals(home, that.home) &&
+                Objects.equals(udfRegistryPath, that.udfRegistryPath);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(proxy, username, token, compression, debugOutput, maxInputLimit, home, scanRecursive,
-                allowJoinWithoutIndex);
+                allowJoinWithoutIndex, udfRegistryPath);
     }
 
     @Override
@@ -110,6 +118,7 @@ public class YtClientProperties {
                 ", debugOutput=" + debugOutput +
                 ", maxInputLimit=" + maxInputLimit +
                 ", home='" + home + '\'' +
+                ", udfRegistryPath='" + udfRegistryPath + '\'' +
                 ", scanRecursive=" + scanRecursive +
                 ", allowJoinWithoutIndex=" + allowJoinWithoutIndex +
                 '}';
