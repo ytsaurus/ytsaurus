@@ -1,6 +1,8 @@
 #pragma once
 
 #include "object.h"
+#include "replica_set.h"
+#include "multi_cluster_replica_set.h"
 
 #include <yp/server/nodes/public.h>
 
@@ -37,6 +39,14 @@ public:
     static const TOneToManyAttributeSchema<TNodeSegment, TPodSet> PodSetsSchema;
     using TPodSets = TOneToManyAttribute<TNodeSegment, TPodSet>;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TPodSets, PodSets);
+
+    static const TOneToManyAttributeSchema<TNodeSegment, TReplicaSet> ReplicaSetsSchema;
+    using TReplicaSets = TOneToManyAttribute<TNodeSegment, TReplicaSet>;
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TReplicaSets, ReplicaSets);
+
+    static const TOneToManyAttributeSchema<TNodeSegment, TMultiClusterReplicaSet> MultiClusterReplicaSetsSchema;
+    using TMultiClusterReplicaSets = TOneToManyAttribute<TNodeSegment, TMultiClusterReplicaSet>;
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TMultiClusterReplicaSets, MultiClusterReplicaSets);
 
     virtual bool IsBuiltin() const override;
 };

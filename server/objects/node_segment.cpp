@@ -1,5 +1,7 @@
 #include "node_segment.h"
 #include "pod_set.h"
+#include "replica_set.h"
+#include "multi_cluster_replica_set.h"
 #include "db_schema.h"
 
 namespace NYP::NServer::NObjects {
@@ -24,6 +26,22 @@ const TOneToManyAttributeSchema<TNodeSegment, TPodSet> TNodeSegment::PodSetsSche
     [] (TPodSet* podSet) { return &podSet->Spec().NodeSegment(); },
 };
 
+const TOneToManyAttributeSchema<TNodeSegment, TReplicaSet> TNodeSegment::ReplicaSetsSchema{
+    &NodeSegmentToReplicaSetsTable,
+    &NodeSegmentToReplicaSetsTable.Fields.NodeSegmentId,
+    &NodeSegmentToReplicaSetsTable.Fields.ReplicaSetId,
+    [] (TNodeSegment* segment) { return &segment->ReplicaSets(); },
+    [] (TReplicaSet* replicaSet) { return &replicaSet->Spec().NodeSegment(); },
+};
+
+const TOneToManyAttributeSchema<TNodeSegment, TMultiClusterReplicaSet> TNodeSegment::MultiClusterReplicaSetsSchema{
+    &NodeSegmentToMultiClusterReplicaSetsTable,
+    &NodeSegmentToMultiClusterReplicaSetsTable.Fields.NodeSegmentId,
+    &NodeSegmentToMultiClusterReplicaSetsTable.Fields.ReplicaSetId,
+    [] (TNodeSegment* segment) { return &segment->MultiClusterReplicaSets(); },
+    [] (TMultiClusterReplicaSet* replicaSet) { return &replicaSet->Spec().NodeSegment(); },
+};
+
 TNodeSegment::TNodeSegment(
     const TObjectId& id,
     IObjectTypeHandler* typeHandler,
@@ -32,6 +50,8 @@ TNodeSegment::TNodeSegment(
     , Spec_(this, &SpecSchema)
     , Status_(this, &StatusSchema)
     , PodSets_(this, &PodSetsSchema)
+    , ReplicaSets_(this, &ReplicaSetsSchema)
+    , MultiClusterReplicaSets_(this, &MultiClusterReplicaSetsSchema)
 { }
 
 EObjectType TNodeSegment::GetType() const

@@ -2,6 +2,7 @@
 #include "type_handler_detail.h"
 #include "multi_cluster_replica_set.h"
 #include "account.h"
+#include "node_segment.h"
 #include "db_schema.h"
 #include "pod_type_handler.h"
 #include "config.h"
@@ -39,6 +40,10 @@ public:
                         .SetNullable(false))
                     ->SetUpdatable()
                     ->SetValidator<TMultiClusterReplicaSet>(std::bind(&TMultiClusterReplicaSetTypeHandler::ValidateAccount, this, _1, _2)),
+
+                MakeAttributeSchema("node_segment_id")
+                    ->SetAttribute(TMultiClusterReplicaSet::TSpec::NodeSegmentSchema)
+                    ->SetUpdatable(),
 
                 MakeEtcAttributeSchema()
                     ->SetAttribute(TMultiClusterReplicaSet::TSpec::EtcSchema)

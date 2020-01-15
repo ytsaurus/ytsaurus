@@ -17,6 +17,7 @@ const TAnnotationsTable AnnotationsTable;
 const TNetworkProjectsTable NetworkProjectsTable;
 const TDynamicResourcesTable DynamicResourcesTable;
 const TReplicaSetsTable ReplicaSetsTable;
+const TNodeSegmentToReplicaSetsTable NodeSegmentToReplicaSetsTable;
 const TIP6NoncesTable IP6NoncesTable;
 const TEndpointsTable EndpointsTable;
 const TEndpointSetsTable EndpointSetsTable;
@@ -39,6 +40,7 @@ const TAccountToProjectsTable AccountToProjectsTable;
 const TDnsRecordSetsTable DnsRecordSetsTable;
 const TResourceCachesTable ResourceCachesTable;
 const TMultiClusterReplicaSetsTable MultiClusterReplicaSetsTable;
+const TNodeSegmentToMultiClusterReplicaSetsTable NodeSegmentToMultiClusterReplicaSetsTable;
 const TStagesTable StagesTable;
 const TPodDisruptionBudgetsTable PodDisruptionBudgetsTable;
 const TPodDisruptionBudgetToPodSetsTable PodDisruptionBudgetToPodSetsTable;
@@ -62,6 +64,7 @@ const std::vector<const TDBTable*> Tables = {
     &NetworkProjectsTable,
     &DynamicResourcesTable,
     &ReplicaSetsTable,
+    &NodeSegmentToReplicaSetsTable,
     &IP6NoncesTable,
     &EndpointsTable,
     &EndpointSetsTable,
@@ -84,6 +87,7 @@ const std::vector<const TDBTable*> Tables = {
     &DnsRecordSetsTable,
     &ResourceCachesTable,
     &MultiClusterReplicaSetsTable,
+    &NodeSegmentToMultiClusterReplicaSetsTable,
     &StagesTable,
     &PodDisruptionBudgetsTable,
     &PodDisruptionBudgetToPodSetsTable,

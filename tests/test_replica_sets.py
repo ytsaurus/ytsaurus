@@ -127,3 +127,12 @@ class TestReplicaSets(object):
 
         assert yp_client.get_object("replica_set", rs_id, selectors=["/spec/pod_template_spec/labels"]) == [{"label_key": "label_value"}]
         assert yp_client.get_object("replica_set", rs_id, selectors=["/spec/pod_template_spec/annotations"]) == [{"annotation_key": "annotation_value"}]
+
+    def test_node_segment_id_update(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        account_id = yp_client.create_object("account")
+        segment_id_1 = yp_client.create_object("node_segment", attributes={"spec": {"node_filter": ""}})
+        segment_id_2 = yp_client.create_object("node_segment", attributes={"spec": {"node_filter": ""}})
+        rs_id = yp_client.create_object(object_type="replica_set", attributes={"spec": {"replica_count": 1, "account_id": account_id, "node_segment_id": segment_id_1}})
+        yp_client.update_object("replica_set", rs_id, set_updates=[{"path": "/spec/node_segment", "value": segment_id_2}])

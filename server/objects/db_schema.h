@@ -267,10 +267,29 @@ extern const struct TReplicaSetsTable
         : public TObjectTableBase::TFields
     {
         TDBField Spec_AccountId{"spec.account_id", NTableClient::EValueType::String};
+        TDBField Spec_NodeSegmentId{"spec.node_segment_id", NTableClient::EValueType::String};
         TDBField Spec_Etc{"spec.etc", NTableClient::EValueType::Any};
         TDBField Status{"status", NTableClient::EValueType::Any};
     } Fields;
 } ReplicaSetsTable;
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const struct TNodeSegmentToReplicaSetsTable
+    : public TDBTable
+{
+    TNodeSegmentToReplicaSetsTable()
+        : TDBTable("node_segment_to_replica_sets")
+    {
+        Key = {&Fields.NodeSegmentId, &Fields.ReplicaSetId};
+    }
+
+    struct TFields
+    {
+        TDBField NodeSegmentId{"node_segment_id", NTableClient::EValueType::String};
+        TDBField ReplicaSetId{"replica_set_id", NTableClient::EValueType::String};
+    } Fields;
+} NodeSegmentToReplicaSetsTable;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -694,10 +713,29 @@ extern const struct TMultiClusterReplicaSetsTable
         : public TObjectTableBase::TFields
     {
         TDBField Spec_AccountId{"spec.account_id", NTableClient::EValueType::String};
+        TDBField Spec_NodeSegmentId{"spec.node_segment_id", NTableClient::EValueType::String};
         TDBField Spec_Etc{"spec.etc", NTableClient::EValueType::Any};
         TDBField Status{"status", NTableClient::EValueType::Any};
     } Fields;
 } MultiClusterReplicaSetsTable;
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const struct TNodeSegmentToMultiClusterReplicaSetsTable
+    : public TDBTable
+{
+    TNodeSegmentToMultiClusterReplicaSetsTable()
+        : TDBTable("node_segment_to_multi_cluster_replica_sets")
+    {
+        Key = {&Fields.NodeSegmentId, &Fields.ReplicaSetId};
+    }
+
+    struct TFields
+    {
+        TDBField NodeSegmentId{"node_segment_id", NTableClient::EValueType::String};
+        TDBField ReplicaSetId{"replica_set_id", NTableClient::EValueType::String};
+    } Fields;
+} NodeSegmentToMultiClusterReplicaSetsTable;
 
 ////////////////////////////////////////////////////////////////////////////////
 

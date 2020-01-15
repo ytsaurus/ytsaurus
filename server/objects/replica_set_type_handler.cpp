@@ -1,5 +1,6 @@
 #include "replica_set_type_handler.h"
 #include "account.h"
+#include "node_segment.h"
 #include "type_handler_detail.h"
 #include "replica_set.h"
 #include "db_schema.h"
@@ -40,6 +41,10 @@ public:
                     ->SetUpdatable()
                     ->SetMandatory()
                     ->SetValidator<TReplicaSet>(std::bind(&TReplicaSetTypeHandler::ValidateAccount, this, _1, _2)),
+
+                MakeAttributeSchema("node_segment_id")
+                    ->SetAttribute(TReplicaSet::TSpec::NodeSegmentSchema)
+                    ->SetUpdatable(),
 
                 MakeEtcAttributeSchema()
                     ->SetAttribute(TReplicaSet::TSpec::EtcSchema)

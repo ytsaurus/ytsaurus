@@ -1,5 +1,6 @@
 #include "multi_cluster_replica_set.h"
 #include "account.h"
+#include "node_segment.h"
 #include "db_schema.h"
 
 namespace NYP::NServer::NObjects {
@@ -12,6 +13,12 @@ const TManyToOneAttributeSchema<TMultiClusterReplicaSet, TAccount> TMultiCluster
     [] (TAccount* account) { return &account->MultiClusterReplicaSets(); }
 };
 
+const TManyToOneAttributeSchema<TMultiClusterReplicaSet, TNodeSegment> TMultiClusterReplicaSet::TSpec::NodeSegmentSchema{
+    &MultiClusterReplicaSetsTable.Fields.Spec_NodeSegmentId,
+    [] (TMultiClusterReplicaSet* replicaSet) { return &replicaSet->Spec().NodeSegment(); },
+    [] (TNodeSegment* segment) { return &segment->MultiClusterReplicaSets(); }
+};
+
 const TScalarAttributeSchema<TMultiClusterReplicaSet, TMultiClusterReplicaSet::TSpec::TEtc> TMultiClusterReplicaSet::TSpec::EtcSchema{
     &MultiClusterReplicaSetsTable.Fields.Spec_Etc,
     [] (TMultiClusterReplicaSet* replicaSet) { return &replicaSet->Spec().Etc(); }
@@ -19,6 +26,7 @@ const TScalarAttributeSchema<TMultiClusterReplicaSet, TMultiClusterReplicaSet::T
 
 TMultiClusterReplicaSet::TSpec::TSpec(TMultiClusterReplicaSet* MultiClusterReplicaSet)
     : Account_(MultiClusterReplicaSet, &AccountSchema)
+    , NodeSegment_(MultiClusterReplicaSet, &NodeSegmentSchema)
     , Etc_(MultiClusterReplicaSet, &EtcSchema)
 { }
 
