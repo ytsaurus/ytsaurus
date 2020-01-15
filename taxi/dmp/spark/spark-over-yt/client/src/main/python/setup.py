@@ -2,7 +2,7 @@ import setuptools
 
 setuptools.setup(
     name="yandex-yt-spark",
-    version="0.0.1",
+    version="0.0.2",
     author="Alexandra Belousova",
     author_email="sashbel@yandex-team.ru",
     description="Spark over YT utils",

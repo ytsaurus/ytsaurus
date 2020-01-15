@@ -10,6 +10,10 @@ from yt.wrapper.run_operation_commands import run_operation
 from yt.wrapper.spec_builders import VanillaSpecBuilder
 
 
+def _yt_client(yt_proxy, yt_token):
+    return yt.wrapper.YtClient(proxy=yt_proxy, token=yt_token)
+
+
 def _add_conf(spark_conf, spark_args):
     if spark_conf:
         for k, v in spark_conf.items():
@@ -17,10 +21,10 @@ def _add_conf(spark_conf, spark_args):
             spark_args.append("{}={}".format(k, v))
 
 
-def _add_master(spark_id, yt_proxy, discovery_dir, spark_args, rest):
+def _add_master(spark_id, yt_proxy, discovery_dir, spark_args, rest, client):
     yt.wrapper.config.config['proxy']['url'] = yt_proxy
     master_path = "rest" if rest else "address"
-    master = yt_list("{0}/instances/{1}/{2}".format(discovery_dir, spark_id, master_path))[0]
+    master = yt_list("{0}/instances/{1}/{2}".format(discovery_dir, spark_id, master_path), client=client)[0]
     spark_args.append("--master")
     spark_args.append("spark://{0}".format(master))
 
@@ -76,9 +80,10 @@ def default_base_log_dir(discovery_dir):
     return os.getenv("SPARK_YT_LOG_DIR") or "{}/logs".format(discovery_dir)
 
 
-def _wait_master_start(op, spark_id, discovery_dir):
+def _wait_master_start(op, spark_id, discovery_dir, client):
+    operation_path = "{0}/instances/{1}/operation/{2}".format(discovery_dir, spark_id, op.id)
     for state in op.get_state_monitor(TimeWatcher(1.0, 1.0, 0.0)):
-        if state.is_running() and exists("{0}/instances/{1}/operation/{2}".format(discovery_dir, spark_id, op.id)):
+        if state.is_running() and exists(operation_path, client=client):
             return op
         elif state.is_unsuccessfully_finished():
             process_operation_unsuccesful_finish_state(op, state)
@@ -125,7 +130,7 @@ def submit_python(spark_id, discovery_dir, log_dir, yt_proxy, yt_user, yt_token,
 
 def raw_submit(spark_id, discovery_dir, log_dir, yt_proxy, yt_user, yt_token, spark_home, *args):
     spark_base_args = ["/usr/local/bin/spark-submit"]
-    _add_master(spark_id, yt_proxy, discovery_dir, spark_base_args, rest=True)
+    _add_master(spark_id, yt_proxy, discovery_dir, spark_base_args, rest=True, client=_yt_client(yt_proxy, yt_token))
     _add_base_spark_conf(yt_proxy, yt_user, log_dir, spark_base_args)
     spark_env = _create_spark_env(yt_user, yt_token, spark_home)
 
@@ -135,7 +140,7 @@ def raw_submit(spark_id, discovery_dir, log_dir, yt_proxy, yt_user, yt_token, sp
 
 def shell(spark_id, discovery_dir, log_dir, yt_proxy, yt_user, yt_token, spark_home, *args):
     spark_base_args = ["/usr/local/bin/spark-shell"]
-    _add_master(spark_id, yt_proxy, discovery_dir, spark_base_args, rest=False)
+    _add_master(spark_id, yt_proxy, discovery_dir, spark_base_args, rest=False, client=_yt_client(yt_proxy, yt_token))
     _add_base_spark_conf(yt_proxy, yt_user, log_dir, spark_base_args)
     spark_env = _create_spark_env(yt_user, yt_token, spark_home)
 
@@ -211,49 +216,49 @@ def launch(spark_id, discovery_dir, log_base_dir, yt_proxy, yt_user, yt_token, y
     spec_builder = \
         VanillaSpecBuilder() \
             .begin_task("master") \
-            .job_count(1) \
-            .file_paths(file_paths) \
-            .command(master_command) \
-            .memory_limit(_parse_memory(master_memory_limit)) \
-            .memory_reserve_factor(1.0) \
-            .cpu_limit(2) \
-            .environment(environment) \
-            .layer_paths(layer_paths) \
-            .spec(task_spec) \
+                .job_count(1) \
+                .file_paths(file_paths) \
+                .command(master_command) \
+                .memory_limit(_parse_memory(master_memory_limit)) \
+                .memory_reserve_factor(1.0) \
+                .cpu_limit(2) \
+                .environment(environment) \
+                .layer_paths(layer_paths) \
+                .spec(task_spec) \
             .end_task() \
             .begin_task("history") \
-            .job_count(1) \
-            .file_paths(file_paths) \
-            .command(history_command) \
-            .memory_limit(_parse_memory("8G")) \
-            .memory_reserve_factor(1.0) \
-            .cpu_limit(1) \
-            .environment(environment) \
-            .layer_paths(layer_paths) \
-            .spec(task_spec) \
+                .job_count(1) \
+                .file_paths(file_paths) \
+                .command(history_command) \
+                .memory_limit(_parse_memory("8G")) \
+                .memory_reserve_factor(1.0) \
+                .cpu_limit(1) \
+                .environment(environment) \
+                .layer_paths(layer_paths) \
+                .spec(task_spec) \
             .end_task() \
             .begin_task("workers") \
-            .job_count(worker_num) \
-            .file_paths(file_paths) \
-            .command(worker_command) \
-            .memory_limit(_parse_memory(worker_memory) + _parse_memory("100G")) \
-            .memory_reserve_factor(1.0) \
-            .cpu_limit(worker_cores + 2) \
-            .environment(environment) \
-            .layer_paths(layer_paths) \
-            .spec(task_spec) \
-            .tmpfs_path("tmpfs") \
+                .job_count(worker_num) \
+                .file_paths(file_paths) \
+                .command(worker_command) \
+                .memory_limit(_parse_memory(worker_memory) + _parse_memory("100G")) \
+                .memory_reserve_factor(1.0) \
+                .cpu_limit(worker_cores + 2) \
+                .environment(environment) \
+                .layer_paths(layer_paths) \
+                .spec(task_spec) \
+                .tmpfs_path("tmpfs") \
             .end_task() \
             .secure_vault(secure_vault) \
             .max_failed_job_count(5) \
             .max_stderr_count(150) \
             .spec(operation_spec)
 
-    yt.wrapper.config.config['proxy']['url'] = yt_proxy
-    create("map_node", "{0}/instances".format(discovery_dir), recursive=True, ignore_existing=True)
-    create("map_node", log_dir, recursive=True, ignore_existing=True)
-    op = run_operation(spec_builder, sync=False)
-    _wait_master_start(op, spark_id, discovery_dir)
-    master_address = yt_list("{0}/instances/{1}/webui".format(discovery_dir, spark_id))[0]
+    yt_client = _yt_client(yt_proxy, yt_token)
+    create("map_node", "{0}/instances".format(discovery_dir), recursive=True, ignore_existing=True, client=yt_client)
+    create("map_node", log_dir, recursive=True, ignore_existing=True, client=yt_client)
+    op = run_operation(spec_builder, sync=False, client=yt_client)
+    _wait_master_start(op, spark_id, discovery_dir, yt_client)
+    master_address = yt_list("{0}/instances/{1}/webui".format(discovery_dir, spark_id), client=yt_client)[0]
 
     print("Spark Master's Web UI: http://{0}".format(master_address))
