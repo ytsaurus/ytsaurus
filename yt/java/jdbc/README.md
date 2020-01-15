@@ -68,4 +68,4 @@ select * from [//home/pricelabs/testing/shops]
 # Сборка
 
 ## Сборка uber-jar для распространения
-`ya make -DJDK_VERSION=8 ub`
+`ya make -r -DJDK_VERSION=8 ub`

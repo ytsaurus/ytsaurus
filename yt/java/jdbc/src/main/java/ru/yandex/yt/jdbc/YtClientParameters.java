@@ -17,7 +17,8 @@ public enum YtClientParameters implements Function<Properties, DriverPropertyInf
     MAX_INPUT_LIMIT("max_input_limit", "10000000", null),
     HOME("home"),
     SCAN_RECURSIVE("scan_recursive", "true", new String[]{"true", "false"}),
-    ALLOW_JOIN_WITHOUT_INDEX("allowJoinWithoutIndex", "false", new String[]{"true", "false"});
+    ALLOW_JOIN_WITHOUT_INDEX("allowJoinWithoutIndex", "false", new String[]{"true", "false"}),
+    UDF_REGISTRY_PATH("udf_registry_path");
 
     private final String key;
     private final String defaultValue;
