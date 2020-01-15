@@ -13,8 +13,14 @@ const TManyToOneAttributeSchema<TProject, TAccount> TProject::TSpec::AccountSche
     [] (TAccount* account) { return &account->Projects(); }
 };
 
+const TScalarAttributeSchema<TProject, TProject::TSpec::TEtc> TProject::TSpec::EtcSchema{
+    &ProjectsTable.Fields.Spec_Etc,
+    [] (TProject* project) { return &project->Spec().Etc(); }
+};
+
 TProject::TSpec::TSpec(TProject* project)
     : Account_(project, &AccountSchema)
+    , Etc_(project, &EtcSchema)
 { }
 
 const TScalarAttributeSchema<TProject, TString> TProject::OwnerIdSchema{

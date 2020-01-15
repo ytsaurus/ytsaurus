@@ -36,6 +36,10 @@ public:
         static const TManyToOneAttributeSchema<TProject, TAccount> AccountSchema;
         using TAccountAttribute = TManyToOneAttribute<TProject, TAccount>;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TAccountAttribute, Account);
+
+        using TEtc = NProto::TProjectSpecEtc;
+        static const TScalarAttributeSchema<TProject, TEtc> EtcSchema;
+        DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TEtc>, Etc);
     };
 
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TSpec, Spec);

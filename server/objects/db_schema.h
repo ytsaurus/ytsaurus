@@ -858,6 +858,7 @@ extern const struct TProjectsTable
     {
         TDBField Meta_OwnerId{"meta.owner_id", NTableClient::EValueType::String};
         TDBField Spec_AccountId{"spec.account_id", NTableClient::EValueType::String};
+        TDBField Spec_Etc{"spec.etc", NTableClient::EValueType::Any};
         TDBField Status{"status", NTableClient::EValueType::Any};
     } Fields;
 } ProjectsTable;

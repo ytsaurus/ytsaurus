@@ -56,3 +56,47 @@ class TestProjects(object):
         yp_client = yp_env.yp_client
         with pytest.raises(YtResponseError):
             yp_client.create_object("project", attributes={"meta": {"id": "project"}, "spec": {"account_id": "tmp"}})
+
+    def test_create_with_user_specific_boxes(self, yp_env):
+        yp_client = yp_env.yp_client
+        yp_client.create_object("project", attributes={
+            "meta": {"id": "project", "owner_id": "new_owner"},
+            "spec": {
+                "account_id": "tmp",
+                "user_specific_box_types": ["my_box", "front_box"]
+            }
+        })
+
+    def test_user_specific_boxes_id_validation_failure(self, yp_env):
+        yp_client = yp_env.yp_client
+        with pytest.raises(YtResponseError):
+            yp_client.create_object("project", attributes={
+                "meta": {"id": "project", "owner_id": "new_owner"},
+                "spec": {
+                    "account_id": "tmp",
+                    "user_specific_box_types": ["my_box", "front*box"]
+                }
+            })
+
+    def test_update_user_specific_boxes_id(self, yp_env):
+        yp_client = yp_env.yp_client
+        project_id = yp_client.create_object("project", attributes={
+            "meta": {"id": "project", "owner_id": "new_owner"}, "spec": {"account_id": "tmp"}
+        })
+
+        yp_client.update_object("project", project_id, set_updates=[
+            {"path": "/spec/user_specific_box_types", "value": ["new_box"]}
+        ])
+
+        result = yp_client.get_object("project", project_id, selectors=["/spec/user_specific_box_types"])
+
+        assert result[0] == ["new_box"]
+
+        with pytest.raises(YtResponseError):
+            yp_client.update_object("project", project_id, set_updates=[
+                {"path": "/spec/user_specific_box_types", "value": ["new.box"]}
+            ])
+
+        result = yp_client.get_object("project", project_id, selectors=["/spec/user_specific_box_types"])
+
+        assert result[0] == ["new_box"]

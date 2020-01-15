@@ -33,6 +33,8 @@ message TProjectSpec
 {
     // In form "abc:service:<int id>".
     string account_id = 1;
+
+    repeated string user_specific_box_types = 2 [(NYP.NClient.NApi.NProto.etc) = true];
 }
 
 message TProjectStatus

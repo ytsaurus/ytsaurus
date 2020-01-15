@@ -48,6 +48,11 @@ public:
                         .SetNullable(false))
                     ->SetMandatory()
                     ->SetValidator<TProject>(std::bind(&TProjectTypeHandler::ValidateAccount, this, _1, _2)),
+
+                MakeEtcAttributeSchema()
+                    ->SetAttribute(TProject::TSpec::EtcSchema)
+                    ->SetUpdatable()
+                    ->SetValidator<TProject>(std::bind(&TProjectTypeHandler::ValidateEtc, this, _1, _2))
             })
             ->SetUpdatable();
 
@@ -55,7 +60,7 @@ public:
             ->SetAttribute(TProject::StatusSchema);
 
         IdAttributeSchema_
-            ->SetValidator<TProject>(ValidateId);
+            ->SetValidator<TProject>(ValidateProjectId);
     }
 
     virtual const NYson::TProtobufMessageType* GetRootProtobufType() override
@@ -96,19 +101,29 @@ private:
         }
     }
 
-    static void ValidateId(TTransaction* /*transaction*/, TProject* project)
+    void ValidateEtc(TTransaction* /*transaction*/, TProject* project)
     {
-        const TObjectId& id = project->GetId();
-        static const TString description = "Project id";
-        static const re2::RE2 projectIdPattern("[A-Za-z0-9-_]+");
+        for (const auto& userSpecificBoxType : project->Spec().Etc().Load().user_specific_box_types()) {
+            ValidateId(userSpecificBoxType, "User specific box type");
+        }
+    }
+
+    static void ValidateProjectId(TTransaction* /*transaction*/, TProject* project)
+    {
+        ValidateId(project->GetId(), "Project id");
+    }
+
+    static void ValidateId(const TString& id, const TString& description)
+    {
+        static const re2::RE2 idPattern("[A-Za-z0-9-_]+");
         static const size_t idLengthLimit = 70;
 
-        if (!re2::RE2::FullMatch(id, projectIdPattern)) {
+        if (!re2::RE2::FullMatch(id, idPattern)) {
             THROW_ERROR_EXCEPTION(NClient::NApi::EErrorCode::InvalidObjectId,
                 "%v %Qv must match regexp %Qv",
                 description,
                 id,
-                projectIdPattern.Pattern());
+                idPattern.Pattern());
         }
         if (id.length() > idLengthLimit) {
             THROW_ERROR_EXCEPTION(NClient::NApi::EErrorCode::InvalidObjectId,
