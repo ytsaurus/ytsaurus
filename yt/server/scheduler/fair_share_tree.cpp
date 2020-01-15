@@ -1054,8 +1054,6 @@ std::pair<IFairShareTreeSnapshotPtr, TError> TFairShareTree::DoFairShareUpdateAt
     PROFILE_AGGREGATED_TIMING(FairSharePreUpdateTimeCounter_) {
         rootElement->PreUpdate(&dynamicAttributes, &updateContext);
     }
-    YT_LOG_DEBUG("Fair share tree pre-update finished (UnschedulableReasons: %v)",
-        updateContext.UnschedulableReasons);
 
     auto asyncUpdate = BIND([&]
         {
@@ -1067,6 +1065,9 @@ std::pair<IFairShareTreeSnapshotPtr, TError> TFairShareTree::DoFairShareUpdateAt
         .Run();
     WaitFor(asyncUpdate)
         .ThrowOnError();
+
+    YT_LOG_DEBUG("Fair share tree update finished (UnschedulableReasons: %v)",
+        updateContext.UnschedulableReasons);
 
     {
         TWriterGuard guard(GlobalDynamicAttributesLock_);
