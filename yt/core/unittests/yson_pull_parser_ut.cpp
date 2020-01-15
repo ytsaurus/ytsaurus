@@ -423,7 +423,7 @@ TEST(TYsonPullParserTest, ContextInExceptions_ContextAtTheVeryBeginning)
     GTEST_FAIL() << "Expected exception to be thrown";
 }
 
-TEST(TYsonPullTest, ContextInExceptions_Margin)
+TEST(TYsonPullParserTest, ContextInExceptions_Margin)
 {
     try {
         auto manyO = TString(100, 'o');
@@ -442,6 +442,359 @@ TEST(TYsonPullTest, ContextInExceptions_Margin)
     } catch (const std::exception& ex) {
         EXPECT_THAT(ex.what(), testing::HasSubstr("oabcd bar = 580}"));
         return;
+    }
+}
+
+std::optional<i64> ParseOptionalZigZagVarint(TYsonPullParser& parser)
+{
+    char buffer[MaxVarInt64Size];
+    auto len = parser.ParseOptionalInt64AsZigzagVarint(buffer);
+    if (len == 0) {
+        return {};
+    }
+    i64 value;
+    ReadVarInt64(buffer, buffer + len, &value);
+    return value;
+}
+
+std::optional<ui64> ParseOptionalVarint(TYsonPullParser& parser)
+{
+    char buffer[MaxVarUint64Size];
+    auto len = parser.ParseOptionalUint64AsVarint(buffer);
+    if (len == 0) {
+        return {};
+    }
+    ui64 value;
+    ReadVarUint64(buffer, buffer + len, &value);
+    return value;
+};
+
+i64 ParseZigZagVarint(TYsonPullParser& parser)
+{
+    char buffer[MaxVarInt64Size];
+    auto len = parser.ParseOptionalInt64AsZigzagVarint(buffer);
+    i64 value;
+    ReadVarInt64(buffer, buffer + len, &value);
+    return value;
+}
+
+ui64 ParseVarint(TYsonPullParser& parser)
+{
+    char buffer[MaxVarUint64Size];
+    auto len = parser.ParseOptionalUint64AsVarint(buffer);
+    ui64 value;
+    ReadVarUint64(buffer, buffer + len, &value);
+    return value;
+};
+
+TEST(TYsonPullParserTest, TypedParsingBasicCases)
+{
+    TStringBufVectorReader input(
+        {
+            "["
+                "["
+                    "-100500;\x02\xa7\xa2\x0c;" "-100500;\x02\xa7\xa2\x0c;#;"
+                    "-100500;\x02\xa7\xa2\x0c;" "-100500;\x02\xa7\xa2\x0c;#;"
+                    "100500u;\x06\x94\x91\x06;" "100500u;\x06\x94\x91\x06;#;"
+                    "100500u;\x06\x94\x91\x06;" "100500u;\x06\x94\x91\x06;#;"
+                    "2.72;\x03iW\x14\x8B\n\xBF\5@;" "2.72;\x03iW\x14\x8B\n\xBF\5@;#;"
+                    "\"bar\";" "\x01\x06" "bar;" "\"bar\";" "\x01\x06" "bar;" "#;"
+                    "%true;\x05;%false;\x04;" "%true;\x05;%false;\x04;#;"
+                "];"
+                "#;"
+            "]"
+        }
+    );
+
+    TYsonPullParser parser(&input, EYsonType::Node);
+    EXPECT_TRUE(parser.ParseOptionalBeginList());
+    parser.ParseBeginList();
+
+    EXPECT_FALSE(parser.IsEndList());
+
+    EXPECT_EQ(parser.ParseInt64(), -100500);
+    EXPECT_EQ(parser.ParseInt64(), -100500);
+    EXPECT_EQ(parser.ParseOptionalInt64(), std::optional<i64>(-100500));
+    EXPECT_EQ(parser.ParseOptionalInt64(), std::optional<i64>(-100500));
+    EXPECT_EQ(parser.ParseOptionalInt64(), std::optional<i64>{});
+
+    EXPECT_EQ(ParseZigZagVarint(parser), -100500);
+    EXPECT_EQ(ParseZigZagVarint(parser), -100500);
+    EXPECT_EQ(ParseOptionalZigZagVarint(parser), std::optional<i64>(-100500));
+    EXPECT_EQ(ParseOptionalZigZagVarint(parser), std::optional<i64>(-100500));
+    EXPECT_EQ(ParseOptionalZigZagVarint(parser), std::optional<i64>{});
+
+    EXPECT_EQ(parser.ParseUint64(), 100500);
+    EXPECT_EQ(parser.ParseUint64(), 100500);
+    EXPECT_EQ(parser.ParseOptionalUint64(), std::optional<ui64>(100500));
+    EXPECT_EQ(parser.ParseOptionalUint64(), std::optional<ui64>(100500));
+    EXPECT_EQ(parser.ParseOptionalUint64(), std::optional<ui64>{});
+
+    EXPECT_EQ(ParseVarint(parser), 100500);
+    EXPECT_EQ(ParseVarint(parser), 100500);
+    EXPECT_EQ(ParseOptionalVarint(parser), std::optional<ui64>(100500));
+    EXPECT_EQ(ParseOptionalVarint(parser), std::optional<ui64>(100500));
+    EXPECT_EQ(ParseOptionalVarint(parser), std::optional<ui64>{});
+
+    EXPECT_DOUBLE_EQ(parser.ParseDouble(), 2.72);
+    EXPECT_DOUBLE_EQ(parser.ParseDouble(), 2.7182818284590451);
+    EXPECT_DOUBLE_EQ(*parser.ParseOptionalDouble(), 2.72);
+    EXPECT_DOUBLE_EQ(*parser.ParseOptionalDouble(), 2.7182818284590451);
+    EXPECT_EQ(parser.ParseOptionalDouble(), std::optional<double>{});
+
+    EXPECT_EQ(parser.ParseString(), "bar");
+    EXPECT_EQ(parser.ParseString(), "bar");
+    EXPECT_EQ(parser.ParseOptionalString(), std::optional<TStringBuf>("bar"));
+    EXPECT_EQ(parser.ParseOptionalString(), std::optional<TStringBuf>("bar"));
+    EXPECT_EQ(parser.ParseOptionalString(), std::optional<TStringBuf>{});
+
+    EXPECT_FALSE(parser.IsEndList());
+
+    EXPECT_EQ(parser.ParseBoolean(), true);
+    EXPECT_EQ(parser.ParseBoolean(), true);
+    EXPECT_EQ(parser.ParseBoolean(), false);
+    EXPECT_EQ(parser.ParseBoolean(), false);
+    EXPECT_EQ(parser.ParseOptionalBoolean(), std::optional<bool>(true));
+    EXPECT_EQ(parser.ParseOptionalBoolean(), std::optional<bool>(true));
+    EXPECT_EQ(parser.ParseOptionalBoolean(), std::optional<bool>(false));
+    EXPECT_EQ(parser.ParseOptionalBoolean(), std::optional<bool>(false));
+    EXPECT_EQ(parser.ParseOptionalBoolean(), std::optional<bool>{});
+
+    EXPECT_TRUE(parser.IsEndList());
+    parser.ParseEndList();
+
+    EXPECT_FALSE(parser.ParseOptionalBeginList());
+    parser.ParseEndList();
+
+    EXPECT_EQ(parser.Next().GetType(), EYsonItemType::EndOfStream);
+}
+
+TEST(TYsonPullParserTest, TypedParsingBasicErrors)
+{
+    {
+        TStringBufVectorReader input({"100u"});
+        TYsonPullParser parser(&input, EYsonType::Node);
+        EXPECT_THROW_THAT(parser.ParseInt64(), ::testing::HasSubstr("expected: \"int64_value\""));
+    }
+    {
+        TStringBufVectorReader input({"\x06\x94\x91\x06"});
+        TYsonPullParser parser(&input, EYsonType::Node);
+        EXPECT_THROW_THAT(parser.ParseInt64(), ::testing::HasSubstr("expected: \"int64_value\""));
+    }
+    {
+        TStringBufVectorReader input({"-100"});
+        TYsonPullParser parser(&input, EYsonType::Node);
+        EXPECT_THROW_THAT(parser.ParseUint64(), ::testing::HasSubstr("expected: \"uint64_value\""));
+    }
+    {
+        TStringBufVectorReader input({"\x02\xa7\xa2\x0c"});
+        TYsonPullParser parser(&input, EYsonType::Node);
+        EXPECT_THROW_THAT(parser.ParseUint64(), ::testing::HasSubstr("expected: \"uint64_value\""));
+    }
+    {
+        TStringBufVectorReader input({"[1;;]"});
+        TYsonPullParser parser(&input, EYsonType::Node);
+        EXPECT_NO_THROW(parser.ParseBeginList());
+        EXPECT_NO_THROW(parser.ParseInt64());
+        EXPECT_THROW_THAT(parser.ParseEndList(), ::testing::HasSubstr("Unexpected \";\""));
+    }
+    {
+        TStringBufVectorReader input({"[1;;]"});
+        TYsonPullParser parser(&input, EYsonType::Node);
+        EXPECT_NO_THROW(parser.ParseBeginList());
+        EXPECT_NO_THROW(parser.ParseInt64());
+        EXPECT_THROW_THAT(parser.IsEndList(), ::testing::HasSubstr("Unexpected \";\""));
+    }
+    {
+        TStringBufVectorReader input({"[1;]]"});
+        TYsonPullParser parser(&input, EYsonType::Node);
+        EXPECT_NO_THROW(parser.ParseBeginList());
+        EXPECT_NO_THROW(parser.ParseInt64());
+        EXPECT_NO_THROW(parser.ParseEndList());
+        EXPECT_THROW_THAT(parser.ParseEndList(), ::testing::HasSubstr("Unexpected \"]\""));
+    }
+}
+
+TEST(TYsonPullParserTest, TestTransferValueViaTokenWriterBasicCases)
+{
+    auto inputString = AsStringBuf("[ [ {foo=<attr=value;>bar; qux=[-1; 2u; %false; 3.14; lol; # ; ] ; }; ] ; 6; ]");
+
+    auto output = TString();
+    {
+        TStringOutput outputStream(output);
+        TCheckedInDebugYsonTokenWriter tokenWriter(&outputStream);
+        TStringBufVectorReader input({inputString});
+        TYsonPullParser parser(&input, EYsonType::Node);
+        parser.TransferComplexValue(&tokenWriter);
+        EXPECT_EQ(parser.Next().GetType(), EYsonItemType::EndOfStream);
+    }
+    auto outputWithPreviousItem = TString();
+    {
+        TStringOutput outputStream(outputWithPreviousItem);
+        TCheckedInDebugYsonTokenWriter tokenWriter(&outputStream);
+        TStringBufVectorReader input({inputString});
+        TYsonPullParser parser(&input, EYsonType::Node);
+        auto firstItem = parser.Next();
+        parser.TransferComplexValue(&tokenWriter, firstItem);
+        EXPECT_EQ(parser.Next().GetType(), EYsonItemType::EndOfStream);
+    }
+    auto expectedOutput = TString();
+    {
+        TStringOutput outputStream(expectedOutput);
+        TCheckedInDebugYsonTokenWriter tokenWriter(&outputStream);
+        tokenWriter.WriteBeginList();
+        tokenWriter.WriteBeginList();
+        tokenWriter.WriteBeginMap();
+        tokenWriter.WriteBinaryString("foo");
+        tokenWriter.WriteKeyValueSeparator();
+        tokenWriter.WriteBeginAttributes();
+        tokenWriter.WriteBinaryString("attr");
+        tokenWriter.WriteKeyValueSeparator();
+        tokenWriter.WriteBinaryString("value");
+        tokenWriter.WriteItemSeparator();
+        tokenWriter.WriteEndAttributes();
+        tokenWriter.WriteBinaryString("bar");
+        tokenWriter.WriteItemSeparator();
+        tokenWriter.WriteBinaryString("qux");
+        tokenWriter.WriteKeyValueSeparator();
+        tokenWriter.WriteBeginList();
+        tokenWriter.WriteBinaryInt64(-1);
+        tokenWriter.WriteItemSeparator();
+        tokenWriter.WriteBinaryUint64(2);
+        tokenWriter.WriteItemSeparator();
+        tokenWriter.WriteBinaryBoolean(false);
+        tokenWriter.WriteItemSeparator();
+        tokenWriter.WriteBinaryDouble(3.14);
+        tokenWriter.WriteItemSeparator();
+        tokenWriter.WriteBinaryString("lol");
+        tokenWriter.WriteItemSeparator();
+        tokenWriter.WriteEntity();
+        tokenWriter.WriteItemSeparator();
+        tokenWriter.WriteEndList();
+        tokenWriter.WriteItemSeparator();
+        tokenWriter.WriteEndMap();
+        tokenWriter.WriteItemSeparator();
+        tokenWriter.WriteEndList();
+        tokenWriter.WriteItemSeparator();
+        tokenWriter.WriteBinaryInt64(6);
+        tokenWriter.WriteItemSeparator();
+        tokenWriter.WriteEndList();
+    }
+    EXPECT_EQ(expectedOutput, output);
+    EXPECT_EQ(expectedOutput, outputWithPreviousItem);
+
+    {
+        TStringBufVectorReader input({
+            "<a=b;c=d;>12"
+        });
+
+        TYsonPullParser parser(&input, EYsonType::Node);
+        auto item = parser.Next();
+        EXPECT_EQ(item.GetType(), EYsonItemType::BeginAttributes);
+
+        auto output = TString();
+        {
+            TStringOutput outputStream(output);
+            TCheckedInDebugYsonTokenWriter writer(&outputStream);
+            EXPECT_NO_THROW(parser.TransferAttributes(&writer, item));
+        }
+
+        i64 x;
+        EXPECT_NO_THROW(x = parser.ParseInt64());
+        EXPECT_EQ(x, 12);
+
+        {
+            TStringStream expectedOutput;
+            TCheckedInDebugYsonTokenWriter tokenWriter(&expectedOutput);
+            tokenWriter.WriteBeginAttributes();
+            tokenWriter.WriteBinaryString("a");
+            tokenWriter.WriteKeyValueSeparator();
+            tokenWriter.WriteBinaryString("b");
+            tokenWriter.WriteItemSeparator();
+            tokenWriter.WriteBinaryString("c");
+            tokenWriter.WriteKeyValueSeparator();
+            tokenWriter.WriteBinaryString("d");
+            tokenWriter.WriteItemSeparator();
+            tokenWriter.WriteEndAttributes();
+            tokenWriter.Flush();
+            EXPECT_EQ(expectedOutput.Str(), output);
+        }
+    }
+}
+
+TEST(TYsonPullParserTest, TestSkipValueBasicCases)
+{
+    {
+        TStringBufVectorReader input({
+            "[<a=b;c=d;>12; 13; qux;]"
+        });
+        TYsonPullParser parser(&input, EYsonType::Node);
+        EXPECT_NO_THROW(parser.ParseBeginList());
+        auto item = parser.Next();
+        EXPECT_EQ(item, TYsonItem::Simple(EYsonItemType::BeginAttributes));
+        EXPECT_NO_THROW(parser.SkipComplexValueOrAttributes(item));
+        item = parser.Next();
+        EXPECT_EQ(item, TYsonItem::Int64(12));
+        EXPECT_NO_THROW(parser.SkipComplexValueOrAttributes(item));
+        i64 x;
+        EXPECT_NO_THROW(x = parser.ParseInt64());
+        EXPECT_EQ(x, 13);
+        TString s;
+        EXPECT_NO_THROW(s = parser.ParseString());
+        EXPECT_EQ(s, "qux");
+        EXPECT_EQ(parser.Next(), TYsonItem::Simple(EYsonItemType::EndList));
+        EXPECT_EQ(parser.Next(), TYsonItem::Simple(EYsonItemType::EndOfStream));
+    }
+    {
+        TStringBufVectorReader input({
+            "[<a=b;c=d;>12; 13; qux;]"
+        });
+        TYsonPullParser parser(&input, EYsonType::Node);
+        EXPECT_NO_THROW(parser.ParseBeginList());
+        auto item = parser.Next();
+        EXPECT_EQ(item.GetType(), EYsonItemType::BeginAttributes);
+        EXPECT_NO_THROW(parser.SkipAttributes(item));
+        item = parser.Next();
+        EXPECT_THROW_THAT(parser.SkipAttributes(item), ::testing::HasSubstr("attributes"));
+        EXPECT_EQ(item, TYsonItem::Int64(12));
+        EXPECT_NO_THROW(parser.SkipComplexValue(item));
+        EXPECT_NO_THROW(parser.SkipComplexValue());
+        TString s;
+        EXPECT_NO_THROW(s = parser.ParseString());
+        EXPECT_EQ(s, "qux");
+        EXPECT_EQ(parser.Next(), TYsonItem::Simple(EYsonItemType::EndList));
+        EXPECT_EQ(parser.Next(), TYsonItem::Simple(EYsonItemType::EndOfStream));
+    }
+    {
+        TStringBufVectorReader input({
+            "<a=b;c=d;>12"
+        });
+        TYsonPullParser parser(&input, EYsonType::Node);
+        auto item = parser.Next();
+        EXPECT_EQ(item.GetType(), EYsonItemType::BeginAttributes);
+        EXPECT_NO_THROW(parser.SkipComplexValueOrAttributes(item));
+        i64 x;
+        EXPECT_NO_THROW(x = parser.ParseInt64());
+        EXPECT_EQ(x, 12);
+        EXPECT_EQ(parser.Next(), TYsonItem::Simple(EYsonItemType::EndOfStream));
+    }
+    {
+        TStringBufVectorReader input({
+            "<a=b;c=d;>12"
+        });
+        TYsonPullParser parser(&input, EYsonType::Node);
+        auto item = parser.Next();
+        EXPECT_EQ(item.GetType(), EYsonItemType::BeginAttributes);
+        EXPECT_NO_THROW(parser.SkipComplexValue(item));
+        EXPECT_EQ(parser.Next(), TYsonItem::Simple(EYsonItemType::EndOfStream));
+    }
+    {
+        TStringBufVectorReader input({
+            "<a=b;c=d;>12"
+        });
+        TYsonPullParser parser(&input, EYsonType::Node);
+        EXPECT_NO_THROW(parser.SkipComplexValue());
+        EXPECT_EQ(parser.Next(), TYsonItem::Simple(EYsonItemType::EndOfStream));
     }
 }
 
@@ -487,9 +840,38 @@ TEST(TYsonPullParserCursorTest, TestTransferValueBasicCases)
     EXPECT_EQ(cursor.GetCurrent(), TYsonItem::Int64(6));
 }
 
+
+TEST(TYsonPullParserCursorTest, TestTransferAttributesBasicCases)
+{
+    auto input = AsStringBuf("[<attr=value>bar; qux; 2]");
+    auto cursor = TStringBufCursor(input);
+    EXPECT_EQ(cursor.GetCurrent(), TYsonItem::Simple(EYsonItemType::BeginList));
+    cursor.Next();
+    {
+        ::testing::StrictMock<TMockYsonConsumer> mock;
+        {
+            ::testing::InSequence g;
+            EXPECT_CALL(mock, OnBeginAttributes());
+            EXPECT_CALL(mock, OnKeyedItem("attr"));
+            EXPECT_CALL(mock, OnStringScalar("value"));
+            EXPECT_CALL(mock, OnEndAttributes());
+        }
+        cursor.TransferAttributes(&mock);
+    }
+    EXPECT_EQ(cursor.GetCurrent(), TYsonItem::String("bar"));
+    cursor.Next();
+    EXPECT_EQ(cursor.GetCurrent(), TYsonItem::String("qux"));
+    cursor.Next();
+    EXPECT_EQ(cursor.GetCurrent(), TYsonItem::Int64(2));
+    cursor.Next();
+    EXPECT_EQ(cursor.GetCurrent(), TYsonItem::Simple(EYsonItemType::EndList));
+    cursor.Next();
+    EXPECT_EQ(cursor.GetCurrent(), TYsonItem::Simple(EYsonItemType::EndOfStream));
+}
+
 TEST(TYsonPullParserCursorTest, TestTransferValueViaTokenWriterBasicCases)
 {
-    auto input = AsStringBuf("[ [ {foo=<attr=value>bar; qux=[-1; 2u; %false; 3.14; lol; # ]} ] ; 6 ]");
+    auto input = AsStringBuf("[ [ {foo=<attr=value;>bar; qux=[-1; 2u; %false; 3.14; lol; # ; ] ; }; ] ; 6; ]");
     auto output1 = TString();
     {
         TStringOutput outputStream(output1);
@@ -541,6 +923,197 @@ TEST(TYsonPullParserCursorTest, TestTransferValueViaTokenWriterBasicCases)
         tokenWriter.WriteEndList();
     }
     EXPECT_EQ(output1, output2);
+}
+
+TEST(TYsonPullParserCursorTest, TestTransferAttributesViaTokenWriterBasicCases)
+{
+    auto input = AsStringBuf("[<attr=value;>bar; qux; 2;]");
+    auto cursor = TStringBufCursor(input);
+    EXPECT_EQ(cursor.GetCurrent(), TYsonItem::Simple(EYsonItemType::BeginList));
+    cursor.Next();
+
+    auto output1 = TString();
+    {
+        TStringOutput outputStream(output1);
+        TCheckedInDebugYsonTokenWriter tokenWriter(&outputStream);
+        EXPECT_EQ(cursor.GetCurrent(), TYsonItem::Simple(EYsonItemType::BeginAttributes));
+        cursor.TransferAttributes(&tokenWriter);
+    }
+    auto output2 = TString();
+    {
+        TStringOutput outputStream(output2);
+        TCheckedInDebugYsonTokenWriter tokenWriter(&outputStream);
+        tokenWriter.WriteBeginAttributes();
+        tokenWriter.WriteBinaryString("attr");
+        tokenWriter.WriteKeyValueSeparator();
+        tokenWriter.WriteBinaryString("value");
+        tokenWriter.WriteItemSeparator();
+        tokenWriter.WriteEndAttributes();
+    }
+    EXPECT_EQ(output1, output2);
+    EXPECT_EQ(cursor.GetCurrent(), TYsonItem::String("bar"));
+    cursor.Next();
+    EXPECT_EQ(cursor.GetCurrent(), TYsonItem::String("qux"));
+    cursor.Next();
+    EXPECT_EQ(cursor.GetCurrent(), TYsonItem::Int64(2));
+    cursor.Next();
+    EXPECT_EQ(cursor.GetCurrent(), TYsonItem::Simple(EYsonItemType::EndList));
+    cursor.Next();
+    EXPECT_EQ(cursor.GetCurrent(), TYsonItem::Simple(EYsonItemType::EndOfStream));
+}
+
+TEST(TYsonPullParserCursorTest, TestSkipValueBasicCases)
+{
+    {
+        auto input = AsStringBuf("[<a=b;c=d;>12; qux;]");
+        auto cursor = TStringBufCursor(input);
+        EXPECT_EQ(cursor.GetCurrent(), TYsonItem::Simple(EYsonItemType::BeginList));
+        cursor.Next();
+        EXPECT_EQ(cursor.GetCurrent(), TYsonItem::Simple(EYsonItemType::BeginAttributes));
+        EXPECT_NO_THROW(cursor.SkipAttributes());
+        EXPECT_EQ(cursor.GetCurrent(), TYsonItem::Int64(12));
+        cursor.Next();
+        EXPECT_EQ(cursor.GetCurrent(), TYsonItem::String("qux"));
+        cursor.Next();
+        EXPECT_EQ(cursor.GetCurrent(), TYsonItem::Simple(EYsonItemType::EndList));
+        cursor.Next();
+        EXPECT_EQ(cursor.GetCurrent(), TYsonItem::Simple(EYsonItemType::EndOfStream));
+    }
+    {
+        auto input = AsStringBuf("[<a=b;c=d;>12; 13; qux;]");
+        auto cursor = TStringBufCursor(input);
+        EXPECT_EQ(cursor.GetCurrent(), TYsonItem::Simple(EYsonItemType::BeginList));
+        cursor.Next();
+        EXPECT_EQ(cursor.GetCurrent(), TYsonItem::Simple(EYsonItemType::BeginAttributes));
+        EXPECT_NO_THROW(cursor.SkipComplexValue());
+        EXPECT_EQ(cursor.GetCurrent(), TYsonItem::Int64(13));
+        cursor.Next();
+        EXPECT_EQ(cursor.GetCurrent(), TYsonItem::String("qux"));
+        cursor.Next();
+        EXPECT_EQ(cursor.GetCurrent(), TYsonItem::Simple(EYsonItemType::EndList));
+        cursor.Next();
+        EXPECT_EQ(cursor.GetCurrent(), TYsonItem::Simple(EYsonItemType::EndOfStream));
+    }
+}
+
+TEST(TYsonPullParserCursorTest, TestParseCompoundBasicCases)
+{
+    {
+        auto input = AsStringBuf("[[1;2]; <x=1;y=2>%true; #]");
+        auto cursor = TStringBufCursor(input);
+        int timesCalled = 0;
+        auto listConsumer = [&] (TYsonPullParserCursor* cursor) {
+            switch (timesCalled) {
+                case 0:
+                    EXPECT_EQ(cursor->GetCurrent(), TYsonItem::Simple(EYsonItemType::BeginList));
+                    cursor->Next();
+                    EXPECT_EQ(cursor->GetCurrent(), TYsonItem::Int64(1));
+                    cursor->Next();
+                    EXPECT_EQ(cursor->GetCurrent(), TYsonItem::Int64(2));
+                    cursor->Next();
+                    EXPECT_EQ(cursor->GetCurrent(), TYsonItem::Simple(EYsonItemType::EndList));
+                    cursor->Next();
+                    break;
+                case 1:
+                    EXPECT_EQ(cursor->GetCurrent(), TYsonItem::Simple(EYsonItemType::BeginAttributes));
+                    cursor->Next();
+                    EXPECT_EQ(cursor->GetCurrent(), TYsonItem::String("x"));
+                    cursor->Next();
+                    EXPECT_EQ(cursor->GetCurrent(), TYsonItem::Int64(1));
+                    cursor->Next();
+                    EXPECT_EQ(cursor->GetCurrent(), TYsonItem::String("y"));
+                    cursor->Next();
+                    EXPECT_EQ(cursor->GetCurrent(), TYsonItem::Int64(2));
+                    cursor->Next();
+                    EXPECT_EQ(cursor->GetCurrent(), TYsonItem::Simple(EYsonItemType::EndAttributes));
+                    cursor->Next();
+                    EXPECT_EQ(cursor->GetCurrent(), TYsonItem::Boolean(true));
+                    cursor->Next();
+                    break;
+                case 2:
+                    EXPECT_EQ(cursor->GetCurrent(), TYsonItem::Simple(EYsonItemType::EntityValue));
+                    cursor->Next();
+                    break;
+                default:
+                    GTEST_FAIL() << "Times called is not 0, 1 or 2: " << timesCalled;
+            }
+            ++timesCalled;
+        };
+        EXPECT_NO_THROW(cursor.ParseList(listConsumer));
+        EXPECT_EQ(timesCalled, 3);
+    }
+
+    auto makeKeyValueConsumer = [] (int& timesCalled) {
+        auto fun = [&] (TYsonPullParserCursor* cursor) {
+            switch (timesCalled) {
+                case 0:
+                    EXPECT_EQ(cursor->GetCurrent(), TYsonItem::String("a"));
+                    cursor->Next();
+                    EXPECT_EQ(cursor->GetCurrent(), TYsonItem::Simple(EYsonItemType::BeginList));
+                    cursor->Next();
+                    EXPECT_EQ(cursor->GetCurrent(), TYsonItem::Int64(1));
+                    cursor->Next();
+                    EXPECT_EQ(cursor->GetCurrent(), TYsonItem::Int64(2));
+                    cursor->Next();
+                    EXPECT_EQ(cursor->GetCurrent(), TYsonItem::Simple(EYsonItemType::EndList));
+                    cursor->Next();
+                    break;
+                case 1:
+                    EXPECT_EQ(cursor->GetCurrent(), TYsonItem::String("b"));
+                    cursor->Next();
+                    EXPECT_EQ(cursor->GetCurrent(), TYsonItem::Simple(EYsonItemType::BeginAttributes));
+                    cursor->Next();
+                    EXPECT_EQ(cursor->GetCurrent(), TYsonItem::String("x"));
+                    cursor->Next();
+                    EXPECT_EQ(cursor->GetCurrent(), TYsonItem::Int64(1));
+                    cursor->Next();
+                    EXPECT_EQ(cursor->GetCurrent(), TYsonItem::String("y"));
+                    cursor->Next();
+                    EXPECT_EQ(cursor->GetCurrent(), TYsonItem::Int64(2));
+                    cursor->Next();
+                    EXPECT_EQ(cursor->GetCurrent(), TYsonItem::Simple(EYsonItemType::EndAttributes));
+                    cursor->Next();
+                    EXPECT_EQ(cursor->GetCurrent(), TYsonItem::Boolean(true));
+                    cursor->Next();
+                    break;
+                case 2:
+                    EXPECT_EQ(cursor->GetCurrent(), TYsonItem::String("c"));
+                    cursor->Next();
+                    EXPECT_EQ(cursor->GetCurrent(), TYsonItem::Simple(EYsonItemType::EntityValue));
+                    cursor->Next();
+                    break;
+                default:
+                    GTEST_FAIL() << "Times called is not 0, 1 or 2: " << timesCalled;
+            }
+            ++timesCalled;
+        };
+        return fun;
+    };
+
+    {
+        auto input = AsStringBuf("{a=[1;2]; b=<x=1;y=2>%true; c=#}");
+        auto cursor = TStringBufCursor(input);
+        int timesCalled = 0;
+        EXPECT_NO_THROW(cursor.ParseMap(makeKeyValueConsumer(timesCalled)));
+        EXPECT_EQ(timesCalled, 3);
+        EXPECT_EQ(cursor.GetCurrent(), TYsonItem::Simple(EYsonItemType::EndOfStream));
+    }
+    {
+        auto input = AsStringBuf("<a=[1;2]; b=<x=1;y=2>%true; c=#>[x; 3]");
+        auto cursor = TStringBufCursor(input);
+        int timesCalled = 0;
+        EXPECT_NO_THROW(cursor.ParseAttributes(makeKeyValueConsumer(timesCalled)));
+        EXPECT_EQ(timesCalled, 3);
+        EXPECT_EQ(cursor.GetCurrent(), TYsonItem::Simple(EYsonItemType::BeginList));
+        cursor.Next();
+        EXPECT_EQ(cursor.GetCurrent(), TYsonItem::String("x"));
+        cursor.Next();
+        EXPECT_EQ(cursor.GetCurrent(), TYsonItem::Int64(3));
+        cursor.Next();
+        EXPECT_EQ(cursor.GetCurrent(), TYsonItem::Simple(EYsonItemType::EndList));
+        cursor.Next();
+        EXPECT_EQ(cursor.GetCurrent(), TYsonItem::Simple(EYsonItemType::EndOfStream));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
