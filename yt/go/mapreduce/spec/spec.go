@@ -26,6 +26,7 @@ type UserScript struct {
 	OutputFormat    interface{}       `yson:"output_format,omitempty"`
 	Environment     map[string]string `yson:"environment,omitempty"`
 	FilePaths       []File            `yson:"file_paths,omitempty"`
+	LayerPaths      []ypath.YPath     `yson:"layer_paths,omitempty"`
 	StderrTablePath ypath.YPath       `yson:"stderr_table_path,omitempty"`
 	CoreTablePath   ypath.YPath       `yson:"core_table_path,omitempty"`
 
