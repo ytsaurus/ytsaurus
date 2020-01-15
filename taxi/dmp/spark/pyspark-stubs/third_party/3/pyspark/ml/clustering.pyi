@@ -7,6 +7,7 @@ from pyspark.ml.linalg import Matrix, Vector
 from pyspark.ml.util import *
 from pyspark.ml.wrapper import JavaEstimator, JavaModel, JavaParams, JavaWrapper
 from pyspark.ml.param.shared import *
+from pyspark.ml.stat import MultivariateGaussian
 from pyspark.sql.dataframe import DataFrame
 
 from numpy import ndarray  # type: ignore
@@ -37,6 +38,8 @@ class GaussianMixtureModel(JavaModel, _GaussianMixtureParams, JavaMLWritable, Ja
     def setProbabilityCol(self, value: str) -> GaussianMixtureModel: ...
     @property
     def weights(self) -> List[float]: ...
+    @property
+    def gaussians(self) -> List[MultivariateGaussian]: ...
     @property
     def gaussiansDF(self) -> DataFrame: ...
     @property

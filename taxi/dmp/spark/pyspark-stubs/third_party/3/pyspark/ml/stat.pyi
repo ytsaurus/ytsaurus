@@ -2,6 +2,7 @@
 
 from typing import Any, Optional
 
+from pyspark.ml.linalg import Matrix, Vector
 from pyspark.ml.wrapper import JavaWrapper
 from pyspark.sql.column import Column
 from pyspark.sql.dataframe import DataFrame
@@ -28,7 +29,7 @@ class Summarizer:
     @staticmethod
     def variance(col: Column, weightCol: Optional[Column] = ...) -> Column: ...
     @staticmethod
-    def std(col: Column, weightCol: Optional[Column] = ...) -> Column: ... 
+    def std(col: Column, weightCol: Optional[Column] = ...) -> Column: ...
     @staticmethod
     def count(col: Column, weightCol: Optional[Column] = ...) -> Column: ...
     @staticmethod
@@ -47,3 +48,8 @@ class Summarizer:
 class SummaryBuilder(JavaWrapper):
     def __init__(self, jSummaryBuilder: JavaObject) -> None: ...
     def summary(self, featuresCol: Column, weightCol: Optional[Column] = ...) -> Column: ...
+
+class MultivariateGaussian:
+    mean: Vector
+    cov: Matrix
+    def __init__(self, mean: Vector, cov: Matrix) -> None: ...
