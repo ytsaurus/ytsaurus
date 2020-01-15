@@ -655,7 +655,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, LookupRows)
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
-        auto readSessionId = FromProto<TReadSessionId >(request->read_session_id());
+        auto readSessionId = FromProto<TReadSessionId>(request->read_session_id());
         auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
 
         context->SetRequestInfo("ChunkId: %v, ReadSessionId: %v, Workload: %v",
