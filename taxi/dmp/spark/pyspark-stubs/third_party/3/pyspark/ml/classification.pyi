@@ -312,7 +312,7 @@ class OneVsRestModel(Model, _OneVsRestParams, JavaMLReadable[OneVsRestModel], Ja
     def setRawPredictionCol(self, value: str) -> OneVsRestModel: ...
     def copy(self, extra: Optional[ParamMap] = ...) -> OneVsRestModel: ...
 
-class FMClassifier(JavaProbabilisticClassifier, _FactorizationMachinesParams, JavaMLWritable, JavaMLReadable):
+class FMClassifier(JavaProbabilisticClassifier[FMClassificationModel], _FactorizationMachinesParams, JavaMLWritable, JavaMLReadable[FMClassifier]):
     factorSize: Param[int]
     fitLinear: Param[bool]
     miniBatchFraction: Param[float]
@@ -332,7 +332,7 @@ class FMClassifier(JavaProbabilisticClassifier, _FactorizationMachinesParams, Ja
     def setFitIntercept(self, value: bool) -> FMClassifier: ...
     def setRegParam(self, value: float) -> FMClassifier: ...
 
-class FMClassificationModel(JavaProbabilisticClassificationModel, _FactorizationMachinesParams, JavaMLWritable, JavaMLReadable):
+class FMClassificationModel(JavaProbabilisticClassificationModel, _FactorizationMachinesParams, JavaMLWritable, JavaMLReadable[FMClassificationModel]):
     @property
     def intercept(self) -> float: ...
     @property

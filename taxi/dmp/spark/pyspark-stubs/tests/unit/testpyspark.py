@@ -9,6 +9,7 @@ TypeCheckSuite.files = [
     "ml-feature.test",
     "ml-param.test",
     "ml-readable.test",
+    "ml-regression.test",
     "resultiterable.test",
     "sql-column.test",
     "sql-readwriter.test",

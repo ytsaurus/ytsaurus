@@ -313,7 +313,7 @@ class _FactorizationMachinesParams(_JavaPredictorParams, HasMaxIter, HasStepSize
     def getMiniBatchFraction(self): ...
     def getInitStd(self): ...
 
-class FMRegressor(JavaPredictor, _FactorizationMachinesParams, JavaMLWritable, JavaMLReadable):
+class FMRegressor(JavaPredictor[FMRegressionModel], _FactorizationMachinesParams, JavaMLWritable, JavaMLReadable[FMRegressor]):
     factorSize: Param[int]
     fitLinear: Param[bool]
     miniBatchFraction: Param[float]
@@ -333,7 +333,7 @@ class FMRegressor(JavaPredictor, _FactorizationMachinesParams, JavaMLWritable, J
     def setFitIntercept(self, value: bool) -> FMRegressor: ...
     def setRegParam(self, value: float) -> FMRegressor: ...
 
-class FMRegressionModel(JavaPredictionModel, _FactorizationMachinesParams, JavaMLWritable, JavaMLReadable):
+class FMRegressionModel(JavaPredictionModel, _FactorizationMachinesParams, JavaMLWritable, JavaMLReadable[FMRegressionModel]):
     @property
     def intercept(self) -> float: ...
     @property
