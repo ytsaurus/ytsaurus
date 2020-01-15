@@ -147,7 +147,9 @@ const char* GetSignalName(int signo)
         XX(SIGABRT, "Abort")
         XX(SIGTRAP, "Trace trap")
         XX(SIGCHLD, "Child status has changed")
+#if 0
         XX(SIGPOLL, "Pollable event occurred")
+#endif
         default: return nullptr;
     }
 
@@ -214,7 +216,7 @@ const char* GetSignalCodeName(int signo, int code)
             XX(CLD_CONTINUED, "Stopped child has continued.")
             default: return nullptr;
         }
-
+#if 0
         case SIGPOLL: switch (code) {
             XX(POLL_IN, "Data input available.")
             XX(POLL_OUT, "Output buffers available.")
@@ -224,6 +226,7 @@ const char* GetSignalCodeName(int signo, int code)
             XX(POLL_HUP, "Device disconnected.")
             default: return nullptr;
         }
+#endif
         default: return nullptr;
     }
 
