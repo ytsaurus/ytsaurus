@@ -3565,11 +3565,13 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
             set("//sys/cluster_nodes/{}/@user_tags".format(node), [tag])
 
         set("//sys/pool_trees/default/@nodes_filter", "default_tag")
+        set("//sys/pool_trees/default/@total_resource_limits_consider_delay", 1000)
         set("//sys/pool_trees/default/@max_running_operation_count_per_pool", 1)
         pool_orchid = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/{}/fair_share_info/pools/research"
         for tree in ["default", "nirvana", "cloud"]:
             if tree != "default":
-                create_pool_tree(tree, attributes={"nodes_filter": tree + "_tag"})
+                create_pool_tree(tree, attributes={"nodes_filter": tree + "_tag",
+                                                   "total_resource_limits_consider_delay": 1000})
             create_pool("research", pool_tree=tree)
             wait(lambda: exists(pool_orchid.format(tree), verbose_error=True))
 
@@ -3694,7 +3696,7 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
 
         for other_tree, expected_tree in [("default", "nirvana"), ("nirvana", "default")]:
             set("//sys/cluster_nodes/{}/@user_tags".format(spare_node), [expected_tree + "_tag"])
-            wait(lambda: get_from_tree_orchid(expected_tree, "node_count") == 2)
+            wait(lambda: get_from_tree_orchid(expected_tree, "fair_share_info/pools/research/resource_limits/cpu") == 6.0)
 
             spec = {
                 "pool_trees": ["default", "nirvana"],
