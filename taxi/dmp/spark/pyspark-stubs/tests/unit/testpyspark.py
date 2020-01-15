@@ -3,7 +3,8 @@ from mypy.test.testcheck import TypeCheckSuite
 
 
 TypeCheckSuite.files = [
-    "context.test",
+    "core-context.test",
+    "core-rdd.test",
     "ml-classification.test",
     "ml-evaluation.test",
     "ml-feature.test",

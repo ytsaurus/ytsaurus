@@ -1,6 +1,3 @@
-# Stubs for pyspark.rdd (Python 3.5)
-#
-
 from typing import overload
 from typing import Any, Callable, Dict, Generic, Hashable, Iterable, Iterator, List, Optional, Tuple, Union, TypeVar
 from typing_extensions import Literal
@@ -15,7 +12,8 @@ from pyspark.serializers import Serializer
 from pyspark.storagelevel import StorageLevel
 from pyspark.statcounter import StatCounter
 from pyspark.sql.dataframe import DataFrame
-from pyspark.sql._typing import LiteralType, DecimalLiteral, DateTimeLiteral
+from pyspark.sql.types import StructType
+from pyspark.sql._typing import RowLike
 from py4j.java_gateway import JavaObject  # type: ignore
 
 
@@ -189,7 +187,10 @@ class RDD(Generic[T]):
     def countApproxDistinct(self, relativeSD: float = ...) -> int: ...
     def toLocalIterator(self, prefetchPartitions: bool = ...) -> Iterator[T]: ...
     def barrier(self: RDD[T]) -> RDDBarrier[T]: ...
-    def toDF(self: RDD[Union[Tuple, List]]) -> DataFrame: ...
+    @overload
+    def toDF(self: RDD[RowLike], schema: Optional[List[str]] = ..., sampleRatio: Optional[float] = ...) -> DataFrame: ...
+    @overload
+    def toDF(self: RDD[RowLike], schema: Optional[StructType] = ...) -> DataFrame: ...
 
 class RDDBarrier(Generic[T]):
     rdd: RDD[T]

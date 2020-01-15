@@ -19,6 +19,8 @@ LiteralType = Union[bool, int, float, str]
 AtomicDataTypeOrString = Union[pyspark.sql.types.AtomicType, str]
 DataTypeOrString = Union[pyspark.sql.types.DataType, str]
 
+RowLike = TypeVar("RowLike", List[Any], Tuple[Any, ...], pyspark.sql.types.Row)
+
 class SupportsOpen(Protocol):
     def open(self, partition_id: int, epoch_id: int) -> bool:
         ...

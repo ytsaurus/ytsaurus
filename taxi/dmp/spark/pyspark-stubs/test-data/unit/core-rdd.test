@@ -1,0 +1,39 @@
+[case toDF]
+from pyspark.sql.types import *
+from collections import namedtuple
+from pyspark.sql import SparkSession
+
+spark = SparkSession.builder.getOrCreate()
+sc = spark.sparkContext
+
+struct = StructType([
+    StructField("a", IntegerType()),
+    StructField("b", StringType())
+])
+
+AB = namedtuple("AB", ["a", "b"])
+
+rdd_row = sc.parallelize([Row(a=1, b="foo")])
+rdd_row.toDF()
+rdd_row.toDF(sampleRatio=0.4)
+rdd_row.toDF(["a", "b"], sampleRatio=0.4)
+rdd_row.toDF(struct)
+
+rdd_tuple = sc.parallelize([(1, "foo")])
+rdd_tuple.toDF()
+rdd_tuple.toDF(sampleRatio=0.4)
+rdd_tuple.toDF(["a", "b"], sampleRatio=0.4)
+rdd_tuple.toDF(struct)
+
+rdd_list = sc.parallelize([[1, "foo"]])
+rdd_list.toDF()
+rdd_list.toDF(sampleRatio=0.4)
+rdd_list.toDF(["a", "b"], sampleRatio=0.4)
+rdd_list.toDF(struct)
+
+rdd_named_tuple = sc.parallelize([AB(1, "foo")])
+rdd_named_tuple.toDF()
+rdd_named_tuple.toDF(sampleRatio=0.4)
+rdd_named_tuple.toDF(["a", "b"], sampleRatio=0.4)
+rdd_named_tuple.toDF(struct)
+[out]
