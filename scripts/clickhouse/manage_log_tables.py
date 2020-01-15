@@ -95,7 +95,7 @@ if __name__ == "__main__":
             if not args.dry_run:
                 table_kind = get_table_kind(input_table_path)
                 yt.clickhouse.set_log_tailer_table_attributes(table_kind, input_table_path, 7 * 24 * 60 * 60 * 1000)
-                yt.clickhouse.set_log_tailer_table_dynamic_attributes(table_kind, input_table_paths)
+                yt.clickhouse.set_log_tailer_table_dynamic_attributes(table_kind, input_table_path)
 
     for input_table_path in input_table_paths:
         logger.debug("Mounting table %s", input_table_path)
