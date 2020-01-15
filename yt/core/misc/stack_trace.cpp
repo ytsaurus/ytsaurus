@@ -19,7 +19,7 @@ namespace NDetail {
 
 int GetSymbolInfo(void* pc, char* buffer, int length)
 {
-    TRawFormatter<0> formatter(buffer, length);
+    TBaseFormatter formatter(buffer, length);
 
 #if defined(HAVE_DLFCN_H)
     // See http://www.codesourcery.com/cxx-abi/abi.html#mangling
@@ -86,7 +86,7 @@ int GetSymbolInfo(void* pc, char* buffer, int length)
     return formatter.GetBytesWritten();
 }
 
-void DumpStackFrameInfo(TRawFormatter<1024>* formatter, void* pc)
+void DumpStackFrameInfo(TBaseFormatter* formatter, void* pc)
 {
     formatter->AppendString("@ ");
     const int width = (sizeof(void*) == 8 ? 12 : 8) + 2;
