@@ -1,6 +1,8 @@
 # Stubs for pyspark (Python 3)
 #
 
+from typing import Callable, TypeVar
+
 from pyspark.status import *
 from pyspark.accumulators import Accumulator as Accumulator, AccumulatorParam as AccumulatorParam
 from pyspark.broadcast import Broadcast as Broadcast
@@ -16,6 +18,10 @@ from pyspark.taskcontext import BarrierTaskContext as BarrierTaskContext, Barrie
 
 # Compatiblity imports
 from pyspark.sql import SQLContext, Row
+
+T = TypeVar("T")
+
+def since(version: str) -> Callable[[T], T]: ...
 
 # Names in __all__ with no definition:
 #   SparkJobInfo
