@@ -298,15 +298,6 @@ class TestTableCommands(object):
             for field in ("@table_index", "TableIndex", "_table_index_"):
                 assert field not in row
 
-    def test_erase(self):
-        table = TEST_DIR + "/table"
-        yt.write_table(table, [{"a": i} for i in xrange(10)])
-        assert yt.row_count(table) == 10
-        yt.run_erase(TablePath(table, start_index=0, end_index=5))
-        assert yt.row_count(table) == 5
-        yt.run_erase(TablePath(table, start_index=0, end_index=5))
-        assert yt.row_count(table) == 0
-
     def test_read_with_table_path(self, yt_env_with_rpc):
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"y": "w3"}, {"x": "b", "y": "w1"}, {"x": "a", "y": "w2"}])
@@ -584,33 +575,6 @@ class TestTableCommands(object):
         with set_config_option("read_retries/enable", False):
             self._test_read_blob_table()
 
-    def test_transform(self):
-        table = TEST_DIR + "/test_transform_table"
-        other_table = TEST_DIR + "/test_transform_table2"
-
-        assert not yt.transform(table)
-
-        yt.create("table", table)
-        assert not yt.transform(table)
-
-        yt.write_table(table, [{"x": 1}, {"x": 2}])
-
-        yt.transform(table)
-        check([{"x": 1}, {"x": 2}], yt.read_table(table))
-
-        yt.transform(table, other_table)
-        check([{"x": 1}, {"x": 2}], yt.read_table(other_table))
-
-        yt.remove(other_table)
-        assert yt.transform(table, other_table, compression_codec="zlib_6")
-        assert yt.get(other_table + "/@compression_codec") == "zlib_6"
-        assert not yt.transform(other_table, other_table, compression_codec="zlib_6", check_codecs=True)
-
-        assert yt.transform(table, other_table, optimize_for="scan")
-        assert yt.get(other_table + "/@optimize_for") == "scan"
-
-        assert not yt.transform(other_table, other_table, erasure_codec="none", check_codecs=True)
-
     def test_read_lost_chunk(self):
         mode = yt.config["backend"]
         if mode not in ("native", "rpc"):
@@ -706,6 +670,45 @@ class TestTableCommands(object):
             yt.write_table(table_path, rows_generator)
 
         check(rows, yt.read_table(table_path))
+
+@pytest.mark.usefixtures("yt_env_with_rpc")
+class TestTableCommandsOperations(object):
+    def test_transform(self):
+        table = TEST_DIR + "/test_transform_table"
+        other_table = TEST_DIR + "/test_transform_table2"
+
+        assert not yt.transform(table)
+
+        yt.create("table", table)
+        assert not yt.transform(table)
+
+        yt.write_table(table, [{"x": 1}, {"x": 2}])
+
+        yt.transform(table)
+        check([{"x": 1}, {"x": 2}], yt.read_table(table))
+
+        yt.transform(table, other_table)
+        check([{"x": 1}, {"x": 2}], yt.read_table(other_table))
+
+        yt.remove(other_table)
+        assert yt.transform(table, other_table, compression_codec="zlib_6")
+        assert yt.get(other_table + "/@compression_codec") == "zlib_6"
+        assert not yt.transform(other_table, other_table, compression_codec="zlib_6", check_codecs=True)
+
+        assert yt.transform(table, other_table, optimize_for="scan")
+        assert yt.get(other_table + "/@optimize_for") == "scan"
+
+        assert not yt.transform(other_table, other_table, erasure_codec="none", check_codecs=True)
+
+    def test_erase(self):
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"a": i} for i in xrange(10)])
+        assert yt.row_count(table) == 10
+        yt.run_erase(TablePath(table, start_index=0, end_index=5))
+        assert yt.row_count(table) == 5
+        yt.run_erase(TablePath(table, start_index=0, end_index=5))
+        assert yt.row_count(table) == 0
+
 
 @pytest.mark.usefixtures("yt_env_with_rpc")
 class TestTableCommandsHuge(object):
