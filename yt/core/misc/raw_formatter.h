@@ -17,17 +17,11 @@ namespace NYT {
  *  This is the reason we do not use printf(): it does not meet signal-safety
  *  requirements.
  */
-template <size_t N>
-class TRawFormatter
+
+class TBaseFormatter
 {
 public:
-    TRawFormatter()
-        : Begin_(Buffer_.data())
-        , Cursor_(Buffer_.data())
-        , End_(Buffer_.data() + N)
-    { }
-
-    TRawFormatter(char* buffer, int length)
+    TBaseFormatter(char* buffer, int length)
         : Begin_(buffer)
         , Cursor_(buffer)
         , End_(buffer + length)
@@ -178,10 +172,27 @@ public:
     }
 
 private:
-    std::array<char, N> Buffer_;
     char* const Begin_;
     char* Cursor_;
     char* const End_;
+
+};
+
+template <size_t N>
+class TRawFormatter
+    : public TBaseFormatter
+{
+public:
+    TRawFormatter()
+        : TBaseFormatter(Buffer_, N)
+    { }
+
+    TRawFormatter(char* buffer, int length)
+        : TBaseFormatter(buffer, length)
+    { }
+
+private:
+    char Buffer_[N];
 
 };
 
