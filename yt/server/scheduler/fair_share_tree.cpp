@@ -1153,7 +1153,7 @@ void TFairShareTree::DoScheduleJobsWithoutPreemptionImpl(
                 prescheduleExecuted = true;
                 context->PrescheduleCalled = true;
             }
-            ++context->StageState->ScheduleJobAttempts;
+            ++context->StageState->ScheduleJobAttemptCount;
             auto scheduleJobResult = rootElement->ScheduleJob(context, ignorePacking);
             if (scheduleJobResult.Scheduled) {
                 ReactivateBadPackingOperations(context);
@@ -1270,7 +1270,7 @@ void TFairShareTree::DoScheduleJobsWithPreemption(
                 prescheduleExecuted = true;
             }
 
-            ++context->StageState->ScheduleJobAttempts;
+            ++context->StageState->ScheduleJobAttemptCount;
             auto scheduleJobResult = rootElement->ScheduleJob(context, /* ignorePacking */ true);
             if (scheduleJobResult.Scheduled) {
                 jobStartedUsingPreemption = context->SchedulingContext->StartedJobs().back();
@@ -1407,7 +1407,7 @@ void TFairShareTree::DoScheduleJobs(
     {
         context.StartStage(&NonPreemptiveSchedulingStage_);
         DoScheduleJobsWithoutPreemption(rootElementSnapshot, &context, now);
-        context.SchedulingStatistics.NonPreemptiveScheduleJobAttempts = context.StageState->ScheduleJobAttempts;
+        context.SchedulingStatistics.NonPreemptiveScheduleJobAttempts = context.StageState->ScheduleJobAttemptCount;
         needPackingFallback = schedulingContext->StartedJobs().empty() && !context.BadPackingOperations.empty();
         ReactivateBadPackingOperations(&context);
         context.FinishStage();
@@ -1438,7 +1438,7 @@ void TFairShareTree::DoScheduleJobs(
     if (scheduleJobsWithPreemption) {
         context.StartStage(&PreemptiveSchedulingStage_);
         DoScheduleJobsWithPreemption(rootElementSnapshot, &context, now);
-        context.SchedulingStatistics.PreemptiveScheduleJobAttempts = context.StageState->ScheduleJobAttempts;
+        context.SchedulingStatistics.PreemptiveScheduleJobAttempts = context.StageState->ScheduleJobAttemptCount;
         context.FinishStage();
     } else {
         YT_LOG_DEBUG("Skip preemptive scheduling");
@@ -1447,7 +1447,7 @@ void TFairShareTree::DoScheduleJobs(
     if (needPackingFallback) {
         context.StartStage(&PackingFallbackSchedulingStage_);
         DoScheduleJobsPackingFallback(rootElementSnapshot, &context, now);
-        context.SchedulingStatistics.PackingFallbackScheduleJobAttempts = context.StageState->ScheduleJobAttempts;
+        context.SchedulingStatistics.PackingFallbackScheduleJobAttempts = context.StageState->ScheduleJobAttemptCount;
         context.FinishStage();
     }
 

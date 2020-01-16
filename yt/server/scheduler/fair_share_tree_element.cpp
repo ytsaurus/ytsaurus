@@ -88,7 +88,7 @@ TScheduleJobsProfilingCounters::TScheduleJobsProfilingCounters(
     , StrategyScheduleJobTime(prefix + "/strategy_schedule_job_time", treeIdProfilingTags)
     , PackingRecordHeartbeatTime(prefix + "/packing_record_heartbeat_time", treeIdProfilingTags)
     , PackingCheckTime(prefix + "/packing_check_time", treeIdProfilingTags)
-    , ScheduleJobCount(prefix + "/schedule_job_count", treeIdProfilingTags)
+    , ScheduleJobAttemptCount(prefix + "/schedule_job_attempt_count", treeIdProfilingTags)
     , ScheduleJobFailureCount(prefix + "/schedule_job_failure_count", treeIdProfilingTags)
 {
     for (auto reason : TEnumTraits<NControllerAgent::EScheduleJobFailReason>::GetDomainValues()) {
@@ -162,7 +162,7 @@ void TFairShareContext::ProfileStageTimingsAndLogStatistics()
 
     ProfileStageTimings();
 
-    if (StageState->ScheduleJobAttempts > 0 && EnableSchedulingInfoLogging) {
+    if (StageState->ScheduleJobAttemptCount > 0 && EnableSchedulingInfoLogging) {
         LogStageStatistics();
     }
 }
@@ -204,7 +204,7 @@ void TFairShareContext::ProfileStageTimings()
         profilingCounters->PackingCheckTime,
         StageState->PackingCheckDuration.MicroSeconds());
 
-    Profiler.Increment(profilingCounters->ScheduleJobCount, StageState->ScheduleJobAttempts);
+    Profiler.Increment(profilingCounters->ScheduleJobAttemptCount, StageState->ScheduleJobAttemptCount);
     Profiler.Increment(profilingCounters->ScheduleJobFailureCount, StageState->ScheduleJobFailureCount);
 
     for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
