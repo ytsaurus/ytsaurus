@@ -70,6 +70,23 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
     }
 
     @authors("ignat")
+    def test_connection_time(self):
+        def parse_time(time_str):
+            return datetime.strptime(time_str, "%Y-%m-%dT%H:%M:%S.%fZ")
+        connection_time_attr = parse_time(get("//sys/scheduler/@connection_time"))
+        connection_time_orchid = parse_time(get("//sys/scheduler/orchid/scheduler/service/last_connection_time"))
+        assert connection_time_orchid - connection_time_attr < timedelta(seconds=2)
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+
+        new_connection_time_attr = parse_time(get("//sys/scheduler/@connection_time"))
+        new_connection_time_orchid = parse_time(get("//sys/scheduler/orchid/scheduler/service/last_connection_time"))
+
+        assert new_connection_time_attr > connection_time_attr
+        assert new_connection_time_orchid > connection_time_orchid
+
+    @authors("ignat")
     @flaky(max_runs=3)
     @require_ytserver_root_privileges
     def test_revive(self):
