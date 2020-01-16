@@ -101,13 +101,15 @@ private:
             req->add_alive_peers(peerId);
         }
 
+        bool voting = Owner_->CellManager_->GetPeerConfig(followerId).Voting;
         AsyncResults_.push_back(req->Invoke().Apply(
-            BIND(&TFollowerPinger::OnResponse, MakeStrong(this), followerId)
+            BIND(&TFollowerPinger::OnResponse, MakeStrong(this), followerId, voting)
                 .Via(epochContext->EpochControlInvoker)));
     }
 
     void OnResponse(
         TPeerId followerId,
+        bool voting,
         const THydraServiceProxy::TErrorOrRspPingFollowerPtr& rspOrError)
     {
         VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
@@ -125,7 +127,7 @@ private:
             followerId,
             state);
 
-        if (Owner_->CellManager_->GetPeerConfig(followerId).Voting) {
+        if (voting) {
             if (state == EPeerState::Following) {
                 OnSuccess();
             } else {
