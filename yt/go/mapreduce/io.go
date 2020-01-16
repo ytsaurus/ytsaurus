@@ -41,8 +41,8 @@ func (c *jobContext) onError(err error) {
 
 func (c *jobContext) finish() error {
 	// TODO(prime@): return this check
-	//if c.in.err != nil {
-	//	return xerrors.Errorf("input reader error: %w", c.in.err)
+	//if yc.in.err != nil {
+	//	return xerrors.Errorf("input reader error: %w", yc.in.err)
 	//}
 
 	for _, out := range c.out {

@@ -132,5 +132,5 @@ func (p *prepare) start() (*operation, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &operation{c: p.mr.yc, ctx: p.ctx, opID: id}, nil
+	return &operation{yc: p.mr.yc, ctx: p.ctx, opID: id}, nil
 }

@@ -529,16 +529,16 @@ type ListOperationsOptions struct {
 }
 
 type ListJobsOptions struct {
-	JobType         *OperationType  `http:"job_type,omitnil"`
-	JobState        *OperationState `http:"job_state,omitnil"`
-	Address         *string         `http:"address,omitnil"`
-	WithStderr      *bool           `http:"with_stderr,omitnil"`
-	WithFailContext *bool           `http:"with_fail_context,omitnil"`
-	SortField       *JobSortField   `http:"sort_field,omitnil"`
-	SortOrder       *JobSortOrder   `http:"sort_order,omitnil"`
-	Limit           *int            `http:"limit,omitnil"`
-	Offset          *int            `http:"offset,omitnil"`
-	DataSource      *string         `http:"data_source,omitnil"`
+	JobType         *OperationType `http:"job_type,omitnil"`
+	JobState        *JobState      `http:"job_state,omitnil"`
+	Address         *string        `http:"address,omitnil"`
+	WithStderr      *bool          `http:"with_stderr,omitnil"`
+	WithFailContext *bool          `http:"with_fail_context,omitnil"`
+	SortField       *JobSortField  `http:"sort_field,omitnil"`
+	SortOrder       *JobSortOrder  `http:"sort_order,omitnil"`
+	Limit           *int           `http:"limit,omitnil"`
+	Offset          *int           `http:"offset,omitnil"`
+	DataSource      *string        `http:"data_source,omitnil"`
 }
 
 type JobStatus struct {
