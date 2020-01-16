@@ -719,7 +719,7 @@ class YTInstance(object):
                 proc, args = info
                 proc.poll()
                 if proc.returncode is not None:
-                    callback_func(self, args)
+                    callback_func(self, proc, args)
                     break
 
     def _configure_driver_logging(self):
