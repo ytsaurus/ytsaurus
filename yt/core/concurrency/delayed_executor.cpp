@@ -91,7 +91,7 @@ public:
         auto promise = NewPromise<void>();
 
         auto cookie = Submit(
-            BIND_DONT_CAPTURE_TRACE_CONTEXT([=] (bool aborted) mutable {
+            BIND([=] (bool aborted) mutable {
                 if (aborted) {
                     promise.TrySet(TError(NYT::EErrorCode::Canceled, "Delayed promise aborted"));
                 } else {
@@ -100,7 +100,7 @@ public:
             }),
             delay);
 
-        promise.OnCanceled(BIND_DONT_CAPTURE_TRACE_CONTEXT([=] () mutable {
+        promise.OnCanceled(BIND([=] () mutable {
             promise.TrySet(TError(NYT::EErrorCode::Canceled, "Delayed promise was canceled"));
         }));
 
@@ -121,7 +121,7 @@ public:
     {
         YT_VERIFY(closure);
         return Submit(
-            BIND_DONT_CAPTURE_TRACE_CONTEXT(&ClosureToDelayedCallbackAdapter, std::move(closure)),
+            BIND(&ClosureToDelayedCallbackAdapter, std::move(closure)),
             delay.ToDeadLine());
     }
 
@@ -129,7 +129,7 @@ public:
     {
         YT_VERIFY(closure);
         return Submit(
-            BIND_DONT_CAPTURE_TRACE_CONTEXT(&ClosureToDelayedCallbackAdapter, std::move(closure)),
+            BIND(&ClosureToDelayedCallbackAdapter, std::move(closure)),
             deadline);
     }
 
@@ -303,7 +303,7 @@ private:
         // from leaking to the Delayed Poller thread, which is, e.g., fiber-unfriendly.
         auto runAbort = [&] (const TDelayedExecutorEntryPtr& entry) {
             if (entry->Callback) {
-                DelayedInvoker_->Invoke(BIND_DONT_CAPTURE_TRACE_CONTEXT(std::move(entry->Callback), true));
+                DelayedInvoker_->Invoke(BIND(std::move(entry->Callback), true));
             }
         };
         for (const auto& entry : ScheduledEntries_) {
@@ -368,7 +368,11 @@ private:
     {
         {
             decltype(Poller_)::TEvent event;
-            YT_VERIFY(Poller_.Wait(&event, 1, std::numeric_limits<int>::max()) == 1);
+            auto eventCount = Poller_.Wait(&event, 1, std::numeric_limits<int>::max());
+            if (eventCount == 0) {
+                return;
+            }
+            YT_VERIFY(eventCount == 1);
             YT_VERIFY(event.data.ptr == &TimerFD_);
         }
 
@@ -449,7 +453,7 @@ private:
                     now);
             }
             YT_VERIFY(entry->Callback);
-            DelayedInvoker_->Invoke(BIND_DONT_CAPTURE_TRACE_CONTEXT(std::move(entry->Callback), false));
+            DelayedInvoker_->Invoke(BIND(std::move(entry->Callback), false));
             entry->Iterator.reset();
             ScheduledEntries_.erase(it);
         }
@@ -524,3 +528,4 @@ REGISTER_SHUTDOWN_CALLBACK(3, TDelayedExecutor::StaticShutdown);
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NConcurrency
+
