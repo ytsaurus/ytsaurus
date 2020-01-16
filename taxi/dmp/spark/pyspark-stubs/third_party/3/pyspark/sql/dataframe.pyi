@@ -1,8 +1,5 @@
-# Stubs for pyspark.sql.dataframe (Python 3.5)
-#
-
-from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, TypeVar, Union
 from typing import overload
+from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, TypeVar, Union
 
 import pandas.core.frame # type: ignore
 from py4j.java_gateway import JavaObject  # type: ignore
@@ -17,7 +14,10 @@ from pyspark.sql.column import Column
 from pyspark.rdd import RDD
 from pyspark.storagelevel import StorageLevel
 
-class DataFrame:
+from pyspark.sql.pandas.conversion import PandasConversionMixin
+from pyspark.sql.pandas.map_ops import PandasMapOpsMixin
+
+class DataFrame(PandasMapOpsMixin, PandasConversionMixin):
     sql_ctx: SQLContext
     is_cached: bool
     def __init__(self, jdf: JavaObject, sql_ctx: SQLContext) -> None: ...
@@ -144,8 +144,6 @@ class DataFrame:
     def withColumnRenamed(self, existing: str, new: str) -> DataFrame: ...
     def drop(self, *cols: ColumnOrName) -> DataFrame: ...
     def toDF(self, *cols: ColumnOrName) -> DataFrame: ...
-    def toPandas(self) -> pandas.core.frame.DataFrame: ...
-    def mapInPandas(self, udf: MapIterPandasUserDefinedFunction) -> DataFrame: ...
     def transform(self, func: Callable[[DataFrame], DataFrame]) -> DataFrame: ...
     @overload
     def groupby(self, *cols: ColumnOrName) -> GroupedData: ...

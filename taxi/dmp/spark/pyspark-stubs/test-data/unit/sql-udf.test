@@ -1,5 +1,5 @@
 [case scalarUDF]
-from pyspark.sql.functions import pandas_udf, PandasUDFType
+from pyspark.sql.pandas.functions import pandas_udf, PandasUDFType
 
 @pandas_udf("str", PandasUDFType.SCALAR)
 def f(x: str) -> str:
@@ -19,7 +19,7 @@ pandas_udf(lambda *xs: xs[0], "str", PandasUDFType.SCALAR)
 [out]
 
 [case scalarIterUDF]
-from pyspark.sql.functions import pandas_udf, PandasUDFType
+from pyspark.sql.pandas.functions import pandas_udf, PandasUDFType
 from pyspark.sql.types import IntegerType
 import pandas.core.series  # type: ignore[import]
 from typing import Iterable
@@ -32,7 +32,7 @@ def f(xs: pandas.core.series.Series) -> Iterable[pandas.core.series.Series]:
 
 [case groupedMapUdf]
 from pyspark.sql.session import SparkSession
-from pyspark.sql.functions import pandas_udf, PandasUDFType
+from pyspark.sql.pandas.functions import pandas_udf, PandasUDFType
 import pandas.core.frame  # type: ignore[import]
 
 @pandas_udf("id long", PandasUDFType.GROUPED_MAP)
@@ -52,7 +52,7 @@ dfg.apply(g)
 [out]
 
 [case groupedAggUDF]
-from pyspark.sql.functions import pandas_udf, PandasUDFType
+from pyspark.sql.pandas.functions import pandas_udf, PandasUDFType
 from pyspark.sql.types import IntegerType
 import pandas.core.series  # type: ignore[import]
 
@@ -75,7 +75,7 @@ pandas_udf(lambda *xs: 42, "str", PandasUDFType.GROUPED_AGG)
 
 
 [case mapIterUdf]
-from pyspark.sql.functions import pandas_udf, PandasUDFType
+from pyspark.sql.pandas.functions import pandas_udf, PandasUDFType
 from pyspark.sql.session import SparkSession
 from typing import Iterable
 import pandas.core.frame  # type: ignore[import]
@@ -102,6 +102,7 @@ def f(x: str) -> str:
 [out]
 
 [case cogroupedAggUdf]
+# Let's keep this one to make sure compatibility imports work
 from pyspark.sql.functions import pandas_udf, PandasUDFType
 from pyspark.sql.session import SparkSession
 import pandas.core.frame  # type: ignore[import]

@@ -14,6 +14,7 @@ from pyspark.rdd import RDD
 from pyspark.sql.catalog import Catalog
 from pyspark.sql.conf import RuntimeConfig
 from pyspark.sql.dataframe import DataFrame
+from pyspark.sql.pandas.conversion import SparkConversionMixin
 from pyspark.sql.types import DataType
 from pyspark.sql.readwriter import DataFrameReader
 from pyspark.sql.streaming import DataStreamReader, StreamingQueryManager
@@ -21,7 +22,7 @@ from pyspark.sql.udf import UDFRegistration
 
 T = TypeVar('T')
 
-class SparkSession:
+class SparkSession(SparkConversionMixin):
     class Builder:
         @overload
         def config(self, *, conf: SparkConf) -> SparkSession.Builder: ...

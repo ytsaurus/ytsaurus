@@ -150,6 +150,22 @@ API Coverage
 +------------------------------------------------+---------------------+--------------------+------------+
 | `pyspark.sql.group`_                           | ✘                   | ✔                  |            |
 +------------------------------------------------+---------------------+--------------------+------------+
+| `pyspark.sql.pandas`_                          | ✔                   | ✘                  |            |
++------------------------------------------------+---------------------+--------------------+------------+
+| `pyspark.sql.pandas.conversion`_               | ✘                   | ✔                  |            |
++------------------------------------------------+---------------------+--------------------+------------+
+| `pyspark.sql.pandas.functions`_                | ✔                   | ✔                  |            |
++------------------------------------------------+---------------------+--------------------+------------+
+| `pyspark.sql.pandas.group\_ops`_               | ✘                   | ✔                  |            |
++------------------------------------------------+---------------------+--------------------+------------+
+| `pyspark.sql.pandas.map\_ops`_                 | ✘                   | ✔                  |            |
++------------------------------------------------+---------------------+--------------------+------------+
+| `pyspark.sql.pandas.serializers`_              | ✔                   | ✘                  |            |
++------------------------------------------------+---------------------+--------------------+------------+
+| `pyspark.sql.pandas.types`_                    | ✔                   | ✘                  |            |
++------------------------------------------------+---------------------+--------------------+------------+
+| `pyspark.sql.pandas.utils`_                    | ✔                   | ✘                  |            |
++------------------------------------------------+---------------------+--------------------+------------+
 | `pyspark.sql.readwriter`_                      | ✘                   | ✔                  |            |
 +------------------------------------------------+---------------------+--------------------+------------+
 | `pyspark.sql.session`_                         | ✘                   | ✔                  |            |
@@ -190,7 +206,7 @@ API Coverage
 +------------------------------------------------+---------------------+--------------------+------------+
 | pyspark.tests                                  | ✘                   | ✘                  | Tests      |
 +------------------------------------------------+---------------------+--------------------+------------+
-| pyspark.traceback\_utils                       | ✘                   | ✘                  | Internal   |
+| pyspark.traceback\_utils                       | ✔                   | ✘                  | Internal   |
 +------------------------------------------------+---------------------+--------------------+------------+
 | `pyspark.util`_                                | ✔                   | ✘                  |            |
 +------------------------------------------------+---------------------+--------------------+------------+
@@ -264,6 +280,14 @@ API Coverage
 .. _pyspark.sql.dataframe: ../third_party/3/pyspark/sql/dataframe.pyi
 .. _pyspark.sql.functions: ../third_party/3/pyspark/sql/functions.pyi
 .. _pyspark.sql.group: ../third_party/3/pyspark/sql/group.pyi
+.. _pyspark.sql.pandas: ../third_party/3/pyspark/sql/pandas/__init__.pyi
+.. _pyspark.sql.pandas.conversion: ../third_party/3/pyspark/sql/pandas/conversion.pyi
+.. _pyspark.sql.pandas.group_ops: ../third_party/3/pyspark/sql/pandas/group_ops.pyi
+.. _pyspark.sql.pandas.map_ops: ../third_party/3/pyspark/sql/pandas/map_ops.pyi
+.. _pyspark.sql.pandas.types: ../third_party/3/pyspark/sql/pandas/types.pyi
+.. _pyspark.sql.pandas.functions: ../third_party/3/pyspark/sql/pandas/functions.pyi
+.. _pyspark.sql.pandas.serializers: ../third_party/3/pyspark/sql/pandas/serializers.pyi
+.. _pyspark.sql.pandas.utils: ../third_party/3/pyspark/sql/pandas/utils.pyi
 .. _pyspark.sql.readwriter: ../third_party/3/pyspark/sql/readwriter.pyi
 .. _pyspark.sql.session: ../third_party/3/pyspark/sql/session.pyi
 .. _pyspark.sql.streaming: ../third_party/3/pyspark/sql/streaming.pyi

@@ -7,12 +7,12 @@ from typing import Any, Callable, Dict, List, Optional
 from pyspark.sql._typing import LiteralType, GroupedMapPandasUserDefinedFunction
 from pyspark.sql.context import SQLContext
 from pyspark.sql.column import Column
-import pyspark.sql.cogroup
 from pyspark.sql.dataframe import DataFrame
+from pyspark.sql.pandas.group_ops import PandasGroupedOpsMixin
 from pyspark.sql.types import *
 from py4j.java_gateway import JavaObject  # type: ignore
 
-class GroupedData:
+class GroupedData(PandasGroupedOpsMixin):
     sql_ctx: SQLContext
     def __init__(self, jgd: JavaObject, df: DataFrame) -> None: ...
     @overload
@@ -26,5 +26,3 @@ class GroupedData:
     def min(self, *cols: str) -> DataFrame: ...
     def sum(self, *cols: str) -> DataFrame: ...
     def pivot(self, pivot_col: str, values: Optional[List[LiteralType]] = ...) -> GroupedData: ...
-    def cogroup(self, other: GroupedData) -> pyspark.sql.cogroup.CoGroupedData: ...
-    def apply(self, udf: GroupedMapPandasUserDefinedFunction) -> DataFrame: ...
