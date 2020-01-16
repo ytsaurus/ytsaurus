@@ -81,7 +81,7 @@ TEST(TLockFreePtrTest, RefCountedPtrBehavior)
     TTestAllocator allocator(&output);
 
     {
-        auto ptr = CreateObjectWithExtraSpace<TSampleObject>(allocator, 0, &output);
+        auto ptr = CreateObjectWithExtraSpace<TSampleObject>(&allocator, 0, &output);
         {
             auto anotherPtr = ptr;
             anotherPtr->DoSomething();
@@ -105,7 +105,7 @@ TEST(TLockFreePtrTest, DelayedDeallocation)
     TStringStream output;
     TTestAllocator allocator(&output);
 
-    auto ptr = CreateObjectWithExtraSpace<TSampleObject>(allocator, 0, &output);
+    auto ptr = CreateObjectWithExtraSpace<TSampleObject>(&allocator, 0, &output);
     ptr->DoSomething();
 
     auto hazardPtr = THazardPtr<TSampleObject>::Acquire([&] {
@@ -131,7 +131,7 @@ TEST(TLockFreePtrTest, CombinedLogic)
     TStringStream output;
     TTestAllocator allocator(&output);
 
-    auto ptr = CreateObjectWithExtraSpace<TSampleObject>(allocator, 0, &output);
+    auto ptr = CreateObjectWithExtraSpace<TSampleObject>(&allocator, 0, &output);
     ptr->DoSomething();
 
     auto ptrCopy = ptr;
