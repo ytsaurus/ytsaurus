@@ -14,6 +14,7 @@
 
 #include <yt/core/misc/async_cache.h>
 #include <yt/core/misc/finally.h>
+#include <yt/core/misc/memory_usage_tracker.h>
 
 #include <llvm/ADT/FoldingSet.h>
 

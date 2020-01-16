@@ -131,6 +131,7 @@ template <class T>
 class TInternedObject;
 
 DECLARE_REFCOUNTED_STRUCT(IMemoryChunkProvider)
+DECLARE_REFCOUNTED_STRUCT(IMemoryUsageTracker)
 
 class TStatistics;
 class TSummary;
