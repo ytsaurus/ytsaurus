@@ -45,6 +45,8 @@ void Serialize(const TCoreInfo& coreInfo, IYsonConsumer* consumer)
 
 namespace {
 
+// Do not change the value of SparseCoreDumpPageSize.
+// The value of SPARSE_CORE_DUMP_PAGE_SIZE from download_core_dump.py is to be the same.
 constexpr auto SparseCoreDumpPageSize = 64_KB;
 
 } // namespace
