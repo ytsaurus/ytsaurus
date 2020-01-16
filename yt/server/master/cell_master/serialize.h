@@ -114,6 +114,7 @@ DEFINE_ENUM(EMasterReign,
     ((NoTabletErrorsOnMaster)                                       (1106))  // ifsmirnov
     ((TwoLevelMasterCache)                                          (1107))  // aleksandra-zh
     ((DestroyedChunkRemoval)                                        (1108))  // aleksandra-zh
+    ((SpecifiedAttributeFix)                                        (1109))  // shakurov
 );
 
 ////////////////////////////////////////////////////////////////////////////////
