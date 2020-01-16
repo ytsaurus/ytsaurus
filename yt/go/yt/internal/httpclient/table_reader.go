@@ -1,6 +1,7 @@
 package httpclient
 
 import (
+	"fmt"
 	"io"
 
 	"golang.org/x/xerrors"
@@ -17,7 +18,8 @@ type tableReader struct {
 	end     bool
 	started bool
 
-	startRowIndex int64
+	startRowIndex       int64
+	approximateRowCount int64
 }
 
 func (r *tableReader) Scan(value interface{}) error {
@@ -75,19 +77,31 @@ func (r *tableReader) Close() error {
 
 func (r *tableReader) decodeRspParams(ys []byte) error {
 	var params struct {
-		StartRowIndex int64 `yson:"start_row_index"`
+		StartRowIndex       *int64 `yson:"start_row_index"`
+		ApproximateRowCount *int64 `yson:"approximate_row_count"`
 	}
 
 	if err := yson.Unmarshal(ys, &params); err != nil {
 		return err
 	}
 
-	r.startRowIndex = params.StartRowIndex
+	if params.StartRowIndex != nil {
+		r.startRowIndex = *params.StartRowIndex
+	}
+
+	if params.ApproximateRowCount == nil {
+		return fmt.Errorf("\"approximate_row_count\" is missing")
+	}
+	r.approximateRowCount = *params.ApproximateRowCount
 	return nil
 }
 
 func (r *tableReader) StartRowIndex() int64 {
 	return r.startRowIndex
+}
+
+func (r *tableReader) ApproximateRowCount() int64 {
+	return r.approximateRowCount
 }
 
 var _ yt.TableReader = (*tableReader)(nil)

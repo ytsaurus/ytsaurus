@@ -37,6 +37,17 @@ func StartRowIndex(r TableReader) (rowIndex int64, ok bool) {
 	return
 }
 
+// ApproximateRowCount returns approximation of total number of rows in this reader.
+//
+// Might not be available, depending on the underlying implementation
+func ApproximateRowCount(r TableReader) (count int64, ok bool) {
+	indexer, ok := r.(interface{ ApproximateRowCount() int64 })
+	if ok {
+		count = indexer.ApproximateRowCount()
+	}
+	return
+}
+
 type TableReader interface {
 	Scan(value interface{}) error
 	Next() bool

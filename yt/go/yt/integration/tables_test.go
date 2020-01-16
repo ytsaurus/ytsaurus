@@ -147,6 +147,51 @@ func TestTables(t *testing.T) {
 		require.NoError(t, env.YT.GetNode(ctx, name.Attr("row_count"), &count, nil))
 		require.Equal(t, 0, count)
 	})
+
+	t.Run("EmptyTableInfo", func(t *testing.T) {
+		name := tmpPath()
+
+		_, err := yt.CreateTable(env.Ctx, env.YT, name)
+		require.NoError(t, err)
+
+		r, err := env.YT.ReadTable(env.Ctx, name, nil)
+		require.NoError(t, err)
+		defer r.Close()
+
+		startRowIndex, ok := yt.StartRowIndex(r)
+		require.True(t, ok)
+		require.Equal(t, int64(0), startRowIndex)
+	})
+
+	t.Run("ReaderInfo", func(t *testing.T) {
+		name := tmpPath()
+
+		err := env.UploadSlice(name, []exampleRow{
+			{"foo", 1},
+			{"bar", 2},
+		})
+		require.NoError(t, err)
+
+		r, err := env.YT.ReadTable(env.Ctx, name, nil)
+		require.NoError(t, err)
+		defer r.Close()
+
+		startRowIndex, ok := yt.StartRowIndex(r)
+		require.True(t, ok)
+		require.Equal(t, int64(0), startRowIndex)
+
+		r, err = env.YT.ReadTable(env.Ctx, name+"[#1:]", nil)
+		require.NoError(t, err)
+		defer r.Close()
+
+		startRowIndex, ok = yt.StartRowIndex(r)
+		require.True(t, ok)
+		require.Equal(t, int64(1), startRowIndex)
+
+		rowCount, ok := yt.ApproximateRowCount(r)
+		require.True(t, ok)
+		require.Greater(t, rowCount, int64(0))
+	})
 }
 
 func TestHighLevelTableWriter(t *testing.T) {
