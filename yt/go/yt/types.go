@@ -102,21 +102,15 @@ func (o OperationState) IsFinished() bool {
 	return false
 }
 
-func (o OperationState) MarshalYSON(w *yson.Writer) error {
-	w.String(string(o))
-	return nil
-}
+type JobState string
 
-func (o *OperationState) UnmarshalYSON(data []byte) error {
-	var value string
-	if err := yson.Unmarshal(data, &value); err != nil {
-		return err
-	}
-
-	// TODO(prime@): validate
-	*o = OperationState(value)
-	return nil
-}
+var (
+	JobRunning   JobState = "running"
+	JobPending   JobState = "pending"
+	JobCompleted JobState = "completed"
+	JobFailed    JobState = "failed"
+	JobAborted   JobState = "aborted"
+)
 
 type NodeID guid.GUID
 

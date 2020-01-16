@@ -2,9 +2,11 @@ package mapreduce
 
 import (
 	"context"
+	"regexp"
 	"time"
 
 	"a.yandex-team.ru/yt/go/yt"
+	"a.yandex-team.ru/yt/go/yterrors"
 )
 
 type Operation interface {
@@ -14,7 +16,7 @@ type Operation interface {
 }
 
 type operation struct {
-	c   yt.Client
+	yc  yt.Client
 	ctx context.Context
 
 	opID yt.OperationID
@@ -24,16 +26,47 @@ func (o *operation) ID() yt.OperationID {
 	return o.opID
 }
 
+var (
+	failedJobLimitExceededRE = regexp.MustCompile("Failed jobs limit exceeded")
+)
+
+func (o *operation) getOperationError(status *yt.OperationStatus) error {
+	innerErr := status.Result.Error
+
+	if yterrors.ContainsMessageRE(status.Result.Error, failedJobLimitExceededRE) {
+		result, err := o.yc.ListJobs(o.ctx, o.opID, &yt.ListJobsOptions{JobState: &yt.JobFailed})
+		if err != nil {
+			return yterrors.Err("unable to get list of failed jobs", innerErr)
+		}
+
+		if len(result.Jobs) == 0 {
+			return yterrors.Err("no failed jobs found", innerErr)
+		}
+
+		job := result.Jobs[0]
+		stderr, err := o.yc.GetJobStderr(o.ctx, o.opID, job.ID, nil)
+		if err != nil {
+			return yterrors.Err("unable to get job stderr", innerErr)
+		}
+
+		return yterrors.Err("job failed",
+			innerErr,
+			yterrors.Attr("stderr", string(stderr)))
+	}
+
+	return status.Result.Error
+}
+
 func (o *operation) Wait() error {
 	for {
-		status, err := o.c.GetOperation(o.ctx, o.opID, nil)
+		status, err := o.yc.GetOperation(o.ctx, o.opID, nil)
 		if err != nil {
 			return err
 		}
 
 		if status.State.IsFinished() {
 			if status.Result.Error != nil && status.Result.Error.Code != 0 {
-				return status.Result.Error
+				return o.getOperationError(status)
 			}
 
 			return nil
