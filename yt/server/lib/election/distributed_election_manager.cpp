@@ -902,7 +902,7 @@ void TDistributedElectionManager::OnPeerReconfigured(TPeerId peerId)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     if (peerId == CellManager->GetSelfPeerId()) {
-        if (State == EPeerState::Leading || State == EPeerState::Following) {
+        if (State != EPeerState::Stopped) {
             DoParticipate();
         }
     } else {
