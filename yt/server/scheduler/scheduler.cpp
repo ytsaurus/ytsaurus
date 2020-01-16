@@ -73,6 +73,8 @@
 #include <yt/core/ytree/exception_helpers.h>
 #include <yt/core/ytree/permission.h>
 
+#include <yt/build/build.h>
+
 #include <util/generic/size_literals.h>
 
 namespace NYT::NScheduler {
@@ -339,12 +341,17 @@ public:
         StaticOrchidService_.Reset(dynamic_cast<ICachedYPathService*>(staticOrchidService.Get()));
         YT_VERIFY(StaticOrchidService_);
 
+        auto lightStaticOrchidProducer = BIND(&TImpl::BuildLightStaticOrchid, MakeStrong(this));
+        auto lightStaticOrchidService = IYPathService::FromProducer(lightStaticOrchidProducer)
+            ->Via(GetControlInvoker(EControlQueue::Orchid));
+
         auto dynamicOrchidService = GetDynamicOrchidService()
             ->Via(GetControlInvoker(EControlQueue::Orchid));
 
         auto combinedOrchidService = New<TServiceCombiner>(
             std::vector<IYPathServicePtr>{
                 staticOrchidService,
+                std::move(lightStaticOrchidService),
                 std::move(dynamicOrchidService)
             },
             Config_->OrchidKeysUpdatePeriod);
@@ -3280,7 +3287,6 @@ private:
 
         BuildYsonFluently(consumer)
             .BeginMap()
-                .Item("connected").Value(IsConnected())
                 // COMPAT(babenko): deprecate cell in favor of cluster
                 .Item("cell").BeginMap()
                     .Item("resource_limits").Value(GetResourceLimits(EmptySchedulingTagFilter))
@@ -3310,18 +3316,6 @@ private:
                             }
                         })
                 .EndMap()
-                .Item("controller_agents").DoMapFor(Bootstrap_->GetControllerAgentTracker()->GetAgents(), [] (TFluentMap fluent, const auto& agent) {
-                    fluent
-                        .Item(agent->GetId()).BeginMap()
-                            .Item("state").Value(agent->GetState())
-                            .DoIf(agent->GetState() == EControllerAgentState::Registered, [&] (TFluentMap fluent) {
-                                fluent.Item("incarnation_id").Value(agent->GetIncarnationId());
-                            })
-                            .Item("operation_ids").DoListFor(agent->Operations(), [] (TFluentList fluent, const auto& operation) {
-                                fluent.Item().Value(operation->GetId());
-                            })
-                        .EndMap();
-                })
                 .Item("suspicious_jobs").BeginMap()
                     .Items(BuildSuspiciousJobsYson())
                 .EndMap()
@@ -3336,12 +3330,43 @@ private:
                         }
                     })
                 .EndMap()
-                .Item("config").Value(Config_)
                 .Do(std::bind(&ISchedulerStrategy::BuildOrchid, Strategy_, _1))
+            .EndMap();
+    }
+
+    void BuildLightStaticOrchid(IYsonConsumer* consumer)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                // Deprecated.
+                .Item("connected").Value(IsConnected())
+                .Item("controller_agents").DoMapFor(Bootstrap_->GetControllerAgentTracker()->GetAgents(), [] (TFluentMap fluent, const auto& agent) {
+                    fluent
+                        .Item(agent->GetId()).BeginMap()
+                            .Item("state").Value(agent->GetState())
+                            .DoIf(agent->GetState() == EControllerAgentState::Registered, [&] (TFluentMap fluent) {
+                                fluent.Item("incarnation_id").Value(agent->GetIncarnationId());
+                            })
+                            .Item("operation_ids").DoListFor(agent->Operations(), [] (TFluentList fluent, const auto& operation) {
+                                fluent.Item().Value(operation->GetId());
+                            })
+                        .EndMap();
+                })
+                .Item("config").Value(Config_)
                 .Item("operations_cleaner").BeginMap()
                     .Do(std::bind(&TOperationsCleaner::BuildOrchid, OperationsCleaner_, _1))
                 .EndMap()
                 .Item("operation_base_acl").Value(OperationBaseAcl_)
+                .Item("service").BeginMap()
+                    // This information used by scheduler_uptime odin check and we want
+                    // to receive all these fields by single request.
+                    .Item("connected").Value(IsConnected())
+                    .Item("last_connection_time").Value(GetConnectionTime())
+                    .Item("build_version").Value(GetVersion())
+                    .Item("hostname").Value(GetDefaultAddress(Bootstrap_->GetLocalAddresses()))
+                .EndMap()
             .EndMap();
     }
 
