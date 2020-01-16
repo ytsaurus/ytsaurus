@@ -115,6 +115,8 @@ Y_UNIT_TEST_SUITE(Transactions)
         auto client = fixture.GetClient();
         auto workingDir = fixture.GetWorkingDir();
 
+        TConfig::Get()->PingInterval = TDuration::MilliSeconds(100);
+
         TTransactionId transactionId;
         {
             auto transaction = client->StartTransaction(
