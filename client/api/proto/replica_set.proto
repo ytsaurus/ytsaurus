@@ -152,6 +152,7 @@ message TReplicaSetStatus
     string revision_id = 5;
     NYP.NClient.NApi.NProto.TCondition in_progress_condition = 6;
     NYP.NClient.NApi.NProto.TCondition ready_condition = 7;
+    NYP.NClient.NApi.NProto.TCondition failed_condition = 12;
     NYP.NClient.NApi.NProto.TClusterDeployStatus deploy_status = 11;
 }
 

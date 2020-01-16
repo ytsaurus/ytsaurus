@@ -177,6 +177,8 @@ message TDeployUnitStatus
     // Deploy of current_target has been completed.
     // May switch back to false if something breaks later.
     NYP.NClient.NApi.NProto.TCondition ready = 3;
+    // Deploy of current_target has started, has not completed yet and had error during start.
+    NYP.NClient.NApi.NProto.TCondition failed = 12;
     // Summary of deploy progress.
     TDeployProgress progress = 4;
     // Revision of stage from which 'current_target' was derived.

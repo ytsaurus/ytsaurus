@@ -99,6 +99,7 @@ message TMultiClusterReplicaSetStatus
     uint64 revision = 3;
     NYP.NClient.NApi.NProto.TCondition in_progress = 4;
     NYP.NClient.NApi.NProto.TCondition ready = 5;
+    NYP.NClient.NApi.NProto.TCondition failed = 13;
     TMultiClusterDeployStatus multi_cluster_deploy_status = 11;
     map<string, NYP.NClient.NApi.NProto.TClusterDeployStatus> cluster_deploy_statuses = 12;
 }
