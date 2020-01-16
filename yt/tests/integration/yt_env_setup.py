@@ -13,6 +13,7 @@ import pytest
 
 import gc
 import os
+import signal
 import sys
 import glob
 import logging
@@ -397,12 +398,18 @@ def resolve_test_paths(name):
     path_to_environment = os.path.join(path_to_sandbox, "run")
     return path_to_sandbox, path_to_environment
 
-def _pytest_finalize_func(environment, process_call_args):
-    print >>sys.stderr, 'Process run by command "{0}" is dead!'.format(" ".join(process_call_args))
+def _pytest_finalize_func(environment, process, process_call_args):
+    if process.returncode < 0:
+        what = "terminated by signal {}".format(-process.returncode)
+    else:
+        what = "exited with code {}".format(process.returncode)
+    
+    print >>sys.stderr, 'Process run by command "{0}" {1}'.format(" ".join(process_call_args), what)
     environment.stop()
 
     print >>sys.stderr, "Killing pytest process"
-    os._exit(42)
+    # Avoid dumping useless stacktrace to stderr.
+    os.kill(os.getpid(), signal.SIGKILL)
 
 class Checker(Thread):
     def __init__(self, check_function):
