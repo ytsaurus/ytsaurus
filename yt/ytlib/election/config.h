@@ -22,6 +22,9 @@ TString ToString(const TCellPeerConfig& config);
 void Serialize(const TCellPeerConfig& config, NYson::IYsonConsumer* consumer);
 void Deserialize(TCellPeerConfig& config, NYTree::INodePtr node);
 
+bool operator ==(const TCellPeerConfig& lhs, const TCellPeerConfig& rhs);
+bool operator !=(const TCellPeerConfig& lhs, const TCellPeerConfig& rhs);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellConfig

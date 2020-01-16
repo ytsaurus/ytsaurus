@@ -49,6 +49,18 @@ void Deserialize(TCellPeerConfig& config, INodePtr node)
     config.Voting = node->Attributes().Get<bool>("voting", true);
 }
 
+bool operator ==(const TCellPeerConfig& lhs, const TCellPeerConfig& rhs)
+{
+    return
+        lhs.Address == rhs.Address &&
+        lhs.Voting == rhs.Voting;
+}
+
+bool operator !=(const TCellPeerConfig& lhs, const TCellPeerConfig& rhs)
+{
+    return !(lhs == rhs);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TCellConfig::TCellConfig()

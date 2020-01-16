@@ -150,7 +150,7 @@ void TCellManager::Reconfigure(TCellConfigPtr newConfig, TPeerId selfId)
             YT_VERIFY(id < oldPeers.size() && id < newPeers.size());
             const auto& newPeer = newPeers[id];
             const auto& oldPeer = oldPeers[id];
-            if (newPeer.Address != oldPeer.Address || newPeer.Voting != oldPeer.Voting) {
+            if (newPeer != oldPeer) {
                 YT_LOG_INFO("Peer reconfigured (PeerId: %v, Address: %v -> %v, Voting: %v -> %v)",
                     id,
                     oldPeer.Address,
@@ -170,6 +170,8 @@ void TCellManager::Reconfigure(TCellConfigPtr newConfig, TPeerId selfId)
             oldPeers.size(),
             newPeers.size());
     }
+
+    Reconfigured_.Fire(oldConfig, newConfig);
 }
 
 IChannelPtr TCellManager::CreatePeerChannel(const TCellPeerConfig& config)
