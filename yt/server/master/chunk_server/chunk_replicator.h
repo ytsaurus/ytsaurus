@@ -245,9 +245,8 @@ private:
     void ScheduleNewJobs(
         TNode* node,
         NNodeTrackerClient::NProto::TNodeResources resourceUsage,
-        const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
-        std::vector<TJobPtr>* jobsToStart,
-        std::vector<TJobPtr>* jobsToAbort);
+        NNodeTrackerClient::NProto::TNodeResources resourceLimits,
+        std::vector<TJobPtr>* jobsToStart);
 
     void OnRefresh();
     void RefreshChunk(TChunk* chunk);
