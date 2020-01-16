@@ -91,7 +91,7 @@ struct TScheduleJobsProfilingCounters
     NProfiling::TAggregateGauge StrategyScheduleJobTime;
     NProfiling::TAggregateGauge PackingRecordHeartbeatTime;
     NProfiling::TAggregateGauge PackingCheckTime;
-    NProfiling::TMonotonicCounter ScheduleJobCount;
+    NProfiling::TMonotonicCounter ScheduleJobAttemptCount;
     NProfiling::TMonotonicCounter ScheduleJobFailureCount;
     TEnumIndexedVector<NControllerAgent::EScheduleJobFailReason, NProfiling::TMonotonicCounter> ControllerScheduleJobFail;
 };
@@ -158,7 +158,7 @@ public:
 
         int ActiveOperationCount = 0;
         int ActiveTreeSize = 0;
-        int ScheduleJobAttempts = 0;
+        int ScheduleJobAttemptCount = 0;
         int ScheduleJobFailureCount = 0;
         TEnumIndexedVector<EDeactivationReason, int> DeactivationReasons;
     };
