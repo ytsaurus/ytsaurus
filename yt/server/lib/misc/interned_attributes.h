@@ -82,7 +82,6 @@
     XX(DependentTransactionIds, dependent_transaction_ids) \
     XX(DesiredTabletCount, desired_tablet_count) \
     XX(DesiredTabletSize, desired_tablet_size) \
-    XX(DestroyedChunkReplicaCount, destroyed_chunk_replica_count) \
     XX(DisableSchedulerJobs, disable_scheduler_jobs) \
     XX(DisableTabletBalancer, disable_tablet_balancer) \
     XX(DisableTabletCells, disable_tablet_cells) \
@@ -374,7 +373,8 @@
     XX(RootNodeId, root_node_id) \
     XX(AccountStatistics, account_statistics) \
     XX(ResolveCached, resolve_cached) \
-    XX(Depth, depth)
+    XX(Depth, depth) \
+    XX(DestroyedChunkReplicaCount, destroyed_chunk_replica_count) \
 
 namespace NYT {
 

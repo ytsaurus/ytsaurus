@@ -6,6 +6,7 @@
 
 namespace NYT::NSchedulerPoolServer {
 
+using namespace NCellMaster;
 using namespace NObjectServer;
 using namespace NScheduler;
 using namespace NYTree;
@@ -81,7 +82,13 @@ void TSchedulerPool::Save(NCellMaster::TSaveContext& context) const
     TBase::Save(context);
 
     using NYT::Save;
-    Save(context, SpecifiedAttributes_);
+
+    TSizeSerializer::Save(context, SpecifiedAttributes_.size());
+    for (const auto& [k, v] : SpecifiedAttributes_) {
+        Save(context, GetUninternedAttributeKey(k));
+        Save(context, v);
+    }
+
     Save(context, MaybePoolTree_);
 }
 
@@ -90,7 +97,20 @@ void TSchedulerPool::Load(NCellMaster::TLoadContext& context)
     TBase::Load(context);
 
     using NYT::Load;
-    Load(context, SpecifiedAttributes_);
+
+    // COMPAT(shakurov)
+    if (context.GetVersion() < EMasterReign::SpecifiedAttributeFix) {
+        Load(context, SpecifiedAttributes_);
+    } else {
+        auto specifiedAttributeSize = TSizeSerializer::Load(context);
+        SpecifiedAttributes_.reserve(specifiedAttributeSize);
+        for (size_t i = 0; i < specifiedAttributeSize; ++i) {
+            auto k = Load<TString>(context);
+            auto v = Load<TYsonString>(context);
+            YT_VERIFY(SpecifiedAttributes_.emplace(GetInternedAttributeKey(k), v).second);
+        }
+    }
+
     Load(context, MaybePoolTree_);
 
     FullConfig_->Load(ConvertToNode(SpecifiedAttributes_));
@@ -135,7 +155,12 @@ void TSchedulerPoolTree::Save(NCellMaster::TSaveContext& context) const
     using NYT::Save;
     Save(context, TreeName_);
     Save(context, RootPool_);
-    Save(context, SpecifiedAttributes_);
+
+    TSizeSerializer::Save(context, SpecifiedAttributes_.size());
+    for (const auto& [k, v] : SpecifiedAttributes_) {
+        Save(context, GetUninternedAttributeKey(k));
+        Save(context, v);
+    }
 }
 
 void TSchedulerPoolTree::Load(NCellMaster::TLoadContext& context)
@@ -145,7 +170,19 @@ void TSchedulerPoolTree::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, TreeName_);
     Load(context, RootPool_);
-    Load(context, SpecifiedAttributes_);
+
+    // COMPAT(shakurov)
+    if (context.GetVersion() < EMasterReign::SpecifiedAttributeFix) {
+        Load(context, SpecifiedAttributes_);
+    } else {
+        auto specifiedAttributeSize = TSizeSerializer::Load(context);
+        SpecifiedAttributes_.reserve(specifiedAttributeSize);
+        for (size_t i = 0; i < specifiedAttributeSize; ++i) {
+            auto k = Load<TString>(context);
+            auto v = Load<TYsonString>(context);
+            YT_VERIFY(SpecifiedAttributes_.emplace(GetInternedAttributeKey(k), v).second);
+        }
+    }
 
     FullConfig_->Load(ConvertToNode(SpecifiedAttributes_));
 }
