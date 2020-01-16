@@ -99,7 +99,7 @@ struct IChangelogStore
 {
     //! Returns the initial reachable version, i.e this is
     //! |(n,m)| if |n| is the maximum existing changelog id with |m| records in it.
-    //! If no changelogs exist in the store then zero version is returned.
+    //! If no changelog exist in the store then zero version is returned.
     //! This reachable version captures the initial state and is never updated.
     virtual TVersion GetReachableVersion() const = 0;
 
