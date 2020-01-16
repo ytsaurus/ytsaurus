@@ -977,8 +977,7 @@ void TChunkReplicator::ScheduleJobs(
         node,
         resourceUsage,
         resourceLimits,
-        jobsToStart,
-        jobsToAbort);
+        jobsToStart);
 }
 
 void TChunkReplicator::OnNodeUnregistered(TNode* node)
@@ -1493,13 +1492,20 @@ bool TChunkReplicator::CreateSealJob(
 void TChunkReplicator::ScheduleNewJobs(
     TNode* node,
     TNodeResources resourceUsage,
-    const TNodeResources& resourceLimits,
-    std::vector<TJobPtr>* jobsToStart,
-    std::vector<TJobPtr>* jobsToAbort)
+    TNodeResources resourceLimits,
+    std::vector<TJobPtr>* jobsToStart)
 {
     if (JobThrottler_->IsOverdraft()) {
         return;
     }
+
+    const auto& resourceLimitsOverrides = node->ResourceLimitsOverrides();
+    #define XX(name, Name) \
+        if (resourceLimitsOverrides.has_##name()) { \
+            resourceLimits.set_##name(std::min(resourceLimitsOverrides.name(), resourceLimits.name())); \
+        }
+    ITERATE_NODE_RESOURCE_LIMITS_OVERRIDES(XX)
+    #undef XX
 
     const auto* nodeDataCenter = node->GetDataCenter();
 
