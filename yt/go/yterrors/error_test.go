@@ -10,12 +10,12 @@ import (
 )
 
 func TestNewError(t *testing.T) {
-	err0 := Err("Internal error")
+	err0 := Err("internal error")
 
-	err1 := Err(ErrorCode(100), "Tablet error", ErrorAttr{"tablet_id", "foobar"})
+	err1 := Err(ErrorCode(100), "tablet error", ErrorAttr{"tablet_id", "foobar"})
 	assert.Equal(t, "foobar", err1.(*Error).Attributes["tablet_id"])
 
-	err2 := Err("Nested error", err0, err1)
+	err2 := Err("nested error", err0, err1)
 
 	_ = err2
 
@@ -60,47 +60,47 @@ func TestErrorPrinting(t *testing.T) {
 	}{
 		{
 			err:   Err("Tablet not found"),
-			brief: "yt: Tablet not found",
+			brief: "tablet not found",
 			full: `
-yt: Tablet not found`,
+tablet not found`,
 		},
 		{
 			err:   Err(ErrorCode(500), "Tablet not found"),
-			brief: "yt: Tablet not found",
+			brief: "tablet not found",
 			full: `
-yt: Tablet not found:
+tablet not found:
       code: 500`,
 		},
 		{
 			err:   Err("Tablet not found", Err("Cypress error")),
-			brief: "yt: Tablet not found: yt: Cypress error",
+			brief: "tablet not found: cypress error",
 			full: `
-yt: Tablet not found:
-    Cypress error`,
+tablet not found:
+    cypress error`,
 		},
 		{
 			err:   Err("Tablet not found", Err("Cypress error", Err("Rpc error"))),
-			brief: "yt: Tablet not found: yt: Cypress error: yt: Rpc error",
+			brief: "tablet not found: cypress error: rpc error",
 			full: `
-yt: Tablet not found:
-    Cypress error
-    Rpc error`,
+tablet not found:
+    cypress error
+    rpc error`,
 		},
 		{
 			err:   Err("Tablet not found", Err("Retry error", ErrorAttr{"foo", "bar"}), Err("Cypress error", ErrorAttr{"zog", "zog"})),
-			brief: "yt: Tablet not found: yt: Cypress error",
+			brief: "tablet not found: cypress error",
 			full: `
-yt: Tablet not found:
-    Retry error
+tablet not found:
+    retry error
       foo: bar
-    Cypress error
+    cypress error
       zog: zog`,
 		},
 		{
 			err:   Err("Retry error", ErrorAttr{"foo", "bar"}, ErrorAttr{"a", "b"}),
-			brief: "yt: Retry error",
+			brief: "retry error",
 			full: `
-yt: Retry error:
+retry error:
       a:   b
       foo: bar`,
 		},

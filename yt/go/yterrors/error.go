@@ -40,15 +40,20 @@ func (e *ErrorCode) UnmarshalYSON(r *yson.Reader) (err error) {
 //
 // Error supports brief and full formatting using %v and %+v format specifiers.
 type Error struct {
-	Code        ErrorCode              `yson:"code" json:"code"`
-	Message     string                 `yson:"message" json:"message"`
-	InnerErrors []*Error               `yson:"inner_errors,omitempty" json:"inner_errors,omitempty"`
-	Attributes  map[string]interface{} `yson:"attributes,omitempty" json:"attributes,omitempty"`
+	Code       ErrorCode              `yson:"code" json:"code"`
+	Message    string                 `yson:"message" json:"message"`
+	Attributes map[string]interface{} `yson:"attributes,omitempty" json:"attributes,omitempty"`
+
+	// NOTE: Unwrap() always returns last inner error.
+	InnerErrors []*Error `yson:"inner_errors,omitempty" json:"inner_errors,omitempty"`
+
+	// Original error, saved during conversion.
+	origError error
 }
 
 // ContainsErrorCode returns true iff any of the nested errors has ErrorCode equal to errorCode.
 //
-// ContainsErrorCode invokes xerrors.As internally. It is safe to pass arbitrary error value to this function.
+// ContainsErrorCode invokes errors.As internally. It is safe to pass arbitrary error value to this function.
 func ContainsErrorCode(err error, code ErrorCode) bool {
 	return FindErrorCode(err, code) != nil
 }
@@ -111,14 +116,26 @@ func ContainsMessageRE(err error, messageRE *regexp.Regexp) bool {
 	return matchRecursive(ytErr)
 }
 
+func (yt *Error) AddAttr(name string, value interface{}) {
+	if yt.Attributes == nil {
+		yt.Attributes = map[string]interface{}{}
+	}
+
+	yt.Attributes[name] = value
+}
+
 func (yt *Error) Error() string {
+	if yt.origError != nil {
+		return yt.origError.Error()
+	}
+
 	return fmt.Sprint(yt)
 }
 
 func (yt *Error) Format(s fmt.State, v rune) { xerrors.FormatError(yt, s, v) }
 
 func (yt *Error) FormatError(p xerrors.Printer) (next error) {
-	p.Printf("yt: %s", yt.Message)
+	p.Printf("%s", uncapitalize(yt.Message))
 
 	printAttrs := func(e *Error) {
 		maxLen := 0
@@ -153,7 +170,7 @@ func (yt *Error) FormatError(p xerrors.Printer) (next error) {
 
 	var visit func(*Error)
 	visit = func(e *Error) {
-		p.Printf("%s\n", e.Message)
+		p.Printf("%s\n", uncapitalize(e.Message))
 		printAttrs(e)
 
 		for _, inner := range e.InnerErrors {
@@ -187,44 +204,26 @@ func Attr(name string, value interface{}) ErrorAttr {
 	return ErrorAttr{Name: name, Value: value}
 }
 
-// FromError converts any error to YT error, if it not already YT error.
-//
-// Nested errors are converted to nested YT errors.
-//
-// Otherwise, returns err unmodified.
-func FromError(err error) error {
-	switch v := err.(type) {
-	case *Error:
-		return v
-	default:
-		return Err(v.Error())
-	}
-}
-
 // Err creates new error of type Error.
+//
+// NOTE: when passing multiple inner errors, only the last one will be accessible by errors.Is and errors.As.
 func Err(args ...interface{}) error {
 	err := new(Error)
 	err.Code = 1
+	err.Message = "Error"
 
 	for _, arg := range args {
 		switch v := arg.(type) {
 		case ErrorCode:
 			err.Code = v
 		case string:
-			err.Message = v
+			err.Message = capitalize(v)
 		case *Error:
 			err.InnerErrors = append(err.InnerErrors, v)
 		case ErrorAttr:
-			if err.Attributes == nil {
-				err.Attributes = map[string]interface{}{}
-			}
-
-			err.Attributes[v.Name] = v.Value
+			err.AddAttr(v.Name, v.Value)
 		case error:
-			err.InnerErrors = append(err.InnerErrors, &Error{
-				Code:    1,
-				Message: v.Error(),
-			})
+			err.InnerErrors = append(err.InnerErrors, FromError(v).(*Error))
 		default:
 			panic(fmt.Sprintf("can't create yt.Error from type %T", arg))
 		}
