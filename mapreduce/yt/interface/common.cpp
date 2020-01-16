@@ -8,6 +8,7 @@
 #include <mapreduce/yt/interface/serialize.h>
 
 #include <library/yson/node/node_builder.h>
+#include <library/yson/node/node_io.h>
 
 #include <util/generic/xrange.h>
 
@@ -107,7 +108,7 @@ TTableSchema CreateTableSchema(NTi::TTypePtr type)
 {
     Y_VERIFY(type);
     TTableSchema schema;
-    Deserialize(schema, NTi::NIo::AsYtSchema(type.Get()));
+    Deserialize(schema, NodeFromYsonString(NTi::NIo::AsYtSchema(type.Get())));
     return schema;
 }
 
