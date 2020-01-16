@@ -1338,29 +1338,6 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TPoolWeightCache)
 
-
-class TQueryMemoryTracker
-    : public IMemoryUsageTracker
-{
-public:
-    explicit TQueryMemoryTracker(NNodeTrackerClient::TNodeMemoryTrackerPtr memoryTracker)
-        : MemoryTracker_(std::move(memoryTracker))
-    { }
-
-    virtual TError TryAcquire(size_t size) override
-    {
-        return MemoryTracker_->TryAcquire(NNodeTrackerClient::EMemoryCategory::Query, size);
-    }
-
-    virtual void Release(size_t size) override
-    {
-        MemoryTracker_->Release(NNodeTrackerClient::EMemoryCategory::Query, size);
-    }
-
-private:
-    const NNodeTrackerClient::TNodeMemoryTrackerPtr MemoryTracker_;
-};
-
 class TQuerySubexecutor
     : public IQuerySubexecutor
 {
@@ -1376,7 +1353,9 @@ public:
         , Evaluator_(New<TEvaluator>(
             Config_,
             QueryAgentProfiler,
-            New<TQueryMemoryTracker>(Bootstrap_->GetMemoryUsageTracker())))
+            CreateMemoryTrackerForCategory(
+                Bootstrap_->GetMemoryUsageTracker(),
+                NNodeTrackerClient::EMemoryCategory::Query)))
         , ColumnEvaluatorCache_(Bootstrap_
             ->GetMasterClient()
             ->GetNativeConnection()
