@@ -75,7 +75,7 @@ TFuture<std::vector<T>> TNonversionedObjectProxyBase<TObject>::FetchFromSwarm(NY
         auto batchReq = proxy.ExecuteBatch();
         batchReq->SetUser(user->GetName());
 
-        auto attribute = NYTree::GetUninternedAttributeKey(key);
+        auto attribute = key.Unintern();
         auto path = NObjectClient::FromObjectId(object->GetId()) + "/@" + attribute;
         auto req = NYTree::TYPathProxy::Get(path);
         batchReq->AddRequest(req, "get");

@@ -106,12 +106,12 @@ bool TSchedulerPoolProxy::SetBuiltinAttribute(NYTree::TInternedAttributeKey key,
             ValidateNoAliasClash(config, schedulerPoolTree->SpecifiedAttributes(), key);
 
             // NB: the order matters; first statement can throw exception.
-            config->LoadParameter(GetUninternedAttributeKey(key), ConvertToNode(value), EMergeStrategy::Overwrite);
+            config->LoadParameter(key.Unintern(), ConvertToNode(value), EMergeStrategy::Overwrite);
             schedulerPoolTree->SpecifiedAttributes()[key] = value;
             return true;
         } else if (!IsKnownPoolAttribute(key)){
-            THROW_ERROR_EXCEPTION("Cannot set known pool tree attribute %Qv on pool %Qv", GetUninternedAttributeKey(key), schedulerPool->GetName())
-                << TErrorAttribute("attribute_name", GetUninternedAttributeKey(key))
+            THROW_ERROR_EXCEPTION("Cannot set known pool tree attribute %Qv on pool %Qv", key.Unintern(), schedulerPool->GetName())
+                << TErrorAttribute("attribute_name", key.Unintern())
                 << TErrorAttribute("pool_name", schedulerPool->GetName());
         }
     }
@@ -126,8 +126,8 @@ bool TSchedulerPoolProxy::SetBuiltinAttribute(NYTree::TInternedAttributeKey key,
             schedulerPool->SpecifiedAttributes()[key] = value;
             return true;
         } else if (!IsKnownPoolTreeAttribute(key)){
-            THROW_ERROR_EXCEPTION("Cannot set known pool attribute %Qv on pool tree %Qv", GetUninternedAttributeKey(key), schedulerPool->GetMaybePoolTree()->GetTreeName())
-                << TErrorAttribute("attribute_name", GetUninternedAttributeKey(key))
+            THROW_ERROR_EXCEPTION("Cannot set known pool attribute %Qv on pool tree %Qv", key.Unintern(), schedulerPool->GetMaybePoolTree()->GetTreeName())
+                << TErrorAttribute("attribute_name", key.Unintern())
                 << TErrorAttribute("pool_tree_name", schedulerPool->GetMaybePoolTree()->GetTreeName());
         }
     }
@@ -144,7 +144,7 @@ bool TSchedulerPoolProxy::RemoveBuiltinAttribute(NYTree::TInternedAttributeKey k
             return false;
         }
 
-        schedulerPoolTree->FullConfig()->ResetParameter(GetUninternedAttributeKey(key));
+        schedulerPoolTree->FullConfig()->ResetParameter(key.Unintern());
         schedulerPoolTree->SpecifiedAttributes().erase(it);
         return true;
     }
@@ -213,9 +213,9 @@ void TSchedulerPoolProxy::ValidateNoAliasClash(
     const TSpecifiedAttributesMap& specifiedAttributes,
     TInternedAttributeKey key)
 {
-    const auto& uninternedKey = GetUninternedAttributeKey(key);
+    const auto& uninternedKey = key.Unintern();
     for (const auto& alias : config->GetAllParameterAliases(uninternedKey)) {
-        if (alias != uninternedKey && specifiedAttributes.contains(GetInternedAttributeKey(alias))) {
+        if (alias != uninternedKey && specifiedAttributes.contains(TInternedAttributeKey::Lookup(alias))) {
             THROW_ERROR_EXCEPTION("Attempt to set the same attribute with different alias")
                     << TErrorAttribute("previous_alias", alias)
                     << TErrorAttribute("current_alias", key);

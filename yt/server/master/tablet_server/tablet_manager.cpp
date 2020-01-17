@@ -5561,7 +5561,7 @@ private:
         try {
             *readerConfig = UpdateYsonSerializable(
                 GetDynamicConfig()->ChunkReader,
-                tableAttributes.FindYson(GetUninternedAttributeKey(EInternedAttributeKey::ChunkReader)));
+                tableAttributes.FindYson(EInternedAttributeKey::ChunkReader.Unintern()));
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing chunk reader config")
                 << ex;
@@ -5588,7 +5588,7 @@ private:
 
             *writerConfig = UpdateYsonSerializable(
                 config,
-                tableAttributes.FindYson(GetUninternedAttributeKey(EInternedAttributeKey::ChunkWriter)));
+                tableAttributes.FindYson(EInternedAttributeKey::ChunkWriter.Unintern()));
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing chunk writer config")
                 << ex;

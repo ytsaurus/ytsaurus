@@ -18,7 +18,7 @@ INodePtr ConvertToNode(const THashMap<TInternedAttributeKey, TYsonString>& attri
 {
     return BuildYsonNodeFluently()
         .DoMapFor(attributes, [] (TFluentMap fluent, const auto& pair) {
-            fluent.Item(GetUninternedAttributeKey(pair.first)).Value(pair.second);
+            fluent.Item(pair.first.Unintern()).Value(pair.second);
         });
 }
 
@@ -83,12 +83,7 @@ void TSchedulerPool::Save(NCellMaster::TSaveContext& context) const
 
     using NYT::Save;
 
-    TSizeSerializer::Save(context, SpecifiedAttributes_.size());
-    for (const auto& [k, v] : SpecifiedAttributes_) {
-        Save(context, GetUninternedAttributeKey(k));
-        Save(context, v);
-    }
-
+    Save(context, SpecifiedAttributes_);
     Save(context, MaybePoolTree_);
 }
 
@@ -100,15 +95,13 @@ void TSchedulerPool::Load(NCellMaster::TLoadContext& context)
 
     // COMPAT(shakurov)
     if (context.GetVersion() < EMasterReign::SpecifiedAttributeFix) {
-        Load(context, SpecifiedAttributes_);
-    } else {
-        auto specifiedAttributeSize = TSizeSerializer::Load(context);
-        SpecifiedAttributes_.reserve(specifiedAttributeSize);
-        for (size_t i = 0; i < specifiedAttributeSize; ++i) {
-            auto k = Load<TString>(context);
-            auto v = Load<TYsonString>(context);
-            YT_VERIFY(SpecifiedAttributes_.emplace(GetInternedAttributeKey(k), v).second);
+        auto oldSpecifiedAttributes = Load<THashMap<int, NYson::TYsonString>>(context);
+        SpecifiedAttributes_.reserve(oldSpecifiedAttributes.size());
+        for (auto& [k, v] : oldSpecifiedAttributes) {
+            YT_VERIFY(SpecifiedAttributes_.emplace(TInternedAttributeKey(k), std::move(v)).second);
         }
+    } else {
+        Load(context, SpecifiedAttributes_);
     }
 
     Load(context, MaybePoolTree_);
@@ -120,7 +113,7 @@ void TSchedulerPool::GuardedUpdatePoolAttribute(
     TInternedAttributeKey key,
     const std::function<void(const TPoolConfigPtr&, const TString&)>& update)
 {
-    const auto& stringKey = GetUninternedAttributeKey(key);
+    const auto& stringKey = key.Unintern();
 
     update(FullConfig_, stringKey);
     try {
@@ -155,12 +148,7 @@ void TSchedulerPoolTree::Save(NCellMaster::TSaveContext& context) const
     using NYT::Save;
     Save(context, TreeName_);
     Save(context, RootPool_);
-
-    TSizeSerializer::Save(context, SpecifiedAttributes_.size());
-    for (const auto& [k, v] : SpecifiedAttributes_) {
-        Save(context, GetUninternedAttributeKey(k));
-        Save(context, v);
-    }
+    Save(context, SpecifiedAttributes_);
 }
 
 void TSchedulerPoolTree::Load(NCellMaster::TLoadContext& context)
@@ -173,15 +161,13 @@ void TSchedulerPoolTree::Load(NCellMaster::TLoadContext& context)
 
     // COMPAT(shakurov)
     if (context.GetVersion() < EMasterReign::SpecifiedAttributeFix) {
-        Load(context, SpecifiedAttributes_);
-    } else {
-        auto specifiedAttributeSize = TSizeSerializer::Load(context);
-        SpecifiedAttributes_.reserve(specifiedAttributeSize);
-        for (size_t i = 0; i < specifiedAttributeSize; ++i) {
-            auto k = Load<TString>(context);
-            auto v = Load<TYsonString>(context);
-            YT_VERIFY(SpecifiedAttributes_.emplace(GetInternedAttributeKey(k), v).second);
+        auto oldSpecifiedAttributes = Load<THashMap<int, NYson::TYsonString>>(context);
+        SpecifiedAttributes_.reserve(oldSpecifiedAttributes.size());
+        for (auto& [k, v] : oldSpecifiedAttributes) {
+            YT_VERIFY(SpecifiedAttributes_.emplace(TInternedAttributeKey(k), std::move(v)).second);
         }
+    } else {
+        Load(context, SpecifiedAttributes_);
     }
 
     FullConfig_->Load(ConvertToNode(SpecifiedAttributes_));
