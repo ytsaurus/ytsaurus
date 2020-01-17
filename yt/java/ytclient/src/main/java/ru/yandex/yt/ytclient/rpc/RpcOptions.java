@@ -16,6 +16,9 @@ public class RpcOptions {
     private String serviceName = null;
     private int protocolVersion = 0;
     private boolean defaultRequestAck = true;
+    private boolean useClientsCache = false; // for backward compatibility
+    private int clientsCacheSize = 10000; // will be used only when useClientsCache is true
+    private Duration clientCacheExpiration = Duration.ofMillis(1); // will be used only when useClientsCache is true
 
     private Duration globalTimeout = Duration.ofMillis(60000);  // fails request after this timeout
     private Duration failoverTimeout = Duration.ofMillis(30000); // sends fallback request to other proxy after this timeout
@@ -102,6 +105,31 @@ public class RpcOptions {
     public RpcOptions setDefaultRequestAck(boolean defaultRequestAck) {
         this.defaultRequestAck = defaultRequestAck;
         return this;
+    }
+
+    public boolean getUseClientsCache() {
+        return useClientsCache;
+    }
+
+    public RpcOptions setUseClientsCache(boolean useClientsCache) {
+        this.useClientsCache = useClientsCache;
+        return this;
+    }
+
+    public int getClientsCacheSize() {
+        return clientsCacheSize;
+    }
+
+    public void setClientsCacheSize(int clientsCacheSize) {
+        this.clientsCacheSize = clientsCacheSize;
+    }
+
+    public Duration getClientCacheExpiration() {
+        return clientCacheExpiration;
+    }
+
+    public void setClientCacheExpiration(Duration clientCacheExpiration) {
+        this.clientCacheExpiration = clientCacheExpiration;
     }
 
     public Duration getFailoverTimeout() {

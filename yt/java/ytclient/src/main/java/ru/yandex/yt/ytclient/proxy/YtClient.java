@@ -1,6 +1,8 @@
 package ru.yandex.yt.ytclient.proxy;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -10,7 +12,11 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
 import com.google.protobuf.MessageLite;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,6 +24,7 @@ import org.slf4j.LoggerFactory;
 import ru.yandex.bolts.collection.Cf;
 import ru.yandex.misc.io.IoUtils;
 import ru.yandex.yt.ytclient.bus.BusConnector;
+import ru.yandex.yt.ytclient.misc.RandomList;
 import ru.yandex.yt.ytclient.proxy.internal.BalancingDestination;
 import ru.yandex.yt.ytclient.proxy.internal.DataCenter;
 import ru.yandex.yt.ytclient.proxy.internal.Manifold;
@@ -31,6 +38,8 @@ import ru.yandex.yt.ytclient.rpc.RpcOptions;
 public class YtClient extends DestinationsSelector implements AutoCloseable {
     private static final Logger logger = LoggerFactory.getLogger(ApiServiceClient.class);
 
+    private static final Object KEY = new Object();
+
     private final List<PeriodicDiscovery> discovery;
     private final Random rnd = new Random();
 
@@ -42,6 +51,14 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
     private final CompletableFuture<Void> waiting = new CompletableFuture<>();
     private final ConcurrentHashMap<PeriodicDiscoveryListener, Boolean> discoveriesFailed = new ConcurrentHashMap<>();
 
+    /*
+     * Кэширующая обертка для ytClient. Обертка кэширует бэкенды, которые доступны для запроса.
+     * Это позволяет избежать постоянные блокировки.
+     * Помимо этого обертка убирает копирование хостов на каждый запрос и делает возможность ретраить запрос больше 3 раз.
+     *
+     * Включается опцией useClientsCache = true и clientsCacheSize > 0
+     */
+    private final LoadingCache<Object, List<RpcClient>> clientsCache;
 
     public YtClient(
             BusConnector connector,
@@ -76,6 +93,22 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
         this.dataCenters = new DataCenter[clusters.size()];
         this.executorService = connector.eventLoopGroup();
         this.options = options;
+
+        if (options.getUseClientsCache() && options.getClientsCacheSize() > 0
+                && options.getClientCacheExpiration() != null && options.getClientCacheExpiration().toMillis() > 0) {
+            this.clientsCache = CacheBuilder.newBuilder()
+                    .maximumSize(options.getClientsCacheSize())
+                    .expireAfterAccess(options.getClientCacheExpiration().toMillis(), TimeUnit.MILLISECONDS)
+                    .build(CacheLoader.from(() -> {
+                        final List<RpcClient> clients = Arrays.stream(getDataCenters())
+                                .map(DataCenter::getAliveDestinations)
+                                .flatMap(Collection::stream)
+                                .collect(Collectors.toList());
+                        return new RandomList<>(rnd, clients);
+                    }));
+        } else {
+            this.clientsCache = null;
+        }
 
         int dataCenterIndex = 0;
 
@@ -185,6 +218,12 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
     }
 
     public CompletableFuture<Void> waitProxies() {
+        return waitProxiesImpl().thenRun(clientsCache != null ?
+                clientsCache::invalidateAll : () -> {
+        });
+    }
+
+    public CompletableFuture<Void> waitProxiesImpl() {
         int proxies = 0;
         for (DataCenter dataCenter : dataCenters) {
             proxies += dataCenter.getAliveDestinations().size();
@@ -238,11 +277,15 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
     }
 
     public List<RpcClient> selectDestinations() {
-        return Manifold.selectDestinations(
-                dataCenters, 3,
-                localDataCenter != null,
-                rnd,
-                !options.getFailoverPolicy().randomizeDcs());
+        if (clientsCache != null) {
+            return clientsCache.getUnchecked(KEY);
+        } else {
+            return Manifold.selectDestinations(
+                    dataCenters, 3,
+                    localDataCenter != null,
+                    rnd,
+                    !options.getFailoverPolicy().randomizeDcs());
+        }
     }
 
     @Override
