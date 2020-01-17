@@ -269,7 +269,7 @@ void FromProto(
     const NProto::TStreamingParameters& protoParameters)
 {
     if (protoParameters.has_window_size()) {
-        parameters->WindowSize = parameters->WindowSize;
+        parameters->WindowSize = protoParameters.window_size();
     }
     if (protoParameters.has_read_timeout()) {
         parameters->ReadTimeout = FromProto<TDuration>(protoParameters.read_timeout());
