@@ -955,6 +955,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         _check_preload_state("complete")
         assert lookup_rows("//tmp/t", keys) == rows
 
+    @pytest.mark.xfail(run=False, reason="Fix test_row_cache memory leak (lukyan)")
     @authors("ifsmirnov")
     @pytest.mark.parametrize("enable_lookup_hash_table", [True, False])
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
