@@ -104,7 +104,7 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
                                 .map(DataCenter::getAliveDestinations)
                                 .flatMap(Collection::stream)
                                 .collect(Collectors.toList());
-                        return new RandomList<>(rnd, clients);
+                        return new RandomList<>(rnd, clients); // TODO: Временное решение, будет исправлено позже
                     }));
         } else {
             this.clientsCache = null;
