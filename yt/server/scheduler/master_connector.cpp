@@ -748,7 +748,8 @@ private:
                 &TImpl::StartObjectBatchRequest,
                 Owner_,
                 EMasterChannelKind::Follower,
-                PrimaryMasterCellTag);
+                PrimaryMasterCellTag,
+                /* subbatchSize */ 100);
 
             auto listOperationsResult = NScheduler::ListOperations(createBatchRequest);
             OperationIds_.reserve(listOperationsResult.OperationsToRevive.size());
@@ -789,7 +790,10 @@ private:
                 "banned",
             };
 
-            auto batchReq = Owner_->StartObjectBatchRequest(EMasterChannelKind::Follower);
+            auto batchReq = Owner_->StartObjectBatchRequest(
+                EMasterChannelKind::Follower,
+                PrimaryMasterCellTag,
+                Owner_->Config_->FetchOperationAttributesSubbatchSize);
             {
                 YT_LOG_INFO("Fetching attributes and secure vaults for unfinished operations (UnfinishedOperationCount: %v)",
                     OperationIds_.size());
@@ -983,7 +987,8 @@ private:
                 &TImpl::StartObjectBatchRequest,
                 Owner_,
                 EMasterChannelKind::Follower,
-                PrimaryMasterCellTag);
+                PrimaryMasterCellTag,
+                Owner_->Config_->FetchOperationAttributesSubbatchSize);
 
             auto operations = FetchOperationsFromCypressForCleaner(
                 OperationIdsToArchive_,
@@ -1200,12 +1205,13 @@ private:
 
     TObjectServiceProxy::TReqExecuteBatchPtr StartObjectBatchRequest(
         EMasterChannelKind channelKind = EMasterChannelKind::Leader,
-        TCellTag cellTag = PrimaryMasterCellTag)
+        TCellTag cellTag = PrimaryMasterCellTag,
+        int subbatchSize = 100)
     {
         TObjectServiceProxy proxy(Bootstrap_
             ->GetMasterClient()
             ->GetMasterChannelOrThrow(channelKind, cellTag));
-        auto batchReq = proxy.ExecuteBatch();
+        auto batchReq = proxy.ExecuteBatch(subbatchSize);
         YT_VERIFY(LockTransaction_);
         auto* prerequisitesExt = batchReq->Header().MutableExtension(TPrerequisitesExt::prerequisites_ext);
         auto* prerequisiteTransaction = prerequisitesExt->add_transactions();
