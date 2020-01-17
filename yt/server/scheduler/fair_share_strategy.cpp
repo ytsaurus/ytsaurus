@@ -245,7 +245,7 @@ public:
         }
     }
 
-    virtual void UpdatePoolTrees(const INodePtr& poolTreesNode) override
+    virtual void UpdatePoolTrees(const INodePtr& poolTreesNode, TInstant now) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -290,9 +290,8 @@ public:
 
         // Check that after adding or removing trees each node will belong exactly to one tree.
         // Check is skipped if trees configuration did not change.
-        bool skipTreesConfigurationCheck = treeIdsToAdd.empty() && treeIdsToRemove.empty();
-
-        if (!skipTreesConfigurationCheck) {
+        bool treeSetChanged = !(treeIdsToAdd.empty() && treeIdsToRemove.empty());
+        if (treeSetChanged) {
             if (!CheckTreesConfiguration(idToTree, &errors)) {
                 auto error = TError("Error updating pool trees")
                     << std::move(errors);
@@ -312,7 +311,37 @@ public:
         // Abort orphaned operations.
         AbortOrphanedOperations(treeIdsToRemove);
 
-        // Updating default fair-share tree and global tree map.
+        // Update fair-share tree snapshots to contain the actual set of trees.
+        if (treeSetChanged) {
+            TFairShareTreeMap treesToAddMap;
+            for (const auto& treeId : treeIdsToAdd) {
+                treesToAddMap.emplace(treeId, idToTree[treeId]);
+            }
+
+            THashMap<TString, IFairShareTreeSnapshotPtr> treeSnapshotsToAdd;
+            DoRunFairShareTreeUpdates(treesToAddMap, now, &errors, &treeSnapshotsToAdd);
+
+            if (!errors.empty()) {
+                auto error = TError("Error updating pool trees")
+                    << std::move(errors);
+                Host->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, error);
+                return;
+            }
+
+            {
+                TWriterGuard guard(TreeIdToSnapshotLock_);
+
+                auto& snapshots = TreeIdToSnapshot_;
+                for (const auto& treeId : treeIdsToRemove) {
+                    YT_VERIFY(snapshots.erase(treeId) == 1);
+                }
+                for (const auto& [treeId, snapshot] : treeSnapshotsToAdd) {
+                    YT_VERIFY(snapshots.emplace(treeId, snapshot).second);
+                }
+            }
+        }
+
+        // Update default fair-share tree and global tree map.
         DefaultTreeId_ = defaultTreeId;
         std::swap(IdToTree_, idToTree);
 
@@ -676,33 +705,21 @@ public:
 
         YT_LOG_INFO("Starting fair share update");
 
-        THashMap<TString, TFuture<std::pair<IFairShareTreeSnapshotPtr, TError>>> asyncUpdates;
-        for (const auto& [treeId, tree] : IdToTree_) {
-            asyncUpdates.emplace(treeId, tree->OnFairShareUpdateAt(now));
-        }
-
-        auto result = WaitFor(Combine(asyncUpdates));
-        if (!result.IsOK()) {
-            Host->Disconnect(result);
-            return;
-        }
-
-        const auto& updateResults = result.Value();
-
-        THashMap<TString, IFairShareTreeSnapshotPtr> snapshots;
+        THashMap<TString, IFairShareTreeSnapshotPtr> updatedSnapshots;
         std::vector<TError> errors;
-
-        for (const auto& [treeId, updateResult] : updateResults) {
-            const auto& [snapshot, error] = updateResult;
-            snapshots.emplace(treeId, snapshot);
-            if (!error.IsOK()) {
-                errors.push_back(error);
-            }
-        }
+        DoRunFairShareTreeUpdates(IdToTree_, now, &errors, &updatedSnapshots);
 
         {
             TWriterGuard guard(TreeIdToSnapshotLock_);
-            std::swap(TreeIdToSnapshot_, snapshots);
+
+            auto& snapshots = TreeIdToSnapshot_;
+            for (const auto& [treeId, snapshot] : updatedSnapshots) {
+                // NB(eshcherbin): Tree could have been removed from snapshots in |UpdatePoolTrees|
+                // while we waited for all tree updates to complete.
+                if (snapshots.contains(treeId)) {
+                    snapshots[treeId] = snapshot;
+                }
+            }
         }
 
         if (!errors.empty()) {
@@ -1289,6 +1306,37 @@ private:
             }
             if (updateResult.Updated) {
                 updatedTreeIds->push_back(treeId);
+            }
+        }
+    }
+
+    void DoRunFairShareTreeUpdates(
+        const TFairShareTreeMap& trees,
+        TInstant now,
+        std::vector<TError>* errors,
+        THashMap<TString, IFairShareTreeSnapshotPtr>* updatedSnapshots)
+    {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+
+        THashMap<TString, TFuture<std::pair<IFairShareTreeSnapshotPtr, TError>>> asyncUpdates;
+        for (const auto& [treeId, tree] : trees) {
+            asyncUpdates.emplace(treeId, tree->OnFairShareUpdateAt(now));
+        }
+
+        auto result = WaitFor(Combine(asyncUpdates));
+        if (!result.IsOK()) {
+            Host->Disconnect(result);
+            // NB: Current fiber would be cancelled after disconnection, so we yield here to stop its execution immediately.
+            Yield();
+            return;
+        }
+
+        const auto& updateResults = result.Value();
+        for (const auto& [treeId, updateResult] : updateResults) {
+            const auto& [snapshot, error] = updateResult;
+            updatedSnapshots->emplace(treeId, snapshot);
+            if (!error.IsOK()) {
+                errors->push_back(error);
             }
         }
     }

@@ -3514,7 +3514,7 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "fair_share_update_period": 100,
+            "fair_share_update_period": 1000,
             "fair_share_profiling_period": 100,
             "operations_update_period": 10,
             "operations_cleaner": {
