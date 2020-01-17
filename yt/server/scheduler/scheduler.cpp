@@ -1962,7 +1962,7 @@ private:
             return;
         }
 
-        Strategy_->UpdatePoolTrees(poolTreesNode);
+        Strategy_->UpdatePoolTrees(poolTreesNode, TInstant::Now());
     }
 
 
