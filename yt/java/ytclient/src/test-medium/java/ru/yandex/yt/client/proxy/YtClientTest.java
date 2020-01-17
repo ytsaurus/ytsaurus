@@ -128,7 +128,7 @@ public class YtClientTest {
                 null,
                 new RpcCredentials(username, token),
                 compression,
-                new RpcOptions());
+                new RpcOptions().setUseClientsCache(true));
 
         client.waitProxies().join();
         path = getPath();
