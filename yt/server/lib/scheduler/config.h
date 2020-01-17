@@ -514,6 +514,10 @@ public:
     //! Enable immediate job abort if node reported zero number of user slots.
     bool EnableJobAbortOnZeroUserSlots;
 
+    //! Option to manage subbatch size for fetching operation during registration.
+    //! Increase this value to speedup registration.
+    int FetchOperationAttributesSubbatchSize;
+
     TSchedulerConfig();
 };
 

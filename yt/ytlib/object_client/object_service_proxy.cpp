@@ -22,17 +22,19 @@ static const auto& Logger = ObjectClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TObjectServiceProxy::TReqExecuteSubbatch::TReqExecuteSubbatch(IChannelPtr channel)
+TObjectServiceProxy::TReqExecuteSubbatch::TReqExecuteSubbatch(IChannelPtr channel, int subbatchSize)
     : TClientRequest(
         std::move(channel),
         TObjectServiceProxy::GetDescriptor(),
         TMethodDescriptor("Execute"))
+    , SubbatchSize_(subbatchSize)
 { }
 
 TObjectServiceProxy::TReqExecuteSubbatch::TReqExecuteSubbatch(const TReqExecuteSubbatch& other)
     : TClientRequest(other)
     , OriginalRequestId_(other.OriginalRequestId_)
     , SuppressUpstreamSync_(other.SuppressUpstreamSync_)
+    , SubbatchSize_(other.SubbatchSize_)
 {
     // Undo some work done by the base class's copy ctor and make some tweaks.
     Attachments_.clear();
@@ -123,8 +125,8 @@ size_t TObjectServiceProxy::TReqExecuteSubbatch::GetHash() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TObjectServiceProxy::TReqExecuteBatchBase::TReqExecuteBatchBase(IChannelPtr channel)
-    : TReqExecuteSubbatch(std::move(channel))
+TObjectServiceProxy::TReqExecuteBatchBase::TReqExecuteBatchBase(IChannelPtr channel, int subbatchSize)
+    : TReqExecuteSubbatch(std::move(channel), subbatchSize)
 { }
 
 TObjectServiceProxy::TReqExecuteBatchBase::TReqExecuteBatchBase(
@@ -228,14 +230,14 @@ TObjectServiceProxy::TReqExecuteBatch::TReqExecuteBatch(
     : TReqExecuteBatchBase(other, std::move(innerRequestDescriptors))
 { }
 
-TObjectServiceProxy::TReqExecuteBatch::TReqExecuteBatch(IChannelPtr channel)
-    : TReqExecuteBatchBase(std::move(channel))
+TObjectServiceProxy::TReqExecuteBatch::TReqExecuteBatch(IChannelPtr channel, int subbatchSize)
+    : TReqExecuteBatchBase(std::move(channel), subbatchSize)
 { }
 
 TObjectServiceProxy::TReqExecuteSubbatchPtr TObjectServiceProxy::TReqExecuteBatch::FormNextBatch()
 {
     std::vector<TInnerRequestDescriptor> innerRequestDescriptors;
-    innerRequestDescriptors.reserve(TReqExecuteBatch::MaxSingleSubbatchSize);
+    innerRequestDescriptors.reserve(SubbatchSize_);
 
     for (auto i = GetFirstUnreceivedSubresponseIndex(); i < GetTotalSubrequestCount(); ++i) {
         if (IsSubresponseReceived(i)) {
@@ -249,7 +251,7 @@ TObjectServiceProxy::TReqExecuteSubbatchPtr TObjectServiceProxy::TReqExecuteBatc
 
         innerRequestDescriptors.push_back(descriptor);
 
-        if (innerRequestDescriptors.size() == TReqExecuteBatch::MaxSingleSubbatchSize) {
+        if (innerRequestDescriptors.size() == SubbatchSize_) {
             break;
         }
     }
@@ -260,7 +262,7 @@ TObjectServiceProxy::TReqExecuteSubbatchPtr TObjectServiceProxy::TReqExecuteBatc
 void TObjectServiceProxy::TReqExecuteBatch::InvokeNextBatch()
 {
     // Optimization for the typical case of a small batch.
-    if (IsFirstBatch_ && GetTotalSubrequestCount() <= MaxSingleSubbatchSize) {
+    if (IsFirstBatch_ && GetTotalSubrequestCount() <= SubbatchSize_) {
         CurrentReqFuture_ = DoInvoke();
     } else {
         auto subbatchReq = FormNextBatch();
@@ -363,16 +365,18 @@ bool TObjectServiceProxy::TReqExecuteBatch::IsSubresponseReceived(int index) con
 TObjectServiceProxy::TReqExecuteBatchWithRetries::TReqExecuteBatchWithRetries(
     IChannelPtr channel,
     TReqExecuteBatchWithRetriesConfigPtr config,
-    TCallback<bool(int, const TError&)> needRetry)
-    : TReqExecuteBatchBase(std::move(channel))
+    TCallback<bool(int, const TError&)> needRetry,
+    int subbatchSize)
+    : TReqExecuteBatchBase(std::move(channel), subbatchSize)
     , Config_(std::move(config))
     , NeedRetry_(BIND(std::move(needRetry), std::cref(CurrentRetry_)))
 { }
 
 TObjectServiceProxy::TReqExecuteBatchWithRetries::TReqExecuteBatchWithRetries(
     IChannelPtr channel,
-    TReqExecuteBatchWithRetriesConfigPtr config)
-    : TReqExecuteBatchBase(std::move(channel))
+    TReqExecuteBatchWithRetriesConfigPtr config,
+    int subbatchSize)
+    : TReqExecuteBatchBase(std::move(channel), subbatchSize)
     , Config_(std::move(config))
     , NeedRetry_(BIND(&TObjectServiceProxy::TReqExecuteBatchWithRetries::IsRetryNeeded, Unretained(this)))
 { }
@@ -727,24 +731,24 @@ NHydra::TRevision TObjectServiceProxy::TRspExecuteBatch::GetRevision(int index) 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TObjectServiceProxy::TReqExecuteBatchPtr TObjectServiceProxy::ExecuteBatch()
+TObjectServiceProxy::TReqExecuteBatchPtr TObjectServiceProxy::ExecuteBatch(int subbatchSize)
 {
-    auto batchReq = New<TReqExecuteBatch>(Channel_);
+    auto batchReq = New<TReqExecuteBatch>(Channel_, subbatchSize);
     PrepareBatchRequest(batchReq);
     return batchReq;
 }
 
-TObjectServiceProxy::TReqExecuteBatchBasePtr TObjectServiceProxy::ExecuteBatchNoBackoffRetries()
+TObjectServiceProxy::TReqExecuteBatchBasePtr TObjectServiceProxy::ExecuteBatchNoBackoffRetries(int subbatchSize)
 {
-    auto batchReq = New<TReqExecuteBatchBase>(Channel_);
+    auto batchReq = New<TReqExecuteBatchBase>(Channel_, subbatchSize);
     PrepareBatchRequest(batchReq);
     return batchReq;
 }
 
 TObjectServiceProxy::TReqExecuteBatchWithRetriesPtr
-TObjectServiceProxy::ExecuteBatchWithRetries(TReqExecuteBatchWithRetriesConfigPtr config)
+TObjectServiceProxy::ExecuteBatchWithRetries(TReqExecuteBatchWithRetriesConfigPtr config, int subbatchSize)
 {
-    auto batchReq = New<TReqExecuteBatchWithRetries>(Channel_, std::move(config));
+    auto batchReq = New<TReqExecuteBatchWithRetries>(Channel_, std::move(config), subbatchSize);
     PrepareBatchRequest(batchReq);
     return batchReq;
 }
@@ -752,9 +756,10 @@ TObjectServiceProxy::ExecuteBatchWithRetries(TReqExecuteBatchWithRetriesConfigPt
 TObjectServiceProxy::TReqExecuteBatchWithRetriesPtr
 TObjectServiceProxy::ExecuteBatchWithRetries(
     TReqExecuteBatchWithRetriesConfigPtr config,
-    TCallback<bool(int, const TError&)> needRetry)
+    TCallback<bool(int, const TError&)> needRetry,
+    int subbatchSize)
 {
-    auto batchReq = New<TReqExecuteBatchWithRetries>(Channel_, std::move(config), std::move(needRetry));
+    auto batchReq = New<TReqExecuteBatchWithRetries>(Channel_, std::move(config), std::move(needRetry), subbatchSize);
     PrepareBatchRequest(batchReq);
     return batchReq;
 }

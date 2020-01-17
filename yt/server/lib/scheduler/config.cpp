@@ -470,6 +470,9 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("enable_job_abort_on_zero_user_slots", EnableJobAbortOnZeroUserSlots)
         .Default(true);
 
+    RegisterParameter("fetch_operation_attributes_subbatch_size", FetchOperationAttributesSubbatchSize)
+        .Default(1000);
+
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;
         if (!EventLog->Path) {
