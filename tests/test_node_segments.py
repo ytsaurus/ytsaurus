@@ -25,6 +25,19 @@ class TestNodeSegments(object):
         yp_client.remove_object("pod_set", pod_set_id)
         yp_client.remove_object("node_segment", segment_id)
 
+    def test_cannot_change_segment_for_pod_set(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        node_segment_ids = yp_client.create_objects([("node_segment", {"spec": {"node_filter": "true"}})] * 2)
+
+        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": {"node_segment_id": node_segment_ids[0]}})
+        with pytest.raises(YtResponseError):
+            yp_client.update_object("pod_set", pod_set_id, set_updates=[{"path": "/spec/node_segment_id", "value": node_segment_ids[1]}])
+
+        yp_client.remove_object("pod_set", pod_set_id)
+        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": {"node_segment_id": node_segment_ids[1]}})
+        assert yp_client.get_object("pod_set", pod_set_id, selectors=["/spec/node_segment_id"])[0] == node_segment_ids[1]
+
     def test_pod_set_must_refer_to_valid_node_segment(self, yp_env):
         yp_client = yp_env.yp_client
 

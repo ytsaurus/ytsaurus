@@ -39,8 +39,7 @@ public:
                     ->SetUpdatable(),
 
                 MakeAttributeSchema("node_segment_id")
-                    ->SetAttribute(TPodSet::TSpec::NodeSegmentSchema)
-                    ->SetUpdatable(),
+                    ->SetAttribute(TPodSet::TSpec::NodeSegmentSchema),
 
                 MakeAttributeSchema("account_id")
                     ->SetAttribute(TPodSet::TSpec::AccountSchema
