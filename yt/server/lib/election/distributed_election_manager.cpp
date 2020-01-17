@@ -579,8 +579,7 @@ TDistributedElectionManager::TDistributedElectionManager(
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetStatus));
 
     CellManager->SubscribePeerReconfigured(
-        BIND(&TDistributedElectionManager::OnPeerReconfigured, MakeWeak(this))
-            .Via(ControlInvoker));
+        BIND(&TDistributedElectionManager::OnPeerReconfigured, MakeWeak(this)));
 }
 
 void TDistributedElectionManager::Initialize()
@@ -903,7 +902,7 @@ void TDistributedElectionManager::OnPeerReconfigured(TPeerId peerId)
 
     if (peerId == CellManager->GetSelfPeerId()) {
         if (State != EPeerState::Stopped) {
-            DoParticipate();
+            DoAdandon();
         }
     } else {
         if (State == EPeerState::Leading) {
@@ -916,7 +915,7 @@ void TDistributedElectionManager::OnPeerReconfigured(TPeerId peerId)
             // because the peer may've been voting before reconfiguration.
             CheckQuorum();
         } else if (State == EPeerState::Following && peerId == EpochContext->LeaderId) {
-            DoParticipate();
+            DoAdandon();
         }
     }
 }
