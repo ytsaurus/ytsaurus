@@ -1,3 +1,5 @@
+# This module contains POC compatibility annotations
+
 import pandas.core.frame  # type: ignore[import]
 import pandas.core.series  # type: ignore[import]
 

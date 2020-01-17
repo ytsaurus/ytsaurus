@@ -1,0 +1,19 @@
+[case pandasDataFrameProtocol]
+
+from pyspark.sql.pandas._typing import PandasDataFrame
+
+df = PandasDataFrame({"a":  1})
+df.groupby("a")
+
+df.foo()  # E: "DataFrameLike" has no attribute "foo"
+[out]
+
+
+[case PandasSeriesProtocol]
+from pyspark.sql.pandas._typing import PandasSeries
+
+series = PandasSeries([1, 2, 3])
+series.nsmallest(3)
+
+series.foo()  # E: "SeriesLike" has no attribute "foo"
+[out]

@@ -1,5 +1,10 @@
+# This Protocol resuses core Pandas annotation.
+# Overall pipeline looks as follows
+# - Stubgen pandas.core.frame
+# - Add Protocol as a base class
+# - Replace imports with Any
+
 import numpy.ma as np  # type: ignore[import]
-#from pandas._typing import Axes as Axes, Axis as Axis, Dtype as Dtype, FilePathOrBuffer as FilePathOrBuffer, Level as Level, Renamer as Renamer
 from typing import Any, Hashable, IO, Iterable, List, Optional, Sequence, Tuple, Union
 from typing_extensions import Protocol
 from .series import SeriesLike

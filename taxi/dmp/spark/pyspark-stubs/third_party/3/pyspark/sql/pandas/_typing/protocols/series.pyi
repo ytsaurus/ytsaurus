@@ -1,3 +1,9 @@
+# This Protocol resuses core Pandas annotation.
+# Overall pipeline looks as follows
+# - Stubgen pandas.core.series
+# - Add Protocol as a base class
+# - Replace imports with Any
+
 import numpy as np  # type: ignore[import]
 from typing import Any, Callable, Hashable, IO, Optional
 from typing_extensions import Protocol
