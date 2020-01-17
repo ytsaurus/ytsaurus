@@ -25,29 +25,34 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
 
     @authors("max42")
     def test_simple(self):
-        command = " ; ".join([
-            events_on_fs().notify_event_cmd("job_started_${YT_JOB_INDEX}"),
+        master_command = " ; ".join([
+            events_on_fs().notify_event_cmd("master_job_started_${YT_JOB_COOKIE}"),
             events_on_fs().wait_event_cmd("finish")
         ])
+        slave_command = " ; ".join([
+            events_on_fs().notify_event_cmd("slave_job_started_${YT_JOB_COOKIE}"),
+            events_on_fs().wait_event_cmd("finish")
+        ])
+
         op = vanilla(
             track=False,
             spec={
                 "tasks": {
                     "master": {
                         "job_count": 1,
-                        "command": command,
+                        "command": master_command,
                     },
                     "slave": {
                         "job_count": 2,
-                        "command": command,
+                        "command": slave_command,
                     },
                 },
             })
 
         # Ensure that all three jobs have started.
-        events_on_fs().wait_event("job_started_0", timeout=datetime.timedelta(1000))
-        events_on_fs().wait_event("job_started_1", timeout=datetime.timedelta(1000))
-        events_on_fs().wait_event("job_started_2", timeout=datetime.timedelta(1000))
+        events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
+        events_on_fs().wait_event("slave_job_started_0", timeout=datetime.timedelta(1000))
+        events_on_fs().wait_event("slave_job_started_1", timeout=datetime.timedelta(1000))
 
         events_on_fs().notify_event("finish")
 
