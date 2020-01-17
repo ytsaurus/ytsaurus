@@ -166,7 +166,7 @@ void TCellManager::Reconfigure(TCellConfigPtr newConfig, TPeerId selfId)
     PeerChannels_.resize(newPeers.size());
 
     if (oldPeers.size() != newPeers.size()) {
-        YT_LOG_INFO("Peer count changed (OldPeerCount: %v, NewPeerCount: %v)",
+        YT_LOG_INFO("Peer count changed (PeerCount: %v -> %v)",
             oldPeers.size(),
             newPeers.size());
     }
