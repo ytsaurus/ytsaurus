@@ -267,7 +267,7 @@ private:
 
             case EInternedAttributeKey::StagedObjectIds: {
                 return FetchMergeableAttribute(
-                    GetUninternedAttributeKey(key),
+                    key.Unintern(),
                     BIND([=, this_ = MakeStrong(this)] {
                         return BuildYsonStringFluently().DoListFor(transaction->StagedObjects(), [] (TFluentList fluent, const TObject* object) {
                             fluent.Item().Value(object->GetId());
@@ -277,14 +277,14 @@ private:
 
             case EInternedAttributeKey::ImportedObjectCount:
                 return FetchSummableAttribute(
-                    GetUninternedAttributeKey(key),
+                    key.Unintern(),
                     BIND([=, this_ = MakeStrong(this)] {
                         return ConvertToYsonString(transaction->ImportedObjects().size());
                     }));
 
             case EInternedAttributeKey::ImportedObjectIds:
                 return FetchMergeableAttribute(
-                    GetUninternedAttributeKey(key),
+                    key.Unintern(),
                     BIND([=, this_ = MakeStrong(this)] {
                         return BuildYsonStringFluently().DoListFor(transaction->ImportedObjects(), [] (TFluentList fluent, const TObject* object) {
                             fluent.Item().Value(object->GetId());
@@ -293,14 +293,14 @@ private:
 
             case EInternedAttributeKey::ExportedObjectCount:
                 return FetchSummableAttribute(
-                    GetUninternedAttributeKey(key),
+                    key.Unintern(),
                     BIND([=, this_ = MakeStrong(this)] {
                         return ConvertToYsonString(transaction->ExportedObjects().size());
                     }));
 
             case EInternedAttributeKey::ExportedObjects:
                 return FetchMergeableAttribute(
-                    GetUninternedAttributeKey(key),
+                    key.Unintern(),
                     BIND([=, this_ = MakeStrong(this)] {
                         return BuildYsonStringFluently().DoListFor(transaction->ExportedObjects(), [] (TFluentList fluent, const TTransaction::TExportEntry& entry) {
                             fluent

@@ -193,9 +193,9 @@ public:
             auto registeredKeyStrings = New<TConfig>()->GetRegisteredKeys();
             knownAttributesCache.reserve(registeredKeyStrings.size());
             for (const auto& registeredKey : registeredKeyStrings) {
-                auto internedAttribute = GetInternedAttributeKey(registeredKey);
+                auto internedAttribute = TInternedAttributeKey::Lookup(registeredKey);
                 YT_VERIFY(internedAttribute != InvalidInternedAttribute);
-                knownAttributesCache.insert(GetInternedAttributeKey(registeredKey));
+                knownAttributesCache.insert(TInternedAttributeKey::Lookup(registeredKey));
             }
         }
 

@@ -706,7 +706,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
         case EInternedAttributeKey::CompressionCodec: {
             ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
-            const auto& uninternedKey = GetUninternedAttributeKey(key);
+            const auto& uninternedKey = key.Unintern();
             auto* node = LockThisImpl<TChunkOwnerBase>(TLockRequest::MakeSharedAttribute(uninternedKey));
             node->SetCompressionCodec(ConvertTo<NCompression::ECodec>(value));
 
@@ -716,7 +716,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
         case EInternedAttributeKey::ErasureCodec: {
             ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
-            const auto& uninternedKey = GetUninternedAttributeKey(key);
+            const auto& uninternedKey = key.Unintern();
             auto* node = LockThisImpl<TChunkOwnerBase>(TLockRequest::MakeSharedAttribute(uninternedKey));
             node->SetErasureCodec(ConvertTo<NErasure::ECodec>(value));
 
@@ -728,7 +728,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
                 return false;
             }
 
-            const auto& uninternedKey = GetUninternedAttributeKey(key);
+            const auto& uninternedKey = key.Unintern();
             auto* node = LockThisImpl<TChunkOwnerBase>(TLockRequest::MakeSharedAttribute(uninternedKey));
             if (!node->IsExternal()) {
                 chunkManager->ScheduleChunkRequisitionUpdate(node->GetChunkList());

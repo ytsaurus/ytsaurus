@@ -6,19 +6,40 @@ namespace NYT::NYTree {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-using TInternedAttributeKey = int;
+class TInternedAttributeKey
+{
+public:
+    TInternedAttributeKey();
 
-const TInternedAttributeKey InvalidInternedAttribute = 0;
-const TInternedAttributeKey CountInternedAttribute = 1;
+    explicit constexpr TInternedAttributeKey(size_t code)
+        : Code_(code)
+    { }
+
+    constexpr operator size_t() const
+    {
+        return Code_;
+    }
+
+    // May return #InvalidInternedAttribute if the attribute is not interned.
+    static TInternedAttributeKey Lookup(TStringBuf uninternedKey);
+
+    const TString& Unintern() const;
+
+    void Save(TStreamSaveContext& context) const;
+    void Load(TStreamLoadContext& context);
+
+private:
+    // NB: this codes are subject to change! Do not rely on their values. Do not serialize them.
+    // Use Save/Load methods instead.
+    size_t Code_;
+};
+
+constexpr TInternedAttributeKey InvalidInternedAttribute{0};
+constexpr TInternedAttributeKey CountInternedAttribute{1};
 
 //! Interned attribute registry initialization. Should be called once per attribute.
 //! Both interned and uninterned keys must be unique.
 void InternAttribute(const TString& uninternedKey, TInternedAttributeKey internedKey);
-
-// May return #InvalidInternedAttribute if the attribute is not interned.
-TInternedAttributeKey GetInternedAttributeKey(TStringBuf uninternedKey);
-
-const TString& GetUninternedAttributeKey(TInternedAttributeKey internedKey);
 
 ////////////////////////////////////////////////////////////////////////////////
 

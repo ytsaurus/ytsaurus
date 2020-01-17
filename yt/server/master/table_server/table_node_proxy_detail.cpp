@@ -809,7 +809,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
         case EInternedAttributeKey::OptimizeFor: {
             ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
-            const auto& uninternedKey = GetUninternedAttributeKey(key);
+            const auto& uninternedKey = key.Unintern();
             auto* lockedTable = LockThisImpl<TTableNode>(TLockRequest::MakeSharedAttribute(uninternedKey));
             lockedTable->SetOptimizeFor(ConvertTo<EOptimizeFor>(value));
 
@@ -907,7 +907,7 @@ void TTableNodeProxy::ValidateCustomAttributeUpdate(
     const TYsonString& oldValue,
     const TYsonString& newValue)
 {
-    auto internedKey = GetInternedAttributeKey(key);
+    auto internedKey = TInternedAttributeKey::Lookup(key);
 
     switch (internedKey) {
         case EInternedAttributeKey::ChunkWriter:

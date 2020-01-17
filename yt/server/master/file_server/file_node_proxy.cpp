@@ -89,7 +89,7 @@ private:
         const TYsonString& oldValue,
         const TYsonString& newValue) override
     {
-        auto internedKey = GetInternedAttributeKey(key);
+        auto internedKey = TInternedAttributeKey::Lookup(key);
 
         switch (internedKey) {
             case EInternedAttributeKey::Executable:

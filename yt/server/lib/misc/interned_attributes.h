@@ -381,19 +381,28 @@ namespace NYT {
 ///////////////////////////////////////////////////////////////////////////////
 
 // Don't litter the namespace, yet at the same time make the "enum" items
-// implicitly castable to NYTree::TInternedAttributeKey (aka int).
-struct EInternedAttributeKey
+// implicitly castable to an integral type to switch() by.
+class EInternedAttributeKey
 {
-    enum : NYTree::TInternedAttributeKey
+    enum : size_t
     {
-        InvalidKey = NYTree::InvalidInternedAttribute,
+        InvalidKey__Code = size_t(NYTree::InvalidInternedAttribute),
+        Count__Code = size_t(NYTree::CountInternedAttribute),
 
-        Count = NYTree::CountInternedAttribute,
-
-#define XX(camelCaseName, snakeCaseName) camelCaseName,
+#define XX(camelCaseName, snakeCaseName) camelCaseName##__Code,
     FOR_EACH_INTERNED_ATTRIBUTE(XX)
 #undef XX
     };
+
+public:
+    static constexpr NYTree::TInternedAttributeKey InvalidKey = NYTree::InvalidInternedAttribute;
+    static constexpr NYTree::TInternedAttributeKey Count = NYTree::CountInternedAttribute;
+
+#define XX(camelCaseName, snakeCaseName) \
+    static constexpr NYTree::TInternedAttributeKey camelCaseName{camelCaseName##__Code};
+
+    FOR_EACH_INTERNED_ATTRIBUTE(XX)
+#undef XX
 };
 
 ////////////////////////////////////////////////////////////////////////////////

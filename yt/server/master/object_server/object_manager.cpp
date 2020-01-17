@@ -1994,7 +1994,7 @@ std::unique_ptr<IAttributeDictionary> TObjectManager::TImpl::GetReplicatedAttrib
 
         auto value = proxy->FindBuiltinAttribute(descriptor.InternedKey);
         if (value) {
-            const auto& key = GetUninternedAttributeKey(descriptor.InternedKey);
+            const auto& key = descriptor.InternedKey.Unintern();
             replicateKey(key, value);
         }
     }

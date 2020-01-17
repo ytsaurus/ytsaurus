@@ -376,7 +376,7 @@ TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetExternalBuiltinAttribu
         GetTransaction(),
         externalCellTag);
 
-    auto key = TString(GetUninternedAttributeKey(internedKey));
+    auto key = internedKey.Unintern();
 
     auto req = TYPathProxy::Get(FromObjectId(GetId()) + "/@" + key);
     AddCellTagToSyncWith(req, GetId());
@@ -442,7 +442,7 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey
 
             auto time = ConvertTo<TInstant>(value);
 
-            auto lockRequest = TLockRequest::MakeSharedAttribute(GetUninternedAttributeKey(key));
+            auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
             auto* node = LockThisImpl(lockRequest);
 
             cypressManager->SetExpirationTime(node, time);
@@ -470,7 +470,7 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey
             if (attributeUpdated && !node->IsBeingCreated()) {
                 LogStructuredEventFluently(CypressServerLogger, ELogLevel::Info)
                     .Item("event").Value(EAccessControlEvent::ObjectAcdUpdated)
-                    .Item("attribute").Value(GetUninternedAttributeKey(key))
+                    .Item("attribute").Value(key.Unintern())
                     .Item("path").Value(GetPath())
                     .Item("value").Value(value);
             }
@@ -511,7 +511,7 @@ bool TNontemplateCypressNodeProxyBase::RemoveBuiltinAttribute(TInternedAttribute
         }
 
         case EInternedAttributeKey::ExpirationTime: {
-            auto lockRequest = TLockRequest::MakeSharedAttribute(GetUninternedAttributeKey(key));
+            auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
             auto* node = LockThisImpl(lockRequest);
             const auto& cypressManager = Bootstrap_->GetCypressManager();
             cypressManager->SetExpirationTime(node, std::nullopt);

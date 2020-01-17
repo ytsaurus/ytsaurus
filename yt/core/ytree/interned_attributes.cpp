@@ -1,6 +1,7 @@
 #include "interned_attributes.h"
 
 #include <yt/core/misc/collection_helpers.h>
+#include <yt/core/misc/serialize.h>
 
 namespace NYT::NYTree {
 
@@ -40,14 +41,35 @@ void InternAttribute(const TString& uninternedKey, TInternedAttributeKey interne
     Singleton<TInternedAttributeRegistry>()->Intern(uninternedKey, internedKey);
 }
 
-TInternedAttributeKey GetInternedAttributeKey(TStringBuf uninternedKey)
+////////////////////////////////////////////////////////////////////////////////
+
+TInternedAttributeKey::TInternedAttributeKey()
+    : Code_(InvalidInternedAttribute.Code_)
+{ }
+
+void TInternedAttributeKey::Save(TStreamSaveContext& context) const
+{
+    using NYT::Save;
+
+    Save(context, Unintern());
+}
+
+void TInternedAttributeKey::Load(TStreamLoadContext& context)
+{
+    using NYT::Load;
+
+    auto uninternedKey = Load<TString>(context);
+    Code_ = Lookup(uninternedKey).Code_;
+}
+
+/*static*/ TInternedAttributeKey TInternedAttributeKey::Lookup(TStringBuf uninternedKey)
 {
     return Singleton<TInternedAttributeRegistry>()->GetInterned(uninternedKey);
 }
 
-const TString& GetUninternedAttributeKey(TInternedAttributeKey internedKey)
+const TString& TInternedAttributeKey::Unintern() const
 {
-    return Singleton<TInternedAttributeRegistry>()->GetUninterned(internedKey);
+    return Singleton<TInternedAttributeRegistry>()->GetUninterned(*this);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
