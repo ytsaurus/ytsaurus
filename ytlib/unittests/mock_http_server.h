@@ -14,7 +14,7 @@ TString CollectMessages(const TError& error);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THttpServerMock
+class TMockHttpServer
 {
 public:
     using TCallback = std::function<void(TClientRequest*)>;

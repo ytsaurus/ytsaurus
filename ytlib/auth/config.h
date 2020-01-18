@@ -22,11 +22,13 @@ public:
     TString Host;
     int Port;
     bool Secure;
+    TString BlackboxServiceId;
 
     TDuration RequestTimeout;
     TDuration AttemptTimeout;
     TDuration BackoffTimeout;
     bool UseLowercaseLogin;
+    bool UseTvm;
 
     TDefaultBlackboxServiceConfig()
     {
@@ -38,6 +40,8 @@ public:
             .Default(443);
         RegisterParameter("secure", Secure)
             .Default(true);
+        RegisterParameter("blackbox_service_id", BlackboxServiceId)
+            .Default("blackbox");
         RegisterParameter("request_timeout", RequestTimeout)
             .Default(TDuration::Seconds(15));
         RegisterParameter("attempt_timeout", AttemptTimeout)
@@ -46,6 +50,8 @@ public:
             .Default(TDuration::Seconds(1));
         RegisterParameter("use_lowercase_login", UseLowercaseLogin)
             .Default(true);
+        RegisterParameter("use_tvm", UseTvm)
+            .Default(false);
     }
 };
 
@@ -113,12 +119,8 @@ class TBlackboxTicketAuthenticatorConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
-    TString BlackboxServiceId;
-
     TBlackboxTicketAuthenticatorConfig()
     {
-        RegisterParameter("blackbox_service_id", BlackboxServiceId)
-            .Default("blackbox");
     }
 };
 
