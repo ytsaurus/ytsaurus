@@ -11,6 +11,7 @@ from pyspark.ml.wrapper import JavaEstimator, JavaModel, JavaPredictionModel, Ja
 from pyspark.sql.dataframe import DataFrame
 
 class JavaRegressor(JavaPredictor[JM], _JavaPredictorParams): ...
+
 class JavaRegressionModel(JavaPredictionModel[T], _JavaPredictorParams): ...
 
 class _LinearRegressionParams(_JavaPredictorParams, HasRegParam, HasElasticNetParam, HasMaxIter, HasTol, HasFitIntercept, HasStandardization, HasWeightCol, HasSolver, HasAggregationDepth, HasLoss):
