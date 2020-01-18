@@ -1,6 +1,7 @@
 #include <mapreduce/yt/tests/yt_unittest_lib/yt_unittest_lib.h>
 
 #include <mapreduce/yt/tests/native/proto_lib/all_types.pb.h>
+#include <mapreduce/yt/tests/native/proto_lib/all_types_proto3.pb.h>
 #include <mapreduce/yt/tests/native/proto_lib/row.pb.h>
 
 #include <mapreduce/yt/tests/native/ydl_lib/row.ydl.h>
@@ -432,6 +433,23 @@ public:
     }
 };
 REGISTER_MAPPER(TProtobufMapper);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TProtobufMapperProto3 : public IMapper<TTableReader<TAllTypesMessageProto3>, TTableWriter<TAllTypesMessageProto3>>
+{
+public:
+    virtual void Do(TReader* reader, TWriter* writer) override
+    {
+        TAllTypesMessageProto3 row;
+        for (; reader->IsValid(); reader->Next()) {
+            reader->MoveRow(&row);
+            row.SetStringField(row.GetStringField() + " mapped");
+            writer->AddRow(row);
+        }
+    }
+};
+REGISTER_MAPPER(TProtobufMapperProto3);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1572,6 +1590,36 @@ Y_UNIT_TEST_SUITE(Operations)
         }
 
         client->Map(spec, new TProtobufMapper);
+
+        TVector<TNode> expected = {
+            TNode()("StringField", "raz mapped"),
+            TNode()("StringField", "dva mapped"),
+            TNode()("StringField", "tri mapped"),
+        };
+        auto actual = ReadTable(client, outputTable.Path_);
+        UNIT_ASSERT_VALUES_EQUAL(expected, actual);
+    }
+
+    Y_UNIT_TEST(ProtobufMapProto3)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        auto inputTable = TRichYPath(workingDir + "/input");
+        auto outputTable = TRichYPath(workingDir + "/output");
+        {
+            auto writer = client->CreateTableWriter<TNode>(inputTable);
+            writer->AddRow(TNode()("StringField", "raz"));
+            writer->AddRow(TNode()("StringField", "dva"));
+            writer->AddRow(TNode()("StringField", "tri"));
+            writer->Finish();
+        }
+        auto spec = TMapOperationSpec()
+            .AddInput<TAllTypesMessageProto3>(inputTable)
+            .AddOutput<TAllTypesMessageProto3>(outputTable);
+
+        client->Map(spec, new TProtobufMapperProto3);
 
         TVector<TNode> expected = {
             TNode()("StringField", "raz mapped"),
