@@ -1,7 +1,7 @@
 # Stubs for pyspark.ml.regression (Python 3)
 
 from typing import Any, List, Optional, Sequence
-from pyspark.ml._typing import P, T
+from pyspark.ml._typing import JM, P, T
 
 from pyspark.ml.param.shared import *
 from pyspark.ml.linalg import Matrix, Vector
@@ -9,6 +9,9 @@ from pyspark.ml.util import *
 from pyspark.ml.tree import _DecisionTreeModel, _DecisionTreeParams, _TreeEnsembleModel, _TreeEnsembleParams, _RandomForestParams, _GBTParams, _HasVarianceImpurity, _TreeRegressorParams
 from pyspark.ml.wrapper import JavaEstimator, JavaModel, JavaPredictionModel, JavaPredictor, _JavaPredictorParams, JavaWrapper
 from pyspark.sql.dataframe import DataFrame
+
+class JavaRegressor(JavaPredictor[JM], _JavaPredictorParams): ...
+class JavaRegressionModel(JavaPredictionModel[T], _JavaPredictorParams): ...
 
 class _LinearRegressionParams(_JavaPredictorParams, HasRegParam, HasElasticNetParam, HasMaxIter, HasTol, HasFitIntercept, HasStandardization, HasWeightCol, HasSolver, HasAggregationDepth, HasLoss):
     solver: Param[str]
