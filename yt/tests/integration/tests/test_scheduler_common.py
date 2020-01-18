@@ -1389,6 +1389,7 @@ class TestSchedulerCommon(YTEnvSetup):
     @authors("ignat")
     def test_input_with_custom_transaction(self):
         custom_tx = start_transaction(timeout=30000)
+
         create("table", "//tmp/in", tx=custom_tx)
         write_table("//tmp/in", {"foo": "bar"}, tx=custom_tx)
 
@@ -1401,16 +1402,23 @@ class TestSchedulerCommon(YTEnvSetup):
 
         assert list(read_table("//tmp/out")) == [{"foo": "bar"}]
 
+    @authors("babenko")
+    def test_input_created_in_user_transaction(self):
+        custom_tx = start_transaction()
+        create("table", "//tmp/in", tx=custom_tx)
+        write_table("//tmp/in", {"foo": "bar"}, tx=custom_tx)
+        create("table", "//tmp/out")
+        with pytest.raises(YtError):
+            map(command="cat", in_="//tmp/in", out="//tmp/out")
+
     @authors("ignat")
     def test_nested_input_transactions(self):
-        custom_tx = start_transaction(timeout=30000)
+        custom_tx = start_transaction(timeout=60000)
+
         create("table", "//tmp/in", tx=custom_tx)
         write_table("//tmp/in", {"foo": "bar"}, tx=custom_tx)
 
         create("table", "//tmp/out")
-
-        with pytest.raises(YtError):
-            map(command="sleep 100", in_="//tmp/in", out="//tmp/out")
 
         op = map(
             track=False,
