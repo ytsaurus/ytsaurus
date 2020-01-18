@@ -3,8 +3,8 @@
 import pandas.core.frame  # type: ignore[import]
 import pandas.core.series  # type: ignore[import]
 
-from .protocols.frame import DataFrameLike
-from .protocols.series import SeriesLike
+from .protocols.frame import DataFrameLike as DataFrameLike
+from .protocols.series import SeriesLike as SeriesLike
 
 from typing import Type
 

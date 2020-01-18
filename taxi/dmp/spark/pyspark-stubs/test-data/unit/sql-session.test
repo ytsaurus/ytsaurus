@@ -1,0 +1,81 @@
+[case createDataFrameStructsValid]
+from pyspark.sql import SparkSession
+from pyspark.sql.types import StructType, StructField, StringType, IntegerType
+
+spark = SparkSession.builder.getOrCreate()
+
+data = [('Alice', 1)]
+schema = StructType([
+    StructField("name", StringType(), True),
+    StructField("age", IntegerType(), True)
+])
+
+# Valid structs
+spark.createDataFrame(data)
+spark.createDataFrame(data, samplingRatio=0.1)
+spark.createDataFrame(data, ("name", "age"))
+spark.createDataFrame(data, schema)
+spark.createDataFrame(data, "name string, age integer")
+spark.createDataFrame([(1, ("foo", "bar"))], ("_1", "_2"))
+spark.createDataFrame(data, ("name", "age"), samplingRatio=0.1)  # type: ignore
+
+
+
+[out]
+
+[case createDataFrameScalarsValid]
+from pyspark.sql import SparkSession
+from pyspark.sql.types import StructType, StructField, StringType, IntegerType
+
+spark = SparkSession.builder.getOrCreate()
+
+# Scalars
+spark.createDataFrame([1, 2, 3], IntegerType())
+spark.createDataFrame(["foo", "bar"], "string")
+[out]
+
+[case createDataFrameScalarsInalid]
+from pyspark.sql import SparkSession
+from pyspark.sql.types import StructType, StructField, StringType, IntegerType
+
+spark = SparkSession.builder.getOrCreate()
+
+schema = StructType([
+    StructField("name", StringType(), True),
+    StructField("age", IntegerType(), True)
+])
+
+# Invalid - scalars require schema
+spark.createDataFrame(["foo", "bar"]) # E: List item 0 has incompatible type "str"; expected "Union[Tuple[Any, ...], List[Any]]" \
+                                      # E: List item 1 has incompatible type "str"; expected "Union[Tuple[Any, ...], List[Any]]"
+
+# Invalid - data has to match schema (either product -> struct or scalar -> atomic)
+spark.createDataFrame([1, 2, 3], schema) # E: List item 0 has incompatible type "int"; expected "Union[Tuple[Any, ...], List[Any]]" \
+                                         # E: List item 1 has incompatible type "int"; expected "Union[Tuple[Any, ...], List[Any]]" \
+                                         # E: List item 2 has incompatible type "int"; expected "Union[Tuple[Any, ...], List[Any]]"
+[out]
+
+[case createDataFrameStructsInalid]
+from pyspark.sql import SparkSession
+from pyspark.sql.types import StructType, StructField, StringType, IntegerType
+
+spark = SparkSession.builder.getOrCreate()
+
+data = [('Alice', 1)]
+
+schema = StructType([
+    StructField("name", StringType(), True),
+    StructField("age", IntegerType(), True)
+])
+
+# Invalid product should have StructType schema
+spark.createDataFrame(data, IntegerType()) # E: Argument 1 to "createDataFrame" of "SparkSession" has incompatible type "List[Tuple[str, int]]"; expected "Union[RDD[Union[Union[datetime, date], Union[bool, int, float, str], Decimal]], Iterable[Union[Union[datetime, date], Union[bool, int, float, str], Decimal]]]"
+
+# This shouldn't type check, though is technically speaking valid
+# because  samplingRatio is ignored
+spark.createDataFrame(data, schema, samplingRatio=0.1)  # E: No overload variant of "createDataFrame" of "SparkSession" matches argument types "List[Tuple[str, int]]", "StructType", "float" \
+                                                        # N: Possible overload variants: \
+                                                        # N:     def createDataFrame(self, data: Union[RDD[Union[Tuple[Any, ...], List[Any]]], Iterable[Union[Tuple[Any, ...], List[Any]]]], samplingRatio: Optional[float] = ...) -> DataFrame \
+                                                        # N:     def createDataFrame(self, data: Union[RDD[Union[Tuple[Any, ...], List[Any]]], Iterable[Union[Tuple[Any, ...], List[Any]]]], schema: Union[List[str], Tuple[str, ...]] = ..., verifySchema: bool = ...) -> DataFrame \
+                                                        # N:     <4 more similar overloads not shown, out of 6 total overloads>
+[out]
