@@ -50,13 +50,15 @@ bool TFutureStateBase::Cancel(const TError& error) noexcept
     }
 
     if (CancelHandlers_.empty()) {
-        DoTrySetCanceledError(error);
+        if (!DoTrySetCanceledError(error)) {
+            return false;
+        }
+    } else {
+        for (const auto& handler : CancelHandlers_) {
+            RunNoExcept(handler, error);
+        }
+        CancelHandlers_.clear();
     }
-
-    for (const auto& handler : CancelHandlers_) {
-        RunNoExcept(handler, error);
-    }
-    CancelHandlers_.clear();
 
     return true;
 }

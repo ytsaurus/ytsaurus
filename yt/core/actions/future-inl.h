@@ -167,7 +167,7 @@ protected:
 
     virtual void DoInstallAbandonedError() = 0;
     virtual void DoTrySetAbandonedError() = 0;
-    virtual void DoTrySetCanceledError(const TError& error) = 0;
+    virtual bool DoTrySetCanceledError(const TError& error) = 0;
 
     void InstallAbandonedError();
     void InstallAbandonedError() const;
@@ -277,9 +277,9 @@ private:
         TrySet(MakeAbandonedError());
     }
 
-    virtual void DoTrySetCanceledError(const TError& error) override
+    virtual bool DoTrySetCanceledError(const TError& error) override
     {
-        TrySet(MakeCanceledError(error));
+        return TrySet(MakeCanceledError(error));
     }
 
 protected:
