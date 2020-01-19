@@ -1,0 +1,13 @@
+diff --git a/examples/src/main/python/ml/als_example.py b/examples/src/main/python/ml/als_example.py
+index 8b7ec9c..5ae72e6 100644
+--- a/examples/src/main/python/ml/als_example.py
++++ b/examples/src/main/python/ml/als_example.py
+@@ -40,7 +40,7 @@ if __name__ == "__main__":
+     parts = lines.map(lambda row: row.value.split("::"))
+     ratingsRDD = parts.map(lambda p: Row(userId=int(p[0]), movieId=int(p[1]),
+                                          rating=float(p[2]), timestamp=long(p[3])))
+-    ratings = spark.createDataFrame(ratingsRDD)
++    ratings = spark.createDataFrame(ratingsRDD)  # type: ignore[arg-type]
+     (training, test) = ratings.randomSplit([0.8, 0.2])
+ 
+     # Build the recommendation model using ALS on the training data

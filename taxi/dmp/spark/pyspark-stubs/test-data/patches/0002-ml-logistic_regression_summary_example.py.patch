@@ -1,0 +1,22 @@
+diff --git a/examples/src/main/python/ml/logistic_regression_summary_example.py b/examples/src/main/python/ml/logistic_regression_summary_example.py
+index 2274ff7..30ca5ee 100644
+--- a/examples/src/main/python/ml/logistic_regression_summary_example.py
++++ b/examples/src/main/python/ml/logistic_regression_summary_example.py
+@@ -22,6 +22,8 @@ Run with:
+ """
+ from __future__ import print_function
+ 
++from pyspark.ml.classification import BinaryLogisticRegressionTrainingSummary
++
+ # $example on$
+ from pyspark.ml.classification import LogisticRegression
+ # $example off$
+@@ -44,7 +46,7 @@ if __name__ == "__main__":
+     # $example on$
+     # Extract the summary from the returned LogisticRegressionModel instance trained
+     # in the earlier example
+-    trainingSummary = lrModel.summary
++    trainingSummary: BinaryLogisticRegressionTrainingSummary = lrModel.summary  # type: ignore[assignment]
+ 
+     # Obtain the objective per iteration
+     objectiveHistory = trainingSummary.objectiveHistory

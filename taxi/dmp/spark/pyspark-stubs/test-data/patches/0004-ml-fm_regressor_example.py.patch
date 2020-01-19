@@ -1,0 +1,22 @@
+diff --git a/examples/src/main/python/ml/fm_regressor_example.py b/examples/src/main/python/ml/fm_regressor_example.py
+index afd7639..b05b6e6 100644
+--- a/examples/src/main/python/ml/fm_regressor_example.py
++++ b/examples/src/main/python/ml/fm_regressor_example.py
+@@ -20,6 +20,8 @@ FMRegressor Example.
+ """
+ from __future__ import print_function
+ 
++from pyspark.ml.regression import FMRegressionModel
++
+ # $example on$
+ from pyspark.ml import Pipeline
+ from pyspark.ml.regression import FMRegressor
+@@ -65,7 +67,7 @@ if __name__ == "__main__":
+     rmse = evaluator.evaluate(predictions)
+     print("Root Mean Squared Error (RMSE) on test data = %g" % rmse)
+ 
+-    fmModel = model.stages[1]
++    fmModel: FMRegressionModel = model.stages[1]  # type: ignore[assignment]
+     print("Factors: " + str(fmModel.factors))
+     print("Linear: " + str(fmModel.linear))
+     print("Intercept: " + str(fmModel.intercept))
