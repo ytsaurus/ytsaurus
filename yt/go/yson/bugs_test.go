@@ -21,16 +21,18 @@ type (
 		Int   *int              `json:"int,omitempty" yson:"int,omitempty"`
 		Map   map[string]string `json:"map,omitempty" yson:"map,omitempty"`
 		Array []string          `json:"array,omitempty" yson:"array,omitempty"`
+		Str   string            `json:"str,omitempty" yson:"str,omitempty"`
+		Bytes []byte            `json:"bytes,omitempty" yson:"bytes,omitempty"`
 	}
 )
 
 func TestNullHandling(t *testing.T) {
 	var jsonTest NullTest
-	msgJSON := `{"int": null, "map": null, "array": null}`
+	msgJSON := `{"int": null, "map": null, "array": null, "str": null, "bytes": null}`
 	require.NoError(t, json.Unmarshal([]byte(msgJSON), &jsonTest))
 
 	var ysonTest NullTest
-	msgYson := `{int=#;map=#;array=#}`
+	msgYson := `{int=#;map=#;array=#;str=#;bytes=#}`
 	require.NoError(t, yson.Unmarshal([]byte(msgYson), &ysonTest))
 
 	require.Equal(t, jsonTest, ysonTest)
