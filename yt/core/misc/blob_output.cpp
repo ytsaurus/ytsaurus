@@ -72,6 +72,11 @@ void swap(TBlobOutput& left, TBlobOutput& right)
     }
 }
 
+TBlob& TBlobOutput::Blob()
+{
+    return Blob_;
+}
+
 const TBlob& TBlobOutput::Blob() const
 {
     return Blob_;

@@ -18,6 +18,7 @@ public:
 
     ~TBlobOutput();
 
+    TBlob& Blob();
     const TBlob& Blob() const;
 
     const char* Begin() const;
@@ -36,7 +37,6 @@ private:
     virtual void DoWrite(const void* buf, size_t len) override;
 
     TBlob Blob_;
-
 };
 
 void swap(TBlobOutput& left, TBlobOutput& right);
