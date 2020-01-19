@@ -182,6 +182,10 @@ func decodeString(r *Reader) (b []byte, err error) {
 		return
 	}
 
+	if r.currentType == TypeEntity {
+		return
+	}
+
 	if r.currentType != TypeString {
 		err = &TypeError{UserType: reflect.TypeOf(b), YSONType: r.currentType}
 		return
@@ -238,8 +242,12 @@ func decodeAny(r *Reader, v interface{}) (err error) {
 		var b []byte
 		b, err = decodeString(r)
 
-		*vv = make([]byte, len(b))
-		copy(*vv, b)
+		if len(b) != 0 {
+			*vv = make([]byte, len(b))
+			copy(*vv, b)
+		} else {
+			*vv = nil
+		}
 	case *RawValue:
 		var raw []byte
 		raw, err = r.NextRawValue()
