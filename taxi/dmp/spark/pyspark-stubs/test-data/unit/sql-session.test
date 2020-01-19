@@ -46,13 +46,10 @@ schema = StructType([
 ])
 
 # Invalid - scalars require schema
-spark.createDataFrame(["foo", "bar"]) # E: List item 0 has incompatible type "str"; expected "Union[Tuple[Any, ...], List[Any]]" \
-                                      # E: List item 1 has incompatible type "str"; expected "Union[Tuple[Any, ...], List[Any]]"
+spark.createDataFrame(["foo", "bar"]) # E: Value of type variable "RowLike" of "createDataFrame" of "SparkSession" cannot be "str"
 
 # Invalid - data has to match schema (either product -> struct or scalar -> atomic)
-spark.createDataFrame([1, 2, 3], schema) # E: List item 0 has incompatible type "int"; expected "Union[Tuple[Any, ...], List[Any]]" \
-                                         # E: List item 1 has incompatible type "int"; expected "Union[Tuple[Any, ...], List[Any]]" \
-                                         # E: List item 2 has incompatible type "int"; expected "Union[Tuple[Any, ...], List[Any]]"
+spark.createDataFrame([1, 2, 3], schema) # E: Value of type variable "RowLike" of "createDataFrame" of "SparkSession" cannot be "int"
 [out]
 
 [case createDataFrameStructsInalid]
@@ -75,7 +72,7 @@ spark.createDataFrame(data, IntegerType()) # E: Argument 1 to "createDataFrame" 
 # because  samplingRatio is ignored
 spark.createDataFrame(data, schema, samplingRatio=0.1)  # E: No overload variant of "createDataFrame" of "SparkSession" matches argument types "List[Tuple[str, int]]", "StructType", "float" \
                                                         # N: Possible overload variants: \
-                                                        # N:     def createDataFrame(self, data: Union[RDD[Union[Tuple[Any, ...], List[Any]]], Iterable[Union[Tuple[Any, ...], List[Any]]]], samplingRatio: Optional[float] = ...) -> DataFrame \
-                                                        # N:     def createDataFrame(self, data: Union[RDD[Union[Tuple[Any, ...], List[Any]]], Iterable[Union[Tuple[Any, ...], List[Any]]]], schema: Union[List[str], Tuple[str, ...]] = ..., verifySchema: bool = ...) -> DataFrame \
+                                                        # N:     def [RowLike in (List[Any], Tuple[Any, ...], Row)] createDataFrame(self, data: Union[RDD[RowLike], Iterable[RowLike]], samplingRatio: float = ...) -> DataFrame \
+                                                        # N:     def [RowLike in (List[Any], Tuple[Any, ...], Row)] createDataFrame(self, data: Union[RDD[RowLike], Iterable[RowLike]], schema: Union[List[str], Tuple[str, ...]] = ..., verifySchema: bool = ...) -> DataFrame \
                                                         # N:     <4 more similar overloads not shown, out of 6 total overloads>
 [out]
