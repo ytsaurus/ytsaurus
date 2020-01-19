@@ -1019,7 +1019,10 @@ private:
                 "nested_input_transaction_ids",
             };
 
-            auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
+            auto batchReq = StartObjectBatchRequest(
+                EMasterChannelKind::Follower,
+                PrimaryMasterCellTag,
+                Config_->FetchOperationAttributesSubbatchSize);
 
             for (const auto& operation : operations) {
                 auto operationId = operation->GetId();
