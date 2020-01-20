@@ -272,7 +272,7 @@ private:
 
     void WriteSize(size_t size)
     {
-        TCheckpointableStreamBlockHeader length{size};
+        TCheckpointableStreamBlockHeader length{static_cast<i64>(size)};
         Adapter_->WriteToStream(&length, sizeof(length));
     }
 
