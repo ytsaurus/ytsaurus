@@ -29,24 +29,24 @@ message TRowVer2 {
 }
 
 message TRowFieldSerializationOption {
-    optional TUrlRow UrlRow_1 = 1 [(NYT.flags) = EXPERIMENTAL_SERIALIZATION_YT];
+    optional TUrlRow UrlRow_1 = 1 [(NYT.flags) = SERIALIZATION_YT];
     optional TUrlRow UrlRow_2 = 2;
 }
 
 message TRowMessageSerializationOption {
-    option (NYT.default_field_flags) = EXPERIMENTAL_SERIALIZATION_YT;
+    option (NYT.default_field_flags) = SERIALIZATION_YT;
     optional TUrlRow UrlRow_1 = 1;
     optional TUrlRow UrlRow_2 = 2;
 }
 
 message TRowMixedSerializationOptions {
-    option (NYT.default_field_flags) = EXPERIMENTAL_SERIALIZATION_YT;
+    option (NYT.default_field_flags) = SERIALIZATION_YT;
     optional TUrlRow UrlRow_1 = 1;
     optional TUrlRow UrlRow_2 = 2 [(NYT.flags) = SERIALIZATION_PROTOBUF];
 }
 
 message TRowSerializedRepeatedFields {
-    option (NYT.default_field_flags) = EXPERIMENTAL_SERIALIZATION_YT;
+    option (NYT.default_field_flags) = SERIALIZATION_YT;
     repeated int64 Ints = 1;
     repeated TUrlRow UrlRows = 2;
 }
@@ -58,7 +58,7 @@ message TUrlRowWithColumnNames {
 }
 
 message TRowMixedSerializationOptions_ColumnNames {
-    option (NYT.default_field_flags) = EXPERIMENTAL_SERIALIZATION_YT;
+    option (NYT.default_field_flags) = SERIALIZATION_YT;
     optional TUrlRowWithColumnNames UrlRow_1 = 1;
     optional TUrlRowWithColumnNames UrlRow_2 = 2 [(NYT.flags) = SERIALIZATION_PROTOBUF];
 }
@@ -88,6 +88,6 @@ message TRowWithTypeOptions
     optional Color ColorStringField = 2 [(NYT.flags) = ENUM_STRING];
     optional bytes AnyField = 3 [(NYT.flags) = ANY];
     optional bytes OtherColumnsField = 4 [(NYT.flags) = OTHER_COLUMNS];
-    optional Embedded EmbeddedField = 5 [(NYT.flags) = EXPERIMENTAL_SERIALIZATION_YT];
-    repeated Color RepeatedEnumIntField = 6 [(NYT.flags) = EXPERIMENTAL_SERIALIZATION_YT, (NYT.flags) = ENUM_INT];
+    optional Embedded EmbeddedField = 5 [(NYT.flags) = SERIALIZATION_YT];
+    repeated Color RepeatedEnumIntField = 6 [(NYT.flags) = SERIALIZATION_YT, (NYT.flags) = ENUM_INT];
 }

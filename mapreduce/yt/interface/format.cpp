@@ -57,7 +57,7 @@ TOption FieldFlagToOption(EWrapperFieldFlag::Enum flag)
     switch (flag) {
         case EFlag::SERIALIZATION_PROTOBUF:
             return EProtobufSerializationMode::Protobuf;
-        case EFlag::EXPERIMENTAL_SERIALIZATION_YT:
+        case EFlag::SERIALIZATION_YT:
             return EProtobufSerializationMode::Yt;
         case EFlag::ANY:
             return EProtobufType::Any;
@@ -94,7 +94,7 @@ EWrapperFieldFlag::Enum OptionToFieldFlag(TOption option)
         {
             switch (serializationMode) {
                 case EProtobufSerializationMode::Yt:
-                    return EFlag::EXPERIMENTAL_SERIALIZATION_YT;
+                    return EFlag::SERIALIZATION_YT;
                 case EProtobufSerializationMode::Protobuf:
                     return EFlag::SERIALIZATION_PROTOBUF;
             }
@@ -234,7 +234,7 @@ TNode MakeProtoFormatFieldConfig(
     if (fieldDescriptor->is_repeated()) {
         Y_ENSURE_EX(fieldOptions.SerializationMode == EProtobufSerializationMode::Yt,
             TApiUsageError() << "Repeated field " << fieldDescriptor->full_name() << ' ' <<
-            "must have flag " << EWrapperFieldFlag::EXPERIMENTAL_SERIALIZATION_YT);
+            "must have flag " << EWrapperFieldFlag::SERIALIZATION_YT);
     }
     fieldConfig["repeated"] = fieldDescriptor->is_repeated();
 
