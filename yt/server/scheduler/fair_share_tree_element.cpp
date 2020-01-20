@@ -3369,6 +3369,11 @@ TRootElementPtr TRootElement::Clone()
     return New<TRootElement>(*this);
 }
 
+bool TRootElement::IsDefaultConfigured() const
+{
+    return false;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler
