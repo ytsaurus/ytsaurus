@@ -15,10 +15,7 @@ public:
         : Code_(code)
     { }
 
-    constexpr operator size_t() const
-    {
-        return Code_;
-    }
+    constexpr operator size_t() const;
 
     // May return #InvalidInternedAttribute if the attribute is not interned.
     static TInternedAttributeKey Lookup(TStringBuf uninternedKey);
@@ -59,3 +56,7 @@ void InternAttribute(const TString& uninternedKey, TInternedAttributeKey interne
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYTree
+
+#define INTERNED_ATTRIBUTES_INL_H_
+#include "interned_attributes-inl.h"
+#undef INTERNED_ATTRIBUTES_INL_H_
