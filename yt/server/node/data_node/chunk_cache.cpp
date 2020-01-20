@@ -946,7 +946,7 @@ private:
             : std::nullopt;
 
         auto columnFilter = key.data_source().has_column_filter()
-            ? std::make_optional(FromProto<std::vector<TString>>(key.data_source().columns()))
+            ? std::make_optional(FromProto<std::vector<TString>>(key.data_source().column_filter().admitted_names()))
             : std::nullopt;
 
         switch (EDataSourceType(key.data_source().type())) {

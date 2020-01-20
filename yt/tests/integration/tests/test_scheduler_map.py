@@ -935,6 +935,46 @@ print row + table_index
 
         assert read_table("//tmp/tout") == [{"d": 42}]
 
+    @authors("evgenstf")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_two_tables_with_column_filter(self, optimize_for):
+        create("table", "//tmp/input_table_1", attributes={
+                "schema": [{"name": "first_column_1", "type": "int64"},
+                           {"name": "second_column_1", "type": "int64"},
+                           {"name": "third_column_1", "type": "int64"}],
+                "optimize_for": optimize_for})
+        write_table("//tmp/input_table_1", [{"first_column_1": 1001, "second_column_1": 2001, "third_column_1": 3001}])
+
+        create("table", "//tmp/input_table_2", attributes={
+                "schema": [{"name": "first_column_2", "type": "int64"},
+                           {"name": "second_column_2", "type": "int64"},
+                           {"name": "third_column_2", "type": "int64"}],
+                "optimize_for": optimize_for})
+        write_table("//tmp/input_table_2", [{"first_column_2": 1002, "second_column_2": 2002, "third_column_2": 3002}])
+
+        create("table", "//tmp/input_table_3", attributes={
+                "schema": [{"name": "first_column_2", "type": "int64"},
+                           {"name": "second_column_2", "type": "int64"},
+                           {"name": "third_column_2", "type": "int64"}],
+                "optimize_for": optimize_for})
+        write_table("//tmp/input_table_3", [{"first_column_2": 1002, "second_column_2": 2002, "third_column_2": 3002}])
+
+        create("table", "//tmp/output_table_1")
+        create("table", "//tmp/output_table_2")
+        create("table", "//tmp/output_table_3")
+
+        map(in_=[
+                '<columns=["first_column_1";"third_column_1"]>//tmp/input_table_1',
+                '<columns=["first_column_2";"second_column_2"]>//tmp/input_table_2',
+                '<columns=["first_column_2";"second_column_2"]>//tmp/input_table_3'
+            ],
+            out=["//tmp/output_table_1", "//tmp/output_table_2", "//tmp/output_table_3"],
+            command="cat")
+
+        assert read_table("//tmp/output_table_1") == [{"first_column_1": 1001, "third_column_1": 3001}]
+        assert read_table("//tmp/output_table_2") == [{"first_column_2": 1002, "second_column_2": 2002}]
+        assert read_table("//tmp/output_table_3") == [{"first_column_2": 1002, "second_column_2": 2002}]
+
     @authors("lukyan")
     @pytest.mark.parametrize("mode", ["unordered", "ordered"])
     def test_computed_columns(self, mode):

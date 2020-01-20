@@ -66,12 +66,14 @@ TDataSource MakeFileDataSource(const std::optional<NYPath::TYPath>& path);
 void FromProto(
     TDataSource* dataSource,
     const NProto::TDataSource& protoDataSource,
-    const NTableClient::TSchemaDictionary* dictionary = nullptr);
+    const NTableClient::TSchemaDictionary* schemaDictionary = nullptr,
+    const NTableClient::TColumnFilterDictionary* columnFilterDictionary = nullptr);
 
 void ToProto(
     NProto::TDataSource* protoDataSource,
     const TDataSource& dataSource,
-    NTableClient::TSchemaDictionary* dictionary = nullptr);
+    NTableClient::TSchemaDictionary* schemaDictionary = nullptr,
+    NTableClient::TColumnFilterDictionary* columnFilterDictionary = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 
