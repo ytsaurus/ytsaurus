@@ -13,6 +13,7 @@ struct ICheckpointableInputStream
     : public IInputStream
 {
     virtual void SkipToCheckpoint() = 0;
+    virtual i64 GetOffset() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

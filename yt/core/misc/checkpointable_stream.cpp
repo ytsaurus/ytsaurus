@@ -26,28 +26,38 @@ public:
                 HasBlock_ = false;
                 break;
             }
-            UnderlyingStream_->Skip(BlockLength_ - BlockOffset_);
+            auto size = BlockLength_ - BlockOffset_;
+            UnderlyingStream_->Skip(size);
+            Offset_ += size;
             HasBlock_ = false;
         }
+    }
+
+    virtual i64 GetOffset() const override
+    {
+        return Offset_;
     }
 
 private:
     IInputStream* const UnderlyingStream_;
 
-    size_t BlockLength_;
-    size_t BlockOffset_;
+    i64 BlockLength_;
+    i64 BlockOffset_;
     bool HasBlock_ = false;
 
+    i64 Offset_ = 0;
 
-    virtual size_t DoRead(void* buf_, size_t len) override
+
+    virtual size_t DoRead(void* buf_, size_t len_) override
     {
         char* buf = reinterpret_cast<char*>(buf_);
-        size_t pos = 0;
+        i64 len = static_cast<i64>(len_);
+        i64 pos = 0;
         while (pos < len) {
             if (!EnsureBlock()) {
                 break;
             }
-            size_t size = std::min(BlockLength_ - BlockOffset_, len - pos);
+            auto size = std::min(BlockLength_ - BlockOffset_, len - pos);
             auto loadedSize = UnderlyingStream_->Load(buf + pos, size);
             if (loadedSize != size) {
                 THROW_ERROR_EXCEPTION("Broken checkpointable stream: expected %v bytes, got %v",
@@ -55,6 +65,7 @@ private:
                     loadedSize);
             }
             pos += size;
+            Offset_ += size;
             BlockOffset_ += size;
             if (BlockOffset_ == BlockLength_) {
                 HasBlock_ = false;
@@ -113,8 +124,9 @@ private:
     IOutputStream* const UnderlyingStream_;
 
 
-    virtual void DoWrite(const void* buf, size_t len) override
+    virtual void DoWrite(const void* buf, size_t len_) override
     {
+        i64 len = static_cast<i64>(len_);
         if (len == 0) {
             return;
         }
