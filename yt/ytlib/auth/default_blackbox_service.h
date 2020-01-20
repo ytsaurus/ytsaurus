@@ -10,6 +10,7 @@ namespace NYT::NAuth {
 
 IBlackboxServicePtr CreateDefaultBlackboxService(
     TDefaultBlackboxServiceConfigPtr config,
+    ITvmServicePtr tvmService,
     NConcurrency::IPollerPtr poller,
     NProfiling::TProfiler profiler = {});
 

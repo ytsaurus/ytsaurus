@@ -42,7 +42,7 @@ int GetStackTrace(void** result, int maxFrames, int skipFrames)
     }
 
     while (frames < maxFrames) {
-        unw_word_t ip;
+        unw_word_t ip = 0;
         int rv = unw_get_reg(&cursor, UNW_REG_IP, &ip);
         if (rv < 0) {
             break;

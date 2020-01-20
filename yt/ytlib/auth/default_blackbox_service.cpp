@@ -3,6 +3,7 @@
 #include "config.h"
 #include "helpers.h"
 #include "private.h"
+#include "tvm_service.h"
 
 #include <yt/core/json/json_parser.h>
 
@@ -31,9 +32,11 @@ class TDefaultBlackboxService
 public:
     TDefaultBlackboxService(
         TDefaultBlackboxServiceConfigPtr config,
+        ITvmServicePtr tvmService,
         IPollerPtr poller,
         NProfiling::TProfiler profiler)
         : Config_(std::move(config))
+        , TvmService_(Config_->UseTvm ? std::move(tvmService) : nullptr)
         , Profiler_(std::move(profiler))
         , HttpClient_(Config_->Secure
             ? NHttps::CreateClient(Config_->HttpClient, std::move(poller))
@@ -42,10 +45,9 @@ public:
 
     virtual TFuture<INodePtr> Call(
         const TString& method,
-        const THashMap<TString, TString>& params,
-        const THashMap<TString, TString>& headers) override
+        const THashMap<TString, TString>& params) override
     {
-        return BIND(&TDefaultBlackboxService::DoCall, MakeStrong(this), method, params, headers)
+        return BIND(&TDefaultBlackboxService::DoCall, MakeStrong(this), method, params)
             .AsyncVia(NRpc::TDispatcher::Get()->GetLightInvoker())
             .Run();
     }
@@ -61,6 +63,7 @@ public:
 
 private:
     const TDefaultBlackboxServiceConfigPtr Config_;
+    const ITvmServicePtr TvmService_;
     const NProfiling::TProfiler Profiler_;
 
     const NHttp::IClientPtr HttpClient_;
@@ -73,10 +76,20 @@ private:
 private:
     INodePtr DoCall(
         const TString& method,
-        const THashMap<TString, TString>& params,
-        const THashMap<TString, TString>& headers)
+        const THashMap<TString, TString>& params)
     {
         auto deadline = TInstant::Now() + Config_->RequestTimeout;
+
+        TString blackboxTicket;
+        if (TvmService_) {
+            auto rspOrError = WaitFor(TvmService_->GetTicket(Config_->BlackboxServiceId));
+            if (!rspOrError.IsOK()) {
+                AuthProfiler.Increment(BlackboxCallFatalErrors_);
+                YT_LOG_ERROR(rspOrError);
+                THROW_ERROR_EXCEPTION("TVM call failed") << rspOrError;
+            }
+            blackboxTicket = rspOrError.Value();
+        }
 
         TSafeUrlBuilder builder;
         builder.AppendString(Format("%v://%v:%v/blackbox?",
@@ -96,7 +109,10 @@ private:
         auto realUrl = builder.FlushRealUrl();
         auto safeUrl = builder.FlushSafeUrl();
 
-        auto httpHeaders = MakeHeaders(headers);
+        auto httpHeaders = New<THeaders>();
+        if (!blackboxTicket.empty()) {
+            httpHeaders->Add("X-Ya-Service-Ticket", blackboxTicket);
+        }
 
         auto callId = TGuid::Create();
 
@@ -191,15 +207,6 @@ private:
         return config;
     }
 
-    static THeadersPtr MakeHeaders(const THashMap<TString, TString>& headers)
-    {
-        auto httpHeaders = New<THeaders>();
-        for (const auto& [key, value] : headers) {
-            httpHeaders->Add(key, value);
-        }
-        return httpHeaders;
-    }
-
     INodePtr DoCallOnce(
         TGuid callId,
         int attempt,
@@ -278,11 +285,13 @@ private:
 
 IBlackboxServicePtr CreateDefaultBlackboxService(
     TDefaultBlackboxServiceConfigPtr config,
+    ITvmServicePtr tvmService,
     IPollerPtr poller,
     NProfiling::TProfiler profiler)
 {
     return New<TDefaultBlackboxService>(
         std::move(config),
+        std::move(tvmService),
         std::move(poller),
         std::move(profiler));
 }

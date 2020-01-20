@@ -1,4 +1,4 @@
-#include "http_server_mock.h"
+#include "mock_http_server.h"
 
 #include <yt/ytlib/auth/config.h>
 #include <yt/ytlib/auth/default_secret_vault_service.h>
@@ -27,8 +27,8 @@ protected:
     TDefaultSecretVaultServiceConfigPtr CreateDefaultSecretVaultServiceConfig()
     {
         auto config = New<TDefaultSecretVaultServiceConfig>();
-        config->Host = ServerMock_.GetHost();
-        config->Port = ServerMock_.GetPort();
+        config->Host = MockHttpServer_.GetHost();
+        config->Port = MockHttpServer_.GetPort();
         config->Secure = false;
         config->RequestTimeout = TDuration::MilliSeconds(100);
         return config;
@@ -39,29 +39,29 @@ protected:
     {
         return NAuth::CreateDefaultSecretVaultService(
             config ? config : CreateDefaultSecretVaultServiceConfig(),
-            New<TTvmServiceMock>(),
+            New<TMockTvmService>(),
             CreateThreadPoolPoller(1, "HttpPoller"));
     }
 
     virtual void SetUp() override
     {
-        ServerMock_.Start();
+        MockHttpServer_.Start();
     }
 
     virtual void TearDown() override
     {
-        if (ServerMock_.IsStarted()) {
-            ServerMock_.Stop();
+        if (MockHttpServer_.IsStarted()) {
+            MockHttpServer_.Stop();
         }
     }
 
-    void SetCallback(THttpServerMock::TCallback callback)
+    void SetCallback(TMockHttpServer::TCallback callback)
     {
-        ServerMock_.SetCallback(std::move(callback));
+        MockHttpServer_.SetCallback(std::move(callback));
     }
 
 private:
-    class TTvmServiceMock
+    class TMockTvmService
         : public ITvmService
     {
     public:
@@ -71,7 +71,7 @@ private:
         }
     };
 
-    THttpServerMock ServerMock_;
+    TMockHttpServer MockHttpServer_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
