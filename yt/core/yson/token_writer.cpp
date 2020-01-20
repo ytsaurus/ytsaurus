@@ -81,6 +81,11 @@ void TUncheckedYsonTokenWriter::WriteTextString(TStringBuf value)
     WriteSimple('"');
 }
 
+void TUncheckedYsonTokenWriter::WriteRawNodeUnchecked(TStringBuf value)
+{
+    DoWrite(value.data(), value.size());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TCheckedYsonTokenWriter::TCheckedYsonTokenWriter(IZeroCopyOutput* writer, EYsonType type)
@@ -216,6 +221,12 @@ void TCheckedYsonTokenWriter::Finish()
 {
     Checker_.OnFinish();
     UncheckedWriter_.Finish();
+}
+
+void TCheckedYsonTokenWriter::WriteRawNodeUnchecked(TStringBuf value)
+{
+    Checker_.OnSimpleNonstring(EYsonItemType::EntityValue);
+    UncheckedWriter_.WriteRawNodeUnchecked(value);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

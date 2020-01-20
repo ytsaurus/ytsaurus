@@ -165,6 +165,7 @@ void FromUnversionedRow(
     Ts*... values);
 
 void UnversionedValueToYson(TUnversionedValue unversionedValue, NYson::IYsonConsumer* consumer);
+void UnversionedValueToYson(TUnversionedValue unversionedValue, NYson::TCheckedInDebugYsonTokenWriter* tokenWriter);
 NYson::TYsonString UnversionedValueToYson(TUnversionedValue unversionedValue, bool enableRaw = false);
 
 ////////////////////////////////////////////////////////////////////////////////
