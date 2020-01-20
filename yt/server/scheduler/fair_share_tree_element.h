@@ -498,6 +498,8 @@ public:
     virtual bool IsInferringChildrenWeightsFromHistoricUsageEnabled() const = 0;
     virtual THistoricUsageAggregationParameters GetHistoricUsageAggregationParameters() const = 0;
 
+    virtual bool IsDefaultConfigured() const = 0;
+
 protected:
     const NProfiling::TTagId ProfilingTag_;
 
@@ -566,9 +568,6 @@ public:
         const TPool& other,
         TCompositeSchedulerElement* clonedParent);
 
-    bool IsDefaultConfigured() const;
-    bool IsEphemeralInDefaultParentPool() const;
-
     void SetUserName(const std::optional<TString>& userName);
     const std::optional<TString>& GetUserName() const;
 
@@ -577,6 +576,9 @@ public:
     void SetDefaultConfig();
     void SetEphemeralInDefaultParentPool();
 
+    bool IsEphemeralInDefaultParentPool() const;
+
+    virtual bool IsDefaultConfigured() const override;
     virtual bool IsExplicit() const override;
     virtual bool IsAggressiveStarvationEnabled() const override;
 
@@ -1024,6 +1026,8 @@ public:
     virtual THistoricUsageAggregationParameters GetHistoricUsageAggregationParameters() const override;
 
     virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
+    virtual bool IsDefaultConfigured() const override;
+
     TRootElementPtr Clone();
 };
 

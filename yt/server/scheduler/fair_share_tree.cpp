@@ -884,6 +884,7 @@ void TFairShareTree::BuildPoolsInformation(TFluentMap fluent)
                 .Item("max_operation_count").Value(pool->GetMaxOperationCount())
                 .Item("aggressive_starvation_enabled").Value(pool->IsAggressiveStarvationEnabled())
                 .Item("forbid_immediate_operations").Value(pool->AreImmediateOperationsForbidden())
+                .Item("is_ephemeral").Value(pool->IsDefaultConfigured())
                 .DoIf(pool->GetMode() == ESchedulingMode::Fifo, [&] (TFluentMap fluent) {
                     fluent
                         .Item("fifo_sort_parameters").Value(pool->GetFifoSortParameters());

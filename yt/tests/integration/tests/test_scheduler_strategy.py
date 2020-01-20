@@ -1802,6 +1802,15 @@ class TestSchedulerPoolsCommon(YTEnvSetup):
             op.track()
 
     @authors("renadeen")
+    def test_ephemeral_flag(self):
+        create_pool("real_pool")
+        op = run_sleeping_vanilla(spec={"pool": "ephemeral_pool"})
+        op.wait_for_state("running")
+        assert get(scheduler_orchid_default_pool_tree_path() + "/pools/ephemeral_pool/is_ephemeral")
+        assert not get(scheduler_orchid_default_pool_tree_path() + "/pools/real_pool/is_ephemeral")
+        assert not get(scheduler_orchid_default_pool_tree_path() + "/pools/<Root>/is_ephemeral")
+
+    @authors("renadeen")
     def test_ephemeral_pool_in_custom_pool_simple(self):
         create_pool("custom_pool")
         set("//sys/pools/custom_pool/@create_ephemeral_subpools", True)
@@ -1813,6 +1822,7 @@ class TestSchedulerPoolsCommon(YTEnvSetup):
         pool = get(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool$root")
         assert pool["parent"] == "custom_pool"
         assert pool["mode"] == "fair_share"
+        assert pool["is_ephemeral"]
 
     @authors("renadeen")
     def test_custom_ephemeral_pool_persists_after_pool_update(self):
@@ -1851,7 +1861,7 @@ class TestSchedulerPoolsCommon(YTEnvSetup):
         assert not exists(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool$root")
 
     @authors("renadeen")
-    def test_ephemeral_pool_scheduling_mode(self):
+    def test_custom_ephemeral_pool_scheduling_mode(self):
         create_pool("custom_pool_fifo")
         set("//sys/pools/custom_pool_fifo/@create_ephemeral_subpools", True)
         set("//sys/pools/custom_pool_fifo/@ephemeral_subpool_config", {"mode": "fifo"})
@@ -1865,7 +1875,7 @@ class TestSchedulerPoolsCommon(YTEnvSetup):
         assert pool_fifo["mode"] == "fifo"
 
     @authors("renadeen")
-    def test_ephemeral_pool_max_operation_count(self):
+    def test_custom_ephemeral_pool_max_operation_count(self):
         create_pool("custom_pool")
         set("//sys/pools/custom_pool/@create_ephemeral_subpools", True)
         set("//sys/pools/custom_pool/@ephemeral_subpool_config", {"max_operation_count": 1})
