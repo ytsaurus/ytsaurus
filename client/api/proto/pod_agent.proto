@@ -410,23 +410,53 @@ message TEnvVar {
 }
 
 enum EContainerULimitType {
-    // address space
+    // address space limit
     EContainerULimit_AS = 0 [(NYT.NYson.NProto.enum_value_name) = "as"];
 
-    // core file size
+    // limits the core file size
     EContainerULimit_CORE = 1 [(NYT.NYson.NProto.enum_value_name) = "core"];
 
-    // data seg size
+    // max data size
     EContainerULimit_DATA = 2 [(NYT.NYson.NProto.enum_value_name) = "data"];
 
-    // max locked memory
+    // max locked-in-memory address space
     EContainerULimit_MEMLOCK = 3 [(NYT.NYson.NProto.enum_value_name) = "memlock"];
 
-    // stack size
+    // max stack size
     EContainerULimit_STACK = 4 [(NYT.NYson.NProto.enum_value_name) = "stack"];
 
-    // file size
-    EcontainerULimit_FSIZE = 5 [(NYT.NYson.NProto.enum_value_name) = "fsize"];
+    // maximum filesize
+    EContainerULimit_FSIZE = 5 [(NYT.NYson.NProto.enum_value_name) = "fsize"];
+
+    // max number of open files
+    EContainerULimit_NOFILE = 6 [(NYT.NYson.NProto.enum_value_name) = "nofile"];
+
+    // max CPU time
+    EContainerULimit_CPU = 7 [(NYT.NYson.NProto.enum_value_name) = "cpu"];
+
+    // max number of file locks the user can hold
+    EContainerULimit_LOCKS = 8 [(NYT.NYson.NProto.enum_value_name) = "locks"];
+
+    // max memory used by POSIX message queues
+    EContainerULimit_MSGQUEUE = 9 [(NYT.NYson.NProto.enum_value_name) = "msgqueue"];
+
+    // max nice priority allowed to raise to values
+    EContainerULimit_NICE = 10 [(NYT.NYson.NProto.enum_value_name) = "nice"];
+
+    // max number of processes
+    EContainerULimit_NPROC = 11 [(NYT.NYson.NProto.enum_value_name) = "nproc"];
+
+    // max resident set size
+    EContainerULimit_RSS = 12 [(NYT.NYson.NProto.enum_value_name) = "rss"];
+
+    // max realtime priority
+    EContainerULimit_RTPRIO = 13 [(NYT.NYson.NProto.enum_value_name) = "rtprio"];
+
+    // timeout for real-time tasks
+    EContainerULimit_RTTIME = 14 [(NYT.NYson.NProto.enum_value_name) = "rttime"];
+
+    // max number of pending signals
+    EContainerULimit_SIGPENDING = 15 [(NYT.NYson.NProto.enum_value_name) = "sigpending"];
 }
 
 message TUlimitSoft {
