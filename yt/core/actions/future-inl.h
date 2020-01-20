@@ -345,7 +345,9 @@ public:
     std::optional<TErrorOr<T>> TryGet() const
     {
         // Fast path.
-        if (!Set_ && !AbandonedUnset_) {
+        if (Set_) {
+            return Value_;
+        } else if (!AbandonedUnset_) {
             return std::nullopt;
         }
 
@@ -363,7 +365,9 @@ public:
     std::optional<TErrorOr<T>> TryGetUnique()
     {
         // Fast path.
-        if (!Set_ && !AbandonedUnset_) {
+        if (Set_) {
+            return MoveValueOut();
+        } else if (!AbandonedUnset_) {
             return std::nullopt;
         }
 
@@ -391,6 +395,8 @@ public:
         if (Set_) {
             return false;
         }
+
+        // Slow path.
         return DoSet<U, false>(std::forward<U>(value));
     }
 
