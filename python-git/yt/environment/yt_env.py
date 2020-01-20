@@ -136,7 +136,7 @@ class YTInstance(object):
                  node_count=1, defer_node_start=False,
                  scheduler_count=1, defer_scheduler_start=False,
                  controller_agent_count=None, defer_controller_agent_start=False,
-                 http_proxy_count=0, http_proxy_ports=None, rpc_proxy_count=None, cell_tag=0, skynet_manager_count=0,
+                 http_proxy_count=0, http_proxy_ports=None, rpc_proxy_count=None, cell_tag=0,
                  enable_debug_logging=True, preserve_working_dir=False, tmpfs_path=None,
                  port_locks_path=None, local_port_range=None, port_range_start=None, node_port_set_size=None,
                  fqdn=None, jobs_resource_limits=None, jobs_memory_limit=None,
@@ -267,7 +267,6 @@ class YTInstance(object):
         self.http_proxy_ports = http_proxy_ports
         self.has_rpc_proxy = rpc_proxy_count > 0
         self.rpc_proxy_count = rpc_proxy_count
-        self.skynet_manager_count = skynet_manager_count
         self._enable_debug_logging = enable_debug_logging
         self._cell_tag = cell_tag
         self._kill_child_processes = kill_child_processes
@@ -354,10 +353,6 @@ class YTInstance(object):
         for dir_ in rpc_proxy_dirs:
             makedirp(dir_)
 
-        skynet_manager_dirs = [os.path.join(self.runtime_data_path, "skynet_manager", str(i)) for i in xrange(self.skynet_manager_count)]
-        for dir_ in skynet_manager_dirs:
-            makedirp(dir_)
-
         return {"master": master_dirs,
                 "master_tmpfs": master_tmpfs_dirs,
                 "clock": clock_dirs,
@@ -367,8 +362,7 @@ class YTInstance(object):
                 "node": node_dirs,
                 "node_tmpfs": node_tmpfs_dirs,
                 "http_proxy": http_proxy_dirs,
-                "rpc_proxy": rpc_proxy_dirs,
-                "skynet_manager": skynet_manager_dirs}
+                "rpc_proxy": rpc_proxy_dirs}
 
     def _prepare_environment(self, jobs_resource_limits, jobs_memory_limit, jobs_cpu_limit, jobs_user_slot_count, node_chunk_store_quota,
                              node_memory_limit_addition, allow_chunk_storage_in_tmpfs, port_range_start, node_port_set_size,
@@ -386,7 +380,6 @@ class YTInstance(object):
 
         logger.info("  HTTP proxies       %d", self.http_proxy_count)
         logger.info("  RPC proxies        %d", self.rpc_proxy_count)
-        logger.info("  skynet managers    %d", self.skynet_manager_count)
         logger.info("  working dir        %s", self.path)
 
         if self.master_count == 0:
@@ -420,7 +413,6 @@ class YTInstance(object):
         provision["http_proxy"]["http_ports"] = self.http_proxy_ports
         provision["rpc_proxy"]["count"] = self.rpc_proxy_count
         provision["driver"]["backend"] = self.driver_backend
-        provision["skynet_manager"]["count"] = self.skynet_manager_count
         provision["fqdn"] = self._hostname
         provision["enable_debug_logging"] = self._enable_debug_logging
         if enable_master_cache is not None:
@@ -451,8 +443,6 @@ class YTInstance(object):
             self._prepare_http_proxies(cluster_configuration["http_proxy"])
         if self.has_rpc_proxy:
             self._prepare_rpc_proxies(cluster_configuration["rpc_proxy"], cluster_configuration["rpc_client"])
-        if self.skynet_manager_count > 0:
-            self._prepare_skynet_managers(cluster_configuration["skynet_manager"])
 
         http_proxy_url = None
         if self.has_http_proxy:
@@ -525,8 +515,6 @@ class YTInstance(object):
                 self.start_schedulers(sync=False)
             if self.controller_agent_count > 0 and not self.defer_controller_agent_start:
                 self.start_controller_agents(sync=False)
-            if self.skynet_manager_count > 0:
-                self.start_skynet_managers(sync=False)
 
             self.synchronize()
 
@@ -556,7 +544,7 @@ class YTInstance(object):
             self.kill_service("watcher")
             killed_services.add("watcher")
 
-        for name in ["http_proxy", "node", "scheduler", "controller_agent", "master", "rpc_proxy", "skynet_manager"]:
+        for name in ["http_proxy", "node", "scheduler", "controller_agent", "master", "rpc_proxy"]:
             if name in self.configs:
                 self.kill_service(name)
                 killed_services.add(name)
@@ -1343,17 +1331,6 @@ class YTInstance(object):
             else:
                 write_config(rpc_client_config, rpc_client_config_path)
 
-    def _prepare_skynet_managers(self, skynet_manager_configs):
-        self.configs["skynet_manager"] = []
-        self.config_paths["skynet_manager"] = []
-
-        for i in xrange(self.skynet_manager_count):
-            config_path = os.path.join(self.configs_path, "skynet-manager-{}.yson".format(i))
-            write_config(skynet_manager_configs[i], config_path)
-            self.configs["skynet_manager"].append(skynet_manager_configs[i])
-            self.config_paths["skynet_manager"].append(config_path)
-            self._service_processes["skynet_manager"].append(None)
-
     def start_http_proxy(self, sync=True):
         self._run_yt_component("http-proxy", name="http_proxy")
 
@@ -1384,22 +1361,6 @@ class YTInstance(object):
             return len(proxies) == self.rpc_proxy_count and all("alive" in proxy for proxy in proxies.values())
 
         self._wait_or_skip(lambda: self._wait_for(rpc_proxy_ready, "rpc_proxy", max_wait_time=20), sync)
-
-    def start_skynet_managers(self, sync=True):
-        self._run_yt_component("skynet-manager", name="skynet_manager")
-
-        def skynet_manager_ready():
-            self._validate_processes_are_running("skynet_manager")
-
-            http_port = self.configs["skynet_manager"][0]["port"]
-            try:
-                requests.get("http://localhost:{}/debug/healthcheck".format(http_port))
-            except (requests.exceptions.RequestException, socket.error):
-                return False
-
-            return True
-
-        self._wait_or_skip(lambda: self._wait_for(skynet_manager_ready, "skynet_manager", max_wait_time=20), sync)
 
     def _validate_process_is_running(self, process, name, number=None):
         if number is not None:
