@@ -258,7 +258,10 @@ void TBootstrap::DoInitialize()
     JobThrottlerQueue_ = New<TActionQueue>("JobThrottler");
     TabletLookupThreadPool_ = New<TThreadPool>(
         Config_->QueryAgent->LookupThreadPoolSize,
-        "TabletLookup");
+        "TabletLookup",
+        true,
+        true,
+        EInvokerQueueType::SingleLockFreeQueue);
     TableReplicatorThreadPool_ = New<TThreadPool>(
         Config_->TabletNode->TabletManager->ReplicatorThreadPoolSize,
         "Replicator");

@@ -13,11 +13,6 @@ namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EInvokerQueueType,
-    (SingleLockFreeQueue)
-    (MultiLockQueue)
-);
-
 struct IActionQueue;
 
 class TInvokerQueue
