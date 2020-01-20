@@ -366,6 +366,14 @@ private:
             tableInfo->PrimaryRevision,
             tableInfo->SecondaryRevision});
     }
+
+    virtual void OnErase(const TTableMountCacheKey& key) override
+    {
+        YT_LOG_DEBUG("Erase table mount info from cache (Path: %Qv, PrimaryRevision: %v, SecondaryRevision: %v)",
+            key.Path,
+            key.RefreshPrimaryRevision,
+            key.RefreshSecondaryRevision);
+    }
 };
 
 ITableMountCachePtr CreateNativeTableMountCache(
