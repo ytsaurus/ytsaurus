@@ -120,7 +120,6 @@ public:
             Bootstrap_->GetControlInvoker(),
             HydraManager_->GetElectionCallbacks(),
             Bootstrap_->GetRpcServer());
-        ElectionManager_->Initialize();
 
         electionManagerThunk->SetUnderlying(ElectionManager_);
 
@@ -133,6 +132,8 @@ public:
 
     void Initialize()
     {
+        ElectionManager_->Initialize();
+
         HydraManager_->Initialize();
 
         LocalJanitor_->Start();
