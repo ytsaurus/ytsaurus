@@ -273,29 +273,6 @@ private:
     bool MultipleTables_ = false;
 };
 
-template <class TIter>
-TIter MergeOverlappingRanges(TIter begin, TIter end)
-{
-    if (begin == end) {
-        return end;
-    }
-
-    auto it = begin;
-    auto dest = it;
-    ++it;
-
-    for (; it != end; ++it) {
-        if (dest->second < it->first) {
-            *++dest = std::move(*it);
-        } else if (dest->second < it->second) {
-            dest->second = std::move(it->second);
-        }
-    }
-
-    ++dest;
-    return dest;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueryExecution
