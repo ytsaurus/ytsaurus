@@ -25,8 +25,7 @@ DEFINE_REFCOUNTED_TYPE(ITicketAuthenticator)
 
 ITicketAuthenticatorPtr CreateBlackboxTicketAuthenticator(
     TBlackboxTicketAuthenticatorConfigPtr config,
-    IBlackboxServicePtr blackboxService,
-    ITvmServicePtr tvmService);
+    IBlackboxServicePtr blackboxService);
 
 NRpc::IAuthenticatorPtr CreateTicketAuthenticatorWrapper(
     ITicketAuthenticatorPtr underlying);
