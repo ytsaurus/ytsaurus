@@ -36,7 +36,7 @@ public:
     //! Registers a future for propagating cancelation.
     template <class T>
     void PropagateTo(TFuture<T> future);
-    void PropagateTo(const TFuture<void>& future);
+    void PropagateTo(const TAwaitable& awaitable);
 
     //! Creates a new invoker wrapping the existing one.
     /*!
@@ -55,7 +55,7 @@ private:
     TError CancelationError_;
     TCallbackList<void(const TError&)> Handlers_;
     THashSet<TWeakPtr<TCancelableContext>> PropagateToContexts_;
-    THashSet<TFuture<void>> PropagateToFutures_;
+    THashSet<TAwaitable> PropagateToAwaitables_;
 
 };
 
