@@ -294,7 +294,7 @@ private:
         THashMap<NTabletClient::TTabletCellId, TCellDescriptor> tabletCellReplicas;
 
         auto getAddress = [&] (const TTabletInfoPtr& tabletInfo) mutable {
-            ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
+            ValidateTabletMountedOrFrozen(tabletInfo);
 
             auto insertResult = tabletCellReplicas.insert(std::make_pair(tabletInfo->CellId, TCellDescriptor()));
             auto& descriptor = insertResult.first->second;
