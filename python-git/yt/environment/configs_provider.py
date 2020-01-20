@@ -115,9 +115,6 @@ _default_provision = {
     "driver": {
         "backend": "native",
     },
-    "skynet_manager": {
-        "count": 0,
-    },
     "enable_debug_logging": True,
     "enable_structured_master_logging": False,
     "fqdn": socket.getfqdn(),
@@ -184,13 +181,6 @@ class ConfigsProvider(object):
         if provision["driver"]["backend"] == "rpc":
             driver_configs = rpc_driver_configs
 
-        skynet_manager_configs = None
-        if provision["skynet_manager"]["count"] > 0:
-            if not http_proxy_configs:
-                raise YtError("Skynet manager requires at least one HTTP proxy")
-            http_proxy_address = "{0}:{1}".format(provision["fqdn"], http_proxy_configs[0]["port"])
-            skynet_manager_configs = self._build_skynet_manager_configs(provision, logs_dir, http_proxy_address, rpc_proxy_addresses, ports_generator)
-
         cluster_configuration = {
             "master": master_configs,
             "clock": clock_configs,
@@ -202,7 +192,6 @@ class ConfigsProvider(object):
             "http_proxy": http_proxy_configs,
             "rpc_proxy": rpc_proxy_configs,
             "rpc_client": rpc_client_config,
-            "skynet_manager": skynet_manager_configs,
         }
 
         return cluster_configuration
@@ -239,10 +228,6 @@ class ConfigsProvider(object):
 
     @abc.abstractmethod
     def _build_rpc_proxy_configs(self, provision, master_connection_configs, ports_generator):
-        pass
-
-    @abc.abstractmethod
-    def _build_skynet_manager_configs(self, provision, logs_dir, proxy_address, rpc_proxy_addresses, ports_generator):
         pass
 
 def init_logging(node, path, name, enable_debug_logging, enable_structured_logging=False):
@@ -794,40 +779,6 @@ class ConfigsProvider_19(ConfigsProvider):
 
         return configs
 
-    def _build_skynet_manager_configs(self, provision, logs_dir, proxy_address, rpc_proxy_addresses, ports_generator):
-        configs = []
-        for manager_index in xrange(provision["skynet_manager"]["count"]):
-            config = {
-                "port": next(ports_generator),
-                "monitoring_port": next(ports_generator),
-                "peer_id_file": "peer_id_" + str(manager_index),
-                "announcer": {
-                    "trackers": ["sas1-skybonecoord1.search.yandex.net:2399"],
-                    "peer_udp_port": 7001 + 2 * manager_index,
-                    "out_of_order_update_ttl": 5000,
-                },
-                "skynet_port": 7000 + 2 * manager_index,
-                "sync_iteration_interval": 1000,
-                "removed_tables_scan_interval": 1000,
-            }
-            config["clusters"] = [
-                {
-                    "cluster_name": "local",
-                    "root": "//sys/skynet_manager",
-                    "user": "root",
-                    "oauth_token_env": "",
-                    "connection": {
-                        "connection_type": "rpc",
-                        "cluster_url": "http://" + proxy_address,
-                    },
-                }
-            ]
-            config["logging"] = init_logging(config.get("logging"), logs_dir,
-                "skynet-manager-{}".format(manager_index), provision["enable_debug_logging"])
-
-            configs.append(config)
-
-        return configs
 
 class ConfigsProvider_19_4(ConfigsProvider_19):
     def _build_master_configs(self, provision, master_dirs, master_tmpfs_dirs, ports_generator, master_logs_dir):
