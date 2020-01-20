@@ -58,16 +58,19 @@ DEFINE_REFCOUNTED_TYPE(IElectionCallbacks)
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Represents an abstract election system.
-/*!
- *  Thread affinity: any
- */
 struct IElectionManager
     : public virtual TRefCounted
 {
     //! Activates the instance.
+    /*!
+     *  Thread affinity: ControlThread
+     */
     virtual void Initialize() = 0;
 
     //! Deactivates the instance.
+    /*!
+     *  Thread affinity: ControlThread
+     */
     virtual void Finalize() = 0;
 
     //! Initiates elections.
@@ -77,6 +80,8 @@ struct IElectionManager
      *  Upon success, IElectionCallbacks::OnStartLeading or
      *  IElectionCallbacks::OnStartFollowing
      *  is called.
+     *
+     *  Thread affinity: ControlThread
      */
     virtual void Participate() = 0;
 
@@ -84,10 +89,26 @@ struct IElectionManager
     /*!
      *  The implementation ensures that all relevant stop-notifications
      *  will be issued via IElectionCallbacks.
+     *
+     *  Thread affinity: ControlThread
      */
     virtual void Abandon() = 0;
 
+
+    //! Restarts the peer.
+    /*
+     *  If stopped, does nothing.
+     *  If voting, restarts the voting process.
+     *  If leading or following, stops the epoch.
+     *
+     *  Thread affinity: ControlThread
+     */
+    virtual void Restart() = 0;
+
     //! Returns the callback for producing the monitoring info.
+    /*!
+     *  Thread affinity: any
+     */
     virtual NYson::TYsonProducer GetMonitoringProducer() = 0;
 };
 
