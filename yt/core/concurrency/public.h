@@ -44,6 +44,11 @@ DEFINE_ENUM(EExecutionStackKind,
     (Large) //   8 Mb
 );
 
+DEFINE_ENUM(EInvokerQueueType,
+    (SingleLockFreeQueue)
+    (MultiLockQueue)
+);
+
 class TExecutionStack;
 
 template <class TSignature>
