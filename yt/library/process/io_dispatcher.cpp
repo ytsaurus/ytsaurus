@@ -13,7 +13,7 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 TIODispatcher::TIODispatcher()
-    : Poller_(CreateThreadPoolPoller(1, "Pipes"))
+    : Poller_(BIND([] { return CreateThreadPoolPoller(1, "Pipes"); }))
 { }
 
 TIODispatcher::~TIODispatcher()
@@ -26,12 +26,12 @@ TIODispatcher* TIODispatcher::Get()
 
 IInvokerPtr TIODispatcher::GetInvoker()
 {
-    return Poller_->GetInvoker();
+    return Poller_.Value()->GetInvoker();
 }
 
 IPollerPtr TIODispatcher::GetPoller()
 {
-    return Poller_;
+    return Poller_.Value();
 }
 
 void TIODispatcher::StaticShutdown()
@@ -41,7 +41,9 @@ void TIODispatcher::StaticShutdown()
 
 void TIODispatcher::Shutdown()
 {
-    return Poller_->Shutdown();
+    if (Poller_.HasValue()) {
+        Poller_->Shutdown();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

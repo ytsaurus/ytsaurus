@@ -6,6 +6,8 @@
 
 #include <yt/core/concurrency/public.h>
 
+#include <yt/core/misc/lazy_ptr.h>
+
 namespace NYT::NPipes {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,7 +32,7 @@ private:
 
     Y_DECLARE_SINGLETON_FRIEND();
 
-    NConcurrency::IPollerPtr Poller_;
+    TLazyIntrusivePtr<NConcurrency::IPoller> Poller_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
