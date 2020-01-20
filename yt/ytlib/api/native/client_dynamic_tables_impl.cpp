@@ -691,7 +691,7 @@ TRowset TClient::DoLookupRowsOnce(
                         return CompareRows(item.first, pivot) < 0;
                     });
 
-                ValidateTabletMountedOrFrozen(tableInfo, startShard);
+                ValidateTabletMountedOrFrozen(startShard);
 
                 auto emplaced = cellIdToBatchIndex.emplace(startShard->CellId, batchesByCells.size());
                 if (emplaced.second) {

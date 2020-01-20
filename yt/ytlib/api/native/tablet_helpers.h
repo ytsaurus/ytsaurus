@@ -38,7 +38,6 @@ NRpc::IChannelPtr CreateTabletReadChannel(
     const NNodeTrackerClient::TNetworkPreferenceList& networks);
 
 void ValidateTabletMountedOrFrozen(
-    const NTabletClient::TTableMountInfoPtr& tableInfo,
     const NTabletClient::TTabletInfoPtr& tabletInfo);
 
 void ValidateTabletMounted(
