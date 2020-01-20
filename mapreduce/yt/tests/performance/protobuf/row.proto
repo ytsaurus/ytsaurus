@@ -54,8 +54,8 @@ message TIntermediateSemidupsDataProto
 
     optional string DocId = 1;
     optional uint32 TableIndex = 2;
-    optional TSemidupsData SemidupsData = 3 [(NYT.flags)=EXPERIMENTAL_SERIALIZATION_YT];
-    optional TUrlData UrlData = 4 [(NYT.flags)=EXPERIMENTAL_SERIALIZATION_YT];
+    optional TSemidupsData SemidupsData = 3 [(NYT.flags)=SERIALIZATION_YT];
+    optional TUrlData UrlData = 4 [(NYT.flags)=SERIALIZATION_YT];
 }
 
 message TUrlDataRowProto

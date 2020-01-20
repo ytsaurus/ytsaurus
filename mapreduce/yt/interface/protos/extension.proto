@@ -16,7 +16,7 @@ message EWrapperFieldFlag
         // WARNING! The underlying format of data stored in YT tables is
         // currently subject to change.
         // It is not advised to use this feature in production.
-        EXPERIMENTAL_SERIALIZATION_YT = 4;
+        SERIALIZATION_YT = 4;
 
         SERIALIZATION_PROTOBUF = 5;
     }

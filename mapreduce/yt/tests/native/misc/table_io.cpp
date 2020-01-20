@@ -613,7 +613,7 @@ Y_UNIT_TEST_SUITE(TableIo) {
 
         auto setType = [] (EWrapperFieldFlag::Enum mode, TColumnSchema& column) {
             switch (mode) {
-                case EWrapperFieldFlag::EXPERIMENTAL_SERIALIZATION_YT:
+                case EWrapperFieldFlag::SERIALIZATION_YT:
                     column.RawTypeV2(GetRowSchema<TElement>());
                     return;
                 case EWrapperFieldFlag::SERIALIZATION_PROTOBUF:
@@ -669,7 +669,7 @@ Y_UNIT_TEST_SUITE(TableIo) {
 
         auto checkValue = [&] (const TNode& value, EWrapperFieldFlag::Enum mode, int rowIndex, int valueIndex) {
             switch (mode) {
-                case EWrapperFieldFlag::EXPERIMENTAL_SERIALIZATION_YT:
+                case EWrapperFieldFlag::SERIALIZATION_YT:
                     UNIT_ASSERT_VALUES_EQUAL(value, nodeSerializedValues[rowIndex][valueIndex]);
                     return;
                 case EWrapperFieldFlag::SERIALIZATION_PROTOBUF:
@@ -720,28 +720,28 @@ Y_UNIT_TEST_SUITE(TableIo) {
     Y_UNIT_TEST(ProtobufSerializationMode_FieldOption)
     {
         TestProtobufSerializationModes<TRowFieldSerializationOption, TUrlRow>(
-            EWrapperFieldFlag::EXPERIMENTAL_SERIALIZATION_YT,
+            EWrapperFieldFlag::SERIALIZATION_YT,
             EWrapperFieldFlag::SERIALIZATION_PROTOBUF);
     }
 
     Y_UNIT_TEST(ProtobufSerializationMode_MessageOption)
     {
         TestProtobufSerializationModes<TRowMessageSerializationOption, TUrlRow>(
-            EWrapperFieldFlag::EXPERIMENTAL_SERIALIZATION_YT,
-            EWrapperFieldFlag::EXPERIMENTAL_SERIALIZATION_YT);
+            EWrapperFieldFlag::SERIALIZATION_YT,
+            EWrapperFieldFlag::SERIALIZATION_YT);
     }
 
     Y_UNIT_TEST(ProtobufSerializationMode_MixedOptions)
     {
         TestProtobufSerializationModes<TRowMixedSerializationOptions, TUrlRow>(
-            EWrapperFieldFlag::EXPERIMENTAL_SERIALIZATION_YT,
+            EWrapperFieldFlag::SERIALIZATION_YT,
             EWrapperFieldFlag::SERIALIZATION_PROTOBUF);
     }
 
     Y_UNIT_TEST(ProtobufSerializationMode_MixedOptions_ColumnNames)
     {
         TestProtobufSerializationModes<TRowMixedSerializationOptions_ColumnNames, TUrlRowWithColumnNames>(
-            EWrapperFieldFlag::EXPERIMENTAL_SERIALIZATION_YT,
+            EWrapperFieldFlag::SERIALIZATION_YT,
             EWrapperFieldFlag::SERIALIZATION_PROTOBUF,
             {"Host_ColumnName", "Path_KeyColumnName", "HttpCode"});
     }
@@ -876,7 +876,7 @@ Y_UNIT_TEST_SUITE(TableIo) {
             client->CreateTableWriter<TBadProtobufSerializedRow>(
                 TRichYPath(workingDir + "/table").Schema(schema)),
             TApiUsageError,
-            "Repeated field NYT.NTesting.TBadProtobufSerializedRow.Ints must have flag EXPERIMENTAL_SERIALIZATION_YT");
+            "Repeated field NYT.NTesting.TBadProtobufSerializedRow.Ints must have flag SERIALIZATION_YT");
     }
 
     Y_UNIT_TEST(ProtobufWithTypeOption)
