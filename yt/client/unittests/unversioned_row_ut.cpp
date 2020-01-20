@@ -23,7 +23,7 @@ TEST(TUnversionedValue, TestConversionToYsonTokenWriter)
 {
     auto convert = [] (TUnversionedValue value) {
         TStringStream stream;
-        TCheckedYsonTokenWriter tokenWriter(&stream);
+        TCheckedInDebugYsonTokenWriter tokenWriter(&stream);
         UnversionedValueToYson(value, &tokenWriter);
         tokenWriter.Finish();
         return stream.Str();
