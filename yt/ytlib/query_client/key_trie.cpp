@@ -690,7 +690,13 @@ TMutableRowRanges GetRangesFromTrieWithinRange(
 {
     TMutableRowRanges result;
     GetRangesFromTrieWithinRangeImpl(keyRange, trie, &result, rowBuffer, insertUndefined, rangeCountLimit);
-    return insertUndefined ? result : MergeOverlappingRanges(std::move(result));
+
+    if (insertUndefined) {
+        return result;
+    }
+
+    std::sort(result.begin(), result.end());
+    return MergeOverlappingRanges(std::move(result));
 }
 
 TString ToString(TKeyTriePtr node) {
