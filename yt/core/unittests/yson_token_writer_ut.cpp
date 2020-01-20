@@ -202,6 +202,33 @@ TEST(TYsonTokenWriterTest, DifferentTypesTextMap)
     }
 }
 
+TEST(TYsonTokenWriterTest, WriteRawNodeUnchecked)
+{
+    for (size_t bufferSize = 1; bufferSize <= 20; ++bufferSize) {
+        TString out;
+        TSimpleStringOutput outStream(out, bufferSize);
+        TCheckedYsonTokenWriter writer(&outStream);
+
+        writer.WriteBeginList();
+        writer.WriteRawNodeUnchecked("<a=b>{x=1;y=z}");
+        writer.WriteItemSeparator();
+        writer.WriteEndList();
+
+        writer.Finish();
+
+        EXPECT_EQ(out, "[<a=b>{x=1;y=z};]");
+    }
+
+    {
+        TString out;
+        TSimpleStringOutput outStream(out, /* bufferSize */ 20);
+        TCheckedYsonTokenWriter writer(&outStream);
+
+        writer.WriteBeginMap();
+        EXPECT_THROW_THAT(writer.WriteRawNodeUnchecked("<a=b>{x=1;y=z}"), ::testing::HasSubstr("expected \"string\""));
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

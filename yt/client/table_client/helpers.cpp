@@ -7,6 +7,7 @@
 #include <yt/core/net/address.h>
 
 #include <yt/core/yson/parser.h>
+#include <yt/core/yson/token_writer.h>
 
 #include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
 
@@ -1032,6 +1033,37 @@ void UnversionedValueToMapImpl(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+void UnversionedValueToYson(TUnversionedValue unversionedValue, TCheckedInDebugYsonTokenWriter* tokenWriter)
+{
+    switch (unversionedValue.Type) {
+        case EValueType::Int64:
+            tokenWriter->WriteBinaryInt64(unversionedValue.Data.Int64);
+            break;
+        case EValueType::Uint64:
+            tokenWriter->WriteBinaryUint64(unversionedValue.Data.Uint64);
+            break;
+        case EValueType::Double:
+            tokenWriter->WriteBinaryDouble(unversionedValue.Data.Double);
+            break;
+        case EValueType::String:
+            tokenWriter->WriteBinaryString(TStringBuf(unversionedValue.Data.String, unversionedValue.Length));
+            break;
+        case EValueType::Any:
+            tokenWriter->WriteRawNodeUnchecked(TStringBuf(unversionedValue.Data.String, unversionedValue.Length));
+            break;
+        case EValueType::Boolean:
+            tokenWriter->WriteBinaryBoolean(unversionedValue.Data.Boolean);
+            break;
+        case EValueType::Null:
+            tokenWriter->WriteEntity();
+            break;
+        case EValueType::TheBottom:
+        case EValueType::Min:
+        case EValueType::Max:
+            YT_ABORT();
+    }
+}
 
 void UnversionedValueToYson(TUnversionedValue unversionedValue, IYsonConsumer* consumer)
 {

@@ -41,6 +41,8 @@ public:
 
     Y_FORCE_INLINE void WriteSpace(char value);
 
+    void WriteRawNodeUnchecked(TStringBuf value);
+
     Y_FORCE_INLINE void Flush();
     Y_FORCE_INLINE void Finish();
 
@@ -93,6 +95,8 @@ public:
     void WriteKeyValueSeparator();
 
     void WriteSpace(char value);
+
+    void WriteRawNodeUnchecked(TStringBuf value);
 
     void Flush();
     void Finish();
