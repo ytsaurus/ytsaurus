@@ -354,26 +354,40 @@ void TCompositeAutomaton::LoadSnapshot(IAsyncZeroCopyInputStreamPtr reader)
                 for (int partIndex = 0; partIndex < partCount; ++partIndex) {
                     auto name = LoadSuspended<TString>(context);
                     int version = LoadSuspended<i32>(context);
-
                     SERIALIZATION_DUMP_WRITE(context, "%v@%v =>", name, version);
+
                     SERIALIZATION_DUMP_INDENT(context) {
+                        auto* checkpointableInput = context.GetCheckpointableInput();
+                        auto readPart = [&] (auto func) {
+                            auto offsetBefore = checkpointableInput->GetOffset();
+                            func();
+                            checkpointableInput->SkipToCheckpoint();
+                            auto offsetAfter = checkpointableInput->GetOffset();
+                            return offsetAfter - offsetBefore;
+                        };
+
                         auto it = PartNameToLoaderDescriptor_.find(name);
                         if (it == PartNameToLoaderDescriptor_.end()) {
                             SERIALIZATION_DUMP_WRITE(context, "<skipped>");
-                            YT_LOG_INFO("Skipping unknown automaton part (Name: %v, Version: %v)",
+                            YT_LOG_INFO("Started skipping unknown automaton part (Name: %v, Version: %v)",
                                 name,
                                 version);
+                            auto size = readPart([] { });
+                            YT_LOG_INFO("Finished skipping unknown automaton part (Name: %v, Size: %v)",
+                                name,
+                                size);
                         } else {
-                            YT_LOG_INFO("Loading automaton part (Name: %v, Version: %v)",
+                            YT_LOG_INFO("Started loading automaton part (Name: %v, Version: %v)",
                                 name,
                                 version);
                             context.SetVersion(version);
                             const auto& descriptor = it->second;
-                            descriptor.Callback.Run(context);
+                            auto size = readPart([&] { descriptor.Callback.Run(context); });
+                            YT_LOG_INFO("Finished loading automaton part (Name: %v, Size: %v)",
+                                name,
+                                size);
                         }
                     }
-
-                    context.GetCheckpointableInput()->SkipToCheckpoint();
                 }
             }
 
