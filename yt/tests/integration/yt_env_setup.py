@@ -494,7 +494,6 @@ class YTEnvSetup(object):
     ENABLE_RPC_PROXY = None
     NUM_RPC_PROXIES = 2
     DRIVER_BACKEND = "native"
-    NUM_SKYNET_MANAGERS = 0
     NODE_PORT_SET_SIZE = None
 
     DELTA_DRIVER_CONFIG = {}
@@ -592,7 +591,6 @@ class YTEnvSetup(object):
             http_proxy_count=cls.get_param("NUM_HTTP_PROXIES", index) if cls.get_param("ENABLE_HTTP_PROXY", index) else 0,
             http_proxy_ports=cls.get_param("HTTP_PROXY_PORTS", index),
             rpc_proxy_count=cls.get_param("NUM_RPC_PROXIES", index) if cls.get_param("ENABLE_RPC_PROXY", index) else 0,
-            skynet_manager_count=cls.get_param("NUM_SKYNET_MANAGERS", index),
             watcher_config={"disable_logrotate": True} if arcadia_interop.yatest_common is not None else None,
             node_port_set_size=cls.get_param("NODE_PORT_SET_SIZE", index),
             kill_child_processes=True,
