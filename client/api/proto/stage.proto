@@ -37,9 +37,8 @@ message TStageMetaBase
 
 message TStageSpec
 {
-    // Should be incremented on any update
-    // For now you can write a manually generated timestamp there.
-    uint64 revision = 1 [(NYP.NClient.NApi.NProto.etc) = true];
+    // Should be incremented on any update.
+    uint32 revision = 1 [(NYP.NClient.NApi.NProto.etc) = true];
     // <unit id> -> <unit spec>.
     map<string, TDeployUnitSpec> deploy_units = 2 [(NYT.NYson.NProto.yson_map) = true, (NYP.NClient.NApi.NProto.etc) = true];
     // In form "abc:service:<int id>".
@@ -66,7 +65,7 @@ message TStageStatus
     // Revision of spec last treated by controller.
     // Other stage-wide status fields refer to this revision.
     // Unit specs may refer to other revisions, as specified inside them.
-    uint64 revision = 2;
+    uint32 revision = 2;
     // Stage spec has been accepted by controller as valid.
     NYP.NClient.NApi.NProto.TCondition validated = 3;
     // YP timestamp of spec last treated by controller.
@@ -182,7 +181,7 @@ message TDeployUnitStatus
     // Summary of deploy progress.
     TDeployProgress progress = 4;
     // Revision of stage from which 'current_target' was derived.
-    uint64 target_revision = 5;
+    uint32 target_revision = 5;
     // YP timestamp of stage spec from which 'current_target' was derived.
     uint64 target_spec_timestamp = 6;
     // Resolved docker images from spec.
