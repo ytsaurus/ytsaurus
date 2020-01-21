@@ -89,6 +89,7 @@ using namespace NNodeTrackerServer;
 using namespace NObjectClient::NProto;
 using namespace NObjectClient;
 using namespace NObjectServer;
+using namespace NProfiling;
 using namespace NSecurityServer;
 using namespace NTableServer;
 using namespace NTabletServer::NProto;
@@ -108,6 +109,8 @@ using NYT::ToProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = CellServerLogger;
+
+static const auto ProfilingPeriod = TDuration::Seconds(10);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -187,6 +190,12 @@ public:
         }
 
         BundleNodeTracker_->Initialize();
+
+        ProfilingExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
+            BIND(&TImpl::OnProfiling, MakeWeak(this)),
+            ProfilingPeriod);
+        ProfilingExecutor_->Start();
     }
 
     TCellBundle* CreateCellBundle(
@@ -708,6 +717,9 @@ private:
     TPeriodicExecutorPtr CellStatusGossipExecutor_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
+    TPeriodicExecutorPtr ProfilingExecutor_;
+    TProfiler Profiler = CellServerProfiler;
 
 
     const NTabletServer::TDynamicTabletManagerConfigPtr& GetDynamicConfig()
@@ -1712,6 +1724,23 @@ private:
         if (!IsObjectAlive(cell))
             return;
         cell->SetConfigVersion(request->config_version());
+    }
+
+    void OnProfiling()
+    {
+        if (!IsLeader()) {
+            return;
+        }
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (!multicellManager->IsPrimaryMaster()) {
+            return;
+        }
+
+        for (const auto& [id, cellBundle] : CellBundleMap_) {
+            auto tagIds = TTagIdList{cellBundle->GetProfilingTag()};
+            Profiler.Enqueue("/tablet_cell_count", cellBundle->Cells().size(), EMetricType::Gauge, tagIds);
+        }
     }
 
     static void ValidateCellBundleName(const TString& name)
