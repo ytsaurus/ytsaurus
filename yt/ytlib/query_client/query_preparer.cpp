@@ -138,6 +138,15 @@ std::vector<TString> ExtractFunctionNames(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTypeSet ComparableTypes({
+    EValueType::Boolean,
+    EValueType::Int64,
+    EValueType::Uint64,
+    EValueType::Double,
+    EValueType::String});
+
+////////////////////////////////////////////////////////////////////////////////
+
 TValue CastValueWithCheck(TValue value, EValueType targetType)
 {
     if (value.Type == targetType || value.Type == EValueType::Null) {
@@ -2202,15 +2211,8 @@ TGroupClausePtr BuildGroupClause(
     auto groupClause = New<TGroupClause>();
     groupClause->TotalsMode = totalsMode;
 
-    TTypeSet groupItemTypes({
-        EValueType::Boolean,
-        EValueType::Int64,
-        EValueType::Uint64,
-        EValueType::Double,
-        EValueType::String});
-
     for (const auto& expressionAst : expressionsAst) {
-        auto typedExpr = builder.BuildTypedExpression(expressionAst.Get(), schemaProxy, groupItemTypes);
+        auto typedExpr = builder.BuildTypedExpression(expressionAst.Get(), schemaProxy, ComparableTypes);
 
         groupClause->AddGroupItem(typedExpr, InferColumnName(*expressionAst));
     }
@@ -2349,7 +2351,10 @@ void PrepareQuery(
 
         for (const auto& orderExpr : ast.OrderExpressions) {
             for (const auto& expressionAst : orderExpr.first) {
-                auto typedExpr = builder.BuildTypedExpression(expressionAst.Get(), schemaProxy);
+                auto typedExpr = builder.BuildTypedExpression(
+                    expressionAst.Get(),
+                    schemaProxy,
+                    ComparableTypes);
 
                 orderClause->OrderItems.emplace_back(typedExpr, orderExpr.second);
             }
@@ -2379,7 +2384,6 @@ void PrepareQuery(
 
         if (keyPrefix < orderClause->OrderItems.size()) {
             query->OrderClause = std::move(orderClause);
-
         }
 
         // Use ordered scan otherwise
@@ -2577,11 +2581,14 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
         }
 
         for (const auto& argument : join.Lhs) {
-            selfEquations.emplace_back(builder.BuildTypedExpression(argument.Get(), schemaProxy), false);
+            selfEquations.emplace_back(
+                builder.BuildTypedExpression(argument.Get(), schemaProxy, ComparableTypes),
+                false);
         }
 
         for (const auto& argument : join.Rhs) {
-            foreignEquations.push_back(builder.BuildTypedExpression(argument.Get(), foreignSourceProxy));
+            foreignEquations.push_back(
+                builder.BuildTypedExpression(argument.Get(), foreignSourceProxy, ComparableTypes));
         }
 
         if (selfEquations.size() != foreignEquations.size()) {
