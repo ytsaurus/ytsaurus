@@ -4,6 +4,7 @@
 #include "private.h"
 #include "bootstrap.h"
 #include "config.h"
+#include "security_manager.h"
 
 #include <yt/ytlib/auth/cookie_authenticator.h>
 #include <yt/ytlib/auth/token_authenticator.h>
@@ -247,6 +248,7 @@ public:
         , Bootstrap_(bootstrap)
         , Config_(bootstrap->GetConfig()->ApiService)
         , Coordinator_(bootstrap->GetProxyCoordinator())
+        , SecurityManager_(Config_->SecurityManager, Bootstrap_)
         , StickyTransactionPool_(CreateStickyTransactionPool(Logger))
     {
         AuthenticatedClientCache_ = New<NApi::NNative::TClientCache>(
@@ -366,6 +368,7 @@ private:
     const TBootstrap* Bootstrap_;
     const TApiServiceConfigPtr Config_;
     const IProxyCoordinatorPtr Coordinator_;
+    TSecurityManager SecurityManager_;
 
     TSpinLock SpinLock_;
     NNative::TClientCachePtr AuthenticatedClientCache_;
@@ -417,6 +420,8 @@ private:
     {
         const auto& user = context->GetUser();
         SetupTracing(user);
+
+        SecurityManager_.ValidateUser(user);
 
         Coordinator_->ValidateOperable();
 
