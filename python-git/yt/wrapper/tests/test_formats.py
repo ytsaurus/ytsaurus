@@ -344,8 +344,13 @@ if PY3:
             format.dump_rows([bytes_row], stream)
             assert stream.getvalue() == expected_bytes
 
-            with pytest.raises(fail_exc):
+            if fail_exc is not None:
+                with pytest.raises(fail_exc):
+                    format.dump_rows([text_row], stream)
+            else:
+                stream = BytesIO()
                 format.dump_rows([text_row], stream)
+                assert stream.getvalue() == expected_bytes
 
         check(yt.YamrFormat(encoding=None), yt.Record(b"1", b"2"), yt.Record("1", "2"), b"1\t2\n")
         check(yt.DsvFormat(encoding=None), {b"x": b"y"}, {"x": "y"}, b"x=y\n")
@@ -354,3 +359,5 @@ if PY3:
               fail_exc=yson.YsonError)
         check(yt.SchemafulDsvFormat(encoding=None, columns=["x"]), {b"x": b"y"}, {"x": "y"}, b"y\n",
               fail_exc=KeyError)
+        check(yt.JsonFormat(encoding=None), {b"x": b"y"}, {"x": "y"}, b'{"x": "y"}\n',
+              fail_exc=None)
