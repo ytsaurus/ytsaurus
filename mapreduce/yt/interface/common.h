@@ -2,6 +2,7 @@
 
 #include "fwd.h"
 
+#include <library/type_info/type_info.h>
 #include <library/yson/node/node.h>
 
 #include <util/generic/guid.h>
@@ -12,8 +13,6 @@
 #include <util/generic/vector.h>
 
 #include <contrib/libs/protobuf/message.h>
-
-#include <statbox/ti/ti.h>
 
 #include <initializer_list>
 #include <type_traits>
