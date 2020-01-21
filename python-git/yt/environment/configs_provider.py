@@ -770,6 +770,16 @@ class ConfigsProvider_19(ConfigsProvider):
                 "monitoring_port": next(ports_generator),
                 "enable_authentication": False,
                 "address_resolver": {"localhost_fqdn": provision["fqdn"]},
+                "api_service": {
+                    "security_manager": {
+                        "user_cache": {
+                            "expire_after_successful_update_time": 0,
+                            "refresh_time": 0,
+                            "expire_after_failed_update_time": 0,
+                            "expire_after_access_time": 0,
+                        }
+                    }
+                }
             }
             config["cluster_connection"] = self._build_cluster_connection_config(master_connection_configs)
             config["logging"] = init_logging(config.get("logging"), proxy_logs_dir,
