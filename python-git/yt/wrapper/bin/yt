@@ -927,7 +927,7 @@ def add_reduce_parser(add_parser):
         epilog="See also yt map-reduce --help for brief options description.\n Note, source tables must be sorted!\
 For reducing not sorted table use map-reduce command without --mapper")
     operation_args(parser)
-    parser.add_argument("--reduce-by", action="append", required=True, help="Columns to reduce by.")
+    parser.add_argument("--reduce-by", action="append", required=False, help="Columns to reduce by.")
     parser.add_argument("--sort-by", action="append", required=False, help="Columns to sort by.")
     parser.add_argument("--join-by", action="append", required=False, help="Columns to join by.")
 
