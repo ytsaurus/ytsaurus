@@ -35,13 +35,6 @@ class TElectionTest
     : public testing::Test
 {
 public:
-    TElectionTest()
-        : ActionQueue(New<TActionQueue>("Main"))
-        , CallbacksMock(New<TElectionCallbacksMock>())
-        , ChannelFactory(New<TStaticChannelFactory>())
-        , RpcTimeout(TDuration::MilliSeconds(400))
-    { }
-
     void Configure(int peerCount, TPeerId selfId)
     {
         auto selfServer = CreateLocalServer();
@@ -81,7 +74,11 @@ public:
             ActionQueue->GetInvoker(),
             CallbacksMock,
             selfServer);
-        ElectionManager->Initialize();
+
+        WaitFor(BIND(&IElectionManager::Initialize, ElectionManager)
+            .AsyncVia(ActionQueue->GetInvoker())
+            .Run())
+            .ThrowOnError();
 
         EXPECT_CALL(*CallbacksMock, FormatPriority(_))
             .WillRepeatedly(Invoke([] (TPeerPriority priority) {
@@ -91,25 +88,30 @@ public:
 
     void Sleep()
     {
-        ::Sleep(TDuration::MilliSeconds(1000));
+        TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(1000));
     }
 
     void RunElections()
     {
-        ElectionManager->Participate();
-        Sleep();
-        ElectionManager->Abandon();
-        Sleep();
+        BIND([&] {
+            ElectionManager->Participate();
+            Sleep();
+            ElectionManager->Abandon();
+            Sleep();
+        })
+            .AsyncVia(ActionQueue->GetInvoker())
+            .Run()
+            .Get();
     }
 
 protected:
-    TActionQueuePtr ActionQueue;
-    TIntrusivePtr<TElectionCallbacksMock> CallbacksMock;
-    TStaticChannelFactoryPtr ChannelFactory;
+    const TActionQueuePtr ActionQueue = New<TActionQueue>("Control");
+    const TIntrusivePtr<TElectionCallbacksMock> CallbacksMock = New<TElectionCallbacksMock>();
+    const TStaticChannelFactoryPtr ChannelFactory = New<TStaticChannelFactory>();
+    const TDuration RpcTimeout = TDuration::MilliSeconds(400);
+    
     IElectionManagerPtr ElectionManager;
     std::vector<TIntrusivePtr<TElectionServiceMock>> PeerMocks;
-
-    const TDuration RpcTimeout;
 
     static TString GetPeerAddress(TPeerId id)
     {
@@ -129,10 +131,12 @@ private:
             }
         }
 
-        ElectionManager->Finalize();
+        WaitFor(BIND(&IElectionManager::Finalize, ElectionManager)
+            .AsyncVia(ActionQueue->GetInvoker())
+            .Run())
+            .ThrowOnError();
         ElectionManager.Reset();
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

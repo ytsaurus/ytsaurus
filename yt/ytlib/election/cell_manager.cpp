@@ -119,9 +119,11 @@ void TCellManager::Reconfigure(TCellConfigPtr newConfig, TPeerId selfId)
     const auto& newPeers = Config_->Peers;
     const auto& oldPeers = oldConfig->Peers;
 
+    THashSet<TPeerId> reconfiguredPeerIds;
+
     if (selfId != SelfId_) {
-        PeerReconfigured_.Fire(SelfId_);
-        YT_LOG_DEBUG("Peer self id changed (Address: %v, SelfId %v -> %v)",
+        reconfiguredPeerIds.insert(SelfId_);
+        YT_LOG_DEBUG("Peer self id changed (Address: %v, SelfId: %v -> %v)",
             oldPeers[SelfId_].Address,
             SelfId_,
             selfId);
@@ -139,13 +141,13 @@ void TCellManager::Reconfigure(TCellConfigPtr newConfig, TPeerId selfId)
                 newPeers[id].Address,
                 newPeers[id].Voting);
             PeerChannels_[id] = CreatePeerChannel(newPeers[id]);
-            PeerReconfigured_.Fire(id);
+            reconfiguredPeerIds.insert(id);
         } else if (id < oldPeers.size() && id >= newPeers.size()) {
             YT_LOG_INFO("Peer removed (PeerId: %v, Address: %v, Voting: %v)",
                 id,
                 oldPeers[id].Address,
                 oldPeers[id].Voting);
-            PeerReconfigured_.Fire(id);
+            reconfiguredPeerIds.insert(id);
         } else {
             YT_VERIFY(id < oldPeers.size() && id < newPeers.size());
             const auto& newPeer = newPeers[id];
@@ -158,7 +160,7 @@ void TCellManager::Reconfigure(TCellConfigPtr newConfig, TPeerId selfId)
                     oldPeer.Voting,
                     newPeer.Voting);
                 PeerChannels_[id] = CreatePeerChannel(newPeers[id]);
-                PeerReconfigured_.Fire(id);
+                reconfiguredPeerIds.insert(id);
             }
         }
     }
@@ -171,7 +173,9 @@ void TCellManager::Reconfigure(TCellConfigPtr newConfig, TPeerId selfId)
             newPeers.size());
     }
 
-    Reconfigured_.Fire(oldConfig, newConfig);
+    for (auto peerId : reconfiguredPeerIds) {
+        PeerReconfigured_.Fire(peerId);
+    }
 }
 
 IChannelPtr TCellManager::CreatePeerChannel(const TCellPeerConfig& config)

@@ -20,7 +20,7 @@ namespace NYT::NElection {
  *   #OnStartFollowing and #OnStopFollowing
  *   always come in pairs and do not overlap.
  *
- *   Thread affinity: any
+ *   Thread affinity: ControlThread
  */
 struct IElectionCallbacks
     : public virtual TRefCounted
@@ -58,8 +58,8 @@ DEFINE_REFCOUNTED_TYPE(IElectionCallbacks)
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Represents an abstract election system.
-/*!
- *  Thread affinity: any
+/*
+ *   Thread affinity: ControlThread (unless noted otherwise)
  */
 struct IElectionManager
     : public virtual TRefCounted
@@ -87,7 +87,19 @@ struct IElectionManager
      */
     virtual void Abandon() = 0;
 
+
+    //! Restarts the peer.
+    /*
+     *  If stopped, does nothing.
+     *  If voting, restarts the voting process.
+     *  If leading or following, stops the epoch.
+     */
+    virtual void Restart() = 0;
+
     //! Returns the callback for producing the monitoring info.
+    /*!
+     *  Thread affinity: any
+     */
     virtual NYson::TYsonProducer GetMonitoringProducer() = 0;
 };
 

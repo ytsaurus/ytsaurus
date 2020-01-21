@@ -35,7 +35,6 @@ public:
     void Reconfigure(TCellConfigPtr newConfig, TPeerId selfId);
 
     DEFINE_SIGNAL(void(TPeerId peerId), PeerReconfigured);
-    DEFINE_SIGNAL(void(const TCellConfigPtr& oldConfig, const TCellConfigPtr& newConfig), Reconfigured);
 
 private:
     TCellConfigPtr Config_;

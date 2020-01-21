@@ -42,6 +42,7 @@ public:
 
     virtual void Participate() override;
     virtual void Abandon() override;
+    virtual void Restart() override;
 
     virtual TYsonProducer GetMonitoringProducer() override;
 
@@ -85,9 +86,6 @@ private:
     void CancelContext();
 
     void OnLeaderPingLeaseExpired();
-
-    void DoParticipate();
-    void DoAdandon();
 
     bool CheckQuorum();
 
@@ -584,23 +582,92 @@ TDistributedElectionManager::TDistributedElectionManager(
 
 void TDistributedElectionManager::Initialize()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     RpcServer_->RegisterService(this);
 }
 
 void TDistributedElectionManager::Finalize()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     Abandon();
     RpcServer_->UnregisterService(this);
 }
 
 void TDistributedElectionManager::Participate()
 {
-    ControlInvoker->Invoke(BIND(&TDistributedElectionManager::DoParticipate, MakeWeak(this)));
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    switch (State) {
+        case EPeerState::Stopped:
+            StartVoting();
+            break;
+
+        case EPeerState::Voting:
+            break;
+
+        case EPeerState::Leading:
+            YT_LOG_INFO("Leader restart forced");
+            StopLeading();
+            StartVoting();
+            break;
+
+        case EPeerState::Following:
+            YT_LOG_INFO("Follower restart forced");
+            StopFollowing();
+            StartVoting();
+            break;
+
+        default:
+            YT_ABORT();
+    }
 }
 
 void TDistributedElectionManager::Abandon()
 {
-    ControlInvoker->Invoke(BIND(&TDistributedElectionManager::DoAdandon, MakeWeak(this)));
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    switch (State) {
+        case EPeerState::Stopped:
+        case EPeerState::Voting:
+            break;
+
+        case EPeerState::Leading:
+            StopLeading();
+            break;
+
+        case EPeerState::Following:
+            StopFollowing();
+            break;
+
+        default:
+            YT_ABORT();
+    }
+
+    Reset();
+}
+
+void TDistributedElectionManager::Restart()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    switch (State) {
+        case EPeerState::Stopped:
+            break;
+
+        case EPeerState::Voting:
+            StartVoting();
+            break;
+
+        case EPeerState::Leading:
+        case EPeerState::Following:
+            Abandon();
+            break;
+
+        default:
+            YT_ABORT();
+    }
 }
 
 TYsonProducer TDistributedElectionManager::GetMonitoringProducer()
@@ -659,59 +726,6 @@ void TDistributedElectionManager::OnLeaderPingLeaseExpired()
 
     YT_VERIFY(State == EPeerState::Following);
     StopFollowing();
-}
-
-void TDistributedElectionManager::DoParticipate()
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    switch (State) {
-        case EPeerState::Stopped:
-            StartVoting();
-            break;
-
-        case EPeerState::Voting:
-            break;
-
-        case EPeerState::Leading:
-            YT_LOG_INFO("Leader restart forced");
-            StopLeading();
-            StartVoting();
-            break;
-
-        case EPeerState::Following:
-            YT_LOG_INFO("Follower restart forced");
-            StopFollowing();
-            StartVoting();
-            break;
-
-        default:
-            YT_ABORT();
-    }
-}
-
-void TDistributedElectionManager::DoAdandon()
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    switch (State) {
-        case EPeerState::Stopped:
-        case EPeerState::Voting:
-            break;
-
-        case EPeerState::Leading:
-            StopLeading();
-            break;
-
-        case EPeerState::Following:
-            StopFollowing();
-            break;
-
-        default:
-            YT_ABORT();
-    }
-
-    Reset();
 }
 
 bool TDistributedElectionManager::CheckQuorum()
@@ -818,7 +832,9 @@ void TDistributedElectionManager::StartLeading()
     YT_LOG_INFO("Started leading (EpochId: %v)",
         EpochContext->EpochId);
 
-    ElectionCallbacks->OnStartLeading(EpochContext);
+    BIND(&IElectionCallbacks::OnStartLeading, ElectionCallbacks)
+        .AsyncVia(ControlInvoker)
+        .Run(EpochContext);
 }
 
 void TDistributedElectionManager::StartFollowing(
@@ -842,7 +858,9 @@ void TDistributedElectionManager::StartFollowing(
         EpochContext->LeaderId,
         EpochContext->EpochId);
 
-    ElectionCallbacks->OnStartFollowing(EpochContext);
+    BIND(&IElectionCallbacks::OnStartFollowing, ElectionCallbacks)
+        .AsyncVia(ControlInvoker)
+        .Run(EpochContext);
 }
 
 void TDistributedElectionManager::StopLeading()
@@ -853,7 +871,9 @@ void TDistributedElectionManager::StopLeading()
     YT_LOG_INFO("Stopped leading (EpochId: %v)",
         EpochContext->EpochId);
 
-    ElectionCallbacks->OnStopLeading();
+    BIND(&IElectionCallbacks::OnStopLeading, ElectionCallbacks)
+        .AsyncVia(ControlInvoker)
+        .Run();
 
     YT_VERIFY(FollowerPinger);
     FollowerPinger.Reset();
@@ -870,7 +890,9 @@ void TDistributedElectionManager::StopFollowing()
         EpochContext->LeaderId,
         EpochContext->EpochId);
 
-    ElectionCallbacks->OnStopFollowing();
+    BIND(&IElectionCallbacks::OnStopFollowing, ElectionCallbacks)
+        .AsyncVia(ControlInvoker)
+        .Run();
 
     Reset();
 }
@@ -902,7 +924,7 @@ void TDistributedElectionManager::OnPeerReconfigured(TPeerId peerId)
 
     if (peerId == CellManager->GetSelfPeerId()) {
         if (State != EPeerState::Stopped) {
-            DoAdandon();
+            Restart();
         }
     } else {
         if (State == EPeerState::Leading) {
@@ -915,14 +937,16 @@ void TDistributedElectionManager::OnPeerReconfigured(TPeerId peerId)
             // because the peer may've been voting before reconfiguration.
             CheckQuorum();
         } else if (State == EPeerState::Following && peerId == EpochContext->LeaderId) {
-            DoAdandon();
+            Restart();
         }
     }
 }
 
 void TDistributedElectionManager::FireAlivePeerSetChanged()
 {
-    ElectionCallbacks->OnAlivePeerSetChanged(AlivePeers);
+    BIND(&IElectionCallbacks::OnAlivePeerSetChanged, ElectionCallbacks)
+        .AsyncVia(ControlInvoker)
+        .Run(AlivePeers);
 }
 
 DEFINE_RPC_SERVICE_METHOD(TDistributedElectionManager, PingFollower)

@@ -26,6 +26,11 @@ void TElectionManagerThunk::Abandon()
     Underlying_->Abandon();
 }
 
+void TElectionManagerThunk::Restart()
+{
+    Underlying_->Restart();
+}
+
 NYson::TYsonProducer TElectionManagerThunk::GetMonitoringProducer()
 {
     return Underlying_->GetMonitoringProducer();
