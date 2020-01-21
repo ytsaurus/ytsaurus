@@ -288,6 +288,19 @@ class TestPessimisticQuotaCheckRpcProxy(TestRpcProxyBase):
 
     REPLICATOR_REACTION_TIME = 3.5
 
+    DELTA_RPC_PROXY_CONFIG = {
+        "api_service": {
+            "security_manager": {
+                "user_cache": {
+                    "expire_after_successful_update_time": 10000,
+                    "refresh_time": 100,
+                    "expire_after_failed_update_time": 1000,
+                    "expire_after_access_time": 10000
+                }
+            }
+        }
+    }
+
     def _replicator_sleep(self):
         time.sleep(self.REPLICATOR_REACTION_TIME)
 
@@ -338,6 +351,16 @@ class TestPessimisticQuotaCheckRpcProxy(TestRpcProxyBase):
         assert not exists("//tmp/a/t")
         copy("//tmp/t", "//tmp/a/t", pessimistic_quota_check=False)
         assert exists("//tmp/a/t")
+
+    @authors("savrus")
+    def test_user_ban(self):
+        create_user("a")
+        set("//sys/users/a/@banned", True)
+        with pytest.raises(YtError):
+            get("/", authenticated_user="a")
+        set("//sys/users/a/@banned", False)
+        time.sleep(0.5)
+        get("/", authenticated_user="a")
 
 ##################################################################
 
