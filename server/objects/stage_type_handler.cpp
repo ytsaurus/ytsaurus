@@ -126,7 +126,6 @@ private:
                 const auto& podTemplateSpec = deployUnit.has_replica_set()
                     ? deployUnit.replica_set().replica_set_template().pod_template_spec()
                     : deployUnit.multi_cluster_replica_set().replica_set().pod_template_spec();
-                ValidatePodSpecResourceRequests(podTemplateSpec.spec().resource_requests());
                 ValidateDeployPodSpecTemplate(Bootstrap_->GetAccessControlManager(), transaction, podTemplateSpec.spec(), PodSpecValidationConfig_);
                 ValidatePodAgentSpec(podTemplateSpec.spec().pod_agent_payload().spec());
 
@@ -159,22 +158,6 @@ private:
         } catch (const std::exception& ex) {
             ThrowValidationError(ex, NClient::NApi::EErrorCode::InvalidObjectId, stage->GetId());
         }
-    }
-
-    static void ValidatePodSpecResourceRequests(const NClient::NApi::NProto::TPodSpec_TResourceRequests& resourceRequests)
-    {
-        if (resourceRequests.vcpu_limit() > resourceRequests.vcpu_guarantee()) {
-            THROW_ERROR_EXCEPTION("CPU limit must not be greater than guarantee, now limit is %Qv and guarantee is %Qv",
-                resourceRequests.vcpu_limit(),
-                resourceRequests.vcpu_guarantee());
-        }
-
-        if (resourceRequests.memory_limit() > resourceRequests.memory_guarantee()) {
-            THROW_ERROR_EXCEPTION("RAM limit must not be greater than guarantee, now limit is %Qv and guarantee is %Qv",
-                resourceRequests.memory_limit(),
-                resourceRequests.memory_guarantee());
-        }
-
     }
 };
 
