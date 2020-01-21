@@ -6,14 +6,12 @@
 #include <yt/core/misc/lock_free.h>
 #include <yt/core/misc/singleton.h>
 #include <yt/core/misc/shutdown.h>
+#include <yt/core/misc/proc.h>
 
 #include <util/datetime/base.h>
 
 #if defined(_linux_) && !defined(_bionic_)
 #define HAVE_TIMERFD
-
-#include <util/network/pollerimpl.h>
-
 #include <sys/timerfd.h>
 #endif
 
@@ -70,12 +68,11 @@ public:
     TImpl()
         : PollerThread_(&PollerThreadMain, static_cast<void*>(this))
 #if defined(HAVE_TIMERFD)
-        , TimerFD_(timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC|TFD_NONBLOCK))
+        , TimerFD_(timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC))
 #endif
     {
 #if defined(HAVE_TIMERFD)
         YT_VERIFY(TimerFD_ >= 0);
-        Poller_.Set(&TimerFD_, TimerFD_, CONT_POLL_READ);
 #endif
     }
 
@@ -196,12 +193,6 @@ private:
 
 #if defined(HAVE_TIMERFD)
     int TimerFD_;
-
-    struct TMutexLocking
-    {
-        using TMyMutex = TMutex;
-    };
-    TPollerImpl<TMutexLocking> Poller_;
     std::atomic<TInstant> ScheduledWakeupTime_ = {TInstant::Max()};
 #endif
 
@@ -362,29 +353,8 @@ private:
 
     void RunPoll()
     {
-        {
-            decltype(Poller_)::TEvent event;
-            auto eventCount = Poller_.Wait(&event, 1, std::numeric_limits<int>::max());
-            if (eventCount == 0) {
-                return;
-            }
-            YT_VERIFY(eventCount == 1);
-            YT_VERIFY(event.data.ptr == &TimerFD_);
-        }
-
-        while (true) {
-            uint64_t value;
-            int result = read(TimerFD_, &value, sizeof(value));
-            if (result >= 0) {
-                YT_VERIFY(result == sizeof(value));
-                break;
-            }
-            auto error = errno;
-            YT_VERIFY(error == EAGAIN || result == EINTR);
-            if (error == EAGAIN) {
-                break;
-            }
-        }
+        uint64_t value;
+        YT_VERIFY(HandleEintr(read, TimerFD_, &value, sizeof(value)) == sizeof(value));
     }
 #endif
 
