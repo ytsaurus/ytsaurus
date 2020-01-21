@@ -432,7 +432,7 @@ public:
                         "Leader lease is no longer valid");
                     // Ensure monotonicity: once Hydra rejected a mutation, no more mutations are accepted.
                     AutomatonEpochContext_->LeaderLeaseExpired = true;
-                    ScheduleRestart(AutomatonEpochContext_, error);
+                    Restart(AutomatonEpochContext_, error);
                     return MakeFuture<TMutationResponse>(error);
                 }
 
@@ -620,7 +620,7 @@ private:
                     } catch (const std::exception& ex) {
                         auto error = TError("Error logging mutations")
                             << ex;
-                        ScheduleRestart(epochContext, error);
+                        Restart(epochContext, error);
                         THROW_ERROR error;
                     }
                     break;
@@ -642,7 +642,7 @@ private:
                     } catch (const std::exception& ex) {
                         auto error = TError("Error postponing mutations during recovery")
                             << ex;
-                        ScheduleRestart(epochContext, error);
+                        Restart(epochContext, error);
                         THROW_ERROR error;
                     }
                     break;
@@ -744,7 +744,7 @@ private:
                 "Invalid logged version")
                 << TErrorAttribute("expected_version", ToString(version))
                 << TErrorAttribute("actual_version", ToString(DecoratedAutomaton_->GetLoggedVersion()));
-            ScheduleRestart(epochContext, error);
+            Restart(epochContext, error);
             context->Reply(error);
             return;
         }
@@ -838,7 +838,7 @@ private:
                     } catch (const std::exception& ex) {
                         auto error = TError("Error rotating changelog")
                             << ex;
-                        ScheduleRestart(epochContext, error);
+                        Restart(epochContext, error);
                         THROW_ERROR error;
                     }
 
@@ -863,7 +863,7 @@ private:
                     } catch (const std::exception& ex) {
                         auto error = TError("Error postponing changelog rotation during recovery")
                             << ex;
-                        ScheduleRestart(epochContext, error);
+                        Restart(epochContext, error);
                         THROW_ERROR error;
                     }
 
@@ -988,7 +988,7 @@ private:
             tagIds);
     }
 
-    void ScheduleRestart(const TEpochContextPtr& epochContext, const TError& error)
+    void Restart(const TEpochContextPtr& epochContext, const TError& error)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1005,12 +1005,12 @@ private:
             error));
     }
 
-    void ScheduleRestart(const TWeakPtr<TEpochContext>& weakEpochContext, const TError& error)
+    void Restart(const TWeakPtr<TEpochContext>& weakEpochContext, const TError& error)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         if (auto epochContext = weakEpochContext.Lock()) {
-            ScheduleRestart(epochContext, error);
+            Restart(epochContext, error);
         }
     }
 
@@ -1131,7 +1131,7 @@ private:
 
         auto wrappedError = TError("Error committing mutation")
             << error;
-        ScheduleRestart(AutomatonEpochContext_, wrappedError);
+        Restart(AutomatonEpochContext_, wrappedError);
     }
 
     void OnLoggingFailed(const TError& error)
@@ -1140,7 +1140,7 @@ private:
 
         auto wrappedError = TError("Error logging mutations")
             << error;
-        ScheduleRestart(AutomatonEpochContext_, wrappedError);
+        Restart(AutomatonEpochContext_, wrappedError);
     }
 
     void OnLeaderLeaseLost(const TWeakPtr<TEpochContext>& weakEpochContext, const TError& error)
@@ -1149,7 +1149,7 @@ private:
 
         auto wrappedError = TError("Leader lease is lost")
             << error;
-        ScheduleRestart(weakEpochContext, wrappedError);
+        Restart(weakEpochContext, wrappedError);
     }
 
 
@@ -1201,7 +1201,7 @@ private:
         if (!error.IsOK()) {
             auto wrappedError = TError("Distributed changelog rotation failed")
                 << error;
-            ScheduleRestart(weakEpochContext, wrappedError);
+            Restart(weakEpochContext, wrappedError);
             return;
         }
 
@@ -1349,7 +1349,7 @@ private:
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Leader recovery failed, backing off");
             TDelayedExecutor::WaitForDuration(Config_->RestartBackoffTime);
-            ScheduleRestart(epochContext, ex);
+            Restart(epochContext, ex);
         }
     }
 
@@ -1464,7 +1464,7 @@ private:
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Follower recovery failed, backing off");
             TDelayedExecutor::WaitForDuration(Config_->RestartBackoffTime);
-            ScheduleRestart(epochContext, ex);
+            Restart(epochContext, ex);
         }
     }
 
@@ -1845,7 +1845,7 @@ private:
                 if (result.IsOK()) {
                     YT_LOG_DEBUG("Heartbeat mutation commit succeeded");
                 } else if (!GetReadOnly()) {
-                    ScheduleRestart(
+                    Restart(
                         weakEpochContext,
                         TError("Heartbeat mutation commit failed") << result);
                 }
