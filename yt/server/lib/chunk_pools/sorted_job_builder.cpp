@@ -412,6 +412,13 @@ private:
                     TotalSliceCount_ += Jobs_.back()->GetSliceCount();
                     ValidateTotalSliceCountLimit();
                     Jobs_.emplace_back(std::make_unique<TJobStub>());
+
+                    if (Options_.LogDetails) {
+                        YT_LOG_DEBUG("Sorted job details (JobIndex: %v, BuiltJobCount: %v, Details: %v)",
+                            jobIndex,
+                            static_cast<int>(Jobs_.size()) - 1,
+                            Jobs_.back()->GetDebugString());
+                    }
                 } else {
                     YT_LOG_DEBUG("Sorted job skipped (JobIndex: %v, BuiltJobCount: %v, PrimaryDataSize: %v, "
                         "PreliminaryForeignDataSize: %v, LowerPrimaryKey: %v, UpperPrimaryKey: %v)",
