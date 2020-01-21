@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package NYP.NClient.NApi.NProto;
+
+import "yp/client/api/proto/conditions.proto";
+import "yp/client/api/proto/data_model.proto";
+import "yp/client/api/proto/deploy_patch.proto";
+
+import "yt/core/yson/proto/protobuf_interop.proto";
+
+import "google/protobuf/timestamp.proto";
+
+option python_package = "yp_proto.yp.client.api.proto";
+
+option go_package = "a.yandex-team.ru/yp/go/proto/api";
+
+option java_package = "ru.yandex.yp.client.api";
+option java_outer_classname = "DeployTicket";
+option java_multiple_files = true;
+
+option (NYP.NClient.NApi.NProto.object_type) = {
+    camel_case_name: "DeployTicket"
+    snake_case_name: "deploy_ticket"
+    type_value: 25
+};
+
+message TDeployTicketSpec
+{
+    string stage_id = 1;
+    // Patches describe how to patch stage spec or dynamic resource spec
+    // with release data. Copied from release rule.
+    map<string, NYP.NClient.NApi.NProto.TDeployPatchSpec> patches = 2 [(NYT.NYson.NProto.yson_map) = true, (NYP.NClient.NApi.NProto.etc) = true];
+    // Ticket title. Used for displaying in tickets list.
+    string title = 3 [(NYP.NClient.NApi.NProto.etc) = true];
+    // Ticket description. Used for displaying on ticket page.
+    string description = 4 [(NYP.NClient.NApi.NProto.etc) = true];
+    // Users who recieve notifications on ticket status change.
+    repeated string responsibles = 5 [(NYP.NClient.NApi.NProto.etc) = true];
+    // Release by which ticket was created.
+    string release_id = 6;
+    // Release rule which was matched with release to create ticket.
+    string release_rule_id = 7;
+    // Recipe which will be applied to commit ticket. Copied from release rule.
+    string recipe_id = 8 [(NYP.NClient.NApi.NProto.etc) = true];
+}
+
+message TDeployTicketProgress
+{
+    // It is true only if all patch statuses are pending.
+    TCondition pending = 1;
+    // It is true only if at least one patch status is in_progress.
+    TCondition in_progress = 2;
+    // It is true only if all patch statuses are success, failed or cancelled.
+    TCondition closed = 3;
+    google.protobuf.Timestamp start_time = 4;
+    google.protobuf.Timestamp end_time = 5;
+    google.protobuf.Timestamp last_transition_time = 6;
+}
+
+message TDeployTicketStatus
+{
+    // Ticket deploy status.
+    TDeployTicketProgress progress = 1;
+    // This action will be propagated to every patch status that has NONE action.
+    NYP.NClient.NApi.NProto.TDeployPatchAction action = 2;
+    // <patch id> -> <patch status>.
+    map<string, NYP.NClient.NApi.NProto.TDeployPatchStatus> patches = 3 [(NYT.NYson.NProto.yson_map) = true];
+}

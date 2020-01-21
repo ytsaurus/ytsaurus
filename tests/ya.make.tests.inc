@@ -21,6 +21,7 @@ SET(YP_TEST_SRCS
     test_client_config.py
     test_client_discovery.py
     test_config.py
+    test_deploy_tickets.py
     test_disk_bandwidth_resource.py
     test_dns_record_set.py
     test_dynamic_resource.py
@@ -48,6 +49,7 @@ SET(YP_TEST_SRCS
     test_pods.py
     test_projects.py
     test_proto_conversion.py
+    test_releases.py
     test_release_rules.py
     test_replica_sets.py
     test_resource_cache.py

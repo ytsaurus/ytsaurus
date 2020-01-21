@@ -48,6 +48,11 @@ const THistoryEventsTable HistoryEventsTable;
 const TProjectsTable ProjectsTable;
 const TReleaseRulesTable ReleaseRulesTable;
 const TStageToReleaseRulesTable StageToReleaseRulesTable;
+const TReleasesTable ReleasesTable;
+const TDeployTicketsTable DeployTicketsTable;
+const TStageToDeployTicketsTable StageToDeployTicketsTable;
+const TReleaseToDeployTicketsTable ReleaseToDeployTicketsTable;
+const TReleaseRuleToDeployTicketsTable ReleaseRuleToDeployTicketsTable;
 
 const TWatchLogSchema WatchLogSchema;
 
@@ -95,6 +100,11 @@ const std::vector<const TDBTable*> Tables = {
     &ProjectsTable,
     &ReleaseRulesTable,
     &StageToReleaseRulesTable,
+    &ReleasesTable,
+    &DeployTicketsTable,
+    &StageToDeployTicketsTable,
+    &ReleaseToDeployTicketsTable,
+    &ReleaseRuleToDeployTicketsTable,
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -90,6 +90,8 @@ class TPodDisruptionBudget;
 class TIP4AddressPool;
 class TProject;
 class TReleaseRule;
+class TRelease;
+class TDeployTicket;
 
 class TAttributeSchema;
 

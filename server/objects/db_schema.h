@@ -922,6 +922,103 @@ extern const struct TStageToReleaseRulesTable
 
 ////////////////////////////////////////////////////////////////////////////////
 
+extern const struct TReleasesTable
+    : public TDBTable
+    , public TObjectTableBase
+{
+    TReleasesTable()
+        : TDBTable("releases")
+    {
+        Key = {&TObjectTableBase::Fields.Meta_Id};
+    }
+
+    struct TFields
+        : public TObjectTableBase::TFields
+    {
+        TDBField Spec_Etc{"spec.etc", NTableClient::EValueType::Any};
+        TDBField Status{"status", NTableClient::EValueType::Any};
+    } Fields;
+} ReleasesTable;
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const struct TDeployTicketsTable
+    : public TDBTable
+    , public TObjectTableBase
+{
+    TDeployTicketsTable()
+        : TDBTable("deploy_tickets")
+    {
+        Key = {&TObjectTableBase::Fields.Meta_Id};
+    }
+
+    struct TFields
+        : public TObjectTableBase::TFields
+    {
+        TDBField Spec_StageId{"spec.stage_id", NTableClient::EValueType::String};
+        TDBField Spec_ReleaseId{"spec.release_id", NTableClient::EValueType::String};
+        TDBField Spec_ReleaseRuleId{"spec.release_rule_id", NTableClient::EValueType::String};
+        TDBField Spec_Etc{"spec.etc", NTableClient::EValueType::Any};
+        TDBField Status{"status", NTableClient::EValueType::Any};
+    } Fields;
+} DeployTicketsTable;
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const struct TStageToDeployTicketsTable
+    : public TDBTable
+{
+    TStageToDeployTicketsTable()
+        : TDBTable("stage_to_deploy_tickets")
+    {
+        Key = {&Fields.StageId, &Fields.DeployTicketId};
+    }
+
+    struct TFields
+    {
+        TDBField StageId{"stage_id", NTableClient::EValueType::String};
+        TDBField DeployTicketId{"deploy_ticket_id", NTableClient::EValueType::String};
+    } Fields;
+} StageToDeployTicketsTable;
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const struct TReleaseToDeployTicketsTable
+    : public TDBTable
+{
+    TReleaseToDeployTicketsTable()
+        : TDBTable("release_to_deploy_tickets")
+    {
+        Key = {&Fields.ReleaseId, &Fields.DeployTicketId};
+    }
+
+    struct TFields
+    {
+        TDBField ReleaseId{"release_id", NTableClient::EValueType::String};
+        TDBField DeployTicketId{"deploy_ticket_id", NTableClient::EValueType::String};
+    } Fields;
+} ReleaseToDeployTicketsTable;
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const struct TReleaseRuleToDeployTicketsTable
+    : public TDBTable
+{
+    TReleaseRuleToDeployTicketsTable()
+        : TDBTable("release_rule_to_deploy_tickets")
+    {
+        Key = {&Fields.ReleaseRuleId, &Fields.DeployTicketId};
+    }
+
+    struct TFields
+    {
+        TDBField ReleaseRuleId{"release_rule_id", NTableClient::EValueType::String};
+        TDBField DeployTicketId{"deploy_ticket_id", NTableClient::EValueType::String};
+    } Fields;
+} ReleaseRuleToDeployTicketsTable;
+
+////////////////////////////////////////////////////////////////////////////////
+
 extern const std::vector<const TDBTable*> Tables;
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,0 +1,105 @@
+syntax = "proto3";
+
+package NYP.NClient.NApi.NProto;
+
+import "yp/client/api/proto/conditions.proto";
+import "yp/client/api/proto/data_model.proto";
+
+import "yt/core/yson/proto/protobuf_interop.proto";
+
+import "google/protobuf/timestamp.proto";
+
+option python_package = "yp_proto.yp.client.api.proto";
+
+option go_package = "a.yandex-team.ru/yp/go/proto/api";
+
+option java_package = "ru.yandex.yp.client.api";
+option java_outer_classname = "Release";
+option java_multiple_files = true;
+
+option (NYP.NClient.NApi.NProto.object_type) = {
+    camel_case_name: "Release"
+    snake_case_name: "release"
+    type_value: 24
+};
+
+// TSandboxResource fields correspond to result of get_release_info sandbox-method.
+message TSandboxResource
+{
+    string resource_id = 1;
+    string type = 2;
+    string description = 3;
+    string skynet_id = 4;
+    string http_url = 5;
+    string arch = 6;
+    string file_md5 = 7;
+    repeated string releasers = 8;
+}
+
+message TSandboxRelease
+{
+    // Sandbox task type.
+    string task_type = 1;
+    // Sandbox task id.
+    string task_id = 2;
+    // User who released sandbox task (created release).
+    string release_author = 3;
+    // User who created sandbox task.
+    string task_author = 4;
+    string title = 5;
+    string description = 6;
+    // Release type (stable, testing, etc).
+    string release_type = 7;
+    repeated TSandboxResource resources = 8;
+    google.protobuf.Timestamp task_creation_time = 9;
+}
+
+message TDockerRelease
+{
+    string image_name = 1;
+    string image_tag = 2;
+    string image_hash = 3;
+    // For now it is registry.yandex.net always.
+    string registry = 4;
+    // Release type (stable, testing, etc).
+    string release_type = 5;
+    // User who created release.
+    string release_author = 6;
+}
+
+message TReleaseSpec
+{
+    string title = 1 [(NYP.NClient.NApi.NProto.etc) = true];
+    string description = 2 [(NYP.NClient.NApi.NProto.etc) = true];
+    oneof payload
+    {
+        TSandboxRelease sandbox = 20 [(NYP.NClient.NApi.NProto.etc) = true];
+        TDockerRelease docker = 21 [(NYP.NClient.NApi.NProto.etc) = true];
+    }
+}
+
+message TReleaseProgress
+{
+    // It is true only if all tickets statuses are pending.
+    TCondition pending = 1;
+    // It is true only if at least one ticket status is in_progress.
+    TCondition in_progress = 2;
+    // It is true only if all tickets statuses are success, failed or cancelled.
+    TCondition closed = 3;
+    google.protobuf.Timestamp start_time = 4;
+    google.protobuf.Timestamp end_time = 5;
+    google.protobuf.Timestamp last_transition_time = 6;
+}
+
+message TReleaseProcessing
+{
+    // Describes how release matches. It is true if release was matched
+    // with release rules and corresponding tickets were created.
+    TCondition finished = 1;
+}
+
+message TReleaseStatus
+{
+    TReleaseProgress progress = 1;
+    TReleaseProcessing processing = 2;
+}

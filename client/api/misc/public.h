@@ -98,6 +98,8 @@ DEFINE_ENUM(EObjectType,
     ((IP4AddressPool)         (21))
     ((Project)                (22))
     ((ReleaseRule)            (23))
+    ((Release)                (24))
+    ((DeployTicket)           (25))
     ((NetworkModule)         (100)) // internal, not present in data_model.proto
     ((Schema)                (256))
 );

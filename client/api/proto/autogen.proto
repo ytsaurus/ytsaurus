@@ -20,7 +20,10 @@ import "yp/client/api/proto/dynamic_resource.proto";
 import "yp/client/api/proto/stage.proto";
 import "yp/client/api/proto/host_infra.proto";
 import "yp/client/api/proto/deploy.proto";
+import "yp/client/api/proto/deploy_patch.proto";
+import "yp/client/api/proto/deploy_ticket.proto";
 import "yp/client/api/proto/project.proto";
+import "yp/client/api/proto/release.proto";
 import "yp/client/api/proto/release_rule.proto";
 import "yt/core/misc/proto/error.proto";
 import "yt/core/ytree/proto/attributes.proto";
@@ -99,8 +102,14 @@ enum EObjectType
     OT_STAGE = 19
     [(NYT.NYson.NProto.enum_value_name) = "stage"];
 
+    OT_DEPLOY_TICKET = 25
+    [(NYT.NYson.NProto.enum_value_name) = "deploy_ticket"];
+
     OT_PROJECT = 22
     [(NYT.NYson.NProto.enum_value_name) = "project"];
+
+    OT_RELEASE = 24
+    [(NYT.NYson.NProto.enum_value_name) = "release"];
 
     OT_RELEASE_RULE = 23
     [(NYT.NYson.NProto.enum_value_name) = "release_rule"];
@@ -614,6 +623,28 @@ message TStage
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TDeployTicketMeta
+{
+    string id = 1;
+    string uuid = 12;
+    string name = 13;
+    EObjectType type = 2;
+    uint64 creation_time = 3;
+    bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+}
+
+message TDeployTicket
+{
+    TDeployTicketMeta meta = 1;
+    TDeployTicketSpec spec = 2;
+    TDeployTicketStatus status = 3;
+    NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TProjectMeta
 {
     string id = 1;
@@ -632,6 +663,28 @@ message TProject
     TProjectMeta meta = 1;
     TProjectSpec spec = 2;
     TProjectStatus status = 3;
+    NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReleaseMeta
+{
+    string id = 1;
+    string uuid = 12;
+    string name = 13;
+    EObjectType type = 2;
+    uint64 creation_time = 3;
+    bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+}
+
+message TRelease
+{
+    TReleaseMeta meta = 1;
+    TReleaseSpec spec = 2;
+    TReleaseStatus status = 3;
     NYT.NYTree.NProto.TAttributeDictionary labels = 4;
     NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
 }

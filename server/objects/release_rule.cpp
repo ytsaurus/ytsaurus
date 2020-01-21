@@ -1,7 +1,8 @@
 #include "release_rule.h"
 
-#include "stage.h"
 #include "db_schema.h"
+#include "deploy_ticket.h"
+#include "stage.h"
 
 namespace NYP::NServer::NObjects {
 
@@ -11,6 +12,14 @@ const TManyToOneAttributeSchema<TReleaseRule, TStage> TReleaseRule::TSpec::Stage
     &ReleaseRulesTable.Fields.Spec_StageId,
     [] (TReleaseRule* releaseRule) { return &releaseRule->Spec().Stage(); },
     [] (TStage* stage) { return &stage->ReleaseRules(); }
+};
+
+const TOneToManyAttributeSchema<TReleaseRule, TDeployTicket> TReleaseRule::DeployTicketsSchema{
+    &ReleaseRuleToDeployTicketsTable,
+    &ReleaseRuleToDeployTicketsTable.Fields.ReleaseRuleId,
+    &ReleaseRuleToDeployTicketsTable.Fields.DeployTicketId,
+    [] (TReleaseRule* releaseRule) { return &releaseRule->DeployTickets(); },
+    [] (TDeployTicket* deployTicket) { return &deployTicket->Spec().ReleaseRule(); },
 };
 
 const TScalarAttributeSchema<TReleaseRule, TReleaseRule::TSpec::TEtc> TReleaseRule::TSpec::EtcSchema{
@@ -35,6 +44,7 @@ TReleaseRule::TReleaseRule(
     IObjectTypeHandler* typeHandler,
     ISession* session)
     : TObject(id, TObjectId(), typeHandler, session)
+    , DeployTickets_(this, &DeployTicketsSchema)
     , Spec_(this)
     , Status_(this, &StatusSchema)
 { }

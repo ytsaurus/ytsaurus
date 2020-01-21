@@ -1,7 +1,6 @@
 #pragma once
 
 #include "object.h"
-#include "release_rule.h"
 
 #include <yp/server/objects/proto/autogen.pb.h>
 
@@ -32,6 +31,10 @@ public:
     static const TOneToManyAttributeSchema<TStage, TReleaseRule> ReleaseRulesSchema;
     using TReleaseRules = TOneToManyAttribute<TStage, TReleaseRule>;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TReleaseRules, ReleaseRules);
+
+    static const TOneToManyAttributeSchema<TStage, TDeployTicket> DeployTicketsSchema;
+    using TDeployTickets = TOneToManyAttribute<TStage, TDeployTicket>;
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TDeployTickets, DeployTickets);
 
     class TSpec
     {

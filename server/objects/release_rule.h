@@ -28,6 +28,10 @@ public:
 
     virtual EObjectType GetType() const override;
 
+    static const TOneToManyAttributeSchema<TReleaseRule, TDeployTicket> DeployTicketsSchema;
+    using TDeployTickets = TOneToManyAttribute<TReleaseRule, TDeployTicket>;
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TDeployTickets, DeployTickets);
+
     class TSpec
     {
     public:

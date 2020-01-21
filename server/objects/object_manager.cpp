@@ -3,6 +3,7 @@
 #include "account_type_handler.h"
 #include "config.h"
 #include "db_schema.h"
+#include "deploy_ticket_type_handler.h"
 #include "dns_record_set_type_handler.h"
 #include "dynamic_resource_type_handler.h"
 #include "endpoint_set_type_handler.h"
@@ -20,6 +21,7 @@
 #include "pod_type_handler.h"
 #include "private.h"
 #include "project_type_handler.h"
+#include "release_type_handler.h"
 #include "release_rule_type_handler.h"
 #include "replica_set_type_handler.h"
 #include "resource_cache_type_handler.h"
@@ -107,6 +109,8 @@ public:
         RegisterTypeHandler(CreatePodDisruptionBudgetTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateProjectTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateReleaseRuleTypeHandler(Bootstrap_));
+        RegisterTypeHandler(CreateReleaseTypeHandler(Bootstrap_));
+        RegisterTypeHandler(CreateDeployTicketTypeHandler(Bootstrap_));
 
         for (auto type : TEnumTraits<EObjectType>::GetDomainValues()) {
             if (auto typeHandler = FindTypeHandler(type)) {

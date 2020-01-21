@@ -1,6 +1,7 @@
 #include "stage.h"
 
 #include "account.h"
+#include "deploy_ticket.h"
 #include "release_rule.h"
 #include "db_schema.h"
 
@@ -20,6 +21,14 @@ const TOneToManyAttributeSchema<TStage, TReleaseRule> TStage::ReleaseRulesSchema
     &StageToReleaseRulesTable.Fields.ReleaseRuleId,
     [] (TStage* stage) { return &stage->ReleaseRules(); },
     [] (TReleaseRule* releaseRule) { return &releaseRule->Spec().Stage(); },
+};
+
+const TOneToManyAttributeSchema<TStage, TDeployTicket> TStage::DeployTicketsSchema{
+    &StageToDeployTicketsTable,
+    &StageToDeployTicketsTable.Fields.StageId,
+    &StageToDeployTicketsTable.Fields.DeployTicketId,
+    [] (TStage* stage) { return &stage->DeployTickets(); },
+    [] (TDeployTicket* deployTicket) { return &deployTicket->Spec().Stage(); },
 };
 
 const TScalarAttributeSchema<TStage, TStage::TSpec::TEtc> TStage::TSpec::EtcSchema{
@@ -51,6 +60,7 @@ TStage::TStage(
     : TObject(id, TObjectId(), typeHandler, session)
     , ProjectId_(this, &ProjectIdSchema)
     , ReleaseRules_(this, &ReleaseRulesSchema)
+    , DeployTickets_(this, &DeployTicketsSchema)
     , Spec_(this)
     , Status_(this, &StatusSchema)
 { }

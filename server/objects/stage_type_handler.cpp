@@ -1,10 +1,12 @@
 #include "account.h"
 #include "db_schema.h"
+#include "deploy_ticket.h"
 #include "stage.h"
 #include "stage_type_handler.h"
 #include "type_handler_detail.h"
 #include "network_project.h"
 #include "pod_type_handler.h"
+#include "release_rule.h"
 #include "config.h"
 
 #include <yp/server/master/bootstrap.h>

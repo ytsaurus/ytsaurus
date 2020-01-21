@@ -23,7 +23,9 @@ PUBLIC_OBJECT_TYPES = [
     "multi_cluster_replica_set",
     "stage",
     "project",
-    "release_rule"
+    "release_rule",
+    "release",
+    "deploy_ticket"
 ]
 
 
