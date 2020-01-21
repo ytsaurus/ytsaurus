@@ -35,7 +35,7 @@ YALL_BUILD_MODES = [
     ["--target-platform=linux", "--musl"],
     ["--target-platform=darwin"],
     ["--target-platform=linux", "--yall-asan-build"],
-    ["--target-platform=linux", "--yall-build-only=yt", "-ttt"],
+    ["--target-platform=linux", "--yall-build-only=yt", "-ttt", "yt/tests/integration"],
 ]
 
 
