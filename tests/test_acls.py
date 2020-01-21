@@ -725,6 +725,101 @@ class TestAcls(object):
 
             try_create()
 
+    def test_thread_limit_change(self, yp_env):
+        yp_client_root = yp_env.yp_client
+
+        def get(pod_id):
+            return yp_client_root.get_object(
+                "pod",
+                pod_id,
+                selectors=["/spec/resource_requests/thread_limit"],
+            )[0]
+
+        yp_client_root.create_object("user", attributes={"meta": {"id": "u"}})
+        yp_env.sync_access_control()
+
+        pod_set_id = create_pod_set(yp_client_root)
+        yp_client_root.update_object(
+            "pod_set",
+            pod_set_id,
+            set_updates=[
+                dict(
+                    path="/meta/acl/end",
+                    value=dict(
+                        action="allow",
+                        permissions=["write"],
+                        subjects=["u"],
+                    ),
+                ),
+            ],
+        )
+        yp_env.sync_access_control()
+
+        def create(yp_client, thread_limit):
+            return create_pod_with_boilerplate(
+                yp_client,
+                pod_set_id,
+                spec=dict(resource_requests=dict(thread_limit=thread_limit)),
+            )
+
+        def update(yp_client, pod_id, thread_limit):
+            yp_client.update_object(
+                "pod",
+                pod_id,
+                set_updates=[
+                    dict(
+                        path="/spec/resource_requests/thread_limit",
+                        value=thread_limit,
+                    ),
+                ],
+            )
+
+        with yp_env.yp_instance.create_client(config={"user": "u"}) as yp_client_user:
+            with pytest.raises(YpAuthorizationError):
+                create(yp_client_user, 1)
+
+            pod_id0 = create(yp_client_user, 0)
+            assert 0 == get(pod_id0)
+
+            yp_client_root.update_object(
+                "node_segment",
+                "default",
+                set_updates=[
+                    dict(
+                        path="/meta/acl/end",
+                        value=dict(
+                            action="allow",
+                            permissions=["use"],
+                            subjects=["u"],
+                            attributes=["/access/scheduling/change_thread_limit"],
+                        ),
+                    ),
+                ],
+            )
+            yp_env.sync_access_control()
+
+            pod_id = create(yp_client_user, 1)
+
+            assert 1 == get(pod_id)
+
+            update(yp_client_user, pod_id, 10)
+
+            assert 10 == get(pod_id)
+
+            yp_client_root.update_object(
+                "node_segment",
+                "default",
+                remove_updates=[
+                    dict(path="/meta/acl/-1"),
+                ],
+            )
+            yp_env.sync_access_control()
+
+            with pytest.raises(YpAuthorizationError):
+                update(yp_client_user, pod_id, 20)
+
+            assert 10 == get(pod_id)
+
     def test_nonexistant_subject_in_acl(self, yp_env):
         yp_client = yp_env.yp_client
 

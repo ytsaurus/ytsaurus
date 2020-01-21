@@ -832,6 +832,10 @@ message TPodSpec
 
         optional uint64 network_bandwidth_guarantee = 8;
         optional uint64 network_bandwidth_limit = 9;
+
+        // Pod container thread limit.
+        // Requires use permission for pod set node segment attribute /access/scheduling/change_thread_limit.
+        optional uint64 thread_limit = 10;
     };
     // CPU and memory resources to allocate and configure for this pod upon assignment.
     optional TResourceRequests resource_requests = 3 [(NYP.NClient.NApi.NProto.etc) = true];

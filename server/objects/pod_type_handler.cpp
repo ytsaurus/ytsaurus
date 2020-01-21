@@ -428,19 +428,44 @@ private:
         }
     }
 
+    void ValidatePodSetNodeSegmentPermission(
+        TPod* pod,
+        EAccessControlPermission permission,
+        const NYPath::TYPath& attributePath)
+    {
+        auto* podSet = pod->PodSet().Load();
+        auto* nodeSegment = podSet->Spec().NodeSegment().Load();
+        const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
+        accessControlManager->ValidatePermission(
+            nodeSegment,
+            permission,
+            attributePath);
+    }
+
+    void ValidateThreadLimitChange(TPod* pod)
+    {
+        const auto& resourceRequests = pod->Spec().Etc().Load().resource_requests();
+        const auto& oldResourceRequests = pod->Spec().Etc().LoadOld().resource_requests();
+        if (oldResourceRequests.thread_limit() != resourceRequests.thread_limit()) {
+            static const NYPath::TYPath attributePath("/access/scheduling/change_thread_limit");
+            ValidatePodSetNodeSegmentPermission(
+                pod,
+                EAccessControlPermission::Use,
+                attributePath);
+        }
+    }
+
     void ValidateSpec(TTransaction* transaction, TPod* pod)
     {
         const auto& spec = pod->Spec();
         const auto& specEtc = pod->Spec().Etc();
 
         if (spec.Node().IsChanged()) {
-            const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
-            auto* podSet = pod->PodSet().Load();
-            auto* nodeSegment = podSet->Spec().NodeSegment().Load();
-            accessControlManager->ValidatePermission(
-                nodeSegment,
+            static const NYPath::TYPath attributePath("/access/scheduling/assign_pod_to_node");
+            ValidatePodSetNodeSegmentPermission(
+                pod,
                 EAccessControlPermission::Use,
-                "/access/scheduling/assign_pod_to_node");
+                attributePath);
         }
 
         if (spec.EnableScheduling().IsChanged() &&
@@ -456,6 +481,7 @@ private:
         if (specEtc.IsChanged()) {
             ValidatePodSpecEtc(Bootstrap_->GetAccessControlManager(), transaction, specEtc.Load(), Config_->SpecValidation);
             ValidateNodeSegmentConstraints(pod);
+            ValidateThreadLimitChange(pod);
         }
 
         if (spec.IssPayload().IsChanged()) {
