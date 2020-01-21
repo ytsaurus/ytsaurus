@@ -24,14 +24,15 @@ message TMonitoringUnistatEndpoint
     }
 
     int32 port = 1;
-    // Relative path to unistat handle.
+    // Relative HTTP path to unistat handle.
     string path = 2;
     // Prefix for signal names, default is unistat.
     string prefix = 3;
-    // Yasm tags for signals.
-    // TODO: ignored for now, use TMonitoringInfo.labels instead
+    // Tags for this endpoint.
+    // If a value in TMonitoringInfo.labels with same key exists, it will be overridden.
     map<string, string> labels = 4 [(NYT.NYson.NProto.yson_map) = true];
     // Workload in pod which provides this endpoint.
+    // TODO: used only in legacy monitoring scheme, leave empty unless already filled.
     string workload_id = 5;
 
     EOutputFormat output_format = 6;
@@ -52,8 +53,10 @@ message TMonitoringInfo
     repeated TMonitoringSubagentEndpoint juggler_subagents = 3;
     // Pod-wide yasm tags for signals.
     // User-defined tags for deploy unit are stored here and then
-    // system tags are added by parts of Deploy stack
+    // Deploy system tags are added by parts of Deploy stack
     // until they arrive on node agent as part of pod spec.
+    // See https://wiki.yandex-team.ru/deploy/docs/stage/nastrojjka-postavki-metrik-v-yasm/#system-tags
+    // for list of Deploy tags.
     map<string, string> labels = 4 [(NYT.NYson.NProto.yson_map) = true];
 }
 
