@@ -1,7 +1,9 @@
-from __future__ import with_statement
+from __future__ import with_statement, print_function
 
 from .helpers import (TEST_DIR, check, set_config_option, get_tests_sandbox, set_config_options,
                       wait, failing_heavy_request)
+
+import yt.wrapper.format as yt_format
 
 import yt.wrapper.py_wrapper as py_wrapper
 from yt.wrapper.py_wrapper import OperationParameters
@@ -12,6 +14,7 @@ from yt.wrapper import heavy_commands, parallel_writer
 from yt.yson import YsonMap
 
 from yt.packages.six.moves import xrange, map as imap
+from yt.packages.six import PY3
 
 from yt.local import start, stop
 
@@ -780,4 +783,101 @@ class TestTableCommandsHuge(object):
             assert yt.get(table + "/@chunk_count") == 300
             assert list(yt.read_table(table)) == [{"x": i, "y": j} for i in xrange(3) for j in xrange(100)]
 
+
+@pytest.mark.usefixtures("yt_env")
+class TestTableCommandsJsonFormat(object):
+    @classmethod
+    def setup_class(cls):
+        cls._enable_ujson = False
+
+    def _create_format(self, **kwargs):
+        return yt.JsonFormat(enable_ujson=self._enable_ujson, **kwargs)
+
+    def _legace_mode_checks(self):
+        table = TEST_DIR + "/table"
+        yt.create("table", table)
+
+        # utf-8 correct data
+        row = {b"\xc3\xbf": b"\xc3\xae"}
+        yt.write_table(table, [row])
+
+        # Legacy mode
+        assert list(yt.read_table(table, format=self._create_format()))[0] == {u"\xc3\xbf": u"\xc3\xae"}
+        assert list(yt.read_table(table, format=self._create_format(encode_utf8=True)))[0] == {u"\xc3\xbf": u"\xc3\xae"}
+        # Specified encoding mode
+        assert list(yt.read_table(table, format=self._create_format(encoding=None)))[0] == {b"\xc3\xbf": b"\xc3\xae"}
+        assert list(yt.read_table(table, format=self._create_format(encoding=None, encode_utf8=True)))[0] == {b"\xc3\xbf": b"\xc3\xae"}
+        assert list(yt.read_table(table, format=self._create_format(encoding=None, encode_utf8=False)))[0] == {b"\xc3\xbf": b"\xc3\xae"}
+        assert list(yt.read_table(table, format=self._create_format(encoding="utf-8")))[0] == {u"\xff": u"\xee"}
+        assert list(yt.read_table(table, format=self._create_format(encoding="utf-8", encode_utf8=True)))[0] == {u"\xff": u"\xee"}
+        assert list(yt.read_table(table, format=self._create_format(encoding="utf-8", encode_utf8=False)))[0] == {u"\xff": u"\xee"}
+
+        # non-utf-8 data
+        row = {b"\xFF": b"\xEE"}
+        yt.write_table(table, [row])
+
+        # Legacy mode
+        assert list(yt.read_table(table, format=self._create_format()))[0] == {u"\xff": u"\xee"}
+        with pytest.raises(yt.YtError):
+            yt.read_table(table, format=self._create_format(encode_utf8=False))
+        assert list(yt.read_table(table, format=self._create_format()))[0] == {u"\xff": u"\xee"}
+
+        # Specified encoding mode
+        assert list(yt.read_table(table, format=self._create_format(encoding=None)))[0] == {b"\xff": b"\xee"}
+        assert list(yt.read_table(table, format=self._create_format(encoding=None, encode_utf8=True)))[0] == {b"\xff": b"\xee"}
+        with pytest.raises(UnicodeDecodeError):
+            assert list(yt.read_table(table, format=self._create_format(encoding="utf-8")))[0] == {u"\xff": u"\xee"}
+        with pytest.raises(UnicodeDecodeError):
+            list(yt.read_table(table, format=self._create_format(encoding="utf-8", encode_utf8=True)))
+        with pytest.raises(yt.YtError):
+            yt.read_table(table, format=self._create_format(encoding="utf-8", encode_utf8=False))
+
+    def test_json_encoding_read(self):
+        try:
+            yt_format.JSON_ENCODING_LEGACY_MODE = True
+            self._legace_mode_checks()
+        finally:
+            yt_format.JSON_ENCODING_LEGACY_MODE = False
+
+    def test_json_encoding_write(self):
+        table = TEST_DIR + "/table"
+        yt.create("table", table)
+
+        # TODO(ignat): test ujson
+
+        # utf-8 correct data
+        row = {b"\xc3\xbf": b"\xc3\xae"}
+        row_unicode = {b"\xc3\xbf".decode("utf-8"): b"\xc3\xae".decode("utf-8")}
+
+        for encode_utf8 in (True, None):
+            format = self._create_format(encoding=None, encode_utf8=encode_utf8)
+            yt.write_table(table, [row], format=format)
+            assert list(yt.read_table(table, format=yt.YsonFormat(encoding=None)))[0] == {b"\xc3\xbf": b"\xc3\xae"}
+            assert list(yt.read_table(table, format=format))[0] == row
+
+        with pytest.raises(yt.YtFormatError):
+            yt.write_table(table, [row], format=self._create_format(encoding=None, encode_utf8=False))
+
+        for encode_utf8 in (False, True, None):
+            format = self._create_format(encoding="utf-8", encode_utf8=encode_utf8)
+            yt.write_table(table, [row_unicode], format=format)
+            assert list(yt.read_table(table, format=yt.YsonFormat(encoding=None)))[0] == {b"\xc3\xbf": b"\xc3\xae"}
+            assert list(yt.read_table(table, format=format))[0] == row_unicode
+
+        # ascii row
+        row_ascii = {u"\x77": u"\x66"}
+        for encode_utf8 in (True, None):
+            format = self._create_format(encoding="utf-16", encode_utf8=encode_utf8)
+            yt.write_table(table, [row_ascii], format=format)
+            assert list(yt.read_table(table, format=yt.YsonFormat(encoding=None)))[0] == {u"\x77".encode("utf-16"): u"\x66".encode("utf-16")}
+            assert list(yt.read_table(table, format=format))[0] == row_ascii
+
+        with pytest.raises(yt.YtFormatError):
+            yt.write_table(table, [row_ascii], format=self._create_format(encoding="utf-16", encode_utf8=False))
+
+class TestTableCommandsJsonFormatUjson(TestTableCommandsJsonFormat):
+    @classmethod
+    def setup_class(cls):
+        super(TestTableCommandsJsonFormatUjson, cls).setup_class()
+        cls._enable_ujson = True
 

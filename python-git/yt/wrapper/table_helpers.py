@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 from . import py_wrapper
 
 from .batch_helpers import batch_apply, create_batch_client
@@ -22,6 +24,7 @@ from yt.packages.six import text_type, binary_type, PY3, string_types
 from yt.packages.six.moves import map as imap, zip as izip
 
 import os
+import sys
 import time
 import types
 from copy import deepcopy
@@ -56,6 +59,7 @@ def _to_chunk_stream(stream, format, raw, split_rows, chunk_size, rows_chunk_siz
         raise YtError("Cannot split stream into chunks. "
                       "Expected iterable or file-like object, got {0}".format(repr(stream)))
 
+    print ("RAW", raw, file=sys.stderr)
     if raw:
         if is_filelike:
             if split_rows:
