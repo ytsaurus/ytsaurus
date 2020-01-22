@@ -118,6 +118,8 @@ private:
         req->set_slice_data_size(ChunkSliceSize_);
         req->set_slice_by_keys(SliceByKeys_);
         req->set_key_column_count(KeyColumnCount_);
+        // COMPAT(gritukan): remove this in 19.9.
+        ToProto(req->mutable_key_columns(), std::vector<TString>(KeyColumnCount_));
         // TODO(babenko): make configurable
         ToProto(req->mutable_workload_descriptor(), TWorkloadDescriptor(EWorkloadCategory::UserBatch));
         // COMPAT(babenko)
