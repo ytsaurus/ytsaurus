@@ -355,6 +355,7 @@ def set_log_tailer_table_attributes(table_kind, table_path, ttl, client=None):
     attributes = {
         "min_data_versions": 0,
         "max_data_versions": 1,
+        "max_dynamic_store_pool_size": 226492416,
         "min_data_ttl": ttl,
         "max_data_ttl": ttl,
         "primary_medium": "ssd_blobs",
