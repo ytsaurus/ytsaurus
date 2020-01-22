@@ -1606,7 +1606,7 @@ private:
                 return;
             }
 
-            node->DestroyedReplicas().insert(chunkIdWithIndexes);
+            node->AddDestroyedReplica(chunkIdWithIndexes);
 
             if (!ChunkReplicator_) {
                 return;
@@ -3232,7 +3232,7 @@ private:
                 return;
             }
 
-            auto isUnknown = node->DestroyedReplicas().insert(chunkIdWithIndexes).second;
+            auto isUnknown = node->AddDestroyedReplica(chunkIdWithIndexes);
             YT_LOG_DEBUG_UNLESS(IsRecovery(),
                 "%v removal scheduled (NodeId: %v, Address: %v, ChunkId: %v)",
                 isUnknown ? "Unknown chunk added," : "Destroyed chunk",
@@ -3289,7 +3289,7 @@ private:
         auto* chunk = FindChunk(chunkIdWithIndex.Id);
         // NB: Chunk could already be a zombie but we still need to remove the replica.
         if (!chunk) {
-            auto isDestroyed = node->DestroyedReplicas().erase(chunkIdWithIndexes) > 0;
+            auto isDestroyed = node->RemoveDestroyedReplica(chunkIdWithIndexes);
             YT_LOG_DEBUG_UNLESS(IsRecovery(),
                 "%v chunk replica removed (ChunkId: %v, Address: %v, NodeId: %v)",
                 isDestroyed ? "Destroyed" : "Unknown",

@@ -558,6 +558,16 @@ void TNode::ApproveReplica(TChunkPtrWithIndexes replica)
     }
 }
 
+bool TNode::AddDestroyedReplica(const TChunkIdWithIndexes& replica)
+{
+    return DestroyedReplicas_.insert(ToRemovalKey(replica)).second;
+}
+
+bool TNode::RemoveDestroyedReplica(const TChunkIdWithIndexes& replica)
+{
+    return DestroyedReplicas_.erase(ToRemovalKey(replica)) > 0;
+}
+
 void TNode::AddToChunkRemovalQueue(const TChunkIdWithIndexes& replica)
 {
     YT_ASSERT(GetLocalState() == ENodeState::Online);
