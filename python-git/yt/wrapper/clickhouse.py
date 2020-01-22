@@ -355,13 +355,14 @@ def set_log_tailer_table_attributes(table_kind, table_path, ttl, client=None):
     attributes = {
         "min_data_versions": 0,
         "max_data_versions": 1,
-        "max_dynamic_store_pool_size": 226492416,
+        "max_dynamic_store_pool_size": 268435456,
         "min_data_ttl": ttl,
         "max_data_ttl": ttl,
         "primary_medium": "ssd_blobs",
         "optimize_for": "scan",
         "backing_store_retention_time": 0,
         "auto_compaction_period": 86400000,
+        "dynamic_store_overflow_threshold": 0.5,
         "enable_lsm_verbose_logging": True,
     }
 
