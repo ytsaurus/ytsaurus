@@ -1975,6 +1975,7 @@ class TestJobRevival(TestJobRevivalBase):
         job_id = self._wait_for_single_job(op.id)
 
         events_on_fs().wait_event("snapshot_written")
+        op.wait_fresh_snapshot()
 
         self._kill_and_start(components_to_kill)
 
