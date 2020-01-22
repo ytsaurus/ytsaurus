@@ -1177,7 +1177,7 @@ private:
         TArtifactDownloadOptions downloadOptions;
         downloadOptions.NodeDirectory = Bootstrap_->GetNodeDirectory();
         return chunkCache->DownloadArtifact(artifactKey, downloadOptions)
-            .Apply(BIND([=, this_ = MakeStrong(this)] (const IChunkPtr artifactChunk) mutable {
+            .Apply(BIND([=, this_ = MakeStrong(this)] (const IChunkPtr& artifactChunk) {
                  YT_LOG_DEBUG("Layer artifact loaded, starting import (Tag: %v, ArtifactPath: %v)",
                      tag,
                      artifactKey.data_source().path());
@@ -1206,7 +1206,7 @@ private:
                       }));
 
                       auto tmpfsLayerMeta = WaitFor(TmpfsLocation_->InternalizeLayer(layerMeta, tag))
-                          .ValueOrThrow()   ;
+                          .ValueOrThrow();
                       return New<TLayer>(tmpfsLayerMeta, artifactKey, TmpfsLocation_);
                   } else {
                       return New<TLayer>(layerMeta, artifactKey, location);
