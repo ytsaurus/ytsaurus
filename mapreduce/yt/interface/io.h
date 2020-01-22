@@ -224,6 +224,8 @@ struct TYaMRRow
 class IIOClient
 {
 public:
+    virtual ~IIOClient() = default;
+
     virtual IFileReaderPtr CreateFileReader(
         const TRichYPath& path,
         const TFileReaderOptions& options = TFileReaderOptions()) = 0;

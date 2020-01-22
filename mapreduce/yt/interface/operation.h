@@ -802,6 +802,8 @@ public:
 class ISchemaInferenceContext
 {
 public:
+    virtual ~ISchemaInferenceContext() = default;
+
     virtual int GetInputTableCount() const = 0;
     virtual int GetOutputTableCount() const = 0;
 
