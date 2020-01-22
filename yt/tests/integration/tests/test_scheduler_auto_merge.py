@@ -45,21 +45,27 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         peak_chunk_count = 0
         i = 0
         while True:
-            state = op.get_state()
+            suspended = get(op.get_path() + "/@suspended", default=False, verbose=False)
+            if suspended:
+                print_debug("Operation suspended, trying to re-suspend it")
+                op.resume()
+
+            state = op.get_state(verbose=False)
             if state == "completed":
                 break
             if op.get_state() == "failed":
                 op.track() # this should raise an exception
-            current_chunk_count = get("//sys/accounts/acc/@resource_usage/chunk_count")
+            current_chunk_count = get("//sys/accounts/acc/@resource_usage/chunk_count", verbose=False)
             peak_chunk_count = max(peak_chunk_count, current_chunk_count)
-            sleep(0.5)
+            print_debug("Peak chunk count = {}, current chunk count = {}".format(peak_chunk_count, current_chunk_count))
+            sleep(2)
             if with_revive:
                 i += 1
-                if i == 20:
+                if i == 5:
                     with Restarter(self.Env, SCHEDULERS_SERVICE):
                         pass
                     i = 0
-        print_debug("peak_chunk_count =", peak_chunk_count)
+        print_debug("Peak chunk count = {}".format(peak_chunk_count))
 
     # Bugs in auto-merge usually lead to the operation being stuck without scheduling any new jobs.
     # This is why we use the pytest timeout decorator.
@@ -101,9 +107,9 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                     "auto_merge": {
                         "mode": "manual",
                         "max_intermediate_chunk_count": max_intermediate_chunk_count,
-                        "chunk_count_per_merge_job": chunk_count_per_merge_job
+                        "chunk_count_per_merge_job": chunk_count_per_merge_job,
                     },
-                    "data_size_per_job": 1
+                    "data_size_per_job": 1,
                 })
             op.track()
             assert get("//tmp/t_out/@chunk_count") == \
@@ -114,7 +120,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
     @pytest.mark.timeout(480)
     @pytest.mark.parametrize("op_type", ["map", "reduce"])
     def test_account_chunk_limit(self, op_type):
-        self._create_account(60)
+        self._create_account(50)
 
         create("table", "//tmp/t_in", attributes={"schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]})
         create("table", "//tmp/t_out", attributes={"account": "acc"})
@@ -139,7 +145,8 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                     "max_intermediate_chunk_count": 35,
                     "chunk_count_per_merge_job": 20,
                 },
-                "data_size_per_job": 1
+                "data_size_per_job": 1,
+                "suspend_operation_if_account_limit_exceeded": True,
             })
 
         self._track_and_report_peak_chunk_count(op)
@@ -148,7 +155,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
 
     @authors("max42")
     def test_several_auto_merge_output_tables(self):
-        self._create_account(50)
+        self._create_account(35)
 
         create("table", "//tmp/t_in", attributes={"account": "acc"})
         create("table", "//tmp/t_out1", attributes={"account": "acc"})
@@ -172,7 +179,8 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                 "mapper": {
                     "format": yson.loads("<columns=[a]>schemaful_dsv")
                 },
-                "data_size_per_job": 1
+                "data_size_per_job": 1,
+                "suspend_operation_if_account_limit_exceeded": True,
             })
 
         self._track_and_report_peak_chunk_count(op)
@@ -208,7 +216,8 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                 "mapper": {
                     "format": yson.loads("<columns=[a]>schemaful_dsv")
                 },
-                "data_size_per_job": 1
+                "data_size_per_job": 1,
+                "suspend_operation_if_account_limit_exceeded": True,
             })
 
         self._track_and_report_peak_chunk_count(op, with_revive=with_revive)
@@ -263,7 +272,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                     "max_intermediate_chunk_count": 4,
                     "chunk_count_per_merge_job": 2,
                 },
-                "data_size_per_job": 1
+                "data_size_per_job": 1,
             })
 
         assert get("//tmp/t_out/@row_count") == 11
