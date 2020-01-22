@@ -771,7 +771,7 @@ TObjectId TObjectManager::TImpl::GenerateId(EObjectType type, TObjectId hintId)
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     auto cellTag = multicellManager->GetCellTag();
 
-    // NB: The higest 16 bits of hash are used for externalizing cell tag in
+    // NB: The highest 16 bits of hash are used for externalizing cell tag in
     // externalized transaction ids.
     if (type == EObjectType::Transaction || type == EObjectType::NestedTransaction) {
         hash &= 0xffff;
