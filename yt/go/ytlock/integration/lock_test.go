@@ -5,10 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"a.yandex-team.ru/yt/go/yterrors"
-
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yt"
+	"a.yandex-team.ru/yt/go/yterrors"
 	"a.yandex-team.ru/yt/go/ytlock"
 	"a.yandex-team.ru/yt/go/yttest"
 
@@ -16,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func rangomPath() ypath.Path {
+func randomPath() ypath.Path {
 	return ypath.Path("//tmp/yt-go-lock-test-" + uuid.Must(uuid.NewV4()).String())
 }
 
@@ -33,7 +32,7 @@ func TestLockAcquire(t *testing.T) {
 	env, cancel := yttest.NewEnv(t)
 	defer cancel()
 
-	path := rangomPath()
+	path := randomPath()
 	_, err := env.YT.CreateNode(env.Ctx, path, yt.NodeFile, &yt.CreateNodeOptions{})
 	require.NoError(t, err)
 
@@ -49,7 +48,7 @@ func TestCreateIfMissing(t *testing.T) {
 	env, cancel := yttest.NewEnv(t)
 	defer cancel()
 
-	path := rangomPath()
+	path := randomPath()
 	lock := ytlock.NewLockOptions(env.YT, path, ytlock.Options{CreateIfMissing: true, LockMode: yt.LockExclusive})
 	_, err := lock.Acquire(env.Ctx)
 	require.NoError(t, err)
@@ -59,7 +58,7 @@ func TestLockReleaseAbortsTx(t *testing.T) {
 	env, cancel := yttest.NewEnv(t)
 	defer cancel()
 
-	path := rangomPath()
+	path := randomPath()
 	_, err := env.YT.CreateNode(env.Ctx, path, yt.NodeFile, &yt.CreateNodeOptions{})
 	require.NoError(t, err)
 
@@ -79,7 +78,7 @@ func TestConcurrentLocks(t *testing.T) {
 	env, cancel := yttest.NewEnv(t)
 	defer cancel()
 
-	path := rangomPath()
+	path := randomPath()
 	_, err := env.YT.CreateNode(env.Ctx, path, yt.NodeFile, &yt.CreateNodeOptions{})
 	require.NoError(t, err)
 
@@ -101,7 +100,7 @@ func TestConcurrentLocks(t *testing.T) {
 
 	secondLost, err := secondLock.Acquire(env.Ctx)
 	require.NoError(t, err)
-	require.False(t, isDone(secondLost), "Second lock should be acuired")
+	require.False(t, isDone(secondLost), "Second lock should be acquired")
 }
 
 func TestLockCtxTermination(t *testing.T) {
@@ -110,7 +109,7 @@ func TestLockCtxTermination(t *testing.T) {
 
 	parentCtx, parentCancel := context.WithCancel(env.Ctx)
 
-	path := rangomPath()
+	path := randomPath()
 	_, err := env.YT.CreateNode(env.Ctx, path, yt.NodeFile, &yt.CreateNodeOptions{})
 	require.NoError(t, err)
 
@@ -122,4 +121,28 @@ func TestLockCtxTermination(t *testing.T) {
 	time.Sleep(time.Second)
 
 	require.True(t, isDone(lost), "Lock context should be terminated by parent context")
+}
+
+func TestAbortedTxReleasesLock(t *testing.T) {
+	env, cancel := yttest.NewEnv(t)
+	defer cancel()
+
+	path := randomPath()
+	lock := ytlock.NewLockOptions(env.YT, path, ytlock.Options{
+		CreateIfMissing: true,
+		LockMode:        yt.LockExclusive,
+	})
+	lost, err := lock.Acquire(env.Ctx)
+	require.NoError(t, err)
+	require.False(t, isDone(lost), "lock should be acquired")
+
+	err = ytlock.AbortExclusiveLock(env.Ctx, env.YT, path)
+	require.Nil(t, err)
+
+	select {
+	case <-lost:
+	case <-time.After(time.Second * 10):
+		t.Logf("lock release timeout")
+		t.FailNow()
+	}
 }

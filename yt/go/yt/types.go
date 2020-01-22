@@ -219,6 +219,25 @@ func (m *LockMode) UnmarshalText(b []byte) error {
 	return nil
 }
 
+// LockState type holds available lock states.
+type LockState string
+
+const (
+	// LockPending is a state of a queued waitable lock.
+	LockPending LockState = "pending"
+	// LockAcquired is a state of an acquired lock.
+	LockAcquired LockState = "acquired"
+)
+
+func (s LockState) MarshalText() ([]byte, error) {
+	return []byte(s), nil
+}
+
+func (s *LockState) UnmarshalText(b []byte) error {
+	*s = LockState(b)
+	return nil
+}
+
 type JobSortField string
 
 const (
