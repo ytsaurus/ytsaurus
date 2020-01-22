@@ -21,6 +21,8 @@ namespace NYT {
 class ICypressClient
 {
 public:
+    virtual ~ICypressClient() = default;
+
     ///
     /// @brief Create Cypress node of given type.
     ///
