@@ -146,7 +146,7 @@ class TestChunkServer(YTEnvSetup):
     @authors("babenko")
     def test_disable_replicator_when_few_nodes_are_online(self):
         set("//sys/@config/chunk_manager/safe_online_node_count", 3)
-        
+
         nodes = ls("//sys/cluster_nodes")
         assert len(nodes) == 21
 

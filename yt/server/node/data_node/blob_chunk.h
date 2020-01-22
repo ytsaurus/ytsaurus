@@ -113,6 +113,10 @@ private:
         int endEntryIndex,
         TPendingIOGuard&& pendingIOGuard,
         const TErrorOr<std::vector<NChunkClient::TBlock>>& blocksOrError);
+
+    //! Returns `true` if chunk was writen with `sync_on_close` option.
+    //! Default value is `true`.
+    bool SyncOnClose() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlobChunkBase)

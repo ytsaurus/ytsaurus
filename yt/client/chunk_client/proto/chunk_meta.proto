@@ -17,6 +17,9 @@ message TBlockInfo
 message TBlocksExt
 {
     repeated TBlockInfo blocks = 1;
+
+    // Whether chunk was written with `sync_on_close` option.
+    optional bool sync_on_close = 2;
 }
 
 // Chunk meta extension.
