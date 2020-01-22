@@ -2195,8 +2195,6 @@ class TestDisabledJobRevival(TestJobRevivalBase):
         events_on_fs().notify_event("scheduler_reconnected")
         op.track()
 
-        # And here.
-        assert get("{0}/@progress/jobs/aborted/total".format(op.get_path())) >= 1
         assert read_table("//tmp/t_out") == [{"a": 1}]
 
 
