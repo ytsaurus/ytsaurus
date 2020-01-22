@@ -49,6 +49,7 @@ public:
                 NObjects::EObjectType::PodSet,
                 NObjects::EObjectType::Stage,
                 NObjects::EObjectType::DynamicResource,
+                NObjects::EObjectType::IP4AddressPool,
                 NObjects::EObjectType::Project,
                 NObjects::EObjectType::ReleaseRule});
     }
