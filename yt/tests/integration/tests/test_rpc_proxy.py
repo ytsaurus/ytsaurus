@@ -292,10 +292,10 @@ class TestPessimisticQuotaCheckRpcProxy(TestRpcProxyBase):
         "api_service": {
             "security_manager": {
                 "user_cache": {
-                    "expire_after_successful_update_time": 10000,
+                    "expire_after_successful_update_time": 1000,
                     "refresh_time": 100,
-                    "expire_after_failed_update_time": 1000,
-                    "expire_after_access_time": 10000
+                    "expire_after_failed_update_time": 100,
+                    "expire_after_access_time": 100
                 }
             }
         }
@@ -354,13 +354,15 @@ class TestPessimisticQuotaCheckRpcProxy(TestRpcProxyBase):
 
     @authors("savrus")
     def test_user_ban(self):
+        self._create_simple_table("//tmp/t")
+        sync_mount_table("//tmp/t")
         create_user("a")
         set("//sys/users/a/@banned", True)
         with pytest.raises(YtError):
-            get("/", authenticated_user="a")
+            explain("1 from [//tmp/t]", authenticated_user="a")
         set("//sys/users/a/@banned", False)
         time.sleep(0.5)
-        get("/", authenticated_user="a")
+        explain("1 from [//tmp/t]", authenticated_user="a")
 
 ##################################################################
 
