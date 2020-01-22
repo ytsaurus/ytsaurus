@@ -42,6 +42,12 @@ TResponseInfo RetryRequestWithPolicy(
     TMaybe<TStringBuf> body = {},
     const TRequestConfig& config = TRequestConfig());
 
+TResponseInfo RequestWithoutRetry(
+    const TAuth& auth,
+    THttpHeader& header,
+    TMaybe<TStringBuf> body = {},
+    const TRequestConfig& config = TRequestConfig());
+
 ////////////////////////////////////////////////////////////////////
 
 } // namespace NDetail

@@ -131,7 +131,6 @@ void Unlock(
     const TUnlockOptions& options = TUnlockOptions());
 
 void Concatenate(
-    const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TVector<TYPath>& sourcePaths,

@@ -245,7 +245,6 @@ void Unlock(
 }
 
 void Concatenate(
-    const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TVector<TYPath>& sourcePaths,
@@ -255,7 +254,7 @@ void Concatenate(
     THttpHeader header("POST", "concatenate");
     header.AddMutationId();
     header.MergeParameters(SerializeParamsForConcatenate(transactionId, sourcePaths, destinationPath, options));
-    RetryRequestWithPolicy(retryPolicy, auth, header);
+    RequestWithoutRetry(auth, header);
 }
 
 void PingTx(

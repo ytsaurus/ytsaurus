@@ -12,6 +12,8 @@
 #include "skiff.h"
 #include "yt_poller.h"
 
+#include <mapreduce/yt/client/retry_transaction.h>
+
 #include <mapreduce/yt/interface/client.h>
 #include <mapreduce/yt/interface/fluent.h>
 
@@ -149,7 +151,11 @@ void TClientBase::Concatenate(
     const TYPath& destinationPath,
     const TConcatenateOptions& options)
 {
-    NRawClient::Concatenate(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, TransactionId_, sourcePaths, destinationPath, options);
+    std::function<void(ITransactionPtr)> lambda = [&sourcePaths, &destinationPath, &options, this](ITransactionPtr transaction) {
+        NRawClient::Concatenate(this->Auth_, transaction->GetId(), sourcePaths, destinationPath, options);
+    };
+
+    RetryTransactionWithPolicy(this, lambda, ClientRetryPolicy_->CreatePolicyForGenericRequest());
 }
 
 TRichYPath TClientBase::CanonizeYPath(const TRichYPath& path)

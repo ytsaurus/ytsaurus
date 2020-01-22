@@ -10,12 +10,50 @@
 
 #include <library/yson/node/node_io.h>
 
-#include <util/string/builder.h>
-
 namespace NYT {
 namespace NDetail {
 
 ///////////////////////////////////////////////////////////////////////////////
+
+static TResponseInfo Request(
+    const TAuth &auth,
+    THttpHeader &header,
+    TMaybe<TStringBuf> body,
+    THttpRequest& request,
+    const TRequestConfig &config) {
+
+    TString hostName;
+    if (config.IsHeavy) {
+        hostName = GetProxyForHeavyRequest(auth);
+    } else {
+        hostName = auth.ServerName;
+    }
+
+    request.Connect(hostName, config.SocketTimeout);
+    request.SmallRequest(header, body);
+
+    TResponseInfo result;
+    result.RequestId = request.GetRequestId();
+    result.Response = request.GetResponse();
+    result.HttpCode = request.GetHttpCode();
+    return result;
+}
+
+TResponseInfo RequestWithoutRetry(
+    const TAuth& auth,
+    THttpHeader& header,
+    TMaybe<TStringBuf> body,
+    const TRequestConfig& config)
+{
+    header.SetToken(auth.Token);
+    if (header.HasMutationId()) {
+        header.RemoveParameter("retry");
+        header.AddMutationId();
+    }
+    THttpRequest request;
+    return Request(auth, header, body, request, config);
+}
+
 
 TResponseInfo RetryRequestWithPolicy(
     IRequestRetryPolicyPtr retryPolicy,
@@ -34,18 +72,9 @@ TResponseInfo RetryRequestWithPolicy(
     }
 
     while (true) {
-        THttpHeader currentHeader = header;
-        TString response;
-
         THttpRequest request;
         try {
             retryPolicy->NotifyNewAttempt();
-            TString hostName;
-            if (config.IsHeavy) {
-                hostName = GetProxyForHeavyRequest(auth);
-            } else {
-                hostName = auth.ServerName;
-            }
 
             if (useMutationId) {
                 if (retryWithSameMutationId) {
@@ -56,14 +85,7 @@ TResponseInfo RetryRequestWithPolicy(
                 }
             }
 
-            request.Connect(hostName, config.SocketTimeout);
-            request.SmallRequest(header, body);
-
-            TResponseInfo result;
-            result.RequestId = request.GetRequestId();
-            result.Response = request.GetResponse();
-            result.HttpCode = request.GetHttpCode();
-            return result;
+            return Request(auth, header, body, request, config);
         } catch (const TErrorResponse& e) {
             LogRequestError(request, header, e.GetError().GetMessage(), retryPolicy->GetAttemptDescription());
             retryWithSameMutationId = e.IsTransportError();
