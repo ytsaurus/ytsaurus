@@ -836,6 +836,7 @@ void TFairShareTree::OnFairShareLoggingAt(TInstant now)
             .Item("tree_id").Value(TreeId_)
             .Do(BIND(&TFairShareTree::BuildFairShareInfo, Unretained(this)));
 
+        LogPoolsInfo();
         LogOperationsInfo();
     }
 }
@@ -851,6 +852,7 @@ void TFairShareTree::OnFairShareEssentialLoggingAt(TInstant now)
             .Item("tree_id").Value(TreeId_)
             .Do(BIND(&TFairShareTree::BuildEssentialFairShareInfo, Unretained(this)));
 
+        LogPoolsInfo();
         LogOperationsInfo();
     }
 }
