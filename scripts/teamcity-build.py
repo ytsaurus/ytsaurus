@@ -846,7 +846,6 @@ def run_sandbox_upload(options, build_context):
             "ytserver-node",
             "ytserver-proxy",
             "ytserver-tools",
-            "ytserver-skynet-manager",
             "ytserver-http-proxy",
             "yt_local",
         ))
