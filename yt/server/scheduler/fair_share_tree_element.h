@@ -76,6 +76,7 @@ struct TUpdateFairShareContext
     std::vector<TError> Errors;
     THashMap<TString, int> ElementIndexes;
     TInstant Now;
+    TJobResources TotalResourceLimits;
     TEnumIndexedVector<EUnschedulableReason, int> UnschedulableReasons;
 };
 

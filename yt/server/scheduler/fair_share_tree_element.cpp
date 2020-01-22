@@ -268,9 +268,10 @@ void TSchedulerElement::PreUpdateBottomUp(TDynamicAttributesList* dynamicAttribu
 {
     YT_VERIFY(Mutable_);
 
+    TotalResourceLimits_ = context->TotalResourceLimits;
+    // NB: ResourceLimits must be computed after TotalResourceLimits.
     ResourceLimits_ = ComputeResourceLimits();
     ResourceTreeElement_->SetResourceLimits(GetSpecifiedResourceLimits());
-    TotalResourceLimits_ = GetHost()->GetResourceLimits(TreeConfig_->NodesFilter);
 }
 
 void TSchedulerElement::UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
@@ -646,6 +647,12 @@ TJobResources TSchedulerElement::ComputeResourceLimits() const
 
 TJobResources TSchedulerElement::ComputeTotalResourcesOnSuitableNodes() const
 {
+    // Shortcut: if the scheduling tag filter is empty then we just use the resource limits for
+    // the tree's nodes filter, which were computed earlier in PreUpdateBottomUp.
+    if (GetSchedulingTagFilter() == EmptySchedulingTagFilter) {
+        return TotalResourceLimits_ * GetMaxShareRatio();
+    }
+
     auto connectionTime = InstantToCpuInstant(Host_->GetConnectionTime());
     auto delay = DurationToCpuDuration(TreeConfig_->TotalResourceLimitsConsiderDelay);
     if (GetCpuInstant() < connectionTime + delay) {
@@ -3244,6 +3251,7 @@ void TRootElement::PreUpdate(TDynamicAttributesList* dynamicAttributesList, TUpd
     DisableNonAliveElements();
     TreeSize_ = TCompositeSchedulerElement::EnumerateElements(0, context);
     dynamicAttributesList->assign(TreeSize_, TDynamicAttributes());
+    context->TotalResourceLimits = GetHost()->GetResourceLimits(TreeConfig_->NodesFilter);
 
     PreUpdateBottomUp(dynamicAttributesList, context);
 }
