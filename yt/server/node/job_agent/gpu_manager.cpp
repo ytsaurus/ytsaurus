@@ -208,16 +208,21 @@ void TGpuManager::DoFetchDriverLayerInfo()
     }
 }
 
+bool TGpuManager::IsDriverLayerMissing() const
+{
+    return DriverLayerPath_ && !DriverLayerKey_;
+}
+
 int TGpuManager::GetTotalGpuCount() const
 {
     auto guard = Guard(SpinLock_);
-    return Disabled_ ? 0 : HealthyGpuInfoMap_.size();
+    return Disabled_ || IsDriverLayerMissing() ? 0 : HealthyGpuInfoMap_.size();
 }
 
 int TGpuManager::GetFreeGpuCount() const
 {
     auto guard = Guard(SpinLock_);
-    return Disabled_ ? 0 : FreeSlots_.size();
+    return Disabled_ || IsDriverLayerMissing() ? 0 : FreeSlots_.size();
 }
 
 THashMap<int, TGpuInfo> TGpuManager::GetGpuInfoMap() const

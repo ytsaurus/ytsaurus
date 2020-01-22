@@ -84,7 +84,7 @@ private:
     void OnHealthCheck();
     void FetchDriverLayerInfo();
     void DoFetchDriverLayerInfo();
-
+    bool IsDriverLayerMissing() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TGpuManager)
