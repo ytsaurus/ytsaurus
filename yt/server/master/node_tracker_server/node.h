@@ -255,6 +255,9 @@ public:
     bool HasUnapprovedReplica(TChunkPtrWithIndexes replica) const;
     void ApproveReplica(TChunkPtrWithIndexes replica);
 
+    bool AddDestroyedReplica(const NChunkClient::TChunkIdWithIndexes& replica);
+    bool RemoveDestroyedReplica(const NChunkClient::TChunkIdWithIndexes& replica);
+
     void AddToChunkRemovalQueue(const NChunkClient::TChunkIdWithIndexes& replica);
     void RemoveFromChunkRemovalQueue(const NChunkClient::TChunkIdWithIndexes& replica);
 
