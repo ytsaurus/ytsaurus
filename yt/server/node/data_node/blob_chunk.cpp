@@ -5,6 +5,7 @@
 #include "chunk_cache.h"
 #include "location.h"
 #include "chunk_meta_manager.h"
+#include "chunk_store.h"
 
 #include <yt/server/node/cell_node/bootstrap.h>
 #include <yt/server/node/cell_node/config.h>
@@ -389,10 +390,21 @@ void TBlobChunkBase::OnBlocksRead(
             "Error reading blob chunk %v",
             Id_)
             << TError(blocksOrError);
-        if (IsFatalError(blocksOrError)) {
+        if (error.FindMatching(NChunkClient::EErrorCode::IncorrectChunkFileChecksum)) {
+            if (SyncOnClose()) {
+                Location_->Disable(error);
+                YT_ABORT();
+            } else {
+                YT_LOG_DEBUG("Block in chunk without sync_on_close has checksum mismatch, removing it (ChunkId: %v, LocationId: %v)",
+                    Id_,
+                    Location_->GetId());
+                Bootstrap_->GetChunkStore()->RemoveChunk(MakeStrong(this));
+            }
+        } else if (IsFatalError(blocksOrError)) {
             Location_->Disable(error);
             YT_ABORT();
         }
+
         FailSession(session, error);
         return;
     }
@@ -447,6 +459,20 @@ void TBlobChunkBase::OnBlocksRead(
     Location_->IncreaseCompletedIOSize(EIODirection::Read, session->Options.WorkloadDescriptor, bytesRead);
 
     DoReadBlockSet(session, endEntryIndex, std::move(pendingIOGuard));
+}
+
+bool TBlobChunkBase::SyncOnClose() const
+{
+    auto blocksExt = WeakBlocksExt_.Lock();
+    if (blocksExt) {
+        // COMPAT(gritukan)
+        if (!blocksExt->has_sync_on_close()) {
+            return true;
+        }
+        return blocksExt->sync_on_close();
+    }
+
+    return true;
 }
 
 TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
