@@ -44,7 +44,7 @@ def start_transaction(parent_transaction=None, timeout=None, deadline=None, attr
 
     return apply_function_to_result(_process_result, make_formatted_request(command_name, params, None, client=client))
 
-def abort_transaction(transaction, sticky=False, client=None):
+def abort_transaction(transaction, client=None):
     """Aborts transaction. All changes will be lost.
 
     :param str transaction: transaction id.
@@ -52,11 +52,10 @@ def abort_transaction(transaction, sticky=False, client=None):
     .. seealso:: `abort_tx on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#aborttx>`_
     """
     params = transaction_params(transaction, client=client)
-    params["sticky"] = sticky
     command_name = "abort_transaction" if get_api_version(client) == "v4" else "abort_tx"
     return make_request(command_name, params, client=client)
 
-def commit_transaction(transaction, sticky=False, client=None):
+def commit_transaction(transaction, client=None):
     """Saves all transaction changes.
 
     :param str transaction: transaction id.
@@ -64,11 +63,10 @@ def commit_transaction(transaction, sticky=False, client=None):
     .. seealso:: `commit_tx on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#committx>`_
     """
     params = transaction_params(transaction, client=client)
-    params["sticky"] = sticky
     command_name = "commit_transaction" if get_api_version(client) == "v4" else "commit_tx"
     return make_request(command_name, params, client=client)
 
-def ping_transaction(transaction, sticky=False, client=None):
+def ping_transaction(transaction, client=None):
     """Prolongs transaction lifetime.
 
     :param str transaction: transaction id.
@@ -76,6 +74,5 @@ def ping_transaction(transaction, sticky=False, client=None):
     .. seealso:: `ping_tx on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#pingtx>`_
     """
     params = transaction_params(transaction, client=client)
-    params["sticky"] = sticky
     command_name = "ping_transaction" if get_api_version(client) == "v4" else "ping_tx"
     return make_request(command_name, params, client=client)
