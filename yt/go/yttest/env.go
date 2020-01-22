@@ -7,10 +7,7 @@ import (
 	"testing"
 
 	"a.yandex-team.ru/library/go/core/log"
-	"a.yandex-team.ru/library/go/core/log/zap"
 	"a.yandex-team.ru/library/go/core/xerrors"
-
-	"go.uber.org/zap/zaptest"
 
 	"a.yandex-team.ru/yt/go/guid"
 	"a.yandex-team.ru/yt/go/mapreduce"
@@ -32,7 +29,9 @@ func NewEnv(t testing.TB) (env *Env, cancel func()) {
 	if err != nil {
 		t.Fatalf("failed to get YT config from env: %+v", err)
 	}
-	config.Logger = &zap.Logger{L: zaptest.NewLogger(t)}
+
+	var stopLogger func()
+	config.Logger, stopLogger = NewLogger(t)
 
 	var cancelCtx func()
 	env = &Env{}
@@ -48,6 +47,7 @@ func NewEnv(t testing.TB) (env *Env, cancel func()) {
 	cancel = func() {
 		cancelCtx()
 		env.YT.Stop()
+		stopLogger()
 	}
 	return
 }
