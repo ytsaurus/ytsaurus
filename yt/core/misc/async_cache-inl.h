@@ -202,7 +202,9 @@ auto TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(const TKey& key) -> T
         auto itemIt = ItemMap_.find(key);
         if (itemIt != ItemMap_.end()) {
             auto* item = itemIt->second;
-            auto valuePromise = item->ValuePromise;
+            auto valueFuture = item->ValuePromise
+                .ToFuture()
+                .ToUncancelable();
 
             if (item->Value) {
                 auto weight = GetWeight(item->Value);
@@ -212,14 +214,16 @@ auto TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(const TKey& key) -> T
             return TInsertCookie(
                 key,
                 nullptr,
-                std::move(valuePromise),
+                std::move(valueFuture),
                 false);
         }
 
         auto valueIt = ValueMap_.find(key);
         if (valueIt == ValueMap_.end()) {
             auto* item = new TItem();
-            auto valuePromise = item->ValuePromise;
+            auto valuePromise = item->ValuePromise
+                .ToFuture()
+                .ToUncancelable();
 
             YT_VERIFY(ItemMap_.insert(std::make_pair(key, item)).second);
             ++ItemMapSize_;
@@ -264,7 +268,7 @@ auto TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(const TKey& key) -> T
 }
 
 template <class TKey, class TValue, class THash>
-void TAsyncSlruCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInsertCookie* cookie)
+void TAsyncSlruCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value)
 {
     YT_VERIFY(value);
     auto key = value->GetKey();
@@ -627,7 +631,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::TInsertCookie::EndInsert(TValuePt
         return;
     }
 
-    Cache_->EndInsert(value, this);
+    Cache_->EndInsert(value);
 }
 
 template <class TKey, class TValue, class THash>
