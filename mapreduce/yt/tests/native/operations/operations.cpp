@@ -49,17 +49,18 @@ namespace NYdlAllTypes = mapreduce::yt::tests::native::ydl_lib::all_types;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename Fun>
-static void WaitOperationPredicate(const IOperationPtr& operation, Fun predicate, const TString& failMsg = "")
+static void WaitOperationPredicate(
+    const IOperationPtr& operation,
+    const std::function<bool(const TOperationAttributes&)>& predicate,
+    const TString& failMsg = "")
 {
-    auto deadline = TInstant::Now() + TDuration::Seconds(20);
-    while (TInstant::Now() < deadline) {
-        if (predicate(operation->GetAttributes())) {
-            return;
-        }
-        Sleep(TDuration::MilliSeconds(100));
+    try {
+        WaitForPredicate([&] {
+            return predicate(operation->GetAttributes());
+        });
+    } catch (const TWaitFailedException& exception) {
+        ythrow yexception() << "Wait for operation " << operation->GetId() << " failed: " << failMsg << exception.what();
     }
-    ythrow yexception() << "Wait for operation " << operation->GetId() << " failed: " << failMsg;
 }
 
 static void WaitOperationHasState(const IOperationPtr& operation, const TString& state)
@@ -75,6 +76,16 @@ static void WaitOperationHasState(const IOperationPtr& operation, const TString&
 static void WaitOperationIsRunning(const IOperationPtr& operation)
 {
     WaitOperationHasState(operation, "running");
+}
+
+static void WaitOperationHasBriefProgress(const IOperationPtr& operation)
+{
+    WaitOperationPredicate(
+        operation,
+        [&] (const TOperationAttributes& attributes) {
+            return attributes.BriefProgress.Defined();
+        },
+        "brief progress should have become available");
 }
 
 static TString GetOperationState(const IClientPtr& client, const TOperationId& operationId)
@@ -1093,25 +1104,24 @@ Y_UNIT_TEST_SUITE(Operations)
             writer->Finish();
         }
 
-        for (const auto maxFail : {1, 7}) {
-            TOperationId operationId;
-            try {
-                client->Map(
-                    TMapOperationSpec()
-                    .AddInput<TNode>(workingDir + "/input")
-                    .AddOutput<TNode>(workingDir + "/output")
-                    .MaxFailedJobCount(maxFail),
-                    new TAlwaysFailingMapper);
-                UNIT_FAIL("operation expected to fail");
-            } catch (const TOperationFailedError& e) {
-                operationId = e.GetOperationId();
-            }
+        for (const auto maxFailedJobCount : {1, 7}) {
+            auto operation = client->Map(
+                TMapOperationSpec()
+                .AddInput<TNode>(workingDir + "/input")
+                .AddOutput<TNode>(workingDir + "/output")
+                .MaxFailedJobCount(maxFailedJobCount),
+                new TAlwaysFailingMapper,
+                TOperationOptions()
+                    .Wait(false));
+            auto future = operation->Watch();
+            future.Wait();
+            UNIT_ASSERT_EXCEPTION(future.GetValue(), TOperationFailedError);
 
-            {
-                const auto& briefProgress = client->GetOperation(operationId).BriefProgress;
-                UNIT_ASSERT(briefProgress);
-                UNIT_ASSERT_VALUES_EQUAL(briefProgress->Failed, maxFail);
-            }
+            WaitOperationHasBriefProgress(operation);
+
+            const auto& briefProgress = operation->GetBriefProgress();
+            UNIT_ASSERT(briefProgress);
+            UNIT_ASSERT_VALUES_EQUAL(briefProgress->Failed, maxFailedJobCount);
         }
     }
 
@@ -1286,6 +1296,9 @@ Y_UNIT_TEST_SUITE(Operations)
         }
 
         auto getJobCount = [=] (const TOperationId& operationId) {
+            WaitForPredicate([&] {
+                return client->GetOperation(operationId).BriefProgress.Defined();
+            });
             const auto& briefProgress = client->GetOperation(operationId).BriefProgress;
             UNIT_ASSERT(briefProgress);
             return briefProgress->Completed;
@@ -1555,6 +1568,9 @@ Y_UNIT_TEST_SUITE(Operations)
             TSortOperationSpec().SortBy({"foo"})
             .AddInput(workingDir + "/input")
             .Output(workingDir + "/output"));
+
+        WaitOperationHasBriefProgress(operation);
+
         // Request brief progress directly
         auto briefProgress = operation->GetBriefProgress();
         UNIT_ASSERT(briefProgress.Defined());
@@ -2759,7 +2775,8 @@ Y_UNIT_TEST_SUITE(Operations)
         auto workingDir = fixture.GetWorkingDir();
         CreateTableWithFooColumn(client, workingDir + "/input");
 
-        TTempFile tempFile("/tmp/yt-cpp-api-testing");
+        auto fileName = MakeTempName(NFs::CurrentWorkingDirectory().c_str());
+        TTempFile tempFile(fileName);
         {
             TOFStream os(tempFile.Name());
             // Create a file with unique contents to get cache miss
@@ -2984,6 +3001,8 @@ Y_UNIT_TEST_SUITE(Operations)
             new TIdMapper);
         auto afterFinish = TInstant::Now();
 
+        WaitOperationHasBriefProgress(op);
+
         TOperationAttributes attrs;
         if (useClientGetOperation) {
             attrs = client->GetOperation(op->GetId());
@@ -3105,6 +3124,8 @@ Y_UNIT_TEST_SUITE(Operations)
                 .Wait(false));
 
         op->Watch().Wait();
+
+        WaitOperationHasBriefProgress(op);
 
         TOperationAttributes attrs;
         if (useClientGetOperation) {
@@ -3880,12 +3901,13 @@ Y_UNIT_TEST_SUITE(Operations)
 
         UNIT_ASSERT_VALUES_EQUAL(op1->GetBriefState(), EOperationBriefState::Aborted);
         UNIT_ASSERT_VALUES_EQUAL(op2->GetBriefState(), EOperationBriefState::Completed);
-        {
+
+        WaitForPredicate([&] {
             auto weightPath = "//sys/scheduler/orchid/scheduler/operations/" +
                 GetGuidAsString(op3->GetId()) +
                 "/progress/scheduling_info_per_pool_tree/default/weight";
-            UNIT_ASSERT_DOUBLES_EQUAL(client->Get(weightPath).AsDouble(), 10, 1e-9);
-        }
+            return std::abs(client->Get(weightPath).AsDouble() - 10.0) < 1e-9;
+        });
 
         op3->AbortOperation();
     }
@@ -3987,7 +4009,13 @@ Y_UNIT_TEST_SUITE(Operations)
             operation->AbortOperation();
         };
 
-        WaitOperationIsRunning(operation);
+        WaitForPredicate([&] {
+            auto jobs = operation->ListJobs().Jobs;
+            if (jobs.empty()) {
+                return false;
+            }
+            return jobs.front().State == EJobState::Running;
+        });
 
         auto suspendOptions = TSuspendOperationOptions()
             .AbortRunningJobs(true);
@@ -4507,6 +4535,7 @@ Y_UNIT_TEST_SUITE(OperationTracker)
         TOperationTracker tracker;
 
         auto op1 = AsyncSortByFoo(client, workingDir + "/input", workingDir + "/output1");
+        tracker.AddOperation(op1);
         auto op2 = AsyncSortByFoo(client, workingDir + "/input", workingDir + "/output2");
         tracker.AddOperation(op2);
 
@@ -4526,6 +4555,7 @@ Y_UNIT_TEST_SUITE(OperationTracker)
         TOperationTracker tracker;
 
         auto op1 = AsyncSortByFoo(client, workingDir + "/input", workingDir + "/output1");
+        tracker.AddOperation(op1);
         auto op2 = AsyncAlwaysFailingMapper(client, workingDir + "/input", workingDir + "/output2");
         tracker.AddOperation(op2);
 
@@ -4543,6 +4573,7 @@ Y_UNIT_TEST_SUITE(OperationTracker)
         TOperationTracker tracker;
 
         auto op1 = AsyncSortByFoo(client, workingDir + "/input", workingDir + "/output1");
+        tracker.AddOperation(op1);
         auto op2 = AsyncSortByFoo(client, workingDir + "/input", workingDir + "/output2");
         tracker.AddOperation(op2);
 
@@ -4562,6 +4593,7 @@ Y_UNIT_TEST_SUITE(OperationTracker)
         TOperationTracker tracker;
 
         auto op1 = AsyncSortByFoo(client, workingDir + "/input", workingDir + "/output1");
+        tracker.AddOperation(op1);
         auto op2 = AsyncAlwaysFailingMapper(client, workingDir + "/input", workingDir + "/output2");
         tracker.AddOperation(op2);
 

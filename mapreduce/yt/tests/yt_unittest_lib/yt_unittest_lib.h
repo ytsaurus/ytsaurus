@@ -2,7 +2,11 @@
 
 #include <mapreduce/yt/interface/logging/logger.h>
 #include <mapreduce/yt/interface/client.h>
+
 #include <mapreduce/yt/common/config.h>
+
+#include <util/generic/bt_exception.h>
+
 #include <util/datetime/base.h>
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -88,6 +92,7 @@ class TTestFixture
 {
 public:
     explicit TTestFixture(const TCreateClientOptions& options = {});
+    ~TTestFixture();
 
     IClientPtr GetClient() const;
     TYPath GetWorkingDir() const;
@@ -115,10 +120,16 @@ private:
 // Compares only columns and only "name" and "type" fields of columns.
 bool AreSchemasEqual(const TTableSchema& lhs, const TTableSchema& rhs);
 
+class TWaitFailedException
+    : public TWithBackTrace<yexception>
+{ };
+
+void WaitForPredicate(const std::function<bool()>& predicate, TDuration timeout = TDuration::Seconds(30));
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // Redirects all the LOG_* calls with the corresponding level to `stream`.
-// Moreover, the LOG_* calss are delegated to `oldLogger`.
+// Moreover, the LOG_* calls are delegated to `oldLogger`.
 class TStreamTeeLogger
     : public ILogger
 {
