@@ -142,6 +142,39 @@ DEFINE_REFCOUNTED_TYPE(TPodDisruptionBudgetControllerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TPodExponentialBackoffPolicyConfig
+    : public NYT::NYTree::TYsonSerializable
+{
+public:
+    TDuration Start;
+    TDuration Max;
+    double Base;
+
+    TPodExponentialBackoffPolicyConfig()
+    {
+        RegisterParameter("start", Start)
+            .Default(TDuration::Seconds(20));
+        RegisterParameter("max", Max)
+            .Default(TDuration::Minutes(10));
+        RegisterParameter("base", Base)
+            .GreaterThanOrEqual(1.0)
+            .LessThanOrEqual(1000.0)
+            .Default(2.0);
+
+        RegisterPostprocessor([&] {
+            if (Start > Max) {
+                THROW_ERROR_EXCEPTION("\"start\" must be less than or equal to \"max\", but got %v > %v",
+                    Start,
+                    Max);
+            }
+        });
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TPodExponentialBackoffPolicyConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSchedulePodsStageConfig
     : public NYT::NYTree::TYsonSerializable
 {
@@ -170,7 +203,7 @@ public:
     bool Disabled;
     TEnumIndexedVector<ESchedulerLoopStage, bool> DisableStage;
     TDuration LoopPeriod;
-    TDuration FailedAllocationBackoffTime;
+    TPodExponentialBackoffPolicyConfigPtr FailedAllocationBackoff;
     int AllocationCommitConcurrency;
     TGlobalResourceAllocatorConfigPtr GlobalResourceAllocator;
     TPodDisruptionBudgetControllerConfigPtr PodDisruptionBudgetController;
@@ -185,8 +218,8 @@ public:
             .Default();
         RegisterParameter("loop_period", LoopPeriod)
             .Default(TDuration::Seconds(1));
-        RegisterParameter("failed_allocation_backoff_time", FailedAllocationBackoffTime)
-            .Default(TDuration::Seconds(15));
+        RegisterParameter("failed_allocation_backoff", FailedAllocationBackoff)
+            .DefaultNew();
         RegisterParameter("allocation_commit_concurrency", AllocationCommitConcurrency)
             .Default(256)
             .GreaterThanOrEqual(1);

@@ -20,6 +20,7 @@ class TAllocationPlan;
 
 DECLARE_REFCOUNTED_STRUCT(IGlobalResourceAllocator)
 DECLARE_REFCOUNTED_CLASS(TPodDisruptionBudgetController)
+DECLARE_REFCOUNTED_CLASS(TPodExponentialBackoffPolicy)
 
 DECLARE_REFCOUNTED_CLASS(TScheduleQueue)
 DECLARE_REFCOUNTED_CLASS(TResourceManager)
@@ -31,6 +32,7 @@ DECLARE_REFCOUNTED_CLASS(TNodeScoreFeatureConfig)
 DECLARE_REFCOUNTED_CLASS(TNodeScoreConfig)
 DECLARE_REFCOUNTED_CLASS(TGlobalResourceAllocatorConfig)
 DECLARE_REFCOUNTED_CLASS(TPodDisruptionBudgetControllerConfig)
+DECLARE_REFCOUNTED_CLASS(TPodExponentialBackoffPolicyConfig)
 DECLARE_REFCOUNTED_CLASS(TSchedulePodsStageConfig)
 DECLARE_REFCOUNTED_CLASS(TSchedulerConfig)
 

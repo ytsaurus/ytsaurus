@@ -164,7 +164,10 @@ class TestConfig(object):
                     iteration_period="abracadabra",
                 ),
             ),
-            failed_allocation_backoff_time=42,
+            failed_allocation_backoff=dict(
+                start=42,
+                max=42,
+            ),
         )))
 
         self._set_and_validate_config_stability(yp_env_configurable, dict(scheduler=yson.YsonEntity()))
@@ -232,7 +235,10 @@ class TestConfig(object):
         # Update different parameters without easily visible side effects.
         self._set_and_validate_config_patch(yp_env_configurable, dict(scheduler=dict(
             loop_period=2 * 1000,
-            failed_allocation_backoff_time=5 * 1000,
+            failed_allocation_backoff=dict(
+                start=5 * 1000,
+                max=5 * 1000
+            ),
             allocation_commit_concurrency=10,
             global_resource_allocator=dict(
                 every_node_selection_strategy=dict(

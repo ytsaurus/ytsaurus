@@ -848,11 +848,14 @@ class TestScheduler(object):
 
 @pytest.mark.usefixtures("yp_env_configurable")
 class TestSchedulerPartialAssignment:
-    # Need failed_allocation_backoff_time bigger than loop_period
+    # Need backoff time on failed allocation greater than loop period.
     YP_MASTER_CONFIG = {
         "scheduler": {
             "loop_period": 1000,
-            "failed_allocation_backoff_time": 15 * 1000,
+            "failed_allocation_backoff": {
+                "start": 15 * 1000,
+                "max": 15 * 1000,
+            },
         },
     }
 
@@ -909,6 +912,36 @@ class TestSchedulerPartialAssignment:
         assert_over_time(lambda: _test_got_error_and_not_partially_assigned(initial_pod_dump, erroneous_pod_id))
 
         wait(lambda: are_pods_assigned(yp_client, pod_ids))
+
+
+@pytest.mark.usefixtures("yp_env_configurable")
+class TestSchedulerFailedAllocationBackoff:
+    # Need start backoff time smaller than loop period and max backoff time greater than it.
+    YP_MASTER_CONFIG = {
+        "scheduler": {
+            "loop_period": 1000,
+            "failed_allocation_backoff": {
+                "start": 200,
+                "max": 15 * 1000,
+                "base": 2.0,
+            },
+        },
+    }
+
+    def test(self, yp_env_configurable):
+        yp_client = yp_env_configurable.yp_client
+
+        create_nodes(yp_client, 1)
+        pod_set_id = create_pod_set(yp_client)
+
+        pod_ids = []
+        for _ in range(3):
+            create_pod_with_boilerplate(yp_client, pod_set_id, {
+                "enable_scheduling": True,
+                "ip6_address_requests": [{"network_id": "nonexisting", "vlan_id": "backbone"}],
+            })
+            pod_ids.append(create_pod_with_boilerplate(yp_client, pod_set_id, {"enable_scheduling": True}))
+            wait(lambda: are_pods_assigned(yp_client, pod_ids))
 
 
 @pytest.mark.usefixtures("yp_env")
@@ -1260,7 +1293,10 @@ class TestSchedulerEveryNodeSelectionStrategy(object):
     YP_MASTER_CONFIG = {
         "scheduler": {
             "loop_period": 100,
-            "failed_allocation_backoff_time": 150,
+            "failed_allocation_backoff": {
+                "start": 150,
+                "max": 150,
+            },
             "global_resource_allocator": {
                 "every_node_selection_strategy": {
                     "iteration_period": 5,
@@ -1277,7 +1313,7 @@ class TestSchedulerEveryNodeSelectionStrategy(object):
         scheduler_config = self.YP_MASTER_CONFIG["scheduler"]
         strategy_config = scheduler_config["global_resource_allocator"]["every_node_selection_strategy"]
         max_possible_iteration_period = strategy_config["iteration_period"] + strategy_config["iteration_splay"]
-        seconds_per_iteration = (scheduler_config["loop_period"] + scheduler_config["failed_allocation_backoff_time"]) / 1000.0
+        seconds_per_iteration = (scheduler_config["loop_period"] + scheduler_config["failed_allocation_backoff"]["max"]) / 1000.0
         return seconds_per_iteration * (max_possible_iteration_period + 5)
 
     def _get_default_node_configuration(self):
@@ -1294,7 +1330,7 @@ class TestSchedulerEveryNodeSelectionStrategy(object):
         assert candidate != self._get_default_node_configuration()["vlan_id"]
         return candidate
 
-    def _create_default_nodes(self, yp_env_configurable, config=dict()):
+    def _create_default_nodes(self, yp_env_configurable, config):
         yp_client = yp_env_configurable.yp_client
         default_config = self._get_default_node_configuration()
         default_config.update(config)
@@ -1315,7 +1351,7 @@ class TestSchedulerEveryNodeSelectionStrategy(object):
 
     def _test_scheduling_error(self, yp_env_configurable, pod_spec, status_check):
         yp_client = yp_env_configurable.yp_client
-        self._create_default_nodes(yp_env_configurable)
+        self._create_default_nodes(yp_env_configurable, dict())
         pod_set_id = self._create_default_pod_set(yp_env_configurable)
         pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, pod_spec)
         self._validate_scheduling_error(yp_env_configurable, pod_id, status_check)
@@ -1619,7 +1655,10 @@ class TestSchedulePodsStageLimits(object):
     YP_MASTER_CONFIG = {
         "scheduler": {
             "loop_period": LOOP_PERIOD_SECONDS * 1000,
-            "failed_allocation_backoff_time": 1000,
+            "failed_allocation_backoff": {
+                "start": 1000,
+                "max": 1000,
+            },
             "schedule_pods_stage": {
                 "pod_limit": SCHEDULE_PODS_STAGE_POD_LIMIT,
             },
@@ -1751,7 +1790,10 @@ class TestSchedulerNodeRandomHashPodNodeScore(object):
     YP_MASTER_CONFIG = {
         "scheduler": {
             "loop_period": 100,
-            "failed_allocation_backoff_time": 150,
+            "failed_allocation_backoff": {
+                "start": 150,
+                "max": 150,
+            },
             "global_resource_allocator": {
                 "pod_node_score": {
                     "type": "node_random_hash",
@@ -1771,7 +1813,10 @@ class TestSchedulerFreeCpuMemoryShareVariancePodNodeScore(object):
     YP_MASTER_CONFIG = {
         "scheduler": {
             "loop_period": 100,
-            "failed_allocation_backoff_time": 150,
+            "failed_allocation_backoff": {
+                "start": 150,
+                "max": 150,
+            },
             "global_resource_allocator": {
                 "pod_node_score": {
                     "type": "free_cpu_memory_share_variance",
@@ -1788,7 +1833,10 @@ class TestSchedulerFreeCpuMemoryShareSquaredMinDeltaPodNodeScore(object):
     YP_MASTER_CONFIG = {
         "scheduler": {
             "loop_period": 100,
-            "failed_allocation_backoff_time": 150,
+            "failed_allocation_backoff": {
+                "start": 150,
+                "max": 150,
+            },
             "global_resource_allocator": {
                 "pod_node_score": {
                     "type": "free_cpu_memory_share_squared_min_delta",

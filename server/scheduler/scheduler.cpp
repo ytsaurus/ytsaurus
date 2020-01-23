@@ -7,6 +7,7 @@
 #include "helpers.h"
 #include "label_filter_evaluator.h"
 #include "pod_disruption_budget_controller.h"
+#include "pod_exponential_backoff_policy.h"
 #include "resource_manager.h"
 #include "schedule_queue.h"
 
@@ -16,7 +17,6 @@
 #include <yp/server/objects/node.h>
 #include <yp/server/objects/object_manager.h>
 #include <yp/server/objects/pod.h>
-#include <yp/server/objects/transaction.h>
 #include <yp/server/objects/transaction_manager.h>
 
 #include <yp/server/accounting/accounting_manager.h>
@@ -608,13 +608,13 @@ private:
         TSchedulerConfigPtr Config;
         IGlobalResourceAllocatorPtr GlobalResourceAllocator;
         TPodDisruptionBudgetControllerPtr PodDisruptionBudgetController;
+        TPodExponentialBackoffPolicyPtr FailedAllocationBackoffPolicy;
         NCluster::TClusterPtr Cluster;
         TScheduleQueuePtr ScheduleQueue;
         TAllocationPlanProfiling AllocationPlanProfiling;
     };
 
     TLoopContext GlobalLoopContext_;
-
 
     class TLoopIteration
         : public TRefCounted
@@ -740,6 +740,7 @@ private:
             AllocationPlan_.Clear();
             ReconcileInternetAddressManagerState(Context_.Cluster, &InternetAddressManager_);
             Context_.GlobalResourceAllocator->ReconcileState(Context_.Cluster);
+            Context_.FailedAllocationBackoffPolicy->ReconcileState(Context_.Cluster);
 
             YT_LOG_DEBUG("State reconciled");
         }
@@ -804,10 +805,12 @@ private:
         void BackoffScheduling(const NCluster::TPod* pod)
         {
             const auto& podId = pod->GetId();
-            auto now = TInstant::Now();
-            auto deadline = now + Context_.Config->FailedAllocationBackoffTime;
-            YT_LOG_DEBUG("Backing off pod scheduling (PodId: %v, Deadline: %v)",
+
+            auto backoffDuration = Context_.FailedAllocationBackoffPolicy->GetNextBackoffDuration(pod);
+            auto deadline = TInstant::Now() + backoffDuration;
+            YT_LOG_DEBUG("Backing off pod scheduling (PodId: %v, BackoffDuration: %v, Deadline: %v)",
                 podId,
+                backoffDuration,
                 deadline);
             Context_.ScheduleQueue->Enqueue(podId, deadline);
         }
@@ -1099,6 +1102,14 @@ private:
                 THROW_ERROR_EXCEPTION("Error creating pod disruption budget controller")
                     << ex;
             }
+            try {
+                context.FailedAllocationBackoffPolicy = New<TPodExponentialBackoffPolicy>(
+                    context.Config->FailedAllocationBackoff);
+            } catch (const std::exception& ex) {
+                context.FailedAllocationBackoffPolicy = nullptr;
+                THROW_ERROR_EXCEPTION("Error creating failed allocation backoff policy")
+                    << ex;
+            }
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error updating scheduler loop configuration")
                 << ex;
@@ -1116,7 +1127,7 @@ private:
 
     static void ValidateLoopContext(const TLoopContext& context)
     {
-        if (!context.Config || !context.GlobalResourceAllocator || !context.PodDisruptionBudgetController) {
+        if (!context.Config || !context.GlobalResourceAllocator || !context.PodDisruptionBudgetController || !context.FailedAllocationBackoffPolicy) {
             THROW_ERROR_EXCEPTION("Loop is not configured properly");
         }
     }
