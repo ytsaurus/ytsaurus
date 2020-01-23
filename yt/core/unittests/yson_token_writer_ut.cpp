@@ -1,3 +1,4 @@
+#include <yt/core/test_framework/fixed_growth_string_output.h>
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/core/yson/token_writer.h>
@@ -8,37 +9,6 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSimpleStringOutput
-    : public IZeroCopyOutput
-{
-public:
-    TSimpleStringOutput(TString& s, size_t bufferSize) noexcept
-        : S_(s)
-        , NextBufferSize_(bufferSize)
-    { }
-
-private:
-    size_t DoNext(void** ptr) override
-    {
-        size_t previousSize = S_.size();
-        S_.resize(S_.size() + NextBufferSize_);
-        *ptr = S_.begin() + previousSize;
-        return S_.size() - previousSize;
-    }
-
-    void DoUndo(size_t len) override
-    {
-        EXPECT_LE(len, S_.size());
-        S_.resize(S_.size() - len);
-    }
-
-private:
-    TString& S_;
-    size_t NextBufferSize_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 void IntListTest(EYsonFormat format, size_t stringBufferSize)
 {
     TString out1, out2;
@@ -46,7 +16,7 @@ void IntListTest(EYsonFormat format, size_t stringBufferSize)
     std::vector<ui64> uints = {1ULL << 63, 1, 10, 100, 1000000000000, 0, 1ULL << 31};
 
     {
-        TSimpleStringOutput outStream(out1, stringBufferSize);
+        TFixedGrowthStringOutput outStream(&out1, stringBufferSize);
         TCheckedYsonTokenWriter writer(&outStream);
 
         writer.WriteBeginList();
@@ -110,7 +80,7 @@ TEST(TYsonTokenWriterTest, BinaryString)
 {
     for (size_t bufferSize = 1; bufferSize <= 20; ++bufferSize) {
         TString out;
-        TSimpleStringOutput outStream(out, bufferSize);
+        TFixedGrowthStringOutput outStream(&out, bufferSize);
         TCheckedYsonTokenWriter writer(&outStream);
         writer.WriteBinaryString("Hello, world!");
         writer.Finish();
@@ -123,7 +93,7 @@ TEST(TYsonTokenWriterTest, TextString)
 {
     for (size_t bufferSize = 1; bufferSize <= 20; ++bufferSize) {
         TString out;
-        TSimpleStringOutput outStream(out, bufferSize);
+        TFixedGrowthStringOutput outStream(&out, bufferSize);
         TCheckedYsonTokenWriter writer(&outStream);
         writer.WriteTextString("Hello, world!");
         writer.Finish();
@@ -136,7 +106,7 @@ TEST(TYsonTokenWriterTest, DifferentTypesBinaryMap)
 {
     for (size_t bufferSize = 1; bufferSize <= 20; ++bufferSize) {
         TString out;
-        TSimpleStringOutput outStream(out, bufferSize);
+        TFixedGrowthStringOutput outStream(&out, bufferSize);
         TCheckedYsonTokenWriter writer(&outStream);
 
         writer.WriteBeginAttributes();
@@ -171,7 +141,7 @@ TEST(TYsonTokenWriterTest, DifferentTypesTextMap)
 {
     for (size_t bufferSize = 1; bufferSize <= 20; ++bufferSize) {
         TString out;
-        TSimpleStringOutput outStream(out, bufferSize);
+        TFixedGrowthStringOutput outStream(&out, bufferSize);
         TCheckedYsonTokenWriter writer(&outStream);
 
         writer.WriteBeginAttributes();
@@ -206,7 +176,7 @@ TEST(TYsonTokenWriterTest, WriteRawNodeUnchecked)
 {
     for (size_t bufferSize = 1; bufferSize <= 20; ++bufferSize) {
         TString out;
-        TSimpleStringOutput outStream(out, bufferSize);
+        TFixedGrowthStringOutput outStream(&out, bufferSize);
         TCheckedYsonTokenWriter writer(&outStream);
 
         writer.WriteBeginList();
@@ -221,7 +191,7 @@ TEST(TYsonTokenWriterTest, WriteRawNodeUnchecked)
 
     {
         TString out;
-        TSimpleStringOutput outStream(out, /* bufferSize */ 20);
+        TFixedGrowthStringOutput outStream(&out, /* bufferSize */ 20);
         TCheckedYsonTokenWriter writer(&outStream);
 
         writer.WriteBeginMap();
