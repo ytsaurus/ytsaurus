@@ -1156,6 +1156,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test2", "value2": 150}])
 
     @authors("babenko", "gridem")
+    @flaky(max_runs=5)
     def test_replication_lag(self):
         self._create_cells()
         self._create_replicated_table("//tmp/t", schema=self.AGGREGATE_SCHEMA)
