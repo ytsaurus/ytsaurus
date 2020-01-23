@@ -1210,6 +1210,14 @@ void LogYPath(const TOperationId& opId, const TRichYPath& path, const char* type
         GetGuidAsString(opId).data(), type, path.Path_.data());
 }
 
+TString AddModeToTitleIfDebug(const TString& title) {
+#ifndef NDEBUG
+    return title + " (debug build)";
+#else
+    return title;
+#endif
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1238,7 +1246,7 @@ TOperationId DoExecuteMap(
         operationIo.JobFiles,
         options);
 
-    spec.Title_ = spec.Title_.GetOrElse(map.GetClassName());
+    spec.Title_ = spec.Title_.GetOrElse(AddModeToTitleIfDebug(map.GetClassName()));
 
     TNode specNode = BuildYsonNodeFluently()
     .BeginMap().Item("spec").BeginMap()
@@ -1334,7 +1342,7 @@ TOperationId DoExecuteReduce(
         operationIo.JobFiles,
         options);
 
-    spec.Title_ = spec.Title_.GetOrElse(reduce.GetClassName());
+    spec.Title_ = spec.Title_.GetOrElse(AddModeToTitleIfDebug(reduce.GetClassName()));
 
     TNode specNode = BuildYsonNodeFluently()
     .BeginMap().Item("spec").BeginMap()
@@ -1439,7 +1447,7 @@ TOperationId DoExecuteJoinReduce(
         operationIo.JobFiles,
         options);
 
-    spec.Title_ = spec.Title_.GetOrElse(reduce.GetClassName());
+    spec.Title_ = spec.Title_.GetOrElse(AddModeToTitleIfDebug(reduce.GetClassName()));
 
     TNode specNode = BuildYsonNodeFluently()
     .BeginMap().Item("spec").BeginMap()
@@ -1632,7 +1640,7 @@ TOperationId DoExecuteMapReduce(
             })
         .EndMap()
         .Do([&] (TFluentMap) {
-            spec.Title_ = spec.Title_.GetOrElse(title + "reducer:" + reduce.GetClassName());
+            spec.Title_ = spec.Title_.GetOrElse(AddModeToTitleIfDebug(title + "reducer:" + reduce.GetClassName()));
         })
         .Do(std::bind(BuildCommonOperationPart<T>, spec, options, std::placeholders::_1))
     .EndMap().EndMap();
