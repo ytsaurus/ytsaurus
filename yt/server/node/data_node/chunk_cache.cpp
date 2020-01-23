@@ -376,7 +376,9 @@ public:
         auto blockReadOptions = MakeClientBlockReadOptions();
 
         auto Logger = NLogging::TLogger(DataNodeLogger)
-            .AddTag("Key: %v, ReadSessionId: %v", key, blockReadOptions.ReadSessionId);
+            .AddTag("Key: %v, ReadSessionId: %v",
+                key,
+                blockReadOptions.ReadSessionId);
 
         auto cookie = BeginInsert(key);
         auto cookieValue = cookie.GetValue();
@@ -494,8 +496,16 @@ private:
             return MakeFuture(chunkOrError).As<IChunkPtr>();
         }
 
-        return chunkOrError.Value()->Validate().Apply(BIND(&TImpl::OnChunkValidationFinished,
-            MakeStrong(this), Logger, chunkOrError.Value(), key, options));
+        const auto& chunk = chunkOrError.Value();
+        YT_LOG_INFO("Cached chunk is ready (ChunkId: %v)",
+            chunk->GetId());
+        return chunk->Validate().Apply(BIND(
+            &TImpl::OnChunkValidationFinished,
+            MakeStrong(this),
+            Logger,
+            chunk,
+            key,
+            options));
     }
 
     TFuture<IChunkPtr> OnChunkValidationFinished(
@@ -508,7 +518,8 @@ private:
         if (validationStatus.IsOK()) {
             return MakeFuture(chunk).As<IChunkPtr>();
         } else {
-            YT_LOG_INFO(validationStatus, "Chunk is corrupted, reloading");
+            YT_LOG_INFO(validationStatus, "Chunk is corrupted, reloading (ChunkId: %v)",
+                chunk->GetId());
             TryRemove(chunk);
             return chunk->GetAsyncDestroyResult().Apply(BIND([=] () -> TFuture<IChunkPtr> {
                 return DownloadArtifact(key, options);
@@ -546,11 +557,11 @@ private:
     }
 
     TCachedBlobChunkPtr CreateChunk(
-        TCacheLocationPtr location,
+        const TCacheLocationPtr& location,
         const TArtifactKey& key,
         const TChunkDescriptor& descriptor,
         bool requiresValidation,
-        const NChunkClient::TRefCountedChunkMetaPtr meta = nullptr)
+        const NChunkClient::TRefCountedChunkMetaPtr& meta = nullptr)
     {
         auto chunk = New<TCachedBlobChunk>(
             Bootstrap_,
