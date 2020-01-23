@@ -25,6 +25,7 @@ except ImportError:
 
 import os
 import sys
+import logging
 import pytest
 import tempfile
 import signal
@@ -33,6 +34,7 @@ import time
 import string
 import random
 
+logger = logging.getLogger("Yt.local")
 
 TESTS_LOCATION = os.path.dirname(os.path.abspath(__file__))
 PYTHONPATH = os.path.abspath(os.path.join(TESTS_LOCATION, "../../../"))
@@ -105,6 +107,8 @@ def local_yt(*args, **kwargs):
     try:
         environment = start(*args, enable_debug_logging=True, **kwargs)
         yield environment
+    except:
+        logger.exception("Failed to start local yt")
     finally:
         if environment is not None:
             stop(environment.id)
