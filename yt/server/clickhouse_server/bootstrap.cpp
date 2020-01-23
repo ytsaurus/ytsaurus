@@ -1,5 +1,7 @@
 #include "bootstrap.h"
 
+#include "stack_size_checker.h"
+
 #include "private.h"
 
 #include "host.h"
@@ -97,6 +99,11 @@ void WriteCurrentQueryIdToStderr()
     WriteToStderr(queryId.data, queryId.size);
     WriteToStderr(" ***\n");
 }
+
+/////////////////////////////////////////////////////////////////////////////
+
+// See the comment in stack_size_checker.h.
+auto UnusedValue = IgnoreMe();
 
 /////////////////////////////////////////////////////////////////////////////
 
