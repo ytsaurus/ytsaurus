@@ -13,9 +13,7 @@ class PandasUDFType:
     SCALAR: PandasScalarUDFType
     SCALAR_ITER: PandasScalarIterUDFType
     GROUPED_MAP: PandasGroupedMapUDFType
-    COGROUPED_MAP: PandasCogroupedMapUDFType
     GROUPED_AGG: PandasGroupedAggUDFType
-    MAP_ITER: PandasMapIterUDFType
 
 @overload
 def pandas_udf(f: PandasScalarToScalarFunction, returnType: Union[AtomicDataTypeOrString, ArrayType], functionType: PandasScalarUDFType) -> UserDefinedFunctionLike: ...

@@ -136,8 +136,6 @@ API Coverage
 +------------------------------------------------+---------------------+--------------------+------------+
 | `pyspark.sql.catalog`_                         | ✘                   | ✔                  |            |
 +------------------------------------------------+---------------------+--------------------+------------+
-| `pyspark.sql.cogroup`_                         | ✘                   | ✔                  |            |
-+------------------------------------------------+---------------------+--------------------+------------+
 | `pyspark.sql.column`_                          | ✘                   | ✔                  |            |
 +------------------------------------------------+---------------------+--------------------+------------+
 | `pyspark.sql.conf`_                            | ✘                   | ✔                  |            |
@@ -161,6 +159,8 @@ API Coverage
 | `pyspark.sql.pandas.map\_ops`_                 | ✘                   | ✔                  |            |
 +------------------------------------------------+---------------------+--------------------+------------+
 | `pyspark.sql.pandas.serializers`_              | ✔                   | ✘                  |            |
++------------------------------------------------+---------------------+--------------------+------------+
+| `pyspark.sql.pandas.typehints`_                | ✔                   | ✘                  |            |
 +------------------------------------------------+---------------------+--------------------+------------+
 | `pyspark.sql.pandas.types`_                    | ✔                   | ✘                  |            |
 +------------------------------------------------+---------------------+--------------------+------------+
@@ -273,7 +273,6 @@ API Coverage
 .. _pyspark.sql.avro: ../third_party/3/pyspark/sql/avro/__init__.pyi
 .. _pyspark.sql.avro.functions: ../third_party/3/pyspark/sql/avro/functions.pyi
 .. _pyspark.sql.catalog: ../third_party/3/pyspark/sql/catalog.pyi
-.. _pyspark.sql.cogroup: ../third_party/3/pyspark/sql/cogroup.pyi
 .. _pyspark.sql.column: ../third_party/3/pyspark/sql/column.pyi
 .. _pyspark.sql.conf: ../third_party/3/pyspark/sql/conf.pyi
 .. _pyspark.sql.context: ../third_party/3/pyspark/sql/context.pyi
@@ -284,6 +283,7 @@ API Coverage
 .. _pyspark.sql.pandas.conversion: ../third_party/3/pyspark/sql/pandas/conversion.pyi
 .. _pyspark.sql.pandas.group_ops: ../third_party/3/pyspark/sql/pandas/group_ops.pyi
 .. _pyspark.sql.pandas.map_ops: ../third_party/3/pyspark/sql/pandas/map_ops.pyi
+.. _pyspark.sql.pandas.typehints: ../third_party/3/pyspark/sql/pandas/typehints.pyi
 .. _pyspark.sql.pandas.types: ../third_party/3/pyspark/sql/pandas/types.pyi
 .. _pyspark.sql.pandas.functions: ../third_party/3/pyspark/sql/pandas/functions.pyi
 .. _pyspark.sql.pandas.serializers: ../third_party/3/pyspark/sql/pandas/serializers.pyi

@@ -33,6 +33,7 @@ def f(xs: pandas.core.series.Series) -> Iterable[pandas.core.series.Series]:
 
 [case groupedMapUdf]
 from pyspark.sql.session import SparkSession
+from pyspark.sql.types import StructField, StructType, LongType
 from pyspark.sql.pandas.functions import pandas_udf, PandasUDFType
 import pandas.core.frame  # type: ignore[import]
 
@@ -50,10 +51,18 @@ def g(key, pdf: pandas.core.frame.DataFrame) -> pandas.core.frame.DataFrame:
    return pdf
 
 dfg.apply(g)
+
+
+def h(pdf: pandas.core.frame.DataFrame) -> pandas.core.frame.DataFrame:
+   return pdf
+
+dfg.applyInPandas(h, "id long")
+dfg.applyInPandas(h, StructType([StructField("id", LongType())]))
 [out]
 
 [case groupedAggUDF]
-from pyspark.sql.pandas.functions import pandas_udf, PandasUDFType
+# Let's keep this one to make sure compatibility imports work
+from pyspark.sql.functions import pandas_udf, PandasUDFType
 from pyspark.sql.types import IntegerType
 import pandas.core.series  # type: ignore[import]
 
@@ -76,19 +85,17 @@ pandas_udf(lambda *xs: 42, "str", PandasUDFType.GROUPED_AGG)
 
 
 [case mapIterUdf]
-from pyspark.sql.pandas.functions import pandas_udf, PandasUDFType
 from pyspark.sql.session import SparkSession
 from typing import Iterable
 import pandas.core.frame  # type: ignore[import]
 
 spark = SparkSession.builder.getOrCreate()
 
-@pandas_udf("id long", PandasUDFType.MAP_ITER)
 def f(batch_iter: Iterable[pandas.core.frame.DataFrame]) -> Iterable[pandas.core.frame.DataFrame]:
     for pdf in batch_iter:
         yield pdf[pdf.id == 1]
 
-spark.range(1).mapInPandas(f).show()
+spark.range(1).mapInPandas(f, "id long").show()
 [out]
 
 
@@ -103,29 +110,18 @@ def f(x: str) -> str:
 [out]
 
 [case cogroupedAggUdf]
-# Let's keep this one to make sure compatibility imports work
-from pyspark.sql.functions import pandas_udf, PandasUDFType
 from pyspark.sql.session import SparkSession
 import pandas.core.frame  # type: ignore[import]
+from  pyspark.sql.types import StructType, StructField, LongType
 
 spark = SparkSession.builder.getOrCreate()
 
 dfg1 = spark.range(1).groupBy("id")
 dfg2 = spark.range(1).groupBy("id")
 
-@pandas_udf("id int", PandasUDFType.COGROUPED_MAP)
 def f(x: pandas.core.frame.DataFrame, y: pandas.core.frame.DataFrame) -> pandas.core.frame.DataFrame:
     return x
 
-@pandas_udf("id int", functionType=PandasUDFType.COGROUPED_MAP)
-def g(x: pandas.core.frame.DataFrame, y: pandas.core.frame.DataFrame) -> pandas.core.frame.DataFrame:
-    return x
-
-@pandas_udf(returnType="id int", functionType=PandasUDFType.COGROUPED_MAP)
-def h(x: pandas.core.frame.DataFrame, y: pandas.core.frame.DataFrame) -> pandas.core.frame.DataFrame:
-    return x
-
-dfg1.cogroup(dfg2).apply(f)
-dfg1.cogroup(dfg2).apply(g)
-dfg1.cogroup(dfg2).apply(h)
+dfg1.cogroup(dfg2).applyInPandas(f, "id int")
+dfg1.cogroup(dfg2).applyInPandas(f, StructType([StructField("id", LongType())]))
 [out]
