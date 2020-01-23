@@ -173,6 +173,7 @@ public:
         , SpecTemplate_(Config_->SpecTemplate)
         , MasterConnector_(std::make_unique<TMasterConnector>(Config_, Bootstrap_))
         , OrchidWorkerPool_(New<TThreadPool>(Config_->OrchidWorkerThreadCount, "OrchidWorker"))
+        , FairShareUpdatePool_(New<TThreadPool>(Config_->FairShareUpdateThreadCount, "FSUpdatePool"))
     {
         YT_VERIFY(config);
         YT_VERIFY(bootstrap);
@@ -1206,7 +1207,7 @@ public:
 
     virtual IInvokerPtr GetFairShareUpdateInvoker() const override
     {
-        return FairShareUpdateActionQueue_->GetInvoker();
+        return FairShareUpdatePool_->GetInvoker();
     }
 
     virtual IYsonConsumer* GetEventLogConsumer() override
@@ -1398,7 +1399,7 @@ private:
 
     const TThreadPoolPtr OrchidWorkerPool_;
     const TActionQueuePtr FairShareProfilingActionQueue_ = New<TActionQueue>("FSProfiling");
-    const TActionQueuePtr FairShareUpdateActionQueue_ = New<TActionQueue>("FSUpdate");
+    const TThreadPoolPtr FairShareUpdatePool_;
 
     ISchedulerStrategyPtr Strategy_;
 
