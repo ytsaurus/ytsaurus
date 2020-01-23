@@ -716,6 +716,9 @@ class Selector(object):
         self._service = service
         self._instance_list = instance_list
 
+    def get_text(self):
+        return self._selector_str
+
     def get_cluster(self):
         return self._cluster
 
@@ -1414,8 +1417,8 @@ def subcommand_get_job_log(selector_list, args):
     # Get job ids and operation ids from selector
     job_ids = []
     operation_ids = []
-    for instance_description in args.instance:
-        for guid in extract_guids(instance_description):
+    for selector in selector_list:
+        for guid in extract_guids(selector.get_text()):
             guid_type = object_type_from_uuid(guid)
             if guid_type == JOB_GUID_TYPE:
                 job_ids.append(guid)
