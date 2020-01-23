@@ -181,6 +181,26 @@ DEFINE_REFCOUNTED_TYPE(TSubqueryConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSystemLogConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TString CustomEngine;
+    int FlushIntervalMilliseconds;
+
+    TSystemLogConfig()
+    {
+        RegisterParameter("custom_engine", CustomEngine)
+            .Default("ENGINE = Memory()");
+        RegisterParameter("flush_interval_milliseconds", FlushIntervalMilliseconds)
+            .Default(100);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TSystemLogConfig);
+
+/////////////////////////////////////////////////////////////////////////////
+
 class TEngineConfig
     : public NYTree::TYsonSerializable
 {
@@ -219,6 +239,10 @@ public:
     TSubqueryConfigPtr Subquery;
 
     NYTree::INodePtr CreateTableDefaultAttributes;
+
+    TSystemLogConfigPtr QueryLog;
+    TSystemLogConfigPtr QueryThreadLog;
+    TSystemLogConfigPtr TraceLog;
 
     TEngineConfig()
     {
@@ -262,6 +286,16 @@ public:
                 .BeginMap()
                     .Item("optimize_for").Value("scan")
                 .EndMap());
+
+        RegisterParameter("query_log", QueryLog)
+            .DefaultNew();
+
+        RegisterParameter("query_thread_log", QueryLog)
+            .DefaultNew();
+
+        RegisterParameter("part_log", QueryLog)
+            .DefaultNew();
+
 
         RegisterPreprocessor([&] {
             Settings["max_memory_usage_for_all_queries"] = NYTree::ConvertToNode(9_GB);
