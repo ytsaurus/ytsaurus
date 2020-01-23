@@ -4,7 +4,7 @@ from yt.environment import YTInstance, init_operation_archive, arcadia_interop
 from yt.common import makedirp, YtError, YtResponseError, format_error
 from yt.environment.porto_helpers import porto_avaliable, remove_all_volumes
 from yt.environment.default_configs import get_dynamic_master_config
-from yt.test_helpers import wait
+from yt.test_helpers import wait, WaitFailed
 
 from yt.common import update_inplace
 import yt.logger
@@ -230,7 +230,15 @@ def _wait_for_jobs_to_vanish(driver=None):
                     for node in nodes]
         responses = yt_commands.execute_batch(requests, driver=driver)
         return all(yt_commands.get_batch_output(response).get("scheduler", 0) == 0 for response in responses)
-    wait(check_no_jobs)
+    try:
+        wait(check_no_jobs, iter=300)
+    except WaitFailed:
+        requests = [yt_commands.make_batch_request("list", path="//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler".format(node), return_only_value=True)
+                    for node in nodes]
+        responses = yt_commands.execute_batch(requests, driver=driver)
+        print >>sys.stderr, "There are remaining scheduler jobs:"
+        for node, response in zip(nodes, responses):
+            print >>sys.stderr, "Node {}: {}".format(node, response)
 
 def find_ut_file(file_name):
     if arcadia_interop.yatest_common is not None:
@@ -403,7 +411,7 @@ def _pytest_finalize_func(environment, process, process_call_args):
         what = "terminated by signal {}".format(-process.returncode)
     else:
         what = "exited with code {}".format(process.returncode)
-    
+
     print >>sys.stderr, 'Process run by command "{0}" {1}'.format(" ".join(process_call_args), what)
     environment.stop()
 
