@@ -969,8 +969,6 @@ private:
 
     THashMap<TOperationId, TFairShareStrategyOperationStatePtr> OperationIdToOperationState_;
 
-    TFuture<void> ProfilingCompleted_ = VoidFuture;
-
     using TFairShareTreeMap = THashMap<TString, TFairShareTreePtr>;
     TFairShareTreeMap IdToTree_;
 
