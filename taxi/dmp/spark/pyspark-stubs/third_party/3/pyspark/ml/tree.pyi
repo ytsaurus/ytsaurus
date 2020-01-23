@@ -56,8 +56,10 @@ class _TreeEnsembleParams(_DecisionTreeParams):
 
 class _RandomForestParams(_TreeEnsembleParams):
     numTrees: Param[int]
+    bootstrap: Param[bool]
     def __init__(self) -> None: ...
     def getNumTrees(self) -> int: ...
+    def getBootstrap(self) -> bool: ...
 
 class _GBTParams(_TreeEnsembleParams, HasMaxIter, HasStepSize, HasValidationIndicatorCol):
     stepSize: Param[float]
@@ -70,7 +72,7 @@ class _HasVarianceImpurity(Params):
     def __init__(self) -> None: ...
     def getImpurity(self) -> str: ...
 
-class _TreeClassifierParams:
+class _TreeClassifierParams(Params):
     supportedImpurities: List[str]
     impurity: Param[str]
     def __init__(self) -> None: ...
