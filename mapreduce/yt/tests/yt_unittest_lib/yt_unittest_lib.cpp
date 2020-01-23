@@ -5,6 +5,8 @@
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/interface/client.h>
 
+#include <library/unittest/registar.h>
+
 #include <util/stream/printf.h>
 
 #include <util/system/env.h>
@@ -167,6 +169,23 @@ TTestFixture::TTestFixture(const TCreateClientOptions& options)
     , WorkingDir_(CreateTestDirectory(Client_))
 { }
 
+TTestFixture::~TTestFixture()
+{
+    while (true) {
+        auto result = Client_->ListOperations(
+            TListOperationsOptions()
+                .State("running")
+                .Limit(100));
+        for (const auto& op : result.Operations) {
+            Y_VERIFY(op.Id);
+            Client_->AttachOperation(*op.Id)->AbortOperation();
+        }
+        if (!result.Incomplete) {
+            break;
+        }
+    }
+}
+
 IClientPtr TTestFixture::GetClient() const
 {
     return Client_;
@@ -226,6 +245,20 @@ bool AreSchemasEqual(const TTableSchema& lhs, const TTableSchema& rhs)
         }
     }
     return true;
+}
+
+void WaitForPredicate(const std::function<bool()>& predicate, TDuration timeout)
+{
+    auto deadline = TInstant::Now() + timeout;
+    while (true) {
+        if (predicate()) {
+            return;
+        }
+        if (TInstant::Now() > deadline) {
+            ythrow TWaitFailedException();
+        }
+        ::Sleep(TDuration::MilliSeconds(100));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
