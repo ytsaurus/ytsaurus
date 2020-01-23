@@ -103,6 +103,8 @@ class TestJournals(YTEnvSetup):
 
     @authors("aleksandra-zh")
     def test_truncate_unsealed(self):
+        set("//sys/@config/chunk_manager/enable_chunk_sealer", False, recursive=True)
+
         create("journal", "//tmp/j")
         write_journal("//tmp/j", self.DATA, journal_writer={"ignore_closing": True})
 
@@ -155,8 +157,11 @@ class TestJournals(YTEnvSetup):
 
     @authors("kiselyovp")
     def test_write_future_semantics(self):
+        set("//sys/@config/chunk_manager/enable_chunk_sealer", False, recursive=True)
+
         create("journal", "//tmp/j1")
         write_journal("//tmp/j1", self.DATA, journal_writer={"ignore_closing": True})
+
         assert(read_journal("//tmp/j1") == self.DATA)
 
 ##################################################################
