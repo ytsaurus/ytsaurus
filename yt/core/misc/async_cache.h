@@ -156,7 +156,7 @@ private:
 
     void Trim(NConcurrency::TWriterGuard& guard);
 
-    void EndInsert(TValuePtr value, TInsertCookie* cookie);
+    void EndInsert(TValuePtr value);
     void CancelInsert(const TKey& key, const TError& error);
     void Unregister(const TKey& key);
     i64 PushToYounger(TItem* item);
