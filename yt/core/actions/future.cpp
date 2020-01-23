@@ -124,7 +124,13 @@ void TFutureStateBase::InstallAbandonedError()
     }
 }
 
-void TFutureStateBase::Dispose()
+void TFutureStateBase::OnLastFutureRefLost()
+{
+    ResetValue();
+    UnrefCancelable();
+}
+
+void TFutureStateBase::OnLastPromiseRefLost()
 {
     // Check for fast path.
     if (Set_) {

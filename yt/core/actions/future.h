@@ -43,6 +43,10 @@ void Ref(TPromiseState<T>* state);
 template <class T>
 void Unref(TPromiseState<T>* state);
 
+class TCancelableStateBase;
+void Ref(TCancelableStateBase* state);
+void Unref(TCancelableStateBase* state);
+
 class TFutureStateBase;
 void Ref(TFutureStateBase* state);
 void Unref(TFutureStateBase* state);
@@ -119,6 +123,39 @@ class TFutureBase;
 
 template <class T>
 class TPromiseBase;
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A handle able of canceling some future.
+class TCancelable
+{
+public:
+    //! Creates a null awaitable.
+    TCancelable() = default;
+
+    //! Checks if the awaitable is null.
+    explicit operator bool() const;
+
+    //! Drops underlying associated state resetting the awaitable to null.
+    void Reset();
+
+    //! Notifies the producer that the promised value is no longer needed.
+    //! Returns |true| if succeeded, |false| is the promise was already set or canceled.
+    bool Cancel(const TError& error) const;
+
+private:
+    explicit TCancelable(TIntrusivePtr<NYT::NDetail::TCancelableStateBase> impl);
+
+    TIntrusivePtr<NYT::NDetail::TCancelableStateBase> Impl_;
+
+    friend bool operator==(const TCancelable& lhs, const TCancelable& rhs);
+    friend bool operator!=(const TCancelable& lhs, const TCancelable& rhs);
+    friend void swap(TCancelable& lhs, TCancelable& rhs);
+    template <class U>
+    friend struct ::THash;
+    template <class U>
+    friend class TFutureBase;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -273,6 +310,9 @@ public:
     //! Converts (successful) result to |U|; propagates errors as is.
     template <class U>
     TFuture<U> As() const;
+
+    //! Converts to TCancelable interface.
+    TCancelable AsCancelable() const;
 
     //! Converts to TAwaitable interface.
     TAwaitable AsAwaitable() const;
