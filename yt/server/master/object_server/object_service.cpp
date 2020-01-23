@@ -1361,6 +1361,8 @@ private:
             const auto& objectManager = Bootstrap_->GetObjectManager();
             auto rootService = objectManager->GetRootService();
             ExecuteVerb(rootService, context);
+
+            WaitForSubresponse(subrequest);
         } catch (const TLeaderFallbackException&) {
             ForwardSubrequestToLeader(subrequest);
         }
@@ -1369,8 +1371,6 @@ private:
         if (!EpochCancelableContext_->IsCanceled()) {
             securityManager->ChargeUser(User_, {EUserWorkloadType::Read, 1, timer.GetElapsedTime()});
         }
-
-        WaitForSubresponse(subrequest);
     }
 
     void OnMutationCommitted(TSubrequest* subrequest, const TErrorOr<TMutationResponse>& responseOrError)
