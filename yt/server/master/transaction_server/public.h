@@ -21,7 +21,7 @@ using TRspRegisterTransactionActions = NTransactionClient::NProto::TRspRegisterT
 DECLARE_REFCOUNTED_CLASS(TTransactionManager)
 DECLARE_REFCOUNTED_CLASS(TDynamicTransactionManagerConfig)
 
-DECLARE_ENTITY_TYPE(TTransaction, TTransactionId, NObjectClient::TDirectObjectIdHash)
+DECLARE_ENTITY_TYPE(TTransaction, TTransactionId, ::THash<TTransactionId>)
 
 ////////////////////////////////////////////////////////////////////////////////
 
