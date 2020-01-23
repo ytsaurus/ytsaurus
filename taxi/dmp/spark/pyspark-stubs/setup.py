@@ -24,7 +24,7 @@ def list_packages(src_path=src_path):
 setup(
     name='pyspark-stubs',
     package_dir={'': src_path},
-    version='3.0.0.dev5',
+    version='3.0.0.dev6',
     description='A collection of the Apache Spark stub files',
     long_description=(open('README.rst').read() if os.path.exists('README.rst')
                         else ''),
