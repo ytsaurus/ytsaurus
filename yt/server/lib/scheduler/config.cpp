@@ -455,6 +455,10 @@ TSchedulerConfig::TSchedulerConfig()
         .Default(4)
         .GreaterThan(0);
 
+    RegisterParameter("fair_share_update_thread_count", FairShareUpdateThreadCount)
+        .Default(4)
+        .GreaterThan(0);
+
     RegisterParameter("handle_node_id_changes_strictly", HandleNodeIdChangesStrictly)
         .Default(true);
 
