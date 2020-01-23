@@ -651,7 +651,9 @@ TFuture<void> TCachedBlobChunk::Validate()
             .Run());
     }
 
-    return ValidationResult_.ToFuture();
+    return ValidationResult_
+        .ToFuture()
+        .ToUncancelable();
 }
 
 void TCachedBlobChunk::DoValidate()
