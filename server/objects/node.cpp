@@ -1,9 +1,13 @@
 #include "node.h"
+
+#include "db_schema.h"
+#include "helpers.h"
 #include "pod.h"
 #include "resource.h"
-#include "db_schema.h"
 
 namespace NYP::NServer::NObjects {
+
+using NClient::NApi::NProto::TMaintenanceInfo;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -92,41 +96,124 @@ TResource* TNode::GetCpuResourceOrThrow()
         GetId());
 }
 
-void TNode::UpdateHfsmStatus(EHfsmState state, const TString& message)
+////////////////////////////////////////////////////////////////////////////////
+
+void TNode::UpdateHfsmStatus(
+    EHfsmState state,
+    const TString& message,
+    std::optional<TMaintenanceInfo> maintenanceInfo)
 {
+    if (state == EHfsmState::PrepareMaintenance) {
+        if (!maintenanceInfo.has_value()) {
+            THROW_ERROR_EXCEPTION("Maintenance info for HFSM state %Qv of node %Qv must be specified",
+                state,
+                GetId());
+        }
+    } else {
+        if (maintenanceInfo.has_value()) {
+            THROW_ERROR_EXCEPTION("Maintenance info for HFSM state %Qv of node %Qv cannot be specified",
+                state,
+                GetId());
+        }
+    }
+
     auto* hfsm = Status().Etc()->mutable_hfsm();
     hfsm->set_state(static_cast<NClient::NApi::NProto::EHfsmState>(state));
     hfsm->set_message(message);
     hfsm->set_last_updated(TInstant::Now().MicroSeconds());
 
-    auto* maintenance = Status().Etc()->mutable_maintenance();
-    auto maintenanceState = static_cast<ENodeMaintenanceState>(maintenance->state());
-    if (state == EHfsmState::PrepareMaintenance && maintenanceState != ENodeMaintenanceState::Requested) {
-        UpdateMaintenanceStatus(
-            ENodeMaintenanceState::Requested,
-            Format("Maintenance requested by HFSM transition to %Qlv state",  state));
-    }
-    if (state == EHfsmState::Maintenance && maintenanceState != ENodeMaintenanceState::InProgress) {
-        UpdateMaintenanceStatus(
-            ENodeMaintenanceState::InProgress,
-            Format("Maintenance is in progress due to HFSM transition to %Qlv state", state));
-    }
-    if (state != EHfsmState::PrepareMaintenance && state != EHfsmState::Maintenance && maintenanceState != ENodeMaintenanceState::None) {
-        UpdateMaintenanceStatus(
-            ENodeMaintenanceState::None,
-            Format("Maintenance status reset due to HFSM transition to %Qlv state", state));
+    const auto& oldMaintenance = Status().Etc().Load().maintenance();
+    auto oldMaintenanceState = static_cast<ENodeMaintenanceState>(oldMaintenance.state());
+    if (state == EHfsmState::PrepareMaintenance) {
+        YT_VERIFY(maintenanceInfo);
+        if (oldMaintenanceState != ENodeMaintenanceState::Requested || maintenanceInfo->uuid() != oldMaintenance.info().uuid()) {
+            UpdateMaintenanceStatus(
+                ENodeMaintenanceState::Requested,
+                Format("Maintenance requested by HFSM transition to %Qlv state", state),
+                std::move(*maintenanceInfo));
+        }
+    } else if (state == EHfsmState::Maintenance) {
+        YT_VERIFY(!maintenanceInfo);
+        if (oldMaintenanceState != ENodeMaintenanceState::InProgress) {
+            UpdateMaintenanceStatus(
+                ENodeMaintenanceState::InProgress,
+                Format("Maintenance is in progress due to HFSM transition to %Qlv state", state),
+                TGenericPreserveUpdate());
+        }
+    } else {
+        YT_VERIFY(!maintenanceInfo);
+        if (oldMaintenanceState != ENodeMaintenanceState::None) {
+            UpdateMaintenanceStatus(
+                ENodeMaintenanceState::None,
+                Format("Maintenance status reset due to HFSM transition to %Qlv state", state),
+                TGenericClearUpdate());
+        }
     }
 }
 
-void TNode::UpdateMaintenanceStatus(ENodeMaintenanceState state, const TString& message)
+////////////////////////////////////////////////////////////////////////////////
+
+void TNode::UpdateMaintenanceStatus(
+    ENodeMaintenanceState state,
+    const TString& message,
+    TGenericUpdate<TMaintenanceInfo> infoUpdate)
 {
-    auto* maintenance = Status().Etc()->mutable_maintenance();
+    auto* maintenance = Status().Etc().Get()->mutable_maintenance();
+
     maintenance->set_state(static_cast<NClient::NApi::NProto::ENodeMaintenanceState>(state));
     maintenance->set_message(message);
     maintenance->set_last_updated(TInstant::Now().MicroSeconds());
+
+    Visit(infoUpdate,
+        [&] (TGenericPreserveUpdate /* preserve */) {
+        },
+        [&] (TGenericClearUpdate /* clear */) {
+            maintenance->clear_info();
+        },
+        [&] (TMaintenanceInfo& info) {
+            if (info.uuid()) {
+                THROW_ERROR_EXCEPTION("Maintenance uuid cannot be specified");
+            }
+            info.set_uuid(GenerateUuid());
+            info.set_id(GenerateId(info.id()));
+
+            maintenance->mutable_info()->Swap(&info);
+        });
+}
+
+void TNode::RemoveAlert(
+    const TObjectId& uuid)
+{
+    if (!uuid) {
+        THROW_ERROR_EXCEPTION("Alert uuid must be specified");
+    }
+    auto* alerts = Status().Etc().Get()->mutable_alerts();
+    for (int i = 0; i < alerts->size(); ++i) {
+        if (alerts->Get(i).uuid() == uuid) {
+            alerts->DeleteSubrange(i, 1);
+            return;
+        }
+    }
+    THROW_ERROR_EXCEPTION("Could not remove missing alert with uuid %v",
+        uuid);
+}
+
+void TNode::AddAlert(
+    const TString& type,
+    const TString& description)
+{
+    if (!type) {
+        THROW_ERROR_EXCEPTION("Alert type must be specified");
+    }
+    auto* alert = Status().Etc().Get()->mutable_alerts()->Add();
+    alert->set_type(type);
+    alert->set_uuid(GenerateUuid());
+    auto now = TInstant::Now();
+    alert->mutable_creation_time()->set_seconds(now.Seconds());
+    alert->mutable_creation_time()->set_nanos(now.NanoSecondsOfSecond());
+    alert->set_description(description);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYP::NServer::NObjects
-

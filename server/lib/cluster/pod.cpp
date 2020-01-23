@@ -67,7 +67,9 @@ TPod::TPod(
     TString nodeFilter,
     bool enableScheduling,
     NClient::NApi::NProto::TPodStatus_TEviction eviction,
-    NYT::NProto::TError schedulingError)
+    NYT::NProto::TError schedulingError,
+    const NObjects::TNodeAlerts& nodeAlerts,
+    NClient::NApi::NProto::TPodStatus_TMaintenance maintenance)
     : TObject(std::move(id), std::move(labels))
     , PodSetId_(std::move(podSetId))
     , NodeId_(std::move(nodeId))
@@ -82,6 +84,8 @@ TPod::TPod(
     , EnableScheduling_(enableScheduling)
     , Eviction_(std::move(eviction))
     , SchedulingError_(std::move(schedulingError))
+    , NodeAlerts_(nodeAlerts)
+    , Maintenance_(std::move(maintenance))
     , AntiaffinityGroupIdsOrError_(TError("Uninitialized pod antiaffinity group ids"))
 { }
 

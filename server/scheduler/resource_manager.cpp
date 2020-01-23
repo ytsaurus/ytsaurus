@@ -202,6 +202,13 @@ private:
 
             pod->ResetAgentStatus();
 
+            pod->UpdateMaintenanceStatus(
+                EPodMaintenanceState::None,
+                "Maintenance state reset due to pod assignment change",
+                /* infoUpdate */ TGenericClearUpdate());
+
+            pod->Status().Etc()->clear_node_alerts();
+
             // NB! Overwrite eviction status even if there is no actual eviction
             // to prevent concurrent pod assignment / eviction status changes.
             pod->UpdateEvictionStatus(

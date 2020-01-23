@@ -11,6 +11,8 @@
 
 #include <yt/core/misc/guid.h>
 
+#include <variant>
+
 namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -198,6 +200,20 @@ extern const TObjectId EveryoneSubjectId;
 
 // Built-in pool of ip4 addresses .
 extern const TObjectId DefaultIP4AddressPoolId;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TGenericClearUpdate
+{ };
+
+struct TGenericPreserveUpdate
+{ };
+
+template <class TValue>
+using TGenericUpdate = std::variant<
+    TGenericClearUpdate,
+    TGenericPreserveUpdate,
+    TValue>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

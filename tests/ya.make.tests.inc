@@ -37,6 +37,7 @@ SET(YP_TEST_SRCS
     test_ip4_address_pool.py
     test_labels.py
     test_local_cli.py
+    test_maintenance.py
     test_multi_cluster_replica_sets.py
     test_net.py
     test_network_projects.py

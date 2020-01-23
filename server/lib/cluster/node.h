@@ -114,17 +114,22 @@ public:
         TObjectId id,
         NYT::NYson::TYsonString labels,
         NObjects::EHfsmState hfsmState,
-        NObjects::ENodeMaintenanceState maintenanceState,
         bool hasUnknownPods,
+        const NObjects::TNodeAlerts& alerts,
+        NClient::NApi::NProto::TNodeStatus_TMaintenance maintenance,
         NClient::NApi::NProto::TNodeSpec spec);
 
+    // Status.
     DEFINE_BYVAL_RO_PROPERTY(NObjects::EHfsmState, HfsmState);
-    DEFINE_BYVAL_RO_PROPERTY(NObjects::ENodeMaintenanceState, MaintenanceState);
     DEFINE_BYVAL_RO_PROPERTY(bool, HasUnknownPods);
+    DEFINE_BYREF_RO_PROPERTY(NObjects::TNodeAlerts, Alerts);
+    DEFINE_BYREF_RO_PROPERTY(NClient::NApi::NProto::TNodeStatus_TMaintenance, Maintenance);
+
+    // Spec.
     DEFINE_BYREF_RO_PROPERTY(NClient::NApi::NProto::TNodeSpec, Spec);
 
     DEFINE_BYREF_RW_PROPERTY(std::vector<TTopologyZone*>, TopologyZones);
-    DEFINE_BYREF_RW_PROPERTY(THashSet<TPod*>, SchedulablePods);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<TPod*>, Pods);
     DEFINE_BYVAL_RW_PROPERTY(TNetworkModule*, NetworkModule);
 
     DEFINE_BYREF_RW_PROPERTY(THomogeneousResource, CpuResource);

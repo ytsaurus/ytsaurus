@@ -157,6 +157,11 @@ public:
         const TObjectId& nodeId = TObjectId());
 
     void ResetAgentStatus();
+
+    void UpdateMaintenanceStatus(
+        EPodMaintenanceState state,
+        const TString& message,
+        TGenericUpdate<NClient::NApi::NProto::TMaintenanceInfo> infoUpdate);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

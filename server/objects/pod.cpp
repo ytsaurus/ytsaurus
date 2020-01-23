@@ -247,6 +247,30 @@ void TPod::ResetAgentStatus()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TPod::UpdateMaintenanceStatus(
+    EPodMaintenanceState state,
+    const TString& message,
+    TGenericUpdate<NClient::NApi::NProto::TMaintenanceInfo> infoUpdate)
+{
+    auto* maintenance = Status().Etc().Get()->mutable_maintenance();
+
+    maintenance->set_state(static_cast<NClient::NApi::NProto::EPodMaintenanceState>(state));
+    maintenance->set_last_updated(ToProto<ui64>(TInstant::Now()));
+    maintenance->set_message(message);
+
+    Visit(infoUpdate,
+        [&] (TGenericPreserveUpdate /* preserve */) {
+        },
+        [&] (TGenericClearUpdate /* clear */) {
+            maintenance->clear_info();
+        },
+        [&] (NClient::NApi::NProto::TMaintenanceInfo& info) {
+            maintenance->mutable_info()->Swap(&info);
+        });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 // Cf. YP-626
 bool IsUnsafePortoIssSpec(const NClient::NApi::NClusterApiProto::HostConfiguration& issSpec)
 {

@@ -299,8 +299,9 @@ std::unique_ptr<TNode> TClusterReader::ParseObjectFromRow<TNode>(
         std::move(nodeId),
         std::move(labels),
         static_cast<NObjects::EHfsmState>(statusEtc.hfsm().state()),
-        static_cast<NObjects::ENodeMaintenanceState>(statusEtc.maintenance().state()),
         statusEtc.unknown_pod_ids_size(),
+        statusEtc.alerts(),
+        std::move(*statusEtc.mutable_maintenance()),
         std::move(spec));
 }
 
@@ -533,7 +534,9 @@ std::unique_ptr<TPod> TClusterReader::ParseObjectFromRow<TPod>(
         std::move(*specEtc.mutable_node_filter()),
         enableScheduling,
         std::move(*statusEtc.mutable_eviction()),
-        std::move(*statusSchedulingEtc.mutable_error()));
+        std::move(*statusSchedulingEtc.mutable_error()),
+        statusEtc.node_alerts(),
+        std::move(*statusEtc.mutable_maintenance()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

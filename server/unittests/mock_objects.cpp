@@ -45,7 +45,9 @@ std::unique_ptr<TPod> CreateMockPod(ui64 cpuCapacity, ui64 memoryCapacity)
         /* node filter */ TString(),
         /* enable scheduling */ true,
         NClient::NApi::NProto::TPodStatus_TEviction(),
-        NYT::NProto::TError());
+        NYT::NProto::TError(),
+        NObjects::TNodeAlerts(),
+        NClient::NApi::NProto::TPodStatus_TMaintenance());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -58,8 +60,9 @@ std::unique_ptr<TNode> CreateMockNode(
         GenerateUniqueId(),
         /* labels */ NYT::NYson::TYsonString(),
         NServer::NObjects::EHfsmState::Unknown,
-        NServer::NObjects::ENodeMaintenanceState::None,
         /* hasUnknownPods */ false,
+        NObjects::TNodeAlerts(),
+        NClient::NApi::NProto::TNodeStatus_TMaintenance(),
         NClient::NApi::NProto::TNodeSpec());
 
     node->CpuResource() = cpuResource;

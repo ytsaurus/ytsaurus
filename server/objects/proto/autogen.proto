@@ -34,6 +34,7 @@ message TNodeStatusEtc
     string agent_version = 8;
     NYP.NClient.NApi.NProto.TNodeStatus.THfsm hfsm = 5;
     NYP.NClient.NApi.NProto.TNodeStatus.TMaintenance maintenance = 6;
+    repeated NYP.NClient.NApi.NProto.TNodeAlert alerts = 12;
     repeated string unknown_pod_ids = 7;
 }
 
@@ -67,6 +68,8 @@ message TPodStatusEtc
     repeated NYP.NClient.NApi.NProto.TPodStatus.TGpuAllocation gpu_allocations = 16;
     NYP.NClient.NApi.NProto.TPodStatus.TDns dns = 7;
     NYP.NClient.NApi.NProto.TPodStatus.TEviction eviction = 8;
+    NYP.NClient.NApi.NProto.TPodStatus.TMaintenance maintenance = 17;
+    repeated NYP.NClient.NApi.NProto.TNodeAlert node_alerts = 18;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

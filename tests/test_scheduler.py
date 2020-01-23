@@ -389,42 +389,6 @@ class TestScheduler(object):
         self._wait_for_pod_assignment(yp_env)
         assert all(x[0] == up_node_id for x in yp_client.select_objects("pod", selectors=["/status/scheduling/node_id"]))
 
-    def test_node_maintenance(self, yp_env):
-        yp_client = yp_env.yp_client
-
-        node_ids = create_nodes(yp_client, 1)
-        node_id = node_ids[0]
-
-        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": DEFAULT_POD_SET_SPEC})
-        pod_ids = []
-        for _ in xrange(10):
-            pod_ids.append(create_pod_with_boilerplate(yp_client, pod_set_id, {
-                "enable_scheduling": True
-            }))
-
-        self._wait_for_pod_assignment(yp_env)
-        assert all(x[0] == node_id for x in yp_client.select_objects("pod", selectors=["/status/scheduling/node_id"]))
-        assert all(x[0] == "none" for x in yp_client.select_objects("pod", selectors=["/status/eviction/state"]))
-
-        yp_client.update_hfsm_state(node_id, "prepare_maintenance", "Test")
-        assert yp_client.get_object("node", node_id, selectors=["/status/maintenance/state"])[0] == "requested"
-
-        wait(lambda: all(x[0] == "requested" for x in yp_client.select_objects("pod", selectors=["/status/eviction/state"])))
-
-        for pod_id in pod_ids:
-            yp_client.acknowledge_pod_eviction(pod_id, "Test")
-
-        wait(lambda: all(x[0] == "" for x in yp_client.select_objects("pod", selectors=["/status/scheduling/node_id"])))
-        assert all(x[0] == "none" for x in yp_client.select_objects("pod", selectors=["/status/eviction/state"]))
-
-        wait(lambda: yp_client.get_object("node", node_id, selectors=["/status/maintenance/state"])[0] == "acknowledged")
-
-        yp_client.update_hfsm_state(node_id, "maintenance", "Test")
-        assert yp_client.get_object("node", node_id, selectors=["/status/maintenance/state"])[0] == "in_progress"
-
-        yp_client.update_hfsm_state(node_id, "down", "Test")
-        assert yp_client.get_object("node", node_id, selectors=["/status/maintenance/state"])[0] == "none"
-
     def test_node_segments(self, yp_env):
         yp_client = yp_env.yp_client
 

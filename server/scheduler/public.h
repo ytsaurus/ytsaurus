@@ -50,14 +50,14 @@ using TPodNodeScoreValue = double;
 using TNodeScoreValue = int;
 
 DEFINE_ENUM(ESchedulerLoopStage,
-    (UpdateNodeSegmentsStatus)
-    (UpdateAccountsStatus)
-    (RunPodDisruptionBudgetController)
-    (RunPodEvictionByHfsmController)
-    (RevokePodsWithAcknowledgedEviction)
-    (RemoveOrphanedAllocations)
     (AcknowledgeNodeMaintenance)
+    (RemoveOrphanedAllocations)
+    (RevokePodsWithAcknowledgedEviction)
+    (RunPodDisruptionBudgetController)
+    (RunPodMaintenanceController)
     (SchedulePods)
+    (UpdateAccountsStatus)
+    (UpdateNodeSegmentsStatus)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

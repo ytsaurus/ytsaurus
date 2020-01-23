@@ -36,7 +36,9 @@ public:
         TString nodeFilter,
         bool enableScheduling,
         NClient::NApi::NProto::TPodStatus_TEviction eviction,
-        NYT::NProto::TError schedulingError);
+        NYT::NProto::TError schedulingError,
+        const NObjects::TNodeAlerts& nodeAlerts,
+        NClient::NApi::NProto::TPodStatus_TMaintenance maintenance);
 
     DEFINE_BYREF_RO_PROPERTY(TObjectId, PodSetId);
     DEFINE_BYREF_RO_PROPERTY(TObjectId, NodeId);
@@ -57,6 +59,8 @@ public:
     // Status.
     DEFINE_BYREF_RO_PROPERTY(NClient::NApi::NProto::TPodStatus_TEviction, Eviction);
     DEFINE_BYREF_RO_PROPERTY(NYT::NProto::TError, SchedulingError);
+    DEFINE_BYREF_RO_PROPERTY(NObjects::TNodeAlerts, NodeAlerts);
+    DEFINE_BYREF_RO_PROPERTY(NClient::NApi::NProto::TPodStatus_TMaintenance, Maintenance);
 
     DEFINE_BYVAL_RW_PROPERTY(TPodSet*, PodSet);
     DEFINE_BYVAL_RW_PROPERTY(TNode*, Node);

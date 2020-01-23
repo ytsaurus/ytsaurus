@@ -3,8 +3,6 @@
 #include "attribute_schema.h"
 #include "db_schema.h"
 #include "group.h"
-#include "node.h"
-#include "pod.h"
 #include "transaction.h"
 #include "type_handler.h"
 #include "user.h"
@@ -516,9 +514,18 @@ TString GetObjectDisplayName(const TObject* object)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TObjectId GenerateUuid()
+TObjectId GenerateId(const TObjectId& id)
 {
-    return ToString(TGuid::Create());
+    if (id) {
+        return id;
+    }
+
+    TStringBuilder builder;
+    static const TString AvailableChars = "0123456789abcdefghijklmnopqrstuvwxyz";
+    for (int index = 0; index < 16; ++index) {
+        builder.AppendChar(AvailableChars[RandomNumber<size_t>(AvailableChars.size())]);
+    }
+    return builder.Flush();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -25,6 +25,8 @@ public:
 
     std::vector<TPod*> GetSchedulablePods();
     TPod* FindSchedulablePod(const TObjectId& id);
+
+    std::vector<TPod*> GetPods();
     TPod* FindPod(const TObjectId& id);
 
     std::vector<TResource*> GetResources();

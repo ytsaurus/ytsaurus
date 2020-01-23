@@ -70,12 +70,24 @@ public:
     using TPods = TOneToManyAttribute<TNode, TPod>;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TPods, Pods);
 
+    // Hfsm.
     void UpdateHfsmStatus(
         EHfsmState state,
-        const TString& message);
+        const TString& message,
+        std::optional<NClient::NApi::NProto::TMaintenanceInfo> maintenanceInfo);
+
+    // Maintenance.
     void UpdateMaintenanceStatus(
         ENodeMaintenanceState state,
-        const TString& message);
+        const TString& message,
+        TGenericUpdate<NClient::NApi::NProto::TMaintenanceInfo> infoUpdate);
+
+    // Alerts.
+    void RemoveAlert(
+        const TObjectId& uuid);
+    void AddAlert(
+        const TString& type,
+        const TString& description);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

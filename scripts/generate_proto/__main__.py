@@ -86,6 +86,8 @@ def print_field(field):
         field_type = "uint32"
     elif field.type == protobuf_descriptor_pb2.FieldDescriptorProto.TYPE_UINT64:
         field_type = "uint64"
+    elif field.type == protobuf_descriptor_pb2.FieldDescriptorProto.TYPE_BOOL:
+        field_type = "bool"
     else:
         raise Exception("Unknown type {}".format(field.type))
 

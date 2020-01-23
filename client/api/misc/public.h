@@ -8,6 +8,8 @@ namespace NYP::NClient::NApi {
 
 namespace NProto {
 
+class TNodeAlert;
+
 class TPodSpec;
 class TPodSpec_TResourceRequests;
 class TPodSpec_TDiskVolumeRequest;

@@ -13,6 +13,9 @@ namespace NYP::NServer::NObjects {
 
 using TPodResourceRequests = NClient::NApi::NProto::TPodSpec_TResourceRequests;
 
+using TNodeAlerts = ::google::protobuf::RepeatedPtrField<
+    NClient::NApi::NProto::TNodeAlert>;
+
 using TPodDiskVolumeRequests = ::google::protobuf::RepeatedPtrField<
     NClient::NApi::NProto::TPodSpec_TDiskVolumeRequest>;
 
@@ -40,6 +43,13 @@ DEFINE_ENUM(ENodeMaintenanceState,
     ((InProgress)        (300))
 );
 
+DEFINE_ENUM(EPodMaintenanceState,
+    ((None)              (  0))
+    ((Requested)         (100))
+    ((Acknowledged)      (200))
+    ((InProgress)        (300))
+);
+
 DEFINE_STRING_SERIALIZABLE_ENUM(EResourceKind,
     ((Undefined)      (-1))
     ((Cpu)             (0))
@@ -61,6 +71,10 @@ constexpr int TypicalGpuResourceCountPerNode = 16;
 
 using NYT::NTransactionClient::TTimestamp;
 using NYT::NTransactionClient::NullTimestamp;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TObjectId GenerateUuid();
 
 ////////////////////////////////////////////////////////////////////////////////
 

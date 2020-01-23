@@ -64,7 +64,13 @@ public:
         ControlAttributeSchema_
             ->AddChildren({
                 MakeAttributeSchema("update_hfsm_state")
-                    ->SetControl<TNode, NClient::NApi::NProto::TNodeControl_TUpdateHfsmState>(std::bind(&TNodeTypeHandler::UpdateHfsmState, _1, _2, _3))
+                    ->SetControl<TNode, NClient::NApi::NProto::TNodeControl_TUpdateHfsmState>(std::bind(&TNodeTypeHandler::UpdateHfsmState, _1, _2, _3)),
+
+                MakeAttributeSchema("remove_alert")
+                    ->SetControl<TNode, NClient::NApi::NProto::TNodeControl_TRemoveAlert>(std::bind(&TNodeTypeHandler::RemoveAlert, _1, _2, _3)),
+
+                MakeAttributeSchema("add_alert")
+                    ->SetControl<TNode, NClient::NApi::NProto::TNodeControl_TAddAlert>(std::bind(&TNodeTypeHandler::AddAlert, _1, _2, _3))
             });
     }
 
@@ -99,8 +105,14 @@ public:
         TObjectTypeHandlerBase::BeforeObjectCreated(transaction, object);
 
         auto* node = object->As<TNode>();
-        node->UpdateHfsmStatus(EHfsmState::Initial, "Node created");
-        node->UpdateMaintenanceStatus(ENodeMaintenanceState::None, "Node created");
+        node->UpdateHfsmStatus(
+            EHfsmState::Initial,
+            "Node created",
+            /* maintenanceInfo */ std::nullopt);
+        node->UpdateMaintenanceStatus(
+            ENodeMaintenanceState::None,
+            "Node created",
+            /* infoUpdate */ TGenericClearUpdate());
     }
 
     virtual void BeforeObjectRemoved(
@@ -156,18 +168,50 @@ private:
         TNode* node,
         const NClient::NApi::NProto::TNodeControl_TUpdateHfsmState& control)
     {
-        auto state = static_cast<EHfsmState>(control.state());
+        auto state = CheckedEnumCast<EHfsmState>(control.state());
         auto message = control.message();
         if (!message) {
-            message = "State updated by client";
+            message = "State updated by the client";
+        }
+        std::optional<NClient::NApi::NProto::TMaintenanceInfo> maintenanceInfo;
+        if (control.has_maintenance_info() || state == EHfsmState::PrepareMaintenance) {
+            maintenanceInfo.emplace().CopyFrom(control.maintenance_info());
         }
 
-        YT_LOG_DEBUG("Updating node HFSM state (NodeId: %v, State: %v, Message: %v)",
+        YT_LOG_DEBUG("Updating node HFSM state (NodeId: %v, State: %v, Message: %Qv, MaintenanceInfo: %v)",
             node->GetId(),
             state,
-            message);
+            message,
+            maintenanceInfo);
 
-        node->UpdateHfsmStatus(state, message);
+        node->UpdateHfsmStatus(
+            state,
+            message,
+            std::move(maintenanceInfo));
+    }
+
+    static void RemoveAlert(
+        TTransaction* /*transaction*/,
+        TNode* node,
+        const NClient::NApi::NProto::TNodeControl_TRemoveAlert& control)
+    {
+        YT_LOG_DEBUG("Removing node alert (NodeId: %v, Uuid: %v, Message: %Qv)",
+            node->GetId(),
+            control.uuid(),
+            control.message());
+        node->RemoveAlert(control.uuid());
+    }
+
+    static void AddAlert(
+        TTransaction* /*transaction*/,
+        TNode* node,
+        const NClient::NApi::NProto::TNodeControl_TAddAlert& control)
+    {
+        YT_LOG_DEBUG("Adding node alert (NodeId: %v, Type: %v, Description: %Qv)",
+            node->GetId(),
+            control.type(),
+            control.description());
+        node->AddAlert(control.type(), control.description());
     }
 };
 

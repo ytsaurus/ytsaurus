@@ -1,5 +1,4 @@
 from .conftest import (
-    check_over_time,
     create_nodes,
     create_pod_with_boilerplate,
     get_pod_scheduling_status,
@@ -36,59 +35,6 @@ def prepare_objects(yp_client):
     pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, dict(enable_scheduling=True))
     wait_for_pod_assignment(yp_client, pod_id)
     return node_id, pod_set_id, pod_id
-
-
-@pytest.mark.usefixtures("yp_env_configurable")
-class TestEvictionByHfsmController(object):
-    # Choosing a pretty small period to optimize tests duration.
-    SCHEDULER_LOOP_PERIOD_MILLISECONDS = 1 * 1000
-
-    YP_MASTER_CONFIG = dict(
-        scheduler=dict(
-            loop_period=SCHEDULER_LOOP_PERIOD_MILLISECONDS,
-        )
-    )
-
-    def test_abort_requested_eviction_at_up_nodes(self, yp_env_configurable):
-        yp_client = yp_env_configurable.yp_client
-        node_id, _, pod_id = prepare_objects(yp_client)
-        yp_client.update_hfsm_state(node_id, "prepare_maintenance", "Test")
-        wait(lambda: get_pod_eviction_state(yp_client, pod_id) == "requested")
-        yp_client.update_hfsm_state(node_id, "up", "Test")
-        wait(lambda: get_pod_eviction_state(yp_client, pod_id) == "none")
-
-    def test_scheduler_disable_stage_reconfiguration(self, yp_env_configurable):
-        yp_client = yp_env_configurable.yp_client
-
-        node_id, _, pod_id = prepare_objects(yp_client)
-
-        def is_controller_disabled():
-            yp_client.update_hfsm_state(node_id, "prepare_maintenance", "Test")
-            result = check_over_time(
-                lambda: get_pod_eviction_state(yp_client, pod_id) == "none",
-                iter=20,
-                sleep_backoff=1,
-            )
-            if not result:
-                # Rollback.
-                assert get_pod_eviction_state(yp_client, pod_id) == "requested"
-                transaction_id = yp_client.start_transaction()
-                yp_client.update_hfsm_state(node_id, "up", "Test", transaction_id=transaction_id)
-                yp_client.abort_pod_eviction(pod_id, "Test", transaction_id=transaction_id)
-                yp_client.commit_transaction(transaction_id)
-            return result
-
-        # Test that pod-eviction-by-hfsm controller works fine.
-        assert not is_controller_disabled()
-
-        yp_env_configurable.set_cypress_config_patch(dict(scheduler=dict(disable_stage=dict(
-            run_pod_eviction_by_hfsm_controller=True,
-        ))))
-
-        wait(is_controller_disabled, iter=5, sleep_backoff=10)
-
-        # Sanity check.
-        assert get_pod_scheduling_status(yp_client, pod_id)["node_id"] == node_id
 
 
 @pytest.mark.usefixtures("yp_env_configurable")
@@ -304,6 +250,39 @@ class TestEviction(object):
                 reason="abracadabra",
             )
 
+    def test_evict(self, yp_env_configurable):
+        yp_client = yp_env_configurable.yp_client
+
+        node_id, _, pod_id = prepare_objects(yp_client)
+
+        yp_client.request_pod_eviction(pod_id, "Test")
+        with pytest.raises(YtResponseError):
+            yp_client.evict_pod(pod_id)
+        yp_client.abort_pod_eviction(pod_id, "Test")
+
+        def get_eviction_state():
+            return yp_client.get_object(
+                "pod",
+                pod_id,
+                selectors=["/status/eviction/state"],
+            )[0]
+
+        def get_node_id():
+            return yp_client.get_object(
+                "pod",
+                pod_id,
+                selectors=["/spec/node_id"],
+            )[0]
+
+        assert node_id == get_node_id()
+        assert "none" == get_eviction_state()
+
+        # Disable scheduling.
+        yp_client.update_hfsm_state(node_id, "suspected", "Test")
+
+        yp_client.evict_pod(pod_id)
+        wait(lambda: "none" == get_eviction_state())
+        assert "" == get_node_id()
 
 
 @pytest.mark.usefixtures("yp_env_configurable")

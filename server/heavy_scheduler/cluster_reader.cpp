@@ -148,8 +148,8 @@ struct TSelectObjectTraits<TNode>
             "/meta/id",
             "/labels",
             "/status/hfsm/state",
-            "/status/maintenance/state",
             "/status/unknown_pod_ids",
+            "/status/maintenance",
             "/spec"};
         return paths;
     }
@@ -163,8 +163,8 @@ struct TParseObjectTraits<TNode>
         NObjects::TObjectId id;
         NYson::TYsonString labels;
         NObjects::EHfsmState hfsmState;
-        NObjects::ENodeMaintenanceState nodeMaintenanceState;
         std::optional<std::vector<TString>> unknownPodIds;
+        NClient::NApi::NProto::TNodeStatus_TMaintenance maintenance;
         NClient::NApi::NProto::TNodeSpec spec;
 
         ParsePayloads(
@@ -172,16 +172,17 @@ struct TParseObjectTraits<TNode>
             &id,
             &labels,
             &hfsmState,
-            &nodeMaintenanceState,
             &unknownPodIds,
+            &maintenance,
             &spec);
 
         return std::make_unique<TNode>(
             std::move(id),
             std::move(labels),
             hfsmState,
-            nodeMaintenanceState,
             unknownPodIds && unknownPodIds->size() > 0,
+            NObjects::TNodeAlerts(), // TODO(bidzilya): Support node alerts.
+            std::move(maintenance),
             std::move(spec));
     }
 };
@@ -443,7 +444,9 @@ struct TParseObjectTraits<TPod>
             std::move(nodeFilter),
             enableScheduling,
             std::move(eviction),
-            std::move(*scheduling.mutable_error()));
+            std::move(*scheduling.mutable_error()),
+            NObjects::TNodeAlerts(), // TODO(bidzilya): Support node alerts.
+            NClient::NApi::NProto::TPodStatus_TMaintenance()); // TODO(bidzilya): Support pod maintenance.
     }
 };
 

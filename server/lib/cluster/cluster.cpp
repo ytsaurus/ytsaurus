@@ -594,8 +594,8 @@ private:
     void InitializeNodePods()
     {
         for (const auto& [podId, pod] : PodMap_) {
-            if (pod->GetNode() && pod->GetEnableScheduling()) {
-                YT_VERIFY(pod->GetNode()->SchedulablePods().insert(pod.get()).second);
+            if (auto* node = pod->GetNode()) {
+                YT_VERIFY(node->Pods().insert(pod.get()).second);
             }
         }
     }
@@ -811,6 +811,11 @@ std::vector<TPod*> TCluster::GetSchedulablePods()
 TPod* TCluster::FindSchedulablePod(const TObjectId& id)
 {
     return Impl_->FindSchedulablePod(id);
+}
+
+std::vector<TPod*> TCluster::GetPods()
+{
+    return Impl_->GetPods();
 }
 
 TPod* TCluster::FindPod(const TObjectId& id)

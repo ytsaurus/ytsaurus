@@ -143,13 +143,15 @@ TNode::TNode(
     TObjectId id,
     NYT::NYson::TYsonString labels,
     NObjects::EHfsmState hfsmState,
-    NObjects::ENodeMaintenanceState maintenanceState,
     bool hasUnknownPods,
+    const NObjects::TNodeAlerts& alerts,
+    NClient::NApi::NProto::TNodeStatus_TMaintenance maintenance,
     NClient::NApi::NProto::TNodeSpec spec)
     : TObject(std::move(id), std::move(labels))
     , HfsmState_(hfsmState)
-    , MaintenanceState_(maintenanceState)
     , HasUnknownPods_(hasUnknownPods)
+    , Alerts_(alerts)
+    , Maintenance_(std::move(maintenance))
     , Spec_(std::move(spec))
 { }
 
@@ -174,7 +176,8 @@ bool TNode::IsSchedulable() const
 {
     return
         HfsmState_ == NObjects::EHfsmState::Up &&
-        !HasUnknownPods_;
+        !HasUnknownPods_ &&
+        Alerts_.empty();
 }
 
 bool TNode::HasIP6SubnetInVlan(const TString& vlanId) const

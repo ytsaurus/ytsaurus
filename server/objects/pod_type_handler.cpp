@@ -48,6 +48,8 @@ using std::placeholders::_3;
 
 using ::google::protobuf::RepeatedPtrField;
 
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
 // Common checks for pod spec used in Pod objects for TPodSpecEtc and objects which aggregate TPodSpec.
@@ -59,6 +61,8 @@ void ValidatePodSpecEtc(
     const TPodSpecValidationConfigPtr& config);
 
 } // namespace
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TPodTypeHandler
     : public TObjectTypeHandlerBase
@@ -202,11 +206,20 @@ public:
                 MakeAttributeSchema("abort_eviction")
                     ->SetControl<TPod, NClient::NApi::NProto::TPodControl_TAbortEviction>(std::bind(&TPodTypeHandler::AbortEviction, this, _1, _2, _3)),
 
+                MakeAttributeSchema("evict")
+                    ->SetControl<TPod, NClient::NApi::NProto::TPodControl_TEvict>(std::bind(&TPodTypeHandler::Evict, this, _1, _2, _3)),
+
                 MakeAttributeSchema("touch_master_spec_timestamp")
                     ->SetControl<TPod, NClient::NApi::NProto::TPodControl_TTouchMasterSpecTimestamp>(std::bind(&TPodTypeHandler::TouchMasterSpecTimestamp, this, _1, _2, _3)),
 
                 MakeAttributeSchema("reallocate_resources")
-                    ->SetControl<TPod, NClient::NApi::NProto::TPodControl_TReallocateResources>(std::bind(&TPodTypeHandler::ReallocateResources, this, _1, _2, _3))
+                    ->SetControl<TPod, NClient::NApi::NProto::TPodControl_TReallocateResources>(std::bind(&TPodTypeHandler::ReallocateResources, this, _1, _2, _3)),
+
+                MakeAttributeSchema("acknowledge_maintenance")
+                    ->SetControl<TPod, NClient::NApi::NProto::TPodControl_TAcknowledgeMaintenance>(std::bind(&TPodTypeHandler::AcknowledgeMaintenance, this, _1, _2, _3)),
+
+                MakeAttributeSchema("renounce_maintenance")
+                    ->SetControl<TPod, NClient::NApi::NProto::TPodControl_TRenounceMaintenance>(std::bind(&TPodTypeHandler::RenounceMaintenance, this, _1, _2, _3))
             });
 
         LabelsAttributeSchema_
@@ -275,6 +288,11 @@ public:
         pod->ResetAgentStatus();
 
         pod->UpdateEvictionStatus(EEvictionState::None, EEvictionReason::None, "Pod created");
+
+        pod->UpdateMaintenanceStatus(
+            EPodMaintenanceState::None,
+            "Pod created",
+            /* infoUpdate */ TGenericClearUpdate());
     }
 
     virtual void AfterObjectCreated(
@@ -499,32 +517,47 @@ private:
         return pod->Status().Etc().Load().eviction().state();
     }
 
-    static void AcknowledgeEviction(
+    static void DoAcknowledgeEviction(
         TTransaction* /*transaction*/,
         TPod* pod,
-        const NClient::NApi::NProto::TPodControl_TAcknowledgeEviction& control)
+        TString message)
     {
         if (GetEvictionState(pod) != NClient::NApi::NProto::ES_REQUESTED) {
             THROW_ERROR_EXCEPTION("No eviction is currently requested for pod %Qv",
                 pod->GetId());
         }
 
-        auto message = control.message();
         if (!message) {
             message = "Eviction acknowledged by client";
         }
 
-        YT_LOG_DEBUG("Pod eviction acknowledged (PodId: %v, Message: %v)",
+        YT_LOG_DEBUG("Pod eviction acknowledged (PodId: %v, Message: %Qv)",
             pod->GetId(),
             message);
 
-        pod->UpdateEvictionStatus(EEvictionState::Acknowledged, EEvictionReason::None, message);
+        pod->UpdateEvictionStatus(
+            EEvictionState::Acknowledged,
+            EEvictionReason::None,
+            message);
     }
 
-    void RequestEviction(
+    static void AcknowledgeEviction(
+        TTransaction* transaction,
+        TPod* pod,
+        const NClient::NApi::NProto::TPodControl_TAcknowledgeEviction& control)
+    {
+        DoAcknowledgeEviction(
+            transaction,
+            pod,
+            control.message());
+    }
+
+    void DoRequestEviction(
         TTransaction* /*transaction*/,
         TPod* pod,
-        const NClient::NApi::NProto::TPodControl_TRequestEviction& control)
+        TString message,
+        bool validateDisruptionBudget,
+        EEvictionReason reason)
     {
         if (GetEvictionState(pod) != NClient::NApi::NProto::ES_NONE) {
             THROW_ERROR_EXCEPTION("Cannot request pod eviction for pod %Qv since current eviction state is not none",
@@ -538,17 +571,15 @@ private:
                 pod->GetId());
         }
 
-        auto message = control.message();
         if (!message) {
             message = "Eviction requested by client";
         }
 
-        auto reason = CheckedEnumCast<EEvictionReason>(control.reason());
         if (reason == EEvictionReason::None) {
             reason = EEvictionReason::Client;
         }
 
-        YT_LOG_DEBUG("Pod eviction requested (PodId: %v, Message: %v, Reason: %v)",
+        YT_LOG_DEBUG("Pod eviction requested (PodId: %v, Message: %Qv, Reason: %v)",
             pod->GetId(),
             message,
             reason);
@@ -556,7 +587,20 @@ private:
         pod->RequestEviction(
             reason,
             message,
-            control.validate_disruption_budget());
+            validateDisruptionBudget);
+    }
+
+    void RequestEviction(
+        TTransaction* transaction,
+        TPod* pod,
+        const NClient::NApi::NProto::TPodControl_TRequestEviction& control)
+    {
+        DoRequestEviction(
+            transaction,
+            pod,
+            control.message(),
+            control.validate_disruption_budget(),
+            CheckedEnumCast<EEvictionReason>(control.reason()));
     }
 
     void AbortEviction(
@@ -574,11 +618,28 @@ private:
             message = "Eviction aborted by client";
         }
 
-        YT_LOG_DEBUG("Pod eviction aborted (PodId: %v, Message: %v)",
+        YT_LOG_DEBUG("Pod eviction aborted (PodId: %v, Message: %Qv)",
             pod->GetId(),
             message);
 
         pod->UpdateEvictionStatus(EEvictionState::None, EEvictionReason::None, message);
+    }
+
+    void Evict(
+        TTransaction* transaction,
+        TPod* pod,
+        const NClient::NApi::NProto::TPodControl_TEvict& control)
+    {
+        DoRequestEviction(
+            transaction,
+            pod,
+            control.message(),
+            control.validate_disruption_budget(),
+            EEvictionReason::Client);
+        DoAcknowledgeEviction(
+            transaction,
+            pod,
+            control.message());
     }
 
     void TouchMasterSpecTimestamp(
@@ -594,7 +655,7 @@ private:
             message = "Pod master spec timestamp touched by client";
         }
 
-        YT_LOG_DEBUG("Pod master spec timestamp touched (PodId: %v, Message: %v)",
+        YT_LOG_DEBUG("Pod master spec timestamp touched (PodId: %v, Message: %Qv)",
             pod->GetId(),
             message);
 
@@ -617,12 +678,86 @@ private:
             message = "Pod resources reallocation requested by client";
         }
 
-        YT_LOG_DEBUG("Pod resources reallocation requested (PodId: %v, Message: %v)",
+        YT_LOG_DEBUG("Pod resources reallocation requested (PodId: %v, Message: %Qv)",
             pod->GetId(),
             message);
 
         transaction->ScheduleAllocateResources(pod);
     }
+
+    void AcknowledgeMaintenance(
+        TTransaction* /*transaction*/,
+        TPod* pod,
+        const NClient::NApi::NProto::TPodControl_TAcknowledgeMaintenance& control)
+    {
+        if (pod->Status().Etc().Load().maintenance().state() != NClient::NApi::NProto::PMS_REQUESTED) {
+            THROW_ERROR_EXCEPTION("No maintenance is currently requested for pod %Qv",
+                pod->GetId());
+        }
+
+        auto message = control.message();
+        if (!message) {
+            message = "Maintenance acknowledged by client";
+        }
+
+        YT_LOG_DEBUG("Pod maintenance acknowledged (PodId: %v, Message: %Qv)",
+            pod->GetId(),
+            message);
+
+        pod->UpdateMaintenanceStatus(
+            EPodMaintenanceState::Acknowledged,
+            message,
+            /* infoUpdate */ TGenericPreserveUpdate());
+    }
+
+    void RenounceMaintenance(
+        TTransaction* /*transaction*/,
+        TPod* pod,
+        const NClient::NApi::NProto::TPodControl_TRenounceMaintenance& control)
+    {
+        const auto& podMaintenance = pod->Status().Etc().Load().maintenance();
+
+        if (podMaintenance.state() != NClient::NApi::NProto::PMS_ACKNOWLEDGED) {
+            THROW_ERROR_EXCEPTION("No maintenance is currently acknowledged for pod %Qv",
+                pod->GetId());
+        }
+
+        {
+            auto* node = pod->Spec().Node().Load();
+            YT_VERIFY(node);
+            const auto& nodeMaintenance = node->Status().Etc().Load().maintenance();
+            if (nodeMaintenance.info().uuid() == podMaintenance.info().uuid()) {
+                auto state = nodeMaintenance.state();
+                if (state == NClient::NApi::NProto::NMS_ACKNOWLEDGED) {
+                    node->UpdateMaintenanceStatus(
+                        ENodeMaintenanceState::Requested,
+                        Format("Node maintenance renounced due to pod %Qv maintenance renouncement", pod->GetId()),
+                        /* infoUpdate */ TGenericPreserveUpdate());
+                } else if (state == NClient::NApi::NProto::NMS_IN_PROGRESS) {
+                    THROW_ERROR_EXCEPTION("In progress pod %Qv maintenance cannot be renounced",
+                        pod->GetId());
+                } else {
+                    // XXX(bidzilya): Implicit store scheduling, use read lock instead.
+                    node->Status().Etc().Get();
+                }
+            }
+        }
+
+        auto message = control.message();
+        if (!message) {
+            message = "Maintenance renounced by client";
+        }
+
+        YT_LOG_DEBUG("Pod maintenance renounced (PodId: %v, Message: %Qv)",
+            pod->GetId(),
+            message);
+
+        pod->UpdateMaintenanceStatus(
+            EPodMaintenanceState::Requested,
+            message,
+            /* infoUpdate */ TGenericPreserveUpdate());
+    }
+
 
     void ValidateAccount(TTransaction* /*transaction*/, TPod* pod)
     {
@@ -724,6 +859,8 @@ private:
         return false;
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 namespace {
 
@@ -847,6 +984,8 @@ void ValidatePodSpecEtc(
 
 } // namespace
 
+////////////////////////////////////////////////////////////////////////////////
+
 void ValidateDeployPodSpecTemplate(
     const TAccessControlManagerPtr& accessControlManager,
     TTransaction* transaction,
@@ -860,6 +999,8 @@ void ValidateDeployPodSpecTemplate(
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 std::unique_ptr<IObjectTypeHandler> CreatePodTypeHandler(NMaster::TBootstrap* bootstrap, TPodTypeHandlerConfigPtr config)
 {
     return std::unique_ptr<IObjectTypeHandler>(new TPodTypeHandler(bootstrap, std::move(config)));
@@ -868,4 +1009,3 @@ std::unique_ptr<IObjectTypeHandler> CreatePodTypeHandler(NMaster::TBootstrap* bo
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYP::NServer::NObjects
-

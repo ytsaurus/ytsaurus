@@ -2131,20 +2131,6 @@ private:
         std::array<std::vector<TLoadCallback>, LoadPriorityCount> ScheduledLoads_;
         std::vector<TStoreCallback> ScheduledStores_;
 
-        static TObjectId GenerateId(const TObjectId& id)
-        {
-            if (id) {
-                return id;
-            }
-
-            TStringBuilder builder;
-            static const TString AvailableChars = "0123456789abcdefghijklmnopqrstuvwxyz";
-            for (int index = 0; index < 16; ++index) {
-                builder.AppendChar(AvailableChars[RandomNumber<size_t>(AvailableChars.size())]);
-            }
-            return builder.Flush();
-        }
-
         bool HasPendingLoads()
         {
             for (const auto& loads : ScheduledLoads_) {
