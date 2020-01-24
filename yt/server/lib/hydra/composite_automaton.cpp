@@ -436,8 +436,11 @@ void TCompositeAutomaton::ApplyMutation(TMutationContext* context)
     } else {
         NProfiling::TWallTimer timer;
 
-        YT_LOG_DEBUG_UNLESS(isRecovery, "Applying mutation (Version: %v, MutationType: %v, MutationId: %v, WaitTime: %v)",
+        YT_LOG_DEBUG_UNLESS(isRecovery, "Applying mutation (Version: %v, SequenceNumber: %v, RandomSeed: %llx, PrevRandomSeed: %llx, MutationType: %v, MutationId: %v, WaitTime: %v)",
             version,
+            context->GetSequenceNumber(),
+            context->GetRandomSeed(),
+            context->GetPrevRandomSeed(),
             mutationType,
             mutationId,
             waitTime);

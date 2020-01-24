@@ -50,7 +50,7 @@ public:
 
     //! Creates a new changelog.
     //! Throws an exception on failure.
-    void Create(const NProto::TChangelogMeta& meta, EFileChangelogFormat format = EFileChangelogFormat::V5);
+    void Create(EFileChangelogFormat format = EFileChangelogFormat::V5);
 
     //! Returns the number of records in the changelog.
     int GetRecordCount() const;
@@ -60,9 +60,6 @@ public:
 
     //! Returns |true| is the changelog is open.
     bool IsOpen() const;
-
-    //! Returns the meta blob.
-    const NProto::TChangelogMeta& GetMeta() const;
 
     //! Synchronously appends records to the changelog.
     void Append(

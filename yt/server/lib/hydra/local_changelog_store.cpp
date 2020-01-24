@@ -74,11 +74,6 @@ public:
         , UnderlyingChangelog_(std::move(underlyingChangelog))
     { }
 
-    virtual const TChangelogMeta& GetMeta() const override
-    {
-        return UnderlyingChangelog_->GetMeta();
-    }
-
     virtual int GetRecordCount() const override
     {
         return UnderlyingChangelog_->GetRecordCount();
@@ -166,11 +161,6 @@ public:
         , UnderlyingChangelog_(std::move(underlyingChangelog))
     { }
 
-    virtual const TChangelogMeta& GetMeta() const override
-    {
-        return UnderlyingChangelog_->GetMeta();
-    }
-
     virtual int GetRecordCount() const override
     {
         return UnderlyingChangelog_->GetRecordCount();
@@ -253,11 +243,11 @@ public:
         NFS::CleanTempFiles(Config_->Path);
     }
 
-    TFuture<IChangelogPtr> CreateChangelog(int id, ui64 epoch, const TChangelogMeta& meta)
+    TFuture<IChangelogPtr> CreateChangelog(int id, ui64 epoch)
     {
         return BIND(&TLocalChangelogStoreFactory::DoCreateChangelog, MakeStrong(this))
             .AsyncVia(GetHydraIOInvoker())
-            .Run(id, epoch, meta);
+            .Run(id, epoch);
     }
 
     TFuture<IChangelogPtr> OpenChangelog(int id, ui64 epoch)
@@ -284,7 +274,7 @@ private:
     const NLogging::TLogger Logger;
 
 
-    IChangelogPtr DoCreateChangelog(int id, ui64 epoch, const TChangelogMeta& meta)
+    IChangelogPtr DoCreateChangelog(int id, ui64 epoch)
     {
         auto cookie = BeginInsert(id);
         if (!cookie.IsActive()) {
@@ -295,7 +285,7 @@ private:
         auto path = GetChangelogPath(Config_->Path, id);
 
         try {
-            auto underlyingChangelog = Dispatcher_->CreateChangelog(path, meta, Config_);
+            auto underlyingChangelog = Dispatcher_->CreateChangelog(path, Config_);
             auto cachedChangelog = New<TCachedLocalChangelog>(id, underlyingChangelog);
             cookie.EndInsert(cachedChangelog);
         } catch (const std::exception& ex) {
@@ -419,9 +409,9 @@ public:
         return ReachableVersion_;
     }
 
-    virtual TFuture<IChangelogPtr> CreateChangelog(int id, const TChangelogMeta& meta) override
+    virtual TFuture<IChangelogPtr> CreateChangelog(int id) override
     {
-        return Factory_->CreateChangelog(id, Epoch_, meta);
+        return Factory_->CreateChangelog(id, Epoch_);
     }
 
     virtual TFuture<IChangelogPtr> OpenChangelog(int id) override

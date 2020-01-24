@@ -531,11 +531,6 @@ public:
         return DataSize_;
     }
 
-    virtual const TChangelogMeta& GetMeta() const override
-    {
-        return Queue_->GetChangelog()->GetMeta();
-    }
-
     virtual TFuture<void> Append(const TSharedRef& data) override
     {
         YT_VERIFY(!Closed_ && !Truncated_);
@@ -627,11 +622,10 @@ IInvokerPtr TFileChangelogDispatcher::GetInvoker()
 
 IChangelogPtr TFileChangelogDispatcher::CreateChangelog(
     const TString& path,
-    const TChangelogMeta& meta,
     const TFileChangelogConfigPtr& config)
 {
     auto syncChangelog = New<TSyncFileChangelog>(Impl_->GetIOEngine(), path, config);
-    syncChangelog->Create(meta);
+    syncChangelog->Create();
 
     return New<TFileChangelog>(Impl_, config, syncChangelog);
 }

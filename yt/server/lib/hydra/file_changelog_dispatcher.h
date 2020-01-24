@@ -36,7 +36,6 @@ public:
     //! Synchronously creates a new changelog.
     IChangelogPtr CreateChangelog(
         const TString& path,
-        const NProto::TChangelogMeta& meta,
         const TFileChangelogConfigPtr& config);
 
     //! Synchronously opens an existing changelog.

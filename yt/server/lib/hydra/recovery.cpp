@@ -85,6 +85,8 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
         targetVersion);
 
     TVersion snapshotVersion;
+    i64 sequenceNumber;
+    ui64 randomSeed;
     ISnapshotReaderPtr snapshotReader;
     if (snapshotId != InvalidSegmentId) {
         snapshotReader = SnapshotStore_->CreateReader(snapshotId);
@@ -93,7 +95,9 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
             .ThrowOnError();
 
         auto meta = snapshotReader->GetParams().Meta;
-        snapshotVersion = TVersion(snapshotId - 1, meta.prev_record_count());
+        snapshotVersion = TVersion(snapshotId, 0);
+        randomSeed = meta.random_seed();
+        sequenceNumber = meta.sequence_number();
     }
 
     int initialChangelogId;
@@ -108,7 +112,7 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
             ResponseKeeper_->Stop();
         }
 
-        DecoratedAutomaton_->LoadSnapshot(snapshotId, snapshotVersion, snapshotReader);
+        DecoratedAutomaton_->LoadSnapshot(snapshotId, snapshotVersion, sequenceNumber, randomSeed, snapshotReader);
         initialChangelogId = snapshotId;
     } else {
         // Recover using changelogs only.
@@ -145,15 +149,11 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
             }
 
             auto currentVersion = DecoratedAutomaton_->GetAutomatonVersion();
-
             YT_LOG_INFO("Changelog is missing and will be created (ChangelogId: %v, Version: %v)",
                 changelogId,
                 currentVersion);
 
-            NProto::TChangelogMeta meta;
-            meta.set_prev_record_count(currentVersion.RecordId);
-
-            changelog = WaitFor(ChangelogStore_->CreateChangelog(changelogId, meta))
+            changelog = WaitFor(ChangelogStore_->CreateChangelog(changelogId))
                 .ValueOrThrow();
         }
 
@@ -239,6 +239,7 @@ bool TRecoveryBase::ReplayChangelog(IChangelogPtr changelog, int changelogId, in
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     auto currentVersion = DecoratedAutomaton_->GetAutomatonVersion();
+
     YT_LOG_INFO("Replaying changelog %v from version %v to version %v",
         changelogId,
         currentVersion,
@@ -246,9 +247,6 @@ bool TRecoveryBase::ReplayChangelog(IChangelogPtr changelog, int changelogId, in
 
     if (currentVersion.SegmentId != changelogId) {
         YT_VERIFY(currentVersion.SegmentId == changelogId - 1);
-
-        const auto& meta = changelog->GetMeta();
-        YT_VERIFY(!meta.has_prev_record_count() || meta.prev_record_count() == currentVersion.RecordId);
 
         // Prepare to apply mutations at the rotated version.
         DecoratedAutomaton_->RotateAutomatonVersion(changelogId);

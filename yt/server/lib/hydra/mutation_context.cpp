@@ -19,12 +19,16 @@ TMutationContext::TMutationContext(
     TVersion version,
     const TMutationRequest& request,
     TInstant timestamp,
-    ui64 randomSeed)
+    ui64 randomSeed,
+    ui64 prevRandomSeed,
+    i64 sequenceNumber)
     : Parent_(nullptr)
     , Version_(version)
     , Request_(request)
     , Timestamp_(timestamp)
     , RandomSeed_(randomSeed)
+    , PrevRandomSeed_(prevRandomSeed)
+    , SequenceNumber_(sequenceNumber)
     , RandomGenerator_(randomSeed)
 { }
 
@@ -46,6 +50,16 @@ TInstant TMutationContext::GetTimestamp() const
 ui64 TMutationContext::GetRandomSeed() const
 {
     return RandomSeed_;
+}
+
+ui64 TMutationContext::GetPrevRandomSeed() const
+{
+    return PrevRandomSeed_;
+}
+
+i64 TMutationContext::GetSequenceNumber() const
+{
+    return SequenceNumber_;
 }
 
 TRandomGenerator& TMutationContext::RandomGenerator()

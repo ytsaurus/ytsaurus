@@ -374,6 +374,8 @@ public:
                     .Item("committed_version").Value(ToString(DecoratedAutomaton_->GetCommittedVersion()))
                     .Item("automaton_version").Value(ToString(DecoratedAutomaton_->GetAutomatonVersion()))
                     .Item("logged_version").Value(ToString(DecoratedAutomaton_->GetLoggedVersion()))
+                    .Item("random_seed").Value(DecoratedAutomaton_->GetRandomSeed())
+                    .Item("sequence_number").Value(DecoratedAutomaton_->GetSequenceNumber())
                     .Item("active_leader").Value(IsActiveLeader())
                     .Item("active_follower").Value(IsActiveFollower())
                     .Item("read_only").Value(GetReadOnly())

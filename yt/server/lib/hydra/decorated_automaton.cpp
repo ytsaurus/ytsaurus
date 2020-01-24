@@ -209,11 +209,14 @@ class TDecoratedAutomaton::TSnapshotBuilderBase
 public:
     TSnapshotBuilderBase(
         TDecoratedAutomatonPtr owner,
-        TVersion snapshotVersion,
+        i64 sequenceNumber,
+        int segmentId,
+        ui64 randomSeed,
         TDuration buildSnapshotDelay)
         : Owner_(owner)
-        , SnapshotVersion_(snapshotVersion)
-        , SnapshotId_(SnapshotVersion_.SegmentId + 1)
+        , SequenceNumber_(sequenceNumber)
+        , SnapshotId_(segmentId)
+        , RandomSeed_(randomSeed)
         , BuildSnapshotDelay_(buildSnapshotDelay)
     {
         Logger = Owner_->Logger;
@@ -234,7 +237,8 @@ public:
             TryAcquireLock();
 
             TSnapshotMeta meta;
-            meta.set_prev_record_count(SnapshotVersion_.RecordId);
+            meta.set_sequence_number(SequenceNumber_);
+            meta.set_random_seed(RandomSeed_);
 
             SnapshotWriter_ = Owner_->SnapshotStore_->CreateWriter(SnapshotId_, meta);
 
@@ -254,8 +258,9 @@ public:
 
 protected:
     const TDecoratedAutomatonPtr Owner_;
-    const TVersion SnapshotVersion_;
+    const i64 SequenceNumber_;
     const int SnapshotId_;
+    const ui64 RandomSeed_;
 
     // For testing.
     const TDuration BuildSnapshotDelay_;
@@ -321,9 +326,11 @@ class TDecoratedAutomaton::TForkSnapshotBuilder
 public:
     TForkSnapshotBuilder(
         TDecoratedAutomatonPtr owner,
-        TVersion snapshotVersion,
+        i64 sequenceNumber,
+        int segmentId,
+        ui64 randomSeed,
         TDuration buildSnapshotDelay)
-        : TDecoratedAutomaton::TSnapshotBuilderBase(owner, snapshotVersion, buildSnapshotDelay)
+        : TDecoratedAutomaton::TSnapshotBuilderBase(owner, sequenceNumber, segmentId, randomSeed, buildSnapshotDelay)
     { }
 
 private:
@@ -541,9 +548,11 @@ class TDecoratedAutomaton::TNoForkSnapshotBuilder
 public:
     TNoForkSnapshotBuilder(
         TDecoratedAutomatonPtr owner,
-        TVersion snapshotVersion,
+        i64 sequenceNumber,
+        int segmentId,
+        ui64 randomSeed,
         TDuration buildSnapshotDelay)
-        : TDecoratedAutomaton::TSnapshotBuilderBase(owner, snapshotVersion, buildSnapshotDelay)
+        : TDecoratedAutomaton::TSnapshotBuilderBase(owner, sequenceNumber, segmentId, randomSeed, buildSnapshotDelay)
     { }
 
     ~TNoForkSnapshotBuilder()
@@ -725,6 +734,8 @@ TFuture<void> TDecoratedAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
 void TDecoratedAutomaton::LoadSnapshot(
     int snapshotId,
     TVersion version,
+    i64 sequenceNumber,
+    ui64 randomSeed,
     IAsyncZeroCopyInputStreamPtr reader)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -737,6 +748,8 @@ void TDecoratedAutomaton::LoadSnapshot(
         Automaton_->Clear();
         try {
             AutomatonVersion_ = CommittedVersion_ = TVersion(-1, -1);
+            RandomSeed_ = 0;
+            SequenceNumber_ = 0;
             Automaton_->LoadSnapshot(reader);
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Snapshot load failed; clearing state");
@@ -755,6 +768,8 @@ void TDecoratedAutomaton::LoadSnapshot(
 
     // YT-3926
     AutomatonVersion_ = CommittedVersion_ = TVersion(snapshotId, 0);
+    RandomSeed_ = randomSeed;
+    SequenceNumber_ = sequenceNumber;
 }
 
 void TDecoratedAutomaton::ValidateSnapshot(IAsyncZeroCopyInputStreamPtr reader)
@@ -764,7 +779,7 @@ void TDecoratedAutomaton::ValidateSnapshot(IAsyncZeroCopyInputStreamPtr reader)
     YT_VERIFY(State_ == EPeerState::Stopped);
     State_ = EPeerState::LeaderRecovery;
 
-    LoadSnapshot(0, TVersion{}, reader);
+    LoadSnapshot(0, TVersion{}, 0, 0, reader);
 
     YT_VERIFY(State_ == EPeerState::LeaderRecovery);
     State_ = EPeerState::Stopped;
@@ -794,7 +809,9 @@ void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordDa
         AutomatonVersion_,
         request,
         FromProto<TInstant>(header.timestamp()),
-        header.random_seed());
+        header.random_seed(),
+        header.prev_random_seed(),
+        header.sequence_number());
 
     DoApplyMutation(&context);
 }
@@ -818,6 +835,8 @@ const TDecoratedAutomaton::TPendingMutation& TDecoratedAutomaton::LogLeaderMutat
         std::move(request),
         timestamp,
         RandomNumber<ui64>(),
+        GetLastLoggedRandomSeed(),
+        GetLastLoggedSequenceNumber() + 1,
         std::move(traceContext));
 
     MutationHeader_.Clear(); // don't forget to cleanup the pooled instance
@@ -827,6 +846,8 @@ const TDecoratedAutomaton::TPendingMutation& TDecoratedAutomaton::LogLeaderMutat
     MutationHeader_.set_random_seed(pendingMutation.RandomSeed);
     MutationHeader_.set_segment_id(pendingMutation.Version.SegmentId);
     MutationHeader_.set_record_id(pendingMutation.Version.RecordId);
+    MutationHeader_.set_prev_random_seed(pendingMutation.PrevRandomSeed);
+    MutationHeader_.set_sequence_number(pendingMutation.SequenceNumber);
     if (pendingMutation.Request.MutationId) {
         ToProto(MutationHeader_.mutable_mutation_id(), pendingMutation.Request.MutationId);
     }
@@ -889,6 +910,8 @@ const TDecoratedAutomaton::TPendingMutation& TDecoratedAutomaton::LogFollowerMut
         std::move(request),
         FromProto<TInstant>(MutationHeader_.timestamp()),
         MutationHeader_.random_seed(),
+        MutationHeader_.prev_random_seed(),
+        MutationHeader_.sequence_number(),
         nullptr);
 
     if (Changelog_) {
@@ -963,11 +986,8 @@ void TDecoratedAutomaton::DoRotateChangelog()
         YT_VERIFY(loggedVersion.RecordId == Changelog_->GetRecordCount());
 
         if (!NextChangelogFuture_) {
-            YT_LOG_INFO("Creating changelog (ChangelogId: %v)",
-                nextChangelogId);
-            TChangelogMeta meta;
-            meta.set_prev_record_count(loggedVersion.RecordId);
-            NextChangelogFuture_ = EpochContext_->ChangelogStore->CreateChangelog(nextChangelogId, meta);
+            YT_LOG_INFO("Creating changelog (ChangelogId: %v)", nextChangelogId);
+            NextChangelogFuture_ = EpochContext_->ChangelogStore->CreateChangelog(nextChangelogId);
         }
 
         YT_LOG_INFO("Waiting for changelog to open (ChangelogId: %v)",
@@ -984,7 +1004,7 @@ void TDecoratedAutomaton::DoRotateChangelog()
             YT_LOG_INFO("Started preallocating changelog (ChangelogId: %v)",
                 preallocatedChangelogId);
             NextChangelogFuture_ =
-                EpochContext_->ChangelogStore->CreateChangelog(preallocatedChangelogId, {})
+                EpochContext_->ChangelogStore->CreateChangelog(preallocatedChangelogId)
                     .Apply(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<IChangelogPtr>& changelogOrError) {
                         if (changelogOrError.IsOK()) {
                             YT_LOG_INFO("Finished preallocating changelog (ChangelogId: %v)",
@@ -1056,7 +1076,9 @@ void TDecoratedAutomaton::ApplyPendingMutations(bool mayYield)
                 AutomatonVersion_,
                 pendingMutation.Request,
                 pendingMutation.Timestamp,
-                pendingMutation.RandomSeed);
+                pendingMutation.RandomSeed,
+                pendingMutation.PrevRandomSeed,
+                pendingMutation.SequenceNumber);
 
             {
                 auto traceContext = pendingMutation.TraceContext
@@ -1086,6 +1108,20 @@ void TDecoratedAutomaton::ApplyPendingMutations(bool mayYield)
             }
         }
     }
+}
+
+ui64 TDecoratedAutomaton::GetLastLoggedRandomSeed() const
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    return PendingMutations_.empty() ? RandomSeed_.load() : PendingMutations_.back().RandomSeed;
+}
+
+i64 TDecoratedAutomaton::GetLastLoggedSequenceNumber() const
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    return PendingMutations_.empty() ? SequenceNumber_.load() : PendingMutations_.back().SequenceNumber;
 }
 
 void TDecoratedAutomaton::RotateAutomatonVersionIfNeeded(TVersion mutationVersion)
@@ -1127,7 +1163,21 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
         Options_.ResponseKeeper->EndRequest(mutationId, context->GetResponseData());
     }
 
+    YT_LOG_FATAL_IF(
+        RandomSeed_ != context->GetPrevRandomSeed(),
+        "Mutation random seeds differ (AutomatonRandomSeed: %llx, MutationRandomSeed: %llx)",
+        RandomSeed_.load(),
+        context->GetPrevRandomSeed());
+    RandomSeed_ = context->GetRandomSeed();
     AutomatonVersion_ = automatonVersion.Advance();
+
+    ++SequenceNumber_;
+    YT_LOG_FATAL_IF(
+        SequenceNumber_ != context->GetSequenceNumber(),
+        "Sequence numbers differ (AutomatonSequenceNumber: %llx, MutationSequenceNumber: %llx)",
+        SequenceNumber_.load(),
+        context->GetSequenceNumber());
+
     if (CommittedVersion_.load() < automatonVersion) {
         CommittedVersion_ = automatonVersion;
     }
@@ -1160,6 +1210,20 @@ void TDecoratedAutomaton::SetLoggedVersion(TVersion version)
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     LoggedVersion_ = version;
+}
+
+ui64 TDecoratedAutomaton::GetRandomSeed() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return RandomSeed_.load();
+}
+
+i64 TDecoratedAutomaton::GetSequenceNumber() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return SequenceNumber_.load();
 }
 
 void TDecoratedAutomaton::SetChangelog(IChangelogPtr changelog)
@@ -1343,8 +1407,8 @@ void TDecoratedAutomaton::MaybeStartSnapshotBuilder()
 #else
         Options_.UseFork
 #endif
-        ? TIntrusivePtr<TSnapshotBuilderBase>(New<TForkSnapshotBuilder>(this, SnapshotVersion_, Config_->BuildSnapshotDelay))
-        : TIntrusivePtr<TSnapshotBuilderBase>(New<TNoForkSnapshotBuilder>(this, SnapshotVersion_, Config_->BuildSnapshotDelay));
+        ? TIntrusivePtr<TSnapshotBuilderBase>(New<TForkSnapshotBuilder>(this, SequenceNumber_, SnapshotVersion_.SegmentId + 1, RandomSeed_, Config_->BuildSnapshotDelay))
+        : TIntrusivePtr<TSnapshotBuilderBase>(New<TNoForkSnapshotBuilder>(this, SequenceNumber_, SnapshotVersion_.SegmentId + 1, RandomSeed_, Config_->BuildSnapshotDelay));
 
     auto buildResult = builder->Run();
     buildResult.Subscribe(
