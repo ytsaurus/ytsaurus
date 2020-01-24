@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/core/actions/signal.h>
-
 namespace NYP::NServer::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////

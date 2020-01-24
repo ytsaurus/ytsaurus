@@ -6,8 +6,10 @@
 #include "global_resource_allocator.h"
 #include "helpers.h"
 #include "label_filter_evaluator.h"
+#include "node_maintenance_controller.h"
 #include "pod_disruption_budget_controller.h"
 #include "pod_exponential_backoff_policy.h"
+#include "pod_maintenance_controller.h"
 #include "resource_manager.h"
 #include "schedule_queue.h"
 
@@ -40,490 +42,6 @@ using namespace NServer::NMaster;
 using namespace NServer::NObjects;
 
 using namespace NYT::NConcurrency;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TPodMaintenanceController
-{
-public:
-    explicit TPodMaintenanceController(TBootstrap* bootstrap)
-        : Bootstrap_(bootstrap)
-    { }
-
-    void AbortEviction(const NCluster::TClusterPtr& cluster)
-    {
-        auto check = [] (const auto* pod, const auto* node) {
-            if (!GetEnableScheduling(pod)) {
-                return false;
-            }
-            const auto& podEviction = GetPodEviction(pod);
-            auto hfsmState = GetHfsmState(node);
-            return podEviction.reason() == NClient::NApi::NProto::ER_HFSM &&
-                podEviction.state() == NClient::NApi::NProto::ES_REQUESTED &&
-                hfsmState == EHfsmState::Up;
-        };
-        auto transition = [] (NObjects::TPod* pod, NObjects::TNode* node) {
-            auto hfsmState = GetHfsmState(node);
-
-            YT_LOG_DEBUG("Pod eviction aborted by maintenance controller (PodId: %v, NodeId: %v, HfsmState: %v)",
-                pod->GetId(),
-                node->GetId(),
-                hfsmState);
-
-            pod->UpdateEvictionStatus(
-                EEvictionState::None,
-                EEvictionReason::None,
-                Format("Eviction aborted due to node %Qv being in %Qlv state",
-                    node->GetId(),
-                    hfsmState));
-        };
-        ExecuteTransition(
-            cluster,
-            check,
-            transition,
-            "AbortEviction");
-    }
-
-    void RequestEviction(const NCluster::TClusterPtr& cluster)
-    {
-        auto check = [] (const auto* pod, const auto* node) {
-            if (!GetEnableScheduling(pod)) {
-                return false;
-            }
-            const auto& podEviction = GetPodEviction(pod);
-            auto hfsmState = GetHfsmState(node);
-            return podEviction.state() == NClient::NApi::NProto::ES_NONE &&
-                (hfsmState == EHfsmState::PrepareMaintenance || hfsmState == EHfsmState::Down);
-        };
-        auto transition = [] (NObjects::TPod* pod, NObjects::TNode* node) {
-            auto hfsmState = GetHfsmState(node);
-
-            YT_LOG_DEBUG("Pod eviction requested by maintenance controller (PodId: %v, NodeId: %v, HfsmState: %v)",
-                pod->GetId(),
-                node->GetId(),
-                hfsmState);
-
-            pod->RequestEviction(
-                EEvictionReason::Hfsm,
-                Format("Eviction requested due to node %Qv being in %Qlv state",
-                    node->GetId(),
-                    hfsmState),
-                /*validateDisruptionBudget*/ false);
-        };
-        ExecuteTransition(
-            cluster,
-            check,
-            transition,
-            "RequestEviction");
-    }
-
-    void ResetMaintenance(const NCluster::TClusterPtr& cluster)
-    {
-        auto check = [] (const auto* pod, const auto* node) {
-            const auto& podMaintenance = GetPodMaintenance(pod);
-            const auto& nodeMaintenance = GetNodeMaintenance(node);
-            return podMaintenance.state() != NClient::NApi::NProto::PMS_NONE &&
-                nodeMaintenance.state() == NClient::NApi::NProto::NMS_NONE;
-        };
-        auto transition = [] (NObjects::TPod* pod, NObjects::TNode* node) {
-            YT_LOG_DEBUG("Pod maintenance reset by maintenance controller (PodId: %v, NodeId: %v)",
-                pod->GetId(),
-                node->GetId());
-
-            pod->UpdateMaintenanceStatus(
-                EPodMaintenanceState::None,
-                Format("Maintenance reset due to node %Qv being in none maintenance state", node->GetId()),
-                /* infoUpdate */ TGenericClearUpdate());
-        };
-        ExecuteTransition(
-            cluster,
-            check,
-            transition,
-            "ResetMaintenance");
-    }
-
-    void RequestMaintenance(const NCluster::TClusterPtr& cluster)
-    {
-        auto check = [] (const auto* pod, const auto* node) {
-            const auto& podMaintenance = GetPodMaintenance(pod);
-            const auto& nodeMaintenance = GetNodeMaintenance(node);
-            if (nodeMaintenance.state() != NClient::NApi::NProto::NMS_REQUESTED &&
-                nodeMaintenance.state() != NClient::NApi::NProto::NMS_ACKNOWLEDGED)
-            {
-                return false;
-            }
-            if (podMaintenance.info().uuid() != nodeMaintenance.info().uuid()) {
-                return true;
-            }
-            if (podMaintenance.state() == NClient::NApi::NProto::PMS_REQUESTED ||
-                podMaintenance.state() == NClient::NApi::NProto::PMS_ACKNOWLEDGED)
-            {
-                return false;
-            }
-            return true;
-        };
-        auto transition = [] (NObjects::TPod* pod, NObjects::TNode* node) {
-            const auto& nodeMaintenance = GetNodeMaintenance(node);
-
-            YT_LOG_DEBUG("Pod maintenance requested by maintenance controller (PodId: %v, NodeId: %v)",
-                pod->GetId(),
-                node->GetId());
-
-            pod->UpdateMaintenanceStatus(
-                EPodMaintenanceState::Requested,
-                Format("Maintenance requested due to node %Qv maintenance", node->GetId()),
-                nodeMaintenance.info());
-        };
-        ExecuteTransition(
-            cluster,
-            check,
-            transition,
-            "RequestMaintenance");
-    }
-
-    void SyncInProgressMaintenance(const NCluster::TClusterPtr& cluster)
-    {
-        auto check = [] (const auto* pod, const auto* node) {
-            const auto& podMaintenance = GetPodMaintenance(pod);
-            const auto& nodeMaintenance = GetNodeMaintenance(node);
-            if (nodeMaintenance.state() != NClient::NApi::NProto::NMS_IN_PROGRESS) {
-                return false;
-            }
-            if (podMaintenance.state() == NClient::NApi::NProto::PMS_IN_PROGRESS &&
-                podMaintenance.info().uuid() == nodeMaintenance.info().uuid())
-            {
-                return false;
-            }
-            return true;
-        };
-        auto transition = [] (NObjects::TPod* pod, NObjects::TNode* node) {
-            const auto& podMaintenance = GetPodMaintenance(pod);
-            const auto& nodeMaintenance = GetNodeMaintenance(node);
-
-            YT_LOG_DEBUG("In progress pod maintenance synched by maintenance controller (PodId: %v, NodeId: %v)",
-                pod->GetId(),
-                node->GetId());
-
-            if (podMaintenance.state() != NClient::NApi::NProto::PMS_ACKNOWLEDGED) {
-                YT_LOG_WARNING("Unacknowledged pod maintenance detected (PodId: %v, State: %v)",
-                    pod->GetId(),
-                    CheckedEnumCast<EPodMaintenanceState>(podMaintenance.state()));
-            }
-
-            pod->UpdateMaintenanceStatus(
-                EPodMaintenanceState::InProgress,
-                Format("Maintenance is in progress due to node %Qv maintenance", node->GetId()),
-                nodeMaintenance.info());
-        };
-        ExecuteTransition(
-            cluster,
-            check,
-            transition,
-            "SyncInProgressMaintenance");
-    }
-
-    void SyncNodeAlerts(const NCluster::TClusterPtr& cluster)
-    {
-        // Protobuf does not provide simple comparison mechanics =(
-        auto areEqualNodeAlerts = [] (const TNodeAlerts& lhs, const TNodeAlerts& rhs) {
-            if (lhs.size() != rhs.size()) {
-                return false;
-            }
-            for (int i = 0; i < lhs.size(); ++i) {
-                if (lhs[i].uuid() != rhs[i].uuid()) {
-                    return false;
-                }
-            }
-            return true;
-        };
-        auto check = [&] (const auto* pod, const auto* node) {
-            const auto& podNodeAlerts = GetNodeAlerts(pod);
-            const auto& nodeAlerts = GetNodeAlerts(node);
-            return !areEqualNodeAlerts(podNodeAlerts, nodeAlerts);
-        };
-        auto transition = [] (NObjects::TPod* pod, NObjects::TNode* node) {
-            const auto& nodeAlerts = GetNodeAlerts(node);
-
-            YT_LOG_DEBUG("Pod node alerts set by maintenance controller (PodId: %v, NodeId: %v, Alerts: %v)",
-                pod->GetId(),
-                node->GetId(),
-                nodeAlerts);
-
-            pod->Status().Etc()->mutable_node_alerts()->CopyFrom(nodeAlerts);
-        };
-        ExecuteTransition(
-            cluster,
-            check,
-            transition,
-            "SyncNodeAlerts");
-    }
-
-private:
-    TBootstrap* const Bootstrap_;
-
-
-    static bool GetEnableScheduling(const NCluster::TPod* pod)
-    {
-        return pod->GetEnableScheduling();
-    }
-
-    static bool GetEnableScheduling(const NObjects::TPod* pod)
-    {
-        return pod->Spec().EnableScheduling().Load();
-    }
-
-
-    static const NClient::NApi::NProto::TPodStatus_TEviction& GetPodEviction(const NCluster::TPod* pod)
-    {
-        return pod->Eviction();
-    }
-
-    static const NClient::NApi::NProto::TPodStatus_TEviction& GetPodEviction(const NObjects::TPod* pod)
-    {
-        return pod->Status().Etc().Load().eviction();
-    }
-
-
-    static EHfsmState GetHfsmState(const NCluster::TNode* node)
-    {
-        return node->GetHfsmState();
-    }
-
-    static EHfsmState GetHfsmState(const NObjects::TNode* node)
-    {
-        return static_cast<EHfsmState>(node->Status().Etc().Load().hfsm().state());
-    }
-
-
-    static const TNodeAlerts& GetNodeAlerts(const NCluster::TNode* node)
-    {
-        return node->Alerts();
-    }
-
-    static const TNodeAlerts& GetNodeAlerts(const NObjects::TNode* node)
-    {
-        return node->Status().Etc().Load().alerts();
-    }
-
-    static const TNodeAlerts& GetNodeAlerts(const NCluster::TPod* pod)
-    {
-        return pod->NodeAlerts();
-    }
-
-    static const TNodeAlerts& GetNodeAlerts(const NObjects::TPod* pod)
-    {
-        return pod->Status().Etc().Load().node_alerts();
-    }
-
-
-    static const NClient::NApi::NProto::TNodeStatus_TMaintenance& GetNodeMaintenance(const NCluster::TNode* node)
-    {
-        return node->Maintenance();
-    }
-
-    static const NClient::NApi::NProto::TNodeStatus_TMaintenance& GetNodeMaintenance(const NObjects::TNode* node)
-    {
-        return node->Status().Etc().Load().maintenance();
-    }
-
-    static const NClient::NApi::NProto::TPodStatus_TMaintenance& GetPodMaintenance(const NCluster::TPod* pod)
-    {
-        return pod->Maintenance();
-    }
-
-    static const NClient::NApi::NProto::TPodStatus_TMaintenance& GetPodMaintenance(const NObjects::TPod* pod)
-    {
-        return pod->Status().Etc().Load().maintenance();
-    }
-
-
-    template <class TCheck, class TTransition>
-    void ExecuteTransitionForPod(
-        const TTransactionPtr& transaction,
-        TCheck&& check,
-        TTransition&& transition,
-        const NCluster::TPod* pod,
-        TStringBuf transitionName)
-    {
-        const auto* node = pod->GetNode();
-        if (!node || !check(pod, node)) {
-            return;
-        }
-
-        YT_LOG_DEBUG("Pod maintenance transition check succeeded (PodId: %v, TransitionName: %v)",
-            pod->GetId(),
-            transitionName);
-
-        auto* transactionPod = transaction->GetPod(pod->GetId());
-        if (!transactionPod->DoesExist()) {
-            YT_LOG_DEBUG("Pod maintenance transition is skipped since transaction pod does not exist (PodId: %v, TransitionName: %v)",
-                pod->GetId(),
-                transitionName);
-            return;
-        }
-
-        transactionPod->Status().Etc().ScheduleLoad();
-
-        auto* transactionNode = transactionPod->Spec().Node().Load();
-        if (!transactionNode) {
-            YT_LOG_DEBUG("Pod maintenance transition is skipped since transaction pod is not assigned to any node (PodId: %v, TransitionName: %v)",
-                pod->GetId(),
-                transitionName);
-            return;
-        }
-
-        transactionNode->Status().Etc().ScheduleLoad();
-
-        if (!check(transactionPod, transactionNode)) {
-            YT_LOG_DEBUG("Pod maintenance transition is skipped since transaction check failed (PodId: %v, TransitionName: %v)",
-                pod->GetId(),
-                transitionName);
-            return;
-        }
-
-        transition(transactionPod, transactionNode);
-    }
-
-    template <class TCheck, class TTransition>
-    void ExecuteTransition(
-        const NCluster::TClusterPtr& cluster,
-        TCheck&& check,
-        TTransition&& transition,
-        TStringBuf transitionName)
-    {
-        try {
-            const auto& transactionManager = Bootstrap_->GetTransactionManager();
-            auto transaction = WaitFor(transactionManager->StartReadWriteTransaction())
-                .ValueOrThrow();
-
-            YT_LOG_DEBUG("Started pod maintenance transition transaction (TransactionId: %v, StartTimestamp: %llx, TransitionName: %v)",
-                transaction->GetId(),
-                transaction->GetStartTimestamp(),
-                transitionName);
-
-            auto pods = cluster->GetPods();
-            for (auto* pod : pods) {
-                ExecuteTransitionForPod(
-                    transaction,
-                    check,
-                    transition,
-                    pod,
-                    transitionName);
-            }
-
-            WaitFor(transaction->Commit())
-                .ThrowOnError();
-        } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Error executing pod maintenance transition (TransitionName: %v)",
-                transitionName);
-        }
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TNodeMaintenanceController
-{
-public:
-    explicit TNodeMaintenanceController(TBootstrap* bootstrap)
-        : Bootstrap_(bootstrap)
-    { }
-
-    void Acknowledge(const NCluster::TClusterPtr& cluster)
-    {
-        ExecuteTransition(
-            cluster,
-            AcknowledgeTransition,
-            "Acknowledge");
-    }
-
-private:
-    TBootstrap* const Bootstrap_;
-
-
-    static bool ArePodMaintenancesAcknowledged(const NCluster::TNode* node)
-    {
-        for (auto* pod : node->Pods()) {
-            if (pod->Maintenance().state() != NClient::NApi::NProto::PMS_ACKNOWLEDGED) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    static void AcknowledgeTransition(const TTransactionPtr& transaction, const NCluster::TNode* node)
-    {
-        const auto& maintenance = node->Maintenance();
-
-        if (maintenance.state() != NClient::NApi::NProto::NMS_REQUESTED) {
-            return;
-        }
-
-        if (!ArePodMaintenancesAcknowledged(node)) {
-            return;
-        }
-
-        auto* transactionNode = transaction->GetNode(node->GetId());
-
-        transactionNode->Status().Etc().ScheduleLoad();
-
-        if (!transactionNode->DoesExist()) {
-            YT_LOG_DEBUG("Node maintenance acknowledgement is skipped since transaction node does not exist (NodeId: %v)",
-                node->GetId());
-            return;
-        }
-        const auto& transactionMaintenance = transactionNode->Status().Etc().Load().maintenance();
-        if (transactionMaintenance.state() != NClient::NApi::NProto::NMS_REQUESTED) {
-            YT_LOG_DEBUG("Node maintenance acknowledgement is skipped since maintenance is not requested for transaction node (NodeId: %v)",
-                node->GetId());
-            return;
-        }
-        if (transactionMaintenance.info().uuid() != maintenance.info().uuid()) {
-            YT_LOG_DEBUG("Node maintenance acknowledgement is skipped since maintenance request has different uuid in transaction (NodeId: %v, Uuid: %v, TransactionUuid: %v)",
-                node->GetId(),
-                maintenance.info().uuid(),
-                transactionMaintenance.info().uuid());
-            return;
-        }
-
-        YT_LOG_DEBUG("Node maintenance acknowledged (NodeId: %v)",
-            node->GetId());
-
-        transactionNode->UpdateMaintenanceStatus(
-            ENodeMaintenanceState::Acknowledged,
-            "Maintenance acknowledged by scheduler since all pod maintenancens are acknowledged on this node",
-            TGenericPreserveUpdate());
-    }
-
-    template <class TTransition>
-    void ExecuteTransition(
-        const NCluster::TClusterPtr& cluster,
-        TTransition&& transition,
-        TStringBuf transitionName)
-    {
-        try {
-            const auto& transactionManager = Bootstrap_->GetTransactionManager();
-            auto transaction = WaitFor(transactionManager->StartReadWriteTransaction())
-                .ValueOrThrow();
-
-            YT_LOG_DEBUG("Started node maintenance transition transaction (TransactionId: %v, StartTimestamp: %llx, TransitionName: %v)",
-                transaction->GetId(),
-                transaction->GetStartTimestamp(),
-                transitionName);
-
-            auto nodes = cluster->GetNodes();
-            for (auto* node : nodes) {
-                transition(transaction, node);
-            }
-
-            WaitFor(transaction->Commit())
-                .ThrowOnError();
-        } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Error executing node maintenance transition (TransitionName: %v)",
-                transitionName);
-        }
-    }
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -657,28 +175,28 @@ private:
                 }
             }
             if (shouldRunStage(ESchedulerLoopStage::RunPodMaintenanceController)) {
-                TPodMaintenanceController podMaintenanceController(Bootstrap_);
+                auto controller = New<TPodMaintenanceController>(Bootstrap_);
 
                 // COMPAT(bidzilya): Do not request eviction explicitly, let controllers decide.
                 PROFILE_TIMING("/time/pod_maintenance/abort_eviction") {
-                    podMaintenanceController.AbortEviction(Context_.Cluster);
+                    controller->AbortEviction(Context_.Cluster);
                 }
                 PROFILE_TIMING("/time/pod_maintenance/request_eviction") {
-                    podMaintenanceController.RequestEviction(Context_.Cluster);
+                    controller->RequestEviction(Context_.Cluster);
                 }
 
                 PROFILE_TIMING("/time/pod_maintenance/reset_maintenance") {
-                    podMaintenanceController.ResetMaintenance(Context_.Cluster);
+                    controller->ResetMaintenance(Context_.Cluster);
                 }
                 PROFILE_TIMING("/time/pod_maintenance/request_maintenance") {
-                    podMaintenanceController.RequestMaintenance(Context_.Cluster);
+                    controller->RequestMaintenance(Context_.Cluster);
                 }
                 PROFILE_TIMING("/time/pod_maintenance/sync_in_progress_maintenance") {
-                    podMaintenanceController.SyncInProgressMaintenance(Context_.Cluster);
+                    controller->SyncInProgressMaintenance(Context_.Cluster);
                 }
 
                 PROFILE_TIMING("/time/pod_maintenance/sync_node_alerts") {
-                    podMaintenanceController.SyncNodeAlerts(Context_.Cluster);
+                    controller->SyncNodeAlerts(Context_.Cluster);
                 }
             }
             if (shouldRunStage(ESchedulerLoopStage::RevokePodsWithAcknowledgedEviction)) {
@@ -692,10 +210,10 @@ private:
                 }
             }
             {
-                TNodeMaintenanceController nodeMaintenanceController(Bootstrap_);
+                auto controller = New<TNodeMaintenanceController>(Bootstrap_);
                 if (shouldRunStage(ESchedulerLoopStage::AcknowledgeNodeMaintenance)) {
                     PROFILE_TIMING("/time/node_maintenance/acknowledge") {
-                        nodeMaintenanceController.Acknowledge(Context_.Cluster);
+                        controller->Acknowledge(Context_.Cluster);
                     }
                 }
             }
