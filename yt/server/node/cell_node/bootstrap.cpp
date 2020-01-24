@@ -55,6 +55,7 @@
 #include <yt/server/node/tablet_node/store_compactor.h>
 #include <yt/server/node/tablet_node/store_flusher.h>
 #include <yt/server/node/tablet_node/store_trimmer.h>
+#include <yt/server/node/tablet_node/tablet_cell_service.h>
 #include <yt/server/node/tablet_node/versioned_chunk_meta_manager.h>
 
 #include <yt/server/lib/transaction_server/timestamp_proxy_service.h>
@@ -616,6 +617,8 @@ void TBootstrap::DoInitialize()
     for (const auto& masterConfig : Config_->ClusterConnection->SecondaryMasters) {
         MasterCacheServices_.push_back(initMasterCacheService(masterConfig));
     }
+
+    RpcServer_->RegisterService(CreateTabletCellService(this));
 
     RpcServer_->RegisterService(CreateAdminService(GetControlInvoker(), CoreDumper_));
 

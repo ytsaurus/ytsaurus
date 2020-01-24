@@ -45,6 +45,8 @@
 
 #include <yt/server/node/cell_node/bootstrap.h>
 
+#include <yt/server/node/data_node/master_connector.h>
+
 #include <yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/ytlib/api/native/connection.h>
@@ -53,6 +55,8 @@
 #include <yt/client/api/connection.h>
 #include <yt/client/api/client.h>
 #include <yt/client/api/transaction.h>
+
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/client/security_client/public.h>
 
@@ -469,6 +473,9 @@ public:
             hydraManager->SubscribeStopLeading(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
             hydraManager->SubscribeStopFollowing(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
 
+            hydraManager->SubscribeLeaderRecoveryComplete(BIND(&TImpl::OnRecoveryComplete, MakeWeak(this)));
+            hydraManager->SubscribeFollowerRecoveryComplete(BIND(&TImpl::OnRecoveryComplete, MakeWeak(this)));
+
             hydraManager->SubscribeLeaderLeaseCheck(
                 BIND(&TImpl::OnLeaderLeaseCheckThunk, MakeWeak(this))
                     .AsyncVia(Bootstrap_->GetControlInvoker()));
@@ -787,6 +794,14 @@ private:
         ResetEpochInvokers();
     }
 
+    void OnRecoveryComplete()
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        // Notify master about recovery completion as soon as possible via out-of-order heartbeat.
+        auto primaryCellTag = CellTagFromId(Bootstrap_->GetCellId());
+        Bootstrap_->GetMasterConnector()->ScheduleNodeHeartbeat(primaryCellTag, true);
+    }
 
     static TFuture<void> OnLeaderLeaseCheckThunk(TWeakPtr<TImpl> weakThis)
     {
