@@ -267,9 +267,6 @@ private:
     template <class U, bool MustSet>
     bool DoSet(U&& value) noexcept
     {
-        // Calling subscribers may release the last reference to this.
-        TIntrusivePtr<TFutureState> this_(this);
-
         NConcurrency::TEvent* readyEvent = nullptr;
         bool canceled;
         {
@@ -290,6 +287,9 @@ private:
         if (readyEvent) {
             readyEvent->NotifyAll();
         }
+
+        // Calling subscribers may release the last reference to this.
+        TIntrusivePtr<TFutureState> this_(this);
 
         for (const auto& handler : VoidResultHandlers_) {
             RunNoExcept(handler);

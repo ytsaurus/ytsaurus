@@ -37,9 +37,6 @@ void TFutureStateBase::Subscribe(TVoidResultHandler handler)
 
 bool TFutureStateBase::Cancel(const TError& error) noexcept
 {
-    // Calling subscribers may release the last reference to this.
-    TIntrusivePtr<TFutureStateBase> this_(this);
-
     {
         auto guard = Guard(SpinLock_);
         if (Set_ || AbandonedUnset_ || Canceled_) {
@@ -54,6 +51,8 @@ bool TFutureStateBase::Cancel(const TError& error) noexcept
             return false;
         }
     } else {
+        // Calling subscribers may release the last reference to this.
+        TIntrusivePtr<TCancelableStateBase> this_(this);
         for (const auto& handler : CancelHandlers_) {
             RunNoExcept(handler, error);
         }
