@@ -680,6 +680,9 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("legacy_live_preview_user_blacklist", LegacyLivePreviewUserBlacklist)
         .DefaultNew("robot-.*");
 
+    RegisterParameter("enable_bulk_insert_for_everyone", EnableBulkInsertForEveryone)
+        .Default(false);
+
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;
         if (!EventLog->Path) {

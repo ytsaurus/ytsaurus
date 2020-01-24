@@ -870,6 +870,43 @@ class TestBulkInsert(DynamicTablesBase):
         with pytest.raises(YtError):
             _run_op()
 
+    def test_per_user_permit(self):
+        sync_create_cells(1)
+        create("table", "//tmp/t_input")
+        self._create_simple_dynamic_table("//tmp/t_output")
+        sync_mount_table("//tmp/t_output")
+
+        write_table("//tmp/t_input", [{"key": 1, "value": "1"}])
+
+        def _set_global_permit(value):
+            set("//sys/controller_agents/config/enable_bulk_insert_for_everyone", value)
+            for instance in ls("//sys/controller_agents/instances"):
+                def _wait_func():
+                    config = get("//sys/controller_agents/instances/{}/orchid/controller_agent/config".format(instance))
+                    return config.get("enable_bulk_insert_for_everyone", False)
+                wait(_wait_func)
+
+        def _run_op():
+            map(
+                in_="//tmp/t_input",
+                out="<append=%true>//tmp/t_output",
+                command="cat",
+                authenticated_user="u")
+
+        try:
+            create_user("u")
+
+            _run_op()
+
+            _set_global_permit(False)
+            with pytest.raises(YtError):
+                _run_op()
+
+            set("//sys/users/u/@enable_bulk_insert", True)
+            _run_op()
+        finally:
+            _set_global_permit(True)
+
 ##################################################################
 
 @authors("ifsmirnov")
