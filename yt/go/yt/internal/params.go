@@ -698,12 +698,20 @@ func writeInsertRowsOptions(w *yson.Writer, o *yt.InsertRowsOptions) {
 		w.MapKeyString("atomicity")
 		w.Any(o.Atomicity)
 	}
+	if o.RequireSyncReplica != nil {
+		w.MapKeyString("require_sync_replica")
+		w.Any(o.RequireSyncReplica)
+	}
 	writeTransactionOptions(w, o.TransactionOptions)
 }
 
 func writeDeleteRowsOptions(w *yson.Writer, o *yt.DeleteRowsOptions) {
 	if o == nil {
 		return
+	}
+	if o.RequireSyncReplica != nil {
+		w.MapKeyString("require_sync_replica")
+		w.Any(o.RequireSyncReplica)
 	}
 	writeTransactionOptions(w, o.TransactionOptions)
 }
