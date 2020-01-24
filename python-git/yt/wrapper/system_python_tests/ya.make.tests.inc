@@ -16,7 +16,7 @@ REQUIREMENTS(container:1205365729)
 SIZE(LARGE)
 
 REQUIREMENTS(
-    ram_disk:32
+    ram_disk:64
     cpu:8
 )
 
