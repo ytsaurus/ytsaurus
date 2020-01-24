@@ -51,7 +51,7 @@ void TMailbox::Save(TSaveContext& context) const
 
     Save(context, FirstOutcomingMessageId_);
     Save(context, OutcomingMessages_);
-    Save(context, NextIncomingMessageId_);
+    Save(context, NextPersistentIncomingMessageId_);
 }
 
 void TMailbox::Load(TLoadContext& context)
@@ -60,7 +60,7 @@ void TMailbox::Load(TLoadContext& context)
 
     Load(context, FirstOutcomingMessageId_);
     Load(context, OutcomingMessages_);
-    Load(context, NextIncomingMessageId_);
+    Load(context, NextPersistentIncomingMessageId_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
