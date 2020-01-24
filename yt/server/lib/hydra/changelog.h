@@ -20,12 +20,6 @@ namespace NYT::NHydra {
 struct IChangelog
     : public virtual TRefCounted
 {
-    //! Returns the meta.
-    /*!
-     *  Thread affinity: any
-     */
-    virtual const NProto::TChangelogMeta& GetMeta() const = 0;
-
     //! Returns the number of records in the changelog.
     /*!
      *  This includes appended but not yet flushed records as well.
@@ -104,7 +98,7 @@ struct IChangelogStore
     virtual TVersion GetReachableVersion() const = 0;
 
     //! Creates a new changelog.
-    virtual TFuture<IChangelogPtr> CreateChangelog(int id, const NProto::TChangelogMeta& meta) = 0;
+    virtual TFuture<IChangelogPtr> CreateChangelog(int id) = 0;
 
     //! Opens an existing changelog.
     /*!

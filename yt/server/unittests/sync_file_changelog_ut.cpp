@@ -67,7 +67,7 @@ protected:
         }
 
         auto changelog = New<TSyncFileChangelog>(IOEngine, TemporaryFile->Name(), fileChangelogConfig);
-        changelog->Create(TChangelogMeta(), GetFormatParam());
+        changelog->Create(GetFormatParam());
         auto records = MakeRecords<TRecordType>(0, recordCount);
         changelog->Append(0, records);
         changelog->Flush();
@@ -173,64 +173,11 @@ TEST_P(TSyncFileChangelogTest, EmptyChangelog)
 {
     {
         auto changelog = New<TSyncFileChangelog>(IOEngine, TemporaryFile->Name(), New<TFileChangelogConfig>());
-        changelog->Create(TChangelogMeta(), GetFormatParam());
+        changelog->Create(GetFormatParam());
     }
     {
         auto changelog = New<TSyncFileChangelog>(IOEngine, TemporaryFile->Name(), New<TFileChangelogConfig>());
         changelog->Open();
-    }
-}
-
-TSharedRef GenerateBlob(size_t size)
-{
-    auto blob = TSharedMutableRef::Allocate(size);
-    for (int i = 0; i < size; ++i) {
-        blob.Begin()[i] = static_cast<char>(i % 256);
-    }
-    return blob;
-}
-
-TEST_P(TSyncFileChangelogTest, Meta)
-{
-    TChangelogMeta meta;
-    meta.set_prev_record_count(123);
-    auto record = GenerateBlob(2000);
-
-    {
-        auto changelog = New<TSyncFileChangelog>(IOEngine, TemporaryFile->Name(), New<TFileChangelogConfig>());
-        changelog->Create(meta, GetFormatParam());
-        changelog->Append(0, std::vector<TSharedRef>(1, record));
-        changelog->Flush();
-    }
-    {
-        auto changelog = New<TSyncFileChangelog>(IOEngine, TemporaryFile->Name(), New<TFileChangelogConfig>());
-        changelog->Open();
-        EXPECT_EQ(meta.prev_record_count(), changelog->GetMeta().prev_record_count());
-        EXPECT_EQ(1, changelog->GetRecordCount());
-        EXPECT_TRUE(TRef::AreBitwiseEqual(record, changelog->Read(0, 1, std::numeric_limits<i64>::max())[0]));
-    }
-}
-
-TEST_P(TSyncFileChangelogTest, MetaWithTruncate)
-{
-    TChangelogMeta meta;
-    meta.set_prev_record_count(123);
-    auto record = GenerateBlob(2000);
-
-    {
-        auto changelog = New<TSyncFileChangelog>(IOEngine, TemporaryFile->Name(), New<TFileChangelogConfig>());
-        changelog->Create(meta, GetFormatParam());
-        changelog->Append(0, std::vector<TSharedRef>(1, record));
-        changelog->Flush();
-        changelog->Truncate(1);
-        changelog->Flush();
-    }
-    {
-        auto changelog = New<TSyncFileChangelog>(IOEngine, TemporaryFile->Name(), New<TFileChangelogConfig>());
-        changelog->Open();
-        EXPECT_EQ(meta.prev_record_count(), changelog->GetMeta().prev_record_count());
-        EXPECT_EQ(1, changelog->GetRecordCount());
-        EXPECT_TRUE(TRef::AreBitwiseEqual(record, changelog->Read(0, 1, std::numeric_limits<i64>::max())[0]));
     }
 }
 

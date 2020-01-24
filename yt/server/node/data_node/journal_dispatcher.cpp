@@ -129,11 +129,6 @@ public:
             ChunkId_);
     }
 
-    virtual const TChangelogMeta& GetMeta() const override
-    {
-        return UnderlyingChangelog_->GetMeta();
-    }
-
     virtual int GetRecordCount() const override
     {
         return UnderlyingChangelog_->GetRecordCount();

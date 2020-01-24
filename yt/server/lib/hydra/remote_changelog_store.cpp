@@ -77,7 +77,7 @@ public:
         return ReachableVersion_;
     }
 
-    virtual TFuture<IChangelogPtr> CreateChangelog(int id, const TChangelogMeta& /*meta*/) override
+    virtual TFuture<IChangelogPtr> CreateChangelog(int id) override
     {
         return BIND(&TRemoteChangelogStore::DoCreateChangelog, MakeStrong(this))
             .AsyncVia(GetHydraIOInvoker())
@@ -245,11 +245,6 @@ private:
             , DataSize_(dataSize)
         { }
 
-        virtual const TChangelogMeta& GetMeta() const override
-        {
-            return Meta_;
-        }
-
         virtual int GetRecordCount() const override
         {
             return RecordCount_;
@@ -304,7 +299,6 @@ private:
 
     private:
         const TYPath Path_;
-        const TChangelogMeta Meta_;
         const IJournalWriterPtr Writer_;
         const TRemoteChangelogStorePtr Owner_;
 

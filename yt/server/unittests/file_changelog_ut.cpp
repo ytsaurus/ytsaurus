@@ -49,7 +49,7 @@ protected:
             .Get()
             .ValueOrThrow();
 
-        auto changelogOrError = ChangelogStore->CreateChangelog(0, TChangelogMeta()).Get();
+        auto changelogOrError = ChangelogStore->CreateChangelog(0).Get();
         ASSERT_TRUE(changelogOrError.IsOK()) << ToString(changelogOrError);
         Changelog = changelogOrError.Value();
 

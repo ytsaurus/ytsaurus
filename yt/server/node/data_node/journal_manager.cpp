@@ -701,7 +701,6 @@ private:
 
         auto changelog = MultiplexedChangelogDispatcher_->CreateChangelog(
             GetMultiplexedChangelogPath(id),
-            TChangelogMeta(),
             Config_);
 
         YT_LOG_INFO("Finished creating new multiplexed changelog (ChangelogId: %v)",
@@ -1005,7 +1004,6 @@ private:
             auto fileName = Location_->GetChunkPath(chunkId);
             changelog = SplitChangelogDispatcher_->CreateChangelog(
                 fileName,
-                TChangelogMeta(),
                 GetSplitChangelogConfig(enableMultiplexing));
         }
 

@@ -22,11 +22,6 @@ public:
             BIND(&TLazyChangelog::OnUnderlyingChangelogReady, MakeWeak(this)));
     }
 
-    virtual const TChangelogMeta& GetMeta() const override
-    {
-        return GetUnderlyingChangelog()->GetMeta();
-    }
-
     virtual int GetRecordCount() const override
     {
         TGuard<TSpinLock> guard(SpinLock_);

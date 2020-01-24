@@ -148,6 +148,9 @@ public:
     TVersion GetLoggedVersion() const;
     void SetLoggedVersion(TVersion version);
 
+    ui64 GetRandomSeed() const;
+    i64 GetSequenceNumber() const;
+
     void SetChangelog(IChangelogPtr changelog);
 
     int GetRecordCountSinceLastCheckpoint() const;
@@ -164,6 +167,8 @@ public:
     void LoadSnapshot(
         int snapshotId,
         TVersion version,
+        i64 sequenceNumber,
+        ui64 randomSeed,
         NConcurrency::IAsyncZeroCopyInputStreamPtr reader);
 
     void ValidateSnapshot(NConcurrency::IAsyncZeroCopyInputStreamPtr reader);
@@ -179,11 +184,15 @@ public:
             TMutationRequest&& request,
             TInstant timestamp,
             ui64 randomSeed,
+            ui64 prevRandomSeed,
+            i64 sequenceNumber,
             NTracing::TTraceContextPtr traceContext)
             : Version(version)
             , Request(request)
             , Timestamp(timestamp)
             , RandomSeed(randomSeed)
+            , PrevRandomSeed(prevRandomSeed)
+            , SequenceNumber(sequenceNumber)
             , TraceContext(std::move(traceContext))
         { }
 
@@ -191,6 +200,8 @@ public:
         TMutationRequest Request;
         TInstant Timestamp;
         ui64 RandomSeed;
+        ui64 PrevRandomSeed;
+        i64 SequenceNumber;
         NTracing::TTraceContextPtr TraceContext;
         TPromise<TMutationResponse> LocalCommitPromise = NewPromise<TMutationResponse>();
     };
@@ -261,6 +272,8 @@ private:
     std::atomic<TVersion> LoggedVersion_ = {};
     std::atomic<TVersion> AutomatonVersion_ = {};
     std::atomic<TVersion> CommittedVersion_ = {};
+    std::atomic<ui64> RandomSeed_ = {};
+    std::atomic<i64> SequenceNumber_ = {};
 
     bool RotatingChangelog_ = false;
 
@@ -279,6 +292,8 @@ private:
     const NLogging::TLogger Logger;
     const NProfiling::TProfiler Profiler;
 
+    ui64 GetLastLoggedRandomSeed() const;
+    i64 GetLastLoggedSequenceNumber() const;
 
     void RotateAutomatonVersionIfNeeded(TVersion mutationVersion);
     void DoApplyMutation(TMutationContext* context);

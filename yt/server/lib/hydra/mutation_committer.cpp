@@ -128,9 +128,12 @@ public:
         BatchedRecordsData_.push_back(std::move(recordData));
         LocalFlushResult_ = std::move(localFlushResult);
 
-        YT_LOG_DEBUG("Mutation batched (Version: %v, StartVersion: %v, MutationType: %v, MutationId: %v, TraceId: %v)",
+        YT_LOG_DEBUG("Mutation batched (Version: %v, StartVersion: %v, SequenceNumber: %v, RandomSeed: %llx, PrevRandomSeed: %llx, MutationType: %v, MutationId: %v, TraceId: %v)",
             pendingMutation.Version,
             GetStartVersion(),
+            pendingMutation.SequenceNumber,
+            pendingMutation.RandomSeed,
+            pendingMutation.PrevRandomSeed,
             pendingMutation.Request.Type,
             pendingMutation.Request.MutationId,
             pendingMutation.TraceContext ? pendingMutation.TraceContext->GetTraceId() : NTracing::TTraceId());

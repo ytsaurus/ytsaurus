@@ -136,8 +136,6 @@ public:
             NFS::ExpectIOErrors([&] {
                 ReadRefPadded(*dataFile, serializedMeta);
             });
-            DeserializeProto(&Meta_, serializedMeta);
-            SerializedMeta_ = serializedMeta;
 
             ReadIndex(dataFile.get(), header.FirstRecordOffset);
             ReadChangelogUntilEnd(dataFile.get(), header.FirstRecordOffset);
@@ -188,7 +186,7 @@ public:
         YT_LOG_DEBUG("Changelog closed");
     }
 
-    void Create(const TChangelogMeta& meta, EFileChangelogFormat format)
+    void Create(EFileChangelogFormat format)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -200,8 +198,6 @@ public:
         try {
             Format_ = format;
             Uuid_ = TGuid::Create();
-            Meta_ = meta;
-            SerializedMeta_ = SerializeProtoToRef(Meta_);
             RecordCount_ = 0;
             TruncatedRecordCount_.reset();
 
@@ -220,14 +216,6 @@ public:
         YT_LOG_DEBUG("Changelog created");
     }
 
-
-    const TChangelogMeta& GetMeta() const
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        auto guard = Guard(Lock_);
-        return Meta_;
-    }
 
     int GetRecordCount() const
     {
@@ -469,7 +457,7 @@ private:
         TFileHeader header;
         Zero(header);
         header.Signature = TFileHeader::ExpectedSignature;
-        header.MetaSize = SerializedMeta_.Size();
+        header.MetaSize = 0;
         header.FirstRecordOffset = ::AlignUp<size_t>(sizeof(TFileHeader) + header.MetaSize, Alignment);
         header.TruncatedRecordCount = TruncatedRecordCount_.value_or(TChangelogHeader::NotTruncatedRecordCount);
         header.PaddingSize = header.FirstRecordOffset - sizeof(TFileHeader) - header.MetaSize;
@@ -496,7 +484,8 @@ private:
                 auto header = MakeChangelogHeader<TFileHeader>();
                 WritePod(tempFile, header);
 
-                WriteRef(tempFile, SerializedMeta_);
+                // COMPAT(aleksandra-zh)
+                WriteRef(tempFile, TRef());
                 WriteZeroes(tempFile, header.PaddingSize);
 
                 YT_VERIFY(tempFile.GetPosition() == header.FirstRecordOffset);
@@ -536,7 +525,6 @@ private:
             auto header = MakeChangelogHeader<T>();
             auto data = TAsyncFileChangelogIndex::AllocateAligned(header.FirstRecordOffset, false, Alignment);
             ::memcpy(data.Begin(), &header, sizeof(header));
-            ::memcpy(data.Begin() + sizeof(header), SerializedMeta_.Begin(), SerializedMeta_.Size());
 
             IOEngine_->Pwrite(DataFile_, data, 0).Get().ThrowOnError();
             IOEngine_->FlushData(DataFile_).Get().ValueOrThrow();
@@ -994,9 +982,6 @@ private:
     std::optional<int> TruncatedRecordCount_;
     i64 CurrentFilePosition_ = -1;
 
-    TChangelogMeta Meta_;
-    TSharedRef SerializedMeta_;
-
     std::shared_ptr<TFileHandle> DataFile_;
     TAsyncFileChangelogIndex IndexFile_;
 
@@ -1044,9 +1029,9 @@ void TSyncFileChangelog::Close()
     Impl_->Close();
 }
 
-void TSyncFileChangelog::Create(const TChangelogMeta& meta, EFileChangelogFormat format)
+void TSyncFileChangelog::Create(EFileChangelogFormat format)
 {
-    Impl_->Create(meta, format);
+    Impl_->Create(format);
 }
 
 int TSyncFileChangelog::GetRecordCount() const
@@ -1062,11 +1047,6 @@ i64 TSyncFileChangelog::GetDataSize() const
 bool TSyncFileChangelog::IsOpen() const
 {
     return Impl_->IsOpen();
-}
-
-const TChangelogMeta& TSyncFileChangelog::GetMeta() const
-{
-    return Impl_->GetMeta();
 }
 
 void TSyncFileChangelog::Append(
