@@ -78,6 +78,10 @@ DEFINE_ENUM(ETransactionState,
     ((Aborted)                    (5))
 );
 
+DEFINE_ENUM(EErrorCode,
+    ((MailboxNotCreatedYet)    (2200))
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NHiveServer

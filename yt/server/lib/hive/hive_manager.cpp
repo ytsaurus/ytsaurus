@@ -119,6 +119,7 @@ public:
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraAcknowledgeMessages, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraPostMessages, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraSendMessages, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraRegisterMailbox, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraUnregisterMailbox, Unretained(this)));
 
         RegisterLoader(
@@ -166,7 +167,7 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         if (RemovedCellIds_.erase(cellId) != 0) {
-            YT_LOG_ALERT_UNLESS(IsRecovery(), "Mailbox has been resurrected (SrcCellId: %v, DstCellId: %v)",
+            YT_LOG_ALERT_UNLESS(IsRecovery(), "Mailbox has been resurrected (SelfCellId: %v, CellId: %v)",
                 SelfCellId_,
                 cellId);
         }
@@ -178,7 +179,7 @@ public:
             SendPeriodicPing(mailbox);
         }
 
-        YT_LOG_INFO_UNLESS(IsRecovery(), "Mailbox created (SrcCellId: %v, DstCellId: %v)",
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Mailbox created (SelfCellId: %v, CellId: %v)",
             SelfCellId_,
             mailbox->GetCellId());
         return mailbox;
@@ -377,8 +378,24 @@ private:
         ValidatePeer(EPeerKind::Leader);
         SyncWithUpstreamOnIncomingMessage(srcCellId);
 
-        auto* nextTransientIncomingMessageId = GetNextTransientIncomingMessageIdPtr(srcCellId);
-        if (*nextTransientIncomingMessageId == firstMessageId && messageCount > 0) {
+        ValidateCellNotRemoved(srcCellId);
+
+        auto* mailbox = FindMailbox(srcCellId);
+        if (!mailbox) {
+            NHiveServer::NProto::TReqRegisterMailbox hydraRequest;
+            ToProto(hydraRequest.mutable_cell_id(), srcCellId);
+            CreateMutation(HydraManager_, hydraRequest)
+                ->CommitAndLog(Logger);
+
+            THROW_ERROR_EXCEPTION(
+                NHiveServer::EErrorCode::MailboxNotCreatedYet,
+                "Mailbox %v is not created yet",
+                srcCellId);
+        }
+
+        auto nextTransientIncomingMessageId = mailbox->GetNextTransientIncomingMessageId();
+        YT_VERIFY(nextTransientIncomingMessageId >= 0);
+        if (nextTransientIncomingMessageId == firstMessageId && messageCount > 0) {
             YT_LOG_DEBUG_UNLESS(IsRecovery(), "Committing reliable incoming messages (SrcCellId: %v, DstCellId: %v, "
                 "MessageIds: %v-%v)",
                 srcCellId,
@@ -386,20 +403,18 @@ private:
                 firstMessageId,
                 firstMessageId + messageCount - 1);
 
-            *nextTransientIncomingMessageId += messageCount;
+            mailbox->SetNextTransientIncomingMessageId(nextTransientIncomingMessageId + messageCount);
             CreatePostMessagesMutation(*request)
                 ->CommitAndLog(Logger);
         }
-        response->set_next_transient_incoming_message_id(*nextTransientIncomingMessageId);
+        response->set_next_transient_incoming_message_id(nextTransientIncomingMessageId);
 
-        auto nextPersistentIncomingMessageId = GetNextPersistentIncomingMessageId(srcCellId);
-        if (nextPersistentIncomingMessageId) {
-            response->set_next_persistent_incoming_message_id(*nextPersistentIncomingMessageId);
-        }
+        auto nextPersistentIncomingMessageId = mailbox->GetNextPersistentIncomingMessageId();
+        response->set_next_persistent_incoming_message_id(nextPersistentIncomingMessageId);
 
         context->SetResponseInfo("NextPersistentIncomingMessageId: %v, NextTransientIncomingMessageId: %v",
             nextPersistentIncomingMessageId,
-            *nextTransientIncomingMessageId);
+            nextTransientIncomingMessageId);
         context->Reply();
     }
 
@@ -501,10 +516,8 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto srcCellId = FromProto<TCellId>(request->src_cell_id());
-        if (RemovedCellIds_.contains(srcCellId)) {
-            THROW_ERROR_EXCEPTION("Cell %v is removed",
-                srcCellId);
-        }
+
+        ValidateCellNotRemoved(srcCellId);
 
         auto firstMessageId = request->first_message_id();
         auto* mailbox = FindMailbox(srcCellId);
@@ -533,13 +546,27 @@ private:
         ApplyUnreliableIncomingMessages(mailbox, request);
     }
 
+    void HydraRegisterMailbox(NHiveServer::NProto::TReqRegisterMailbox* request)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto cellId = FromProto<TCellId>(request->cell_id());
+        if (RemovedCellIds_.contains(cellId)) {
+            YT_LOG_INFO_UNLESS(IsRecovery(), "Mailbox is already removed (SrcCellId: %v, DstCellId: %v)",
+                SelfCellId_,
+                cellId);
+            return;
+        }
+
+        GetOrCreateMailbox(cellId);
+    }
+
     void HydraUnregisterMailbox(NHiveServer::NProto::TReqUnregisterMailbox* request)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto cellId = FromProto<TCellId>(request->cell_id());
-        auto* mailbox = FindMailbox(cellId);
-        if (mailbox) {
+        if (auto* mailbox = FindMailbox(cellId)) {
             RemoveMailbox(mailbox);
         }
     }
@@ -699,38 +726,27 @@ private:
 
         for (auto [id, mailbox] : MailboxMap_) {
             SetMailboxDisconnected(mailbox);
+            mailbox->SetNextTransientIncomingMessageId(-1);
             mailbox->SetAcknowledgeInProgress(false);
             mailbox->SetCachedChannel(nullptr);
             mailbox->SetPostBatchingCookie(nullptr);
         }
-        CellIdToNextTransientIncomingMessageId_.clear();
     }
 
-
-    TMessageId* GetNextTransientIncomingMessageIdPtr(TCellId cellId)
+    void PrepareLeaderMailboxes()
     {
-        auto it = CellIdToNextTransientIncomingMessageId_.find(cellId);
-        if (it != CellIdToNextTransientIncomingMessageId_.end()) {
-            return &it->second;
+        for (auto [id, mailbox] : MailboxMap_) {
+            mailbox->SetNextTransientIncomingMessageId(mailbox->GetNextPersistentIncomingMessageId());
         }
-
-        return &CellIdToNextTransientIncomingMessageId_.emplace(
-            cellId,
-            GetNextPersistentIncomingMessageId(cellId).value_or(0)).first->second;
     }
 
-    TMessageId GetNextTransientIncomingMessageId(TMailbox* mailbox)
-    {
-        auto it = CellIdToNextTransientIncomingMessageId_.find(mailbox->GetCellId());
-        return it == CellIdToNextTransientIncomingMessageId_.end()
-            ? mailbox->GetNextIncomingMessageId()
-            : it->second;
-    }
 
-    std::optional<TMessageId> GetNextPersistentIncomingMessageId(TCellId cellId)
+    void ValidateCellNotRemoved(TCellId cellId)
     {
-        auto* mailbox = FindMailbox(cellId);
-        return mailbox ? std::make_optional(mailbox->GetNextIncomingMessageId()) : std::nullopt;
+        if (RemovedCellIds_.contains(cellId)) {
+            THROW_ERROR_EXCEPTION("Cell %v is removed",
+                cellId);
+        }
     }
 
 
@@ -818,6 +834,7 @@ private:
         }
 
         const auto& rsp = rspOrError.Value();
+        // COMPAT(babenko): last_outcoming_message_id is now required
         auto lastOutcomingMessageId = rsp->has_last_outcoming_message_id()
             ? std::make_optional(rsp->last_outcoming_message_id())
             : std::nullopt;
@@ -925,13 +942,13 @@ private:
         }
 
         auto messageId = rsp->last_outcoming_message_id();
-        if (messageId < mailbox->GetNextIncomingMessageId()) {
+        if (messageId < mailbox->GetNextPersistentIncomingMessageId()) {
             YT_LOG_DEBUG("Already synchronized with remote instance (SrcCellId: %v, DstCellId: %v, "
                 "SyncMessageId: %v, NextPersistentIncomingMessageId: %v)",
                 cellId,
                 SelfCellId_,
                 messageId,
-                mailbox->GetNextIncomingMessageId());
+                mailbox->GetNextPersistentIncomingMessageId());
             return VoidFuture;
         }
 
@@ -940,7 +957,7 @@ private:
             cellId,
             SelfCellId_,
             messageId,
-            mailbox->GetNextIncomingMessageId());
+            mailbox->GetNextPersistentIncomingMessageId());
 
         return RegisterSyncRequest(mailbox, messageId);
     }
@@ -965,7 +982,7 @@ private:
         while (!syncRequests.empty()) {
             auto it = syncRequests.begin();
             auto messageId = it->first;
-            if (messageId >= mailbox->GetNextIncomingMessageId()) {
+            if (messageId >= mailbox->GetNextPersistentIncomingMessageId()) {
                 break;
             }
 
@@ -1105,6 +1122,14 @@ private:
         mailbox->SetInFlightOutcomingMessageCount(0);
         mailbox->SetPostInProgress(false);
 
+        if (rspOrError.GetCode() == NHiveServer::EErrorCode::MailboxNotCreatedYet) {
+            YT_LOG_DEBUG(rspOrError, "Mailbox is not created yet; will retry (SrcCellId: %v, DstCellId: %v)",
+                SelfCellId_,
+                mailbox->GetCellId());
+            SchedulePostOutcomingMessages(mailbox);
+            return;
+        }
+
         if (!rspOrError.IsOK()) {
             YT_LOG_DEBUG(rspOrError, "Failed to post reliable outcoming messages (SrcCellId: %v, DstCellId: %v)",
                 SelfCellId_,
@@ -1114,6 +1139,7 @@ private:
         }
 
         const auto& rsp = rspOrError.Value();
+        // COMPAT(babenko): next_persistent_incoming_message_id is now required
         auto nextPersistentIncomingMessageId = rsp->has_next_persistent_incoming_message_id()
             ? std::make_optional(rsp->next_persistent_incoming_message_id())
             : std::nullopt;
@@ -1183,6 +1209,15 @@ private:
             HydraManager_,
             context,
             &TImpl::HydraSendMessages,
+            this);
+    }
+
+    std::unique_ptr<TMutation> CreateRegisterMailboxMutation(const NHiveServer::NProto::TReqRegisterMailbox& req)
+    {
+        return CreateMutation(
+            HydraManager_,
+            req,
+            &TImpl::HydraRegisterMailbox,
             this);
     }
 
@@ -1278,12 +1313,12 @@ private:
 
     void ApplyReliableIncomingMessage(TMailbox* mailbox, TMessageId messageId, const TEncapsulatedMessage& message)
     {
-        if (messageId != mailbox->GetNextIncomingMessageId()) {
+        if (messageId != mailbox->GetNextPersistentIncomingMessageId()) {
             YT_LOG_ALERT_UNLESS(IsRecovery(), "Attempt to apply an out-of-order message (SrcCellId: %v, DstCellId: %v, "
                 "ExpectedMessageId: %v, ActualMessageId: %v, MutationType: %v)",
                 mailbox->GetCellId(),
                 SelfCellId_,
-                mailbox->GetNextIncomingMessageId(),
+                mailbox->GetNextPersistentIncomingMessageId(),
                 messageId,
                 message.type());
             return;
@@ -1304,7 +1339,7 @@ private:
 
         ApplyMessage(message);
 
-        mailbox->SetNextIncomingMessageId(messageId + 1);
+        mailbox->SetNextPersistentIncomingMessageId(messageId + 1);
 
         FlushSyncRequests(mailbox);
     }
@@ -1347,6 +1382,7 @@ private:
     {
         TCompositeAutomatonPart::OnLeaderRecoveryComplete();
         ReconnectMailboxes();
+        PrepareLeaderMailboxes();
     }
 
     virtual void OnStopLeading() override
@@ -1461,8 +1497,8 @@ private:
                             .Item("post_in_progress").Value(mailbox->GetPostInProgress())
                             .Item("first_outcoming_message_id").Value(mailbox->GetFirstOutcomingMessageId())
                             .Item("outcoming_message_count").Value(mailbox->OutcomingMessages().size())
-                            .Item("next_persistent_incoming_message_id").Value(mailbox->GetNextIncomingMessageId())
-                            .Item("next_transient_incoming_message_id").Value(GetNextTransientIncomingMessageId(mailbox))
+                            .Item("next_persistent_incoming_message_id").Value(mailbox->GetNextPersistentIncomingMessageId())
+                            .Item("next_transient_incoming_message_id").Value(mailbox->GetNextTransientIncomingMessageId())
                             .Item("first_in_flight_outcoming_message_id").Value(mailbox->GetFirstInFlightOutcomingMessageId())
                             .Item("in_flight_outcoming_message_count").Value(mailbox->GetInFlightOutcomingMessageCount())
                         .EndMap();
