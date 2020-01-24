@@ -22,6 +22,8 @@ const (
 	NodeAccount          NodeType = "account"
 	NodeTabletCellBundle NodeType = "tablet_cell_bundle"
 	NodeSys              NodeType = "sys_node"
+	NodePortalEntrance   NodeType = "portal_entrance"
+	NodePortalExit       NodeType = "portal_exit"
 )
 
 func (n NodeType) String() string {
