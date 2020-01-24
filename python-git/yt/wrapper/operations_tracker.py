@@ -201,6 +201,8 @@ class OperationsTrackerBase(object):
         with ExceptionCatcher(abort_exceptions, self.abort_all, enable=self._abort_on_sigint):
             while self._tracking_thread.get_operation_count() > 0:
                 sleep(self._poll_period / 1000.0)
+                if not self._tracking_thread.is_alive():
+                    raise YtError("OperationsTracker tracking thread died unexpectedly")
 
         inner_errors = self._tracking_thread.errors
         self._tracking_thread.errors = []
