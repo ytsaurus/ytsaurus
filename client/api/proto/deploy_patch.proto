@@ -97,24 +97,24 @@ message TDeployPatchProgress
 enum EDeployPatchActionType
 {
     // NONE action. Nothing actions are performed.
-    NONE = 0
+    DPAT_NONE = 0
     [(NYT.NYson.NProto.enum_value_name) = "none"];
 
     // Commit patch. No actions can be performed after commit.
-    COMMIT = 1
+    DPAT_COMMIT = 1
     [(NYT.NYson.NProto.enum_value_name) = "commit"];
 
     // Skip patch. Patch will no be applied.
     // No actions can be performed after skip.
-    SKIP = 2
+    DPAT_SKIP = 2
     [(NYT.NYson.NProto.enum_value_name) = "skip"];
 
     // Put patch on hold.
-    ON_HOLD = 3
+    DPAT_ON_HOLD = 3
     [(NYT.NYson.NProto.enum_value_name) = "on_hold"];
 
     // Wait for other patches to apply.
-    WAIT = 4
+    DPAT_WAIT = 4
     [(NYT.NYson.NProto.enum_value_name) = "wait"];
 }
 

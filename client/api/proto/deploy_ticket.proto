@@ -29,6 +29,7 @@ message TDeployTicketSpec
     string stage_id = 1;
     // Patches describe how to patch stage spec or dynamic resource spec
     // with release data. Copied from release rule.
+    // <patch id> -> <patch spec>.
     map<string, NYP.NClient.NApi.NProto.TDeployPatchSpec> patches = 2 [(NYT.NYson.NProto.yson_map) = true, (NYP.NClient.NApi.NProto.etc) = true];
     // Ticket title. Used for displaying in tickets list.
     string title = 3 [(NYP.NClient.NApi.NProto.etc) = true];

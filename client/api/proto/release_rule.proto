@@ -50,11 +50,11 @@ message TAutoCommitPolicy
         NONE = 0
         [(NYT.NYson.NProto.enum_value_name) = "none"];
 
-        // Auto commit first created ticket for this release rule.
+        // Auto commit last created ticket for this release rule.
         MAINTAIN_ACTIVE_TRUNK = 1
         [(NYT.NYson.NProto.enum_value_name) = "maintain_active_trunk"];
 
-        // Auto commit last created ticket for this release rule.
+        // Auto commit first created ticket for this release rule.
         SEQUENTIAL_COMMIT = 2
         [(NYT.NYson.NProto.enum_value_name) = "sequential_commit"];
     }
@@ -84,6 +84,7 @@ message TReleaseRuleSpec
     }
     // Patches describe how to patch stage spec or dynamic resource spec
     // with release data.
+    // <patch id> -> <patch spec>.
     map<string, NYP.NClient.NApi.NProto.TDeployPatchSpec> patches = 6 [(NYT.NYson.NProto.yson_map) = true, (NYP.NClient.NApi.NProto.etc) = true];
     string description = 2 [(NYP.NClient.NApi.NProto.etc) = true];
     // Users who recieve notifications on release commit.
