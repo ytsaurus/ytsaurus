@@ -54,6 +54,23 @@ DEFINE_REFCOUNTED_TYPE(TPodTypeHandlerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TPodSetTypeHandlerConfig
+    : public NYT::NYTree::TYsonSerializable
+{
+public:
+    bool AllowNodeSegmentChange;
+
+    TPodSetTypeHandlerConfig()
+    {
+        RegisterParameter("allow_node_segment_change", AllowNodeSegmentChange)
+            .Default(false);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TPodSetTypeHandlerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TPodVcpuGuaranteeToLimitRatioConstraintConfig
     : public NYT::NYTree::TYsonSerializable
 {
@@ -103,6 +120,7 @@ public:
 
     // Type handlers.
     TPodTypeHandlerConfigPtr PodTypeHandler;
+    TPodSetTypeHandlerConfigPtr PodSetTypeHandler;
     TNodeSegmentTypeHandlerConfigPtr NodeSegmentTypeHandler;
 
     // Extensible attributes.
@@ -123,6 +141,8 @@ public:
             .Default(50000);
 
         RegisterParameter("pod_type_handler", PodTypeHandler)
+            .DefaultNew();
+        RegisterParameter("pod_set_type_handler", PodSetTypeHandler)
             .DefaultNew();
         RegisterParameter("node_segment_type_handler", NodeSegmentTypeHandler)
             .DefaultNew();

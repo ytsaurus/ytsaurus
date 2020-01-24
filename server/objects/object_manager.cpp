@@ -89,7 +89,7 @@ public:
         RegisterTypeHandler(CreateNodeTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateResourceTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreatePodTypeHandler(Bootstrap_, Config_->PodTypeHandler));
-        RegisterTypeHandler(CreatePodSetTypeHandler(Bootstrap_));
+        RegisterTypeHandler(CreatePodSetTypeHandler(Bootstrap_, Config_->PodSetTypeHandler));
         RegisterTypeHandler(CreateEndpointTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateEndpointSetTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateStageTypeHandler(Bootstrap_, Config_->PodTypeHandler->SpecValidation));

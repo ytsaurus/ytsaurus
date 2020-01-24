@@ -33,16 +33,22 @@ class TestNodeSegments(object):
         pod_set_id = yp_client.create_object("pod_set", attributes={"spec": {"node_segment_id": node_segment_ids[0]}})
         with pytest.raises(YtResponseError):
             yp_client.update_object("pod_set", pod_set_id, set_updates=[{"path": "/spec/node_segment_id", "value": node_segment_ids[1]}])
-
         yp_client.remove_object("pod_set", pod_set_id)
+
         pod_set_id = yp_client.create_object("pod_set", attributes={"spec": {"node_segment_id": node_segment_ids[1]}})
         assert yp_client.get_object("pod_set", pod_set_id, selectors=["/spec/node_segment_id"])[0] == node_segment_ids[1]
+
+        with pytest.raises(YtResponseError):
+            yp_client.update_object("pod_set", pod_set_id, set_updates=[{"path": "/spec/node_segment_id", "value": ""}])
 
     def test_pod_set_must_refer_to_valid_node_segment(self, yp_env):
         yp_client = yp_env.yp_client
 
         with pytest.raises(YpNoSuchObjectError):
             yp_client.create_object("pod_set", attributes={"spec": {"node_segment_id": "nonexisting"}})
+
+        with pytest.raises(YtResponseError):
+            yp_client.create_object("pod_set", attributes={"spec": {"node_segment_id": ""}})
 
     def test_total_resources(self, yp_env):
         yp_client = yp_env.yp_client
@@ -78,3 +84,28 @@ class TestNodeSegments(object):
 
         make_nodes(75)
         wait(lambda: check_totals(100))
+
+
+@pytest.mark.usefixtures("yp_env_configurable")
+class TestAllowNodeSegmentChangeForPodSet(object):
+    YP_MASTER_CONFIG = dict(
+        object_manager=dict(
+            pod_set_type_handler=dict(
+                allow_node_segment_change=True,
+            ),
+        ),
+    )
+
+    def test(self, yp_env_configurable):
+        yp_client = yp_env_configurable.yp_client
+
+        node_segment_ids = yp_client.create_objects([("node_segment", {"spec": {"node_filter": "true"}})] * 2)
+        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": {"node_segment_id": node_segment_ids[0]}})
+
+        yp_client.update_object("pod_set", pod_set_id, set_updates=[{"path": "/spec/node_segment_id", "value": node_segment_ids[1]}])
+
+        with pytest.raises(YtResponseError):
+            yp_client.update_object("pod_set", pod_set_id, set_updates=[{"path": "/spec/node_segment_id", "value": ""}])
+
+        with pytest.raises(YpNoSuchObjectError):
+            yp_client.update_object("pod_set", pod_set_id, set_updates=[{"path": "/spec/node_segment_id", "value": "nonexisting"}])

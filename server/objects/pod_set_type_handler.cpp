@@ -1,11 +1,13 @@
 #include "pod_set_type_handler.h"
-#include "type_handler_detail.h"
-#include "pod_set.h"
-#include "pod.h"
-#include "node_segment.h"
+
 #include "account.h"
-#include "pod_disruption_budget.h"
+#include "config.h"
 #include "db_schema.h"
+#include "node_segment.h"
+#include "pod.h"
+#include "pod_disruption_budget.h"
+#include "pod_set.h"
+#include "type_handler_detail.h"
 
 #include <yp/server/master/bootstrap.h>
 
@@ -24,8 +26,9 @@ class TPodSetTypeHandler
     : public TObjectTypeHandlerBase
 {
 public:
-    explicit TPodSetTypeHandler(NMaster::TBootstrap* bootstrap)
+    TPodSetTypeHandler(NMaster::TBootstrap* bootstrap, TPodSetTypeHandlerConfigPtr config)
         : TObjectTypeHandlerBase(bootstrap, EObjectType::PodSet)
+        , Config_(std::move(config))
     { }
 
     virtual void Initialize() override
@@ -39,7 +42,10 @@ public:
                     ->SetUpdatable(),
 
                 MakeAttributeSchema("node_segment_id")
-                    ->SetAttribute(TPodSet::TSpec::NodeSegmentSchema),
+                    ->SetAttribute(TPodSet::TSpec::NodeSegmentSchema
+                        .SetNullable(false))
+                    ->SetUpdatable()
+                    ->SetValidator<TPodSet>(std::bind(&TPodSetTypeHandler::ValidateNodeSegment, this, _1, _2)),
 
                 MakeAttributeSchema("account_id")
                     ->SetAttribute(TPodSet::TSpec::AccountSchema
@@ -93,6 +99,8 @@ public:
     }
 
 private:
+    const TPodSetTypeHandlerConfigPtr Config_;
+
     virtual std::vector<EAccessControlPermission> GetDefaultPermissions() override
     {
         auto result = TObjectTypeHandlerBase::GetDefaultPermissions();
@@ -161,6 +169,13 @@ private:
         }
     }
 
+    void ValidateNodeSegment(TTransaction* /*transaction*/, TPodSet* podSet)
+    {
+        if (!Config_->AllowNodeSegmentChange && podSet->Spec().NodeSegment().LoadOld() && podSet->Spec().NodeSegment().IsChanged()) {
+            THROW_ERROR_EXCEPTION("Changing of node segment is not allowed");
+        }
+    }
+
     void OnAccountUpdated(TTransaction* transaction, TPodSet* podSet)
     {
         for (auto* pod : podSet->Pods().Load()) {
@@ -183,9 +198,9 @@ private:
     }
 };
 
-std::unique_ptr<IObjectTypeHandler> CreatePodSetTypeHandler(NMaster::TBootstrap* bootstrap)
+std::unique_ptr<IObjectTypeHandler> CreatePodSetTypeHandler(NMaster::TBootstrap* bootstrap, TPodSetTypeHandlerConfigPtr config)
 {
-    return std::unique_ptr<IObjectTypeHandler>(new TPodSetTypeHandler(bootstrap));
+    return std::unique_ptr<IObjectTypeHandler>(new TPodSetTypeHandler(bootstrap, std::move(config)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
