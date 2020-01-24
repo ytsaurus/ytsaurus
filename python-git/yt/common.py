@@ -204,13 +204,14 @@ class YtResponseError(YtError):
         """Transaction lock conflict."""
         return self.contains_code(1700)
 
+    @deprecated(alternative='use is_request_queue_size_limit_exceeded')
     def is_request_rate_limit_exceeded(self):
         """Request rate limit exceeded."""
         return self.contains_code(904)
 
     def is_request_queue_size_limit_exceeded(self):
         """Request rate limit exceeded."""
-        return self.contains_code(108)
+        return self.contains_code(108) or self.contains_code(904)
 
     def is_rpc_unavailable(self):
         """Rpc unavailable."""
