@@ -51,7 +51,8 @@ public:
                 NObjects::EObjectType::DynamicResource,
                 NObjects::EObjectType::IP4AddressPool,
                 NObjects::EObjectType::Project,
-                NObjects::EObjectType::ReleaseRule});
+                NObjects::EObjectType::ReleaseRule,
+                NObjects::EObjectType::ResourceCache});
     }
 };
 
