@@ -59,6 +59,7 @@ def _with_object_id(func):
                 pool_tree=None, *args, **kwargs):
         object_id = _get_object_id(path, account, pool, group, tablet_cell_bundle, pool_tree)
         return func(client, *args, object_id=object_id, **kwargs)
+    wrapper.__doc__ = func.__doc__
     return wrapper
 
 
@@ -70,10 +71,12 @@ def _with_optional_object_id(func):
         else:
             object_id = None
         return func(client, *args, object_id=object_id, **kwargs)
+    wrapper.__doc__ = func.__doc__
     return wrapper
 
 
 class YtAclClient(object):
+    """Implements YT ACL client."""
     def __init__(self, cluster, token, base_url=DEFAULT_BASE_ACL_SERVICE_URL,
                  certitificate_path=None):
         self._cluster = cluster
@@ -112,15 +115,18 @@ class YtAclClient(object):
 
     @_with_object_id
     def get_acl(self, object_id, include_managed_ace=False):
+        """Gets ACL info."""
         params = dict(id=object_id, include_managed_ace=include_managed_ace)
         return self._make_request("get", "acl", params)
 
     @_with_object_id
     def set_inherit_acl(self, object_id, inherit_acl):
+        """Sets or removes inherit_acl flag for object."""
         return self._make_request("post", "acl", dict(id=object_id, inherit_acl=inherit_acl))
 
     @_with_optional_object_id
     def remove_role(self, object_id=None, role=None, role_key=None, comment=""):
+        """Removes role."""
         xor = lambda a, b: bool(a) ^ bool(b)
         if not xor((object_id and role and not role_key), (not object_id and not role and role_key)):
             raise TypeError("expected either 'role_key' or both 'object_id' and 'role'")
@@ -134,6 +140,7 @@ class YtAclClient(object):
 
     @_with_object_id
     def add_role(self, object_id, comment="", **kwargs):
+        """Adds role."""
         if "role" in kwargs and "roles" in kwargs:
             raise TypeError("expected either 'role' or 'roles', not both")
         if "role" in kwargs:
@@ -146,7 +153,9 @@ class YtAclClient(object):
 
     @_with_object_id
     def get_responsible(self, object_id):
+        """Gets subject responsible for object."""
         return self._make_request("get", "responsible", dict(id=object_id))
 
     def get_group(self, group_name):
+        """Gets legacy YT group info by group name."""
         return self._make_request("get", "group", dict(group_name=group_name))
