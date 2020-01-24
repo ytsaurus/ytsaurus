@@ -5261,6 +5261,33 @@ void TOperationControllerBase::GetOutputTablesSchema()
                 THROW_ERROR_EXCEPTION("Only sorted dynamic table can be updated")
                     << TErrorAttribute("table_path", path);
             }
+
+            // Check if bulk insert is enabled for a certain user.
+            if (!Config->EnableBulkInsertForEveryone) {
+                auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Cache);
+                TObjectServiceProxy proxy(channel);
+                auto batchReq = proxy.ExecuteBatch();
+
+                auto req = TYPathProxy::Get("//sys/users/" + ToYPathLiteral(AuthenticatedUser) + "/@");
+                ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
+                    "enable_bulk_insert"
+                });
+                batchReq->AddRequest(req);
+
+                auto batchRspOrError = WaitFor(batchReq->Invoke());
+                THROW_ERROR_EXCEPTION_IF_FAILED(
+                    GetCumulativeError(batchRspOrError),
+                    "Failed to check if bulk insert is enabled");
+                const auto& batchRsp = batchRspOrError.Value();
+
+                const auto& rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>(0);
+                const auto& rsp = rspOrError.Value();
+                auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+                if (!attributes->Get<bool>("enable_bulk_insert", false)) {
+                    THROW_ERROR_EXCEPTION("Bulk insert is disabled for user %Qv, contact yt-admin@ for enabling",
+                        AuthenticatedUser);
+                }
+            }
         }
 
         // TODO(savrus): I would like to see commit ts here. But as for now, start ts suffices.

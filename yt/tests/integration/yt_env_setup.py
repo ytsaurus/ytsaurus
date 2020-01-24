@@ -860,6 +860,14 @@ class YTEnvSetup(object):
                 yt_commands.create("document", "//sys/controller_agents/config", attributes={"value": {}}, force=True, driver=driver)
                 yt_commands.create("document", "//sys/scheduler/config", attributes={"value": {}}, force=True, driver=driver)
 
+                if cls.ENABLE_BULK_INSERT:
+                    yt_commands.set("//sys/controller_agents/config/enable_bulk_insert_for_everyone", True)
+                    for instance in yt_commands.ls("//sys/controller_agents/instances"):
+                        def _wait_func():
+                            config = yt_commands.get("//sys/controller_agents/instances/{}/orchid/controller_agent/config".format(instance))
+                            return config.get("enable_bulk_insert_for_everyone", False)
+                        wait(_wait_func)
+
             if cls.ENABLE_TMP_PORTAL and cluster_index == 0:
                 yt_commands.create("portal_entrance", "//tmp",
                     attributes={

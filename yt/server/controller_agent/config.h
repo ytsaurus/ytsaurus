@@ -772,6 +772,8 @@ public:
     //! Regex for users having legacy live preview disabled by default.
     NRe2::TRe2Ptr LegacyLivePreviewUserBlacklist;
 
+    bool EnableBulkInsertForEveryone;
+
     TControllerAgentConfig();
 
 private:
