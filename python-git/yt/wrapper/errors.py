@@ -39,36 +39,36 @@ class YtResponseError(yt.common.YtResponseError):
     """Another incarnation of YtResponseError."""
     def __init__(self, *args, **kwargs):
         super(YtResponseError, self).__init__(*args, **kwargs)
-        if self.is_request_rate_limit_exceeded():
-            self.__class__ = YtRequestRateLimitExceeded
         if self.is_request_queue_size_limit_exceeded():
             self.__class__ = YtRequestQueueSizeLimitExceeded
-        if self.is_concurrent_operations_limit_reached():
+        elif self.is_request_rate_limit_exceeded():
+            self.__class__ = YtRequestRateLimitExceeded
+        elif self.is_concurrent_operations_limit_reached():
             self.__class__ = YtConcurrentOperationsLimitExceeded
-        if self.is_request_timed_out():
+        elif self.is_request_timed_out():
             self.__class__ = YtRequestTimedOut
-        if self.is_no_such_transaction():
+        elif self.is_no_such_transaction():
             self.__class__ = YtNoSuchTransaction
-        if self.is_master_communication_error():
+        elif self.is_master_communication_error():
             self.__class__ = YtMasterCommunicationError
-        if self.is_chunk_unavailable():
+        elif self.is_chunk_unavailable():
             self.__class__ = YtChunkUnavailable
-        if self.is_concurrent_transaction_lock_conflict():
+        elif self.is_concurrent_transaction_lock_conflict():
             self.__class__ = YtConcurrentTransactionLockConflict
-        if self.is_tablet_transaction_lock_conflict():
+        elif self.is_tablet_transaction_lock_conflict():
             self.__class__ = YtTabletTransactionLockConflict
-        if self.is_cypress_transaction_lock_conflict():
+        elif self.is_cypress_transaction_lock_conflict():
             self.__class__ = YtCypressTransactionLockConflict
-        if self.is_tablet_in_intermediate_state():
+        elif self.is_tablet_in_intermediate_state():
             self.__class__ = YtTabletIsInIntermediateState
-        if self.is_no_such_tablet():
+        elif self.is_no_such_tablet():
             self.__class__ = YtNoSuchTablet
-        if self.is_tablet_not_mounted():
+        elif self.is_tablet_not_mounted():
             self.__class__ = YtTabletNotMounted
-        if self.is_rpc_unavailable():
+        elif self.is_rpc_unavailable():
             self.__class__ = YtRpcUnavailable
-        if self.is_all_target_nodes_failed():
-            self.__class__ = YtAllTargetNodesFailed
+        else:
+            pass
 
 class YtHttpResponseError(YtResponseError):
     """Reponse error recieved from http proxy with additional http request information."""
