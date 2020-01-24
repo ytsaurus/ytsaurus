@@ -541,6 +541,12 @@ public:
     //! Period between consequent incremental heartbeats.
     TDuration IncrementalHeartbeatPeriod;
 
+    //! Incremental heartbeat throttler limit.
+    i64 IncrementalHeartbeatThrottlerLimit;
+
+    //! Incremental heartbeat throller period.
+    TDuration IncrementalHeartbeatThrottlerPeriod;
+
     //! Period between consequent full heartbeats.
     std::optional<TDuration> FullHeartbeatPeriod;
 
@@ -782,6 +788,12 @@ public:
             .Default(TDuration::Seconds(60));
         RegisterParameter("incremental_heartbeat_timeout", IncrementalHeartbeatTimeout)
             .Default(TDuration::Seconds(60));
+
+        // TODO(gritukan@): Make this restriction stricter after YT-12054.
+        RegisterParameter("incremental_heartbeat_throttler_limit", IncrementalHeartbeatThrottlerLimit)
+            .Default(1);
+        RegisterParameter("incremental_heartbeat_throttler_period", IncrementalHeartbeatThrottlerPeriod)
+            .Default(TDuration::Minutes(1));
         RegisterParameter("full_heartbeat_timeout", FullHeartbeatTimeout)
             .Default(TDuration::Seconds(60));
         RegisterParameter("job_heartbeat_timeout", JobHeartbeatTimeout)

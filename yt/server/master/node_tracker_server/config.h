@@ -97,6 +97,8 @@ public:
     int MaxConcurrentFullHeartbeats;
     int MaxConcurrentIncrementalHeartbeats;
 
+    TDuration ForceNodeHeartbeatRequestTimeout;
+
     TMasterCacheManagerConfigPtr MasterCacheManager;
 
     TDynamicNodeTrackerConfig()
@@ -128,6 +130,9 @@ public:
         RegisterParameter("max_concurrent_incremental_heartbeats", MaxConcurrentIncrementalHeartbeats)
             .Default(10)
             .GreaterThan(0);
+
+        RegisterParameter("force_node_heartbeat_request_timeout", ForceNodeHeartbeatRequestTimeout)
+            .Default(TDuration::Seconds(1));
 
         RegisterParameter("master_cache_manager", MasterCacheManager)
             .DefaultNew();

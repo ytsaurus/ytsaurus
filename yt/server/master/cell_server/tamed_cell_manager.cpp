@@ -288,7 +288,7 @@ public:
         }
     }
 
-    TCellBase *CreateCell(TCellBundle* cellBundle, std::unique_ptr<TCellBase> holder)
+    TCellBase* CreateCell(TCellBundle* cellBundle, std::unique_ptr<TCellBase> holder)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -453,12 +453,14 @@ public:
             oldPeerCount,
             newPeerCount);
 
+        bool leaderChanged = false;
         if (newPeerCount > oldPeerCount) {
             cell->Peers().resize(newPeerCount);
         } else {
             // Move leader to the first place to prevent its removing.
             int leaderId = cell->GetLeadingPeerId();
             if (leaderId != 0) {
+                leaderChanged = true;
                 RemoveFromAddressToCellMap(cell->Peers()[leaderId].Descriptor, cell);
                 RemoveFromAddressToCellMap(cell->Peers()[0].Descriptor, cell);
                 std::swap(cell->Peers()[cell->GetLeadingPeerId()], cell->Peers()[0]);
@@ -475,10 +477,24 @@ public:
             cell->Peers().resize(newPeerCount);
         }
 
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (leaderChanged && multicellManager->IsPrimaryMaster()) {
+            RestartPrerequisiteTransaction(cell);
+        }
+
         ReconfigureCell(cell);
+
+        // Notify new quorum as soon as possible via heartbeat requests.
+        if (multicellManager->IsPrimaryMaster() && IsLeader()) {
+            for (const auto& peer : cell->Peers()) {
+                if (peer.Node) {
+                    Bootstrap_->GetNodeTracker()->RequestNodeHeartbeat(peer.Node->GetId());
+                }
+            }
+        }
     }
 
-    const TCellSet *FindAssignedCells(const TString& address) const
+    const TCellSet* FindAssignedCells(const TString& address) const
     {
         auto it = AddressToCell_.find(address);
         return it != AddressToCell_.end()
@@ -486,12 +502,12 @@ public:
            : nullptr;
     }
 
-    const TBundleNodeTrackerPtr &GetBundleNodeTracker()
+    const TBundleNodeTrackerPtr& GetBundleNodeTracker()
     {
         return BundleNodeTracker_;
     }
 
-    TCellBase *GetCellOrThrow(TTamedCellId id)
+    TCellBase* GetCellOrThrow(TTamedCellId id)
     {
         auto* cell = FindCell(id);
         if (!IsObjectAlive(cell)) {
@@ -1373,11 +1389,14 @@ private:
 
         auto cellId = FromProto<TTamedCellId>(request->cell_id());
         auto* cell = FindCell(cellId);
+        const auto& oldLeader = cell->Peers()[cell->GetLeadingPeerId()];
         if (!IsObjectAlive(cell)) {
             return;
         }
 
         auto peerId = request->peer_id();
+        const auto& newLeader = cell->Peers()[peerId];
+
         cell->SetLeadingPeerId(peerId);
 
         const auto& descriptor = cell->Peers()[peerId].Descriptor;
@@ -1394,6 +1413,16 @@ private:
         }
 
         ReconfigureCell(cell);
+
+        // Notify new leader as soon as possible via heartbeat request.
+        if (multicellManager->IsPrimaryMaster() && IsLeader()) {
+            if (oldLeader.Node) {
+                Bootstrap_->GetNodeTracker()->RequestNodeHeartbeat(oldLeader.Node->GetId());
+            }
+            if (newLeader.Node) {
+                Bootstrap_->GetNodeTracker()->RequestNodeHeartbeat(newLeader.Node->GetId());
+            }
+        }
     }
 
     virtual void OnLeaderActive() override

@@ -230,9 +230,19 @@ TNodeDescriptor TMasterConnector::GetLocalDescriptor() const
 
 void TMasterConnector::ScheduleNodeHeartbeat(TCellTag cellTag, bool immedately)
 {
+    BIND(&TMasterConnector::DoScheduleNodeHeartbeat, MakeStrong(this), cellTag, immedately)
+        .AsyncVia(ControlInvoker_)
+        .Run();
+}
+
+void TMasterConnector::DoScheduleNodeHeartbeat(TCellTag cellTag, bool immedately)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     auto period = immedately
         ? TDuration::Zero()
         : Config_->IncrementalHeartbeatPeriod;
+    ++HeartbeatsScheduled_[cellTag];
     TDelayedExecutor::Submit(
         BIND(&TMasterConnector::ReportNodeHeartbeat, MakeStrong(this), cellTag)
             .Via(HeartbeatInvoker_),
@@ -291,7 +301,7 @@ void TMasterConnector::RegisterAtMaster()
         GetNodeId());
 
     for (auto cellTag : MasterCellTags_) {
-        ScheduleNodeHeartbeat(cellTag, true);
+        DoScheduleNodeHeartbeat(cellTag, true);
     }
     ScheduleJobHeartbeat(true);
 }
@@ -575,13 +585,14 @@ void TMasterConnector::ReportNodeHeartbeat(TCellTag cellTag)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
+    --HeartbeatsScheduled_[cellTag];
     auto* delta = GetChunksDelta(cellTag);
     switch (delta->State) {
         case EState::Registered:
             if (CanSendFullNodeHeartbeat(cellTag)) {
                 ReportFullNodeHeartbeat(cellTag);
             } else {
-                ScheduleNodeHeartbeat(cellTag);
+                DoScheduleNodeHeartbeat(cellTag);
             }
             break;
 
@@ -613,6 +624,8 @@ bool TMasterConnector::CanSendFullNodeHeartbeat(TCellTag cellTag)
 
 void TMasterConnector::ReportFullNodeHeartbeat(TCellTag cellTag)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     auto Logger = DataNodeLogger;
     Logger.AddTag("CellTag: %v", cellTag);
 
@@ -680,7 +693,7 @@ void TMasterConnector::ReportFullNodeHeartbeat(TCellTag cellTag)
             cellTag);
 
         if (NRpc::IsRetriableError(rspOrError)) {
-            ScheduleNodeHeartbeat(cellTag);
+            DoScheduleNodeHeartbeat(cellTag);
         } else {
             ResetAndScheduleRegisterAtMaster();
         }
@@ -702,7 +715,7 @@ void TMasterConnector::ReportFullNodeHeartbeat(TCellTag cellTag)
     YT_VERIFY(delta->AddedSinceLastSuccess.empty());
     YT_VERIFY(delta->RemovedSinceLastSuccess.empty());
 
-    ScheduleNodeHeartbeat(cellTag);
+    DoScheduleNodeHeartbeat(cellTag);
 }
 
 TFuture<void> TMasterConnector::GetHeartbeatBarrier(TCellTag cellTag)
@@ -712,6 +725,20 @@ TFuture<void> TMasterConnector::GetHeartbeatBarrier(TCellTag cellTag)
 
 void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    if (IncrementalHeartbeatThrottler_.find(cellTag) == IncrementalHeartbeatThrottler_.end()) {
+        auto incrementalHeartbeatThrottlerConfig = New<TThroughputThrottlerConfig>(
+            Config_->IncrementalHeartbeatThrottlerLimit,
+            Config_->IncrementalHeartbeatThrottlerPeriod);
+        YT_VERIFY(IncrementalHeartbeatThrottler_.emplace(
+            cellTag,
+            CreateReconfigurableThroughputThrottler(std::move(incrementalHeartbeatThrottlerConfig))).second);
+    }
+
+    WaitFor(IncrementalHeartbeatThrottler_[cellTag]->Throttle(1))
+        .ThrowOnError();
+
     auto Logger = DataNodeLogger;
     Logger.AddTag("CellTag: %v", cellTag);
 
@@ -886,7 +913,7 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
 
         YT_LOG_WARNING(rspOrError, "Error reporting incremental node heartbeat to master");
         if (NRpc::IsRetriableError(rspOrError)) {
-            ScheduleNodeHeartbeat(cellTag);
+            DoScheduleNodeHeartbeat(cellTag);
         } else {
             ResetAndScheduleRegisterAtMaster();
         }
@@ -1006,7 +1033,9 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
         }
     }
 
-    ScheduleNodeHeartbeat(cellTag);
+    if (HeartbeatsScheduled_[cellTag] == 0) {
+        DoScheduleNodeHeartbeat(cellTag);
+    }
 }
 
 TChunkAddInfo TMasterConnector::BuildAddChunkInfo(IChunkPtr chunk)
@@ -1092,6 +1121,8 @@ void TMasterConnector::Reset()
     NodeId_.store(InvalidNodeId);
     JobHeartbeatCellIndex_ = 0;
     LeaseTransaction_.Reset();
+
+    HeartbeatsScheduled_.clear();
 
     for (auto cellTag : MasterCellTags_) {
         auto* delta = GetChunksDelta(cellTag);

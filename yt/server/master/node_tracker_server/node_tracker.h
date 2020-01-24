@@ -209,6 +209,8 @@ public:
 
     NYTree::IYPathServicePtr GetOrchidService();
 
+    void RequestNodeHeartbeat(TNodeId nodeId);
+
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;

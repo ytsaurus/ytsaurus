@@ -38,7 +38,12 @@
 
 #include <yt/client/node_tracker_client/helpers.h>
 
+#include <yt/ytlib/api/native/connection.h>
+
 #include <yt/ytlib/node_tracker_client/helpers.h>
+#include <yt/ytlib/node_tracker_client/channel.h>
+
+#include <yt/ytlib/tablet_cell_client/tablet_cell_service_proxy.h>
 
 #include <yt/core/concurrency/scheduler.h>
 #include <yt/core/concurrency/async_semaphore.h>
@@ -709,6 +714,26 @@ public:
         auto producer = BIND(&TImpl::BuildOrchid, MakeStrong(this));
         return IYPathService::FromProducer(producer)
             ->Via(Bootstrap_->GetHydraFacade()->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::NodeTracker));
+    }
+
+    void RequestNodeHeartbeat(TNodeId nodeId)
+    {
+        auto* node = FindNode(nodeId);
+        if (!node) {
+            return;
+        }
+
+        const auto& descriptor = node->GetDescriptor();
+        YT_LOG_DEBUG("Requesting out of order heartbeat from node (NodeId: %v, DefaultNodeAddress: %v)",
+            nodeId,
+            descriptor.GetDefaultAddress());
+
+        auto nodeChannel = Bootstrap_->GetNodeChannelFactory()->CreateChannel(descriptor);
+
+        NTabletCellClient::TTabletCellServiceProxy proxy(nodeChannel);
+        auto req = proxy.RequestHeartbeat();
+        req->SetTimeout(GetDynamicConfig()->ForceNodeHeartbeatRequestTimeout);
+        Y_UNUSED(req->Invoke());
     }
 
 private:
@@ -2128,6 +2153,11 @@ const std::vector<TString>& TNodeTracker::GetMasterCacheNodeAddresses()
 IYPathServicePtr TNodeTracker::GetOrchidService()
 {
     return Impl_->GetOrchidService();
+}
+
+void TNodeTracker::RequestNodeHeartbeat(TNodeId nodeId)
+{
+    return Impl_->RequestNodeHeartbeat(nodeId);
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TNodeTracker, Node, TNode, *Impl_)
