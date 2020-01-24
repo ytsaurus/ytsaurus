@@ -199,6 +199,55 @@ TEST(TYsonTokenWriterTest, WriteRawNodeUnchecked)
     }
 }
 
+TEST(TYsonTokenWriterTest, ThroughZeroCopyOutputStreamWriter)
+{
+    for (size_t bufferSize = 1; bufferSize <= 20; ++bufferSize) {
+        TString out;
+        TFixedGrowthStringOutput outStream(&out, bufferSize);
+        TZeroCopyOutputStreamWriter writer(&outStream);
+
+        auto prefix = AsStringBuf("Now some YSON: ");
+        writer.Write(prefix.data(), prefix.size());
+
+        TCheckedYsonTokenWriter tokenWriter(&writer);
+
+        tokenWriter.WriteBeginAttributes();
+        tokenWriter.WriteTextString("type");
+        tokenWriter.WriteKeyValueSeparator();
+        tokenWriter.WriteTextString("map");
+        tokenWriter.WriteItemSeparator();
+        tokenWriter.WriteEndAttributes();
+
+        tokenWriter.WriteBeginMap();
+        tokenWriter.WriteTextString("double");
+        tokenWriter.WriteKeyValueSeparator();
+        tokenWriter.WriteTextDouble(2.71828);
+        tokenWriter.WriteItemSeparator();
+        tokenWriter.WriteTextString("boolean");
+        tokenWriter.WriteKeyValueSeparator();
+        tokenWriter.WriteTextBoolean(true);
+        tokenWriter.WriteItemSeparator();
+        tokenWriter.WriteTextString("entity");
+        tokenWriter.WriteKeyValueSeparator();
+        tokenWriter.WriteEntity();
+        tokenWriter.WriteItemSeparator();
+        tokenWriter.WriteEndMap();
+
+        tokenWriter.Finish();
+
+        auto suffix = AsStringBuf(" -- no more YSON");
+        writer.Write(suffix.data(), suffix.size());
+        writer.UndoRemaining();
+        outStream.Finish();
+
+        EXPECT_EQ(
+            out,
+            "Now some YSON: "
+            "<\"type\"=\"map\";>{\"double\"=2.71828;\"boolean\"=%true;\"entity\"=#;}"
+            " -- no more YSON");
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

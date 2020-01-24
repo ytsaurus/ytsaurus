@@ -3,6 +3,8 @@
 #include "public.h"
 #include "syntax_checker.h"
 
+#include <yt/core/misc/zerocopy_output_writer.h>
+
 #include <util/stream/zerocopy_output.h>
 
 namespace NYT::NYson {
@@ -12,9 +14,8 @@ namespace NYT::NYson {
 class TUncheckedYsonTokenWriter
 {
 public:
-    explicit TUncheckedYsonTokenWriter(IZeroCopyOutput* writer, EYsonType type = EYsonType::Node);
-
-    ~TUncheckedYsonTokenWriter();
+    explicit TUncheckedYsonTokenWriter(IZeroCopyOutput* output, EYsonType type = EYsonType::Node);
+    explicit TUncheckedYsonTokenWriter(TZeroCopyOutputStreamWriter* writer, EYsonType type = EYsonType::Node);
 
     void WriteTextBoolean(bool value);
     void WriteTextInt64(i64 value);
@@ -47,12 +48,6 @@ public:
     Y_FORCE_INLINE void Finish();
 
 private:
-    Y_FORCE_INLINE void Refill();
-
-    Y_FORCE_INLINE void Advance(size_t size);
-
-    Y_FORCE_INLINE void DoWrite(const void* data, size_t size);
-
     template <typename T>
     Y_FORCE_INLINE void WriteSimple(T value);
 
@@ -60,9 +55,8 @@ private:
     Y_FORCE_INLINE void WriteVarInt(T value);
 
 private:
-    IZeroCopyOutput* const Stream_;
-    size_t RemainingBytes_;
-    char* Position_;
+    std::optional<TZeroCopyOutputStreamWriter> WriterHolder_;
+    TZeroCopyOutputStreamWriter* Writer_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -71,6 +65,7 @@ class TCheckedYsonTokenWriter
 {
 public:
     explicit TCheckedYsonTokenWriter(IZeroCopyOutput* writer, EYsonType type = EYsonType::Node);
+    explicit TCheckedYsonTokenWriter(TZeroCopyOutputStreamWriter* writer, EYsonType type = EYsonType::Node);
 
     void WriteTextBoolean(bool value);
     void WriteBinaryBoolean(bool value);
