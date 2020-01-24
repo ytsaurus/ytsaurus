@@ -69,10 +69,12 @@ bool TAntiaffinityVacancyAllocator::CanAllocate(const TPod* pod) const
     if (Blocked_) {
         return false;
     }
+    return GetVacancyCount(pod) > 0;
+}
 
-    if (CommonVacancyCount_ >= CommonVacancyLimit_) {
-        return false;
-    }
+int TAntiaffinityVacancyAllocator::GetVacancyCount(const TPod* pod) const
+{
+    int vacancyCount = CommonVacancyLimit_ - CommonVacancyCount_;
 
     for (const auto& [groupIdPath, vacancyLimit] : GroupIdPathVacancyLimit_) {
         auto groupIdOrError = pod->GetAntiaffinityGroupId(groupIdPath);
@@ -87,15 +89,13 @@ bool TAntiaffinityVacancyAllocator::CanAllocate(const TPod* pod) const
         if (it == GroupVacancyCount_.end()) {
             // NB! Do not add elements to the map to prevent excessive memory consumption
             // due to wasteful allocations per every unsuccessful scheduling iteration.
-            return vacancyLimit > 0;
-        }
-
-        if (it->second >= vacancyLimit) {
-            return false;
+            vacancyCount = std::min(vacancyCount, vacancyLimit);
+        } else {
+            vacancyCount = std::min(vacancyCount, vacancyLimit - it->second);
         }
     }
 
-    return true;
+    return vacancyCount;
 }
 
 void TAntiaffinityVacancyAllocator::Allocate(const TPod* pod)

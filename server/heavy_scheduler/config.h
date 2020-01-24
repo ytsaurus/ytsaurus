@@ -48,6 +48,63 @@ DEFINE_REFCOUNTED_TYPE(TClusterReaderConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTaskManagerConfig
+    : public NYT::NYTree::TYsonSerializable
+{
+public:
+    TDuration TaskTimeLimit;
+    TEnumIndexedVector<ETaskSource, int> TaskSlotsPerSource;
+
+    TTaskManagerConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TTaskManagerConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDisruptionThrottlerConfig
+    : public NYT::NYTree::TYsonSerializable
+{
+public:
+    bool LimitEvictionsByPodSet;
+    bool ValidatePodDisruptionBudget;
+
+    TDisruptionThrottlerConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TDisruptionThrottlerConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSwapDefragmentatorConfig
+    : public NYT::NYTree::TYsonSerializable
+{
+public:
+    int StarvingPodsPerIterationLimit;
+    int VictimCandidatePodCount;
+    int SafeSuitableNodeCount;
+
+    TSwapDefragmentatorConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TSwapDefragmentatorConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TAntiaffinityHealerConfig
+    : public NYT::NYTree::TYsonSerializable
+{
+public:
+    int PodSetsPerIterationLimit;
+    int SafeSuitableNodeCount;
+
+    TAntiaffinityHealerConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TAntiaffinityHealerConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class THeavySchedulerConfig
     : public NYT::NYTree::TYsonSerializable
 {
@@ -62,26 +119,18 @@ public:
     // Node segment.
     NCluster::TObjectId NodeSegment;
 
-    // Task manager.
-    TDuration TaskTimeLimit;
-    int ConcurrentTaskLimit;
-    int StarvingPodsPerIterationLimit;
-    bool LimitEvictionsByPodSet;
-
     // Cluster safety.
     int SafeClusterPodEvictionCount;
 
-    // Victim pod search.
-    int VictimCandidatePodCount;
-    int SafeSuitableNodeCount;
-    bool ValidatePodDisruptionBudget;
+    TTaskManagerConfigPtr TaskManager;
+    TDisruptionThrottlerConfigPtr DisruptionThrottler;
+    TSwapDefragmentatorConfigPtr SwapDefragmentator;
+    TAntiaffinityHealerConfigPtr AntiaffinityHealer;
 
     THeavySchedulerConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(THeavySchedulerConfig);
-
-////////////////////////////////////////////////////////////////////////////////
 
 class THeavySchedulerProgramConfig
     : public NYT::TSingletonsConfig

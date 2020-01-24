@@ -19,6 +19,10 @@ public:
     //! both within antiaffinity groups this pod belongs to and without any group.
     bool CanAllocate(const TPod* pod) const;
 
+    //! Checks how many pods with such labels can be allocated.
+    //! Negative value means that such pods already overcommit antiaffinity.
+    int GetVacancyCount(const TPod* pod) const;
+
     //! Allocates vacancies for pod.
     //! Ignores pod validation errors, does not perform overcommit check.
     void Allocate(const TPod* pod);

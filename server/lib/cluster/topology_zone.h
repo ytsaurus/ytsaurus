@@ -23,6 +23,7 @@ public:
     const TString& GetValue() const;
 
     bool CanAllocateAntiaffinityVacancies(const TPod* pod) const;
+    int GetAntiaffinityVacancyCount(const TPod* pod) const;
     void AllocateAntiaffinityVacancies(const TPod* pod);
 
 private:
@@ -31,6 +32,13 @@ private:
 
     THashMap<const TPodSet*, TAntiaffinityVacancyAllocator> PodSetVacancyAllocators_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FormatValue(
+    TStringBuilderBase* builder,
+    const TTopologyZone& zone,
+    TStringBuf format);
 
 ////////////////////////////////////////////////////////////////////////////////
 

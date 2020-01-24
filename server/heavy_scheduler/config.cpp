@@ -33,6 +33,56 @@ TClusterReaderConfig::TClusterReaderConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTaskManagerConfig::TTaskManagerConfig()
+{
+    RegisterParameter("task_time_limit", TaskTimeLimit)
+        .Default(TDuration::Minutes(30));
+    RegisterParameter("task_slots_per_source", TaskSlotsPerSource)
+        .Default({10, 10});
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TDisruptionThrottlerConfig::TDisruptionThrottlerConfig()
+{
+    RegisterParameter("validate_pod_disruption_budget", ValidatePodDisruptionBudget)
+        .Default(true);
+    RegisterParameter("limit_evictions_by_pod_set", LimitEvictionsByPodSet)
+        .Default(true);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSwapDefragmentatorConfig::TSwapDefragmentatorConfig()
+{
+    RegisterParameter("starving_pods_per_iteration_limit", StarvingPodsPerIterationLimit)
+        .GreaterThanOrEqual(1)
+        .Default(100);
+
+    RegisterParameter("victim_candidate_pod_count", VictimCandidatePodCount)
+        .GreaterThan(0)
+        .Default(100);
+
+    RegisterParameter("safe_suitable_node_count", SafeSuitableNodeCount)
+        .GreaterThanOrEqual(0)
+        .Default(3);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TAntiaffinityHealerConfig::TAntiaffinityHealerConfig()
+{
+    RegisterParameter("pod_sets_per_iteration_limit", PodSetsPerIterationLimit)
+        .GreaterThanOrEqual(1)
+        .Default(500);
+
+    RegisterParameter("safe_suitable_node_count", SafeSuitableNodeCount)
+        .GreaterThanOrEqual(0)
+        .Default(3);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 THeavySchedulerConfig::THeavySchedulerConfig()
 {
     RegisterParameter("iteration_period", IterationPeriod)
@@ -46,29 +96,18 @@ THeavySchedulerConfig::THeavySchedulerConfig()
     RegisterParameter("node_segment", NodeSegment)
         .Default("default");
 
-    RegisterParameter("task_time_limit", TaskTimeLimit)
-        .Default(TDuration::Minutes(30));
-    RegisterParameter("concurrent_task_limit", ConcurrentTaskLimit)
-        .GreaterThanOrEqual(1)
-        .Default(10);
-    RegisterParameter("starving_pods_per_iteration_limit", StarvingPodsPerIterationLimit)
-        .GreaterThanOrEqual(1)
-        .Default(100);
-    RegisterParameter("limit_evictions_by_pod_set", LimitEvictionsByPodSet)
-        .Default(true);
-
     RegisterParameter("safe_cluster_pod_eviction_count", SafeClusterPodEvictionCount)
         .GreaterThanOrEqual(0)
         .Default(0);
 
-    RegisterParameter("victim_candidate_pod_count", VictimCandidatePodCount)
-        .GreaterThan(0)
-        .Default(100);
-    RegisterParameter("safe_suitable_node_count", SafeSuitableNodeCount)
-        .GreaterThanOrEqual(0)
-        .Default(3);
-    RegisterParameter("validate_pod_disruption_budget", ValidatePodDisruptionBudget)
-        .Default(true);
+    RegisterParameter("task_manager", TaskManager)
+        .DefaultNew();
+    RegisterParameter("disruption_throttler", DisruptionThrottler)
+        .DefaultNew();
+    RegisterParameter("swap_defragmentator", SwapDefragmentator)
+        .DefaultNew();
+    RegisterParameter("antiaffinity_healer", AntiaffinityHealer)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
