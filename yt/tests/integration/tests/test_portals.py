@@ -719,7 +719,7 @@ class TestPortals(YTEnvSetup):
 
         copy("//tmp/m1", "//tmp/m2")
         assert get("//tmp/m2/@type") == "map_node"
-        assert_items_equal(ls("//tmp"), ["m1", "m2"]) 
+        assert_items_equal(ls("//tmp"), ["m1", "m2"])
         assert get("//tmp/m1/@key") == "m1"
         assert get("//tmp/m2/@key") == "m2"
 
@@ -961,6 +961,48 @@ class TestPortals(YTEnvSetup):
 
         assert not get("//tmp/l&/@broken")
 
+    @authors("shakurov")
+    def test_move_portal(self):
+        create("map_node", "//tmp/a/b", recursive=True)
+        create("map_node", "//tmp/a/c")
+        create("portal_entrance", "//tmp/a/b/p", attributes={"exit_cell_tag": 1})
+
+        with pytest.raises(YtError):
+            # "Removing portal in transaction is not supported"
+            move("//tmp/a/b/p", "//tmp/a/c/p")
+
+        with pytest.raises(YtError):
+            # "Cannot clone portal"
+            move("//tmp/a/b", "//tmp/a/c/b")
+
+    @authors("shakurov")
+    def test_remove_portal_not_permitted_by_acl(self):
+        create_user("u")
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+
+        assert not get("//tmp/p/@inherit_acl")
+        # NB: denying removal for portal exit only!
+        set("//tmp/p/@acl", [make_ace("deny", "u", "remove", "object_and_descendants")])
+
+        assert check_permission("u", "remove", "//tmp/p")["action"] == "deny"
+
+        with pytest.raises(YtError):
+            remove("//tmp/p", authenticated_user="u")
+
+    @authors("shakurov")
+    def test_remove_portal_not_permitted_by_acl2(self):
+        create_user("u")
+        create("portal_entrance", "//tmp/d/p", recursive=True, attributes={"exit_cell_tag": 1})
+
+        # NB: denying removal for portal entrance only!
+        set("//tmp/d/p&/@acl", [make_ace("deny", "u", "remove", "object_and_descendants")])
+
+        assert check_permission("u", "remove", "//tmp/d/p&")["action"] == "deny"
+
+        with pytest.raises(YtError):
+            remove("//tmp/d", authenticated_user="u")
+
+
 ##################################################################
 
 class TestResolveCache(YTEnvSetup):
@@ -1039,5 +1081,3 @@ class TestResolveCache(YTEnvSetup):
         assert not get("//tmp/dir1/dir2a/p&/@resolve_cached")
         assert get("//tmp/dir1/dir2b/@resolve_cached")
         assert get("//tmp/dir1/dir2b/p&/@resolve_cached")
-
-
