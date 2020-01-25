@@ -16,6 +16,13 @@ class SchedulerObjectsHistory(SchedulerCluster):
             result += len(getattr(self, field_name))
         return result
 
+    def drop_pod_to_node_assignment(self):
+        logging.info("Dropping pod to node assignment")
+        for pod in self.pods:
+            spec = pod.get("spec", {})
+            if "node_id" in spec:
+                spec["node_id"] = ""
+
     def make_nodes_schedulable(self):
         logging.info("Making nodes schedulable")
         for attributes in self.nodes:
