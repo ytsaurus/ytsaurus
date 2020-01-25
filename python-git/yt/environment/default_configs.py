@@ -488,6 +488,19 @@ b"""
 
     return config
 
+def get_dynamic_node_config():
+    return yson.loads(
+b"""
+{
+    "%true" = {
+        config_annotation = "default_config";
+        exec_agent = {
+            node_directory_prepare_backoff_time = 100;
+        };
+    };
+}
+""")
+
 def get_driver_config():
     return yson.loads(
 b"""
