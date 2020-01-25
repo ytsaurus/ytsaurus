@@ -561,7 +561,9 @@ DB::StoragePtr CreateStorageDistributor(std::vector<TClickHouseTablePtr> tables)
 void RegisterStorageDistributor()
 {
     auto& factory = DB::StorageFactory::instance();
-    factory.registerStorage("YtTable", CreateDistributorFromCH);
+    factory.registerStorage("YtTable", CreateDistributorFromCH, DB::StorageFactory::StorageFeatures{
+        .supports_sort_order = true,
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
