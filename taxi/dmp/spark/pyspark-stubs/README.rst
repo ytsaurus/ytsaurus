@@ -24,7 +24,7 @@ Motivation
 
    |SPARK-20631|
 
--  Improved completion for chained method calls.
+-  Improved autocompletion.
 
    |Syntax completion|
 
@@ -54,28 +54,42 @@ Moreover:
 
 Please check usage before proceeding.
 
-The package is available on PYPI:
+The package is available on `PYPI <https://pypi.org/project/pyspark-stubs/>`__:
 
 .. code:: bash
 
     pip install pyspark-stubs
 
-and conda-forge:
+and `conda-forge <https://anaconda.org/conda-forge/pyspark-stubs>`__:
 
 .. code:: bash
 
     conda install -c conda-forge pyspark-stubs
 
-Depending on your environment you might also need a type checker, like `Mypy <https://github.com/python/mypy>`__
-or `Pytype <https://github.com/google/pytype/>`__.
+Depending on your environment you might also need a type checker, like `Mypy`_
+or `Pytype`_ [#f1]_, and autocompletion tool, like `Jedi`_.
 
-- `Atom <https://atom.io/>`__ - Requires `atom-mypy <https://atom.io/packages/atom-mypy>`__ or equivalent.
-- `Jupyter Notebooks <https://jupyter.org/>`__ - `It is possible <https://web.archive.org/web/20190126155957/http://journalpanic.com/post/spice-up-thy-jupyter-notebooks-with-mypy/>`__ to use magics to type check directly in the notebook.
-- `PyCharm <https://www.jetbrains.com/pycharm/>`__ - Works out-of-the-box, with excellent code completion, though as of today (PyCharm 2018.2.4) built-in type checker is somewhat limited compared to MyPy and `mypy-PyCharm-plugin <https://github.com/dropbox/mypy-PyCharm-plugin>`__ can be an interesting alternative.
-- `PyDev <http://www.pydev.org/index.html>`__ - Works out-of-the-box via built-in MyPy code analyzer (7.0.3+).
-- `VIM <https://www.vim.org/>`__ / `Neovim <https://neovim.io/>`__ - Using `vim-mypy <https://github.com/Integralist/vim-mypy>`__, `syntastic <https://github.com/vim-syntastic/syntastic>`__ or `Neomake <https://github.com/neomake/neomake>`__.
-- `Visual Studio Code <https://code.visualstudio.com/>`__ - With `Mypy linter <https://code.visualstudio.com/docs/python/linting#_specific-linters>`__.
-- Environment independent - Just use your favorite checker directly, optionally combined with tool like `entr <http://eradman.com/entrproject/>`__.
+
++--------------------------------------------------+---------------------+--------------------+-------------------------------------+
+| Editor                                           |  Type checking      | Autocompletion     | Notes                               |
++==================================================+=====================+====================+=====================================+
+|  `Atom`_                                         | ✔ [#f2]_            | ✔ [#f3]_           | Through plugins.                    |
++--------------------------------------------------+---------------------+--------------------+-------------------------------------+
+|  `IPython`_ / `Jupyter Notebook`_                | ✘ [#f4]_            | ✔                  |                                     |
++--------------------------------------------------+---------------------+--------------------+-------------------------------------+
+| `PyCharm`_                                       | ✔                   | ✔                  |                                     |
++--------------------------------------------------+---------------------+--------------------+-------------------------------------+
+|  `PyDev`_                                        | ✔ [#f5]_            | ?                  |                                     |
++--------------------------------------------------+---------------------+--------------------+-------------------------------------+
+| `VIM`_ / `Neovim`_                               | ✔ [#f6]_            | ✔ [#f7]_           | Through plugins.                    |
++--------------------------------------------------+---------------------+--------------------+-------------------------------------+
+| `Visual Studio Code`_                            | ✔ [#f8]_            | ✔ [#f9]_           | Completion with plugin              |
++--------------------------------------------------+---------------------+--------------------+-------------------------------------+
+| Environment independent / other editors          | ✔ [#f10]_           | ✔ [#f11]_          | Through `Mypy`_ and `Jedi`_.        |
++--------------------------------------------------+---------------------+--------------------+-------------------------------------+
+
+
+
 
 This package is tested against MyPy development branch and in rare cases (primarily important upstrean bugfixes), is not compatible with the preceding MyPy release.
 
@@ -100,10 +114,27 @@ See also
 Disclaimer
 ----------
 
-
 Apache Spark, Spark, PySpark, Apache, and the Spark logo are `trademarks <https://www.apache.org/foundation/marks/>`__ of `The
 Apache Software Foundation <http://www.apache.org/>`__. This project is not owned, endorsed, or
 sponsored by The Apache Software Foundation.
+
+Footnotes
+---------
+
+.. [#f1] Not supported or tested.
+.. [#f2] Requires `atom-mypy <https://atom.io/packages/atom-mypy>`__ or equivalent.
+.. [#f3] Requires `autocomplete-python-jedi <https://atom.io/packages/autocomplete-python-jedi>`__ or equivalent.
+.. [#f4] `It is possible <https://web.archive.org/web/20190126155957/http://journalpanic.com/post/spice-up-thy-jupyter-notebooks-with-mypy/>`__
+         to use magics to type check directly in the notebook. In general though, you'll have to export whole notebook to `.py` file and run
+         type checker on the result.
+.. [#f5] Requires PyDev 7.0.3 or later.
+.. [#f6] TODO Using `vim-mypy <https://github.com/Integralist/vim-mypy>`__, `syntastic <https://github.com/vim-syntastic/syntastic>`__ or `Neomake <https://github.com/neomake/neomake>`__.
+.. [#f7] With `jedi-vim <https://github.com/davidhalter/jedi-vim>`__.
+.. [#f8] With `Mypy linter <https://code.visualstudio.com/docs/python/linting#_specific-linters>`__.
+.. [#f9] With `Python extension for Visual Studio Code <https://marketplace.visualstudio.com/items?itemName=ms-python.python>`__.
+.. [#f10] Just use your favorite checker directly, optionally combined with tool like `entr <http://eradman.com/entrproject/>`__.
+.. [#f11] See `Jedi editor plugins list <https://jedi.readthedocs.io/en/latest/docs/usage.html#editor-plugins>`__.
+
 
 .. |Build Status| image:: https://travis-ci.org/zero323/pyspark-stubs.svg?branch=master
    :target: https://travis-ci.org/zero323/pyspark-stubs
@@ -115,3 +146,15 @@ sponsored by The Apache Software Foundation.
      :alt: SPARK-20631
 .. |Syntax completion| image:: https://i.imgur.com/qvkLTAp.gif
      :alt: Syntax completion
+
+.. _Atom: https://atom.io/
+.. _IPython: https://ipython.org/
+.. _Jedi: https://github.com/davidhalter/jedi
+.. _Jupyter Notebook: https://jupyter.org/
+.. _Mypy: http://mypy-lang.org/
+.. _Neovim : https://neovim.io/
+.. _PyCharm: https://www.jetbrains.com/pycharm/
+.. _PyDev: https://www.pydev.org/
+.. _Pytype: https://github.com/google/pytype
+.. _VIM: https://www.vim.org/
+.. _Visual Studio Code: https://code.visualstudio.com/
