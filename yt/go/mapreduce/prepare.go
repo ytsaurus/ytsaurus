@@ -83,14 +83,17 @@ func (p *prepare) prepare() error {
 	if len(p.spec.ACL) == 0 || len(p.mr.defaultACL) != 0 {
 		p.spec.ACL = p.mr.defaultACL
 	}
-
+	var cypress yt.CypressClient = p.mr.yc
+	if p.mr.tx != nil {
+		cypress = p.mr.tx
+	}
 	for _, inputTablePath := range p.spec.InputTablePaths {
 		var tableAttrs struct {
 			Typ    yt.NodeType   `yson:"type"`
 			Schema schema.Schema `yson:"schema"`
 		}
 
-		err := p.mr.yc.GetNode(p.ctx, inputTablePath.YPath().Attrs(), &tableAttrs, nil)
+		err := cypress.GetNode(p.ctx, inputTablePath.YPath().Attrs(), &tableAttrs, nil)
 		if yterrors.ContainsResolveError(err) {
 			return xerrors.Errorf("mr: input table %v is missing: %w", inputTablePath.YPath(), err)
 		} else if err != nil {
@@ -103,10 +106,10 @@ func (p *prepare) prepare() error {
 	}
 
 	for _, outputTablePath := range p.spec.OutputTablePaths {
-		if ok, err := p.mr.yc.NodeExists(p.ctx, outputTablePath, nil); err != nil {
+		if ok, err := cypress.NodeExists(p.ctx, outputTablePath, nil); err != nil {
 			return err
 		} else if !ok {
-			_, err := p.mr.yc.CreateNode(p.ctx, outputTablePath, yt.NodeTable, nil)
+			_, err := cypress.CreateNode(p.ctx, outputTablePath, yt.NodeTable, nil)
 			if err != nil {
 				return err
 			}

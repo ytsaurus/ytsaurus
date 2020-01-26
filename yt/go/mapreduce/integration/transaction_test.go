@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"a.yandex-team.ru/yt/go/mapreduce/spec"
+	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yttest"
 )
 
@@ -21,10 +22,11 @@ func TestRunningOperationInsideTx(t *testing.T) {
 	input := []TestRow{
 		{A: 2, B: "bar"},
 	}
-	require.NoError(t, env.UploadSlice(inputPath, input))
 
 	tx, err := env.YT.BeginTx(env.Ctx, nil)
 	require.NoError(t, err)
+
+	require.NoError(t, env.UploadSlice(ypath.Rich{Path: inputPath, TransactionID: tx.ID()}, input))
 
 	mr := env.MR.WithTx(tx)
 
@@ -43,5 +45,12 @@ func TestRunningOperationInsideTx(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, op.Wait())
 
-	require.NoError(t, tx.Commit())
+	var rowCount int
+	require.NoError(t, tx.GetNode(env.Ctx, outputPath.Attr("row_count"), &rowCount, nil))
+	require.Equal(t, 1, rowCount)
+
+	require.NoError(t, tx.Abort())
+	ok, err := env.YT.NodeExists(env.Ctx, outputPath, nil)
+	require.NoError(t, err)
+	require.False(t, ok)
 }
