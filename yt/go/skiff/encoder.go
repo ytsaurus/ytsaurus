@@ -316,7 +316,11 @@ func (e *Encoder) WriteRow(cols []interface{}) error {
 					return err
 				}
 			case nil:
-				e.w.writeUint32(0)
+				if isOpt {
+					e.w.writeByte(0x0)
+				} else {
+					e.w.writeUint32(0)
+				}
 			default:
 				return xerrors.Errorf("skiff: can't encode field %v: type mismatch %v", e.schema.Children[i].Name, wt)
 			}
