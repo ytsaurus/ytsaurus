@@ -137,7 +137,8 @@ private:
 
     void ReleaseBlock(int windowIndex);
 
-    static TPromise<TBlock>& GetBlockPromise(TWindowSlot& windowSlot);
+    static TPromise<TBlock> GetBlockPromise(TWindowSlot& windowSlot);
+    static void ResetBlockPromise(TWindowSlot& windowSlot);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlockFetcher)
