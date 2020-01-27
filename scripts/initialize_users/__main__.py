@@ -549,6 +549,19 @@ def configure_public_object_creators(client):
         )
 
 
+# YP-1515
+def configure_stage_creators(client):
+    stage_creators = Group("stage-creators")
+    add_permission(
+        client,
+        object_type="schema",
+        object_id="stage",
+        subject=stage_creators,
+        permission="create",
+        attribute="",
+    )
+
+
 # YPADMIN-286
 def configure_admins_group(client):
     admins = Group("admins")
@@ -561,7 +574,7 @@ def configure_admins_group(client):
         User("slonnn"),
     )
     add_group_members(client, admins, members)
-    for group_name in ["public-object-creators", "pod-eviction-requesters"]:
+    for group_name in ["public-object-creators", "stage-creators", "pod-eviction-requesters"]:
         add_permission(
             client,
             object_type="group",
@@ -590,6 +603,7 @@ def initialize_users(cluster, dry_run):
         configurators = (
             configure_pod_eviction_requesters_group,
             configure_public_object_creators,
+            configure_stage_creators,
             configure_admins_group,
         )
 
