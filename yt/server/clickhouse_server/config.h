@@ -150,6 +150,26 @@ DEFINE_REFCOUNTED_TYPE(TDictionaryConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class THealthCheckerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TDuration Period;
+    std::vector<TString> Queries;
+
+    THealthCheckerConfig()
+    {
+        RegisterParameter("period", Period)
+            .Default(TDuration::Minutes(1));
+        RegisterParameter("queries", Queries)
+            .Default();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(THealthCheckerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSubqueryConfig
     : public NYTree::TYsonSerializable
 {
@@ -214,8 +234,7 @@ public:
     //! Path in Cypress with coordination map node, external dictionaries etc.
     TString CypressRootPath;
 
-    //! Test query that is used for checking if instance acts in sane manner.
-    std::optional<TString> SanityCheckQuery;
+    THealthCheckerConfigPtr HealthChecker;
 
     //! Log level for internal CH logging.
     TString LogLevel;
@@ -258,8 +277,8 @@ public:
         RegisterParameter("cypress_root_path", CypressRootPath)
             .Default("//sys/clickhouse");
 
-        RegisterParameter("sanity_check_query", SanityCheckQuery)
-            .Default();
+        RegisterParameter("health_checker", HealthChecker)
+            .DefaultNew();
 
         RegisterParameter("listen_hosts", ListenHosts)
             .Default(std::vector<TString> {"::"});
