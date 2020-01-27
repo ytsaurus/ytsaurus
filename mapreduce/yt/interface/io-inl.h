@@ -10,7 +10,9 @@
 #include <util/generic/typetraits.h>
 #include <util/generic/yexception.h>
 #include <util/stream/length.h>
+
 #include <util/system/mutex.h>
+#include <util/system/spinlock.h>
 
 #include <library/yson/node/node_builder.h>
 
@@ -720,7 +722,7 @@ public:
 
     explicit TTableWriterBase(::TIntrusivePtr<IWriterImpl> writer)
         : Writer_(writer)
-        , Locks_(MakeAtomicShared<TVector<TMutex>>(writer->GetTableCount()))
+        , Locks_(MakeAtomicShared<TVector<TAdaptiveLock>>(writer->GetTableCount()))
     { }
 
     ~TTableWriterBase() override
@@ -785,7 +787,7 @@ protected:
 
 private:
     ::TIntrusivePtr<IWriterImpl> Writer_;
-    TAtomicSharedPtr<TVector<TMutex>> Locks_;
+    TAtomicSharedPtr<TVector<TAdaptiveLock>> Locks_;
 };
 
 template <>
