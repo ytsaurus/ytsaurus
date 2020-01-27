@@ -22,6 +22,14 @@ func TestEncoder(t *testing.T) {
 		"first": 7,
 		"third": "foobar",
 	}))
+	require.NoError(t, e.WriteRow([]interface{}{
+		nil,
+		nil,
+		nil,
+		nil,
+		7,
+		"foobar",
+	}))
 	require.NoError(t, e.Flush())
 
 	expectedOutput := []byte{
@@ -55,6 +63,14 @@ func TestEncoder(t *testing.T) {
 		0x00,                                                 // no range index
 		0x01, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // first field is present
 		0x00,                                                 // second field is missing
+		0x06, 0x00, 0x00, 0x00, 'f', 'o', 'o', 'b', 'a', 'r', // third field is string
+
+		0x00, 0x00, // fifth row
+		0x00,                                                 // no key switch
+		0x00,                                                 // no row index
+		0x00,                                                 // no range index
+		0x00,                                                 // first field is missing
+		0x01, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // second field is present
 		0x06, 0x00, 0x00, 0x00, 'f', 'o', 'o', 'b', 'a', 'r', // third field is string
 	}
 
