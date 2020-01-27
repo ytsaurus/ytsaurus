@@ -6,6 +6,8 @@ import org.apache.spark.util.Utils
 import ru.yandex.spark.yt.utils.YtTableUtils
 import ru.yandex.yt.ytclient.proxy.YtClient
 
+import scala.concurrent.duration._
+import scala.language.postfixOps
 import scala.reflect.ClassTag
 
 class YtPersistenceEngine(baseDir: String,
@@ -35,7 +37,7 @@ class YtPersistenceEngine(baseDir: String,
     log.info(s"Create file $path")
     YtTableUtils.createFile(path)
     log.info(s"Write to file $path")
-    val fileOut = YtTableUtils.writeToFile(path, java.time.Duration.ofMinutes(5))
+    val fileOut = YtTableUtils.writeToFile(path, 5 minutes, transaction = None)
     var out: SerializationStream = null
     Utils.tryWithSafeFinally {
       out = serializer.newInstance().serializeStream(fileOut)

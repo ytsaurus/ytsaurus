@@ -4,9 +4,12 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 import org.scalatest.{FlatSpec, Matchers}
 import ru.yandex.spark.yt.utils.YtTableUtils
+import ru.yandex.spark.yt.utils.YtTableUtils.writeToFile
 import ru.yandex.yt.ytclient.proxy.YtClient
 
 import scala.io.Source
+import scala.concurrent.duration._
+import scala.language.postfixOps
 
 class YtFileSystemTest extends FlatSpec with Matchers with TmpDir {
 
@@ -25,12 +28,17 @@ class YtFileSystemTest extends FlatSpec with Matchers with TmpDir {
 
   override def yt: YtClient = fs.yt
 
+  def writeBytesToFile(path: String, content: Array[Byte], timeout: Duration = 1 minute): Unit = {
+    val os = writeToFile(path, timeout, transaction = None)
+    try os.write(content) finally os.close()
+  }
+
   it should "listStatus" in {
     YtTableUtils.createDir(tmpPath)
     YtTableUtils.createDir(s"$tmpPath/1")
     YtTableUtils.createDir(s"$tmpPath/2")
     YtTableUtils.createFile(s"$tmpPath/3")
-    YtTableUtils.writeBytesToFile(s"$tmpPath/3", "123".getBytes())
+    writeBytesToFile(s"$tmpPath/3", "123".getBytes())
 
     val res = fs.listStatus(new Path(tmpPath)).map(f => (f.getPath, f.isDirectory, f.getLen))
 
@@ -43,7 +51,7 @@ class YtFileSystemTest extends FlatSpec with Matchers with TmpDir {
 
   it should "open" in {
     YtTableUtils.createFile(s"$tmpPath")
-    YtTableUtils.writeBytesToFile(s"$tmpPath", ("1" * 1024 * 1024).getBytes())
+    writeBytesToFile(s"$tmpPath", ("1" * 1024 * 1024).getBytes())
 
     val in = fs.open(new Path(tmpPath))
     try {
@@ -70,7 +78,7 @@ class YtFileSystemTest extends FlatSpec with Matchers with TmpDir {
   it should "rename" in {
     YtTableUtils.createDir(tmpPath)
     YtTableUtils.createFile(s"$tmpPath/1")
-    YtTableUtils.writeBytesToFile(s"$tmpPath/1", "123".getBytes())
+    writeBytesToFile(s"$tmpPath/1", "123".getBytes())
 
     fs.rename(new Path(s"$tmpPath/1"), new Path(s"$tmpPath/2"))
 
@@ -85,6 +93,19 @@ class YtFileSystemTest extends FlatSpec with Matchers with TmpDir {
     fs.delete(new Path(tmpPath), recursive = false)
 
     YtTableUtils.exists(tmpPath) shouldEqual false
+  }
+
+  it should "consider timeout" in {
+    val out = fs.create(new Path(tmpPath))
+    try {
+      Thread.sleep((150 seconds).toMillis)
+      out.write("123".getBytes())
+    } finally {
+      out.close()
+    }
+
+    val res = YtTableUtils.readFileString(tmpPath)
+    res shouldEqual "123"
   }
 
 }

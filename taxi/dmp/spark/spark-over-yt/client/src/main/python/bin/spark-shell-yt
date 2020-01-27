@@ -3,7 +3,8 @@
 import argparse
 import os
 
-from ytspark import shell, default_token, default_discovery_dir, default_base_log_dir
+from ytspark import shell
+from ytspark.utils import default_token, default_discovery_dir, default_base_log_dir
 
 parser = argparse.ArgumentParser(description="Spark Submit")
 parser.add_argument("--id", required=True)
@@ -13,9 +14,9 @@ parser.add_argument("--proxy", required=False)
 
 args, unknown_args = parser.parse_known_args()
 
-user = os.getenv("USER")
+user = os.getenv("YT_USER") or os.getenv("USER")
 proxy = args.proxy or os.getenv("YT_PROXY")
-discovery_dir = args.discovery_dir or default_discovery_dir()
+discovery_dir = args.discovery_dir or default_discovery_dir(user)
 log_dir = args.log_dir or "{}/{}".format(default_base_log_dir(discovery_dir), args.id)
 
 shell(args.id, discovery_dir, log_dir, proxy, user, default_token(), os.getenv("SPARK_HOME"), *unknown_args)

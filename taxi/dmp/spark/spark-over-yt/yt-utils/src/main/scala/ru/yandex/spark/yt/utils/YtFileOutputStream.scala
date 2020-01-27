@@ -2,22 +2,28 @@ package ru.yandex.spark.yt.utils
 
 import java.io.OutputStream
 
+import org.apache.log4j.Logger
 import ru.yandex.yt.ytclient.proxy.FileWriter
 
 import scala.annotation.tailrec
 
-class YtFileOutputStream(writer: FileWriter) extends OutputStream {
+class YtFileOutputStream(writer: FileWriter, yt: Option[YtRpcClient]) extends OutputStream {
+  private val log = Logger.getLogger(getClass)
   private var closed = false
 
   override def write(b: Int): Unit = {
     write(Array(b.toByte), 0, 1)
   }
 
-  @tailrec
   override final def write(b: Array[Byte], off: Int, len: Int): Unit = {
-    if (!writer.write(b, off, len)) {
+    recursiveWrite(b, off, len)
+  }
+
+  @tailrec
+  private def recursiveWrite(b: Array[Byte], off: Int, len: Int): Unit = {
+    if (!closed && !writer.write(b, off, len)) {
       writer.readyEvent().join()
-      write(b, off, len)
+      recursiveWrite(b, off, len)
     }
   }
 
@@ -30,8 +36,15 @@ class YtFileOutputStream(writer: FileWriter) extends OutputStream {
 
   override def close(): Unit = {
     if (!closed) {
-      writer.close().join()
-      closed = true
+      try {
+        writer.close().join()
+      } finally {
+        try {
+          yt.foreach(_.close())
+        } finally {
+          closed = true
+        }
+      }
     }
   }
 }

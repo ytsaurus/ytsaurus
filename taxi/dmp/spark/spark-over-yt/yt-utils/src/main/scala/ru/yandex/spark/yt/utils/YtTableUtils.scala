@@ -1,10 +1,10 @@
 package ru.yandex.spark.yt.utils
 
-import java.io.{BufferedReader, InputStream, InputStreamReader, OutputStream}
+import java.io.OutputStream
 import java.nio.file.Paths
-import java.time.{Duration => JavaDuration}
 import java.util.concurrent.CompletableFuture
 
+import org.apache.log4j.Logger
 import org.joda.time.{Duration => JodaDuration}
 import ru.yandex.bolts.collection.impl.DefaultListF
 import ru.yandex.bolts.collection.{Option => YOption}
@@ -17,11 +17,20 @@ import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.yt.ytclient.`object`.WireRowDeserializer
 import ru.yandex.yt.ytclient.proxy.internal.FileWriterImpl
 import ru.yandex.yt.ytclient.proxy.request._
-import ru.yandex.yt.ytclient.proxy.{FileWriter, YtClient}
+import ru.yandex.yt.ytclient.proxy.{ApiServiceTransaction, ApiServiceTransactionOptions, FileWriter, YtClient}
+import ru.yandex.yt.ytclient.rpc.RpcError
+import ru.yandex.yt.rpcproxy.ETransactionType.TT_MASTER
 
+import scala.annotation.tailrec
+import scala.concurrent.duration._
+import scala.concurrent.{CancellationException, ExecutionContext, Future, Promise}
 import scala.io.Source
+import scala.language.postfixOps
+import scala.util.Random
 
 object YtTableUtils {
+  private val log = Logger.getLogger(getClass)
+
   def createTable(path: String,
                   settings: YtTableSettings,
                   transaction: String)
@@ -121,18 +130,68 @@ object YtTableUtils {
     }
   }
 
-  def readTable[T](path: String, deserializer: WireRowDeserializer[T])(implicit yt: YtClient): TableIterator[T] = {
+  def readTable[T](path: String, deserializer: WireRowDeserializer[T], timeout: Duration = 1.minute)
+                  (implicit yt: YtClient): TableIterator[T] = {
     val request = new ReadTable(path, deserializer)
       .setOmitInaccessibleColumns(true)
       .setUnordered(true)
     val reader = yt.readTable(request).join()
-    new TableIterator(reader)
+    new TableIterator(reader, timeout)
   }
 
-  def createTransaction(parent: Option[String])(implicit yt: YtClient): GUID = {
-    val parentGuid = parent.map(GUID.valueOf)
-    val tm = new TransactionManager(yt)
-    tm.start(toYOption(parentGuid), false, JodaDuration.standardSeconds(300)).join()
+  def createTransaction(parent: Option[String], timeout: Duration)(implicit yt: YtClient): ApiServiceTransaction = {
+    import YtClientUtils._
+    val options = new ApiServiceTransactionOptions(TT_MASTER)
+      .setTimeout(javaDuration(timeout))
+      .setSticky(false)
+      .setPing(true)
+      .setPingPeriod(javaDuration(30 seconds))
+    parent.foreach(p => options.setParentId(GUID.valueOf(p)))
+    val tr = yt.startTransaction(options).join()
+    tr
+  }
+
+  type Cancellable[T] = (Promise[Unit], Future[T])
+
+  def cancellable[T](f: Future[Unit] => T)(implicit ec: ExecutionContext): Cancellable[T] = {
+    val cancel = Promise[Unit]()
+    val fut = Future {
+      val res = f(cancel.future)
+      if (!cancel.tryFailure(new Exception)) {
+        throw new CancellationException
+      }
+      res
+    }
+    (cancel, fut)
+  }
+
+  def pingTransaction(tr: ApiServiceTransaction, interval: Duration)
+                     (implicit yt: YtClient, ec: ExecutionContext): Cancellable[Unit] = {
+    @tailrec
+    def ping(cancel: Future[Unit], retry: Int): Unit = {
+        try {
+          if (!cancel.isCompleted) {
+            tr.ping().join()
+          }
+        } catch {
+          case e: Throwable =>
+            log.error(s"Error in ping transaction ${tr.getId}, ${e.getMessage},\n" +
+              s"Suppressed: ${e.getSuppressed.map(_.getMessage).mkString("\n")}")
+            if (retry > 0) {
+              Thread.sleep(new Random().nextInt(2000) + 100)
+              ping(cancel, retry - 1)
+            }
+        }
+    }
+
+    cancellable { cancel =>
+      while (!cancel.isCompleted) {
+        log.info(s"Ping transaction ${tr.getId}")
+        ping(cancel, 3)
+        Thread.sleep(interval.toMillis)
+      }
+      log.info(s"Ping transaction ${tr.getId} cancelled")
+    }
   }
 
   private def toYOption[T](x: Option[T]): YOption[T] = {
@@ -163,13 +222,23 @@ object YtTableUtils {
     }
   }
 
-  def readFile(path: String, transaction: Option[String] = None)(implicit yt: YtClient): YtFileInputStream = {
-    val fileReader = yt.readFile(new ReadFile(formatPath(path))).join()
-    new YtFileInputStream(fileReader)
+  implicit class RichWriteFileRequest[T <: WriteFile](val request: T) {
+    def optionalTransaction(transaction: Option[String]): T = {
+      transaction.map { t =>
+        request.setTransactionalOptions(new TransactionalOptions(GUID.valueOf(t))).asInstanceOf[T]
+      }.getOrElse(request)
+    }
   }
 
-  def readFileString(path: String, transaction: Option[String] = None)(implicit yt: YtClient): String = {
-    val in = readFile(path, transaction)
+  def readFile(path: String, transaction: Option[String] = None, timeout: Duration = 1.minute)
+              (implicit yt: YtClient): YtFileInputStream = {
+    val fileReader = yt.readFile(new ReadFile(formatPath(path))).join()
+    new YtFileInputStream(fileReader, timeout)
+  }
+
+  def readFileString(path: String, transaction: Option[String] = None, timeout: Duration = 1.minute)
+                    (implicit yt: YtClient): String = {
+    val in = readFile(path, transaction, timeout)
     try {
       Source.fromInputStream(in).mkString
     } finally {
@@ -191,31 +260,26 @@ object YtTableUtils {
     yt.createNode(request).join()
   }
 
-  def writeToFile(path: String, timeout: JavaDuration, transaction: Option[String] = None)
+  private def writeFileRequest(path: String, transaction: Option[String]): WriteFile = {
+    new WriteFile(formatPath(path)).setWindowSize(10000000L).setPacketSize(1000000L).optionalTransaction(transaction)
+  }
+
+  def writeToFile(path: String, timeout: Duration, yt: YtRpcClient, transaction: Option[String]): OutputStream = {
+    val writer = writeFile(writeFileRequest(path, transaction), timeout)(yt.yt).join()
+    new YtFileOutputStream(writer, Some(yt))
+  }
+
+  def writeToFile(path: String, timeout: Duration, transaction: Option[String])
                  (implicit yt: YtClient): OutputStream = {
-    val request = new WriteFile(formatPath(path))
-      .setWindowSize(10000000L)
-      .setPacketSize(1000000L)
-
-    transaction.foreach(t => request.setTransactionalOptions(new TransactionalOptions(GUID.valueOf(t))))
-
-    val writer = writeFile(request, timeout).join()
-    new YtFileOutputStream(writer)
+    val writer = writeFile(writeFileRequest(path, transaction), timeout).join()
+    new YtFileOutputStream(writer, None)
   }
 
-  def writeBytesToFile(path: String, content: Array[Byte],
-                       timeout: JavaDuration = JavaDuration.ofMinutes(1),
-                       transaction: Option[String] = None)
-                      (implicit yt: YtClient): Unit = {
-    val os = writeToFile(path, timeout)
-    try {
-      os.write(content)
-    } finally os.close()
-  }
-
-  private def writeFile(req: WriteFile, timeout: JavaDuration)(implicit yt: YtClient): CompletableFuture[FileWriter] = {
+  private def writeFile(req: WriteFile, timeout: Duration)(implicit yt: YtClient): CompletableFuture[FileWriter] = {
+    import YtClientUtils._
     val builder = yt.getService.writeFile
-    builder.setTimeout(timeout)
+    builder.setTimeout(javaDuration(timeout))
+    builder.getOptions.setTimeouts(timeout)
     req.writeTo(builder.body)
     new FileWriterImpl(builder.startStream(yt.selectDestinations()), req.getWindowSize, req.getPacketSize).startUpload
   }

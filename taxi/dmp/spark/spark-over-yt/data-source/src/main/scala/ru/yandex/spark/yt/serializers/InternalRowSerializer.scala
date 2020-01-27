@@ -16,6 +16,7 @@ import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
 
 import scala.annotation.tailrec
 import scala.collection.mutable
+import scala.concurrent.duration.Duration
 import scala.concurrent.{ExecutionContext, Future}
 
 class InternalRowSerializer(schema: StructType) extends WireRowSerializer[InternalRow] {
@@ -43,13 +44,15 @@ class InternalRowSerializer(schema: StructType) extends WireRowSerializer[Intern
   }
 
   @tailrec
-  final def writeRowsInternal(writer: TableWriter[InternalRow], rows: java.util.ArrayList[InternalRow]): Unit = {
+  final def writeRowsInternal(writer: TableWriter[InternalRow],
+                              rows: java.util.ArrayList[InternalRow],
+                              timeout: Duration): Unit = {
     if (!writer.write(rows, tableSchema)) {
       log.debugLazy("Waiting for writer ready event")
       YtMetricsRegister.time(writeReadyEventTime, writeReadyEventTimeSum) {
-        writer.readyEvent().get(30, TimeUnit.SECONDS)
+        writer.readyEvent().get(timeout.toMillis, TimeUnit.MILLISECONDS)
       }
-      writeRowsInternal(writer, rows)
+      writeRowsInternal(writer, rows, timeout)
     }
   }
 
@@ -94,7 +97,7 @@ object InternalRowSerializer {
 
   final def writeRows(writer: TableWriter[InternalRow],
                       rows: java.util.ArrayList[InternalRow],
-                      timeout: Int): Future[Unit] = {
+                      timeout: Duration): Future[Unit] = {
     Future {
       writeRowsRecursive(writer, rows, timeout)
     }(context)
@@ -103,10 +106,10 @@ object InternalRowSerializer {
   @tailrec
   private def writeRowsRecursive(writer: TableWriter[InternalRow],
                                  rows: java.util.ArrayList[InternalRow],
-                                 timeout: Int): Unit = {
+                                 timeout: Duration): Unit = {
     if (!writer.write(rows)) {
       YtMetricsRegister.time(writeReadyEventTime, writeReadyEventTimeSum) {
-        writer.readyEvent().get(timeout, TimeUnit.SECONDS)
+        writer.readyEvent().get(timeout.toMillis, TimeUnit.MILLISECONDS)
       }
       writeRowsRecursive(writer, rows, timeout)
     }

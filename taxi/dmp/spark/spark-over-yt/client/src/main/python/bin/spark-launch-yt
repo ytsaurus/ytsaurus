@@ -3,7 +3,8 @@
 import argparse
 import os
 
-from ytspark import launch, default_token, default_discovery_dir, default_base_log_dir
+from ytspark import launch
+from ytspark.utils import default_token, default_discovery_dir, default_base_log_dir
 
 parser = argparse.ArgumentParser(description="Spark over YT")
 parser.add_argument("--id", required=True)
@@ -18,9 +19,9 @@ parser.add_argument("--master-memory-limit", required=False)
 
 args = parser.parse_args()
 
-user = os.getenv("USER")
+user = os.getenv("YT_USER") or os.getenv("USER")
 proxy = args.proxy or os.getenv("YT_PROXY")
-discovery_dir = args.discovery_dir or default_discovery_dir()
+discovery_dir = args.discovery_dir or default_discovery_dir(user)
 log_dir = args.log_dir or default_base_log_dir(discovery_dir)
 master_memory_limit = args.master_memory_limit or "2G"
 pool = args.pool or user
