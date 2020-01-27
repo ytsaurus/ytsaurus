@@ -165,7 +165,7 @@ TFuture<TBlock> TBlockFetcher::FetchBlock(int blockIndex)
         }
     }
 
-    auto& blockPromise = GetBlockPromise(windowSlot);
+    auto blockPromise = GetBlockPromise(windowSlot);
     auto returnValue = blockPromise.ToFuture();
     auto hasBlock = blockPromise.IsSet();
     if (--windowSlot.RemainingFetches == 0 && hasBlock) {
@@ -309,19 +309,28 @@ void TBlockFetcher::MarkFailedBlocks(const std::vector<int>& windowIndexes, cons
 void TBlockFetcher::ReleaseBlock(int windowIndex)
 {
     auto& windowSlot = Window_[windowIndex];
-    GetBlockPromise(windowSlot).Reset();
+    ResetBlockPromise(windowSlot);
     YT_LOG_DEBUG("Releasing block (WindowIndex: %v, WindowSize: %v)",
         windowIndex,
         MemoryManager_->GetAvailableSize());
 }
 
-TPromise<TBlock>& TBlockFetcher::GetBlockPromise(TWindowSlot& windowSlot)
+TPromise<TBlock> TBlockFetcher::GetBlockPromise(TWindowSlot& windowSlot)
 {
     auto guard = Guard(windowSlot.BlockPromiseLock);
     if (!windowSlot.BlockPromise) {
         windowSlot.BlockPromise = NewPromise<TBlock>();
     }
     return windowSlot.BlockPromise;
+}
+
+void TBlockFetcher::ResetBlockPromise(TWindowSlot& windowSlot)
+{
+    TPromise<TBlock> promise;
+    {
+        auto guard = Guard(windowSlot.BlockPromiseLock);
+        promise = std::move(windowSlot.BlockPromise);
+    }
 }
 
 void TBlockFetcher::RequestBlocks(
