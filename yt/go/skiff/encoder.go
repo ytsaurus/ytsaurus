@@ -120,6 +120,215 @@ func (e *Encoder) encodeStruct(ops []fieldOp, value reflect.Value) error {
 	return nil
 }
 
+func (e *Encoder) startRow() error {
+	e.w.writeUint16(0) // variant tag
+	return e.w.err
+}
+
+func (e *Encoder) writeInt64(v int64, opt bool) error {
+	if opt {
+		e.w.writeByte(1)
+	}
+	e.w.writeInt64(v)
+	return e.w.err
+}
+
+func (e *Encoder) writeUint64(v uint64, opt bool) error {
+	if opt {
+		e.w.writeByte(1)
+	}
+	e.w.writeUint64(v)
+	return e.w.err
+}
+
+func (e *Encoder) writeDouble(v float64, opt bool) error {
+	if opt {
+		e.w.writeByte(1)
+	}
+	e.w.writeDouble(v)
+	return e.w.err
+}
+
+func (e *Encoder) writeBool(v bool, opt bool) error {
+	if opt {
+		e.w.writeByte(1)
+	}
+	if v {
+		e.w.writeByte(1)
+	} else {
+		e.w.writeByte(0)
+	}
+	return e.w.err
+}
+
+func (e *Encoder) writeString(v []byte, opt bool) error {
+	if opt {
+		e.w.writeByte(1)
+	}
+	e.w.writeBytes(v)
+	return e.w.err
+}
+
+func (e *Encoder) writeAny(v interface{}, opt bool) error {
+	if opt {
+		e.w.writeByte(1)
+	}
+	w := yson.NewWriterFormat(e.w.w, yson.FormatBinary)
+	if e.w.err = yson.NewEncoderWriter(w).Encode(v); e.w.err != nil {
+		return e.w.err
+	}
+	return e.w.err
+}
+
+func (e *Encoder) WriteRow(cols []interface{}) error {
+	if e.schema == nil || len(cols) != len(e.schema.Children) {
+		return xerrors.Errorf("skiff: can't encode row, col count mismatch, expected %v actual %v", len(e.schema.Children), len(cols))
+	}
+	if err := e.startRow(); err != nil {
+		return err
+	}
+	for i, v := range cols {
+		wt, isOpt, err := unpackSimpleVariant(&e.schema.Children[i])
+		if err != nil {
+			return err
+		}
+		switch wt {
+		case TypeInt64:
+			switch vv := v.(type) {
+			case int:
+				if err := e.writeInt64(int64(vv), isOpt); err != nil {
+					return err
+				}
+			case uint64:
+				if err := e.writeInt64(int64(vv), isOpt); err != nil {
+					return err
+				}
+			case uint32:
+				if err := e.writeInt64(int64(vv), isOpt); err != nil {
+					return err
+				}
+			case uint16:
+				if err := e.writeInt64(int64(vv), isOpt); err != nil {
+					return err
+				}
+			case int64:
+				if err := e.writeInt64(int64(vv), isOpt); err != nil {
+					return err
+				}
+			case int32:
+				if err := e.writeInt64(int64(vv), isOpt); err != nil {
+					return err
+				}
+			case int16:
+				if err := e.writeInt64(int64(vv), isOpt); err != nil {
+					return err
+				}
+			case nil:
+				if isOpt {
+					e.w.writeByte(0x0)
+				} else {
+					e.w.writeInt64(0)
+				}
+			default:
+				return xerrors.Errorf("skiff: can't encode field %v: type mismatch %v", e.schema.Children[i].Name, wt)
+			}
+		case TypeUint64:
+			switch vv := v.(type) {
+			case int:
+				if err := e.writeUint64(uint64(vv), isOpt); err != nil {
+					return err
+				}
+			case uint64:
+				if err := e.writeUint64(uint64(vv), isOpt); err != nil {
+					return err
+				}
+			case uint32:
+				if err := e.writeUint64(uint64(vv), isOpt); err != nil {
+					return err
+				}
+			case uint16:
+				if err := e.writeUint64(uint64(vv), isOpt); err != nil {
+					return err
+				}
+			case int64:
+				if err := e.writeUint64(uint64(vv), isOpt); err != nil {
+					return err
+				}
+			case int32:
+				if err := e.writeUint64(uint64(vv), isOpt); err != nil {
+					return err
+				}
+			case int16:
+				if err := e.writeUint64(uint64(vv), isOpt); err != nil {
+					return err
+				}
+			case nil:
+				if isOpt {
+					e.w.writeByte(0x0)
+				} else {
+					e.w.writeUint64(0)
+				}
+			default:
+				return xerrors.Errorf("skiff: can't encode field %v: type mismatch %v", e.schema.Children[i].Name, wt)
+			}
+		case TypeDouble:
+			switch vv := v.(type) {
+			case float64:
+				if err := e.writeDouble(vv, isOpt); err != nil {
+					return err
+				}
+			case float32:
+				if err := e.writeDouble(float64(vv), isOpt); err != nil {
+					return err
+				}
+			case nil:
+				if isOpt {
+					e.w.writeByte(0x0)
+				} else {
+					e.w.writeDouble(0)
+				}
+			default:
+				return xerrors.Errorf("skiff: can't encode field %v: type mismatch %v", e.schema.Children[i].Name, wt)
+			}
+		case TypeBoolean:
+			switch vv := v.(type) {
+			case bool:
+				if err := e.writeBool(vv, isOpt); err != nil {
+					return err
+				}
+			case nil:
+				if isOpt {
+					e.w.writeByte(0x0)
+				} else {
+					e.w.writeByte(0)
+				}
+			default:
+				return xerrors.Errorf("skiff: can't encode field %v: type mismatch %v", e.schema.Children[i].Name, wt)
+			}
+		case TypeString32:
+			switch vv := v.(type) {
+			case []byte:
+				if err := e.writeString(vv, isOpt); err != nil {
+					return err
+				}
+			case string:
+				if err := e.writeString([]byte(vv), isOpt); err != nil {
+					return err
+				}
+			case nil:
+				e.w.writeUint32(0)
+			default:
+				return xerrors.Errorf("skiff: can't encode field %v: type mismatch %v", e.schema.Children[i].Name, wt)
+			}
+		case TypeYSON32:
+			if err := e.writeAny(v, isOpt); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (e *Encoder) encodeMap(ops []fieldOp, value reflect.Value) error {
 	for _, op := range ops {
 		key := reflect.ValueOf(op.schemaName)
