@@ -19,6 +19,8 @@
 #include "config.h"
 #include "storage_distributor.h"
 
+#include <yt/server/clickhouse_server/health_checker.h>
+
 #include <yt/server/clickhouse_server/functions/public.h>
 #include <yt/server/clickhouse_server/protos/clickhouse_service.pb.h>
 
@@ -90,7 +92,6 @@
 
 namespace NYT::NClickHouseServer {
 
-using namespace DB;
 using namespace NApi::NNative;
 using namespace NProfiling;
 using namespace NYTree;
@@ -110,7 +111,7 @@ std::string GetCanonicalPath(std::string path)
 {
     Poco::trimInPlace(path);
     if (path.empty()) {
-        throw Exception("path configuration parameter is empty", DB::ErrorCodes::METRIKA_OTHER_ERROR);
+        throw DB::Exception("path configuration parameter is empty", DB::ErrorCodes::METRIKA_OTHER_ERROR);
     }
     if (path.back() != '/') {
         path += '/';
@@ -133,7 +134,7 @@ const std::vector<TString> AttributesToCache{
 };
 
 class TClickHouseHost::TImpl
-    : public IServer
+    : public DB::IServer
     , public TRefCounted
 {
 private:
@@ -152,7 +153,7 @@ private:
 
     Poco::AutoPtr<Poco::Channel> LogChannel;
 
-    std::unique_ptr<DB::Context> Context;
+    std::unique_ptr<DB::Context> DatabaseContext_;
 
     std::unique_ptr<DB::AsynchronousMetrics> AsynchronousMetrics;
     std::unique_ptr<DB::SessionCleaner> SessionCleaner;
@@ -174,6 +175,8 @@ private:
     TPermissionCachePtr PermissionCache_;
     TObjectAttributeCachePtr TableAttributeCache_;
 
+    THealthChecker HealthChecker_;
+
 public:
     TImpl(
         TBootstrap* bootstrap,
@@ -193,6 +196,11 @@ public:
         , MonitoringPort_(monitoringPort)
         , TcpPort_(tcpPort)
         , HttpPort_(httpPort)
+        , DatabaseContext_(std::make_unique<DB::Context>(
+            DB::Context::createGlobal(CreateRuntimeComponentsFactory(
+                CreateUsersManager(Bootstrap_, CliqueId_),
+                CreateDictionaryConfigRepository(Config_->Engine->Dictionaries),
+                std::make_unique<GeoDictionariesLoader>()))))
         , PermissionCache_(New<TPermissionCache>(
             Config_->PermissionCache,
             Bootstrap_->GetCacheClient(),
@@ -204,6 +212,10 @@ public:
             Bootstrap_->GetControlInvoker(),
             Logger,
             ServerProfiler.AppendPath("/object_attribute_cache")))
+        , HealthChecker_(
+            Config_->Engine->HealthChecker,
+            DatabaseContext_.get(),
+            Bootstrap_)
     { }
 
     void Start()
@@ -270,45 +282,7 @@ public:
             Config_->GossipPeriod);
         GossipExecutor_->Start();
 
-        Bootstrap_->GetSerializedWorkerInvoker()->Invoke(BIND(&TImpl::FireSanityCheckQuery, MakeWeak(this)));
-    }
-
-    void FireSanityCheckQuery()
-    {
-        if (!Config_->Engine->SanityCheckQuery) {
-            return;
-        }
-        const auto& query = *Config_->Engine->SanityCheckQuery;
-
-        try {
-            YT_LOG_INFO("Firing sanity check query (Query: %v))", query);
-            ParserQuery parser(query.end(), false /* enableExplain */);
-            auto ast = parseQuery(parser, query.begin(), query.end(), "", 0 /* unlimited query size */);
-            auto context = *Context;
-            context.setUser(Config_->User, "", Poco::Net::SocketAddress(), "");
-            auto& clientInfo = context.getClientInfo();
-            clientInfo.initial_user = clientInfo.current_user;
-            clientInfo.query_kind = ClientInfo::QueryKind::INITIAL_QUERY;
-            auto queryId = TQueryId::Create();
-            clientInfo.initial_query_id = ToString(queryId);
-            context.makeQueryContext();
-            TSpanContext parentSpan{TTraceId::Create(), InvalidSpanId, false, false};
-            auto traceContext = New<TTraceContext>(parentSpan, "TestQuery");
-            SetupHostContext(Bootstrap_, context, queryId, std::move(traceContext));
-            InterpreterSelectWithUnionQuery interpreter(ast, context, SelectQueryOptions());
-            auto result = interpreter.execute();
-            i64 totalRowCount = 0;
-            while (true) {
-                auto block = result.in->read();
-                if (!block) {
-                    break;
-                }
-                totalRowCount += block.rows();
-            }
-            YT_LOG_INFO("Sanity check query succeeded (Query: %Qv, RowCount: %v)", query, totalRowCount);
-        } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Error while performing sanity check query (Query: %Qv)", query);
-        }
+        HealthChecker_.Start();
     }
 
     void HandleIncomingGossip(const TString& instanceId, EInstanceState state)
@@ -409,7 +383,7 @@ public:
 
     DB::Context& context() const override
     {
-        return *Context;
+        return *DatabaseContext_;
     }
 
     bool isCancelled() const override
@@ -425,7 +399,8 @@ public:
         for (const auto& [_, attributes] : nodeList) {
             auto host = attributes.at("host")->AsString()->GetValue();
             auto tcpPort = attributes.at("tcp_port")->AsUint64()->GetValue();
-            result.push_back(CreateClusterNode(TClusterNodeName{host, tcpPort}, Context->getSettingsRef(), TcpPort_));
+            result.push_back(CreateClusterNode(
+                TClusterNodeName{host, tcpPort}, DatabaseContext_->getSettingsRef(), TcpPort_));
         }
         return result;
     }
@@ -474,27 +449,18 @@ private:
 
         auto storageHomePath = Config_->Engine->CypressRootPath;
 
-        auto securityManager = CreateUsersManager(Bootstrap_, CliqueId_);
-        auto dictionariesConfigRepository = CreateDictionaryConfigRepository(Config_->Engine->Dictionaries);
-        auto geoDictionariesLoader = std::make_unique<GeoDictionariesLoader>();
-        auto runtimeComponentsFactory = CreateRuntimeComponentsFactory(
-            std::move(securityManager),
-            std::move(dictionariesConfigRepository),
-            std::move(geoDictionariesLoader));
+        DatabaseContext_->makeGlobalContext();
+        DatabaseContext_->setApplicationType(DB::Context::ApplicationType::SERVER);
 
-        Context = std::make_unique<DB::Context>(Context::createGlobal(std::move(runtimeComponentsFactory)));
-        Context->makeGlobalContext();
-        Context->setApplicationType(Context::ApplicationType::SERVER);
+        DatabaseContext_->setConfig(EngineConfig_);
 
-        Context->setConfig(EngineConfig_);
+        DatabaseContext_->setUsersConfig(ConvertToPocoConfig(ConvertToNode(Config_->Engine->Users)));
 
-        Context->setUsersConfig(ConvertToPocoConfig(ConvertToNode(Config_->Engine->Users)));
-
-        registerFunctions();
-        registerAggregateFunctions();
-        registerTableFunctions();
-        registerStorageMemory(StorageFactory::instance());
-        registerDictionaries();
+        DB::registerFunctions();
+        DB::registerAggregateFunctions();
+        DB::registerTableFunctions();
+        DB::registerStorageMemory(DB::StorageFactory::instance());
+        DB::registerDictionaries();
 
         RegisterFunctions();
         RegisterTableFunctions();
@@ -511,26 +477,26 @@ private:
         YT_LOG_INFO("DateLUT initialized (TimeZone: %v)", DateLUT::instance().getTimeZone());
 
         // Limit on total number of concurrently executed queries.
-        Context->getProcessList().setMaxSize(EngineConfig_->getInt("max_concurrent_queries", 0));
+        DatabaseContext_->getProcessList().setMaxSize(EngineConfig_->getInt("max_concurrent_queries", 0));
 
         // Size of cache for uncompressed blocks. Zero means disabled.
         size_t uncompressedCacheSize = EngineConfig_->getUInt64("uncompressed_cache_size", 0);
         if (uncompressedCacheSize) {
-            Context->setUncompressedCache(uncompressedCacheSize);
+            DatabaseContext_->setUncompressedCache(uncompressedCacheSize);
         }
 
-        Context->setDefaultProfiles(*EngineConfig_);
+        DatabaseContext_->setDefaultProfiles(*EngineConfig_);
 
         std::string path = GetCanonicalPath(Config_->Engine->DataPath);
         Poco::File(path).createDirectories();
-        Context->setPath(path);
+        DatabaseContext_->setPath(path);
 
         // Directory with temporary data for processing of hard queries.
         {
             // TODO(max42): tmpfs here?
             std::string tmpPath = EngineConfig_->getString("tmp_path", path + "tmp/");
             Poco::File(tmpPath).createDirectories();
-            Context->setTemporaryPath(tmpPath);
+            DatabaseContext_->setTemporaryPath(tmpPath);
 
             // Clearing old temporary files.
             for (Poco::DirectoryIterator it(tmpPath), end; it != end; ++it) {
@@ -543,17 +509,17 @@ private:
 
 #if defined(COLLECT_ASYNCHRONUS_METRICS)
         // This object will periodically calculate some metrics.
-        AsynchronousMetrics.reset(new DB::AsynchronousMetrics(*Context));
+        AsynchronousMetrics.reset(new DB::AsynchronousMetrics(*DatabaseContext_));
 #endif
 
         // This object will periodically cleanup sessions.
-        SessionCleaner.reset(new DB::SessionCleaner(*Context));
+        SessionCleaner.reset(new DB::SessionCleaner(*DatabaseContext_));
 
-        Context->initializeSystemLogs();
+        DatabaseContext_->initializeSystemLogs();
 
         // Database for system tables.
         {
-            auto systemDatabase = std::make_shared<DatabaseMemory>("system");
+            auto systemDatabase = std::make_shared<DB::DatabaseMemory>("system");
 
             AttachSystemTables(*systemDatabase, Discovery_, InstanceId_);
 
@@ -561,31 +527,34 @@ private:
                 attachSystemTablesAsync(*systemDatabase, *AsynchronousMetrics);
             }
 
-            Context->addDatabase("system", systemDatabase);
+            DatabaseContext_->addDatabase("system", systemDatabase);
         }
 
         // Default database that wraps connection to YT cluster.
         {
             auto defaultDatabase = CreateDatabase();
-            Context->addDatabase("default", defaultDatabase);
-            Context->addDatabase(CliqueId_, defaultDatabase);
+            DatabaseContext_->addDatabase("default", defaultDatabase);
+            DatabaseContext_->addDatabase(CliqueId_, defaultDatabase);
         }
 
         std::string defaultDatabase = EngineConfig_->getString("default_database", "default");
-        Context->setCurrentDatabase(defaultDatabase);
+        DatabaseContext_->setCurrentDatabase(defaultDatabase);
+
+        DatabaseContext_->setUser(
+            Config_->User, /*password =*/"", Poco::Net::SocketAddress(), /*quotaKey =*/"");
     }
 
     void WarmupDictionaries()
     {
-        Context->getEmbeddedDictionaries();
-        Context->getExternalDictionaries();
+        DatabaseContext_->getEmbeddedDictionaries();
+        DatabaseContext_->getExternalDictionaries();
     }
 
     void SetupHandlers()
     {
         YT_LOG_INFO("Setting up handlers");
 
-        const auto& settings = Context->getSettingsRef();
+        const auto& settings = DatabaseContext_->getSettingsRef();
 
         ServerPool = std::make_unique<Poco::ThreadPool>(3, EngineConfig_->getInt("max_connections", 1024));
 
