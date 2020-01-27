@@ -205,12 +205,12 @@ class TSystemLogConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    TString CustomEngine;
+    TString Engine;
     int FlushIntervalMilliseconds;
 
     TSystemLogConfig()
     {
-        RegisterParameter("custom_engine", CustomEngine)
+        RegisterParameter("engine", Engine)
             .Default("ENGINE = Memory()");
         RegisterParameter("flush_interval_milliseconds", FlushIntervalMilliseconds)
             .Default(100);
