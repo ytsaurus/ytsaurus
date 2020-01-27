@@ -883,7 +883,7 @@ class TestBulkInsert(DynamicTablesBase):
             for instance in ls("//sys/controller_agents/instances"):
                 def _wait_func():
                     config = get("//sys/controller_agents/instances/{}/orchid/controller_agent/config".format(instance))
-                    return config.get("enable_bulk_insert_for_everyone", False)
+                    return config.get("enable_bulk_insert_for_everyone", False) == value
                 wait(_wait_func)
 
         def _run_op():
