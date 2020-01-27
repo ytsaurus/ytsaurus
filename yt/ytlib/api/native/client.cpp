@@ -2953,9 +2953,9 @@ TFuture<TClient::TListJobsFromArchiveResult> TClient::DoListJobsFromArchiveAsync
             finishedJobsFuture.As<void>(),
             finishedJobsStatisticsFuture.As<void>()})
         .Apply(BIND([jobsInProgressFuture, finishedJobsFuture, finishedJobsStatisticsFuture] (const std::vector<TError>&) {
-            auto& jobsInProgressOrError = jobsInProgressFuture.Get();
-            auto& finishedJobsOrError = finishedJobsFuture.Get();
-            auto& statisticsOrError = finishedJobsStatisticsFuture.Get();
+            const auto& jobsInProgressOrError = jobsInProgressFuture.Get();
+            const auto& finishedJobsOrError = finishedJobsFuture.Get();
+            const auto& statisticsOrError = finishedJobsStatisticsFuture.Get();
 
             if (!jobsInProgressOrError.IsOK()) {
                 THROW_ERROR_EXCEPTION("Failed to get jobs in progress from the operation archive")
@@ -2989,11 +2989,11 @@ TFuture<TClient::TListJobsFromArchiveResult> TClient::DoListJobsFromArchiveAsync
             };
 
             TListJobsFromArchiveResult result;
-            result.FinishedJobs = std::move(finishedJobsOrError.Value());
-            // If a job is present in both lists, we give prority
+            result.FinishedJobs = finishedJobsOrError.Value();
+            // If a job is present in both lists, we give priority
             // to |FinishedJobs| and remove it from |InProgressJobs|.
-            result.InProgressJobs = difference(std::move(jobsInProgressOrError.Value()), result.FinishedJobs);
-            result.FinishedJobsStatistics = std::move(statisticsOrError.Value());
+            result.InProgressJobs = difference(jobsInProgressOrError.Value(), result.FinishedJobs);
+            result.FinishedJobsStatistics = statisticsOrError.Value();
             return result;
         }));
 }
