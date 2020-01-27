@@ -535,7 +535,7 @@ def configure_pod_eviction_requesters_group(client):
 def configure_public_object_creators(client):
     public_object_creators = Group("public-object-creators")
     members = (
-        Group("persons"),
+        Group("staff:department:1"),
     )
     add_group_members(client, public_object_creators, members)
     for public_object_type in PUBLIC_OBJECT_TYPES:
