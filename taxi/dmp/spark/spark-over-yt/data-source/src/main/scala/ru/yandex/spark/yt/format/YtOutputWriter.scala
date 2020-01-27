@@ -73,7 +73,7 @@ class YtOutputWriter(path: String,
   }
 
   private def closeCurrentWriter(): Unit = {
-    prevFuture.foreach(Await.result(_, timeoutSeconds.seconds))
+    prevFuture.foreach(Await.result(_, timeout))
     val currentWriter = writers.head
     writeFutures = currentWriter.readyEvent().thenCompose((unused) => {
       currentWriter.close()
@@ -90,8 +90,8 @@ class YtOutputWriter(path: String,
   private def writeMiniBatch(): Unit = {
     log.debugLazy(s"Writing mini batch of size $miniBatchSize")
     YtMetricsRegister.time(writeBatchTime, writeBatchTimeSum) {
-      prevFuture.foreach(Await.result(_, timeoutSeconds.seconds))
-      prevFuture = Some(InternalRowSerializer.writeRows(writers.head, list, timeoutSeconds))
+      prevFuture.foreach(Await.result(_, timeout))
+      prevFuture = Some(InternalRowSerializer.writeRows(writers.head, list, timeout))
     }
     log.debugLazy(s"Mini batch written")
   }
@@ -100,7 +100,7 @@ class YtOutputWriter(path: String,
     log.debugLazy("Close writer")
     YtMetricsRegister.time(writeCloseTime, writeCloseTimeSum) {
       closeCurrentWriter()
-      writeFutures.foreach(_.get(timeoutSeconds, TimeUnit.MINUTES))
+      writeFutures.foreach(_.get(timeout.toMillis, TimeUnit.MILLISECONDS))
     }
     log.debugLazy("Writer closed")
   }

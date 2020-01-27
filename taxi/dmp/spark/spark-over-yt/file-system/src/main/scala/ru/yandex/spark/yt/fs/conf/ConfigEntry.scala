@@ -2,6 +2,8 @@ package ru.yandex.spark.yt.fs.conf
 
 import org.apache.spark.sql.types.StructType
 
+import scala.concurrent.duration._
+
 abstract class ConfigEntry[T](val name: String,
                               val default: Option[T] = None) {
   def get(value: String): T
@@ -13,6 +15,10 @@ abstract class ConfigEntry[T](val name: String,
 
 class IntConfigEntry(name: String, default: Option[Int] = None) extends ConfigEntry[Int](name, default) {
   override def get(value: String): Int = value.toInt
+}
+
+class DurationSecondsConfigEntry(name: String, default: Option[Duration] = None) extends ConfigEntry[Duration](name, default) {
+  override def get(value: String): Duration = value.toInt.seconds
 }
 
 class StringConfigEntry(name: String, default: Option[String] = None) extends ConfigEntry[String](name, default) {

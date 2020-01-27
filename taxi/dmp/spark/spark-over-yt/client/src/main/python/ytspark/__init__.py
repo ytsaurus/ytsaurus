@@ -1,17 +1,14 @@
 import os
 import re
 import subprocess
-import yaml
 
-import yt
+import yaml
 from yt.wrapper.cypress_commands import list as yt_list, create, exists
 from yt.wrapper.operation_commands import TimeWatcher, process_operation_unsuccesful_finish_state
 from yt.wrapper.run_operation_commands import run_operation
 from yt.wrapper.spec_builders import VanillaSpecBuilder
 
-
-def _yt_client(yt_proxy, yt_token):
-    return yt.wrapper.YtClient(proxy=yt_proxy, token=yt_token)
+from .utils import get_spark_master, base_spark_conf, create_yt_client
 
 
 def _add_conf(spark_conf, spark_args):
@@ -21,22 +18,13 @@ def _add_conf(spark_conf, spark_args):
             spark_args.append("{}={}".format(k, v))
 
 
-def _add_master(spark_id, yt_proxy, discovery_dir, spark_args, rest, client):
-    yt.wrapper.config.config['proxy']['url'] = yt_proxy
-    master_path = "rest" if rest else "address"
-    master = yt_list("{0}/instances/{1}/{2}".format(discovery_dir, spark_id, master_path), client=client)[0]
+def _add_master(spark_id, discovery_dir, spark_args, rest, client):
     spark_args.append("--master")
-    spark_args.append("spark://{0}".format(master))
+    spark_args.append(get_spark_master(spark_id, discovery_dir, rest, client))
 
 
 def _add_base_spark_conf(yt_proxy, yt_user, log_dir, spark_args):
-    spark_conf = {
-        "spark.hadoop.yt.proxy": yt_proxy,
-        "spark.hadoop.yt.user": yt_user,
-        "spark.master.rest.enabled": "true",
-        "spark.eventLog.dir": "yt:/{}".format(log_dir),
-    }
-    _add_conf(spark_conf, spark_args)
+    _add_conf(base_spark_conf(yt_proxy, yt_user, log_dir), spark_args)
 
 
 def _add_job_args(job_args, spark_args):
@@ -64,20 +52,6 @@ def _parse_memory(memory_str):
     if len(unit) <= 1:
         unit = unit + "b"
     return value * units[unit]
-
-
-def default_token():
-    with open("{}/.yt/token".format(os.getenv("HOME"))) as f:
-        token = f.readline().strip()
-    return token
-
-
-def default_discovery_dir():
-    return os.getenv("SPARK_YT_DISCOVERY_DIR") or "//home/{0}/spark-tmp".format(os.getenv("USER"))
-
-
-def default_base_log_dir(discovery_dir):
-    return os.getenv("SPARK_YT_LOG_DIR") or "{}/logs".format(discovery_dir)
 
 
 def _wait_master_start(op, spark_id, discovery_dir, client):
@@ -130,7 +104,7 @@ def submit_python(spark_id, discovery_dir, log_dir, yt_proxy, yt_user, yt_token,
 
 def raw_submit(spark_id, discovery_dir, log_dir, yt_proxy, yt_user, yt_token, spark_home, *args):
     spark_base_args = ["/usr/local/bin/spark-submit"]
-    _add_master(spark_id, yt_proxy, discovery_dir, spark_base_args, rest=True, client=_yt_client(yt_proxy, yt_token))
+    _add_master(spark_id, discovery_dir, spark_base_args, rest=True, client=create_yt_client(yt_proxy, yt_token))
     _add_base_spark_conf(yt_proxy, yt_user, log_dir, spark_base_args)
     spark_env = _create_spark_env(yt_user, yt_token, spark_home)
 
@@ -140,7 +114,7 @@ def raw_submit(spark_id, discovery_dir, log_dir, yt_proxy, yt_user, yt_token, sp
 
 def shell(spark_id, discovery_dir, log_dir, yt_proxy, yt_user, yt_token, spark_home, *args):
     spark_base_args = ["/usr/local/bin/spark-shell"]
-    _add_master(spark_id, yt_proxy, discovery_dir, spark_base_args, rest=False, client=_yt_client(yt_proxy, yt_token))
+    _add_master(spark_id, discovery_dir, spark_base_args, rest=False, client=create_yt_client(yt_proxy, yt_token))
     _add_base_spark_conf(yt_proxy, yt_user, log_dir, spark_base_args)
     spark_env = _create_spark_env(yt_user, yt_token, spark_home)
 
@@ -161,6 +135,12 @@ def launch(spark_id, discovery_dir, log_base_dir, yt_proxy, yt_user, yt_token, y
                   "-Dspark.hadoop.fs.yt.impl=ru.yandex.spark.yt.fs.YtFileSystem " \
                   "-Dspark.port.maxRetries={0} " \
                   "-Dspark.shuffle.service.port={1}" \
+        .format(config["port_max_retries"], config["shuffle_service_port"])
+
+    history_opts = "-Dspark.history.fs.cleaner.enabled=true " \
+                   "-Dspark.hadoop.fs.yt.impl=ru.yandex.spark.yt.fs.YtFileSystem " \
+                   "-Dspark.port.maxRetries={0} " \
+                   "-Dspark.shuffle.service.port={1}" \
         .format(config["port_max_retries"], config["shuffle_service_port"])
 
     master_opts = "-Dspark.port.maxRetries={0} " \
@@ -190,7 +170,7 @@ def launch(spark_id, discovery_dir, log_base_dir, yt_proxy, yt_user, yt_token, y
     log_dir = "{}/{}".format(log_base_dir, spark_id)
     history_command = "{0} && {1} ru.yandex.spark.launcher.HistoryServerLauncher --id {2} --log-path yt:/{3} " \
                       "--port {4} --opts \"'{5}'\"" \
-        .format(unpack_tar, run_launcher, spark_id, log_dir, config["start_port"], worker_opts)
+        .format(unpack_tar, run_launcher, spark_id, log_dir, config["start_port"], history_opts)
 
     environment = {
         "JAVA_HOME": "/opt/jdk8",
@@ -201,7 +181,10 @@ def launch(spark_id, discovery_dir, log_base_dir, yt_proxy, yt_user, yt_token, y
 
     operation_spec = {
         "stderr_table_path": "{0}/logs/stderr_{1}".format(discovery_dir, spark_id),
-        "pool": yt_pool
+        "pool": yt_pool,
+        "annotations": {
+            "is_spark": True
+        }
     }
 
     task_spec = {
@@ -212,6 +195,8 @@ def launch(spark_id, discovery_dir, log_base_dir, yt_proxy, yt_user, yt_token, y
         "YT_USER": yt_user,
         "YT_TOKEN": yt_token
     }
+
+    alias = "spark_{}_{}".format(yt_user, spark_id)
 
     spec_builder = \
         VanillaSpecBuilder() \
@@ -252,9 +237,10 @@ def launch(spark_id, discovery_dir, log_base_dir, yt_proxy, yt_user, yt_token, y
             .secure_vault(secure_vault) \
             .max_failed_job_count(5) \
             .max_stderr_count(150) \
+            .title(alias) \
             .spec(operation_spec)
 
-    yt_client = _yt_client(yt_proxy, yt_token)
+    yt_client = create_yt_client(yt_proxy, yt_token)
     create("map_node", "{0}/instances".format(discovery_dir), recursive=True, ignore_existing=True, client=yt_client)
     create("map_node", log_dir, recursive=True, ignore_existing=True, client=yt_client)
     op = run_operation(spec_builder, sync=False, client=yt_client)

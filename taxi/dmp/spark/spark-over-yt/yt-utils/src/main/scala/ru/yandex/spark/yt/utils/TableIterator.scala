@@ -5,7 +5,9 @@ import java.util.concurrent.TimeUnit
 import org.apache.log4j.Logger
 import ru.yandex.yt.ytclient.proxy.TableReader
 
-class TableIterator[T](reader: TableReader[T]) extends Iterator[T] with AutoCloseable {
+import scala.concurrent.duration.Duration
+
+class TableIterator[T](reader: TableReader[T], timeout: Duration) extends Iterator[T] with AutoCloseable {
   private val log = Logger.getLogger(getClass)
   private var chunk: java.util.Iterator[T] = _
   private var prevRowCount: Long = 0
@@ -23,7 +25,7 @@ class TableIterator[T](reader: TableReader[T]) extends Iterator[T] with AutoClos
 
   private def waitReaderReadyEvent(): Unit = {
     log.debugLazy("Waiting for reader")
-    reader.readyEvent().get(60, TimeUnit.SECONDS)
+    reader.readyEvent().get(timeout.toMillis, TimeUnit.MILLISECONDS)
   }
 
   private def readNextBatch(): Boolean = {
@@ -53,7 +55,7 @@ class TableIterator[T](reader: TableReader[T]) extends Iterator[T] with AutoClos
 
   override def close(): Unit = {
     log.debugLazy("Close reader")
-    reader.close().get(30, TimeUnit.SECONDS)
+    reader.close().get(timeout.toMillis, TimeUnit.MILLISECONDS)
     log.debugLazy("Reader closed")
   }
 }

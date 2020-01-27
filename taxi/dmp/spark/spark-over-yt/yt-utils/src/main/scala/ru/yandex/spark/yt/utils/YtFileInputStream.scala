@@ -7,7 +7,9 @@ import org.apache.log4j.Logger
 import ru.yandex.yt.ytclient.proxy.FileReader
 import ru.yandex.yt.ytclient.proxy.internal.FileReaderImpl
 
-class YtFileInputStream(reader: FileReader) extends InputStream {
+import scala.concurrent.duration.Duration
+
+class YtFileInputStream(reader: FileReader, timeout: Duration) extends InputStream {
   private val log = Logger.getLogger(getClass)
   private var chunk: Iterator[Byte] = _
   private var closed: Boolean = false
@@ -30,7 +32,7 @@ class YtFileInputStream(reader: FileReader) extends InputStream {
   }
 
   private def waitReaderReadyEvent(): Unit = {
-    reader.readyEvent().get(30, TimeUnit.SECONDS)
+    reader.readyEvent().get(timeout.toMillis, TimeUnit.MILLISECONDS)
   }
 
   private def readNextBatch(): Boolean = {
@@ -69,7 +71,7 @@ class YtFileInputStream(reader: FileReader) extends InputStream {
       if (reader.canRead) {
         reader.asInstanceOf[FileReaderImpl].cancel()
       } else {
-        reader.close().get(30, TimeUnit.SECONDS)
+        reader.close().get(timeout.toMillis, TimeUnit.MILLISECONDS)
       }
     }
   }

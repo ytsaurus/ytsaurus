@@ -1,6 +1,6 @@
 package ru.yandex.spark.yt.utils
 
-import java.time.Duration
+import java.time.{Duration => JavaDuration}
 
 import io.netty.channel.nio.NioEventLoopGroup
 import org.apache.log4j.Logger
@@ -10,15 +10,19 @@ import ru.yandex.yt.ytclient.bus.DefaultBusConnector
 import ru.yandex.yt.ytclient.proxy.YtClient
 import ru.yandex.yt.ytclient.rpc.RpcOptions
 
+import scala.concurrent.duration.Duration
+
 object YtClientUtils {
   private val log = Logger.getLogger(getClass)
 
   def createRpcClient(config: YtClientConfiguration): YtRpcClient = {
     log.info("Create yt client")
     val connector = new DefaultBusConnector(new NioEventLoopGroup(1), true)
+      .setReadTimeout(javaDuration(config.timeout))
+      .setWriteTimeout(javaDuration(config.timeout))
     try {
       val rpcOptions = new RpcOptions()
-      rpcOptions.setGlobalTimeout(Duration.ofSeconds(config.timeout))
+      rpcOptions.setTimeouts(config.timeout)
 
       val client = new YtClient(
         connector,
@@ -44,11 +48,23 @@ object YtClientUtils {
   }
 
   def createHttpClient(config: YtClientConfiguration): Yt = {
-    InsideYtUtils.http(config.proxy, config.token)
+    InsideYtUtils.http(config.fullProxy, config.token)
+  }
+
+  def javaDuration(timeout: Duration): JavaDuration = {
+    JavaDuration.ofMillis(timeout.toMillis)
+  }
+
+  implicit class RichRpcOptions(options: RpcOptions) {
+    def setTimeouts(timeout: Duration): RpcOptions = {
+      options.setGlobalTimeout(javaDuration(timeout))
+      options.setStreamingReadTimeout(javaDuration(timeout))
+      options.setStreamingWriteTimeout(javaDuration(timeout))
+    }
   }
 }
 
-case class YtRpcClient(yt: YtClient, connector: DefaultBusConnector) {
+case class YtRpcClient(yt: YtClient, connector: DefaultBusConnector) extends AutoCloseable {
   def close(): Unit = {
     yt.close()
     connector.close()

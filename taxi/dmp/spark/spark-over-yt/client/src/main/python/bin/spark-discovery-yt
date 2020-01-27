@@ -11,7 +11,7 @@ from yt.wrapper.cypress_commands import list
 from yt.wrapper.errors import YtHttpResponseError
 from yt.wrapper.operation_commands import get_operation_url
 
-from ytspark import default_discovery_dir
+from ytspark.utils import default_discovery_dir
 
 parser = argparse.ArgumentParser(description="Spark Discovery")
 parser.add_argument("--id", required=True)
@@ -20,7 +20,8 @@ parser.add_argument("--discovery-dir", required=False)
 
 args = parser.parse_args()
 
-discovery_dir = args.discovery_dir or default_discovery_dir()
+user = os.getenv("YT_USER") or os.getenv("USER")
+discovery_dir = args.discovery_dir or default_discovery_dir(user)
 yt.wrapper.config.config['proxy']['url'] = args.proxy or os.getenv("YT_PROXY")
 
 

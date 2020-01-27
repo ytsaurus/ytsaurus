@@ -62,14 +62,18 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
       implicit val yt: YtClient = YtClientProvider.ytClient(ytClientConfiguration)
       val split = YtInputSplit(YtPath.decode(file.filePath), file.start, file.length, requiredSchema)
       if (readBatch) {
-        val ytVectorizedReader = new YtVectorizedReader(vectorizedReaderCapacity)
+        val ytVectorizedReader = new YtVectorizedReader(vectorizedReaderCapacity, ytClientConfiguration.timeout)
         val iter = new RecordReaderIterator(ytVectorizedReader)
         if (readBatch) ytVectorizedReader.enableBatch()
         Option(TaskContext.get()).foreach(_.addTaskCompletionListener[Unit](_ => iter.close()))
         ytVectorizedReader.initialize(split, null)
         iter.asInstanceOf[Iterator[InternalRow]]
       } else {
-        val tableIterator = YtTableUtils.readTable(split.getFullPath, InternalRowDeserializer.getOrCreate(requiredSchema))
+        val tableIterator = YtTableUtils.readTable(
+          split.getFullPath,
+          InternalRowDeserializer.getOrCreate(requiredSchema),
+          ytClientConfiguration.timeout
+        )
         val unsafeProjection = UnsafeProjection.create(requiredSchema)
         tableIterator.map(unsafeProjection(_))
       }

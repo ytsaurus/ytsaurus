@@ -8,7 +8,9 @@ import ru.yandex.spark.yt.serializers.ArrayAnyDeserializer
 import ru.yandex.spark.yt.utils.YtTableUtils
 import ru.yandex.yt.ytclient.proxy.YtClient
 
-class YtVectorizedReader(capacity: Int)(implicit yt: YtClient) extends RecordReader[Void, Object] {
+import scala.concurrent.duration.Duration
+
+class YtVectorizedReader(capacity: Int, timeout: Duration)(implicit yt: YtClient) extends RecordReader[Void, Object] {
   private var _iterator: Iterator[Array[Any]] = _
   private var _batch: ColumnarBatch = _
   private var _columnVectors: Array[WritableColumnVector] = _
@@ -26,7 +28,7 @@ class YtVectorizedReader(capacity: Int)(implicit yt: YtClient) extends RecordRea
         _totalRowCount = ys.length
 
         if (_columnVectors.nonEmpty) {
-          _iterator = YtTableUtils.readTable(ys.getFullPath, ArrayAnyDeserializer.getOrCreate(ys.schema))
+          _iterator = YtTableUtils.readTable(ys.getFullPath, ArrayAnyDeserializer.getOrCreate(ys.schema), timeout)
         }
     }
   }
