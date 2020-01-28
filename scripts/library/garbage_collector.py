@@ -46,7 +46,7 @@ def create_temp_objects(client, logger, create_object_requests_original):
 
 class GarbageManager(object):
     _RANDOM_MD5 = "95c3e53cfc77acd268a7bd00942af84d"
-    _COLLECTED_TYPES = ("pod", "pod_set", "endpoint_set")
+    _COLLECTED_TYPES = ("pod", "pod_set", "endpoint_set", "pod_disruption_budget")
     _GARBAGE_COLLECTOR_USER = "robot-yt-odin"
 
 
@@ -96,11 +96,13 @@ class GarbageMarker(GarbageManager):
 
 class YpGarbageCollectedClient(object):
     _FORWARDED_METHODS = (
+        "abort_pod_eviction",
         "generate_timestamp",
         "get_object",
         "get_objects",
         "get_user_access_allowed_to",
         "remove_object",
+        "request_pod_eviction",
         "select_objects",
         "update_object",
         "update_objects",
