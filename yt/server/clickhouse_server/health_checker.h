@@ -18,6 +18,7 @@ class THealthChecker
 public:
     THealthChecker(
         THealthCheckerConfigPtr config,
+        TString dataBaseUser,
         const DB::Context* databaseContext,
         TBootstrap* bootstrap);
 
@@ -25,6 +26,7 @@ public:
 
 private:
     THealthCheckerConfigPtr Config_;
+    TString DataBaseUser_;
     const DB::Context* DatabaseContext_;
     TBootstrap* Bootstrap_;
     NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;

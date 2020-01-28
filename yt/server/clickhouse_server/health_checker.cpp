@@ -37,9 +37,15 @@ std::vector<NProfiling::TTagId> RegisterQueryTags(size_t queryCount)
     return queryTags;
 }
 
-DB::Context PrepareDatabaseContextForQuery(const DB::Context* databaseContext, TBootstrap* bootstrap)
+DB::Context PrepareDatabaseContextForQuery(
+    const DB::Context* databaseContext,
+    const TString& dataBaseUser,
+    TBootstrap* bootstrap)
 {
     DB::Context databaseContextForQuery = *databaseContext;
+
+    databaseContextForQuery.setUser(
+        dataBaseUser, /*password =*/"", Poco::Net::SocketAddress(), /*quotaKey =*/"");
 
     auto queryId = TQueryId::Create();
 
@@ -90,16 +96,18 @@ void THealthChecker::ExecuteQuery(const TString& query)
 
     NDetail::ValidateQueryResult(DB::InterpreterSelectWithUnionQuery(
         querySyntaxTree,
-        NDetail::PrepareDatabaseContextForQuery(DatabaseContext_, Bootstrap_),
+        NDetail::PrepareDatabaseContextForQuery(DatabaseContext_, DataBaseUser_, Bootstrap_),
         DB::SelectQueryOptions())
         .execute());
 }
 
 THealthChecker::THealthChecker(
     THealthCheckerConfigPtr config,
+    TString dataBaseUser,
     const DB::Context* databaseContext,
     TBootstrap* bootstrap)
     : Config_(std::move(config))
+    , DataBaseUser_(std::move(dataBaseUser))
     , DatabaseContext_(databaseContext)
     , Bootstrap_(bootstrap)
     , PeriodicExecutor_(New<TPeriodicExecutor>(

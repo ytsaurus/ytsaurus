@@ -214,6 +214,7 @@ public:
             ServerProfiler.AppendPath("/object_attribute_cache")))
         , HealthChecker_(
             Config_->Engine->HealthChecker,
+            Config_->User,
             DatabaseContext_.get(),
             Bootstrap_)
     { }
@@ -539,9 +540,6 @@ private:
 
         std::string defaultDatabase = EngineConfig_->getString("default_database", "default");
         DatabaseContext_->setCurrentDatabase(defaultDatabase);
-
-        DatabaseContext_->setUser(
-            Config_->User, /*password =*/"", Poco::Net::SocketAddress(), /*quotaKey =*/"");
     }
 
     void WarmupDictionaries()
