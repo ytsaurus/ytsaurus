@@ -316,11 +316,13 @@ struct TOperationSpecBase
 {
     using TSelf = TDerived;
 
-    // Limit on operation execution time.
-    // If operation doesn't finish in time it will be aborted.
+    ///
+    /// @prief Limit on operation execution time.
+    ///
+    /// If operation doesn't finish in time it will be aborted.
     FLUENT_FIELD_OPTION(TDuration, TimeLimit);
 
-    //Choose title you can see it in web interface
+    /// @brief Title to be shown in web interface.
     FLUENT_FIELD_OPTION(TString, Title);
 };
 
@@ -426,24 +428,46 @@ struct TUserJobSpec
 
     FLUENT_VECTOR_FIELD(TRichYPath, File);
 
-    //
-    // MemoryLimit specifies how much memory each job can use.
-    // Expected tmpfs size should NOT be included.
-    //
-    // ExtraTmpfsSize is meaningful if MountSandboxInTmpfs is set.
-    // By default tmpfs size is set to the sum of sizes of all files that
-    // are loaded into tmpfs before job started.
-    // If job wants to save some data into tmpfs it can ask for extra tmpfs space using
-    // ExtraTmpfsSize option.
-    //
-    // Final memory memory_limit and tmpfs_size that are passed to YT are calculated
-    // as follows:
-    //
-    // tmpfs_size = size_of_binary + size_of_required_files + ExtraTmpfsSize
-    // memory_limit = MemoryLimit + tmpfs_size
+    ///
+    /// @brief MemoryLimit specifies how much memory job process can use.
+    ///
+    /// @note
+    /// If job uses tmpfs (check @ref NYT::TOperationOptions::MountSandboxInTmpfs)
+    /// YT computes its memory usage as total of:
+    ///   - memory usage of job process itself (including mapped files);
+    ///   - total size of tmpfs used by this job.
+    ///
+    /// @note
+    /// When @ref NYT::TOperationOptions::MountSandboxInTmpfs is enabled library will compute
+    /// total size of all files used by this job and add this total size to MemoryLimit.
+    /// Thus you shouldn't include size of your files (e.g. binary file) into MemoryLimit.
+    ///
+    /// @note
+    /// Final memory memory_limit passed to YT is calculated as follows:
+    ///
+    /// @note
+    /// ```
+    /// memory_limit = MemoryLimit + <total-size-of-used-files> + ExtraTmpfsSize
+    /// ```
+    ///
+    /// @see NYT::TUserJobSpec::ExtraTmpfsSize
     FLUENT_FIELD_OPTION(i64, MemoryLimit);
-    FLUENT_FIELD_OPTION(double, CpuLimit);
+
+    ///
+    /// @brief Size of data that is going to be written to tmpfs.
+    ///
+    /// This option should be used if job writes data to tmpfs.
+    ///
+    /// ExtraTmpfsSize should not include size of files specified with
+    /// @ref NYT::TUserJobSpec::AddLocalFile or @ref NYT::TUserJobSpec::File
+    /// These files are copied to tmpfs automatically and their total size
+    /// is computed automatically.
+    ///
+    /// @see NYT::TOperationOptions::MountSandboxInTmpfs
+    /// @see NYT::TUserJobSpec::MemoryLimit
     FLUENT_FIELD_OPTION(i64, ExtraTmpfsSize);
+
+    FLUENT_FIELD_OPTION(double, CpuLimit);
 
     //
     // https://wiki.yandex-team.ru/yt/userdoc/operations/#memoryreservefactor
@@ -1541,15 +1565,17 @@ struct TOperationOptions
     FLUENT_FIELD_OPTION(TNode, Spec);
     FLUENT_FIELD_DEFAULT(bool, Wait, true);
     FLUENT_FIELD_DEFAULT(bool, UseTableFormats, false);
+
     // Prefix and suffix for all kind of jobs (mapper,reducer,combiner)
     // Can be overridden for the specific job type in the TUserJobSpec
     FLUENT_FIELD(TString, JobCommandPrefix);
     FLUENT_FIELD(TString, JobCommandSuffix);
 
-    //
-    // If MountSandboxInTmpfs is set all files required by job will be put into tmpfs.
-    // The same can be done with TConfig::MountSandboxInTmpfs option.
-    // see also https://wiki.yandex-team.ru/yt/userdoc/woodpeckers/
+    ///
+    /// @brief Put all files required by the job into tmpfs.
+    ///
+    /// This option can be set globaly using @ref NYT::TConfig::MountSandboxInTmpfs.
+    /// @see https://wiki.yandex-team.ru/yt/userdoc/woodpeckers/
     FLUENT_FIELD_DEFAULT(bool, MountSandboxInTmpfs, false);
     FLUENT_FIELD_OPTION(TString, FileStorage);
     FLUENT_FIELD_OPTION(TNode, SecureVault);
