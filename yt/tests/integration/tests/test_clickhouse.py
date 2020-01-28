@@ -17,6 +17,8 @@ from distutils.spawn import find_executable
 
 from datetime import datetime
 
+from threading import Thread
+
 import copy
 import json
 import os
@@ -60,6 +62,7 @@ class Clique(object):
     query_index = 0
     path_to_run = None
     core_dump_path = None
+    proxy_address = None
 
     def __init__(self, instance_count, max_failed_job_count=0, config_patch=None, **kwargs):
         config = update(Clique.base_config, config_patch) if config_patch is not None else copy.deepcopy(Clique.base_config)
@@ -163,7 +166,7 @@ class Clique(object):
             for instance in self.get_active_instances():
                 clique_size = self.make_direct_query(instance, "select count(*) from system.clique", verbose=False)[0]["count()"]
                 clique_size_per_instance.append(clique_size)
-            print_debug("Clique sizes over all instances: {}".format(clique_size_per_instance))
+            # print_debug("Clique sizes over all instances: {}".format(clique_size_per_instance))
             return min(clique_size_per_instance) == self.instance_count
 
         wait(check_all_instance_pairs)
@@ -204,7 +207,9 @@ class Clique(object):
                 result.append(line)
         return "\n".join(result)
 
-    def make_direct_query(self, instance, query, user="root", format="JSON", verbose=True, only_rows=True, full_response=False):
+    def make_request(self, url, query, headers, format="JSON", params=None, verbose=False, only_rows=True, full_response=False):
+        if params is None:
+            params = {}
         # Make some improvements to query: strip trailing semicolon, add format if needed.
         query = query.strip()
         assert "format" not in query.lower()
@@ -215,21 +220,10 @@ class Clique(object):
         if output_present:
             query = query + " format " + format
 
-        host = instance.attributes["host"]
-        port = instance.attributes["http_port"]
+        params["output_format_json_quote_64bit_integers"] = 0
 
-        query_id = parts_to_uuid(random.randint(0, 2**64 - 1), (Clique.clique_index << 32) | Clique.query_index)
-        Clique.query_index += 1
+        result = requests.post(url, data=query, headers=headers, params=params)
 
-        print_debug()
-        print_debug("Querying {0}:{1} with the following data:\n> {2}".format(host, port, query))
-        print_debug("Query id: {}".format(query_id))
-        result = requests.post("http://{}:{}/query?output_format_json_quote_64bit_integers=0".format(host, port),
-                               data=query,
-                               headers={"X-ClickHouse-User": user,
-                                        "X-Yt-Trace-Id": query_id,
-                                        "X-Yt-Span-Id": "0",
-                                        "X-Yt-Sampled": str(int(self.is_tracing))})
         output = ""
         if result.status_code != 200:
             output += "Query failed, HTTP code: {}\n".format(result.status_code)
@@ -252,7 +246,7 @@ class Clique(object):
             return result
 
         if result.status_code != 200:
-            raise YtError("ClickHouse query failed\n" + output, attributes={"query": query, "query_id": query_id})
+            raise YtError("ClickHouse query failed\n" + output, attributes={"query": query, "query_id": result.headers.get("query_id", "(n/a)")})
         else:
             if output_present:
                 if format == "JSON":
@@ -263,11 +257,50 @@ class Clique(object):
             else:
                 return None
 
+    def make_direct_query(self, instance, query, user="root", format="JSON", verbose=True, only_rows=True, full_response=False):
+        host = instance.attributes["host"]
+        port = instance.attributes["http_port"]
+
+        query_id = parts_to_uuid(random.randint(0, 2**64 - 1), (Clique.clique_index << 32) | Clique.query_index)
+        Clique.query_index += 1
+
+        print_debug()
+        print_debug("Querying {0}:{1} with the following data:\n> {2}".format(host, port, query))
+        print_debug("Query id: {}".format(query_id))
+
+        return self.make_request("http://{}:{}/query".format(host, port), query, format=format, verbose=verbose,
+                                 only_rows=only_rows, full_response=full_response, headers={
+                                     "X-ClickHouse-User": user,
+                                     "X-Yt-Trace-Id": query_id,
+                                     "X-Yt-Span-Id": "0",
+                                     "X-Yt-Sampled": str(int(self.is_tracing))
+                                 })
+
+    def make_query_via_proxy(self, query, format="JSON", verbose=True, only_rows=True, full_response=False, headers=None):
+        if headers is None:
+            headers = {}
+        assert self.proxy_address is not None
+        url = self.proxy_address + "/query"
+        params = {"database": self.op.id}
+        print_debug()
+        print_debug("Querying proxy {0} with the following data:\n> {1}".format(url, query))
+        return self.make_request(url, query, headers, params=params, format=format, verbose=verbose, only_rows=only_rows, full_response=full_response)
+
     def make_query(self, query, user="root", format="JSON", verbose=True, only_rows=True, full_response=False):
         instances = self.get_active_instances()
         assert len(instances) > 0
         instance = random.choice(instances)
         return self.make_direct_query(instance, query, user, format, verbose, only_rows, full_response)
+
+    def make_async_query(self, *args, **kwargs):
+        t = Thread(target=self.make_query, args=args, kwargs=kwargs)
+        t.start()
+        return t
+
+    def make_async_query_via_proxy(self, *args, **kwargs):
+        t = Thread(target=self.make_query_via_proxy, args=args, kwargs=kwargs)
+        t.start()
+        return t
 
     def get_orchid(self, instance, path, verbose=True):
         url = "http://{}:{}/orchid{}".format(instance.attributes["host"], instance.attributes["monitoring_port"], path)
@@ -290,6 +323,7 @@ class Clique(object):
             abort_job(job)
         wait(lambda: self.get_active_instance_count() == size)
 
+
 class ClickHouseTestBase(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
@@ -298,6 +332,8 @@ class ClickHouseTestBase(YTEnvSetup):
     REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     ENABLE_HTTP_PROXY = True
+    USE_PORTO_FOR_SERVERS = True
+
 
     DELTA_PROXY_CONFIG = {
         "proxy": {
@@ -316,9 +352,8 @@ class ClickHouseTestBase(YTEnvSetup):
         "exec_agent": {
             "slot_manager": {
                 "job_environment": {
-                    "type": "cgroups",
+                    "type": "porto",
                     "memory_watchdog_period": 100,
-                    "supported_cgroups": ["cpuacct", "blkio", "cpu"],
                 },
             },
             "job_controller": {
@@ -355,6 +390,7 @@ class ClickHouseTestBase(YTEnvSetup):
         # We need to inject cluster_connection into yson config.
         Clique.base_config = yson.loads(self._read_local_config_file("config.yson"))
         Clique.base_config["cluster_connection"] = self.__class__.Env.configs["driver"]
+        Clique.proxy_address = self._get_proxy_address()
 
 def get_scheduling_options(user_slots):
     return {
@@ -867,6 +903,11 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
         with Clique(1) as clique:
             assert clique.make_query("select b from \"//tmp/t2\"") == [{"b": None}]
+
+    @authors("max42")
+    def test_nothing(self):
+        with Clique(5):
+            pass
 
 
 class TestJobInput(ClickHouseTestBase):
@@ -1698,6 +1739,7 @@ class TestClickHouseSchema(ClickHouseTestBase):
                 assert clique.make_query("select * from {} where isNull(a)".format(source)) == [{"a": None}]
                 assert clique.make_query("select * from {} where isNotNull(a)".format(source)) == [{"a": -1}, {"a": 42}]
 
+
 class TestClickHouseAccess(ClickHouseTestBase):
     def setup(self):
         self._setup()
@@ -1769,12 +1811,8 @@ class TestQueryLogAndQueryRegistry(ClickHouseTestBase):
                 assert qs["initial_query_id"] == qi["query_id"]
                 return True
 
-            from threading import Thread
-            t = Thread(target=clique.make_query, args=("select sleep(3) from \"//tmp/t\"",))
-            t.start()
-
+            t = clique.make_async_query("select sleep(3) from \"//tmp/t\"")
             wait(lambda: check_query_registry())
-
             t.join()
 
 
@@ -2084,13 +2122,10 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
     @authors("dakovalkov")
     def test_http_proxy(self):
         with Clique(1) as clique:
-            url = self._get_proxy_address() + "/query?database={}".format(clique.op.id)
-            proxy_response = requests.post(url, data="select * from system.clique format JSON")
-            print_debug(proxy_response)
-            print_debug(proxy_response.text)
+            proxy_response = clique.make_query_via_proxy("select * from system.clique")
             response = clique.make_query("select * from system.clique")
             assert len(response) == 1
-            assert proxy_response.json()["data"] == response
+            assert proxy_response == response
 
             jobs = list(clique.op.get_running_jobs())
             assert len(jobs) == 1
@@ -2098,12 +2133,10 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             clique.resize(0, [jobs[0]])
             clique.resize(1)
 
-            proxy_response = requests.post(url, data="select * from system.clique format JSON")
-            print_debug(proxy_response)
-            print_debug(proxy_response.text)
+            proxy_response = clique.make_query_via_proxy("select * from system.clique")
             response = clique.make_query("select * from system.clique")
             assert len(response) == 1
-            assert proxy_response.json()["data"] == response
+            assert proxy_response == response
 
     @authors("dakovalkov")
     def test_ban_dead_instance_in_proxy(self):
@@ -2119,8 +2152,6 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         banned_count = self._get_proxy_metric("clickhouse_proxy/banned_count")
 
         with Clique(2, config_patch=patch) as clique:
-            url = self._get_proxy_address() + "/query?database={}".format(clique.op.id)
-
             wait(lambda: clique.get_active_instance_count() == 2)
 
             jobs = list(clique.op.get_running_jobs())
@@ -2140,7 +2171,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             proxy_responses = []
             for i in range(50):
                 print_debug("Iteration:", i)
-                proxy_responses += [requests.post(url, data="select 1 format JSON")]
+                proxy_responses += [clique.make_query_via_proxy("select 1", full_response=True)]
                 assert proxy_responses[i].status_code == 200
                 assert proxy_responses[i].json()["data"] == proxy_responses[i - 1].json()["data"]
                 time.sleep(0.05)
@@ -2165,11 +2196,9 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         banned_count = self._get_proxy_metric("clickhouse_proxy/banned_count")
 
         with Clique(2, config_patch=patch) as clique:
-            url = self._get_proxy_address() + "/query?database={}".format(clique.op.id)
-
             # Add clique into the cache.
             proxy_responses = []
-            proxy_responses += [requests.post(url, data="select 1 format JSON")]
+            proxy_responses += [clique.make_query_via_proxy("select 1", full_response=True)]
 
             jobs = list(clique.op.get_running_jobs())
             assert len(jobs) == 2
@@ -2186,7 +2215,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
 
             for i in range(50):
                 print_debug("Iteration:", i)
-                proxy_responses += [requests.post(url, data="select 1 format JSON")]
+                proxy_responses += [clique.make_query_via_proxy("select 1", full_response=True)]
                 assert proxy_responses[i + 1].status_code == 200
                 assert proxy_responses[i].json()["data"] == proxy_responses[i + 1].json()["data"]
                 time.sleep(0.05)
@@ -2213,16 +2242,16 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         banned_count = self._get_proxy_metric("clickhouse_proxy/banned_count")
 
         with Clique(2, max_failed_job_count=2, config_patch=patch) as clique:
-            url = self._get_proxy_address() + "/query?output_format_json_quote_64bit_integers=0&database={}".format(clique.op.id)
             running = True
             def pinger():
                 while running:
-                    full_response = requests.post(url, data="select * from \"//tmp/table\" format JSON")
+                    full_response = clique.make_query_via_proxy("select * from \"//tmp/table\"", full_response=True)
                     print_debug(full_response)
                     print_debug(full_response.json())
                     assert full_response.status_code == 200
                     response = sorted(full_response.json()["data"])
                     assert response == [{"i": 0}, {"i": 1}, {"i": 2}, {"i": 3}]
+                    time.sleep(0.1)
 
             ping_thread = threading.Thread(target=pinger)
             ping_thread.start()
@@ -2262,8 +2291,6 @@ class TestTracing(ClickHouseTestBase):
     @pytest.mark.parametrize("trace_method", ["x-yt-sampled", "traceparent"])
     def test_tracing_via_http_proxy(self, trace_method):
         with Clique(1) as clique:
-            url = self._get_proxy_address() + "/query?database={}".format(clique.op.id)
-
             create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
             for i in range(5):
                 write_table("<append=%true>//tmp/t", [{"a": 2 * i}, {"a": 2 * i + 1}])
@@ -2274,9 +2301,8 @@ class TestTracing(ClickHouseTestBase):
             else:
                 headers["traceparent"] = "11111111222222223333333344444444-5555555566666666-01"
 
-            result = requests.post(url,
-                                   data="select avg(a) from \"//tmp/t\" format JSON",
-                                   headers=headers)
+            result = clique.make_query_via_proxy("select avg(a) from \"//tmp/t\"",
+                                                 headers=headers, full_response=True)
             assert abs(result.json()["data"][0]["avg(a)"] - 4.5) < 1e-6
             query_id = result.headers["X-ClickHouse-Query-Id"]
             print_debug("Query id =", query_id)
@@ -2285,6 +2311,8 @@ class TestTracing(ClickHouseTestBase):
                 assert query_id.startswith("33333333-44444444")
 
             if is_tracing_enabled():
+                # TODO(max42): this seems broken after moving to porto.
+
                 # Check presence of one of the middle parts of query id in the binary trace file.
                 # It looks like a good evidence of that everything works fine. Don't tell prime@ that
                 # I rely on tracing binary protobuf representation, though :)
