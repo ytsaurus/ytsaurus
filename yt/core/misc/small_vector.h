@@ -13,8 +13,6 @@
 
 #pragma once
 #include "public.h"
-#include "align_of.h"
-#include "mpl.h"
 
 #include <util/system/defaults.h>
 
@@ -58,7 +56,19 @@ public:
   bool YT_LLVM_ATTRIBUTE_UNUSED_RESULT empty() const { return BeginX == EndX; }
 };
 
-template <typename T, unsigned N> struct SmallVectorStorage;
+template <typename T, unsigned N>
+struct alignas(T) SmallVectorStorage {
+  static_assert(sizeof(T) % alignof(T) == 0);
+  char InlineElts[sizeof(T) * N];
+};
+
+template <typename T> struct alignas(T) SmallVectorStorage<T, 0> {};
+
+/// Figure out the offset of the first element.
+template <class T, typename = void> struct SmallVectorAlignmentAndSize {
+  SmallVectorBase Base;
+  SmallVectorStorage<T, 0> FirstEl;
+};
 
 /// This is the part of SmallVectorTemplateBase which does not depend on whether
 /// the type T is a POD. The extra dummy template argument is used by ArrayRef
@@ -71,26 +81,31 @@ private:
   // Allocate raw space for N elements of type T.  If T has a ctor or dtor, we
   // don't want it to be automatically run, so we need to represent the space as
   // something else.  Use an array of char of sufficient alignment.
-  typedef AlignedCharArrayUnion<T> U;
-  U FirstEl;
+
+  void *getFirstEl() const {
+    return const_cast<void *>(reinterpret_cast<const void *>(
+        reinterpret_cast<const char *>(this) +
+        offsetof(SmallVectorAlignmentAndSize<T>, FirstEl)));
+  }
+
   // Space after 'FirstEl' is clobbered, do not add any instance vars after it.
 
 protected:
-  SmallVectorTemplateCommon(size_t Size) : SmallVectorBase(&FirstEl, Size) {}
+  SmallVectorTemplateCommon(size_t Size) : SmallVectorBase(getFirstEl(), Size) {}
 
   void grow_pod(size_t MinSizeInBytes, size_t TSize) {
-    SmallVectorBase::grow_pod(&FirstEl, MinSizeInBytes, TSize);
+    SmallVectorBase::grow_pod(getFirstEl(), MinSizeInBytes, TSize);
   }
 
   /// Return true if this is a smallvector which has not had dynamic
   /// memory allocated for it.
   bool isSmall() const {
-    return BeginX == static_cast<const void*>(&FirstEl);
+    return BeginX == static_cast<const void*>(getFirstEl());
   }
 
   /// Put this vector in a state of being small.
   void resetToSmall() {
-    BeginX = EndX = CapacityX = &FirstEl;
+    BeginX = EndX = CapacityX = getFirstEl();
   }
 
   void setEnd(T *P) { this->EndX = P; }
@@ -849,17 +864,6 @@ SmallVectorImpl<T> &SmallVectorImpl<T>::operator=(SmallVectorImpl<T> &&RHS) {
   return *this;
 }
 
-/// Storage for the SmallVector elements which aren't contained in
-/// SmallVectorTemplateCommon. There are 'N-1' elements here. The remaining '1'
-/// element is in the base class. This is specialized for the N=1 and N=0 cases
-/// to avoid allocating unnecessary storage.
-template <typename T, unsigned N>
-struct SmallVectorStorage {
-  typename SmallVectorTemplateCommon<T>::U InlineElts[N - 1];
-};
-template <typename T> struct SmallVectorStorage<T, 1> {};
-template <typename T> struct SmallVectorStorage<T, 0> {};
-
 /// This is a 'vector' (really, a variable-sized array), optimized
 /// for the case when the array is small.  It contains some number of elements
 /// in-place, which allows it to avoid heap allocation when the actual number of
@@ -951,7 +955,7 @@ void SmallVector<T, N>::shrink_to_small() {
     return;
   }
 
-  auto* firstEl = (T*)(Storage.InlineElts - 1);
+  auto* firstEl = (T*)(Storage.InlineElts);
 
   this->uninitialized_move(this->begin(), this->end(), firstEl);
   this->destroy_range(this->begin(), this->end());
