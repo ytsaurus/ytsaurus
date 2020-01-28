@@ -786,7 +786,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         blocking_op.track()
         op.track()
 
-        remove("//sys/pool_trees/other")
+        remove_pool_tree("other")
         set("//sys/pool_trees/default/@nodes_filter", "")
 
     @authors("mrkastep")
@@ -2639,16 +2639,17 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
     def teardown_method(self, method):
         for node in ls("//sys/cluster_nodes"):
             set("//sys/cluster_nodes/{}/@resource_limits_overrides".format(node), {})
+        if exists("//sys/pool_trees/@default_tree"):
+            remove("//sys/pool_trees/@default_tree")
         for tree in ls("//sys/pool_trees"):
-            remove("//sys/pool_trees/" + tree)
+            remove_pool_tree(tree)
         create_pool_tree("default")
         set("//sys/pool_trees/@default_tree", "default")
-        time.sleep(0.5)  # Give scheduler some time to reload trees
         super(TestPoolTreesReconfiguration, self).teardown_method(method)
 
     @authors("asaitgalin")
     def test_basic_sanity(self):
-        assert exists("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/fair_share_info")
+        wait(lambda: exists(scheduler_orchid_default_pool_tree_path()))
 
         create_pool_tree("other", attributes={"nodes_filter": "other"})
 
@@ -2656,12 +2657,11 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         wait(lambda: not get("//sys/scheduler/@alerts"))
 
         # This tree intersects with default pool tree by nodes, should not be added
-        create_pool_tree("other_intersecting", attributes={"nodes_filter": ""})
-        time.sleep(1.0)
-        assert not exists("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/other_intersecting/fair_share_info")
-        assert get("//sys/scheduler/@alerts")
+        create_pool_tree("other_intersecting", wait_for_orchid=False, attributes={"nodes_filter": ""})
+        wait(lambda: not exists("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/other_intersecting/fair_share_info"))
+        wait(lambda: get("//sys/scheduler/@alerts"))
 
-        remove("//sys/pool_trees/other_intersecting")
+        remove_pool_tree("other_intersecting", wait_for_orchid=False)
         wait(lambda: "update_pools" not in get("//sys/scheduler/@alerts"))
 
     @authors("asaitgalin")
@@ -2679,7 +2679,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         wait(lambda: op.get_state() == "running")
 
         remove("//sys/pool_trees/@default_tree")
-        remove("//sys/pool_trees/default")
+        remove_pool_tree("default")
 
         wait(lambda: op.get_state() in ["aborted", "aborting"])
 
@@ -2704,7 +2704,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
             wait(lambda: op.get_state() == "running")
 
         remove("//sys/pool_trees/@default_tree")
-        remove("//sys/pool_trees/default")
+        remove_pool_tree("default")
 
         for op in reversed(ops):
             try:
@@ -2897,8 +2897,8 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         tag = pool_tree
         node = ls("//sys/cluster_nodes")[0]
         set("//sys/cluster_nodes/" + node + "/@user_tags/end", tag)
-        create_pool_tree(pool_tree, attributes={"nodes_filter": tag})
         set("//sys/pool_trees/default/@nodes_filter", "!" + tag)
+        create_pool_tree(pool_tree, attributes={"nodes_filter": tag})
         return node
 
 class TestTentativePoolTrees(YTEnvSetup):
@@ -2939,7 +2939,7 @@ class TestTentativePoolTrees(YTEnvSetup):
         set("//sys/controller_agents/config/check_tentative_tree_eligibility_period", 100 * 1000)
 
     def teardown_method(self, method):
-        remove("//sys/pool_trees/other")
+        remove_pool_tree("other")
         super(TestTentativePoolTrees, self).teardown_method(method)
 
     # Creates and additional pool tree called "other", configures tag filters,
@@ -2951,8 +2951,6 @@ class TestTentativePoolTrees(YTEnvSetup):
 
         set("//sys/pool_trees/default/@nodes_filter", "!other")
         create_pool_tree("other", attributes={"nodes_filter": "other"})
-        set("//sys/pool_trees/default/@nodes_filter", "!other")
-        time.sleep(0.5)
 
         return other_nodes
 
@@ -3259,8 +3257,6 @@ class TestSchedulingTagFilterOnPerPoolTreeConfiguration(YTEnvSetup):
         set("//sys/pool_trees/default/@nodes_filter", "default_tag")
         create_pool_tree("custom_pool_tree", attributes={"nodes_filter": "custom_tag"})
 
-        time.sleep(0.5)
-
         create_test_tables()
 
         op = map(
@@ -3279,7 +3275,7 @@ class TestSchedulingTagFilterOnPerPoolTreeConfiguration(YTEnvSetup):
         release_breakpoint()
 
     def teardown_method(self, method):
-        remove("//sys/pool_trees/custom_pool_tree")
+        remove_pool_tree("custom_pool_tree")
         super(TestSchedulingTagFilterOnPerPoolTreeConfiguration, self).teardown_method(method)
 
 ##################################################################
@@ -3589,7 +3585,7 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
         super(TestSchedulerScheduleInSingleTree, self).setup_method(method)
 
         for tree in ["nirvana", "cloud"]:
-            remove("//sys/pool_trees/{}".format(tree), recursive=True)
+            remove_pool_tree(tree, recursive=True)
         remove("//sys/pool_trees/default/research")
         set("//sys/pool_trees/default/@nodes_filter", "")
         set("//sys/pool_trees/default/@max_running_operation_count_per_pool", 50)

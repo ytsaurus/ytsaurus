@@ -1178,15 +1178,19 @@ def remove_account(name, **kwargs):
     if sync:
         wait(lambda: not exists(account_path))
 
-def create_pool_tree(name, **kwargs):
+def create_pool_tree(name, wait_for_orchid=True, **kwargs):
     kwargs["type"] = "scheduler_pool_tree"
     if "attributes" not in kwargs:
         kwargs["attributes"] = dict()
     kwargs["attributes"]["name"] = name
     execute_command("create", kwargs, parse_yson=True)
+    if wait_for_orchid:
+        wait(lambda: exists(scheduler_orchid_pool_tree_path(name)))
 
-def remove_pool_tree(name, **kwargs):
+def remove_pool_tree(name, wait_for_orchid=True, **kwargs):
     remove("//sys/pool_trees/" + name, **kwargs)
+    if wait_for_orchid:
+        wait(lambda: not exists(scheduler_orchid_pool_tree_path(name)))
 
 def create_pool(name, pool_tree="default", parent_name=None, **kwargs):
     kwargs["type"] = "scheduler_pool"
@@ -1859,5 +1863,11 @@ def get_job_count_profiling():
 
     return job_count
 
+def scheduler_orchid_path():
+    return "//sys/scheduler/orchid"
+
+def scheduler_orchid_pool_tree_path(tree):
+    return scheduler_orchid_path() + "/scheduler/scheduling_info_per_pool_tree/{}/fair_share_info".format(tree)
+
 def scheduler_orchid_default_pool_tree_path():
-    return "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/fair_share_info"
+    return scheduler_orchid_pool_tree_path("default")

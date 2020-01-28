@@ -2419,11 +2419,8 @@ class TestSchedulingTags(YTEnvSetup):
         set("//sys/pool_trees/default/@nodes_filter", "default")
 
         if exists("//sys/pool_trees/other"):
-            remove("//sys/pool_trees/other")
-        create_pool_tree("other")
-        time.sleep(0.5)
-
-        set("//sys/pool_trees/other/@nodes_filter", "tagC")
+            remove_pool_tree("other")
+        create_pool_tree("other", attributes={"nodes_filter": "tagC"})
 
         wait(lambda: self._get_slots_by_filter("default") == 1)
         wait(lambda: self._get_slots_by_filter("tagC") == 1)
@@ -3698,8 +3695,8 @@ class TestPoolMetrics(YTEnvSetup):
         # Set up second tree
         node = ls("//sys/cluster_nodes")[0]
         set("//sys/cluster_nodes/" + node + "/@user_tags/end", "other")
-        create_pool_tree("other", attributes={"nodes_filter": "other"})
         set("//sys/pool_trees/default/@nodes_filter", "!other")
+        create_pool_tree("other", attributes={"nodes_filter": "other"})
 
         time.sleep(1.0)
 
@@ -3725,11 +3722,13 @@ class TestPoolMetrics(YTEnvSetup):
              > 0)
 
         # Go back to one default tree
+        remove("//sys/pool_trees/@default_tree")
         for tree in ls("//sys/pool_trees"):
-            remove("//sys/pool_trees/" + tree)
+            remove_pool_tree(tree)
         create_pool_tree("default")
         set("//sys/pool_trees/@default_tree", "default")
-        time.sleep(0.5)  # Give scheduler some time to reload trees
+        wait(lambda: exists(scheduler_orchid_path() + "/scheduler/default_fair_share_tree"))
+        wait(lambda: get(scheduler_orchid_path() + "/scheduler/default_fair_share_tree") == "default")
 
     @authors("eshcherbin")
     def test_revive(self):
