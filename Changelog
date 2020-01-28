@@ -22,7 +22,7 @@
 *   If you are brave enough to perform migration yourself then good luck.
 *   Best time to perform migration - when new masters are up but scheduler is down.
 *   1) Become superuser on cluster (necessary to create virtual map nodes)
-*   2) Run migration script 'scripts/scheduler/migrate-pools.py --proxy cluster_name' as superuser on cluster.
+*   2) Run migration script 'python scripts/scheduler/migrate_pools.py --proxy cluster_name' as superuser on cluster.
 *   It will reproduce full pool structure at separate location and if succeeds will replace //sys/pool_trees with new virtual map node.
 *   Old pool structure will be moved to //sys/pool_trees_bak by default.
 *   If an exception is thrown during reconstruction phase old pools will not be touched and scheduler still can work the old way.
