@@ -52,10 +52,17 @@ public:
     EInterface Interface;
     TString ClientHostName;
     std::optional<TString> HttpUserAgent;
+    std::optional<TString> DataLensRequestId_;
 
     NTableClient::TRowBufferPtr RowBuffer;
 
-    explicit TQueryContext(TBootstrap* bootstrap, const DB::Context& context, TQueryId queryId, NTracing::TTraceContextPtr traceContext);
+    TQueryContext(
+        TBootstrap* bootstrap,
+        const DB::Context& context,
+        TQueryId queryId,
+        NTracing::TTraceContextPtr
+        traceContext,
+        std::optional<TString> dataLensRequestId);
 
     ~TQueryContext();
 
@@ -78,7 +85,12 @@ void Serialize(const TQueryContext& queryContext, NYson::IYsonConsumer* consumer
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SetupHostContext(TBootstrap* bootstrap, DB::Context& context, TQueryId queryId, NTracing::TTraceContextPtr traceContext);
+void SetupHostContext(
+    TBootstrap* bootstrap,
+    DB::Context& context,
+    TQueryId queryId,
+    NTracing::TTraceContextPtr traceContext,
+    std::optional<TString> dataLensRequestId = std::nullopt);
 
 TQueryContext* GetQueryContext(const DB::Context& context);
 
