@@ -130,7 +130,6 @@ public:
 
         if (!PostponedJobEvents_.empty()) {
             YT_LOG_DEBUG("Postponed job events enqueued (EventCount: %v)",
-                OperationId_,
                 PostponedJobEvents_.size());
             JobEventsOutbox_->Enqueue(std::move(PostponedJobEvents_));
             PostponedJobEvents_.clear(); // just to be sure
