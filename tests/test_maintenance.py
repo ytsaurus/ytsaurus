@@ -13,6 +13,7 @@ from .conftest import (
 from yp.common import wait, YtResponseError
 
 from yt.wrapper.errors import YtTabletTransactionLockConflict
+from yt.wrapper.retries import run_with_retries
 
 from yt.packages.six.moves import xrange
 
@@ -39,6 +40,15 @@ def prepare_objects(yp_client):
     return node_id, pod_set_id, pod_id
 
 
+def with_lock_conflict_retries(action):
+    def wrapper(*args, **kwargs):
+        return run_with_retries(
+            lambda: action(*args, **kwargs),
+            exceptions=(YtTabletTransactionLockConflict,),
+        )
+    return wrapper
+
+
 @pytest.mark.usefixtures("yp_env")
 class TestNodeMaintenanceInterface(object):
     def test_info(self, yp_env):
@@ -46,13 +56,15 @@ class TestNodeMaintenanceInterface(object):
 
         node_id = create_nodes(yp_client, 1)[0]
 
-        def update(state, info=None):
+        def update_once(state, info=None):
             yp_client.update_hfsm_state(
                 node_id,
                 state,
                 "Test",
                 maintenance_info=info,
             )
+
+        update = with_lock_conflict_retries(update_once)
 
         def get_info():
             return yp_client.get_object("node", node_id, selectors=["/status/maintenance/info"])[0]
@@ -96,13 +108,15 @@ class TestNodeMaintenanceInterface(object):
 
         node_id = create_nodes(yp_client, 1)[0]
 
-        def update(state, info=None):
+        def update_once(state, info=None):
             yp_client.update_hfsm_state(
                 node_id,
                 state,
                 "Test",
                 maintenance_info=info,
             )
+
+        update = with_lock_conflict_retries(update_once)
 
         def get_info():
             return yp_client.get_object("node", node_id, selectors=["/status/maintenance/info"])[0]
@@ -474,6 +488,7 @@ class TestPodMaintenanceInterface(object):
         )
         wait(lambda: get_maintenance()["state"] == "requested")
         acknowledge()
+        wait(lambda: get_node_maintenance_state() == "acknowledged")
         transaction_id = yp_client.start_transaction()
         renounce(transaction_id)
         # Concurrent write to the node maintenance.
@@ -604,7 +619,7 @@ class TestPodMaintenanceInterface(object):
 
         # Pod maintenance renouncement is allowed even for already acknowledged node maintenance.
         yp_client.renounce_pod_maintenance(pod_id, "Test")
-        wait(lambda: get_maintenance(pod_id)["state"] == "requested")
+        assert_over_time(lambda: get_maintenance(pod_id)["state"] == "requested")
 
         # Node maintenance start is allowed even if not all pod maintenances are acknowledged.
         yp_client.update_hfsm_state(node_id, "maintenance", "Test")
