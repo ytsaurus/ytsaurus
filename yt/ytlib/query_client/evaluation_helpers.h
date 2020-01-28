@@ -3,6 +3,7 @@
 #include "public.h"
 #include "callbacks.h"
 #include "function_context.h"
+#include "objects_holder.h"
 
 #include <yt/client/api/rowset.h>
 
@@ -343,7 +344,7 @@ public:
     TValue* GetLiteralValues() const;
 
 private:
-    std::vector<std::unique_ptr<void, void(*)(void*)>> OpaqueValues_;
+    TObjectsHolder Holder_;
     std::vector<void*> OpaquePointers_;
     std::vector<TOwningValue> OwningLiteralValues_;
     mutable std::unique_ptr<TValue[]> LiteralValues_;
