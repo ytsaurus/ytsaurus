@@ -28,7 +28,7 @@ struct TParsedSource
 {
     TParsedSource(
         const TString& source,
-        const NAst::TAstHead& astHead);
+        NAst::TAstHead astHead);
 
     TString Source;
     NAst::TAstHead AstHead;

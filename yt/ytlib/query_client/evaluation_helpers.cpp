@@ -273,7 +273,7 @@ void* const* TCGVariables::GetOpaqueData() const
 void TCGVariables::Clear()
 {
     OpaquePointers_.clear();
-    OpaqueValues_.clear();
+    Holder_.Clear();
     OwningLiteralValues_.clear();
     LiteralValues_.reset();
 }
@@ -294,7 +294,6 @@ TValue* TCGVariables::GetLiteralValues() const
         for (const auto& value : OwningLiteralValues_) {
             LiteralValues_[index++] = TValue(value);
         }
-        return LiteralValues_.get();
     }
     return LiteralValues_.get();
 }

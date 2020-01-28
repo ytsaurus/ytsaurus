@@ -1,5 +1,7 @@
 #include "function_context.h"
 
+#include "objects_holder.h"
+
 #include <yt/core/misc/assert.h>
 
 #include <vector>
@@ -9,22 +11,12 @@ namespace NYT::NQueryClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFunctionContext::TImpl
+    : public TObjectsHolder
 {
 public:
     TImpl(std::unique_ptr<bool[]> literalArgs)
         : LiteralArgs_(std::move(literalArgs))
     { }
-
-    void* CreateUntypedObject(void* pointer, void(*deleter)(void*))
-    {
-        try {
-            auto holder = std::unique_ptr<void, void(*)(void*)>(pointer, deleter);
-            Objects_.push_back(std::move(holder));
-            return pointer;
-        } catch (...) {
-            return nullptr;
-        }
-    }
 
     void* GetPrivateData() const
     {
@@ -45,8 +37,6 @@ public:
 private:
     std::unique_ptr<bool[]> LiteralArgs_;
 
-    std::vector<std::unique_ptr<void, void(*)(void*)>> Objects_;
-
     void* PrivateData_ = nullptr;
 };
 
@@ -58,7 +48,7 @@ TFunctionContext::~TFunctionContext() = default;
 
 void* TFunctionContext::CreateUntypedObject(void* pointer, void(*deleter)(void*))
 {
-    return Impl_->CreateUntypedObject(pointer, deleter);
+    return Impl_->Register(pointer, deleter);
 }
 
 void* TFunctionContext::GetPrivateData() const
