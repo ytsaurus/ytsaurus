@@ -1736,7 +1736,7 @@ class TestQueryLogAndQueryRegistry(ClickHouseTestBase):
         self._setup()
 
     @authors("max42")
-    def test_query_log(self):
+    def DISABLED_test_query_log(self):
         with Clique(1, config_patch={"engine": {"settings": {"log_queries": 1}}}) as clique:
             clique.make_query("select 1")
             wait(lambda: len(clique.make_query("select * from system.tables where database = 'system' and "
