@@ -24,6 +24,7 @@ namespace NTesting {
         MOCK_METHOD1(CanonizeYPath, TRichYPath(const TRichYPath&));
         MOCK_METHOD1(GetTableColumnarStatistics, TVector<TTableColumnarStatistics>(const TVector<TRichYPath>&));
         MOCK_METHOD0(CreateBatchRequest, TBatchRequestPtr());
+        MOCK_METHOD3(GetTabletInfos, TVector<TTabletInfo>(const TYPath&, const TVector<int>&, const TGetTabletInfosOptions&));
 
         MOCK_METHOD2(CreateFileReader, IFileReaderPtr(const TRichYPath&, const TFileReaderOptions&));
         MOCK_METHOD2(CreateFileWriter, IFileWriterPtr(const TRichYPath&, const TFileWriterOptions&));

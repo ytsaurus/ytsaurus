@@ -438,6 +438,11 @@ public:
         const TYPath& path,
         const TCheckPermissionOptions& options) override;
 
+    TVector<TTabletInfo> GetTabletInfos(
+        const TYPath& path,
+        const TVector<int>& tabletIndexes,
+        const TGetTabletInfosOptions& options) override;
+
     void SuspendOperation(
         const TOperationId& operationId,
         const TSuspendOperationOptions& options) override;

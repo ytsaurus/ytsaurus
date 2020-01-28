@@ -661,4 +661,10 @@ struct TCheckPermissionOptions
     FLUENT_VECTOR_FIELD(TString, Column);
 };
 
+/// this is options for @ref NYT::IClient::GetTabletInfos
+struct TGetTabletInfosOptions
+{
+    using TSelf = TGetTabletInfosOptions;
+};
+
 } // namespace NYT
