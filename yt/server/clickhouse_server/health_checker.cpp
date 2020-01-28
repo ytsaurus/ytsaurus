@@ -1,19 +1,23 @@
 #include "health_checker.h"
 
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/logging/log.h>
-#include <yt/core/misc/intrusive_ptr.h>
-#include <yt/core/profiling/profile_manager.h>
+#include <contrib/libs/clickhouse/dbms/src/Parsers/ParserQuery.h>
+#include <contrib/libs/clickhouse/dbms/src/Parsers/parseQuery.h>
+
+#include <contrib/libs/clickhouse/dbms/src/Interpreters/ClientInfo.h>
+#include <contrib/libs/clickhouse/dbms/src/Interpreters/InterpreterSelectWithUnionQuery.h>
+
+#include <contrib/libs/clickhouse/dbms/src/Core/Types.h>
 
 #include <yt/server/clickhouse_server/config.h>
 #include <yt/server/clickhouse_server/query_context.h>
 
-#include <contrib/libs/clickhouse/dbms/src/Parsers/ParserQuery.h>
-#include <contrib/libs/clickhouse/dbms/src/Parsers/parseQuery.h>
+#include <yt/core/concurrency/periodic_executor.h>
 
-#include <contrib/libs/clickhouse/dbms/src/Core/Types.h>
-#include <contrib/libs/clickhouse/dbms/src/Interpreters/ClientInfo.h>
-#include <contrib/libs/clickhouse/dbms/src/Interpreters/InterpreterSelectWithUnionQuery.h>
+#include <yt/core/logging/log.h>
+
+#include <yt/core/misc/intrusive_ptr.h>
+
+#include <yt/core/profiling/profile_manager.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -137,9 +141,14 @@ void THealthChecker::ExecuteAndProfileQueries()
             .Run());
 
         if (error.IsOK()) {
-            YT_LOG_DEBUG("Health checker query successfully executed (Index: %v, Query: %v)", queryIndex, query);
+            YT_LOG_DEBUG("Health checker query successfully executed (Index: %v, Query: %v)",
+                queryIndex,
+                query);
         } else {
-            YT_LOG_WARNING(error, "Health checker query failed (Index: %v, Query: %v)", queryIndex, query);
+            YT_LOG_WARNING(error,
+                "Health checker query failed (Index: %v, Query: %v)",
+                queryIndex,
+                query);
         }
 
         ServerProfiler.Enqueue(
