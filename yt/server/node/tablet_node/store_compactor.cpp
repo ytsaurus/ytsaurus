@@ -706,7 +706,7 @@ private:
                     "Picked stores for compaction (DataSize: %v, StoreId: %v)",
                     dataSizeSum,
                     MakeFormattableView(
-                        MakeRange(finalists.begin(), finalists.end()),
+                        MakeRange(finalists),
                         TDefaultFormatter{}));
                 break;
             }
