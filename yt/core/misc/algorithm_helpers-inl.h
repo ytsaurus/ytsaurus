@@ -15,7 +15,7 @@ TIter BinarySearch(TIter begin, TIter end, TPredicate pred)
     while (begin < end) {
         TIter middle = begin + (end - begin) / 2;
         if (pred(middle)) {
-            begin = middle + 1;
+            begin = ++middle;
         } else {
             end = middle;
         }
@@ -35,13 +35,24 @@ TIter ExponentialSearch(TIter begin, TIter end, TPredicate pred)
 {
     size_t step = 1;
     TIter next = begin;
-    while (next < end && pred(next++)) {
-        begin = next;
-        next += step;
-        step *= 2;
+
+    if (begin == end) {
+        return begin;
     }
 
-    return BinarySearch(begin, std::min(next, end), pred);
+    while (pred(next)) {
+        begin = ++next;
+
+        if (step < end - next) {
+            next += step;
+            step *= 3;
+        } else {
+            next = end;
+            break;
+        }
+    }
+
+    return BinarySearch(begin, next, pred);
 }
 
 template <class TIter, class T>
@@ -75,6 +86,8 @@ TIter ExpUpperBound(TIter begin, TIter end, const T& value)
         return !(value < *it);
     });
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <class TInputIt1, class TInputIt2>
 bool Intersects(TInputIt1 first1, TInputIt1 last1, TInputIt2 first2, TInputIt2 last2)
