@@ -2279,6 +2279,13 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         assert force_update_counter.update().get(verbose=True) == 1
         assert banned_count.update().get(verbose=True) == 1
 
+    @authors("max42")
+    def test_datalens_header(self):
+        with Clique(1) as clique:
+            t = clique.make_async_query_via_proxy("select sleep(3)", headers={"X-Request-Id": "ummagumma"})
+            query_registry = clique.get_orchid(clique.get_active_instances()[0], "/queries/running_queries")
+            wait(lambda: "ummagumma" in str(clique.get_orchid(clique.get_active_instances()[0], "/queries/running_queries")), iter=10)
+            t.join()
 
 def is_tracing_enabled():
     return "YT_TRACE_DUMP_DIR" in os.environ
