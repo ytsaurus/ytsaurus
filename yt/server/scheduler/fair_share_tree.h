@@ -98,6 +98,8 @@ public:
         const std::vector<IInvokerPtr>& feasibleInvokers,
         const TString& treeId);
 
+    TFairShareStrategyTreeConfigPtr GetConfig() const;
+
     TFuture<void> ValidateOperationPoolsCanBeUsed(const IOperationStrategyHost* operation, const TPoolName& poolName);
 
     void ValidatePoolLimits(const IOperationStrategyHost* operation, const TPoolName& poolName);

@@ -278,6 +278,12 @@ TFairShareTree::TFairShareTree(
     RootElement_ = New<TRootElement>(Host_, this, config, GetPoolProfilingTag(RootPoolName), TreeId_, Logger);
 }
 
+
+TFairShareStrategyTreeConfigPtr TFairShareTree::GetConfig() const
+{
+    return Config_;
+}
+
 TFuture<void> TFairShareTree::ValidateOperationPoolsCanBeUsed(const IOperationStrategyHost* operation, const TPoolName& poolName)
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);

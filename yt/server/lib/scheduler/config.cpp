@@ -132,6 +132,9 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
     RegisterParameter("packing", Packing)
         .DefaultNew();
 
+    RegisterParameter("non_tentative_operation_types", NonTentativeOperationTypes)
+        .Default(std::nullopt);
+
     RegisterPostprocessor([&] () {
         if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive preemption satisfaction threshold must be less than preemption satisfaction threshold")
