@@ -160,6 +160,9 @@ public:
 
     TFairShareStrategyPackingConfigPtr Packing;
 
+    //! List of operation types which should not be run in that tree as tentative.
+    std::optional<THashSet<EOperationType>> NonTentativeOperationTypes;
+
     TFairShareStrategyTreeConfig();
 };
 
@@ -194,7 +197,7 @@ public:
     //! Reasons that consider as unsuccessfull in schedule job attempts.
     THashSet<EDeactivationReason> OperationUnschedulableDeactiovationReasons;
 
-    //! List of operation types, which have disabled tentative pool trees option.
+    //! List of operation types which should be disabled in tentative tree by default.
     THashSet<EOperationType> OperationsWithoutTentativePoolTrees;
 
     //! Tentative pool trees used by default for operations that specified 'UseDefaultTentativePoolTrees' options.

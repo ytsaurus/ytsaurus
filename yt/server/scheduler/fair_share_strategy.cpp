@@ -1048,18 +1048,21 @@ private:
         }
 
         // Data shuffling shouldn't be launched in tentative trees.
-        const auto& noTentativePoolOperationTypes = Config->OperationsWithoutTentativePoolTrees;
-        if (noTentativePoolOperationTypes.find(operationType) == noTentativePoolOperationTypes.end()) {
-            for (const auto& treeId : tentativePoolTrees) {
-                if (FindTree(treeId)) {
+        for (const auto& treeId : tentativePoolTrees) {
+            if (auto tree = FindTree(treeId)) {
+                auto nonTentativeOperationTypesInTree = tree->GetConfig()->NonTentativeOperationTypes;
+                const auto& noTentativePoolOperationTypes = nonTentativeOperationTypesInTree
+                    ? *nonTentativeOperationTypesInTree
+                    : Config->OperationsWithoutTentativePoolTrees;
+                if (noTentativePoolOperationTypes.find(operationType) == noTentativePoolOperationTypes.end()) {
                     result.push_back(TPoolTreeDescription{
                         .Name = treeId,
                         .Tentative = true
                     });
-                } else {
-                    if (!spec->TentativeTreeEligibility->IgnoreMissingPoolTrees) {
-                        THROW_ERROR_EXCEPTION("Pool tree %Qv not found", treeId);
-                    }
+                }
+            } else {
+                if (!spec->TentativeTreeEligibility->IgnoreMissingPoolTrees) {
+                    THROW_ERROR_EXCEPTION("Pool tree %Qv not found", treeId);
                 }
             }
         }

@@ -219,6 +219,7 @@
     XX(NodeTagFilter, node_tag_filter) \
     XX(NodesFilter, nodes_filter) \
     XX(Nodes, nodes) \
+    XX(NonTentativeOperationTypes, non_tentative_operation_types) \
     XX(Offline, offline) \
     XX(OfflineNodeCount, offline_node_count) \
     XX(Online, online) \
