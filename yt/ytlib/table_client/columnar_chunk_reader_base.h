@@ -35,7 +35,7 @@ protected:
     const NChunkClient::IBlockCachePtr BlockCache_;
     const NChunkClient::TClientBlockReadOptions BlockReadOptions_;
 
-    NChunkClient::TChunkReaderMemoryManagerPtr MemoryManager_;
+    const NChunkClient::TChunkReaderMemoryManagerPtr MemoryManager_;
     NChunkClient::TBlockFetcherPtr BlockFetcher_;
 
     TFuture<void> ReadyEvent_ = VoidFuture;

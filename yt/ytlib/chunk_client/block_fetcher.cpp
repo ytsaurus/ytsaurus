@@ -118,8 +118,10 @@ TBlockFetcher::TBlockFetcher(
     YT_VERIFY(TotalRemainingSize_ > 0);
 
     FetchNextGroupMemoryFuture_ =
-        MemoryManager_->AsyncAquire(std::min(TotalRemainingSize_.load(), Config_->GroupSize));
-    FetchNextGroupMemoryFuture_.SubscribeUnique(BIND(&TBlockFetcher::FetchNextGroup, MakeWeak(this)).Via(ReaderInvoker_));
+        MemoryManager_->AsyncAquire(
+            std::min(TotalRemainingSize_.load(), Config_->GroupSize));
+    FetchNextGroupMemoryFuture_.SubscribeUnique(BIND(&TBlockFetcher::FetchNextGroup, MakeWeak(this))
+        .Via(ReaderInvoker_));
 }
 
 bool TBlockFetcher::HasMoreBlocks() const
@@ -151,9 +153,10 @@ TFuture<TBlock> TBlockFetcher::FetchBlock(int blockIndex)
         TBlockId blockId(ChunkReader_->GetChunkId(), blockIndex);
         auto uncompressedBlock = BlockCache_->Find(blockId, EBlockType::UncompressedData);
         if (uncompressedBlock) {
-            auto managedBlock = New<TMemoryManagedData>(uncompressedBlock.Data, std::move(windowSlot.MemoryUsageGuard));
+            auto managedBlock = New<TMemoryManagedData>(
+                uncompressedBlock.Data, std::move(windowSlot.MemoryUsageGuard));
             GetBlockPromise(windowSlot).Set(
-                TBlock(TSharedRef(TRef(managedBlock->Data), managedBlock)));
+                TBlock(TSharedRef(managedBlock->Data, managedBlock)));
             TotalRemainingSize_ -= BlockInfos_[windowIndex].UncompressedDataSize;
         } else {
             ReaderInvoker_->Invoke(BIND(
@@ -219,7 +222,7 @@ void TBlockFetcher::DecompressBlocks(
         auto& windowSlot = Window_[windowIndex];
         auto managedBlock = New<TMemoryManagedData>(uncompressedBlock, std::move(windowSlot.MemoryUsageGuard));
         GetBlockPromise(windowSlot).Set(
-            TBlock(TSharedRef(TRef(managedBlock->Data), managedBlock)));
+            TBlock(TSharedRef(managedBlock->Data, managedBlock)));
         if (windowSlot.RemainingFetches == 0) {
             ReaderInvoker_->Invoke(
                 BIND(&TBlockFetcher::ReleaseBlock, MakeWeak(this), windowIndex));
@@ -239,7 +242,7 @@ void TBlockFetcher::FetchNextGroup(TErrorOr<TMemoryUsageGuardPtr> memoryUsageGua
         return;
     }
 
-    auto& memoryUsageGuard = memoryUsageGuardOrError.Value();
+    const auto& memoryUsageGuard = memoryUsageGuardOrError.Value();
 
     std::vector<int> windowIndexes;
     std::vector<int> blockIndexes;
@@ -268,9 +271,10 @@ void TBlockFetcher::FetchNextGroup(TErrorOr<TMemoryUsageGuardPtr> memoryUsageGua
             auto uncompressedBlock = BlockCache_->Find(blockId, EBlockType::UncompressedData);
             if (uncompressedBlock) {
                 auto& windowSlot = Window_[FirstUnfetchedWindowIndex_];
-                auto managedBlock = New<TMemoryManagedData>(uncompressedBlock.Data, std::move(windowSlot.MemoryUsageGuard));
+                auto managedBlock = New<TMemoryManagedData>(
+                    uncompressedBlock.Data, std::move(windowSlot.MemoryUsageGuard));
                 GetBlockPromise(windowSlot).Set(
-                    TBlock(TSharedRef(TRef(managedBlock->Data), managedBlock)));
+                    TBlock(TSharedRef(managedBlock->Data, managedBlock)));
                 TotalRemainingSize_ -= blockInfo.UncompressedDataSize;
             } else {
                 uncompressedSize += blockInfo.UncompressedDataSize;
@@ -293,7 +297,8 @@ void TBlockFetcher::FetchNextGroup(TErrorOr<TMemoryUsageGuardPtr> memoryUsageGua
     if (TotalRemainingSize_ > 0) {
         FetchNextGroupMemoryFuture_ =
             MemoryManager_->AsyncAquire(std::min(TotalRemainingSize_.load(), Config_->GroupSize));
-        FetchNextGroupMemoryFuture_.SubscribeUnique(BIND(&TBlockFetcher::FetchNextGroup, MakeWeak(this)).Via(ReaderInvoker_));
+        FetchNextGroupMemoryFuture_.SubscribeUnique(BIND(&TBlockFetcher::FetchNextGroup, MakeWeak(this))
+            .Via(ReaderInvoker_));
     }
 
     RequestBlocks(windowIndexes, blockIndexes, uncompressedSize);
