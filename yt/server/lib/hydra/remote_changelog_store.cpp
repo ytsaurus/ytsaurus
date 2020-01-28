@@ -432,62 +432,47 @@ private:
             .ThrowOnError();
     }
 
-    int GetLatestChangelogId()
+    TVersion ComputeReachableVersion()
     {
         YT_LOG_DEBUG("Requesting changelog list from remote store");
-        auto result = WaitFor(MasterClient_->ListNode(Path_))
+        TListNodeOptions options{
+            .Attributes = std::vector<TString>{
+                "sealed",
+                "quorum_row_count"
+            }
+        };
+        auto result = WaitFor(MasterClient_->ListNode(Path_, options))
             .ValueOrThrow();
         YT_LOG_DEBUG("Changelog list received");
 
-        auto keys = ConvertTo<std::vector<TString>>(result);
-        int latestId = InvalidSegmentId;
-        for (const auto& key : keys) {
+        auto items = ConvertTo<IListNodePtr>(result);
+        
+        int latestId = -1;
+        int latestRowCount = -1;
+        for (const auto& item : items->GetChildren()) {
+            auto key = item->GetValue<TString>();
             int id;
-            try {
-                id = FromString<int>(key);
-            } catch (const std::exception&) {
-                YT_LOG_WARNING("Unrecognized item %Qv in remote changelog store",
-                    key);
-                continue;
+            if (!TryFromString(key, id)) {
+                THROW_ERROR_EXCEPTION("Unrecognized item %Qv in changelog store %v",
+                    key,
+                    Path_);
             }
-            if (id > latestId || latestId == InvalidSegmentId) {
+            if (!item->Attributes().Get<bool>("sealed", false)) {
+                THROW_ERROR_EXCEPTION("Changelog %Qv is changelog store %v is not sealed",
+                    key,
+                    Path_);                
+            }
+            if (id > latestId) {
                 latestId = id;
+                latestRowCount = item->Attributes().Get<i64>("quorum_row_count");
             }
         }
 
-        return latestId;
-    }
-
-    TVersion ComputeReachableVersion()
-    {
-        int latestId = GetLatestChangelogId();
-
-        if (latestId == InvalidSegmentId) {
+        if (latestId < 0) {
             return TVersion();
         }
 
-        auto path = GetChangelogPath(Path_, latestId);
-
-        int recordCount;
-        YT_LOG_DEBUG("Getting remote changelog attributes (ChangelogId: %v)",
-            latestId);
-        {
-            TGetNodeOptions options;
-            options.Attributes = {"sealed", "quorum_row_count"};
-            auto result = WaitFor(MasterClient_->GetNode(path, options));
-            auto node = ConvertToNode(result.ValueOrThrow());
-
-            const auto& attributes = node->Attributes();
-            if (!attributes.Get<bool>("sealed")) {
-                THROW_ERROR_EXCEPTION("Changelog %v is not sealed",
-                    path);
-            }
-            recordCount = attributes.Get<int>("quorum_row_count");
-        }
-        YT_LOG_DEBUG("Remote changelog attributes received (ChangelogId: %v)",
-            latestId);
-
-        return TVersion(latestId, recordCount);
+        return TVersion(latestId, latestRowCount);
     }
 
 };
