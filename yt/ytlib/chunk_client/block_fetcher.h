@@ -115,7 +115,7 @@ private:
     int FirstUnfetchedWindowIndex_ = 0;
     bool FetchingCompleted_ = false;
 
-    void FetchNextGroup(TErrorOr<TMemoryUsageGuardPtr> memoryUsageGuard);
+    void FetchNextGroup(TErrorOr<TMemoryUsageGuardPtr> memoryUsageGuardOrError);
 
     void RequestBlocks(
         const std::vector<int>& windowIndexes,

@@ -8,6 +8,7 @@
 #include <yt/client/table_client/schema.h>
 
 #include <yt/core/test_framework/framework.h>
+
 #include <yt/core/compression/codec.h>
 
 namespace NYT::NTableClient {
