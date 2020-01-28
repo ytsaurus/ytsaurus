@@ -56,7 +56,7 @@ static TString GetDefaultTransactionTitle(const TProcessState& processState)
     }
 
 #ifndef NDEBUG
-    res << " mode: Debug";
+    res << " build: debug";
 #endif
 
     return res.Str();
