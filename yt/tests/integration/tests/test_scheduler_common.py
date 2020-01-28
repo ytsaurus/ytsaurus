@@ -13,7 +13,6 @@ from flaky import flaky
 import os
 import gzip
 import random
-import socket
 import time
 import subprocess
 import __builtin__
@@ -2314,56 +2313,6 @@ class TestSchedulerHeterogeneousConfiguration(YTEnvSetup):
 
 ###############################################################################################
 
-class TestSchedulerGpu(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_NODES = 3
-    NUM_SCHEDULERS = 1
-
-    @classmethod
-    def modify_node_config(cls, config):
-        if not hasattr(cls, "node_counter"):
-            cls.node_counter = 0
-        cls.node_counter += 1
-        if cls.node_counter == 1:
-            config["exec_agent"]["job_controller"]["resource_limits"]["gpu"] = 1
-            config["exec_agent"]["job_controller"]["test_gpu_resource"] = True
-
-    @authors("renadeen")
-    def test_job_count(self):
-        gpu_nodes = [node for node in ls("//sys/cluster_nodes") if get("//sys/cluster_nodes/{}/@resource_limits/gpu".format(node)) > 0]
-        assert len(gpu_nodes) == 1
-        gpu_node = gpu_nodes[0]
-
-        create("table", "//tmp/in")
-        create("table", "//tmp/out")
-        write_table("//tmp/in", [{"foo": i} for i in range(3)])
-
-        op = map(
-            command=with_breakpoint("cat ; BREAKPOINT"),
-            in_="//tmp/in",
-            out="//tmp/out",
-            spec={"mapper": {
-                "gpu_limit": 1,
-                "enable_gpu_layers": False,
-            }},
-            track=False)
-
-        wait_breakpoint()
-
-        jobs = op.get_running_jobs()
-        assert len(jobs) == 1
-        assert jobs.values()[0]["address"] == gpu_node
-
-    @authors("ignat")
-    def test_min_share_resources(self):
-        create_pool("gpu_pool", attributes={"min_share_resources": {"gpu": 1}})
-        gpu_pool_orchid_path = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/fair_share_info/pools/gpu_pool"
-        wait(lambda: exists(gpu_pool_orchid_path))
-        wait(lambda: get(gpu_pool_orchid_path + "/min_share_resources/gpu") == 1)
-        wait(lambda: get(gpu_pool_orchid_path + "/recursive_min_share_ratio") == 1.0)
-
-##################################################################
-
 class TestSchedulerJobStatistics(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -3221,135 +3170,6 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
                 print_debug(op.id, get(op.get_path() + "/controller_orchid/memory_usage", verbose=False))
         assert 0.5 <= balance_ratio <= 0.8
 
-class TestPorts(YTEnvSetup):
-    NUM_SCHEDULERS = 1
-    NUM_NODES = 1
-
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "job_controller": {
-                "start_port": 20000,
-                "port_count": 3,
-                "waiting_jobs_timeout": 1000,
-                "resource_limits": {
-                    "user_slots": 2,
-                    "cpu": 2
-                }
-            },
-        },
-    }
-
-    @authors("ignat")
-    def test_simple(self):
-        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
-        write_table("//tmp/t_in", [{"a": 0}])
-
-        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
-        create("table", "//tmp/t_out_other", attributes={"replication_factor": 1})
-
-        op = map(
-            track=False,
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
-            command=with_breakpoint("echo $YT_PORT_0 >&2; echo $YT_PORT_1 >&2; if [ -n \"$YT_PORT_2\" ]; then echo 'FAILED' >&2; fi; cat; BREAKPOINT"),
-            spec={
-                "mapper": {
-                    "port_count": 2,
-                }
-            })
-
-        jobs = wait_breakpoint()
-        assert len(jobs) == 1
-
-        ## Not enough ports
-        with pytest.raises(YtError):
-            map(
-                in_="//tmp/t_in",
-                out="//tmp/t_out_other",
-                command="cat",
-                spec={
-                    "mapper": {
-                        "port_count": 2,
-                    },
-                    "max_failed_job_count": 1,
-                    "fail_on_job_restart": True,
-                })
-
-        release_breakpoint()
-        op.track()
-
-        stderr = read_file(op.get_path() + "/jobs/" + jobs[0] + "/stderr")
-        assert "FAILED" not in stderr
-        ports = __builtin__.map(int, stderr.split())
-        assert len(ports) == 2
-        assert ports[0] != ports[1]
-
-        assert all(port >= 20000 and port < 20003 for port in ports)
-
-
-        map(
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
-            command="echo $YT_PORT_0 >&2; echo $YT_PORT_1 >&2; if [ -n \"$YT_PORT_2\" ]; then echo 'FAILED' >&2; fi; cat",
-            spec={
-                "mapper": {
-                    "port_count": 2,
-                }
-            })
-
-        jobs_path = op.get_path() + "/jobs"
-        assert exists(jobs_path)
-        jobs = ls(jobs_path)
-        assert len(jobs) == 1
-
-        stderr = read_file(op.get_path() + "/jobs/" + jobs[0] + "/stderr")
-        assert "FAILED" not in stderr
-        ports = __builtin__.map(int, stderr.split())
-        assert len(ports) == 2
-        assert ports[0] != ports[1]
-
-        assert all(port >= 20000 and port < 20003 for port in ports)
-
-    @authors("max42")
-    def test_preliminary_bind(self):
-        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
-        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
-        write_table("//tmp/t_in", [{"a": 1}])
-
-        server_socket = None
-        try:
-            try:
-                server_socket = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
-                server_socket.bind(("::1", 20001))
-            except Exception as err:
-                pytest.skip("Caught following exception while trying to bind to port 20001: {}".format(err))
-                return
-
-            # We run test several times to make sure that ports did not stuck inside node.
-            for iteration in range(3):
-                if iteration in [0, 1]:
-                    expected_ports = [{"port": 20000}, {"port": 20002}]
-                else:
-                    server_socket.close()
-                    server_socket = None
-                    expected_ports = [{"port": 20000}, {"port": 20001}]
-
-                map(in_="//tmp/t_in",
-                    out="//tmp/t_out",
-                    command='echo "{port=$YT_PORT_0}; {port=$YT_PORT_1}"',
-                    spec={
-                        "mapper": {
-                            "port_count": 2,
-                            "format": "yson",
-                        }
-                    })
-
-                ports = read_table("//tmp/t_out")
-                assert ports == expected_ports
-        finally:
-            if server_socket is not None:
-                server_socket.close()
-
 class TestNewLivePreview(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 3
@@ -3561,24 +3381,6 @@ class TestConnectToMaster(YTEnvSetup):
                 return True
         return False
 
-
-class TestContainerCpuLimit(YTEnvSetup):
-    DELTA_NODE_CONFIG = porto_delta_node_config
-    USE_PORTO_FOR_SERVERS = True
-    NUM_SCHEDULERS = 1
-    NUM_NODES = 1
-
-    @authors("max42")
-    @flaky(max_runs=3)
-    def test_container_cpu_limit(self):
-        op = vanilla(spec={"tasks": {"main": {"command": "timeout 5s md5sum /dev/zero || true",
-                                              "job_count": 1,
-                                              "set_container_cpu_limit": True,
-                                              "cpu_limit": 0.1,
-                                              }}})
-        statistics = get(op.get_path() + "/@progress/job_statistics")
-        cpu_usage = get_statistics(statistics, "user_job.cpu.user.$.completed.vanilla.max")
-        assert cpu_usage < 2500
 
 class TestNodeDoubleRegistration(YTEnvSetup):
     NUM_SCHEDULERS = 1
