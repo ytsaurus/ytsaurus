@@ -478,6 +478,10 @@ b"""
             };
         }
     };
+
+    dynamic_config_manager = {
+        config_fetch_period = 50;
+    };
 }
 """)
     if not enable_debug_logging:
