@@ -179,6 +179,11 @@ TNode SerializeParamsForCheckPermission(
     const TYPath& path,
     const TCheckPermissionOptions& options);
 
+TNode SerializeParamsForGetTabletInfos(
+    const TYPath& path,
+    const TVector<int>& tabletIndexes,
+    const TGetTabletInfosOptions& options);
+
 ////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NDetail::NRawClient

@@ -702,4 +702,17 @@ TNode SerializeParamsForCheckPermission(
     return result;
 }
 
+TNode SerializeParamsForGetTabletInfos(
+    const TYPath& path,
+    const TVector<int>& tabletIndexes,
+    const TGetTabletInfosOptions& options)
+{
+    Y_UNUSED(options);
+    TNode result;
+    SetPathParam(&result, path);
+    result["tablet_indexes"] = TNode::CreateList();
+    result["tablet_indexes"].AsList().assign(tabletIndexes.begin(), tabletIndexes.end());
+    return result;
+}
+
 } // namespace NYT::NDetail::NRawClient

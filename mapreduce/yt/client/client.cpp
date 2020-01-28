@@ -1021,6 +1021,15 @@ TCheckPermissionResponse TClient::CheckPermission(
     return NRawClient::CheckPermission(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, user, permission, path, options);
 }
 
+TVector<TTabletInfo> TClient::GetTabletInfos(
+    const TYPath& path,
+    const TVector<int>& tabletIndexes,
+    const TGetTabletInfosOptions& options)
+{
+    return NRawClient::GetTabletInfos(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, path, tabletIndexes, options);
+}
+
+
 void TClient::SuspendOperation(
     const TOperationId& operationId,
     const TSuspendOperationOptions& options)

@@ -406,4 +406,27 @@ Y_UNIT_TEST_SUITE(TabletClient) {
         client->UnmountTable(tablePath);
         WaitForTabletsState(client, tablePath, TS_UNMOUNTED, WaitTabletsOptions);
     }
+
+    Y_UNIT_TEST(TestGetTabletInfos)
+    {
+        TTabletFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        const TString tablePath = workingDir + "/test-GetTabletInfos";
+        CreateTestTable(client, tablePath);
+
+        client->MountTable(tablePath);
+        WaitForTabletsState(client, tablePath, TS_MOUNTED, WaitTabletsOptions);
+
+        auto infos = client->GetTabletInfos(tablePath, {0});
+        auto ts = client->GenerateTimestamp();
+
+        UNIT_ASSERT_VALUES_EQUAL(infos.size(), 1);
+        UNIT_ASSERT_VALUES_EQUAL(infos[0].TotalRowCount, 0);
+        UNIT_ASSERT_VALUES_EQUAL(infos[0].TrimmedRowCount, 0);
+        UNIT_ASSERT_LE(infos[0].BarrierTimestamp, ts);
+
+        client->UnmountTable(tablePath);
+        WaitForTabletsState(client, tablePath, TS_UNMOUNTED, WaitTabletsOptions);
+    }
 }

@@ -57,6 +57,8 @@ namespace NYT {
     struct TCheckPermissionResponse;
     struct TCheckPermissionOptions;
 
+    struct TTabletInfo;
+
     class ILock;
     using ILockPtr = ::TIntrusivePtr<ILock>;
 

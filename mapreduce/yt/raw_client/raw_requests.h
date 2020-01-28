@@ -274,6 +274,13 @@ TCheckPermissionResponse CheckPermission(
     const TYPath& path,
     const TCheckPermissionOptions& options = TCheckPermissionOptions());
 
+TVector<TTabletInfo> GetTabletInfos(
+    const IRequestRetryPolicyPtr& retryPolicy,
+    const TAuth& auth,
+    const TYPath& path,
+    const TVector<int>& tabletIndexes,
+    const TGetTabletInfosOptions& options);
+
 //
 // Tables
 //
