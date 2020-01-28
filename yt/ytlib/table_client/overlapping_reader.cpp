@@ -53,6 +53,9 @@ private:
         TSession(IVersionedReaderPtr reader)
             : Reader(std::move(reader))
         { }
+
+        TSession(const TSession&) = delete;
+        TSession(TSession&&) = default;
     };
 
     std::unique_ptr<TSchemafulRowMerger> RowMerger_;

@@ -590,13 +590,17 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
 
             if (retentionBeginIt > ColumnValues_.begin()) {
                 auto aggregateBeginIt = ColumnValues_.begin();
-                for (auto valueIt = retentionBeginIt; valueIt >= aggregateBeginIt; --valueIt) {
+                for (auto valueIt = retentionBeginIt; ; --valueIt) {
                     if (valueIt->Type == EValueType::TheBottom) {
                         aggregateBeginIt = valueIt + 1;
                         break;
                     }
                     if (!valueIt->Aggregate) {
                         aggregateBeginIt = valueIt;
+                        break;
+                    }
+
+                    if (valueIt == aggregateBeginIt) {
                         break;
                     }
                 }
