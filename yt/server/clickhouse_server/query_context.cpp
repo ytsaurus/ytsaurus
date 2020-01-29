@@ -46,7 +46,7 @@ TQueryContext::TQueryContext(
     , TraceContextGuard_(TraceContext)
 {
     Logger.AddTag("QueryId: %v", QueryId);
-    if (dataLensRequestId) {
+    if (DataLensRequestId_) {
         Logger.AddTag("DataLensRequestId: %v", DataLensRequestId_);
     }
     YT_LOG_INFO("Query context created (User: %v, QueryKind: %v)", User, QueryKind);
