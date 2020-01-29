@@ -124,6 +124,7 @@ DEFINE_ENUM(EMasterReign,
     ((YT_12145_FixReplicatedTablesCopy)                             (1203))  // babenko
     ((HierarchicalAccounts)                                         (1204))  // kiselyovp
     ((FixDoBranch)                                                  (1205))  // aleksandra-zh
+    ((MasterMemoryUsageAccounting)                                  (1206))  // aleksandra-zh
 );
 
 ////////////////////////////////////////////////////////////////////////////////

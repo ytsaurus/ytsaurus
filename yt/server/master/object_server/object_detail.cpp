@@ -942,7 +942,7 @@ void TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::SetYso
 
     auto* object = Proxy_->Object_;
     auto* attributes = object->GetMutableAttributes();
-    attributes->Attributes()[key] = value;
+    attributes->Set(key, value);
 }
 
 bool TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::Remove(const TString& key)
@@ -956,6 +956,7 @@ bool TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::Remove
     }
 
     auto* attributes = object->GetMutableAttributes();
+
     auto it = attributes->Attributes().find(key);
     if (it == attributes->Attributes().end()) {
         return false;
@@ -963,7 +964,7 @@ bool TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::Remove
 
     // Attribute cannot be empty (i.e. deleted) in null transaction.
     YT_ASSERT(it->second);
-    attributes->Attributes().erase(it);
+    attributes->Remove(key);
     if (attributes->Attributes().empty()) {
         object->ClearAttributes();
     }

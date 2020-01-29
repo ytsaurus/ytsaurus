@@ -16,11 +16,16 @@ class TAttributeSet
 {
 public:
     using TAttributeMap = THashMap<TString, NYson::TYsonString>;
-    DEFINE_BYREF_RW_PROPERTY(TAttributeMap, Attributes);
+    DEFINE_BYREF_RO_PROPERTY(TAttributeMap, Attributes);
+    DEFINE_BYVAL_RO_PROPERTY(i64, MasterMemoryUsage);
 
 public:
-    void Save(NCellMaster::TSaveContext& context) const;
+    bool TryInsert(const TString& key, const NYson::TYsonString& value);
+    void Set(const TString& key, const NYson::TYsonString& value);
+    bool Remove(const TString& key);
+
     void Load(NCellMaster::TLoadContext& context);
+    void Save(NCellMaster::TSaveContext& context) const;
 
 };
 

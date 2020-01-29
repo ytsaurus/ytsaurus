@@ -187,22 +187,36 @@ TClusterResources TTableNode::GetTotalResourceUsage() const
 TClusterResources TTableNode::GetTabletResourceUsage() const
 {
     int tabletCount = 0;
-    i64 memorySize = 0;
+    i64 tabletStaticMemory = 0;
 
     if (IsTrunk()) {
         tabletCount = Tablets().size();
         for (const auto* tablet : Tablets()) {
             if (tablet->GetState() != ETabletState::Unmounted) {
-                memorySize += tablet->GetTabletStaticMemorySize();
+                tabletStaticMemory += tablet->GetTabletStaticMemorySize();
             }
         }
     }
 
     auto resourceUsage = TClusterResources()
         .SetTabletCount(tabletCount)
-        .SetTabletStaticMemory(memorySize);
+        .SetTabletStaticMemory(tabletStaticMemory);
 
     return resourceUsage + GetExternalTabletResourceUsage();
+}
+
+i64 TTableNode::GetMasterMemoryUsage() const
+{
+    return TChunkOwnerBase::GetMasterMemoryUsage() + GetTabletMasterMemoryUsage();
+}
+
+void TTableNode::RecomputeTabletMasterMemoryUsage()
+{
+    i64 masterMemoryUsage = 0;
+    for (const auto* tablet : Tablets()) {
+        masterMemoryUsage += tablet->GetTabletMasterMemoryUsage();
+    }
+    SetTabletMasterMemoryUsage(masterMemoryUsage);
 }
 
 bool TTableNode::IsSorted() const
@@ -349,7 +363,7 @@ void TTableNode::LoadCompatAfter609(NCellMaster::TLoadContext& context)
                         functor(it->second);
                     } catch (...) {
                     }
-                    attributes.erase(it);
+                    Attributes_->Remove(attributeName);
                 }
             };
             processAttribute(EInternedAttributeKey::DisableTabletBalancer.Unintern(), [&] (const TYsonString& val) {

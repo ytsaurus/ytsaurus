@@ -607,6 +607,11 @@ i64 TTablet::GetTabletStaticMemorySize() const
     return GetTabletStaticMemorySize(GetInMemoryMode());
 }
 
+i64 TTablet::GetTabletMasterMemoryUsage() const
+{
+    return sizeof(TTablet) + GetDataWeight(GetPivotKey());
+}
+
 ETabletState TTablet::GetState() const
 {
     return State_;

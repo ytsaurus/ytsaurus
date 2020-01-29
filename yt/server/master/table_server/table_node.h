@@ -56,6 +56,7 @@ private:
         TTabletStateIndexedVector TabletCountByState;
         TTabletStateIndexedVector TabletCountByExpectedState;
         TTabletList Tablets;
+        i64 TabletMasterMemoryUsage = 0;
         int TabletErrorCount = 0;
         std::optional<NHydra::TRevision> ForcedCompactionRevision;
         bool Dynamic = false;
@@ -93,6 +94,7 @@ public:
     DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, TabletCountByState);
     DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, TabletCountByExpectedState);
     DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, Tablets);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, TabletMasterMemoryUsage);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, TabletErrorCount);
     DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, TabletBalancerConfig);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, ForcedCompactionRevision);
@@ -126,6 +128,8 @@ public:
     virtual NSecurityServer::TClusterResources GetTotalResourceUsage() const override;
 
     NSecurityServer::TClusterResources GetTabletResourceUsage() const;
+    virtual i64 GetMasterMemoryUsage() const override;
+    void RecomputeTabletMasterMemoryUsage();
 
     virtual bool IsSorted() const override;
 

@@ -519,7 +519,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                 break;
             }
             TTabletStatistics tabletStatistics;
-            for (const auto& tablet : trunkTable->Tablets()) {
+            for (const auto* tablet : trunkTable->Tablets()) {
                 tabletStatistics += tabletManager->GetTabletStatistics(tablet);
             }
             BuildYsonFluently(consumer)
@@ -1063,7 +1063,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
     ToProto(response->mutable_schema(), trunkTable->GetTableSchema());
 
     THashSet<TTabletCell*> cells;
-    for (auto* tablet : trunkTable->Tablets()) {
+    for (const auto* tablet : trunkTable->Tablets()) {
         auto* cell = tablet->GetCell();
         auto* protoTablet = response->add_tablets();
         ToProto(protoTablet->mutable_tablet_id(), tablet->GetId());

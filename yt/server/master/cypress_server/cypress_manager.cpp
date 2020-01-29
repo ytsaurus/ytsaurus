@@ -106,10 +106,13 @@ public:
     {
         TTransactionalNodeFactoryBase::Commit();
 
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+
         if (Transaction_) {
             const auto& transactionManager = Bootstrap_->GetTransactionManager();
             for (auto* node : CreatedNodes_) {
                 transactionManager->StageNode(Transaction_, node);
+                securityManager->UpdateMasterMemoryUsage(node);
             }
         }
 
@@ -261,7 +264,8 @@ public:
                     .SetTabletStaticMemory(0);
             } else {
                 resourceUsageIncrease = TClusterResources()
-                    .SetNodeCount(1);
+                    .SetNodeCount(1)
+                    .SetMasterMemoryUsage(1);
             }
             securityManager->ValidateResourceUsageIncrease(clonedAccount, resourceUsageIncrease);
         }
@@ -298,7 +302,10 @@ public:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* account = GetNewNodeAccount();
         securityManager->ValidatePermission(account, EPermission::Use);
-        securityManager->ValidateResourceUsageIncrease(account, TClusterResources().SetNodeCount(1));
+        auto deltaResources = TClusterResources()
+            .SetNodeCount(1)
+            .SetMasterMemoryUsage(1);
+        securityManager->ValidateResourceUsageIncrease(account, deltaResources);
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         bool defaultExternal =
@@ -404,6 +411,8 @@ public:
                 explicitAttributes->Clone()
             });
         }
+
+        securityManager->UpdateMasterMemoryUsage(trunkNode);
 
         return cypressManager->GetNodeProxy(trunkNode, Transaction_);
     }

@@ -159,6 +159,11 @@ bool TAccount::IsTabletStaticMemoryLimitViolated() const
     return ClusterStatistics_.ResourceUsage.TabletStaticMemory > ClusterResourceLimits_.TabletStaticMemory;
 }
 
+bool TAccount::IsMasterMemoryUsageViolated() const
+{
+    return ClusterStatistics_.ResourceUsage.MasterMemoryUsage > ClusterResourceLimits_.MasterMemoryUsage;
+}
+
 TAccountStatistics* TAccount::GetCellStatistics(NObjectClient::TCellTag cellTag)
 {
     return &GetOrCrash(MulticellStatistics_, cellTag);
