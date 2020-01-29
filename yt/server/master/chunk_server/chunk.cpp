@@ -480,6 +480,11 @@ void TChunk::Unexport(
     }
 }
 
+i64 TChunk::GetMasterMemoryUsage() const
+{
+    return ChunkMeta().ByteSize();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer

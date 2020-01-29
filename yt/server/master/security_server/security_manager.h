@@ -171,6 +171,8 @@ public:
         const NChunkServer::TChunkRequisition& requisition,
         i64 delta);
 
+    void UpdateMasterMemoryUsage(NCypressServer::TCypressNode* node);
+
     //! Clears the transaction per-account usage statistics releasing the references to accounts.
     void ResetTransactionAccountResourceUsage(NTransactionServer::TTransaction* transaction);
 

@@ -288,6 +288,7 @@ public:
 
     i64 GetTabletStaticMemorySize(NTabletClient::EInMemoryMode mode) const;
     i64 GetTabletStaticMemorySize() const;
+    i64 GetTabletMasterMemoryUsage() const;
 
 private:
     ETabletState State_ = ETabletState::Unmounted;

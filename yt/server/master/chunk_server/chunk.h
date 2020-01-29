@@ -272,6 +272,8 @@ public:
         TChunkRequisitionRegistry* registry,
         const NObjectServer::TObjectManagerPtr& objectManager);
 
+    i64 GetMasterMemoryUsage() const;
+
 private:
     TChunkRequisition ComputeAggregatedRequisition(const TChunkRequisitionRegistry* registry);
 

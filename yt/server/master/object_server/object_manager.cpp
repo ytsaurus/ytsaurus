@@ -1122,9 +1122,9 @@ void TObjectManager::TImpl::MergeAttributes(
     auto* originatingAttributes = originatingObject->GetMutableAttributes();
     for (const auto& pair : branchedAttributes->Attributes()) {
         if (!pair.second && originatingObject->IsTrunk()) {
-            originatingAttributes->Attributes().erase(pair.first);
+            originatingAttributes->Remove(pair.first);
         } else {
-            originatingAttributes->Attributes()[pair.first] = pair.second;
+            originatingAttributes->Set(pair.first, pair.second);
         }
     }
 

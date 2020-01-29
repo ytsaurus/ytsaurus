@@ -883,12 +883,12 @@ private:
     void BalanceTablets(const TTableNode* table)
     {
         TouchedTablets_.clear();
-        for (const auto& tablet : table->Tablets()) {
+        for (const auto* tablet : table->Tablets()) {
             if (tablet->GetAction()) {
                 return;
             }
         }
-        for (const auto& tablet : table->Tablets()) {
+        for (auto* tablet : table->Tablets()) {
             BalanceTablet(tablet, true);
         }
     }

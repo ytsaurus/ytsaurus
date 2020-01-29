@@ -1188,7 +1188,8 @@ def create_account(name, parent_name=None, empty=False, **kwargs):
             "chunk_count": 100000,
             "node_count": 1000,
             "tablet_count": 0,
-            "tablet_static_memory": 0
+            "tablet_static_memory": 0,
+            "master_memory_usage": 100000
         }
     execute_command("create", kwargs)
     if sync:

@@ -1377,7 +1377,7 @@ public:
         // This is a job of secondary master in a two-phase commit.
         // Should not throw when table is created.
 
-        auto& tablets = table->MutableTablets();
+        const auto& tablets = table->Tablets();
         YT_VERIFY(tablets.size() == table->GetChunkList()->Children().size());
 
         ParseTabletRangeOrThrow(table, &firstTabletIndex, &lastTabletIndex); // may throw
@@ -1426,7 +1426,7 @@ public:
         // (which we are about to drop) are properly trimmed.
         if (newTabletCount < oldTabletCount) {
             for (int index = firstTabletIndex + newTabletCount; index < firstTabletIndex + oldTabletCount; ++index) {
-                const auto* tablet = table->Tablets()[index];
+                const auto* tablet = tablets[index];
                 const auto& chunkListStatistics = tablet->GetChunkList()->Statistics();
                 if (tablet->GetTrimmedRowCount() != chunkListStatistics.LogicalRowCount - chunkListStatistics.RowCount) {
                     THROW_ERROR_EXCEPTION("Some chunks of tablet %v are not fully trimmed; such a tablet cannot "
@@ -1605,6 +1605,7 @@ public:
         }
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
+        // TODO
         auto resourceUsageDelta = TClusterResources()
             .SetTabletStaticMemory(totalMemorySizeDelta);
         securityManager->UpdateTabletResourceUsage(originatingNode, resourceUsageDelta);
@@ -1759,6 +1760,7 @@ public:
             chunkManager->AttachToChunkList(clonedRootChunkList, tabletChunkList);
 
             clonedTablets.push_back(clonedTablet);
+            trunkClonedTable->RecomputeTabletMasterMemoryUsage();
         }
 
         if (sourceTable->IsReplicated()) {
@@ -1858,7 +1860,8 @@ public:
         if (table->IsSorted()) {
             tablet->SetPivotKey(EmptyKey());
         }
-        table->MutableTablets().push_back(tablet);
+        table->MutableTablets() = {tablet};
+        table->RecomputeTabletMasterMemoryUsage();
 
         auto* tabletChunkList = chunkManager->CreateChunkList(table->IsPhysicallySorted()
             ? EChunkListKind::SortedDynamicTablet
@@ -1876,6 +1879,7 @@ public:
 
         auto tabletResourceUsage = table->GetTabletResourceUsage();
         securityManager->UpdateTabletResourceUsage(table, tabletResourceUsage);
+        securityManager->UpdateMasterMemoryUsage(table);
         ScheduleTableStatisticsUpdate(table, false);
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Table is switched to dynamic mode (TableId: %v)",
@@ -1943,11 +1947,13 @@ public:
             objectManager->UnrefObject(tablet);
         }
         table->MutableTablets().clear();
+        table->RecomputeTabletMasterMemoryUsage();
 
         table->SetLastCommitTimestamp(NullTimestamp);
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->UpdateTabletResourceUsage(table, -tabletResourceUsage);
+        securityManager->UpdateMasterMemoryUsage(table);
         ScheduleTableStatisticsUpdate(table, false);
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Table is switched to static mode (TableId: %v)",
@@ -3290,6 +3296,7 @@ private:
         // NB: Evaluation order is important here, consider the case lastTabletIndex == -1.
         tablets.erase(tablets.begin() + firstTabletIndex, tablets.begin() + (lastTabletIndex + 1));
         tablets.insert(tablets.begin() + firstTabletIndex, newTablets.begin(), newTablets.end());
+        table->RecomputeTabletMasterMemoryUsage();
 
         // Update all indexes.
         for (int index = 0; index < static_cast<int>(tablets.size()); ++index) {
@@ -3497,6 +3504,7 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto resourceUsageDelta = table->GetTabletResourceUsage() - resourceUsageBefore;
         securityManager->UpdateTabletResourceUsage(table, resourceUsageDelta);
+        securityManager->UpdateMasterMemoryUsage(table);
         ScheduleTableStatisticsUpdate(table);
     }
 

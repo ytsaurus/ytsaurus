@@ -125,6 +125,15 @@ TClusterResources TCypressNode::GetTotalResourceUsage() const
     return result;
 }
 
+i64 TCypressNode::GetMasterMemoryUsage() const
+{
+    i64 result = 0;
+    if (Attributes_) {
+        result += Attributes_->GetMasterMemoryUsage();
+    }
+    return result;
+}
+
 NHydra::TRevision TCypressNode::GetRevision() const
 {
     return Max(AttributesRevision_, ContentRevision_);

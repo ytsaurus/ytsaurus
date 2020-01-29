@@ -145,6 +145,8 @@ public:
 
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TCypressNode, TInstant, ExpirationTime)
 
+    //! Master memory usage account was already charged for.
+    DEFINE_BYVAL_RW_PROPERTY(i64, ChargedMasterMemoryUsage);
     DEFINE_BYVAL_RW_PROPERTY(i64, AccessCounter);
 
     DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, AttributesRevision);
@@ -210,6 +212,10 @@ public:
     //! Returns the resource usage as seen by the user.
     //! These values are exposed via |resource_usage| attribute.
     virtual NSecurityServer::TClusterResources GetTotalResourceUsage() const;
+
+    //! Returns master memory occupied.
+    //! This method is computationally cheap.
+    virtual i64 GetMasterMemoryUsage() const;
 
     //! Returns |true| if object is being created.
     bool IsBeingCreated() const;
