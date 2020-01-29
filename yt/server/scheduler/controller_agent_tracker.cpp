@@ -127,13 +127,6 @@ public:
         JobEventsOutbox_ = agent->GetJobEventsOutbox();
         OperationEventsOutbox_ = agent->GetOperationEventsOutbox();
         ScheduleJobRequestsOutbox_ = agent->GetScheduleJobRequestsOutbox();
-
-        if (!PostponedJobEvents_.empty()) {
-            YT_LOG_DEBUG("Postponed job events enqueued (EventCount: %v)",
-                PostponedJobEvents_.size());
-            JobEventsOutbox_->Enqueue(std::move(PostponedJobEvents_));
-            PostponedJobEvents_.clear(); // just to be sure
-        }
     }
 
     virtual void RevokeAgent() override
@@ -148,7 +141,6 @@ public:
 
         IncarnationId_ = {};
         Agent_.Reset();
-        YT_VERIFY(PostponedJobEvents_.empty());
     }
 
     virtual TControllerAgentPtr FindAgent() const override
@@ -374,7 +366,7 @@ public:
         event.InterruptReason = job->GetInterruptReason();
         auto result = EnqueueJobEvent(std::move(event));
         YT_LOG_DEBUG("Job completion notification %v (JobId: %v)",
-            result ? "enqueued" : "buffered",
+            result ? "enqueued" : "dropped",
             job->GetId());
     }
 
@@ -387,7 +379,7 @@ public:
         auto event = BuildEvent(ESchedulerToAgentJobEventType::Failed, job, true, status);
         auto result = EnqueueJobEvent(std::move(event));
         YT_LOG_DEBUG("Job failure notification %v (JobId: %v)",
-            result ? "enqueued" : "buffered",
+            result ? "enqueued" : "dropped",
             job->GetId());
     }
 
@@ -405,7 +397,7 @@ public:
 
         auto result = EnqueueJobEvent(std::move(event));
         YT_LOG_DEBUG("Job abort notification %v (JobId: %v, ByScheduler: %v)",
-            result ? "enqueued" : "buffered",
+            result ? "enqueued" : "dropped",
             job->GetId(),
             byScheduler);
     }
@@ -432,7 +424,7 @@ public:
         };
         auto result = EnqueueJobEvent(std::move(event));
         YT_LOG_DEBUG("Nonscheduled job abort notification %v (JobId: %v)",
-            result ? "enqueued" : "buffered",
+            result ? "enqueued" : "dropped",
             jobId);
     }
 
@@ -444,7 +436,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto event = BuildEvent(ESchedulerToAgentJobEventType::Running, job, true, status);
-        auto result = EnqueueJobEvent(std::move(event), /* postponeIfNoAgent */ false);
+        auto result = EnqueueJobEvent(std::move(event));
         YT_LOG_DEBUG_IF(shouldLogJob,
             "Job run notification %v (JobId: %v)",
             result ? "enqueued" : "dropped",
@@ -551,7 +543,6 @@ private:
     TWeakPtr<TControllerAgent> Agent_;
     std::unique_ptr<TControllerAgentServiceProxy> AgentProxy_;
 
-    std::vector<TSchedulerToAgentJobEvent> PostponedJobEvents_;
     TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentJobEvent>> JobEventsOutbox_;
     TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentOperationEvent>> OperationEventsOutbox_;
     TIntrusivePtr<TMessageQueueOutbox<TScheduleJobRequestPtr>> ScheduleJobRequestsOutbox_;
@@ -559,16 +550,15 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
 
-    bool EnqueueJobEvent(TSchedulerToAgentJobEvent&& event, bool postponeIfNoAgent = true)
+    bool EnqueueJobEvent(TSchedulerToAgentJobEvent&& event)
     {
         auto guard = Guard(SpinLock_);
         if (IncarnationId_) {
             JobEventsOutbox_->Enqueue(std::move(event));
             return true;
         } else {
-            if (postponeIfNoAgent) {
-                PostponedJobEvents_.emplace_back(std::move(event));
-            }
+            // All job notifications must be dropped after agent disconnection.
+            // Job revival machinery will reconsider this event further.
             return false;
         }
     }
