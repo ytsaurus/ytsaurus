@@ -22,7 +22,7 @@ def is_inside_distbuild():
     if yatest_common is None:
         return False
 
-    if arcadia_interop.yatest_common.get_param("teamcity"):
+    if yatest_common.get_param("teamcity"):
         return False
 
     return True
