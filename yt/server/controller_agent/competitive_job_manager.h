@@ -17,7 +17,7 @@ DEFINE_ENUM(ECompetitionStatus,
 class TCompetitiveJobManager
 {
 public:
-    explicit TCompetitiveJobManager(
+    TCompetitiveJobManager(
         std::function<void(TJobId, EAbortReason)> abortJobCallback,
         const NLogging::TLogger& logger,
         int maxSpeculativeJobCount);
