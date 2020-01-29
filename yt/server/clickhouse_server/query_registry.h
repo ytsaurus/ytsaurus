@@ -31,6 +31,9 @@ public:
 
     void SaveState();
 
+    void Start();
+    void Stop();
+
 private:
     class TImpl;
     TIntrusivePtr<TImpl> Impl_;

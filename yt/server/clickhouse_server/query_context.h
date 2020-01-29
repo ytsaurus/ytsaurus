@@ -68,8 +68,6 @@ public:
 
     const NApi::NNative::IClientPtr& Client() const;
 
-    DB::QueryStatus* TryGetQueryStatus() const;
-
 private:
     TClickHouseHostPtr Host_;
     NTracing::TTraceContextGuard TraceContextGuard_;
@@ -81,7 +79,7 @@ private:
     mutable NApi::NNative::IClientPtr Client_;
 };
 
-void Serialize(const TQueryContext& queryContext, NYson::IYsonConsumer* consumer);
+void Serialize(const TQueryContext& queryContext, NYson::IYsonConsumer* consumer, const DB::QueryStatusInfo* queryStatusInfo);
 
 ////////////////////////////////////////////////////////////////////////////////
 

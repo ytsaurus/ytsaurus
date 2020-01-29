@@ -127,13 +127,7 @@ const NApi::NNative::IClientPtr& TQueryContext::Client() const
     return Client_;
 }
 
-DB::QueryStatus* TQueryContext::TryGetQueryStatus() const
-{
-    return const_cast<DB::ProcessList&>(Bootstrap->GetHost()->GetContext().getProcessList())
-        .getProcessListElement(ToString(QueryId), User);
-}
-
-void Serialize(const TQueryContext& queryContext, IYsonConsumer* consumer)
+void Serialize(const TQueryContext& queryContext, IYsonConsumer* consumer, const DB::QueryStatusInfo* queryStatus)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
@@ -154,15 +148,7 @@ void Serialize(const TQueryContext& queryContext, IYsonConsumer* consumer)
                     .Item("initial_user").Value(queryContext.InitialUser)
                     .Item("initial_query").Value(queryContext.InitialQuery);
             })
-            .Item("query_info").Do([&] (TFluentAny fluent) {
-                if (auto* queryStatus = queryContext.TryGetQueryStatus()) {
-                    fluent
-                        .Value(queryStatus->getInfo());
-                } else {
-                    fluent
-                        .Entity();
-                }
-            })
+            .Item("query_status").Value(queryStatus)
             .OptionalItem("datalens_request_id", queryContext.DataLensRequestId_)
         .EndMap();
 }
