@@ -22,6 +22,7 @@ class TestSchedulerAcls(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
+    REQUIRE_SUID_TOOL = True
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {

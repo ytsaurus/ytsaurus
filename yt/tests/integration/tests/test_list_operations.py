@@ -571,6 +571,40 @@ class TestListOperationsArchiveOnly(_TestListOperationsBase):
         super(TestListOperationsArchiveOnly, cls).setup_class()
         wait(lambda: not operation_nodes_exist())
 
+
+class TestListOperationsArchiveHacks(ListOperationsSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+    SINGLE_SETUP_TEARDOWN = True
+
+    USE_DYNAMIC_TABLES = True
+
+    include_archive = True
+    read_from_values=["follower"]
+    check_failed_jobs_count = False
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "operations_cleaner": {
+                "enable": True,
+                # Analyze all operations each 100ms
+                "analysis_period": 100,
+                # Cleanup all operations
+                "hard_retained_operation_count": 0,
+                "clean_delay": 0,
+            },
+            "static_orchid_cache_update_period": 100,
+            "alerts_update_period": 100,
+            "watchers_update_period": 100,
+        },
+    }
+
+    @classmethod
+    def setup_class(cls):
+        super(TestListOperationsArchiveHacks, cls).setup_class()
+        wait(lambda: not operation_nodes_exist())
+
     @authors("ilpauzner")
     def test_list_operation_sorting(self):
         clear_start_time("//sys/operations_archive/ordered_by_start_time")

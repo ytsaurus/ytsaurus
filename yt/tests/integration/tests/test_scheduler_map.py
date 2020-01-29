@@ -34,6 +34,9 @@ class TestSchedulerMapCommands(YTEnvSetup):
     NUM_NODES = 16
     NUM_SCHEDULERS = 1
 
+    # Used by test_map_soft_interrupt.
+    REQUIRE_SUID_TOOL = True
+
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "watchers_update_period": 100,

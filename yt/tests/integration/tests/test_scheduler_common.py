@@ -71,6 +71,7 @@ class TestEventLog(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
@@ -2639,8 +2640,12 @@ class TestSafeAssertionsMode(YTEnvSetup):
 
         wait(check_core, iter=200, sleep_backoff=5)
 
+        gdb = "gdb"
+        if arcadia_interop.yatest_common is not None:
+            gdb = arcadia_interop.yatest_common.gdb_path()
+
         assert os.path.exists(core_path)
-        child = subprocess.Popen(["gdb", "--batch", "-ex", "bt",
+        child = subprocess.Popen([gdb, "--batch", "-ex", "bt",
                                   find_executable("ytserver-controller-agent"), core_path],
                                  stdout=subprocess.PIPE,
                                  stderr=subprocess.PIPE)

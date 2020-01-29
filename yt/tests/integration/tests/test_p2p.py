@@ -26,7 +26,7 @@ class TestBlockPeerDistributorSynthetic(YTEnvSetup):
                 "iteration_period": 100, # 0.1 sec
                 "window_length": 1000, # 1 sec,
                 # In tests we are always trying to distribute something.
-                "out_traffic_activation_threshold": 0,
+                "out_traffic_activation_threshold": -1,
                 "node_tag_filter": "!tag42",
                 "min_request_count": 3,
                 "max_distribution_count": 1,
@@ -116,7 +116,7 @@ class TestBlockPeerDistributorManyRequestsProduction(TestBlockPeerDistributorSyn
                 "iteration_period": 100, # 0.1 sec
                 "window_length": 1000, # 1 sec,
                 # In tests we are always trying to distribute something.
-                "out_traffic_activation_threshold": 0,
+                "out_traffic_activation_threshold": -1,
                 "node_tag_filter": "!tag42",
                 "min_request_count": 3,
                 "max_distribution_count": 12, # As in production
@@ -140,7 +140,7 @@ class TestBlockPeerDistributorManyRequestsProduction(TestBlockPeerDistributorSyn
     @authors("max42")
     @flaky(max_runs=5)
     @clear_everything_after_test
-    def test_wow_block_so_hot_such_many_requests(self):
+    def test_wow_such_flappy_test_so_many_failures(self):
         metric_s_delta = Metric.at_node(self.seed, "data_node/block_cache/compressed_data/hit")
         metric_ns0_delta = Metric.at_node(self.non_seeds[0], "data_node/block_cache/compressed_data/hit")
         metric_ns1_delta = Metric.at_node(self.non_seeds[1], "data_node/block_cache/compressed_data/hit")
