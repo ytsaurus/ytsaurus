@@ -51,9 +51,19 @@ inline void TReaderWriterSpinLock::ReleaseWriter() noexcept
     YT_ASSERT(prevValue & WriterMask);
 }
 
-inline bool TReaderWriterSpinLock::IsLocked() noexcept
+inline bool TReaderWriterSpinLock::IsLocked() const noexcept
 {
     return Value_.load() != 0;
+}
+
+inline bool TReaderWriterSpinLock::IsLockedByReader() const noexcept
+{
+    return Value_.load() >= ReaderDelta;
+}
+
+inline bool TReaderWriterSpinLock::IsLockedByWriter() const noexcept
+{
+    return Value_.load() & WriterMask;
 }
 
 inline bool TReaderWriterSpinLock::TryAcquireReader()
