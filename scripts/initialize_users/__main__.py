@@ -669,6 +669,8 @@ def initialize_users(cluster, dry_run):
 
         add_schema_permissions(client, "dynamic_resource", User("robot-yp-dynresource"), right_crwu)
 
+        add_schema_permissions(client, "pod_disruption_budget", User("robot-yt-odin"), right_c)
+
         # DEPLOY-1117
         add_schema_permissions(client, "dynamic_resource", Group("everyone"), right_crwu)
 
