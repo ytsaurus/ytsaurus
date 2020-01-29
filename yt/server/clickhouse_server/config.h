@@ -415,6 +415,8 @@ public:
     //! Config for cache which is used for getting table's attributes, like id, schema, external_cell_tag, etc.
     NObjectClient::TObjectAttributeCacheConfigPtr TableAttributeCache;
 
+    TDuration ProcessListSnapshotUpdatePeriod;
+
     TClickHouseServerBootstrapConfig()
     {
         RegisterParameter("cluster_connection", ClusterConnection);
@@ -458,6 +460,9 @@ public:
 
         RegisterParameter("permission_cache", PermissionCache)
             .DefaultNew();
+
+        RegisterParameter("process_list_snapshot_update_period", ProcessListSnapshotUpdatePeriod)
+            .Default(TDuration::Seconds(1));
 
         RegisterPreprocessor([&] {
             PermissionCache->ExpireAfterAccessTime = TDuration::Minutes(2);

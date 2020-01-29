@@ -240,6 +240,7 @@ void TBootstrap::DoRun()
         MonitoringPort_,
         TcpPort_,
         HttpPort_);
+    QueryRegistry_->Start();
 
     if (HttpServer_) {
         YT_LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
@@ -277,6 +278,7 @@ void TBootstrap::SigintHandler()
     Host_->StopDiscovery().Apply(BIND([this] {
         TDelayedExecutor::WaitForDuration(Config_->InterruptionGracefulTimeout);
         WaitFor(GetQueryRegistry()->GetIdleFuture()).ThrowOnError();
+        QueryRegistry_->Stop();
         Host_->StopTcpServers();
         Y_UNUSED(WaitFor(RpcServer_->Stop()));
         MonitoringManager_->Stop();

@@ -236,9 +236,7 @@ public:
 
         SpecTemplate_ = TSubquerySpec();
         SpecTemplate_.InitialQueryId = queryContext->QueryId;
-        if (auto* queryStatus = queryContext->TryGetQueryStatus()) {
-            SpecTemplate_.InitialQuery = queryStatus->getInfo().query;
-        }
+        SpecTemplate_.InitialQuery = ToString(queryInfo.query);
 
         auto cliqueNodes = queryContext->Bootstrap->GetHost()->GetNodes();
         if (cliqueNodes.empty()) {

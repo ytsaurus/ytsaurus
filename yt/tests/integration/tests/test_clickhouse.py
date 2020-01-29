@@ -26,7 +26,6 @@ import pytest
 import random
 import threading
 import pprint
-import subprocess
 
 TEST_DIR = os.path.join(os.path.dirname(__file__))
 
@@ -1775,7 +1774,7 @@ class TestClickHouseAccess(ClickHouseTestBase):
                 clique.make_query("select * from \"//tmp/t\"", user="u")
 
 
-class TestQueryLogAndQueryRegistry(ClickHouseTestBase):
+class TestQueryLog(ClickHouseTestBase):
     def setup(self):
         self._setup()
 
@@ -1787,11 +1786,16 @@ class TestQueryLogAndQueryRegistry(ClickHouseTestBase):
                                                "name = 'query_log';")) >= 1)
             wait(lambda: len(clique.make_query("select * from system.query_log")) >= 1)
 
+
+class TestQueryRegistry(ClickHouseTestBase):
+    def setup(self):
+        self._setup()
+
     @authors("max42")
     def test_query_registry(self):
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
         write_table("//tmp/t", [{"a": 0}])
-        with Clique(1) as clique:
+        with Clique(1, config_patch={"process_list_snapshot_update_period": 100}) as clique:
             monitoring_port = clique.get_active_instances()[0].attributes["monitoring_port"]
 
             def check_query_registry():
@@ -1811,16 +1815,13 @@ class TestQueryLogAndQueryRegistry(ClickHouseTestBase):
                 assert qs["query_kind"] == "secondary_query"
                 assert "initial_query" in qs
                 assert qs["initial_query_id"] == qi["query_id"]
+                if qs["query_status"] is None or qi["query_status"] is None:
+                    return False
                 return True
 
             t = clique.make_async_query("select sleep(3) from \"//tmp/t\"")
             wait(lambda: check_query_registry())
             t.join()
-
-
-class TestQueryRegistry(ClickHouseTestBase):
-    def setup(self):
-        self._setup()
 
     @authors("max42")
     def test_codicils(self):
@@ -1836,6 +1837,12 @@ class TestQueryRegistry(ClickHouseTestBase):
                 clique.make_query("select a from \"//tmp/t\" order by a", verbose=False)
         assert "OOM" in str(clique.op.get_error())
 
+    @authors("max42")
+    def test_datalens_header(self):
+        with Clique(1) as clique:
+            t = clique.make_async_query_via_proxy("select sleep(3)", headers={"X-Request-Id": "ummagumma"})
+            wait(lambda: "ummagumma" in str(clique.get_orchid(clique.get_active_instances()[0], "/queries/running_queries")), iter=10)
+            t.join()
 
 class TestJoinAndIn(ClickHouseTestBase):
     def setup(self):
@@ -2280,14 +2287,6 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         assert cache_missed_counter.update().get(verbose=True) == 1
         assert force_update_counter.update().get(verbose=True) == 1
         assert banned_count.update().get(verbose=True) == 1
-
-    @authors("max42")
-    def test_datalens_header(self):
-        with Clique(1) as clique:
-            t = clique.make_async_query_via_proxy("select sleep(3)", headers={"X-Request-Id": "ummagumma"})
-            query_registry = clique.get_orchid(clique.get_active_instances()[0], "/queries/running_queries")
-            wait(lambda: "ummagumma" in str(clique.get_orchid(clique.get_active_instances()[0], "/queries/running_queries")), iter=10)
-            t.join()
 
 def is_tracing_enabled():
     return "YT_TRACE_DUMP_DIR" in os.environ

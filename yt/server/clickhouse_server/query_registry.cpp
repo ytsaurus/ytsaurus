@@ -2,6 +2,7 @@
 
 #include "query_context.h"
 #include "private.h"
+#include "config.h"
 
 #include <yt/core/ytree/ypath_service.h>
 #include <yt/core/ytree/fluent.h>
@@ -9,6 +10,8 @@
 #include <yt/core/misc/crash_handler.h>
 
 #include <yt/core/profiling/profile_manager.h>
+
+#include <yt/core/concurrency/periodic_executor.h>
 
 #include <Interpreters/ProcessList.h>
 #include <Interpreters/Context.h>
@@ -23,7 +26,85 @@ static const auto& Logger = ServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUserInfo
+struct TUserStatusSnapshot
+{
+    std::vector<const DB::QueryStatusInfo*> QueryStatuses;
+    i64 TotalMemoryUsage = 0;
+    // TODO(max42): expose peak memory usage from process list.
+
+    void AddQueryStatus(const DB::QueryStatusInfo* queryStatus)
+    {
+        QueryStatuses.push_back(queryStatus);
+        TotalMemoryUsage += queryStatus->memory_usage;
+    }
+};
+
+void Serialize(const TUserStatusSnapshot& snapshot, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("total_memory_usage").Value(snapshot.TotalMemoryUsage)
+        .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Class that stores a snapshot of DB::ProcessList::getInfo() and provides
+//! convenient accessors to its information.
+class TProcessListSnapshot
+{
+public:
+    TProcessListSnapshot(const DB::ProcessList& processList)
+    {
+        auto queryStatuses = processList.getInfo(true, true, true);
+        // NB: reservation is important for stored pointers not to invalidate.
+        QueryStatuses_.reserve(queryStatuses.size());
+        for (auto& queryStatus : queryStatuses) {
+            const auto& queryIdString = queryStatus.client_info.current_query_id;
+            const auto& user = queryStatus.client_info.current_user;
+            TQueryId queryId;
+            if (!TQueryId::FromString(queryIdString, &queryId)) {
+                YT_LOG_DEBUG("Process list contains query without proper YT query id, skipping it in query registry (QueryId: %v)", queryIdString);
+            }
+            QueryStatuses_.emplace_back(std::move(queryStatus));
+            QueryIdToQueryStatus_[queryId] = &QueryStatuses_.back();
+            UserToUserStatusSnapshot_[user].AddQueryStatus(&QueryStatuses_.back());
+        }
+        YT_LOG_INFO("Built process list snapshot (QueryStatusCount: %v, UserCount: %v)", QueryStatuses_.size(), UserToUserStatusSnapshot_.size());
+    }
+
+    TProcessListSnapshot() = default;
+
+    const DB::QueryStatusInfo* FindQueryStatusByQueryId(const TQueryId& queryId) const
+    {
+        auto it = QueryIdToQueryStatus_.find(queryId);
+        if (it != QueryIdToQueryStatus_.end()) {
+            YT_LOG_ERROR("XXX Looking for query id %v, success", queryId);
+
+            return it->second;
+        }
+        YT_LOG_ERROR("XXX Looking for query id %v, fail", queryId);
+        return nullptr;
+    }
+
+    const TUserStatusSnapshot* FindUserStatusSnapshotByUser(const TString& user) const
+    {
+        auto it = UserToUserStatusSnapshot_.find(user);
+        if (it != UserToUserStatusSnapshot_.end()) {
+            return &it->second;
+        }
+        return nullptr;
+    }
+
+private:
+    std::vector<DB::QueryStatusInfo> QueryStatuses_;
+    THashMap<TQueryId, const DB::QueryStatusInfo*> QueryIdToQueryStatus_;
+    THashMap<TString, TUserStatusSnapshot> UserToUserStatusSnapshot_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TUserProfilingEntry
 {
 public:
     int RunningInitialQueryCount = 0;
@@ -33,51 +114,18 @@ public:
 
     NProfiling::TTagId TagId;
 
-    TUserInfo(const TString& name, DB::Context& globalContext)
+    explicit TUserProfilingEntry(const TString& name)
         : TagId(TProfileManager::Get()->RegisterTag("user", name))
-        , GlobalContext_(&globalContext)
         , Name_(name)
     { }
 
-    i64 GetMemoryUsage() const
-    {
-        if (auto* processListForUser = TryGetProcessListForUser()) {
-            return processListForUser->user_memory_tracker.get();
-        }
-        return 0;
-    }
-
-    i64 GetPeakMemoryUsage() const
-    {
-        if (auto* processListForUser = TryGetProcessListForUser()) {
-            return processListForUser->user_memory_tracker.getPeak();
-        }
-        return 0;
-    }
-
 private:
-    DB::Context* GlobalContext_;
     TString Name_;
-
-    DB::ProcessListForUser* TryGetProcessListForUser() const
-    {
-        return GlobalContext_->getProcessList().getProcessListForUser(Name_);
-    }
 };
 
-TString ToString(const TUserInfo& userInfo)
-{
-    return Format(
-        "{RI: %v, RS: %v, HI: %v, HS: %v, MU: %v, PMU: %v}",
-        userInfo.RunningInitialQueryCount,
-        userInfo.RunningSecondaryQueryCount,
-        userInfo.HistoricalInitialQueryCount,
-        userInfo.HistoricalSecondaryQueryCount,
-        userInfo.GetMemoryUsage(),
-        userInfo.GetPeakMemoryUsage());
-}
+////////////////////////////////////////////////////////////////////////////////
 
-void Serialize(const TUserInfo& userInfo, IYsonConsumer* consumer)
+void Serialize(const TUserProfilingEntry& userInfo, IYsonConsumer* consumer, const TUserStatusSnapshot* userStatusSnapshot)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
@@ -85,12 +133,69 @@ void Serialize(const TUserInfo& userInfo, IYsonConsumer* consumer)
             .Item("running_secondary_query_count").Value(userInfo.RunningSecondaryQueryCount)
             .Item("historical_initial_query_count").Value(userInfo.HistoricalInitialQueryCount)
             .Item("historical_secondary_query_count").Value(userInfo.HistoricalSecondaryQueryCount)
-            .Item("memory_usage").Value(userInfo.GetMemoryUsage())
-            .Item("peak_memory_usage").Value(userInfo.GetPeakMemoryUsage())
+            .Item("user_status").Value(userStatusSnapshot)
         .EndMap();
 }
 
 /////////////////////////////////////////////////////////////////////////////
+
+//! It is pretty tricky to dump structure like TQueryRegistry in signal handler,
+//! so we periodically dump its state to a circular buffer, which is stored in this class.
+class TSignalSafeState
+{
+public:
+    TSignalSafeState()
+    {
+        memset(&StateBuffer_, 0, sizeof(StateBuffer_));
+    }
+
+    void SaveState(TString stateString)
+    {
+        YT_LOG_DEBUG("Saving query registry state (StatePointer: %v)", StatePointer_);
+        while (StateBuffer_[StatePointer_] != 0) {
+            ++StatePointer_;
+        }
+        // Skip one more zero to keep previous string readable.
+        ++StatePointer_;
+        YT_LOG_DEBUG("Skipped previous string (StatePointer: %v)", StatePointer_);
+
+        size_t remainingSize = StateAllocationSize_ - StatePointer_ - 1;
+        YT_LOG_DEBUG("New query registry state built (StateSize: %v, RemainingSize: %v)", stateString.size(), remainingSize);
+        if (remainingSize < stateString.size()) {
+            YT_LOG_INFO("Not enough place for new query registry state, moving pointer to the beginning", StatePointer_);
+            StatePointer_ = 0;
+        }
+        remainingSize = StateAllocationSize_ - StatePointer_ - 1;
+        if (remainingSize < stateString.size()) {
+            YT_LOG_ERROR("Query registry state is too large, it is going to be truncated (StateSize: %v, StateAllocationSize: %v)",
+                stateString.size(),
+                StateAllocationSize_);
+            static const char* truncatedMarker = "...TRUNCATED";
+            stateString.resize(StateAllocationSize_ - 13 /* sizeof(truncatedMarker)*/);
+            stateString += truncatedMarker;
+        }
+
+        strcpy(&StateBuffer_[StatePointer_], stateString.data());
+        YT_LOG_DEBUG("Query registry state saved (StatePointer: %v, Length: %v)", StatePointer_, stateString.size());
+    }
+
+    void WriteToStderr() const
+    {
+        using NYT::WriteToStderr;
+
+        int startPosition = StatePointer_;
+        int zeroPosition;
+        for (zeroPosition = startPosition; StateBuffer_[zeroPosition]; ++zeroPosition);
+        WriteToStderr("*** Query registry state ***\n");
+        WriteToStderr(&StateBuffer_[startPosition], zeroPosition - startPosition);
+        WriteToStderr("\n");
+    }
+
+private:
+    static constexpr size_t StateAllocationSize_ = 128_MB;
+    std::array<char, StateAllocationSize_> StateBuffer_;
+    int StatePointer_ = 0;
+};
 
 class TQueryRegistry::TImpl
     : public TRefCounted
@@ -102,8 +207,21 @@ public:
         : OrchidService_(IYPathService::FromProducer(BIND(&TImpl::BuildYson, MakeWeak(this))))
         , Bootstrap_(bootstrap)
         , IdlePromise_(MakePromise<void>(TError()))
+        , ProcessListSnapshotExecutor_(New<TPeriodicExecutor>(
+            Bootstrap_->GetControlInvoker(),
+            BIND(&TImpl::UpdateProcessListSnapshot, MakeWeak(this)),
+            Bootstrap_->GetConfig()->ProcessListSnapshotUpdatePeriod))
+    { }
+
+    void Start()
     {
-        memset(&StateBuffer_, 0, sizeof(StateBuffer_));
+        ProcessListSnapshotExecutor_->Start();
+    }
+
+    void Stop()
+    {
+        WaitFor(ProcessListSnapshotExecutor_->Stop())
+            .ThrowOnError();
     }
 
     void Register(TQueryContext* queryContext)
@@ -112,37 +230,30 @@ public:
 
         const auto& Logger = queryContext->Logger;
 
-        YT_VERIFY(Queries_.insert(queryContext).second);
+        YT_VERIFY(QueryContexts_.insert(queryContext).second);
 
-        THashMap<TString, TUserInfo>::insert_ctx ctx;
-        auto it = UserToUserInfo_.find(queryContext->User, ctx);
-        if (it == UserToUserInfo_.end()) {
-            it = UserToUserInfo_.emplace_direct(
-                ctx,
-                queryContext->User,
-                TUserInfo(queryContext->User, Bootstrap_->GetHost()->GetContext()));
-        }
-        auto& userInfo = it->second;
+        auto& userProfilingEntry = GetOrRegisterUserProfilingEntry(queryContext->User);
 
         switch (queryContext->QueryKind)
         {
             case EQueryKind::InitialQuery:
-                ++userInfo.HistoricalInitialQueryCount;
-                ++userInfo.RunningInitialQueryCount;
+                ++userProfilingEntry.HistoricalInitialQueryCount;
+                ++userProfilingEntry.RunningInitialQueryCount;
                 break;
             case EQueryKind::SecondaryQuery:
-                ++userInfo.HistoricalSecondaryQueryCount;
-                ++userInfo.RunningSecondaryQueryCount;
+                ++userProfilingEntry.HistoricalSecondaryQueryCount;
+                ++userProfilingEntry.RunningSecondaryQueryCount;
                 break;
             default:
                 YT_ABORT();
         }
 
+        UpdateProcessListSnapshot();
         SaveState();
 
-        YT_LOG_INFO("Query registered (UserInfo: %v)", userInfo);
+        YT_LOG_INFO("Query registered");
 
-        if (Queries_.size() == 1) {
+        if (QueryContexts_.size() == 1) {
             IdlePromise_ = NewPromise<void>();
         }
     }
@@ -153,26 +264,27 @@ public:
 
         const auto& Logger = queryContext->Logger;
 
-        YT_VERIFY(Queries_.erase(queryContext));
+        YT_VERIFY(QueryContexts_.erase(queryContext));
 
-        auto& userInfo = GetOrCrash(UserToUserInfo_, queryContext->User);
+        auto& userProfilingEntry = GetOrCrash(UserToUserProfilingEntry_, queryContext->User);
         switch (queryContext->QueryKind)
         {
             case EQueryKind::InitialQuery:
-                --userInfo.RunningInitialQueryCount;
+                --userProfilingEntry.RunningInitialQueryCount;
                 break;
             case EQueryKind::SecondaryQuery:
-                --userInfo.RunningSecondaryQueryCount;
+                --userProfilingEntry.RunningSecondaryQueryCount;
                 break;
             default:
                 YT_ABORT();
         }
 
+        UpdateProcessListSnapshot();
         SaveState();
 
-        YT_LOG_INFO("Query unregistered (UserInfo: %v)", userInfo);
+        YT_LOG_INFO("Query unregistered");
 
-        if (Queries_.empty()) {
+        if (QueryContexts_.empty()) {
             IdlePromise_.Set();
         }
     }
@@ -181,7 +293,7 @@ public:
     {
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
-        return Queries_.size();
+        return QueryContexts_.size();
     }
 
     TFuture<void> GetIdleFuture() const
@@ -195,127 +307,107 @@ public:
     {
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
-        std::lock_guard<std::mutex> guard(Bootstrap_->GetHost()->GetContext().getProcessList().mutex);
+        for (const auto& [user, userProfilingInfo] : UserToUserProfilingEntry_) {
+            ServerProfiler.Enqueue(
+                "/running_initial_query_count",
+                userProfilingInfo.RunningInitialQueryCount,
+                EMetricType::Gauge,
+                {userProfilingInfo.TagId});
 
-        for (const auto& [user, userInfo] : UserToUserInfo_) {
-            if (userInfo.RunningInitialQueryCount > 0) {
-                ServerProfiler.Enqueue(
-                    "/running_initial_query_count",
-                    userInfo.RunningInitialQueryCount,
-                    EMetricType::Gauge,
-                    {userInfo.TagId});
-            }
-
-            if (userInfo.RunningSecondaryQueryCount > 0) {
-                ServerProfiler.Enqueue(
-                    "/running_secondary_query_count",
-                    userInfo.RunningSecondaryQueryCount,
-                    EMetricType::Gauge,
-                    {userInfo.TagId});
-            }
+            ServerProfiler.Enqueue(
+                "/running_secondary_query_count",
+                userProfilingInfo.RunningSecondaryQueryCount,
+                EMetricType::Gauge,
+                {userProfilingInfo.TagId});
 
             ServerProfiler.Enqueue(
                 "/historical_initial_query_count",
-                userInfo.HistoricalInitialQueryCount,
+                userProfilingInfo.HistoricalInitialQueryCount,
                 EMetricType::Counter,
-                {userInfo.TagId});
+                {userProfilingInfo.TagId});
 
             ServerProfiler.Enqueue(
                 "/historical_secondary_query_count",
-                userInfo.HistoricalSecondaryQueryCount,
+                userProfilingInfo.HistoricalSecondaryQueryCount,
                 EMetricType::Counter,
-                {userInfo.TagId});
+                {userProfilingInfo.TagId});
+
+            i64 memoryUsage = 0;
+            if (const auto* userStatusSnapshot = ProcessListSnapshot_.FindUserStatusSnapshotByUser(user)) {
+                memoryUsage = userStatusSnapshot->TotalMemoryUsage;
+            }
 
             ServerProfiler.Enqueue(
                 "/memory_usage",
-                userInfo.GetMemoryUsage(),
+                memoryUsage,
                 EMetricType::Gauge,
-                {userInfo.TagId});
-
-            ServerProfiler.Enqueue(
-                "/peak_memory_usage",
-                userInfo.GetPeakMemoryUsage(),
-                EMetricType::Gauge,
-                {userInfo.TagId});
+                {userProfilingInfo.TagId});
         }
     }
 
     void WriteStateToStderr() const
     {
-        int startPosition = StatePointer_;
-        int zeroPosition;
-        for (zeroPosition = startPosition; StateBuffer_[zeroPosition]; ++zeroPosition);
-        WriteToStderr("*** Query registry state ***\n");
-        WriteToStderr(&StateBuffer_[startPosition], zeroPosition - startPosition);
-        WriteToStderr("\n");
+        SignalSafeState_.WriteToStderr();
     }
 
     void SaveState()
     {
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
-        YT_LOG_DEBUG("Saving query registry state (StatePointer: %v)", StatePointer_);
-        while (StateBuffer_[StatePointer_] != 0) {
-            ++StatePointer_;
-        }
-        // Skip one more zero to keep previous string readable.
-        ++StatePointer_;
-        YT_LOG_DEBUG("Skipped previous string (StatePointer: %v)", StatePointer_);
         TStringStream stream;
         TYsonWriter writer(&stream, EYsonFormat::Pretty);
         BuildYson(&writer);
         auto result = stream.Str();
 
-        size_t remainingSize = StateAllocationSize_ - StatePointer_ - 1;
-        YT_LOG_DEBUG("New query registry state built (StateSize: %v, RemainingSize: %v)", result.size(), remainingSize);
-        if (remainingSize < result.size()) {
-            YT_LOG_INFO("Not enough place for new query registry state, moving pointer to the beginning", StatePointer_);
-            StatePointer_ = 0;
-        }
-        remainingSize = StateAllocationSize_ - StatePointer_ - 1;
-        if (remainingSize < result.size()) {
-            YT_LOG_ERROR("Query registry state is too large, it is going to be truncated (StateSize: %v, StateAllocationSize: %v)",
-                result.size(),
-                StateAllocationSize_);
-            static const char* truncatedMarker = "...TRUNCATED";
-            result.resize(StateAllocationSize_ - 13 /* sizeof(truncatedMarker)*/);
-            result += truncatedMarker;
-        }
+        SignalSafeState_.SaveState(result);
+    }
 
-        strcpy(&StateBuffer_[StatePointer_], result.data());
-        YT_LOG_DEBUG("Query registry state saved (StatePointer: %v, Length: %v)", StatePointer_, result.size());
+    void UpdateProcessListSnapshot()
+    {
+        ProcessListSnapshot_ = TProcessListSnapshot(Bootstrap_->GetHost()->GetContext().getProcessList());
     }
 
 private:
     TBootstrap* Bootstrap_;
-    THashSet<TQueryContext*> Queries_;
+    THashSet<TQueryContext*> QueryContexts_;
 
-    THashMap<TString, TUserInfo> UserToUserInfo_;
+    THashMap<TString, TUserProfilingEntry> UserToUserProfilingEntry_;
 
     TPromise<void> IdlePromise_;
 
-    static constexpr size_t StateAllocationSize_ = 128_MB;
-    std::array<char, StateAllocationSize_> StateBuffer_;
-    int StatePointer_ = 0;
+    TSignalSafeState SignalSafeState_;
+
+    TProcessListSnapshot ProcessListSnapshot_;
+
+    TPeriodicExecutorPtr ProcessListSnapshotExecutor_;
 
     void BuildYson(IYsonConsumer* consumer) const
     {
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
-        std::lock_guard<std::mutex> guard(Bootstrap_->GetHost()->GetContext().getProcessList().mutex);
-
         BuildYsonFluently(consumer)
             .BeginMap()
-            .Item("running_queries").DoMapFor(Queries_, [&] (TFluentMap fluent, const TQueryContext* queryContext) {
+            .Item("running_queries").DoMapFor(QueryContexts_, [&] (TFluentMap fluent, const TQueryContext* queryContext) {
+                const auto& queryId = queryContext->QueryId;
                 fluent
-                    .Item(ToString(queryContext->QueryId)).Value(queryContext);
+                    .Item(ToString(queryId)).Value(*queryContext, ProcessListSnapshot_.FindQueryStatusByQueryId(queryId));
             })
-            .Item("users").DoMapFor(UserToUserInfo_, [&] (TFluentMap fluent, const auto& pair) {
-                const auto& [user, userInfo] = pair;
+            .Item("users").DoMapFor(UserToUserProfilingEntry_, [&] (TFluentMap fluent, const auto& pair) {
+                const auto& [user, userProfilingEntry] = pair;
                 fluent
-                    .Item(user).Value(userInfo);
+                    .Item(user).Value(userProfilingEntry, ProcessListSnapshot_.FindUserStatusSnapshotByUser(user));
             })
             .EndMap();
+    }
+
+    TUserProfilingEntry& GetOrRegisterUserProfilingEntry(const TString& user)
+    {
+        THashMap<TString, TUserProfilingEntry>::insert_ctx ctx;
+        auto it = UserToUserProfilingEntry_.find(user, ctx);
+        if (it == UserToUserProfilingEntry_.end()) {
+            it = UserToUserProfilingEntry_.emplace_direct(ctx, user, TUserProfilingEntry(user));
+        }
+        return it->second;
     }
 };
 
@@ -363,6 +455,16 @@ void TQueryRegistry::WriteStateToStderr() const
 void TQueryRegistry::SaveState()
 {
     Impl_->SaveState();
+}
+
+void TQueryRegistry::Start()
+{
+    Impl_->Start();
+}
+
+void TQueryRegistry::Stop()
+{
+    Impl_->Stop();
 }
 
 /////////////////////////////////////////////////////////////////////////////
