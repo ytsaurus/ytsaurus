@@ -1126,31 +1126,6 @@ def run_yt_cpp_integration_tests(options, build_context):
     run_pytest(options, "cpp_integration", "{0}/yt/tests/cpp".format(options.checkout_directory))
 
 @build_step
-@only_for_projects("yp")
-def run_yp_integration_tests(options, build_context):
-    if options.disable_tests:
-        teamcity_message("YP integration tests are skipped since all tests are disabled")
-        return
-    if options.use_asan:
-        teamcity_message("YP integration tests are skipped since they currently don't play well with ASAN")
-        return
-
-    pytest_args = []
-    if options.enable_parallel_testing:
-        pytest_args.extend(["--process-count", str(YP_TESTS_PARALLELISM)])
-
-    for python_version in iter_enabled_python_versions(options):
-        if python_version not in {"2.7", "3.4"}:
-            continue
-        run_pytest(
-            options,
-            "yp_integration_" + python_version.replace(".", "_"),
-            "{0}/yp/tests".format(options.checkout_directory),
-            python_version=python_version,
-            pytest_args=pytest_args)
-
-@build_step
-@only_for_projects("yt")
 def run_ya_yp_tests(options, build_context):
     targets = [
         "yp/tests/py2",
