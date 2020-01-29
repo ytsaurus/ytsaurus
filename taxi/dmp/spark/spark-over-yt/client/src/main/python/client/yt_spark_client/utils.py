@@ -29,6 +29,36 @@ def base_spark_conf(yt_proxy, yt_user, log_dir):
     }
 
 
+def default_dynamic_allocation_conf():
+    return {
+        "spark.dynamicAllocation.enabled": "true",
+        "spark.dynamicAllocation.executorIdleTimeout": "10m",
+        "spark.dynamicAllocation.maxExecutors": 12,
+        "spark.cores.max": "48",
+        "spark.driver.maxResultSize": "1G",
+        "spark.driver.memory": "1G",
+        "spark.executor.memory": "8G"
+    }
+
+
+def large_dynamic_allocation_conf():
+    return {
+        "spark.dynamicAllocation.enabled": "true",
+        "spark.dynamicAllocation.executorIdleTimeout": "10m",
+        "spark.dynamicAllocation.maxExecutors": 100,
+        "spark.cores.max": "400",
+        "spark.driver.maxResultSize": "3G",
+        "spark.driver.memory": "3G",
+        "spark.executor.memory": "12G"
+    }
+
+
+def set_conf(conf, dict_conf):
+    if dict_conf is not None:
+        for (key, value) in dict_conf.items():
+            conf.set(key, value)
+
+
 def default_discovery_dir(yt_user):
     return os.getenv("SPARK_YT_DISCOVERY_DIR") or "//home/{0}/spark-tmp".format(yt_user)
 

@@ -81,6 +81,9 @@ lazy val `client` = (project in file("client"))
     sparkAdditionalJars := Seq(
       (assembly in `data-source`).value
     ),
+    sparkAdditionalPython := Seq(
+      (sourceDirectory in `data-source`).value / "main" / "python"
+    ),
     sparkLauncherName := (name in `spark-launcher`).value
   )
   .settings(

@@ -1,3 +1,5 @@
+import java.io.File
+
 import com.typesafe.sbt.packager.linux.LinuxPackageMapping
 import sbt.Keys._
 import sbt.PluginTrigger.NoTrigger
@@ -18,7 +20,8 @@ object SparkPackagePlugin extends AutoPlugin {
     val sparkAdditionalJars = taskKey[Seq[File]]("Additional spark jars")
     val sparkDefaults = settingKey[File]("spark-defaults.conf")
     val sparkEnv = settingKey[File]("spark-env.sh")
-    val sparkAdditionalBin = settingKey[Seq[File]]("Spark python scripts")
+    val sparkAdditionalBin = settingKey[Seq[File]]("Scripts to copy in SPARK_HOME/bin")
+    val sparkAdditionalPython = settingKey[Seq[File]]("Files to copy in SPARK_HOME/python")
     val sparkName = settingKey[String]("Spark name, for example spark-2.4.4-0.0.1-SNAPSHOT")
     val sparkLaunchConfigTemplate = settingKey[File]("Spark launch config template")
     val sparkLauncherName = settingKey[String]("Name of spark-launcher jar")
@@ -75,10 +78,28 @@ object SparkPackagePlugin extends AutoPlugin {
       sparkAdditionalBin.value.foreach { file =>
         IO.copyFile(file, sparkDist / "bin" / file.name, preserveExecutable = true)
       }
-      IO.copyDirectory(
-        sourceDirectory.value / "main" / "python" / "ytspark",
-        sparkDist / "bin" / "python" / "ytspark"
-      )
+      val pythonDir = sparkDist / "bin" / "python"
+      if (!pythonDir.exists()) {
+        IO.createDirectory(sparkDist / "bin" / "python")
+      }
+      IO.copyDirectory(sourceDirectory.value / "main" / "python" / "client", sparkDist / "bin" / "python")
+
+      val ytClient = sourceDirectory.value / "main" / "python" / "client"
+      (ytClient +: sparkAdditionalPython.value).foreach{ f =>
+        IO.copyDirectory(f, sparkDist / "python")
+
+        import sys.process._
+        IO.listFiles(f).foreach {
+          case ff if ff.isDirectory && IO.listFiles(ff).nonEmpty =>
+            IO.delete(new File(s"/tmp/${ff.getName}.zip"))
+            val processString = s"zip /tmp/${ff.getName}.zip ${IO.listFiles(ff).map(i => ff.getName + File.separator + i.getName).mkString(" ")}"
+            println(processString)
+            Process(processString, cwd = f) !
+
+            IO.copyFile(new File(s"/tmp/${ff.getName}.zip"), sparkDist / "python" / "lib" / s"${ff.getName}.zip")
+          case _ =>
+        }
+      }
 
       createFileFromTemplate(sparkLaunchConfigTemplate.value, Map(
         "spark_yt_base_path" -> publishYtDir.value,

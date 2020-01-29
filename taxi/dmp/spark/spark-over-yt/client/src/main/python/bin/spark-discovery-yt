@@ -11,7 +11,7 @@ from yt.wrapper.cypress_commands import list
 from yt.wrapper.errors import YtHttpResponseError
 from yt.wrapper.operation_commands import get_operation_url
 
-from ytspark.utils import default_discovery_dir
+from yt_spark_client.utils import default_discovery_dir
 
 parser = argparse.ArgumentParser(description="Spark Discovery")
 parser.add_argument("--id", required=True)
