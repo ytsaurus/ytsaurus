@@ -3,8 +3,8 @@
 import argparse
 import os
 
-from ytspark import raw_submit
-from ytspark.utils import default_token, default_discovery_dir, default_base_log_dir
+from yt_spark_client import raw_submit
+from yt_spark_client.utils import default_token, default_discovery_dir, default_base_log_dir
 
 parser = argparse.ArgumentParser(description="Spark Submit")
 parser.add_argument("--id", required=True)
