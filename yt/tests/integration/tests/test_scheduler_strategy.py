@@ -2639,6 +2639,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
     def teardown_method(self, method):
         for node in ls("//sys/cluster_nodes"):
             set("//sys/cluster_nodes/{}/@resource_limits_overrides".format(node), {})
+        # TODO(ignat): remove this custom teardown.
         if exists("//sys/pool_trees/@default_tree"):
             remove("//sys/pool_trees/@default_tree")
         for tree in ls("//sys/pool_trees"):

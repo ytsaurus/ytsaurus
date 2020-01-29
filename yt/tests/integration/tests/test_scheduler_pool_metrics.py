@@ -415,8 +415,8 @@ class TestPoolMetrics(YTEnvSetup):
         # Set up second tree
         node = ls("//sys/cluster_nodes")[0]
         set("//sys/cluster_nodes/" + node + "/@user_tags/end", "other")
-        create_pool_tree("other", attributes={"nodes_filter": "other"})
         set("//sys/pool_trees/default/@nodes_filter", "!other")
+        create_pool_tree("other", attributes={"nodes_filter": "other"})
 
         time.sleep(1.0)
 
@@ -440,13 +440,6 @@ class TestPoolMetrics(YTEnvSetup):
         wait(lambda: total_time_delta.update().get("other", verbose=True)
              == total_time_operation_completed_delta.update().get("other", verbose=True)
              > 0)
-
-        # Go back to one default tree
-        for tree in ls("//sys/pool_trees"):
-            remove("//sys/pool_trees/" + tree)
-        create_pool_tree("default")
-        set("//sys/pool_trees/@default_tree", "default")
-        time.sleep(0.5)  # Give scheduler some time to reload trees
 
     @authors("eshcherbin")
     def test_revive(self):

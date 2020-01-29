@@ -166,7 +166,7 @@ def _remove_objects(enable_secondary_cells_cleanup, driver=None):
 
     _retry_with_gc_collect(do, driver=driver)
 
-def _restore_globals(driver=None):
+def _restore_globals(scheduler_count, driver=None):
     def do():
         for response in yt_commands.execute_batch([
                 yt_commands.make_batch_request("set", path="//sys/tablet_cell_bundles/default/@dynamic_options", input={}),
@@ -176,8 +176,18 @@ def _restore_globals(driver=None):
                 # yt_commands.make_batch_request("remove", path="//sys/pool_trees/default/*", force=True)
             ], driver=driver):
             assert not yt_commands.get_batch_output(response)
+
+        wait_for_orchid = scheduler_count > 0
+
+        # TODO(ignat): batch these actions and make proper waiting of actual state inside scheduler.
         if yt_commands.exists("//sys/pool_trees/default"):
             yt_commands.remove("//sys/pool_trees/default/*")
+        if not yt_commands.exists("//sys/pool_trees/default"):
+            yt_commands.create_pool_tree("default", wait_for_orchid=wait_for_orchid)
+        yt_commands.set("//sys/pool_trees/@default_tree", "default")
+        for pool_tree in yt_commands.ls("//sys/pool_trees"):
+            if pool_tree != "default":
+                yt_commands.remove_pool_tree(pool_tree, wait_for_orchid=wait_for_orchid)
 
     _retry_with_gc_collect(do, driver=driver)
 
@@ -926,9 +936,13 @@ class YTEnvSetup(object):
 
             yt_commands.gc_collect(driver=driver)
 
-            _restore_globals(driver=driver)
+            _restore_globals(
+                scheduler_count=cls.get_param("NUM_SCHEDULERS", cluster_index),
+                driver=driver)
 
-            _remove_objects(enable_secondary_cells_cleanup=cls.get_param("ENABLE_SECONDARY_CELLS_CLEANUP", cluster_index), driver=driver)
+            _remove_objects(
+                enable_secondary_cells_cleanup=cls.get_param("ENABLE_SECONDARY_CELLS_CLEANUP", cluster_index),
+                driver=driver)
 
             _restore_default_bundle_options(driver=driver)
 

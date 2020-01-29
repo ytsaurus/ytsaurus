@@ -5,10 +5,15 @@ from yt_commands import *
 
 
 @authors("renadeen")
-class TestPools(YTEnvSetup):
+class TestSchedulerPoolManipulations(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 0
     NUM_SCHEDULERS = 0
+
+    def setup_method(self, method):
+        super(TestSchedulerPoolManipulations, self).setup_method(method)
+        if exists("//sys/pool_trees/default"):
+            remove_pool_tree("default", wait_for_orchid=False)
 
     def test_create(self):
         assert get("//sys/pool_trees") == {}
@@ -698,19 +703,17 @@ class TestPools(YTEnvSetup):
         assert get("//sys/pool_trees/my_tree/nirvana/@max_operation_count") == 10
         assert get("//sys/pool_trees/my_tree/nirvana/@some_unknown_attribute") == "xxx"
 
-    def teardown_method(self, method):
-        for tree in ls("//sys/pool_trees"):
-            if tree != "default":
-                remove_pool_tree(tree, wait_for_orchid=False)
-
-        super(TestPools, self).teardown_method(method)
-
 
 @authors("renadeen")
-class TestPoolsAcl(YTEnvSetup):
+class TestSchedulerPoolAcls(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 0
     NUM_SCHEDULERS = 0
+
+    def setup_method(self, method):
+        super(TestSchedulerPoolAcls, self).setup_method(method)
+        if exists("//sys/pool_trees/default"):
+            remove_pool_tree("default", wait_for_orchid=False)
 
     def test_nested_pool_use_permission(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
@@ -789,9 +792,3 @@ class TestPoolsAcl(YTEnvSetup):
         create_pool_tree("new_tree", wait_for_orchid=False, authenticated_user="u")
         remove_pool_tree("my_tree", wait_for_orchid=False, authenticated_user="u")
 
-    def teardown_method(self, method):
-        for tree in ls("//sys/pool_trees"):
-            if tree != "default":
-                remove_pool_tree(tree, wait_for_orchid=False)
-
-        super(TestPoolsAcl, self).teardown_method(method)

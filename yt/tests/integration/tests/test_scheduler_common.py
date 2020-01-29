@@ -1863,12 +1863,7 @@ class TestSchedulingTags(YTEnvSetup):
 
         set("//sys/pool_trees/default/@nodes_filter", "default")
 
-        if exists("//sys/pool_trees/other"):
-            remove("//sys/pool_trees/other")
-        create_pool_tree("other")
-        time.sleep(0.5)
-
-        set("//sys/pool_trees/other/@nodes_filter", "tagC")
+        create_pool_tree("other", attributes={"nodes_filter": "tagC"})
 
         wait(lambda: self._get_slots_by_filter("default") == 1)
         wait(lambda: self._get_slots_by_filter("tagC") == 1)
