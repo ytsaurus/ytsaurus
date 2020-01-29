@@ -106,7 +106,7 @@ INodeTypeHandlerPtr CreatePortalEntranceMapTypeHandler(TBootstrap* bootstrap)
         EVirtualNodeOptions::RedirectSelf);
 }
 
-//////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class TVirtualPortalExitNodeMap
     : public TVirtualPortalNodeMapBase<TPortalExitNode>
