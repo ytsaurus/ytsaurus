@@ -18,6 +18,15 @@ def is_inside_arcadia(inside_arcadia):
         inside_arcadia = int(yatest_common.get_param("inside_arcadia", True))
     return inside_arcadia
 
+def is_inside_distbuild():
+    if yatest_common is None:
+        return False
+
+    if arcadia_interop.yatest_common.get_param("teamcity"):
+        return False
+
+    return True
+
 def get_root_paths(source_prefix="", inside_arcadia=None):
     if is_inside_arcadia(inside_arcadia):
         yt_root = source_prefix + "yt/19_4/"
