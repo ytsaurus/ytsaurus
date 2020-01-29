@@ -15,12 +15,12 @@ SET(YP_TEST_SRCS
     test_aggregate_objects.py
     test_annotations.py
     test_antiaffinity.py
-    test_auth.py
     test_batch_methods.py
     test_cli.py
     test_client_config.py
     test_client_discovery.py
     test_config.py
+    test_cypress_auth.py
     test_deploy_tickets.py
     test_disk_bandwidth_resource.py
     test_dns_record_set.py

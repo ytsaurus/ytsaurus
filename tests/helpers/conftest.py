@@ -524,6 +524,7 @@ class YpOrchidClient(object):
 class YpTestEnvironment(object):
     def __init__(self,
                  yp_master_config=None,
+                 yp_client_config=None,
                  enable_ssl=False,
                  start=True,
                  db_version=ACTUAL_DB_VERSION,
@@ -531,7 +532,8 @@ class YpTestEnvironment(object):
                  start_yp_heavy_scheduler=False,
                  yp_heavy_scheduler_config=None,
                  sandbox_base=None):
-        yp_master_config = update(DEFAULT_YP_MASTER_CONFIG, get_value(yp_master_config, {}))
+        yp_master_config = update(DEFAULT_YP_MASTER_CONFIG, yp_master_config)
+        self._yp_client_config=yp_client_config
 
         if sandbox_base is None:
             sandbox_base = SandboxBase()
@@ -583,10 +585,17 @@ class YpTestEnvironment(object):
         self.yp_client = None
         self.yt_client = self.yp_instance.create_yt_client()
 
+    def create_client(self, config=None):
+        """Creates a client with the default config.
+
+        Use yp_instance to start with an empty config."""
+        config = update(self._yp_client_config, config)
+        return self.yp_instance.create_client(config=config)
+
     def _start(self):
         try:
             self.yp_instance.start()
-            self.yp_client = self.yp_instance.create_client()
+            self.yp_client = self.create_client()
 
             def touch_pod_set():
                 try:
@@ -717,6 +726,7 @@ def yp_env(request, test_environment):
 def test_environment_configurable(request):
     environment = YpTestEnvironment(
         yp_master_config=getattr(request.cls, "YP_MASTER_CONFIG", None),
+        yp_client_config=getattr(request.cls, "YP_CLIENT_CONFIG", None),
         enable_ssl=getattr(request.cls, "ENABLE_SSL", False),
         local_yt_options=getattr(request.cls, "LOCAL_YT_OPTIONS", None),
         start=getattr(request.cls, "START", True),
@@ -735,4 +745,8 @@ def yp_env_configurable(request, test_environment_configurable):
 @pytest.fixture(scope="function")
 def yp_env_unfreezenable(request, yp_env_configurable):
     request.addfinalizer(lambda: test_method_unfreeze(yp_env_configurable))
+    return yp_env_configurable
+
+@pytest.fixture(scope="function")
+def yp_env_auth(request, yp_env_configurable):
     return yp_env_configurable

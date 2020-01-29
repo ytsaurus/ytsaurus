@@ -13,10 +13,10 @@ from yt.packages.six.moves import xrange
 
 import pytest
 
-@pytest.mark.usefixtures("yp_env")
+@pytest.mark.usefixtures("yp_env_auth")
 class TestObjectService(object):
-    def test_select_empty_field(self, yp_env):
-        yp_client = yp_env.yp_client
+    def test_select_empty_field(self, yp_env_auth):
+        yp_client = yp_env_auth.yp_client
 
         pod_set_id = yp_client.create_object(object_type="pod_set")
         yp_client.create_object(object_type="pod", attributes={"meta": {"pod_set_id": pod_set_id}})
@@ -28,8 +28,8 @@ class TestObjectService(object):
         selection_result = yp_client.select_objects("pod", selectors=["/status/agent/iss/currentStates/1"])
         assert len(selection_result) == 1 and isinstance(selection_result[0][0], YsonEntity)
 
-    def test_select_nonexistent_field(self, yp_env):
-        yp_client = yp_env.yp_client
+    def test_select_nonexistent_field(self, yp_env_auth):
+        yp_client = yp_env_auth.yp_client
 
         pod_set_id = yp_client.create_object(object_type="pod_set")
         yp_client.create_object(object_type="pod", attributes={"meta": {"pod_set_id": pod_set_id}})
@@ -43,8 +43,8 @@ class TestObjectService(object):
         with pytest.raises(YtResponseError):
             yp_client.select_objects("pod", selectors=["/spec/ip6_address_requests/network_id/network_id"])
 
-    def test_get_nonexistent(self, yp_env):
-        yp_client = yp_env.yp_client
+    def test_get_nonexistent(self, yp_env_auth):
+        yp_client = yp_env_auth.yp_client
 
         existent_id = "existent_id"
         nonexistent_id = "nonexistent_id"
@@ -63,8 +63,8 @@ class TestObjectService(object):
 
         assert yp_client.get_object("pod_set", nonexistent_id, selectors=["/meta/id"], options={"ignore_nonexistent": True}) is None
 
-    def test_create_object_null_attributes_payload(self, yp_env):
-        yp_client = yp_env.yp_client
+    def test_create_object_null_attributes_payload(self, yp_env_auth):
+        yp_client = yp_env_auth.yp_client
 
         object_stub = yp_client.create_grpc_object_stub()
 
@@ -76,8 +76,8 @@ class TestObjectService(object):
 
         assert len(rsp.object_id) > 0
 
-    def test_create_objects_null_attributes_payload(self, yp_env):
-        yp_client = yp_env.yp_client
+    def test_create_objects_null_attributes_payload(self, yp_env_auth):
+        yp_client = yp_env_auth.yp_client
 
         object_stub = yp_client.create_grpc_object_stub()
 
@@ -90,8 +90,8 @@ class TestObjectService(object):
 
         assert len(rsp.subresponses[0].object_id) > 0
 
-    def test_select_objects_continuation(self, yp_env):
-        yp_client = yp_env.yp_client
+    def test_select_objects_continuation(self, yp_env_auth):
+        yp_client = yp_env_auth.yp_client
 
         def validate_batches(batches, expected_ids, expected_limit):
             found_ids = set()
@@ -171,8 +171,8 @@ class TestObjectService(object):
             ))
         impl("pod", ids, ["/meta/pod_set_id", "/meta/id"])
 
-    def test_select_objects_continuation_token_of_empty_response(self, yp_env):
-        yp_client = yp_env.yp_client
+    def test_select_objects_continuation_token_of_empty_response(self, yp_env_auth):
+        yp_client = yp_env_auth.yp_client
 
         def select(**options):
             return yp_client.select_objects(
@@ -205,8 +205,8 @@ class TestObjectService(object):
         assert len(response["results"]) == 0
         assert continuation_token == response["continuation_token"]
 
-    def test_select_objects_continuation_token_and_offset(self, yp_env):
-        yp_client = yp_env.yp_client
+    def test_select_objects_continuation_token_and_offset(self, yp_env_auth):
+        yp_client = yp_env_auth.yp_client
 
         continuation_token = yp_client.select_objects(
             "pod_set",
@@ -229,8 +229,8 @@ class TestObjectService(object):
                 options=dict(offset=1, continuation_token=continuation_token),
             )
 
-    def test_select_objects_invalid_continuation_token(self, yp_env):
-        yp_client = yp_env.yp_client
+    def test_select_objects_invalid_continuation_token(self, yp_env_auth):
+        yp_client = yp_env_auth.yp_client
 
         with pytest.raises(YpInvalidContinuationTokenError):
             yp_client.select_objects(
@@ -239,8 +239,8 @@ class TestObjectService(object):
                 options=dict(continuation_token="abracadabra"),
             )
 
-    def test_select_objects_continuation_token_presence(self, yp_env):
-        yp_client = yp_env.yp_client
+    def test_select_objects_continuation_token_presence(self, yp_env_auth):
+        yp_client = yp_env_auth.yp_client
 
         def select(options):
             return yp_client.select_objects(
