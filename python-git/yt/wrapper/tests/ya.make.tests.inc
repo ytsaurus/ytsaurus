@@ -111,6 +111,7 @@ REQUIREMENTS(
 TAG(
     ya:fat
     ya:force_distbuild
+    ya:huge_logs
 )
 
 NO_LINT()
