@@ -150,7 +150,8 @@ class Clique(object):
             elif state == "running":
                 if self.get_active_instance_count() == self.instance_count:
                     break
-            elif counter % 30 == 0:
+
+            if counter % 30 == 0:
                 self._print_progress()
             elif counter >= MAX_COUNTER_VALUE:
                 raise YtError("Clique did not start in time, clique directory: {}".format(get("//sys/clickhouse/cliques/{0}".format(self.op.id), verbose=False)))
@@ -1745,7 +1746,8 @@ class TestClickHouseAccess(ClickHouseTestBase):
         self._setup()
 
     @authors("max42")
-    def test_clique_access(self):
+    def DISABLED_test_clique_access(self):
+        # TODO(max42): CHYT-300.
         create_user("u")
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
         write_table("//tmp/t", [{"a": 1}])
