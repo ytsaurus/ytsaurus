@@ -30,6 +30,7 @@ class TestSandboxTmpfs(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     @authors("ignat")
     def test_simple(self):
@@ -489,6 +490,7 @@ class TestSandboxTmpfsOverflow(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     DELTA_NODE_CONFIG = {
         "exec_agent": {

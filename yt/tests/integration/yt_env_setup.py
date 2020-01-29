@@ -527,6 +527,7 @@ class YTEnvSetup(object):
     ENABLE_TABLET_BALANCER = False
 
     REQUIRE_YTSERVER_ROOT_PRIVILEGES = False
+    REQUIRE_SUID_TOOL = False
 
     NUM_REMOTE_CLUSTERS = 0
 
@@ -629,6 +630,14 @@ class YTEnvSetup(object):
 
         if cls.get_param("REQUIRE_YTSERVER_ROOT_PRIVILEGES", False):
             check_root_privileges()
+
+        if cls.get_param("USE_PORTO_FOR_SERVERS", False):
+            if arcadia_interop.yatest_common is not None:
+                pytest.skip("porto is not available on distbuild")
+
+        if cls.get_param("REQUIRE_SUID_TOOL", False):
+            if arcadia_interop.yatest_common is not None:
+                pytest.skip("SUID ytserver-tool is not available on distbuild")
 
         # Initialize `cls` fields before actual setup to make teardown correct.
 

@@ -195,7 +195,7 @@ class TestTmpfsLayerCache(YTEnvSetup):
     }
 
     USE_PORTO_FOR_SERVERS = True
-    REQUIRE_YTSERVER_ROOT_PRIVILIGES = True
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     def setup_files(self):
         create("file", "//tmp/layer1", attributes={"replication_factor": 1})

@@ -133,7 +133,7 @@ bool TPeerBlockDistributor::ShouldDistributeBlocks()
     i64 totalRequestedBlockSize = TotalRequestedBlockSize_;
 
     bool shouldDistributeBlocks =
-        outTraffic > Config_->OutTrafficActivationThreshold * Config_->IterationPeriod.MilliSeconds() / 1000.0 ||
+        outTraffic > static_cast<double>(Config_->OutTrafficActivationThreshold) * Config_->IterationPeriod.MilliSeconds() / 1000.0 ||
         totalOutQueueSize > Config_->OutQueueSizeActivationThreshold ||
         totalRequestedBlockSize > Config_->TotalRequestedBlockSizeActivationThreshold * Config_->IterationPeriod.MilliSeconds()  / 1000.0;
 

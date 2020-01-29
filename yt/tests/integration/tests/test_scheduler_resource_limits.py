@@ -35,6 +35,7 @@ class TestSchedulerMemoryLimits(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     # This is a mix of options for 18.4 and 18.5
     DELTA_NODE_CONFIG = {
@@ -108,6 +109,7 @@ class TestMemoryReserveFactor(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     # This is a mix of options for 18.4 and 18.5
     DELTA_NODE_CONFIG = {

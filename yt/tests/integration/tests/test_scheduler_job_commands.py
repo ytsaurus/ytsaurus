@@ -47,6 +47,7 @@ class TestJobProber(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     DELTA_NODE_CONFIG = cgroups_delta_node_config
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     @authors("ignat")
     @unix_only

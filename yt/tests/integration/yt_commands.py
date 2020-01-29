@@ -828,6 +828,14 @@ def release_breakpoint(*args, **kwargs):
 def get_operation_cypress_path(op_id):
     return "//sys/operations/{}/{}".format("%02x" % (long(op_id.split("-")[3], 16) % 256), op_id)
 
+def get_cypress_metrics(operation_id, key, aggr="sum"):
+    statistics = get(get_operation_cypress_path(operation_id) + "/@progress/job_statistics")
+    return sum(filter(lambda x: x is not None,
+                      [get_statistics(statistics, "{0}.$.{1}.map.{2}".format(key, job_state, aggr))
+                       for job_state in ("completed", "failed", "aborted")]))
+
+##################################################################
+
 class Operation(object):
     def __init__(self):
         self._tmpdir = ""
