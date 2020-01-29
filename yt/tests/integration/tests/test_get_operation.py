@@ -446,8 +446,8 @@ class TestOperationAliases(YTEnvSetup):
                      track=False)
 
         assert ls("//sys/scheduler/orchid/scheduler/operations") == [op.id, "*my_op"]
-        assert get("//sys/scheduler/orchid/scheduler/operations/" + op.id) == get("//sys/scheduler/orchid/scheduler/operations/\\*my_op")
         wait(lambda: op.get_state() == "running")
+        assert get("//sys/scheduler/orchid/scheduler/operations/" + op.id) == get("//sys/scheduler/orchid/scheduler/operations/\\*my_op")
         assert list_operations()["operations"][0]["brief_spec"]["alias"] == "*my_op"
 
         # It is not allowed to use alias of already running operation.
