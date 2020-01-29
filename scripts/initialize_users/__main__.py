@@ -552,6 +552,7 @@ def configure_public_object_creators(client):
 # YP-1515
 def configure_stage_creators(client):
     stage_creators = Group("stage-creators")
+    create(client, stage_creators)
     add_permission(
         client,
         object_type="schema",
