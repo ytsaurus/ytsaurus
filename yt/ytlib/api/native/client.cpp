@@ -1,6 +1,5 @@
 #include "client_impl.h"
 #include "box.h"
-#include "config.h"
 #include "connection.h"
 #include "list_operations.h"
 #include "rpc_helpers.h"
@@ -19,8 +18,6 @@
 
 #include <yt/client/job_tracker_client/helpers.h>
 
-#include <yt/client/object_client/helpers.h>
-
 #include <yt/client/security_client/helpers.h>
 
 #include <yt/client/table_client/helpers.h>
@@ -37,11 +34,9 @@
 
 #include <yt/ytlib/api/native/tablet_helpers.h>
 
-#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
-#include <yt/ytlib/chunk_client/chunk_teleporter.h>
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/helpers.h>
@@ -52,28 +47,20 @@
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/ytlib/file_client/file_chunk_writer.h>
-#include <yt/ytlib/file_client/file_ypath_proxy.h>
 
 #include <yt/ytlib/hive/cell_directory.h>
 #include <yt/ytlib/hive/cluster_directory.h>
 #include <yt/ytlib/hive/cluster_directory_synchronizer.h>
-#include <yt/ytlib/hive/config.h>
 
 #include <yt/ytlib/job_proxy/job_spec_helper.h>
 #include <yt/ytlib/job_proxy/helpers.h>
 #include <yt/ytlib/job_proxy/user_job_read_controller.h>
 
-#include <yt/ytlib/job_tracker_client/helpers.h>
-
 #include <yt/ytlib/node_tracker_client/channel.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
-#include <yt/ytlib/object_client/helpers.h>
 
-#include <yt/ytlib/query_client/executor.h>
-#include <yt/ytlib/query_client/query_preparer.h>
 #include <yt/ytlib/query_client/functions_cache.h>
-#include <yt/ytlib/query_client/helpers.h>
 #include <yt/ytlib/query_client/column_evaluator.h>
 #include <yt/ytlib/query_client/coordinator.h>
 
@@ -81,15 +68,7 @@
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 #include <yt/client/scheduler/operation_id_or_alias.h>
 
-#include <yt/ytlib/security_client/group_ypath_proxy.h>
-
 #include <yt/ytlib/table_client/config.h>
-#include <yt/ytlib/table_client/schema_inferer.h>
-#include <yt/ytlib/table_client/chunk_meta_extensions.h>
-#include <yt/ytlib/table_client/row_merger.h>
-
-#include <yt/ytlib/tablet_client/tablet_service_proxy.h>
-#include <yt/ytlib/tablet_client/tablet_cell_bundle_ypath_proxy.h>
 
 #include <yt/ytlib/transaction_client/action.h>
 #include <yt/ytlib/transaction_client/transaction_manager.h>
@@ -104,11 +83,7 @@
 
 #include <yt/core/crypto/crypto.h>
 
-#include <yt/core/profiling/timing.h>
-
 #include <yt/core/rpc/helpers.h>
-
-#include <yt/core/ypath/tokenizer.h>
 
 #include <yt/core/ytree/helpers.h>
 #include <yt/core/ytree/ypath_proxy.h>
@@ -311,8 +286,8 @@ TClient::TClient(
         wrapChannelFactory(Connection_->GetChannelFactory()),
         Connection_->GetNetworks());
 
-    SchedulerProxy_.reset(new TSchedulerServiceProxy(GetSchedulerChannel()));
-    JobProberProxy_.reset(new TJobProberServiceProxy(GetSchedulerChannel()));
+    SchedulerProxy_ = std::make_unique<TSchedulerServiceProxy>(GetSchedulerChannel());
+    JobProberProxy_ = std::make_unique<TJobProberServiceProxy>(GetSchedulerChannel());
 
     TransactionManager_ = New<TTransactionManager>(
         Connection_->GetConfig()->TransactionManager,
@@ -719,10 +694,10 @@ std::vector<TString> TClient::MakeArchiveOperationAttributes(const THashSet<TStr
                 << TErrorAttribute("attribute_name", attribute);
         }
         if (attribute == "id") {
-            result.push_back("id_hi");
-            result.push_back("id_lo");
+            result.emplace_back("id_hi");
+            result.emplace_back("id_lo");
         } else if (attribute == "type") {
-            result.push_back("operation_type");
+            result.emplace_back("operation_type");
         } else if (attribute == "annotations") {
             if (DoGetOperationsArchiveVersion() >= 29) {
                 result.push_back(attribute);
@@ -2166,7 +2141,7 @@ THashMap<NScheduler::TOperationId, TOperation> TClient::DoListOperationsFromArch
             }
             countingFilter.FilterByFailedJobs(hasFailedJobs, count);
         }
-    };
+    }
 
     NQueryClient::TQueryBuilder builder;
     builder.SetSource(GetOperationsArchiveOrderedByStartTimePath());
@@ -2593,7 +2568,7 @@ void TClient::ValidateNotNull(
         }
         THROW_ERROR error;
     }
-};
+}
 
 NQueryClient::TQueryBuilder TClient::GetListJobsQueryBuilder(
     TOperationId operationId,
@@ -3150,7 +3125,7 @@ static void ParseJobsFromControllerAgentResponse(
             job.Type = ParseEnum<EJobType>(jobMapNode->GetChild("job_type")->GetValue<TString>());
         }
         if (needState) {
-            job.State = ParseEnum<EJobState>(jobMapNode->GetChild("state")->GetValue<TString>());;
+            job.State = ParseEnum<EJobState>(jobMapNode->GetChild("state")->GetValue<TString>());
             job.ControllerAgentState = job.State;
         }
         if (needStartTime) {
@@ -3725,8 +3700,8 @@ std::vector<TString> TClient::MakeJobArchiveAttributes(const THashSet<TString>& 
             result.push_back(attribute + "_hi");
             result.push_back(attribute + "_lo");
         } else if (attribute == "state") {
-            result.push_back("state");
-            result.push_back("transient_state");
+            result.emplace_back("state");
+            result.emplace_back("transient_state");
         } else {
             result.push_back(attribute);
         }
