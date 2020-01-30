@@ -9,9 +9,12 @@ import ru.yandex.spark.yt.fs.conf._
 import ru.yandex.spark.yt.utils.{YtClientConfiguration, YtClientUtils, YtRpcClient}
 import ru.yandex.yt.ytclient.proxy.YtClient
 
+import scala.collection.mutable
+
 object YtClientProvider {
   private val client: ThreadLocal[Option[YtRpcClient]] = new ThreadLocal[Option[YtRpcClient]]
   private val conf: ThreadLocal[YtClientConfiguration] = new ThreadLocal[YtClientConfiguration]
+  private val fsClient = mutable.HashMap.empty[String, YtRpcClient]
 
   private def cachedYtClient: Option[YtClient] = cachedClient.map(_.yt)
 
@@ -24,6 +27,10 @@ object YtClientProvider {
     this.client.get.get.yt
   }
 
+  def ytClient(conf: YtClientConfiguration, fs: YtFileSystem): YtClient = fsClient
+    .getOrElseUpdate(fs.id, YtClientUtils.createRpcClient(conf))
+    .yt
+
   def ytClient: YtClient = cachedYtClient
     .orElse(SparkSession.getDefaultSession.map(spark => ytClient(YtClientConfigurationConverter(spark))))
     .getOrElse(throw new IllegalStateException("YtClient is not initialized"))
@@ -34,6 +41,10 @@ object YtClientProvider {
 
   def close(): Unit = {
     cachedClient.foreach(_.close())
+  }
+
+  def close(fs: YtFileSystem): Unit = {
+    fsClient.get(fs.id).foreach(_.close())
   }
 }
 
