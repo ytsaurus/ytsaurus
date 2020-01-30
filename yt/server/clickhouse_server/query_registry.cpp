@@ -70,7 +70,7 @@ public:
             QueryIdToQueryStatus_[queryId] = &QueryStatuses_.back();
             UserToUserStatusSnapshot_[user].AddQueryStatus(&QueryStatuses_.back());
         }
-        YT_LOG_INFO("Built process list snapshot (QueryStatusCount: %v, UserCount: %v)", QueryStatuses_.size(), UserToUserStatusSnapshot_.size());
+        YT_LOG_DEBUG("Process list snapshot built (QueryStatusCount: %v, UserCount: %v)", QueryStatuses_.size(), UserToUserStatusSnapshot_.size());
     }
 
     TProcessListSnapshot() = default;
@@ -79,11 +79,8 @@ public:
     {
         auto it = QueryIdToQueryStatus_.find(queryId);
         if (it != QueryIdToQueryStatus_.end()) {
-            YT_LOG_ERROR("XXX Looking for query id %v, success", queryId);
-
             return it->second;
         }
-        YT_LOG_ERROR("XXX Looking for query id %v, fail", queryId);
         return nullptr;
     }
 
@@ -162,7 +159,7 @@ public:
         size_t remainingSize = StateAllocationSize_ - StatePointer_ - 1;
         YT_LOG_DEBUG("New query registry state built (StateSize: %v, RemainingSize: %v)", stateString.size(), remainingSize);
         if (remainingSize < stateString.size()) {
-            YT_LOG_INFO("Not enough place for new query registry state, moving pointer to the beginning", StatePointer_);
+            YT_LOG_DEBUG("Not enough place for new query registry state, moving pointer to the beginning", StatePointer_);
             StatePointer_ = 0;
         }
         remainingSize = StateAllocationSize_ - StatePointer_ - 1;
