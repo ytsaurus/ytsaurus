@@ -344,8 +344,37 @@ message TNodeSpec
     optional google.protobuf.Any host_manager = 8;
 }
 
+enum EMaintenanceKind
+{
+    MK_NONE = 0
+    [(NYT.NYson.NProto.enum_value_name) = "none"];
+
+    MK_POWER_OFF = 1
+    [(NYT.NYson.NProto.enum_value_name) = "power-off"];
+
+    MK_REBOOT = 2
+    [(NYT.NYson.NProto.enum_value_name) = "reboot"];
+
+    MK_PROFILE = 3
+    [(NYT.NYson.NProto.enum_value_name) = "profile"];
+
+    MK_REDEPLOY = 4
+    [(NYT.NYson.NProto.enum_value_name) = "redeploy"];
+
+    MK_REPAIR_LINK = 5
+    [(NYT.NYson.NProto.enum_value_name) = "repair-link"];
+
+    MK_CHANGE_DISK = 6
+    [(NYT.NYson.NProto.enum_value_name) = "change-disk"];
+
+    MK_TEMPORARY_UNREACHABLE = 7
+    [(NYT.NYson.NProto.enum_value_name) = "temporary-unreachable"];
+}
+
 message TMaintenanceInfo
 {
+    reserved 3;
+
     // Randomly generated globally unique identifier.
     optional string uuid = 1;
 
@@ -353,8 +382,8 @@ message TMaintenanceInfo
     // Will be randomly generated if not provided.
     optional string id = 2;
 
-    // Kind, e.g. "reboot", which allows to group maintenances.
-    optional string kind = 3;
+    // Identifies maintenance type. Can be considered as urgency on the project's terms.
+    optional EMaintenanceKind kind = 9;
 
     // Node set identifier, e.g. "switch-iva5-s32", which allows to group maintenances.
     optional string node_set_id = 4;
