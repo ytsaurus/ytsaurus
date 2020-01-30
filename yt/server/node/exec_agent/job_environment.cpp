@@ -405,6 +405,15 @@ private:
 
         TProcessJobEnvironmentBase::DoInit(slotCount, jobsCpuLimit);
     }
+
+    virtual TProcessBasePtr CreateJobProxyProcess(int /*slotIndex*/, TJobId /* jobId */)
+    {
+        auto process = New<TSimpleProcess>(JobProxyProgramName);
+        if (!HasRootPermissions_) {
+            process->CreateProcessGroup();
+        }
+        return process;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
