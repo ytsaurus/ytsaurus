@@ -178,8 +178,8 @@ private:
 
     struct TInvokerQueueState
     {
-        int EnqueuedActionCount;
-        TCpuInstant ScaledSumOfEnqueuedAtInstants;
+        int EnqueuedActionCount = 0;
+        TCpuInstant ScaledSumOfEnqueuedAtInstants = {};
     };
 
     NConcurrency::TReaderWriterSpinLock InvokerQueueStatesLock_;
