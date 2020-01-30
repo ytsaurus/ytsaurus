@@ -1,6 +1,6 @@
 from yt_env_setup import YTEnvSetup, unix_only, wait, require_enabled_core_dump, \
     patch_porto_env_only, skip_if_porto, is_asan_build, \
-    Restarter, SCHEDULERS_SERVICE
+    Restarter, SCHEDULERS_SERVICE, get_porto_delta_node_config
 from yt_commands import *
 
 import yt.environment.init_operation_archive as init_operation_archive
@@ -15,20 +15,6 @@ import subprocess
 import time
 import threading
 from multiprocessing import Queue
-
-##################################################################
-
-porto_delta_node_config = {
-    "exec_agent": {
-        "slot_manager": {
-            "enforce_job_control": True,
-            "job_environment" : {
-                # >= 19.2
-                "type" : "porto",
-            },
-        }
-    }
-}
 
 ##################################################################
 
@@ -1010,7 +996,7 @@ class TestCoreTable(YTEnvSetup):
 
 @patch_porto_env_only(TestCoreTable)
 class TestCoreTablePorto(YTEnvSetup):
-    DELTA_NODE_CONFIG = porto_delta_node_config
+    DELTA_NODE_CONFIG = get_porto_delta_node_config()
     USE_PORTO_FOR_SERVERS = True
     REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 

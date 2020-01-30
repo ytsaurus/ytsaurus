@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only
+from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, get_porto_delta_node_config
 from yt_commands import *
 
 from flaky import flaky
@@ -14,17 +14,6 @@ import __builtin__
 This test only works when suid bit is set.
 """
 
-porto_delta_node_config = {
-    "exec_agent": {
-        "slot_manager": {
-            "enforce_job_control": True,                              # <= 18.4
-            "job_environment" : {
-                "type" : "porto",                                     # >= 19.2
-            },
-        }
-    }
-}
-
 def check_memory_limit(op):
     jobs_path = op.get_path() + "/jobs"
     for job_id in ls(jobs_path):
@@ -37,21 +26,17 @@ class TestSchedulerMemoryLimits(YTEnvSetup):
     NUM_SCHEDULERS = 1
     REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
-    # This is a mix of options for 18.4 and 18.5
     DELTA_NODE_CONFIG = {
         "exec_agent": {
-            "enable_cgroups": True,                                       # <= 18.4
-            "supported_cgroups": ["cpuacct", "blkio", "cpu"],   # <= 18.4
             "slot_manager": {
-                "enforce_job_control": True,                              # <= 18.4
-                "memory_watchdog_period" : 100,                           # <= 18.4
-                "job_environment" : {
-                    "type" : "cgroups",                                   # >= 18.5
-                    "memory_watchdog_period" : 100,                       # >= 18.5
-                    "supported_cgroups": [                                # >= 18.5
+                "job_environment": {
+                    "type": "cgroups",
+                    "memory_watchdog_period": 100,
+                    "supported_cgroups": [
                         "cpuacct",
                         "blkio",
-                        "cpu"],
+                        "cpu",
+                    ],
                 },
             }
         }
@@ -102,7 +87,7 @@ while True:
 
 @patch_porto_env_only(TestSchedulerMemoryLimits)
 class TestSchedulerMemoryLimitsPorto(YTEnvSetup):
-    DELTA_NODE_CONFIG = porto_delta_node_config
+    DELTA_NODE_CONFIG = get_porto_delta_node_config()
     USE_PORTO_FOR_SERVERS = True
 
 class TestMemoryReserveFactor(YTEnvSetup):
@@ -111,21 +96,17 @@ class TestMemoryReserveFactor(YTEnvSetup):
     NUM_SCHEDULERS = 1
     REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
-    # This is a mix of options for 18.4 and 18.5
     DELTA_NODE_CONFIG = {
         "exec_agent": {
-            "enable_cgroups": True,                                       # <= 18.4
-            "supported_cgroups": ["cpuacct", "blkio", "cpu"],   # <= 18.4
             "slot_manager": {
-                "enforce_job_control": True,                              # <= 18.4
-                "memory_watchdog_period" : 100,                           # <= 18.4
                 "job_environment" : {
-                    "type" : "cgroups",                                   # >= 18.5
-                    "memory_watchdog_period" : 100,                       # >= 18.5
-                    "supported_cgroups": [                                # >= 18.5
+                    "type": "cgroups",
+                    "memory_watchdog_period": 100,
+                    "supported_cgroups": [
                         "cpuacct",
                         "blkio",
-                        "cpu"],
+                        "cpu",
+                    ],
                 },
             }
         }
@@ -203,13 +184,13 @@ time.sleep(5.0)
 
 @patch_porto_env_only(TestMemoryReserveFactor)
 class TestMemoryReserveFactorPorto(YTEnvSetup):
-    DELTA_NODE_CONFIG = porto_delta_node_config
+    DELTA_NODE_CONFIG = get_porto_delta_node_config()
     USE_PORTO_FOR_SERVERS = True
 
 ###############################################################################################
 
 class TestContainerCpuLimit(YTEnvSetup):
-    DELTA_NODE_CONFIG = porto_delta_node_config
+    DELTA_NODE_CONFIG = get_porto_delta_node_config()
     USE_PORTO_FOR_SERVERS = True
     NUM_SCHEDULERS = 1
     NUM_NODES = 1

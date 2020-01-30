@@ -1,5 +1,6 @@
 from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, wait,\
-    is_asan_build, Restarter, SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE, NODES_SERVICE
+    is_asan_build, Restarter, SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE, NODES_SERVICE,\
+    get_porto_delta_node_config, get_cgroup_delta_node_config
 from yt_commands import *
 from yt_helpers import *
 
@@ -21,36 +22,6 @@ from datetime import datetime
 from distutils.spawn import find_executable
 
 from collections import defaultdict
-
-##################################################################
-
-# This is a mix of options for 18.4 and 18.5
-cgroups_delta_node_config = {
-    "exec_agent": {
-        "slot_manager": {
-            "job_environment": {
-                "type": "cgroups",
-                "supported_cgroups": [
-                    "cpuacct",
-                    "blkio",
-                    "cpu"],
-            },
-        }
-    }
-}
-
-porto_delta_node_config = {
-    "exec_agent": {
-        "slot_manager": {
-            # <= 18.4
-            "enforce_job_control": True,
-            "job_environment": {
-                # >= 19.2
-                "type": "porto",
-            },
-        }
-    }
-}
 
 ##################################################################
 
@@ -89,7 +60,7 @@ class TestEventLog(YTEnvSetup):
         }
     }
 
-    DELTA_NODE_CONFIG = cgroups_delta_node_config
+    DELTA_NODE_CONFIG = get_cgroup_delta_node_config()
 
     @authors("ignat")
     def test_scheduler_event_log(self):
@@ -170,7 +141,7 @@ class TestEventLog(YTEnvSetup):
 
 @patch_porto_env_only(TestEventLog)
 class TestEventLogPorto(YTEnvSetup):
-    DELTA_NODE_CONFIG = porto_delta_node_config
+    DELTA_NODE_CONFIG = get_porto_delta_node_config()
     USE_PORTO_FOR_SERVERS = True
 
 ##################################################################
@@ -440,7 +411,7 @@ class TestJobStderrMulticell(TestJobStderr):
 
 @patch_porto_env_only(TestJobStderr)
 class TestJobStderrPorto(YTEnvSetup):
-    DELTA_NODE_CONFIG = porto_delta_node_config
+    DELTA_NODE_CONFIG = get_porto_delta_node_config()
     USE_PORTO_FOR_SERVERS = True
 
 ##################################################################
@@ -709,7 +680,7 @@ class TestUserFilesMulticell(TestUserFiles):
 
 @patch_porto_env_only(TestUserFiles)
 class TestUserFilesPorto(YTEnvSetup):
-    DELTA_NODE_CONFIG = porto_delta_node_config
+    DELTA_NODE_CONFIG = get_porto_delta_node_config()
     USE_PORTO_FOR_SERVERS = True
 
 ##################################################################
@@ -788,7 +759,7 @@ class TestSchedulerCommon(YTEnvSetup):
         }
     }
 
-    DELTA_NODE_CONFIG = cgroups_delta_node_config
+    DELTA_NODE_CONFIG = get_cgroup_delta_node_config()
 
     @authors("ignat")
     def test_failed_jobs_twice(self):
@@ -1584,7 +1555,7 @@ class TestSchedulerCommonMulticell(TestSchedulerCommon):
 
 @patch_porto_env_only(TestSchedulerCommon)
 class TestSchedulerCommonPorto(YTEnvSetup):
-    DELTA_NODE_CONFIG = porto_delta_node_config
+    DELTA_NODE_CONFIG = get_porto_delta_node_config()
     USE_PORTO_FOR_SERVERS = True
 
 ##################################################################

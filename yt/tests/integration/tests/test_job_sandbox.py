@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, patch_porto_env_only
+from yt_env_setup import YTEnvSetup, patch_porto_env_only, get_porto_delta_node_config
 from yt_commands import *
 
 import yt.environment.init_operation_archive as init_operation_archive
@@ -10,19 +10,6 @@ from flaky import flaky
 import pytest
 import time
 import datetime
-
-porto_delta_node_config = {
-    "exec_agent": {
-        "slot_manager": {
-            # <= 18.4
-            "enforce_job_control": True,
-            "job_environment": {
-                # >= 19.2
-                "type": "porto",
-            },
-        }
-    }
-}
 
 ##################################################################
 
@@ -591,7 +578,7 @@ class TestSandboxTmpfsOverflow(YTEnvSetup):
 
 @patch_porto_env_only(TestSandboxTmpfs)
 class TestSandboxTmpfsPorto(YTEnvSetup):
-    DELTA_NODE_CONFIG = porto_delta_node_config
+    DELTA_NODE_CONFIG = get_porto_delta_node_config()
     USE_PORTO_FOR_SERVERS = True
 
 ##################################################################

@@ -1,8 +1,10 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, wait
+from yt_env_setup import YTEnvSetup, wait, get_cgroup_delta_node_config
 from yt_commands import *
 from yt_helpers import *
+
+import yt.common
 
 import time
 import copy
@@ -24,19 +26,16 @@ class TestAggregatedCpuMetrics(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
 
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "slot_manager": {
-                "job_environment": {
-                    "type": "cgroups",
-                    "supported_cgroups": ["cpu", "cpuacct"]
-                }
-            },
-            "scheduler_connector": {
-                "heartbeat_period": 100
-            },
+    DELTA_NODE_CONFIG = yt.common.update(
+        get_cgroup_delta_node_config(),
+        {
+            "exec_agent": {
+                "scheduler_connector": {
+                    "heartbeat_period": 100
+                },
+            }
         }
-    }
+    )
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {

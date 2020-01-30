@@ -2320,7 +2320,6 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
     NUM_SCHEDULERS = 1
     REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
-    # This is a mix of options for 18.4 and 18.5
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "slot_manager": {
@@ -2330,7 +2329,8 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
                     "supported_cgroups": [
                         "cpuacct",
                         "blkio",
-                        "cpu"],
+                        "cpu",
+                    ],
                 },
             },
             "scheduler_connector": {

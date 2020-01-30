@@ -1,4 +1,7 @@
-from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, wait, skip_if_porto, parametrize_external
+from yt_env_setup import (
+    YTEnvSetup, unix_only, patch_porto_env_only, wait, skip_if_porto, parametrize_external,
+    get_porto_delta_node_config,
+)
 from yt_commands import *
 
 from yt.test_helpers import assert_items_equal, are_almost_equal
@@ -11,21 +14,6 @@ import random
 import string
 import time
 import base64
-
-##################################################################
-
-porto_delta_node_config = {
-    "exec_agent": {
-        "slot_manager": {
-            # <= 18.4
-            "enforce_job_control": True,
-            "job_environment": {
-                # >= 19.2
-                "type": "porto",
-            },
-        }
-    }
-}
 
 ##################################################################
 
@@ -377,7 +365,7 @@ class TestMapOnDynamicTablesPortal(TestMapOnDynamicTablesMulticell):
 
 @patch_porto_env_only(TestMapOnDynamicTables)
 class TestMapOnDynamicTablesPorto(YTEnvSetup):
-    DELTA_NODE_CONFIG = porto_delta_node_config
+    DELTA_NODE_CONFIG = get_porto_delta_node_config()
     USE_PORTO_FOR_SERVERS = True
 
 ##################################################################
