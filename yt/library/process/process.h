@@ -33,6 +33,7 @@ public:
     void AddArguments(const std::vector<TString>& args);
 
     void SetWorkingDirectory(const TString& path);
+    void CreateProcessGroup();
 
     virtual NNet::IConnectionWriterPtr GetStdInWriter() = 0;
     virtual NNet::IConnectionReaderPtr GetStdOutReader() = 0;
@@ -61,6 +62,7 @@ protected:
     std::vector<const char*> Env_;
     TString ResolvedPath_;
     TString WorkingDirectory_;
+    bool CreateProcessGroup_ = false;
     TPromise<void> FinishedPromise_ = NewPromise<void>();
 
     virtual void DoSpawn() = 0;
