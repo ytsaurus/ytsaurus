@@ -4,6 +4,8 @@ from yt.test_helpers import wait
 
 import yt.environment.init_operation_archive as init_operation_archive
 
+from flaky import flaky
+
 def get_sorted_jobs(op):
     jobs = []
     for id, job in op.get_running_jobs().iteritems():
@@ -239,6 +241,7 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
         op.track()
 
     @authors("renadeen")
+    @flaky(max_runs=3)
     def test_aborted_speculative_job_is_restarted(self):
         op = self.run_op_with_residual_speculative_job()
         regular, speculative = get_sorted_jobs(op)
