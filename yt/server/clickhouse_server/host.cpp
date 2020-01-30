@@ -175,7 +175,7 @@ private:
     TPermissionCachePtr PermissionCache_;
     TObjectAttributeCachePtr TableAttributeCache_;
 
-    THealthChecker HealthChecker_;
+    THealthCheckerPtr HealthChecker_;
 
 public:
     TImpl(
@@ -212,11 +212,11 @@ public:
             Bootstrap_->GetControlInvoker(),
             Logger,
             ServerProfiler.AppendPath("/object_attribute_cache")))
-        , HealthChecker_(
+        , HealthChecker_(New<THealthChecker>(
             Config_->Engine->HealthChecker,
             Config_->User,
             DatabaseContext_.get(),
-            Bootstrap_)
+            Bootstrap_))
     { }
 
     void Start()
@@ -283,7 +283,7 @@ public:
             Config_->GossipPeriod);
         GossipExecutor_->Start();
 
-        HealthChecker_.Start();
+        HealthChecker_->Start();
     }
 
     void HandleIncomingGossip(const TString& instanceId, EInstanceState state)
