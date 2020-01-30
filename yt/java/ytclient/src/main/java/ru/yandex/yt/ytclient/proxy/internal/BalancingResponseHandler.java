@@ -55,8 +55,13 @@ public class BalancingResponseHandler implements RpcClientResponseHandler {
         if (clients.isEmpty()) {
             f.completeExceptionally(new RuntimeException("empty destinations list"));
         } else {
-            send();
+            execute();
         }
+    }
+
+    private void execute() {
+        executorService.schedule(() -> onGlobalTimeout(), timeout, TimeUnit.MILLISECONDS);
+        send();
     }
 
     private void send() {
@@ -93,13 +98,17 @@ public class BalancingResponseHandler implements RpcClientResponseHandler {
                 if (!clients.isEmpty()){
                     if (failoverPolicy.onTimeout()) {
                         send();
-                    } else {
-                        f.completeExceptionally(new RuntimeException("timeout"));
                     }
-                } else {
-                    // global timeout
-                    f.completeExceptionally(new RuntimeException("timeout"));
                 }
+            }
+        }
+    }
+
+    private void onGlobalTimeout() {
+        synchronized (f) {
+            if (!f.isDone()) {
+                // global timeout
+                f.completeExceptionally(new RuntimeException("request timeout"));
             }
         }
     }
