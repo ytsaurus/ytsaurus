@@ -82,7 +82,7 @@ class GarbageMarker(GarbageManager):
         labels.update(gc_labels)
         return labels
 
-    def post_create_hook(self, yp_client, type_and_id_pairs):
+    def post_create_hook(self, yp_client, transaction_id, type_and_id_pairs):
         ace = dict(
             action="allow",
             subjects=[self._GARBAGE_COLLECTOR_USER],
@@ -91,7 +91,7 @@ class GarbageMarker(GarbageManager):
         requests = [dict(object_type=object_type, object_id=object_id,
                          set_updates=[dict(path="/meta/acl/end", value=ace)])
                     for object_type, object_id in type_and_id_pairs]
-        yp_client.update_objects(requests)
+        yp_client.update_objects(requests, transaction_id=transaction_id)
 
 
 class YpGarbageCollectedClient(object):
@@ -118,17 +118,35 @@ class YpGarbageCollectedClient(object):
             return getattr(self._yp_client, name)
         raise AttributeError(name)
 
-    def create_object(self, object_type, attributes=None, **kwargs):
+    def create_object(self, object_type, attributes=None, transaction_id=None, **kwargs):
+        assert transaction_id is None
+        transaction_id = self._yp_client.start_transaction()
+
         attributes = self._garbage_marker.mark_attributes(object_type, attributes)
-        object_id = self._yp_client.create_object(object_type, attributes=attributes, **kwargs)
-        self._garbage_marker.post_create_hook(self._yp_client, [(object_type, object_id)])
+        object_id = self._yp_client.create_object(object_type, attributes=attributes,
+                                                  transaction_id=transaction_id, **kwargs)
+        self._garbage_marker.post_create_hook(self._yp_client, transaction_id, [(object_type, object_id)])
+
+        self._yp_client.commit_transaction(transaction_id)
+
         return object_id
 
-    def create_objects(self, create_object_requests, **kwargs):
+    def create_objects(self, create_object_requests, transaction_id=None, **kwargs):
+        assert transaction_id is None
+        transaction_id = self._yp_client.start_transaction()
+
         for index in range(len(create_object_requests)):
-            create_object_requests[index][1] = self._garbage_marker.mark_attributes(create_object_requests[index][0], create_object_requests[index][1])
-        object_ids = self._yp_client.create_objects(create_object_requests, **kwargs)
+            create_object_requests[index][1] = self._garbage_marker.mark_attributes(
+                create_object_requests[index][0],
+                create_object_requests[index][1],
+            )
+
+        object_ids = self._yp_client.create_objects(create_object_requests,
+                                                    transaction_id=transaction_id, **kwargs)
         type_and_id_pairs = [(request[0], object_id)
                              for object_id, request in zip(object_ids, create_object_requests)]
-        self._garbage_marker.post_create_hook(self._yp_client, type_and_id_pairs)
+        self._garbage_marker.post_create_hook(self._yp_client, transaction_id, type_and_id_pairs)
+
+        self._yp_client.commit_transaction(transaction_id)
+
         return object_ids
