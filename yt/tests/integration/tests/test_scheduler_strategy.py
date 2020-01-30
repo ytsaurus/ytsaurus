@@ -1114,9 +1114,9 @@ class TestSchedulerPreemption(YTEnvSetup):
         wait_breakpoint()
         update_op_parameters(op.id, parameters=get_scheduling_options(user_slots=0))
         wait(lambda: op.get_job_count("running") == 0)
+        op.track()
         assert op.get_job_count("completed") == 1
         assert op.get_job_count("total") == 1
-        op.track()
         assert read_table("//tmp/t_out") == [{"interrupt": 42}]
 
     @authors("dakovalkov")
