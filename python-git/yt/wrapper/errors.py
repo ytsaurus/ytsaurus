@@ -41,7 +41,8 @@ class YtResponseError(yt.common.YtResponseError):
         super(YtResponseError, self).__init__(*args, **kwargs)
         if self.is_request_queue_size_limit_exceeded():
             self.__class__ = YtRequestQueueSizeLimitExceeded
-        elif self.is_request_rate_limit_exceeded():
+        # Deprecated.
+        elif self.contains_code(904):
             self.__class__ = YtRequestRateLimitExceeded
         elif self.is_concurrent_operations_limit_reached():
             self.__class__ = YtConcurrentOperationsLimitExceeded
