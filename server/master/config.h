@@ -56,9 +56,9 @@ public:
         RegisterParameter("cluster_tag", ClusterTag);
         RegisterParameter("instance_tag", InstanceTag);
         RegisterParameter("instance_transaction_timeout", InstanceTransactionTimeout)
-            .Default(TDuration::Seconds(10));
+            .Default(TDuration::Seconds(30));
         RegisterParameter("leader_transaction_timeout", LeaderTransactionTimeout)
-            .Default(TDuration::Seconds(10));
+            .Default(TDuration::Seconds(30));
         RegisterParameter("reconnect_period", ReconnectPeriod)
             .Default(TDuration::Seconds(5));
         RegisterParameter("master_discovery_period", MasterDiscoveryPeriod)
