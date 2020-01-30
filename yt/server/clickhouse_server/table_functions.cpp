@@ -83,7 +83,11 @@ public:
         return name;
     }
 
+#ifdef CHYT154_WORKAROUND
     virtual StoragePtr execute(const ASTPtr& functionAst, const Context& context, const std::string& /* tableName */, IAST * queryAst) const override
+#else
+    virtual StoragePtr executeImpl(const ASTPtr& functionAst, const Context& context, const std::string& /* tableName */) const override
+#endif
     {
         const auto& Logger = GetQueryContext(context)->Logger;
 
@@ -110,6 +114,7 @@ public:
         protoSpec.ParseFromString(protoSpecString);
         auto subquerySpec = NYT::FromProto<TSubquerySpec>(protoSpec);
 
+#ifdef CHYT154_WORKAROUND
         if (queryAst) {
             try {
                 ApplyMembershipHint(*queryAst, subquerySpec.MembershipHint, Logger);
@@ -119,6 +124,7 @@ public:
         } else {
             YT_LOG_INFO("Query AST is not available, ignoring membership hint");
         }
+#endif
 
         return Execute(context, std::move(subquerySpec));
     }
