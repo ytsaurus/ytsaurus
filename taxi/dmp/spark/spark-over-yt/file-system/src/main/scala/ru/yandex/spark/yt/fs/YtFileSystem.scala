@@ -1,6 +1,7 @@
 package ru.yandex.spark.yt.fs
 
 import java.net.URI
+import java.util.UUID
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs._
@@ -14,6 +15,8 @@ import scala.concurrent.duration._
 import scala.language.postfixOps
 
 class YtFileSystem extends FileSystem {
+  val id: String = UUID.randomUUID().toString
+
   private val log = Logger.getLogger(getClass)
 
   private var _uri: URI = _
@@ -28,7 +31,7 @@ class YtFileSystem extends FileSystem {
     this._ytConf = YtClientConfigurationConverter(_conf)
   }
 
-  def yt: YtClient = YtClientProvider.ytClient(_ytConf)
+  def yt: YtClient = YtClientProvider.ytClient(_ytConf, this)
 
   override def getUri: URI = _uri
 
@@ -144,8 +147,8 @@ class YtFileSystem extends FileSystem {
   }
 
   override def close(): Unit = {
-    log.debugLazy("Close YtFileSystem")
-    YtClientProvider.close()
+    log.info("Close YtFileSystem")
+    YtClientProvider.close(this)
     super.close()
   }
 }
