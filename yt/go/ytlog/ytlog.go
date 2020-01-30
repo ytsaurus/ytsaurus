@@ -38,6 +38,6 @@ func New(logPath string) (l *logzap.Logger, stop func(), err error) {
 	}
 
 	// TODO(prime@): make callerSkip from library/go/core/log public.
-	zl := zap.New(core, zap.AddCallerSkip(1))
+	zl := zap.New(core, zap.AddCallerSkip(1), zap.AddCaller())
 	return &logzap.Logger{L: zl}, stop, nil
 }
