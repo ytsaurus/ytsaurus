@@ -1,4 +1,7 @@
-from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, wait
+from yt_env_setup import (
+    YTEnvSetup, unix_only, patch_porto_env_only, wait,
+    get_porto_delta_node_config, get_cgroup_delta_node_config
+)
 from yt_commands import *
 
 from flaky import flaky
@@ -8,45 +11,12 @@ import time
 
 ##################################################################
 
-# This is a mix of options for 18.4 and 18.5
-cgroups_delta_node_config = {
-    "exec_agent": {
-        "enable_cgroups": True,                                       # <= 18.4
-        "supported_cgroups": ["cpuacct", "blkio", "cpu"],             # <= 18.4
-        "slot_manager": {
-            "enforce_job_control": True,                              # <= 18.4
-            "job_environment": {
-                "type": "cgroups",                                   # >= 18.5
-                "supported_cgroups": [                                # >= 18.5
-                    "cpuacct",
-                    "blkio",
-                    "cpu"],
-            },
-        }
-    }
-}
-
-porto_delta_node_config = {
-    "exec_agent": {
-        "slot_manager": {
-            # <= 18.4
-            "enforce_job_control": True,
-            "job_environment": {
-                # >= 19.2
-                "type": "porto",
-            },
-        }
-    }
-}
-
-##################################################################
-
 class TestJobProber(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
-    DELTA_NODE_CONFIG = cgroups_delta_node_config
+    DELTA_NODE_CONFIG = get_cgroup_delta_node_config()
     REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     @authors("ignat")
@@ -394,7 +364,7 @@ class TestJobProber(YTEnvSetup):
 
 @patch_porto_env_only(TestJobProber)
 class TestJobProberPorto(YTEnvSetup):
-    DELTA_NODE_CONFIG = porto_delta_node_config
+    DELTA_NODE_CONFIG = get_porto_delta_node_config()
     USE_PORTO_FOR_SERVERS = True
 
 ##################################################################

@@ -1,20 +1,9 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, patch_porto_env_only, wait
+from yt_env_setup import YTEnvSetup, patch_porto_env_only, wait, get_porto_delta_node_config, get_cgroup_delta_node_config
 from yt_commands import *
 
 ##################################################################
-
-porto_delta_node_config = {
-    "exec_agent": {
-        "slot_manager": {
-            "enforce_job_control": True,                              # <= 18.4
-            "job_environment" : {
-                "type" : "porto",                                     # >= 19.2
-            },
-        }
-    }
-}
 
 class TestSchedulerUserStatistics(YTEnvSetup):
     NUM_MASTERS = 1
@@ -22,19 +11,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
     NUM_SCHEDULERS = 1
     REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "slot_manager": {
-                "job_environment" : {
-                    "type" : "cgroups",
-                    "supported_cgroups": [
-                        "cpuacct",
-                        "blkio",
-                        "cpu"],
-                },
-            }
-        }
-    }
+    DELTA_NODE_CONFIG = get_cgroup_delta_node_config()
 
     @authors("tramsmm")
     def test_job_statistics(self):
@@ -148,5 +125,5 @@ class TestSchedulerUserStatistics(YTEnvSetup):
 
 @patch_porto_env_only(TestSchedulerUserStatistics)
 class TestSchedulerUserStatisticsPorto(YTEnvSetup):
-    DELTA_NODE_CONFIG = porto_delta_node_config
+    DELTA_NODE_CONFIG = get_porto_delta_node_config()
     USE_PORTO_FOR_SERVERS = True

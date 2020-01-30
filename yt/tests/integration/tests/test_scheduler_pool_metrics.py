@@ -1,27 +1,15 @@
-from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, wait,\
-    Restarter, CONTROLLER_AGENTS_SERVICE
+from yt_env_setup import (
+    YTEnvSetup, unix_only, patch_porto_env_only, wait, Restarter, CONTROLLER_AGENTS_SERVICE,
+    get_porto_delta_node_config, get_cgroup_delta_node_config,
+)
 from yt_commands import *
 from yt_helpers import *
 
+import yt.common
 from yt.yson import *
 
 
 import time
-
-##################################################################
-
-porto_delta_node_config = {
-    "exec_agent": {
-        "slot_manager": {
-            # <= 18.4
-            "enforce_job_control": True,
-            "job_environment": {
-                # >= 19.2
-                "type": "porto",
-            },
-        }
-    }
-}
 
 ##################################################################
 
@@ -81,25 +69,16 @@ class TestPoolMetrics(YTEnvSetup):
         }
     }
 
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "enable_cgroups": True,
-            "supported_cgroups": ["cpuacct", "blkio", "cpu"],
-            "slot_manager": {
-                "enforce_job_control": True,
-                "job_environment": {
-                    "type": "cgroups",
-                    "supported_cgroups": [
-                        "cpuacct",
-                        "blkio",
-                        "cpu"],
+    DELTA_NODE_CONFIG = yt.common.update(
+        get_cgroup_delta_node_config(),
+        {
+            "exec_agent": {
+                "scheduler_connector": {
+                    "heartbeat_period": 100,  # 100 msec
                 },
-            },
-            "scheduler_connector": {
-                "heartbeat_period": 100,  # 100 msec
-            },
+            }
         }
-    }
+    )
 
     @authors("ignat")
     @unix_only
@@ -492,7 +471,7 @@ class TestPoolMetrics(YTEnvSetup):
 
 @patch_porto_env_only(TestPoolMetrics)
 class TestPoolMetricsPorto(YTEnvSetup):
-    DELTA_NODE_CONFIG = porto_delta_node_config
+    DELTA_NODE_CONFIG = get_porto_delta_node_config()
     USE_PORTO_FOR_SERVERS = True
 
 ##################################################################
