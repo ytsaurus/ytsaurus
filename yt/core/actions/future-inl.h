@@ -189,12 +189,11 @@ protected:
     std::atomic<bool> Set_;
     std::atomic<bool> AbandonedUnset_ = {false};
 
-    mutable std::unique_ptr<NConcurrency::TEvent> ReadyEvent_;
-
     bool HasHandlers_ = false;
     TVoidResultHandlers VoidResultHandlers_;
     TCancelHandlers CancelHandlers_;
 
+    mutable std::unique_ptr<NConcurrency::TEvent> ReadyEvent_;
 
     TFutureStateBase(int promiseRefCount, int futureRefCount, int cancelableRefCount)
         : TCancelableStateBase(false, cancelableRefCount)
@@ -303,6 +302,7 @@ private:
 
         if (UniqueResultHandler_) {
             RunNoExcept(UniqueResultHandler_, MoveValueOut());
+            UniqueResultHandler_ = {};
         }
 
         if (!canceled) {
