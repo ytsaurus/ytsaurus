@@ -97,6 +97,13 @@ public:
                 Owner_));
         }
 
+        virtual void OnStopVoting() override
+        {
+            CancelableControlInvoker_->Invoke(BIND(
+                &TDistributedHydraManager::OnElectionStopVoting,
+                Owner_));
+        }
+
         virtual TPeerPriority GetPriority() override
         {
             auto owner = Owner_.Lock();
@@ -1500,6 +1507,17 @@ private:
         Participate();
 
         SystemLockGuard_.Release();
+    }
+
+    void OnElectionStopVoting()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        YT_LOG_INFO("Stopped voting");
+
+        YT_VERIFY(ControlState_ == EPeerState::Elections);
+
+        Participate();
     }
 
     void ApplyFinalRecoveryAction(bool isLeader)

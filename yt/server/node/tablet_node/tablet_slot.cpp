@@ -382,7 +382,7 @@ public:
                 newPrerequisiteTransactionId);
             PrerequisiteTransactionId_ = newPrerequisiteTransactionId;
             if (ElectionManager_) {
-                ElectionManager_->Restart();
+                ElectionManager_->Abandon();
             }
         }
 

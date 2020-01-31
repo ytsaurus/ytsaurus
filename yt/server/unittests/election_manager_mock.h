@@ -18,6 +18,8 @@ public:
     MOCK_METHOD1(OnStartFollowing, void(TEpochContextPtr epochContext));
     MOCK_METHOD0(OnStopFollowing, void());
 
+    MOCK_METHOD0(OnStopVoting, void());
+
     MOCK_METHOD0(GetPriority, TPeerPriority());
     MOCK_METHOD1(FormatPriority, TString(TPeerPriority priority));
 

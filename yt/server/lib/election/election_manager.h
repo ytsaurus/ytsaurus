@@ -19,6 +19,7 @@ namespace NYT::NElection {
  *   #OnStartLeading and #OnStopLeading,
  *   #OnStartFollowing and #OnStopFollowing
  *   always come in pairs and do not overlap.
+ *   Between these pairs may come calls to #OnStopVoting.
  *
  *   Thread affinity: ControlThread
  */
@@ -36,6 +37,9 @@ struct IElectionCallbacks
 
     //! Called when the current peer has stopped following.
     virtual void OnStopFollowing() = 0;
+
+    //! Called when the current peer has stopped voting.
+    virtual void OnStopVoting() = 0;
 
     //! Called when the current peer's priority is needed for voting.
     virtual TPeerPriority GetPriority() = 0;
@@ -87,14 +91,6 @@ struct IElectionManager
      */
     virtual void Abandon() = 0;
 
-
-    //! Restarts the peer.
-    /*
-     *  If stopped, does nothing.
-     *  If voting, restarts the voting process.
-     *  If leading or following, stops the epoch.
-     */
-    virtual void Restart() = 0;
 
     //! Returns the callback for producing the monitoring info.
     /*!
