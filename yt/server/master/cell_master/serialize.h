@@ -118,6 +118,7 @@ DEFINE_ENUM(EMasterReign,
     ((DestroyedChunkRemovalFix)                                     (1110))  // aleksandra-zh
     ((TruncateJournals)                                             (1111))  // aleksandra-zh
     ((PrevRandomSeed)                                               (1112))  // aleksandra-zh
+    ((FixReplicasSerialization)                                     (1113))  // aleksandra-zh
 );
 
 ////////////////////////////////////////////////////////////////////////////////

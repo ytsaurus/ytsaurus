@@ -359,24 +359,28 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, LeaseTransaction_);
     Save(context, DestroyedReplicas_);
 
-    // The format is:
-    //  (replicaCount, mediumIndex) pairs
-    //  0
-    SmallVector<int, 8> mediumIndexes;
-    for (const auto& [mediumIndex, replicas] : Replicas_) {
-        if (!replicas.empty()) {
-            mediumIndexes.push_back(mediumIndex);
+    if (context.GetVersion() < EMasterReign::FixReplicasSerialization) {
+        // The format is:
+        //  (replicaCount, mediumIndex) pairs
+        //  0
+        SmallVector<int, 8> mediumIndexes;
+        for (const auto& [mediumIndex, replicas] : Replicas_) {
+            if (!replicas.empty()) {
+                mediumIndexes.push_back(mediumIndex);
+            }
         }
+        std::sort(mediumIndexes.begin(), mediumIndexes.end());
+        for (auto mediumIndex : mediumIndexes) {
+            auto it = Replicas_.find(mediumIndex);
+            YT_ASSERT(it != Replicas_.end());
+            const auto& replicas = it->second;
+            TSizeSerializer::Save(context, replicas.size());
+            Save(context, mediumIndex);
+        }
+        TSizeSerializer::Save(context, 0);
+    } else {
+        Save(context, Replicas_);
     }
-    std::sort(mediumIndexes.begin(), mediumIndexes.end());
-    for (auto mediumIndex : mediumIndexes) {
-        auto it = Replicas_.find(mediumIndex);
-        YT_ASSERT(it != Replicas_.end());
-        const auto& replicas = it->second;
-        TSizeSerializer::Save(context, replicas.size());
-        Save(context, mediumIndex);
-    }
-    TSizeSerializer::Save(context, 0);
 
     Save(context, UnapprovedReplicas_);
     Save(context, TabletSlots_);
