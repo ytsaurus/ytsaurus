@@ -10,6 +10,7 @@
 #include "property.h"
 #include "ref.h"
 #include "serialize_dump.h"
+#include "dense_map.h"
 
 #include <util/stream/file.h>
 #include <util/stream/input.h>
