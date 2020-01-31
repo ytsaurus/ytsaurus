@@ -15,7 +15,6 @@ public:
 
     virtual void Participate() override;
     virtual void Abandon() override;
-    virtual void Restart() override;
 
     virtual NYson::TYsonProducer GetMonitoringProducer();
 

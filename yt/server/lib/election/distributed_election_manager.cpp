@@ -42,7 +42,6 @@ public:
 
     virtual void Participate() override;
     virtual void Abandon() override;
-    virtual void Restart() override;
 
     virtual TYsonProducer GetMonitoringProducer() override;
 
@@ -103,6 +102,7 @@ private:
 
     void StopLeading();
     void StopFollowing();
+    void StopVoting();
 
     void InitEpochContext(TPeerId leaderId, TEpochId epoch);
     void SetState(EPeerState newState);
@@ -630,7 +630,10 @@ void TDistributedElectionManager::Abandon()
 
     switch (State) {
         case EPeerState::Stopped:
+            break;
+
         case EPeerState::Voting:
+            StopVoting();
             break;
 
         case EPeerState::Leading:
@@ -639,30 +642,6 @@ void TDistributedElectionManager::Abandon()
 
         case EPeerState::Following:
             StopFollowing();
-            break;
-
-        default:
-            YT_ABORT();
-    }
-
-    Reset();
-}
-
-void TDistributedElectionManager::Restart()
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    switch (State) {
-        case EPeerState::Stopped:
-            break;
-
-        case EPeerState::Voting:
-            StartVoting();
-            break;
-
-        case EPeerState::Leading:
-        case EPeerState::Following:
-            Abandon();
             break;
 
         default:
@@ -897,6 +876,21 @@ void TDistributedElectionManager::StopFollowing()
     Reset();
 }
 
+void TDistributedElectionManager::StopVoting()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_VERIFY(State == EPeerState::Voting);
+
+    YT_LOG_INFO("Voting stopped (EpochId: %v)",
+        EpochContext->EpochId);
+
+    BIND(&IElectionCallbacks::OnStopVoting, ElectionCallbacks)
+        .AsyncVia(ControlInvoker)
+        .Run();
+
+    Reset();
+}
+
 void TDistributedElectionManager::InitEpochContext(TPeerId leaderId, TEpochId epochId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -924,7 +918,7 @@ void TDistributedElectionManager::OnPeerReconfigured(TPeerId peerId)
 
     if (peerId == CellManager->GetSelfPeerId()) {
         if (State != EPeerState::Stopped) {
-            Restart();
+            Abandon();
         }
     } else {
         if (State == EPeerState::Leading) {
@@ -937,7 +931,7 @@ void TDistributedElectionManager::OnPeerReconfigured(TPeerId peerId)
             // because the peer may've been voting before reconfiguration.
             CheckQuorum();
         } else if (State == EPeerState::Following && peerId == EpochContext->LeaderId) {
-            Restart();
+            Abandon();
         }
     }
 }
