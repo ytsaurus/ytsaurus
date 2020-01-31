@@ -209,6 +209,8 @@ b"""
         min_needed_resources_update_period = 100;
 
         job_revival_abort_timeout = 2000;
+
+        validate_node_tags_period = 100;
     };
 }
 """)
