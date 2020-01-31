@@ -141,7 +141,7 @@ def _build_description(cypress_ytserver_clickhouse_path=None,
     if cluster is not None and operation_alias is not None and enable_monitoring:
         description["monitoring_url"] = _format_url(
             "https://solomon.yandex-team.ru/?project=yt&cluster={}&service=yt_clickhouse&operation_alias={}"
-                .format(cluster, operation_alias))
+                .format(cluster, operation_alias[1:]))
 
     return description
 
@@ -315,7 +315,7 @@ def prepare_cypress_configs(instance_count,
             "memory_limit": memory_limit + uncompressed_block_cache_size + memory_footprint,
         },
         "profile_manager": {
-            "global_tags": {"operation_alias": operation_alias} if operation_alias is not None else {},
+            "global_tags": {"operation_alias": operation_alias[1:]} if operation_alias is not None else {},
         },
         "discovery": {
             "directory": "//sys/clickhouse/cliques",
