@@ -194,9 +194,11 @@ class TestHeavyScheduler(object):
                 yp_client.get_objects("pod", pod_ids, selectors=["/status/eviction/state"]),
             ))
 
+        # Only first segment is processed by the Heavy Scheduler.
         assert_over_time(lambda: are_none_eviction_states(second_segment_pod_ids), iter=wait_time, sleep_backoff=1.0)
 
-        run_eviction_acknowledger(yp_client, iteration_count=wait_time, sleep_time=1.0)
+        # Implicitly validates that Heavy Scheduler requests eviction with reason = "scheduler".
+        run_eviction_acknowledger(yp_client, iteration_count=wait_time, sleep_time=1.0, eviction_reason="scheduler")
         wait_pods_are_assigned(yp_client, first_segment_pod_ids)
 
 

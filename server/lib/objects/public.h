@@ -33,6 +33,7 @@ using TPodIP6SubnetRequests = ::google::protobuf::RepeatedPtrField<
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using NClient::NApi::EEvictionReason;
 using NClient::NApi::EHfsmState;
 using NClient::NApi::EObjectType;
 

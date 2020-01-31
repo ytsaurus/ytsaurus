@@ -155,13 +155,6 @@ DEFINE_ENUM(EEvictionState,
     ((Acknowledged)   (200))
 );
 
-DEFINE_ENUM(EEvictionReason,
-    ((None)           (  0))
-    ((Hfsm)           (100))
-    ((Scheduler)      (200))
-    ((Client)         (300))
-);
-
 DEFINE_ENUM(ESchedulingState,
     ((None)           (  0))
     ((Disabled)       (100))

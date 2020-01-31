@@ -106,6 +106,13 @@ DEFINE_ENUM(EObjectType,
     ((Schema)                (256))
 );
 
+DEFINE_ENUM(EEvictionReason,
+    ((None)           (  0))
+    ((Hfsm)           (100))
+    ((Scheduler)      (200))
+    ((Client)         (300))
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYP::NClient::NApi

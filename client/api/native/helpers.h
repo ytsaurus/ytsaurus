@@ -31,11 +31,17 @@ TFuture<TUpdateNodeHfsmStateResult> UpdateNodeHfsmState(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TRequestPodEvictionOptions
+{
+    bool ValidateDisruptionBudget = true;
+    EEvictionReason Reason = EEvictionReason::Client;
+};
+
 TFuture<TRequestPodEvictionResult> RequestPodEviction(
     const IClientPtr& client,
     TObjectId podId,
     TString message,
-    bool validateDisruptionBudget);
+    TRequestPodEvictionOptions options = TRequestPodEvictionOptions());
 
 ////////////////////////////////////////////////////////////////////////////////
 

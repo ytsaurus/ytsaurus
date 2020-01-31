@@ -143,7 +143,9 @@ ITaskPtr CreateSwapTask(const IClientPtr& client, TPod* starvingPod, TPod* victi
         client,
         victimPod->GetId(),
         Format("Heavy Scheduler cluster defragmentation (TaskId: %v)", id),
-        /* validateDisruptionBudget */ true))
+        TRequestPodEvictionOptions{
+            .ValidateDisruptionBudget = true,
+            .Reason = EEvictionReason::Scheduler}))
         .ValueOrThrow();
 
     return New<TSwapTask>(

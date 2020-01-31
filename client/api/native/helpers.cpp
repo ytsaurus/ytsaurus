@@ -112,7 +112,7 @@ TFuture<TRequestPodEvictionResult> RequestPodEviction(
     const IClientPtr& client,
     TObjectId podId,
     TString message,
-    bool validateDisruptionBudget)
+    TRequestPodEvictionOptions options)
 {
     TSetUpdate update{
         "/control/request_eviction",
@@ -120,7 +120,8 @@ TFuture<TRequestPodEvictionResult> RequestPodEviction(
             BuildYsonFluently(consumer)
                 .BeginMap()
                     .Item("message").Value(std::move(message))
-                    .Item("validate_disruption_budget").Value(validateDisruptionBudget)
+                    .Item("validate_disruption_budget").Value(options.ValidateDisruptionBudget)
+                    .Item("reason").Value(options.Reason)
                 .EndMap();
         }))};
     return client->UpdateObject(

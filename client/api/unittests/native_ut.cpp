@@ -422,8 +422,7 @@ TEST_F(TNativeClientTestSuite, RequestAbortPodEvictionTest)
         WaitFor(RequestPodEviction(
             client,
             podId,
-            "Test",
-            /*validateDisruptionBudget*/ false))
+            "Test"))
             .ValueOrThrow();
     };
 

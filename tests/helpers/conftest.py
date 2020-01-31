@@ -379,13 +379,12 @@ def create_pod_set_with_quota(yp_client, cpu_quota=1000, memory_quota=2**10, ban
     return pod_set_id, account_id, node_segment_id
 
 
-def run_eviction_acknowledger(yp_client, iteration_count=60, sleep_time=1):
+def run_eviction_acknowledger(yp_client, iteration_count=60, sleep_time=1, eviction_reason=None):
+    filter = "[/status/eviction/state] = \"requested\""
+    if eviction_reason is not None:
+        filter += " and [/status/eviction/reason] = \"{}\"".format(eviction_reason)
     for _ in xrange(iteration_count):
-        responses = yp_client.select_objects(
-            "pod",
-            filter="[/status/eviction/state] = \"requested\"",
-            selectors=["/meta/id"],
-        )
+        responses = yp_client.select_objects("pod", filter=filter, selectors=["/meta/id"])
         for response in responses:
             pod_id = response[0]
             yp_client.acknowledge_pod_eviction(pod_id, "Test")

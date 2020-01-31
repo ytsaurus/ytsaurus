@@ -81,7 +81,9 @@ ITaskPtr CreateEvictionTask(const IClientPtr& client, TPod* pod)
         client,
         pod->GetId(),
         Format("Heavy Scheduler antiaffinity healing (TaskId: %v)", id),
-        /* validateDisruptionBudget */ true))
+        TRequestPodEvictionOptions{
+            .ValidateDisruptionBudget = true,
+            .Reason = EEvictionReason::Scheduler}))
         .ValueOrThrow();
 
     return New<TEvictionTask>(
@@ -121,7 +123,7 @@ public:
         std::vector<ITaskPtr> tasks;
         for (auto podSetIt = podSets.begin(); podSetIt < podSetEnd; ++podSetIt) {
             int tasksLeft = maxTaskCount - static_cast<int>(tasks.size());
-            int minSuitableNodeCount = Config_->SafeSuitableNodeCount 
+            int minSuitableNodeCount = Config_->SafeSuitableNodeCount
                 + currentTotalTaskCount
                 + static_cast<int>(tasks.size());
 

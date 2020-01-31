@@ -83,6 +83,8 @@ struct TCommitTransactionResult;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TRequestPodEvictionOptions;
+
 using TUpdateNodeHfsmStateResult = TUpdateObjectResult;
 
 using TRequestPodEvictionResult = TUpdateObjectResult;
