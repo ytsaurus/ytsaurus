@@ -5,6 +5,7 @@
 #include "cluster_reader.h"
 #include "config.h"
 #include "disruption_throttler.h"
+#include "eviction_garbage_collector.h"
 #include "helpers.h"
 #include "label_filter_evaluator.h"
 #include "private.h"
@@ -174,6 +175,9 @@ public:
             Config_->AntiaffinityHealer,
             Bootstrap_->GetClient(),
             Config_->Verbose))
+        , EvictionGarbageCollector_(New<TEvictionGarbageCollector>(
+            Config_->EvictionGarbageCollector,
+            Bootstrap_->GetClient()))
     { }
 
     void Initialize()
@@ -195,6 +199,7 @@ private:
 
     TSwapDefragmentatorPtr SwapDefragmentator_;
     TAntiaffinityHealerPtr AntiaffinityHealer_;
+    TEvictionGarbageCollectorPtr EvictionGarbageCollector_;
 
     struct TProfiling
     {
@@ -232,6 +237,8 @@ private:
 
         TaskManager_.ReconcileState(Cluster_);
         TaskManager_.RemoveFinishedTasks();
+
+        EvictionGarbageCollector_->Run(Cluster_);
 
         if (!CheckClusterHealth()) {
             // NB: CheckClusterHealth() writes to the log, no need to do it here.

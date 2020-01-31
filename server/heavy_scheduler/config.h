@@ -105,6 +105,19 @@ DEFINE_REFCOUNTED_TYPE(TAntiaffinityHealerConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TEvictionGarbageCollectorConfig
+    : public NYT::NYTree::TYsonSerializable
+{
+public:
+    TDuration TimeLimit;
+
+    TEvictionGarbageCollectorConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TEvictionGarbageCollectorConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class THeavySchedulerConfig
     : public NYT::NYTree::TYsonSerializable
 {
@@ -126,6 +139,7 @@ public:
     TDisruptionThrottlerConfigPtr DisruptionThrottler;
     TSwapDefragmentatorConfigPtr SwapDefragmentator;
     TAntiaffinityHealerConfigPtr AntiaffinityHealer;
+    TEvictionGarbageCollectorConfigPtr EvictionGarbageCollector;
 
     THeavySchedulerConfig();
 };

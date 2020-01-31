@@ -1,13 +1,14 @@
 from .conftest import (
     are_error_pod_scheduling_statuses,
-    wait_pods_are_assigned,
     assert_over_time,
     create_nodes,
     create_pod_set,
     create_pod_with_boilerplate,
     get_pod_scheduling_statuses,
     run_eviction_acknowledger,
+    update_node_id,
     wait,
+    wait_pods_are_assigned,
 )
 
 from yp.local import set_account_infinite_resource_limits
@@ -19,9 +20,10 @@ from yt.packages.six import PY3
 from yt.packages.six.moves import xrange
 
 import json
+import logging
 import pytest
 import time
-import logging
+
 
 logger.setLevel(logging.DEBUG)
 
@@ -200,6 +202,46 @@ class TestHeavyScheduler(object):
         # Implicitly validates that Heavy Scheduler requests eviction with reason = "scheduler".
         run_eviction_acknowledger(yp_client, iteration_count=wait_time, sleep_time=1.0, eviction_reason="scheduler")
         wait_pods_are_assigned(yp_client, first_segment_pod_ids)
+
+
+@pytest.mark.usefixtures("yp_env_configurable")
+class TestHeavySchedulerEvictionGarbageCollector(object):
+    START_YP_HEAVY_SCHEDULER = True
+
+    YP_HEAVY_SCHEDULER_CONFIG = dict(
+        heavy_scheduler = dict(
+            eviction_garbage_collector = dict(
+                time_limit = 20 * 1000,
+            ),
+        ),
+    )
+
+    def test(self, yp_env_configurable):
+        yp_client = yp_env_configurable.yp_client
+
+        time_limit = self.YP_HEAVY_SCHEDULER_CONFIG["heavy_scheduler"]["eviction_garbage_collector"]["time_limit"] / 1000.0
+
+        def get_eviction_state(pod_id):
+            return yp_client.get_object("pod", pod_id, selectors=["/status/eviction/state"])[0]
+
+        node_id = create_nodes(yp_client, 1)[0]
+        pod_set_id = create_pod_set(yp_client)
+
+        def create_pod(spec=dict(), reason=None):
+            pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, spec=spec)
+            update_node_id(yp_client, pod_id, node_id)
+            yp_client.request_pod_eviction(pod_id, "Test", reason=reason)
+            return pod_id
+
+        client_pod_id = create_pod()
+
+        for enable_scheduling in (False, True):
+            pod_id = create_pod(spec=dict(enable_scheduling=enable_scheduling), reason="scheduler")
+            time.sleep(time_limit / 5.0)
+            assert "requested" == get_eviction_state(pod_id)
+            wait(lambda: "none" == get_eviction_state(pod_id))
+
+        assert "requested" == get_eviction_state(client_pod_id)
 
 
 class TestConcurrentHeavySchedulerBase(object):

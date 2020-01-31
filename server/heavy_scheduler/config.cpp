@@ -83,6 +83,14 @@ TAntiaffinityHealerConfig::TAntiaffinityHealerConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEvictionGarbageCollectorConfig::TEvictionGarbageCollectorConfig()
+{
+    RegisterParameter("time_limit", TimeLimit)
+        .Default(TDuration::Days(1));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 THeavySchedulerConfig::THeavySchedulerConfig()
 {
     RegisterParameter("iteration_period", IterationPeriod)
@@ -107,6 +115,8 @@ THeavySchedulerConfig::THeavySchedulerConfig()
     RegisterParameter("swap_defragmentator", SwapDefragmentator)
         .DefaultNew();
     RegisterParameter("antiaffinity_healer", AntiaffinityHealer)
+        .DefaultNew();
+    RegisterParameter("eviction_garbage_collector", EvictionGarbageCollector)
         .DefaultNew();
 }
 
