@@ -385,7 +385,7 @@ TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetExternalBuiltinAttribu
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     auto channel = multicellManager->GetMasterChannelOrThrow(
         externalCellTag,
-        NHydra::EPeerKind::LeaderOrFollower);
+        NHydra::EPeerKind::Follower);
 
     TObjectServiceProxy proxy(channel);
     return proxy.Execute(req).Apply(BIND([=, this_ = MakeStrong(this)] (const TYPathProxy::TErrorOrRspGetPtr& rspOrError) {
