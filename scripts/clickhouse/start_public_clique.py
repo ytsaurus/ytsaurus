@@ -51,6 +51,11 @@ def main():
         },
         clickhouse_config={
             "validate_operation_access": False,
+            "engine": {
+                "settings": {
+                    "max_execution_time": 600 if args.type == "datalens" else 1800,
+                },
+            },
         },
         abort_existing=True,
         dump_tables=True)
