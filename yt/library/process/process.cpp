@@ -133,7 +133,7 @@ namespace {
 
 bool TryKill(int pid, int signal)
 {
-    YT_VERIFY(pid > 0);
+    YT_VERIFY(pid != -1);
     int result = ::kill(pid, signal);
     // Ignore ESRCH because process may have died just before TryKill.
     if (result < 0 && errno != ESRCH) {
@@ -255,6 +255,11 @@ void TProcessBase::AddArguments(const std::vector<TString>& args)
 void TProcessBase::SetWorkingDirectory(const TString& path)
 {
     WorkingDirectory_ = path;
+}
+
+void TProcessBase::CreateProcessGroup()
+{
+    CreateProcessGroup_ = true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -407,6 +412,16 @@ void TSimpleProcess::DoSpawn()
         });
     }
 
+    if (CreateProcessGroup_) {
+        SpawnActions_.push_back(TSpawnAction{
+            [&] () {
+                setpgrp();
+                return true;
+            },
+            "Error creating process group"
+        });
+    }
+
     SpawnActions_.push_back(TSpawnAction{
         [=] () {
             for (int retryIndex = 0; retryIndex < ExecveRetryCount; ++retryIndex) {
@@ -554,7 +569,13 @@ void TSimpleProcess::Kill(int signal)
 
     YT_LOG_DEBUG("Killing child process (Pid: %v)", ProcessId_);
 
-    auto result = TryKill(ProcessId_, signal);
+    bool result = false;
+    if (!CreateProcessGroup_) {
+        result = TryKill(ProcessId_, signal);
+    } else {
+        result = TryKill(-1 * ProcessId_, signal);
+    }
+
     if (!result) {
         THROW_ERROR_EXCEPTION("Failed to kill child process %v", ProcessId_)
             << TError::FromSystem();
