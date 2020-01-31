@@ -925,7 +925,7 @@ TServiceBase::TServiceBase(
     YT_VERIFY(DefaultInvoker_);
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Discover)
-        .SetInvoker(TDispatcher::Get()->GetLightInvoker())
+        .SetInvoker(GetSyncInvoker())
         .SetSystem(true));
 
     ProfilingExecutor_->Start();
