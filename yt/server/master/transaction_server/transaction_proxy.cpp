@@ -371,7 +371,7 @@ private:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         auto channel = multicellManager->GetMasterChannelOrThrow(
             cellTag,
-            EPeerKind::LeaderOrFollower);
+            EPeerKind::Follower);
 
         TObjectServiceProxy proxy(channel);
         auto batchReq = proxy.ExecuteBatch();

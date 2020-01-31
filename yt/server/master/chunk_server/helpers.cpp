@@ -508,7 +508,7 @@ TYsonString DoGetMulticellOwningNodes(
 
         auto channel = multicellManager->GetMasterChannelOrThrow(
             cellTag,
-            NHydra::EPeerKind::LeaderOrFollower);
+            NHydra::EPeerKind::Follower);
         TChunkServiceProxy proxy(channel);
 
         auto req = proxy.GetChunkOwningNodes();
@@ -540,7 +540,7 @@ TYsonString DoGetMulticellOwningNodes(
     {
         auto channel = multicellManager->GetMasterChannelOrThrow(
             multicellManager->GetPrimaryCellTag(),
-            NHydra::EPeerKind::LeaderOrFollower);
+            NHydra::EPeerKind::Follower);
         TObjectServiceProxy proxy(channel);
 
         // TODO(babenko): improve
