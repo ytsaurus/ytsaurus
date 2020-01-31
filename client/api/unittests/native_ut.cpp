@@ -299,6 +299,35 @@ TEST_F(TNativeClientTestSuite, SelectObjectsTest)
     EXPECT_LT(0, defaultSegmentTotals.cpu().capacity());
 }
 
+TEST_F(TNativeClientTestSuite, GetObjectIgnoreNonexistentTest)
+{
+    const auto& client = GetClient();
+
+    auto get = [client] (const TGetObjectOptions& options) {
+        return WaitFor(client->GetObject(
+            "nonexistent",
+            EObjectType::Pod,
+            {"/meta/id"},
+            options))
+            .ValueOrThrow()
+            .Result
+            .ValuePayloads;
+    };
+
+    {
+        TGetObjectOptions options;
+        options.IgnoreNonexistent = true;
+        auto payloads = get(options);
+        EXPECT_EQ(0u, payloads.size());
+    }
+
+    {
+        TGetObjectOptions options;
+        options.IgnoreNonexistent = false;
+        EXPECT_THROW(get(options), TErrorException);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_F(TNativeClientTestSuite, ParsePayloadsTest)

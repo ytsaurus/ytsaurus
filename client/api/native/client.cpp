@@ -115,7 +115,8 @@ public:
         return req->Invoke().Apply(BIND(&TClient::ParseGetObjectResult,
             options.Format,
             selector.size(),
-            options.FetchTimestamps));
+            options.FetchTimestamps,
+            options.IgnoreNonexistent));
     }
 
     virtual TFuture<TUpdateObjectResult> UpdateObject(
@@ -342,7 +343,8 @@ private:
                 result,
                 format,
                 selectorSize,
-                fetchTimestamps);
+                fetchTimestamps,
+                /* ignoreNonexistent */ false);
         }
 
         requestResult.Timestamp = rsp->timestamp();
@@ -358,6 +360,7 @@ private:
         EPayloadFormat format,
         size_t selectorSize,
         bool fetchTimestamps,
+        bool ignoreNonexistent,
         const TErrorOr<TObjectServiceProxy::TRspGetObjectPtr>& rspOrError)
     {
         const auto& rsp = rspOrError.ValueOrThrow();
@@ -370,7 +373,8 @@ private:
             result.Result,
             format,
             selectorSize,
-            fetchTimestamps);
+            fetchTimestamps,
+            ignoreNonexistent);
 
         result.Timestamp = rsp->timestamp();
 
@@ -382,12 +386,17 @@ private:
         const TAttributeList& attributeList,
         EPayloadFormat format,
         size_t selectorSize,
-        bool fetchTimestamps)
+        bool fetchTimestamps,
+        bool ignoreNonexistent)
     {
         if (selectorSize != attributeList.ValuePayloads.size()) {
-            THROW_ERROR_EXCEPTION("Incorrect number of value payloads: expected %v, but got %v",
-                selectorSize,
-                attributeList.ValuePayloads.size());
+            if (!(ignoreNonexistent && attributeList.ValuePayloads.empty())) {
+                THROW_ERROR_EXCEPTION("Incorrect number of value payloads: expected %v, but got %v",
+                    ignoreNonexistent && selectorSize
+                        ? Format("%v or 0", selectorSize)
+                        : Format("%v", selectorSize),
+                    attributeList.ValuePayloads.size());
+            }
         }
 
         for (const auto& valuePayload : attributeList.ValuePayloads) {
