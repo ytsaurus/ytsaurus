@@ -180,7 +180,7 @@ char* WriteSignedIntToBufferBackwardsImpl(char* ptr, T value, TStringBuf min)
     // The negative value handling code below works incorrectly for min values.
     if (value == std::numeric_limits<T>::min()) {
         ptr -= min.length();
-        memcpy(ptr, min.begin(), min.length());
+        ::memcpy(ptr, min.begin(), min.length());
         return ptr;
     }
 
@@ -194,7 +194,7 @@ char* WriteSignedIntToBufferBackwardsImpl(char* ptr, T value, TStringBuf min)
         i64 rem = value % 100;
         i64 quot = value / 100;
         ptr -= 2;
-        *reinterpret_cast<ui16*>(ptr) = DecimalDigits2[rem];
+        ::memcpy(ptr, &DecimalDigits2[rem], 2);
         value = quot;
     }
 
@@ -224,7 +224,7 @@ char* WriteUnsignedIntToBufferBackwardsImpl(char* ptr, T value)
         i64 rem = value % 100;
         i64 quot = value / 100;
         ptr -= 2;
-        *reinterpret_cast<ui16*>(ptr) = DecimalDigits2[rem];
+        ::memcpy(ptr, &DecimalDigits2[rem], 2);
         value = quot;
     }
 
@@ -270,7 +270,7 @@ char* WriteGuidToBuffer(char* ptr, TGuid value)
     };
 
     auto writeHex2 = [&] (ui8 x) {
-        *reinterpret_cast<ui16*>(ptr) = HexDigits2[x];
+        ::memcpy(ptr, &HexDigits2[x], 2);
         ptr += 2;
     };
 

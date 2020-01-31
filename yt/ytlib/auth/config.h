@@ -67,6 +67,7 @@ public:
     TString Host;
     int Port;
     TString Token;
+    TString Src; // When tvmtool has multiple clients, almost never happens.
 
     TDuration RequestTimeout;
 
@@ -80,6 +81,8 @@ public:
         RegisterParameter("token", Token);
         RegisterParameter("request_timeout", RequestTimeout)
             .Default(TDuration::Seconds(3));
+        RegisterParameter("src", Src)
+            .Optional();
     }
 };
 
@@ -251,6 +254,7 @@ public:
     NHttps::TClientConfigPtr HttpClient;
     TDuration RequestTimeout;
     TString VaultServiceId;
+    TString Consumer;
 
     TDefaultSecretVaultServiceConfig()
     {
@@ -266,6 +270,8 @@ public:
             .Default(TDuration::Seconds(3));
         RegisterParameter("vault_service_id", VaultServiceId)
             .Default("yav");
+        RegisterParameter("consumer", Consumer)
+            .Optional();
     }
 };
 
