@@ -21,22 +21,17 @@ def create_spark_session(spark_id,
                          discovery_dir=None,
                          config_path=None,
                          app_name=None,
-                         num_executors=1,
-                         cores_per_executor=1,
+                         num_executors=12,
+                         cores_per_executor=4,
                          mb_per_core=1024,
                          driver_memory_mb=None,
                          spark_conf_args=None):
-    _NODES_COUNT = 5
     _MAX_CORES = 32
     _MAX_MEMORY = 64 * 1024
     _MIN_MEMORY = 512
-    _MAX_EXECUTORS = _NODES_COUNT * 8
-    _MAX_TOTAL_CORES = _MAX_CORES * _NODES_COUNT
-    _MAX_TOTAL_MEMORY = _MAX_MEMORY * _NODES_COUNT
-
-    _DEFAULT_NUM_EXECUTORS = 1
-    _DEFAULT_CORES_PER_EXECUTOR = 1
-    _DEFAULT_MB_PER_CORE = 1024
+    _MAX_EXECUTORS = 100
+    _MAX_TOTAL_CORES = 400
+    _MAX_TOTAL_MEMORY = 1024 * 1024
 
     if config_path is not None:
         with open(config_path) as f:
@@ -52,9 +47,9 @@ def create_spark_session(spark_id,
     log_dir = config.get("log_dir") or default_base_log_dir(discovery_dir)
     master = get_spark_master(spark_id, discovery_dir, rest=False, yt_client=yt_client)
 
-    num_executors = num_executors or config.get("num_executors") or _DEFAULT_NUM_EXECUTORS
-    cores_per_executor = cores_per_executor or config.get("cores_per_executor") or _DEFAULT_CORES_PER_EXECUTOR
-    mb_per_core = mb_per_core or config.get("mb_per_core") or _DEFAULT_MB_PER_CORE
+    num_executors = num_executors or config.get("num_executors")
+    cores_per_executor = cores_per_executor or config.get("cores_per_executor")
+    mb_per_core = mb_per_core or config.get("mb_per_core")
     driver_memory_mb = driver_memory_mb or config.get("driver_memory_mb") or mb_per_core
 
     if not isinstance(driver_memory_mb, int) or driver_memory_mb < _MIN_MEMORY or driver_memory_mb > _MAX_MEMORY:
@@ -87,7 +82,8 @@ def create_spark_session(spark_id,
     set_conf(conf, default_dynamic_allocation_conf())
     set_conf(conf, spark_conf_args)
     conf.set("spark.hadoop.yt.token", yt_token)
-    conf.set("spark.executor.instances", str(num_executors))
+    conf.set("spark.cores.max", str(num_executors * cores_per_executor))
+    conf.set("spark.dynamicAllocation.maxExecutors", str(num_executors))
     conf.set("spark.executor.cores", str(cores_per_executor))
     conf.set("spark.executor.memory", "{}m".format(cores_per_executor * mb_per_core))
     conf.set("spark.driver.memory", "{}m".format(driver_memory_mb))
