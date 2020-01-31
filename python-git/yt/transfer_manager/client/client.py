@@ -242,7 +242,8 @@ class Poller(object):
                 state_description = task_dict["state_description"]
 
                 if state == "completed":
-                    logger.info("Task %s completed", task_id)
+                    logger.info(task_dict.get("execution_log"))
+                    logger.info("Task %s completed \n", task_id)
                     failed_tasks_infos.pop(local_task_id, None)
                 elif state == "skipped":
                     logger.info("Task %s skipped", task_id)
@@ -252,7 +253,10 @@ class Poller(object):
                     failed_tasks_infos.pop(local_task_id, None)
                     aborted_task_count += 1
                 elif state == "failed":
-                    logger.warning("Task %s failed", task_id)
+                    logger.info(task_dict.get("execution_log"))
+                    msg = task_dict.get("error", {}).get("message") or "generic error"
+                    details = task_dict.get("error", {}).get("attributes", {}).get("details") or "no details"
+                    logger.warning("Task %s failed,  \n%s\n%s", task_id, msg, details)
                     if self._enable_failed_tasks_restarting and self._is_task_restartable(task_dict["error"]):
                         if local_task_id in failed_tasks_infos:
                             attempts_made = failed_tasks_infos[local_task_id][0]
