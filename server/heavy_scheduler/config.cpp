@@ -61,7 +61,7 @@ TSwapDefragmentatorConfig::TSwapDefragmentatorConfig()
 
     RegisterParameter("victim_candidate_pod_count", VictimCandidatePodCount)
         .GreaterThan(0)
-        .Default(100);
+        .Default(10000);
 
     RegisterParameter("safe_suitable_node_count", SafeSuitableNodeCount)
         .GreaterThanOrEqual(0)
