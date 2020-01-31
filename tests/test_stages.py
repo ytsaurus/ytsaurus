@@ -76,3 +76,61 @@ class TestStages(object):
         }
 
         templates.network_project_permissions_test_template(yp_env, "stage", project_id, spec)
+
+    def test_check_virtual_service_existence(self, yp_env):
+        project_id = "project_id"
+        virtual_service_id = "virtual_service"
+
+        spec = {
+            "account_id": "tmp",
+            "deploy_units": {
+                "Unit": {
+                    "replica_set": {
+                        "replica_set_template": {
+                            "pod_template_spec": {
+                                "spec": {
+                                    "ip6_address_requests": [{
+                                        "network_id": project_id,
+                                        "vlan_id": "backbone",
+                                        "virtual_service_ids": [virtual_service_id]
+                                    }]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        yp_client = yp_env.yp_client
+
+        yp_client.create_object("network_project", attributes={
+            "spec": {"project_id": 1234},
+            "meta": {"id": project_id}
+        })
+
+        user_id = yp_client.create_object("user", attributes={"meta": {"id": "u"}})
+        yp_client.update_object("network_project", project_id, set_updates=[
+            {"path": "/meta/acl/end", "value": {"action": "allow", "permissions": ["use"], "subjects": [user_id]}}
+        ])
+        yp_env.sync_access_control()
+
+        with yp_env.yp_instance.create_client(config={"user": user_id}) as client:
+            with pytest.raises(YtResponseError):
+                client.create_object("stage", attributes={"spec": spec})
+
+        yp_client.create_object("virtual_service", attributes={
+            "spec": {},
+            "meta": {"id": virtual_service_id}
+        })
+
+        with yp_env.yp_instance.create_client(config={"user": user_id}) as client:
+            stage_id = client.create_object("stage", attributes={"spec": spec})
+
+        # check that update is possible after service has been removed
+        yp_client.remove_object("virtual_service", virtual_service_id)
+
+        with yp_env.yp_instance.create_client(config={"user": user_id}) as client:
+            client.update_object("stage", stage_id, set_updates=[
+                {"path": "/spec", "value": spec}
+            ])

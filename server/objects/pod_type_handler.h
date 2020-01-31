@@ -14,7 +14,8 @@ std::unique_ptr<IObjectTypeHandler> CreatePodTypeHandler(NMaster::TBootstrap* bo
 void ValidateDeployPodSpecTemplate(
     const NAccessControl::TAccessControlManagerPtr& accessControlManager,
     TTransaction* transaction,
-    const NClient::NApi::NProto::TPodSpec& podSpec,
+    const NClient::NApi::NProto::TPodSpec& oldPodSpec,
+    const NClient::NApi::NProto::TPodSpec& newPodSpec,
     const TPodSpecValidationConfigPtr& config);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -119,14 +119,29 @@ private:
     void ValidateSpec(TTransaction* transaction, TStage* stage)
     {
         try {
+            static const auto extractPodTemplateSpec = [] (const NClient::NApi::NProto::TDeployUnitSpec& deployUnit) -> const NClient::NApi::NProto::TPodTemplateSpec& {
+                return deployUnit.has_replica_set()
+                    ? deployUnit.replica_set().replica_set_template().pod_template_spec()
+                    : deployUnit.multi_cluster_replica_set().replica_set().pod_template_spec();
+            };
+
+            const auto& oldUnits = stage->Spec().Etc().LoadOld().deploy_units();
+
             for (const auto& idAndDeployUnit : stage->Spec().Etc().Load().deploy_units()) {
                 ValidateStageAndDeployUnitId(idAndDeployUnit.first, "Deploy unit id");
                 const auto& deployUnit = idAndDeployUnit.second;
 
-                const auto& podTemplateSpec = deployUnit.has_replica_set()
-                    ? deployUnit.replica_set().replica_set_template().pod_template_spec()
-                    : deployUnit.multi_cluster_replica_set().replica_set().pod_template_spec();
-                ValidateDeployPodSpecTemplate(Bootstrap_->GetAccessControlManager(), transaction, podTemplateSpec.spec(), PodSpecValidationConfig_);
+                const auto& podTemplateSpec = extractPodTemplateSpec(deployUnit);
+                const auto oldUnitsIt = oldUnits.find(idAndDeployUnit.first);
+                const auto& oldPodTemplateSpec = oldUnitsIt != oldUnits.end()
+                    ? extractPodTemplateSpec(oldUnitsIt->second)
+                    : NClient::NApi::NProto::TPodTemplateSpec::default_instance();
+                ValidateDeployPodSpecTemplate(
+                    Bootstrap_->GetAccessControlManager(),
+                    transaction,
+                    oldPodTemplateSpec.spec(),
+                    podTemplateSpec.spec(),
+                    PodSpecValidationConfig_);
                 ValidatePodAgentSpec(podTemplateSpec.spec().pod_agent_payload().spec());
 
                 if (deployUnit.has_tvm_config()) {

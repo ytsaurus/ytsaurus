@@ -90,6 +90,7 @@ private:
         ValidateDeployPodSpecTemplate(
             Bootstrap_->GetAccessControlManager(),
             transaction,
+            replicaSet->Spec().Etc().LoadOld().pod_template_spec().spec(),
             replicaSet->Spec().Etc().Load().pod_template_spec().spec(),
             PodSpecValidationConfig_);
     }

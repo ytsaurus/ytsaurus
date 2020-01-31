@@ -432,14 +432,13 @@ class TestNet(object):
     def test_invalid_virtual_service_tunnel_in_pod_spec(self, yp_env):
         yp_client = yp_env.yp_client
 
-        pod_id = self._create_pod_with_boilerplate(yp_client, spec={
-            "ip6_address_requests": [
-                {"vlan_id": "somevlan", "network_id": "somenet", "virtual_service_ids": ["incorrect_id"]}
-            ],
-            "enable_scheduling": True,
-        })
-
-        wait(lambda: not isinstance(yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/error"])[0], YsonEntity))
+        with pytest.raises(YtResponseError):
+            self._create_pod_with_boilerplate(yp_client, spec={
+                "ip6_address_requests": [
+                    {"vlan_id": "somevlan", "network_id": "somenet", "virtual_service_ids": ["incorrect_id"]}
+                ],
+                "enable_scheduling": True,
+            })
 
     def test_invalid_virtual_service_id_in_pod_spec(self, yp_env):
         yp_client = yp_env.yp_client

@@ -10,6 +10,7 @@
 #include "pod.h"
 #include "pod_disruption_budget.h"
 #include "pod_set.h"
+#include "virtual_service.h"
 #include "type_handler_detail.h"
 
 #include <yp/server/net/internet_address_manager.h>
@@ -57,7 +58,8 @@ template <class TPodSpecEtc>
 void ValidatePodSpecEtc(
     TAccessControlManagerPtr accessControlManager,
     TTransaction* transaction,
-    const TPodSpecEtc& podSpecEtc,
+    const TPodSpecEtc& oldPodSpecEtc,
+    const TPodSpecEtc& newPodSpecEtc,
     const TPodSpecValidationConfigPtr& config);
 
 } // namespace
@@ -497,7 +499,7 @@ private:
         }
 
         if (specEtc.IsChanged()) {
-            ValidatePodSpecEtc(Bootstrap_->GetAccessControlManager(), transaction, specEtc.Load(), Config_->SpecValidation);
+            ValidatePodSpecEtc(Bootstrap_->GetAccessControlManager(), transaction, specEtc.LoadOld(), specEtc.Load(), Config_->SpecValidation);
             ValidateNodeSegmentConstraints(pod);
             ValidateThreadLimitChange(pod);
         }
@@ -864,10 +866,22 @@ private:
 
 namespace {
 
+THashSet<TObjectId> ExtractVirtualServiceIds(const RepeatedPtrField<NClient::NApi::NProto::TPodSpec_TIP6AddressRequest>& ip6AddressRequests)
+{
+    THashSet<TObjectId> result;
+    for (const auto& request : ip6AddressRequests) {
+        for (const auto& virtualServiceId : request.virtual_service_ids()) {
+            result.insert(virtualServiceId);
+        }
+    }
+    return result;
+}
+
 void ValidateNetworkRequests(
     TAccessControlManagerPtr accessControlManager,
     TTransaction* transaction,
-    const RepeatedPtrField<NClient::NApi::NProto::TPodSpec_TIP6AddressRequest>& ip6AddressRequests,
+    const RepeatedPtrField<NClient::NApi::NProto::TPodSpec_TIP6AddressRequest>& oldIp6AddressRequests,
+    const RepeatedPtrField<NClient::NApi::NProto::TPodSpec_TIP6AddressRequest>& newIp6AddressRequests,
     const RepeatedPtrField<NClient::NApi::NProto::TPodSpec_TIP6SubnetRequest>& ip6SubnetRequests)
 {
     auto validateUsePermission = [&] (TObject* object) {
@@ -879,11 +893,18 @@ void ValidateNetworkRequests(
         validateUsePermission(networkProject);
     };
 
-    for (const auto& request : ip6AddressRequests) {
+    auto oldVirtualServiceIds = ExtractVirtualServiceIds(oldIp6AddressRequests);
+
+    for (const auto& request : newIp6AddressRequests) {
         validateNetworkProject(request.network_id());
 
         for (const auto& virtualServiceId : request.virtual_service_ids()) {
-            ValidateObjectId(EObjectType::VirtualService, virtualServiceId);
+            if (oldVirtualServiceIds.find(virtualServiceId) == oldVirtualServiceIds.end()) {
+                ValidateObjectId(EObjectType::VirtualService, virtualServiceId);
+                if (!transaction->GetVirtualService(virtualServiceId)->DoesExist()) {
+                    THROW_ERROR_EXCEPTION("Virtual service %Qv does not exist", virtualServiceId);
+                }
+            }
         }
 
         if (const auto& poolId = request.ip4_address_pool_id(); !poolId.empty()) {
@@ -959,27 +980,28 @@ template <class TPodSpecEtc>
 void ValidatePodSpecEtc(
     TAccessControlManagerPtr accessControlManager,
     TTransaction* transaction,
-    const TPodSpecEtc& podSpecEtc,
+    const TPodSpecEtc& podSpecEtcOld,
+    const TPodSpecEtc& podSpecEtcNew,
     const TPodSpecValidationConfigPtr& config)
 {
-    for (const auto& spec : podSpecEtc.host_devices()) {
+    for (const auto& spec : podSpecEtcNew.host_devices()) {
         ValidateHostDeviceSpec(spec);
     }
 
-    for (const auto& spec : podSpecEtc.sysctl_properties()) {
+    for (const auto& spec : podSpecEtcNew.sysctl_properties()) {
         ValidateSysctlProperty(spec);
     }
 
-    ValidateGpuRequests(podSpecEtc.gpu_requests());
+    ValidateGpuRequests(podSpecEtcNew.gpu_requests());
 
-    ValidateDiskVolumeRequests(podSpecEtc.disk_volume_requests());
+    ValidateDiskVolumeRequests(podSpecEtcNew.disk_volume_requests());
 
-    ValidateNetworkRequests(std::move(accessControlManager), transaction, podSpecEtc.ip6_address_requests(),
-        podSpecEtc.ip6_subnet_requests());
+    ValidateNetworkRequests(std::move(accessControlManager), transaction, podSpecEtcOld.ip6_address_requests(),
+        podSpecEtcNew.ip6_address_requests(), podSpecEtcNew.ip6_subnet_requests());
 
-    ValidateResourceRequests(podSpecEtc.resource_requests(), config->MinVcpuGuarantee);
+    ValidateResourceRequests(podSpecEtcNew.resource_requests(), config->MinVcpuGuarantee);
 
-    ValidateCapabilities(podSpecEtc.capabilities());
+    ValidateCapabilities(podSpecEtcNew.capabilities());
 }
 
 } // namespace
@@ -989,12 +1011,13 @@ void ValidatePodSpecEtc(
 void ValidateDeployPodSpecTemplate(
     const TAccessControlManagerPtr& accessControlManager,
     TTransaction* transaction,
-    const NClient::NApi::NProto::TPodSpec& podSpec,
+    const NClient::NApi::NProto::TPodSpec& oldPodSpec,
+    const NClient::NApi::NProto::TPodSpec& newPodSpec,
     const TPodSpecValidationConfigPtr& config)
 {
-    ValidatePodSpecEtc(accessControlManager, transaction, podSpec, config);
+    ValidatePodSpecEtc(accessControlManager, transaction, oldPodSpec, newPodSpec, config);
 
-    if (podSpec.has_iss_payload()) {
+    if (newPodSpec.has_iss_payload()) {
         THROW_ERROR_EXCEPTION("ISS payload is not supported in Deploy");
     }
 }
