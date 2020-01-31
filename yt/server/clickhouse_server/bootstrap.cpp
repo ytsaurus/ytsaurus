@@ -177,7 +177,7 @@ void TBootstrap::DoRun()
     SetBuildAttributes(orchidRoot, "clickhouse_server");
 
     // TODO(max42): make configurable.
-    WorkerThreadPool_ = New<TThreadPool>(4, "Worker");
+    WorkerThreadPool_ = New<TThreadPool>(Config_->WorkerThreadCount, "Worker");
     WorkerInvoker_ = WorkerThreadPool_->GetInvoker();
     SerializedWorkerInvoker_ = CreateSerializedInvoker(WorkerInvoker_);
 

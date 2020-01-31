@@ -117,7 +117,7 @@ private:
         }
 
         auto maybeDataLensRequestId = request.get("X-Request-Id", "");
-        if (!maybeDataLensRequestId.empty()) {
+        if (maybeDataLensRequestId.starts_with("dl.")) {
             YT_LOG_INFO("Request contains DataLens request id (RequestId: %v)", maybeDataLensRequestId);
             DataLensRequestId_ = TString(maybeDataLensRequestId);
         }

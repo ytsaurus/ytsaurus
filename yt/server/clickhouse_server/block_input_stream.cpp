@@ -35,6 +35,12 @@ DB::Block ConvertRowsToBlock(
     TRowBufferPtr rowBuffer,
     DB::Block block)
 {
+    // NB(max42): CHYT-256.
+    // If chunk schema contains not all of the requested columns (which may happen
+    // when a non-required column was introduced after chunk creation), we are not
+    // going to receive some of the unversioned values with nulls. We still need
+    // to provide them to CH, though, so we keep track of present columns for each
+    // row we get and add nulls for all unpresent columns.
     std::vector<bool> presentValueMask;
 
     for (const auto& row : rows) {
@@ -134,6 +140,9 @@ private:
     {
         TTraceContextGuard guard(TraceContext_);
 
+        NProfiling::TWallTimer totalWallTimer;
+        YT_LOG_DEBUG("Started reading one CH block");
+
         // TODO(max42): consult with psushin@ about contract here.
         std::vector<TUnversionedRow> rows;
         // TODO(max42): make customizable.
@@ -143,10 +152,10 @@ private:
             if (!Reader_->Read(&rows)) {
                 return {};
             } else if (rows.empty()) {
-                NProfiling::TWallTimer wallTime;
+                NProfiling::TWallTimer wallTimer;
                 WaitFor(Reader_->GetReadyEvent())
                     .ThrowOnError();
-                auto elapsed = wallTime.GetElapsedTime();
+                auto elapsed = wallTimer.GetElapsedTime();
                 if (elapsed > TDuration::Seconds(1)) {
                     YT_LOG_DEBUG("Reading took significant time (WallTime: %v)", elapsed);
                 }
@@ -155,26 +164,30 @@ private:
             }
         }
 
-        // NB(max42): CHYT-256.
-        // If chunk schema contains not all of the requested columns (which may happen
-        // when a non-required column was introduced after chunk creation), we are not
-        // going to receive some of the unversioned values with nulls. We still need
-        // to provide them to CH, though, so we keep track of present columns for each
-        // row we get and add nulls for all unpresent columns.
-
-        auto block = WaitFor(BIND(
-            &NDetail::ConvertRowsToBlock,
-            rows,
-            ReadSchema_,
-            IdToColumnIndex_,
-            RowBuffer_,
-            HeaderBlock_.cloneEmpty())
-            .AsyncVia(Bootstrap_->GetWorkerInvoker())
-            .Run())
-            .ValueOrThrow();
+        DB::Block block;
+        {
+            NProfiling::TWallTimer wallTimer;
+            block = WaitFor(BIND(
+                &NDetail::ConvertRowsToBlock,
+                rows,
+                ReadSchema_,
+                IdToColumnIndex_,
+                RowBuffer_,
+                HeaderBlock_.cloneEmpty())
+                .AsyncVia(Bootstrap_->GetWorkerInvoker())
+                .Run())
+                .ValueOrThrow();
+            auto elapsed = wallTimer.GetElapsedTime();
+            if (elapsed > TDuration::Seconds(1)) {
+                YT_LOG_DEBUG("Converting to block took significant time (WallTime: %v)", elapsed);
+            }
+        }
 
         // NB: ConvertToField copies all strings, so clearing row buffer is safe here.
         RowBuffer_->Clear();
+
+        auto totalElapsed = totalWallTimer.GetElapsedTime();
+        YT_LOG_DEBUG("Finished reading one CH block (WallTime: %v)", totalElapsed);
 
         return block;
     }

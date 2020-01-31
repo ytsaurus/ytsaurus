@@ -417,6 +417,8 @@ public:
 
     TDuration ProcessListSnapshotUpdatePeriod;
 
+    int WorkerThreadCount;
+
     TClickHouseServerBootstrapConfig()
     {
         RegisterParameter("cluster_connection", ClusterConnection);
@@ -463,6 +465,9 @@ public:
 
         RegisterParameter("process_list_snapshot_update_period", ProcessListSnapshotUpdatePeriod)
             .Default(TDuration::Seconds(1));
+
+        RegisterParameter("worker_thread_count", WorkerThreadCount)
+            .Default(8);
 
         RegisterPreprocessor([&] {
             PermissionCache->ExpireAfterAccessTime = TDuration::Minutes(2);
