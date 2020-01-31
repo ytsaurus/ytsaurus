@@ -19,7 +19,7 @@ def build_snapshot(proxy, cell, set_read_only):
     cell_id = cell['cell_id']
     print('Started building snapshot for {0}'.format(cell_id))
 
-    url = 'https://' + proxy + "/api/v4/build_snapshot"
+    url = 'http://' + proxy + "/api/v4/build_snapshot"
 
     params = {
         "cell_id": cell_id,
