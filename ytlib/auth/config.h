@@ -254,6 +254,7 @@ public:
     NHttps::TClientConfigPtr HttpClient;
     TDuration RequestTimeout;
     TString VaultServiceId;
+    TString Consumer;
 
     TDefaultSecretVaultServiceConfig()
     {
@@ -269,6 +270,8 @@ public:
             .Default(TDuration::Seconds(3));
         RegisterParameter("vault_service_id", VaultServiceId)
             .Default("yav");
+        RegisterParameter("consumer", Consumer)
+            .Optional();
     }
 };
 
