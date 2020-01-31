@@ -31,6 +31,7 @@ protected:
         config->Port = MockHttpServer_.GetPort();
         config->Secure = false;
         config->RequestTimeout = TDuration::MilliSeconds(100);
+        config->Consumer = "yp.unittest";
         return config;
     }
 
@@ -86,7 +87,7 @@ TEST_F(TDefaultSecretVaultTest, WarningResponseStatus)
     static const TString SecretValue = "secret-value";
 
     SetCallback([&] (TClientRequest* request) {
-        EXPECT_THAT(request->Input().FirstLine(), HasSubstr("/1/tokens"));
+        EXPECT_THAT(request->Input().FirstLine(), HasSubstr("/1/tokens/?consumer=yp.unittest"));
 
         TStringStream outputStream;
         auto consumer = NJson::CreateJsonConsumer(&outputStream);

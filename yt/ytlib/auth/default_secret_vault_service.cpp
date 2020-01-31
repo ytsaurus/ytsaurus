@@ -107,6 +107,9 @@ private:
             Config_->Secure ? "https" : "http",
             Config_->Host,
             Config_->Port);
+        if (!Config_->Consumer.empty()) {
+            url += "?consumer=" + Config_->Consumer;
+        }
         auto body = MakeRequestBody(vaultTicket, subrequests);
         static const auto Headers = MakeRequestHeaders();
         NProfiling::TWallTimer timer;
