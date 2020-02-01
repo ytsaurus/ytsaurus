@@ -17,19 +17,6 @@ import __builtin__
 
 ##################################################################
 
-class PrepareTables(object):
-    def _create_table(self, table):
-        create("table", table)
-        set(table + "/@replication_factor", 1)
-
-    def _prepare_tables(self):
-        self._create_table("//tmp/t_in")
-        write_table("//tmp/t_in", {"foo": "bar"})
-
-        self._create_table("//tmp/t_out")
-
-##################################################################
-
 def get_scheduling_options(user_slots):
     return {
         "scheduling_options_per_pool_tree": {

@@ -13,19 +13,6 @@ from collections import defaultdict
 EPS = 1e-4
 
 ##################################################################
-
-class PrepareTables(object):
-    def _create_table(self, table):
-        create("table", table)
-        set(table + "/@replication_factor", 1)
-
-    def _prepare_tables(self):
-        self._create_table("//tmp/t_in")
-        write_table("//tmp/t_in", {"foo": "bar"})
-
-        self._create_table("//tmp/t_out")
-
-##################################################################
 #TODO: get rid of copy-paste: functions below are from scheduler simulator prepare script
 
 def is_job_event(row):
