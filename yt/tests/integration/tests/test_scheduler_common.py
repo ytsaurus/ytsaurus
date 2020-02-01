@@ -1410,6 +1410,48 @@ class TestSchedulerCommon(YTEnvSetup):
         assert len(new_nested_input_transaction_ids) == 1
         assert new_nested_input_transaction_ids[0] != nested_tx
 
+    @authors("ignat")
+    def test_nested_input_transaction_duplicates(self):
+        custom_tx = start_transaction(timeout=60000)
+
+        create("table", "//tmp/in", tx=custom_tx)
+        write_table("//tmp/in", {"foo": "bar"}, tx=custom_tx)
+
+        create("table", "//tmp/out")
+
+        op = map(
+            track=False,
+            command=with_breakpoint("BREAKPOINT; sleep 100"),
+            in_=['<transaction_id="{}">//tmp/in'.format(custom_tx)] * 2,
+            out="//tmp/out")
+
+        wait_breakpoint()
+
+        nested_input_transaction_ids = get(op.get_path() + "/@nested_input_transaction_ids")
+        assert len(nested_input_transaction_ids) == 2
+        assert nested_input_transaction_ids[0] == nested_input_transaction_ids[1]
+
+        nested_tx = nested_input_transaction_ids[0]
+        assert list(read_table("//tmp/in", tx=nested_tx)) == [{"foo": "bar"}]
+        assert get("#{}/@parent_id".format(nested_tx)) == custom_tx
+
+        op.wait_fresh_snapshot()
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+
+        wait(lambda: op.get_state() == "running")
+        assert get(op.get_path() + "/@nested_input_transaction_ids") == [nested_tx, nested_tx]
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            abort_transaction(nested_tx)
+
+        wait(lambda: op.get_state() == "running")
+        new_nested_input_transaction_ids = get(op.get_path() + "/@nested_input_transaction_ids")
+        assert len(new_nested_input_transaction_ids) == 2
+        assert new_nested_input_transaction_ids[0] == new_nested_input_transaction_ids[1]
+        assert new_nested_input_transaction_ids[0] != nested_tx
+
     @authors("babenko")
     def test_ban_nodes_with_failed_jobs(self):
         create("table", "//tmp/t1")
