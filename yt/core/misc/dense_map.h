@@ -597,6 +597,11 @@ public:
                           true);
   }
 
+  template <typename... Ts>
+  std::pair<iterator, bool> emplace(KeyT &&Key, Ts &&... Args) {
+    return try_emplace(std::move(Key), std::forward<Ts>(Args)...);
+  }
+
   // Inserts key,value pair into the map if the key isn't already in the map.
   // The value is constructed in-place if the key is not in the map, otherwise
   // it is not moved.
@@ -611,6 +616,11 @@ public:
     TheBucket = InsertIntoBucket(TheBucket, Key, std::forward<Ts>(Args)...);
     return std::make_pair(iterator(TheBucket, getBucketsEnd(), *this, true),
                           true);
+  }
+
+  template <typename... Ts>
+  std::pair<iterator, bool> emplace(const KeyT &Key, Ts &&... Args) {
+    return try_emplace(Key, std::forward<Ts>(Args)...);
   }
 
   /// Alternate version of insert() which allows a different, and possibly
