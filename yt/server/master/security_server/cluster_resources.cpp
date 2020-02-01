@@ -107,11 +107,7 @@ const NChunkClient::TMediumMap<i64>& TClusterResources::DiskSpace() const
 void TClusterResources::Save(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;
-    Save(context, static_cast<int>(DiskSpace_.size()));
-    for (auto [mediumIndex, space] : DiskSpace_) {
-        Save(context, space);
-        Save(context, mediumIndex);
-    }
+    Save(context, DiskSpace_);
     Save(context, NodeCount);
     Save(context, ChunkCount);
     Save(context, TabletCount);
@@ -132,7 +128,7 @@ void TClusterResources::Load(NCellMaster::TLoadContext& context)
                 DiskSpace_[mediumIndex] = oldDiskSpaceArray[mediumIndex];
             }
         }
-    } else {
+    } else if (context.GetVersion() < NCellMaster::EMasterReign::FixDenseMapSerialization) {
         auto mediumCount = Load<int>(context);
         for (auto i = 0; i < mediumCount; ++i) {
             auto space = Load<i64>(context);
@@ -141,7 +137,10 @@ void TClusterResources::Load(NCellMaster::TLoadContext& context)
                 DiskSpace_[mediumIndex] = space;
             }
         }
+    } else {
+        Load(context, DiskSpace_);
     }
+
     // COMPAT(shakurov)
     if (context.GetVersion() < NCellMaster::EMasterReign::IntToI64ForNSecurityServerTClusterResourcesNodeAndChunkCount) {
         NodeCount = Load<int>(context);
