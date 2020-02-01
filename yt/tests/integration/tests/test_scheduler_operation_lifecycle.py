@@ -9,13 +9,8 @@ import yt.environment.init_operation_archive as init_operation_archive
 
 from flaky import flaky
 
-import os
-import sys
 import time
-from collections import defaultdict
 from datetime import datetime, timedelta
-
-import __builtin__
 
 ##################################################################
 
