@@ -235,9 +235,7 @@ public:
             RpcServer_->UnregisterService(this);
         }
 
-        if (ControlEpochContext_) {
-            StopEpoch();
-        }
+        StopEpoch();
 
         ControlState_ = EPeerState::Stopped;
 
@@ -1514,6 +1512,8 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         YT_LOG_INFO("Stopped voting");
+
+        StopEpoch();
 
         YT_VERIFY(ControlState_ == EPeerState::Elections);
 
