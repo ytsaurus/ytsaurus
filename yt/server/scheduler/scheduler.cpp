@@ -481,6 +481,8 @@ public:
 
         if (!alert.IsOK()) {
             YT_LOG_WARNING(alert, "Setting scheduler alert (AlertType: %v)", alertType);
+        } else {
+            YT_LOG_DEBUG("Reset scheduler alert (AlertType: %v)", alertType);
         }
 
         MasterConnector_->SetSchedulerAlert(alertType, alert);
