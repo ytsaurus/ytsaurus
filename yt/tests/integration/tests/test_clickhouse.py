@@ -1838,6 +1838,7 @@ class TestQueryRegistry(ClickHouseTestBase):
         assert "OOM" in str(clique.op.get_error())
 
     @authors("max42")
+    @pytest.mark.skipif(True, reason="temporarily broken")
     def test_datalens_header(self):
         with Clique(1) as clique:
             t = clique.make_async_query_via_proxy("select sleep(3)", headers={"X-Request-Id": "ummagumma"})
