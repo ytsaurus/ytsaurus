@@ -1107,8 +1107,12 @@ void TOperationControllerBase::StartTransactions()
         StartTransaction(ETransactionType::Debug, Client),
     };
 
+    THashMap<TTransactionId, int> inputTransactionIdToResultIndex;
     for (auto transactionId : GetNonTrivialInputTransactionIds()) {
-        asyncResults.push_back(StartTransaction(ETransactionType::Input, InputClient, transactionId));
+        if (inputTransactionIdToResultIndex.find(transactionId) == inputTransactionIdToResultIndex.end()) {
+            inputTransactionIdToResultIndex[transactionId] = asyncResults.size();
+            asyncResults.push_back(StartTransaction(ETransactionType::Input, InputClient, transactionId));
+        }
     }
 
     auto results = WaitFor(CombineAll(asyncResults))
@@ -1119,8 +1123,8 @@ void TOperationControllerBase::StartTransactions()
         InputTransaction = results[1].ValueOrThrow();
         OutputTransaction = results[2].ValueOrThrow();
         DebugTransaction = results[3].ValueOrThrow();
-        for (int index = 4; index < results.size(); ++index) {
-            NestedInputTransactions.push_back(results[index].ValueOrThrow());
+        for (auto transactionId : GetNonTrivialInputTransactionIds()) {
+            NestedInputTransactions.push_back(results[inputTransactionIdToResultIndex[transactionId]].ValueOrThrow());
         }
     }
 }
