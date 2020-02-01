@@ -358,29 +358,7 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, Rack_);
     Save(context, LeaseTransaction_);
     Save(context, DestroyedReplicas_);
-
-    if (context.GetVersion() < EMasterReign::FixReplicasSerialization) {
-        // The format is:
-        //  (replicaCount, mediumIndex) pairs
-        //  0
-        SmallVector<int, 8> mediumIndexes;
-        for (const auto& [mediumIndex, replicas] : Replicas_) {
-            if (!replicas.empty()) {
-                mediumIndexes.push_back(mediumIndex);
-            }
-        }
-        std::sort(mediumIndexes.begin(), mediumIndexes.end());
-        for (auto mediumIndex : mediumIndexes) {
-            auto it = Replicas_.find(mediumIndex);
-            YT_ASSERT(it != Replicas_.end());
-            const auto& replicas = it->second;
-            TSizeSerializer::Save(context, replicas.size());
-            Save(context, mediumIndex);
-        }
-        TSizeSerializer::Save(context, 0);
-    } else {
-        Save(context, Replicas_);
-    }
+    Save(context, Replicas_);
 
     Save(context, UnapprovedReplicas_);
     Save(context, TabletSlots_);
@@ -432,13 +410,18 @@ void TNode::Load(NCellMaster::TLoadContext& context)
         Load(context, DestroyedReplicas_);
     }
 
-    while (true) {
-        auto replicaCount = TSizeSerializer::Load(context);
-        if (replicaCount == 0) {
-            break;
+    // COMPAT(aleksandra-zh)
+    if (context.GetVersion() < EMasterReign::FixDenseMapSerialization) {
+        while (true) {
+            auto replicaCount = TSizeSerializer::Load(context);
+            if (replicaCount == 0) {
+                break;
+            }
+            auto mediumIndex = Load<int>(context);
+            ReserveReplicas(mediumIndex, replicaCount);
         }
-        auto mediumIndex = Load<int>(context);
-        ReserveReplicas(mediumIndex, replicaCount);
+    } else {
+        Load(context, Replicas_);
     }
     Load(context, UnapprovedReplicas_);
     Load(context, TabletSlots_);
