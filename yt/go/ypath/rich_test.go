@@ -3,9 +3,8 @@ package ypath
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParse(t *testing.T) {
@@ -170,7 +169,7 @@ func TestPathSplit(t *testing.T) {
 		{"//@", []string{"/", "/@"}},
 		{"#bc67d12a-e1971bb1-3066dfe2-a94c59a8/foo", []string{"#bc67d12a-e1971bb1-3066dfe2-a94c59a8", "/foo"}},
 	} {
-		parts, err := Split(testCase.path)
+		parts, err := SplitTokens(testCase.path)
 		require.NoError(t, err)
 		require.Equal(t, testCase.parts, parts)
 	}

@@ -371,7 +371,7 @@ func stateSkipSpace(l *lexer) stateFn {
 	return nil
 }
 
-func Split(path string) (tokens []string, err error) {
+func SplitTokens(path string) (tokens []string, err error) {
 	var l lexer
 	if err = l.run([]byte(path)); err != nil {
 		return
@@ -384,11 +384,35 @@ func Split(path string) (tokens []string, err error) {
 	return
 }
 
+// Split splits path into parent and a child component.
+//
+//     //home/prime/table -> //home/prime /table
+//     #a-b-c-d/@attr     -> #a-b-c-d     /@attr
+//
+// If path refers to cypress root or object id, Split sets parent to path and child to an empty string.
+//
+// Path attributes, column selectors and range selectors are stripped from provided path.
+func Split(path Path) (parent Path, child string, err error) {
+	var tokens []string
+	tokens, err = SplitTokens(path.String())
+	if err != nil {
+		return
+	}
+
+	if len(tokens) > 1 {
+		child = tokens[len(tokens)-1]
+		tokens = tokens[:len(tokens)-1]
+	}
+
+	parent = Path(strings.Join(tokens, ""))
+	return
+}
+
 // PathsUpToRoot returns list of paths referring to the nodes on the path to the root.
 //
 // Starting node and root are included.
 func PathsUpToRoot(path Path) ([]Path, error) {
-	tokens, err := Split(string(path))
+	tokens, err := SplitTokens(string(path))
 	if err != nil {
 		return nil, err
 	}
