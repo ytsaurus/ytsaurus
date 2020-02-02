@@ -13,6 +13,7 @@
 
 #pragma once
 
+#include "public.h"
 #include "align_of.h"
 #include <algorithm>
 #include <cassert>
