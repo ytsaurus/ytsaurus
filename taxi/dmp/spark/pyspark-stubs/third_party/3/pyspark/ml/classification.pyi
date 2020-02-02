@@ -265,7 +265,7 @@ class NaiveBayesModel(JavaProbabilisticClassificationModel[Vector], _NaiveBayesP
     @property
     def sigma(self) -> Matrix:...
 
-class _MultilayerPerceptronParams(_JavaProbabilisticClassifierParams, HasSeed, HasMaxIter, HasTol, HasStepSize, HasSolver):
+class _MultilayerPerceptronParams(_JavaProbabilisticClassifierParams, HasSeed, HasMaxIter, HasTol, HasStepSize, HasSolver, HasBlockSize):
     layers: Param[List[int]]
     blockSize: Param[int]
     solver: Param[str]
