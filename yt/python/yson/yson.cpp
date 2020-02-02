@@ -81,6 +81,8 @@ template<>
 TString TYsonIterator::TBase::Name_ = TString();
 template<>
 TString TYsonIterator::TBase::Doc_ = TString();
+template<>
+TString TYsonIterator::TBase::TypeName_ = TString();
 
 ////////////////////////////////////////////////////////////////////////////////
 
