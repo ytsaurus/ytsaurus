@@ -7,6 +7,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/chunk_reader_memory_manager.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
@@ -64,7 +65,7 @@ public:
         , BlockReadOptions_(blockReadOptions)
         , StartOffset_(startOffset)
         , EndOffset_(endOffset)
-        , AsyncSemaphore_(New<TAsyncSemaphore>(Config_->WindowSize))
+        , MemoryManager_(New<TChunkReaderMemoryManager>(TChunkReaderMemoryManagerOptions(Config_->WindowSize)))
     {
         Logger.AddTag("ChunkId: %v", ChunkReader_->GetChunkId());
         if (BlockReadOptions_.ReadSessionId) {
@@ -72,8 +73,8 @@ public:
         }
 
         YT_LOG_INFO("Creating file chunk reader (StartOffset: %v, EndOffset: %v)",
-                startOffset,
-                endOffset);
+            startOffset,
+            endOffset);
 
         ReadyEvent_ = BIND(&TFileChunkReader::DoOpen, MakeWeak(this))
             .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
@@ -98,6 +99,7 @@ public:
         *block = TBlock();
         if (BlockFetched_) {
             BlockFetched_ = false;
+            MemoryManager_->SetRequiredMemorySize(SequentialBlockFetcher_->GetNextBlockSize());
             CurrentBlock_ = SequentialBlockFetcher_->FetchNextBlock();
             ReadyEvent_ = CurrentBlock_.As<void>();
             if (!ReadyEvent_.IsSet()) {
@@ -156,7 +158,7 @@ private:
     i64 StartOffset_;
     i64 EndOffset_;
 
-    TAsyncSemaphorePtr AsyncSemaphore_;
+    TChunkReaderMemoryManagerPtr MemoryManager_;
 
     TSequentialBlockFetcherPtr SequentialBlockFetcher_;
     TFuture<void> ReadyEvent_;
@@ -246,7 +248,7 @@ private:
         SequentialBlockFetcher_ = New<TSequentialBlockFetcher>(
             Config_,
             std::move(blockSequence),
-            AsyncSemaphore_,
+            MemoryManager_,
             ChunkReader_,
             BlockCache_,
             CodecId_,
@@ -258,7 +260,7 @@ private:
 
     TBlock GetBlock()
     {
-        auto block = CurrentBlock_.Get().ValueOrThrow();
+        const auto& block = CurrentBlock_.Get().ValueOrThrow();
 
         auto* begin = block.Data.Begin();
         auto* end = block.Data.End();
@@ -318,8 +320,9 @@ public:
         *block = TBlock();
 
         // Nothing to read.
-        if (!CurrentReader_)
+        if (!CurrentReader_) {
             return false;
+        }
 
         bool readerFinished = !CurrentReader_->ReadBlock(block);
         if (!block->Data.Empty()) {

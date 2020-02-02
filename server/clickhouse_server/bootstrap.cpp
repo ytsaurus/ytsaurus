@@ -1,5 +1,7 @@
 #include "bootstrap.h"
 
+#include "stack_size_checker.h"
+
 #include "private.h"
 
 #include "host.h"
@@ -20,10 +22,14 @@
 
 #include <yt/ytlib/program/build_attributes.h>
 #include <yt/ytlib/program/configure_singletons.h>
+
 #include <yt/ytlib/api/connection.h>
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/connection.h>
 #include <yt/ytlib/api/native/client_cache.h>
+
+#include <yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
+
 #include <yt/ytlib/orchid/orchid_service.h>
 
 #include <yt/client/api/client.h>
@@ -93,6 +99,11 @@ void WriteCurrentQueryIdToStderr()
     WriteToStderr(queryId.data, queryId.size);
     WriteToStderr(" ***\n");
 }
+
+/////////////////////////////////////////////////////////////////////////////
+
+// See the comment in stack_size_checker.h.
+auto UnusedValue = IgnoreMe();
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -166,7 +177,7 @@ void TBootstrap::DoRun()
     SetBuildAttributes(orchidRoot, "clickhouse_server");
 
     // TODO(max42): make configurable.
-    WorkerThreadPool_ = New<TThreadPool>(4, "Worker");
+    WorkerThreadPool_ = New<TThreadPool>(Config_->WorkerThreadCount, "Worker");
     WorkerInvoker_ = WorkerThreadPool_->GetInvoker();
     SerializedWorkerInvoker_ = CreateSerializedInvoker(WorkerInvoker_);
 
@@ -198,6 +209,8 @@ void TBootstrap::DoRun()
     Connection_ = NApi::NNative::CreateConnection(
         Config_->ClusterConnection,
         connectionOptions);
+    // Kick-start node directory synchronizing; otherwise it will start only with first query.
+    Connection_->GetNodeDirectorySynchronizer()->Start();
 
     ClientCache_ = New<NApi::NNative::TClientCache>(Config_->ClientCache, Connection_);
 
@@ -206,10 +219,10 @@ void TBootstrap::DoRun()
 
     // Configure clique's directory.
     Config_->Discovery->Directory += "/" + CliqueId_;
-    TCreateNodeOptions createCliqueNodeOptions {
-        .Recursive = true,
-        .IgnoreExisting = true,
-    };
+
+    TCreateNodeOptions createCliqueNodeOptions;
+    createCliqueNodeOptions.IgnoreExisting = true;
+    createCliqueNodeOptions.Recursive = true;
     createCliqueNodeOptions.Attributes = ConvertToAttributes(
         THashMap<TString, i64>{{"discovery_version", TDiscovery::Version}});
     WaitFor(RootClient_->CreateNode(
@@ -227,6 +240,7 @@ void TBootstrap::DoRun()
         MonitoringPort_,
         TcpPort_,
         HttpPort_);
+    QueryRegistry_->Start();
 
     if (HttpServer_) {
         YT_LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
@@ -264,6 +278,7 @@ void TBootstrap::SigintHandler()
     Host_->StopDiscovery().Apply(BIND([this] {
         TDelayedExecutor::WaitForDuration(Config_->InterruptionGracefulTimeout);
         WaitFor(GetQueryRegistry()->GetIdleFuture()).ThrowOnError();
+        QueryRegistry_->Stop();
         Host_->StopTcpServers();
         Y_UNUSED(WaitFor(RpcServer_->Stop()));
         MonitoringManager_->Stop();

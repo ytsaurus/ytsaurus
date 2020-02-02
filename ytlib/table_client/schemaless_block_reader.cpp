@@ -59,7 +59,7 @@ bool THorizontalSchemalessBlockReader::SkipToKey(const TKey key)
         return true;
     }
 
-    auto index = LowerBound(
+    auto index = BinarySearch(
         RowIndex_,
         Meta_.row_count(),
         [&] (i64 index) {

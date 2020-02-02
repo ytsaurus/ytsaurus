@@ -1226,7 +1226,7 @@ echo {v = 2} >&7
 
         create("table", "//tmp/out")
         op = reduce(
-            dont_track=True,
+            track=False,
             in_=["<foreign=true>//tmp/in1", '//tmp/in2["00001":"00004"]'],
             out="//tmp/out",
             command="exit 1",
@@ -1399,7 +1399,7 @@ echo {v = 2} >&7
         create("table", "//tmp/output")
 
         op = reduce(
-            dont_track=True,
+            track=False,
             label="interrupt_job",
             in_=in_,
             out="<sorted_by=[key]>//tmp/output",
@@ -1498,7 +1498,7 @@ done
 """
 
         op = reduce(
-            dont_track=True,
+            track=False,
             label="split_job",
             in_=input_,
             out=output,
@@ -1529,7 +1529,7 @@ done
         write_table("//tmp/t1", {"foo": "bar"})
         create("table", "//tmp/t2")
 
-        op = reduce(dont_track=True, command="cat; sleep 3",
+        op = reduce(track=False, command="cat; sleep 3",
                     in_="//tmp/t1", out="//tmp/t2",
                     reduce_by=["foo"])
 
@@ -1842,6 +1842,22 @@ done
             spec={"validate_key_column_types": False, "job_count": 2})
 
         assert read_table("//tmp/out") == [{"key": 1}, {"key": 1}]
+
+    @authors("max42")
+    def test_reduce_empty_table(self):
+        # YT-11740.
+        create("table", "//tmp/t_in", attributes={
+            "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]
+        })
+        create("table", "//tmp/t_out", attributes={
+            "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]
+        })
+        reduce(in_=["//tmp/t_in"],
+               out=["//tmp/t_out"],
+               command="cat >/dev/null",
+               reduce_by=["key"],
+               spec={"job_count": 1})
+        assert get("//tmp/t_out/@row_count") == 0
 
 
 class TestSchedulerReduceCommandsMulticell(TestSchedulerReduceCommands):

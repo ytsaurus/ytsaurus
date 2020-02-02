@@ -25,7 +25,7 @@
 #include <yt/core/ytree/yson_serializable.h>
 #include <yt/core/ytree/fluent.h>
 
-#include <yt/core/re2/public.h>
+#include <yt/library/re2/public.h>
 
 #include <yt/core/misc/phoenix.h>
 
@@ -133,7 +133,7 @@ class TJobSplitterConfig
 public:
     TDuration MinJobTime;
     double ExecToPrepareTimeRatio;
-    double NoProgressJobTotalToPrepareTimeRatio;
+    double NoProgressJobTimeToAveragePrepareTimeRatio;
     i64 MinTotalDataWeight;
     TDuration UpdatePeriod;
     double ResidualJobFactor;
@@ -513,7 +513,7 @@ public:
     //! Limits the rate (measured in chunks) of location requests issued by all active chunk scrapers.
     NConcurrency::TThroughputThrottlerConfigPtr ChunkLocationThrottler;
 
-    NEventLog::TEvenTLogManagerConfigPtr EventLog;
+    NEventLog::TEventLogManagerConfigPtr EventLog;
 
     //! Controller agent-to-scheduler heartbeat timeout.
     TDuration SchedulerHandshakeRpcTimeout;
@@ -771,6 +771,8 @@ public:
 
     //! Regex for users having legacy live preview disabled by default.
     NRe2::TRe2Ptr LegacyLivePreviewUserBlacklist;
+
+    bool EnableBulkInsertForEveryone;
 
     TControllerAgentConfig();
 

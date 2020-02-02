@@ -5,6 +5,8 @@
 
 #include <yt/server/lib/exec_agent/config.h>
 
+#include <yt/server/node/data_node/volume_manager.h>
+
 #include <yt/ytlib/cgroup/cgroup.h>
 
 #include <yt/ytlib/tools/tools.h>
@@ -33,10 +35,16 @@ class TSlot
     : public ISlot
 {
 public:
-    TSlot(int slotIndex, TSlotLocationPtr location, IJobEnvironmentPtr environment, const TString& nodeTag)
+    TSlot(
+        int slotIndex,
+        TSlotLocationPtr location,
+        IJobEnvironmentPtr environment,
+        IVolumeManagerPtr volumeManager,
+        const TString& nodeTag)
         : SlotIndex_(slotIndex)
         , JobEnvironment_(std::move(environment))
         , Location_(std::move(location))
+        , VolumeManager_(std::move(volumeManager))
         , NodeTag_(nodeTag)
     {
         Location_->IncreaseSessionCount();
@@ -60,8 +68,8 @@ public:
     {
         PreparationCanceled_ = true;
 
-        for (auto future : PreparationFutures_) {
-            future.Cancel();
+        for (const auto& future : PreparationFutures_) {
+            future.Cancel(TError("Job preparation canceled"));
         }
     }
 
@@ -136,7 +144,7 @@ public:
     virtual TFuture<void> FinalizePreparation() override
     {
         return RunPrepareAction<void>([&] {
-                return Location_->FinalizeSanboxPreparation(
+                return Location_->FinalizeSandboxPreparation(
                     SlotIndex_,
                     JobEnvironment_->GetUserId(SlotIndex_));
             },
@@ -146,8 +154,11 @@ public:
 
     virtual TFuture<IVolumePtr> PrepareRootVolume(const std::vector<TArtifactKey>& layers) override
     {
+        if (!VolumeManager_) {
+            return MakeFuture<IVolumePtr>(TError("Porto layers and custom root FS are not supported"));
+        }
         return RunPrepareAction<IVolumePtr>([&] {
-                return JobEnvironment_->PrepareRootVolume(layers);
+                return VolumeManager_->PrepareVolume(layers);
             });
     }
 
@@ -197,6 +208,8 @@ private:
     const int SlotIndex_;
     const IJobEnvironmentPtr JobEnvironment_;
     const TSlotLocationPtr Location_;
+    IVolumeManagerPtr VolumeManager_;
+
     //! Uniquely identifies a node process on the current host.
     //! Used for unix socket name generation, to communicate between node and job proxies.
     const TString NodeTag_;
@@ -208,7 +221,7 @@ private:
     TFuture<T> RunPrepareAction(std::function<TFuture<T>()> action, bool uncancelable = false)
     {
         if (PreparationCanceled_) {
-            return MakeFuture<T>(TError("Slot preparation canceled")
+            return MakeFuture<T>(TError("Job preparation canceled")
                 << TErrorAttribute("slot_index", SlotIndex_));
         } else {
             auto future = action();
@@ -227,12 +240,14 @@ ISlotPtr CreateSlot(
     int slotIndex,
     TSlotLocationPtr location,
     IJobEnvironmentPtr environment,
+    IVolumeManagerPtr volumeManager,
     const TString& nodeTag)
 {
     auto slot = New<TSlot>(
         slotIndex,
         std::move(location),
         std::move(environment),
+        std::move(volumeManager),
         nodeTag);
 
     return slot;

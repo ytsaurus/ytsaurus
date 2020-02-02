@@ -48,6 +48,7 @@ using namespace NTableClient;
 using namespace NYson;
 using namespace NYTree;
 using namespace NChunkPools;
+using namespace NChunkClient;
 using namespace NTracing;
 
 /////////////////////////////////////////////////////////////////////////////
@@ -235,9 +236,7 @@ public:
 
         SpecTemplate_ = TSubquerySpec();
         SpecTemplate_.InitialQueryId = queryContext->QueryId;
-        if (auto* queryStatus = queryContext->TryGetQueryStatus()) {
-            SpecTemplate_.InitialQuery = queryStatus->getInfo().query;
-        }
+        SpecTemplate_.InitialQuery = ToString(queryInfo.query);
 
         auto cliqueNodes = queryContext->Bootstrap->GetHost()->GetNodes();
         if (cliqueNodes.empty()) {
@@ -295,16 +294,20 @@ public:
                 index,
                 subqueryCount);
             for (const auto& threadSubquery : threadSubqueries) {
-                YT_LOG_DEBUG("Thread subquery (Cookie: %v, LowerLimit: %v, UpperLimit: %v)",
+                YT_LOG_DEBUG("Thread subquery (Cookie: %v, LowerLimit: %v, UpperLimit: %v, DataWeight: %v, RowCount: %v, ChunkCount: %v)",
                     threadSubquery.Cookie,
                     threadSubquery.Limits.first,
-                    threadSubquery.Limits.second);
+                    threadSubquery.Limits.second,
+                    threadSubquery.StripeList->TotalDataWeight,
+                    threadSubquery.StripeList->TotalRowCount,
+                    threadSubquery.StripeList->TotalChunkCount);
             }
 
             const auto& cliqueNode = cliqueNodes[index];
             auto subqueryAst = QueryAnalyzer_->RewriteQuery(
                 threadSubqueries,
                 SpecTemplate_,
+                MiscExtMap_,
                 index,
                 index + 1 == subqueryCount /* isLastSubquery */);
 
@@ -390,6 +393,10 @@ private:
     std::vector<TSubquery> Subqueries_;
     std::vector<TRichYPath> TablePaths_;
     std::optional<TQueryAnalyzer> QueryAnalyzer_;
+    // TODO(max42): YT-11778.
+    // TMiscExt is used for better memory estimation in readers, but it is dropped when using
+    // TInputChunk, so for now we store it explicitly in a map and use when serializing subquery input.
+    THashMap<TChunkId, TRefCountedMiscExtPtr> MiscExtMap_;
 
     void Prepare(
         int subqueryCount,
@@ -399,18 +406,18 @@ private:
         auto* queryContext = GetQueryContext(context);
 
         QueryAnalyzer_.emplace(context, queryInfo);
-        auto analyzerResult = QueryAnalyzer_->Analyze();
+        auto queryAnalysisResult = QueryAnalyzer_->Analyze();
 
-        auto inputStripeList = FetchInput(
+        auto input = FetchInput(
             queryContext->Bootstrap,
             queryContext->Client(),
             queryContext->Bootstrap->GetSerializedWorkerInvoker(),
-            analyzerResult.TableSchemas,
-            analyzerResult.TablePaths,
-            analyzerResult.KeyConditions,
+            queryAnalysisResult,
             queryContext->RowBuffer,
             queryContext->Bootstrap->GetConfig()->Engine->Subquery,
             SpecTemplate_);
+
+        MiscExtMap_ = std::move(input.MiscExtMap);
 
         std::optional<double> samplingRate;
         const auto& selectQuery = queryInfo.query->as<DB::ASTSelectQuery&>();
@@ -418,16 +425,16 @@ private:
             auto ratio = selectSampleSize->as<DB::ASTSampleRatio&>().ratio;
             auto rate = static_cast<double>(ratio.numerator) / ratio.denominator;
             if (rate > 1.0) {
-                rate /= inputStripeList->TotalRowCount;
+                rate /= input.StripeList->TotalRowCount;
             }
             rate = std::clamp(rate, 0.0, 1.0);
             samplingRate = rate;
         }
 
         Subqueries_ = BuildSubqueries(
-            inputStripeList,
-            analyzerResult.KeyColumnCount,
-            analyzerResult.PoolKind,
+            std::move(input.StripeList),
+            queryAnalysisResult.KeyColumnCount,
+            queryAnalysisResult.PoolKind,
             std::max<int>(1, subqueryCount * context.getSettings().max_threads),
             samplingRate,
             context,
@@ -510,84 +517,6 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::pair<TTableSchema, TClickHouseTableSchema> GetCommonSchema(const std::vector<TClickHouseTablePtr>& tables)
-{
-    // TODO(max42): code below looks like a good programming contest code, but seems strange as a production code.
-    // Maybe rewrite it simpler?
-
-    THashMap<TString, TClickHouseColumn> nameToColumn;
-    THashMap<TString, int> nameToOccurrenceCount;
-    for (const auto& tableColumn : tables[0]->Columns) {
-        auto column = tableColumn;
-        nameToColumn[column.Name] = column;
-    }
-
-    for (const auto& table : tables) {
-        for (const auto& tableColumn : table->Columns) {
-            auto column = tableColumn;
-
-            bool columnTaken = false;
-            auto it = nameToColumn.find(column.Name);
-            if (it != nameToColumn.end()) {
-                if (it->second == column) {
-                    columnTaken = true;
-                } else {
-                    // There are at least two different variations of given column among provided tables,
-                    // so we are not going to take it.
-                }
-            }
-
-            if (columnTaken) {
-                ++nameToOccurrenceCount[column.Name];
-            }
-        }
-    }
-
-    for (const auto& [name, occurrenceCount] : nameToOccurrenceCount) {
-        if (occurrenceCount != static_cast<int>(tables.size())) {
-            auto it = nameToColumn.find(name);
-            YT_VERIFY(it != nameToColumn.end());
-            nameToColumn.erase(it);
-        }
-    }
-
-    if (nameToColumn.empty()) {
-        THROW_ERROR_EXCEPTION("Requested tables do not have any common column");
-    }
-
-    std::vector<TClickHouseColumn> remainingColumns = tables[0]->Columns;
-    remainingColumns.erase(std::remove_if(remainingColumns.begin(), remainingColumns.end(), [&] (const TClickHouseColumn& column) {
-        return !nameToColumn.contains(column.Name);
-    }), remainingColumns.end());
-
-    // TODO(max42): extract as helper (there are two occurrences of this boilerplate code).
-    const auto& dataTypes = DB::DataTypeFactory::instance();
-    DB::NamesAndTypesList columns;
-    DB::NamesAndTypesList keyColumns;
-    DB::Names primarySortColumns;
-    std::vector<TColumnSchema> columnSchemas;
-
-    for (const auto& column : remainingColumns) {
-        auto dataType = dataTypes.get(GetTypeName(column));
-        if (column.IsNullable()) {
-            dataType = DB::makeNullable(dataType);
-        }
-        columns.emplace_back(column.Name, dataType);
-        auto& columnSchema = columnSchemas.emplace_back(tables[0]->TableSchema.GetColumn(column.Name));
-
-        if (column.IsSorted()) {
-            keyColumns.emplace_back(column.Name, dataType);
-            primarySortColumns.emplace_back(column.Name);
-        } else {
-            columnSchema.SetSortOrder(std::nullopt);
-        }
-    }
-
-    return {TTableSchema(std::move(columnSchemas)), TClickHouseTableSchema(std::move(columns), std::move(keyColumns), std::move(primarySortColumns))};
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 DB::StoragePtr CreateStorageDistributor(std::vector<TClickHouseTablePtr> tables)
 {
     if (tables.empty()) {
@@ -597,11 +526,19 @@ DB::StoragePtr CreateStorageDistributor(std::vector<TClickHouseTablePtr> tables)
     TTableSchema schema;
     TClickHouseTableSchema clickHouseSchema;
     if (tables.size() > 1) {
-        std::tie(schema, clickHouseSchema) = GetCommonSchema(tables);
+        std::vector<TTableSchema> schemas;
+        schemas.reserve(tables.size());
+        for (const auto& table : tables) {
+            schemas.push_back(table->TableSchema);
+        }
+        schema = GetCommonSchema(schemas);
+        if (schema.Columns().empty()) {
+            THROW_ERROR_EXCEPTION("Requested tables do not have any common column");
+        }
     } else {
         schema = tables.front()->TableSchema;
-        clickHouseSchema = TClickHouseTableSchema::From(*tables.front());
     }
+    clickHouseSchema = TClickHouseTableSchema::From(schema);
 
     std::vector<TRichYPath> paths;
     for (const auto& table : tables) {
@@ -622,7 +559,9 @@ DB::StoragePtr CreateStorageDistributor(std::vector<TClickHouseTablePtr> tables)
 void RegisterStorageDistributor()
 {
     auto& factory = DB::StorageFactory::instance();
-    factory.registerStorage("YtTable", CreateDistributorFromCH);
+    factory.registerStorage("YtTable", CreateDistributorFromCH, DB::StorageFactory::StorageFeatures{
+        .supports_sort_order = true,
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

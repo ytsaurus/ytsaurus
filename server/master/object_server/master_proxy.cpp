@@ -23,7 +23,9 @@
 
 #include <yt/ytlib/election/config.h>
 
-#include <yt/ytlib/object_client/master_ypath.pb.h>
+#include <yt/ytlib/object_client/proto/master_ypath.pb.h>
+
+#include <yt/ytlib/tablet_client/helpers.h>
 
 #include <yt/core/ytree/helpers.h>
 
@@ -73,15 +75,28 @@ private:
         DeclareMutating();
 
         auto type = EObjectType(request->type());
+        auto ignoreExisting = request->ignore_existing();
 
-        context->SetRequestInfo("Type: %v",
-            type);
+        context->SetRequestInfo("Type: %v, IgnoreExisting: %v",
+            type,
+            ignoreExisting);
 
         auto attributes = request->has_object_attributes()
             ? FromProto(request->object_attributes())
             : std::unique_ptr<IAttributeDictionary>();
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
+        if (ignoreExisting) {
+            if (auto* existingObject = objectManager->FindObjectByAttributes(type, attributes.get())) {
+                auto existingObjectId = existingObject->GetId();
+                ToProto(response->mutable_object_id(), existingObjectId);
+
+                context->SetResponseInfo("ExistingObjectId: %v", existingObjectId);
+                context->Reply();
+                return;
+            }
+        }
+
         auto* object = objectManager->CreateObject(
             NullObjectId,
             type,
@@ -143,15 +158,19 @@ private:
         auto populateClusterDirectory = request->populate_cluster_directory();
         auto populateMediumDirectory = request->populate_medium_directory();
         auto populateCellDirectory = request->populate_cell_directory();
+        auto populateMasterCacheNodeAddresses = request->populate_master_cache_node_addresses();
+
         context->SetRequestInfo(
             "PopulateNodeDirectory: %v, "
             "PopulateClusterDirectory: %v, "
-            "PopulateMediumDirectory: %v",
-            "PopulateCellDirectory: %v",
+            "PopulateMediumDirectory: %v, "
+            "PopulateCellDirectory: %v, "
+            "PopulateMasterCacheNodeAddresses: %v",
             populateNodeDirectory,
             populateClusterDirectory,
             populateMediumDirectory,
-            populateCellDirectory);
+            populateCellDirectory,
+            populateMasterCacheNodeAddresses);
 
         if (populateNodeDirectory) {
             TNodeDirectoryBuilder builder(response->mutable_node_directory());
@@ -168,7 +187,7 @@ private:
         if (populateClusterDirectory) {
             const auto& objectManager = Bootstrap_->GetObjectManager();
             const auto& rootService = objectManager->GetRootService();
-            auto mapNode = ConvertToNode(SyncYPathGet(rootService, "//sys/clusters"))->AsMap();
+            auto mapNode = ConvertToNode(SyncYPathGet(rootService, NTabletClient::GetCypressClustersPath()))->AsMap();
             auto* protoClusterDirectory = response->mutable_cluster_directory();
             for (const auto& pair : mapNode->GetChildren()) {
                 auto* protoItem = protoClusterDirectory->add_items();
@@ -216,6 +235,11 @@ private:
             for (const auto& secondaryMasterConfig : cellMasterConfig->SecondaryMasters) {
                 addCell(secondaryMasterConfig);
             }
+        }
+
+        if (populateMasterCacheNodeAddresses) {
+            const auto& masterCacheNodeAddresses = Bootstrap_->GetNodeTracker()->GetMasterCacheNodeAddresses();
+            ToProto(response->mutable_master_cache_node_addresses(), masterCacheNodeAddresses);
         }
 
         context->Reply();

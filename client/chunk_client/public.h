@@ -48,7 +48,6 @@ DEFINE_ENUM(EErrorCode,
     ((OptimisticLockFailure)                 (720))
     ((InvalidBlockChecksum)                  (721))
     ((BlockOutOfRange)                       (722))
-    ((InvalidLifeStage)                      (723))
     ((MissingExtension)                      (724))
     ((BandwidthThrottlingFailed)             (725))
     ((ReaderTimeout)                         (726))

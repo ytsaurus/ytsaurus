@@ -60,7 +60,7 @@ TEST_F(TTlsTest, CreateContext)
 TEST_F(TTlsTest, CreateListener)
 {
     auto localhost = TNetworkAddress::CreateIPv6Loopback(0);
-    auto listener = Context->CreateListener(localhost, Poller);
+    auto listener = Context->CreateListener(localhost, Poller, Poller);
 }
 
 TEST_F(TTlsTest, CreateDialer)
@@ -73,7 +73,7 @@ TEST_F(TTlsTest, CreateDialer)
 TEST_F(TTlsTest, SimplePingPong)
 {
     auto localhost = TNetworkAddress::CreateIPv6Loopback(0);
-    auto listener = Context->CreateListener(localhost, Poller);
+    auto listener = Context->CreateListener(localhost, Poller, Poller);
 
     auto config = New<TDialerConfig>();
     config->SetDefaults();

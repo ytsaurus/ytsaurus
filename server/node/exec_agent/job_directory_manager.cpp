@@ -44,15 +44,15 @@ public:
         , Executor_(CreatePortoExecutor("job_dir", config->PortoRetryTimeout, config->PortoPollPeriod))
     {
         // Collect and drop all existing volumes.
-        auto volumes = WaitFor(Executor_->ListVolumes())
+        auto volumePaths = WaitFor(Executor_->ListVolumePaths())
             .ValueOrThrow();
 
-        for (const auto& volume : volumes) {
-            if (volume.Path.StartsWith(Path_ + "/")) {
-                YT_LOG_DEBUG("Unlink old volume, left from previous run (Path: %v)", volume.Path);
-                auto error = WaitFor(Executor_->UnlinkVolume(volume.Path, "self"));
-                if (error.FindMatching(EContainerErrorCode::VolumeNotFound)) {
-                    YT_LOG_DEBUG(error, "Failed to unlink volume (Path: %v)", volume.Path);
+        for (const auto& volumePath : volumePaths) {
+            if (volumePath.StartsWith(Path_ + "/")) {
+                YT_LOG_DEBUG("Unlink old volume, left from previous run (Path: %v)", volumePath);
+                auto error = WaitFor(Executor_->UnlinkVolume(volumePath, "self"));
+                if (error.FindMatching(EPortoErrorCode::VolumeNotFound)) {
+                    YT_LOG_DEBUG(error, "Failed to unlink volume (Path: %v)", volumePath);
                 } else {
                     error.ThrowOnError();
                 }
@@ -134,9 +134,9 @@ private:
             volumeProperties["inode_limit"] = ToString(*properties.InodeLimit);
         }
 
-        auto onVolumeCreated = BIND([this_ = MakeStrong(this)] (const TVolumeId& volumeId) {
+        auto onVolumeCreated = BIND([this_ = MakeStrong(this)] (const TString& volumePath) {
             auto guard = Guard(this_->SpinLock_);
-            YT_VERIFY(this_->ManagedVolumes_.insert(volumeId.Path).second);
+            YT_VERIFY(this_->ManagedVolumes_.insert(volumePath).second);
         });
 
         return Executor_->CreateVolume(path, volumeProperties)

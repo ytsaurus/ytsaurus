@@ -18,6 +18,8 @@
 
 #include <yt/server/master/object_server/public.h>
 
+#include <yt/server/master/scheduler_pool_server/public.h>
+
 #include <yt/server/master/security_server/public.h>
 
 #include <yt/server/master/tablet_server/public.h>
@@ -92,6 +94,7 @@ public:
     const NChunkServer::TChunkManagerPtr& GetChunkManager() const;
     const NJournalServer::TJournalManagerPtr& GetJournalManager() const;
     const NSecurityServer::TSecurityManagerPtr& GetSecurityManager() const;
+    const NSchedulerPoolServer::TSchedulerPoolManagerPtr& GetSchedulerPoolManager() const;
     const NCellServer::TTamedCellManagerPtr& GetTamedCellManager() const;
     const NTabletServer::TTabletManagerPtr& GetTabletManager() const;
     const NHiveServer::THiveManagerPtr& GetHiveManager() const;
@@ -143,7 +146,9 @@ private:
     NJournalServer::TJournalManagerPtr JournalManager_;
     NSecurityServer::TSecurityManagerPtr SecurityManager_;
     NCellServer::TTamedCellManagerPtr TamedCellManager_;
+    NCellServer::TCellHydraJanitorPtr CellHydraJanitor_;
     NTabletServer::TTabletManagerPtr TabletManager_;
+    NSchedulerPoolServer::TSchedulerPoolManagerPtr SchedulerPoolManager_;
     NTabletServer::TReplicatedTableTrackerPtr ReplicatedTableTracker_;
     NHiveServer::THiveManagerPtr HiveManager_;
     NHiveClient::TCellDirectoryPtr CellDirectory_;

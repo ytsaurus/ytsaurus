@@ -30,12 +30,12 @@ public:
             return;
         }
 
-        return UnderlyingInvoker_->Invoke(BIND([=, this_ = MakeStrong(this), callback = std::move(callback)] {
+        return UnderlyingInvoker_->Invoke(BIND_DONT_CAPTURE_TRACE_CONTEXT([=, this_ = MakeStrong(this), callback = std::move(callback)] {
             if (Context_->Canceled_) {
                 return;
             }
 
-            NConcurrency::TCurrentInvokerGuard guard(this_);
+            TCurrentInvokerGuard guard(this_);
             callback.Run();
         }));
     }
@@ -52,7 +52,7 @@ bool TCancelableContext::IsCanceled() const
     return Canceled_;
 }
 
-void TCancelableContext::Cancel()
+void TCancelableContext::Cancel(const TError& error)
 {
     THashSet<TWeakPtr<TCancelableContext>> propagateToContexts;
     THashSet<TAwaitable> propagateToAwaitables;
@@ -61,22 +61,23 @@ void TCancelableContext::Cancel()
         if (Canceled_) {
             return;
         }
+        CancelationError_ = error;
         Canceled_ = true;
         PropagateToContexts_.swap(propagateToContexts);
         PropagateToAwaitables_.swap(propagateToAwaitables);
     }
 
-    Handlers_.FireAndClear();
+    Handlers_.FireAndClear(error);
 
     for (const auto& weakContext : propagateToContexts) {
         auto context = weakContext.Lock();
         if (context) {
-            context->Cancel();
+            context->Cancel(error);
         }
     }
 
     for (const auto& awaitable : propagateToAwaitables) {
-        awaitable.Cancel();
+        awaitable.Cancel(error);
     }
 }
 
@@ -85,18 +86,18 @@ IInvokerPtr TCancelableContext::CreateInvoker(IInvokerPtr underlyingInvoker)
     return New<TCancelableInvoker>(this, std::move(underlyingInvoker));
 }
 
-void TCancelableContext::SubscribeCanceled(const TClosure& callback)
+void TCancelableContext::SubscribeCanceled(const TCallback<void(const TError&)>& callback)
 {
     TGuard<TSpinLock> guard(SpinLock_);
     if (Canceled_) {
         guard.Release();
-        callback.Run();
+        callback.Run(CancelationError_);
         return;
     }
     Handlers_.Subscribe(callback);
 }
 
-void TCancelableContext::UnsubscribeCanceled(const TClosure& /*callback*/)
+void TCancelableContext::UnsubscribeCanceled(const TCallback<void(const TError&)>& /*callback*/)
 {
     YT_ABORT();
 }
@@ -105,21 +106,17 @@ void TCancelableContext::PropagateTo(const TCancelableContextPtr& context)
 {
     auto weakContext = MakeWeak(context);
 
-    bool canceled = [&] {
+    {
         TGuard<TSpinLock> guard(SpinLock_);
         if (Canceled_) {
-            return true;
+            guard.Release();
+            context->Cancel(CancelationError_);
+            return;
         }
         PropagateToContexts_.insert(context);
-        return false;
-    } ();
-
-    if (canceled) {
-        context->Cancel();
-        return;
     }
 
-    context->SubscribeCanceled(BIND([=, weakThis = MakeWeak(this)] {
+    context->SubscribeCanceled(BIND_DONT_CAPTURE_TRACE_CONTEXT([=, weakThis = MakeWeak(this)] (const TError& /*error*/) {
         if (auto this_ = weakThis.Lock()) {
             TGuard<TSpinLock> guard(SpinLock_);
             PropagateToContexts_.erase(context);
@@ -129,22 +126,18 @@ void TCancelableContext::PropagateTo(const TCancelableContextPtr& context)
 
 void TCancelableContext::PropagateTo(const TAwaitable& awaitable)
 {
-    bool canceled = [&] {
+    {
         TGuard<TSpinLock> guard(SpinLock_);
         if (Canceled_) {
-            return true;
+            guard.Release();
+            awaitable.Cancel(CancelationError_);
+            return;
         }
+
         PropagateToAwaitables_.insert(awaitable);
-
-        return false;
-    } ();
-
-    if (canceled) {
-        awaitable.Cancel();
-        return;
     }
 
-    awaitable.Subscribe(BIND([=, weakThis = MakeWeak(this)] () {
+    awaitable.Subscribe(BIND_DONT_CAPTURE_TRACE_CONTEXT([=, weakThis = MakeWeak(this)] () {
         if (auto this_ = weakThis.Lock()) {
             TGuard<TSpinLock> guard(SpinLock_);
             PropagateToAwaitables_.erase(awaitable);

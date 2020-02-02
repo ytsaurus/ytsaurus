@@ -48,6 +48,7 @@ public:
     int ChangelogReadQuorum;
     int ChangelogWriteQuorum;
     bool EnableChangelogMultiplexing;
+    bool WaitForAllReplicasUponOpen;
     TString ChangelogAccount;
     TString ChangelogPrimaryMedium;
     NYTree::IListNodePtr ChangelogAcl;

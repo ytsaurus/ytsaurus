@@ -1,7 +1,7 @@
 #include "config.h"
 
-#include <yt/ytlib/security_client/acl.h>
-#include <yt/ytlib/security_client/helpers.h>
+#include <yt/client/security_client/acl.h>
+#include <yt/client/security_client/helpers.h>
 
 #include <yt/client/scheduler/operation_id_or_alias.h>
 
@@ -17,6 +17,7 @@ namespace NYT::NScheduler {
 using namespace NYson;
 using namespace NYTree;
 using namespace NSecurityClient;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -158,6 +159,8 @@ TTestingOperationOptions::TTestingOperationOptions()
     RegisterParameter("delay_inside_suspend", DelayInsideSuspend)
         .Default();
     RegisterParameter("delay_inside_materialize", DelayInsideMaterialize)
+        .Default();
+    RegisterParameter("delay_inside_abort", DelayInsideAbort)
         .Default();
     RegisterParameter("delay_inside_operation_commit", DelayInsideOperationCommit)
         .Default();
@@ -439,6 +442,9 @@ TOperationSpecBase::TOperationSpecBase()
         .Default()
         .GreaterThan(TDuration::Zero());
 
+    RegisterParameter("atomicity", Atomicity)
+        .Default(EAtomicity::Full);
+
     RegisterPostprocessor([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             UnavailableChunkTactics == EUnavailableChunkAction::Skip)
@@ -651,8 +657,8 @@ TUserJobSpec::TUserJobSpec()
         );
         UserJobMemoryDigestDefaultValue = std::max(UserJobMemoryDigestLowerBound, UserJobMemoryDigestDefaultValue);
 
-        for (const auto& pair : Environment) {
-            ValidateEnvironmentVariableName(pair.first);
+        for (const auto& [variableName, _] : Environment) {
+            ValidateEnvironmentVariableName(variableName);
         }
 
         for (auto& path : FilePaths) {
@@ -741,6 +747,8 @@ TOperationWithUserJobSpec::TOperationWithUserJobSpec()
         // TODO(babenko): deprecate this
         .Alias("core_table_writer_config")
         .DefaultNew();
+    RegisterParameter("write_sparse_core_dumps", WriteSparseCoreDumps)
+        .Default(true);
 
     RegisterParameter("job_cpu_monitor", JobCpuMonitor)
         .DefaultNew();
@@ -1151,6 +1159,9 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
             if (attributes->EnableRangeIndex) {
                 throwError(NTableClient::EControlAttribute::RangeIndex, jobType);
             }
+            if (attributes->EnableTabletIndex) {
+                throwError(NTableClient::EControlAttribute::TabletIndex, jobType);
+            }
         };
         if (ForceReduceCombiners && !HasNontrivialReduceCombiner()) {
             THROW_ERROR_EXCEPTION("Found \"force_reduce_combiners\" without nontrivial \"reduce_combiner\" in operation spec");
@@ -1256,9 +1267,7 @@ TVanillaOperationSpec::TVanillaOperationSpec()
         .NonEmpty();
 
     RegisterPostprocessor([&] {
-        for (const auto& pair : Tasks) {
-            const auto& taskName = pair.first;
-            const auto& taskSpec = pair.second;
+        for (const auto& [taskName, taskSpec] : Tasks) {
             if (taskName.empty()) {
                 THROW_ERROR_EXCEPTION("Empty task names are not allowed");
             }
@@ -1349,10 +1358,12 @@ TEphemeralSubpoolConfig::TEphemeralSubpoolConfig()
         .Default(ESchedulingMode::FairShare);
 
     RegisterParameter("max_running_operation_count", MaxRunningOperationCount)
-        .Default(10);
+        .Default()
+        .GreaterThanOrEqual(0);
 
     RegisterParameter("max_operation_count", MaxOperationCount)
-        .Default(10);
+        .Default()
+        .GreaterThanOrEqual(0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1376,12 +1387,12 @@ TPoolConfig::TPoolConfig()
         .Default(ESchedulingMode::FairShare);
 
     RegisterParameter("max_running_operation_count", MaxRunningOperationCount)
-        .Alias("max_running_operations")
-        .Default();
+        .Default()
+        .GreaterThanOrEqual(0);
 
     RegisterParameter("max_operation_count", MaxOperationCount)
-        .Alias("max_operations")
-        .Default();
+        .Default()
+        .GreaterThanOrEqual(0);
 
     RegisterParameter("fifo_sort_parameters", FifoSortParameters)
         .Default({EFifoSortParameter::Weight, EFifoSortParameter::StartTime})
@@ -1634,6 +1645,8 @@ TSchedulerConnectionConfig::TSchedulerConnectionConfig()
 {
     RegisterParameter("rpc_timeout", RpcTimeout)
         .Default(TDuration::Seconds(60));
+    RegisterParameter("rpc_acknowledgement_timeout", RpcAcknowledgementTimeout)
+        .Default(TDuration::Seconds(15));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

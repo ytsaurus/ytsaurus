@@ -1,5 +1,7 @@
 #pragma once
 
+#include "guid.h"
+
 #include <algorithm>
 #include <array>
 
@@ -15,17 +17,11 @@ namespace NYT {
  *  This is the reason we do not use printf(): it does not meet signal-safety
  *  requirements.
  */
-template <size_t N>
-class TRawFormatter
+
+class TBaseFormatter
 {
 public:
-    TRawFormatter()
-        : Begin_(Buffer_.data())
-        , Cursor_(Buffer_.data())
-        , End_(Buffer_.data() + N)
-    { }
-
-    TRawFormatter(char* buffer, int length)
+    TBaseFormatter(char* buffer, int length)
         : Begin_(buffer)
         , Cursor_(buffer)
         , End_(buffer + length)
@@ -154,6 +150,21 @@ public:
         }
     }
 
+    //! Formats |guid| and updates the internal cursor.
+    void AppendGuid(TGuid guid)
+    {
+        constexpr int MaxGuidLength = 8 * 4 + 3;
+        if (Y_LIKELY(End_ - Cursor_ >= MaxGuidLength)) {
+            // Fast path.
+            Cursor_ = WriteGuidToBuffer(Cursor_, guid);
+        } else {
+            // Slow path.
+            std::array<char, MaxGuidLength> buffer;
+            auto* end = WriteGuidToBuffer(buffer.data(), guid);
+            AppendString(TStringBuf(buffer.data(), end));
+        }
+    }
+
     //! Resets the underlying cursor.
     void Reset()
     {
@@ -161,10 +172,27 @@ public:
     }
 
 private:
-    std::array<char, N> Buffer_;
     char* const Begin_;
     char* Cursor_;
     char* const End_;
+
+};
+
+template <size_t N>
+class TRawFormatter
+    : public TBaseFormatter
+{
+public:
+    TRawFormatter()
+        : TBaseFormatter(Buffer_, N)
+    { }
+
+    TRawFormatter(char* buffer, int length)
+        : TBaseFormatter(buffer, length)
+    { }
+
+private:
+    char Buffer_[N];
 
 };
 

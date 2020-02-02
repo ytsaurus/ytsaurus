@@ -58,13 +58,13 @@ public:
 
     //! Returns |true| iff a snapshot can be built.
     /*!
-     *  \note Thread affinity: any
+     *  \note Thread affinity: AutomatonThread
      */
     bool CanBuildSnapshot() const;
 
     //! Returns |true| iff changelogs can be rotated.
     /*!
-     *  \note Thread affinity: any
+     *  \note Thread affinity: AutomatonThread
      */
     bool CanRotateChangelogs() const;
 

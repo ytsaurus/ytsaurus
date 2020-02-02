@@ -36,7 +36,7 @@ class TCliqueCache
     : public TAsyncSlruCacheBase<TString, TCachedDiscovery>
 {
 public:
-    TCliqueCache(TCliqueCacheConfigPtr config);
+    TCliqueCache(TCliqueCacheConfigPtr config, const NProfiling::TProfiler& profiler = NProfiling::TProfiler());
 };
 
 DEFINE_REFCOUNTED_TYPE(TCliqueCache);

@@ -103,7 +103,7 @@ public:
         {
             TWriterGuard guard(SpinLock_);
 
-            if (Terminated_) {
+            if (!TerminationError_.IsOK()) {
                 return VoidFuture;
             }
 
@@ -114,7 +114,6 @@ public:
                 }
             }
 
-            Terminated_ = true;
             TerminationError_ = error;
         }
 
@@ -122,7 +121,19 @@ public:
             session->Terminate(error);
         }
 
+        Terminated_.Fire(TerminationError_);
+
         return VoidFuture;
+    }
+
+    virtual void SubscribeTerminated(const TCallback<void(const TError&)>& callback) override
+    {
+        Terminated_.Subscribe(callback);
+    }
+
+    virtual void UnsubscribeTerminated(const TCallback<void(const TError&)>& callback) override
+    {
+        Terminated_.Unsubscribe(callback);
     }
 
 private:
@@ -135,8 +146,9 @@ private:
     const IBusClientPtr Client_;
     const TNetworkId NetworkId_;
 
+    TSingleShotCallbackList<void(const TError&)> Terminated_;
+
     TReaderWriterSpinLock SpinLock_;
-    bool Terminated_ = false;
     TError TerminationError_;
     TEnumIndexedVector<EMultiplexingBand, TSessionPtr> Sessions_;
 
@@ -170,7 +182,7 @@ private:
                 return *perBandSession;
             }
 
-            if (Terminated_) {
+            if (!TerminationError_.IsOK()) {
                 THROW_ERROR_EXCEPTION(NRpc::EErrorCode::TransportError, "Channel terminated")
                     << TerminationError_;
             }
@@ -190,6 +202,7 @@ private:
             MakeWeak(this),
             MakeWeak(session),
             band));
+
         return session;
     }
 
@@ -211,7 +224,6 @@ private:
 
         session_->Terminate(error);
     }
-
 
     //! Provides a weak wrapper around a session and breaks the cycle
     //! between the session and its underlying bus.
@@ -242,7 +254,9 @@ private:
         : public IMessageHandler
     {
     public:
-        TSession(EMultiplexingBand band, TNetworkId networkId)
+        TSession(
+            EMultiplexingBand band,
+            TNetworkId networkId)
             : TosLevel_(TDispatcher::Get()->GetTosLevelForBand(band, networkId))
         { }
 
@@ -255,13 +269,14 @@ private:
 
         void Terminate(const TError& error)
         {
+            YT_VERIFY(!error.IsOK());
+
             std::vector<std::tuple<TClientRequestControlPtr, IClientResponseHandlerPtr>> existingRequests;
 
             // Mark the channel as terminated to disallow any further usage.
             {
                 auto guard = Guard(SpinLock_);
 
-                Terminated_ = true;
                 TerminationError_ = error;
 
                 existingRequests.reserve(ActiveRequestMap_.size());
@@ -294,20 +309,22 @@ private:
             auto requestControl = New<TClientRequestControl>(
                 this,
                 request,
-                options.Timeout,
+                options,
                 std::move(responseHandler));
 
             auto& header = request->Header();
             header.set_start_time(ToProto<i64>(TInstant::Now()));
 
-            // NB: Requests without timeout are rare but may occur.
-            // For these requests we still need to register a timeout cookie with TDelayedExecutor
-            // since this also provides proper cleanup and cancelation when global shutdown happens.
-            auto effectiveTimeout = options.Timeout.value_or(TDuration::Hours(24));
-            auto timeoutCookie = TDelayedExecutor::Submit(
-                BIND(&TSession::HandleTimeout, MakeWeak(this), requestControl),
-                effectiveTimeout);
-            requestControl->SetTimeoutCookie(Guard(SpinLock_), std::move(timeoutCookie));
+            {
+                // NB: Requests without timeout are rare but may occur.
+                // For these requests we still need to register a timeout cookie with TDelayedExecutor
+                // since this also provides proper cleanup and cancelation when global shutdown happens.
+                auto effectiveTimeout = options.Timeout.value_or(TDuration::Hours(24));
+                auto timeoutCookie = TDelayedExecutor::Submit(
+                    BIND(&TSession::HandleTimeout, MakeWeak(this), requestControl),
+                    effectiveTimeout);
+                requestControl->SetTimeoutCookie(Guard(SpinLock_), std::move(timeoutCookie));
+            }
 
             if (options.Timeout) {
                 header.set_timeout(ToProto<i64>(*options.Timeout));
@@ -370,11 +387,15 @@ private:
                 ActiveRequestMap_.erase(it);
             }
 
-            NotifyError(
+            // YT-1639: Avoid notifying the client directly as this may lead
+            // to an extremely long chain of recursive calls.
+            TDispatcher::Get()->GetLightInvoker()->Invoke(BIND(
+                &TSession::NotifyError,
+                MakeStrong(this),
                 requestControl,
                 responseHandler,
                 AsStringBuf("Request canceled"),
-                TError(NYT::EErrorCode::Canceled, "Request canceled"));
+                TError(NYT::EErrorCode::Canceled, "Request canceled")));
 
             auto bus = FindBus();
             if (!bus) {
@@ -497,6 +518,47 @@ private:
                     : "Request timed out"));
         }
 
+        void HandleAcknowledgementTimeout(const TClientRequestControlPtr& requestControl, bool aborted)
+        {
+            VERIFY_THREAD_AFFINITY_ANY();
+
+            auto requestId = requestControl->GetRequestId();
+
+            IClientResponseHandlerPtr responseHandler;
+            {
+                auto guard = Guard(SpinLock_);
+
+                if (!requestControl->IsActive(guard)) {
+                    return;
+                }
+
+                auto it = ActiveRequestMap_.find(requestId);
+                if (it != ActiveRequestMap_.end() && requestControl == it->second) {
+                    ActiveRequestMap_.erase(it);
+                } else {
+                    YT_LOG_DEBUG("Acknowledgement timeout occurred for an unknown or resent request (RequestId: %v)",
+                        requestId);
+                }
+
+                requestControl->ProfileTimeout();
+                responseHandler = requestControl->Finalize(guard);
+            }
+
+            if (aborted) {
+                return;
+            }
+
+            auto error = TError(NYT::EErrorCode::Timeout, "Request acknowledgement timed out");
+
+            NotifyError(
+                requestControl,
+                responseHandler,
+                AsStringBuf("Request acknowledgement timed out"),
+                error);
+
+            Bus_->Terminate(error);
+        }
+
         virtual void HandleMessage(TSharedRefArray message, IBusPtr /*replyBus*/) noexcept override
         {
             VERIFY_THREAD_AFFINITY_ANY();
@@ -580,7 +642,6 @@ private:
         IBusPtr Bus_;
 
         TSpinLock SpinLock_;
-        bool Terminated_ = false;
         TError TerminationError_;
         typedef THashMap<TRequestId, TClientRequestControlPtr> TActiveRequestMap;
         TActiveRequestMap ActiveRequestMap_;
@@ -592,7 +653,7 @@ private:
 
             auto guard = Guard(SpinLock_);
 
-            if (Terminated_) {
+            if (!TerminationError_.IsOK()) {
                 return nullptr;
             }
 
@@ -655,7 +716,7 @@ private:
                     return;
                 }
 
-                if (Terminated_) {
+                if (!TerminationError_.IsOK()) {
                     auto responseHandler = requestControl->Finalize(guard);
                     guard.Release();
 
@@ -676,6 +737,13 @@ private:
                     pair.first->second = requestControl;
                 }
 
+                if (options.AcknowledgementTimeout) {
+                    auto timeoutCookie = TDelayedExecutor::Submit(
+                        BIND(&TSession::HandleAcknowledgementTimeout, MakeWeak(this), requestControl),
+                        *options.AcknowledgementTimeout);
+                    requestControl->SetAcknowledgementTimeoutCookie(guard, std::move(timeoutCookie));
+                }
+
                 bus = Bus_;
             }
 
@@ -694,7 +762,7 @@ private:
             const auto& requestMessage = requestMessageOrError.Value();
 
             NBus::TSendOptions busOptions;
-            busOptions.TrackingLevel = options.RequestAck
+            busOptions.TrackingLevel = options.AcknowledgementTimeout
                 ? EDeliveryTrackingLevel::Full
                 : EDeliveryTrackingLevel::ErrorOnly;
             busOptions.ChecksummedPartCount = options.GenerateAttachmentChecksums
@@ -704,12 +772,12 @@ private:
             bus->Send(requestMessage, busOptions).Subscribe(BIND(
                 &TSession::OnAcknowledgement,
                 MakeStrong(this),
-                options.RequestAck,
+                options.AcknowledgementTimeout.has_value(),
                 requestId));
 
             requestControl->ProfileRequest(requestMessage);
 
-            YT_LOG_DEBUG("Request sent (RequestId: %v, Method: %v:%v, Timeout: %v, TrackingLevel: %v, "
+            YT_LOG_DEBUG("Request sent (RequestId: %v, Method: %v.%v, Timeout: %v, TrackingLevel: %v, "
                 "ChecksummedPartCount: %v, MultiplexingBand: %v, Endpoint: %v, BodySize: %v, AttachmentSize: %v)",
                 requestId,
                 requestControl->GetService(),
@@ -739,7 +807,7 @@ private:
             {
                 auto guard = Guard(SpinLock_);
 
-                if (Terminated_) {
+                if (!TerminationError_.IsOK()) {
                     YT_LOG_WARNING("Response received via a terminated channel (RequestId: %v)",
                         requestId);
                     return;
@@ -877,11 +945,11 @@ private:
             responseHandler->HandleStreamingFeedback(feedback);
         }
 
-        void OnAcknowledgement(bool requestAck, TRequestId requestId, const TError& error)
+        void OnAcknowledgement(bool requestAcknowledgement, TRequestId requestId, const TError& error)
         {
             VERIFY_THREAD_AFFINITY_ANY();
 
-            if (!requestAck && error.IsOK()) {
+            if (!requestAcknowledgement && error.IsOK()) {
                 return;
             }
 
@@ -899,7 +967,8 @@ private:
                 }
 
                 requestControl = it->second;
-                requestControl->ProfileAck();
+                requestControl->SetAcknowledgementTimeoutCookie(guard, nullptr);
+                requestControl->ProfileAcknowledgement();
                 if (!error.IsOK()) {
                     responseHandler = requestControl->Finalize(guard);
                     ActiveRequestMap_.erase(it);
@@ -962,7 +1031,7 @@ private:
             const IClientResponseHandlerPtr& responseHandler,
             TSharedRefArray message)
         {
-            YT_LOG_DEBUG("Response received (RequestId: %v, Method: %v:%v, TotalTime: %v)",
+            YT_LOG_DEBUG("Response received (RequestId: %v, Method: %v.%v, TotalTime: %v)",
                 requestId,
                 requestControl->GetService(),
                 requestControl->GetMethod(),
@@ -970,7 +1039,6 @@ private:
 
             responseHandler->HandleResponse(std::move(message));
         }
-
     };
 
     //! Controls a sent request.
@@ -981,14 +1049,14 @@ private:
         TClientRequestControl(
             TSessionPtr session,
             IClientRequestPtr request,
-            std::optional<TDuration> timeout,
+            const TSendOptions& options,
             IClientResponseHandlerPtr responseHandler)
             : Session_(std::move(session))
             , RealmId_(request->GetRealmId())
             , Service_(request->GetService())
             , Method_(request->GetMethod())
             , RequestId_(request->GetRequestId())
-            , Timeout_(timeout)
+            , Options_(options)
             , MethodMetadata_(Session_->GetMethodMetadata(Service_, Method_))
             , ResponseHandler_(std::move(responseHandler))
         { }
@@ -996,6 +1064,7 @@ private:
         ~TClientRequestControl()
         {
             TDelayedExecutor::CancelAndClear(TimeoutCookie_);
+            TDelayedExecutor::CancelAndClear(AcknowledgementTimeoutCookie_);
         }
 
         TRealmId GetRealmId() const
@@ -1020,7 +1089,7 @@ private:
 
         std::optional<TDuration> GetTimeout() const
         {
-            return Timeout_;
+            return Options_.Timeout;
         }
 
         TDuration GetTotalTime() const
@@ -1033,10 +1102,16 @@ private:
             return static_cast<bool>(ResponseHandler_);
         }
 
-        void SetTimeoutCookie(const TGuard<TSpinLock>&, TDelayedExecutorEntryPtr newTimeoutCookie)
+        void SetTimeoutCookie(const TGuard<TSpinLock>&, TDelayedExecutorEntryPtr cookie)
         {
             TDelayedExecutor::CancelAndClear(TimeoutCookie_);
-            TimeoutCookie_ = std::move(newTimeoutCookie);
+            TimeoutCookie_ = std::move(cookie);
+        }
+
+        void SetAcknowledgementTimeoutCookie(const TGuard<TSpinLock>&, TDelayedExecutorEntryPtr cookie)
+        {
+            TDelayedExecutor::CancelAndClear(AcknowledgementTimeoutCookie_);
+            AcknowledgementTimeoutCookie_ = std::move(cookie);
         }
 
         IClientResponseHandlerPtr GetResponseHandler(const TGuard<TSpinLock>&)
@@ -1048,6 +1123,7 @@ private:
         {
             TotalTime_ = DoProfile(MethodMetadata_->TotalTimeCounter);
             TDelayedExecutor::CancelAndClear(TimeoutCookie_);
+            TDelayedExecutor::CancelAndClear(AcknowledgementTimeoutCookie_);
             return std::move(ResponseHandler_);
         }
 
@@ -1073,7 +1149,7 @@ private:
                 GetTotalMessageAttachmentSize(responseMessage));
         }
 
-        void ProfileAck()
+        void ProfileAcknowledgement()
         {
             DoProfile(MethodMetadata_->AckTimeCounter);
         }
@@ -1091,10 +1167,7 @@ private:
         // IClientRequestControl overrides
         virtual void Cancel() override
         {
-            // YT-1639: Avoid calling TSession::Cancel directly as this may lead
-            // to an extremely long chain of recursive calls.
-            TDispatcher::Get()->GetLightInvoker()->Invoke(
-                BIND(&TSession::Cancel, Session_, MakeStrong(this)));
+            Session_->Cancel(this);
         }
 
         virtual TFuture<void> SendStreamingPayload(const TStreamingPayload& payload) override
@@ -1113,10 +1186,11 @@ private:
         const TString Service_;
         const TString Method_;
         const TRequestId RequestId_;
-        const std::optional<TDuration> Timeout_;
+        const TSendOptions Options_;
         TSession::TMethodMetadata* const MethodMetadata_;
 
         TDelayedExecutorCookie TimeoutCookie_;
+        TDelayedExecutorCookie AcknowledgementTimeoutCookie_;
         IClientResponseHandlerPtr ResponseHandler_;
 
         NProfiling::TWallTimer Timer_;

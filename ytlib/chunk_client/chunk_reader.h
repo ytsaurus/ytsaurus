@@ -5,6 +5,10 @@
 
 #include <yt/core/actions/future.h>
 
+#include <yt/client/hydra/public.h>
+
+#include <yt/client/table_client/public.h>
+
 #include <yt/client/misc/workload.h>
 
 namespace NYT::NChunkClient {
@@ -43,6 +47,18 @@ struct IChunkReader
         const TClientBlockReadOptions& options,
         std::optional<int> partitionTag = std::nullopt,
         const std::optional<std::vector<int>>& extensionTags = std::nullopt) = 0;
+
+    virtual TFuture<TSharedRef> LookupRows(
+        // TODO(akozhikhov): change TClientBlockReadOptions type name,
+        // because now it also provides options for lookups.
+        const TClientBlockReadOptions& options,
+        const TSharedRange<NTableClient::TKey>& lookupKeys,
+        NCypressClient::TObjectId tableId,
+        NHydra::TRevision revision,
+        const NTableClient::TTableSchema& tableSchema,
+        std::optional<i64> estimatedSize,
+        std::atomic<i64>* uncompressedDataSize,
+        bool produceAllVersions) = 0;
 
     virtual TChunkId GetChunkId() const = 0;
 

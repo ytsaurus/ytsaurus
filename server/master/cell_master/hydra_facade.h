@@ -24,7 +24,6 @@ public:
     THydraFacade(
         TCellMasterConfigPtr config,
         TBootstrap* bootstrap);
-    ~THydraFacade();
 
     void Initialize();
     void LoadSnapshot(NHydra::ISnapshotReaderPtr reader, bool dump);

@@ -2,7 +2,7 @@
 #include "config.h"
 #include "hydra_service_proxy.h"
 
-#include <yt/ytlib/hydra/hydra_service.pb.h>
+#include <yt/ytlib/hydra/proto/hydra_service.pb.h>
 
 #include <yt/core/rpc/balancing_channel.h>
 #include <yt/core/rpc/helpers.h>

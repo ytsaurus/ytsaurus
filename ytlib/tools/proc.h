@@ -175,4 +175,30 @@ struct TGetDirectorySizeAsRootTool
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCopyDirectoryContentConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TString Source;
+    TString Destination;
+
+    TCopyDirectoryContentConfig()
+    {
+        RegisterParameter("source", Source)
+            .NonEmpty();
+        RegisterParameter("destination", Destination)
+            .Default();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TCopyDirectoryContentConfig)
+
+struct TCopyDirectoryContentTool
+{
+    void operator()(TCopyDirectoryContentConfigPtr config) const;
+};
+
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTools

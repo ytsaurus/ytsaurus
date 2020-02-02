@@ -223,7 +223,7 @@ void TNodeShard::DoCleanup()
     Connected_ = false;
 
     if (CancelableContext_) {
-        CancelableContext_->Cancel();
+        CancelableContext_->Cancel(TError("Node shard disconnected"));
         CancelableContext_.Reset();
     }
 
@@ -455,6 +455,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         if (!oldValue && newValue) {
             ++JobReporterQueueIsTooLargeNodeCount_;
         }
+        YT_LOG_DEBUG_IF(newValue, "Job reporter queue is too large (NodeAddress: %v)", descriptor.GetDefaultAddress());
         node->SetJobReporterQueueIsTooLarge(newValue);
     }
 
@@ -487,12 +488,12 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     }
 
     bool isThrottlingActive = false;
-    if (ConcurrentHeartbeatCount_ > Config_->HardConcurrentHeartbeatLimit) {
+    if (ConcurrentHeartbeatCount_ >= Config_->HardConcurrentHeartbeatLimit) {
         isThrottlingActive = true;
         YT_LOG_INFO("Hard heartbeat limit reached (NodeAddress: %v, Limit: %v)",
             node->GetDefaultAddress(),
             Config_->HardConcurrentHeartbeatLimit);
-    } else if (ConcurrentHeartbeatCount_ > Config_->SoftConcurrentHeartbeatLimit &&
+    } else if (ConcurrentHeartbeatCount_ >= Config_->SoftConcurrentHeartbeatLimit &&
         node->GetLastSeenTime() + Config_->HeartbeatProcessBackoff > TInstant::Now())
     {
         isThrottlingActive = true;
@@ -571,11 +572,11 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         }
     }
 
-    if (!skipScheduleJobs) {
-        PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
-            SubmitJobsToStrategy();
-        }
+    PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
+        SubmitJobsToStrategy();
+    }
 
+    if (!skipScheduleJobs) {
         PROFILE_AGGREGATED_TIMING (ScheduleTimeCounter) {
             Y_UNUSED(WaitFor(Host_->GetStrategy()->ScheduleJobs(schedulingContext)));
         }
@@ -2077,14 +2078,13 @@ void TNodeShard::ProcessScheduledJobs(
             if (!operationState->Terminated) {
                 const auto& controller = operationState->Controller;
                 controller->OnNonscheduledJobAborted(job->GetId(), EAbortReason::SchedulingOperationSuspended);
-                JobsToSubmitToStrategy_.emplace(
-                    job->GetId(),
+                JobsToSubmitToStrategy_[job->GetId()] =
                     TJobUpdate{
                         EJobUpdateStatus::Finished,
                         job->GetOperationId(),
                         job->GetId(),
                         job->GetTreeId(),
-                        TJobResources()});
+                        TJobResources()};
                 operationState->JobsToSubmitToStrategy.insert(job->GetId());
             }
             continue;
@@ -2164,14 +2164,17 @@ void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status, bool shoul
     job->SetRunningJobUpdateDeadline(now + DurationToCpuDuration(Config_->RunningJobsUpdatePeriod));
 
     auto delta = status->resource_usage() - job->ResourceUsage();
-    JobsToSubmitToStrategy_.emplace(
-        job->GetId(),
-        TJobUpdate{
-            EJobUpdateStatus::Running,
-            job->GetOperationId(),
-            job->GetId(),
-            job->GetTreeId(),
-            delta});
+
+    auto it = JobsToSubmitToStrategy_.find(job->GetId());
+    if (it == JobsToSubmitToStrategy_.end() || it->second.Status != EJobUpdateStatus::Finished) {
+        JobsToSubmitToStrategy_[job->GetId()] =
+            TJobUpdate{
+                EJobUpdateStatus::Running,
+                job->GetOperationId(),
+                job->GetId(),
+                job->GetTreeId(),
+                delta};
+    }
     job->ResourceUsage() = status->resource_usage();
 
     auto* operationState = FindOperationState(job->GetOperationId());
@@ -2377,14 +2380,13 @@ void TNodeShard::UnregisterJob(const TJobPtr& job, bool enableLogging)
     ResetJobWaitingForConfirmation(job);
 
     if (operationState && operationState->Jobs.erase(job->GetId())) {
-        JobsToSubmitToStrategy_.emplace(
-            job->GetId(),
+        JobsToSubmitToStrategy_[job->GetId()] =
             TJobUpdate{
                 EJobUpdateStatus::Finished,
                 job->GetOperationId(),
                 job->GetId(),
                 job->GetTreeId(),
-                TJobResources()});
+                TJobResources()};
         operationState->JobsToSubmitToStrategy.insert(job->GetId());
 
         YT_LOG_DEBUG_IF(enableLogging, "Job unregistered (JobId: %v, OperationId: %v, State: %v)",

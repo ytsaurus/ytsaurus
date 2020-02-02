@@ -26,10 +26,13 @@
 #include <yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/client/object_client/helpers.h>
 
+#include <yt/client/table_client/row_buffer.h>
+#include <yt/client/table_client/versioned_row.h>
+#include <yt/client/table_client/wire_protocol.h>
+
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>
-#include <yt/core/concurrency/fair_share_thread_pool.h>
 
 #include <yt/core/logging/log.h>
 
@@ -51,6 +54,7 @@
 namespace NYT::NChunkClient {
 
 using namespace NConcurrency;
+using namespace NHydra;
 using namespace NRpc;
 using namespace NApi;
 using namespace NObjectClient;
@@ -59,6 +63,7 @@ using namespace NNodeTrackerClient;
 using namespace NChunkClient;
 using namespace NNet;
 using namespace NYTAlloc;
+using namespace NTableClient;
 
 using NNodeTrackerClient::TNodeId;
 using NYT::ToProto;
@@ -193,6 +198,16 @@ public:
         std::optional<int> partitionTag,
         const std::optional<std::vector<int>>& extensionTags) override;
 
+    virtual TFuture<TSharedRef> LookupRows(
+        const TClientBlockReadOptions& options,
+        const TSharedRange<TKey>& lookupKeys,
+        TObjectId tableId,
+        TRevision revision,
+        const TTableSchema& tableSchema,
+        std::optional<i64> estimatedSize,
+        std::atomic<i64>* uncompressedDataSize,
+        bool produceAllVersions) override;
+
     virtual TChunkId GetChunkId() const override
     {
         return ChunkId_;
@@ -227,6 +242,7 @@ private:
     class TReadBlockSetSession;
     class TReadBlockRangeSession;
     class TGetMetaSession;
+    class TLookupRowsSession;
     class TAsyncGetSeedsSession;
 
     const TReplicationReaderConfigPtr Config_;
@@ -542,14 +558,9 @@ protected:
                 options.ReadSessionId,
                 reader->ChunkId_))
     {
+        SessionInvoker_ = GetCompressionInvoker(WorkloadDescriptor_);
         if (WorkloadDescriptor_.CompressionFairShareTag) {
-            SessionInvoker_ = NRpc::TDispatcher::Get()->GetCompressionFairShareThreadPool()
-                ->GetInvoker(*WorkloadDescriptor_.CompressionFairShareTag);
             Logger.AddTag("CompressionFairShareTag: %v", WorkloadDescriptor_.CompressionFairShareTag);
-        } else {
-            SessionInvoker_ = CreateFixedPriorityInvoker(
-                NRpc::TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
-                WorkloadDescriptor_.GetPriority());
         }
 
         ResetPeerQueue();
@@ -706,6 +717,29 @@ protected:
             }
 
             if (filter(top.Peer.AddressWithNetwork.Address) && !IsPeerBanned(top.Peer.AddressWithNetwork.Address)) {
+                candidates.push_back(top.Peer);
+            }
+            PeerQueue_.pop();
+        }
+
+        return candidates;
+    }
+
+    // Intended for usage in lookups.
+    std::vector<TPeer> GetMultiplePeerCandidates(int count, const TReplicationReaderPtr& reader)
+    {
+        std::vector<TPeer> candidates;
+        while (!PeerQueue_.empty() && candidates.size() < count) {
+            const auto& top = PeerQueue_.top();
+            if (top.BanCount != reader->GetBanCount(top.Peer.AddressWithNetwork.Address)) {
+                auto queueEntry = top;
+                PeerQueue_.pop();
+                queueEntry.BanCount = reader->GetBanCount(queueEntry.Peer.AddressWithNetwork.Address);
+                PeerQueue_.push(queueEntry);
+                continue;
+            }
+
+            if (!IsPeerBanned(top.Peer.AddressWithNetwork.Address)) {
                 candidates.push_back(top.Peer);
             }
             PeerQueue_.pop();
@@ -1042,7 +1076,7 @@ public:
 
     ~TReadBlockSetSession()
     {
-        Promise_.TrySet(TError("Reader terminated"));
+        Promise_.TrySet(TError(NYT::EErrorCode::Canceled, "Reader terminated"));
     }
 
     TFuture<std::vector<TBlock>> Run()
@@ -1160,7 +1194,7 @@ private:
             ToProto(req->mutable_chunk_id(), reader->ChunkId_);
             ToProto(req->mutable_workload_descriptor(), WorkloadDescriptor_);
             ToProto(req->mutable_block_indexes(), blockIndexes);
-            req->SetRequestAck(false);
+            req->SetAcknowledgementTimeout(std::nullopt);
 
             probePeers.push_back(peer);
             asyncResults.push_back(req->Invoke());
@@ -1412,9 +1446,10 @@ private:
         }
 
         i64 bytesReceived = 0;
+        int invalidBlockCount = 0;
         std::vector<int> receivedBlockIndexes;
 
-        auto blocks = GetRpcAttachedBlocks(rsp);
+        auto blocks = GetRpcAttachedBlocks(rsp, /* validateChecksums */ false);
         for (int index = 0; index < blocks.size(); ++index) {
             const auto& block = blocks[index];
             if (!block)
@@ -1423,18 +1458,15 @@ private:
             int blockIndex = req->block_indexes(index);
             auto blockId = TBlockId(reader->ChunkId_, blockIndex);
 
-            try {
-                block.ValidateChecksum();
-            } catch (const TBlockChecksumValidationException& ex) {
+            if (!block.IsChecksumValid()) {
                 RegisterError(TError("Failed to validate received block checksum")
                     << TErrorAttribute("block_id", ToString(blockId))
                     << TErrorAttribute("peer", peerAddressWithNetwork)
-                    << TErrorAttribute("actual", ex.GetActual())
-                    << TErrorAttribute("expected", ex.GetExpected()));
+                    << TErrorAttribute("actual", GetChecksum(block.Data))
+                    << TErrorAttribute("expected", block.Checksum));
 
-                BanPeer(peerAddressWithNetwork.Address, false);
-                RequestBlocks();
-                return;
+                ++invalidBlockCount;
+                continue;
             }
 
             auto sourceDescriptor = ReaderOptions_->EnableP2P
@@ -1448,6 +1480,9 @@ private:
             TotalBytesReceived_ += block.Size();
             receivedBlockIndexes.push_back(blockIndex);
         }
+        if (invalidBlockCount > 0) {
+            BanPeer(peerAddressWithNetwork.Address, false);
+        }
 
         BanSeedIfUncomplete(rsp, peerAddressWithNetwork.Address);
 
@@ -1456,12 +1491,14 @@ private:
             ReinstallPeer(peerAddressWithNetwork.Address);
         }
 
-        YT_LOG_DEBUG("Finished processing block response (Address: %v, PeerType: %v, BlocksReceived: %v, BytesReceived: %v, PeersSuggested: %v)",
+        YT_LOG_DEBUG("Finished processing block response (Address: %v, PeerType: %v, BlocksReceived: %v, BytesReceived: %v, PeersSuggested: %v, "
+              "InvalidBlockCount: %v)",
               peerAddressWithNetwork,
               optionalPeer->Type,
               MakeShrunkFormattableView(receivedBlockIndexes, TDefaultFormatter(), 3),
               bytesReceived,
-              rsp->peer_descriptors_size());
+              rsp->peer_descriptors_size(),
+              invalidBlockCount);
 
         if (peerAddressWithNetwork.Address != GetLocalHostName() && TotalBytesReceived_ > BytesThrottled_) {
             auto delta = TotalBytesReceived_ - BytesThrottled_;
@@ -1505,6 +1542,8 @@ private:
 
     void OnSessionFailed(bool fatal, const TError& error)
     {
+        YT_LOG_DEBUG(error, "Reader session failed (Fatal: %v)", fatal);
+
         if (fatal) {
             SetReaderFailed();
         }
@@ -1641,7 +1680,6 @@ private:
                     NChunkClient::EErrorCode::BandwidthThrottlingFailed,
                     "Failed to throttle bandwidth in reader")
                     << throttleResult;
-                YT_LOG_WARNING(error, "Chunk reader failed");
                 OnSessionFailed(true, error);
                 return;
             }
@@ -1679,7 +1717,7 @@ private:
             UpdateFromProto(&SessionOptions_.ChunkReaderStatistics, rsp->chunk_reader_statistics());
         }
 
-        auto blocks = GetRpcAttachedBlocks(rsp);
+        auto blocks = GetRpcAttachedBlocks(rsp, /* validateChecksums */ false);
 
         int blocksReceived = 0;
         i64 bytesReceived = 0;
@@ -1689,26 +1727,25 @@ private:
                 break;
             }
 
+            if (!block.IsChecksumValid()) {
+                RegisterError(TError("Failed to validate received block checksum")
+                    << TErrorAttribute("block_id", ToString(TBlockId(reader->ChunkId_, FirstBlockIndex_ + blocksReceived)))
+                    << TErrorAttribute("peer", peerAddressWithNetwork)
+                    << TErrorAttribute("actual", GetChecksum(block.Data))
+                    << TErrorAttribute("expected", block.Checksum));
+
+                BanPeer(peerAddressWithNetwork.Address, false);
+                FetchedBlocks_.clear();
+                RequestBlocks();
+                return;
+            }
+
             blocksReceived += 1;
             bytesReceived += block.Size();
             TotalBytesReceived_ += block.Size();
 
-            try {
-                block.ValidateChecksum();
-            } catch (const TBlockChecksumValidationException& ex) {
-                RegisterError(TError("Failed to validate received block checksum")
-                    << TErrorAttribute("block_id", ToString(TBlockId(reader->ChunkId_, FirstBlockIndex_ + blocksReceived)))
-                    << TErrorAttribute("peer", peerAddressWithNetwork)
-                    << TErrorAttribute("actual", ex.GetActual())
-                    << TErrorAttribute("expected", ex.GetExpected()));
-
-                BanPeer(peerAddressWithNetwork.Address, false);
-                RequestBlocks();
-                return;
-             }
-
-             FetchedBlocks_.emplace_back(std::move(block));
-         }
+            FetchedBlocks_.push_back(std::move(block));
+        }
 
         BanSeedIfUncomplete(rsp, peerAddressWithNetwork.Address);
 
@@ -1736,7 +1773,6 @@ private:
                     NChunkClient::EErrorCode::BandwidthThrottlingFailed,
                     "Failed to throttle bandwidth in reader")
                     << throttleResult;
-                YT_LOG_WARNING(error, "Chunk reader failed");
                 OnSessionFailed(true, error);
                 return;
             }
@@ -1768,6 +1804,8 @@ private:
 
     void OnSessionFailed(bool fatal, const TError& error)
     {
+        YT_LOG_DEBUG(error, "Reader session failed (Fatal: %v)", fatal);
+
         if (fatal) {
             SetReaderFailed();
         }
@@ -1806,7 +1844,7 @@ public:
 
     ~TGetMetaSession()
     {
-        Promise_.TrySet(TError("Reader terminated"));
+        Promise_.TrySet(TError(NYT::EErrorCode::Canceled, "Reader terminated"));
     }
 
     TFuture<TRefCountedChunkMetaPtr> Run()
@@ -1951,6 +1989,414 @@ TFuture<TRefCountedChunkMetaPtr> TReplicationReader::GetMeta(
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto session = New<TGetMetaSession>(this, options, partitionTag, extensionTags);
+    return session->Run();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TReplicationReader::TLookupRowsSession
+    : public TSessionBase
+{
+public:
+    TLookupRowsSession(
+        TReplicationReader* reader,
+        const TClientBlockReadOptions& options,
+        TSharedRange<TKey> lookupKeys,
+        TObjectId tableId,
+        TRevision revision,
+        TTableSchema tableSchema,
+        const std::optional<i64> estimatedSize,
+        std::atomic<i64>* uncompressedDataSize,
+        bool produceAllVersions)
+        : TSessionBase(reader, options)
+        , LookupKeys_(std::move(lookupKeys))
+        , TableId_(tableId)
+        , Revision_(revision)
+        , TableSchema_(std::move(tableSchema))
+        , EstimatedSize_(estimatedSize)
+        , UncompressedDataSizePtr_(uncompressedDataSize)
+        , ReadSessionId_(options.ReadSessionId)
+        , ProduceAllVersions_(produceAllVersions)
+    {
+        Logger.AddTag("TableId: %v, Revision: %llx",
+            TableId_,
+            Revision_);
+    }
+
+    ~TLookupRowsSession()
+    {
+        Promise_.TrySet(TError(NYT::EErrorCode::Canceled, "Reader terminated"));
+    }
+
+    TFuture<TSharedRef> Run()
+    {
+        YT_VERIFY(!LookupKeys_.Empty());
+
+        StartTime_ = NProfiling::GetInstant();
+        NextRetry();
+        return Promise_;
+    }
+
+private:
+    using TLookupResponse = TIntrusivePtr<NRpc::TTypedClientResponse<NChunkClient::NProto::TRspLookupRows>>;
+
+    const TSharedRange<TKey> LookupKeys_;
+    const TObjectId TableId_;
+    const TRevision Revision_;
+    const TTableSchema TableSchema_;
+    const std::optional<i64> EstimatedSize_;
+    std::atomic<i64>* const UncompressedDataSizePtr_;
+    const TReadSessionId ReadSessionId_;
+    const bool ProduceAllVersions_;
+    const TPromise<TSharedRef> Promise_ = NewPromise<TSharedRef>();
+
+    TSharedRef FetchedRowset_;
+
+    i64 BytesThrottled_ = 0;
+    i64 TotalBytesSent_ = 0;
+    bool WaitedForSchemaForTooLong_ = false;
+
+    int SinglePassIterationCounter_;
+    int CandidateIndex_;
+    std::vector<TPeer> SinglePassCandidates_;
+
+    virtual bool IsCanceled() const override
+    {
+        return Promise_.IsCanceled();
+    }
+
+    virtual void NextPass() override
+    {
+        // Specific bounds for lookup.
+        if (PassIndex_ >= ReaderConfig_->LookupRequestPassCount) {
+            if (WaitedForSchemaForTooLong_) {
+                RegisterError(TError("Some data node was healthy but was waiting for schema for too long; probably other tablet node has failed"));
+            }
+            OnSessionFailed(true);
+            return;
+        }
+
+        if (!PrepareNextPass()) {
+            return;
+        }
+
+        CandidateIndex_ = 0;
+        SinglePassCandidates_.clear();
+        SinglePassIterationCounter_ = 0;
+
+        RequestRows();
+    }
+
+    virtual void OnSessionFailed(bool fatal) override
+    {
+        auto error = BuildCombinedError(TError(
+            "Error fetching blocks for chunk %v",
+            ChunkId_));
+        OnSessionFailed(fatal, error);
+    }
+
+    void OnSessionFailed(bool fatal, const TError& error)
+    {
+        if (fatal) {
+            SetReaderFailed();
+        }
+
+        Promise_.TrySet(error);
+    }
+
+    TClosure CreateRequestCallback()
+    {
+        return BIND(&TLookupRowsSession::DoRequestRows, MakeStrong(this))
+            .Via(SessionInvoker_);
+    }
+
+    void RequestRows()
+    {
+        CreateRequestCallback().Run();
+    }
+
+    void DoRequestRows()
+    {
+        auto reader = Reader_.Lock();
+        if (!reader || IsCanceled()) {
+            return;
+        }
+
+        TotalBytesReceived_ = 0;
+        TotalBytesSent_ = 0;
+
+        YT_LOG_DEBUG("Starting new iteration of TLookupRowsSession"
+            " (CandidateIndex: %v, CandidateCount: %v, IterationCount: %v)",
+            CandidateIndex_,
+            SinglePassCandidates_.size(),
+            SinglePassIterationCounter_);
+
+        if (SinglePassCandidates_.empty()) {
+            SinglePassCandidates_ = GetMultiplePeerCandidates(
+                ReaderConfig_->LookupRequestPeerCount,
+                reader);
+
+            if (SinglePassCandidates_.empty()) {
+                OnPassCompleted();
+                return;
+            }
+        }
+
+        if (SinglePassIterationCounter_ == ReaderConfig_->SinglePassIterationLimitForLookup) {
+            // Additionally post-throttling at the end of each pass.
+            auto totalBytesToThrottle = TotalBytesReceived_ + TotalBytesSent_;
+            BytesThrottled_ += totalBytesToThrottle;
+
+            reader->BandwidthThrottler_->Throttle(totalBytesToThrottle)
+                .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& throttleResult) {
+                    if (!throttleResult.IsOK()) {
+                        auto error = TError(
+                            NChunkClient::EErrorCode::BandwidthThrottlingFailed,
+                            "Failed to throttle bandwidth in reader")
+                            << throttleResult;
+                        YT_LOG_WARNING(error, "Lookup chunk reader failed");
+                        OnSessionFailed(true, error);
+                        return;
+                    }
+
+                    OnPassCompleted();
+                }).Via(SessionInvoker_));
+            return;
+        }
+
+        std::optional<TPeer> chosenPeer;
+        TAddressWithNetwork peerAddressWithNetwork;
+        while (CandidateIndex_ < SinglePassCandidates_.size()) {
+            chosenPeer = SinglePassCandidates_[CandidateIndex_];
+            peerAddressWithNetwork = chosenPeer->AddressWithNetwork;
+            if (!IsPeerBanned(peerAddressWithNetwork.Address)) {
+                break;
+            }
+
+            SinglePassCandidates_.erase(SinglePassCandidates_.begin() + CandidateIndex_);
+        }
+
+        if (CandidateIndex_ == SinglePassCandidates_.size()) {
+            CandidateIndex_ = 0;
+            ++SinglePassIterationCounter_;
+
+            // All candidates (in current pass) are waiting for schema from other tablet nodes,
+            // so it's better to sleep a little.
+            TDelayedExecutor::Submit(
+                CreateRequestCallback(),
+                ReaderConfig_->LookupSleepDuration);
+            return;
+        }
+        YT_VERIFY(chosenPeer);
+
+        if (IsCanceled()) {
+            return;
+        }
+
+        WaitedForSchemaForTooLong_ = false;
+
+        if (peerAddressWithNetwork.Address != GetLocalHostName() && BytesThrottled_ == 0 && EstimatedSize_) {
+            // NB(psushin): This is preliminary throttling. The subsequent request may fail or return partial result.
+            // In order not to throttle twice, we use BandwidthThrottled_ flag.
+            // Still it protects us from bursty incoming traffic on the host.
+            // If estimated size was not given, we fallback to post-throttling on actual received size.
+
+            BytesThrottled_ = *EstimatedSize_;
+            reader->BandwidthThrottler_->Throttle(BytesThrottled_)
+                .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& throttleResult) {
+                    if (!throttleResult.IsOK()) {
+                        auto error = TError(
+                            NChunkClient::EErrorCode::BandwidthThrottlingFailed,
+                            "Failed to throttle bandwidth in reader")
+                            << throttleResult;
+                        YT_LOG_WARNING(error, "Lookup chunk reader failed");
+                        OnSessionFailed(true, error);
+                        return;
+                    }
+
+                    RequestRows();
+                }));
+            return;
+        }
+
+        ++CandidateIndex_;
+
+        auto channel = GetChannel(peerAddressWithNetwork);
+        if (!channel) {
+            RequestRows();
+            return;
+        }
+        SendRequestToPeer(channel, reader, peerAddressWithNetwork, *chosenPeer, false);
+    }
+
+     void SendRequestToPeer(
+        const IChannelPtr& channel,
+        const TReplicationReaderPtr& reader,
+        const TAddressWithNetwork& peerAddressWithNetwork,
+        const TPeer& chosenPeer,
+        bool sendSchema)
+    {
+        TDataNodeServiceProxy proxy(channel);
+        proxy.SetDefaultTimeout(ReaderConfig_->LookupRpcTimeout);
+
+        auto req = proxy.LookupRows();
+        req->SetMultiplexingBand(EMultiplexingBand::Heavy);
+        ToProto(req->mutable_chunk_id(), reader->ChunkId_);
+        ToProto(req->mutable_workload_descriptor(), WorkloadDescriptor_);
+
+        TWireProtocolWriter writer;
+        writer.WriteUnversionedRowset(MakeRange(LookupKeys_));
+        ToProto(req->mutable_lookup_keys(), MergeRefsToString(writer.Finish()));
+
+        ToProto(req->mutable_read_session_id(), ReadSessionId_);
+        req->set_produce_all_versions(ProduceAllVersions_);
+
+        auto schemaData = req->mutable_schema_data();
+        ToProto(schemaData->mutable_table_id(), TableId_);
+        schemaData->set_revision(Revision_);
+        if (sendSchema) {
+            ToProto(schemaData->mutable_schema(), TableSchema_);
+        }
+
+        req->Header().set_response_memory_zone(static_cast<i32>(EMemoryZone::Undumpable));
+        TotalBytesSent_ += req->ByteSize();
+
+        NProfiling::TWallTimer dataWaitTimer;
+        return req->Invoke()
+            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TDataNodeServiceProxy::TErrorOrRspLookupRowsPtr& rspOrError) {
+                this_->ReceiveRequestFromPeer(
+                    std::move(rspOrError),
+                    std::move(channel),
+                    std::move(dataWaitTimer),
+                    std::move(reader),
+                    std::move(chosenPeer),
+                    std::move(peerAddressWithNetwork),
+                    sendSchema);
+            }).Via(SessionInvoker_));
+    }
+
+    void ReceiveRequestFromPeer(
+        TDataNodeServiceProxy::TErrorOrRspLookupRowsPtr rspOrError,
+        IChannelPtr channel,
+        NProfiling::TWallTimer dataWaitTimer,
+        TReplicationReaderPtr reader,
+        TPeer chosenPeer,
+        TAddressWithNetwork peerAddressWithNetwork,
+        bool sentSchema)
+    {
+        SessionOptions_.ChunkReaderStatistics->DataWaitTime += dataWaitTimer.GetElapsedValue();
+
+        if (!rspOrError.IsOK()) {
+            ProcessError(
+                rspOrError,
+                peerAddressWithNetwork.Address,
+                TError("Error fetching rows from node %v", peerAddressWithNetwork));
+
+            YT_LOG_WARNING("Data node lookup request failed"
+                " (Address: %v, PeerType: %v, IterationCount: %v, BytesSent: %v)",
+                peerAddressWithNetwork,
+                chosenPeer.Type,
+                SinglePassIterationCounter_,
+                TotalBytesSent_);
+
+            RequestRows();
+            return;
+        }
+
+        const auto& response = rspOrError.Value();
+
+        SessionOptions_.ChunkReaderStatistics->DataBytesTransmitted += response->GetTotalSize();
+        reader->AccountTraffic(
+            response->GetTotalSize(),
+            chosenPeer.NodeDescriptor);
+
+        if (response->has_request_schema() && response->request_schema()) {
+            YT_VERIFY(!response->fetched_rows());
+            YT_VERIFY(!sentSchema);
+            YT_LOG_DEBUG("Sending schema upon data node request (Address: %v, PeerType: %v)",
+                peerAddressWithNetwork,
+                chosenPeer.Type);
+
+            // No throttling on table schema.
+            SendRequestToPeer(channel, reader, peerAddressWithNetwork, chosenPeer, true);
+            return;
+        } else if (!response->fetched_rows()) {
+            // NB(akozhikhov): If data node waits for schema from other tablet node,
+            // then we switch to next data node in order to warm up as many schema caches as possible.
+            YT_LOG_DEBUG("Data node is waiting for schema from other tablet (Address: %v, PeerType: %v)",
+                peerAddressWithNetwork,
+                chosenPeer.Type);
+
+            WaitedForSchemaForTooLong_ = true;
+            RequestRows();
+            return;
+        }
+
+        if (response->has_chunk_reader_statistics()) {
+            UpdateFromProto(&SessionOptions_.ChunkReaderStatistics, response->chunk_reader_statistics());
+        }
+
+        ProcessAttachedVersionedRowset(response);
+
+        auto totalBytesToThrottle = TotalBytesReceived_ + TotalBytesSent_;
+        if (peerAddressWithNetwork.Address != GetLocalHostName() && totalBytesToThrottle > BytesThrottled_) {
+            auto delta = totalBytesToThrottle - BytesThrottled_;
+            BytesThrottled_ = totalBytesToThrottle;
+            reader->BandwidthThrottler_->Acquire(delta);
+        }
+
+        YT_LOG_DEBUG("Finished processing rows response"
+            " (Address: %v, PeerType: %v, BytesReceived: %v, BytesSent: %v, IterationCount: %v)",
+            peerAddressWithNetwork,
+            chosenPeer.Type,
+            TotalBytesReceived_,
+            TotalBytesSent_,
+            SinglePassIterationCounter_);
+
+        OnSessionSucceeded();
+    }
+
+    void OnSessionSucceeded()
+    {
+        YT_LOG_DEBUG("Requested rows are fetched");
+        Promise_.TrySet(FetchedRowset_);
+    }
+
+    template <class TRspPtr>
+    void ProcessAttachedVersionedRowset(const TRspPtr& response)
+    {
+        YT_VERIFY(FetchedRowset_.Empty());
+
+        FetchedRowset_ = response->Attachments()[0];
+
+        auto byteSize = GetByteSize(response->Attachments());
+        UncompressedDataSizePtr_->fetch_add(byteSize);
+        TotalBytesReceived_ += byteSize;
+    }
+};
+
+TFuture<TSharedRef> TReplicationReader::LookupRows(
+    const TClientBlockReadOptions& options,
+    const TSharedRange<TKey>& lookupKeys,
+    TObjectId tableId,
+    TRevision revision,
+    const TTableSchema& tableSchema,
+    std::optional<i64> estimatedSize,
+    std::atomic<i64>* uncompressedDataSize,
+    bool produceAllVersions)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto session = New<TLookupRowsSession>(
+        this,
+        options,
+        lookupKeys,
+        tableId,
+        revision,
+        tableSchema,
+        estimatedSize,
+        uncompressedDataSize,
+        produceAllVersions);
     return session->Run();
 }
 

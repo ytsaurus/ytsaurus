@@ -418,7 +418,7 @@ void TTableReplicaInfo::Save(NCellMaster::TSaveContext& context) const
     Save(context, State_);
     Save(context, CurrentReplicationRowIndex_);
     Save(context, CurrentReplicationTimestamp_);
-    Save(context, Error_);
+    Save(context, HasError_);
 }
 
 void TTableReplicaInfo::Load(NCellMaster::TLoadContext& context)
@@ -428,7 +428,13 @@ void TTableReplicaInfo::Load(NCellMaster::TLoadContext& context)
     Load(context, State_);
     Load(context, CurrentReplicationRowIndex_);
     Load(context, CurrentReplicationTimestamp_);
-    Load(context, Error_);
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= EMasterReign::NoTabletErrorsOnMaster) {
+        Load(context, HasError_);
+    } else {
+        auto error = Load<TError>(context);
+        HasError_ = !error.IsOK();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -458,8 +464,8 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, TrimmedRowCount_);
     Save(context, Replicas_);
     Save(context, RetainedTimestamp_);
-    Save(context, Errors_);
-    Save(context, ErrorCount_);
+    Save(context, TabletErrorCount_);
+    Save(context, ReplicationErrorCount_);
     Save(context, ExpectedState_);
     Save(context, UnconfirmedDynamicTableLocks_);
 }
@@ -482,8 +488,19 @@ void TTablet::Load(TLoadContext& context)
     Load(context, TrimmedRowCount_);
     Load(context, Replicas_);
     Load(context, RetainedTimestamp_);
-    Load(context, Errors_);
-    Load(context, ErrorCount_);
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() < EMasterReign::NoTabletErrorsOnMaster) {
+        using TTabletErrors = TEnumIndexedVector<
+            NTabletClient::ETabletBackgroundActivity,
+            TError
+        >;
+        Load<TTabletErrors>(context); // Errors_
+    }
+    Load(context, TabletErrorCount_);
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= EMasterReign::NoTabletErrorsOnMaster) {
+        Load(context, ReplicationErrorCount_);
+    }
     // COMPAT(savrus)
     if (context.GetVersion() >= EMasterReign::MulticellForDynamicTables) {
         Load(context, ExpectedState_);
@@ -640,7 +657,7 @@ void TTablet::SetTable(TTableNode* table)
         --Table_->GetTrunkNode()->MutableTabletCountByState()[State_];
         --Table_->GetTrunkNode()->MutableTabletCountByExpectedState()[ExpectedState_];
 
-        int restTabletErrorCount = Table_->GetTabletErrorCount() - GetErrorCount();
+        int restTabletErrorCount = Table_->GetTabletErrorCount() - GetTabletErrorCount();
         YT_ASSERT(restTabletErrorCount >= 0);
         Table_->SetTabletErrorCount(restTabletErrorCount);
     }
@@ -649,42 +666,25 @@ void TTablet::SetTable(TTableNode* table)
         ++table->MutableTabletCountByState()[State_];
         ++table->MutableTabletCountByExpectedState()[ExpectedState_];
 
-        table->SetTabletErrorCount(table->GetTabletErrorCount() + GetErrorCount());
+        table->SetTabletErrorCount(table->GetTabletErrorCount() + GetTabletErrorCount());
     }
     Table_ = table;
 }
 
-void TTablet::SetErrors(const TTabletErrors& errors)
+void TTablet::SetTabletErrorCount(int tabletErrorCount)
 {
     if (Table_) {
-        int restTabletErrorCount = Table_->GetTabletErrorCount() - GetErrorCount();
+        int restTabletErrorCount = Table_->GetTabletErrorCount() - GetTabletErrorCount();
         YT_ASSERT(restTabletErrorCount >= 0);
-        Table_->SetTabletErrorCount(restTabletErrorCount);
+        Table_->SetTabletErrorCount(restTabletErrorCount + tabletErrorCount);
     }
 
-    ErrorCount_ = 0;
-    for (auto key : TEnumTraits<ETabletBackgroundActivity>::GetDomainValues()) {
-        if (errors.IsDomainValue(key) && !errors[key].IsOK()) {
-            ++ErrorCount_;
-        }
-    }
-
-    Errors_ = errors;
-
-    if (Table_) {
-        Table_->SetTabletErrorCount(Table_->GetTabletErrorCount() + GetErrorCount());
-    }
+    TabletErrorCount_ = tabletErrorCount;
 }
 
-std::vector<TError> TTablet::GetErrors() const
+int TTablet::GetTabletErrorCount() const
 {
-    std::vector<TError> errors;
-    for (auto key : TEnumTraits<ETabletBackgroundActivity>::GetDomainValues()) {
-        if (!Errors_[key].IsOK()) {
-            errors.push_back(Errors_[key]);
-        }
-    }
-    return errors;
+    return TabletErrorCount_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

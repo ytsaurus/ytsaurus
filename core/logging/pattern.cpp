@@ -71,7 +71,7 @@ void FormatMessage(TMessageBuffer* out, TStringBuf message)
 {
     auto current = message.begin();
 
-    auto FormatChar = [&] () {
+    auto appendChar = [&] {
         char ch = *current;
         if (ch == '\n') {
             out->AppendString("\\n");
@@ -91,9 +91,11 @@ void FormatMessage(TMessageBuffer* out, TStringBuf message)
     while (current < message.end()) {
 #ifdef YT_USE_SSE42
         // Use SSE for optimization.
-
-        if (current + 16 >= message.end() || out->GetBytesRemaining() < 16) {
-            FormatChar();
+        if (current + 16 > message.end()) {
+            appendChar();
+        } else if (out->GetBytesRemaining() < MessageBufferWatermarkSize) {
+            out->AppendString(AsStringBuf("...<message truncated>"));
+            break;
         } else {
             const void* inPtr = &(*current);
             void* outPtr = out->GetCursor();
@@ -101,7 +103,7 @@ void FormatMessage(TMessageBuffer* out, TStringBuf message)
             if (_mm_movemask_epi8(_mm_cmpeq_epi8(value, vectorN)) ||
                 _mm_movemask_epi8(_mm_cmpeq_epi8(value, vectorT))) {
                 for (int index = 0; index < 16; ++index) {
-                    FormatChar();
+                    appendChar();
                 }
             } else {
                 _mm_storeu_si128(static_cast<__m128i*>(outPtr), value);
@@ -111,7 +113,7 @@ void FormatMessage(TMessageBuffer* out, TStringBuf message)
         }
 #else
         // Unoptimized version.
-        FormatChar();
+        appendChar();
 #endif
     }
 }

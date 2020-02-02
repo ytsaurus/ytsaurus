@@ -35,7 +35,8 @@ public:
     //! Should only be used in tests and local mode.
     bool EnableSync;
 
-    i64 PreallocateSize;
+    // TODO(savrus): implement this
+    std::optional<i64> PreallocateSize;
 
     TFileChangelogConfig()
     {
@@ -50,7 +51,7 @@ public:
         RegisterParameter("enable_sync", EnableSync)
             .Default(true);
         RegisterParameter("preallocate_size", PreallocateSize)
-            .Default(-1);
+            .Default();
     }
 };
 
@@ -62,6 +63,7 @@ class TFileChangelogDispatcherConfig
 public:
     int IOClass;
     int IOPriority;
+    TDuration FlushQuantum;
 
     TFileChangelogDispatcherConfig()
     {
@@ -69,6 +71,8 @@ public:
             .Default(1); // IOPRIO_CLASS_RT
         RegisterParameter("io_priority", IOPriority)
             .Default(3);
+        RegisterParameter("flush_quantum", FlushQuantum)
+            .Default(TDuration::MilliSeconds(10));
     }
 };
 
@@ -107,6 +111,8 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TFileChangelogStoreConfig)
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TLocalSnapshotStoreConfig
     : public NYTree::TYsonSerializable
 {
@@ -126,6 +132,8 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TLocalSnapshotStoreConfig)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TRemoteSnapshotStoreConfig
     : public NYTree::TYsonSerializable
@@ -153,6 +161,8 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TRemoteSnapshotStoreConfig)
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TRemoteChangelogStoreConfig
     : public NYTree::TYsonSerializable
 {
@@ -176,14 +186,18 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TRemoteChangelogStoreConfig)
 
-class TSnapshotKeeperConfig
+////////////////////////////////////////////////////////////////////////////////
+
+class THydraJanitorConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
     std::optional<int> MaxSnapshotCountToKeep;
     std::optional<i64> MaxSnapshotSizeToKeep;
+    std::optional<int> MaxChangelogCountToKeep;
+    std::optional<i64> MaxChangelogSizeToKeep;
 
-    TSnapshotKeeperConfig()
+    THydraJanitorConfig()
     {
         RegisterParameter("max_snapshot_count_to_keep", MaxSnapshotCountToKeep)
             .GreaterThanOrEqual(0)
@@ -191,30 +205,33 @@ public:
         RegisterParameter("max_snapshot_size_to_keep", MaxSnapshotSizeToKeep)
             .GreaterThanOrEqual(0)
             .Default();
+        RegisterParameter("max_changelog_count_to_keep", MaxChangelogCountToKeep)
+            .GreaterThanOrEqual(0)
+            .Default();
+        RegisterParameter("max_changelog_size_to_keep", MaxChangelogSizeToKeep)
+            .GreaterThanOrEqual(0)
+            .Default();
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TSnapshotKeeperConfig)
+DEFINE_REFCOUNTED_TYPE(THydraJanitorConfig)
 
-class TLocalSnapshotJanitorConfig
-    : public TSnapshotKeeperConfig
+////////////////////////////////////////////////////////////////////////////////
+
+class TLocalHydraJanitorConfig
+    : public THydraJanitorConfig
 {
 public:
     TDuration CleanupPeriod;
 
-    NHydra::TFileChangelogStoreConfigPtr Changelogs;
-    NHydra::TLocalSnapshotStoreConfigPtr Snapshots;
-
-    TLocalSnapshotJanitorConfig()
+    TLocalHydraJanitorConfig()
     {
         RegisterParameter("cleanup_period", CleanupPeriod)
             .Default(TDuration::Seconds(10));
-        RegisterParameter("changelogs", Changelogs);
-        RegisterParameter("snapshots", Snapshots);
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TLocalSnapshotJanitorConfig)
+DEFINE_REFCOUNTED_TYPE(TLocalHydraJanitorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -294,6 +311,9 @@ public:
      */
     i64 MaxChangelogDataSize;
 
+    //! If true, empty changelogs are preallocated to avoid hiccups of segment rotation.
+    bool PreallocateChangelogs;
+
     //! Interval between automatic "heartbeat" mutations commit.
     /*!
      *  These mutations are no-ops. Committing them regularly helps to ensure
@@ -305,9 +325,9 @@ public:
     //! If "heartbeat" mutation commit takes longer than this value, Hydra is restarted.
     TDuration HeartbeatMutationTimeout;
 
-    //! Period for retrying while waiting for quorum record count to become
+    //! Period for retrying while waiting for changelog record count to become
     //! sufficiently high to proceed with applying mutations.
-    TDuration ChangelogQuorumCheckRetryPeriod;
+    TDuration ChangelogRecordCountCheckRetryPeriod;
 
     //! If mutation logging remains suspended for this period of time,
     //! Hydra restarts.
@@ -374,13 +394,15 @@ public:
         RegisterParameter("max_changelog_data_size", MaxChangelogDataSize)
             .Default(1_GB)
             .GreaterThan(0);
+        RegisterParameter("preallocate_changelogs", PreallocateChangelogs)
+            .Default(false);
 
         RegisterParameter("heartbeat_mutation_period", HeartbeatMutationPeriod)
             .Default(TDuration::Seconds(60));
         RegisterParameter("heartbeat_mutation_timeout", HeartbeatMutationTimeout)
             .Default(TDuration::Seconds(60));
 
-        RegisterParameter("changelog_quorum_check_retry_period", ChangelogQuorumCheckRetryPeriod)
+        RegisterParameter("changelog_record_count_check_retry_period", ChangelogRecordCountCheckRetryPeriod)
             .Default(TDuration::Seconds(1));
 
         RegisterParameter("mutation_logging_suspension_timeout", MutationLoggingSuspensionTimeout)

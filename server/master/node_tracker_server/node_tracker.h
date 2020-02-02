@@ -201,6 +201,16 @@ public:
     //! Returns the number of nodes with ENodeState::Online aggregated state.
     int GetOnlineNodeCount();
 
+    //! Returns the list of master cache nodes.
+    const std::vector<TNode*>& GetMasterCacheNodes();
+
+    //! Returns the list of master cache node default addresses.
+    const std::vector<TString>& GetMasterCacheNodeAddresses();
+
+    NYTree::IYPathServicePtr GetOrchidService();
+
+    void RequestNodeHeartbeat(TNodeId nodeId);
+
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;

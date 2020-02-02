@@ -1,5 +1,6 @@
 from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, wait,\
-    is_asan_build, Restarter, SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE, NODES_SERVICE
+    is_asan_build, Restarter, SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE, NODES_SERVICE,\
+    get_porto_delta_node_config, get_cgroup_delta_node_config
 from yt_commands import *
 from yt_helpers import *
 
@@ -7,16 +8,12 @@ from yt.yson import *
 from yt.wrapper import JsonFormat
 from yt.common import date_string_to_timestamp, update
 
-import yt.environment.init_operation_archive as init_operation_archive
-
 import pytest
 from flaky import flaky
 
 import os
-import pprint
+import gzip
 import random
-import socket
-import sys
 import time
 import subprocess
 import __builtin__
@@ -25,44 +22,6 @@ from datetime import datetime
 from distutils.spawn import find_executable
 
 from collections import defaultdict
-
-##################################################################
-
-# This is a mix of options for 18.4 and 18.5
-cgroups_delta_node_config = {
-    "exec_agent": {
-        "slot_manager": {
-            "job_environment": {
-                "type": "cgroups",
-                "supported_cgroups": [
-                    "cpuacct",
-                    "blkio",
-                    "cpu"],
-            },
-        }
-    }
-}
-
-porto_delta_node_config = {
-    "exec_agent": {
-        "slot_manager": {
-            # <= 18.4
-            "enforce_job_control": True,
-            "job_environment": {
-                # >= 19.2
-                "type": "porto",
-            },
-        }
-    }
-}
-
-##################################################################
-
-def get_cypress_metrics(operation_id, key, aggr="sum"):
-    statistics = get(get_operation_cypress_path(operation_id) + "/@progress/job_statistics")
-    return sum(filter(lambda x: x is not None,
-                      [get_statistics(statistics, "{0}.$.{1}.map.{2}".format(key, job_state, aggr))
-                       for job_state in ("completed", "failed", "aborted")]))
 
 ##################################################################
 
@@ -83,6 +42,7 @@ class TestEventLog(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
@@ -100,7 +60,7 @@ class TestEventLog(YTEnvSetup):
         }
     }
 
-    DELTA_NODE_CONFIG = cgroups_delta_node_config
+    DELTA_NODE_CONFIG = get_cgroup_delta_node_config()
 
     @authors("ignat")
     def test_scheduler_event_log(self):
@@ -157,7 +117,7 @@ class TestEventLog(YTEnvSetup):
 
         time.sleep(2)
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t1",
             out="//tmp/t2",
             command="cat")
@@ -181,7 +141,7 @@ class TestEventLog(YTEnvSetup):
 
 @patch_porto_env_only(TestEventLog)
 class TestEventLogPorto(YTEnvSetup):
-    DELTA_NODE_CONFIG = porto_delta_node_config
+    DELTA_NODE_CONFIG = get_porto_delta_node_config()
     USE_PORTO_FOR_SERVERS = True
 
 ##################################################################
@@ -209,7 +169,7 @@ class TestSchedulerControllerThrottling(YTEnvSetup):
 
         create("table", "//tmp/output")
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/input",
             out="//tmp/output",
             command="cat",
@@ -282,7 +242,7 @@ class TestJobStderr(YTEnvSetup):
 
         command = "echo stderr 1>&2 ; exit 1"
 
-        op = map(dont_track=True, in_="//tmp/t1", out="//tmp/t2", command=command)
+        op = map(track=False, in_="//tmp/t1", out="//tmp/t2", command=command)
 
         with pytest.raises(YtError):
             op.track()
@@ -296,7 +256,7 @@ class TestJobStderr(YTEnvSetup):
         write_table("//tmp/t1", {"foo": "bar"})
 
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t1",
             out="//tmp/t2",
             command="cat > /dev/null; echo stderr 1>&2; exit 125",
@@ -346,7 +306,7 @@ class TestJobStderr(YTEnvSetup):
                 fi;"""
 
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t1",
             out="//tmp/t2",
             command=command,
@@ -387,7 +347,7 @@ class TestJobStderr(YTEnvSetup):
                 fi;"""
                     .format(lock_dir=events_on_fs()._get_event_filename("lock_dir")))
         op = map(
-            dont_track=True,
+            track=False,
             label="stderr_of_failed_jobs",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -451,7 +411,7 @@ class TestJobStderrMulticell(TestJobStderr):
 
 @patch_porto_env_only(TestJobStderr)
 class TestJobStderrPorto(YTEnvSetup):
-    DELTA_NODE_CONFIG = porto_delta_node_config
+    DELTA_NODE_CONFIG = get_porto_delta_node_config()
     USE_PORTO_FOR_SERVERS = True
 
 ##################################################################
@@ -720,7 +680,7 @@ class TestUserFilesMulticell(TestUserFiles):
 
 @patch_porto_env_only(TestUserFiles)
 class TestUserFilesPorto(YTEnvSetup):
-    DELTA_NODE_CONFIG = porto_delta_node_config
+    DELTA_NODE_CONFIG = get_porto_delta_node_config()
     USE_PORTO_FOR_SERVERS = True
 
 ##################################################################
@@ -753,7 +713,7 @@ class TestSchedulerOperationNodeFlush(YTEnvSetup):
         for i in range(20):
             create("table", "//tmp/out" + str(i))
             op = map(
-                dont_track=True,
+                track=False,
                 in_="//tmp/in",
                 out="//tmp/out" + str(i),
                 command="cat > /dev/null; echo stderr 1>&2; exit 125",
@@ -799,7 +759,7 @@ class TestSchedulerCommon(YTEnvSetup):
         }
     }
 
-    DELTA_NODE_CONFIG = cgroups_delta_node_config
+    DELTA_NODE_CONFIG = get_cgroup_delta_node_config()
 
     @authors("ignat")
     def test_failed_jobs_twice(self):
@@ -808,7 +768,7 @@ class TestSchedulerCommon(YTEnvSetup):
         write_table("//tmp/t1", [{"foo": "bar"} for _ in xrange(200)])
 
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t1",
             out="//tmp/t2",
             command='trap "" HUP; bash -c "sleep 60" &; sleep $[( $RANDOM % 5 )]s; exit 42;',
@@ -829,7 +789,7 @@ class TestSchedulerCommon(YTEnvSetup):
         write_table("//tmp/t1", [{"foo": "bar"} for _ in xrange(10)])
 
         op = map(
-            dont_track=True,
+            track=False,
             label="job_progress",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -854,7 +814,7 @@ class TestSchedulerCommon(YTEnvSetup):
         write_table("//tmp/t1", [{"foo": "bar"} for _ in xrange(10)])
 
         op = map(
-            dont_track=True,
+            track=False,
             label="job_progress",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -905,7 +865,7 @@ class TestSchedulerCommon(YTEnvSetup):
         write_table("//tmp/t1", {"foo": "bar"})
 
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t1",
             out="//tmp/t2",
             command='python -c "import os; os.read(0, 1);"',
@@ -927,7 +887,7 @@ class TestSchedulerCommon(YTEnvSetup):
         write_table("//tmp/t1", {"foo": "bar"})
 
         op = map(
-            dont_track=True,
+            track=False,
             label="dump_job_context",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -962,7 +922,7 @@ class TestSchedulerCommon(YTEnvSetup):
         write_table("//tmp/t1", {"foo": "bar"})
 
         op = map(
-            dont_track=True,
+            track=False,
             label="dump_job_context",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -1002,7 +962,7 @@ class TestSchedulerCommon(YTEnvSetup):
         write_table("//tmp/t_input", {"foo": "bar"})
 
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t_input",
             out="//tmp/t_output",
             command='set -e; /non_existed_command; echo stderr >&2;',
@@ -1228,7 +1188,7 @@ class TestSchedulerCommon(YTEnvSetup):
         write_table("//tmp/t2", [{"key": 8}, {"key": 12}])
 
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t1",
             out="<append=%true>//tmp/sorted_table",
             command="sleep 10; cat")
@@ -1260,7 +1220,7 @@ class TestSchedulerCommon(YTEnvSetup):
                     out=[output],
                     command="sleep 0.1; cat",
                     spec={"data_size_per_job": 1, "testing": testing_options},
-                    dont_track=True))
+                    track=False))
 
         failed_ops = []
         for index in range(operation_count):
@@ -1271,7 +1231,7 @@ class TestSchedulerCommon(YTEnvSetup):
                     out=[output],
                     command="sleep 0.1; exit 1",
                     spec={"data_size_per_job": 1, "max_failed_job_count": 1, "testing": testing_options},
-                    dont_track=True))
+                    track=False))
 
         for index, op in enumerate(failed_ops):
             "//tmp/failed_output" + str(index)
@@ -1347,7 +1307,7 @@ class TestSchedulerCommon(YTEnvSetup):
             write_table("<append=true>//tmp/t1", {"key": str(i), "value": "foo"})
 
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t1",
             out="//tmp/t2",
             command=with_breakpoint("echo job_index=$YT_JOB_INDEX ; BREAKPOINT"),
@@ -1377,7 +1337,7 @@ class TestSchedulerCommon(YTEnvSetup):
         create("table", "//tmp/t")
         write_table("//tmp/t", {"foo": "bar"})
 
-        op = map(dont_track=True,
+        op = map(track=False,
             in_="//tmp/t",
             out="//tmp/t",
             command="sleep 1")
@@ -1388,6 +1348,7 @@ class TestSchedulerCommon(YTEnvSetup):
     @authors("ignat")
     def test_input_with_custom_transaction(self):
         custom_tx = start_transaction(timeout=30000)
+
         create("table", "//tmp/in", tx=custom_tx)
         write_table("//tmp/in", {"foo": "bar"}, tx=custom_tx)
 
@@ -1400,19 +1361,26 @@ class TestSchedulerCommon(YTEnvSetup):
 
         assert list(read_table("//tmp/out")) == [{"foo": "bar"}]
 
+    @authors("babenko")
+    def test_input_created_in_user_transaction(self):
+        custom_tx = start_transaction()
+        create("table", "//tmp/in", tx=custom_tx)
+        write_table("//tmp/in", {"foo": "bar"}, tx=custom_tx)
+        create("table", "//tmp/out")
+        with pytest.raises(YtError):
+            map(command="cat", in_="//tmp/in", out="//tmp/out")
+
     @authors("ignat")
     def test_nested_input_transactions(self):
-        custom_tx = start_transaction(timeout=30000)
+        custom_tx = start_transaction(timeout=60000)
+
         create("table", "//tmp/in", tx=custom_tx)
         write_table("//tmp/in", {"foo": "bar"}, tx=custom_tx)
 
         create("table", "//tmp/out")
 
-        with pytest.raises(YtError):
-            map(command="sleep 100", in_="//tmp/in", out="//tmp/out")
-
         op = map(
-            dont_track=True,
+            track=False,
             command=with_breakpoint("BREAKPOINT; sleep 100"),
             in_='<transaction_id="{}">//tmp/in'.format(custom_tx),
             out="//tmp/out")
@@ -1442,6 +1410,48 @@ class TestSchedulerCommon(YTEnvSetup):
         assert len(new_nested_input_transaction_ids) == 1
         assert new_nested_input_transaction_ids[0] != nested_tx
 
+    @authors("ignat")
+    def test_nested_input_transaction_duplicates(self):
+        custom_tx = start_transaction(timeout=60000)
+
+        create("table", "//tmp/in", tx=custom_tx)
+        write_table("//tmp/in", {"foo": "bar"}, tx=custom_tx)
+
+        create("table", "//tmp/out")
+
+        op = map(
+            track=False,
+            command=with_breakpoint("BREAKPOINT; sleep 100"),
+            in_=['<transaction_id="{}">//tmp/in'.format(custom_tx)] * 2,
+            out="//tmp/out")
+
+        wait_breakpoint()
+
+        nested_input_transaction_ids = get(op.get_path() + "/@nested_input_transaction_ids")
+        assert len(nested_input_transaction_ids) == 2
+        assert nested_input_transaction_ids[0] == nested_input_transaction_ids[1]
+
+        nested_tx = nested_input_transaction_ids[0]
+        assert list(read_table("//tmp/in", tx=nested_tx)) == [{"foo": "bar"}]
+        assert get("#{}/@parent_id".format(nested_tx)) == custom_tx
+
+        op.wait_fresh_snapshot()
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+
+        wait(lambda: op.get_state() == "running")
+        assert get(op.get_path() + "/@nested_input_transaction_ids") == [nested_tx, nested_tx]
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            abort_transaction(nested_tx)
+
+        wait(lambda: op.get_state() == "running")
+        new_nested_input_transaction_ids = get(op.get_path() + "/@nested_input_transaction_ids")
+        assert len(new_nested_input_transaction_ids) == 2
+        assert new_nested_input_transaction_ids[0] == new_nested_input_transaction_ids[1]
+        assert new_nested_input_transaction_ids[0] != nested_tx
+
     @authors("babenko")
     def test_ban_nodes_with_failed_jobs(self):
         create("table", "//tmp/t1")
@@ -1450,7 +1460,7 @@ class TestSchedulerCommon(YTEnvSetup):
         create("table", "//tmp/t2")
 
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t1",
             out="//tmp/t2",
             command="exit 1",
@@ -1508,7 +1518,7 @@ class TestIgnoreJobFailuresAtBannedNodes(YTEnvSetup):
         create("table", "//tmp/t2", attributes={"replication_factor": 1})
 
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t1",
             out="//tmp/t2",
             command=with_breakpoint("BREAKPOINT ; exit 1"),
@@ -1538,7 +1548,7 @@ class TestIgnoreJobFailuresAtBannedNodes(YTEnvSetup):
         create("table", "//tmp/t2", attributes={"replication_factor": 1})
 
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t1",
             out="//tmp/t2",
             job_count=10,
@@ -1587,7 +1597,7 @@ class TestSchedulerCommonMulticell(TestSchedulerCommon):
 
 @patch_porto_env_only(TestSchedulerCommon)
 class TestSchedulerCommonPorto(YTEnvSetup):
-    DELTA_NODE_CONFIG = porto_delta_node_config
+    DELTA_NODE_CONFIG = get_porto_delta_node_config()
     USE_PORTO_FOR_SERVERS = True
 
 ##################################################################
@@ -1625,9 +1635,9 @@ class TestPreserveSlotIndexAfterRevive(YTEnvSetup, PrepareTables):
         for i in xrange(3):
             self._create_table("//tmp/t_out_" + str(i))
 
-        op1 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_0", dont_track=True)
-        op2 = map(command="sleep 2; cat", in_="//tmp/t_in", out="//tmp/t_out_1", dont_track=True)
-        op3 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_2", dont_track=True)
+        op1 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_0", track=False)
+        op2 = map(command="sleep 2; cat", in_="//tmp/t_in", out="//tmp/t_out_1", track=False)
+        op3 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_2", track=False)
 
         assert get_slot_index(op1.id) == 0
         assert get_slot_index(op2.id) == 1
@@ -1643,552 +1653,9 @@ class TestPreserveSlotIndexAfterRevive(YTEnvSetup, PrepareTables):
         assert get_slot_index(op1.id) == 0
         assert get_slot_index(op3.id) == 2
 
-        op2 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_1", dont_track=True)
+        op2 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_1", track=False)
 
         assert get_slot_index(op2.id) == 1
-
-##################################################################
-
-class TestSchedulerRevive(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_NODES = 3
-    NUM_SCHEDULERS = 1
-
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {
-            "connect_retry_backoff_time": 100,
-            "fair_share_update_period": 100,
-            "testing_options": {
-                "enable_random_master_disconnection": False,
-                "random_master_disconnection_max_backoff": 10000,
-                "finish_operation_transition_delay": 1000,
-            },
-            "finished_job_storing_timeout": 15000,
-        }
-    }
-
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {
-            "operation_time_limit_check_period": 100,
-            "snapshot_period": 3000,
-        }
-    }
-
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "job_controller": {
-                "total_confirmation_period": 5000
-            }
-        }
-    }
-
-    OP_COUNT = 10
-
-    def _create_table(self, table):
-        create("table", table)
-        set(table + "/@replication_factor", 1)
-
-    def _prepare_tables(self):
-        self._create_table("//tmp/t_in")
-        write_table("//tmp/t_in", {"foo": "bar"})
-
-        for index in xrange(self.OP_COUNT):
-            self._create_table("//tmp/t_out" + str(index))
-            self._create_table("//tmp/t_err" + str(index))
-
-    @authors("ignat")
-    def test_many_operations(self):
-        self._prepare_tables()
-
-        ops = []
-        for index in xrange(self.OP_COUNT):
-            op = map(
-                dont_track=True,
-                command="sleep 1; echo 'AAA' >&2; cat",
-                in_="//tmp/t_in",
-                out="//tmp/t_out" + str(index),
-                spec={
-                    "stderr_table_path": "//tmp/t_err" + str(index),
-                })
-            ops.append(op)
-
-        try:
-            set("//sys/scheduler/config", {"testing_options": {"enable_random_master_disconnection": True}})
-            for index, op in enumerate(ops):
-                try:
-                    op.track()
-                    assert read_table("//tmp/t_out" + str(index)) == [{"foo": "bar"}]
-                except YtError:
-                    assert op.get_state() == "failed"
-        finally:
-            set("//sys/scheduler/config", {"testing_options": {"enable_random_master_disconnection": False}})
-            time.sleep(2)
-
-    @authors("ignat")
-    def test_many_operations_hard(self):
-        self._prepare_tables()
-
-        ops = []
-        for index in xrange(self.OP_COUNT):
-            op = map(
-                dont_track=True,
-                command="sleep 20; echo 'AAA' >&2; cat",
-                in_="//tmp/t_in",
-                out="//tmp/t_out" + str(index),
-                spec={
-                    "stderr_table_path": "//tmp/t_err" + str(index),
-                    "testing": {
-                        "delay_inside_revive": 2000,
-                    }
-                })
-            ops.append(op)
-
-        try:
-            set("//sys/scheduler/config", {
-                "testing_options": {
-                    "enable_random_master_disconnection": True,
-                }
-            })
-            for index, op in enumerate(ops):
-                try:
-                    op.track()
-                    assert read_table("//tmp/t_out" + str(index)) == [{"foo": "bar"}]
-                except YtError:
-                    assert op.get_state() == "failed"
-        finally:
-            set("//sys/scheduler/config", {"testing_options": {"enable_random_master_disconnection": False}})
-            time.sleep(2)
-
-    @authors("ignat")
-    def test_many_operations_controller_disconnections(self):
-        self._prepare_tables()
-
-        ops = []
-        for index in xrange(self.OP_COUNT):
-            op = map(
-                dont_track=True,
-                command="sleep 20; echo 'AAA' >&2; cat",
-                in_="//tmp/t_in",
-                out="//tmp/t_out" + str(index),
-                spec={
-                    "stderr_table_path": "//tmp/t_err" + str(index),
-                    "testing": {
-                        "delay_inside_revive": 2000,
-                    }
-                })
-            ops.append(op)
-
-        ok = False
-        for iter in xrange(100):
-            time.sleep(random.randint(5, 15) * 0.5)
-            with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
-                pass
-
-            completed_count = 0
-            for index, op in enumerate(ops):
-                assert op.get_state() not in ("aborted", "failed")
-                if op.get_state() == "completed":
-                    completed_count += 1
-            if completed_count == len(ops):
-                ok = True
-                break
-        assert ok
-
-    @authors("ignat")
-    def test_live_preview(self):
-        create_user("u")
-
-        data = [{"foo": i} for i in range(3)]
-
-        create("table", "//tmp/t1")
-        write_table("//tmp/t1", data)
-
-        create("table", "//tmp/t2")
-
-        op = map(
-            wait_for_jobs=True,
-            dont_track=True,
-            command=with_breakpoint("BREAKPOINT ; cat"),
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            spec={"data_size_per_job": 1})
-
-        jobs = wait_breakpoint(job_count=2)
-
-        async_transaction_id = get(op.get_path() + "/@async_scheduler_transaction_id")
-        assert exists(op.get_path() + "/output_0", tx=async_transaction_id)
-
-        release_breakpoint(job_id=jobs[0])
-        release_breakpoint(job_id=jobs[1])
-        wait(lambda: op.get_job_count("completed") == 2)
-
-        wait(lambda: len(read_table(op.get_path() + "/output_0", tx=async_transaction_id)) == 2)
-        live_preview_data = read_table(op.get_path() + "/output_0", tx=async_transaction_id)
-        assert all(record in data for record in live_preview_data)
-
-        with Restarter(self.Env, SCHEDULERS_SERVICE):
-            abort_transaction(async_transaction_id)
-
-
-        wait(lambda: op.get_state() == "running")
-
-        new_async_transaction_id = get(op.get_path() + "/@async_scheduler_transaction_id")
-        assert new_async_transaction_id != async_transaction_id
-
-        async_transaction_id = new_async_transaction_id
-        assert exists(op.get_path() + "/output_0", tx=async_transaction_id)
-        live_preview_data = read_table(op.get_path() + "/output_0", tx=async_transaction_id)
-        assert all(record in data for record in live_preview_data)
-
-        release_breakpoint()
-        op.track()
-        assert sorted(read_table("//tmp/t2")) == sorted(data)
-
-    @authors("max42", "ignat")
-    def test_brief_spec(self):
-        create("table", "//tmp/t1")
-        write_table("//tmp/t1", [{"foo": 0}])
-
-        create("table", "//tmp/t2")
-
-        op = map(
-            wait_for_jobs=True,
-            dont_track=True,
-            command=with_breakpoint("BREAKPOINT ; cat"),
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            spec={"data_size_per_job": 1})
-
-        wait_breakpoint()
-
-        op.wait_fresh_snapshot()
-
-        brief_spec = get(op.get_path() + "/@brief_spec")
-
-        with Restarter(self.Env, SCHEDULERS_SERVICE):
-            pass
-
-        release_breakpoint()
-
-        wait(lambda: op.get_state() == "completed")
-
-        assert brief_spec == get(op.get_path() + "/@brief_spec")
-
-################################################################################
-
-class TestJobRevivalBase(YTEnvSetup):
-    def _wait_for_single_job(self, op_id):
-        path = get_operation_cypress_path(op_id) + "/controller_orchid"
-        for i in xrange(500):
-            time.sleep(0.1)
-            if get(path + "/state", default=None) != "running":
-                continue
-
-            jobs = None
-            try:
-                jobs = ls(path + "/running_jobs")
-            except YtError as err:
-                if err.is_resolve_error():
-                    continue
-                raise
-
-            if len(jobs) > 0:
-                assert len(jobs) == 1
-                return jobs[0]
-
-        assert False, "Wait failed"
-
-    def _kill_and_start(self, components):
-        with Restarter(self.Env, components):
-            pass
-
-################################################################################
-
-class TestJobRevival(TestJobRevivalBase):
-    NUM_MASTERS = 1
-    NUM_NODES = 3
-    NUM_SCHEDULERS = 1
-
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {
-            "connect_retry_backoff_time": 100,
-            "fair_share_update_period": 100,
-            "operations_update_period": 100,
-            "static_orchid_cache_update_period": 100
-        },
-        "cluster_connection" : {
-            "transaction_manager": {
-                "default_transaction_timeout": 3000,
-                "default_ping_period": 200,
-            }
-        }
-    }
-
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {
-            "operation_time_limit_check_period": 100,
-            "snapshot_period": 500,
-            "operations_update_period": 100,
-        }
-    }
-
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "job_controller": {
-                "resource_limits": {
-                    "user_slots": 5,
-                    "cpu": 5
-                },
-                "total_confirmation_period": 5000
-            }
-        }
-    }
-
-    @authors("max42")
-    @pytest.mark.parametrize("components_to_kill", [["schedulers"], ["controller_agents"], ["schedulers", "controller_agents"]])
-    def test_job_revival_simple(self, components_to_kill):
-        create("table", "//tmp/t_in")
-        create("table", "//tmp/t_out")
-
-        write_table("//tmp/t_in", [{"a": 0}])
-
-        map_cmd = " ; ".join([
-            "sleep 2",
-            events_on_fs().notify_event_cmd("snapshot_written"),
-            events_on_fs().wait_event_cmd("scheduler_reconnected"),
-            "echo {a=1}"])
-        op = map(
-            dont_track=True,
-            command=map_cmd,
-            in_="//tmp/t_in",
-            out="//tmp/t_out")
-
-        job_id = self._wait_for_single_job(op.id)
-
-        events_on_fs().wait_event("snapshot_written")
-
-        self._kill_and_start(components_to_kill)
-
-        orchid_path = "//sys/scheduler/orchid/scheduler/operations/{0}".format(op.id)
-
-        wait(lambda: exists(orchid_path), "Operation did not re-appear")
-
-        assert self._wait_for_single_job(op.id) == job_id
-
-        events_on_fs().notify_event("scheduler_reconnected")
-        op.track()
-
-        assert get("{0}/@progress/jobs/aborted/total".format(op.get_path())) == 0
-        assert read_table("//tmp/t_out") == [{"a": 1}]
-
-    @authors("max42")
-    @pytest.mark.skipif("True", reason="YT-8635")
-    @pytest.mark.timeout(600)
-    def test_many_jobs_and_operations(self):
-        create("table", "//tmp/t_in")
-
-        row_count = 20
-        op_count = 20
-
-        output_tables = []
-        for i in range(op_count):
-            output_table = "//tmp/t_out{0:02d}".format(i)
-            create("table", output_table)
-            output_tables.append(output_table)
-
-        for i in range(row_count):
-            write_table("<append=%true>//tmp/t_in", [{"a": i}])
-
-        ops = []
-
-        for i in range(op_count):
-            ops.append(map(
-                dont_track=True,
-                command="sleep 0.$(($RANDOM)); cat",
-                in_="//tmp/t_in",
-                out=output_tables[i],
-                spec={"data_size_per_job": 1}))
-
-        def get_total_job_count(category):
-            total_job_count = 0
-            operations = get("//sys/operations", verbose=False)
-            for key in operations:
-                if len(key) != 2:
-                    continue
-                for op_id in operations[key]:
-                    total_job_count += \
-                        get(get_operation_cypress_path(op_id) + "/@progress/jobs/{}".format(category),
-                            default=0,
-                            verbose=False)
-            return total_job_count
-
-        # We will switch scheduler when there are 40, 80, 120, ..., 400 completed jobs.
-
-        for switch_job_count in range(40, 400, 40):
-            while True:
-                completed_job_count = get_total_job_count("completed/total")
-                aborted_job_count = get_total_job_count("aborted/total")
-                aborted_on_revival_job_count = get_total_job_count("aborted/scheduled/revival_confirmation_timeout")
-                print_debug("completed_job_count =", completed_job_count)
-                print_debug("aborted_job_count =", aborted_job_count)
-                print_debug("aborted_on_revival_job_count =", aborted_on_revival_job_count)
-                if completed_job_count >= switch_job_count:
-                    if (switch_job_count // 40) % 2 == 0:
-                        with Restarter(self.Env, SCHEDULERS_SERVICE):
-                            pass
-                    else:
-                        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
-                            pass
-                    if switch_job_count % 3 == 0:
-                        with Restarter(self.Env, NODES_SERVICE):
-                            pass
-                    break
-                time.sleep(1)
-
-        for op in ops:
-            op.track()
-
-        if aborted_job_count != aborted_on_revival_job_count:
-            print_debug("There were aborted jobs other than during the revival process:")
-            for op in ops:
-                pprint.pprint(dict(get(op.get_path() + "/@progress/jobs/aborted")), stream=sys.stderr)
-
-        for output_table in output_tables:
-            assert sorted(read_table(output_table, verbose=False)) == [{"a": i} for i in range(op_count)]
-
-    @authors("max42", "ignat")
-    @pytest.mark.parametrize("components_to_kill", [["schedulers"], ["controller_agents"], ["schedulers", "controller_agents"]])
-    def test_user_slots_limit(self, components_to_kill):
-        create("table", "//tmp/t_in")
-        create("table", "//tmp/t_out")
-
-        row_count = 20
-        for i in range(row_count):
-            write_table("<append=%true>//tmp/t_in", [{"a": i}])
-        user_slots_limit = 10
-
-        map_cmd = " ; ".join([
-            "sleep 2",
-            "echo '{a=1};'",
-            events_on_fs().notify_event_cmd("ready_for_revival_${YT_JOB_INDEX}"),
-            events_on_fs().wait_event_cmd("complete_operation"),
-            "echo '{a=2};'"])
-
-        op = map(dont_track=True,
-                 command=map_cmd,
-                 in_="//tmp/t_in",
-                 out="//tmp/t_out",
-                 spec={
-                     "data_size_per_job": 1,
-                     "resource_limits": {"user_slots": user_slots_limit},
-                     "auto_merge": {"mode": "manual", "chunk_count_per_merge_job": 3, "max_intermediate_chunk_count": 100}
-                 })
-
-        # Comment about '+10' - we need some additional room for jobs that can be non-scheduled aborted.
-        wait(lambda: sum([events_on_fs().check_event("ready_for_revival_" + str(i)) for i in xrange(user_slots_limit + 10)]) == user_slots_limit)
-
-        self._kill_and_start(components_to_kill)
-        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
-            pass
-
-        orchid_path = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/fair_share_info"
-        wait(lambda: exists(orchid_path + "/operations/" + op.id))
-
-        for i in xrange(1000):
-            user_slots = None
-            user_slots_path = orchid_path + "/operations/{0}/resource_usage/user_slots".format(op.id)
-            try:
-                user_slots = get(user_slots_path, verbose=False)
-            except YtError:
-                pass
-
-            for j in xrange(10):
-                try:
-                    jobs = get(op.get_path() + "/@progress/jobs", verbose=False)
-                    break
-                except:
-                    time.sleep(0.1)
-                    continue
-            else:
-                assert False
-            if i == 300:
-                events_on_fs().notify_event("complete_operation")
-            running = jobs["running"]
-            aborted = jobs["aborted"]["total"]
-            assert running <= user_slots_limit or user_slots is None or user_slots <= user_slots_limit
-            assert aborted == 0
-
-        op.track()
-
-##################################################################
-
-class TestDisabledJobRevival(TestJobRevivalBase):
-    NUM_MASTERS = 1
-    NUM_NODES = 3
-    NUM_SCHEDULERS = 1
-
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {
-            "connect_retry_backoff_time": 100,
-            "fair_share_update_period": 100,
-            "lock_transaction_timeout": 3000,
-            "operations_update_period": 100
-        },
-        "cluster_connection" : {
-            "transaction_manager": {
-                "default_transaction_timeout": 3000,
-                "default_ping_period": 200,
-            }
-        }
-    }
-
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {
-            "snapshot_period": 500,
-            "operations_update_period": 100,
-            "operation_time_limit_check_period": 100,
-            "enable_job_revival": False,
-        }
-    }
-
-    @authors("max42", "ignat")
-    @pytest.mark.parametrize("components_to_kill", [["schedulers"], ["controller_agents"], ["schedulers", "controller_agents"]])
-    def test_disabled_job_revival(self, components_to_kill):
-        create("table", "//tmp/t_in")
-        create("table", "//tmp/t_out")
-
-        write_table("//tmp/t_in", [{"a": 0}])
-
-        map_cmd = " ; ".join([
-            "sleep 2",
-            events_on_fs().notify_event_cmd("snapshot_written"),
-            events_on_fs().wait_event_cmd("scheduler_reconnected"),
-            "echo {a=1}"])
-        op = map(
-            dont_track=True,
-            command=map_cmd,
-            in_="//tmp/t_in",
-            out="//tmp/t_out")
-
-        orchid_path = "//sys/scheduler/orchid/scheduler/operations/{0}".format(op.id)
-
-        job_id = self._wait_for_single_job(op.id)
-
-        events_on_fs().wait_event("snapshot_written")
-        self._kill_and_start(components_to_kill)
-
-        wait(lambda: exists(orchid_path), "Operation did not re-appear")
-
-        # Here is the difference from the test_job_revival_simple.
-        assert self._wait_for_single_job(op.id) != job_id
-
-        events_on_fs().notify_event("scheduler_reconnected")
-        op.track()
-
-        # And here.
-        assert get("{0}/@progress/jobs/aborted/total".format(op.get_path())) >= 1
-        assert read_table("//tmp/t_out") == [{"a": 1}]
-
 
 ##################################################################
 
@@ -2226,7 +1693,7 @@ class TestMultipleSchedulers(YTEnvSetup, PrepareTables):
     def test_hot_standby(self):
         self._prepare_tables()
 
-        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 5")
+        op = map(track=False, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 5")
 
         op.wait_fresh_snapshot()
 
@@ -2336,7 +1803,7 @@ class TestSchedulerMaxChildrenPerAttachRequest(YTEnvSetup):
         write_table("//tmp/in", data)
 
         op = map(
-            dont_track=True,
+            track=False,
             command=with_breakpoint("cat ; BREAKPOINT"),
             in_="//tmp/in",
             out="//tmp/out",
@@ -2406,13 +1873,10 @@ class TestSchedulingTags(YTEnvSetup):
         self.node = nodes[0]
         set("//sys/cluster_nodes/{0}/@user_tags".format(self.node), ["default", "tagA", "tagB"])
         set("//sys/cluster_nodes/{0}/@user_tags".format(nodes[1]), ["tagC"])
-        # Wait for applying scheduling tags.
-        time.sleep(0.5)
 
         set("//sys/pool_trees/default/@nodes_filter", "default")
 
-        create("map_node", "//sys/pool_trees/other", force=True)
-        set("//sys/pool_trees/other/@nodes_filter", "tagC")
+        create_pool_tree("other", attributes={"nodes_filter": "tagC"})
 
         wait(lambda: self._get_slots_by_filter("default") == 1)
         wait(lambda: self._get_slots_by_filter("tagC") == 1)
@@ -2445,7 +1909,7 @@ class TestSchedulingTags(YTEnvSetup):
     def test_pools(self):
         self._prepare()
 
-        create("map_node", "//sys/pools/test_pool", attributes={"scheduling_tag_filter": "tagA"})
+        create_pool("test_pool", attributes={"scheduling_tag_filter": "tagA"})
         op = map(command="cat; echo 'AAA' >&2", in_="//tmp/t_in", out="//tmp/t_out", spec={"pool": "test_pool"})
         assert read_table("//tmp/t_out") == [{"foo": "bar"}]
 
@@ -2493,7 +1957,7 @@ class TestSchedulingTags(YTEnvSetup):
                 custom_node = str(node)
 
         op = map(
-            dont_track=True,
+            track=False,
             command="sleep 1000",
             in_=["//tmp/t_in"],
             out="//tmp/t_out",
@@ -2606,7 +2070,7 @@ class TestSchedulerConfig(YTEnvSetup):
 
         create("table", "//tmp/t_out")
 
-        op = map(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", dont_track=True)
+        op = map(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", track=False)
         wait(lambda: exists(op.get_path() + "/@full_spec"))
         # XXX(ignat)
         for spec_type in ("full_spec",):
@@ -2615,7 +2079,7 @@ class TestSchedulerConfig(YTEnvSetup):
             assert get("//sys/scheduler/orchid/scheduler/operations/{0}/{1}/max_failed_job_count".format(op.id, spec_type)) == 10
         op.abort()
 
-        op = reduce(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", reduce_by=["foo"], dont_track=True)
+        op = reduce(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", reduce_by=["foo"], track=False)
         wait(lambda: op.get_state() == "running")
         time.sleep(1)
         # XXX(ignat)
@@ -2642,7 +2106,7 @@ class TestSchedulerConfig(YTEnvSetup):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"a": "b"}])
         create("table", "//tmp/t_out")
-        op = map(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", dont_track=True, spec={"xxx": "yyy"})
+        op = map(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", track=False, spec={"xxx": "yyy"})
 
         wait(lambda: exists(op.get_path() + "/@unrecognized_spec"))
         assert get(op.get_path() + "/@unrecognized_spec") == {"xxx": "yyy"}
@@ -2652,7 +2116,7 @@ class TestSchedulerConfig(YTEnvSetup):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"a": "b"}])
         create("table", "//tmp/t_out")
-        op = map(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", dont_track=True)
+        op = map(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", track=False)
 
         wait(lambda: exists(op.get_path() + "/@brief_progress"))
         assert "jobs" in list(get(op.get_path() + "/@brief_progress"))
@@ -2716,7 +2180,7 @@ class TestSchedulerSnapshots(YTEnvSetup):
         testing_options = {"scheduling_delay": 500}
 
         op = map(
-            dont_track=True,
+            track=False,
             command=with_breakpoint("cat ; BREAKPOINT"),
             in_="//tmp/in",
             out="//tmp/out",
@@ -2752,7 +2216,7 @@ class TestSchedulerSnapshots(YTEnvSetup):
             output = "//tmp/output" + str(index)
             create("table", output)
             ops.append(
-                map(dont_track=True,
+                map(track=False,
                     command=with_breakpoint("cat ; BREAKPOINT"),
                     in_="//tmp/input",
                     out=[output],
@@ -2782,7 +2246,7 @@ class TestSchedulerSnapshots(YTEnvSetup):
 
         while True:
             op2 = map(
-                dont_track=True,
+                track=False,
                 command="cat",
                 in_="//tmp/in",
                 out="//tmp/out2",
@@ -2797,7 +2261,7 @@ class TestSchedulerSnapshots(YTEnvSetup):
                 break
 
         op1 = map(
-            dont_track=True,
+            track=False,
             command="sleep 10; cat",
             in_="//tmp/in",
             out="//tmp/out1",
@@ -2841,7 +2305,7 @@ class TestSchedulerHeterogeneousConfiguration(YTEnvSetup):
         assert get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/resource_usage/user_slots") == 0
 
         op = map(
-            dont_track=True,
+            track=False,
             command="sleep 100",
             in_="//tmp/in",
             out="//tmp/out",
@@ -2857,56 +2321,6 @@ class TestSchedulerHeterogeneousConfiguration(YTEnvSetup):
         assert get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/resource_usage/user_slots") == 2
 
 ###############################################################################################
-
-class TestSchedulerGpu(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_NODES = 3
-    NUM_SCHEDULERS = 1
-
-    @classmethod
-    def modify_node_config(cls, config):
-        if not hasattr(cls, "node_counter"):
-            cls.node_counter = 0
-        cls.node_counter += 1
-        if cls.node_counter == 1:
-            config["exec_agent"]["job_controller"]["resource_limits"]["gpu"] = 1
-            config["exec_agent"]["job_controller"]["test_gpu_resource"] = True
-
-    @authors("renadeen")
-    def test_job_count(self):
-        gpu_nodes = [node for node in ls("//sys/cluster_nodes") if get("//sys/cluster_nodes/{}/@resource_limits/gpu".format(node)) > 0]
-        assert len(gpu_nodes) == 1
-        gpu_node = gpu_nodes[0]
-
-        create("table", "//tmp/in")
-        create("table", "//tmp/out")
-        write_table("//tmp/in", [{"foo": i} for i in range(3)])
-
-        op = map(
-            command=with_breakpoint("cat ; BREAKPOINT"),
-            in_="//tmp/in",
-            out="//tmp/out",
-            spec={"mapper": {
-                "gpu_limit": 1,
-                "enable_gpu_layers": False,
-            }},
-            dont_track=True)
-
-        wait_breakpoint()
-
-        jobs = op.get_running_jobs()
-        assert len(jobs) == 1
-        assert jobs.values()[0]["address"] == gpu_node
-
-    @authors("ignat")
-    def test_min_share_resources(self):
-        create("map_node", "//sys/pools/gpu_pool", attributes={"min_share_resources": {"gpu": 1}})
-        gpu_pool_orchid_path = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/fair_share_info/pools/gpu_pool"
-        wait(lambda: exists(gpu_pool_orchid_path))
-        wait(lambda: get(gpu_pool_orchid_path + "/min_share_resources/gpu") == 1)
-        wait(lambda: get(gpu_pool_orchid_path + "/recursive_min_share_ratio") == 1.0)
-
-##################################################################
 
 class TestSchedulerJobStatistics(YTEnvSetup):
     NUM_MASTERS = 1
@@ -2932,7 +2346,7 @@ class TestSchedulerJobStatistics(YTEnvSetup):
         write_table("//tmp/in", [{"foo": i} for i in xrange(10)])
 
         op = map(
-            dont_track=True,
+            track=False,
             label="scheduler_job_statistics",
             in_="//tmp/in",
             out="//tmp/out",
@@ -2962,7 +2376,7 @@ class TestSchedulerJobStatistics(YTEnvSetup):
         write_table("//tmp/in", [{"foo": i} for i in xrange(10)])
 
         op = map(
-            dont_track=True,
+            track=False,
             label="scheduler_job_statistics",
             in_="//tmp/in",
             out="//tmp/out",
@@ -3010,7 +2424,7 @@ class TestCustomControllerQueues(YTEnvSetup):
     }
 
     @authors("ignat")
-    def test_run_operation(self):
+    def test_run_map(self):
         data = [{"foo": i} for i in xrange(3)]
         create("table", "//tmp/in")
         create("table", "//tmp/out")
@@ -3020,6 +2434,46 @@ class TestCustomControllerQueues(YTEnvSetup):
             in_="//tmp/in",
             out="//tmp/out",
             spec={"data_size_per_job": 1, "locality_timeout": 0})
+
+    @authors("eshcherbin")
+    def test_run_map_reduce(self):
+        data = [{"foo": i} for i in xrange(3)]
+        create("table", "//tmp/in")
+        create("table", "//tmp/out")
+        write_table("//tmp/in", data)
+
+        map_reduce(
+            mapper_command="cat",
+            reducer_command="cat",
+            in_="//tmp/in",
+            out="//tmp/out",
+            sort_by=["foo"])
+
+    @authors("eshcherbin")
+    def test_run_merge_erase(self):
+        data = [{"foo": i} for i in xrange(3)]
+        create("table", "//tmp/in")
+        create("table", "//tmp/out")
+        write_table("//tmp/in", data)
+
+        merge(
+            in_="//tmp/in",
+            out="//tmp/out",
+            spec={"force_transform": True})
+        erase("//tmp/in")
+
+    @authors("eshcherbin")
+    def test_run_reduce(self):
+        data = [{"foo": i} for i in xrange(3)]
+        create("table", "//tmp/in")
+        create("table", "//tmp/out")
+        write_table("//tmp/in", data, sorted_by=["foo"])
+
+        reduce(
+            command="sleep 1; cat",
+            in_="//tmp/in",
+            out="//tmp/out",
+            reduce_by=["foo"])
 
 ##################################################################
 
@@ -3045,7 +2499,7 @@ class TestSecureVault(YTEnvSetup):
         if spec is not None:
             merged_spec = update(merged_spec, spec)
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec=merged_spec,
@@ -3117,13 +2571,13 @@ class TestSecureVault(YTEnvSetup):
         write_table("//tmp/t_in", {"foo": "bar"})
         create("table", "//tmp/t_out")
         with pytest.raises(YtError):
-            map(dont_track=True,
+            map(track=False,
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
                 spec={"secure_vault": {"=_=": 42}},
                 command="cat")
         with pytest.raises(YtError):
-            map(dont_track=True,
+            map(track=False,
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
                 spec={"secure_vault": {"x" * (2**16 + 1): 42}},
@@ -3163,7 +2617,7 @@ class TestSafeAssertionsMode(YTEnvSetup):
         create("table", "//tmp/t_out")
 
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={"testing": {"controller_failure": "assertion_failure_in_prepare"}},
@@ -3194,8 +2648,12 @@ class TestSafeAssertionsMode(YTEnvSetup):
 
         wait(check_core, iter=200, sleep_backoff=5)
 
+        gdb = "gdb"
+        if arcadia_interop.yatest_common is not None:
+            gdb = arcadia_interop.yatest_common.gdb_path()
+
         assert os.path.exists(core_path)
-        child = subprocess.Popen(["gdb", "--batch", "-ex", "bt",
+        child = subprocess.Popen([gdb, "--batch", "-ex", "bt",
                                   find_executable("ytserver-controller-agent"), core_path],
                                  stdout=subprocess.PIPE,
                                  stderr=subprocess.PIPE)
@@ -3214,7 +2672,7 @@ class TestSafeAssertionsMode(YTEnvSetup):
         create("table", "//tmp/t_out")
 
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={"testing": {"controller_failure": "exception_thrown_in_on_job_completed"}},
@@ -3266,476 +2724,6 @@ class TestMaxTotalSliceCount(YTEnvSetup):
 
 ##################################################################
 
-class TestPoolMetrics(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_NODES = 3
-    NUM_SCHEDULERS = 1
-
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {
-            "running_jobs_update_period": 10,
-            "fair_share_update_period": 100,
-            "profiling_update_period": 100,
-            "fair_share_profiling_period": 100,
-        },
-    }
-
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {
-            "snapshot_period": 2000,
-            "job_metrics_report_period": 100,
-            "custom_job_metrics": [
-                {
-                    "statistics_path": "/user_job/block_io/bytes_written",
-                    "profiling_name": "my_metric",
-                },
-                {
-                    "statistics_path": "/user_job/block_io/bytes_written",
-                    "profiling_name": "my_metric_failed",
-                    "job_state_filter": "failed",
-                },
-                {
-                    "statistics_path": "/user_job/block_io/bytes_written",
-                    "profiling_name": "my_metric_completed",
-                    "job_state_filter": "completed",
-                },
-                {
-                    "statistics_path": "/custom/value",
-                    "profiling_name": "my_custom_metric_sum",
-                    "aggregate_type": "sum",
-                },
-                {
-                    "statistics_path": "/custom/value",
-                    "profiling_name": "my_custom_metric_max",
-                    "aggregate_type": "max",
-                },
-            ]
-        }
-    }
-
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "enable_cgroups": True,
-            "supported_cgroups": ["cpuacct", "blkio", "cpu"],
-            "slot_manager": {
-                "enforce_job_control": True,
-                "job_environment": {
-                    "type": "cgroups",
-                    "supported_cgroups": [
-                        "cpuacct",
-                        "blkio",
-                        "cpu"],
-                },
-            },
-            "scheduler_connector": {
-                "heartbeat_period": 100,  # 100 msec
-            },
-        }
-    }
-
-    @authors("ignat")
-    @unix_only
-    def test_map(self):
-        create("map_node", "//sys/pools/parent")
-        create("map_node", "//sys/pools/parent/child1")
-        create("map_node", "//sys/pools/parent/child2")
-
-        # Give scheduler some time to apply new pools.
-        time.sleep(1)
-
-        create("table", "//t_input")
-        create("table", "//t_output")
-
-        # write table of 2 chunks because we want 2 jobs
-        write_table("//t_input", [{"key": i} for i in xrange(0, 100)])
-        write_table("<append=%true>//t_input", [{"key": i} for i in xrange(100, 500)])
-
-        # our command does the following
-        # - writes (and syncs) something to disk
-        # - works for some time (to ensure that it sends several heartbeats
-        # - writes something to stderr because we want to find our jobs in //sys/operations later
-        map_cmd = """for i in $(seq 10) ; do python -c "import os; os.write(5, '{value=$i};')"; echo 5 > /tmp/foo$i ; sync ; sleep 0.5 ; done ; cat ; sleep 10; echo done > /dev/stderr"""
-
-        metric_name = "user_job_bytes_written"
-        statistics_name = "user_job.block_io.bytes_written"
-
-        usual_metric_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/" + metric_name,
-            grouped_by_tags=["pool"])
-        custom_metric_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/my_metric",
-            grouped_by_tags=["pool"])
-        custom_metric_completed_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/my_metric_completed",
-            grouped_by_tags=["pool"])
-        custom_metric_failed_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/my_metric_failed",
-            grouped_by_tags=["pool"])
-        custom_metric_max_last = Metric.at_scheduler(
-            "scheduler/pools/metrics/my_custom_metric_max",
-            with_tags={"pool": "child2"},
-            aggr_method="last")
-        custom_metric_sum_last = Metric.at_scheduler(
-            "scheduler/pools/metrics/my_custom_metric_sum",
-            with_tags={"pool": "child2"},
-            aggr_method="last")
-
-        op11 = map(
-            in_="//t_input",
-            out="//t_output",
-            command=map_cmd,
-            spec={"job_count": 2, "pool": "child1"},
-        )
-        op12 = map(
-            in_="//t_input",
-            out="//t_output",
-            command=map_cmd,
-            spec={"job_count": 2, "pool": "child1"},
-        )
-
-        op2 = map(
-            in_="//t_input",
-            out="//t_output",
-            command=map_cmd,
-            spec={"job_count": 2, "pool": "child2"},
-        )
-
-        for metric_delta in (usual_metric_delta, custom_metric_delta, custom_metric_completed_delta):
-            wait(lambda: metric_delta.update().get("parent", verbose=True) > 0)
-
-            op11_writes = get_cypress_metrics(op11.id, statistics_name)
-            op12_writes = get_cypress_metrics(op12.id, statistics_name)
-            op2_writes = get_cypress_metrics(op2.id, statistics_name)
-
-            wait(lambda: metric_delta.update().get("child1", verbose=True) == op11_writes + op12_writes > 0)
-            wait(lambda: metric_delta.update().get("child2", verbose=True) == op2_writes > 0)
-            wait(lambda: metric_delta.update().get("parent", verbose=True) == op11_writes + op12_writes + op2_writes > 0)
-
-        assert custom_metric_failed_delta.update().get("child2", verbose=True) == 0
-
-        wait(lambda: custom_metric_max_last.update().get(verbose=True) == 20)
-        wait(lambda: custom_metric_sum_last.update().get(verbose=True) == 110)
-
-        jobs_11 = ls(op11.get_path() + "/jobs")
-        assert len(jobs_11) >= 2
-
-    @authors("ignat")
-    def test_time_metrics(self):
-        create("map_node", "//sys/pools/parent")
-        create("map_node", "//sys/pools/parent/child")
-
-        # Give scheduler some time to apply new pools.
-        time.sleep(1)
-
-        create("table", "//tmp/t_input")
-        create("table", "//tmp/t_output")
-
-        write_table("<append=%true>//tmp/t_input", [{"key": i} for i in xrange(2)])
-
-        total_time_completed_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/total_time_completed",
-            grouped_by_tags=["pool"])
-        total_time_aborted_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/total_time_aborted",
-            grouped_by_tags=["pool"])
-
-        op = map(
-            command=with_breakpoint("cat; BREAKPOINT"),
-            in_="//tmp/t_input",
-            out="//tmp/t_output",
-            spec={"data_size_per_job": 1, "pool": "child"},
-            dont_track=True)
-
-        jobs = wait_breakpoint(job_count=2)
-        assert len(jobs) == 2
-
-        release_breakpoint(job_id=jobs[0])
-
-        # Wait until short job is completed.
-        wait(lambda: len(op.get_running_jobs()) == 1)
-
-        running_jobs = list(op.get_running_jobs())
-        assert len(running_jobs) == 1
-        abort_job(running_jobs[0])
-
-        def check_metrics(metric_delta):
-            metric_delta.update()
-            for p in ("parent", "child"):
-                if metric_delta[p] == 0:
-                    return False
-            return metric_delta.get("parent", verbose=True) == metric_delta.get("child", verbose=True)
-
-        # NB: profiling is built asynchronously in separate thread and can contain non-consistent information.
-        wait(lambda: check_metrics(total_time_completed_delta))
-        wait(lambda: check_metrics(total_time_aborted_delta))
-
-    @authors("eshcherbin")
-    def test_total_time_operation_by_state(self):
-        create("map_node", "//sys/pools/parent")
-        wait(lambda: "parent" in get(scheduler_orchid_default_pool_tree_path() + "/pools"))
-        for i in xrange(3):
-            create("map_node", "//sys/pools/parent/child" + str(i + 1))
-            wait(lambda: ("child" + str(i + 1)) in get(scheduler_orchid_default_pool_tree_path() + "/pools"))
-
-
-        create("table", "//tmp/t_input")
-        for i in xrange(3):
-            create("table", "//tmp/t_output_" + str(i + 1))
-
-        write_table("//tmp/t_input", {"foo": "bar"})
-
-        total_time_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/total_time",
-            grouped_by_tags=["pool"])
-        total_time_operation_completed_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/total_time_operation_completed",
-            grouped_by_tags=["pool"])
-        total_time_operation_failed_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/total_time_operation_failed",
-            grouped_by_tags=["pool"])
-        total_time_operation_aborted_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/total_time_operation_aborted",
-            grouped_by_tags=["pool"])
-
-        op1 = map(command=("sleep 5; cat"), in_="//tmp/t_input", out="//tmp/t_output_1", spec={"pool": "child1"}, dont_track=True)
-        op2 = map(command=("sleep 5; cat; exit 1"), in_="//tmp/t_input", out="//tmp/t_output_2", spec={"pool": "child2", "max_failed_job_count": 1}, dont_track=True)
-        op3 = map(command=("sleep 100; cat"), in_="//tmp/t_input", out="//tmp/t_output_3", spec={"pool": "child3"}, dont_track=True)
-
-        # Wait until at least some metrics are reported for op3
-        wait(lambda: total_time_delta.update().get("child3", verbose=True) > 0)
-        op3.abort(wait_until_completed=True)
-
-        op1.track()
-        op2.track(raise_on_failed=False)
-
-        def check_metrics(metric_delta, child):
-            metric_delta.update()
-            for p in ("parent", child):
-                if metric_delta[p] == 0:
-                    return False
-            return metric_delta.get("parent", verbose=True) == metric_delta.get(child, verbose=True)
-
-        # NB: profiling is built asynchronously in separate thread and can contain non-consistent information.
-        wait(lambda: check_metrics(total_time_operation_completed_delta, "child1"))
-        wait(lambda: check_metrics(total_time_operation_failed_delta, "child2"))
-        wait(lambda: check_metrics(total_time_operation_aborted_delta, "child3"))
-        wait(lambda: total_time_delta.update().get("parent", verbose=True)
-             == total_time_operation_completed_delta.update().get("parent", verbose=True)
-             + total_time_operation_failed_delta.update().get("parent", verbose=True)
-             + total_time_operation_aborted_delta.update().get("parent", verbose=True)
-             > 0)
-
-    @authors("eshcherbin")
-    def test_total_time_operation_completed_several_jobs(self):
-        create("map_node", "//sys/pools/unique_pool")
-
-        # Give scheduler some time to apply new pools.
-        time.sleep(1)
-
-        create("table", "//tmp/t_input")
-        create("table", "//tmp/t_output")
-
-        write_table("<append=%true>//tmp/t_input", [{"key": i} for i in xrange(2)])
-
-        total_time_completed_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/total_time_completed",
-            with_tags={"pool": "unique_pool"})
-        total_time_aborted_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/total_time_aborted",
-            with_tags={"pool": "unique_pool"})
-        total_time_operation_completed_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/total_time_operation_completed",
-            with_tags={"pool": "unique_pool"})
-        total_time_operation_failed_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/total_time_operation_failed",
-            with_tags={"pool": "unique_pool"})
-        total_time_operation_aborted_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/total_time_operation_aborted",
-            with_tags={"pool": "unique_pool"})
-
-        op = map(
-            command=with_breakpoint("cat; BREAKPOINT; sleep 3"),
-            in_="//tmp/t_input",
-            out="//tmp/t_output",
-            spec={"data_size_per_job": 1, "pool": "unique_pool", "max_speculative_job_count_per_task": 0},
-            dont_track=True)
-
-        jobs = wait_breakpoint(job_count=2)
-        assert len(jobs) == 2
-
-        release_breakpoint(job_id=jobs[0])
-
-        # Wait until short job is completed.
-        wait(lambda: len(op.get_running_jobs()) == 1)
-
-        running_jobs = list(op.get_running_jobs())
-        assert len(running_jobs) == 1
-
-        job_to_abort = running_jobs[0]
-        release_breakpoint(job_id=job_to_abort)
-        abort_job(job_to_abort)
-
-        # Wait for restarted job to reach breakpoint.
-        jobs = wait_breakpoint()
-        assert len(jobs) == 1 and jobs[0] != job_to_abort
-        release_breakpoint(job_id=jobs[0])
-
-        op.track()
-
-        wait(lambda: total_time_operation_completed_delta.update().get(verbose=True)
-             == total_time_completed_delta.update().get(verbose=True)
-             + total_time_aborted_delta.update().get(verbose=True)
-             > 0)
-        assert total_time_operation_failed_delta.update().get(verbose=True) == 0
-        assert total_time_operation_aborted_delta.update().get(verbose=True) == 0
-
-    @authors("eshcherbin")
-    def test_total_time_operation_failed_several_jobs(self):
-        create("map_node", "//sys/pools/unique_pool")
-
-        # Give scheduler some time to apply new pools.
-        time.sleep(1)
-
-        create("table", "//tmp/t_input")
-        create("table", "//tmp/t_output")
-
-        write_table("<append=%true>//tmp/t_input",
-                    [{"sleep": 2, "exit": 0},
-                     {"sleep": 5, "exit": 1}],
-                    output_format="json")
-
-        map_cmd = """python -c 'import sys; import time; import json; row=json.loads(raw_input()); time.sleep(row["sleep"]); sys.exit(row["exit"])'"""
-
-        total_time_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/total_time",
-            with_tags={"pool": "unique_pool"})
-        total_time_operation_completed_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/total_time_operation_completed",
-            with_tags={"pool": "unique_pool"})
-        total_time_operation_failed_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/total_time_operation_failed",
-            with_tags={"pool": "unique_pool"})
-        total_time_operation_aborted_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/total_time_operation_aborted",
-            with_tags={"pool": "unique_pool"})
-
-        op = map(
-            command=map_cmd,
-            in_="//tmp/t_input",
-            out="//tmp/t_output",
-            spec={"data_size_per_job": 1,
-                  "max_failed_job_count": 1,
-                  "pool": "unique_pool",
-                  "mapper": {"input_format": "json",
-                             "check_input_fully_consumed": True}},
-            dont_track=True)
-        op.track(raise_on_failed=False)
-
-        wait(lambda: total_time_delta.update().get(verbose=True)
-             == total_time_operation_failed_delta.update().get(verbose=True)
-             > 0)
-        assert total_time_operation_completed_delta.update().get(verbose=True) == 0
-        assert total_time_operation_aborted_delta.update().get(verbose=True) == 0
-
-    @authors("eshcherbin")
-    def test_total_time_operation_completed_per_tree(self):
-        create("table", "//tmp/t_in")
-        for i in xrange(9):
-            write_table("<append=%true>//tmp/t_in", [{"x": i}])
-        create("table", "//tmp/t_out")
-
-        # Set up second tree
-        node = ls("//sys/cluster_nodes")[0]
-        set("//sys/cluster_nodes/" + node + "/@user_tags/end", "other")
-        create("map_node", "//sys/pool_trees/other", attributes={"nodes_filter": "other"})
-        set("//sys/pool_trees/default/@nodes_filter", "!other")
-
-        time.sleep(1.0)
-
-        total_time_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/total_time",
-            with_tags={"pool": "<Root>"},
-            grouped_by_tags=["tree"])
-        total_time_operation_completed_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/total_time_operation_completed",
-            with_tags={"pool": "<Root>"},
-            grouped_by_tags=["tree"])
-
-        map(command="cat",
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
-            spec={"data_size_per_job": 1, "pool_trees": ["default", "other"]})
-
-        wait(lambda: total_time_delta.update().get("default", verbose=True)
-             == total_time_operation_completed_delta.update().get("default", verbose=True)
-             > 0)
-        wait(lambda: total_time_delta.update().get("other", verbose=True)
-             == total_time_operation_completed_delta.update().get("other", verbose=True)
-             > 0)
-
-        # Go back to one default tree
-        remove("//sys/pool_trees/*")
-        create("map_node", "//sys/pool_trees/default")
-        set("//sys/pool_trees/@default_tree", "default")
-        time.sleep(0.5)  # Give scheduler some time to reload trees
-
-    @authors("eshcherbin")
-    def test_revive(self):
-        create("map_node", "//sys/pools/unique_pool")
-        wait(lambda: "unique_pool" in get(scheduler_orchid_default_pool_tree_path() + "/pools"))
-
-        create("table", "//tmp/t_input")
-        create("table", "//tmp/t_output")
-        write_table("<append=%true>//tmp/t_input", {"foo": "bar"})
-
-        before_breakpoint = """for i in $(seq 10) ; do python -c "import os; os.write(5, '{value=$i};')" ; sleep 0.5 ; done ; sleep 5 ; """
-        after_breakpoint = """for i in $(seq 11 15) ; do python -c "import os; os.write(5, '{value=$i};')" ; sleep 0.5 ; done ; cat ; sleep 5 ; echo done > /dev/stderr ; """
-
-        total_time_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/total_time",
-            with_tags={"pool": "unique_pool"})
-        custom_metric_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/my_custom_metric_sum",
-            with_tags={"pool": "unique_pool"})
-
-        op = map(
-            command=with_breakpoint(before_breakpoint + "BREAKPOINT ; " + after_breakpoint),
-            in_="//tmp/t_input",
-            out="//tmp/t_output",
-            spec={"pool": "unique_pool"},
-            dont_track=True)
-
-        jobs = wait_breakpoint()
-        assert len(jobs) == 1
-
-        total_time_before_restart = total_time_delta.update().get(verbose=True)
-        wait(lambda: custom_metric_delta.update().get(verbose=True) == 55)
-
-        # We need to have the job in the snapshot, so that it is not restarted after operation revival.
-        op.wait_fresh_snapshot()
-
-        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
-            pass
-
-        wait(lambda: get("//sys/scheduler/orchid/scheduler/operations/{}/state".format(op.id)) == "running")
-        wait(lambda: op.get_state() == "running")
-
-        release_breakpoint()
-
-        op.track()
-
-        wait(lambda: total_time_delta.update().get(verbose=True) > total_time_before_restart)
-        wait(lambda: custom_metric_delta.update().get(verbose=True) == 120)
-
-
-@patch_porto_env_only(TestPoolMetrics)
-class TestPoolMetricsPorto(YTEnvSetup):
-    DELTA_NODE_CONFIG = porto_delta_node_config
-    USE_PORTO_FOR_SERVERS = True
-
-##################################################################
-
-
 class TestGetJobSpecFailed(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -3757,7 +2745,7 @@ class TestGetJobSpecFailed(YTEnvSetup):
                     "fail_get_job_spec": True
                 },
             },
-            dont_track=True)
+            track=False)
 
         def check():
             jobs = get(op.get_path() + "/controller_orchid/progress/jobs", default=None)
@@ -3801,7 +2789,7 @@ class TestResourceLimitsOverrides(YTEnvSetup):
             command='if [ "$YT_JOB_INDEX" == "0" ]; then sleep 1000; else cat; fi',
             in_="//tmp/t_input",
             out="//tmp/t_output",
-            dont_track=True)
+            track=False)
 
         jobs = self._wait_for_jobs(op.id)
         job_id = jobs.keys()[0]
@@ -3826,7 +2814,7 @@ class TestResourceLimitsOverrides(YTEnvSetup):
             in_="//tmp/t_input",
             out="//tmp/t_output",
             spec={"mapper": {"memory_limit": 100 * 1024 * 1024}},
-            dont_track=True)
+            track=False)
 
         jobs = self._wait_for_jobs(op.id)
         job_id = jobs.keys()[0]
@@ -3876,7 +2864,7 @@ fi
                     "data_size_per_job": 1,
                     "enable_compatible_storage_mode": i == 0
                 },
-                dont_track=True)
+                track=False)
 
             state_path = "//sys/scheduler/orchid/scheduler/operations/{0}/state".format(op.id)
             wait(lambda: get(state_path) == "running")
@@ -3926,7 +2914,7 @@ fi
             in_="//tmp/t_input",
             out="//tmp/t_output",
             spec=spec,
-            dont_track=True,
+            track=False,
         )
 
         state_path = "//sys/scheduler/orchid/scheduler/operations/{0}/state".format(op.id)
@@ -3965,7 +2953,7 @@ fi
                 spec={
                     "data_size_per_job": 1
                 },
-                dont_track=True)
+                track=False)
 
             wait(lambda: op.get_job_count("failed") == 1 and op.get_job_count("running") >= 1)
 
@@ -4028,82 +3016,6 @@ fi
 
 ##################################################################
 
-class TestSchedulerOperationStorageArchivation(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_NODES = 3
-    NUM_SCHEDULERS = 1
-    USE_DYNAMIC_TABLES = True
-
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "statistics_reporter": {
-                "enabled": True,
-                "reporting_period": 10,
-                "min_repeat_delay": 10,
-                "max_repeat_delay": 10,
-            }
-        },
-    }
-
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {
-            "watchers_update_period": 100,
-            "operations_update_period": 10,
-            "operations_cleaner": {
-                "enable": False,
-                "analysis_period": 100,
-                # Cleanup all operations
-                "hard_retained_operation_count": 0,
-                "clean_delay": 0,
-            },
-            "enable_job_reporter": True,
-            "enable_job_spec_reporter": True,
-            "enable_job_stderr_reporter": True,
-        },
-    }
-
-    def setup(self):
-        sync_create_cells(1)
-        init_operation_archive.create_tables_latest_version(self.Env.create_native_client(), override_tablet_cell_bundle="default")
-
-    def teardown(self):
-        remove("//sys/operations_archive")
-
-    def _run_op(self, fail=False):
-        create("table", "//tmp/t1", ignore_existing=True)
-        create("table", "//tmp/t2", ignore_existing=True)
-        write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
-
-        op = map(
-            command="echo STDERR-OUTPUT >&2; " + ("true" if not fail else "false"),
-            in_="//tmp/t1",
-            out="//tmp/t2")
-
-        return op
-
-    @authors("asaitgalin")
-    def test_operation_attributes(self):
-        def _check_attributes(op):
-            res_get_operation_archive = get_operation(op.id)
-            for key in ("state", "start_time", "finish_time"):
-                assert key in res_get_operation_archive
-
-        op = self._run_op()
-        clean_operations()
-        assert not exists("//sys/operations/" + op.id)
-        assert not exists(op.get_path())
-        _check_attributes(op)
-
-    @authors("max42")
-    def test_get_job_stderr(self):
-        op = self._run_op()
-        jobs_new = ls(op.get_path() + "/jobs")
-        job_id = jobs_new[-1]
-        clean_operations()
-        assert get_job_stderr(op.id, job_id) == "STDERR-OUTPUT\n"
-
-##################################################################
-
 class TestControllerMemoryUsage(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
@@ -4147,7 +3059,7 @@ class TestControllerMemoryUsage(YTEnvSetup):
             assert entry["alive"] == False
 
         op_small = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t_in",
             out="<sorted_by=[a]>//tmp/t_out",
             command="sleep 3600")
@@ -4165,7 +3077,7 @@ class TestControllerMemoryUsage(YTEnvSetup):
 
 
         op_large = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t_in",
             out="<sorted_by=[a]>//tmp/t_out",
             command="sleep 3600",
@@ -4255,7 +3167,7 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
                         "allocation_size": 1024 ** 2,
                     }
                 },
-                dont_track=True)
+                track=False)
             wait(lambda: op.get_state() == "running")
             ops.append(op)
 
@@ -4270,135 +3182,6 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
             for op in ops:
                 print_debug(op.id, get(op.get_path() + "/controller_orchid/memory_usage", verbose=False))
         assert 0.5 <= balance_ratio <= 0.8
-
-class TestPorts(YTEnvSetup):
-    NUM_SCHEDULERS = 1
-    NUM_NODES = 1
-
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "job_controller": {
-                "start_port": 20000,
-                "port_count": 3,
-                "waiting_jobs_timeout": 1000,
-                "resource_limits": {
-                    "user_slots": 2,
-                    "cpu": 2
-                }
-            },
-        },
-    }
-
-    @authors("ignat")
-    def test_simple(self):
-        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
-        write_table("//tmp/t_in", [{"a": 0}])
-
-        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
-        create("table", "//tmp/t_out_other", attributes={"replication_factor": 1})
-
-        op = map(
-            dont_track=True,
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
-            command=with_breakpoint("echo $YT_PORT_0 >&2; echo $YT_PORT_1 >&2; if [ -n \"$YT_PORT_2\" ]; then echo 'FAILED' >&2; fi; cat; BREAKPOINT"),
-            spec={
-                "mapper": {
-                    "port_count": 2,
-                }
-            })
-
-        jobs = wait_breakpoint()
-        assert len(jobs) == 1
-
-        ## Not enough ports
-        with pytest.raises(YtError):
-            map(
-                in_="//tmp/t_in",
-                out="//tmp/t_out_other",
-                command="cat",
-                spec={
-                    "mapper": {
-                        "port_count": 2,
-                    },
-                    "max_failed_job_count": 1,
-                    "fail_on_job_restart": True,
-                })
-
-        release_breakpoint()
-        op.track()
-
-        stderr = read_file(op.get_path() + "/jobs/" + jobs[0] + "/stderr")
-        assert "FAILED" not in stderr
-        ports = __builtin__.map(int, stderr.split())
-        assert len(ports) == 2
-        assert ports[0] != ports[1]
-
-        assert all(port >= 20000 and port < 20003 for port in ports)
-
-
-        map(
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
-            command="echo $YT_PORT_0 >&2; echo $YT_PORT_1 >&2; if [ -n \"$YT_PORT_2\" ]; then echo 'FAILED' >&2; fi; cat",
-            spec={
-                "mapper": {
-                    "port_count": 2,
-                }
-            })
-
-        jobs_path = op.get_path() + "/jobs"
-        assert exists(jobs_path)
-        jobs = ls(jobs_path)
-        assert len(jobs) == 1
-
-        stderr = read_file(op.get_path() + "/jobs/" + jobs[0] + "/stderr")
-        assert "FAILED" not in stderr
-        ports = __builtin__.map(int, stderr.split())
-        assert len(ports) == 2
-        assert ports[0] != ports[1]
-
-        assert all(port >= 20000 and port < 20003 for port in ports)
-
-    @authors("max42")
-    def test_preliminary_bind(self):
-        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
-        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
-        write_table("//tmp/t_in", [{"a": 1}])
-
-        server_socket = None
-        try:
-            try:
-                server_socket = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
-                server_socket.bind(("::1", 20001))
-            except Exception as err:
-                pytest.skip("Caught following exception while trying to bind to port 20001: {}".format(err))
-                return
-
-            # We run test several times to make sure that ports did not stuck inside node.
-            for iteration in range(3):
-                if iteration in [0, 1]:
-                    expected_ports = [{"port": 20000}, {"port": 20002}]
-                else:
-                    server_socket.close()
-                    server_socket = None
-                    expected_ports = [{"port": 20000}, {"port": 20001}]
-
-                map(in_="//tmp/t_in",
-                    out="//tmp/t_out",
-                    command='echo "{port=$YT_PORT_0}; {port=$YT_PORT_1}"',
-                    spec={
-                        "mapper": {
-                            "port_count": 2,
-                            "format": "yson",
-                        }
-                    })
-
-                ports = read_table("//tmp/t_out")
-                assert ports == expected_ports
-        finally:
-            if server_socket is not None:
-                server_socket.close()
 
 class TestNewLivePreview(YTEnvSetup):
     NUM_SCHEDULERS = 1
@@ -4415,7 +3198,7 @@ class TestNewLivePreview(YTEnvSetup):
 
         op = map(
             wait_for_jobs=True,
-            dont_track=True,
+            track=False,
             command=with_breakpoint("BREAKPOINT ; cat"),
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -4448,7 +3231,7 @@ class TestNewLivePreview(YTEnvSetup):
 
         op = map(
             wait_for_jobs=True,
-            dont_track=True,
+            track=False,
             command=with_breakpoint("BREAKPOINT ; cat"),
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -4481,7 +3264,7 @@ class TestNewLivePreview(YTEnvSetup):
 
         op = map_reduce(
             wait_for_jobs=True,
-            dont_track=True,
+            track=False,
             mapper_command='for ((i=0; i<3; i++)); do echo "{a=$(($YT_JOB_INDEX*3+$i))};"; done',
             reducer_command=with_breakpoint("cat; BREAKPOINT"),
             reduce_by="a",
@@ -4559,7 +3342,7 @@ class TestNewLivePreview(YTEnvSetup):
         def check_live_preview(enable_legacy_live_preview=None, authenticated_user=None, index=None):
             op = map(
                 wait_for_jobs=True,
-                dont_track=True,
+                track=False,
                 command=with_breakpoint("BREAKPOINT ; cat", breakpoint_name=str(index)),
                 in_="//tmp/t1",
                 out="//tmp/t2",
@@ -4606,157 +3389,10 @@ class TestConnectToMaster(YTEnvSetup):
         wait(lambda: self.has_safe_mode_error_in_log())
 
     def has_safe_mode_error_in_log(self):
-        for line in open(self.path_to_run + "/logs/scheduler-0.log"):
+        for line in gzip.open(self.path_to_run + "/logs/scheduler-0.log.gz"):
             if "Error connecting to master" in line and "Cluster is in safe mode" in line:
                 return True
         return False
-
-
-class TestOperationAliases(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_SCHEDULERS = 1
-    NUM_NODES = 3
-
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {
-            "operations_cleaner": {
-                "enable": False,
-                # Analyze all operations each 100ms
-                "analysis_period": 100,
-                # Wait each batch to remove not more than 100ms
-                "remove_batch_timeout": 100,
-                # Wait each batch to archive not more than 100ms
-                "archive_batch_timeout": 100,
-                # Retry sleeps
-                "min_archivation_retry_sleep_delay": 100,
-                "max_archivation_retry_sleep_delay": 110,
-                # Leave no more than 5 completed operations
-                "soft_retained_operation_count": 0,
-                # Operations older than 50ms can be considered for removal
-                "clean_delay": 50,
-            },
-            "static_orchid_cache_update_period": 100,
-            "alerts_update_period": 100
-        }
-    }
-
-    def setup(self):
-        # Init operations archive.
-        sync_create_cells(1)
-
-    @authors("max42")
-    def test_aliases(self):
-        with pytest.raises(YtError):
-            # Alias should start with *.
-            vanilla(spec={"tasks": {"main": {"command": "sleep 1000", "job_count": 1}},
-                          "alias": "my_op"})
-
-
-        op = vanilla(spec={"tasks": {"main": {"command": "sleep 1000", "job_count": 1}},
-                           "alias": "*my_op"},
-                     dont_track=True)
-
-        assert ls("//sys/scheduler/orchid/scheduler/operations") == [op.id, "*my_op"]
-        assert get("//sys/scheduler/orchid/scheduler/operations/" + op.id) == get("//sys/scheduler/orchid/scheduler/operations/\\*my_op")
-        wait(lambda: op.get_state() == "running")
-        assert list_operations()["operations"][0]["brief_spec"]["alias"] == "*my_op"
-
-        # It is not allowed to use alias of already running operation.
-        with pytest.raises(YtError):
-            vanilla(spec={"tasks": {"main": {"command": "sleep 1000", "job_count": 1}},
-                          "alias": "*my_op"})
-
-        suspend_op("*my_op")
-        assert get(op.get_path() + "/@suspended")
-        resume_op("*my_op")
-        assert not get(op.get_path() + "/@suspended")
-        update_op_parameters("*my_op", parameters={"acl": [make_ace("allow", "u", ["manage", "read"])]})
-        assert len(get(op.get_path() + "/@alerts")) == 1
-        wait(lambda: get(op.get_path() + "/@state") == "running")
-        abort_op("*my_op")
-        assert get(op.get_path() + "/@state") == "aborted"
-
-        with pytest.raises(YtError):
-            complete_op("*my_another_op")
-
-        with pytest.raises(YtError):
-            complete_op("my_op")
-
-        # Now using alias *my_op is ok.
-        op = vanilla(spec={"tasks": {"main": {"command": "sleep 1000", "job_count": 1}},
-                           "alias": "*my_op"},
-                     dont_track=True)
-
-        wait(lambda: (sys.stderr.write(op.get_path() + "/@error"), get(op.get_path() + "/@state"))[1] == "running")
-
-        complete_op("*my_op")
-        assert get(op.get_path() + "/@state") == "completed"
-
-    @authors("max42")
-    def test_get_operation_latest_archive_version(self):
-        init_operation_archive.create_tables_latest_version(self.Env.create_native_client(), override_tablet_cell_bundle="default")
-
-        # When no operation is assigned to an alias, get_operation should return an error.
-        with pytest.raises(YtError):
-            get_operation("*my_op", include_runtime=True)
-
-        op = vanilla(spec={"tasks": {"main": {"command": "sleep 1000", "job_count": 1}},
-                           "alias": "*my_op"},
-                     dont_track=True)
-        wait(lambda: get(op.get_path() + "/@state") == "running")
-
-        with pytest.raises(YtError):
-            # It is impossible to resolve aliases without including runtime.
-            get_operation("*my_op", include_runtime=False)
-
-        info = get_operation("*my_op", include_runtime=True)
-        assert info["id"] == op.id
-        assert info["type"] == "vanilla"
-
-        op.complete()
-
-        # Operation should still be exposed via Orchid, and get_operation will extract information from there.
-        assert get("//sys/scheduler/orchid/scheduler/operations/\*my_op") == {"operation_id": op.id}
-        info = get_operation("*my_op", include_runtime=True)
-        assert info["id"] == op.id
-        assert info["type"] == "vanilla"
-
-        assert exists(op.get_path())
-
-        clean_operations()
-
-        # Alias should become removed from the Orchid (but it may happen with some visible delay, so we wait for it).
-        wait(lambda: not exists("//sys/scheduler/orchid/scheduler/operations/\\*my_op"))
-        # But get_operation should still work as expected.
-        info = get_operation("*my_op", include_runtime=True)
-        assert info["id"] == op.id
-        assert info["type"] == "vanilla"
-
-
-
-class TestOperationAliasesRpcProxy(TestOperationAliases):
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-    ENABLE_HTTP_PROXY = True
-
-
-class TestContainerCpuLimit(YTEnvSetup):
-    DELTA_NODE_CONFIG = porto_delta_node_config
-    USE_PORTO_FOR_SERVERS = True
-    NUM_SCHEDULERS = 1
-    NUM_NODES = 1
-
-    @authors("max42")
-    @flaky(max_runs=3)
-    def test_container_cpu_limit(self):
-        op = vanilla(spec={"tasks": {"main": {"command": "timeout 5s md5sum /dev/zero || true",
-                                              "job_count": 1,
-                                              "set_container_cpu_limit": True,
-                                              "cpu_limit": 0.1,
-                                              }}})
-        statistics = get(op.get_path() + "/@progress/job_statistics")
-        cpu_usage = get_statistics(statistics, "user_job.cpu.user.$.completed.vanilla.max")
-        assert cpu_usage < 2500
 
 class TestNodeDoubleRegistration(YTEnvSetup):
     NUM_SCHEDULERS = 1
@@ -4816,31 +3452,6 @@ class TestNodeDoubleRegistration(YTEnvSetup):
         wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)) == "offline")
         wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "online")
 
-@authors("renadeen")
-class TestConfigurablePoolTreeRoot(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_SCHEDULERS = 1
-    NUM_NODES = 0
-
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {
-            "pool_trees_root": "//sys/test_root"
-        }
-    }
-
-    def test_scheduler_reads_pool_config_from_different_path(self):
-        set("//sys/test_root", {
-            "tree": {
-                "parent": {"pool": {}}
-            }
-        })
-        set("//sys/test_root/tree/parent/pool/@max_operation_count", 10)
-
-        pools_path = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/tree/fair_share_info/pools"
-        wait(lambda: exists(pools_path + "/pool"))
-        wait(lambda: get(pools_path + "/pool/parent") == "parent")
-        wait(lambda: get(pools_path + "/pool/max_operation_count") == 10)
-
 class TestNodeMultipleUnregistrations(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
@@ -4879,7 +3490,7 @@ class TestNodeMultipleUnregistrations(YTEnvSetup):
         def start_op():
             tag = str(random.randint(0, 1000000))
             op = map(
-                dont_track=True,
+                track=False,
                 command=with_breakpoint("BREAKPOINT", tag),
                 in_="//tmp/t1",
                 out="//tmp/t2",

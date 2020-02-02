@@ -90,6 +90,7 @@ void TCellBase::Save(TSaveContext& context) const
     Save(context, CellBundle_);
     Save(context, CellLifeStage_);
     Save(context, GossipStatus_);
+    Save(context, PeerCount_);
 }
 
 void TCellBase::Load(TLoadContext& context)
@@ -130,6 +131,11 @@ void TCellBase::Load(TLoadContext& context)
     // COMPAT(savrus)
     if (context.GetVersion() >= EMasterReign::CellServer) {
         Load(context, GossipStatus_);
+    }
+
+    // COMPAT(gritukan)
+    if (context.GetVersion() >= EMasterReign::DynamicPeerCount) {
+        Load(context, PeerCount_);
     }
 }
 
@@ -205,6 +211,26 @@ void TCellBase::UpdatePeerSeenTime(TPeerId peerId, TInstant when)
 {
     auto& peer = Peers_[peerId];
     peer.LastSeenTime = when;
+}
+
+TNode::TCellSlot* TCellBase::FindCellSlot(TPeerId peerId) const
+{
+    auto* node = Peers_[peerId].Node;
+    if (!node) {
+        return nullptr;
+    }
+
+    return node->FindCellSlot(this);
+}
+
+NHydra::EPeerState TCellBase::GetPeerState(NElection::TPeerId peerId) const
+{
+    auto* slot = FindCellSlot(peerId);
+    if (!slot) {
+        return NHydra::EPeerState::None;
+    }
+
+    return slot->PeerState;
 }
 
 ECellHealth TCellBase::GetHealth() const

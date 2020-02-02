@@ -118,6 +118,10 @@ TChunkPlacement::TChunkPlacement(
 {
     YT_VERIFY(Config_);
     YT_VERIFY(Bootstrap_);
+
+    for (auto [_, node] : Bootstrap_->GetNodeTracker()->Nodes()) {
+        OnNodeUpdated(node);
+    }
 }
 
 void TChunkPlacement::OnNodeRegistered(TNode* node)

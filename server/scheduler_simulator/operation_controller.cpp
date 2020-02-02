@@ -173,7 +173,10 @@ class TSimulatorOperationController
     , public IJobBucketHost
 {
 public:
-    TSimulatorOperationController(const TOperation* operation, const TOperationDescription* operationDescription);
+    TSimulatorOperationController(
+        const TOperation* operation,
+        const TOperationDescription* operationDescription,
+        std::optional<TDuration> scheduleJobDelay);
 
     // Lock_ must be acquired.
     virtual void OnBucketActivated(TJobBucket* activatedBucket) override;
@@ -213,6 +216,8 @@ private:
     const TOperationDescription* OperationDescription_;
     const TJobBuckets JobBuckets_;
 
+    std::optional<TDuration> ScheduleJobDelay_;
+
     TLockProtectedMap<TJobId, TJobDescription> IdToDescription_;
     NLogging::TLogger Logger;
 
@@ -240,9 +245,10 @@ DEFINE_REFCOUNTED_TYPE(TSimulatorOperationController)
 
 ISimulatorOperationControllerPtr CreateSimulatorOperationController(
     const TOperation* operation,
-    const TOperationDescription* operationDescription)
+    const TOperationDescription* operationDescription,
+    std::optional<TDuration> scheduleJobDelay)
 {
-    return New<TSimulatorOperationController>(operation, operationDescription);
+    return New<TSimulatorOperationController>(operation, operationDescription, scheduleJobDelay);
 }
 
 const static THashMap<EJobType, std::vector<EJobType>> dependencyTable = [] {
@@ -312,9 +318,11 @@ auto TSimulatorOperationController::InitializeJobBuckets(const TOperationDescrip
 
 TSimulatorOperationController::TSimulatorOperationController(
     const TOperation* /*operation*/,
-    const TOperationDescription* operationDescription)
+    const TOperationDescription* operationDescription,
+    std::optional<TDuration> scheduleJobDelay)
     : OperationDescription_(operationDescription)
     , JobBuckets_(InitializeJobBuckets(operationDescription))
+    , ScheduleJobDelay_(scheduleJobDelay)
     , Logger("OperationController")
 {
     for (auto& pair : JobBuckets_) {
@@ -437,6 +445,10 @@ TFuture<TControllerScheduleJobResultPtr> TSimulatorOperationController::Schedule
     const TJobResourcesWithQuota& nodeLimits,
     const TString& /* treeId */)
 {
+    if (ScheduleJobDelay_) {
+        TDelayedExecutor::WaitForDuration(*ScheduleJobDelay_);
+    }
+
     auto guard = Guard(Lock_);
 
     auto scheduleJobResult = New<TControllerScheduleJobResult>();

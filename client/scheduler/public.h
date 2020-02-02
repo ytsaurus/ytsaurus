@@ -52,6 +52,7 @@ DEFINE_ENUM(EErrorCode,
     ((OperationFailedWithInconsistentLocking) (211))
     ((OperationControllerCrashed)             (212))
     ((TestingError)                           (213))
+    ((PoolTreesAreUnspecified)                (214))
 );
 
 DEFINE_ENUM(EUnavailableChunkAction,

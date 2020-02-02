@@ -784,6 +784,7 @@ TRangeInferrer CreateHeavyRangeInferrer(
             keySize,
             &rangeExpansionLeft);
     }
+    std::sort(enrichedRanges.begin(), enrichedRanges.end());
     enrichedRanges = MergeOverlappingRanges(std::move(enrichedRanges));
 
     return [
@@ -797,6 +798,8 @@ TRangeInferrer CreateHeavyRangeInferrer(
             [] (const TRowRange& it, const TRowRange& value) {
                 return it.second <= value.first;
             });
+
+        // TODO(lukyan): Use here binary search and do min/max only for first and last element.
 
         std::vector<TMutableRowRange> result;
         while (startIt < enrichedRanges.end() && startIt->first < keyRange.second) {

@@ -39,6 +39,8 @@ public:
     Y_FORCE_INLINE ui64 UncheckedAsUint64() const;
     Y_FORCE_INLINE double UncheckedAsDouble() const;
     Y_FORCE_INLINE TStringBuf UncheckedAsString() const;
+    template <typename T>
+    Y_FORCE_INLINE T UncheckedAs() const;
     Y_FORCE_INLINE bool IsEndOfStream() const;
 
 private:
@@ -109,6 +111,19 @@ public:
 
     TYsonItem Next();
 
+    // See comments for corresponding |TYsonPullParserCursor| methods.
+    void SkipComplexValue();
+    void TransferComplexValue(TCheckedInDebugYsonTokenWriter* writer);
+
+    // These methods are analogous to the ones without the |previousItem| argument,
+    // but process the complex value that starts from |previousItem|.
+    void SkipComplexValue(const TYsonItem& previousItem);
+    void TransferComplexValue(TCheckedInDebugYsonTokenWriter* writer, const TYsonItem& previousItem);
+
+    void SkipComplexValueOrAttributes(const TYsonItem& previousItem);
+    void SkipAttributes(const TYsonItem& previousItem);
+    void TransferAttributes(TCheckedInDebugYsonTokenWriter* writer, const TYsonItem& previousItem);
+
     Y_FORCE_INLINE size_t GetNestingLevel() const;
     Y_FORCE_INLINE bool IsOnValueBoundary(size_t nestingLevel) const;
 
@@ -117,8 +132,69 @@ public:
     // Return error attributes about yson context that is being parsed.
     std::vector<TErrorAttribute> GetErrorAttributes() const;
 
+    // All the |Parse*| methods expect the next item to have corresponding type,
+    // throwing exception if it does not.
+    Y_FORCE_INLINE ui64 ParseUint64();
+    Y_FORCE_INLINE i64 ParseInt64();
+    Y_FORCE_INLINE TStringBuf ParseString();
+    Y_FORCE_INLINE bool ParseBoolean();
+    Y_FORCE_INLINE double ParseDouble();
+    Y_FORCE_INLINE void ParseBeginList();
+    Y_FORCE_INLINE void ParseEndList();
+
+    // |ParseOptional*| allow the next item to be entity
+    // and return |std::nullopt| in this case.
+    Y_FORCE_INLINE std::optional<ui64> ParseOptionalUint64();
+    Y_FORCE_INLINE std::optional<i64> ParseOptionalInt64();
+    Y_FORCE_INLINE std::optional<TStringBuf> ParseOptionalString();
+    Y_FORCE_INLINE std::optional<bool> ParseOptionalBoolean();
+    Y_FORCE_INLINE std::optional<double> ParseOptionalDouble();
+
+    // Returns |true| iff the item was '['.
+    Y_FORCE_INLINE bool ParseOptionalBeginList();
+
+    // |Parse*AsVarint| expect the the next item to have corresponding type,
+    // throwing exception if it does not.
+    // Optional version returns 0 iff parsed item is entity.
+    // Non-optional version never returns 0.
+    //
+    // |Parse*Uint64AsVarint| writes the integer as varint
+    // to the memory location pointed by |out| and returns the number of written bytes.
+    Y_FORCE_INLINE int ParseUint64AsVarint(char* out);
+    Y_FORCE_INLINE int ParseOptionalUint64AsVarint(char* out);
+
+    // |Parse*Int64AsZigzagVarint| zigzag encodes the integer and
+    // writes it as varint to the memory location pointed by |out|.
+    // It returns the number of written bytes.
+    Y_FORCE_INLINE int ParseInt64AsZigzagVarint(char* out);
+    Y_FORCE_INLINE int ParseOptionalInt64AsZigzagVarint(char* out);
+
+    // Returns |true| iff the next item is ']'.
+    // NOTE: it does NOT move the cursor.
+    Y_FORCE_INLINE bool IsEndList();
+
 private:
-    Y_FORCE_INLINE TYsonItem NextImpl();
+    template <typename TVisitor>
+    Y_FORCE_INLINE typename TVisitor::TResult NextImpl(TVisitor visitor);
+
+    template <typename TVisitor>
+    void TraverseComplexValueOrAttributes(TVisitor visitor, bool stopAfterAttributes);
+    template <typename TVisitor>
+    void TraverseComplexValueOrAttributes(TVisitor visitor, const TYsonItem& previousItem, bool stopAfterAttributes);
+
+    Y_FORCE_INLINE void MaybeSkipSemicolon();
+
+    template <EYsonItemType ItemType, bool IsOptional>
+    Y_FORCE_INLINE auto ParseItem() -> std::conditional_t<IsOptional, bool, void>;
+
+    template <typename TValue, EYsonItemType ItemType>
+    Y_FORCE_INLINE TValue ParseTypedValue();
+
+    template <typename TValue, EYsonItemType ItemType>
+    Y_FORCE_INLINE TValue ParseTypedValueFallback();
+
+    template <typename TValue, EYsonItemType ItemType>
+    Y_FORCE_INLINE int ParseVarintToArray(char* out);
 
 private:
     using TLexer = NDetail::TLexerBase<NDetail::TReaderWithContext<NDetail::TZeroCopyInputStreamReader, 64>, false>;
@@ -156,14 +232,67 @@ public:
     // owns these attributes will be skipped as well.
     void SkipComplexValue();
 
-    // Transfer complex value is similar to SkipComplexValue except it feeds passed consumer with skipped value.
+    // Transfer complex value is similar to SkipComplexValue
+    // except that it feeds passed consumer with skipped value.
     void TransferComplexValue(IYsonConsumer* consumer);
     void TransferComplexValue(TCheckedInDebugYsonTokenWriter* writer);
+
+    // |Parse...| methods call |function(this)| for each item of corresponding composite object
+    // and expect |function| to consume it (e.g. call |cursor->Next()|).
+    // For map and attributes cursor will point to the key and |function| must consume both key and value.
+    template <typename TFunction>
+    void ParseMap(TFunction function);
+    template <typename TFunction>
+    void ParseList(TFunction function);
+    template <typename TFunction>
+    void ParseAttributes(TFunction function);
+
+    // Transfer or skip attributes (if cursor is not positioned over attributes, throws an error).
+    void SkipAttributes();
+    void TransferAttributes(IYsonConsumer* consumer);
+    void TransferAttributes(TCheckedInDebugYsonTokenWriter* writer);
 
 private:
     TYsonItem Current_;
     TYsonPullParser* Parser_;
+
+private:
+    void SkipComplexValueOrAttributes();
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+Y_FORCE_INLINE void EnsureYsonToken(
+    TStringBuf description,
+    const TYsonPullParserCursor& cursor,
+    EYsonItemType expected);
+
+Y_FORCE_INLINE void EnsureYsonToken(
+    TStringBuf description,
+    const TYsonPullParser& parser,
+    const TYsonItem& item,
+    EYsonItemType expected);
+
+
+////////////////////////////////////////////////////////////////////////////////
+
+[[noreturn]] void ThrowUnexpectedYsonTokenException(
+    TStringBuf description,
+    const TYsonPullParserCursor& cursor,
+    const std::vector<EYsonItemType>& expected);
+
+[[noreturn]] void ThrowUnexpectedYsonTokenException(
+    TStringBuf description,
+    const TYsonPullParser& parser,
+    const TYsonItem& item,
+    const std::vector<EYsonItemType>& expected);
+
+[[noreturn]] void ThrowUnexpectedTokenException(
+    TStringBuf description,
+    const TYsonPullParser& parser,
+    const TYsonItem& item,
+    EYsonItemType expected,
+    bool isOptional);
 
 ////////////////////////////////////////////////////////////////////////////////
 

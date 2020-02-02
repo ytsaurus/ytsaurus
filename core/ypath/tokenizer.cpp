@@ -110,19 +110,11 @@ const char* TTokenizer::AdvanceEscaped(const char* current)
         THROW_ERROR_EXCEPTION("Unexpected end-of-string in YPath while parsing escape sequence");
     }
 
-    switch (*current) {
-        case '\\':
-        case '/':
-        case '@':
-        case '&':
-        case '*':
-        case '[':
-        case '{':
-            LiteralValue_.append(*current);
-            ++current;
-            break;
-
-        case 'x': {
+    if (IsSpecialCharacter(*current)) {
+        LiteralValue_.append(*current);
+        ++current;
+    } else {
+        if (*current == 'x') {
             if (current + 2 >= Input_.end()) {
                 ThrowMalformedEscapeSequence(TStringBuf(current - 1, Input_.end()));
             }
@@ -131,11 +123,9 @@ const char* TTokenizer::AdvanceEscaped(const char* current)
             int lo = ParseHexDigit(current[2], context);
             LiteralValue_.append((hi << 4) + lo);
             current = context.end();
-            break;
-        }
-
-        default:
+        } else {
             ThrowMalformedEscapeSequence(TStringBuf(current - 1, current + 1));
+        }
     }
 
     return current;

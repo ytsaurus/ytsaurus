@@ -77,7 +77,7 @@ TDuration FromJiffies(ui64 jiffies)
 
 void RunKiller(const TString& processGroupPath)
 {
-    YT_LOG_INFO("Killing processes in cgroup %v", processGroupPath);
+    YT_LOG_INFO("Killing processes in cgroup (Cgroup: %v)", processGroupPath);
 
 #ifdef _linux_
     TNonOwningCGroup group(processGroupPath);
@@ -86,7 +86,7 @@ void RunKiller(const TString& processGroupPath)
     }
 
     if (!group.Exists()) {
-        YT_LOG_WARNING("Cgroup %v does not exists: stop killer", processGroupPath);
+        YT_LOG_WARNING("Cgroup does not exist; stop killer (Cgroup: %v)", processGroupPath);
         return;
     }
 
@@ -97,7 +97,26 @@ void RunKiller(const TString& processGroupPath)
     if (children.empty() && pids.empty())
         return;
 
+    std::vector<TString> childNames;
+    for (const auto& child : children) {
+        childNames.emplace_back(child.FullPath());
+    }
+
+
+    YT_LOG_INFO("Cgroup requires killing (Cgroup: %v, Children: %v, Pids: %v)", processGroupPath, childNames, pids);
+
     RunTool<TKillProcessGroupTool>(processGroupPath);
+
+    children = group.GetChildren();
+    pids = group.GetProcesses();
+    childNames.clear();
+
+    for (const auto& child : children) {
+        childNames.emplace_back(child.FullPath());
+    }
+
+    YT_LOG_INFO("Cgroup after killing (Cgroup: %v, Children: %v, Pids: %v)", processGroupPath, childNames, pids);
+
 #endif
 }
 
@@ -129,7 +148,7 @@ TNonOwningCGroup::TNonOwningCGroup(TNonOwningCGroup&& other)
 void TNonOwningCGroup::AddTask(int pid) const
 {
     YT_LOG_INFO(
-        "Adding %v to cgroup %v",
+        "Adding task to cgroup (Task: %v, Cgroup: %v)",
         pid,
         FullPath_);
     Append("tasks", ToString(pid));
@@ -205,6 +224,21 @@ std::vector<int> TNonOwningCGroup::GetProcesses() const
     return results;
 }
 
+std::vector<int> TNonOwningCGroup::GetTasks() const
+{
+    std::vector<int> results;
+    if (!IsNull()) {
+#ifdef _linux_
+        auto values = ReadAllValues(GetPath("tasks"));
+        for (const auto& value : values) {
+            int pid = FromString<int>(value);
+            results.push_back(pid);
+        }
+#endif
+    }
+    return results;
+}
+
 const TString& TNonOwningCGroup::GetFullPath() const
 {
     return FullPath_;
@@ -235,7 +269,7 @@ std::vector<TNonOwningCGroup> TNonOwningCGroup::GetChildren() const
 
 void TNonOwningCGroup::EnsureExistance() const
 {
-    YT_LOG_INFO("Creating cgroup %v", FullPath_);
+    YT_LOG_INFO("Creating cgroup (Cgroup: %v)", FullPath_);
 
     YT_VERIFY(!IsNull());
 
@@ -293,7 +327,7 @@ void TNonOwningCGroup::RemoveRecursive() const
 
 void TNonOwningCGroup::DoLock() const
 {
-    YT_LOG_INFO("Locking cgroup %v", FullPath_);
+    YT_LOG_INFO("Locking cgroup (Cgroup: %v)", FullPath_);
 
 #ifdef _linux_
     if (!IsNull()) {
@@ -308,7 +342,7 @@ void TNonOwningCGroup::DoLock() const
 
 bool TNonOwningCGroup::TryUnlock() const
 {
-    YT_LOG_INFO("Unlocking cgroup %v", FullPath_);
+    YT_LOG_INFO("Unlocking cgroup (Cgroup: %v)", FullPath_);
 
     if (!Exists()) {
         return true;
@@ -340,11 +374,11 @@ void TNonOwningCGroup::DoUnlock() const
 
 void TNonOwningCGroup::DoKill() const
 {
-    YT_LOG_DEBUG("Started killing processes in cgroup %v", FullPath_);
+    YT_LOG_DEBUG("Started killing processes in cgroup (Cgroup: %v)", FullPath_);
 
 #ifdef _linux_
     while (true) {
-        auto pids = GetProcesses();
+        auto pids = GetTasks();
         if (pids.empty())
             break;
 
@@ -361,7 +395,7 @@ void TNonOwningCGroup::DoKill() const
     }
 #endif
 
-    YT_LOG_DEBUG("Finished killing processes in cgroup %v", FullPath_);
+    YT_LOG_DEBUG("Finished killing processes in cgroup (Cgroup: %v)", FullPath_);
 }
 
 void TNonOwningCGroup::DoRemove() const
@@ -422,14 +456,14 @@ void TCGroup::Create()
 
 void TCGroup::Destroy()
 {
-    YT_LOG_INFO("Destroying cgroup %v", FullPath_);
+    YT_LOG_INFO("Destroying cgroup (Cgroup: %v)", FullPath_);
     YT_VERIFY(Created_);
 
 #ifdef _linux_
     try {
         NFS::Remove(FullPath_);
     } catch (const std::exception& ex) {
-        YT_LOG_FATAL(ex, "Failed to destroy cgroup %v", FullPath_);
+        YT_LOG_FATAL(ex, "Failed to destroy cgroup (Cgroup: %v)", FullPath_);
     }
 #endif
     Created_ = false;
@@ -492,7 +526,7 @@ TCpuAccounting::TStatistics TCpuAccounting::GetStatisticsRecursive() const
     } catch (const std::exception& ex) {
         YT_LOG_FATAL(
             ex,
-            "Failed to retreive CPU statistics from cgroup %v",
+            "Failed to retreive CPU statistics from cgroup (Cgroup: %v)",
             GetFullPath());
     }
 #endif
@@ -617,7 +651,7 @@ std::vector<TBlockIO::TStatisticsItem> TBlockIO::GetDetailedStatistics(const cha
     } catch (const std::exception& ex) {
         YT_LOG_FATAL(
             ex,
-            "Failed to retreive block IO statistics from cgroup %v",
+            "Failed to retreive block IO statistics from cgroup (Cgroup: %v)",
             GetFullPath());
     }
 #endif
@@ -678,7 +712,7 @@ TMemory::TStatistics TMemory::GetStatistics() const
     } catch (const std::exception& ex) {
         YT_LOG_FATAL(
             ex,
-            "Failed to retreive memory statistics from cgroup %v",
+            "Failed to retreive memory statistics from cgroup (Cgroup: %v)",
             GetFullPath());
     }
 #endif

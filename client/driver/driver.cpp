@@ -1,5 +1,4 @@
 #include "driver.h"
-#include "driver.h"
 #include "command.h"
 #include "config.h"
 #include "cypress_commands.h"
@@ -20,6 +19,8 @@
 #include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/core/yson/null_consumer.h>
+
+#include <yt/core/tracing/trace_context.h>
 
 namespace NYT::NDriver {
 
@@ -179,6 +180,7 @@ public:
         REGISTER    (TDeleteRowsCommand,                  "delete_rows",                   Tabular,    Structured, true,  true , ApiVersion4);
         REGISTER    (TTrimRowsCommand,                    "trim_rows",                     Null,       Structured, true,  true , ApiVersion4);
 
+        REGISTER_ALL(TExplainCommand,                     "explain",                       Null,       Structured, false, true);
         REGISTER_ALL(TSelectRowsCommand,                  "select_rows",                   Null,       Tabular,    false, true );
         REGISTER_ALL(TLookupRowsCommand,                  "lookup_rows",                   Tabular,    Tabular,    false, true );
 
@@ -250,6 +252,7 @@ public:
         REGISTER    (TWriteJournalCommand,                "write_journal",                 Tabular,    Null,       true,  true , ApiVersion3);
         REGISTER    (TWriteJournalCommand,                "write_journal",                 Tabular,    Structured, true,  true , ApiVersion4);
         REGISTER_ALL(TReadJournalCommand,                 "read_journal",                  Null,       Tabular,    false, true );
+        REGISTER    (TTruncateJournalCommand,             "truncate_journal",              Null,       Null,       true,  false, ApiVersion4);
 
         REGISTER_ALL(TGetJobInputCommand,                 "get_job_input",                 Null,       Binary,     false, true );
         REGISTER_ALL(TGetJobInputPathsCommand,            "get_job_input_paths",           Null,       Structured, false, true );
@@ -279,6 +282,7 @@ public:
         REGISTER    (TDiscoverProxiesCommand,             "discover_proxies",              Null,       Structured, false, false, ApiVersion4);
 
         REGISTER_ALL(TBuildSnapshotCommand,               "build_snapshot",                Null,       Structured, true,  false);
+        REGISTER_ALL(TBuildMasterSnapshotsCommand,        "build_master_snapshots",        Null,       Structured, true,  false);
 
 #undef REGISTER
 #undef REGISTER_ALL
@@ -286,6 +290,10 @@ public:
 
     virtual TFuture<void> Execute(const TDriverRequest& request) override
     {
+        NTracing::TChildTraceContextGuard traceContextGuard(
+            ConcatToString(AsStringBuf("Driver:"), request.CommandName),
+            true);
+
         auto it = CommandNameToEntry_.find(request.CommandName);
         if (it == CommandNameToEntry_.end()) {
             return MakeFuture(TError(
@@ -294,12 +302,17 @@ public:
         }
 
         const auto& entry = it->second;
+        const auto& user = request.AuthenticatedUser;
 
         YT_VERIFY(entry.Descriptor.InputType == EDataType::Null || request.InputStream);
         YT_VERIFY(entry.Descriptor.OutputType == EDataType::Null || request.OutputStream);
 
-        const auto& user = request.AuthenticatedUser;
-        const auto& client = ClientCache_->GetClient(user, request.UserToken);
+        YT_LOG_DEBUG("Command received (RequestId: %" PRIx64 ", Command: %v, User: %v)",
+            request.Id,
+            request.CommandName,
+            user);
+
+        auto client = ClientCache_->GetClient(user, request.UserToken);
 
         auto context = New<TCommandContext>(
             this,
@@ -323,8 +336,8 @@ public:
     {
         std::vector<TCommandDescriptor> result;
         result.reserve(CommandNameToEntry_.size());
-        for (const auto& pair : CommandNameToEntry_) {
-            result.push_back(pair.second.Descriptor);
+        for (const auto& [name, entry] : CommandNameToEntry_) {
+            result.push_back(entry.Descriptor);
         }
         return result;
     }
@@ -392,14 +405,16 @@ private:
             TCommand command;
             command.Execute(context);
         });
-        YT_VERIFY(CommandNameToEntry_.insert(std::make_pair(descriptor.CommandName, entry)).second);
+        YT_VERIFY(CommandNameToEntry_.emplace(descriptor.CommandName, entry).second);
     }
 
     static void DoExecute(TExecuteCallback executeCallback, TCommandContextPtr context)
     {
         const auto& request = context->Request();
 
-        NTracing::TChildTraceContextGuard span("Driver." + request.CommandName);
+        NTracing::TChildTraceContextGuard span(
+            "Driver." + request.CommandName,
+            context->GetConfig()->ForceTracing);
         NTracing::AddTag("user", request.AuthenticatedUser);
         NTracing::AddTag("request_id", request.Id);
 
@@ -414,7 +429,7 @@ private:
         } catch (const std::exception& ex) {
             result = TError(ex);
         }
- 
+
         if (result.IsOK()) {
             YT_LOG_DEBUG("Command completed (RequestId: %" PRIx64 ", Command: %v, User: %v)",
                 request.Id,

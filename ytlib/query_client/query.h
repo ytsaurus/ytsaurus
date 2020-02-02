@@ -1106,6 +1106,8 @@ bool Compare(
     const TTableSchema& rhsSchema,
     size_t maxIndex = std::numeric_limits<size_t>::max());
 
+std::vector<size_t> GetJoinGroups(const std::vector<TConstJoinClausePtr>& joinClauses, TTableSchema schema);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueryClient

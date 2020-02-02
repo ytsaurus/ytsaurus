@@ -32,6 +32,11 @@ public:
     //! Interval between subsequent directory updates.
     std::optional<TDuration> SyncPeriod;
 
+    //! Delay before the next directory update in case the last one was unsuccessful.
+    //! Usually should be (significantly) less than #SyncPeriod.
+    //! If null, #SyncPeriod is used instead.
+    std::optional<TDuration> RetryPeriod;
+
     TDuration SuccessExpirationTime;
     TDuration FailureExpirationTime;
 

@@ -95,7 +95,6 @@ TEST_F(TDefaultTvmTest, FailOn5xxResponse)
 {
     SetCallback([&] (TClientRequest* request) {
         CheckRequest(request);
-        Cerr << "Hello" << Endl;
         request->Output() << HttpResponse(500, "");
     });
     auto service = CreateDefaultTvmService();

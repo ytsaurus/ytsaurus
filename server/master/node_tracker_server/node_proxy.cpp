@@ -107,6 +107,8 @@ private:
             .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkReplicaCount)
             .SetPresent(isGood && Bootstrap_->GetMulticellManager()->IsPrimaryMaster()));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::DestroyedChunkReplicaCount)
+            .SetPresent(isGood && Bootstrap_->GetMulticellManager()->IsPrimaryMaster()));
     }
 
     virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
@@ -400,6 +402,7 @@ private:
                 }
 
                 const auto statistics = node->ComputeClusterStatistics();
+
                 const auto& chunkManager = Bootstrap_->GetChunkManager();
                 BuildYsonFluently(consumer)
                     .DoMapFor(chunkManager->Media(), [&] (
@@ -413,6 +416,21 @@ private:
                                 .Value(statistics.ChunkReplicaCount.lookup(medium->GetIndex()));
                         }
                     });
+                return true;
+            }
+
+            case EInternedAttributeKey::DestroyedChunkReplicaCount: {
+                if (!isGood) {
+                    break;
+                }
+
+                const auto& multicellManager = Bootstrap_->GetMulticellManager();
+                if (!multicellManager->IsPrimaryMaster()) {
+                    break;
+                }
+
+                BuildYsonFluently(consumer)
+                    .Value(node->ComputeClusterStatistics().DestroyedChunkReplicaCount);
                 return true;
             }
 

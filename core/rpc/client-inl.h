@@ -32,16 +32,18 @@ TFuture<typename TResponse::TResult> TTypedClientRequest<TRequestMessage, TRespo
     auto promise = response->GetPromise();
     auto requestControl = Send(std::move(response));
     if (requestControl) {
-        auto abortHandler = BIND(&IClientRequestControl::Cancel, requestControl);
         auto subscribeToStreamAbort = [&] (const auto& stream) {
             if (stream) {
-                stream->SubscribeAborted(abortHandler);
+                stream->SubscribeAborted(BIND([=] {
+                    requestControl->Cancel();
+                }));
             }
         };
         subscribeToStreamAbort(requestAttachmentsStream);
         subscribeToStreamAbort(responseAttachmentsStream);
-        // NB: This is the last use of abortHandler; time to move!
-        promise.OnCanceled(std::move(abortHandler));
+        promise.OnCanceled(BIND([=] (const TError& /*error*/) {
+            requestControl->Cancel();
+        }));
     }
     return promise.ToFuture();
 }
@@ -112,7 +114,7 @@ TIntrusivePtr<T> TProxyBase::CreateRequest(const TMethodDescriptor& methodDescri
         ServiceDescriptor_,
         methodDescriptor);
     request->SetTimeout(DefaultTimeout_);
-    request->SetRequestAck(DefaultRequestAck_);
+    request->SetAcknowledgementTimeout(DefaultAcknowledgementTimeout_);
     request->SetRequestCodec(DefaultRequestCodec_);
     request->SetResponseCodec(DefaultResponseCodec_);
     request->SetEnableLegacyRpcCodecs(DefaultEnableLegacyRpcCodecs_);

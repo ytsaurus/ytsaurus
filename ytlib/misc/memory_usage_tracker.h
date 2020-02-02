@@ -4,6 +4,7 @@
 
 #include <yt/core/logging/log.h>
 
+#include <yt/core/misc/memory_usage_tracker.h>
 #include <yt/core/misc/error.h>
 
 #include <yt/core/profiling/profiler.h>
@@ -119,6 +120,35 @@ private:
 
     void MoveFrom(TMemoryUsageTrackerGuard&& other);
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class ECategory>
+class TTypedMemoryTracker
+    : public IMemoryUsageTracker
+{
+public:
+    TTypedMemoryTracker(
+        TIntrusivePtr<TMemoryUsageTracker<ECategory>> memoryTracker,
+        ECategory category);
+
+    virtual TError TryAcquire(size_t size) override;
+    virtual void Release(size_t size) override;
+
+private:
+    const TIntrusivePtr<TMemoryUsageTracker<ECategory>> MemoryTracker_;
+    const ECategory Category_;
+};
+
+template <class ECategory>
+IMemoryUsageTrackerPtr CreateMemoryTrackerForCategory(
+    TIntrusivePtr<TMemoryUsageTracker<ECategory>> memoryTracker,
+    ECategory category)
+{
+    return New<TTypedMemoryTracker<ECategory>>(
+        std::move(memoryTracker),
+        category);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

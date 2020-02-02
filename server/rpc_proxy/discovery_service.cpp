@@ -6,9 +6,13 @@
 #include "bootstrap.h"
 
 #include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/config.h>
 #include <yt/ytlib/api/native/connection.h>
+#include <yt/ytlib/api/native/rpc_helpers.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
+
+#include <yt/ytlib/api/native/connection.h>
 
 #include <yt/client/api/rpc_proxy/discovery_service_proxy.h>
 
@@ -44,6 +48,7 @@ using namespace NCypressClient;
 using namespace NRpc;
 using namespace NNet;
 using namespace NNodeTrackerClient;
+using namespace NApi::NNative;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -265,7 +270,14 @@ private:
 
     void UpdateProxies()
     {
-        auto channel = RootClient_->GetMasterChannelOrThrow(EMasterChannelKind::Cache);
+        TMasterReadOptions options{
+            EMasterChannelKind::Cache,
+            Config_->ProxyUpdatePeriod,
+            Config_->ProxyUpdatePeriod,
+            1
+        };
+
+        auto channel = RootClient_->GetMasterChannelOrThrow(options.ReadFrom);
         TObjectServiceProxy proxy(channel);
 
         auto batchReq = proxy.ExecuteBatch();
@@ -291,13 +303,8 @@ private:
                     ConfigAttributeName,
                 });
 
-            auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
-            cachingHeaderExt->set_success_expiration_time(ToProto<i64>(Config_->ProxyUpdatePeriod));
-            cachingHeaderExt->set_failure_expiration_time(ToProto<i64>(Config_->ProxyUpdatePeriod));
-
-            auto* balancingHeaderExt = req->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext);
-            balancingHeaderExt->set_enable_stickness(true);
-            balancingHeaderExt->set_sticky_group_size(1);
+            SetBalancingHeader(req, Bootstrap_->GetNativeConnection()->GetConfig(), options);
+            SetCachingHeader(req, Bootstrap_->GetNativeConnection()->GetConfig(), options);
 
             batchReq->AddRequest(req, "get_proxies");
         }

@@ -27,9 +27,18 @@ TFuture<T> TAsyncBatcher<T>::Run()
     auto guard = Guard(Lock_);
     if (!PendingPromise_) {
         PendingPromise_ = NewPromise<void>();
-        TDelayedExecutor::Submit(
-            BIND(&TAsyncBatcher::OnDeadlineReached, MakeWeak(this)),
-            BatchingDelay_);
+        if (BatchingDelay_) {
+            TDelayedExecutor::Submit(
+                BIND(&TAsyncBatcher::OnDeadlineReached, MakeWeak(this)),
+                BatchingDelay_);
+        } else {
+            DeadlineReached_ = true;
+
+            if (!ActivePromise_) {
+                DoRun(guard);
+                return ActivePromise_;
+            }
+        }
     }
     return PendingPromise_;
 }

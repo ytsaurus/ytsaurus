@@ -4,12 +4,29 @@ import "yt/client/chunk_client/proto/data_statistics.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqUpdateStatistics
+{
+    required NYT.NChunkClient.NProto.TDataStatistics statistics = 1;
+}
+
+message TRspUpdateStatistics
+{ }
+
 message TReqSeal
 {
     required NYT.NChunkClient.NProto.TDataStatistics statistics = 1;
 }
 
 message TRspSeal
+{ }
+
+message TReqTruncate
+{
+    required string path = 1; // YPath
+    required int64 row_count = 2;
+}
+
+message TRspTruncate
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

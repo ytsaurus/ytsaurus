@@ -88,8 +88,7 @@ ISchemafulReaderPtr TSchemafulOverlappingLookupReader::Create(
     auto this_ = New<TSchemafulOverlappingLookupReader>(std::move(rowMerger));
 
     while (auto reader = readerFactory()) {
-        this_->Sessions_.emplace_back(reader);
-        auto& session = this_->Sessions_.back();
+        auto& session = this_->Sessions_.emplace_back(reader);
         session.Rows.reserve(MaxRowsPerRead);
         session.ReadyEvent = session.Reader->Open();
     }

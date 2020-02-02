@@ -30,9 +30,12 @@ DECLARE_REFCOUNTED_CLASS(TDictionaryConfig);
 DECLARE_REFCOUNTED_CLASS(TClickHouseServerBootstrapConfig);
 DECLARE_REFCOUNTED_CLASS(TUserConfig);
 DECLARE_REFCOUNTED_CLASS(TSubqueryConfig);
+DECLARE_REFCOUNTED_CLASS(TSystemLogConfig);
 DECLARE_REFCOUNTED_CLASS(TMemoryWatchdogConfig);
+DECLARE_REFCOUNTED_CLASS(THealthCheckerConfig);
 DECLARE_REFCOUNTED_CLASS(TClickHouseHost);
 DECLARE_REFCOUNTED_CLASS(TQueryRegistry);
+DECLARE_REFCOUNTED_CLASS(THealthChecker);
 DECLARE_REFCOUNTED_STRUCT(ISubscriptionManager);
 
 class TClickHouseTableSchema;
@@ -42,6 +45,7 @@ struct TQueryContext;
 class TBootstrap;
 class TSubquerySpec;
 struct TSubquery;
+struct TQueryAnalysisResult;
 
 //! This enum corresponds to DB::ClientInfo::QueryKind.
 DEFINE_ENUM(EQueryKind,

@@ -21,6 +21,7 @@
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/ytlib/chunk_client/chunk_reader_memory_manager.h>
 #include <yt/ytlib/chunk_client/file_writer.h>
 #include <yt/ytlib/chunk_client/file_reader.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
@@ -375,7 +376,9 @@ public:
         auto blockReadOptions = MakeClientBlockReadOptions();
 
         auto Logger = NLogging::TLogger(DataNodeLogger)
-            .AddTag("Key: %v, ReadSessionId: %v", key, blockReadOptions.ReadSessionId);
+            .AddTag("Key: %v, ReadSessionId: %v",
+                key,
+                blockReadOptions.ReadSessionId);
 
         auto cookie = BeginInsert(key);
         auto cookieValue = cookie.GetValue();
@@ -493,8 +496,16 @@ private:
             return MakeFuture(chunkOrError).As<IChunkPtr>();
         }
 
-        return chunkOrError.Value()->Validate().Apply(BIND(&TImpl::OnChunkValidationFinished,
-            MakeStrong(this), Logger, chunkOrError.Value(), key, options));
+        const auto& chunk = chunkOrError.Value();
+        YT_LOG_INFO("Cached chunk is ready (ChunkId: %v)",
+            chunk->GetId());
+        return chunk->Validate().Apply(BIND(
+            &TImpl::OnChunkValidationFinished,
+            MakeStrong(this),
+            Logger,
+            chunk,
+            key,
+            options));
     }
 
     TFuture<IChunkPtr> OnChunkValidationFinished(
@@ -507,7 +518,8 @@ private:
         if (validationStatus.IsOK()) {
             return MakeFuture(chunk).As<IChunkPtr>();
         } else {
-            YT_LOG_INFO(validationStatus, "Chunk is corrupted, reloading");
+            YT_LOG_INFO(validationStatus, "Chunk is corrupted, reloading (ChunkId: %v)",
+                chunk->GetId());
             TryRemove(chunk);
             return chunk->GetAsyncDestroyResult().Apply(BIND([=] () -> TFuture<IChunkPtr> {
                 return DownloadArtifact(key, options);
@@ -545,11 +557,11 @@ private:
     }
 
     TCachedBlobChunkPtr CreateChunk(
-        TCacheLocationPtr location,
+        const TCacheLocationPtr& location,
         const TArtifactKey& key,
         const TChunkDescriptor& descriptor,
         bool requiresValidation,
-        const NChunkClient::TRefCountedChunkMetaPtr meta = nullptr)
+        const NChunkClient::TRefCountedChunkMetaPtr& meta = nullptr)
     {
         auto chunk = New<TCachedBlobChunk>(
             Bootstrap_,
@@ -766,12 +778,19 @@ private:
                     index /* priority */});
             }
 
-            auto asyncSemaphore = New<TAsyncSemaphore>(Config_->ArtifactCacheReader->WindowSize);
+            auto memoryManager = New<TChunkReaderMemoryManager>(
+                TChunkReaderMemoryManagerOptions(Config_->ArtifactCacheReader->WindowSize));
+
+            i64 requiredMemory = 0;
+            for (const auto& block : blocks) {
+                requiredMemory = std::max(requiredMemory, block.UncompressedDataSize);
+            }
+            memoryManager->SetRequiredMemorySize(requiredMemory);
 
             auto blockFetcher = New<TBlockFetcher>(
                 Config_->ArtifactCacheReader,
                 std::move(blocks),
-                asyncSemaphore,
+                memoryManager,
                 chunkReader,
                 GetNullBlockCache(),
                 NCompression::ECodec::None,
@@ -938,7 +957,7 @@ private:
             : std::nullopt;
 
         auto columnFilter = key.data_source().has_column_filter()
-            ? std::make_optional(FromProto<std::vector<TString>>(key.data_source().columns()))
+            ? std::make_optional(FromProto<std::vector<TString>>(key.data_source().column_filter().admitted_names()))
             : std::nullopt;
 
         switch (EDataSourceType(key.data_source().type())) {

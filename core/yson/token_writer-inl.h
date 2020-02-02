@@ -21,71 +21,21 @@ namespace NYT::NYson {
 
 void TUncheckedYsonTokenWriter::Flush()
 {
-    if (Y_LIKELY(RemainingBytes_ > 0)) {
-        Stream_->Undo(RemainingBytes_);
-        RemainingBytes_ = 0;
+    if (Y_LIKELY(Writer_->RemainingBytes() > 0)) {
+        Writer_->UndoRemaining();
     }
-}
-
-void TUncheckedYsonTokenWriter::Refill()
-{
-    YT_ASSERT(RemainingBytes_ == 0);
-    RemainingBytes_ = Stream_->Next(&Position_);
-}
-
-void TUncheckedYsonTokenWriter::Advance(size_t size)
-{
-    YT_ASSERT(size <= RemainingBytes_);
-    Position_ += size;
-    RemainingBytes_ -= size;
-}
-
-void TUncheckedYsonTokenWriter::DoWrite(const void* data, size_t size)
-{
-    if (RemainingBytes_ < size) {
-        Flush();
-        Stream_->Write(data, size);
-        Refill();
-        return;
-    }
-    memcpy(Position_, data, size);
-    Advance(size);
 }
 
 template <typename T>
 void TUncheckedYsonTokenWriter::WriteSimple(T value)
 {
-    DoWrite(&value, sizeof(value));
+    Writer_->Write(&value, sizeof(value));
 }
 
 template <typename T>
 void TUncheckedYsonTokenWriter::WriteVarInt(T value)
 {
-    if (Y_UNLIKELY(RemainingBytes_ < MaxVarInt64Size)) {
-        Flush();
-        if constexpr (std::is_same_v<T, ui64>) {
-            WriteVarUint64(Stream_, value);
-        } else if constexpr (std::is_same_v<T, i64>) {
-            WriteVarInt64(Stream_, value);
-        } else if constexpr (std::is_same_v<T, i32>) {
-            WriteVarInt32(Stream_, value);
-        } else {
-            static_assert(TDependentFalse<T>::value);
-        }
-        Refill();
-        return;
-    }
-    int written;
-    if constexpr (std::is_same_v<T, ui64>) {
-        written = WriteVarUint64(Position_, value);
-    } else if constexpr (std::is_same_v<T, i64>) {
-        written = WriteVarInt64(Position_, value);
-    } else if constexpr (std::is_same_v<T, i32>) {
-        written = WriteVarInt32(Position_, value);
-    } else {
-        static_assert(TDependentFalse<T>::value);
-    }
-    Advance(written);
+    NYT::WriteVarInt(Writer_, value);
 }
 
 void TUncheckedYsonTokenWriter::WriteBinaryBoolean(bool value)
@@ -115,7 +65,7 @@ void TUncheckedYsonTokenWriter::WriteBinaryString(TStringBuf value)
 {
     WriteSimple(NDetail::StringMarker);
     WriteVarInt<i32>(value.length());
-    DoWrite(value.begin(), value.size());
+    Writer_->Write(value.begin(), value.size());
 }
 
 void TUncheckedYsonTokenWriter::WriteEntity()

@@ -141,14 +141,18 @@ void TOutputOrder::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ToString(const TOutputOrder::TEntry& entry) {
-    using NYT::ToString;
-
+void FormatValue(TStringBuilderBase* builder, const TOutputOrder::TEntry& entry, TStringBuf /*format*/)
+{
     if (entry.IsCookie()) {
-        return "cookie@" + ToString(entry.GetCookie());
+        builder->AppendFormat("cookie@", entry.GetCookie());
     } else {
-        return "chunk@" + ToString(entry.GetTeleportChunk());
+        builder->AppendFormat("chunk@", entry.GetTeleportChunk());
     }
+}
+
+TString ToString(const TOutputOrder::TEntry& entry)
+{
+    return ToStringViaBuilder(entry);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

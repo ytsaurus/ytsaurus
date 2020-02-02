@@ -265,7 +265,6 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
         : originatingMode == NChunkClient::EUpdateMode::Overwrite || branchedMode == NChunkClient::EUpdateMode::Overwrite
             ? NChunkClient::EUpdateMode::Overwrite
             : NChunkClient::EUpdateMode::Append;
-    bool isDynamic = false;
 
     // For new chunks, there're two reasons to update chunk requisition.
     //
@@ -289,11 +288,27 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
 
     if (branchedMode == NChunkClient::EUpdateMode::Overwrite) {
         if (!isExternal) {
-            YT_VERIFY(branchedChunkList->GetKind() == EChunkListKind::Static);
-
-            originatingChunkList->RemoveOwningNode(originatingNode);
-            branchedChunkList->AddOwningNode(originatingNode);
-            originatingNode->SetChunkList(branchedChunkList);
+            if (branchedChunkList->GetKind() == EChunkListKind::Static || !originatingNode->IsTrunk()) {
+                originatingChunkList->RemoveOwningNode(originatingNode);
+                branchedChunkList->AddOwningNode(originatingNode);
+                originatingNode->SetChunkList(branchedChunkList);
+            } else {
+                YT_VERIFY(branchedChunkList->GetKind() == EChunkListKind::SortedDynamicRoot);
+                if (branchedChunkList != originatingChunkList) {
+                    const auto& tabletManager = TBase::Bootstrap_->GetTabletManager();
+                    tabletManager->MergeTable(
+                        originatingNode->template As<TTableNode>(),
+                        branchedNode->template As<TTableNode>());
+                } else {
+                    YT_LOG_ALERT(
+                        "Branched chunk list equals originating chunk list "
+                        "(UpdateMode: %v, ChunkListId: %v, NodeId: %v, TransactionId: %v)",
+                        branchedMode,
+                        branchedChunkList->GetId(),
+                        originatingNode->GetId(),
+                        branchedNode->GetTransaction()->GetId());
+                }
+            }
 
             chunkManager->ScheduleChunkRequisitionUpdate(originatingChunkList);
             if (requisitionUpdateNeeded) {
@@ -310,6 +325,8 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
     } else {
         YT_VERIFY(branchedMode == NChunkClient::EUpdateMode::Append);
 
+        bool isDynamic = false;
+
         TChunkTree* deltaTree = nullptr;
         TChunkList* newOriginatingChunkList = nullptr;
         if (!isExternal) {
@@ -317,7 +334,17 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
                 if (originatingNode->IsTrunk()) {
                     if (branchedChunkList != originatingChunkList) {
                         const auto& tabletManager = TBase::Bootstrap_->GetTabletManager();
-                        tabletManager->MergeTable(originatingNode->template As<TTableNode>(), branchedNode->template As<TTableNode>());
+                        tabletManager->MergeTable(
+                            originatingNode->template As<TTableNode>(),
+                            branchedNode->template As<TTableNode>());
+                    } else {
+                        YT_LOG_ALERT(
+                            "Branched chunk list equals originating chunk list "
+                            "(UpdateMode: %v, ChunkListId: %v, NodeId: %v, TransactionId: %v)",
+                            branchedMode,
+                            branchedChunkList->GetId(),
+                            originatingNode->GetId(),
+                            branchedNode->GetTransaction()->GetId());
                     }
 
                     objectManager->UnrefObject(branchedChunkList);

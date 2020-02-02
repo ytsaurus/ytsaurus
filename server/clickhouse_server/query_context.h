@@ -52,16 +52,21 @@ public:
     EInterface Interface;
     TString ClientHostName;
     std::optional<TString> HttpUserAgent;
+    std::optional<TString> DataLensRequestId_;
 
     NTableClient::TRowBufferPtr RowBuffer;
 
-    explicit TQueryContext(TBootstrap* bootstrap, const DB::Context& context, TQueryId queryId, NTracing::TTraceContextPtr traceContext);
+    TQueryContext(
+        TBootstrap* bootstrap,
+        const DB::Context& context,
+        TQueryId queryId,
+        NTracing::TTraceContextPtr
+        traceContext,
+        std::optional<TString> dataLensRequestId);
 
     ~TQueryContext();
 
     const NApi::NNative::IClientPtr& Client() const;
-
-    DB::QueryStatus* TryGetQueryStatus() const;
 
 private:
     TClickHouseHostPtr Host_;
@@ -74,11 +79,16 @@ private:
     mutable NApi::NNative::IClientPtr Client_;
 };
 
-void Serialize(const TQueryContext& queryContext, NYson::IYsonConsumer* consumer);
+void Serialize(const TQueryContext& queryContext, NYson::IYsonConsumer* consumer, const DB::QueryStatusInfo* queryStatusInfo);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SetupHostContext(TBootstrap* bootstrap, DB::Context& context, TQueryId queryId, NTracing::TTraceContextPtr traceContext);
+void SetupHostContext(
+    TBootstrap* bootstrap,
+    DB::Context& context,
+    TQueryId queryId,
+    NTracing::TTraceContextPtr traceContext,
+    std::optional<TString> dataLensRequestId = std::nullopt);
 
 TQueryContext* GetQueryContext(const DB::Context& context);
 

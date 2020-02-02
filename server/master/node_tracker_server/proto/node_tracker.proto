@@ -29,6 +29,7 @@ message TReqSetCellNodeDescriptors
     message TStatistics
     {
         repeated TMediumStatistics medium_statistics = 1;
+        required int64 destroyed_chunk_replica_count = 2;
     }
 
     message TNodeDescriptor
@@ -54,6 +55,13 @@ message TReqUpdateNodeResources
     required int32 node_id = 1;
     required NYT.NNodeTrackerClient.NProto.TNodeResources resource_usage = 2;
     required NYT.NNodeTrackerClient.NProto.TNodeResources resource_limits = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqUpdateMasterCacheNodes
+{
+    repeated int32 node_ids = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

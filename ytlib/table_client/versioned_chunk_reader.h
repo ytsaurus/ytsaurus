@@ -8,10 +8,23 @@
 
 #include <yt/client/chunk_client/read_limit.h>
 
+#include <yt/client/table_client/wire_protocol.h>
+#include <yt/client/table_client/versioned_reader.h>
+
+#include <yt/server/node/data_node/chunk.h>
+
 #include <yt/core/misc/range.h>
 #include <yt/core/misc/linear_probe.h>
 
+
 namespace NYT::NTableClient {
+
+using namespace NChunkClient;
+using namespace NConcurrency;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr size_t RowBufferCapacity = 1000;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,10 +56,10 @@ std::vector<TColumnIdMapping> BuildSchemalessHorizontalSchemaIdMapping(
 //! Creates a versioned chunk reader for a given range of rows.
 IVersionedReaderPtr CreateVersionedChunkReader(
     TChunkReaderConfigPtr config,
-    NChunkClient::IChunkReaderPtr chunkReader,
+    IChunkReaderPtr chunkReader,
     const TChunkStatePtr& chunkState,
     const TCachedVersionedChunkMetaPtr& chunkMeta,
-    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    const TClientBlockReadOptions& blockReadOptions,
     TSharedRange<TRowRange> ranges,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
@@ -55,10 +68,10 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
 IVersionedReaderPtr CreateVersionedChunkReader(
     TChunkReaderConfigPtr config,
-    NChunkClient::IChunkReaderPtr chunkReader,
+    IChunkReaderPtr chunkReader,
     const TChunkStatePtr& chunkState,
     const TCachedVersionedChunkMetaPtr& chunkMeta,
-    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    const TClientBlockReadOptions& blockReadOptions,
     TOwningKey lowerLimit,
     TOwningKey upperLimit,
     const TColumnFilter& columnFilter,
@@ -72,14 +85,82 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 */
 IVersionedReaderPtr CreateVersionedChunkReader(
     TChunkReaderConfigPtr config,
-    NChunkClient::IChunkReaderPtr chunkReader,
+    IChunkReaderPtr chunkReader,
     const TChunkStatePtr& chunkState,
     const TCachedVersionedChunkMetaPtr& chunkMeta,
-    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    const TClientBlockReadOptions& blockReadOptions,
     const TSharedRange<TKey>& keys,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
     bool produceAllVersions);
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TRowReaderAdapter)
+
+class TRowReaderAdapter
+    : public TRefCounted
+{
+public:
+    TRowReaderAdapter(
+        TChunkReaderConfigPtr config,
+        IChunkReaderPtr chunkReader,
+        const TChunkStatePtr& chunkState,
+        const TCachedVersionedChunkMetaPtr& chunkMeta,
+        const TClientBlockReadOptions& blockReadOptions,
+        const TSharedRange<TKey>& keys,
+        const TColumnFilter& columnFilter,
+        TTimestamp timestamp,
+        bool produceAllVersions)
+        : KeyCount_(keys.Size())
+        , UnderlyingReader_(
+            CreateVersionedChunkReader(
+                config,
+                chunkReader,
+                chunkState,
+                chunkMeta,
+                blockReadOptions,
+                keys,
+                columnFilter,
+                timestamp,
+                produceAllVersions))
+    {
+        Rows_.reserve(RowBufferCapacity);
+    }
+
+    void ReadRowset(const std::function<void (TVersionedRow)>& onRow)
+    {
+        for (int i = 0; i < KeyCount_; ++i) {
+            onRow(FetchRow());
+        }
+    }
+
+private:
+    const int KeyCount_;
+    const IVersionedReaderPtr UnderlyingReader_;
+
+    std::vector<TVersionedRow> Rows_;
+    int RowIndex_ = -1;
+
+    TVersionedRow FetchRow()
+    {
+        ++RowIndex_;
+        if (RowIndex_ >= Rows_.size()) {
+            RowIndex_ = 0;
+            while (true) {
+                YT_VERIFY(UnderlyingReader_->Read(&Rows_));
+                if (!Rows_.empty()) {
+                    break;
+                }
+                WaitFor(UnderlyingReader_->GetReadyEvent())
+                    .ThrowOnError();
+            }
+        }
+        return Rows_[RowIndex_];
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TRowReaderAdapter)
 
 ////////////////////////////////////////////////////////////////////////////////
 

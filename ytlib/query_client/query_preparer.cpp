@@ -10,6 +10,8 @@
 
 #include <yt/client/chunk_client/proto/chunk_spec.pb.h>
 
+#include <yt/client/tablet_client/table_mount_cache.h>
+
 #include <yt/core/ytree/yson_serializable.h>
 #include <yt/core/ytree/convert.h>
 
@@ -123,7 +125,7 @@ std::vector<TString> ExtractFunctionNames(
     }
 
     for (const auto& aliasedExpression : aliasMap) {
-        ExtractFunctionNames(aliasedExpression.second.Get(), &functions);
+        ExtractFunctionNames(aliasedExpression.second, &functions);
     }
 
     std::sort(functions.begin(), functions.end());
@@ -133,6 +135,15 @@ std::vector<TString> ExtractFunctionNames(
 
     return functions;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTypeSet ComparableTypes({
+    EValueType::Boolean,
+    EValueType::Int64,
+    EValueType::Uint64,
+    EValueType::Double,
+    EValueType::String});
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1325,7 +1336,7 @@ TUntypedExpression TTypedExpressionBuilder::DoBuildUntypedExpression(
 
             if (UsedAliases.insert(columnName).second) {
                 auto aliasExpr = DoBuildUntypedExpression(
-                    found->second.Get(),
+                    found->second,
                     schema);
                 UsedAliases.erase(columnName);
                 return aliasExpr;
@@ -1369,7 +1380,7 @@ TUntypedExpression TTypedExpressionBuilder::DoBuildUntypedFunctionExpression(
             auto aggregateColumn = schema->GetAggregateColumnPtr(
                 functionName,
                 aggregateFunction,
-                functionExpr->Arguments.front().Get(),
+                functionExpr->Arguments.front(),
                 subexprName,
                 *this);
 
@@ -1384,7 +1395,7 @@ TUntypedExpression TTypedExpressionBuilder::DoBuildUntypedFunctionExpression(
         std::vector<TExpressionGenerator> operandTypers;
         for (const auto& argument : functionExpr->Arguments) {
             auto untypedArgument = DoBuildUntypedExpression(
-                argument.Get(),
+                argument,
                 schema);
             argTypes.push_back(untypedArgument.FeasibleTypes);
             operandTypers.push_back(untypedArgument.Generator);
@@ -1438,7 +1449,7 @@ TUntypedExpression TTypedExpressionBuilder::DoBuildUntypedUnaryExpression(
     }
 
     auto untypedOperand = DoBuildUntypedExpression(
-        unaryExpr->Operand.front().Get(),
+        unaryExpr->Operand.front(),
         schema);
 
     TTypeSet genericAssignments;
@@ -1549,10 +1560,10 @@ struct TGenerator
         size_t offset = keySize - 1;
 
         auto untypedLhs = Builder.DoBuildUntypedExpression(
-            BinaryExpr->Lhs[offset].Get(),
+            BinaryExpr->Lhs[offset],
             Schema);
         auto untypedRhs = Builder.DoBuildUntypedExpression(
-            BinaryExpr->Rhs[offset].Get(),
+            BinaryExpr->Rhs[offset],
             Schema);
 
         auto result = Builder.MakeBinaryExpr(BinaryExpr, op, std::move(untypedLhs), std::move(untypedRhs), offset);
@@ -1560,10 +1571,10 @@ struct TGenerator
         while (offset > 0) {
             --offset;
             auto untypedLhs = Builder.DoBuildUntypedExpression(
-                BinaryExpr->Lhs[offset].Get(),
+                BinaryExpr->Lhs[offset],
                 Schema);
             auto untypedRhs = Builder.DoBuildUntypedExpression(
-                BinaryExpr->Rhs[offset].Get(),
+                BinaryExpr->Rhs[offset],
                 Schema);
 
             auto eq = Builder.MakeBinaryExpr(
@@ -1633,10 +1644,10 @@ TUntypedExpression TTypedExpressionBuilder::DoBuildUntypedBinaryExpression(
         }
 
         auto untypedLhs = DoBuildUntypedExpression(
-            binaryExpr->Lhs.front().Get(),
+            binaryExpr->Lhs.front(),
             schema);
         auto untypedRhs = DoBuildUntypedExpression(
-            binaryExpr->Rhs.front().Get(),
+            binaryExpr->Rhs.front(),
             schema);
 
         return MakeBinaryExpr(binaryExpr, binaryExpr->Opcode, std::move(untypedLhs), std::move(untypedRhs), 0);
@@ -1654,7 +1665,7 @@ void TTypedExpressionBuilder::InferArgumentTypes(
     std::unordered_set<TString> columnNames;
 
     for (const auto& argument : expressions) {
-        auto untypedArgument = DoBuildUntypedExpression(argument.Get(), schema);
+        auto untypedArgument = DoBuildUntypedExpression(argument, schema);
 
         EValueType argType = GetFrontWithCheck(untypedArgument.FeasibleTypes, argument->GetSource(Source));
         auto typedArgument = untypedArgument.Generator(argType);
@@ -1784,7 +1795,7 @@ TUntypedExpression TTypedExpressionBuilder::DoBuildUntypedTransformExpression(
                 << TErrorAttribute("source", source);
         }
 
-        auto untypedArgument = DoBuildUntypedExpression(defaultExpr->front().Get(), schema);
+        auto untypedArgument = DoBuildUntypedExpression(defaultExpr->front(), schema);
 
         if (!Unify(&resultTypes, untypedArgument.FeasibleTypes)) {
             THROW_ERROR_EXCEPTION("Type mismatch in default expression: expected %Qlv, got %Qlv",
@@ -2177,13 +2188,13 @@ TConstExpressionPtr BuildPredicate(
             << TErrorAttribute("source", FormatExpression(expressionAst));
     }
 
-    auto typedPredicate = builder.BuildTypedExpression(expressionAst.front().Get(), schemaProxy);
+    auto typedPredicate = builder.BuildTypedExpression(expressionAst.front(), schemaProxy);
 
     auto actualType = typedPredicate->Type;
     EValueType expectedType(EValueType::Boolean);
     if (actualType != expectedType) {
         THROW_ERROR_EXCEPTION("%v is not a boolean expression", name)
-            << TErrorAttribute("source", expressionAst.front().Get()->GetSource(builder.Source))
+            << TErrorAttribute("source", expressionAst.front()->GetSource(builder.Source))
             << TErrorAttribute("actual_type", actualType)
             << TErrorAttribute("expected_type", expectedType);
     }
@@ -2200,15 +2211,8 @@ TGroupClausePtr BuildGroupClause(
     auto groupClause = New<TGroupClause>();
     groupClause->TotalsMode = totalsMode;
 
-    TTypeSet groupItemTypes({
-        EValueType::Boolean,
-        EValueType::Int64,
-        EValueType::Uint64,
-        EValueType::Double,
-        EValueType::String});
-
     for (const auto& expressionAst : expressionsAst) {
-        auto typedExpr = builder.BuildTypedExpression(expressionAst.Get(), schemaProxy, groupItemTypes);
+        auto typedExpr = builder.BuildTypedExpression(expressionAst, schemaProxy, ComparableTypes);
 
         groupClause->AddGroupItem(typedExpr, InferColumnName(*expressionAst));
     }
@@ -2228,7 +2232,7 @@ TConstProjectClausePtr BuildProjectClause(
 {
     auto projectClause = New<TProjectClause>();
     for (const auto& expressionAst : expressionsAst) {
-        auto typedExpr = builder.BuildTypedExpression(expressionAst.Get(), schemaProxy);
+        auto typedExpr = builder.BuildTypedExpression(expressionAst, schemaProxy);
 
         projectClause->AddProjection(typedExpr, InferColumnName(*expressionAst));
     }
@@ -2260,7 +2264,6 @@ void PrepareQuery(
             builder);
 
         auto keyColumns = query->GetKeyColumns();
-
 
         TNamedItemList groupItems = std::move(groupClause->GroupItems);
 
@@ -2348,7 +2351,10 @@ void PrepareQuery(
 
         for (const auto& orderExpr : ast.OrderExpressions) {
             for (const auto& expressionAst : orderExpr.first) {
-                auto typedExpr = builder.BuildTypedExpression(expressionAst.Get(), schemaProxy);
+                auto typedExpr = builder.BuildTypedExpression(
+                    expressionAst,
+                    schemaProxy,
+                    ComparableTypes);
 
                 orderClause->OrderItems.emplace_back(typedExpr, orderExpr.second);
             }
@@ -2378,7 +2384,6 @@ void PrepareQuery(
 
         if (keyPrefix < orderClause->OrderItems.size()) {
             query->OrderClause = std::move(orderClause);
-
         }
 
         // Use ordered scan otherwise
@@ -2441,9 +2446,9 @@ void DefaultFetchFunctions(const std::vector<TString>& names, const TTypeInferre
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TParsedSource::TParsedSource(const TString& source, const NAst::TAstHead& astHead)
+TParsedSource::TParsedSource(const TString& source, NAst::TAstHead astHead)
     : Source(source)
-    , AstHead(astHead)
+    , AstHead(std::move(astHead))
 { }
 
 std::unique_ptr<TParsedSource> ParseSource(const TString& source, EParseMode mode)
@@ -2576,11 +2581,14 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
         }
 
         for (const auto& argument : join.Lhs) {
-            selfEquations.emplace_back(builder.BuildTypedExpression(argument.Get(), schemaProxy), false);
+            selfEquations.emplace_back(
+                builder.BuildTypedExpression(argument, schemaProxy, ComparableTypes),
+                false);
         }
 
         for (const auto& argument : join.Rhs) {
-            foreignEquations.push_back(builder.BuildTypedExpression(argument.Get(), foreignSourceProxy));
+            foreignEquations.push_back(
+                builder.BuildTypedExpression(argument, foreignSourceProxy, ComparableTypes));
         }
 
         if (selfEquations.size() != foreignEquations.size()) {
@@ -2757,15 +2765,20 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
         if (!query->OrderClause && query->HavingClause) {
             THROW_ERROR_EXCEPTION("HAVING with LIMIT is not allowed");
         }
-    } else if (query->OrderClause) {
+    } else if (!ast.OrderExpressions.empty()) {
         THROW_ERROR_EXCEPTION("ORDER BY used without LIMIT");
     }
 
     if (ast.Offset) {
-        if (!query->OrderClause) {
-            THROW_ERROR_EXCEPTION("OFFSET used without ORDER BY");
+        if (!query->OrderClause && query->HavingClause) {
+            THROW_ERROR_EXCEPTION("HAVING with OFFSET is not allowed");
         }
+
         query->Offset = *ast.Offset;
+
+        if (!ast.Limit) {
+            THROW_ERROR_EXCEPTION("OFFSET used without LIMIT");
+        }
     }
 
     auto queryFingerprint = InferName(query, true);
@@ -2864,7 +2877,7 @@ TConstExpressionPtr PrepareExpression(
     const TConstTypeInferrerMapPtr& functions,
     THashSet<TString>* references)
 {
-    const auto& expr = std::get<NAst::TExpressionPtr>(parsedSource.AstHead.Ast);
+    auto expr = std::get<NAst::TExpressionPtr>(parsedSource.AstHead.Ast);
     const auto& aliasMap = parsedSource.AstHead.AliasMap;
 
     std::vector<TColumnDescriptor> mapping;
@@ -2881,7 +2894,7 @@ TConstExpressionPtr PrepareExpression(
         false,
         0};
 
-    auto result = builder.BuildTypedExpression(expr.Get(), schemaProxy);
+    auto result = builder.BuildTypedExpression(expr, schemaProxy);
 
     if (references) {
         for (const auto& item : mapping) {

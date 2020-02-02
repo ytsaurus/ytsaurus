@@ -72,6 +72,21 @@ class TestChunkServer(YTEnvSetup):
                 return False
         return True
 
+    def _wait_for_replicas_removal(self, path):
+        chunk_id = get_singular_chunk_id(path)
+        wait(lambda: len(get("#{0}/@stored_replicas".format(chunk_id))) > 0)
+        node = get("#{0}/@stored_replicas".format(chunk_id))[0]
+
+        wait(lambda: get("//sys/cluster_nodes/{0}/@destroyed_chunk_replica_count".format(node)) == 0)
+
+        set("//sys/cluster_nodes/{0}/@resource_limits_overrides/removal_slots".format(node), 0)
+
+        remove(path)
+        wait(lambda: get("//sys/cluster_nodes/{0}/@destroyed_chunk_replica_count".format(node)) > 0)
+
+        remove("//sys/cluster_nodes/{0}/@resource_limits_overrides/removal_slots".format(node))
+        wait(lambda: get("//sys/cluster_nodes/{0}/@destroyed_chunk_replica_count".format(node)) == 0)
+
     @authors("babenko")
     def test_decommission_regular(self):
         create("table", "//tmp/t")
@@ -146,7 +161,7 @@ class TestChunkServer(YTEnvSetup):
     @authors("babenko")
     def test_disable_replicator_when_few_nodes_are_online(self):
         set("//sys/@config/chunk_manager/safe_online_node_count", 3)
-        
+
         nodes = ls("//sys/cluster_nodes")
         assert len(nodes) == 21
 
@@ -235,6 +250,20 @@ class TestChunkServer(YTEnvSetup):
             assert len(get("#{0}/@stored_replicas".format(chunk_id))) == MAX_RF
         finally:
             set("//sys/media/default/@config/max_replication_factor", old_max_rf)
+
+    @authors("aleksandra-zh")
+    def test_chunk_replica_removal(self):
+        create("table", "//tmp/t")
+        write_table("//tmp/t", {"a" : "b"})
+
+        self._wait_for_replicas_removal("//tmp/t")
+
+    @authors("aleksandra-zh")
+    def test_journal_chunk_replica_removal(self):
+        create("journal", "//tmp/j")
+        write_journal("//tmp/j", [{"data" : "payload" + str(i)} for i in xrange(0, 10)])
+
+        self._wait_for_replicas_removal("//tmp/j")
 
 ##################################################################
 

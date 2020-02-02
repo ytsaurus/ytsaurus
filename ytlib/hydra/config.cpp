@@ -60,6 +60,8 @@ TRemoteChangelogStoreOptions::TRemoteChangelogStoreOptions()
         .Default(2);
     RegisterParameter("enable_changelog_multiplexing", EnableChangelogMultiplexing)
         .Default(true);
+    RegisterParameter("wait_for_all_replicas_upon_open", WaitForAllReplicasUponOpen)
+        .Default(true);
     RegisterParameter("changelog_account", ChangelogAccount)
         .NonEmpty();
     RegisterParameter("changelog_primary_medium", ChangelogPrimaryMedium)

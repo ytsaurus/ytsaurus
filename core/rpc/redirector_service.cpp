@@ -79,7 +79,7 @@ public:
     {
         YT_ABORT();
     }
-    
+
     virtual NConcurrency::IAsyncZeroCopyOutputStreamPtr GetRequestAttachmentsStream() const override
     {
         YT_UNIMPLEMENTED();
@@ -253,7 +253,7 @@ IClientRequestControlPtr DoRedirectServiceRequest(
         request,
         std::move(responseMessageHandler));
 
-    YT_LOG_DEBUG("Request redirected (RequestId: %v, Method: %v:%v, RealmId: %v, Timeout: %v)",
+    YT_LOG_DEBUG("Request redirected (RequestId: %v, Method: %v.%v, RealmId: %v, Timeout: %v)",
         request->GetRequestId(),
         request->GetService(),
         request->GetMethod(),
@@ -295,10 +295,10 @@ public:
         {
             TGuard<TSpinLock> guard(SpinLock_);
             // NB: We're OK with duplicate request ids.
-            auto pair = ActiveRequestMap_.insert(std::make_pair(requestId, requestControlThunk));
-            if (!pair.second) {
-                existingRequestControl = pair.first->second;
-                pair.first->second = requestControlThunk;
+            auto [it, inserted] = ActiveRequestMap_.emplace(requestId, requestControlThunk);
+            if (!inserted) {
+                existingRequestControl = it->second;
+                it->second = requestControlThunk;
             }
         }
 

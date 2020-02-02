@@ -13,45 +13,81 @@ namespace NYT::NFormats {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYqlJsonConsumer
-    : public NYson::IYsonConsumer
 {
 public:
     explicit TYqlJsonConsumer(NJson::IJsonConsumer* underlying);
 
-    virtual void OnStringScalar(TStringBuf value) final;
+    i64 OnInt64Scalar(i64 value);
+    i64 OnUint64Scalar(ui64 value);
+    i64 OnDoubleScalar(double value);
+    i64 OnBooleanScalar(bool value);
+    i64 OnEntity();
 
-    virtual void OnInt64Scalar(i64 value) final;
-    virtual void OnUint64Scalar(ui64 value) final;
-    virtual void OnDoubleScalar(double value) final;
-    virtual void OnBooleanScalar(bool value) final;
-    virtual void OnEntity() final;
+    i64 OnBeginList();
+    i64 OnListItem();
+    i64 OnEndList();
 
-    virtual void OnBeginList() final;
-    virtual void OnListItem() final;
-    virtual void OnEndList() final;
+    i64 OnBeginMap();
+    i64 OnKeyedItem(TStringBuf key);
+    i64 OnEndMap();
 
-    virtual void OnBeginMap() final;
-    virtual void OnKeyedItem(TStringBuf key) final;
-    virtual void OnEndMap() final;
-
-    virtual void OnBeginAttributes() final;
-    virtual void OnEndAttributes() final;
-
-    virtual void OnRaw(TStringBuf yson, NYson::EYsonType type) final;
-
-    void TransferYson(const std::function<void(NYson::IYsonConsumer*)>& callback);
+    i64 OnStringScalarWeightLimited(TStringBuf value, i64 limit);
+    i64 TransferYsonWeightLimited(const std::function<void(NYson::IYsonConsumer*)>& callback, i64 limit);
 
 private:
     NJson::IJsonConsumer* const Underlying_;
     TBuffer Buffer_;
+    
+    static constexpr i64 BeginListWeight = 1;
+    static constexpr i64 ListItemWeight = 1;
+    static constexpr i64 EndListWeight = 1;
+    static constexpr i64 BeginMapWeight = 1;
+    static constexpr i64 EndMapWeight = 1;
+    static constexpr i64 EntityWeight = sizeof("null") - 1;
+    static constexpr i64 BooleanScalarWeight = sizeof("false") - 1;
+
+public:
+    static constexpr auto KeyValue = AsStringBuf("val");
+    static constexpr auto KeyIncomplete = AsStringBuf("inc");
+    static constexpr auto KeyBase64 = AsStringBuf("b64");
+
+private:
+    i64 OnStringScalarImpl(TStringBuf value, bool incomplete = false, bool base64 = false);
+
+    inline i64 GetStringWeight(TStringBuf s)
+    {
+        return 2 + s.size();
+    }
+
+    inline i64 GetKeyedItemWeight(TStringBuf s)
+    {
+        return 1 + GetStringWeight(s);
+    }
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TYqlConverterConfig
+    : public TIntrinsicRefCounted
+{
+    i64 StringWeightLimit = std::numeric_limits<i64>::max();
+    i64 FieldWeightLimit = std::numeric_limits<i64>::max();
+};
+DECLARE_REFCOUNTED_STRUCT(TYqlConverterConfig);
+DEFINE_REFCOUNTED_TYPE(TYqlConverterConfig);
+
+////////////////////////////////////////////////////////////////////////////////
 
 using TYsonToYqlConverter = std::function<void(NYson::TYsonPullParserCursor*, TYqlJsonConsumer*)>;
 using TUnversionedValueToYqlConverter = std::function<void(NTableClient::TUnversionedValue, TYqlJsonConsumer*)>;
 
 // Created converters throw exceptions on schema incompliance.
-TYsonToYqlConverter CreateYsonToYqlConverter(const NTableClient::TLogicalTypePtr& logicalType);
-TUnversionedValueToYqlConverter CreateUnversionedValueToYqlConverter(const NTableClient::TLogicalTypePtr& logicalType);
+TYsonToYqlConverter CreateYsonToYqlConverter(
+    const NTableClient::TLogicalTypePtr& logicalType,
+    TYqlConverterConfigPtr config);
+TUnversionedValueToYqlConverter CreateUnversionedValueToYqlConverter(
+    const NTableClient::TLogicalTypePtr& logicalType,
+    TYqlConverterConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

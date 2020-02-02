@@ -5,7 +5,7 @@
 #include "file_changelog_dispatcher.h"
 
 #include <yt/ytlib/chunk_client/io_engine.h>
-#include <yt/ytlib/hydra/hydra_manager.pb.h>
+#include <yt/ytlib/hydra/proto/hydra_manager.pb.h>
 
 #include <yt/core/misc/async_cache.h>
 #include <yt/core/misc/fs.h>
@@ -36,6 +36,8 @@ TString GetChangelogPath(const TString& path, int id)
 
 } // namespace
 
+
+////////////////////////////////////////////////////////////////////////////////
 class TLocalChangelogStoreLock
     : public TIntrinsicRefCounted
 {
@@ -57,6 +59,8 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TLocalChangelogStoreLock)
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TEpochBoundLocalChangelog
     : public IChangelog
 {
@@ -69,11 +73,6 @@ public:
         , Lock_(std::move(lock))
         , UnderlyingChangelog_(std::move(underlyingChangelog))
     { }
-
-    virtual const TChangelogMeta& GetMeta() const override
-    {
-        return UnderlyingChangelog_->GetMeta();
-    }
 
     virtual int GetRecordCount() const override
     {
@@ -140,18 +139,15 @@ private:
 
     TFuture<void> CheckLock()
     {
-        Y_UNUSED(Epoch_);
-        // TODO(sandello): Currently broken. See YT-7421.
-        return std::nullopt;
-        /*
         return Lock_->IsAcquired(Epoch_)
             ? std::nullopt
             : MakeFuture<void>(TError("Changelog store lock expired"));
-        */
     }
 };
 
 DEFINE_REFCOUNTED_TYPE(TEpochBoundLocalChangelog)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TCachedLocalChangelog
     : public TAsyncCacheValueBase<int, TCachedLocalChangelog>
@@ -164,11 +160,6 @@ public:
         : TAsyncCacheValueBase(id)
         , UnderlyingChangelog_(std::move(underlyingChangelog))
     { }
-
-    virtual const TChangelogMeta& GetMeta() const override
-    {
-        return UnderlyingChangelog_->GetMeta();
-    }
 
     virtual int GetRecordCount() const override
     {
@@ -220,6 +211,8 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TCachedLocalChangelog)
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TLocalChangelogStoreFactory
     : public TAsyncSlruCacheBase<int, TCachedLocalChangelog>
     , public IChangelogStoreFactory
@@ -250,11 +243,11 @@ public:
         NFS::CleanTempFiles(Config_->Path);
     }
 
-    TFuture<IChangelogPtr> CreateChangelog(int id, ui64 epoch, const TChangelogMeta& meta)
+    TFuture<IChangelogPtr> CreateChangelog(int id, ui64 epoch)
     {
         return BIND(&TLocalChangelogStoreFactory::DoCreateChangelog, MakeStrong(this))
             .AsyncVia(GetHydraIOInvoker())
-            .Run(id, epoch, meta);
+            .Run(id, epoch);
     }
 
     TFuture<IChangelogPtr> OpenChangelog(int id, ui64 epoch)
@@ -281,7 +274,7 @@ private:
     const NLogging::TLogger Logger;
 
 
-    IChangelogPtr DoCreateChangelog(int id, ui64 epoch, const TChangelogMeta& meta)
+    IChangelogPtr DoCreateChangelog(int id, ui64 epoch)
     {
         auto cookie = BeginInsert(id);
         if (!cookie.IsActive()) {
@@ -292,7 +285,7 @@ private:
         auto path = GetChangelogPath(Config_->Path, id);
 
         try {
-            auto underlyingChangelog = Dispatcher_->CreateChangelog(path, meta, Config_);
+            auto underlyingChangelog = Dispatcher_->CreateChangelog(path, Config_);
             auto cachedChangelog = New<TCachedLocalChangelog>(id, underlyingChangelog);
             cookie.EndInsert(cachedChangelog);
         } catch (const std::exception& ex) {
@@ -396,6 +389,8 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TLocalChangelogStoreFactory)
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TLocalChangelogStore
     : public IChangelogStore
 {
@@ -414,9 +409,9 @@ public:
         return ReachableVersion_;
     }
 
-    virtual TFuture<IChangelogPtr> CreateChangelog(int id, const TChangelogMeta& meta) override
+    virtual TFuture<IChangelogPtr> CreateChangelog(int id) override
     {
-        return Factory_->CreateChangelog(id, Epoch_, meta);
+        return Factory_->CreateChangelog(id, Epoch_);
     }
 
     virtual TFuture<IChangelogPtr> OpenChangelog(int id) override
@@ -435,6 +430,8 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TLocalChangelogStore)
+
+////////////////////////////////////////////////////////////////////////////////
 
 IChangelogStorePtr TLocalChangelogStoreFactory::CreateStore(TVersion reachableVersion, ui64 epoch)
 {

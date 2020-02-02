@@ -8,6 +8,8 @@
 
 #include <yt/client/chunk_client/public.h>
 
+#include <yt/core/concurrency/async_semaphore.h>
+
 #include <yt/core/misc/small_vector.h>
 #include <yt/core/misc/optional.h>
 
@@ -152,6 +154,12 @@ DECLARE_REFCOUNTED_CLASS(TChunkSpecFetcher)
 
 DECLARE_REFCOUNTED_STRUCT(TChunkReaderStatistics)
 
+DECLARE_REFCOUNTED_CLASS(TChunkReaderMemoryManager)
+
+struct TChunkReaderMemoryManagerOptions;
+
+DECLARE_REFCOUNTED_STRUCT(TMemoryManagedData)
+
 class TReadLimit;
 class TReadRange;
 
@@ -163,6 +171,9 @@ DECLARE_REFCOUNTED_TYPE(TRefCountedChunkMeta)
 // NB: TRefCountedBlocksExt needs weak pointers support.
 using TRefCountedBlocksExt = TRefCountedProto<NChunkClient::NProto::TBlocksExt, true>;
 DECLARE_REFCOUNTED_TYPE(TRefCountedBlocksExt)
+
+using TRefCountedMiscExt = TRefCountedProto<NChunkClient::NProto::TMiscExt>;
+DECLARE_REFCOUNTED_TYPE(TRefCountedMiscExt);
 
 using TPlacementId = TGuid;
 
@@ -179,6 +190,8 @@ DECLARE_REFCOUNTED_CLASS(TKeySetWriter)
 using TDataCenterName = std::optional<TString>;
 
 struct IBlocksExtCache;
+
+DECLARE_REFCOUNTED_STRUCT(TMemoryUsageGuard)
 
 ////////////////////////////////////////////////////////////////////////////////
 

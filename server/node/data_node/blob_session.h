@@ -108,8 +108,8 @@ private:
 
     void SetFailed(const TError& error, bool fatal = true);
 
-    void OnSlotCanceled(int blockIndex);
-    void OnFinishCanceled();
+    void OnSlotCanceled(int blockIndex, const TError& error);
+    void OnFinishCanceled(const TError& error);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlobSession)

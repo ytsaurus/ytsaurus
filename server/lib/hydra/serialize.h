@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/hydra/hydra_manager.pb.h>
+#include <yt/ytlib/hydra/proto/hydra_manager.pb.h>
 
 #include <yt/core/misc/ref.h>
 

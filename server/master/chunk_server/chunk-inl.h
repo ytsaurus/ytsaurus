@@ -135,10 +135,8 @@ inline void TChunk::RefUsedRequisitions(TChunkRequisitionRegistry* registry) con
         return;
     }
 
-    YT_VERIFY(ExportDataList_);
-
-    for (auto i = 0; i < NObjectClient::MaxSecondaryMasterCells; ++i) {
-        const auto& data = ExportDataList_[i];
+    YT_ASSERT(ExportDataList_);
+    for (auto data : *ExportDataList_) {
         if (data.RefCounter != 0) {
             registry->Ref(data.ChunkRequisitionIndex);
         }
@@ -156,10 +154,8 @@ inline void TChunk::UnrefUsedRequisitions(
         return;
     }
 
-    YT_VERIFY(ExportDataList_);
-
-    for (auto i = 0; i < NObjectClient::MaxSecondaryMasterCells; ++i) {
-        const auto& data = ExportDataList_[i];
+    YT_ASSERT(ExportDataList_);
+    for (auto data : *ExportDataList_) {
         if (data.RefCounter != 0) {
             registry->Unref(data.ChunkRequisitionIndex, objectManager);
         }
@@ -185,8 +181,8 @@ inline void TChunk::SetLocalRequisitionIndex(
 
 inline TChunkRequisitionIndex TChunk::GetExternalRequisitionIndex(int cellIndex) const
 {
-    YT_VERIFY(ExportDataList_);
-    const auto& data = ExportDataList_[cellIndex];
+    YT_ASSERT(ExportDataList_);
+    auto data = (*ExportDataList_)[cellIndex];
     YT_VERIFY(data.RefCounter != 0);
     return data.ChunkRequisitionIndex;
 }
@@ -197,8 +193,8 @@ inline void TChunk::SetExternalRequisitionIndex(
     TChunkRequisitionRegistry* registry,
     const NObjectServer::TObjectManagerPtr& objectManager)
 {
-    YT_VERIFY(ExportDataList_);
-    auto& data = ExportDataList_[cellIndex];
+    YT_ASSERT(ExportDataList_);
+    auto& data = (*ExportDataList_)[cellIndex];
     YT_VERIFY(data.RefCounter != 0);
     registry->Unref(data.ChunkRequisitionIndex, objectManager);
     data.ChunkRequisitionIndex = requisitionIndex;
@@ -236,14 +232,13 @@ inline TChunkRequisition TChunk::ComputeAggregatedRequisition(const TChunkRequis
         return result;
     }
 
-    YT_VERIFY(ExportDataList_);
-
-    for (auto i = 0; i < NObjectClient::MaxSecondaryMasterCells; ++i) {
-        const auto& data = ExportDataList_[i];
+    YT_ASSERT(ExportDataList_);
+    for (auto data : *ExportDataList_) {
         if (data.RefCounter != 0) {
             result |= registry->GetRequisition(data.ChunkRequisitionIndex);
         }
     }
+
     return result;
 }
 

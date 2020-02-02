@@ -24,7 +24,7 @@ INodePtr DumpMembership(const DB::IAST& ast, const NLogging::TLogger& logger)
 
     if (const auto* identifier = ast.as<DB::ASTIdentifier>()) {
         auto membership = DB::IdentifierSemantic::getMembership(*identifier);
-        YT_LOG_DEBUG("Dumping membership for identifier (Identifier: %v, Membership: %v)", ast, membership);
+        YT_LOG_TRACE("Dumping membership for identifier (Identifier: %v, Membership: %v)", ast, membership);
         return ConvertToNode(membership);
     }
 
@@ -82,17 +82,17 @@ void ApplyMembershipHint(DB::IAST& ast, const TYsonString& hint, const TLogger& 
 {
     const auto& Logger = logger;
 
-    YT_LOG_INFO("Applying membership hint to AST (AST: %v, Hint: %v)", ast, hint);
+    YT_LOG_TRACE("Applying membership hint to AST (AST: %v, Hint: %v)", ast, hint);
     auto hintNode = ConvertToNode(hint);
     TModificationVector modifications;
     ApplyMembership(ast, hintNode, "" /* path */, modifications);
     for (auto& [identifier, membership] : modifications) {
-        YT_LOG_DEBUG("Applying membership for identifier (Identifier: %v, Membership: %v)",
+        YT_LOG_TRACE("Applying membership for identifier (Identifier: %v, Membership: %v)",
             static_cast<const DB::IAST&>(*identifier),
             membership);
         DB::IdentifierSemantic::setMembership(*identifier, membership);
     }
-    YT_LOG_INFO("AST hint successfully appclied");
+    YT_LOG_DEBUG("AST hint successfully applied");
 }
 
 TYsonString DumpMembershipHint(const DB::IAST& ast, const TLogger& logger)
@@ -100,7 +100,8 @@ TYsonString DumpMembershipHint(const DB::IAST& ast, const TLogger& logger)
     const auto& Logger = logger;
     auto hintNode = DumpMembership(ast, logger);
     auto hint = ConvertToYsonString(hintNode, EYsonFormat::Text);
-    YT_LOG_INFO("Dumped membership hint for AST (AST: %v, Hint: %v)", ast, hint);
+    YT_LOG_DEBUG("Dumped membership hint for AST");
+    YT_LOG_TRACE("Dumped membership hint for AST (AST: %v, Hint: %v)", ast, hint);
     return hint;
 }
 

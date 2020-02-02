@@ -57,6 +57,8 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(ESimpleLogicalValueType, ui32,
     ((Datetime)    (0x1009))
     ((Timestamp)   (0x100a))
     ((Interval)    (0x100b))
+
+    ((Void)        (0x100c))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -91,6 +93,10 @@ inline constexpr EValueType GetPhysicalType(ESimpleLogicalValueType type)
             return EValueType::Uint64;
         case ESimpleLogicalValueType::Interval:
             return EValueType::Int64;
+
+        case ESimpleLogicalValueType::Void:
+            return EValueType::Null;
+
         default:
             YT_ABORT();
     }
@@ -291,6 +297,8 @@ TValue MakeAnyValue(TStringBuf value, int id = 0, bool aggregate = false)
     result.Data.String = value.begin();
     return result;
 }
+
+[[noreturn]] void ThrowUnexpectedValueType(EValueType valueType);
 
 ////////////////////////////////////////////////////////////////////////////////
 

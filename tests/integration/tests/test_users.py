@@ -355,14 +355,6 @@ class TestUsers(YTEnvSetup):
 class TestBuiltinTabletSystemUsers(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
 
-    DELTA_NODE_CONFIG = {
-        "cluster_connection": {
-            "enable_builtin_tablet_system_users": True
-        }
-    }
-    DELTA_DRIVER_CONFIG = {
-         "enable_builtin_tablet_system_users": True
-    }
     DELTA_MASTER_CONFIG = {
         "tablet_manager": {
             "peer_revocation_timeout" : 3000,

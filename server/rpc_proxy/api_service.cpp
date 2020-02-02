@@ -4,6 +4,7 @@
 #include "private.h"
 #include "bootstrap.h"
 #include "config.h"
+#include "security_manager.h"
 
 #include <yt/ytlib/auth/cookie_authenticator.h>
 #include <yt/ytlib/auth/token_authenticator.h>
@@ -247,6 +248,7 @@ public:
         , Bootstrap_(bootstrap)
         , Config_(bootstrap->GetConfig()->ApiService)
         , Coordinator_(bootstrap->GetProxyCoordinator())
+        , SecurityManager_(Config_->SecurityManager, Bootstrap_)
         , StickyTransactionPool_(CreateStickyTransactionPool(Logger))
     {
         AuthenticatedClientCache_ = New<NApi::NNative::TClientCache>(
@@ -313,6 +315,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupRows));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(VersionedLookupRows));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SelectRows));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Explain));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetInSyncReplicas));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTabletInfos));
 
@@ -343,6 +346,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(WriteJournal)
             .SetStreamingEnabled(true)
             .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(TruncateJournal));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadTable)
             .SetStreamingEnabled(true)
@@ -365,6 +369,7 @@ private:
     const TBootstrap* Bootstrap_;
     const TApiServiceConfigPtr Config_;
     const IProxyCoordinatorPtr Coordinator_;
+    TSecurityManager SecurityManager_;
 
     TSpinLock SpinLock_;
     NNative::TClientCachePtr AuthenticatedClientCache_;
@@ -416,6 +421,8 @@ private:
     {
         const auto& user = context->GetUser();
         SetupTracing(user);
+
+        SecurityManager_.ValidateUser(user);
 
         Coordinator_->ValidateOperable();
 
@@ -490,7 +497,8 @@ private:
     void CompleteCallWith(
         NNative::IClientPtr client,
         const TIntrusivePtr<TContext>& context,
-        TFuture<TResult>&& future, F&& functor)
+        TFuture<TResult>&& future,
+        F&& functor)
     {
         future.Subscribe(
             BIND([client = std::move(client), context, functor = std::move(functor)] (const TErrorOr<TResult>& valueOrError) {
@@ -719,11 +727,16 @@ private:
 
         auto type = FromProto<EObjectType>(request->type());
         TCreateObjectOptions options;
+        if (request->has_ignore_existing()) {
+            options.IgnoreExisting = request->ignore_existing();
+        }
         if (request->has_attributes()) {
             options.Attributes = NYTree::FromProto(request->attributes());
         }
 
-        context->SetRequestInfo("Type: %v", type);
+        context->SetRequestInfo("Type: %v, IgnoreExisting: %v",
+            type,
+            options.IgnoreExisting);
 
         CompleteCallWith(
             client,
@@ -1958,6 +1971,9 @@ private:
         if (request->has_with_spec()) {
             options.WithSpec = request->with_spec();
         }
+        if (request->has_job_competition_id()) {
+            options.JobCompetitionId = FromProto<NJobTrackerClient::TJobId>(request->job_competition_id());
+        }
 
         options.SortField = static_cast<EJobSortField>(request->sort_field());
         options.SortOrder = static_cast<EJobSortDirection>(request->sort_order());
@@ -1973,15 +1989,16 @@ private:
         options.RunningJobsLookbehindPeriod = FromProto<TDuration>(request->running_jobs_lookbehind_period());
 
         context->SetRequestInfo(
-            "OperationId: %v, Type: %v, State: %v, Address: %v, "
-            "IncludeCypress: %v, IncludeControllerAgent: %v, IncludeArchive: %v",
+            "OperationId: %v, Type: %v, State: %v, Address: %v, IncludeCypress: %v, "
+            "IncludeControllerAgent: %v, IncludeArchive: %v, JobCompetitionId: %v",
             operationId,
             options.Type,
             options.State,
             options.Address,
             options.IncludeCypress,
             options.IncludeControllerAgent,
-            options.IncludeArchive);
+            options.IncludeArchive,
+            options.JobCompetitionId);
 
         CompleteCallWith(
             client,
@@ -2379,17 +2396,27 @@ private:
             });
     }
 
+    template <class TRequest>
+    static void FillSelectRowsOptionsBaseFromRequest(const TRequest request, TSelectRowsOptionsBase* options)
+    {
+        if (request->has_timestamp()) {
+            options->Timestamp = request->timestamp();
+        }
+        if (request->has_udf_registry_path()) {
+            options->UdfRegistryPath = request->udf_registry_path();
+        }
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, SelectRows)
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
         const auto& query = request->query();
 
-        TSelectRowsOptions options; // TODO: Fill all options.
+        TSelectRowsOptions options;
         SetTimeoutOptions(&options, context.Get());
-        if (request->has_timestamp()) {
-            options.Timestamp = request->timestamp();
-        }
+        FillSelectRowsOptionsBaseFromRequest(request, &options);
+
         if (request->has_input_row_limit()) {
             options.InputRowLimit = request->input_row_limit();
         }
@@ -2398,15 +2425,6 @@ private:
         }
         if (request->has_range_expansion_limit()) {
             options.RangeExpansionLimit = request->range_expansion_limit();
-        }
-        if (request->has_fail_on_incomplete_result()) {
-            options.FailOnIncompleteResult = request->fail_on_incomplete_result();
-        }
-        if (request->has_verbose_logging()) {
-            options.VerboseLogging = request->verbose_logging();
-        }
-        if (request->has_enable_code_cache()) {
-            options.EnableCodeCache = request->enable_code_cache();
         }
         if (request->has_max_subqueries()) {
             options.MaxSubqueries = request->max_subqueries();
@@ -2417,16 +2435,23 @@ private:
         if (request->has_allow_join_without_index()) {
             options.AllowJoinWithoutIndex = request->allow_join_without_index();
         }
-        if (request->has_udf_registry_path()) {
-            options.UdfRegistryPath = request->udf_registry_path();
-        }
-        if (request->has_memory_limit_per_node()) {
-            options.MemoryLimitPerNode = request->memory_limit_per_node();
-        }
         if (request->has_execution_pool()) {
             options.ExecutionPool = request->execution_pool();
         }
-
+        if (request->has_fail_on_incomplete_result()) {
+            options.FailOnIncompleteResult = request->fail_on_incomplete_result();
+        }
+        if (request->has_verbose_logging()) {
+            options.VerboseLogging = request->verbose_logging();
+        }
+        if (request->has_enable_code_cache()) {
+            options.EnableCodeCache = request->enable_code_cache();
+        }
+        // TODO: Support WorkloadDescriptor
+        if (request->has_memory_limit_per_node()) {
+            options.MemoryLimitPerNode = request->memory_limit_per_node();
+        }
+        // TODO(lukyan): Move to FillSelectRowsOptionsBaseFromRequest
         if (request->has_suppressable_access_tracking_options()) {
             FromProto(&options, request->suppressable_access_tracking_options());
         }
@@ -2446,6 +2471,30 @@ private:
 
                 context->SetResponseInfo("RowCount: %v",
                     result.Rowset->GetRows().Size());
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, Explain)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        const auto& query = request->query();
+
+        TExplainOptions options;
+        SetTimeoutOptions(&options, context.Get());
+        FillSelectRowsOptionsBaseFromRequest(request, &options);
+
+        context->SetRequestInfo("Query: %v, Timestamp: %llx",
+            query,
+            options.Timestamp);
+
+        CompleteCallWith(
+            client,
+            context,
+            client->Explain(query, options),
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                response->set_value(result.GetData());
             });
     }
 
@@ -2517,6 +2566,17 @@ private:
                     protoTabletInfo->set_total_row_count(tabletInfo.TotalRowCount);
                     protoTabletInfo->set_trimmed_row_count(tabletInfo.TrimmedRowCount);
                     protoTabletInfo->set_barrier_timestamp(tabletInfo.BarrierTimestamp);
+                    protoTabletInfo->set_last_write_timestamp(tabletInfo.LastWriteTimestamp);
+
+                    if (tabletInfo.TableReplicaInfos) {
+                        for (const auto& replicaInfo : *tabletInfo.TableReplicaInfos) {
+                            auto* protoReplicaInfo = protoTabletInfo->add_replicas();
+                            ToProto(protoReplicaInfo->mutable_replica_id(), replicaInfo.ReplicaId);
+                            protoReplicaInfo->set_last_replication_timestamp(replicaInfo.LastReplicationTimestamp);
+                            protoReplicaInfo->set_mode(static_cast<NApi::NRpcProxy::NProto::ETableReplicaMode>(replicaInfo.Mode));
+                            protoReplicaInfo->set_current_replication_row_index(replicaInfo.CurrentReplicationRowIndex);
+                        }
+                    }
                 }
             });
     }
@@ -3039,6 +3099,35 @@ private:
             true /* feedbackEnabled */);
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, TruncateJournal)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        const auto& path = request->path();
+        auto rowCount = request->row_count();
+
+        TTruncateJournalOptions options;
+        SetTimeoutOptions(&options, context.Get());
+        if (request->has_mutating_options()) {
+            FromProto(&options, request->mutating_options());
+        }
+        if (request->has_prerequisite_options()) {
+            FromProto(&options, request->prerequisite_options());
+        }
+
+        context->SetRequestInfo("Path: %v, RowCount: %v",
+            path,
+            rowCount);
+
+        CompleteCallWith(
+            client,
+            context,
+            client->TruncateJournal(
+                path,
+                rowCount,
+                options));
+    }
+
     ////////////////////////////////////////////////////////////////////////////////
     // TABLES
     ////////////////////////////////////////////////////////////////////////////////
@@ -3052,6 +3141,9 @@ private:
         NApi::TTableReaderOptions options;
         options.Unordered = request->unordered();
         options.OmitInaccessibleColumns = request->omit_inaccessible_columns();
+        options.EnableTableIndex = request->enable_table_index();
+        options.EnableRowIndex = request->enable_row_index();
+        options.EnableRangeIndex = request->enable_range_index();
         if (request->has_config()) {
             options.Config = ConvertTo<TTableReaderConfigPtr>(TYsonString(request->config()));
         }

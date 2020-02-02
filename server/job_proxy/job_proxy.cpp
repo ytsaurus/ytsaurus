@@ -117,7 +117,11 @@ TString TJobProxy::GetPreparationPath() const
 
 TString TJobProxy::GetSlotPath() const
 {
-    return NFs::CurrentWorkingDirectory();
+    if (!Config_->RootPath || Config_->TestRootFS) {
+        return NFs::CurrentWorkingDirectory();
+    }
+
+    return "/slot";
 }
 
 std::vector<NChunkClient::TChunkId> TJobProxy::DumpInputContext()
@@ -428,8 +432,7 @@ TJobResult TJobProxy::DoRun()
                 rootFS.Binds.emplace_back(TBind {bind->ExternalPath, bind->InternalPath, bind->ReadOnly});
             }
 
-            rootFS.Binds.emplace_back(TBind {NFs::CurrentWorkingDirectory(), NFs::CurrentWorkingDirectory(), false});
-
+            rootFS.Binds.emplace_back(TBind {GetPreparationPath(), GetSlotPath(), false});
             for (const auto& tmpfsPath : Config_->TmpfsPaths) {
                 rootFS.Binds.emplace_back(TBind {tmpfsPath, AdjustPath(tmpfsPath), false});
             }

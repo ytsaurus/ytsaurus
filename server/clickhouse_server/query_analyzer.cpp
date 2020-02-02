@@ -8,6 +8,9 @@
 #include <yt/ytlib/chunk_client/input_data_slice.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
+#include <yt/client/chunk_client/proto/chunk_spec.pb.h>
+#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
+
 #include <Parsers/ASTTablesInSelectQuery.h>
 #include <Parsers/ASTSelectQuery.h>
 #include <Parsers/ASTLiteral.h>
@@ -27,7 +30,10 @@ using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FillDataSliceDescriptors(TSubquerySpec& subquerySpec, const TRange<NChunkPools::TChunkStripePtr>& chunkStripes)
+void FillDataSliceDescriptors(
+    TSubquerySpec& subquerySpec,
+    THashMap<TChunkId, TRefCountedMiscExtPtr> miscExtMap,
+    const TRange<NChunkPools::TChunkStripePtr>& chunkStripes)
 {
     for (const auto& chunkStripe : chunkStripes) {
         auto& inputDataSliceDescriptors = subquerySpec.DataSliceDescriptors.emplace_back();
@@ -35,6 +41,11 @@ void FillDataSliceDescriptors(TSubquerySpec& subquerySpec, const TRange<NChunkPo
             const auto& chunkSlice = dataSlice->ChunkSlices[0];
             auto& chunkSpec = inputDataSliceDescriptors.emplace_back().ChunkSpecs.emplace_back();
             ToProto(&chunkSpec, chunkSlice, EDataSourceType::UnversionedTable);
+            auto it = miscExtMap.find(chunkSlice->GetInputChunk()->ChunkId());
+            YT_VERIFY(it != miscExtMap.end());
+            SetProtoExtension(
+                chunkSpec.mutable_chunk_meta()->mutable_extensions(),
+                static_cast<const NChunkClient::NProto::TMiscExt&>(*it->second));
         }
     }
 }
@@ -268,7 +279,12 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze()
     return result;
 }
 
-DB::ASTPtr TQueryAnalyzer::RewriteQuery(const TRange<TSubquery> threadSubqueries, TSubquerySpec specTemplate, int subqueryIndex, bool isLastSubquery)
+DB::ASTPtr TQueryAnalyzer::RewriteQuery(
+    const TRange<TSubquery> threadSubqueries,
+    TSubquerySpec specTemplate,
+    const THashMap<TChunkId, TRefCountedMiscExtPtr>& miscExtMap,
+    int subqueryIndex,
+    bool isLastSubquery)
 {
     auto Logger = this->Logger;
     Logger.AddTag("SubqueryIndex: %v", subqueryIndex);
@@ -301,17 +317,7 @@ DB::ASTPtr TQueryAnalyzer::RewriteQuery(const TRange<TSubquery> threadSubqueries
 
         std::vector<TChunkStripePtr> stripes;
         for (const auto& subquery : threadSubqueries) {
-            TChunkStripePtr currentTableStripe;
-            for (const auto& stripe : subquery.StripeList->Stripes) {
-                if (stripe->GetTableIndex() == index) {
-                    YT_VERIFY(!currentTableStripe);
-                    currentTableStripe = stripe;
-                }
-            }
-            if (!currentTableStripe) {
-                currentTableStripe = New<TChunkStripe>();
-            }
-            stripes.emplace_back(std::move(currentTableStripe));
+            stripes.emplace_back(subquery.StripeList->Stripes[index]);
         }
 
         auto spec = specTemplate;
@@ -320,10 +326,12 @@ DB::ASTPtr TQueryAnalyzer::RewriteQuery(const TRange<TSubquery> threadSubqueries
         spec.Columns = clickHouseSchema.Columns;
         spec.ReadSchema = Storages_[index]->GetSchema();
 
-        FillDataSliceDescriptors(spec, MakeRange(stripes));
+        FillDataSliceDescriptors(spec, miscExtMap, MakeRange(stripes));
 
         auto protoSpec = NYT::ToProto<NProto::TSubquerySpec>(spec);
         auto encodedSpec = Base64Encode(protoSpec.SerializeAsString());
+
+        YT_LOG_DEBUG("Serializing subquery spec (TableIndex: %v, SpecLength: %v)", index, encodedSpec.size());
 
         auto tableFunction = makeASTFunction("ytSubquery", std::make_shared<DB::ASTLiteral>(std::string(encodedSpec.data())));
 

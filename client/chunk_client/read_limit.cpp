@@ -70,6 +70,10 @@ TReadLimit TReadLimit::GetSuccessor() const
     if (HasChunkIndex()) {
         result.SetChunkIndex(GetChunkIndex() + 1);
     }
+    if (HasTabletIndex()) {
+        // We use tabletIndex in ordered dynamic tables, where indexing is over pairs (tabletIndex, rowIndex).
+        result.SetTabletIndex(GetTabletIndex());
+    }
     return result;
 }
 
@@ -151,6 +155,23 @@ bool TReadLimit::HasChunkIndex() const
 TReadLimit& TReadLimit::SetChunkIndex(i64 chunkIndex)
 {
     ReadLimit_.set_chunk_index(chunkIndex);
+    return *this;
+}
+
+i32 TReadLimit::GetTabletIndex() const
+{
+    YT_ASSERT(HasTabletIndex());
+    return ReadLimit_.tablet_index();
+}
+
+bool TReadLimit::HasTabletIndex() const
+{
+    return ReadLimit_.has_tablet_index();
+}
+
+TReadLimit& TReadLimit::SetTabletIndex(i32 tabletIndex)
+{
+    ReadLimit_.set_tablet_index(tabletIndex);
     return *this;
 }
 
@@ -257,6 +278,10 @@ TString ToString(const TReadLimit& limit)
         append("ChunkIndex", ToString(limit.GetChunkIndex()));
     }
 
+    if (limit.HasTabletIndex()) {
+        append("TabletIndex", ToString(limit.GetTabletIndex()));
+    }
+
     builder.AppendChar('}');
     return builder.Flush();
 }
@@ -272,7 +297,8 @@ bool IsTrivial(const NProto::TReadLimit& limit)
         !limit.has_row_index() &&
         !limit.has_key() &&
         !limit.has_offset() &&
-        !limit.has_chunk_index();
+        !limit.has_chunk_index() &&
+        !limit.has_tablet_index();
 }
 
 void ToProto(NProto::TReadLimit* protoReadLimit, const TReadLimit& readLimit)
@@ -302,6 +328,9 @@ void Serialize(const TReadLimit& readLimit, IYsonConsumer* consumer)
             })
             .DoIf(readLimit.HasChunkIndex(), [&] (TFluentMap fluent) {
                 fluent.Item("chunk_index").Value(readLimit.GetChunkIndex());
+            })
+            .DoIf(readLimit.HasTabletIndex(), [&] (TFluentMap fluent) {
+                fluent.Item("tablet_index").Value(readLimit.GetTabletIndex());
             })
         .EndMap();
 }
@@ -351,6 +380,11 @@ void Deserialize(TReadLimit& readLimit, INodePtr node)
     auto optionalChunkIndex = FindReadLimitComponent<i64>(attributes, "chunk_index");
     if (optionalChunkIndex) {
         readLimit.SetChunkIndex(*optionalChunkIndex);
+    }
+
+    auto optionalTabletIndex = FindReadLimitComponent<i32>(attributes, "tablet_index");
+    if (optionalTabletIndex) {
+        readLimit.SetTabletIndex(*optionalTabletIndex);
     }
 }
 

@@ -1,17 +1,21 @@
-#include "master_cache_service.h"
-#include "private.h"
 #include "config.h"
+#include "master_cache_service.h"
+#include "object_service_cache.h"
+#include "private.h"
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/ytlib/security_client/public.h>
 
+#include <yt/client/object_client/helpers.h>
+
 #include <yt/core/concurrency/thread_affinity.h>
 
 #include <yt/core/misc/async_cache.h>
-#include <yt/core/misc/property.h>
 #include <yt/core/misc/string.h>
 #include <yt/core/misc/checksum.h>
+
+#include <yt/core/profiling/profile_manager.h>
 
 #include <yt/core/rpc/helpers.h>
 #include <yt/core/rpc/message.h>
@@ -30,8 +34,15 @@ using namespace NYTree;
 using namespace NYTree::NProto;
 using namespace NObjectClient;
 using namespace NSecurityClient;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+struct TSubrequestResponse
+{
+    TSharedRefArray Message;
+    NHydra::TRevision Revision;
+};
 
 class TMasterCacheService
     : public TServiceBase
@@ -41,6 +52,7 @@ public:
         TMasterCacheServiceConfigPtr config,
         IInvokerPtr invoker,
         IChannelPtr masterChannel,
+        TObjectServiceCachePtr cache,
         TRealmId masterCellId)
         : TServiceBase(
             std::move(invoker),
@@ -48,309 +60,19 @@ public:
             ObjectServerLogger,
             masterCellId)
         , Config_(config)
+        , Cache_(std::move(cache))
+        , CellId_(masterCellId)
         , MasterChannel_(CreateThrottlingChannel(
             config,
             masterChannel))
         , Logger(NLogging::TLogger(ObjectServerLogger)
             .AddTag("RealmId: %v", masterCellId))
-        , Cache_(New<TCache>(this))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute));
     }
 
 private:
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, Execute);
-
-    using TSubrequestResponse = std::pair<TSharedRefArray, NHydra::TRevision>;
-
-    struct TKey
-    {
-        TString User;
-        TYPath Path;
-        TString Service;
-        TString Method;
-        TSharedRef RequestBody;
-        size_t RequestBodyHash;
-
-        TKey(
-            const TString& user,
-            const TYPath& path,
-            const TString& service,
-            const TString& method,
-            const TSharedRef& requestBody)
-            : User(user)
-            , Path(path)
-            , Method(method)
-            , RequestBody(requestBody)
-            , RequestBodyHash(GetChecksum(RequestBody))
-        { }
-
-        operator size_t() const
-        {
-            size_t result = 0;
-            HashCombine(result, User);
-            HashCombine(result, Path);
-            HashCombine(result, Service);
-            HashCombine(result, Method);
-            HashCombine(result, RequestBodyHash);
-            return result;
-        }
-
-        bool operator == (const TKey& other) const
-        {
-            return
-                User == other.User &&
-                Path == other.Path &&
-                Service == other.Service &&
-                Method == other.Method &&
-                RequestBodyHash == other.RequestBodyHash &&
-                TRef::AreBitwiseEqual(RequestBody, other.RequestBody);
-        }
-
-        friend TString ToString(const TKey& key)
-        {
-            return Format("{%v %v:%v %v %x}",
-                key.User,
-                key.Service,
-                key.Method,
-                key.Path,
-                key.RequestBodyHash);
-        }
-    };
-
-    class TEntry
-        : public TAsyncCacheValueBase<TKey, TEntry>
-    {
-    public:
-        TEntry(
-            const TKey& key,
-            bool success,
-            NHydra::TRevision revision,
-            TInstant timestamp,
-            TSharedRefArray responseMessage)
-            : TAsyncCacheValueBase(key)
-            , Success_(success)
-            , ResponseMessage_(std::move(responseMessage))
-            , TotalSpace_(GetByteSize(ResponseMessage_))
-            , Timestamp_(timestamp)
-            , Revision_(revision)
-        { }
-
-        DEFINE_BYVAL_RO_PROPERTY(bool, Success);
-        DEFINE_BYVAL_RO_PROPERTY(TSharedRefArray, ResponseMessage);
-        DEFINE_BYVAL_RO_PROPERTY(i64, TotalSpace);
-        DEFINE_BYVAL_RO_PROPERTY(TInstant, Timestamp);
-        DEFINE_BYVAL_RO_PROPERTY(NHydra::TRevision, Revision);
-    };
-
-    typedef TIntrusivePtr<TEntry> TEntryPtr;
-
-    class TCache
-        : public TAsyncSlruCacheBase<TKey, TEntry>
-    {
-    public:
-        explicit TCache(TMasterCacheService* owner)
-            : TAsyncSlruCacheBase(
-                owner->Config_,
-                ObjectServerProfiler.AppendPath("/master_cache"))
-            , Owner_(owner)
-            , Logger(owner->Logger)
-        { }
-
-        TFuture<TSubrequestResponse> Lookup(
-            TRequestId requestId,
-            const TKey& key,
-            TSharedRefArray requestMessage,
-            TDuration successExpirationTime,
-            TDuration failureExpirationTime,
-            NHydra::TRevision refreshRevision)
-        {
-            return New<TLookupSession>(
-                this,
-                requestId,
-                key,
-                successExpirationTime,
-                failureExpirationTime,
-                refreshRevision)
-                ->Run(key, std::move(requestMessage));
-        }
-
-    private:
-        TMasterCacheService* const Owner_;
-        const NLogging::TLogger Logger;
-
-        class TLookupSession
-            : public TRefCounted
-        {
-        public:
-            TLookupSession(
-                TCache* owner,
-                TRequestId requestId,
-                const TKey& key,
-                TDuration successExpirationTime,
-                TDuration failureExpirationTime,
-                NHydra::TRevision refreshRevision)
-                : Owner_(owner)
-                , SuccessExpirationTime_(successExpirationTime)
-                , FailureExpirationTime_(failureExpirationTime)
-                , RefreshRevision_(refreshRevision)
-                , Logger(owner->Logger)
-            {
-                Logger.AddTag("RequestId: %v, Key: %v, SuccessExpirationTime: %v, FailureExpirationTime: %v, RefreshRevision: %v",
-                    requestId,
-                    key,
-                    successExpirationTime,
-                    failureExpirationTime,
-                    refreshRevision);
-            }
-
-            TFuture<TSubrequestResponse> Run(
-                const TKey& key,
-                TSharedRefArray requestMessage)
-            {
-                auto entry = Owner_->Find(key);
-                if (entry) {
-                    if (RefreshRevision_ && entry->GetRevision() != NHydra::NullRevision && entry->GetRevision() <= RefreshRevision_) {
-                        YT_LOG_DEBUG("Cache entry refresh requested (Revision: %v, Success: %v)",
-                            entry->GetRevision(),
-                            entry->GetSuccess());
-
-                        Owner_->TryRemove(entry);
-
-                    } else if (IsExpired(entry, SuccessExpirationTime_, FailureExpirationTime_)) {
-                        YT_LOG_DEBUG("Cache entry expired (Revision: %v, Success: %v)",
-                            entry->GetRevision(),
-                            entry->GetSuccess());
-
-                        Owner_->TryRemove(entry);
-
-                    } else {
-                        YT_LOG_DEBUG("Cache hit (Revision: %v, Success: %v)",
-                            entry->GetRevision(),
-                            entry->GetSuccess());
-
-                        return MakeFuture(TErrorOr<TSubrequestResponse>(std::make_pair(
-                            entry->GetResponseMessage(),
-                            entry->GetRevision())));
-                    }
-                }
-
-                auto cookie = Owner_->BeginInsert(key);
-                auto result = cookie.GetValue();
-                if (cookie.IsActive()) {
-                    YT_LOG_DEBUG("Populating cache");
-
-                    TObjectServiceProxy proxy(Owner_->Owner_->MasterChannel_);
-                    auto req = proxy.Execute();
-                    req->SetUser(key.User);
-                    req->add_part_counts(requestMessage.Size());
-                    req->Attachments().insert(
-                        req->Attachments().end(),
-                        requestMessage.Begin(),
-                        requestMessage.End());
-
-                    req->Invoke().Subscribe(BIND(
-                        &TLookupSession::OnResponse,
-                        MakeStrong(this),
-                        Passed(std::move(cookie))));
-                }
-
-                return result.Apply(BIND([] (const TEntryPtr& entry) -> TSubrequestResponse {
-                    return std::make_pair(entry->GetResponseMessage(), entry->GetRevision());
-                }));
-            }
-
-        private:
-            TIntrusivePtr<TCache> Owner_;
-            const TDuration SuccessExpirationTime_;
-            const TDuration FailureExpirationTime_;
-            const NHydra::TRevision RefreshRevision_;
-
-            NLogging::TLogger Logger;
-
-            void OnResponse(
-                TInsertCookie cookie,
-                const TObjectServiceProxy::TErrorOrRspExecutePtr& rspOrError)
-            {
-                if (!rspOrError.IsOK()) {
-                    YT_LOG_WARNING(rspOrError, "Cache population request failed");
-                    cookie.Cancel(rspOrError);
-                    return;
-                }
-
-                const auto& rsp = rspOrError.Value();
-                const auto& key = cookie.GetKey();
-
-                YT_VERIFY(rsp->part_counts_size() == 1);
-                auto responseMessage = TSharedRefArray(rsp->Attachments(), TSharedRefArray::TCopyParts{});
-
-                TResponseHeader responseHeader;
-                YT_VERIFY(ParseResponseHeader(responseMessage, &responseHeader));
-                auto responseError = FromProto<TError>(responseHeader.error());
-                auto revision = rsp->revisions_size() > 0 ? rsp->revisions(0) : NHydra::NullRevision;
-
-                YT_LOG_DEBUG("Cache population request succeeded (Key: %v, Revision: %llx, Error: %v)",
-                    key,
-                    revision,
-                    responseError);
-
-                auto entry = New<TEntry>(
-                    key,
-                    responseError.IsOK(),
-                    revision,
-                    TInstant::Now(),
-                    responseMessage);
-                cookie.EndInsert(entry);
-            }
-        };
-
-
-        virtual void OnAdded(const TEntryPtr& entry) override
-        {
-            VERIFY_THREAD_AFFINITY_ANY();
-
-            TAsyncSlruCacheBase::OnAdded(entry);
-
-            const auto& key = entry->GetKey();
-            YT_LOG_DEBUG("Cache entry added (Key: %v, Revision: %v, Success: %v, TotalSpace: %v)",
-                key,
-                entry->GetRevision(),
-                entry->GetSuccess(),
-                entry->GetTotalSpace());
-        }
-
-        virtual void OnRemoved(const TEntryPtr& entry) override
-        {
-            VERIFY_THREAD_AFFINITY_ANY();
-
-            TAsyncSlruCacheBase::OnRemoved(entry);
-
-            const auto& key = entry->GetKey();
-            YT_LOG_DEBUG("Cache entry removed (Key: %v, Revision: %llx, Success: %v, TotalSpace: %v)",
-                key,
-                entry->GetRevision(),
-                entry->GetSuccess(),
-                entry->GetTotalSpace());
-        }
-
-        virtual i64 GetWeight(const TEntryPtr& entry) const override
-        {
-            VERIFY_THREAD_AFFINITY_ANY();
-
-            return entry->GetTotalSpace();
-        }
-
-
-        static bool IsExpired(
-            const TEntryPtr& entry,
-            TDuration successExpirationTime,
-            TDuration failureExpirationTime)
-        {
-            return
-                TInstant::Now() > entry->GetTimestamp() +
-                (entry->GetSuccess() ? successExpirationTime : failureExpirationTime);
-        }
-    };
 
     class TMasterRequest
         : public TIntrinsicRefCounted
@@ -423,18 +145,21 @@ private:
                 auto parts = std::vector<TSharedRef>(
                     attachments.begin() + attachmentIndex,
                     attachments.begin() + attachmentIndex + partCount);
-                Promises_[subresponseIndex].Set(std::make_pair(
+                Promises_[subresponseIndex].Set({
                     TSharedRefArray(std::move(parts), TSharedRefArray::TMoveParts{}),
-                    NHydra::NullRevision));
+                    NHydra::NullRevision});
                 attachmentIndex += partCount;
             }
         }
     };
 
     const TMasterCacheServiceConfigPtr Config_;
+    const TObjectServiceCachePtr Cache_;
+    const TCellId CellId_;
     const IChannelPtr MasterChannel_;
     const NLogging::TLogger Logger;
-    const TIntrusivePtr<TCache> Cache_;
+
+    std::atomic<bool> EnableTwoLevelObjectServiceCache_ = {false};
 };
 
 DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
@@ -471,7 +196,8 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
 
         const auto& ypathExt = subrequestHeader.GetExtension(TYPathHeaderExt::ypath_header_ext);
 
-        TKey key(
+        TObjectServiceCacheKey key(
+            CellTagFromId(CellId_),
             user,
             ypathExt.target_path(),
             subrequestHeader.service(),
@@ -495,13 +221,75 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
                 subrequestIndex,
                 key);
 
-            asyncMasterResponseMessages.push_back(Cache_->Lookup(
+            auto successExpirationTime = FromProto<TDuration>(cachingRequestHeaderExt.success_expiration_time());
+            auto failureExpirationTime = FromProto<TDuration>(cachingRequestHeaderExt.failure_expiration_time());
+
+            auto nodeSuccessExpirationTime = successExpirationTime * Config_->NodeCacheTtlRatio;
+            auto nodeFailureExpirationTime = failureExpirationTime * Config_->NodeCacheTtlRatio;
+
+            bool enableTwoLevelObjectServiceCache = EnableTwoLevelObjectServiceCache_.load(std::memory_order_relaxed);
+            auto cookie = Cache_->BeginLookup(
                 requestId,
                 key,
-                std::move(subrequestMessage),
-                FromProto<TDuration>(cachingRequestHeaderExt.success_expiration_time()),
-                FromProto<TDuration>(cachingRequestHeaderExt.failure_expiration_time()),
-                refreshRevision));
+                enableTwoLevelObjectServiceCache ? nodeSuccessExpirationTime : successExpirationTime,
+                enableTwoLevelObjectServiceCache ? nodeFailureExpirationTime : failureExpirationTime,
+                refreshRevision);
+
+            asyncMasterResponseMessages.push_back(
+                cookie.GetValue().Apply(BIND([] (const TObjectServiceCacheEntryPtr& entry) -> TSubrequestResponse {
+                    return {entry->GetResponseMessage(), entry->GetRevision()};
+                })));
+
+            if (cookie.IsActive()) {
+                TObjectServiceProxy proxy(MasterChannel_);
+                auto req = proxy.Execute();
+                req->SetUser(key.User);
+                req->add_part_counts(subrequestMessage.Size());
+                req->Attachments().insert(
+                    req->Attachments().end(),
+                    subrequestMessage.Begin(),
+                    subrequestMessage.End());
+
+                if (enableTwoLevelObjectServiceCache) {
+                    auto* balancingHeaderExt = req->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext);
+                    balancingHeaderExt->set_enable_stickness(true);
+                    balancingHeaderExt->set_sticky_group_size(1);
+
+                    auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
+                    cachingHeaderExt->set_success_expiration_time(ToProto<i64>(successExpirationTime - nodeSuccessExpirationTime));
+                    cachingHeaderExt->set_failure_expiration_time(ToProto<i64>(failureExpirationTime - nodeFailureExpirationTime));
+                } else {
+                    req->Header().ClearExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
+                    req->Header().ClearExtension(NRpc::NProto::TBalancingExt::balancing_ext);
+                }
+
+                req->Invoke().Apply(
+                    BIND([this, this_ = MakeStrong(this), cookie = std::move(cookie), requestId] (
+                        const TObjectServiceProxy::TErrorOrRspExecutePtr& rspOrError) mutable
+                    {
+                        if (!rspOrError.IsOK()) {
+                            YT_LOG_WARNING(rspOrError, "Cache population request failed (Key: %v)", cookie.GetKey());
+                            cookie.Cancel(rspOrError);
+                            return;
+                        }
+
+                        const auto& rsp = rspOrError.Value();
+                        YT_VERIFY(rsp->part_counts_size() == 1);
+                        auto responseMessage = TSharedRefArray(rsp->Attachments(), TSharedRefArray::TCopyParts{});
+
+                        TResponseHeader responseHeader;
+                        YT_VERIFY(ParseResponseHeader(responseMessage, &responseHeader));
+                        auto responseError = FromProto<TError>(responseHeader.error());
+                        auto revision = rsp->revisions_size() > 0 ? rsp->revisions(0) : NHydra::NullRevision;
+
+                        bool enableTwoLevelCache = rsp->two_level_cache_enabled();
+                        if (EnableTwoLevelObjectServiceCache_.exchange(enableTwoLevelCache) != enableTwoLevelCache) {
+                            YT_LOG_INFO("Changing two-level object service cache mode (Enable: %v)", enableTwoLevelCache);
+                        }
+
+                        Cache_->EndLookup(requestId, std::move(cookie), responseMessage, revision, responseError.IsOK());
+                    }));
+            }
         } else {
             YT_LOG_DEBUG("Subrequest does not support caching, bypassing cache (RequestId: %v, SubrequestIndex: %v, Key: %v)",
                 requestId,
@@ -524,8 +312,8 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
         .ValueOrThrow();
 
     auto& responseAttachments = response->Attachments();
-    for (const auto& pair : masterResponseMessages) {
-        const auto& masterResponseMessage = pair.first;
+    for (const auto& subrequestResponse : masterResponseMessages) {
+        const auto& masterResponseMessage = subrequestResponse.Message;
         response->add_part_counts(masterResponseMessage.Size());
         responseAttachments.insert(
             responseAttachments.end(),
@@ -548,12 +336,14 @@ IServicePtr CreateMasterCacheService(
     TMasterCacheServiceConfigPtr config,
     IInvokerPtr invoker,
     IChannelPtr masterChannel,
+    TObjectServiceCachePtr cache,
     TRealmId masterCellId)
 {
     return New<TMasterCacheService>(
         std::move(config),
         std::move(invoker),
         std::move(masterChannel),
+        std::move(cache),
         masterCellId);
 }
 

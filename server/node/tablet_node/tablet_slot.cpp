@@ -11,6 +11,7 @@
 #include <yt/server/node/data_node/config.h>
 
 #include <yt/server/lib/election/election_manager.h>
+#include <yt/server/lib/election/distributed_election_manager.h>
 
 #include <yt/server/lib/hive/hive_manager.h>
 #include <yt/server/lib/hive/mailbox.h>
@@ -44,15 +45,18 @@
 
 #include <yt/server/node/cell_node/bootstrap.h>
 
+#include <yt/server/node/data_node/master_connector.h>
+
 #include <yt/server/lib/misc/interned_attributes.h>
 
-#include <yt/ytlib/api/native/config.h>
 #include <yt/ytlib/api/native/connection.h>
 #include <yt/ytlib/api/native/client.h>
 
 #include <yt/client/api/connection.h>
 #include <yt/client/api/client.h>
 #include <yt/client/api/transaction.h>
+
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/client/security_client/public.h>
 
@@ -98,161 +102,6 @@ using NHydra::EPeerState;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletSlot::TElectionManager
-    : public IElectionManager
-{
-public:
-    TElectionManager(
-        IInvokerPtr controlInvoker,
-        IElectionCallbacksPtr callbacks,
-        TCellManagerPtr cellManager,
-        NLogging::TLogger logger)
-        : ControlInvoker_(std::move(controlInvoker))
-        , Callbacks_(std::move(callbacks))
-        , CellManager_(std::move(cellManager))
-        , Logger(std::move(logger))
-    {
-        VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
-
-        CellManager_->SubscribePeerReconfigured(
-            BIND(&TElectionManager::OnPeerReconfigured, MakeWeak(this)));
-    }
-
-    virtual void Initialize() override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-    }
-
-    virtual void Finalize() override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        Abandon();
-    }
-
-    virtual void Participate() override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        ControlInvoker_->Invoke(BIND(&TElectionManager::DoParticipate, MakeStrong(this)));
-    }
-
-    virtual void Abandon() override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        ControlInvoker_->Invoke(BIND(&TElectionManager::DoAbandon, MakeStrong(this)));
-    }
-
-    virtual TYsonProducer GetMonitoringProducer() override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        YT_ABORT();
-    }
-
-    void SetEpochId(TEpochId epochId)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        YT_VERIFY(epochId);
-        if (EpochId_ == epochId) {
-            return;
-        }
-
-        EpochId_ = epochId;
-        DoAbandon();
-    }
-
-private:
-    const IInvokerPtr ControlInvoker_;
-    const IElectionCallbacksPtr Callbacks_;
-    const TCellManagerPtr CellManager_;
-    const NLogging::TLogger Logger;
-
-    TEpochId EpochId_;
-    TEpochContextPtr EpochContext_;
-
-    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-
-
-    void DoParticipate()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        DoAbandon();
-
-        YT_LOG_INFO("Starting election epoch");
-
-        EpochContext_ = New<TEpochContext>();
-        EpochContext_->LeaderId = GetLeaderId();
-        EpochContext_->EpochId = EpochId_;
-        EpochContext_->StartTime = TInstant::Now();
-
-        if (IsLeader()) {
-            Callbacks_->OnStartLeading(EpochContext_);
-        } else {
-            Callbacks_->OnStartFollowing(EpochContext_);
-        }
-    }
-
-    void DoAbandon()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        if (!EpochContext_) {
-            return;
-        }
-
-        YT_LOG_INFO("Abandoning election epoch");
-
-        EpochContext_->CancelableContext->Cancel();
-
-        if (IsLeader()) {
-            Callbacks_->OnStopLeading();
-        } else {
-            Callbacks_->OnStopFollowing();
-        }
-
-        EpochContext_.Reset();
-    }
-
-    void OnPeerReconfigured(TPeerId peerId)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        if (!EpochContext_) {
-            return;
-        }
-
-        YT_LOG_INFO("Peer reconfigured (PeerId: %v)",
-            peerId);
-
-        auto selfId = CellManager_->GetSelfPeerId();
-        if (peerId == selfId || EpochContext_->LeaderId == selfId || EpochContext_->LeaderId == peerId) {
-            DoAbandon();
-        }
-    }
-
-    TPeerId GetLeaderId()
-    {
-        for (auto peerId = 0; peerId < CellManager_->GetTotalPeerCount(); ++peerId) {
-            const auto& peerConfig = CellManager_->GetPeerConfig(peerId);
-            if (peerConfig.Voting) {
-                return peerId;
-            }
-        }
-        YT_ABORT();
-    }
-
-    bool IsLeader()
-    {
-        return EpochContext_ && EpochContext_->LeaderId == CellManager_->GetSelfPeerId();
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TTabletSlot::TImpl
     : public TRefCounted
 {
@@ -283,18 +132,14 @@ public:
                 "tablet_cell_bundle",
                 TabletCellBundle ? TabletCellBundle : UnknownProfilingTag)
         }
-        , OptionsString_(TYsonString(createInfo.options()))
-        , Logger(NLogging::TLogger(TabletNodeLogger)
-            .AddTag("CellId: %v, PeerId: %v",
-                CellDescriptor_.CellId,
-                PeerId_))
+        , Options_(ConvertTo<TTabletCellOptionsPtr>(TYsonString(createInfo.options())))
+        , Logger(GetLogger())
     {
         VERIFY_INVOKER_THREAD_AFFINITY(GetAutomatonInvoker(), AutomatonThread);
 
         ResetEpochInvokers();
         ResetGuardedInvokers();
     }
-
 
     int GetIndex() const
     {
@@ -443,8 +288,6 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(!Initialized_);
 
-        Options_ = ConvertTo<TTabletCellOptionsPtr>(OptionsString_);
-
         Initialized_ = true;
 
         YT_LOG_INFO("Slot initialized");
@@ -518,12 +361,29 @@ public:
 
         CellDescriptor_ = FromProto<TCellDescriptor>(configureInfo.cell_descriptor());
 
+        if (configureInfo.has_peer_id()) {
+            TPeerId peerId = configureInfo.peer_id();
+            if (PeerId_ != peerId) {
+                YT_LOG_DEBUG("Peer id updated (PeerId: %v -> %v)",
+                    PeerId_,
+                    peerId);
+
+                PeerId_ = peerId;
+
+                // Logger has peer_id tag so should be updated.
+                Logger = GetLogger();
+            }
+        }
+
         auto newPrerequisiteTransactionId = FromProto<TTransactionId>(configureInfo.prerequisite_transaction_id());
         if (newPrerequisiteTransactionId != PrerequisiteTransactionId_) {
             YT_LOG_INFO("Prerequisite transaction updated (TransactionId: %v -> %v)",
                 PrerequisiteTransactionId_,
                 newPrerequisiteTransactionId);
             PrerequisiteTransactionId_ = newPrerequisiteTransactionId;
+            if (ElectionManager_) {
+                ElectionManager_->Abandon();
+            }
         }
 
         PrerequisiteTransaction_.Reset();
@@ -536,14 +396,9 @@ public:
                 PrerequisiteTransactionId_);
         }
 
-        // COMPAT(akozhikhov)
-        IClientPtr snapshotClient = Bootstrap_->GetMasterClient();
-        IClientPtr changelogClient = Bootstrap_->GetMasterClient();
         auto connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
-        if (connection->GetConfig()->EnableBuiltinTabletSystemUsers) {
-            snapshotClient = connection->CreateNativeClient(TClientOptions(NSecurityClient::TabletCellSnapshotterUserName));
-            changelogClient = connection->CreateNativeClient(TClientOptions(NSecurityClient::TabletCellChangeloggerUserName));
-        }
+        auto snapshotClient = connection->CreateNativeClient(TClientOptions(NSecurityClient::TabletCellSnapshotterUserName));
+        auto changelogClient = connection->CreateNativeClient(TClientOptions(NSecurityClient::TabletCellChangeloggerUserName));
 
         auto snapshotStore = CreateRemoteSnapshotStore(
             Config_->Snapshots,
@@ -566,8 +421,7 @@ public:
         auto cellConfig = CellDescriptor_.ToConfig(Bootstrap_->GetLocalNetworks());
 
         if (GetHydraManager()) {
-            ElectionManager_->SetEpochId(PrerequisiteTransactionId_);
-            CellManager_->Reconfigure(cellConfig);
+            CellManager_->Reconfigure(cellConfig, PeerId_);
 
             YT_LOG_INFO("Slot reconfigured (ConfigVersion: %v)",
                 CellDescriptor_.ConfigVersion);
@@ -619,6 +473,9 @@ public:
             hydraManager->SubscribeStopLeading(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
             hydraManager->SubscribeStopFollowing(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
 
+            hydraManager->SubscribeLeaderRecoveryComplete(BIND(&TImpl::OnRecoveryComplete, MakeWeak(this)));
+            hydraManager->SubscribeFollowerRecoveryComplete(BIND(&TImpl::OnRecoveryComplete, MakeWeak(this)));
+
             hydraManager->SubscribeLeaderLeaseCheck(
                 BIND(&TImpl::OnLeaderLeaseCheckThunk, MakeWeak(this))
                     .AsyncVia(Bootstrap_->GetControlInvoker()));
@@ -631,12 +488,12 @@ public:
                 }
             }
 
-            ElectionManager_ = New<TElectionManager>(
+            ElectionManager_ = CreateDistributedElectionManager(
+                Config_->ElectionManager,
+                CellManager_,
                 Bootstrap_->GetControlInvoker(),
                 hydraManager->GetElectionCallbacks(),
-                CellManager_,
-                Logger);
-            ElectionManager_->SetEpochId(PrerequisiteTransactionId_);
+                rpcServer);
             ElectionManager_->Initialize();
 
             ElectionManagerThunk_->SetUnderlying(ElectionManager_);
@@ -762,6 +619,13 @@ public:
         return options;
     }
 
+    const TTabletCellOptionsPtr& GetOptions() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return Options_;
+    }
+
 private:
     TTabletSlot* const Owner_;
     const int SlotIndex_;
@@ -775,15 +639,14 @@ private:
     const TSnapshotStoreThunkPtr SnapshotStoreThunk_ = New<TSnapshotStoreThunk>();
     const TChangelogStoreFactoryThunkPtr ChangelogStoreFactoryThunk_ = New<TChangelogStoreFactoryThunk>();
 
-    const TPeerId PeerId_;
+    TPeerId PeerId_;
     TCellDescriptor CellDescriptor_;
 
     const TString TabletCellBundle;
 
     const NProfiling::TTagIdList ProfilingTagIds_;
 
-    const TYsonString OptionsString_;
-    TTabletCellOptionsPtr Options_;
+    const TTabletCellOptionsPtr Options_;
 
     TSpinLock DynamicOptionsLock;
     TDynamicTabletCellOptionsPtr DynamicOptions_ = New<TDynamicTabletCellOptions>();
@@ -795,7 +658,7 @@ private:
 
     TCellManagerPtr CellManager_;
 
-    TElectionManagerPtr ElectionManager_;
+    IElectionManagerPtr ElectionManager_;
 
     TSpinLock HydraManagerLock_;
     IHydraManagerPtr HydraManager_;
@@ -876,13 +739,13 @@ private:
         return PrerequisiteTransactionId_;
     }
 
-    const TTabletCellOptionsPtr& GetOptions() const
+    NLogging::TLogger GetLogger() const
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        return Options_;
+        return NLogging::TLogger(TabletNodeLogger)
+            .AddTag("CellId: %v, PeerId: %v",
+                CellDescriptor_.CellId,
+                PeerId_);
     }
-
 
     void ResetEpochInvokers()
     {
@@ -931,6 +794,14 @@ private:
         ResetEpochInvokers();
     }
 
+    void OnRecoveryComplete()
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        // Notify master about recovery completion as soon as possible via out-of-order heartbeat.
+        auto primaryCellTag = CellTagFromId(Bootstrap_->GetCellId());
+        Bootstrap_->GetMasterConnector()->ScheduleNodeHeartbeat(primaryCellTag, true);
+    }
 
     static TFuture<void> OnLeaderLeaseCheckThunk(TWeakPtr<TImpl> weakThis)
     {
@@ -1155,6 +1026,11 @@ double TTabletSlot::GetUsedCpu(double cpuPerTabletSlot) const
 TDynamicTabletCellOptionsPtr TTabletSlot::GetDynamicOptions() const
 {
     return Impl_->GetDynamicOptions();
+}
+
+TTabletCellOptionsPtr TTabletSlot::GetOptions() const
+{
+    return Impl_->GetOptions();
 }
 
 int TTabletSlot::GetDynamicConfigVersion() const

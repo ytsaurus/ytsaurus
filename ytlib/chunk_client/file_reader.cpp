@@ -86,12 +86,11 @@ TFuture<std::vector<TBlock>> TFileReader::ReadBlocks(
             localIndex = endLocalIndex;
         }
     } catch (const std::exception& ex) {
-
-        for (auto& future : futures) {
-            future.Cancel();
+        TError error(ex);
+        for (const auto& future : futures) {
+            future.Cancel(error);
         }
-
-        return MakeFuture<std::vector<TBlock>>(ex);
+        return MakeFuture<std::vector<TBlock>>(error);
     }
 
     return CombineAll(std::move(futures))
@@ -133,6 +132,19 @@ TFuture<TRefCountedChunkMetaPtr> TFileReader::GetMeta(
     } catch (const std::exception& ex) {
         return MakeFuture<TRefCountedChunkMetaPtr>(ex);
     }
+}
+
+TFuture<TSharedRef> TFileReader::LookupRows(
+    const TClientBlockReadOptions& /*options*/,
+    const TSharedRange<NTableClient::TKey>& /*lookupKeys*/,
+    NCypressClient::TObjectId /*tableId*/,
+    NHydra::TRevision /*revision*/,
+    const NTableClient::TTableSchema& /*tableSchema*/,
+    std::optional<i64> /*estimatedSize*/,
+    std::atomic<i64>* /*uncompressedDataSize*/,
+    bool /*produceAllVersions*/)
+{
+    YT_UNIMPLEMENTED();
 }
 
 TChunkId TFileReader::GetChunkId() const

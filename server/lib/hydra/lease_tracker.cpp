@@ -4,6 +4,7 @@
 #include "decorated_automaton.h"
 
 #include <yt/ytlib/election/cell_manager.h>
+#include <yt/ytlib/election/config.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
@@ -100,13 +101,15 @@ private:
             req->add_alive_peers(peerId);
         }
 
+        bool voting = Owner_->CellManager_->GetPeerConfig(followerId).Voting;
         AsyncResults_.push_back(req->Invoke().Apply(
-            BIND(&TFollowerPinger::OnResponse, MakeStrong(this), followerId)
+            BIND(&TFollowerPinger::OnResponse, MakeStrong(this), followerId, voting)
                 .Via(epochContext->EpochControlInvoker)));
     }
 
     void OnResponse(
         TPeerId followerId,
+        bool voting,
         const THydraServiceProxy::TErrorOrRspPingFollowerPtr& rspOrError)
     {
         VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
@@ -124,7 +127,7 @@ private:
             followerId,
             state);
 
-        if (Owner_->CellManager_->GetPeerConfig(followerId).Voting) {
+        if (voting) {
             if (state == EPeerState::Following) {
                 OnSuccess();
             } else {
@@ -180,11 +183,15 @@ TLeaseTracker::TLeaseTracker(
     VERIFY_INVOKER_THREAD_AFFINITY(EpochContext_->EpochControlInvoker, ControlThread);
 
     Logger = HydraLogger;
-    Logger.AddTag("CellId: %v", CellManager_->GetCellId());
+    Logger.AddTag("CellId: %v, SelfPeerId: %v",
+        CellManager_->GetCellId(),
+        CellManager_->GetSelfPeerId());
 }
 
 void TLeaseTracker::Start()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     LeaseCheckExecutor_ = New<TPeriodicExecutor>(
         EpochContext_->EpochControlInvoker,
         BIND(&TLeaseTracker::OnLeaseCheck, MakeWeak(this)),
@@ -194,21 +201,22 @@ void TLeaseTracker::Start()
 
 void TLeaseTracker::SetAlivePeers(const TPeerIdSet& alivePeers)
 {
-    AlivePeers_ = alivePeers;
-}
+    VERIFY_THREAD_AFFINITY(ControlThread);
 
-bool TLeaseTracker::IsPeerAlive(TPeerId peerId) const
-{
-    return AlivePeers_.contains(peerId);
+    AlivePeers_ = alivePeers;
 }
 
 TFuture<void> TLeaseTracker::GetLeaseAcquired()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     return LeaseAcquired_;
 }
 
 TFuture<void> TLeaseTracker::GetLeaseLost()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     return LeaseLost_;
 }
 
@@ -239,6 +247,8 @@ void TLeaseTracker::OnLeaseCheck()
 
 TFuture<void> TLeaseTracker::FireLeaseCheck()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     std::vector<TFuture<void>> asyncResults;
 
     auto pinger = New<TFollowerPinger>(this);

@@ -196,15 +196,16 @@ void TTransactionLeaseTracker::ProcessStopRequest(const TStopRequest& /*request*
 
 void TTransactionLeaseTracker::ProcessRegisterRequest(const TRegisterRequest& request)
 {
-    auto idPair = IdMap_.insert(std::make_pair(request.TransactionId, TTransactionDescriptor()));
-    YT_VERIFY(idPair.second);
-    auto& descriptor = idPair.first->second;
-    descriptor.TransactionId = request.TransactionId;
-    descriptor.ParentId = request.ParentId;
-    descriptor.ExpirationHandler = request.ExpirationHandler;
-    descriptor.Timeout = request.Timeout;
-    descriptor.UserDeadline = request.Deadline;
-    RegisterDeadline(&descriptor);
+    auto [it, inserted] = IdMap_.emplace(request.TransactionId, TTransactionDescriptor{
+        .TransactionId = request.TransactionId,
+        .ParentId = request.ParentId,
+        .Timeout = request.Timeout,
+        .UserDeadline = request.Deadline,
+        .ExpirationHandler = request.ExpirationHandler
+    });
+    YT_VERIFY(inserted);
+
+    RegisterDeadline(&it->second);
 
     YT_LOG_DEBUG("Transaction lease registered (TransactionId: %v, Timeout: %v, Deadline: %v)",
         request.TransactionId,

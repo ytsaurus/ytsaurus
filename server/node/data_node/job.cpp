@@ -22,7 +22,7 @@
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_writer.h>
 #include <yt/ytlib/chunk_client/erasure_repair.h>
-#include <yt/ytlib/chunk_client/job.pb.h>
+#include <yt/ytlib/chunk_client/proto/job.pb.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/ytlib/chunk_client/replication_writer.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
@@ -38,7 +38,7 @@
 
 #include <yt/core/concurrency/scheduler.h>
 
-#include <yt/core/erasure/codec.h>
+#include <yt/library/erasure/codec.h>
 
 #include <yt/core/logging/log.h>
 
@@ -111,7 +111,7 @@ public:
                 return;
 
             case EJobState::Running:
-                JobFuture_.Cancel();
+                JobFuture_.Cancel(error);
                 SetAborted(error);
                 return;
 

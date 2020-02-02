@@ -170,10 +170,12 @@ TProfiler::TProfiler()
 TProfiler::TProfiler(
     const TYPath& pathPrefix,
     const TTagIdList& tagIds,
-    bool selfProfiling)
+    bool selfProfiling,
+    bool forceEnqueue)
     : PathPrefix_(pathPrefix)
     , Enabled_(true)
     , TagIds_(tagIds)
+    , ForceEnqueue_(forceEnqueue)
     , SelfProfiling_(selfProfiling)
 { }
 
@@ -182,7 +184,7 @@ TProfiler TProfiler::AppendPath(const TYPath& pathSuffix) const
     if (!Enabled_) {
         return {};
     }
-    return TProfiler(PathPrefix_ + pathSuffix, TagIds_);
+    return TProfiler(PathPrefix_ + pathSuffix, TagIds_, false, ForceEnqueue_);
 }
 
 TProfiler TProfiler::AddTags(const TTagIdList& tagIds) const
@@ -194,7 +196,7 @@ TProfiler TProfiler::AddTags(const TTagIdList& tagIds) const
     for (auto tagId : tagIds) {
         allTagIds.push_back(tagId);
     }
-    return TProfiler(PathPrefix_, allTagIds);
+    return TProfiler(PathPrefix_, allTagIds, false, ForceEnqueue_);
 }
 
 void TProfiler::Enqueue(
@@ -408,7 +410,7 @@ void TProfiler::OnUpdated(TAggregateGauge& counter, TValue value) const
 
     TGuard<TSpinLock> guard(counter.SpinLock_);
 
-    if (now < counter.Deadline_) {
+    if (!ForceEnqueue_ && now < counter.Deadline_) {
         return;
     }
 
@@ -457,11 +459,11 @@ void TProfiler::OnUpdated(TCounterBase& counter, EMetricType metricType) const
 
     auto deadline = counter.Deadline_.load(std::memory_order_relaxed);
     auto now = GetCpuInstant();
-    if (now < deadline) {
+    if (!ForceEnqueue_ && now < deadline) {
         return;
     }
 
-    if (!counter.Deadline_.compare_exchange_strong(deadline, now + counter.Interval_, std::memory_order_relaxed)) {
+    if (!counter.Deadline_.compare_exchange_strong(deadline, now + counter.Interval_, std::memory_order_relaxed) && !ForceEnqueue_) {
         return;
     }
 

@@ -350,4 +350,26 @@ void TMemoryUsageTrackerGuard<ECategory>::UpdateSize(i64 sizeDelta)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class ECategory>
+TTypedMemoryTracker<ECategory>::TTypedMemoryTracker(
+    TIntrusivePtr<TMemoryUsageTracker<ECategory>> memoryTracker,
+    ECategory category)
+    : MemoryTracker_(std::move(memoryTracker))
+    , Category_(category)
+{ }
+
+template <class ECategory>
+TError TTypedMemoryTracker<ECategory>::TryAcquire(size_t size)
+{
+    return MemoryTracker_->TryAcquire(Category_, size);
+}
+
+template <class ECategory>
+void TTypedMemoryTracker<ECategory>::Release(size_t size)
+{
+    MemoryTracker_->Release(Category_, size);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT

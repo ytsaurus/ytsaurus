@@ -21,12 +21,14 @@ DEFINE_ENUM(EPeerState,
 );
 
 DEFINE_ENUM(EErrorCode,
-    ((NoSuchSnapshot)             (600))
-    ((NoSuchChangelog)            (601))
-    ((InvalidEpoch)               (602))
-    ((InvalidVersion)             (603))
-    ((OutOfOrderMutations)        (609))
-    ((InvalidSnapshotVersion)     (610))
+    ((NoSuchSnapshot)              (600))
+    ((NoSuchChangelog)             (601))
+    ((InvalidEpoch)                (602))
+    ((InvalidVersion)              (603))
+    ((OutOfOrderMutations)         (609))
+    ((InvalidSnapshotVersion)      (610))
+    ((ReadOnlySnapshotBuilt)       (611))
+    ((ReadOnlySnapshotBuildFailed) (612))
 );
 
 DEFINE_ENUM(EPeerKind,

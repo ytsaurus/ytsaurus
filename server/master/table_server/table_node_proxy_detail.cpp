@@ -41,7 +41,7 @@
 
 #include <yt/client/transaction_client/timestamp_provider.h>
 
-#include <yt/core/erasure/codec.h>
+#include <yt/library/erasure/codec.h>
 
 #include <yt/core/misc/serialize.h>
 #include <yt/core/misc/string.h>
@@ -219,14 +219,6 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetPresent(isDynamic && isSorted));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletStatistics)
         .SetExternal(isExternal)
-        .SetPresent(isDynamic)
-        .SetOpaque(true));
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletErrors)
-        .SetExternal(isExternal)
-        .SetPresent(isDynamic)
-        .SetExternal(isExternal)
-        .SetOpaque(true));
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletErrorsUntrimmed)
         .SetPresent(isDynamic)
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletErrorCount)
@@ -484,7 +476,8 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                             .DoIf(cell, [&] (TFluentMap fluent) {
                                 fluent.Item("cell_id").Value(cell->GetId());
                             })
-                            .Item("error_count").Value(tablet->GetErrorCount())
+                            .Item("error_count").Value(tablet->GetTabletErrorCount())
+                            .Item("replication_error_count").Value(tablet->GetReplicationErrorCount())
                         .EndMap();
                 });
             return true;
@@ -528,24 +521,6 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                 .Value(New<TSerializableTabletStatistics>(
                     tabletStatistics,
                     chunkManager));
-            return true;
-        }
-
-        case EInternedAttributeKey::TabletErrors: {
-            if (!isDynamic || isExternal) {
-                break;
-            }
-            BuildYsonFluently(consumer)
-                .Value(table->GetTabletErrors(TabletErrorCountViewLimit));
-            return true;
-        }
-
-        case EInternedAttributeKey::TabletErrorsUntrimmed: {
-            if (!isDynamic) {
-                break;
-            }
-            BuildYsonFluently(consumer)
-                .Value(table->GetTabletErrors());
             return true;
         }
 
@@ -834,7 +809,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
         case EInternedAttributeKey::OptimizeFor: {
             ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
-            const auto& uninternedKey = GetUninternedAttributeKey(key);
+            const auto& uninternedKey = key.Unintern();
             auto* lockedTable = LockThisImpl<TTableNode>(TLockRequest::MakeSharedAttribute(uninternedKey));
             lockedTable->SetOptimizeFor(ConvertTo<EOptimizeFor>(value));
 
@@ -932,7 +907,7 @@ void TTableNodeProxy::ValidateCustomAttributeUpdate(
     const TYsonString& oldValue,
     const TYsonString& newValue)
 {
-    auto internedKey = GetInternedAttributeKey(key);
+    auto internedKey = TInternedAttributeKey::Lookup(key);
 
     switch (internedKey) {
         case EInternedAttributeKey::ChunkWriter:
@@ -967,8 +942,18 @@ void TTableNodeProxy::ValidateFetch(TFetchContext* context)
         if ((upperLimit.HasKey() || lowerLimit.HasKey()) && !table->IsSorted()) {
             THROW_ERROR_EXCEPTION("Key selectors are not supported for unsorted tables");
         }
-        if ((upperLimit.HasRowIndex() || lowerLimit.HasRowIndex()) && table->IsDynamic()) {
-            THROW_ERROR_EXCEPTION("Row index selectors are not supported for dynamic tables");
+        if (upperLimit.HasTabletIndex() || lowerLimit.HasTabletIndex()) {
+            if (!table->IsDynamic() || table->IsSorted()) {
+                THROW_ERROR_EXCEPTION("Tablet index selectors are only supported for ordered dynamic tables");
+            }
+        }
+        if (table->IsDynamic() && !table->IsSorted()) {
+            if ((upperLimit.HasRowIndex() && !upperLimit.HasTabletIndex()) || (lowerLimit.HasRowIndex() && !lowerLimit.HasTabletIndex())) {
+                THROW_ERROR_EXCEPTION("In ordered dynamic tables row index selector can only be specified when tablet index selector is");
+            }
+        }
+        if ((upperLimit.HasRowIndex() || lowerLimit.HasRowIndex()) && table->IsDynamic() && table->IsSorted()) {
+            THROW_ERROR_EXCEPTION("Row index selectors are not supported for sorted dynamic tables");
         }
         if (upperLimit.HasOffset() || lowerLimit.HasOffset()) {
             THROW_ERROR_EXCEPTION("Offset selectors are not supported for tables");
@@ -1468,9 +1453,6 @@ void TReplicatedTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescr
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Replicas)
         .SetExternal(table->IsExternal())
         .SetOpaque(true));
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationErrors)
-        .SetExternal(table->IsExternal())
-        .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicatedTableOptions)
         .SetReplicated(true)
         .SetWritable(true));
@@ -1501,24 +1483,8 @@ bool TReplicatedTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, I
                             .Item("mode").Value(replica->GetMode())
                             .Item("replication_lag_time").Value(replica->ComputeReplicationLagTime(
                                 timestampProvider->GetLatestTimestamp()))
-                            // COMPAT(savrus) To be removed when all clusters support replication_errors
-                            .Item("errors").Value(replica->GetErrors(ReplicationErrorCountViewLimit))
+                            .Item("error_count").Value(replica->GetErrorCount())
                         .EndMap();
-                });
-            return true;
-        }
-
-        case EInternedAttributeKey::ReplicationErrors: {
-            if (isExternal) {
-                break;
-            }
-
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            BuildYsonFluently(consumer)
-                .DoMapFor(table->Replicas(), [&] (TFluentMap fluent, TTableReplica* replica) {
-                    auto replicaProxy = objectManager->GetProxy(replica);
-                    fluent
-                        .Item(ToString(replica->GetId())).Value(replica->GetErrors(ReplicationErrorCountViewLimit));
                 });
             return true;
         }

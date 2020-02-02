@@ -16,7 +16,7 @@ class TestMedia(YTEnvSetup):
     NON_DEFAULT_TRANSIENT_MEDIUM = "hdd3"
 
     @classmethod
-    def setup_class(cls, delayed_secondary_cells_start=False):
+    def setup_class(cls):
         super(TestMedia, cls).setup_class()
         disk_space_limit = get_account_disk_space_limit("tmp", "default")
         set_account_disk_space_limit("tmp", disk_space_limit, TestMedia.NON_DEFAULT_MEDIUM)

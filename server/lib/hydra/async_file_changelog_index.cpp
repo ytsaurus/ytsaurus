@@ -16,15 +16,6 @@ static const auto& Logger = HydraLogger;
 
 namespace {
 
-template <class T>
-void ValidateSignature(const T& header)
-{
-    YT_LOG_FATAL_UNLESS(header.Signature == T::ExpectedSignature,
-        "Invalid signature: expected %" PRIx64 ", got %" PRIx64,
-        T::ExpectedSignature,
-        header.Signature);
-}
-
 // This method uses forward iterator instead of reverse because they work faster.
 // Asserts if last not greater element is absent.
 bool CompareRecordIds(const TChangelogIndexRecord& lhs, const TChangelogIndexRecord& rhs)
@@ -118,7 +109,8 @@ void TIndexBucket::PushHeader()
 
     CurrentIndexId_++;
     Header_ = reinterpret_cast<TChangelogIndexHeader*>(Data_.Begin());
-    new (Header_) TChangelogIndexHeader(0);
+    Zero(*Header_);
+    Header_->Signature = TChangelogIndexHeader::ExpectedSignature;
 }
 
 void TIndexBucket::UpdateRecordCount(int newRecordCount)
@@ -169,7 +161,9 @@ void TAsyncFileChangelogIndex::Create()
     auto tempFileName = IndexFileName_ + NFS::TempFileSuffix;
     TFile tempFile(tempFileName, WrOnly|CreateAlways);
 
-    TChangelogIndexHeader header(0);
+    TChangelogIndexHeader header;
+    Zero(header);
+    header.Signature = TChangelogIndexHeader::ExpectedSignature;
     WritePod(tempFile, header);
 
     tempFile.FlushData();
@@ -180,7 +174,7 @@ void TAsyncFileChangelogIndex::Create()
     IndexFile_ = IOEngine_->Open(IndexFileName_, WrOnly | CloseOnExec).Get().ValueOrThrow();
 }
 
-void TAsyncFileChangelogIndex::Read(const std::optional<i32>& truncatedRecordCount)
+void TAsyncFileChangelogIndex::Read(std::optional<int> truncatedRecordCount)
 {
     NTracing::TNullTraceContextGuard nullTraceContextGuard;
 
@@ -197,9 +191,11 @@ void TAsyncFileChangelogIndex::Read(const std::optional<i32>& truncatedRecordCou
 
         // Read and check index header.
         TChangelogIndexHeader indexHeader;
-        static_assert(sizeof(indexHeader) >= 12, "Sizeof index header must be >= 12");
         indexStream.Load(&indexHeader, 12);
-        ValidateSignature(indexHeader);
+
+        YT_LOG_FATAL_UNLESS(indexHeader.Signature == TChangelogIndexHeader::ExpectedSignature,
+            "Invalid changelog index signature %" PRIx64,
+            indexHeader.Signature);
         YT_VERIFY(indexHeader.IndexRecordCount >= 0);
         if (indexHeader.Signature == indexHeader.ExpectedSignature) {
             indexStream.Skip(sizeof(indexHeader.Padding));
@@ -221,11 +217,15 @@ void TAsyncFileChangelogIndex::Read(const std::optional<i32>& truncatedRecordCou
     }
 }
 
-void TAsyncFileChangelogIndex::TruncateInvalidRecords(i64 correctPrefixSize)
+void TAsyncFileChangelogIndex::TruncateInvalidRecords(i64 validPrefixSize)
 {
-    YT_LOG_WARNING_IF(correctPrefixSize < Index_.size(), "Changelog index contains invalid records, truncated");
-    YT_VERIFY(correctPrefixSize <= Index_.size());
-    Index_.resize(correctPrefixSize);
+    YT_VERIFY(validPrefixSize <= Index_.size());
+    YT_LOG_WARNING_IF(
+        validPrefixSize < Index_.size(),
+        "Changelog index contains invalid records, truncated (ValidPrefixSize: %v, IndexSize: %v)",
+        validPrefixSize,
+        Index_.size());
+    Index_.resize(validPrefixSize);
 
     FirstIndexBucket_->UpdateRecordCount(Index_.size());
 
@@ -278,12 +278,18 @@ void TAsyncFileChangelogIndex::Search(
 {
     YT_VERIFY(!Index_.empty());
 
-    *lowerBound = *LastNotGreater(Index_, TChangelogIndexRecord(firstRecordId, -1), CompareRecordIds);
+    TChangelogIndexRecord firstRecordPivot;
+    firstRecordPivot.RecordId = firstRecordId;
+    *lowerBound = *LastNotGreater(Index_, firstRecordPivot, CompareRecordIds);
 
-    auto it = FirstGreater(Index_, TChangelogIndexRecord(lastRecordId, -1), CompareRecordIds);
+    TChangelogIndexRecord lastRecordPivot;
+    lastRecordPivot.RecordId = lastRecordId;
+    auto it = FirstGreater(Index_, lastRecordPivot, CompareRecordIds);
+    
     if (maxBytes != -1) {
-        i64 maxFilePosition = lowerBound->FilePosition + maxBytes;
-        it = std::min(it, FirstGreater(Index_, TChangelogIndexRecord(-1, maxFilePosition), CompareFilePositions));
+        TChangelogIndexRecord maxPositionPivot;
+        maxPositionPivot.FilePosition = lowerBound->FilePosition + maxBytes;
+        it = std::min(it, FirstGreater(Index_, maxPositionPivot, CompareFilePositions));
     }
 
     if (it != Index_.end()) {
@@ -353,7 +359,11 @@ void TAsyncFileChangelogIndex::ProcessRecord(int recordId, i64 currentFilePositi
         YT_VERIFY(Index_.empty() || Index_.back().RecordId < recordId);
 
         CurrentBlockSize_ = 0;
-        Index_.emplace_back(recordId, currentFilePosition);
+
+        auto& record = Index_.emplace_back();
+        Zero(record);
+        record.RecordId = recordId;
+        record.FilePosition = currentFilePosition;
 
         YT_LOG_DEBUG("Changelog index record added (RecordId: %v, Offset: %v)",
             recordId,
@@ -377,7 +387,7 @@ void TAsyncFileChangelogIndex::Append(int firstRecordId, i64 filePosition, const
 
 void TAsyncFileChangelogIndex::Append(int firstRecordId, i64 filePosition, int recordSize)
 {
-    return Append(firstRecordId, filePosition, std::vector<int>({recordSize}));
+    return Append(firstRecordId, filePosition, std::vector{recordSize});
 }
 
 TFuture<void> TAsyncFileChangelogIndex::FlushData()

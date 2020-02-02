@@ -49,6 +49,18 @@ void Deserialize(TCellPeerConfig& config, INodePtr node)
     config.Voting = node->Attributes().Get<bool>("voting", true);
 }
 
+bool operator ==(const TCellPeerConfig& lhs, const TCellPeerConfig& rhs)
+{
+    return
+        lhs.Address == rhs.Address &&
+        lhs.Voting == rhs.Voting;
+}
+
+bool operator !=(const TCellPeerConfig& lhs, const TCellPeerConfig& rhs)
+{
+    return !(lhs == rhs);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TCellConfig::TCellConfig()
@@ -93,6 +105,18 @@ void TCellConfig::ValidateAllPeersPresent()
                 CellId);
         }
     }
+}
+
+int TCellConfig::CountVotingPeers() const
+{
+    int votingPeerCount = 0;
+    for (const auto& peer : Peers) {
+        if (peer.Voting) {
+            ++votingPeerCount;
+        }
+    }
+
+    return votingPeerCount;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

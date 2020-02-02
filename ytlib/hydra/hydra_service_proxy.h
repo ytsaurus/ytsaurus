@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/hydra/hydra_service.pb.h>
+#include <yt/ytlib/hydra/proto/hydra_service.pb.h>
 
 #include <yt/core/rpc/client.h>
 
@@ -32,7 +32,8 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, SyncWithLeader,
         .SetMultiplexingBand(NRpc::EMultiplexingBand::Control));
     DEFINE_RPC_PROXY_METHOD(NProto, CommitMutation);
-    DEFINE_RPC_PROXY_METHOD(NProto, Poke);
+    DEFINE_RPC_PROXY_METHOD(NProto, Poke,
+        .SetMultiplexingBand(NRpc::EMultiplexingBand::Control));
 };
 
 ////////////////////////////////////////////////////////////////////////////////

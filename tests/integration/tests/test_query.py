@@ -4,7 +4,7 @@ import __builtin__
 import os
 import os.path
 
-from yt_env_setup import YTEnvSetup, find_ut_file
+from yt_env_setup import YTEnvSetup, find_ut_file, skip_if_rpc_driver_backend
 from yt_commands import *
 
 from yt.environment.helpers import assert_items_equal
@@ -30,9 +30,9 @@ class TestQuery(YTEnvSetup):
             "shard_count": 1
         },
         "function_registry_cache": {
-            "success_expiration_time": 5000,
-            "success_probation_time": 3000,
-            "failure_expiration_time": 5000
+            "success_expiration_time": 3000,
+            "success_probation_time": 2000,
+            "failure_expiration_time": 3000
         }
     }
 
@@ -819,6 +819,7 @@ class TestQuery(YTEnvSetup):
         assert_items_equal(actual, expected)
 
     @authors("lukyan")
+    @skip_if_rpc_driver_backend
     @flaky(max_runs=5)
     def test_udf_cache(self):
         sync_create_cells(1)
@@ -1103,3 +1104,31 @@ class TestQuery(YTEnvSetup):
             )
         ''')
         assert actual == expected
+
+    @authors("lukyan")
+    def test_offset(self):
+        sync_create_cells(1)
+
+        create("table", "//tmp/t",
+            attributes={
+                "dynamic": True,
+                "optimize_for": "scan",
+                "schema": [
+                    {"name": "a", "type": "int64", "sort_order": "ascending"},
+                    {"name": "b", "type": "int64"}]
+            })
+
+        sync_mount_table("//tmp/t")
+
+        data = [{"a" : i, "b" : i} for i in xrange(0,11)]
+        insert_rows("//tmp/t", data)
+
+        expected = data[8:9]
+
+        actual = select_rows('''* from [//tmp/t] offset 8 limit 1''')
+        assert actual == expected
+
+class TestQueryRpcProxy(TestQuery):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+

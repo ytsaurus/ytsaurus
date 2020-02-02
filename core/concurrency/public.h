@@ -23,6 +23,8 @@ DECLARE_REFCOUNTED_STRUCT(IReconfigurableThroughputThrottler)
 DECLARE_REFCOUNTED_STRUCT(IAsyncInputStream)
 DECLARE_REFCOUNTED_STRUCT(IAsyncOutputStream)
 
+DECLARE_REFCOUNTED_STRUCT(IFlushableAsyncOutputStream)
+
 DECLARE_REFCOUNTED_STRUCT(IAsyncZeroCopyInputStream)
 DECLARE_REFCOUNTED_STRUCT(IAsyncZeroCopyOutputStream)
 
@@ -42,9 +44,12 @@ DEFINE_ENUM(EExecutionStackKind,
     (Large) //   8 Mb
 );
 
-class TExecutionStack;
+DEFINE_ENUM(EInvokerQueueType,
+    (SingleLockFreeQueue)
+    (MultiLockQueue)
+);
 
-DECLARE_REFCOUNTED_CLASS(TFiber)
+class TExecutionStack;
 
 template <class TSignature>
 class TCoroutine;

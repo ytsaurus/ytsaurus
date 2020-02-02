@@ -361,7 +361,8 @@ TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReade
             client->GetNativeConnection()->GetNodeDirectory(),
             *userObject,
             richPath.GetRanges(),
-            chunkCount,
+            // XXX(babenko): YT-11825
+            dynamic && !schema.IsSorted() ? -1 : chunkCount,
             config->MaxChunksPerFetch,
             config->MaxChunksPerLocateRequest,
             [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req) {
@@ -374,7 +375,7 @@ TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReade
                 SetSuppressAccessTracking(req, config->SuppressAccessTracking);
             },
             Logger,
-            config->UnavailableChunkStrategy == EUnavailableChunkStrategy::Skip /* skipUnavailableChunks */);
+            /* skipUnavailableChunks */ config->UnavailableChunkStrategy == EUnavailableChunkStrategy::Skip);
 
         CheckUnavailableChunks(config->UnavailableChunkStrategy, &chunkSpecs);
     }
@@ -383,6 +384,7 @@ TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReade
     internalOptions->EnableTableIndex = options.EnableTableIndex;
     internalOptions->EnableRangeIndex = options.EnableRangeIndex;
     internalOptions->EnableRowIndex = options.EnableRowIndex;
+    internalOptions->EnableTabletIndex = options.EnableTabletIndex;
 
     TClientBlockReadOptions blockReadOptions;
     blockReadOptions.WorkloadDescriptor = config->WorkloadDescriptor;

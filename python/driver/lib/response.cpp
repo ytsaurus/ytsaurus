@@ -99,7 +99,7 @@ Py::Object TDriverResponse::Wait(Py::Tuple& args, Py::Dict& kwargs)
         TReleaseAcquireGilGuard guard;
         auto result = WaitForSettingFuture(Response_);
         if (!result) {
-            Response_.Cancel();
+            Response_.Cancel(TError("Wait canceled"));
         }
     }
 
@@ -140,21 +140,22 @@ TDriverResponse::~TDriverResponse()
 {
     try {
         if (Response_) {
-            Response_.Cancel();
+            Response_.Cancel(TError("Driver response desroyed"));
         }
     } catch (...) {
         // intentionally doing nothing
     }
 }
 
-void TDriverResponse::InitType()
+void TDriverResponse::InitType(const TString& moduleName)
 {
     static bool Initialized_ = false;
     if (Initialized_) {
         return;
     }
 
-    behaviors().name("Response");
+    TString typeName = moduleName + ".Response";
+    behaviors().name(typeName.c_str());
     behaviors().doc("Command response");
     behaviors().supportGetattro();
     behaviors().supportSetattro();

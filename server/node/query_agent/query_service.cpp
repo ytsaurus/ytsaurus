@@ -113,12 +113,12 @@ public:
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Read)
             .SetCancelable(true)
-            .SetInvoker(bootstrap->GetLookupPoolInvoker()));
+            .SetInvoker(bootstrap->GetTabletLookupPoolInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Multiread)
             .SetCancelable(true)
-            .SetInvoker(bootstrap->GetLookupPoolInvoker()));
+            .SetInvoker(bootstrap->GetTabletLookupPoolInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTabletInfo)
-            .SetInvoker(bootstrap->GetLookupPoolInvoker()));
+            .SetInvoker(bootstrap->GetTabletLookupPoolInvoker()));
     }
 
 private:
@@ -372,7 +372,7 @@ private:
 
                     throw;
                 }
-            }).AsyncVia(Bootstrap_->GetLookupPoolInvoker());
+            }).AsyncVia(Bootstrap_->GetTabletLookupPoolInvoker());
 
             batchCallbacks.push_back(callback);
         }
@@ -409,6 +409,7 @@ private:
             protoTabletInfo->set_barrier_timestamp(tabletSnapshot->TabletCellRuntimeData->BarrierTimestamp.load());
             protoTabletInfo->set_total_row_count(tabletSnapshot->TabletRuntimeData->TotalRowCount.load());
             protoTabletInfo->set_trimmed_row_count(tabletSnapshot->TabletRuntimeData->TrimmedRowCount.load());
+            protoTabletInfo->set_last_write_timestamp(tabletSnapshot->TabletRuntimeData->LastWriteTimestamp.load());
 
             for (const auto& [replicaId, replicaSnapshot] : tabletSnapshot->Replicas) {
                 auto lastReplicationTimestamp = replicaSnapshot->RuntimeData->LastReplicationTimestamp.load();

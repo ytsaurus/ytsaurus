@@ -111,6 +111,11 @@ protected:
         return nullptr;
     }
 
+    virtual NNodeTrackerClient::TNodeMemoryTrackerPtr GetMemoryUsageTracker() override
+    {
+        return nullptr;
+    }
+
     virtual IStoreManagerPtr CreateStoreManager(TTablet* /*tablet*/)
     {
         return nullptr;

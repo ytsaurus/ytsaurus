@@ -32,6 +32,8 @@ TStringBuf ExtractListIndex(TStringBuf token);
 int ParseListIndex(TStringBuf token);
 bool IsSpecialListKey(TStringBuf key);
 
+bool IsSpecialCharacter(char ch);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYPath

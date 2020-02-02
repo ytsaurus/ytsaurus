@@ -119,6 +119,7 @@ public:
 
     // Transient
     DEFINE_BYVAL_RW_PROPERTY(int, RequestQueueSize);
+    DEFINE_BYVAL_RW_PROPERTY(bool, NeedsProfiling);
 
     using TStatistics = TEnumIndexedVector<EUserWorkloadType, TUserWorkloadStatistics>;
     DEFINE_BYREF_RW_PROPERTY(TStatistics, Statistics);

@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/core/bus/tcp/config.h>
-
 #include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT::NTracing {

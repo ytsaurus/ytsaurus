@@ -71,9 +71,10 @@ TRowsIteratorBase<TIteratorClass, TConsumer, TParser>::~TRowsIteratorBase() = de
 template <class TIteratorClass, class TConsumer, class TParser>
 void TRowsIteratorBase<TIteratorClass, TConsumer, TParser>::InitType(const TString& formatName)
 {
-    Name_ = formatName + " iterator";
+    Name_ = formatName + "Iterator";
     Doc_ = "Iterates over stream with " + formatName + " rows";
-    TBase::behaviors().name(Name_.c_str());
+    TypeName_ = "yson_lib." + Name_;
+    TBase::behaviors().name(TypeName_.c_str());
     TBase::behaviors().doc(Doc_.c_str());
     TBase::behaviors().supportGetattro();
     TBase::behaviors().supportSetattro();

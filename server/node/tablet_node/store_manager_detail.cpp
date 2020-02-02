@@ -169,6 +169,23 @@ void TStoreManagerBase::BulkAddStores(TRange<IStorePtr> stores, bool onMount)
     }
 }
 
+void TStoreManagerBase::DiscardAllStores()
+{
+    Rotate(/*createNewStore*/ true);
+
+    std::vector<IStorePtr> storesToRemove;
+
+    for (auto [id, store] : Tablet_->StoreIdMap()) {
+        if (store->GetStoreState() != EStoreState::ActiveDynamic) {
+            storesToRemove.push_back(store);
+        }
+    }
+
+    for (const auto& store : storesToRemove) {
+        RemoveStore(store);
+    }
+}
+
 void TStoreManagerBase::RemoveStore(IStorePtr store)
 {
     YT_ASSERT(store->GetStoreState() != EStoreState::ActiveDynamic);
@@ -351,10 +368,10 @@ void TStoreManagerBase::EndStorePreload(IChunkStorePtr store)
 
 void TStoreManagerBase::BackoffStorePreload(IChunkStorePtr store)
 {
-    std::vector<IInvokerPtr> feasibleInvokers{
+    VERIFY_INVOKERS_AFFINITY(std::vector{
         Tablet_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Default),
-        Tablet_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Mutation)};
-    VERIFY_INVOKERS_AFFINITY(feasibleInvokers);
+        Tablet_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Mutation)
+    });
 
     YT_VERIFY(store->GetPreloadState() == EStorePreloadState::Running);
 

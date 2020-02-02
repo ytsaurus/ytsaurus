@@ -24,9 +24,6 @@ using NYT::ToProto;
 
 static const auto& Logger = RpcClientLogger;
 
-static const auto ClientHostAnnotation = TString("client_host");
-static const auto RequestIdAnnotation = TString("request_id");
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TClientContext::TClientContext(
@@ -70,7 +67,7 @@ TClientRequest::TClientRequest(
 TClientRequest::TClientRequest(const TClientRequest& other)
     : Attachments_(other.Attachments_)
     , Timeout_(other.Timeout_)
-    , RequestAck_(other.RequestAck_)
+    , AcknowledgementTimeout_(other.AcknowledgementTimeout_)
     , Heavy_(other.Heavy_)
     , RequestCodec_(other.RequestCodec_)
     , ResponseCodec_(other.ResponseCodec_)
@@ -107,7 +104,7 @@ IClientRequestControlPtr TClientRequest::Send(IClientResponseHandlerPtr response
 {
     TSendOptions options;
     options.Timeout = Timeout_;
-    options.RequestAck = RequestAck_;
+    options.AcknowledgementTimeout = AcknowledgementTimeout_;
     options.GenerateAttachmentChecksums = GenerateAttachmentChecksums_;
     options.MemoryZone = MemoryZone_;
     options.MultiplexingBand = MultiplexingBand_;
@@ -264,7 +261,7 @@ TClientContextPtr TClientRequest::CreateClientContext()
 {
     auto traceContext = CreateCallTraceContext(GetService(), GetMethod());
     if (traceContext) {
-        SetTraceContext(&Header(), traceContext);
+        ToProto(Header().MutableExtension(NRpc::NProto::TRequestHeader::tracing_ext), traceContext);
         if (traceContext->IsSampled()) {
             TraceRequest(traceContext);
         }
@@ -376,6 +373,7 @@ const IInvokerPtr& TClientRequest::GetInvoker() const
 void TClientRequest::TraceRequest(const NTracing::TTraceContextPtr& traceContext)
 {
     traceContext->AddTag(RequestIdAnnotation, ToString(GetRequestId()));
+    traceContext->AddTag(EndpointAnnotation, Channel_->GetEndpointDescription());
 }
 
 void TClientRequest::SetCodecsInHeader()
@@ -628,7 +626,7 @@ TProxyBase::TProxyBase(
     : Channel_(std::move(channel))
     , ServiceDescriptor_(descriptor)
 {
-    YT_ASSERT(Channel_);
+    YT_VERIFY(Channel_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

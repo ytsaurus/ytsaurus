@@ -269,7 +269,7 @@ private:
 
         void DoSend()
         {
-            YT_LOG_DEBUG("Request attempt started (RequestId: %v, Method: %v:%v, User: %v, Attempt: %v of %v, RequestTimeout: %v, RetryTimeout: %v)",
+            YT_LOG_DEBUG("Request attempt started (RequestId: %v, Method: %v.%v, User: %v, Attempt: %v of %v, RequestTimeout: %v, RetryTimeout: %v)",
                 Request_->GetRequestId(),
                 Request_->GetService(),
                 Request_->GetMethod(),

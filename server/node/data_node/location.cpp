@@ -88,6 +88,7 @@ TLocation::TLocation(
     PerformanceCounters_.BlobBlockWriteSize = {"/blob_block_write_size", {}, NProfiling::EAggregateMode::All};
     PerformanceCounters_.BlobBlockWriteTime = {"/blob_block_write_time", {}, NProfiling::EAggregateMode::All};
     PerformanceCounters_.BlobBlockWriteThroughput = {"/blob_block_write_throughput", {}, NProfiling::EAggregateMode::All};
+    PerformanceCounters_.BlobBlockWriteBytes = {"/blob_block_write_bytes"};
     PerformanceCounters_.JournalBlockReadSize = {"/journal_block_read_size", {}, NProfiling::EAggregateMode::All};
     PerformanceCounters_.JournalBlockReadTime = {"/journal_block_read_time", {}, NProfiling::EAggregateMode::All};
     PerformanceCounters_.JournalBlockReadThroughput = {"/journal_block_read_throughput", {}, NProfiling::EAggregateMode::All};
@@ -101,6 +102,8 @@ TLocation::TLocation(
         };
         PerformanceCounters_.SessionCount[type] = {"/session_count", tagIds};
     }
+
+    PerformanceCounters_.UsedSpace = {"/used_space", {}, NProfiling::EAggregateMode::All};
     PerformanceCounters_.AvailableSpace = {"/available_space", {}, NProfiling::EAggregateMode::All};
     PerformanceCounters_.Full = {"/full"};
 
@@ -727,21 +730,20 @@ TStoreLocation::TStoreLocation(
         Config_->TrashCheckPeriod,
         EPeriodicExecutorMode::Automatic))
 {
-    auto throttlersProfiler = GetProfiler().AppendPath("/location");
-
+    auto diskThrottlerProfiler = GetProfiler().AppendPath("/location/disk_throttler");
     auto createThrottler = [&] (const auto& config, const auto& name) {
-        return CreateNamedReconfigurableThroughputThrottler(config, name, Logger, throttlersProfiler);
+        return CreateNamedReconfigurableThroughputThrottler(config, name, Logger, diskThrottlerProfiler);
     };
 
-    RepairInThrottler_ = createThrottler(config->RepairInThrottler, "RepairInThrottler");
-    ReplicationInThrottler_ = createThrottler(config->ReplicationInThrottler, "ReplicationInThrottler");
+    RepairInThrottler_ = createThrottler(config->RepairInThrottler, "RepairIn");
+    ReplicationInThrottler_ = createThrottler(config->ReplicationInThrottler, "ReplicationIn");
     TabletCompactionAndPartitioningInThrottler_ = createThrottler(
         config->TabletCompactionAndPartitioningInThrottler,
-        "TabletCompactionAndPartitioningInThrottler");
-    TabletLoggingInThrottler_ = createThrottler(config->TabletLoggingInThrottler, "TabletLoggingInThrottler");
-    TabletSnapshotInThrottler_ = createThrottler(config->TabletSnapshotInThrottler, "TabletSnapshotInThrottler");
-    TabletStoreFlushInThrottler_ = createThrottler(config->TabletStoreFlushInThrottler, "TabletStoreFlushInThrottler");
-    UnlimitedInThrottler_ = CreateNamedUnlimitedThroughputThrottler("UnlimitedInThrottler", throttlersProfiler);
+        "TabletCompactionAndPartitioningIn");
+    TabletLoggingInThrottler_ = createThrottler(config->TabletLoggingInThrottler, "TabletLoggingIn");
+    TabletSnapshotInThrottler_ = createThrottler(config->TabletSnapshotInThrottler, "TabletSnapshotIn");
+    TabletStoreFlushInThrottler_ = createThrottler(config->TabletStoreFlushInThrottler, "TabletStoreFlushIn");
+    UnlimitedInThrottler_ = CreateNamedUnlimitedThroughputThrottler("UnlimitedIn", diskThrottlerProfiler);
 }
 
 TJournalManagerPtr TStoreLocation::GetJournalManager()

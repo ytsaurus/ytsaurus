@@ -165,6 +165,7 @@ void FromUnversionedRow(
     Ts*... values);
 
 void UnversionedValueToYson(TUnversionedValue unversionedValue, NYson::IYsonConsumer* consumer);
+void UnversionedValueToYson(TUnversionedValue unversionedValue, NYson::TCheckedInDebugYsonTokenWriter* tokenWriter);
 NYson::TYsonString UnversionedValueToYson(TUnversionedValue unversionedValue, bool enableRaw = false);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -175,6 +176,12 @@ TFuture<void> AsyncReadRows(const TIntrusivePtr<TReader>& reader, std::vector<TR
 ////////////////////////////////////////////////////////////////////////////////
 
 void ToAny(TRowBuffer* context, TUnversionedValue* result, TUnversionedValue* value);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void PrintTo(const TOwningKey& key, ::std::ostream* os);
+void PrintTo(const TUnversionedValue& value, ::std::ostream* os);
+void PrintTo(const TUnversionedRow& value, ::std::ostream* os);
 
 ////////////////////////////////////////////////////////////////////////////////
 

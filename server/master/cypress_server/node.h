@@ -22,7 +22,7 @@
 
 #include <yt/core/compression/public.h>
 
-#include <yt/core/erasure/public.h>
+#include <yt/library/erasure/public.h>
 
 #include <queue>
 
@@ -222,7 +222,7 @@ public:
      */
     bool CanCacheResolve() const;
 
-    // Similar methods are also declared in TObjectBase but starting from TCypressNode
+    // Similar methods are also declared in TObject but starting from TCypressNode
     // they become virtual.
     virtual void Save(NCellMaster::TSaveContext& context) const;
     virtual void Load(NCellMaster::TLoadContext& context);

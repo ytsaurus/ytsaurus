@@ -6,6 +6,8 @@
 #include "pull_parser.h"
 #endif
 
+#include <yt/core/misc/optional.h>
+
 namespace NYT::NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -98,6 +100,24 @@ TStringBuf TYsonItem::UncheckedAsString() const
     return TStringBuf(Data_.String.Ptr, Data_.String.Size);
 }
 
+template <typename T>
+T TYsonItem::UncheckedAs() const
+{
+    if constexpr (std::is_same_v<T, i64>) {
+        return UncheckedAsInt64();
+    } else if constexpr (std::is_same_v<T, ui64>) {
+        return UncheckedAsUint64();
+    } else if constexpr (std::is_same_v<T, double>) {
+        return UncheckedAsDouble();
+    } else if constexpr (std::is_same_v<T, TStringBuf>) {
+        return UncheckedAsString();
+    } else if constexpr (std::is_same_v<T, bool>) {
+        return UncheckedAsBoolean();
+    } else {
+        static_assert(TDependentFalse<T>::value);
+    }
+}
+
 bool TYsonItem::IsEndOfStream() const
 {
     return GetType() == EYsonItemType::EndOfStream;
@@ -143,7 +163,324 @@ bool NDetail::TZeroCopyInputStreamReader::IsFinished() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonItem TYsonPullParser::NextImpl()
+constexpr char ItemTypeToMarker(EYsonItemType itemType)
+{
+    switch (itemType) {
+        case EYsonItemType::Uint64Value:
+            return NDetail::Uint64Marker;
+        case EYsonItemType::Int64Value:
+            return NDetail::Int64Marker;
+        case EYsonItemType::DoubleValue:
+            return NDetail::DoubleMarker;
+        case EYsonItemType::StringValue:
+            return NDetail::StringMarker;
+        case EYsonItemType::BeginList:
+            return NDetail::BeginListSymbol;
+        case EYsonItemType::EndList:
+            return NDetail::EndListSymbol;
+        default:
+            THROW_ERROR_EXCEPTION("Can not convert item type %Qlv to marker",
+                itemType);
+    }
+}
+
+void TYsonPullParser::MaybeSkipSemicolon()
+{
+    auto c = Lexer_.GetChar<true>();
+    if (c == ';') {
+        Lexer_.Advance(1);
+        SyntaxChecker_.OnSeparator();
+    }
+}
+
+template <EYsonItemType ItemType, bool IsOptional>
+auto TYsonPullParser::ParseItem() -> std::conditional_t<IsOptional, bool, void>
+{
+    static constexpr auto Marker = ItemTypeToMarker(ItemType);
+
+    auto parse = [this] {
+        MaybeSkipSemicolon();
+
+        auto c = Lexer_.GetChar<false>();
+        if (c == Marker) {
+            Lexer_.Advance(1);
+            if constexpr (ItemType == EYsonItemType::BeginList) {
+                SyntaxChecker_.OnBeginList();
+            } else if constexpr (ItemType == EYsonItemType::EndList) {
+                SyntaxChecker_.OnEndList();
+            } else {
+                static_assert(ItemType == EYsonItemType::BeginList);
+            }
+            return true;
+        }
+
+        if constexpr (IsOptional) {
+            if (c == NDetail::EntitySymbol) {
+                Lexer_.Advance(1);
+                SyntaxChecker_.OnSimpleNonstring(EYsonItemType::EntityValue);
+                return false;
+            }
+        }
+
+        // Slow path.
+        auto item = Next();
+        if (item.GetType() == ItemType) {
+            return true;
+        }
+
+        if constexpr (IsOptional) {
+            if (item.GetType() == EYsonItemType::EntityValue) {
+                return false;
+            }
+        }
+
+        ThrowUnexpectedTokenException("item", *this, item, ItemType, /* isOptional */ true);
+    };
+
+    auto result = parse();
+    if constexpr (IsOptional) {
+        return result;
+    }
+}
+
+void TYsonPullParser::ParseBeginList()
+{
+    ParseItem<EYsonItemType::BeginList, false>();
+}
+
+bool TYsonPullParser::ParseOptionalBeginList()
+{
+    return ParseItem<EYsonItemType::BeginList, true>();
+}
+
+bool TYsonPullParser::IsEndList()
+{
+    MaybeSkipSemicolon();
+
+    auto c = Lexer_.GetChar<false>();
+    if (c == NDetail::EndListSymbol) {
+        return true;
+    } else {
+        while (c == ';' || isspace(c)) {
+            Lexer_.Advance(1);
+            if (c == ';') {
+                SyntaxChecker_.OnSeparator();
+            }
+            c = Lexer_.GetChar<false>();
+        }
+        return c == NDetail::EndListSymbol;
+    }
+}
+
+void TYsonPullParser::ParseEndList()
+{
+    ParseItem<EYsonItemType::EndList, false>();
+}
+
+template <typename TValue, EYsonItemType ItemType>
+TValue TYsonPullParser::ParseTypedValueFallback()
+{
+    using TNonOptionalValue = typename TOptionalTraits<TValue>::TValue;
+    constexpr auto IsOptional = !std::is_same_v<typename TOptionalTraits<TValue>::TValue, TValue>;
+
+    auto item = Next();
+    if (item.GetType() == ItemType) {
+        return item.UncheckedAs<TNonOptionalValue>();
+    }
+
+    if constexpr (IsOptional) {
+        if (item.GetType() == EYsonItemType::EntityValue) {
+            return std::nullopt;
+        }
+    }
+
+    ThrowUnexpectedTokenException("value", *this, item, ItemType, IsOptional);
+}
+
+template <typename TValue, EYsonItemType ItemType>
+TValue TYsonPullParser::ParseTypedValue()
+{
+    static constexpr auto Marker = ItemTypeToMarker(ItemType);
+    using TNonOptionalValue = typename TOptionalTraits<TValue>::TValue;
+    constexpr auto IsOptional = !std::is_same_v<typename TOptionalTraits<TValue>::TValue, TValue>;
+
+    auto readBinaryValue = [&] (TLexer& lexer) {
+        if constexpr (std::is_same_v<TNonOptionalValue, i64>) {
+            SyntaxChecker_.OnSimpleNonstring(EYsonItemType::Int64Value);
+            return lexer.ReadBinaryInt64();
+        } else if constexpr (std::is_same_v<TNonOptionalValue, ui64>) {
+            SyntaxChecker_.OnSimpleNonstring(EYsonItemType::Uint64Value);
+            return lexer.ReadBinaryUint64();
+        } else if constexpr (std::is_same_v<TNonOptionalValue, double>) {
+            SyntaxChecker_.OnSimpleNonstring(EYsonItemType::DoubleValue);
+            return lexer.ReadBinaryDouble();
+        } else if constexpr (std::is_same_v<TNonOptionalValue, TStringBuf>) {
+            SyntaxChecker_.OnString();
+            return lexer.ReadBinaryString();
+        } else {
+            static_assert(TDependentFalse<TNonOptionalValue>::value);
+        }
+    };
+
+    MaybeSkipSemicolon();
+
+    auto c = Lexer_.GetChar<false>();
+    if (c == Marker) {
+        Lexer_.Advance(1);
+        auto value = readBinaryValue(Lexer_);
+        return value;
+    }
+
+    if constexpr (IsOptional) {
+        if (c == NDetail::EntitySymbol) {
+            Lexer_.Advance(1);
+            SyntaxChecker_.OnSimpleNonstring(EYsonItemType::EntityValue);
+            return std::nullopt;
+        }
+    }
+
+    // Slow path.
+    return ParseTypedValueFallback<TValue, ItemType>();
+}
+
+template <typename TValue, EYsonItemType ItemType>
+int TYsonPullParser::ParseVarintToArray(char* out)
+{
+    static constexpr auto Marker = ItemTypeToMarker(ItemType);
+    using TNonOptionalValue = typename TOptionalTraits<TValue>::TValue;
+    constexpr auto IsOptional = !std::is_same_v<typename TOptionalTraits<TValue>::TValue, TValue>;
+
+    MaybeSkipSemicolon();
+
+    auto c = Lexer_.GetChar<false>();
+    if (c == Marker) {
+        Lexer_.Advance(1);
+        auto bytesWritten = Lexer_.ReadVarint64ToArray(out);
+        SyntaxChecker_.OnSimpleNonstring(ItemType);
+        return bytesWritten;
+    }
+
+    if constexpr (IsOptional) {
+        if (c == NDetail::EntitySymbol) {
+            Lexer_.Advance(1);
+            SyntaxChecker_.OnSimpleNonstring(EYsonItemType::EntityValue);
+            return 0;
+        }
+    }
+
+    // Slow path.
+    auto value = ParseTypedValueFallback<TValue, ItemType>();
+    TNonOptionalValue nonOptionalValue;
+    if constexpr (IsOptional) {
+        if (!value) {
+            return 0;
+        }
+        nonOptionalValue = *value;
+    } else {
+        nonOptionalValue = value;
+    }
+    if constexpr (std::is_same_v<TNonOptionalValue, i64>) {
+        return WriteVarInt64(out, nonOptionalValue);
+    } else {
+        static_assert(std::is_same_v<TNonOptionalValue, ui64>);
+        return WriteVarUint64(out, nonOptionalValue);
+    }
+}
+
+ui64 TYsonPullParser::ParseUint64()
+{
+    return ParseTypedValue<ui64, EYsonItemType::Uint64Value>();
+}
+
+std::optional<ui64> TYsonPullParser::ParseOptionalUint64()
+{
+    return ParseTypedValue<std::optional<ui64>, EYsonItemType::Uint64Value>();
+}
+
+int TYsonPullParser::ParseUint64AsVarint(char* out)
+{
+    return ParseVarintToArray<ui64, EYsonItemType::Uint64Value>(out);
+}
+
+int TYsonPullParser::ParseOptionalUint64AsVarint(char* out)
+{
+    return ParseVarintToArray<std::optional<ui64>, EYsonItemType::Uint64Value>(out);
+}
+
+i64 TYsonPullParser::ParseInt64()
+{
+    return ParseTypedValue<i64, EYsonItemType::Int64Value>();
+}
+
+std::optional<i64> TYsonPullParser::ParseOptionalInt64()
+{
+    return ParseTypedValue<std::optional<i64>, EYsonItemType::Int64Value>();
+}
+
+int TYsonPullParser::ParseInt64AsZigzagVarint(char* out)
+{
+    return ParseVarintToArray<i64, EYsonItemType::Int64Value>(out);
+}
+
+int TYsonPullParser::ParseOptionalInt64AsZigzagVarint(char* out)
+{
+    return ParseVarintToArray<std::optional<i64>, EYsonItemType::Int64Value>(out);
+}
+
+double TYsonPullParser::ParseDouble()
+{
+    return ParseTypedValue<double, EYsonItemType::DoubleValue>();
+}
+
+std::optional<double> TYsonPullParser::ParseOptionalDouble()
+{
+    return ParseTypedValue<std::optional<double>, EYsonItemType::DoubleValue>();
+}
+
+TStringBuf TYsonPullParser::ParseString()
+{
+    return ParseTypedValue<TStringBuf, EYsonItemType::StringValue>();
+}
+
+std::optional<TStringBuf> TYsonPullParser::ParseOptionalString()
+{
+    return ParseTypedValue<std::optional<TStringBuf>, EYsonItemType::StringValue>();
+}
+
+bool TYsonPullParser::ParseBoolean()
+{
+    MaybeSkipSemicolon();
+
+    auto c = Lexer_.GetChar<false>();
+    if (c == NDetail::TrueMarker || c == NDetail::FalseMarker) {
+        Lexer_.Advance(1);
+        SyntaxChecker_.OnSimpleNonstring(EYsonItemType::BooleanValue);
+        return c == NDetail::TrueMarker;
+    }
+    return ParseTypedValueFallback<bool, EYsonItemType::BooleanValue>();
+}
+
+std::optional<bool> TYsonPullParser::ParseOptionalBoolean()
+{
+    MaybeSkipSemicolon();
+
+    auto c = Lexer_.GetChar<false>();
+    if (c == NDetail::TrueMarker || c == NDetail::FalseMarker) {
+        Lexer_.Advance(1);
+        SyntaxChecker_.OnSimpleNonstring(EYsonItemType::BooleanValue);
+        return c == NDetail::TrueMarker;
+    } else if (c == NDetail::EntitySymbol) {
+        Lexer_.Advance(1);
+        SyntaxChecker_.OnSimpleNonstring(EYsonItemType::EntityValue);
+        return std::nullopt;
+    }
+    return ParseTypedValueFallback<std::optional<bool>, EYsonItemType::BooleanValue>();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename TVisitor>
+typename TVisitor::TResult TYsonPullParser::NextImpl(TVisitor visitor)
 {
     using namespace NDetail;
 
@@ -153,92 +490,94 @@ TYsonItem TYsonPullParser::NextImpl()
             case BeginAttributesSymbol:
                 Lexer_.Advance(1);
                 SyntaxChecker_.OnAttributesBegin();
-                return TYsonItem::Simple(EYsonItemType::BeginAttributes);
+                return visitor.OnBeginAttributes();
             case EndAttributesSymbol:
                 Lexer_.Advance(1);
                 SyntaxChecker_.OnAttributesEnd();
-                return TYsonItem::Simple(EYsonItemType::EndAttributes);
+                return visitor.OnEndAttributes();
             case BeginMapSymbol:
                 Lexer_.Advance(1);
                 SyntaxChecker_.OnBeginMap();
-                return TYsonItem::Simple(EYsonItemType::BeginMap);
+                return visitor.OnBeginMap();
             case EndMapSymbol:
                 Lexer_.Advance(1);
                 SyntaxChecker_.OnEndMap();
-                return TYsonItem::Simple(EYsonItemType::EndMap);
+                return visitor.OnEndMap();
             case BeginListSymbol:
                 Lexer_.Advance(1);
                 SyntaxChecker_.OnBeginList();
-                return TYsonItem::Simple(EYsonItemType::BeginList);
+                return visitor.OnBeginList();
             case EndListSymbol:
                 Lexer_.Advance(1);
                 SyntaxChecker_.OnEndList();
-                return TYsonItem::Simple(EYsonItemType::EndList);
+                return visitor.OnEndList();
             case '"': {
                 Lexer_.Advance(1);
                 TStringBuf value = Lexer_.ReadQuotedString();
                 SyntaxChecker_.OnString();
-                return TYsonItem::String(value);
+                return visitor.OnString(value);
             }
             case StringMarker: {
                 Lexer_.Advance(1);
                 SyntaxChecker_.OnString();
                 TStringBuf value = Lexer_.ReadBinaryString();
-                return TYsonItem::String(value);
+                return visitor.OnString(value);
             }
             case Int64Marker: {
                 Lexer_.Advance(1);
                 i64 value = Lexer_.ReadBinaryInt64();
                 SyntaxChecker_.OnSimpleNonstring(EYsonItemType::Int64Value);
-                return TYsonItem::Int64(value);
+                return visitor.OnInt64(value);
             }
             case Uint64Marker: {
                 Lexer_.Advance(1);
                 ui64 value = Lexer_.ReadBinaryUint64();
                 SyntaxChecker_.OnSimpleNonstring(EYsonItemType::Uint64Value);
-                return TYsonItem::Uint64(value);
+                return visitor.OnUint64(value);
             }
             case DoubleMarker: {
                 Lexer_.Advance(1);
                 double value = Lexer_.ReadBinaryDouble();
                 SyntaxChecker_.OnSimpleNonstring(EYsonItemType::DoubleValue);
-                return TYsonItem::Double(value);
+                return visitor.OnDouble(value);
             }
             case FalseMarker: {
                 Lexer_.Advance(1);
                 SyntaxChecker_.OnSimpleNonstring(EYsonItemType::BooleanValue);
-                return TYsonItem::Boolean(false);
+                return visitor.OnBoolean(false);
             }
             case TrueMarker: {
                 Lexer_.Advance(1);
                 SyntaxChecker_.OnSimpleNonstring(EYsonItemType::BooleanValue);
-                return TYsonItem::Boolean(true);
+                return visitor.OnBoolean(true);
             }
             case EntitySymbol:
                 Lexer_.Advance(1);
                 SyntaxChecker_.OnSimpleNonstring(EYsonItemType::EntityValue);
-                return TYsonItem::Simple(EYsonItemType::EntityValue);
+                return visitor.OnEntity();
             case EndSymbol:
                 SyntaxChecker_.OnFinish();
-                return TYsonItem::Simple(EYsonItemType::EndOfStream);
+                return visitor.OnEndOfStream();
             case '%': {
                 Lexer_.Advance(1);
                 ch = Lexer_.template GetChar<false>();
                 if (ch == 't' || ch == 'f') {
                     SyntaxChecker_.OnSimpleNonstring(EYsonItemType::BooleanValue);
-                    return TYsonItem::Boolean(Lexer_.template ReadBoolean<false>());
+                    return visitor.OnBoolean(Lexer_.template ReadBoolean<false>());
                 } else {
                     SyntaxChecker_.OnSimpleNonstring(EYsonItemType::DoubleValue);
-                    return TYsonItem::Double(Lexer_.template ReadNanOrInf<false>());
+                    return visitor.OnDouble(Lexer_.template ReadNanOrInf<false>());
                 }
             }
             case '=':
                 SyntaxChecker_.OnEquality();
                 Lexer_.Advance(1);
+                visitor.OnEquality();
                 continue;
             case ';':
                 SyntaxChecker_.OnSeparator();
                 Lexer_.Advance(1);
+                visitor.OnSeparator();
                 continue;
             default:
                 if (isspace(ch)) {
@@ -258,7 +597,7 @@ TYsonItem TYsonPullParser::NextImpl()
                                 << ex;
                         }
                         SyntaxChecker_.OnSimpleNonstring(EYsonItemType::DoubleValue);
-                        return TYsonItem::Double(value);
+                        return visitor.OnDouble(value);
                     } else if (numericResult == ENumericResult::Int64) {
                         i64 value;
                         try {
@@ -269,7 +608,7 @@ TYsonItem TYsonPullParser::NextImpl()
                                 << ex;
                         }
                         SyntaxChecker_.OnSimpleNonstring(EYsonItemType::Int64Value);
-                        return TYsonItem::Int64(value);
+                        return visitor.OnInt64(value);
                     } else if (numericResult == ENumericResult::Uint64) {
                         ui64 value;
                         try {
@@ -280,17 +619,135 @@ TYsonItem TYsonPullParser::NextImpl()
                                 << ex;
                         }
                         SyntaxChecker_.OnSimpleNonstring(EYsonItemType::Uint64Value);
-                        return TYsonItem::Uint64(value);
+                        return visitor.OnUint64(value);
                     }
                 } else if (isalpha(ch) || ch == '_') {
                     TStringBuf value = Lexer_.template ReadUnquotedString<true>();
                     SyntaxChecker_.OnString();
-                    return TYsonItem::String(value);
+                    return visitor.OnString(value);
                 } else {
                     THROW_ERROR_EXCEPTION("Unexpected %Qv while parsing node", ch);
                 }
         }
     }
+}
+
+template <typename TVisitor>
+void TYsonPullParser::TraverseComplexValueOrAttributes(TVisitor visitor, bool stopAfterAttributes)
+{
+    auto isAttributes = false;
+    auto isComposite = false;
+
+    class TV
+        : public TVisitor
+    {
+    public:
+        using TResult = typename TVisitor::TResult;
+
+    public:
+        TV(TVisitor visitor, bool& isAttributes, bool& isComposite)
+            : TVisitor(visitor)
+            , IsAttributes_(isAttributes)
+            , IsComposite_(isComposite)
+        { }
+
+        void OnBeginAttributes()
+        {
+            IsAttributes_ = true;
+            IsComposite_ = true;
+            TVisitor::OnBeginAttributes();
+        }
+
+        void OnBeginMap()
+        {
+            IsComposite_ = true;
+            TVisitor::OnBeginMap();
+        }
+
+        void OnBeginList()
+        {
+            IsComposite_ = true;
+            TVisitor::OnBeginList();
+        }
+
+    private:
+        bool& IsAttributes_;
+        bool& IsComposite_;
+    };
+
+    TV v(visitor, isAttributes, isComposite);
+    NextImpl(v);
+
+    if (!isComposite) {
+        return;
+    }
+
+    const auto nestingLevel = GetNestingLevel();
+    while (GetNestingLevel() >= nestingLevel) {
+        NextImpl(visitor);
+    }
+
+    if (!stopAfterAttributes && isAttributes) {
+        TraverseComplexValueOrAttributes(visitor, stopAfterAttributes);
+    }
+}
+
+template <typename TVisitor>
+void TYsonPullParser::TraverseComplexValueOrAttributes(
+    TVisitor visitor,
+    const TYsonItem& previousItem,
+    bool stopAfterAttributes)
+{
+    auto traverse = [&] {
+        const auto nestingLevel = GetNestingLevel();
+        while (GetNestingLevel() >= nestingLevel) {
+            NextImpl(visitor);
+        }
+    };
+
+    switch (previousItem.GetType()) {
+        case EYsonItemType::BeginAttributes:
+            visitor.OnBeginAttributes();
+            traverse();
+            if (!stopAfterAttributes) {
+                TraverseComplexValueOrAttributes(visitor, stopAfterAttributes);
+            }
+            return;
+        case EYsonItemType::BeginList:
+            visitor.OnBeginList();
+            traverse();
+            return;
+        case EYsonItemType::BeginMap:
+            visitor.OnBeginMap();
+            traverse();
+            return;
+
+        case EYsonItemType::EntityValue:
+            visitor.OnEntity();
+            return;
+        case EYsonItemType::BooleanValue:
+            visitor.OnBoolean(previousItem.UncheckedAsBoolean());
+            return;
+        case EYsonItemType::Int64Value:
+            visitor.OnInt64(previousItem.UncheckedAsInt64());
+            return;
+        case EYsonItemType::Uint64Value:
+            visitor.OnUint64(previousItem.UncheckedAsUint64());
+            return;
+        case EYsonItemType::DoubleValue:
+            visitor.OnDouble(previousItem.UncheckedAsDouble());
+            return;
+        case EYsonItemType::StringValue:
+            visitor.OnString(previousItem.UncheckedAsString());
+            return;
+
+        case EYsonItemType::EndOfStream:
+        case EYsonItemType::EndAttributes:
+        case EYsonItemType::EndMap:
+        case EYsonItemType::EndList:
+            YT_ABORT();
+    }
+    YT_ABORT();
 }
 
 size_t TYsonPullParser::GetNestingLevel() const
@@ -332,6 +789,75 @@ const TYsonItem& TYsonPullParserCursor::operator*() const
 void TYsonPullParserCursor::Next()
 {
     Current_ = Parser_->Next();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NDetail {
+
+template <typename TFunction, EYsonItemType BeginItemType, EYsonItemType EndItemType>
+void ParseComposite(TYsonPullParserCursor* cursor, TFunction function)
+{
+    if constexpr (BeginItemType == EYsonItemType::BeginAttributes) {
+        EnsureYsonToken("attributes", *cursor, BeginItemType);
+    } else if constexpr (BeginItemType == EYsonItemType::BeginList) {
+        EnsureYsonToken("list", *cursor, BeginItemType);
+    } else if constexpr (BeginItemType == EYsonItemType::BeginMap) {
+        EnsureYsonToken("map", *cursor, BeginItemType);
+    } else {
+        static_assert(BeginItemType == EYsonItemType::BeginAttributes, "unexpected item type");
+    }
+
+    cursor->Next();
+    while ((*cursor)->GetType() != EndItemType) {
+        function(cursor);
+    }
+    cursor->Next();
+}
+
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename TFunction>
+void TYsonPullParserCursor::ParseMap(TFunction function)
+{
+    NDetail::ParseComposite<TFunction, EYsonItemType::BeginMap, EYsonItemType::EndMap>(this, function);
+}
+
+template <typename TFunction>
+void TYsonPullParserCursor::ParseList(TFunction function)
+{
+    NDetail::ParseComposite<TFunction, EYsonItemType::BeginList, EYsonItemType::EndList>(this, function);
+}
+
+template <typename TFunction>
+void TYsonPullParserCursor::ParseAttributes(TFunction function)
+{
+    NDetail::ParseComposite<TFunction, EYsonItemType::BeginAttributes, EYsonItemType::EndAttributes>(this, function);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+Y_FORCE_INLINE void EnsureYsonToken(
+    TStringBuf description,
+    const TYsonPullParserCursor& cursor,
+    EYsonItemType expected)
+{
+    if (expected != cursor->GetType()) {
+        ThrowUnexpectedYsonTokenException(description, cursor, {expected});
+    }
+}
+
+Y_FORCE_INLINE void EnsureYsonToken(
+    TStringBuf description,
+    const TYsonPullParser& parser,
+    const TYsonItem& item,
+    EYsonItemType expected)
+{
+    if (expected != item.GetType()) {
+        ThrowUnexpectedYsonTokenException(description, parser, item, {expected});
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

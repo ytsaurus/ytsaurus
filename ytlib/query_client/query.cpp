@@ -1,8 +1,9 @@
 #include "query.h"
+#include "folding_profiler.h"
 
 #include <yt/client/chunk_client/proto/chunk_spec.pb.h>
 
-#include <yt/ytlib/query_client/query.pb.h>
+#include <yt/ytlib/query_client/proto/query.pb.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 
@@ -251,6 +252,47 @@ void ThrowTypeMismatchError(
             << TErrorAttribute("rhs_source", rhsSource)
             << TErrorAttribute("lhs_type", lhsType)
             << TErrorAttribute("rhs_type", rhsType);
+}
+
+std::vector<size_t> GetJoinGroups(const std::vector<TConstJoinClausePtr>& joinClauses, TTableSchema schema)
+{
+    THashSet<TString> names;
+    for (const auto& column : schema.Columns()) {
+        names.insert(column.Name());
+    }
+
+    std::vector<size_t> joinGroups;
+
+    size_t counter = 0;
+    for (const auto& joinClause : joinClauses) {
+        TExtraColumnsChecker extraColumnsChecker(names);
+
+        for (const auto& equation : joinClause->SelfEquations) {
+            if (!equation.second) {
+                extraColumnsChecker.Visit(equation.first);
+            }
+        }
+
+        if (extraColumnsChecker.HasExtraColumns) {
+            YT_VERIFY(counter > 0);
+            joinGroups.push_back(counter);
+            counter = 0;
+            names.clear();
+            for (const auto& column : schema.Columns()) {
+                names.insert(column.Name());
+            }
+        }
+
+        ++counter;
+        schema = joinClause->GetTableSchema(schema);
+    }
+
+    if (counter > 0) {
+        joinGroups.push_back(counter);
+        counter = 0;
+    }
+
+    return joinGroups;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -44,6 +44,8 @@ TCellDirectorySynchronizerConfig::TCellDirectorySynchronizerConfig()
 {
     RegisterParameter("sync_period", SyncPeriod)
         .Default(TDuration::Minutes(60));
+    RegisterParameter("retry_period", RetryPeriod)
+        .Default(TDuration::Seconds(15));
     RegisterParameter("success_expiration_time", SuccessExpirationTime)
         .Default(TDuration::Minutes(20));
     RegisterParameter("failure_expiration_time", FailureExpirationTime)

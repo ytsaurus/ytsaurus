@@ -5,9 +5,10 @@
 #include <yt/core/concurrency/coroutine.h>
 
 #include <yt/core/misc/error.h>
-#include <yt/core/misc/property.h>
-#include <yt/core/misc/zigzag.h>
 #include <yt/core/misc/parser_helpers.h>
+#include <yt/core/misc/property.h>
+#include <yt/core/misc/varint.h>
+#include <yt/core/misc/zigzag.h>
 
 #include <util/generic/string.h>
 
@@ -368,7 +369,7 @@ private:
         return reinterpret_cast<const ui8*>(TBaseStream::End());
     }
 
-    void ThrowCannotParseVarint()
+    [[noreturn]] void ThrowCannotParseVarint()
     {
         THROW_ERROR_EXCEPTION("Error parsing varint value")
             << *this;
@@ -456,6 +457,34 @@ public:
     TCodedStream(const TBaseStream& baseStream)
         : TBaseStream(baseStream)
     { }
+
+    Y_FORCE_INLINE int ReadVarint64ToArray(char* out)
+    {
+        if (BeginByte() + MaxVarintBytes <= EndByte() ||
+            // Optimization:  If the Varint ends at exactly the end of the buffer,
+            // we can detect that and still use the fast path.
+            (BeginByte() < EndByte() && !(EndByte()[-1] & 0x80)))
+        {
+            // Fast path:  We have enough bytes left in the buffer to guarantee that
+            // this read won't cross the end, so we can skip the checks.
+
+            const ui8* ptr = BeginByte();
+            for (int i = 0; i < MaxVarintBytes; ++i) {
+                *out++ = *ptr;
+                if (!(*ptr & 0x80U)) {
+                    TBaseStream::Advance(i + 1);
+                    return i + 1;
+                }
+                ++ptr;
+            }
+
+            // We have overrun the maximum size of a Varint (10 bytes).  The data
+            // must be corrupt.
+            ThrowCannotParseVarint();
+        } else {
+            return WriteVarUint64(out, ReadVarint64Slow());
+        }
+    }
 
     Y_FORCE_INLINE ui64 ReadVarint64()
     {

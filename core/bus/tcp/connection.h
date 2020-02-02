@@ -59,7 +59,7 @@ public:
     ~TTcpConnection();
 
     void Start();
-    void Check();
+    void CheckLiveness();
 
     TConnectionId GetId() const;
 
@@ -187,7 +187,7 @@ private:
     std::atomic<size_t> PendingOutPayloadBytes_ = {0};
 
     TPacketDecoder Decoder_;
-    NProfiling::TCpuDuration ReadStallTimeout_;
+    const NProfiling::TCpuDuration ReadStallTimeout_;
     std::atomic<NProfiling::TCpuInstant> LastIncompleteReadTime_ = {std::numeric_limits<NProfiling::TCpuInstant>::max()};
     TBlob ReadBuffer_;
 
@@ -195,7 +195,7 @@ private:
     TRingQueue<TPacket> EncodedPackets_;
 
     TPacketEncoder Encoder_;
-    NProfiling::TCpuDuration WriteStallTimeout_;
+    const NProfiling::TCpuDuration WriteStallTimeout_;
     std::atomic<NProfiling::TCpuInstant> LastIncompleteWriteTime_ = {std::numeric_limits<NProfiling::TCpuInstant>::max()};
     std::vector<std::unique_ptr<TBlob>> WriteBuffers_;
     TRingQueue<TRef> EncodedFragments_;

@@ -6,7 +6,7 @@
 #include <yt/server/lib/hydra/async_file_changelog_index.h>
 
 #include <yt/ytlib/chunk_client/io_engine.h>
-#include <yt/ytlib/hydra/hydra_manager.pb.h>
+#include <yt/ytlib/hydra/proto/hydra_manager.pb.h>
 
 #include <yt/core/misc/fs.h>
 
@@ -74,19 +74,24 @@ TEST_P(TAsyncFileChangelogIndexTest, Simple)
         filePosition += i;
     }
 
-    TChangelogIndexRecord lowerBound;
-    TChangelogIndexRecord upperBound;
-    index.Search(&lowerBound, &upperBound, 0, 2);
+    {
+        TChangelogIndexRecord lowerBound{-1, -1};
+        TChangelogIndexRecord upperBound{-1, -1};
+        index.Search(&lowerBound, &upperBound, 0, 2);
 
-    EXPECT_EQ(lowerBound.RecordId, 0); EXPECT_EQ(lowerBound.FilePosition, 0);
-    EXPECT_EQ(upperBound.RecordId, 4); EXPECT_EQ(upperBound.FilePosition, 33);
+        EXPECT_EQ(lowerBound.RecordId, 0); EXPECT_EQ(lowerBound.FilePosition, 0);
+        EXPECT_EQ(upperBound.RecordId, 4); EXPECT_EQ(upperBound.FilePosition, 33);
+    }
 
 
-    upperBound = TChangelogIndexRecord(-1, -1);
-    index.Search(&lowerBound, &upperBound, 267, 2048);
+    {
+        TChangelogIndexRecord lowerBound{-1, -1};
+        TChangelogIndexRecord upperBound{-1, -1};
+        index.Search(&lowerBound, &upperBound, 267, 2048);
 
-    EXPECT_EQ(lowerBound.RecordId, 267); EXPECT_EQ(lowerBound.FilePosition, 4241);
-    EXPECT_EQ(upperBound.RecordId, -1); EXPECT_EQ(upperBound.FilePosition, -1);
+        EXPECT_EQ(lowerBound.RecordId, 267); EXPECT_EQ(lowerBound.FilePosition, 4241);
+        EXPECT_EQ(upperBound.RecordId, -1); EXPECT_EQ(upperBound.FilePosition, -1);
+    }
 
     index.Close();
 
@@ -94,17 +99,23 @@ TEST_P(TAsyncFileChangelogIndexTest, Simple)
     index2.Read();
     index2.TruncateInvalidRecords(index2.Records().size());
 
-    index2.Search(&lowerBound, &upperBound, 0, 2);
+    {
+        TChangelogIndexRecord lowerBound{-1, -1};
+        TChangelogIndexRecord upperBound{-1, -1};
+        index2.Search(&lowerBound, &upperBound, 0, 2);
 
-    EXPECT_EQ(lowerBound.RecordId, 0); EXPECT_EQ(lowerBound.FilePosition, 0);
-    EXPECT_EQ(upperBound.RecordId, 4); EXPECT_EQ(upperBound.FilePosition, 33);
+        EXPECT_EQ(lowerBound.RecordId, 0); EXPECT_EQ(lowerBound.FilePosition, 0);
+        EXPECT_EQ(upperBound.RecordId, 4); EXPECT_EQ(upperBound.FilePosition, 33);
+    }
 
+    {
+        TChangelogIndexRecord lowerBound{-1, -1};
+        TChangelogIndexRecord upperBound{-1, -1};
+        index2.Search(&lowerBound, &upperBound, 267, 2048);
 
-    upperBound = TChangelogIndexRecord(-1, -1);
-    index2.Search(&lowerBound, &upperBound, 267, 2048);
-
-    EXPECT_EQ(lowerBound.RecordId, 267); EXPECT_EQ(lowerBound.FilePosition, 4241);
-    EXPECT_EQ(upperBound.RecordId, -1); EXPECT_EQ(upperBound.FilePosition, -1);
+        EXPECT_EQ(lowerBound.RecordId, 267); EXPECT_EQ(lowerBound.FilePosition, 4241);
+        EXPECT_EQ(upperBound.RecordId, -1); EXPECT_EQ(upperBound.FilePosition, -1);
+    }
 
     index2.Close();
 }

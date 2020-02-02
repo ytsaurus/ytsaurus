@@ -144,7 +144,7 @@ private:
 };
 
 #define SERIALIZATION_DUMP_WRITE(context, ...) \
-    if (!(context).Dumper().IsActive()) \
+    if (Y_LIKELY(!(context).Dumper().IsActive())) \
         { } \
     else \
         (context).Dumper().Write(__VA_ARGS__)
@@ -172,30 +172,17 @@ inline TString DumpRangeToHex(TRef data)
     return builder.Flush();
 }
 
-template <class T, class = void>
+template <class T>
 struct TSerializationDumpPodWriter
 {
     template <class C>
     static void Do(C& context, const T& value)
     {
-        SERIALIZATION_DUMP_WRITE(context, "pod[%v] %v", sizeof(T), DumpRangeToHex(TRef::FromPod(value)));
-    }
-};
-
-// Workaround for Visual C++!
-template <class T>
-struct TIdentityHelper
-{
-    typedef T TType;
-};
-
-template <class T>
-struct TSerializationDumpPodWriter<T, decltype(ToString(typename TIdentityHelper<T>::TType()), void())>
-{
-    template <class C>
-    static void Do(C& context, const T& value)
-    {
-        SERIALIZATION_DUMP_WRITE(context, "pod %v", value);
+        if constexpr(TFormatTraits<T>::HasCustomFormatValue) {
+            SERIALIZATION_DUMP_WRITE(context, "pod %v", value);
+        } else {
+            SERIALIZATION_DUMP_WRITE(context, "pod[%v] %v", sizeof(T), DumpRangeToHex(TRef::FromPod(value)));
+        }
     }
 };
 

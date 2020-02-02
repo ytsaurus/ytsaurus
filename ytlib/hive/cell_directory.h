@@ -6,7 +6,7 @@
 
 #include <yt/ytlib/hive/proto/cell_directory.pb.h>
 
-#include <yt/ytlib/hydra/hydra_manager.pb.h>
+#include <yt/ytlib/hydra/proto/hydra_manager.pb.h>
 #include <yt/ytlib/hydra/public.h>
 
 #include <yt/client/node_tracker_client/node_directory.h>
@@ -87,8 +87,7 @@ public:
         TCellDirectoryConfigPtr config,
         NRpc::IChannelFactoryPtr channelFactory,
         const NNodeTrackerClient::TNetworkPreferenceList& networks,
-        const NLogging::TLogger& logger);
-    ~TCellDirectory();
+        NLogging::TLogger logger);
 
     //! Returns a peer channel of a given kind for a given cell id (|nullptr| if none is known).
     /*!
@@ -121,6 +120,27 @@ public:
 
     //! Returns |true| if the cell was unregistered by calling #UnregisterCell.
     bool IsCellUnregistered(TCellId cellId);
+
+
+    struct TSynchronizationResult
+    {
+        struct TUnregisterRequest
+        {
+            TCellId CellId;
+        };
+        std::vector<TUnregisterRequest> UnregisterRequests;
+
+        struct TReconfigureRequest
+        {
+            TCellDescriptor NewDescriptor;
+            int OldConfigVersion;
+        };
+        std::vector<TReconfigureRequest> ReconfigureRequests;
+    };
+
+    //! Checks cell versions in #knownCells against the actual state;
+    //! requests reconfiguration of outdated cells and unregistartion of stale cells.
+    TSynchronizationResult Synchronize(const std::vector<TCellInfo>& knownCells);
 
 
     //! Registers a new cell or updates the configuration of an existing cell

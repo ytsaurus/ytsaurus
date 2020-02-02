@@ -73,12 +73,18 @@ DECLARE_REFCOUNTED_CLASS(TSealReaderConfig)
 DECLARE_REFCOUNTED_CLASS(TDataNodeConfig)
 DECLARE_REFCOUNTED_CLASS(TPeerBlockDistributorConfig)
 DECLARE_REFCOUNTED_CLASS(TLayerLocationConfig)
+DECLARE_REFCOUNTED_CLASS(TTmpfsLayerCacheConfig)
 DECLARE_REFCOUNTED_CLASS(TVolumeManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TNetworkStatistics)
+DECLARE_REFCOUNTED_CLASS(TTableSchemaCacheConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IVolume)
 DECLARE_REFCOUNTED_STRUCT(IVolumeManager)
 DECLARE_REFCOUNTED_STRUCT(IPlainVolumeManager)
+
+DECLARE_REFCOUNTED_STRUCT(TCachedTableSchema)
+DECLARE_REFCOUNTED_CLASS(TTableSchemaCache)
+DECLARE_REFCOUNTED_CLASS(TCachedTableSchemaWrapper)
 
 ////////////////////////////////////////////////////////////////////////////////
 

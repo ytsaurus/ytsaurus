@@ -40,6 +40,9 @@ using namespace NTracing;
 TLogger ClickHouseLogger("ClickHouseProxy");
 TProfiler ClickHouseProfiler("/clickhouse_proxy");
 
+// It is needed for PROFILE_AGGREGATED_TIMING macros.
+static const auto& Profiler = ClickHouseProfiler;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClickHouseContext
@@ -54,7 +57,8 @@ public:
         const NApi::IClientPtr& client,
         const NHttp::IClientPtr& httpClient,
         const TCliqueCachePtr cliqueCache,
-        IInvokerPtr controlInvoker)
+        IInvokerPtr controlInvoker,
+        TClickHouseHandler::TClickHouseProxyMetrics& metrics)
         : Logger(TLogger(ClickHouseLogger).AddTag("RequestId: %v", req->GetRequestId()))
         , Request_(req)
         , Response_(rsp)
@@ -64,6 +68,7 @@ public:
         , HttpClient_(httpClient)
         , CliqueCache_(cliqueCache)
         , ControlInvoker_(controlInvoker)
+        , Metrics_(metrics)
     { }
 
     bool TryPrepare()
@@ -123,7 +128,6 @@ public:
             // COMPAT(max42): remove this, name is misleading.
             ProxiedRequestHeaders_->Add("X-Yt-Request-Id", ToString(Request_->GetRequestId()));
 
-            ProxiedRequestHeaders_->Add("X-Yt-Query-Id", ToString(traceContext->GetTraceId()));
             ProxiedRequestHeaders_->Add("X-Yt-Trace-Id", ToString(traceContext->GetTraceId()));
             ProxiedRequestHeaders_->Add("X-Yt-Span-Id", Format("%" PRIx64, traceContext->GetSpanId()));
             ProxiedRequestHeaders_->Add("X-Yt-Sampled", ToString(traceContext->IsSampled()));
@@ -143,8 +147,14 @@ public:
             }
 
             Discovery_->UpdateList(Config_->CliqueCache->SoftAgeThreshold);
-            WaitFor(Discovery_->UpdateList(forceUpdate ? Config_->ForceDiscoveryUpdateAgeThreshold : Config_->CliqueCache->HardAgeThreshold))
-                .ThrowOnError();
+            auto updatedFuture = Discovery_->UpdateList(forceUpdate ? Config_->ForceDiscoveryUpdateAgeThreshold : Config_->CliqueCache->HardAgeThreshold);
+            if (!updatedFuture.IsSet()) {
+                ClickHouseProfiler.Increment(Metrics_.ForceUpdateCount);
+                PROFILE_AGGREGATED_TIMING(Metrics_.DiscoveryForceUpdateTime) {
+                    WaitFor(updatedFuture)
+                        .ThrowOnError();
+                }
+            }
 
             auto instances = Discovery_->List();
             if (instances.empty()) {
@@ -181,7 +191,11 @@ public:
     bool TryIssueProxiedRequest(int retryIndex)
     {
         YT_LOG_DEBUG("Querying instance (Url: %v, RetryIndex: %v)", ProxiedRequestUrl_, retryIndex);
-        auto responseOrError = WaitFor(HttpClient_->Post(ProxiedRequestUrl_, ProxiedRequestBody_, ProxiedRequestHeaders_));
+
+        decltype(WaitFor(HttpClient_->Post(ProxiedRequestUrl_, ProxiedRequestBody_, ProxiedRequestHeaders_))) responseOrError;
+        PROFILE_AGGREGATED_TIMING(Metrics_.IssueProxiedRequestTime) {
+            responseOrError = WaitFor(HttpClient_->Post(ProxiedRequestUrl_, ProxiedRequestBody_, ProxiedRequestHeaders_));
+        }
 
         if (responseOrError.IsOK()) {
             if (!responseOrError.Value()->GetHeaders()->Find("X-ClickHouse-Server-Display-Name")) {
@@ -206,6 +220,7 @@ public:
             RequestErrors_.push_back(responseOrError);
             YT_LOG_DEBUG(responseOrError, "Proxied request failed (RetryIndex: %v)", retryIndex);
             Discovery_->Ban(InstanceId_);
+            ClickHouseProfiler.Increment(Metrics_.BannedCount);
             return false;
         }
     }
@@ -224,8 +239,12 @@ public:
         Response_->GetHeaders()->MergeFrom(ProxiedResponse_->GetHeaders());
         YT_LOG_DEBUG("Received headers, forwarding proxied response");
         PipeInputToOutput(ProxiedResponse_, Response_);
-        WaitFor(Response_->Close())
-            .ThrowOnError();
+
+        PROFILE_AGGREGATED_TIMING(Metrics_.ForwardProxiedResponseTime) {
+            WaitFor(Response_->Close())
+                .ThrowOnError();
+        }
+
         YT_LOG_DEBUG("Proxied response forwarded");
     }
 
@@ -277,6 +296,8 @@ private:
 
     std::vector<TError> RequestErrors_;
 
+    TClickHouseHandler::TClickHouseProxyMetrics& Metrics_;
+
     void SetCliqueId(TString cliqueId)
     {
         CliqueId_ = std::move(cliqueId);
@@ -301,25 +322,27 @@ private:
         }
 
         YT_LOG_DEBUG("Resolving alias (Alias: %v)", CliqueIdOrAlias_);
+
         try {
             TGetNodeOptions options;
             options.Timeout = Config_->AliasResolutionTimeout;
-            auto operationId = ConvertTo<TGuid>(WaitFor(
-                Client_->GetNode(
-                    Format("//sys/scheduler/orchid/scheduler/operations/%v/operation_id",
-                        ToYPathLiteral(CliqueIdOrAlias_)),
-                    options))
-                    .ValueOrThrow());
+            TGuid operationId;
+            PROFILE_AGGREGATED_TIMING(Metrics_.ResolveAliasTime) {
+                operationId = ConvertTo<TGuid>(WaitFor(
+                    Client_->GetNode(
+                        Format("//sys/scheduler/orchid/scheduler/operations/%v/operation_id",
+                            ToYPathLiteral(CliqueIdOrAlias_)),
+                        options))
+                        .ValueOrThrow());
+            }
             SetCliqueId(ToString(operationId));
+            YT_LOG_DEBUG("Alias resolved (Alias: %v, CliqueId: %v)", CliqueIdOrAlias_, CliqueId_);
+            return true;
         } catch (const std::exception& ex) {
             RequestErrors_.emplace_back(TError("Error while resolving alias %Qv", CliqueIdOrAlias_)
                 << ex);
             return false;
         }
-
-        YT_LOG_DEBUG("Alias resolved (Alias: %v, CliqueId: %v)", CliqueIdOrAlias_, CliqueId_);
-
-        return true;
     }
 
     void ParseTokenFromAuthorizationHeader(const TString& authorization) {
@@ -376,9 +399,15 @@ private:
         try {
             NAuth::TTokenCredentials credentials;
             credentials.Token = Token_;
-            User_ = WaitFor(TokenAuthenticator_->Authenticate(credentials))
-                .ValueOrThrow()
-                .Login;
+
+            PROFILE_AGGREGATED_TIMING(Metrics_.AuthenticateTime) {
+                User_ = WaitFor(TokenAuthenticator_->Authenticate(credentials))
+                    .ValueOrThrow()
+                    .Login;
+            }
+
+            YT_LOG_DEBUG("User authenticated (User: %v)", User_);
+            return true;
         } catch (const std::exception& ex) {
             ReplyWithError(
                 EStatusCode::Unauthorized,
@@ -386,9 +415,6 @@ private:
                     << ex);
             return false;
         }
-
-        YT_LOG_DEBUG("User authenticated (User: %v)", User_);
-        return true;
     }
 
     bool TryFindDiscovery()
@@ -409,9 +435,15 @@ private:
                 TString path = Config_->DiscoveryPath + "/" + CliqueId_.value();
                 NApi::TGetNodeOptions options;
                 options.ReadFrom = NApi::EMasterChannelKind::Cache;
-                auto node = ConvertToNode(WaitFor(Client_->GetNode(path + "/@", options))
-                    .ValueOrThrow())->AsMap()->FindChild("discovery_version");
-                i64 version = (node ? node->GetValue<i64>() : 0);
+
+                i64 version = 0;
+                PROFILE_AGGREGATED_TIMING(Metrics_.CreateDiscoveryTime) {
+                    auto nodeOrError = WaitFor(Client_->GetNode(path + "/@", options));
+                    auto node = ConvertToNode(nodeOrError.ValueOrThrow())->AsMap()->FindChild("discovery_version");
+                    if (node) {
+                        version = node->GetValue<i64>();
+                    }
+                }
 
                 auto config = New<TDiscoveryConfig>();
                 config->Directory = path;
@@ -432,8 +464,10 @@ private:
                     Logger));
             }
 
-            Discovery_ = WaitFor(cookie.GetValue())
-                .ValueOrThrow();
+            PROFILE_AGGREGATED_TIMING(Metrics_.FindDiscoveryTime) {
+                Discovery_ = WaitFor(cookie.GetValue())
+                    .ValueOrThrow();
+            }
 
             if (!CliqueId_) {
                 SetCliqueId(Discovery_->GetCliqueId());
@@ -460,11 +494,15 @@ TClickHouseHandler::TClickHouseHandler(TBootstrap* bootstrap)
     , Config_(Bootstrap_->GetConfig()->ClickHouse)
     , HttpClient_(CreateClient(Config_->HttpClient, Bootstrap_->GetPoller()))
     , ControlInvoker_(Bootstrap_->GetControlInvoker())
-    , CliqueCache_(New<TCliqueCache>(Config_->CliqueCache))
 {
     if (!Bootstrap_->GetConfig()->Auth->RequireAuthentication) {
         Config_->IgnoreMissingCredentials = true;
     }
+    if (Bootstrap_->GetConfig()->ClickHouse->ForceEnqueueProfiling) {
+        ClickHouseProfiler.ForceEnqueue() = true;
+    }
+    CliqueCache_ = New<TCliqueCache>(Config_->CliqueCache, ClickHouseProfiler.AppendPath("/clique_cache"));
+
     ProfilingExecutor_ = New<TPeriodicExecutor>(
         ControlInvoker_,
         BIND(&TClickHouseHandler::OnProfiling, MakeWeak(this)),
@@ -489,7 +527,8 @@ void TClickHouseHandler::HandleRequest(
         // that client does not block on writing the body.
         request->ReadAll();
         RedirectToDataProxy(request, response, Coordinator_);
-    } else {
+    } else PROFILE_AGGREGATED_TIMING(Metrics_.TotalQueryTime) {
+        ClickHouseProfiler.Increment(Metrics_.QueryCount);
         ProcessDebugHeaders(request, response, Coordinator_);
         auto context = New<TClickHouseContext>(
             request,
@@ -499,10 +538,10 @@ void TClickHouseHandler::HandleRequest(
             Bootstrap_->GetClickHouseClient(),
             HttpClient_,
             CliqueCache_,
-            ControlInvoker_);
+            ControlInvoker_,
+            Metrics_);
 
         if (!context->TryPrepare()) {
-            // TODO(max42): profile something here.
             return;
         }
 
@@ -539,7 +578,7 @@ void TClickHouseHandler::HandleRequest(
                 } else {
                     state = ERetryState::FailedToPickInstance;
                 }
-                
+
                 continue;
             }
 
@@ -549,14 +588,13 @@ void TClickHouseHandler::HandleRequest(
             }
         }
 
-        if (state != ERetryState::Success) {
+        if (state == ERetryState::Success) {
+            ControlInvoker_->Invoke(BIND(&TClickHouseHandler::AdjustQueryCount, MakeWeak(this), context->GetUser(), +1));
+            context->ForwardProxiedResponse();
+            ControlInvoker_->Invoke(BIND(&TClickHouseHandler::AdjustQueryCount, MakeWeak(this), context->GetUser(), -1));
+        } else {
             context->ReplyWithAllOccuredErrors(TError("Request failed"));
-            return;
         }
-
-        ControlInvoker_->Invoke(BIND(&TClickHouseHandler::AdjustQueryCount, MakeWeak(this), context->GetUser(), +1));
-        context->ForwardProxiedResponse();
-        ControlInvoker_->Invoke(BIND(&TClickHouseHandler::AdjustQueryCount, MakeWeak(this), context->GetUser(), -1));
     }
 }
 

@@ -8,8 +8,9 @@ namespace NYT::NHydra {
 
 TMutation::TMutation(IHydraManagerPtr hydraManager)
     : HydraManager_(std::move(hydraManager))
-    , Request_(HydraManager_->GetCurrentReign())
-{ }
+{
+    Request_.Reign = HydraManager_->GetCurrentReign();
+}
 
 TFuture<TMutationResponse> TMutation::Commit()
 {
@@ -18,9 +19,8 @@ TFuture<TMutationResponse> TMutation::Commit()
 
 TFuture<TMutationResponse> TMutation::CommitAndLog(const NLogging::TLogger& logger)
 {
-    auto type = Request_.Type;
     return Commit().Apply(
-        BIND([Logger = logger, type = std::move(type)] (const TErrorOr<TMutationResponse>& result) {
+        BIND([Logger = logger, type = Request_.Type] (const TErrorOr<TMutationResponse>& result) {
             if (result.IsOK()) {
                 YT_LOG_DEBUG("Mutation commit succeeded (MutationType: %v)", type);
             } else {

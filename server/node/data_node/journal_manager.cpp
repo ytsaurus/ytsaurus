@@ -14,7 +14,7 @@
 #include <yt/server/lib/hydra/lazy_changelog.h>
 #include <yt/server/lib/hydra/private.h>
 
-#include <yt/ytlib/hydra/hydra_manager.pb.h>
+#include <yt/ytlib/hydra/proto/hydra_manager.pb.h>
 #include <yt/client/hydra/version.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
@@ -701,7 +701,6 @@ private:
 
         auto changelog = MultiplexedChangelogDispatcher_->CreateChangelog(
             GetMultiplexedChangelogPath(id),
-            TChangelogMeta(),
             Config_);
 
         YT_LOG_INFO("Finished creating new multiplexed changelog (ChangelogId: %v)",
@@ -843,13 +842,13 @@ public:
             Location_->GetIOEngine(),
             MultiplexedChangelogConfig_,
             "MFlush:" + Location_->GetId(),
-            DataNodeProfiler.AppendPath("/multiplexed_changelogs"));
+            Location_->GetProfiler().AppendPath("/multiplexed_changelogs"));
 
         SplitChangelogDispatcher_ = New<TFileChangelogDispatcher>(
             Location_->GetIOEngine(),
             MultiplexedChangelogConfig_,
             "SFlush:" + Location_->GetId(),
-            DataNodeProfiler.AppendPath("/split_changelogs"));
+            Location_->GetProfiler().AppendPath("/split_changelogs"));
 
         MultiplexedWriter_ = New<TMultiplexedWriter>(
             MultiplexedChangelogConfig_,
@@ -1005,7 +1004,6 @@ private:
             auto fileName = Location_->GetChunkPath(chunkId);
             changelog = SplitChangelogDispatcher_->CreateChangelog(
                 fileName,
-                TChangelogMeta(),
                 GetSplitChangelogConfig(enableMultiplexing));
         }
 

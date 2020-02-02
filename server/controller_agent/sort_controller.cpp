@@ -3013,6 +3013,11 @@ private:
         return Spec->CoreTableWriter;
     }
 
+    virtual bool GetWriteSparseCoreDumps() const override
+    {
+        return Spec->WriteSparseCoreDumps;
+    }
+
     virtual std::vector<TUserJobSpecPtr> GetUserJobSpecs() const override
     {
         std::vector<TUserJobSpecPtr> result = {Spec->Reducer};

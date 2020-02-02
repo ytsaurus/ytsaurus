@@ -3,14 +3,13 @@
 #include "public.h"
 #include "callbacks.h"
 #include "function_context.h"
+#include "objects_holder.h"
 
 #include <yt/client/api/rowset.h>
 
 #include <yt/client/table_client/unversioned_row.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
-
-#include <yt/core/codegen/function.h>
+#include <yt/library/codegen/function.h>
 
 #include <yt/core/misc/chunked_memory_pool.h>
 
@@ -27,9 +26,6 @@ constexpr size_t RowsetProcessingSize = 1024;
 constexpr size_t WriteRowsetSize = 64 * RowsetProcessingSize;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-class TInterruptedCompleteException
-{ };
 
 class TInterruptedIncompleteException
 { };
@@ -205,7 +201,7 @@ struct TMultiJoinClosure
     size_t PrimaryRowSize;
     size_t BatchSize;
     std::function<void(size_t)> ProcessSegment;
-    std::function<void()> ProcessJoinBatch;
+    std::function<bool()> ProcessJoinBatch;
 };
 
 struct TGroupByClosure
@@ -218,6 +214,8 @@ struct TGroupByClosure
     int KeySize;
     int ValuesCount;
     bool CheckNulls;
+
+    size_t GroupedRowCount = 0;
 
     TGroupByClosure(
         IMemoryChunkProviderPtr chunkProvider,
@@ -238,7 +236,6 @@ struct TWriteOpClosure
     // Rows stored in OutputBuffer
     std::vector<TRow> OutputRowsBatch;
     size_t RowSize;
-    bool ConsiderLimit;
 
     TWriteOpClosure();
 
@@ -267,6 +264,7 @@ struct TExecutionContext
     i64 Limit = std::numeric_limits<i64>::max();
 
     bool Ordered = false;
+    bool IsMerge = false;
 
     IMemoryChunkProviderPtr MemoryChunkProvider;
 
@@ -346,7 +344,7 @@ public:
     TValue* GetLiteralValues() const;
 
 private:
-    std::vector<std::unique_ptr<void, void(*)(void*)>> OpaqueValues_;
+    TObjectsHolder Holder_;
     std::vector<void*> OpaquePointers_;
     std::vector<TOwningValue> OwningLiteralValues_;
     mutable std::unique_ptr<TValue[]> LiteralValues_;

@@ -134,7 +134,7 @@ TCodegenExpression MakeCodegenTransformExpr(
 
 void CodegenEmptyOp(TCGOperatorContext& builder);
 
-std::tuple<size_t, size_t> MakeCodegenSplitOp(
+std::tuple<size_t, size_t> MakeCodegenDuplicateOp(
     TCodegenSource* codegenSource,
     size_t* slotCount,
     size_t slot);
@@ -144,6 +144,11 @@ size_t MakeCodegenMergeOp(
     size_t* slotCount,
     size_t firstSlot,
     size_t secondSlot);
+
+size_t MakeCodegenOnceOp(
+    TCodegenSource* codegenSource,
+    size_t* slotCount,
+    size_t sourceSlot);
 
 size_t MakeCodegenScanOp(
     TCodegenSource* codegenSource,
@@ -216,6 +221,14 @@ std::pair<size_t, size_t> MakeCodegenGroupOp(
     size_t commonPrefixWithPrimaryKey,
     TComparerManagerPtr comparerManager);
 
+size_t MakeCodegenGroupTotalsOp(
+    TCodegenSource* codegenSource,
+    size_t* slotCount,
+    size_t producerSlot,
+    std::vector<TCodegenAggregate> codegenAggregates,
+    std::vector<EValueType> keyTypes,
+    std::vector<EValueType> stateTypes);
+
 size_t MakeCodegenFinalizeOp(
     TCodegenSource* codegenSource,
     size_t* slotCount,
@@ -249,11 +262,17 @@ size_t MakeCodegenProjectOp(
     TCodegenFragmentInfosPtr fragmentInfos,
     std::vector<size_t> argIds);
 
+size_t MakeCodegenOffsetLimiterOp(
+    TCodegenSource* codegenSource,
+    size_t* slotCount,
+    size_t producerSlot,
+    size_t offsetId,
+    size_t limitId);
+
 void MakeCodegenWriteOp(
     TCodegenSource* codegenSource,
     size_t slot,
-    size_t rowSize,
-    bool considerLimit);
+    size_t rowSize);
 
 ////////////////////////////////////////////////////////////////////////////////
 

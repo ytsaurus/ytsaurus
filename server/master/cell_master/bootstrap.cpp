@@ -39,6 +39,7 @@
 #include <yt/server/master/journal_server/journal_node_type_handler.h>
 
 #include <yt/server/master/cell_server/tamed_cell_manager.h>
+#include <yt/server/master/cell_server/cell_hydra_janitor.h>
 
 #include <yt/server/master/node_tracker_server/cypress_integration.h>
 #include <yt/server/master/node_tracker_server/node_tracker.h>
@@ -49,6 +50,10 @@
 #include <yt/server/master/object_server/object_service.h>
 #include <yt/server/master/object_server/request_profiling_manager.h>
 #include <yt/server/master/object_server/sys_node_type_handler.h>
+
+#include <yt/server/master/scheduler_pool_server/cypress_integration.h>
+#include <yt/server/master/scheduler_pool_server/scheduler_pool.h>
+#include <yt/server/master/scheduler_pool_server/scheduler_pool_manager.h>
 
 #include <yt/server/master/orchid/cypress_integration.h>
 
@@ -149,6 +154,7 @@ using namespace NNodeTrackerClient;
 using namespace NNodeTrackerServer;
 using namespace NObjectClient;
 using namespace NObjectServer;
+using namespace NSchedulerPoolServer;
 using namespace NOrchid;
 using namespace NProfiling;
 using namespace NRpc;
@@ -167,6 +173,7 @@ using NTransactionServer::TTransactionManagerPtr;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const NLogging::TLogger Logger("Bootstrap");
+static const NProfiling::TProfiler BootstrapProfiler("");
 static constexpr auto ProfilingPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -333,6 +340,11 @@ const TJournalManagerPtr& TBootstrap::GetJournalManager() const
 const TSecurityManagerPtr& TBootstrap::GetSecurityManager() const
 {
     return SecurityManager_;
+}
+
+const TSchedulerPoolManagerPtr& TBootstrap::GetSchedulerPoolManager() const
+{
+    return SchedulerPoolManager_;
 }
 
 const TTamedCellManagerPtr& TBootstrap::GetTamedCellManager() const
@@ -629,9 +641,13 @@ void TBootstrap::DoInitialize()
 
     TamedCellManager_ = New<TTamedCellManager>(this);
 
+    CellHydraJanitor_ = New<TCellHydraJanitor>(this);
+
     TabletManager_ = New<TTabletManager>(Config_->TabletManager, this);
 
     ReplicatedTableTracker_ = New<TReplicatedTableTracker>(Config_->ReplicatedTableTracker, this);
+
+    SchedulerPoolManager_ = New<TSchedulerPoolManager>(this);
 
     auto timestampManager = New<TTimestampManager>(
         Config_->TimestampManager,
@@ -673,8 +689,10 @@ void TBootstrap::DoInitialize()
     CypressManager_->Initialize();
     ChunkManager_->Initialize();
     TamedCellManager_->Initialize();
+    CellHydraJanitor_->Initialize();
     TabletManager_->Initialize();
     MulticellManager_->Initialize();
+    SchedulerPoolManager_->Initialize();
 
     CellDirectorySynchronizer_ = New<NHiveServer::TCellDirectorySynchronizer>(
         Config_->CellDirectorySynchronizer,
@@ -729,6 +747,7 @@ void TBootstrap::DoInitialize()
     CypressManager_->RegisterHandler(CreateUserMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateGroupMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateNetworkProjectMapTypeHandler(this));
+    CypressManager_->RegisterHandler(CreatePoolTreeMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateTabletCellNodeTypeHandler(this));
     CypressManager_->RegisterHandler(CreateTabletCellMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateTabletMapTypeHandler(this));
@@ -740,6 +759,8 @@ void TBootstrap::DoInitialize()
     RpcServer_->Configure(Config_->RpcServer);
 
     AnnotationSetter_ = New<TAnnotationSetter>(this);
+
+    Profiler_ = BootstrapProfiler;
 
     ProfilingExecutor_ = New<TPeriodicExecutor>(
         GetProfilerInvoker(),
@@ -776,6 +797,10 @@ void TBootstrap::DoRun()
         orchidRoot,
         "/hive",
         CreateVirtualNode(HiveManager_->GetOrchidService()));
+    SetNodeByYPath(
+        orchidRoot,
+        "/node_tracker",
+        CreateVirtualNode(NodeTracker_->GetOrchidService()));
 
     SetBuildAttributes(orchidRoot, "master");
 

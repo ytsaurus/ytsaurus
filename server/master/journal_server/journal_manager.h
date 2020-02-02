@@ -21,12 +21,20 @@ public:
     explicit TJournalManager(NCellMaster::TBootstrap* bootstrap);
     ~TJournalManager();
 
+    void UpdateStatistics(
+        TJournalNode* trunkNode,
+        const NChunkClient::NProto::TDataStatistics* statistics);
+
     //! Marks the journal as sealed and updates its snapshot statistics.
     //! If #statistics is |nullptr| then computes one from chunk lists.
     //! For secondary masters, this call also notifies the primary.
     void SealJournal(
-        NJournalServer::TJournalNode* trunkNode,
+        TJournalNode* trunkNode,
         const NChunkClient::NProto::TDataStatistics* statistics);
+
+    void TruncateJournal(
+        TJournalNode* trunkNode,
+        i64 rowCount);
 
 private:
     class TImpl;

@@ -150,6 +150,26 @@ DEFINE_REFCOUNTED_TYPE(TDictionaryConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class THealthCheckerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TDuration Period;
+    std::vector<TString> Queries;
+
+    THealthCheckerConfig()
+    {
+        RegisterParameter("period", Period)
+            .Default(TDuration::Minutes(1));
+        RegisterParameter("queries", Queries)
+            .Default();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(THealthCheckerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSubqueryConfig
     : public NYTree::TYsonSerializable
 {
@@ -181,6 +201,26 @@ DEFINE_REFCOUNTED_TYPE(TSubqueryConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSystemLogConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TString Engine;
+    int FlushIntervalMilliseconds;
+
+    TSystemLogConfig()
+    {
+        RegisterParameter("engine", Engine)
+            .Default("ENGINE = Memory()");
+        RegisterParameter("flush_interval_milliseconds", FlushIntervalMilliseconds)
+            .Default(100);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TSystemLogConfig);
+
+/////////////////////////////////////////////////////////////////////////////
+
 class TEngineConfig
     : public NYTree::TYsonSerializable
 {
@@ -193,6 +233,8 @@ public:
 
     //! Path in Cypress with coordination map node, external dictionaries etc.
     TString CypressRootPath;
+
+    THealthCheckerConfigPtr HealthChecker;
 
     //! Log level for internal CH logging.
     TString LogLevel;
@@ -209,13 +251,17 @@ public:
     std::vector<TString> ListenHosts;
 
     //! Paths to geodata stuff.
-    TString PathToRegionsHierarchyFile;
-    TString PathToRegionsNameFiles;
+    std::optional<TString> PathToRegionsHierarchyFile;
+    std::optional<TString> PathToRegionsNameFiles;
 
     //! Subquery logic configuration.
     TSubqueryConfigPtr Subquery;
 
     NYTree::INodePtr CreateTableDefaultAttributes;
+
+    TSystemLogConfigPtr QueryLog;
+    TSystemLogConfigPtr QueryThreadLog;
+    TSystemLogConfigPtr TraceLog;
 
     TEngineConfig()
     {
@@ -231,6 +277,9 @@ public:
         RegisterParameter("cypress_root_path", CypressRootPath)
             .Default("//sys/clickhouse");
 
+        RegisterParameter("health_checker", HealthChecker)
+            .DefaultNew();
+
         RegisterParameter("listen_hosts", ListenHosts)
             .Default(std::vector<TString> {"::"});
 
@@ -242,10 +291,10 @@ public:
             .Default();
 
         RegisterParameter("path_to_regions_hierarchy_file", PathToRegionsHierarchyFile)
-            .Default("./geodata/regions_hierarchy.txt");
+            .Default();
 
         RegisterParameter("path_to_regions_name_files", PathToRegionsNameFiles)
-            .Default("./geodata/");
+            .Default();
 
         RegisterParameter("subquery", Subquery)
             .DefaultNew();
@@ -257,10 +306,21 @@ public:
                     .Item("optimize_for").Value("scan")
                 .EndMap());
 
+        RegisterParameter("query_log", QueryLog)
+            .DefaultNew();
+
+        RegisterParameter("query_thread_log", QueryLog)
+            .DefaultNew();
+
+        RegisterParameter("part_log", QueryLog)
+            .DefaultNew();
+
+
         RegisterPreprocessor([&] {
             Settings["max_memory_usage_for_all_queries"] = NYTree::ConvertToNode(9_GB);
             Settings["max_threads"] = NYTree::ConvertToNode(32);
             Settings["max_concurrent_queries_for_user"] = NYTree::ConvertToNode(10);
+            Settings["connect_timeout_with_failover_ms"] = NYTree::ConvertToNode(1000); // 1 sec.
         });
 
         RegisterPostprocessor([&] {
@@ -355,6 +415,10 @@ public:
     //! Config for cache which is used for getting table's attributes, like id, schema, external_cell_tag, etc.
     NObjectClient::TObjectAttributeCacheConfigPtr TableAttributeCache;
 
+    TDuration ProcessListSnapshotUpdatePeriod;
+
+    int WorkerThreadCount;
+
     TClickHouseServerBootstrapConfig()
     {
         RegisterParameter("cluster_connection", ClusterConnection);
@@ -398,6 +462,12 @@ public:
 
         RegisterParameter("permission_cache", PermissionCache)
             .DefaultNew();
+
+        RegisterParameter("process_list_snapshot_update_period", ProcessListSnapshotUpdatePeriod)
+            .Default(TDuration::Seconds(1));
+
+        RegisterParameter("worker_thread_count", WorkerThreadCount)
+            .Default(8);
 
         RegisterPreprocessor([&] {
             PermissionCache->ExpireAfterAccessTime = TDuration::Minutes(2);

@@ -117,8 +117,7 @@ THashMap<TString, TPoolName> GetOperationPools(const TOperationRuntimeParameters
     return pools;
 }
 
-TFairShareStrategyOperationStatePtr
-CreateFairShareStrategyOperationState(IOperationStrategyHost* host)
+TFairShareStrategyOperationStatePtr CreateFairShareStrategyOperationState(IOperationStrategyHost* host)
 {
     auto state = New<TFairShareStrategyOperationState>(host);
     auto treeIdToPoolNameMap = GetOperationPools(host->GetRuntimeParameters());
@@ -279,6 +278,12 @@ TFairShareTree::TFairShareTree(
     RootElement_ = New<TRootElement>(Host_, this, config, GetPoolProfilingTag(RootPoolName), TreeId_, Logger);
 }
 
+
+TFairShareStrategyTreeConfigPtr TFairShareTree::GetConfig() const
+{
+    return Config_;
+}
+
 TFuture<void> TFairShareTree::ValidateOperationPoolsCanBeUsed(const IOperationStrategyHost* operation, const TPoolName& poolName)
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
@@ -383,7 +388,7 @@ void TFairShareTree::UnregisterOperation(
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
     auto operationId = state->GetHost()->GetId();
-    auto operationElement = FindOperationElement(operationId);
+    auto operationElement = GetOperationElement(operationId);
 
     auto* pool = operationElement->GetMutableParent();
 
@@ -439,7 +444,7 @@ void TFairShareTree::RunWaitingOperations(TCompositeSchedulerElement* pool)
             if (auto element = FindOperationElement(waitingOperationId)) {
                 YT_VERIFY(!element->IsOperationRunningInPool());
                 if (auto violatingPool = FindPoolViolatingMaxRunningOperationCount(element->GetMutableParent())) {
-                    YT_VERIFY(pool != violatingPool);
+                    YT_VERIFY(current != violatingPool);
                     element->MarkWaitingFor(violatingPool);
                 } else {
                     element->MarkOperationRunningInPool();
@@ -470,10 +475,18 @@ void TFairShareTree::OnOperationRemovedFromPool(
             blockedPool->WaitingOperationIds().remove(operationId);
         }
     }
-    if (!parent->IsRoot() && parent->IsEmpty()) {
-        auto* pool = static_cast<TPool*>(parent.Get());
-        if (pool->IsDefaultConfigured()) {
-            UnregisterPool(pool);
+
+    // We must do this recursively cause when ephemeral pool parent is deleted, it also become ephemeral.
+    RemoveEmptyEphemeralPoolsRecursive(parent.Get());
+}
+
+void TFairShareTree::RemoveEmptyEphemeralPoolsRecursive(TCompositeSchedulerElement* compositeElement)
+{
+    if (!compositeElement->IsRoot() && compositeElement->IsEmpty()) {
+        TPoolPtr parentPool = static_cast<TPool*>(compositeElement);
+        if (parentPool->IsDefaultConfigured()) {
+            UnregisterPool(parentPool);
+            RemoveEmptyEphemeralPoolsRecursive(parentPool->GetMutableParent());
         }
     }
 }
@@ -536,11 +549,15 @@ TPoolsUpdateResult TFairShareTree::UpdatePools(const INodePtr& poolsNode)
     LastPoolsNodeUpdate_ = poolsNode;
 
     THashMap<TString, TString> poolToParentMap;
+    THashSet<TString> ephemeralPools;
     for (const auto& [poolId, pool] : Pools_) {
         poolToParentMap[poolId] = pool->GetParent()->GetId();
+        if (pool->IsDefaultConfigured()) {
+            ephemeralPools.insert(poolId);
+        }
     }
 
-    TPoolsConfigParser poolsConfigParser(poolToParentMap);
+    TPoolsConfigParser poolsConfigParser(std::move(poolToParentMap), std::move(ephemeralPools));
 
     TError parseResult = poolsConfigParser.TryParse(poolsNode);
     if (!parseResult.IsOK()) {
@@ -709,7 +726,7 @@ void TFairShareTree::UpdateConfig(const TFairShareStrategyTreeConfigPtr& config)
     RootElement_->UpdateTreeConfig(Config_);
 
     if (!FindPool(Config_->DefaultParentPool) && Config_->DefaultParentPool != RootPoolName) {
-        auto error = TError("Default parent pool %Qv is not registered", Config_->DefaultParentPool);
+        auto error = TError("Default parent pool %Qv in tree %Qv is not registered", Config_->DefaultParentPool, TreeId_);
         Host_->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, error);
     }
 }
@@ -825,6 +842,7 @@ void TFairShareTree::OnFairShareLoggingAt(TInstant now)
             .Item("tree_id").Value(TreeId_)
             .Do(BIND(&TFairShareTree::BuildFairShareInfo, Unretained(this)));
 
+        LogPoolsInfo();
         LogOperationsInfo();
     }
 }
@@ -840,6 +858,7 @@ void TFairShareTree::OnFairShareEssentialLoggingAt(TInstant now)
             .Item("tree_id").Value(TreeId_)
             .Do(BIND(&TFairShareTree::BuildEssentialFairShareInfo, Unretained(this)));
 
+        LogPoolsInfo();
         LogOperationsInfo();
     }
 }
@@ -873,6 +892,7 @@ void TFairShareTree::BuildPoolsInformation(TFluentMap fluent)
                 .Item("max_operation_count").Value(pool->GetMaxOperationCount())
                 .Item("aggressive_starvation_enabled").Value(pool->IsAggressiveStarvationEnabled())
                 .Item("forbid_immediate_operations").Value(pool->AreImmediateOperationsForbidden())
+                .Item("is_ephemeral").Value(pool->IsDefaultConfigured())
                 .DoIf(pool->GetMode() == ESchedulingMode::Fifo, [&] (TFluentMap fluent) {
                     fluent
                         .Item("fifo_sort_parameters").Value(pool->GetFifoSortParameters());
@@ -886,6 +906,7 @@ void TFairShareTree::BuildPoolsInformation(TFluentMap fluent)
     };
 
     fluent
+        .Item("pool_count").Value(GetPoolCount())
         .Item("pools").BeginMap()
             .DoFor(Pools_, [&] (TFluentMap fluent, const TPoolMap::value_type& pair) {
                 buildPoolInfo(FindRecentPoolSnapshot(pair.first), fluent);
@@ -1011,7 +1032,7 @@ void ReactivateBadPackingOperations(TFairShareContext* context)
     for (const auto& operation : context->BadPackingOperations) {
         context->DynamicAttributesList[operation->GetTreeIndex()].Active = true;
         // TODO(antonkikh): This can be implemented more efficiently.
-        operation->UpdateAncestorsAttributes(context);
+        operation->UpdateAncestorsDynamicAttributes(context, /* activateAncestors */ true);
     }
     context->BadPackingOperations.clear();
 }
@@ -1042,6 +1063,7 @@ std::pair<IFairShareTreeSnapshotPtr, TError> TFairShareTree::DoFairShareUpdateAt
     PROFILE_AGGREGATED_TIMING(FairSharePreUpdateTimeCounter_) {
         rootElement->PreUpdate(&dynamicAttributes, &updateContext);
     }
+
     auto asyncUpdate = BIND([&]
         {
             PROFILE_AGGREGATED_TIMING(FairShareUpdateTimeCounter_) {
@@ -1052,6 +1074,9 @@ std::pair<IFairShareTreeSnapshotPtr, TError> TFairShareTree::DoFairShareUpdateAt
         .Run();
     WaitFor(asyncUpdate)
         .ThrowOnError();
+
+    YT_LOG_DEBUG("Fair share tree update finished (UnschedulableReasons: %v)",
+        updateContext.UnschedulableReasons);
 
     {
         TWriterGuard guard(GlobalDynamicAttributesLock_);
@@ -1137,7 +1162,7 @@ void TFairShareTree::DoScheduleJobsWithoutPreemptionImpl(
                 prescheduleExecuted = true;
                 context->PrescheduleCalled = true;
             }
-            ++context->StageState->ScheduleJobAttempts;
+            ++context->StageState->ScheduleJobAttemptCount;
             auto scheduleJobResult = rootElement->ScheduleJob(context, ignorePacking);
             if (scheduleJobResult.Scheduled) {
                 ReactivateBadPackingOperations(context);
@@ -1254,7 +1279,7 @@ void TFairShareTree::DoScheduleJobsWithPreemption(
                 prescheduleExecuted = true;
             }
 
-            ++context->StageState->ScheduleJobAttempts;
+            ++context->StageState->ScheduleJobAttemptCount;
             auto scheduleJobResult = rootElement->ScheduleJob(context, /* ignorePacking */ true);
             if (scheduleJobResult.Scheduled) {
                 jobStartedUsingPreemption = context->SchedulingContext->StartedJobs().back();
@@ -1334,6 +1359,11 @@ void TFairShareTree::DoScheduleJobsWithPreemption(
             job->SetPreemptionReason(Format("Preempted to start job %v of operation %v",
                 jobStartedUsingPreemption->GetId(),
                 jobStartedUsingPreemption->GetOperationId()));
+
+            job->SetPreemptedFor(TPreemptedFor{
+                .JobId = jobStartedUsingPreemption->GetId(),
+                .OperationId = jobStartedUsingPreemption->GetOperationId(),
+            });
         } else {
             job->SetPreemptionReason(Format("Node resource limits violated"));
         }
@@ -1386,7 +1416,7 @@ void TFairShareTree::DoScheduleJobs(
     {
         context.StartStage(&NonPreemptiveSchedulingStage_);
         DoScheduleJobsWithoutPreemption(rootElementSnapshot, &context, now);
-        context.SchedulingStatistics.NonPreemptiveScheduleJobAttempts = context.StageState->ScheduleJobAttempts;
+        context.SchedulingStatistics.NonPreemptiveScheduleJobAttempts = context.StageState->ScheduleJobAttemptCount;
         needPackingFallback = schedulingContext->StartedJobs().empty() && !context.BadPackingOperations.empty();
         ReactivateBadPackingOperations(&context);
         context.FinishStage();
@@ -1417,7 +1447,7 @@ void TFairShareTree::DoScheduleJobs(
     if (scheduleJobsWithPreemption) {
         context.StartStage(&PreemptiveSchedulingStage_);
         DoScheduleJobsWithPreemption(rootElementSnapshot, &context, now);
-        context.SchedulingStatistics.PreemptiveScheduleJobAttempts = context.StageState->ScheduleJobAttempts;
+        context.SchedulingStatistics.PreemptiveScheduleJobAttempts = context.StageState->ScheduleJobAttemptCount;
         context.FinishStage();
     } else {
         YT_LOG_DEBUG("Skip preemptive scheduling");
@@ -1426,7 +1456,7 @@ void TFairShareTree::DoScheduleJobs(
     if (needPackingFallback) {
         context.StartStage(&PackingFallbackSchedulingStage_);
         DoScheduleJobsPackingFallback(rootElementSnapshot, &context, now);
-        context.SchedulingStatistics.PackingFallbackScheduleJobAttempts = context.StageState->ScheduleJobAttempts;
+        context.SchedulingStatistics.PackingFallbackScheduleJobAttempts = context.StageState->ScheduleJobAttemptCount;
         context.FinishStage();
     }
 
@@ -1517,6 +1547,12 @@ void TFairShareTree::DoProfileFairShare(const TRootElementSnapshotPtr& rootEleme
             ProfileOperationElement(accumulator, element);
         }
     }
+
+    accumulator.Add(
+        "/pool_count",
+        rootElementSnapshotPtr->PoolNameToElement.size(),
+        EMetricType::Gauge,
+        {TreeIdProfilingTag_});
 
     accumulator.Publish(&Profiler);
 }
@@ -1764,6 +1800,11 @@ TPool* TFairShareTree::FindRecentPoolSnapshot(const TString& poolName) const
     return FindPool(poolName).Get();
 }
 
+int TFairShareTree::GetPoolCount() const
+{
+    return Pools_.size();
+}
+
 TPoolPtr TFairShareTree::GetOrCreatePool(const TPoolName& poolName, TString userName)
 {
     auto pool = FindPool(poolName.GetPool());
@@ -1949,7 +1990,7 @@ TCompositeSchedulerElementPtr TFairShareTree::GetDefaultParentPool()
     auto defaultPool = FindPool(Config_->DefaultParentPool);
     if (!defaultPool) {
         if (Config_->DefaultParentPool != RootPoolName) {
-            auto error = TError("Default parent pool %Qv is not registered", Config_->DefaultParentPool);
+            auto error = TError("Default parent pool %Qv in tree %Qv is not registered", Config_->DefaultParentPool, TreeId_);
             Host_->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, error);
         }
         return RootElement_;
@@ -2146,6 +2187,16 @@ std::vector<TOperationId> TFairShareTree::ExtractActivatableOperations()
     return result;
 }
 
+void TFairShareTree::OnTreeRemoveStarted()
+{
+    YT_LOG_DEBUG("Pool tree %Qv is marked to be removed", TreeId_);
+    IsBeingRemoved_ = true;
+}
+
+bool TFairShareTree::IsBeingRemoved()
+{
+    return IsBeingRemoved_;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

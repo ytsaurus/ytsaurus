@@ -3,7 +3,7 @@
 #include "public.h"
 
 #include <yt/ytlib/chunk_client/public.h>
-#include <yt/ytlib/hydra/hydra_manager.pb.h>
+#include <yt/ytlib/hydra/proto/hydra_manager.pb.h>
 
 #include <yt/core/actions/public.h>
 
@@ -36,7 +36,6 @@ public:
     //! Synchronously creates a new changelog.
     IChangelogPtr CreateChangelog(
         const TString& path,
-        const NProto::TChangelogMeta& meta,
         const TFileChangelogConfigPtr& config);
 
     //! Synchronously opens an existing changelog.

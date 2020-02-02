@@ -25,14 +25,18 @@ struct TSubquery
     std::pair<NTableClient::TUnversionedOwningRow, NTableClient::TUnversionedOwningRow> Limits;
 };
 
+struct TQueryInput
+{
+    NChunkPools::TChunkStripeListPtr StripeList;
+    THashMap<NChunkClient::TChunkId, NChunkClient::TRefCountedMiscExtPtr> MiscExtMap;
+};
+
 //! Fetch data slices for given input tables and fill given subquery spec template.
-NChunkPools::TChunkStripeListPtr FetchInput(
+TQueryInput FetchInput(
     TBootstrap* bootstrap,
     NApi::NNative::IClientPtr client,
     const IInvokerPtr& invoker,
-    std::vector<NTableClient::TTableSchema> tableSchemas,
-    std::vector<std::vector<NYPath::TRichYPath>> inputTablePaths,
-    std::vector<std::optional<DB::KeyCondition>> keyConditions,
+    const TQueryAnalysisResult& queryAnalysisResult,
     NTableClient::TRowBufferPtr rowBuffer,
     TSubqueryConfigPtr config,
     TSubquerySpec& specTemplate);

@@ -1032,6 +1032,7 @@ void ValidateValueType(const TUnversionedValue& value, const TColumnSchema& colu
     try {
         switch (*columnSchema.SimplifiedLogicalType()) {
             case ESimpleLogicalValueType::Null:
+            case ESimpleLogicalValueType::Void:
                 // this case should be handled before
                 if (value.Type != EValueType::Null) {
                     ThrowInvalidColumnType(EValueType::Null, value.Type);
@@ -1939,4 +1940,3 @@ TEntityInAnyReporter EntityInAnyReporter;
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient
-

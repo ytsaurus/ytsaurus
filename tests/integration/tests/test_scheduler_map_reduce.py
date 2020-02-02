@@ -8,6 +8,7 @@ from collections import defaultdict
 from random import shuffle
 import datetime
 
+import base64
 
 ##################################################################
 
@@ -15,7 +16,6 @@ class TestSchedulerMapReduceCommands(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
-    USE_DYNAMIC_TABLES = True
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent" : {
@@ -28,14 +28,6 @@ class TestSchedulerMapReduceCommands(YTEnvSetup):
             "enable_partition_map_job_size_adjustment" : True
         }
     }
-
-    def _create_simple_dynamic_table(self, path, sort_order="ascending", **attributes):
-        if "schema" not in attributes:
-            attributes.update({"schema": [
-                {"name": "key", "type": "int64", "sort_order": sort_order},
-                {"name": "value", "type": "string"}]
-            })
-        create_dynamic_table(path, **attributes)
 
     @pytest.mark.parametrize("method", ["map_sort_reduce", "map_reduce", "map_reduce_1p", "reduce_combiner_dev_null",
                                         "force_reduce_combiners", "ordered_map_reduce"])
@@ -324,7 +316,7 @@ print "x={0}\ty={1}".format(x, y)
             create("table", "//tmp/t2")
 
             op = map_reduce(
-                dont_track=True,
+                track=False,
                 mapper_command="cat",
                 reducer_command="cat; sleep 3",
                 in_="//tmp/t1",
@@ -367,7 +359,7 @@ print "x={0}\ty={1}".format(x, y)
             create("table", "//tmp/t2")
 
             op = map_reduce(
-                dont_track=True,
+                track=False,
                 mapper_command="cat",
                 reducer_command=with_breakpoint("cat; BREAKPOINT"),
                 in_="//tmp/t1",
@@ -397,7 +389,7 @@ print "x={0}\ty={1}".format(x, y)
         write_table("//tmp/t1", {"foo": "bar"})
         create("table", "//tmp/t2")
 
-        op = map_reduce(dont_track=True,
+        op = map_reduce(track=False,
                         mapper_command="cat", reducer_command="sleep 5; cat",
                         in_="//tmp/t1", out="//tmp/t2",
                         sort_by=["foo"], spec={"intermediate_compression_codec": "brotli_3"})
@@ -489,7 +481,7 @@ print "x={0}\ty={1}".format(x, y)
                    "sort_job_io" : {"table_reader" : {"retry_count" : 1, "pass_count" : 1}},
                    "resource_limits" : { "user_slots" : 1},
                    "ordered": ordered},
-             dont_track=True)
+             track=False)
 
         # We wait for the first reducer to start (second is pending due to resource_limits).
         events_on_fs().wait_event("reducer_started", timeout=datetime.timedelta(1000))
@@ -532,7 +524,7 @@ print "x={0}\ty={1}".format(x, y)
                    "partition_count": 2,
                    "resource_limits" : { "user_slots" : 1},
                    "ordered": ordered},
-             dont_track=True)
+             track=False)
 
         # We wait for the first reducer to start (the second one is pending due to resource_limits).
         events_on_fs().wait_event("reducer_started", timeout=datetime.timedelta(1000))
@@ -580,7 +572,7 @@ print "x={0}\ty={1}".format(x, y)
                         sort_by="x",
                         reducer_command=reducer_cmd,
                         spec={"partition_count": 1, "ordered": ordered},
-                        dont_track=True)
+                        track=False)
 
         events_on_fs().wait_event("reducer_started", timeout=datetime.timedelta(1000))
 
@@ -748,57 +740,6 @@ print "x={0}\ty={1}".format(x, y)
         expected = [{"lines": str(2**i)} for i in xrange(5)]
         actual = read_table("//tmp/t_output")
         assert_items_equal(actual, expected)
-
-    @authors("savrus")
-    @parametrize_external
-    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
-    @pytest.mark.parametrize("sort_order", [None, "ascending"])
-    def test_map_reduce_on_dynamic_table(self, external, sort_order, optimize_for):
-        sync_create_cells(1)
-        self._create_simple_dynamic_table("//tmp/t", sort_order=sort_order, optimize_for=optimize_for, external=external)
-
-        create("table", "//tmp/t_out")
-
-        rows = [{"key": i, "value": str(i)} for i in range(6)]
-        sync_mount_table("//tmp/t")
-        insert_rows("//tmp/t", rows)
-        sync_unmount_table("//tmp/t")
-
-        map_reduce(
-            in_="//tmp/t",
-            out="//tmp/t_out",
-            sort_by="key",
-            mapper_command="cat",
-            reducer_command="cat")
-
-        assert_items_equal(read_table("//tmp/t_out"), rows)
-
-        rows1 = [{"key": i, "value": str(i+1)} for i in range(3, 10)]
-        sync_mount_table("//tmp/t")
-        insert_rows("//tmp/t", rows1)
-        sync_unmount_table("//tmp/t")
-
-        map_reduce(
-            in_="//tmp/t",
-            out="//tmp/t_out",
-            sort_by="key",
-            mapper_command="cat",
-            reducer_command="cat")
-
-        def update(new):
-            def update_row(row):
-                if sort_order == "ascending":
-                    for r in rows:
-                        if r["key"] == row["key"]:
-                            r["value"] = row["value"]
-                            return
-                rows.append(row)
-            for row in new:
-                update_row(row)
-
-        update(rows1)
-
-        assert_items_equal(read_table("//tmp/t_out"), rows)
 
     @authors("max42")
     @pytest.mark.parametrize("sorted", [False, True])

@@ -22,7 +22,7 @@
 
 #include <yt/ytlib/hive/cell_directory.h>
 
-#include <yt/core/erasure/codec.h>
+#include <yt/library/erasure/codec.h>
 
 namespace NYT::NChunkServer {
 
@@ -82,7 +82,11 @@ private:
         SyncWithUpstream();
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        TNodeDirectoryBuilder nodeDirectoryBuilder(response->mutable_node_directory());
+
+        auto addressType = request->has_address_type()
+            ? CheckedEnumCast<NNodeTrackerClient::EAddressType>(request->address_type())
+            : NNodeTrackerClient::EAddressType::InternalRpc;
+        TNodeDirectoryBuilder nodeDirectoryBuilder(response->mutable_node_directory(), addressType);
 
         const auto& cellDirectory = Bootstrap_->GetCellDirectory();
         const auto& multicellManager = Bootstrap_->GetMulticellManager();

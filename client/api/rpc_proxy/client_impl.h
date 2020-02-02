@@ -235,6 +235,11 @@ public:
         const std::vector<NYPath::TRichYPath>& path,
         const NApi::TGetColumnarStatisticsOptions& options) override;
 
+    virtual TFuture<void> TruncateJournal(
+        const NYPath::TYPath& path,
+        i64 rowCount,
+        const NApi::TTruncateJournalOptions& options) override;
+
 private:
     const TConnectionPtr Connection_;
     const TDynamicChannelPoolPtr ChannelPool_;

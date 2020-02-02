@@ -11,7 +11,7 @@
 
 #include <yt/ytlib/hydra/public.h>
 
-#include <yt/ytlib/tablet_client/heartbeat.pb.h>
+#include <yt/ytlib/tablet_client/proto/heartbeat.pb.h>
 
 #include <yt/ytlib/object_client/public.h>
 
@@ -95,6 +95,7 @@ public:
     double GetUsedCpu(double cpuPerTabletSlot) const;
 
     NTabletClient::TDynamicTabletCellOptionsPtr GetDynamicOptions() const;
+    NTabletClient::TTabletCellOptionsPtr GetOptions() const;
 
     i32 GetDynamicConfigVersion() const;
     void UpdateDynamicConfig(const NTabletClient::NProto::TUpdateTabletSlotInfo& updateInfo);
@@ -102,10 +103,6 @@ public:
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;
-
-    class TElectionManager;
-    using TElectionManagerPtr = TIntrusivePtr<TElectionManager>;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletSlot)

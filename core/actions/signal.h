@@ -53,13 +53,11 @@ public:
 
     //! Runs all handlers in the list.
     //! The return values (if any) are ignored.
-    template <class... TCallArgs>
-    void Fire(TCallArgs&&... args) const;
+    void Fire(const TArgs&... args) const;
 
     //! Runs all handlers in the list and clears the list.
     //! The return values (if any) are ignored.
-    template <class... TCallArgs>
-    void FireAndClear(TCallArgs&&... args);
+    void FireAndClear(const TArgs&... args);
 
 private:
     mutable NConcurrency::TReaderWriterSpinLock SpinLock_;
@@ -124,7 +122,7 @@ public:
 
 private:
     mutable NConcurrency::TReaderWriterSpinLock SpinLock_;
-    bool Fired_ = false;
+    std::atomic<bool> Fired_ = false;
     using TCallbackVector = SmallVector<TCallback, 4>;
     TCallbackVector Callbacks_;
     std::tuple<typename std::decay<TArgs>::type...> Args_;

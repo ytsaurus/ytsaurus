@@ -327,6 +327,18 @@ public:
         });
     }
 
+    virtual void SubscribeTerminated(const TCallback<void(const TError&)>& callback) override
+    {
+        PrimaryChannel_->SubscribeTerminated(callback);
+        BackupChannel_->SubscribeTerminated(callback);
+    }
+
+    virtual void UnsubscribeTerminated(const TCallback<void(const TError&)>& callback) override
+    {
+        PrimaryChannel_->UnsubscribeTerminated(callback);
+        BackupChannel_->UnsubscribeTerminated(callback);
+    }
+
 private:
     const IChannelPtr PrimaryChannel_;
     const IChannelPtr BackupChannel_;

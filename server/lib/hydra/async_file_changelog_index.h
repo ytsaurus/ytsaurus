@@ -44,7 +44,7 @@ class TAsyncFileChangelogIndex
 {
 public:
     TAsyncFileChangelogIndex(
-        const NChunkClient::IIOEnginePtr& IOEngine,
+        const NChunkClient::IIOEnginePtr& ioEngine,
         const TString& fileName,
         i64 alignment,
         i64 indexBlockSize);
@@ -66,8 +66,8 @@ public:
         int lastRecordId,
         i64 maxBytes = -1) const;
 
-    void Read(const std::optional<i32>& truncatedRecordCount = std::nullopt);
-    void TruncateInvalidRecords(i64 correctPrefixSize);
+    void Read(std::optional<int> truncatedRecordCount = {});
+    void TruncateInvalidRecords(i64 validPrefixSize);
 
     template <class TTag = TDefaultSharedBlobTag>
     static TSharedMutableRef AllocateAligned(size_t size, bool initializeStorage, size_t alignment)

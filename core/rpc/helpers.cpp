@@ -304,27 +304,49 @@ class TFailureDetectingChannel
 public:
     TFailureDetectingChannel(
         IChannelPtr underlyingChannel,
-        TCallback<void(IChannelPtr)> onFailure,
+        std::optional<TDuration> acknowledgementTimeout,
+        TCallback<void(const IChannelPtr&, const TError&)> onFailure,
         TCallback<bool(const TError&)> isError)
         : TChannelWrapper(std::move(underlyingChannel))
+        , AcknowledgementTimeout_(acknowledgementTimeout)
         , OnFailure_(std::move(onFailure))
         , IsError_(std::move(isError))
-    { }
+        , OnTerminated_(BIND(&TFailureDetectingChannel::OnTerminated, MakeWeak(this)))
+    {
+        UnderlyingChannel_->SubscribeTerminated(OnTerminated_);
+    }
+
+    ~TFailureDetectingChannel()
+    {
+        UnderlyingChannel_->UnsubscribeTerminated(OnTerminated_);
+    }
 
     virtual IClientRequestControlPtr Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
         const TSendOptions& options) override
     {
+        auto updatedOptions = options;
+        if (AcknowledgementTimeout_) {
+            updatedOptions.AcknowledgementTimeout = AcknowledgementTimeout_;
+        }
         return UnderlyingChannel_->Send(
             request,
             New<TResponseHandler>(this, std::move(responseHandler), OnFailure_, IsError_),
-            options);
+            updatedOptions);
     }
 
 private:
-    const TCallback<void(IChannelPtr)> OnFailure_;
+    const std::optional<TDuration> AcknowledgementTimeout_;
+    const TCallback<void(const IChannelPtr&, const TError&)> OnFailure_;
     const TCallback<bool(const TError&)> IsError_;
+    const TCallback<void(const TError&)> OnTerminated_;
+
+
+    void OnTerminated(const TError& error)
+    {
+        OnFailure_(this, error);
+    }
 
     class TResponseHandler
         : public IClientResponseHandler
@@ -333,7 +355,7 @@ private:
         TResponseHandler(
             IChannelPtr channel,
             IClientResponseHandlerPtr underlyingHandler,
-            TCallback<void(IChannelPtr)> onFailure,
+            TCallback<void(const IChannelPtr&, const TError&)> onFailure,
             TCallback<bool(const TError&)> isError)
             : Channel_(std::move(channel))
             , UnderlyingHandler_(std::move(underlyingHandler))
@@ -354,7 +376,7 @@ private:
         virtual void HandleError(const TError& error) override
         {
             if (IsError_(error)) {
-                OnFailure_.Run(Channel_);
+                OnFailure_.Run(Channel_, error);
             }
             UnderlyingHandler_->HandleError(error);
         }
@@ -372,92 +394,50 @@ private:
     private:
         const IChannelPtr Channel_;
         const IClientResponseHandlerPtr UnderlyingHandler_;
-        const TCallback<void(IChannelPtr)> OnFailure_;
+        const TCallback<void(const IChannelPtr&, const TError&)> OnFailure_;
         const TCallback<bool(const TError&)> IsError_;
     };
 };
 
 IChannelPtr CreateFailureDetectingChannel(
     IChannelPtr underlyingChannel,
-    TCallback<void(IChannelPtr)> onFailure,
+    std::optional<TDuration> acknowledgementTimeout,
+    TCallback<void(const IChannelPtr&, const TError& error)> onFailure,
     TCallback<bool(const TError&)> isError)
 {
     return New<TFailureDetectingChannel>(
         std::move(underlyingChannel),
+        acknowledgementTimeout,
         std::move(onFailure),
         std::move(isError));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSpanContext GetSpanContext(const TRequestHeader& header)
+TTraceContextPtr CreateHandlerTraceContext(const NProto::TRequestHeader& header)
 {
-    if (!header.HasExtension(TTracingExt::tracing_ext)) {
-        return {};
+    const auto& ext = header.GetExtension(NProto::TRequestHeader::tracing_ext);
+    // Fast path.
+    if (!ext.has_trace_id()) {
+        return nullptr;
     }
-
-    const auto& ext = header.GetExtension(TTracingExt::tracing_ext);
-
-    auto traceId = InvalidTraceId;
-    if (ext.has_trace_id()) {
-        FromProto(&traceId, ext.trace_id());
-    } else if (ext.has_trace_id_old()) {
-        // COMPAT(prime)
-        traceId.Parts64[0] = ext.trace_id_old();
-    }
-
-    auto spanId = InvalidSpanId;
-    if (ext.has_span_id()) {
-        spanId = ext.span_id();
-    } else if (ext.has_span_id_old()) {
-        spanId = ext.span_id_old();
-    }
-
-    return {
-        traceId,
-        spanId,
-        ext.sampled(),
-        ext.debug()
-    };
-}
-
-TTraceContextPtr GetOrCreateTraceContext(const NProto::TRequestHeader& header)
-{
-    auto clientSpan = GetSpanContext(header);
-    auto spanName = header.service() + "." + header.method();
-    if (clientSpan.TraceId != InvalidTraceId) {
-        return New<NTracing::TTraceContext>(clientSpan, spanName);
-    } else {
-        return CreateRootTraceContext(spanName);
-    }
+    // Slow path.
+    return NTracing::CreateChildTraceContext(
+        ext,
+        ConcatToString(AsStringBuf("RpcServer:"), header.service(), AsStringBuf("."), header.method()));
 }
 
 TTraceContextPtr CreateCallTraceContext(const TString& service, const TString& method)
 {
     auto context = GetCurrentTraceContext();
+    // Fast path.
     if (!context) {
         return nullptr;
     }
-
-    auto spanName = service + "." + method;
-    return CreateChildTraceContext(spanName);
-}
-
-void SetTraceContext(TRequestHeader* header, const TTraceContextPtr& traceContext)
-{
-    if (!traceContext) {
-        return;
-    }
-
-    auto* ext = header->MutableExtension(TTracingExt::tracing_ext);
-    ToProto(ext->mutable_trace_id(), traceContext->GetTraceId());
-    ext->set_span_id(traceContext->GetSpanId());
-    ext->set_sampled(traceContext->IsSampled());
-    ext->set_debug(traceContext->IsDebug());
-
-    // COMPAT(prime)
-    ext->set_trace_id_old(traceContext->GetTraceId().Parts64[0]);
-    ext->set_span_id_old(traceContext->GetSpanId());
+    // Slow path.
+    return CreateChildTraceContext(
+        std::move(context),
+        ConcatToString(AsStringBuf("RpcClient:"), service, AsStringBuf("."), method));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

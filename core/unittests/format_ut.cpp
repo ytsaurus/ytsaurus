@@ -1,11 +1,44 @@
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/core/misc/format.h>
+#include <yt/core/misc/guid.h>
+#include <yt/core/misc/small_vector.h>
 
 #include <limits>
 
 namespace NYT {
 namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Some compile-time sanity checks.
+DEFINE_ENUM(ESample, (One)(Two));
+static_assert(TFormatTraits<ESample>::HasCustomFormatValue);
+static_assert(TFormatTraits<int>::HasCustomFormatValue);
+static_assert(TFormatTraits<double>::HasCustomFormatValue);
+static_assert(TFormatTraits<void*>::HasCustomFormatValue);
+static_assert(TFormatTraits<const char*>::HasCustomFormatValue);
+static_assert(TFormatTraits<TStringBuf>::HasCustomFormatValue);
+static_assert(TFormatTraits<TString>::HasCustomFormatValue);
+static_assert(TFormatTraits<TGuid>::HasCustomFormatValue);
+static_assert(TFormatTraits<std::vector<int>>::HasCustomFormatValue);
+static_assert(TFormatTraits<SmallVector<int, 1>>::HasCustomFormatValue);
+static_assert(TFormatTraits<std::set<int>>::HasCustomFormatValue);
+static_assert(TFormatTraits<std::map<int, int>>::HasCustomFormatValue);
+static_assert(TFormatTraits<std::multimap<int, int>>::HasCustomFormatValue);
+static_assert(TFormatTraits<THashSet<int>>::HasCustomFormatValue);
+static_assert(TFormatTraits<THashMap<int, int>>::HasCustomFormatValue);
+static_assert(TFormatTraits<THashMultiSet<int>>::HasCustomFormatValue);
+static_assert(TFormatTraits<TEnumIndexedVector<ESample, int>>::HasCustomFormatValue);
+static_assert(TFormatTraits<std::pair<int, int>>::HasCustomFormatValue);
+static_assert(TFormatTraits<std::optional<int>>::HasCustomFormatValue);
+static_assert(TFormatTraits<TDuration>::HasCustomFormatValue);
+static_assert(TFormatTraits<TInstant>::HasCustomFormatValue);
+
+struct TUnformattable
+{ };
+static_assert(!TFormatTraits<TUnformattable>::HasCustomFormatValue);
+static_assert(!TFormatTraits<TIntrusivePtr<TIntrinsicRefCounted>>::HasCustomFormatValue);
 
 ////////////////////////////////////////////////////////////////////////////////
 

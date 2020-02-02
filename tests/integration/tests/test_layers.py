@@ -13,7 +13,7 @@ from flaky import flaky
 
 @pytest.fixture(scope="module")
 def layers_resource():
-    from_sandbox("1144688059")
+    from_sandbox("1290617403")
 
 @pytest.mark.skip_if('not porto_avaliable()')
 @pytest.mark.usefixtures("layers_resource")
@@ -167,6 +167,86 @@ class TestLayers(YTEnvSetup):
                         "layer_paths" : ["//tmp/layer1", "//tmp/bad_layer"],
                     }
                 })
+
+@pytest.mark.usefixtures("layers_resource")
+@pytest.mark.skip_if('not porto_avaliable()')
+@authors("psushin")
+class TestTmpfsLayerCache(YTEnvSetup):
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 1
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "test_root_fs" : True,
+            "slot_manager": {
+                "job_environment" : {
+                    "type" : "porto",
+                },
+            }
+        },
+        "data_node" : {
+            "volume_manager" : {
+                "tmpfs_layer_cache" : {
+                    "capacity" : 10 * 1024 * 1024,
+                    "layers_directory_path" : "//tmp/cached_layers",
+                    "layers_update_period" : 100,
+                }
+            }
+        }
+    }
+
+    USE_PORTO_FOR_SERVERS = True
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
+
+    def setup_files(self):
+        create("file", "//tmp/layer1", attributes={"replication_factor": 1})
+        file_name = "layers/static-bin.tar.gz"
+        write_file("//tmp/layer1", open(file_name).read())
+
+        create("file", "//tmp/static_cat", attributes={"replication_factor": 1})
+        file_name = "layers/static_cat"
+        write_file("//tmp/static_cat", open(file_name).read())
+
+        set("//tmp/static_cat/@executable", True)
+
+    def test_tmpfs_layer_cache(self):
+        self.setup_files()
+
+        orchid_path = "orchid/job_controller/slot_manager/root_volume_manager"
+
+        for node in ls("//sys/cluster_nodes"):
+            assert get("//sys/cluster_nodes/{0}/{1}/tmpfs_cache/layer_count".format(node, orchid_path)) == 0
+
+        create("map_node", "//tmp/cached_layers")
+        link("//tmp/layer1", "//tmp/cached_layers/layer1")
+
+        for node in ls("//sys/cluster_nodes"):
+            wait(lambda: get("//sys/cluster_nodes/{0}/{1}/tmpfs_cache/layer_count".format(node, orchid_path)) == 1)
+
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
+
+        write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
+        op = map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="./static_cat; ls $YT_ROOT_FS 1>&2",
+            file="//tmp/static_cat",
+            spec={
+                "max_failed_job_count" : 1,
+                "mapper" : {
+                    "layer_paths" : ["//tmp/layer1"],
+                }
+            })
+
+        jobs_path = op.get_path() + "/jobs"
+        assert get(jobs_path + "/@count") == 1
+        for job_id in ls(jobs_path):
+            stderr_path = "{0}/{1}/stderr".format(jobs_path, job_id)
+            assert "static-bin" in read_file(stderr_path)
+
+        remove("//tmp/cached_layers/layer1")
+        for node in ls("//sys/cluster_nodes"):
+            wait(lambda: get("//sys/cluster_nodes/{0}/{1}/tmpfs_cache/layer_count".format(node, orchid_path)) == 0)
 
 @pytest.mark.usefixtures("layers_resource")
 @pytest.mark.skip_if('not porto_avaliable()')
@@ -433,6 +513,8 @@ class TestGpuLayer(YTEnvSetup):
 
     def test_setup_cat_gpu_layer(self):
         self.setup_files()
+
+        get("//tmp/drivers/test_version/@content_revision")
 
         create("table", "//tmp/t_in", attributes={"replication_factor": 1}, file_writer={"upload_replication_factor": 1})
         create("table", "//tmp/t_out", attributes={"replication_factor": 1}, file_writer={"upload_replication_factor": 1})

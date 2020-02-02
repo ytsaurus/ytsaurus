@@ -832,7 +832,7 @@ echo {v = 2} >&7
 
         create("table", "//tmp/out")
         op = join_reduce(
-            dont_track=True,
+            track=False,
             in_=["<foreign=true>//tmp/in1", '//tmp/in2["00001":"00004"]'],
             out="//tmp/out",
             command="exit 1",
@@ -958,7 +958,7 @@ echo {v = 2} >&7
         create("table", "//tmp/output")
 
         op = join_reduce(
-            dont_track=True,
+            track=False,
             label="interrupt_job",
             in_=["<foreign=true>//tmp/input2", "//tmp/input1"],
             out="<sorted_by=[key]>//tmp/output",
@@ -1036,7 +1036,7 @@ done
 """
 
         op = join_reduce(
-            dont_track=True,
+            track=False,
             label="split_job",
             in_=input_,
             out=output,

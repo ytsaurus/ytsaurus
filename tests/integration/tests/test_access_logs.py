@@ -8,7 +8,7 @@ from yt_commands import *
 ##################################################################
 
 @authors("avmatrosov")
-class TestLogs(YTEnvSetup):
+class TestAccessLog(YTEnvSetup):
     NUM_MASTERS = 2
     NUM_NONVOTING_MASTERS = 1
     NUM_NODES = 3
@@ -207,7 +207,7 @@ class TestLogs(YTEnvSetup):
 
 ##################################################################
 
-class TestLogsPortal(TestLogs):
+class TestAccessLogPortal(TestAccessLog):
     NUM_SECONDARY_MASTER_CELLS = 3
     ENABLE_TMP_PORTAL = True
 

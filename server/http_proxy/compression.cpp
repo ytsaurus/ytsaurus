@@ -37,6 +37,11 @@ TFuture<void> TSharedRefOutputStream::Write(const TSharedRef& buffer)
     return VoidFuture;
 }
 
+TFuture<void> TSharedRefOutputStream::Flush()
+{
+    return VoidFuture;
+}
+
 TFuture<void> TSharedRefOutputStream::Close()
 {
     return VoidFuture;
@@ -50,7 +55,7 @@ const std::vector<TSharedRef>& TSharedRefOutputStream::GetRefs() const
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCompressingOutputStream
-    : public IAsyncOutputStream
+    : public IFlushableAsyncOutputStream
     , private IOutputStream
 {
 public:
@@ -78,6 +83,12 @@ public:
         }
         
         Compressor_->Write(buffer.Begin(), buffer.Size());
+        return VoidFuture;
+    }
+
+    virtual TFuture<void> Flush() override
+    {
+        Compressor_->Flush();
         return VoidFuture;
     }
 
@@ -317,6 +328,15 @@ bool IsCompressionSupported(const TContentEncoding& contentEncoding)
     return false;
 }
 
+std::vector<TContentEncoding> GetSupportedCompressions()
+{
+    auto result = SupportedCompressions;
+    for (auto blockCodec : NBlockCodecs::ListAllCodecs()) {
+        result.push_back(TString("z-") + blockCodec);
+    }
+    return result;
+}
+
 // NOTE: Does not implement the spec, but a reasonable approximation.
 TErrorOr<TContentEncoding> GetBestAcceptedEncoding(const TString& clientAcceptEncodingHeader)
 {
@@ -354,7 +374,7 @@ TErrorOr<TContentEncoding> GetBestAcceptedEncoding(const TString& clientAcceptEn
         << TErrorAttribute("client_accept_encoding", clientAcceptEncodingHeader);
 }
 
-IAsyncOutputStreamPtr CreateCompressingAdapter(
+IFlushableAsyncOutputStreamPtr CreateCompressingAdapter(
     IAsyncOutputStreamPtr underlying,
     TContentEncoding contentEncoding)
 {

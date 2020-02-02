@@ -15,6 +15,8 @@
 #include <yt/core/logging/log_manager.h>
 #include <yt/core/logging/config.h>
 
+#include <yt/core/net/address.h>
+
 #include <yt/core/tracing/trace_manager.h>
 #include <yt/core/tracing/config.h>
 
@@ -220,6 +222,7 @@ Py::Object TDriverBase::DeepCopy(const Py::Tuple& args)
 ////////////////////////////////////////////////////////////////////////////////
 
 void TDriverModuleBase::Initialize(
+    const TString& moduleName,
     std::function<void()> initType,
     std::function<void()> initModule,
     std::function<Py::Dict()> getModuleDictionary,
@@ -245,12 +248,12 @@ void TDriverModuleBase::Initialize(
         /*index*/ 0
     );
 
-    TSignalRegistry::Get()->PushCallback(SIGSEGV, CrashSignalHandler);
-    TSignalRegistry::Get()->PushDefaultSignalHandler(SIGSEGV);
+    TSignalRegistry::Get()->PushCallback(AllCrashSignals, CrashSignalHandler);
+    TSignalRegistry::Get()->PushDefaultSignalHandler(AllCrashSignals);
 
-    TBufferedStreamWrap::InitType();
-    TDriverResponse::InitType();
-    TCommandDescriptor::InitType();
+    TBufferedStreamWrap::InitType(moduleName);
+    TDriverResponse::InitType(moduleName);
+    TCommandDescriptor::InitType(moduleName);
     initType();
 
     addPycxxMethod("configure_logging", &TDriverModuleBase::ConfigureLogging, "Configures YT driver logging");

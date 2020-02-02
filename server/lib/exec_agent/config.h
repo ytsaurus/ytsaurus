@@ -92,11 +92,8 @@ public:
     TDuration PortoWaitTime;
     TDuration PortoPollPeriod;
     TDuration BlockIOWatchdogPeriod;
-    bool UseResourceLimits;
 
     std::optional<TDuration> ResourceLimitsUpdatePeriod;
-    std::optional<TString> ExternalJobContainer;
-    std::optional<TString> ExternalJobRootVolume;
 
     THashMap<TString, TString> ExternalBinds;
 
@@ -111,14 +108,8 @@ public:
             .Default(TDuration::MilliSeconds(100));
         RegisterParameter("block_io_watchdog_period", BlockIOWatchdogPeriod)
             .Default(TDuration::Seconds(60));
-        RegisterParameter("use_resource_limits", UseResourceLimits)
-            .Default(false);
 
         RegisterParameter("resource_limits_update_period", ResourceLimitsUpdatePeriod)
-            .Default();
-        RegisterParameter("external_job_container", ExternalJobContainer)
-            .Default();
-        RegisterParameter("external_job_root_volume", ExternalJobRootVolume)
             .Default();
         RegisterParameter("external_binds", ExternalBinds)
             .Default();

@@ -73,7 +73,7 @@ private:
 
 template <class T, class TTraits, class... As>
 TRefCountedPtr<T, TTraits> CreateObjectWithExtraSpace(
-    TTraits& alloc,
+    TTraits* traits,
     size_t extraSpaceSize,
     As&&... args);
 
@@ -102,6 +102,8 @@ public:
     TAtomicPtr& operator=(TRefCountedPtr<T, TTraits> other);
 
     TAtomicPtr& operator=(std::nullptr_t);
+
+    TRefCountedPtr<T, TTraits> Release();
 
     TRefCountedPtr<T, TTraits> AcquireWeak() const;
 

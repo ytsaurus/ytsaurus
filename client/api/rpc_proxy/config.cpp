@@ -34,6 +34,8 @@ TConnectionConfig::TConnectionConfig()
 
     RegisterParameter("rpc_timeout", RpcTimeout)
         .Default(TDuration::Seconds(30));
+    RegisterParameter("rpc_acknowledgement_timeout", RpcAcknowledgementTimeout)
+        .Default(TDuration::Seconds(15));
     RegisterParameter("timestamp_provider_update_period", TimestampProviderUpdatePeriod)
         .Default(TDuration::Seconds(3));
     RegisterParameter("default_transaction_timeout", DefaultTransactionTimeout)

@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/cypress_client/cypress_ypath.pb.h>
+#include <yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
 
 #include <yt/ytlib/object_client/object_ypath_proxy.h>
 

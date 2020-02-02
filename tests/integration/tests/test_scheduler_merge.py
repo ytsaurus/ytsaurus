@@ -26,6 +26,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "operations_update_period": 10,
+            "max_chunks_per_fetch": 10,
             "sorted_merge_operation_options": {
                 "job_splitter": {
                     "min_job_time": 3000,
@@ -1237,7 +1238,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         for i in range(25):
             write_table("<append=%true>//tmp/t_in", {"a": i})
         op = merge(
-            dont_track=True,
+            track=False,
             in_=["//tmp/t_in"],
             out="//tmp/t_out",
             spec={
@@ -1277,7 +1278,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             expected.append(row)
 
         op = merge(
-            dont_track=True,
+            track=False,
             in_=["//tmp/t_in"],
             out="//tmp/t_out",
             spec={
@@ -1382,7 +1383,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         for i in range(12):
             merge(in_=["//tmp/t1", "//tmp/t1"], out="//tmp/t1")
         create("table", "//tmp/t2")
-        op = merge(dont_track=True,
+        op = merge(track=False,
                    in_="//tmp/t1",
                    out="//tmp/t2",
                    mode=mode,
@@ -1657,8 +1658,6 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         write_table("//tmp/t1", [{"a": 1}])
         chunk_id = get_singular_chunk_id("//tmp/t1")
 
-        #external_requisition_indexes/2
-
         create("table", "//tmp/t2", attributes={"external_cell_tag": 2})
 
         tx = start_transaction()
@@ -1693,3 +1692,34 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         assert get("//tmp/t2_copy/@chunk_count") == 1
         assert get_singular_chunk_id("//tmp/t2_copy") == chunk_id
         assert exists("#{0}".format(chunk_id))
+
+    @authors("babenko")
+    def test_fetch_trimmed_ordered_table_yt_11825(self):
+        sync_create_cells(1)
+        create("table", "//tmp/in", attributes={
+                "dynamic": True,
+                "schema": [
+                    {"name": "value", "type": "int64"}
+                ]
+            })
+        sync_mount_table("//tmp/in")
+        
+        n = 20
+        for i in xrange(n):
+            insert_rows("//tmp/in", [{"value": i}])
+            sync_freeze_table("//tmp/in")
+            sync_unfreeze_table("//tmp/in")
+        
+        assert get("//tmp/in/@chunk_count") == n
+
+        m = 15
+        trim_rows("//tmp/in", 0, m)
+
+        wait(lambda: get("//tmp/in/@chunk_count") == n - m)
+
+        create("table", "//tmp/out")
+
+        merge(mode="ordered", in_=["//tmp/in"], out="//tmp/out")
+
+        assert read_table("//tmp/out") == [{"value": i} for i in xrange(m, n)]
+

@@ -18,6 +18,10 @@ using TRefiner = std::function<TConstExpressionPtr(
     const TConstExpressionPtr& expr,
     const TKeyColumns& keyColumns)>;
 
+std::pair<TConstFrontQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
+    const TConstQueryPtr& query,
+    const std::vector<TRefiner>& refiners);
+
 TRowRanges GetPrunedRanges(
     const TConstExpressionPtr& predicate,
     const TTableSchema& tableSchema,

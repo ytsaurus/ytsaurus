@@ -556,10 +556,12 @@ public:
         }
 
         if (ShutdownRequested_) {
+            ++DroppedEvents_;
             return;
         }
 
         if (LoggingThread_->IsShutdown()) {
+            ++DroppedEvents_;
             return;
         }
 
@@ -591,6 +593,7 @@ public:
 
         // NB: Always allow system messages to pass through.
         if (Suspended_ && event.Category != SystemCategory_) {
+            ++DroppedEvents_;
             return;
         }
 
@@ -990,11 +993,13 @@ private:
         auto writtenEvents = WrittenEvents_.load();
         auto enqueuedEvents = EnqueuedEvents_.load();
         auto suppressedEvents = SuppressedEvents_.load();
+        auto droppedEvents = DroppedEvents_.load();
         auto messageBuffersSize = TRefCountedTracker::Get()->GetBytesAlive(GetRefCountedTypeKey<NDetail::TMessageBufferTag>());
 
         Profiler.Enqueue("/enqueued_events", enqueuedEvents, EMetricType::Counter);
         Profiler.Enqueue("/written_events", writtenEvents, EMetricType::Counter);
-        Profiler.Enqueue("/backlog_events", enqueuedEvents - writtenEvents, EMetricType::Counter);
+        Profiler.Enqueue("/backlog_events", enqueuedEvents - writtenEvents, EMetricType::Gauge);
+        Profiler.Enqueue("/dropped_events", droppedEvents, EMetricType::Counter);
         Profiler.Enqueue("/suppressed_events", suppressedEvents, EMetricType::Counter);
         Profiler.Enqueue("/message_buffers_size", messageBuffersSize, EMetricType::Gauge);
     }
@@ -1251,6 +1256,7 @@ private:
     std::atomic<ui64> WrittenEvents_ = {0};
     std::atomic<ui64> FlushedEvents_ = {0};
     std::atomic<ui64> SuppressedEvents_ = {0};
+    std::atomic<ui64> DroppedEvents_ = {0};
 
     THashMap<TString, ILogWriterPtr> Writers_;
     THashMap<TLogWritersCacheKey, std::vector<ILogWriterPtr>> CachedWriters_;

@@ -2,13 +2,11 @@
 
 #include "query_context.h"
 #include "config.h"
-
 #include "subquery_spec.h"
 #include "table_schema.h"
 #include "table.h"
 #include "helpers.h"
-
-#include "private.h"
+#include "query_analyzer.h"
 
 #include <yt/server/lib/chunk_pools/chunk_stripe.h>
 #include <yt/server/lib/chunk_pools/helpers.h>
@@ -94,27 +92,26 @@ class TDataSliceFetcher
     : public TRefCounted
 {
 public:
-    // TODO(max42): use from bootstrap?
     DEFINE_BYREF_RW_PROPERTY(TDataSourceDirectoryPtr, DataSourceDirectory, New<TDataSourceDirectory>());
-    DEFINE_BYREF_RW_PROPERTY(TNodeDirectoryPtr, NodeDirectory, New<TNodeDirectory>());
     DEFINE_BYREF_RW_PROPERTY(TChunkStripeListPtr, ResultStripeList, New<TChunkStripeList>());
+    using TMiscExtMap = THashMap<TChunkId, TRefCountedMiscExtPtr>;
+    DEFINE_BYREF_RW_PROPERTY(TMiscExtMap, MiscExtMap);
 
 public:
     TDataSliceFetcher(
         TBootstrap* bootstrap,
         NNative::IClientPtr client,
         IInvokerPtr invoker,
-        std::vector<TTableSchema> tableSchemas,
-        std::vector<std::vector<TRichYPath>> inputTablePaths,
-        std::vector<std::optional<KeyCondition>> keyConditions,
+        const TQueryAnalysisResult& queryAnalysisResult,
         TRowBufferPtr rowBuffer,
         TSubqueryConfigPtr config)
         : Bootstrap_(bootstrap)
         , Client_(std::move(client))
         , Invoker_(std::move(invoker))
-        , TableSchemas_(std::move(tableSchemas))
-        , InputTablePaths_(std::move(inputTablePaths))
-        , KeyConditions_(std::move(keyConditions))
+        , TableSchemas_(queryAnalysisResult.TableSchemas)
+        , InputTablePaths_(queryAnalysisResult.TablePaths)
+        , KeyConditions_(queryAnalysisResult.KeyConditions)
+        , KeyColumnCount_(queryAnalysisResult.KeyColumnCount)
         , RowBuffer_(std::move(rowBuffer))
         , Config_(std::move(config))
     { }
@@ -139,9 +136,7 @@ private:
     std::vector<std::vector<TRichYPath>> InputTablePaths_;
     std::vector<std::optional<KeyCondition>> KeyConditions_;
 
-    int KeyColumnCount_ = 0;
-    TKeyColumns KeyColumns_;
-
+    std::optional<int> KeyColumnCount_ = 0;
     DataTypes KeyColumnDataTypes_;
 
     std::vector<TInputTable> InputTables_;
@@ -155,7 +150,21 @@ private:
     void DoFetch()
     {
         CollectTablesAttributes();
-        ValidateSchema();
+
+        // TODO(max42): do we need this check?
+        if (!TableSchemas_.empty()) {
+            // TODO(max42): it's better for query analyzer to do this substitution...
+            if (TableSchemas_.size() == 1) {
+                KeyColumnCount_ = TableSchemas_.front().GetKeyColumnCount();
+            }
+            auto commonSchemaPart = TableSchemas_.front().Columns();
+            if (KeyColumnCount_) {
+                commonSchemaPart.resize(*KeyColumnCount_);
+            }
+            // TODO(max42): rewrite this!
+            KeyColumnDataTypes_ = TClickHouseTableSchema::From(TClickHouseTable("", TTableSchema(commonSchemaPart))).GetKeyDataTypes();
+        }
+
         FetchChunks();
 
         std::vector<TChunkStripePtr> stripes;
@@ -221,7 +230,7 @@ private:
                         attrs.at("external_cell_tag")->GetValue<ui64>() : CellTagFromId(table.ObjectId);
                     table.ChunkCount = attrs.at("chunk_count")->GetValue<i64>();
                     table.IsDynamic = attrs.at("dynamic")->GetValue<bool>();
-                    table.Schema = ConvertTo<TTableSchema>(attrs.at("schema"));
+                    table.Schema = AdaptSchemaToClickHouse(ConvertTo<TTableSchema>(attrs.at("schema")));
                 } else {
                     errors.emplace_back("Object %v has invalid type: expected %Qlv, actual %Qlv",
                         table.Path.GetPath(),
@@ -237,28 +246,6 @@ private:
         }
     }
 
-    void ValidateSchema()
-    {
-        if (InputTables_.empty()) {
-            return;
-        }
-
-        const auto& representativeTable = InputTables_.front();
-        for (size_t i = 1; i < InputTables_.size(); ++i) {
-            const auto& table = InputTables_[i];
-            if (table.IsDynamic != representativeTable.IsDynamic) {
-                THROW_ERROR_EXCEPTION(
-                    "Table dynamic flag mismatch: %v and %v",
-                    representativeTable.Path.GetPath(),
-                    table.Path.GetPath());
-            }
-        }
-
-        KeyColumnCount_ = representativeTable.Schema.GetKeyColumnCount();
-        KeyColumns_ = representativeTable.Schema.GetKeyColumns();
-        KeyColumnDataTypes_ = TClickHouseTableSchema::From(TClickHouseTable("", representativeTable.Schema)).GetKeyDataTypes();
-    }
-
     void FetchChunks()
     {
         i64 totalChunkCount = 0;
@@ -271,11 +258,11 @@ private:
 
         auto chunkSpecFetcher = New<TChunkSpecFetcher>(
             Client_,
-            NodeDirectory_,
+            nullptr /* nodeDirectory */,
             Invoker_,
             Config_->MaxChunksPerFetch,
             Config_->MaxChunksPerLocateRequest,
-            [=] (const TChunkOwnerYPathProxy::TReqFetchPtr& req) {
+            [=] (const TChunkOwnerYPathProxy::TReqFetchPtr& req, int /*tableIndex*/) {
                 req->set_fetch_all_meta_extensions(false);
                 req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
                 req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
@@ -316,8 +303,13 @@ private:
 
         for (const auto& chunkSpec : chunkSpecFetcher->ChunkSpecs()) {
             auto inputChunk = New<TInputChunk>(chunkSpec);
+            auto miscExt = FindProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.chunk_meta().extensions());
+            YT_VERIFY(miscExt);
+            // Note that misc extension for given chunk may already be present as same chunk may appear several times.
+            MiscExtMap_.emplace(inputChunk->ChunkId(), New<TRefCountedMiscExt>(*miscExt));
             InputChunks_.emplace_back(std::move(inputChunk));
         }
+        YT_LOG_DEBUG("Misc extension map statistics (Count: %v)", MiscExtMap_.size());
     }
 
     BoolMask GetRangeMask(TKey lowerKey, TKey upperKey, int tableIndex)
@@ -325,16 +317,17 @@ private:
         if (!KeyConditions_[tableIndex]) {
             return BoolMask(true, true);
         }
+        YT_VERIFY(KeyColumnCount_);
 
-        YT_VERIFY(static_cast<int>(lowerKey.GetCount()) >= KeyColumnCount_);
-        YT_VERIFY(static_cast<int>(upperKey.GetCount()) >= KeyColumnCount_);
+        YT_VERIFY(static_cast<int>(lowerKey.GetCount()) >= *KeyColumnCount_);
+        YT_VERIFY(static_cast<int>(upperKey.GetCount()) >= *KeyColumnCount_);
 
-        Field minKey[KeyColumnCount_];
-        Field maxKey[KeyColumnCount_];
-        ConvertToFieldRow(lowerKey, KeyColumnCount_, minKey);
-        ConvertToFieldRow(upperKey, KeyColumnCount_, maxKey);
+        Field minKey[*KeyColumnCount_];
+        Field maxKey[*KeyColumnCount_];
+        ConvertToFieldRow(lowerKey, *KeyColumnCount_, minKey);
+        ConvertToFieldRow(upperKey, *KeyColumnCount_, maxKey);
 
-        return KeyConditions_[tableIndex]->checkInRange(KeyColumnCount_, minKey, maxKey, KeyColumnDataTypes_);
+        return BoolMask(KeyConditions_[tableIndex]->mayBeTrueInRange(*KeyColumnCount_, minKey, maxKey, KeyColumnDataTypes_), false);
     }
 };
 
@@ -342,13 +335,11 @@ DEFINE_REFCOUNTED_TYPE(TDataSliceFetcher);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkStripeListPtr FetchInput(
+TQueryInput FetchInput(
     TBootstrap* bootstrap,
     NNative::IClientPtr client,
     const IInvokerPtr& invoker,
-    std::vector<TTableSchema> tableSchemas,
-    std::vector<std::vector<TRichYPath>> inputTablePaths,
-    std::vector<std::optional<KeyCondition>> keyConditions,
+    const TQueryAnalysisResult& queryAnalysisResult,
     TRowBufferPtr rowBuffer,
     TSubqueryConfigPtr config,
     TSubquerySpec& specTemplate)
@@ -357,22 +348,16 @@ TChunkStripeListPtr FetchInput(
         bootstrap,
         std::move(client),
         invoker,
-        std::move(tableSchemas),
-        std::move(inputTablePaths),
-        std::move(keyConditions),
+        queryAnalysisResult,
         std::move(rowBuffer),
         std::move(config));
     WaitFor(dataSliceFetcher->Fetch())
         .ThrowOnError();
 
-    if (!specTemplate.NodeDirectory) {
-        specTemplate.NodeDirectory = New<TNodeDirectory>();
-    }
-    specTemplate.NodeDirectory->MergeFrom(dataSliceFetcher->NodeDirectory());
     YT_VERIFY(!specTemplate.DataSourceDirectory);
     specTemplate.DataSourceDirectory = std::move(dataSliceFetcher->DataSourceDirectory());
 
-    return std::move(dataSliceFetcher->ResultStripeList());
+    return TQueryInput{std::move(dataSliceFetcher->ResultStripeList()), std::move(dataSliceFetcher->MiscExtMap())};
 }
 
 void LogSubqueryDebugInfo(const std::vector<TSubquery>& subqueries, TStringBuf phase, const TLogger& logger)
@@ -462,9 +447,26 @@ std::vector<TSubquery> BuildSubqueries(
             adjustedJobCount);
         rate = adjustedRate;
         jobCount = adjustedJobCount;
+    } else {
+        // Try not to form too small ranges when total data weight is small.
+        auto maxJobCount = inputStripeList->TotalDataWeight / std::max<i64>(1, config->MinDataWeightPerThread) + 1;
+        if (maxJobCount < jobCount) {
+            jobCount = maxJobCount;
+            dataWeightPerJob = std::max<i64>(1, inputStripeList->TotalDataWeight / maxJobCount);
+            YT_LOG_INFO("Query is small and without sampling; forcing new contraints (JobCount: %v, DataWeightPerJob: %v)", jobCount, dataWeightPerJob);
+        }
     }
 
     std::unique_ptr<IChunkPool> chunkPool;
+
+    // TODO(max42): consider introducing new job size constraints to incapsulate all these heuristics.
+
+    constexpr i64 MinSliceDataWeight = 1_MB;
+
+    auto inputSliceDataWeight = std::max<i64>(1, dataWeightPerJob * 0.1);
+    if (inputSliceDataWeight < MinSliceDataWeight) {
+        inputSliceDataWeight = dataWeightPerJob;
+    }
 
     auto jobSizeConstraints = CreateExplicitJobSizeConstraints(
         false /* canAdjustDataWeightPerJob */,
@@ -475,7 +477,7 @@ std::vector<TSubquery> BuildSubqueries(
         1'000'000'000'000ll /* maxDataSlicesPerJob */,
         1_TB /* maxDataWeightPerJob */,
         1_TB /* primaryMaxDataWeightPerJob */,
-        std::max<i64>(1, dataWeightPerJob * 0.26) /* inputSliceDataWeight */,
+        inputSliceDataWeight /* inputSliceDataWeight */,
         std::max<i64>(1, inputStripeList->TotalRowCount / jobCount) /* inputSliceRowCount */,
         std::nullopt /* samplingRate */);
 

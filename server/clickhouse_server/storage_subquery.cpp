@@ -12,6 +12,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 
@@ -71,11 +72,13 @@ public:
     BlockInputStreams read(
         const Names& columnNames,
         const SelectQueryInfo& /* queryInfo */,
-        const Context& /* context */,
+        const Context& context,
         QueryProcessingStage::Enum /* processedStage */,
         size_t /* maxBlockSize */,
         unsigned maxStreamCount) override
     {
+        auto* queryContext = GetQueryContext(context);
+
         // TODO(max42): ?
         auto columns = ToString(columnNames);
 
@@ -140,6 +143,10 @@ public:
                 rowCount += dataSliceDescriptor.ChunkSpecs[0].row_count_override();
                 dataWeight += dataSliceDescriptor.ChunkSpecs[0].data_weight_override();
                 ++dataSliceCount;
+                for (const auto& chunkSpec : dataSliceDescriptor.ChunkSpecs) {
+                    // It is crucial for better memory estimation.
+                    YT_VERIFY(FindProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.chunk_meta().extensions()));
+                }
             }
 
             auto reader = CreateSchemalessParallelMultiReader(
@@ -149,7 +156,7 @@ public:
                 {} /* localDescriptor */,
                 std::nullopt,
                 QueryContext_->Client()->GetNativeConnection()->GetBlockCache(),
-                SubquerySpec_.NodeDirectory,
+                QueryContext_->Client()->GetNativeConnection()->GetNodeDirectory(),
                 SubquerySpec_.DataSourceDirectory,
                 threadDataSliceDescriptors,
                 TNameTable::FromSchema(readSchema),
@@ -175,8 +182,10 @@ public:
             YT_LOG_DEBUG("Thread debug string (ThreadIndex: %v, DebugString: %v)", threadIndex, debugString.Flush());
 
             streams.emplace_back(CreateBlockInputStream(
-                std::move(reader), 
-                readSchema, 
+                std::move(reader),
+                readSchema,
+                queryContext->TraceContext,
+                QueryContext_->Bootstrap,
                 TLogger(Logger)
                     .AddTag("ReadSessionId: %v", blockReadOptions.ReadSessionId)));
         }

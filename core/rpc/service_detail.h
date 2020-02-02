@@ -636,6 +636,8 @@ protected:
         std::atomic<int> QueueSize = {0};
         NProfiling::TSimpleGauge QueueSizeCounter;
         NProfiling::TSimpleGauge QueueSizeLimitCounter;
+        NProfiling::TSimpleGauge ConcurrencyCounter;
+        NProfiling::TSimpleGauge ConcurrencyLimitCounter;
 
         std::atomic<int> ConcurrencySemaphore = {0};
         TLockFreeQueue<TServiceContextPtr> RequestQueue;

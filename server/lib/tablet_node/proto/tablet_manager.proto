@@ -4,7 +4,7 @@ import "yt/core/misc/proto/guid.proto";
 import "yt/client/table_client/proto/chunk_meta.proto";
 import "yt/client/chunk_client/proto/chunk_meta.proto";
 import "yt/client/chunk_client/proto/chunk_view.proto";
-import "yt/ytlib/tablet_client/heartbeat.proto";
+import "yt/ytlib/tablet_client/proto/heartbeat.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -107,6 +107,8 @@ message TReqUnlockTablet
     required NYT.NProto.TGuid transaction_id = 2;
     required int64 mount_revision = 3;
     repeated NTabletNode.NProto.TAddStoreDescriptor stores_to_add = 4;
+    optional int32 update_mode = 5 [default = 1]; // EUpdateMode [default = Append]
+    optional int64 commit_timestamp = 6;
 }
 
 message TReqSetTabletState

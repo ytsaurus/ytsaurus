@@ -226,7 +226,7 @@ DEFINE_REFCOUNTED_TYPE(IServiceContext)
 
 struct TServiceId
 {
-    TServiceId();
+    TServiceId() = default;
     TServiceId(const TString& serviceName, TRealmId realmId = NullRealmId);
 
     TString ServiceName;

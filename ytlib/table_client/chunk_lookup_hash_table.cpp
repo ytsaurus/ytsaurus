@@ -113,7 +113,7 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
     if (chunkMeta->GetChunkFormat() != ETableChunkFormat::VersionedSimple &&
         chunkMeta->GetChunkFormat() != ETableChunkFormat::SchemalessHorizontal)
     {
-        YT_LOG_INFO("Cannot create lookup hash table for %Qlv chunk format (ChunkId: %v)",
+        YT_LOG_INFO("Cannot create lookup hash table for improper chunk format (ChunkId: %v, ChunkFormat: %v)",
             chunkMeta->GetChunkId(),
             chunkMeta->GetChunkFormat());
         return nullptr;
@@ -130,7 +130,7 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
     auto blockCache = New<TSimpleBlockCache>(startBlockIndex, blocks);
 
     auto chunkSize = chunkMeta->BlockMeta()->blocks(lastBlockIndex).chunk_row_count() -
-        (startBlockIndex ? chunkMeta->BlockMeta()->blocks(startBlockIndex - 1).chunk_row_count() : 0);
+        (startBlockIndex > 0 ? chunkMeta->BlockMeta()->blocks(startBlockIndex - 1).chunk_row_count() : 0);
     auto hashTable = New<TChunkLookupHashTable>(chunkSize);
 
     for (int blockIndex = startBlockIndex; blockIndex <= lastBlockIndex; ++blockIndex) {

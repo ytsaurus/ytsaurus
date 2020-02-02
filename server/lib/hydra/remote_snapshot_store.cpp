@@ -13,7 +13,7 @@
 
 #include <yt/client/ypath/rich.h>
 
-#include <yt/ytlib/hydra/hydra_manager.pb.h>
+#include <yt/ytlib/hydra/proto/hydra_manager.pb.h>
 #include <yt/ytlib/hydra/config.h>
 
 #include <yt/core/concurrency/async_stream.h>
@@ -145,7 +145,7 @@ private:
                 INodePtr node;
                 {
                     TGetNodeOptions options;
-                    options.Attributes = {"prev_record_count"};
+                    options.Attributes = {"sequence_number", "random_seed"};
                     auto asyncResult = Store_->Client_->GetNode(Path_, options);
                     auto result = WaitFor(asyncResult)
                         .ValueOrThrow();
@@ -155,7 +155,8 @@ private:
 
                 {
                     const auto& attributes = node->Attributes();
-                    Params_.Meta.set_prev_record_count(attributes.Get<i64>("prev_record_count"));
+                    Params_.Meta.set_random_seed(attributes.Get<ui64>("random_seed"));
+                    Params_.Meta.set_sequence_number(attributes.Get<i64>("sequence_number"));
                     Params_.Checksum = 0;
                     Params_.CompressedLength = Params_.UncompressedLength = -1;
                 }
@@ -276,7 +277,8 @@ private:
                     attributes->Set("compression_codec", Store_->Options_->SnapshotCompressionCodec);
                     attributes->Set("account", Store_->Options_->SnapshotAccount);
                     attributes->Set("primary_medium", Store_->Options_->SnapshotPrimaryMedium);
-                    attributes->Set("prev_record_count", Meta_.prev_record_count());
+                    attributes->Set("sequence_number", Meta_.sequence_number());
+                    attributes->Set("random_seed", Meta_.random_seed());
                     options.Attributes = std::move(attributes);
                     if (Store_->PrerequisiteTransactionId_) {
                         options.PrerequisiteTransactionIds.push_back(Store_->PrerequisiteTransactionId_);

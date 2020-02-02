@@ -17,7 +17,6 @@
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/fluent.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/rw_spinlock.h>
 
 #include <cerrno>
@@ -31,8 +30,6 @@ using namespace NNet;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Profiler = BusProfiler;
-
-static constexpr auto CheckPeriod = TDuration::Seconds(15);
 
 static NProfiling::TAggregateGauge AcceptTime("/accept_time");
 
@@ -49,10 +46,6 @@ public:
         : Config_(std::move(config))
         , Poller_(std::move(poller))
         , Handler_(std::move(handler))
-        , CheckExecutor_(New<TPeriodicExecutor>(
-            GetSyncInvoker(),
-            BIND(&TTcpBusServerBase::OnCheck, MakeWeak(this)),
-            CheckPeriod))
     {
         YT_VERIFY(Config_);
         YT_VERIFY(Poller_);
@@ -75,8 +68,6 @@ public:
         std::sort(Networks_.begin(), Networks_.end(), [] (auto&& lhs, auto&& rhs) {
             return lhs.first.GetMaskSize() > rhs.first.GetMaskSize();
         });
-
-        CheckExecutor_->Start();
     }
 
     void Start()
@@ -128,8 +119,6 @@ protected:
     const TTcpBusServerConfigPtr Config_;
     const IPollerPtr Poller_;
     const IMessageHandlerPtr Handler_;
-
-    const TPeriodicExecutorPtr CheckExecutor_;
 
     TSpinLock ControlSpinLock_;
     int ServerSocket_ = INVALID_SOCKET;
@@ -292,14 +281,6 @@ protected:
             return;
         }
         Poller_->Arm(ServerSocket_, this, EPollControl::Read);
-    }
-
-    void OnCheck()
-    {
-        TReaderGuard guard(ConnectionsSpinLock_);
-        for (const auto& connection : Connections_) {
-            connection->Check();
-        }
     }
 
     const TString& GetNetworkNameForAddress(const TNetworkAddress& address)

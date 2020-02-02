@@ -243,6 +243,24 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t/@attr", tx = tx) == 100
         assert "attr" in get("//tmp/t/@", tx = tx)
 
+    @authors("shakurov")
+    def test_attributes_yt_11973(self):
+        create("table", "//tmp/test_node")
+
+        set("//tmp/test_node/@opaque", True)
+        set("//tmp/test_node/@expiration_time", "2100-01-01T00:00:00.000000Z")
+        set("//tmp/test_node/@desired_tablet_count", 42)
+        assert get("//tmp/test_node/@opaque")
+        assert get("//tmp/test_node/@expiration_time") == "2100-01-01T00:00:00.000000Z"
+        assert get("//tmp/test_node/@desired_tablet_count") == 42
+
+        # Mustn't throw.
+        set("//tmp/test_node/@", {"foo": "bar", "baz": 1})
+
+        assert not get("//tmp/test_node/@opaque")
+        assert not exists("//tmp/test_node/@expiration_time")
+        assert not exists("//tmp/test_node/@desired_tablet_count")
+
     @authors("panin", "ignat")
     def test_format_json(self):
         # check input format for json
@@ -906,9 +924,17 @@ class TestCypress(YTEnvSetup):
         create("map_node", "//tmp/a/b/c/d", recursive=True)
         assert exists("//tmp/a/b/c/d")
 
-    @authors("babenko", "ignat")
+    @authors("kiselyovp")
+    def test_create_object_ignore_existing(self):
+        with pytest.raises(YtError): create_user("u", ignore_existing=True)
+        with pytest.raises(YtError): create_group("g", ignore_existing=True)
+        create_user("u")
+        with pytest.raises(YtError): create_user("u", ignore_existing=True)
+
+    @authors("babenko")
     def test_link1(self):
-        with pytest.raises(YtError): link("//tmp/a", "//tmp/b")
+        link("//tmp/a", "//tmp/b")
+        assert get("//tmp/b&/@broken")
 
     @authors("babenko")
     def test_link2(self):
@@ -2485,6 +2511,20 @@ class TestCypress(YTEnvSetup):
             create("map_node", "//tmp/x", lock_existing=True)
         with pytest.raises(YtError):
             move("//tmp/x", "//tmp/x1", ignore_existing=True, lock_existing=True)
+
+
+    @authors("babenko")
+    def test_malformed_clone_src(self):
+        create("map_node", "//tmp/m")
+        create("table", "//tmp/m/t1")
+        copy("//tmp/m&/t1", "//tmp/t2", force=True)
+        copy("//tmp/m/t1&", "//tmp/t2", force=True)
+        with pytest.raises(YtError):
+            copy("//tmp/m//t1", "//tmp/t2", force=True)
+        with pytest.raises(YtError):
+            copy("//tmp/m/t1/", "//tmp/t2", force=True)
+        with pytest.raises(YtError):
+            copy("//tmp/m/t1/@attr", "//tmp/t2", force=True)
 
 ##################################################################
 

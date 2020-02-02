@@ -95,93 +95,6 @@ static void TransferListImpl(TYsonPullParserCursor* cursor, IYsonConsumer* consu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static void TransferMapOrAttributesImpl(TYsonPullParserCursor* cursor, TCheckedInDebugYsonTokenWriter* writer);
-static void TransferListImpl(TYsonPullParserCursor* cursor, TCheckedInDebugYsonTokenWriter* writer);
-
-Y_FORCE_INLINE static void TransferComplexValueImpl(TYsonPullParserCursor* cursor, TCheckedInDebugYsonTokenWriter* writer)
-{
-    while (true) {
-        switch (cursor->GetCurrent().GetType()) {
-            case EYsonItemType::BeginAttributes:
-                writer->WriteBeginAttributes();
-                TransferMapOrAttributesImpl(cursor, writer);
-                writer->WriteEndAttributes();
-                continue;
-            case EYsonItemType::BeginList:
-                writer->WriteBeginList();
-                TransferListImpl(cursor, writer);
-                writer->WriteEndList();
-                return;
-            case EYsonItemType::BeginMap:
-                writer->WriteBeginMap();
-                TransferMapOrAttributesImpl(cursor, writer);
-                writer->WriteEndMap();
-                return;
-            case EYsonItemType::EntityValue:
-                writer->WriteEntity();
-                cursor->Next();
-                return;
-            case EYsonItemType::BooleanValue:
-                writer->WriteBinaryBoolean(cursor->GetCurrent().UncheckedAsBoolean());
-                cursor->Next();
-                return;
-            case EYsonItemType::Int64Value:
-                writer->WriteBinaryInt64(cursor->GetCurrent().UncheckedAsInt64());
-                cursor->Next();
-                return;
-            case EYsonItemType::Uint64Value:
-                writer->WriteBinaryUint64(cursor->GetCurrent().UncheckedAsUint64());
-                cursor->Next();
-                return;
-            case EYsonItemType::DoubleValue:
-                writer->WriteBinaryDouble(cursor->GetCurrent().UncheckedAsDouble());
-                cursor->Next();
-                return;
-            case EYsonItemType::StringValue:
-                writer->WriteBinaryString(cursor->GetCurrent().UncheckedAsString());
-                cursor->Next();
-                return;
-
-            case EYsonItemType::EndOfStream:
-            case EYsonItemType::EndAttributes:
-            case EYsonItemType::EndMap:
-            case EYsonItemType::EndList:
-                break;
-        }
-        YT_ABORT();
-    }
-}
-
-static void TransferMapOrAttributesImpl(TYsonPullParserCursor* cursor, TCheckedInDebugYsonTokenWriter* writer)
-{
-    YT_ASSERT(cursor->GetCurrent().GetType() == EYsonItemType::BeginAttributes ||
-        cursor->GetCurrent().GetType() == EYsonItemType::BeginMap);
-    cursor->Next();
-    while (cursor->GetCurrent().GetType() == EYsonItemType::StringValue) {
-        writer->WriteBinaryString(cursor->GetCurrent().UncheckedAsString());
-        writer->WriteKeyValueSeparator();
-        cursor->Next();
-        TransferComplexValueImpl(cursor, writer);
-        writer->WriteItemSeparator();
-    }
-    YT_ASSERT(cursor->GetCurrent().GetType() == EYsonItemType::EndAttributes ||
-             cursor->GetCurrent().GetType() == EYsonItemType::EndMap);
-    cursor->Next();
-}
-
-static void TransferListImpl(TYsonPullParserCursor* cursor, TCheckedInDebugYsonTokenWriter* writer)
-{
-    YT_ASSERT(cursor->GetCurrent().GetType() == EYsonItemType::BeginList);
-    cursor->Next();
-    while (cursor->GetCurrent().GetType() != EYsonItemType::EndList) {
-        TransferComplexValueImpl(cursor, writer);
-        writer->WriteItemSeparator();
-    }
-    cursor->Next();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TZeroCopyInputStreamReader::TZeroCopyInputStreamReader(IZeroCopyInput* reader)
     : Reader_(reader)
 { }
@@ -231,16 +144,270 @@ ui64 TYsonPullParser::GetTotalReadSize() const
     return Lexer_.GetTotalReadSize();
 }
 
+class TYsonItemCreatingVisitor
+{
+public:
+    using TResult = TYsonItem;
+
+public:
+    TYsonItem OnBeginAttributes()
+    {
+        return TYsonItem::Simple(EYsonItemType::BeginAttributes);
+    }
+
+    TYsonItem OnEndAttributes()
+    {
+        return TYsonItem::Simple(EYsonItemType::EndAttributes);
+    }
+
+    TYsonItem OnBeginMap()
+    {
+        return TYsonItem::Simple(EYsonItemType::BeginMap);
+    }
+
+    TYsonItem OnEndMap()
+    {
+        return TYsonItem::Simple(EYsonItemType::EndMap);
+    }
+
+    TYsonItem OnBeginList()
+    {
+        return TYsonItem::Simple(EYsonItemType::BeginList);
+    }
+
+    TYsonItem OnEndList()
+    {
+        return TYsonItem::Simple(EYsonItemType::EndList);
+    }
+
+    TYsonItem OnString(TStringBuf value)
+    {
+        return TYsonItem::String(value);
+    }
+
+    TYsonItem OnInt64(i64 value)
+    {
+        return TYsonItem::Int64(value);
+    }
+
+    TYsonItem OnUint64(ui64 value)
+    {
+        return TYsonItem::Uint64(value);
+    }
+
+    TYsonItem OnDouble(double value)
+    {
+        return TYsonItem::Double(value);
+    }
+
+    TYsonItem OnBoolean(bool value)
+    {
+        return TYsonItem::Boolean(value);
+    }
+
+    TYsonItem OnEntity()
+    {
+        return TYsonItem::Simple(EYsonItemType::EntityValue);
+    }
+
+    TYsonItem OnEndOfStream()
+    {
+        return TYsonItem::Simple(EYsonItemType::EndOfStream);
+    }
+
+    void OnEquality()
+    { }
+
+    void OnSeparator()
+    { }
+};
+
+class TNullVisitor
+{
+public:
+    using TResult = void;
+
+public:
+    void OnBeginAttributes()
+    { }
+
+    void OnEndAttributes()
+    { }
+
+    void OnBeginMap()
+    { }
+
+    void OnEndMap()
+    { }
+
+    void OnBeginList()
+    { }
+
+    void OnEndList()
+    { }
+
+    void OnString(TStringBuf /* value */)
+    { }
+
+    void OnInt64(i64 /* value */)
+    { }
+
+    void OnUint64(ui64 /* value */)
+    { }
+
+    void OnDouble(double /* value */)
+    { }
+
+    void OnBoolean(bool /* value */)
+    { }
+
+    void OnEntity()
+    { }
+
+    void OnEndOfStream()
+    { }
+
+    void OnEquality()
+    { }
+
+    void OnSeparator()
+    { }
+};
+
+class TYsonTokenWritingVisitor
+{
+public:
+    using TResult = void;
+
+public:
+    TYsonTokenWritingVisitor(TCheckedInDebugYsonTokenWriter* writer)
+        : Writer_(writer)
+    { }
+
+    void OnBeginAttributes()
+    {
+        Writer_->WriteBeginAttributes();
+    }
+
+    void OnEndAttributes()
+    {
+        Writer_->WriteEndAttributes();
+    }
+
+    void OnBeginMap()
+    {
+        Writer_->WriteBeginMap();
+    }
+
+    void OnEndMap()
+    {
+        Writer_->WriteEndMap();
+    }
+
+    void OnBeginList()
+    {
+        Writer_->WriteBeginList();
+    }
+
+    void OnEndList()
+    {
+        Writer_->WriteEndList();
+    }
+
+    void OnString(TStringBuf value)
+    {
+        Writer_->WriteBinaryString(value);
+    }
+
+    void OnInt64(i64 value)
+    {
+        Writer_->WriteBinaryInt64(value);
+    }
+
+    void OnUint64(ui64 value)
+    {
+        Writer_->WriteBinaryUint64(value);
+    }
+
+    void OnDouble(double value)
+    {
+        Writer_->WriteBinaryDouble(value);
+    }
+
+    void OnBoolean(bool value)
+    {
+        Writer_->WriteBinaryBoolean(value);
+    }
+
+    void OnEntity()
+    {
+        Writer_->WriteEntity();
+    }
+
+    void OnEndOfStream()
+    { }
+
+    void OnEquality()
+    {
+        Writer_->WriteKeyValueSeparator();
+    }
+
+    void OnSeparator()
+    {
+        Writer_->WriteItemSeparator();
+    }
+
+private:
+    TCheckedInDebugYsonTokenWriter* const Writer_;
+};
+
 TYsonItem TYsonPullParser::Next()
 {
     try {
         Lexer_.CheckpointContext();
-        return NextImpl();
+        return NextImpl(TYsonItemCreatingVisitor());
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error occurred while parsing YSON")
             << GetErrorAttributes()
             << ex;
     }
+}
+
+void TYsonPullParser::SkipComplexValue()
+{
+    TraverseComplexValueOrAttributes(TNullVisitor(), /* stopAfterAttributes */ false);
+}
+
+void TYsonPullParser::TransferComplexValue(TCheckedInDebugYsonTokenWriter* writer)
+{
+    TraverseComplexValueOrAttributes(TYsonTokenWritingVisitor(writer), /* stopAfterAttributes */ false);
+}
+
+void TYsonPullParser::SkipComplexValue(const TYsonItem& previousItem)
+{
+    TraverseComplexValueOrAttributes(TNullVisitor(), previousItem, /* stopAfterAttributes */ false);
+}
+
+void TYsonPullParser::TransferComplexValue(TCheckedInDebugYsonTokenWriter* writer, const TYsonItem& previousItem)
+{
+    TraverseComplexValueOrAttributes(TYsonTokenWritingVisitor(writer), previousItem, /* stopAfterAttributes */ false);
+}
+
+void TYsonPullParser::SkipAttributes(const TYsonItem& previousItem)
+{
+    EnsureYsonToken("attributes", *this, previousItem, EYsonItemType::BeginAttributes);
+    TraverseComplexValueOrAttributes(TNullVisitor(), previousItem, /* stopAfterAttributes */ true);
+}
+
+void TYsonPullParser::SkipComplexValueOrAttributes(const TYsonItem& previousItem)
+{
+    TraverseComplexValueOrAttributes(TNullVisitor(), previousItem, /* stopAfterAttributes */ true);
+}
+
+void TYsonPullParser::TransferAttributes(TCheckedInDebugYsonTokenWriter* writer, const TYsonItem& previousItem)
+{
+    EnsureYsonToken("attributes", *this, previousItem, EYsonItemType::BeginAttributes);
+    TraverseComplexValueOrAttributes(TYsonTokenWritingVisitor(writer), previousItem, /* stopAfterAttributes */ true);
 }
 
 std::vector<TErrorAttribute> TYsonPullParser::GetErrorAttributes() const
@@ -264,39 +431,8 @@ std::vector<TErrorAttribute> TYsonPullParserCursor::GetErrorAttributes() const
 
 void TYsonPullParserCursor::SkipComplexValue()
 {
-    bool isAttributes = false;
-    switch (Current_.GetType()) {
-        case EYsonItemType::BeginAttributes:
-            isAttributes = true;
-            // fallthrough
-        case EYsonItemType::BeginList:
-        case EYsonItemType::BeginMap: {
-            const auto nestingLevel = Parser_->GetNestingLevel();
-            while (Parser_->GetNestingLevel() >= nestingLevel) {
-                Parser_->Next();
-            }
-            Current_ = Parser_->Next();
-            if (isAttributes) {
-                SkipComplexValue();
-            }
-            return;
-        }
-        case EYsonItemType::EntityValue:
-        case EYsonItemType::BooleanValue:
-        case EYsonItemType::Int64Value:
-        case EYsonItemType::Uint64Value:
-        case EYsonItemType::DoubleValue:
-        case EYsonItemType::StringValue:
-            Next();
-            return;
-
-        case EYsonItemType::EndOfStream:
-        case EYsonItemType::EndAttributes:
-        case EYsonItemType::EndMap:
-        case EYsonItemType::EndList:
-            YT_ABORT();
-    }
-    YT_ABORT();
+    Parser_->SkipComplexValue(Current_);
+    Current_ = Parser_->Next();
 }
 
 void TYsonPullParserCursor::TransferComplexValue(NYT::NYson::IYsonConsumer* consumer)
@@ -306,7 +442,91 @@ void TYsonPullParserCursor::TransferComplexValue(NYT::NYson::IYsonConsumer* cons
 
 void TYsonPullParserCursor::TransferComplexValue(NYT::NYson::TCheckedInDebugYsonTokenWriter* writer)
 {
-    NDetail::TransferComplexValueImpl(this, writer);
+    Parser_->TransferComplexValue(writer, Current_);
+    Current_ = Parser_->Next();
+}
+
+void TYsonPullParserCursor::SkipAttributes()
+{
+    Parser_->SkipAttributes(Current_);
+    Current_ = Parser_->Next();
+}
+
+void TYsonPullParserCursor::TransferAttributes(NYT::NYson::IYsonConsumer* consumer)
+{
+    EnsureYsonToken("attributes", *this, EYsonItemType::BeginAttributes);
+    consumer->OnBeginAttributes();
+    NDetail::TransferMapOrAttributesImpl(this, consumer);
+    consumer->OnEndAttributes();
+}
+
+void TYsonPullParserCursor::TransferAttributes(NYT::NYson::TCheckedInDebugYsonTokenWriter* writer)
+{
+    Parser_->TransferAttributes(writer, Current_);
+    Current_ = Parser_->Next();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TString CreateExpectedItemTypesString(const std::vector<EYsonItemType>& expected)
+{
+    YT_VERIFY(!expected.empty());
+    if (expected.size() > 1) {
+        TStringStream out;
+        out << "one of the tokens {";
+        for (const auto& token : expected) {
+            out << Format("%Qlv, ", token);
+        }
+        out << "}";
+        return out.Str();
+    } else {
+        return Format("%Qlv", expected[0]);
+    }
+}
+
+void ThrowUnexpectedYsonTokenException(
+    TStringBuf description,
+    const TYsonPullParser& parser,
+    const TYsonItem& item,
+    const std::vector<EYsonItemType>& expected)
+{
+    THROW_ERROR_EXCEPTION("Cannot parse %Qv; expected: %v; actual: %Qlv",
+        description,
+        CreateExpectedItemTypesString(expected),
+        item.GetType())
+        << parser.GetErrorAttributes();
+}
+
+void ThrowUnexpectedYsonTokenException(
+    TStringBuf description,
+    const TYsonPullParserCursor& cursor,
+    const std::vector<EYsonItemType>& expected)
+{
+    THROW_ERROR_EXCEPTION("Cannot parse %Qv; expected: %v; actual: %Qlv",
+        description,
+        CreateExpectedItemTypesString(expected),
+        cursor->GetType())
+        << cursor.GetErrorAttributes();
+}
+
+void ThrowUnexpectedTokenException(
+    TStringBuf description,
+    const TYsonPullParser& parser,
+    const TYsonItem& item,
+    EYsonItemType expected,
+    bool optional)
+{
+    std::vector<EYsonItemType> allExpected = {expected};
+    if (optional) {
+        allExpected.push_back(EYsonItemType::EntityValue);
+    }
+
+    auto fullDescription = TString(optional ? "optional " : "") + description;
+    ThrowUnexpectedYsonTokenException(
+        fullDescription,
+        parser,
+        item,
+        allExpected);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

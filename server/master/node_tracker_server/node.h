@@ -33,6 +33,7 @@ namespace NYT::NNodeTrackerServer {
 struct TCellNodeStatistics
 {
     NChunkClient::TMediumMap<i64> ChunkReplicaCount;
+    i64 DestroyedChunkReplicaCount = 0;
 };
 
 TCellNodeStatistics& operator+=(TCellNodeStatistics& lhs, const TCellNodeStatistics& rhs);
@@ -140,6 +141,9 @@ public:
     using TUnapprovedReplicaMap = THashMap<TChunkPtrWithIndexes, TInstant>;
     DEFINE_BYREF_RW_PROPERTY(TUnapprovedReplicaMap, UnapprovedReplicas);
 
+    using TDestroyedReplicaSet = THashSet<NChunkClient::TChunkIdWithIndexes>;
+    DEFINE_BYREF_RW_PROPERTY(TDestroyedReplicaSet, DestroyedReplicas);
+
     using TJobMap = THashMap<TJobId, TJobPtr>;
     DEFINE_BYREF_RO_PROPERTY(TJobMap, IdToJob);
 
@@ -172,6 +176,16 @@ public:
         NCellServer::TCellBase* Cell = nullptr;
         NHydra::EPeerState PeerState = NHydra::EPeerState::None;
         int PeerId = NHydra::InvalidPeerId;
+        bool IsResponseKeeperWarmingUp = false;
+
+        //! Sum of `PreloadPendingStoreCount` over all tablets in slot.
+        int PreloadPendingStoreCount = 0;
+
+        //! Sum of `PreloadCompletedStoreCount` over all tablets in slot.
+        int PreloadCompletedStoreCount = 0;
+
+        //! Sum of `PreloadFailedStoreCount` over all tablets in slot.
+        int PreloadFailedStoreCount = 0;
 
         void Persist(NCellMaster::TPersistenceContext& context);
     };
@@ -240,6 +254,9 @@ public:
     void AddUnapprovedReplica(TChunkPtrWithIndexes replica, TInstant timestamp);
     bool HasUnapprovedReplica(TChunkPtrWithIndexes replica) const;
     void ApproveReplica(TChunkPtrWithIndexes replica);
+
+    bool AddDestroyedReplica(const NChunkClient::TChunkIdWithIndexes& replica);
+    bool RemoveDestroyedReplica(const NChunkClient::TChunkIdWithIndexes& replica);
 
     void AddToChunkRemovalQueue(const NChunkClient::TChunkIdWithIndexes& replica);
     void RemoveFromChunkRemovalQueue(const NChunkClient::TChunkIdWithIndexes& replica);

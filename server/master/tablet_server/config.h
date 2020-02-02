@@ -237,6 +237,7 @@ public:
     TDuration CellScanPeriod;
     TDuration PeerRevocationTimeout;
     TDuration LeaderReassignmentTimeout;
+
     int SafeOnlineNodeCount;
 
     TTabletBalancerMasterConfigPtr TabletBalancer;
@@ -372,7 +373,7 @@ DEFINE_REFCOUNTED_TYPE(TDynamicReplicatedTableTrackerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicTabletManagerConfig
-    : public NYTree::TYsonSerializable
+    : public NHydra::THydraJanitorConfig
 {
 public:
     //! Time to wait for a node to be back online before revoking it from all
@@ -436,18 +437,17 @@ public:
 
     int CompatibilityVersion;
 
+    bool DecommissionThroughExtraPeers;
+
+    //! This parameter is used only for testing purposes.
+    std::optional<TDuration> DecommissionedLeaderReassignmentTimeout;
+
     TDynamicTabletManagerConfig()
     {
         RegisterParameter("peer_revocation_timeout", PeerRevocationTimeout)
             .Default(TDuration::Minutes(1));
         RegisterParameter("leader_reassignment_timeout", LeaderReassignmentTimeout)
             .Default(TDuration::Seconds(15));
-        RegisterParameter("max_snapshot_count_to_keep", MaxSnapshotCountToKeep)
-            .GreaterThanOrEqual(1)
-            .Default(5);
-        RegisterParameter("max_snapshot_size_to_keep", MaxSnapshotSizeToKeep)
-            .GreaterThanOrEqual(0)
-            .Default();
         RegisterParameter("max_snapshot_count_to_remove_per_check", MaxSnapshotCountToRemovePerCheck)
             .GreaterThan(0)
             .Default(100);
@@ -486,10 +486,19 @@ public:
             .DefaultNew();
         RegisterParameter("enable_bulk_insert", EnableBulkInsert)
             .Default(false);
+        RegisterParameter("decommission_through_extra_peers", DecommissionThroughExtraPeers)
+            .Default(false);
+        RegisterParameter("decommissioned_leader_reassignment_timeout", DecommissionedLeaderReassignmentTimeout)
+            .Default();
 
         // COMPAT(savrus) Special parameter to apply old file configs on fly.
         RegisterParameter("compatibility_version", CompatibilityVersion)
             .Default(0);
+
+
+        RegisterPostprocessor([&] {
+            MaxSnapshotCountToKeep = 2;
+        });
     }
 };
 

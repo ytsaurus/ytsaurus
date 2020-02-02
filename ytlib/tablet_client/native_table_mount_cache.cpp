@@ -4,6 +4,7 @@
 
 #include <yt/ytlib/api/native/connection.h>
 #include <yt/ytlib/api/native/config.h>
+#include <yt/ytlib/api/native/rpc_helpers.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
@@ -52,6 +53,7 @@ using namespace NTableClient;
 using namespace NYPath;
 using namespace NYson;
 using namespace NYTree;
+using namespace NApi::NNative;
 
 using NNative::IConnection;
 using NNative::IConnectionPtr;
@@ -153,26 +155,31 @@ private:
 
         NLogging::TLogger Logger;
 
+        TMasterReadOptions GetMasterReadOptions()
+        {
+            return {
+                EMasterChannelKind::Cache,
+                Owner_->Config_->ExpireAfterSuccessfulUpdateTime,
+                Owner_->Config_->ExpireAfterFailedUpdateTime,
+                1
+            };
+        }
+
         TFuture<void> RequestTableAttributes(NHydra::TRevision refreshPrimaryRevision)
         {
             YT_LOG_DEBUG("Requesting table mount info from primary master (RefreshPrimaryRevision: %v)",
                 refreshPrimaryRevision);
 
-            // COMPAT(akozhikhov)
-            auto channel = Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Cache);
-            if (Connection_->GetConfig()->EnableBuiltinTabletSystemUsers) {
-                channel = CreateAuthenticatedChannel(
-                    std::move(channel),
-                    NSecurityClient::TableMountInformerUserName);
-            }
+            auto options = GetMasterReadOptions();
+
+            auto channel = CreateAuthenticatedChannel(
+                Connection_->GetMasterChannelOrThrow(options.ReadFrom),
+                NSecurityClient::TableMountInformerUserName);
 
             auto primaryProxy = TObjectServiceProxy(channel);
             auto batchReq = primaryProxy.ExecuteBatch();
 
-            auto* balancingHeaderExt = batchReq->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext);
-            balancingHeaderExt->set_enable_stickness(true);
-            balancingHeaderExt->set_sticky_group_size(1);
-
+            SetBalancingHeader(batchReq, Connection_->GetConfig(), options);
             {
                 auto req = TTableYPathProxy::Get(Key_.Path + "/@");
                 std::vector<TString> attributeKeys{
@@ -182,12 +189,7 @@ private:
                 };
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
 
-                auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
-                cachingHeaderExt->set_success_expiration_time(ToProto<i64>(Owner_->Config_->ExpireAfterSuccessfulUpdateTime));
-                cachingHeaderExt->set_failure_expiration_time(ToProto<i64>(Owner_->Config_->ExpireAfterFailedUpdateTime));
-                if (refreshPrimaryRevision != NHydra::NullRevision) {
-                    cachingHeaderExt->set_refresh_revision(refreshPrimaryRevision);
-                }
+                SetCachingHeader(req, Connection_->GetConfig(), options, refreshPrimaryRevision);
 
                 size_t hash = 0;
                 HashCombine(hash, FarmHash(Key_.Path.begin(), Key_.Path.size()));
@@ -225,30 +227,20 @@ private:
                 CellTag_,
                 refreshSecondaryRevision);
 
-            // COMPAT(akozhikhov)
-            IChannelPtr channel = Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Cache, CellTag_);
-            if (Connection_->GetConfig()->EnableBuiltinTabletSystemUsers) {
-                channel = CreateAuthenticatedChannel(
-                    std::move(channel),
-                    NSecurityClient::TableMountInformerUserName);
-            }
+            auto options = GetMasterReadOptions();
+
+            auto channel = CreateAuthenticatedChannel(
+                Connection_->GetMasterChannelOrThrow(options.ReadFrom, CellTag_),
+                NSecurityClient::TableMountInformerUserName);
 
             auto secondaryProxy = TObjectServiceProxy(channel);
             auto batchReq = secondaryProxy.ExecuteBatch();
 
-            auto* balancingHeaderExt = batchReq->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext);
-            balancingHeaderExt->set_enable_stickness(true);
-            balancingHeaderExt->set_sticky_group_size(1);
-
+            SetBalancingHeader(batchReq, Connection_->GetConfig(), options);
             {
                 auto req = TTableYPathProxy::GetMountInfo(FromObjectId(TableId_));
 
-                auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
-                cachingHeaderExt->set_success_expiration_time(ToProto<i64>(Owner_->Config_->ExpireAfterSuccessfulUpdateTime));
-                cachingHeaderExt->set_failure_expiration_time(ToProto<i64>(Owner_->Config_->ExpireAfterFailedUpdateTime));
-                if (refreshSecondaryRevision != NHydra::NullRevision) {
-                    cachingHeaderExt->set_refresh_revision(refreshSecondaryRevision);
-                }
+                SetCachingHeader(req, Connection_->GetConfig(), options, refreshSecondaryRevision);
 
                 size_t hash = 0;
                 HashCombine(hash, FarmHash(TableId_.Parts64[0]));
@@ -373,6 +365,14 @@ private:
             tableInfo->Path,
             tableInfo->PrimaryRevision,
             tableInfo->SecondaryRevision});
+    }
+
+    virtual void OnErase(const TTableMountCacheKey& key) override
+    {
+        YT_LOG_DEBUG("Erase table mount info from cache (Path: %Qv, PrimaryRevision: %v, SecondaryRevision: %v)",
+            key.Path,
+            key.RefreshPrimaryRevision,
+            key.RefreshSecondaryRevision);
     }
 };
 

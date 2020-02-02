@@ -165,7 +165,7 @@ protected:
     NProfiling::TProfiler Profiler;
 
 protected:
-    explicit TCompositeAutomaton(
+    TCompositeAutomaton(
         IInvokerPtr asyncSnapshotInvoker,
         TCellId cellId,
         const NProfiling::TTagIdList& profilingTagIds = {});

@@ -15,7 +15,7 @@
 #include <yt/core/misc/config.h>
 #include <yt/core/misc/arithmetic_formula.h>
 
-#include <yt/core/re2/re2.h>
+#include <yt/library/re2/re2.h>
 
 namespace NYT::NDataNode {
 
@@ -435,6 +435,55 @@ DEFINE_REFCOUNTED_TYPE(TLayerLocationConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTmpfsLayerCacheConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    i64 Capacity;
+    std::optional<TString> LayersDirectoryPath;
+    TDuration LayersUpdatePeriod;
+
+    TTmpfsLayerCacheConfig()
+    {
+        RegisterParameter("capacity", Capacity)
+            .Default(10 * 1_GB)
+            .GreaterThan(0);
+
+        RegisterParameter("layers_directory_path", LayersDirectoryPath)
+            .Default(std::nullopt);
+
+        RegisterParameter("layers_update_period", LayersUpdatePeriod)
+            .Default(TDuration::Minutes(3))
+            .GreaterThan(TDuration::Zero());
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TTmpfsLayerCacheConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTableSchemaCacheConfig
+    : public TSlruCacheConfig
+{
+public:
+    //! Timeout for table schema request.
+    TDuration TableSchemaCacheRequestTimeout;
+
+    TTableSchemaCacheConfig()
+    {
+        RegisterParameter("table_schema_cache_request_timeout", TableSchemaCacheRequestTimeout)
+            .Default(TDuration::Seconds(3));
+
+        RegisterPreprocessor([&] {
+            Capacity = 100_MB;
+        });
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TTableSchemaCacheConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TVolumeManagerConfig
     : public NYTree::TYsonSerializable
 {
@@ -444,6 +493,8 @@ public:
     TDuration PortoPollPeriod;
     double CacheCapacityFraction;
     int LayerImportConcurrency;
+
+    TTmpfsLayerCacheConfigPtr TmpfsLayerCache;
 
     TVolumeManagerConfig()
     {
@@ -466,6 +517,9 @@ public:
             .Default(2)
             .GreaterThan(0)
             .LessThanOrEqual(10);
+
+        RegisterParameter("tmpfs_layer_cache", TmpfsLayerCache)
+            .DefaultNew();
     }
 };
 
@@ -486,6 +540,12 @@ public:
 
     //! Period between consequent incremental heartbeats.
     TDuration IncrementalHeartbeatPeriod;
+
+    //! Incremental heartbeat throttler limit.
+    i64 IncrementalHeartbeatThrottlerLimit;
+
+    //! Incremental heartbeat throller period.
+    TDuration IncrementalHeartbeatThrottlerPeriod;
 
     //! Period between consequent full heartbeats.
     std::optional<TDuration> FullHeartbeatPeriod;
@@ -525,6 +585,9 @@ public:
 
     //! Opened changelogs cache.
     TSlruCacheConfigPtr ChangelogReaderCache;
+
+    //! Table schema and row key comparer cache.
+    TTableSchemaCacheConfigPtr TableSchemaCache;
 
     //! Multiplexed changelog configuration.
     TMultiplexedChangelogConfigPtr MultiplexedChangelog;
@@ -704,6 +767,9 @@ public:
     //! Number of tablet errors sent in heartbeat.
     int MaxTabletErrorsInHeartbeat;
 
+    //! Number of threads in DataNodeLookup thread pool (used for row lookups).
+    int StorageLookupThreadCount;
+
     TDataNodeConfig()
     {
         RegisterParameter("lease_transaction_timeout", LeaseTransactionTimeout)
@@ -722,6 +788,12 @@ public:
             .Default(TDuration::Seconds(60));
         RegisterParameter("incremental_heartbeat_timeout", IncrementalHeartbeatTimeout)
             .Default(TDuration::Seconds(60));
+
+        // TODO(gritukan@): Make this restriction stricter after YT-12054.
+        RegisterParameter("incremental_heartbeat_throttler_limit", IncrementalHeartbeatThrottlerLimit)
+            .Default(1);
+        RegisterParameter("incremental_heartbeat_throttler_period", IncrementalHeartbeatThrottlerPeriod)
+            .Default(TDuration::Minutes(1));
         RegisterParameter("full_heartbeat_timeout", FullHeartbeatTimeout)
             .Default(TDuration::Seconds(60));
         RegisterParameter("job_heartbeat_timeout", JobHeartbeatTimeout)
@@ -738,6 +810,8 @@ public:
         RegisterParameter("blob_reader_cache", BlobReaderCache)
             .DefaultNew();
         RegisterParameter("changelog_reader_cache", ChangelogReaderCache)
+            .DefaultNew();
+        RegisterParameter("table_schema_cache", TableSchemaCache)
             .DefaultNew();
 
         RegisterParameter("multiplexed_changelog", MultiplexedChangelog)
@@ -881,6 +955,9 @@ public:
             .GreaterThan(0)
             .Default(2);
         RegisterParameter("storage_light_thread_count", StorageLightThreadCount)
+            .GreaterThan(0)
+            .Default(2);
+        RegisterParameter("storage_lookup_thread_count", StorageLookupThreadCount)
             .GreaterThan(0)
             .Default(2);
 

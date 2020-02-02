@@ -577,6 +577,10 @@ def select_rows(query, **kwargs):
     kwargs["verbose_logging"] = True
     return execute_command_with_output_format("select_rows", kwargs)
 
+def explain(query, **kwargs):
+    kwargs["query"] = query
+    return execute_command_with_output_format("explain", kwargs)[0]
+
 def _prepare_rows_stream(data, is_raw=False):
     # remove surrounding [ ]
     if not is_raw:
@@ -631,6 +635,18 @@ def ping_transaction(tx, **kwargs):
 def abort_transaction(tx, **kwargs):
     kwargs["transaction_id"] = tx
     execute_command("abort_tx", kwargs)
+
+def abort_all_transactions():
+    topmost_transactions = ls("//sys/topmost_transactions")
+    for i in xrange(len(topmost_transactions) / 100 + 1):
+        start = i * 100
+        end = min(len(topmost_transactions), (i + 1) * 100)
+        if start >= end:
+            break
+        requests = []
+        for j in xrange(start, end):
+            requests.append({"command": "abort_transaction", "parameters": {"transaction_id": topmost_transactions[j]}})
+        execute_batch(requests)
 
 def generate_timestamp(**kwargs):
     return execute_command("generate_timestamp", kwargs, parse_yson=True)
@@ -811,6 +827,14 @@ def release_breakpoint(*args, **kwargs):
 
 def get_operation_cypress_path(op_id):
     return "//sys/operations/{}/{}".format("%02x" % (long(op_id.split("-")[3], 16) % 256), op_id)
+
+def get_cypress_metrics(operation_id, key, aggr="sum"):
+    statistics = get(get_operation_cypress_path(operation_id) + "/@progress/job_statistics")
+    return sum(filter(lambda x: x is not None,
+                      [get_statistics(statistics, "{0}.$.{1}.map.{2}".format(key, job_state, aggr))
+                       for job_state in ("completed", "failed", "aborted")]))
+
+##################################################################
 
 class Operation(object):
     def __init__(self):
@@ -1029,9 +1053,9 @@ def start_op(op_type, **kwargs):
     change(kwargs, "reduce_combiner_command", ["spec", "reduce_combiner", "command"])
     change(kwargs, "reducer_command", ["spec", "reducer", "command"])
 
-    track = not kwargs.get("dont_track", False)
-    if "dont_track" in kwargs:
-        del kwargs["dont_track"]
+    track = kwargs.get("track", True)
+    if "track" in kwargs:
+        del kwargs["track"]
 
     kwargs["operation_type"] = op_type
 
@@ -1130,7 +1154,10 @@ def remote_copy(**kwargs):
     return start_op("remote_copy", **kwargs)
 
 def build_snapshot(*args, **kwargs):
-    get_driver().build_snapshot(*args, **kwargs)
+    return get_driver().build_snapshot(*args, **kwargs)
+
+def build_master_snapshots(*args, **kwargs):
+    return get_driver().build_master_snapshots(*args, **kwargs)
 
 def get_version():
     return execute_command("get_version", {}, parse_yson=True)
@@ -1159,6 +1186,30 @@ def remove_account(name, **kwargs):
     if sync:
         wait(lambda: not exists(account_path))
 
+def create_pool_tree(name, wait_for_orchid=True, **kwargs):
+    kwargs["type"] = "scheduler_pool_tree"
+    if "attributes" not in kwargs:
+        kwargs["attributes"] = dict()
+    kwargs["attributes"]["name"] = name
+    execute_command("create", kwargs, parse_yson=True)
+    if wait_for_orchid:
+        wait(lambda: exists(scheduler_orchid_pool_tree_path(name)))
+
+def remove_pool_tree(name, wait_for_orchid=True, **kwargs):
+    remove("//sys/pool_trees/" + name, **kwargs)
+    if wait_for_orchid:
+        wait(lambda: not exists(scheduler_orchid_pool_tree_path(name)))
+
+def create_pool(name, pool_tree="default", parent_name=None, **kwargs):
+    kwargs["type"] = "scheduler_pool"
+    if "attributes" not in kwargs:
+        kwargs["attributes"] = dict()
+    kwargs["attributes"]["name"] = name
+    kwargs["attributes"]["pool_tree"] = pool_tree
+    if parent_name:
+        kwargs["attributes"]["parent_name"] = parent_name
+    execute_command("create", kwargs, parse_yson=True)
+
 def create_user(name, **kwargs):
     kwargs["type"] = "user"
     if "attributes" not in kwargs:
@@ -1175,15 +1226,24 @@ def create_test_tables(row_count=1, **kwargs):
     write_table("//tmp/t_in", [{"x": str(i)} for i in xrange(row_count)])
     create("table", "//tmp/t_out", **kwargs)
 
-def run_test_vanilla(command, spec=None, job_count=1, dont_track=True, task_patch=None, **kwargs):
+def run_test_vanilla(command, spec=None, job_count=1, track=False, task_patch=None, **kwargs):
     spec = spec or {}
     spec["tasks"] = {
         "task": update({"job_count": job_count, "command": command}, task_patch)
     }
-    return vanilla(spec=spec, dont_track=dont_track, **kwargs)
+    return vanilla(spec=spec, track=track, **kwargs)
 
 def run_sleeping_vanilla(**kwargs):
     return run_test_vanilla("sleep 1000", **kwargs)
+
+def enable_op_detailed_logs(op):
+    update_op_parameters(op.id, parameters={
+        "scheduling_options_per_pool_tree": {
+            "default": {
+                "enable_detailed_logs": True,
+            }
+        }
+    })
 
 def remove_user(name, **kwargs):
     remove("//sys/users/" + name, **kwargs)
@@ -1406,18 +1466,20 @@ def make_schema(columns, **attributes):
     return schema
 
 def normalize_schema(schema):
-    "Remove 'type_v2' field from schema, useful for schema comparison."""
+    """Remove 'type_v2' / 'type_v3' field from schema, useful for schema comparison."""
     result = pycopy.deepcopy(schema)
     for column in result:
         if "type_v2" in column:
             del column["type_v2"]
+        if "type_v3" in column:
+            del column["type_v3"]
     return result
 
 def normalize_schema_v2(schema):
-    "Remove (old) 'type' and 'required' fields from schema, useful for schema comparison."""
+    """Remove "type" / "required" / "type_v3" fields from schema, useful for schema comparison."""
     result = pycopy.deepcopy(schema)
     for column in result:
-        for f in ["type", "required"]:
+        for f in ["type", "required", "type_v3"]:
             if f in column:
                 del column[f]
     return result
@@ -1640,6 +1702,11 @@ def sync_create_cells(cell_count, tablet_cell_bundle="default", driver=None):
 def wait_until_sealed(path, driver=None):
     wait(lambda: get(path + "/@sealed", driver=driver))
 
+def truncate_journal(path, row_count, **kwargs):
+    kwargs["path"] = path
+    kwargs["row_count"] = row_count
+    return execute_command("truncate_journal", kwargs)
+
 def wait_for_tablet_state(path, state, **kwargs):
     print_debug("Waiting for tablets to become %s..." % (state))
     driver = kwargs.pop("driver", None)
@@ -1804,5 +1871,11 @@ def get_job_count_profiling():
 
     return job_count
 
+def scheduler_orchid_path():
+    return "//sys/scheduler/orchid"
+
+def scheduler_orchid_pool_tree_path(tree):
+    return scheduler_orchid_path() + "/scheduler/scheduling_info_per_pool_tree/{}/fair_share_info".format(tree)
+
 def scheduler_orchid_default_pool_tree_path():
-    return "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/fair_share_info"
+    return scheduler_orchid_pool_tree_path("default")

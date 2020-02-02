@@ -53,8 +53,8 @@ private:
 
     void OnWatchdogCheck();
 
-    void OnCanceled();
-    void DoCancel();
+    void OnCanceled(const TError& error);
+    void DoCancel(const TError& error);
 
     void DoCleanup();
 };

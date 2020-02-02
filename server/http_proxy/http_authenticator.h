@@ -12,11 +12,15 @@
 
 namespace NYT::NHttpProxy {
 
+////////////////////////////////////////////////////////////////////////////////
+
 struct TAuthenticationResultAndToken
 {
     NAuth::TAuthenticationResult Result;
     TString TokenHash;
 };
+
+void SetStatusFromAuthError(const NHttp::IResponseWriterPtr& req, const TError& error);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,7 +31,8 @@ public:
     THttpAuthenticator(
         NAuth::TAuthenticationManagerConfigPtr config,
         NAuth::ITokenAuthenticatorPtr tokenAuthenticator,
-        NAuth::ICookieAuthenticatorPtr cookieAuthenticator);
+        NAuth::ICookieAuthenticatorPtr cookieAuthenticator,
+        TCoordinatorPtr coordinator);
 
     virtual void HandleRequest(
         const NHttp::IRequestPtr& req,
@@ -42,6 +47,7 @@ private:
 
     NAuth::ITokenAuthenticatorPtr TokenAuthenticator_;
     NAuth::ICookieAuthenticatorPtr CookieAuthenticator_;
+    TCoordinatorPtr Coordinator_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

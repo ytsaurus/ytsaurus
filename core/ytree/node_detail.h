@@ -133,13 +133,18 @@ protected:
         INodePtr child,
         bool recursive) override;
 
+    std::pair<TString, INodePtr> PrepareSetChild(
+        INodeFactory* factory,
+        const TYPath& path,
+        INodePtr child,
+        bool recursive);
+
     virtual int GetMaxKeyLength() const;
 
     virtual void SetChildren(TReqMultiset* request, TRspMultiset* response) override;
 
 private:
     void ThrowMaxKeyLengthViolated() const;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

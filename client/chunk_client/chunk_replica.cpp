@@ -4,7 +4,7 @@
 
 #include <yt/client/object_client/helpers.h>
 
-#include <yt/core/erasure/public.h>
+#include <yt/library/erasure/public.h>
 
 #include <yt/core/misc/format.h>
 

@@ -4,10 +4,17 @@
 
 #include <yt/core/profiling/timing.h>
 
+#include <yt/core/misc/protobuf_helpers.h>
+
+#include <yt/core/tracing/proto/tracing_ext.pb.h>
+
 namespace NYT::NTracing {
 
 using namespace NConcurrency;
 using namespace NProfiling;
+
+using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,40 +41,42 @@ TSpanContext TSpanContext::CreateChild()
     };
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-void FormatValue(TStringBuilderBase* builder, TSpanContext spanContext, TStringBuf spec)
+void AddErrorTag()
 {
-    int flags = (spanContext.Sampled ? 1 : 0) | (spanContext.Debug ? 2 : 0);
-
-    builder->AppendFormat("%08" PRIx64 "%08" PRIx64 ":%08" PRIx64 ":%08" PRIx64 ":%d",
-        spanContext.TraceId.Parts64[1],
-        spanContext.TraceId.Parts64[0],
-        spanContext.SpanId,
-        flags);
-}
-
-TString ToString(TSpanContext spanContext)
-{
-    return ToStringViaBuilder(spanContext);
+    AddTag("error", TString("true"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTraceContext::TTraceContext(TSpanContext parent, const TString& name, TTraceContextPtr parentContext)
-    : ParentSpanId_(parent.SpanId)
+void FormatValue(TStringBuilderBase* builder, const TSpanContext& context, TStringBuf /*spec*/)
+{
+    builder->AppendFormat("%v:%08" PRIx64 ":%v",
+        context.TraceId,
+        context.SpanId,
+        (context.Sampled ? 1u : 0) | (context.Debug ? 2u : 0));
+}
+
+TString ToString(const TSpanContext& context)
+{
+    return ToStringViaBuilder(context);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTraceContext::TTraceContext(TSpanContext parentSpanContext, const TString& spanName, TTraceContextPtr parentTraceContext)
+    : ParentSpanId_(parentSpanContext.SpanId)
     , StartTime_(GetCpuInstant())
-    , SpanContext_(parent.CreateChild())
-    , Name_(name)
-    , ParentContext_(parentContext)
+    , SpanContext_(parentSpanContext.CreateChild())
+    , SpanName_(spanName)
+    , ParentContext_(std::move(parentTraceContext))
 { }
 
-TTraceContext::TTraceContext(TFollowsFrom, TSpanContext parent, const TString& name, TTraceContextPtr parentContext)
+TTraceContext::TTraceContext(TFollowsFrom, TSpanContext parent, const TString& spanName, TTraceContextPtr parentTraceContext)
     : FollowsFromSpanId_(parent.SpanId)
     , StartTime_(GetCpuInstant())
     , SpanContext_(parent.CreateChild())
-    , Name_(name)
-    , ParentContext_(parentContext)
+    , SpanName_(spanName)
+    , ParentContext_(std::move(parentTraceContext))
 { }
 
 TTraceContextPtr TTraceContext::CreateChild(const TString& name)
@@ -80,10 +89,10 @@ TDuration TTraceContext::GetElapsedTime() const
     return CpuDurationToDuration(GetElapsedCpuTime());
 }
 
-void TTraceContext::SetName(const TString& name)
+void TTraceContext::SetSpanName(const TString& spanName)
 {
     auto guard = Guard(Lock_);
-    Name_ = name;
+    SpanName_ = spanName;
 }
 
 void TTraceContext::SetSampled()
@@ -143,22 +152,77 @@ void TTraceContext::Finish()
     }
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-TTraceContextPtr CreateRootTraceContext(const TString& name)
+void FormatValue(TStringBuilderBase* builder, const TTraceContextPtr& context, TStringBuf /*spec*/)
 {
-    TSpanContext context{TTraceId::Create(), InvalidSpanId, false, false};
-    return New<TTraceContext>(context, name);
+    if (context) {
+        builder->AppendFormat("%v %v",
+            context->GetSpanName(),
+            context->GetSpanContext());
+    } else {
+        builder->AppendString(AsStringBuf("<null>"));
+    }
 }
 
-TTraceContextPtr CreateChildTraceContext(const TString& spanName)
+TString ToString(const TTraceContextPtr& context)
 {
-    auto context = GetCurrentTraceContext();
+    return ToStringViaBuilder(context);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(NProto::TTracingExt* ext, const TTraceContextPtr& context)
+{
     if (!context) {
+        ext->Clear();
+        return;
+    }
+
+    ToProto(ext->mutable_trace_id(), context->GetTraceId());
+    ext->set_span_id(context->GetSpanId());
+    ext->set_sampled(context->IsSampled());
+    ext->set_debug(context->IsDebug());
+}
+
+TTraceContextPtr CreateRootTraceContext(const TString& spanName)
+{
+    return New<TTraceContext>(
+        TSpanContext{TTraceId::Create(), InvalidSpanId, false, false},
+        spanName);
+}
+
+TTraceContextPtr CreateChildTraceContext(const TTraceContextPtr& parentContext, const TString& spanName, bool forceTracing)
+{
+    if (parentContext) {
+        return parentContext->CreateChild(spanName);
+    }
+
+    if (!forceTracing) {
         return nullptr;
     }
 
-    return context->CreateChild(spanName);
+    auto newContext = CreateRootTraceContext(spanName);
+    newContext->SetSampled();
+    return newContext;
+}
+
+TTraceContextPtr CreateChildTraceContext(const NProto::TTracingExt& ext, const TString& spanName, bool forceTracing)
+{
+    auto traceId = FromProto<TTraceId>(ext.trace_id());
+    if (!traceId) {
+        if (!forceTracing) {
+            return nullptr;
+        }
+        return CreateRootTraceContext(spanName);
+    }
+
+    TSpanContext spanContext{
+        traceId,
+        ext.span_id(),
+        ext.sampled(),
+        ext.debug()
+    };
+
+    return New<TTraceContext>(spanContext, spanName);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -178,16 +242,6 @@ thread_local TTraceContext* CurrentTraceContext;
 thread_local TTraceId CurrentTraceId;
 thread_local TCpuInstant TraceContextTimingCheckpoint;
 static thread_local TCurrentTraceContextReclaimer CurrentTraceContextReclaimer;
-
-TString ToString(const TTraceContextPtr& context)
-{
-    if (!context) {
-        static TString Null("<null>");
-        return Null;
-    }
-
-    return ToString(context->GetContext());
-}
 
 TTraceContextPtr SwitchTraceContext(TTraceContextPtr newContext)
 {
@@ -260,8 +314,12 @@ void TTraceContext::IncrementElapsedCpuTime(NProfiling::TCpuDuration delta)
 ////////////////////////////////////////////////////////////////////////////////
 
 TChildTraceContextGuard::TChildTraceContextGuard(
-    const TString& spanName)
-    : TraceContextGuard_(CreateChildTraceContext(spanName))
+    const TString& spanName,
+    bool forceTracing)
+    : TraceContextGuard_(CreateChildTraceContext(
+        GetCurrentTraceContext(),
+        spanName,
+        forceTracing))
     , FinishGuard_(GetCurrentTraceContext())
 { }
 

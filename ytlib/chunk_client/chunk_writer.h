@@ -4,7 +4,7 @@
 
 #include <yt/core/actions/future.h>
 
-#include <yt/core/erasure/public.h>
+#include <yt/library/erasure/public.h>
 
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/ref.h>

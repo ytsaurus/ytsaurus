@@ -15,6 +15,7 @@
 #include <yt/core/actions/signal.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
+#include <yt/core/concurrency/throughput_throttler.h>
 #include <yt/core/concurrency/periodic_executor.h>
 
 namespace NYT::NDataNode {
@@ -102,6 +103,9 @@ public:
     //! to cell #cellTag.
     TFuture<void> GetHeartbeatBarrier(NObjectClient::TCellTag cellTag);
 
+    //! Schedules a new node heartbeat via TDelayedExecutor.
+    void ScheduleNodeHeartbeat(NObjectClient::TCellTag cellTag, bool immediately = false);
+
 private:
     using EState = EMasterConnectorState;
 
@@ -127,6 +131,12 @@ private:
 
     //! Node id assigned by master or |InvalidNodeId| is not registered.
     std::atomic<TNodeId> NodeId_ = {NNodeTrackerClient::InvalidNodeId};
+
+    //! Per-cell amount of heartbeats scheduled by delayed executor.
+    THashMap<NObjectClient::TCellTag, int> HeartbeatsScheduled_;
+
+    //! Per-cell incremental heartbeat throttler.
+    THashMap<NObjectClient::TCellTag, NConcurrency::IReconfigurableThroughputThrottlerPtr> IncrementalHeartbeatThrottler_;
 
     struct TChunksDelta
     {
@@ -166,7 +176,6 @@ private:
     TSpinLock LocalDescriptorLock_;
     NNodeTrackerClient::TNodeDescriptor LocalDescriptor_;
 
-
     //! Returns the list of all active alerts, including those induced
     //! by |PopulateAlerts| subscribers.
     /*!
@@ -175,7 +184,7 @@ private:
     std::vector<TError> GetAlerts();
 
     //! Schedules a new node heartbeat via TDelayedExecutor.
-    void ScheduleNodeHeartbeat(NObjectClient::TCellTag cellTag, bool immediately = false);
+    void DoScheduleNodeHeartbeat(NObjectClient::TCellTag cellTag, bool immediately = false);
 
     //! Schedules a new job heartbeat via TDelayedExecutor.
     void ScheduleJobHeartbeat(bool immediately = false);

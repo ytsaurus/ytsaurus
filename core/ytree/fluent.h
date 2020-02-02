@@ -5,9 +5,6 @@
 #include "tree_builder.h"
 #include "convert.h"
 
-#include <yt/core/json/config.h>
-#include <yt/core/json/json_writer.h>
-
 #include <yt/core/yson/consumer.h>
 #include <yt/core/yson/producer.h>
 #include <yt/core/yson/parser.h>
@@ -162,10 +159,10 @@ class TFluentYsonBuilder
     : private TNonCopyable
 {
 private:
-    template <class T>
-    static void WriteValue(NYson::IYsonConsumer* consumer, const T& value)
+    template <class T, class... TExtraArgs>
+    static void WriteValue(NYson::IYsonConsumer* consumer, const T& value, TExtraArgs&&... extraArgs)
     {
-        Serialize(value, consumer);
+        Serialize(value, consumer, std::forward<TExtraArgs>(extraArgs)...);
     }
 
 public:
@@ -275,10 +272,10 @@ public:
             return this->GetUnwrappedParent();
         }
 
-        template <class T>
-        TUnwrappedParent Value(const T& value)
+        template <class T, class... TExtraArgs>
+        TUnwrappedParent Value(const T& value, TExtraArgs&&... extraArgs)
         {
-            WriteValue(this->Consumer, value);
+            WriteValue(this->Consumer, value, std::forward<TExtraArgs>(extraArgs)...);
             return this->GetUnwrappedParent();
         }
 
@@ -476,12 +473,12 @@ public:
             return *this;
         }
 
-        template <class T>
-        TThis& OptionalItem(TStringBuf key, const T& optionalValue)
+        template <class T, class... TExtraArgs>
+        TThis& OptionalItem(TStringBuf key, const T& optionalValue, TExtraArgs&&... extraArgs)
         {
             if (optionalValue) {
                 this->Consumer->OnKeyedItem(key);
-                WriteValue(this->Consumer, optionalValue);
+                WriteValue(this->Consumer, optionalValue, std::forward<TExtraArgs>(extraArgs)...);
             }
             return *this;
         }
@@ -520,12 +517,12 @@ public:
             return *this;
         }
 
-        template <class T>
-        TThis& OptionalItem(const T& optionalValue)
+        template <class T, class... TExtraArgs>
+        TThis& OptionalItem(const T& optionalValue, TExtraArgs&&... extraArgs)
         {
             if (optionalValue) {
                 this->Consumer->OnListItem();
-                WriteValue(this->Consumer, optionalValue);
+                WriteValue(this->Consumer, optionalValue, std::forward<TExtraArgs>(extraArgs)...);
             }
             return *this;
         }
@@ -586,12 +583,12 @@ public:
             return *this;
         }
 
-        template <class T>
-        TThis& OptionalItem(TStringBuf key, const T& optionalValue)
+        template <class T, class... TExtraArgs>
+        TThis& OptionalItem(TStringBuf key, const T& optionalValue, TExtraArgs&&... extraArgs)
         {
             if (optionalValue) {
                 this->Consumer->OnKeyedItem(key);
-                WriteValue(this->Consumer, optionalValue);
+                WriteValue(this->Consumer, optionalValue, std::forward<TExtraArgs>(extraArgs)...);
             }
             return *this;
         }

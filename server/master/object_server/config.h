@@ -8,6 +8,8 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
+#include <yt/server/lib/object_server/config.h>
+
 namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -75,6 +77,8 @@ public:
     //! Amount of time to reserve when computing the timeout for a forwarded request.
     TDuration ForwardedRequestTimeoutReserve;
 
+    TObjectServiceCacheConfigPtr MasterCache;
+
     TObjectServiceConfig()
     {
         RegisterParameter("yield_timeout", YieldTimeout)
@@ -92,10 +96,30 @@ public:
             .Default(TDuration::Seconds(30));
         RegisterParameter("forwarded_request_timeout_reserve", ForwardedRequestTimeoutReserve)
             .Default(TDuration::Seconds(3));
+
+        RegisterParameter("master_cache", MasterCache)
+            .DefaultNew();
     }
 };
 
 DEFINE_REFCOUNTED_TYPE(TObjectServiceConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDynamicObjectServiceConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool EnableTwoLevelCache;
+
+    TDynamicObjectServiceConfig()
+    {
+        RegisterParameter("enable_two_level_cache", EnableTwoLevelCache)
+            .Default(false);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicObjectServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

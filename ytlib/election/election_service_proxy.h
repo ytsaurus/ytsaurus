@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/election/election_service.pb.h>
+#include <yt/ytlib/election/proto/election_service.pb.h>
 
 #include <yt/core/rpc/client.h>
 

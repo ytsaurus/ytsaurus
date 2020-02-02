@@ -1,5 +1,4 @@
 #include "discovery.h"
-
 #include <yt/client/api/transaction.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
@@ -76,16 +75,16 @@ THashMap<TString, TAttributeMap> TDiscovery::List(bool includeBanned) const
 {
     THashMap<TString, TAttributeMap> result;
     THashMap<TString, TInstant> bannedSince;
-    decltype(SelfAttributes_) selfAttributes;
+    decltype(NameAndAttributes_) nameAndAttributes;
     {
         TReaderGuard guard(Lock_);
         result = List_;
         bannedSince = BannedSince_;
-        selfAttributes = SelfAttributes_;
+        nameAndAttributes = NameAndAttributes_;
     }
     auto now = TInstant::Now();
-    if (selfAttributes) {
-        result.insert(*selfAttributes);
+    if (nameAndAttributes) {
+        result.insert(*nameAndAttributes);
     }
     if (!includeBanned) {
         for (auto it = result.begin(); it != result.end();) {
@@ -127,27 +126,17 @@ i64 TDiscovery::GetWeight()
 void TDiscovery::DoEnter(TString name, TAttributeMap attributes)
 {
     YT_VERIFY(!Transaction_);
-
     YT_LOG_INFO("Entering the group");
-
-    TCreateNodeOptions createOptions;
-    createOptions.IgnoreExisting = true;
-    createOptions.Attributes = ConvertToAttributes(attributes);
-
-    WaitFor(Client_->CreateNode(Config_->Directory + "/" + name, NObjectClient::EObjectType::MapNode, createOptions))
-        .ThrowOnError();
-        
-    YT_LOG_DEBUG("Instance node created (Name: %v)",
-        name);
 
     {
         TWriterGuard guard(Lock_);
-        SelfAttributes_ = {name, attributes};
+        NameAndAttributes_ = {name, attributes};
     }
 
-    TransactionRestorer_ = BIND(&TDiscovery::OnTransactionAborted, MakeWeak(this), Epoch_)
+    TransactionRestorer_ = BIND(&TDiscovery::DoRestoreTransaction, MakeWeak(this), Epoch_)
         .Via(Invoker_);
-    
+
+    DoCreateNode(Epoch_);
     DoLockNode(Epoch_);
 
     YT_LOG_INFO("Entered the group");
@@ -172,12 +161,12 @@ void TDiscovery::DoLeave()
 
     {
         TWriterGuard guard(Lock_);
-        SelfAttributes_.reset();
+        NameAndAttributes_.reset();
     }
-    
+
     Transaction_.Reset();
 }
-    
+
 void TDiscovery::DoUpdateList()
 {
     auto list = ConvertToNode(WaitFor(Client_->ListNode(Config_->Directory, ListOptions_))
@@ -217,15 +206,29 @@ void TDiscovery::DoUpdateList()
         swap(List_, newList);
         LastUpdate_ = TInstant::Now();
     }
-    YT_LOG_INFO("List of participants updated (Alive: %v, Dead: %v)", aliveCount, deadCount);
+    YT_LOG_DEBUG("List of participants updated (Alive: %v, Dead: %v)", aliveCount, deadCount);
 }
 
-void TDiscovery::DoLockNode(int epoch)
+void TDiscovery::DoCreateNode(int epoch)
 {
     if (Epoch_ != epoch) {
         return;
     }
 
+    const auto& [name, attributes] = *NameAndAttributes_;
+
+    TCreateNodeOptions createOptions;
+    createOptions.IgnoreExisting = true;
+    createOptions.Attributes = ConvertToAttributes(attributes);
+
+    WaitFor(Client_->CreateNode(Config_->Directory + "/" + name, NObjectClient::EObjectType::MapNode, createOptions))
+        .ThrowOnError();
+
+    YT_LOG_DEBUG("Instance node created (Name: %v)", name);
+}
+
+void TDiscovery::DoLockNode(int epoch)
+{
     TTransactionStartOptions transactionOptions {
         .Timeout = Config_->TransactionTimeout,
         .PingPeriod = Config_->TransactionPingPeriod,
@@ -241,30 +244,39 @@ void TDiscovery::DoLockNode(int epoch)
         return;
     }
 
+
     TLockNodeOptions lockOptions;
     lockOptions.ChildKey = "lock";
 
-    auto lock = WaitFor(transaction->LockNode(Config_->Directory + "/" + SelfAttributes_->first, NCypressClient::ELockMode::Shared, lockOptions))
+    auto nodePath = Config_->Directory + "/" + NameAndAttributes_->first;
+
+    auto lock = WaitFor(transaction->LockNode(nodePath, NCypressClient::ELockMode::Shared, lockOptions))
         .ValueOrThrow();
 
     if (Epoch_ != epoch) {
         transaction->Abort();
         return;
     }
+
     Transaction_ = std::move(transaction);
     // Set it here to avoid restoring transaction without lock.
     Transaction_->SubscribeAborted(TransactionRestorer_);
-    
+
+    // After transaction is aborted the node will be unlocked and removed.
+    WaitFor(Client_->SetNode(nodePath + "/@expiration_time", ConvertToYsonString(TInstant::Now())))
+        .ThrowOnError();
+
     YT_LOG_DEBUG("Lock completed (TransactionId: %v, LockId: %v)",
         Transaction_->GetId(),
         lock.LockId);
 }
 
-void TDiscovery::OnTransactionAborted(int epoch)
+void TDiscovery::DoRestoreTransaction(int epoch)
 {
     YT_LOG_WARNING("Lock transaction aborted (Epoch: %v)", epoch);
     while (Epoch_ == epoch) {
         try {
+            DoCreateNode(epoch);
             DoLockNode(epoch);
             break;
         } catch (const std::exception& ex) {

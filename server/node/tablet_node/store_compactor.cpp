@@ -1,6 +1,7 @@
 #include "in_memory_manager.h"
 #include "partition.h"
 #include "private.h"
+#include "public.h"
 #include "slot_manager.h"
 #include "sorted_chunk_store.h"
 #include "store_compactor.h"
@@ -16,6 +17,8 @@
 #include <yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
 #include <yt/server/lib/tablet_node/config.h>
+
+#include <yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/connection.h>
@@ -50,9 +53,13 @@
 #include <yt/core/profiling/profile_manager.h>
 
 #include <yt/core/ytree/helpers.h>
+#include <yt/core/ytree/virtual.h>
 
 #include <yt/core/misc/finally.h>
 #include <yt/core/misc/heap.h>
+
+#include <yt/core/yson/consumer.h>
+
 #include <yt/core/ytalloc/memory_zone.h>
 
 namespace NYT::NTabletNode {
@@ -68,11 +75,14 @@ using namespace NTabletNode::NProto;
 using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NYTAlloc;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static const size_t MaxRowsPerRead = 65536;
 static const size_t MaxRowsPerWrite = 65536;
+
+static const size_t FinishedQueueSize = 100;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -99,6 +109,7 @@ public:
         , FeasibleCompactionsCounter_("/feasible_compactions")
         , ScheduledPartitioningsCounter_("/scheduled_partitionings")
         , ScheduledCompactionsCounter_("/scheduled_compactions")
+        , OrchidService_(CreateOrchidService())
     { }
 
     void Start()
@@ -107,6 +118,11 @@ public:
         slotManager->SubscribeBeginSlotScan(BIND(&TStoreCompactor::OnBeginSlotScan, MakeStrong(this)));
         slotManager->SubscribeScanSlot(BIND(&TStoreCompactor::OnScanSlot, MakeStrong(this)));
         slotManager->SubscribeEndSlotScan(BIND(&TStoreCompactor::OnEndSlotScan, MakeStrong(this)));
+    }
+
+    IYPathServicePtr GetOrchidService()
+    {
+        return OrchidService_;
     }
 
 private:
@@ -126,6 +142,20 @@ private:
     const NProfiling::TTagId CompactionFailedTag_ = NProfiling::TProfileManager::Get()->RegisterTag("method", "compaction_failed");
     const NProfiling::TTagId PartitioningTag_ = NProfiling::TProfileManager::Get()->RegisterTag("method", "partitioning");
     const NProfiling::TTagId PartitioningFailedTag_ = NProfiling::TProfileManager::Get()->RegisterTag("method", "partitioning_failed");
+
+    IYPathServicePtr CreateOrchidService()
+    {
+        return New<TCompositeMapService>()
+            ->AddAttribute(EInternedAttributeKey::Opaque, BIND([] (IYsonConsumer* consumer) {
+                BuildYsonFluently(consumer)
+                    .Value(true);
+            }))
+            ->AddChild("compaction_tasks", IYPathService::FromProducer(
+                BIND(&TOrchidServiceManager::GetTasks, MakeWeak(CompactionOrchidServiceManager_))))
+            ->AddChild("partitioning_tasks", IYPathService::FromProducer(
+                BIND(&TOrchidServiceManager::GetTasks, MakeWeak(PartitioningOrchidServiceManager_))))
+            ->Via(Bootstrap_->GetControlInvoker());
+    }
 
     struct TTask
     {
@@ -202,6 +232,110 @@ private:
         }
     };
 
+    class TOrchidServiceManager
+        : public TRefCounted
+    {
+    public:
+        void MarkTaskAsFinished()
+        {
+            auto guard = Guard(QueueSpinLock_);
+
+            YT_VERIFY(FinishedTaskQueue_.size() <= FinishedQueueSize);
+            YT_VERIFY(!TaskQueue_.empty());
+
+            if (FinishedTaskQueue_.size() == FinishedQueueSize) {
+                FinishedTaskQueue_.pop_front();
+            }
+
+            FinishedTaskQueue_.push_back(TaskQueue_.front());
+            TaskQueue_.pop_front();
+        }
+
+        void ResetTaskQueue(
+            std::vector<std::unique_ptr<TTask>>::iterator begin,
+            std::vector<std::unique_ptr<TTask>>::iterator end)
+        {
+            auto guard = Guard(QueueSpinLock_);
+
+            TaskQueue_.clear();
+            for (auto it = begin; it != end; ++it) {
+                TaskQueue_.push_back(New<TTaskInfo>(*it->get()));
+            }
+        }
+
+        void GetTasks(IYsonConsumer* consumer) const
+        {
+            auto guard = Guard(QueueSpinLock_);
+            auto taskQueue = TaskQueue_;
+            auto finishedTaskQueue = FinishedTaskQueue_;
+            guard.Release();
+
+            BuildYsonFluently(consumer)
+                .BeginMap()
+                    .Item("task_count").Value(taskQueue.size())
+                    .Item("finished_task_count").Value(finishedTaskQueue.size())
+                    .Item("pending_tasks")
+                        .DoListFor(
+                            taskQueue,
+                            [&](TFluentList fluent, const auto& task) {
+                                task->Serialize(fluent);
+                            })
+                    .Item("finished_tasks")
+                        .DoListFor(
+                            finishedTaskQueue,
+                            [&](TFluentList fluent, const auto& task) {
+                                task->Serialize(fluent);
+                            })
+                .EndMap();
+        }
+
+    private:
+        struct TTaskInfo
+            : public TIntrinsicRefCounted
+        {
+            explicit TTaskInfo(const TTask& task)
+                : TabletId(task.TabletId)
+                , PartitionId(task.PartitionId)
+                , StoreCount(task.StoreIds.size())
+                , Slack(task.Slack)
+                , Effect(task.Effect)
+                , FutureEffect(task.FutureEffect)
+            { }
+
+            TTabletId TabletId;
+            TPartitionId PartitionId;
+            int StoreCount;
+
+            int Slack;
+            int Effect;
+            int FutureEffect;
+
+            void Serialize(TFluentList fluent) const
+            {
+                fluent.Item()
+                .BeginMap()
+                    .Item("tablet_id").Value(TabletId)
+                    .Item("partition_id").Value(PartitionId)
+                    .Item("store_count").Value(StoreCount)
+                    .Item("task_priority")
+                        .BeginMap()
+                            .Item("slack").Value(Slack)
+                            .Item("future_effect").Value(FutureEffect)
+                            .Item("effect").Value(Effect)
+                        .EndMap()
+                 .EndMap();
+            }
+        };
+
+        using TTaskInfoPtr = TIntrusivePtr<TTaskInfo>;
+
+        TSpinLock QueueSpinLock_;
+        std::deque<TTaskInfoPtr> TaskQueue_;
+        std::deque<TTaskInfoPtr> FinishedTaskQueue_;
+    };
+
+    using TOrchidServiceManagerPtr = TIntrusivePtr<TOrchidServiceManager>;
+
     // Variables below contain per-iteration state for slot scan.
     TSpinLock ScanSpinLock_;
     bool ScanForPartitioning_;
@@ -220,6 +354,9 @@ private:
     TReaderWriterSpinLock FutureEffectLock_;
     THashMap<TTabletId, int> FutureEffect_;
 
+    const TOrchidServiceManagerPtr CompactionOrchidServiceManager_ = New<TOrchidServiceManager>();
+    const TOrchidServiceManagerPtr PartitioningOrchidServiceManager_ = New<TOrchidServiceManager>();
+    IYPathServicePtr OrchidService_;
 
     void OnBeginSlotScan()
     {
@@ -348,14 +485,22 @@ private:
         const int overlappingStoreLimit = GetOverlappingStoreLimit(tablet->GetConfig());
         const int overlappingStoreCount = tablet->GetOverlappingStoreCount();
         if (partition->IsEden()) {
-            candidate->Slack = std::max(0, overlappingStoreLimit - overlappingStoreCount);
+            // Normalized eden store count dominates when number of eden stores is too close to its limit.
+            int normalizedEdenStoreCount = tablet->GetEdenStoreCount() * overlappingStoreLimit /
+                tablet->GetConfig()->MaxEdenStoresPerTablet;
+            int overlappingStoreLimitSlackness = overlappingStoreLimit -
+                std::max(overlappingStoreCount, normalizedEdenStoreCount);
+
+            candidate->Slack = std::max(0, overlappingStoreLimitSlackness);
             candidate->Effect = candidate->StoreIds.size() - 1;
         } else {
             // For critical partitions, this is equivalent to MOSC-OSC; for unconstrained -- includes extra slack.
             const int edenOverlappingStoreCount = tablet->GetEdenOverlappingStoreCount();
             const int partitionStoreCount = static_cast<int>(partition->Stores().size());
             candidate->Slack = std::max(0, overlappingStoreLimit - edenOverlappingStoreCount - partitionStoreCount);
-            if (tablet->GetCriticalPartitionCount() == 1 && edenOverlappingStoreCount + partitionStoreCount == overlappingStoreCount) {
+            if (tablet->GetCriticalPartitionCount() == 1 &&
+                edenOverlappingStoreCount + partitionStoreCount == overlappingStoreCount)
+            {
                 candidate->Effect = candidate->StoreIds.size() - 1;
             }
         }
@@ -601,6 +746,7 @@ private:
         std::vector<std::unique_ptr<TTask>>* candidates,
         std::vector<std::unique_ptr<TTask>>* tasks,
         size_t* index,
+        const TOrchidServiceManagerPtr& orchidServiceManager,
         NProfiling::TSimpleGauge& counter)
     {
         Profiler.Update(counter, candidates->size());
@@ -609,6 +755,7 @@ private:
 
         {
             auto guard = Guard(TaskSpinLock_);
+            orchidServiceManager->ResetTaskQueue(candidates->begin(), candidates->end());
             tasks->swap(*candidates);
             *index = tasks->size();
         }
@@ -622,6 +769,7 @@ private:
             &PartitioningCandidates_,
             &PartitioningTasks_,
             &PartitioningTaskIndex_,
+            PartitioningOrchidServiceManager_,
             FeasiblePartitioningsCounter_);
     }
 
@@ -631,12 +779,14 @@ private:
             &CompactionCandidates_,
             &CompactionTasks_,
             &CompactionTaskIndex_,
+            CompactionOrchidServiceManager_,
             FeasibleCompactionsCounter_);
     }
 
     void ScheduleMoreTasks(
         std::vector<std::unique_ptr<TTask>>* tasks,
         size_t* index,
+        const TOrchidServiceManagerPtr& orchidServiceManager,
         const TAsyncSemaphorePtr& semaphore,
         NProfiling::TMonotonicCounter& counter,
         void (TStoreCompactor::*action)(TTask*))
@@ -667,6 +817,7 @@ private:
                     }
                     guard.Release();
                     MakeHeap(tasks->begin(), tasks->begin() + *index, TTask::Comparer);
+                    orchidServiceManager->ResetTaskQueue(tasks->begin(), tasks->begin() + *index);
                 }
             }
 
@@ -676,6 +827,7 @@ private:
             auto&& task = tasks->at(*index);
             task->Prepare(this, std::move(semaphoreGuard));
             ++scheduled;
+            orchidServiceManager->MarkTaskAsFinished();
 
             // TODO(sandello): Better ownership management.
             auto invoker = task->Invoker;
@@ -692,6 +844,7 @@ private:
         ScheduleMoreTasks(
             &PartitioningTasks_,
             &PartitioningTaskIndex_,
+            PartitioningOrchidServiceManager_,
             PartitioningSemaphore_,
             ScheduledPartitioningsCounter_,
             &TStoreCompactor::PartitionEden);
@@ -702,6 +855,7 @@ private:
         ScheduleMoreTasks(
             &CompactionTasks_,
             &CompactionTaskIndex_,
+            CompactionOrchidServiceManager_,
             CompactionSemaphore_,
             ScheduledCompactionsCounter_,
             &TStoreCompactor::CompactPartition);
@@ -1569,13 +1723,25 @@ private:
     }
 };
 
-void StartStoreCompactor(
+DEFINE_REFCOUNTED_TYPE(TStoreCompactor)
+
+////////////////////////////////////////////////////////////////////////////////
+
+TStoreCompactorPtr CreateStoreCompactor(
     TTabletNodeConfigPtr config,
     NCellNode::TBootstrap* bootstrap)
 {
-    if (config->EnableStoreCompactor) {
-        New<TStoreCompactor>(config, bootstrap)->Start();
-    }
+    return New<TStoreCompactor>(config, bootstrap);
+}
+
+void StartStoreCompactor(TStoreCompactorPtr storeCompactor)
+{
+    storeCompactor->Start();
+}
+
+IYPathServicePtr GetOrchidService(TStoreCompactorPtr storeCompactor)
+{
+    return storeCompactor->GetOrchidService();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

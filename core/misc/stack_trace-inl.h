@@ -13,7 +13,7 @@ namespace NYT {
 namespace NDetail {
 
 int GetSymbolInfo(void* pc, char* buffer, int length);
-void DumpStackFrameInfo(TRawFormatter<1024>* formatter, void* pc);
+void DumpStackFrameInfo(TBaseFormatter* formatter, void* pc);
 
 } // namespace NDetail
 

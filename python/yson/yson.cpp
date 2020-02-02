@@ -81,6 +81,8 @@ template<>
 TString TYsonIterator::TBase::Name_ = TString();
 template<>
 TString TYsonIterator::TBase::Doc_ = TString();
+template<>
+TString TYsonIterator::TBase::TypeName_ = TString();
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -127,7 +129,7 @@ public:
 
     static void InitType()
     {
-        behaviors().name("Raw yson iterator");
+        behaviors().name("yson_lib.RawYsonIterator");
         behaviors().doc("Iterates over stream with YSON rows");
         behaviors().supportGetattro();
         behaviors().supportSetattro();
@@ -187,7 +189,7 @@ public:
 
     static void InitType()
     {
-        behaviors().name("Lazy yson iterator");
+        behaviors().name("yson_lib.LazyYsonIterator");
         behaviors().doc("Iterates over stream with YSON rows");
         behaviors().supportGetattro();
         behaviors().supportSetattro();

@@ -84,6 +84,10 @@ public:
         const TString& query,
         const NApi::TSelectRowsOptions& options) override;
 
+    virtual TFuture<NYson::TYsonString> Explain(
+        const TString& query,
+        const NApi::TExplainOptions& options) override;
+
     virtual TFuture<ITableReaderPtr> CreateTableReader(
         const NYPath::TRichYPath& path,
         const NApi::TTableReaderOptions& options) override;
@@ -190,7 +194,7 @@ private:
     // COMPAT(kiselyovp) remove Sticky_ (YT-10654)
     const bool Sticky_;
 
-    std::atomic<i64> ModifyRowsRequestSequenceCounter_;
+    std::atomic<i64> ModifyRowsRequestSequenceCounter_ = {0};
     std::vector<TFuture<void>> AsyncResults_;
     TApiServiceProxy::TReqBatchModifyRowsPtr BatchModifyRowsRequest_;
 

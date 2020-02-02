@@ -2,8 +2,6 @@
 
 #include <yt/core/test_framework/framework.h>
 
-#include "ql_helpers.h"
-
 #include <yt/ytlib/table_chunk_format/column_writer.h>
 #include <yt/ytlib/table_chunk_format/column_reader.h>
 #include <yt/ytlib/table_chunk_format/data_block_writer.h>
@@ -45,6 +43,36 @@ void AppendVector(std::vector<T>* data, const std::vector<T> toAppend)
 {
     data->insert(data->end(), toAppend.begin(), toAppend.end());
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSingleColumnWriter
+{
+public:
+    using TWriterCreatorFunc = std::function<std::unique_ptr<IValueColumnWriter>(TDataBlockWriter*)>;
+    explicit TSingleColumnWriter(TWriterCreatorFunc writerCreator);
+    std::pair<TSharedRef, NProto::TColumnMeta> WriteSingleSegmentBlock(const std::vector<NTableClient::TUnversionedOwningRow>& rows);
+
+private:
+    TDataBlockWriter BlockWriter_;
+    std::unique_ptr<IValueColumnWriter> ValueColumnWriter_;
+    i64 RowCount_ = 0;
+    i64 BlockIndex_ = 0;
+};
+
+class TSingleColumnReader
+{
+public:
+    using TReaderCreatorFunc = std::function<
+        std::unique_ptr<IUnversionedColumnReader>(const NProto::TColumnMeta&, int, int)
+    >;
+    explicit TSingleColumnReader(TReaderCreatorFunc readerCreator);
+
+    std::vector<NTableClient::TUnversionedOwningRow> ReadBlock(const TSharedRef& data, const NProto::TColumnMeta& meta, ui16 columnId);
+
+private:
+    TReaderCreatorFunc ReaderCreatorFunc_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -3,7 +3,7 @@
 #include "public.h"
 #include "chunk_reader_allowing_repair.h"
 
-#include <yt/core/erasure/public.h>
+#include <yt/library/erasure/public.h>
 
 #include <yt/core/logging/log.h>
 

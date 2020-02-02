@@ -21,7 +21,6 @@
 #include <Parsers/parseQuery.h>
 
 #include <memory>
-#include <mutex>
 #include <string>
 #include <vector>
 

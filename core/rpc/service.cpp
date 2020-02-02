@@ -4,6 +4,17 @@ namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+TError MakeCanceledError()
+{
+    return TError("RPC request canceled");
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 void IServiceContext::SetRequestInfo()
 {
     SetRawRequestInfo(TString(), false);
@@ -23,8 +34,8 @@ void IServiceContext::ReplyFrom(TFuture<TSharedRefArray> asyncMessage)
             Reply(TError(result));
         }
     }));
-    SubscribeCanceled(BIND([asyncMessage = std::move(asyncMessage)] () mutable {
-        asyncMessage.Cancel();
+    SubscribeCanceled(BIND([asyncMessage = std::move(asyncMessage)] {
+        asyncMessage.Cancel(MakeCanceledError());
     }));
 }
 
@@ -33,14 +44,12 @@ void IServiceContext::ReplyFrom(TFuture<void> asyncError)
     asyncError.Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
         Reply(error);
     }));
-    SubscribeCanceled(BIND([asyncError = std::move(asyncError)] () mutable {
-        asyncError.Cancel();
+    SubscribeCanceled(BIND([asyncError = std::move(asyncError)] {
+        asyncError.Cancel(MakeCanceledError());
     }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TServiceId::TServiceId() = default;
 
 TServiceId::TServiceId(const TString& serviceName, TRealmId realmId)
     : ServiceName(serviceName)

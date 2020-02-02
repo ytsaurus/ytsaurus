@@ -8,7 +8,7 @@
 
 #include <yt/client/node_tracker_client/proto/node.pb.h>
 
-#include <yt/core/erasure/public.h>
+#include <yt/library/erasure/public.h>
 
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/property.h>

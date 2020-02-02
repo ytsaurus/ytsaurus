@@ -37,6 +37,14 @@ class TestBulkInsert(DynamicTablesBase):
             })
         create_dynamic_table(path, **attributes)
 
+    def _ypath_with_update_mode(self, path, update_mode):
+        if update_mode == "append":
+            return "<append=%true>" + path
+        elif update_mode == "overwrite":
+            return path
+        else:
+            assert False
+
     @parametrize_external
     @pytest.mark.parametrize("freeze", [True, False])
     def test_basic_bulk_insert(self, external, freeze):
@@ -294,7 +302,7 @@ class TestBulkInsert(DynamicTablesBase):
                 in_="//tmp/t_input",
                 out="<append=%true>//tmp/t_output",
                 command=command,
-                dont_track=True)
+                track=False)
             operations.append(op)
 
         for op in operations:
@@ -544,7 +552,7 @@ class TestBulkInsert(DynamicTablesBase):
                     "delay_inside_operation_commit_stage": stage,
                 },
             },
-            dont_track=True)
+            track=False)
 
         op.wait_for_state("completing")
         tx = get(op.get_path() + "/@output_transaction_id")
@@ -556,7 +564,9 @@ class TestBulkInsert(DynamicTablesBase):
         insert_rows("//tmp/t_output", [rows[2]])
         assert_items_equal(select_rows("* from [//tmp/t_output]"), rows[1:3])
 
-    def test_competing_tablet_transaction_lost(self):
+    @pytest.mark.parametrize("update_mode", ["append", "overwrite"])
+    @pytest.mark.parametrize("empty_output", [True, False])
+    def test_competing_tablet_transaction_lost(self, update_mode, empty_output):
         cell_id = sync_create_cells(1)[0]
         node = get("#{}/@peers/0/address".format(cell_id))
         create("table", "//tmp/t_input")
@@ -569,20 +579,21 @@ class TestBulkInsert(DynamicTablesBase):
             {"key": 2, "value": "2"},
         ]
 
-        write_table("//tmp/t_input", [rows[0]])
+        if not empty_output:
+            write_table("//tmp/t_input", [rows[0]])
 
         tablet_tx = start_transaction(type="tablet")
         insert_rows("//tmp/t_output", [rows[1]], tx=tablet_tx)
 
         map(
             in_="//tmp/t_input",
-            out="<append=true>//tmp/t_output",
-            command="sleep 5; cat")
+            out=self._ypath_with_update_mode("//tmp/t_output", update_mode),
+            command="cat")
 
         with pytest.raises(YtError):
             commit_transaction(tablet_tx)
 
-        assert_items_equal(select_rows("* from [//tmp/t_output]"), rows[:1])
+        assert_items_equal(select_rows("* from [//tmp/t_output]"), [] if empty_output else rows[:1])
 
     @pytest.mark.parametrize("pivot_keys_before, pivot_keys_after", [
         [[[], [2], [4]], [[]]],
@@ -653,7 +664,8 @@ class TestBulkInsert(DynamicTablesBase):
         create("table", "//tmp/t_input")
         self._create_simple_dynamic_table("//tmp/t_output", account="a", in_memory_mode=in_memory_mode)
         sync_mount_table("//tmp/t_output")
-        write_table("//tmp/t_input", [{"key": 1, "value": "1"}])
+
+        write_table("//tmp/t_input", [{"key": i, "value": str(i)} for i in range(100)])
 
         map(
             in_="//tmp/t_input",
@@ -663,6 +675,17 @@ class TestBulkInsert(DynamicTablesBase):
         wait(lambda: get_account_disk_space("a") > 0)
         if in_memory_mode != "none":
             wait(lambda: get("//sys/accounts/a/@resource_usage/tablet_static_memory") > 0)
+
+        # Overwrite table with less data, usage should decrease.
+        disk_space_usage = get_account_disk_space("a")
+        tablet_static_usage = get("//sys/accounts/a/@resource_usage/tablet_static_memory")
+        map(
+            in_="//tmp/t_input[:#10]",
+            out="//tmp/t_output",
+            command="cat")
+        wait(lambda: 0 < get_account_disk_space("a") < disk_space_usage)
+        if in_memory_mode != "none":
+            wait(lambda: 0 < get("//sys/accounts/a/@resource_usage/tablet_static_memory") < tablet_static_usage)
 
         sync_unmount_table("//tmp/t_output")
         if in_memory_mode != "none":
@@ -754,6 +777,135 @@ class TestBulkInsert(DynamicTablesBase):
                 out="<append=%true>//tmp/t_output",
                 command="cat",
                 tx=tx)
+
+    @pytest.mark.parametrize("atomicity", ["none", "full"])
+    def test_atomicity_should_match(self, atomicity):
+        sync_create_cells(1)
+        create("table", "//tmp/t_input")
+        self._create_simple_dynamic_table("//tmp/t_output")
+        set("//tmp/t_output/@atomicity", atomicity)
+        sync_mount_table("//tmp/t_output")
+
+        write_table("//tmp/t_input", [{"key": 1, "value": "a"}])
+
+        def _run(op_atomicity):
+            map(
+                in_="//tmp/t_input",
+                out="<append=%true>//tmp/t_output",
+                command="cat",
+                spec={"atomicity": op_atomicity})
+
+        _run(atomicity)
+        with pytest.raises(YtError):
+            _run("none" if atomicity == "full" else "full")
+
+    @pytest.mark.xfail(run=False, reason="A bit of race here, fix is to be discussed")
+    def test_atomicity_none(self):
+        sync_create_cells(1)
+        create("table", "//tmp/t_input")
+        self._create_simple_dynamic_table("//tmp/t_output")
+        set("//tmp/t_output/@atomicity", "none")
+        sync_mount_table("//tmp/t_output")
+
+        rows = [{"key": 1, "value": "1"}]
+
+        write_table("//tmp/t_input", rows)
+
+        map(
+            in_="//tmp/t_input",
+            out="<append=%true>//tmp/t_output",
+            command="cat",
+            spec={"atomicity": "none"})
+
+        assert_items_equal(select_rows("* from [//tmp/t_output]"), rows)
+        assert lookup_rows("//tmp/t_output", [{"key": 1}]) == rows
+        assert read_table("//tmp/t_output") == rows
+
+    @pytest.mark.parametrize("flush", [True, False])
+    def test_overwrite(self, flush):
+        sync_create_cells(1)
+        create("table", "//tmp/t_input")
+        self._create_simple_dynamic_table("//tmp/t_output")
+        if not flush:
+            set("//tmp/t_output/@enable_store_rotation", False)
+        sync_mount_table("//tmp/t_output")
+
+        rows = [
+            {"key": 1, "value": "1"},
+            {"key": 2, "value": "2"},
+        ]
+        write_table("//tmp/t_input", rows[:1])
+        insert_rows("//tmp/t_output", rows[1:])
+
+        if flush:
+            sync_flush_table("//tmp/t_output")
+
+        map(
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            command="cat")
+
+        assert read_table("//tmp/t_output") == rows[:1]
+        assert_items_equal(select_rows("* from [//tmp/t_output]"), rows[:1])
+
+    def test_overlapping_store_count_limit(self):
+        sync_create_cells(1)
+        create("table", "//tmp/t_input")
+        self._create_simple_dynamic_table("//tmp/t_output")
+        set("//tmp/t_output/@max_overlapping_store_count", 3);
+        set("//tmp/t_output/@enable_compaction_and_partitioning", False);
+        sync_mount_table("//tmp/t_output")
+
+        write_table("//tmp/t_input", [{"key": 1, "value": "1"}])
+
+        def _run_op():
+            map(
+                in_="//tmp/t_input",
+                out="<append=%true>//tmp/t_output",
+                command="cat")
+
+        _run_op()
+        _run_op()
+        wait(lambda: get("//tmp/t_output/@tablet_statistics/overlapping_store_count") == 3)
+        with pytest.raises(YtError):
+            _run_op()
+
+    def test_per_user_permit(self):
+        sync_create_cells(1)
+        create("table", "//tmp/t_input")
+        self._create_simple_dynamic_table("//tmp/t_output")
+        sync_mount_table("//tmp/t_output")
+
+        write_table("//tmp/t_input", [{"key": 1, "value": "1"}])
+
+        def _set_global_permit(value):
+            set("//sys/controller_agents/config/enable_bulk_insert_for_everyone", value)
+            for instance in ls("//sys/controller_agents/instances"):
+                def _wait_func():
+                    config = get("//sys/controller_agents/instances/{}/orchid/controller_agent/config".format(instance))
+                    return config.get("enable_bulk_insert_for_everyone", False) == value
+                wait(_wait_func)
+
+        def _run_op():
+            map(
+                in_="//tmp/t_input",
+                out="<append=%true>//tmp/t_output",
+                command="cat",
+                authenticated_user="u")
+
+        try:
+            create_user("u")
+
+            _run_op()
+
+            _set_global_permit(False)
+            with pytest.raises(YtError):
+                _run_op()
+
+            set("//sys/users/u/@enable_bulk_insert", True)
+            _run_op()
+        finally:
+            _set_global_permit(True)
 
 ##################################################################
 
@@ -1199,8 +1351,9 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
         rhs = deepcopy(list(rhs))
 
         def _normalize_column(column):
-            if "type_v2" in column:
-                column.pop("type_v2")
+            for k in ["type_v2", "type_v3"]:
+                if k in column:
+                    column.pop(k)
             column.setdefault("required", False)
 
         for column in lhs:

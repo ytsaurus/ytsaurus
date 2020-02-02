@@ -7,7 +7,7 @@
 
 #include <yt/server/master/transaction_server/public.h>
 
-#include <yt/ytlib/object_client/master_ypath.pb.h>
+#include <yt/ytlib/object_client/proto/master_ypath.pb.h>
 
 #include <yt/core/misc/optional.h>
 
@@ -50,6 +50,9 @@ struct IObjectTypeHandler
 
     //! Finds object by id, returns |nullptr| if nothing is found.
     virtual TObject* FindObject(TObjectId id) = 0;
+
+    //! Finds an object by attributes intended for #CreateObject, returns |nullptr| if nothing is found.
+    virtual TObject* FindObjectByAttributes(const NYTree::IAttributeDictionary* attributes) = 0;
 
     //! Finds object by id, fails if nothing is found.
     TObject* GetObject(TObjectId id);

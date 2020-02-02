@@ -92,9 +92,6 @@ public:
     void AddGlobalWatcherHandler(TWatcherHandler handler);
     void SetCustomGlobalWatcher(EWatcherType type, TWatcherRequester requester, TWatcherHandler handler, TDuration period);
 
-    void AddOperationWatcherRequester(const TOperationPtr& operation, TWatcherRequester requester);
-    void AddOperationWatcherHandler(const TOperationPtr& operation, TWatcherHandler handler);
-
     void UpdateConfig(const TSchedulerConfigPtr& config);
 
     //! Raised when connection prcoess starts.

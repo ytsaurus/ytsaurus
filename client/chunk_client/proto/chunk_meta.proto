@@ -17,6 +17,9 @@ message TBlockInfo
 message TBlocksExt
 {
     repeated TBlockInfo blocks = 1;
+
+    // Whether chunk was written with `sync_on_close` option.
+    optional bool sync_on_close = 2;
 }
 
 // Chunk meta extension.
@@ -63,7 +66,7 @@ message TMiscExt
     // EErasureCodec
     optional int32 erasure_codec = 15;
 
-    // Indicates if the chunk contains a sorted rowsed with unique keys (tables only).
+    // Indicates if the chunk contains a sorted rowset with unique keys (tables only).
     optional bool unique_keys = 16 [default = false];
 
     // Chunk creation time.

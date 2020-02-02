@@ -273,6 +273,47 @@ bool TGuid::FromString(TStringBuf str, TGuid* result)
     return true;
 }
 
+TGuid TGuid::FromStringHex32(TStringBuf str)
+{
+    TGuid guid;
+    if (!FromStringHex32(str, &guid)) {
+        THROW_ERROR_EXCEPTION("Error parsing Hex32 GUID %Qv",
+            str);
+    }
+    return guid;
+}
+
+bool TGuid::FromStringHex32(TStringBuf str, TGuid* result)
+{
+    if (str.size() != 32) {
+        return false;
+    }
+
+    size_t partId = 3;
+
+    for (size_t i = 0; i != 4; ++i) {
+        result->Parts32[partId] = 0;
+        for (size_t j = 0; j != 8; ++j) {
+            const char c = str[i * 8 + j];
+            ui32 digit = 0;
+            if ('0' <= c && c <= '9') {
+                digit = c - '0';
+            } else if ('a' <= c && c <= 'f') {
+                digit = c - 'a' + 10;
+            } else if ('A' <= c && c <= 'F') {
+                digit = c - 'A' + 10;
+            } else {
+                return false; // non-hex character
+            }
+
+            result->Parts32[partId] = result->Parts32[partId] * 16 + digit;
+        }
+        --partId;
+    }
+
+    return true;
+}
+
 void FormatValue(TStringBuilderBase* builder, TGuid value, TStringBuf /*format*/)
 {
     char* begin = builder->Preallocate(8 * 4 + 3);

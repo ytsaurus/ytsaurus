@@ -2,6 +2,8 @@
 
 #include <yt/core/test_framework/framework.h>
 
+#include <yt/core/ytree/fluent.h>
+
 #include <yt/server/master/node_tracker_server/public.h>
 #include <yt/server/master/node_tracker_server/node.h>
 

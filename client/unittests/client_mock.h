@@ -49,6 +49,10 @@ public:
         const TString& query,
         const TSelectRowsOptions& options));
 
+    MOCK_METHOD2(Explain, TFuture<NYson::TYsonString>(
+        const TString& query,
+        const TExplainOptions& options));
+
     MOCK_METHOD2(CreateTableReader, TFuture<ITableReaderPtr>(
         const NYPath::TRichYPath& path,
         const TTableReaderOptions& options));
@@ -231,6 +235,11 @@ public:
     MOCK_METHOD2(GetColumnarStatistics, TFuture<std::vector<NTableClient::TColumnarStatistics>>(
         const std::vector<NYPath::TRichYPath>& path,
         const TGetColumnarStatisticsOptions& options));
+
+    MOCK_METHOD3(TruncateJournal, TFuture<void>(
+        const NYPath::TYPath& path,
+        i64 rowCount,
+        const TTruncateJournalOptions& options));
 
     MOCK_METHOD2(GetFileFromCache, TFuture<TGetFileFromCacheResult>(
         const TString& md5,

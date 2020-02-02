@@ -10,23 +10,22 @@
 
 #include <yt/client/query_client/query_statistics.h>
 
-#include <yt/ytlib/api/native/tablet_helpers.h>
-
 #include <yt/ytlib/api/native/config.h>
 #include <yt/ytlib/api/native/connection.h>
+#include <yt/ytlib/api/native/tablet_helpers.h>
 
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 
 #include <yt/ytlib/node_tracker_client/channel.h>
 
+#include <yt/ytlib/hive/cell_directory.h>
+
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/client/tablet_client/table_mount_cache.h>
+
 #include <yt/client/table_client/schemaful_reader.h>
-
 #include <yt/client/table_client/wire_protocol.h>
-
-#include <yt/ytlib/hive/cell_directory.h>
 
 #include <yt/core/profiling/timing.h>
 
@@ -295,7 +294,7 @@ private:
         THashMap<NTabletClient::TTabletCellId, TCellDescriptor> tabletCellReplicas;
 
         auto getAddress = [&] (const TTabletInfoPtr& tabletInfo) mutable {
-            ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
+            ValidateTabletMountedOrFrozen(tabletInfo);
 
             auto insertResult = tabletCellReplicas.insert(std::make_pair(tabletInfo->CellId, TCellDescriptor()));
             auto& descriptor = insertResult.first->second;
@@ -340,11 +339,12 @@ private:
                     BuiltinRangeExtractorMap,
                     options);
 
-                ranges = MakeSharedRange(std::move(prunedRanges), rowBuffer);
                 YT_LOG_DEBUG("Splitting ranges (PrunedRangeCount: %v, OriginalRangeCount: %v, TableId: %v)",
                     prunedRanges.size(),
                     ranges.Size(),
                     tableId);
+
+                ranges = MakeSharedRange(std::move(prunedRanges), rowBuffer);
             } else {
                 YT_LOG_DEBUG("Splitting ranges (RangeCount: %v, TableId: %v)",
                     ranges.Size(),

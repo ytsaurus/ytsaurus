@@ -27,6 +27,7 @@
 
 #include <yt/core/ytree/convert.h>
 
+#include <util/system/env.h>
 #include <util/system/fs.h>
 
 #include <util/folder/path.h>
@@ -37,6 +38,10 @@ using namespace NConcurrency;
 using namespace NTools;
 using namespace NYson;
 using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr auto DisableSandboxCleanupEnv = "YT_DISABLE_SANDBOX_CLEANUP";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -196,15 +201,7 @@ TFuture<std::vector<TString>> TSlotLocation::CreateSandboxDirectories(int slotIn
             }
 
             try {
-                auto getTmpfsSize = [=] () {
-                    if (tmpfsPath == sandboxPath && options.DiskSpaceLimit) {
-                        return std::min(*options.DiskSpaceLimit, tmpfsVolume.Size);
-                    } else {
-                        return tmpfsVolume.Size;
-                    }
-                };
-
-                auto properties = TJobDirectoryProperties{getTmpfsSize(), std::nullopt, userId};
+                auto properties = TJobDirectoryProperties{tmpfsVolume.Size, std::nullopt, userId};
                 WaitFor(JobDirectoryManager_->CreateTmpfsDirectory(tmpfsPath, properties))
                     .ThrowOnError();
 
@@ -384,7 +381,7 @@ TFuture<void> TSlotLocation::MakeSandboxFile(
         destinationName);
 }
 
-TFuture<void> TSlotLocation::FinalizeSanboxPreparation(
+TFuture<void> TSlotLocation::FinalizeSandboxPreparation(
     int slotIndex,
     int userId)
 {
@@ -461,6 +458,12 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
 {
     return BIND([=, this_ = MakeStrong(this)] () {
         ValidateEnabled();
+
+        if (!ShouldCleanSandboxes()) {
+            YT_LOG_WARNING("Sandbox cleanup is disabled by environment variable %v; should be used for testing purposes only",
+                DisableSandboxCleanupEnv);
+            return;
+        }
 
         {
             TWriterGuard guard(SlotsLock_);
@@ -671,6 +674,11 @@ NNodeTrackerClient::NProto::TDiskResourcesInfo TSlotLocation::GetDiskInfo() cons
 {
     auto guard = TReaderGuard(DiskInfoLock_);
     return DiskInfo_;
+}
+
+bool TSlotLocation::ShouldCleanSandboxes() const
+{
+    return GetEnv(DisableSandboxCleanupEnv) != "1";
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -13,6 +13,8 @@ template<>
 TString TSkiffIterator::TBase::Name_ = TString();
 template<>
 TString TSkiffIterator::TBase::Doc_ = TString();
+template<>
+TString TSkiffIterator::TBase::TypeName_ = TString();
 
 TSkiffIterator::TSkiffIterator(Py::PythonClassInstance* self, Py::Tuple& args, Py::Dict& kwargs)
     : TBase::TRowsIteratorBase(self, args, kwargs, FormatName)

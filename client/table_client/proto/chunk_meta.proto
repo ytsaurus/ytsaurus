@@ -105,6 +105,16 @@ message TSchemaDictionary
     repeated TTableSchemaInternal tables = 2;
 }
 
+message TColumnNameFilter
+{
+    repeated string admitted_names = 1;
+}
+
+message TColumnFilterDictionary
+{
+    repeated TColumnNameFilter column_filters = 1;
+}
+
 message TNameTableExt
 {
     repeated string names = 1;

@@ -4,6 +4,7 @@
 #include "object.h"
 #include "object_manager.h"
 #include "object_proxy.h"
+#include "permission_validator.h"
 
 #include <yt/server/master/cell_master/public.h>
 
@@ -14,7 +15,7 @@
 #include <yt/server/master/transaction_server/public.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
-#include <yt/ytlib/object_client/object_ypath.pb.h>
+#include <yt/ytlib/object_client/proto/object_ypath.pb.h>
 
 #include <yt/core/misc/property.h>
 
@@ -138,6 +139,39 @@ protected:
         TObject* object,
         NYTree::EPermission permission);
 
+    class TPermissionValidator
+        : public IPermissionValidator
+    {
+    public:
+        explicit TPermissionValidator(const TIntrusivePtr<TObjectProxyBase>& owner)
+            : Owner_(owner)
+        { }
+
+        virtual void ValidatePermission(
+            NYTree::EPermissionCheckScope scope,
+            NYTree::EPermission permission,
+            const TString& user = {}) override
+        {
+            if (auto owner = Owner_.Lock()) {
+                owner->ValidatePermission(scope, permission, user);
+            }
+        }
+
+        virtual void ValidatePermission(
+            TObject* object,
+            NYTree::EPermission permission) override
+        {
+            if (auto owner = Owner_.Lock()) {
+                owner->ValidatePermission(object, permission);
+            }
+        }
+
+    private:
+        const TWeakPtr<TObjectProxyBase> Owner_;
+    };
+
+    std::unique_ptr<IPermissionValidator> CreatePermissionValidator();
+
     void ValidateAnnotation(const TString& annotation);
 
     bool IsRecovery() const;
@@ -200,7 +234,6 @@ protected:
 
     virtual TVersionedObjectId GetVersionedId() const override;
     virtual NSecurityServer::TAccessControlDescriptor* FindThisAcd() override;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

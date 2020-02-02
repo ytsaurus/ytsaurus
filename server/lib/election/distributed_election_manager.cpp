@@ -3,6 +3,7 @@
 #include "config.h"
 
 #include <yt/ytlib/election/cell_manager.h>
+#include <yt/ytlib/election/config.h>
 #include <yt/ytlib/election/election_service_proxy.h>
 
 #include <yt/core/concurrency/delayed_executor.h>
@@ -81,11 +82,9 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NElection::NProto, GetStatus);
 
     void Reset();
+    void CancelContext();
 
     void OnLeaderPingLeaseExpired();
-
-    void DoParticipate();
-    void DoAdandon();
 
     bool CheckQuorum();
 
@@ -103,6 +102,7 @@ private:
 
     void StopLeading();
     void StopFollowing();
+    void StopVoting();
 
     void InitEpochContext(TPeerId leaderId, TEpochId epoch);
     void SetState(EPeerState newState);
@@ -573,90 +573,29 @@ TDistributedElectionManager::TDistributedElectionManager(
     YT_VERIFY(ElectionCallbacks);
     VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker, ControlThread);
 
-    Reset();
-
     RegisterMethod(RPC_SERVICE_METHOD_DESC(PingFollower));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetStatus));
 
     CellManager->SubscribePeerReconfigured(
-        BIND(&TDistributedElectionManager::OnPeerReconfigured, MakeWeak(this))
-            .Via(ControlInvoker));
+        BIND(&TDistributedElectionManager::OnPeerReconfigured, MakeWeak(this)));
 }
 
 void TDistributedElectionManager::Initialize()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     RpcServer_->RegisterService(this);
 }
 
 void TDistributedElectionManager::Finalize()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     Abandon();
     RpcServer_->UnregisterService(this);
 }
 
 void TDistributedElectionManager::Participate()
-{
-    ControlInvoker->Invoke(BIND(&TDistributedElectionManager::DoParticipate, MakeWeak(this)));
-}
-
-void TDistributedElectionManager::Abandon()
-{
-    ControlInvoker->Invoke(BIND(&TDistributedElectionManager::DoAdandon, MakeWeak(this)));
-}
-
-TYsonProducer TDistributedElectionManager::GetMonitoringProducer()
-{
-    return BIND([=, this_ = MakeStrong(this)] (IYsonConsumer* consumer) {
-        auto epochContext = EpochContext;
-        BuildYsonFluently(consumer)
-            .BeginMap()
-                .Item("state").Value(State)
-                .Item("peers").BeginList()
-                    .DoFor(0, CellManager->GetTotalPeerCount(), [=] (TFluentList fluent, TPeerId id) {
-                        fluent.Item().Value(CellManager->GetPeerConfig(id));
-                    })
-                .EndList()
-                .DoIf(epochContext.operator bool(), [&] (TFluentMap fluent) {
-                    fluent
-                        .Item("leader_id").Value(epochContext->LeaderId)
-                        .Item("epoch_id").Value(epochContext->EpochId);
-                })
-                .Item("vote_id").Value(VoteId)
-            .EndMap();
-    });
-}
-
-void TDistributedElectionManager::Reset()
-{
-    // May be called from ControlThread and also from ctor.
-
-    SetState(EPeerState::Stopped);
-
-    VoteId = InvalidPeerId;
-
-    if (EpochContext) {
-        EpochContext->CancelableContext->Cancel();
-    }
-    EpochContext.Reset();
-
-    AliveFollowers.clear();
-    AlivePeers.clear();
-    PotentialPeers.clear();
-    TLeaseManager::CloseLease(LeaderPingLease);
-    LeaderPingLease.Reset();
-}
-
-void TDistributedElectionManager::OnLeaderPingLeaseExpired()
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    YT_LOG_INFO("No recurrent ping from leader within timeout");
-
-    YT_VERIFY(State == EPeerState::Following);
-    StopFollowing();
-}
-
-void TDistributedElectionManager::DoParticipate()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -685,13 +624,16 @@ void TDistributedElectionManager::DoParticipate()
     }
 }
 
-void TDistributedElectionManager::DoAdandon()
+void TDistributedElectionManager::Abandon()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     switch (State) {
         case EPeerState::Stopped:
+            break;
+
         case EPeerState::Voting:
+            StopVoting();
             break;
 
         case EPeerState::Leading:
@@ -705,8 +647,64 @@ void TDistributedElectionManager::DoAdandon()
         default:
             YT_ABORT();
     }
+}
 
-    Reset();
+TYsonProducer TDistributedElectionManager::GetMonitoringProducer()
+{
+    return BIND([=, this_ = MakeStrong(this)] (IYsonConsumer* consumer) {
+        auto epochContext = EpochContext;
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Item("state").Value(State)
+                .Item("peers").BeginList()
+                    .DoFor(0, CellManager->GetTotalPeerCount(), [=] (TFluentList fluent, TPeerId id) {
+                        fluent.Item().Value(CellManager->GetPeerConfig(id));
+                    })
+                .EndList()
+                .DoIf(epochContext.operator bool(), [&] (TFluentMap fluent) {
+                    fluent
+                        .Item("leader_id").Value(epochContext->LeaderId)
+                        .Item("epoch_id").Value(epochContext->EpochId);
+                })
+                .Item("vote_id").Value(VoteId)
+            .EndMap();
+    });
+}
+
+void TDistributedElectionManager::Reset()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    SetState(EPeerState::Stopped);
+
+    CancelContext();
+
+    VoteId = InvalidPeerId;
+    AliveFollowers.clear();
+    AlivePeers.clear();
+    PotentialPeers.clear();
+    TLeaseManager::CloseLease(LeaderPingLease);
+    LeaderPingLease.Reset();
+}
+
+void TDistributedElectionManager::CancelContext()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    if (EpochContext) {
+        EpochContext->CancelableContext->Cancel(TError("Election epoch canceled"));
+    }
+    EpochContext.Reset();
+}
+
+void TDistributedElectionManager::OnLeaderPingLeaseExpired()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    YT_LOG_INFO("No recurrent ping from leader within timeout");
+
+    YT_VERIFY(State == EPeerState::Following);
+    StopFollowing();
 }
 
 bool TDistributedElectionManager::CheckQuorum()
@@ -753,10 +751,7 @@ void TDistributedElectionManager::StartVoting()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    if (EpochContext) {
-        EpochContext->CancelableContext->Cancel();
-        EpochContext.Reset();
-    }
+    CancelContext();
 
     EpochContext = New<TEpochContext>();
     ControlEpochInvoker = EpochContext->CancelableContext->CreateInvoker(ControlInvoker);
@@ -816,7 +811,9 @@ void TDistributedElectionManager::StartLeading()
     YT_LOG_INFO("Started leading (EpochId: %v)",
         EpochContext->EpochId);
 
-    ElectionCallbacks->OnStartLeading(EpochContext);
+    BIND(&IElectionCallbacks::OnStartLeading, ElectionCallbacks)
+        .AsyncVia(ControlInvoker)
+        .Run(EpochContext);
 }
 
 void TDistributedElectionManager::StartFollowing(
@@ -840,7 +837,9 @@ void TDistributedElectionManager::StartFollowing(
         EpochContext->LeaderId,
         EpochContext->EpochId);
 
-    ElectionCallbacks->OnStartFollowing(EpochContext);
+    BIND(&IElectionCallbacks::OnStartFollowing, ElectionCallbacks)
+        .AsyncVia(ControlInvoker)
+        .Run(EpochContext);
 }
 
 void TDistributedElectionManager::StopLeading()
@@ -851,7 +850,9 @@ void TDistributedElectionManager::StopLeading()
     YT_LOG_INFO("Stopped leading (EpochId: %v)",
         EpochContext->EpochId);
 
-    ElectionCallbacks->OnStopLeading();
+    BIND(&IElectionCallbacks::OnStopLeading, ElectionCallbacks)
+        .AsyncVia(ControlInvoker)
+        .Run();
 
     YT_VERIFY(FollowerPinger);
     FollowerPinger.Reset();
@@ -868,7 +869,24 @@ void TDistributedElectionManager::StopFollowing()
         EpochContext->LeaderId,
         EpochContext->EpochId);
 
-    ElectionCallbacks->OnStopFollowing();
+    BIND(&IElectionCallbacks::OnStopFollowing, ElectionCallbacks)
+        .AsyncVia(ControlInvoker)
+        .Run();
+
+    Reset();
+}
+
+void TDistributedElectionManager::StopVoting()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_VERIFY(State == EPeerState::Voting);
+
+    YT_LOG_INFO("Voting stopped (EpochId: %v)",
+        EpochContext->EpochId);
+
+    BIND(&IElectionCallbacks::OnStopVoting, ElectionCallbacks)
+        .AsyncVia(ControlInvoker)
+        .Run();
 
     Reset();
 }
@@ -899,8 +917,8 @@ void TDistributedElectionManager::OnPeerReconfigured(TPeerId peerId)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     if (peerId == CellManager->GetSelfPeerId()) {
-        if (State == EPeerState::Leading || State == EPeerState::Following) {
-            DoParticipate();
+        if (State != EPeerState::Stopped) {
+            Abandon();
         }
     } else {
         if (State == EPeerState::Leading) {
@@ -913,14 +931,16 @@ void TDistributedElectionManager::OnPeerReconfigured(TPeerId peerId)
             // because the peer may've been voting before reconfiguration.
             CheckQuorum();
         } else if (State == EPeerState::Following && peerId == EpochContext->LeaderId) {
-            DoParticipate();
+            Abandon();
         }
     }
 }
 
 void TDistributedElectionManager::FireAlivePeerSetChanged()
 {
-    ElectionCallbacks->OnAlivePeerSetChanged(AlivePeers);
+    BIND(&IElectionCallbacks::OnAlivePeerSetChanged, ElectionCallbacks)
+        .AsyncVia(ControlInvoker)
+        .Run(AlivePeers);
 }
 
 DEFINE_RPC_SERVICE_METHOD(TDistributedElectionManager, PingFollower)

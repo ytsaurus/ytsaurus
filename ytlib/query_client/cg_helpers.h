@@ -3,8 +3,8 @@
 #include "cg_ir_builder.h"
 #include "cg_types.h"
 
-#include <yt/core/codegen/module.h>
-#include <yt/core/codegen/llvm_migrate_helpers.h>
+#include <yt/library/codegen/module.h>
+#include <yt/library/codegen/llvm_migrate_helpers.h>
 
 namespace NYT::NQueryClient {
 
@@ -534,7 +534,7 @@ public:
 
 struct TCGContext;
 
-typedef std::function<void(TCGContext& builder, Value* row)> TCodegenConsumer;
+typedef std::function<Value*(TCGContext& builder, Value* row)> TCodegenConsumer;
 
 class TCGOperatorContext
     : public TCGOpaqueValuesContext
@@ -589,7 +589,6 @@ TCGValue MakePhi(
     TCGIRBuilderPtr& builder,
     BasicBlock* thenBB,
     BasicBlock* elseBB,
-    BasicBlock* endBB,
     TCGValue thenValue,
     TCGValue elseValue,
     Twine name = Twine());
@@ -598,7 +597,6 @@ Value* MakePhi(
     TCGIRBuilderPtr& builder,
     BasicBlock* thenBB,
     BasicBlock* elseBB,
-    BasicBlock* endBB,
     Value* thenValue,
     Value* elseValue,
     Twine name = Twine());
@@ -635,7 +633,7 @@ TResult CodegenIf(
 
     builder->SetInsertPoint(endBB);
 
-    auto result = MakePhi(builder, thenBB, elseBB, endBB, thenValue, elseValue, name);
+    auto result = MakePhi(builder, thenBB, elseBB, thenValue, elseValue, name);
 
     builder->SetInsertPoint(thenBB);
     builder->CreateBr(endBB);

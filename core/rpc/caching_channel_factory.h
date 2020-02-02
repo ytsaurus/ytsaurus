@@ -1,6 +1,5 @@
 #pragma once
 
-#include "public.h"
 #include "channel.h"
 
 namespace NYT::NRpc {

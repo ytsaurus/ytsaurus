@@ -30,6 +30,8 @@
 
 #include <yt/client/transaction_client/public.h>
 
+#include <yt/client/driver/private.h>
+
 #include <yt/client/ypath/public.h>
 
 #include <yt/client/hive/timestamp_map.h>
@@ -51,7 +53,7 @@
 
 #include <yt/core/profiling/profiler.h>
 
-#include <yt/core/erasure/public.h>
+#include <yt/library/erasure/public.h>
 
 namespace NYT::NApi {
 
@@ -222,6 +224,14 @@ struct TGetTabletsInfoOptions
 
 struct TTabletInfo
 {
+    struct TTableReplicaInfo
+    {
+        NTabletClient::TTableReplicaId ReplicaId;
+        NTransactionClient::TTimestamp LastReplicationTimestamp;
+        NTabletClient::ETableReplicaMode Mode;
+        i64 CurrentReplicationRowIndex;
+    };
+
     //! Currently only provided for ordered tablets.
     //! Indicates the total number of rows added to the tablet (including trimmed ones).
     // TODO(babenko): implement for sorted tablets
@@ -236,6 +246,12 @@ struct TTabletInfo
     //! It is guaranteed that all transactions with commit timestamp not exceeding the barrier
     //! are fully committed; e.g. all their addes rows are visible (and are included in TTabletInfo::TotalRowCount).
     NTransactionClient::TTimestamp BarrierTimestamp;
+
+    //! Contains maximum timestamp of committed transactions.
+    NTransactionClient::TTimestamp LastWriteTimestamp;
+
+    //! Only makes sense for replicated tablets.
+    std::optional<std::vector<TTableReplicaInfo>> TableReplicaInfos;
 };
 
 struct TBalanceTabletCellsOptions
@@ -431,9 +447,16 @@ struct TVersionedLookupRowsOptions
     NTableClient::TRetentionConfigPtr RetentionConfig;
 };
 
-struct TSelectRowsOptions
+struct TSelectRowsOptionsBase
     : public TTabletReadOptions
     , public TSuppressableAccessTrackingOptions
+{
+    //! Path in Cypress with UDFs.
+    std::optional<TString> UdfRegistryPath;
+};
+
+struct TSelectRowsOptions
+    : public TSelectRowsOptionsBase
 {
     //! If null then connection defaults are used.
     std::optional<i64> InputRowLimit;
@@ -441,29 +464,31 @@ struct TSelectRowsOptions
     std::optional<i64> OutputRowLimit;
     //! Limits range expanding.
     ui64 RangeExpansionLimit = 200000;
-    //! If |true| then incomplete result would lead to a failure.
-    bool FailOnIncompleteResult = true;
-    //! If |true| then logging is more verbose.
-    bool VerboseLogging = false;
     //! Limits maximum parallel subqueries.
     int MaxSubqueries = std::numeric_limits<int>::max();
-    //! Enables generated code caching.
-    bool EnableCodeCache = true;
-    //! Used to prioritize requests.
-    TUserWorkloadDescriptor WorkloadDescriptor;
     //! Combine independent joins in one.
     bool UseMultijoin = true;
     //! Allow queries without any condition on key columns.
     bool AllowFullScan = true;
     //! Allow queries with join condition which implies foreign query with IN operator.
     bool AllowJoinWithoutIndex = false;
-    //! Path in Cypress with UDFs.
-    std::optional<TString> UdfRegistryPath;
-    //! Memory limit per execution node
-    size_t MemoryLimitPerNode = std::numeric_limits<size_t>::max();
     //! Execution pool
     std::optional<TString> ExecutionPool;
+    //! If |true| then incomplete result would lead to a failure.
+    bool FailOnIncompleteResult = true;
+    //! If |true| then logging is more verbose.
+    bool VerboseLogging = false;
+    //! Enables generated code caching.
+    bool EnableCodeCache = true;
+    //! Used to prioritize requests.
+    TUserWorkloadDescriptor WorkloadDescriptor;
+    //! Memory limit per execution node
+    size_t MemoryLimitPerNode = std::numeric_limits<size_t>::max();
 };
+
+struct TExplainOptions
+    : public TSelectRowsOptionsBase
+{};
 
 struct TGetNodeOptions
     : public TTimeoutOptions
@@ -515,6 +540,7 @@ struct TCreateObjectOptions
     , public TMutatingOptions
     , public TPrerequisiteOptions
 {
+    bool IgnoreExisting = false;
     std::shared_ptr<const NYTree::IAttributeDictionary> Attributes;
 };
 
@@ -523,7 +549,6 @@ struct TCreateNodeOptions
     , public TTransactionalOptions
 {
     bool Recursive = false;
-    bool IgnoreExisting = false;
     bool LockExisting = false;
     bool Force = false;
 };
@@ -670,17 +695,25 @@ struct TJournalWriterOptions
 {
     TJournalWriterConfigPtr Config;
     bool EnableMultiplexing = true;
+    bool WaitForAllReplicasUponOpen = false;
     NProfiling::TProfiler Profiler;
 };
+
+struct TTruncateJournalOptions
+    : public TTimeoutOptions
+    , public TMutatingOptions
+    , public TPrerequisiteOptions
+{ };
 
 struct TTableReaderOptions
     : public TTransactionalOptions
 {
     bool Unordered = false;
     bool OmitInaccessibleColumns = false;
-    bool EnableTableIndex = true;
-    bool EnableRowIndex = true;
-    bool EnableRangeIndex = true;
+    bool EnableTableIndex = false;
+    bool EnableRowIndex = false;
+    bool EnableRangeIndex = false;
+    bool EnableTabletIndex = false;
     NTableClient::TTableReaderConfigPtr Config;
 };
 
@@ -767,6 +800,9 @@ struct TListOperationsAccessFilter
     TString Subject;
     NYTree::EPermissionSet Permissions;
 
+    // This parameter cannot be set from YSON, it must be computed.
+    THashSet<TString> SubjectTransitiveClosure;
+
     TListOperationsAccessFilter()
     {
         RegisterParameter("subject", Subject);
@@ -841,6 +877,7 @@ struct TListJobsOptions
     : public TTimeoutOptions
     , public TMasterReadOptions
 {
+    NJobTrackerClient::TJobId JobCompetitionId;
     std::optional<NJobTrackerClient::EJobType> Type;
     std::optional<NJobTrackerClient::EJobState> State;
     std::optional<TString> Address;
@@ -914,6 +951,7 @@ struct TGetClusterMetaOptions
     bool PopulateClusterDirectory = false;
     bool PopulateMediumDirectory = false;
     bool PopulateCellDirectory = false;
+    bool PopulateMasterCacheNodeAddresses = false;
 };
 
 struct TClusterMeta
@@ -921,6 +959,7 @@ struct TClusterMeta
     std::shared_ptr<NNodeTrackerClient::NProto::TNodeDirectory> NodeDirectory;
     std::shared_ptr<NHiveClient::NProto::TClusterDirectory> ClusterDirectory;
     std::shared_ptr<NChunkClient::NProto::TMediumDirectory> MediumDirectory;
+    std::vector<TString> MasterCacheNodeAddresses;
 };
 
 struct TOperation
@@ -935,8 +974,6 @@ struct TOperation
 
     std::optional<TString> AuthenticatedUser;
     NYTree::INodePtr Acl;
-
-    std::optional<std::vector<TString>> Pools;
 
     NYson::TYsonString BriefSpec;
     NYson::TYsonString Spec;
@@ -975,6 +1012,8 @@ struct TJob
     NJobTrackerClient::TJobId OperationId;
     std::optional<NJobTrackerClient::EJobType> Type;
     std::optional<NJobTrackerClient::EJobState> State;
+    std::optional<NJobTrackerClient::EJobState> ControllerAgentState;
+    std::optional<NJobTrackerClient::EJobState> ArchiveState;
     std::optional<TInstant> StartTime;
     std::optional<TInstant> FinishTime;
     std::optional<TString> Address;
@@ -982,6 +1021,7 @@ struct TJob
     std::optional<ui64> StderrSize;
     std::optional<ui64> FailContextSize;
     std::optional<bool> HasSpec;
+    NJobTrackerClient::TJobId JobCompetitionId;
     NYson::TYsonString Error;
     NYson::TYsonString BriefStatistics;
     NYson::TYsonString Statistics;
@@ -1056,6 +1096,10 @@ struct IClientBase
     virtual TFuture<TSelectRowsResult> SelectRows(
         const TString& query,
         const TSelectRowsOptions& options = {}) = 0;
+
+    virtual TFuture<NYson::TYsonString> Explain(
+        const TString& query,
+        const TExplainOptions& options = TExplainOptions()) = 0;
 
     virtual TFuture<ITableReaderPtr> CreateTableReader(
         const NYPath::TRichYPath& path,
@@ -1259,6 +1303,12 @@ struct IClient
     virtual TFuture<std::vector<NTableClient::TColumnarStatistics>> GetColumnarStatistics(
         const std::vector<NYPath::TRichYPath>& path,
         const TGetColumnarStatisticsOptions& options = {}) = 0;
+
+    // Journals
+    virtual TFuture<void> TruncateJournal(
+        const NYPath::TYPath& path,
+        i64 rowCount,
+        const TTruncateJournalOptions& options = {}) = 0;
 
     // Files
     virtual TFuture<TGetFileFromCacheResult> GetFileFromCache(

@@ -31,14 +31,14 @@ class TestSchedulerAlerts(YTEnvSetup):
         assert get("//sys/scheduler/@alerts") == []
 
         # Incorrect pool configuration.
-        create("map_node", "//sys/pools/poolA", attributes={"min_share_ratio": 2.0})
+        create_pool("poolA", attributes={"min_share_ratio": 2.0})
         wait(lambda: len(get("//sys/scheduler/@alerts")) == 1)
 
         set("//sys/pools/poolA/@min_share_ratio", 0.8)
         wait(lambda: get("//sys/scheduler/@alerts") == [])
 
         # Total min_share_ratio > 1.
-        create("map_node", "//sys/pools/poolB", attributes={"min_share_ratio": 0.8})
+        create_pool("poolB", attributes={"min_share_ratio": 0.8})
         wait(lambda: len(get("//sys/scheduler/@alerts")) == 1)
 
         set("//sys/pools/poolA/@min_share_ratio", 0.1)
@@ -154,7 +154,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
                 "low_cpu_usage_alert_cpu_usage_threshold": 0.5,
                 "operation_too_long_alert_min_wall_time": 0,
                 "operation_too_long_alert_estimate_duration_threshold": 5000,
-                "queue_average_wait_time_threshold": 1000
+                "queue_average_wait_time_threshold": 5000
             },
             "map_reduce_operation_options": {
                 "min_uncompressed_block_size": 1
@@ -212,7 +212,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
                 "unavailable_chunk_strategy": "wait",
                 "unavailable_chunk_tactics": "wait"
             },
-            dont_track=True)
+            track=False)
 
         wait(lambda: op.get_state() == "running")
         wait(lambda: "lost_input_chunks" in op.get_alerts())
@@ -251,7 +251,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={"data_size_per_job": 1},
-            dont_track=True)
+            track=False)
 
         self.wait_for_running_jobs(op)
 
@@ -285,7 +285,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={"data_size_per_job": 1},
-            dont_track=True)
+            track=False)
 
         self.wait_for_running_jobs(op)
         wait(lambda: "operation_too_long" in op.get_alerts())
@@ -352,7 +352,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
             spec={
                 "testing": testing_options,
             },
-            dont_track=True)
+            track=False)
 
         time.sleep(8)
 
@@ -388,14 +388,15 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
             command="echo 'pass' >/dev/null",
             spec={
                 "testing": {
-                    "get_job_spec_delay": 5000,
+                    "get_job_spec_delay": 1500,
                 }
             },
-            job_count=6,
-            dont_track=False
+            job_count=1000,
         )
 
         wait(lambda: "high_queue_average_wait_time" in op.get_alerts())
+
+        op.abort()
 
     def wait_for_running_jobs(self, operation):
         wait(lambda: operation.get_job_count("running") >= 1)
@@ -442,7 +443,7 @@ class TestSchedulerJobSpecThrottlerOperationAlert(YTEnvSetup):
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={"job_count": 3},
-            dont_track=True)
+            track=False)
 
         wait(lambda: "excessive_job_spec_throttling" in op.get_alerts())
 

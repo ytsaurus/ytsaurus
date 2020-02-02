@@ -13,7 +13,7 @@
 
 #include <yt/ytlib/file_client/file_ypath_proxy.h>
 
-#include <yt/ytlib/security_client/acl.h>
+#include <yt/client/security_client/acl.h>
 
 #include <yt/client/api/transaction.h>
 

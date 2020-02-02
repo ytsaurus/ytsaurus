@@ -8,8 +8,7 @@
 #include <yt/core/net/address.h>
 
 #include <yt/core/misc/error.h>
-
-#include <util/thread/lfqueue.h>
+#include <yt/core/misc/lock_free.h>
 
 #include <atomic>
 
@@ -34,13 +33,16 @@ public:
     NConcurrency::IPollerPtr GetAcceptorPoller();
     NConcurrency::IPollerPtr GetXferPoller();
 
+    void RegisterConnection(TTcpConnectionPtr connection);
+
 private:
     friend class TTcpDispatcher;
 
-    TImpl();
     DECLARE_NEW_FRIEND();
 
+    void StartPeriodicExecutors();
     void OnProfiling();
+    void OnLivenessCheck();
 
     NConcurrency::IPollerPtr GetOrCreatePoller(
         NConcurrency::IPollerPtr* poller,
@@ -48,10 +50,14 @@ private:
         const TString& threadNamePrefix);
     void ShutdownPoller(NConcurrency::IPollerPtr* poller);
 
-    mutable NConcurrency::TReaderWriterSpinLock SpinLock_;
+    mutable NConcurrency::TReaderWriterSpinLock PollerLock_;
     bool Terminated_ = false;
     NConcurrency::IPollerPtr AcceptorPoller_;
     NConcurrency::IPollerPtr XferPoller_;
+
+    TMultipleProducerSingleConsumerLockFreeStack<TWeakPtr<TTcpConnection>> ConnectionsToRegister_;
+    std::vector<TWeakPtr<TTcpConnection>> ConnectionList_;
+    int CurrentConnectionListIndex_ = 0;
 
     struct TNetworkStatistics
     {
@@ -62,7 +68,9 @@ private:
     NConcurrency::TReaderWriterSpinLock StatisticsLock_;
     THashMap<TString, TNetworkStatistics> NetworkStatistics_;
 
+    TSpinLock PeriodicExecutorsLock_;
     NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
+    NConcurrency::TPeriodicExecutorPtr LivenessCheckExecutor_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

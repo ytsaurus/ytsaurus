@@ -277,26 +277,37 @@ public:
 
         tabletSnapshot->TabletRuntimeData->ModificationTime = NProfiling::GetInstant();
 
-        while (!reader->IsFinished()) {
-            // NB: No yielding beyond this point.
-            // May access tablet and transaction.
-
+        auto actualizeTablet = [&] {
             if (!tablet) {
                 tablet = GetTabletOrThrow(tabletSnapshot->TabletId);
                 tablet->ValidateMountRevision(tabletSnapshot->MountRevision);
                 ValidateTabletMounted(tablet);
             }
+        };
+
+        actualizeTablet();
+
+        if (atomicity == EAtomicity::Full) {
+            const auto& lockManager = tablet->GetLockManager();
+            auto error = lockManager->ValidateTransactionConflict(transactionStartTimestamp);
+            if (!error.IsOK()) {
+                THROW_ERROR error
+                    << TErrorAttribute("tablet_id", tablet->GetId())
+                    << TErrorAttribute("transaction_id", transactionId);
+            }
+        }
+
+        while (!reader->IsFinished()) {
+            // NB: No yielding beyond this point.
+            // May access tablet and transaction.
+
+            actualizeTablet();
 
             ValidateTabletStoreLimit(tablet);
             ValidateMemoryLimit();
 
             auto tabletId = tablet->GetId();
             const auto& storeManager = tablet->GetStoreManager();
-
-            if (tablet->GetLockManager()->IsLocked()) {
-                THROW_ERROR_EXCEPTION("Tablet is locked by bulk insert")
-                    << TErrorAttribute("tablet_id", tabletId);
-            }
 
             TTransaction* transaction = nullptr;
             bool transactionIsFresh = false;
@@ -587,6 +598,11 @@ private:
         virtual NRpc::IServerPtr GetLocalRpcServer() override
         {
             return Owner_->Bootstrap_->GetRpcServer();
+        }
+
+        virtual NNodeTrackerClient::TNodeMemoryTrackerPtr GetMemoryUsageTracker() override
+        {
+            return Owner_->Bootstrap_->GetMemoryUsageTracker();
         }
 
     private:
@@ -1128,17 +1144,6 @@ private:
         CheckIfTabletFullyUnlocked(tablet);
     }
 
-    void ReportTabletLocked(TTablet* tablet)
-    {
-        if (IsRecovery()) {
-            return;
-        }
-
-        TReqReportTabletLocked request;
-        ToProto(request.mutable_tablet_id(), tablet->GetId());
-        CommitTabletMutation(request);
-    }
-
     void HydraReportTabletLocked(TReqReportTabletLocked* request)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
@@ -1149,19 +1154,18 @@ private:
 
         const auto& lockManager = tablet->GetLockManager();
         auto transactionIds = lockManager->RemoveUnconfirmedTransactions();
-
         if (transactionIds.empty()) {
             return;
         }
+
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Tablet lock confirmed (TabletId: %v, TransactionIds: %v)",
+            tabletId,
+            transactionIds);
 
         TRspLockTablet response;
         ToProto(response.mutable_tablet_id(), tabletId);
         ToProto(response.mutable_transaction_ids(), transactionIds);
         PostMasterMutation(tabletId, response);
-
-        YT_LOG_INFO_UNLESS(IsRecovery(), "Tablet lock confirmed (TabletId: %v, TransactionIds: %v)",
-            tabletId,
-            transactionIds);
     }
 
     void HydraUnlockTablet(TReqUnlockTablet* request)
@@ -1171,9 +1175,14 @@ private:
         if (!tablet) {
             return;
         }
-        auto transactionId = FromProto<TTabletId>(request->transaction_id());
 
-        const auto& storeManager = tablet->GetStoreManager();
+        auto mountRevision = request->mount_revision();
+        if (mountRevision != tablet->GetMountRevision()) {
+            return;
+        }
+
+        auto transactionId = FromProto<TTabletId>(request->transaction_id());
+        auto updateMode = FromProto<EUpdateMode>(request->update_mode());
 
         std::vector<TStoreId> addedStoreIds;
         std::vector<IStorePtr> storesToAdd;
@@ -1186,17 +1195,36 @@ private:
             storesToAdd.push_back(std::move(store));
         }
 
+        const auto& storeManager = tablet->GetStoreManager();
+
+        if (updateMode == EUpdateMode::Overwrite) {
+            YT_LOG_INFO_UNLESS(IsRecovery(),
+                "All stores of tablet are going to be discarded (%v)",
+                tablet->GetLoggingId());
+
+            storeManager->DiscardAllStores();
+        }
+
         storeManager->BulkAddStores(MakeRange(storesToAdd.begin(), storesToAdd.end()), /*onMount*/ false);
 
         const auto& lockManager = tablet->GetLockManager();
 
-        auto nextEpoch = lockManager->GetEpoch() + 1;
-        UpdateTabletSnapshot(tablet, nextEpoch);
-        lockManager->Unlock(transactionId);
+        if (tablet->GetAtomicity() == EAtomicity::Full) {
+            auto nextEpoch = lockManager->GetEpoch() + 1;
+            UpdateTabletSnapshot(tablet, nextEpoch);
+
+            // COMPAT(ifsmirnov)
+            auto commitTimestamp = request->has_commit_timestamp()
+                ? request->commit_timestamp()
+                : MinTimestamp;
+            lockManager->Unlock(commitTimestamp, transactionId);
+        } else {
+            UpdateTabletSnapshot(tablet);
+        }
 
         YT_LOG_INFO_UNLESS(IsRecovery(),
-            "Tablet unlocked (TabletId: %v, TransactionId: %v, AddedStoreIds: %v, LockManagerEpoch: %v)",
-            tabletId,
+            "Tablet unlocked (%v, TransactionId: %v, AddedStoreIds: %v, LockManagerEpoch: %v)",
+            tablet->GetLoggingId(),
             transactionId,
             addedStoreIds,
             lockManager->GetEpoch());
@@ -2288,9 +2316,12 @@ private:
                 THROW_ERROR_EXCEPTION("Writing into replicated table requires 2PC");
             }
 
-            if (tablet->GetLockManager()->IsLocked()) {
-                THROW_ERROR_EXCEPTION("Tablet is locked by bulk insert")
-                    << TErrorAttribute("tablet_id", tablet->GetId());
+            // No bulk insert into replicated tables. Remove this check?
+            const auto& lockManager = tablet->GetLockManager();
+            if (auto error = lockManager->ValidateTransactionConflict(transaction->GetStartTimestamp());
+                !error.IsOK())
+            {
+                THROW_ERROR error << TErrorAttribute("tablet_id", tablet->GetId());
             }
 
             ValidateSyncReplicaSet(tablet, writeRecord.SyncReplicaIds);
@@ -2793,7 +2824,13 @@ private:
             return;
         }
 
-        ReportTabletLocked(tablet);
+        NTracing::TNullTraceContextGuard guard;
+
+        {
+            TReqReportTabletLocked request;
+            ToProto(request.mutable_tablet_id(), tablet->GetId());
+            CommitTabletMutation(request);
+        }
 
         auto state = tablet->GetState();
         if (state != ETabletState::UnmountWaitingForLocks && state != ETabletState::FreezeWaitingForLocks) {
@@ -2820,11 +2857,13 @@ private:
             tablet->GetLoggingId(),
             newTransientState);
 
-        TReqSetTabletState request;
-        ToProto(request.mutable_tablet_id(), tablet->GetId());
-        request.set_mount_revision(tablet->GetMountRevision());
-        request.set_state(static_cast<int>(newPersistentState));
-        CommitTabletMutation(request);
+        {
+            TReqSetTabletState request;
+            ToProto(request.mutable_tablet_id(), tablet->GetId());
+            request.set_mount_revision(tablet->GetMountRevision());
+            request.set_state(static_cast<int>(newPersistentState));
+            CommitTabletMutation(request);
+        }
     }
 
     void CheckIfTabletFullyFlushed(TTablet* tablet)
@@ -3044,6 +3083,25 @@ private:
                         .Item("dynamic_table_locks").DoMap(
                             BIND(&TLockManager::BuildOrchidYson, tablet->GetLockManager()));
                 })
+                .Item("errors").DoListFor(
+                    TEnumTraits<ETabletBackgroundActivity>::GetDomainValues(),
+                    [&] (TFluentList fluent, auto activity) {
+                        auto error = tablet->RuntimeData()->Errors[activity].Load();
+                        if (!error.IsOK()) {
+                            fluent
+                                .Item().Value(error);
+                        }
+                    })
+                .Item("replication_errors").DoMapFor(
+                    tablet->Replicas(),
+                    [&] (TFluentMap fluent, const auto& replica) {
+                        auto replicaId = replica.first;
+                        auto error = replica.second.GetError();
+                        if (!error.IsOK()) {
+                            fluent
+                                .Item(ToString(replicaId)).Value(error);
+                        }
+                    })
             .EndMap();
     }
 

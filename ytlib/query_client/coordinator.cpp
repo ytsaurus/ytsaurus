@@ -2,15 +2,12 @@
 #include "private.h"
 #include "helpers.h"
 #include "query.h"
-#include "query_helpers.h"
 #include "range_inferrer.h"
 
 #include <yt/client/table_client/schema.h>
 #include <yt/client/table_client/schemaful_reader.h>
-#include <yt/ytlib/table_client/unordered_schemaful_reader.h>
 #include <yt/client/table_client/writer.h>
-
-#include <yt/ytlib/tablet_client/public.h>
+#include <yt/client/table_client/unordered_schemaful_reader.h>
 
 #include <yt/core/logging/log.h>
 
@@ -23,8 +20,6 @@ using namespace NTableClient;
 using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-namespace {
 
 std::pair<TConstFrontQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     const TConstQueryPtr& query,
@@ -102,10 +97,6 @@ std::pair<TConstFrontQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
 
     return std::make_pair(topQuery, subqueries);
 }
-
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
 
 TRowRanges GetPrunedRanges(
     const TConstExpressionPtr& predicate,

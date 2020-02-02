@@ -32,6 +32,7 @@ public:
     DB::ASTPtr RewriteQuery(
         const TRange<TSubquery> subqueries,
         TSubquerySpec specTemplate,
+        const THashMap<NChunkClient::TChunkId, NChunkClient::TRefCountedMiscExtPtr>& miscExtMap,
         int subqueryIndex,
         bool isLastSubquery);
 

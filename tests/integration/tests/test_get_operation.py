@@ -72,7 +72,7 @@ class TestGetOperation(YTEnvSetup):
         write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
 
         op = map(
-            dont_track=True,
+            track=False,
             label="get_job_stderr",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -136,6 +136,32 @@ class TestGetOperation(YTEnvSetup):
             if key in res_cypress:
                 assert res_get_operation_archive[key] == res_cypress_finished[key]
 
+    # Check that operation that has not been saved by operation cleaner
+    # is reported correctly (i.e. "No such operation").
+    # Actually, cleaner is disabled in this test,
+    # but we emulate its work by removing operation node from Cypress.
+    @authors("levysotsky")
+    def test_get_operation_dropped_by_cleaner(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
+        op = map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint("cat ; BREAKPOINT"),
+        )
+        wait_breakpoint()
+
+        wait(lambda: _get_operation_from_archive(op.id))
+
+        release_breakpoint()
+        op.track()
+
+        remove(op.get_path(), force=True)
+        with raises_yt_error(NoSuchOperation):
+            get_operation(op.id)
+
     @authors("ilpauzner")
     def test_progress_merge(self):
         enable_operation_progress_archivation_path = "//sys/controller_agents/config/enable_operation_progress_archivation"
@@ -151,7 +177,7 @@ class TestGetOperation(YTEnvSetup):
         write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
 
         op = map(
-            dont_track=True,
+            track=False,
             label="get_job_stderr",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -198,7 +224,7 @@ class TestGetOperation(YTEnvSetup):
         write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
 
         op = map(
-            dont_track=True,
+            track=False,
             label="get_job_stderr",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -281,7 +307,7 @@ class TestGetOperation(YTEnvSetup):
         write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
 
         op = map(
-            dont_track=True,
+            track=False,
             label="get_job_stderr",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -313,7 +339,7 @@ class TestGetOperation(YTEnvSetup):
         sync_unmount_table("//sys/operations_archive/ordered_by_id")
 
         op = map(
-            dont_track=True,
+            track=False,
             label="get_job_stderr",
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -372,4 +398,134 @@ class TestGetOperationRpcProxy(TestGetOperation):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True
+
+##################################################################
+
+class TestOperationAliases(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 3
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "operations_cleaner": {
+                "enable": False,
+                # Analyze all operations each 100ms
+                "analysis_period": 100,
+                # Wait each batch to remove not more than 100ms
+                "remove_batch_timeout": 100,
+                # Wait each batch to archive not more than 100ms
+                "archive_batch_timeout": 100,
+                # Retry sleeps
+                "min_archivation_retry_sleep_delay": 100,
+                "max_archivation_retry_sleep_delay": 110,
+                # Leave no more than 5 completed operations
+                "soft_retained_operation_count": 0,
+                # Operations older than 50ms can be considered for removal
+                "clean_delay": 50,
+            },
+            "static_orchid_cache_update_period": 100,
+            "alerts_update_period": 100
+        }
+    }
+
+    def setup(self):
+        # Init operations archive.
+        sync_create_cells(1)
+
+    @authors("max42")
+    def test_aliases(self):
+        with pytest.raises(YtError):
+            # Alias should start with *.
+            vanilla(spec={"tasks": {"main": {"command": "sleep 1000", "job_count": 1}},
+                          "alias": "my_op"})
+
+
+        op = vanilla(spec={"tasks": {"main": {"command": "sleep 1000", "job_count": 1}},
+                           "alias": "*my_op"},
+                     track=False)
+
+        assert ls("//sys/scheduler/orchid/scheduler/operations") == [op.id, "*my_op"]
+        wait(lambda: op.get_state() == "running")
+        assert get("//sys/scheduler/orchid/scheduler/operations/" + op.id) == get("//sys/scheduler/orchid/scheduler/operations/\\*my_op")
+        assert list_operations()["operations"][0]["brief_spec"]["alias"] == "*my_op"
+
+        # It is not allowed to use alias of already running operation.
+        with pytest.raises(YtError):
+            vanilla(spec={"tasks": {"main": {"command": "sleep 1000", "job_count": 1}},
+                          "alias": "*my_op"})
+
+        suspend_op("*my_op")
+        assert get(op.get_path() + "/@suspended")
+        resume_op("*my_op")
+        assert not get(op.get_path() + "/@suspended")
+        update_op_parameters("*my_op", parameters={"acl": [make_ace("allow", "u", ["manage", "read"])]})
+        assert len(get(op.get_path() + "/@alerts")) == 1
+        wait(lambda: get(op.get_path() + "/@state") == "running")
+        abort_op("*my_op")
+        assert get(op.get_path() + "/@state") == "aborted"
+
+        with pytest.raises(YtError):
+            complete_op("*my_another_op")
+
+        with pytest.raises(YtError):
+            complete_op("my_op")
+
+        # Now using alias *my_op is ok.
+        op = vanilla(spec={"tasks": {"main": {"command": "sleep 1000", "job_count": 1}},
+                           "alias": "*my_op"},
+                     track=False)
+
+        wait(lambda: get(op.get_path() + "/@state") == "running")
+
+        complete_op("*my_op")
+        assert get(op.get_path() + "/@state") == "completed"
+
+    @authors("max42")
+    def test_get_operation_latest_archive_version(self):
+        init_operation_archive.create_tables_latest_version(self.Env.create_native_client(), override_tablet_cell_bundle="default")
+
+        # When no operation is assigned to an alias, get_operation should return an error.
+        with pytest.raises(YtError):
+            get_operation("*my_op", include_runtime=True)
+
+        op = vanilla(spec={"tasks": {"main": {"command": "sleep 1000", "job_count": 1}},
+                           "alias": "*my_op"},
+                     track=False)
+        wait(lambda: get(op.get_path() + "/@state") == "running")
+
+        with pytest.raises(YtError):
+            # It is impossible to resolve aliases without including runtime.
+            get_operation("*my_op", include_runtime=False)
+
+        info = get_operation("*my_op", include_runtime=True)
+        assert info["id"] == op.id
+        assert info["type"] == "vanilla"
+
+        op.complete()
+
+        # Operation should still be exposed via Orchid, and get_operation will extract information from there.
+        assert get("//sys/scheduler/orchid/scheduler/operations/\*my_op") == {"operation_id": op.id}
+        info = get_operation("*my_op", include_runtime=True)
+        assert info["id"] == op.id
+        assert info["type"] == "vanilla"
+
+        assert exists(op.get_path())
+
+        clean_operations()
+
+        # Alias should become removed from the Orchid (but it may happen with some visible delay, so we wait for it).
+        wait(lambda: not exists("//sys/scheduler/orchid/scheduler/operations/\\*my_op"))
+        # But get_operation should still work as expected.
+        info = get_operation("*my_op", include_runtime=True)
+        assert info["id"] == op.id
+        assert info["type"] == "vanilla"
+
+
+
+class TestOperationAliasesRpcProxy(TestOperationAliases):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    ENABLE_HTTP_PROXY = True
+
 

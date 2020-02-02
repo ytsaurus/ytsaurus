@@ -69,8 +69,10 @@ void TReadTableCommand::DoExecute(ICommandContextPtr context)
         Unordered,
         StartRowIndexOnly,
         Options.OmitInaccessibleColumns);
-
     Options.Ping = true;
+    Options.EnableTableIndex = ControlAttributes->EnableTableIndex;
+    Options.EnableRowIndex = ControlAttributes->EnableRowIndex;
+    Options.EnableRangeIndex = ControlAttributes->EnableRangeIndex;
     Options.Config = UpdateYsonSerializable(
         context->GetConfig()->TableReader,
         TableReader);
@@ -532,24 +534,14 @@ void TAlterTableCommand::DoExecute(ICommandContextPtr context)
 TSelectRowsCommand::TSelectRowsCommand()
 {
     RegisterParameter("query", Query);
-    RegisterParameter("timestamp", Options.Timestamp)
-        .Optional();
     RegisterParameter("input_row_limit", Options.InputRowLimit)
         .Optional();
     RegisterParameter("output_row_limit", Options.OutputRowLimit)
         .Optional();
     RegisterParameter("range_expansion_limit", Options.RangeExpansionLimit)
         .Optional();
-    RegisterParameter("fail_on_incomplete_result", Options.FailOnIncompleteResult)
-        .Optional();
-    RegisterParameter("verbose_logging", Options.VerboseLogging)
-        .Optional();
-    RegisterParameter("enable_code_cache", Options.EnableCodeCache)
-        .Optional();
     RegisterParameter("max_subqueries", Options.MaxSubqueries)
         .GreaterThan(0)
-        .Optional();
-    RegisterParameter("workload_descriptor", Options.WorkloadDescriptor)
         .Optional();
     RegisterParameter("use_multijoin", Options.UseMultijoin)
         .Optional();
@@ -557,11 +549,15 @@ TSelectRowsCommand::TSelectRowsCommand()
         .Optional();
     RegisterParameter("allow_join_without_index", Options.AllowJoinWithoutIndex)
         .Optional();
-    RegisterParameter("udf_registry_path", Options.UdfRegistryPath)
-        .Default();
-    RegisterParameter("memory_limit_per_node", Options.MemoryLimitPerNode)
-        .Optional();
     RegisterParameter("execution_pool", Options.ExecutionPool)
+        .Optional();
+    RegisterParameter("fail_on_incomplete_result", Options.FailOnIncompleteResult)
+        .Optional();
+    RegisterParameter("verbose_logging", Options.VerboseLogging)
+        .Optional();
+    RegisterParameter("enable_code_cache", Options.EnableCodeCache)
+        .Optional();
+    RegisterParameter("workload_descriptor", Options.WorkloadDescriptor)
         .Optional();
 }
 
@@ -584,6 +580,21 @@ void TSelectRowsCommand::DoExecute(ICommandContextPtr context)
         .ThrowOnError();
 
     YT_LOG_INFO("Query result statistics (%v)", statistics);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TExplainCommand::TExplainCommand()
+{
+    RegisterParameter("query", Query);
+}
+
+void TExplainCommand::DoExecute(ICommandContextPtr context)
+{
+    auto clientBase = GetClientBase(context);
+    auto result = WaitFor(clientBase->Explain(Query, Options))
+        .ValueOrThrow();
+    context->ProduceOutputValue(result);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -683,8 +694,6 @@ TLookupRowsCommand::TLookupRowsCommand()
     RegisterParameter("versioned", Versioned)
         .Default(false);
     RegisterParameter("retention_config", RetentionConfig)
-        .Optional();
-    RegisterParameter("timestamp", Options.Timestamp)
         .Optional();
     RegisterParameter("keep_missing_rows", Options.KeepMissingRows)
         .Optional();
@@ -1046,6 +1055,22 @@ void TGetTabletInfosCommand::DoExecute(ICommandContextPtr context)
                             .Item("total_row_count").Value(tablet.TotalRowCount)
                             .Item("trimmed_row_count").Value(tablet.TrimmedRowCount)
                             .Item("barrier_timestamp").Value(tablet.BarrierTimestamp)
+                            .Item("last_write_timestamp").Value(tablet.LastWriteTimestamp)
+                            .DoIf(tablet.TableReplicaInfos.has_value(), [&] (TFluentMap fluent) {
+                                fluent
+                                    .Item("replica_infos").DoListFor(
+                                        *tablet.TableReplicaInfos,
+                                        [&] (TFluentList fluent, const auto& replicaInfo) {
+                                            fluent
+                                                .Item()
+                                                .BeginMap()
+                                                    .Item("replica_id").Value(replicaInfo.ReplicaId)
+                                                    .Item("last_replication_timestamp").Value(replicaInfo.LastReplicationTimestamp)
+                                                    .Item("mode").Value(replicaInfo.Mode)
+                                                    .Item("current_replication_row_index").Value(replicaInfo.CurrentReplicationRowIndex)
+                                                .EndMap();
+                                        });
+                            })
                         .EndMap();
                 })
             .EndMap();

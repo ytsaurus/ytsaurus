@@ -7,7 +7,11 @@ namespace NYT::NScheduler {
 TFairShareStrategyOperationControllerConfig::TFairShareStrategyOperationControllerConfig()
 {
     RegisterParameter("max_concurrent_controller_schedule_job_calls", MaxConcurrentControllerScheduleJobCalls)
-        .Default(10)
+        .Default(100)
+        .GreaterThan(0);
+
+    RegisterParameter("max_concurrent_controller_schedule_job_calls_per_node_shard", MaxConcurrentControllerScheduleJobCallsPerNodeShard)
+        .Default(5)
         .GreaterThan(0);
 
     RegisterParameter("schedule_job_time_limit", ScheduleJobTimeLimit)
@@ -57,12 +61,10 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
         .GreaterThan(0);
 
     RegisterParameter("max_running_operation_count_per_pool", MaxRunningOperationCountPerPool)
-        .Alias("max_running_operations_per_pool")
         .Default(50)
         .GreaterThan(0);
 
     RegisterParameter("max_operation_count_per_pool", MaxOperationCountPerPool)
-        .Alias("max_operations_per_pool")
         .Default(50)
         .GreaterThan(0);
 
@@ -127,11 +129,11 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
         .Default()
         .GreaterThanOrEqual(1.0);
 
-    RegisterParameter("crash_on_operation_resource_usage_inconsistency", CrashOnOperationResourceUsageInconsistency)
-        .Default(false);
-
     RegisterParameter("packing", Packing)
         .DefaultNew();
+
+    RegisterParameter("non_tentative_operation_types", NonTentativeOperationTypes)
+        .Default(std::nullopt);
 
     RegisterPostprocessor([&] () {
         if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
@@ -186,6 +188,9 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
 
     RegisterParameter("default_tentative_pool_trees", DefaultTentativePoolTrees)
         .Default();
+
+    RegisterParameter("best_tree_heuristic_regularization_value", BestTreeHeuristicRegularizationValue)
+        .Default(1.0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -243,6 +248,8 @@ TOperationsCleanerConfig::TOperationsCleanerConfig()
         .Default(TDuration::Minutes(30));
     RegisterParameter("max_removal_sleep_delay", MaxRemovalSleepDelay)
         .Default(TDuration::Seconds(5));
+    RegisterParameter("min_operation_count_enqueued_for_alert", MinOperationCountEnqueuedForAlert)
+        .Default(500);
 
     RegisterPostprocessor([&] {
         if (MaxArchivationRetrySleepDelay <= MinArchivationRetrySleepDelay) {
@@ -406,6 +413,9 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("finished_operation_job_storing_timeout", FinishedOperationJobStoringTimeout)
         .Default(TDuration::Seconds(10));
 
+    RegisterParameter("operations_destroy_period", OperationsDestroyPeriod)
+        .Default(TDuration::Seconds(1));
+
     RegisterParameter("testing_options", TestingOptions)
         .DefaultNew();
 
@@ -448,6 +458,10 @@ TSchedulerConfig::TSchedulerConfig()
         .Default(4)
         .GreaterThan(0);
 
+    RegisterParameter("fair_share_update_thread_count", FairShareUpdateThreadCount)
+        .Default(4)
+        .GreaterThan(0);
+
     RegisterParameter("handle_node_id_changes_strictly", HandleNodeIdChangesStrictly)
         .Default(true);
 
@@ -455,13 +469,16 @@ TSchedulerConfig::TSchedulerConfig()
         .Default(TDuration::Seconds(15));
 
     RegisterParameter("pool_trees_root", PoolTreesRoot)
-        .Default("//sys/pool_trees");
+        .Default(PoolTreesRootCypressPath);
 
     RegisterParameter("validate_node_tags_period", ValidateNodeTagsPeriod)
         .Default(TDuration::Seconds(30));
 
     RegisterParameter("enable_job_abort_on_zero_user_slots", EnableJobAbortOnZeroUserSlots)
         .Default(true);
+
+    RegisterParameter("fetch_operation_attributes_subbatch_size", FetchOperationAttributesSubbatchSize)
+        .Default(1000);
 
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;

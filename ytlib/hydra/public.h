@@ -9,7 +9,6 @@ namespace NYT::NHydra {
 namespace NProto {
 
 class TSnapshotMeta;
-class TChangelogMeta;
 
 } // namespace NProto
 

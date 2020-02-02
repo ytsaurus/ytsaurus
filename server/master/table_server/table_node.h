@@ -165,8 +165,6 @@ public:
     void ValidateAllTabletsFrozenOrUnmounted(TStringBuf message) const;
     void ValidateAllTabletsUnmounted(TStringBuf message) const;
 
-    std::vector<TError> GetTabletErrors(std::optional<int> limit = std::nullopt) const;
-
     void AddDynamicTableLock(
         NTransactionClient::TTransactionId transactionId,
         NTransactionClient::TTimestamp timestamp,

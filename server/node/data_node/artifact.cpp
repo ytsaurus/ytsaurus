@@ -45,8 +45,8 @@ TArtifactKey::operator size_t() const
     }
 
     if (data_source().has_column_filter()) {
-        for (const auto& column : data_source().columns()) {
-            HashCombine(result, column);
+        for (const auto& admittedColumn : data_source().column_filter().admitted_names()) {
+            HashCombine(result, admittedColumn);
         }
     }
 
@@ -123,8 +123,8 @@ bool TArtifactKey::operator == (const TArtifactKey& other) const
         return false;
 
     if (data_source().has_column_filter()) {
-        auto lhsColumns = FromProto<std::vector<TString>>(data_source().columns());
-        auto rhsColumns = FromProto<std::vector<TString>>(other.data_source().columns());
+        auto lhsColumns = FromProto<std::vector<TString>>(data_source().column_filter().admitted_names());
+        auto rhsColumns = FromProto<std::vector<TString>>(other.data_source().column_filter().admitted_names());
         if (lhsColumns != rhsColumns) {
             return false;
         }

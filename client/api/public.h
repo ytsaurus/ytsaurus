@@ -12,9 +12,10 @@ namespace NYT::NApi {
 
 // Keep in sync with NRpcProxy::NProto::EMasterReadKind.
 DEFINE_ENUM(EMasterChannelKind,
-    ((Leader)     (0))
-    ((Follower)   (1))
-    ((Cache)      (2))
+    ((Leader)                (0))
+    ((Follower)              (1))
+    ((Cache)                 (2))
+    ((SecondLevelCache)      (3))
 );
 
 DEFINE_ENUM(EUserWorkloadCategory,

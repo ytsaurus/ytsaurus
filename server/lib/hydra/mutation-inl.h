@@ -13,7 +13,7 @@
 #include <yt/core/rpc/message.h>
 #include <yt/core/rpc/helpers.h>
 
-#include <yt/ytlib/hydra/hydra_manager.pb.h>
+#include <yt/ytlib/hydra/proto/hydra_manager.pb.h>
 
 namespace NYT::NHydra {
 

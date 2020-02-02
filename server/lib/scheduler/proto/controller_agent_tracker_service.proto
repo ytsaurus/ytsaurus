@@ -73,6 +73,12 @@ message TAgentToSchedulerJobEvent
 
 message TSchedulerToAgentJobEvent
 {
+    message TPreemptedFor
+    {
+        required NYT.NProto.TGuid operation_id = 1;
+        required NYT.NProto.TGuid job_id = 2;
+    }
+
     required NYT.NProto.TGuid operation_id = 1;
     required int32 event_type = 3; // ESchedulerToAgentJobEventType
     required bool log_and_profile = 2;
@@ -87,6 +93,7 @@ message TSchedulerToAgentJobEvent
 
     // for Aborted
     optional int32 abort_reason = 9;
+    optional TPreemptedFor preempted_for = 12;
 
     // for Completed
     optional int32 interrupt_reason = 10; // EInterruptReason

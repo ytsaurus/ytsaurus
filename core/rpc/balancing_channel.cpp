@@ -502,6 +502,7 @@ private:
 
     void OnDiscoverySessionFinished(const TError& /*error*/)
     {
+        NTracing::TNullTraceContextGuard nullTraceContext;
         TWriterGuard guard(SpinLock_);
 
         YT_VERIFY(CurrentDiscoverySession_);
@@ -620,6 +621,7 @@ private:
     {
         auto wrappedChannel = CreateFailureDetectingChannel(
             channel,
+            Config_->AcknowledgementTimeout,
             BIND(&TBalancingChannelSubprovider::OnChannelFailed, MakeWeak(this), address));
 
         bool updated;
@@ -642,7 +644,7 @@ private:
         }
     }
 
-    void OnChannelFailed(const TString& address, const IChannelPtr& channel)
+    void OnChannelFailed(const TString& address, const IChannelPtr& channel, const TError& error)
     {
         bool evicted = false;
         {
@@ -654,7 +656,7 @@ private:
             }
         }
 
-        YT_LOG_DEBUG("Peer is no longer viable (Address: %v, Evicted: %v)",
+        YT_LOG_DEBUG(error, "Peer is no longer viable (Address: %v, Evicted: %v)",
             address,
             evicted);
     }

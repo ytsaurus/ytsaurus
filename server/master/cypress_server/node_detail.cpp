@@ -118,7 +118,7 @@ void TNontemplateCypressNodeTypeHandlerBase::DestroyCore(TCypressNode* node)
     node->Acd().Clear();
 }
 
-void TNontemplateCypressNodeTypeHandlerBase::BeginCopyCore(
+bool TNontemplateCypressNodeTypeHandlerBase::BeginCopyCore(
     TCypressNode* node,
     TBeginCopyContext* context)
 {
@@ -163,12 +163,30 @@ void TNontemplateCypressNodeTypeHandlerBase::BeginCopyCore(
             context->GetTransaction(),
             context->GetMode() == ENodeCloneMode::Copy ? ELockMode::Snapshot : ELockMode::Exclusive);
     }
+
+    // COMPAT(gritukan)
+    if (static_cast<EMasterReign>(context->GetVersion()) >= EMasterReign::GranularCypressTreeCopy) {
+        bool opaqueChild = false;
+
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        if (node->GetOpaque() && node != context->GetRootNode()) {
+            context->RegisterOpaqueChildPath(cypressManager->GetNodePath(node, context->GetTransaction()));
+            opaqueChild = true;
+        }
+
+        Save(*context, opaqueChild);
+
+        return !opaqueChild;
+    }
+
+    return true;
 }
 
 TCypressNode* TNontemplateCypressNodeTypeHandlerBase::EndCopyCore(
     TEndCopyContext* context,
     ICypressNodeFactory* factory,
-    TNodeId sourceNodeId)
+    TNodeId sourceNodeId,
+    bool* needCustomEndCopy)
 {
     // See BeginCopyCore.
     auto externalCellTag = Load<TCellTag>(*context);
@@ -184,7 +202,7 @@ TCypressNode* TNontemplateCypressNodeTypeHandlerBase::EndCopyCore(
     auto clonedId = objectManager->GenerateId(GetObjectType(), NullObjectId);
     auto* clonedTrunkNode = factory->InstantiateNode(clonedId, externalCellTag);
 
-    LoadInplace(clonedTrunkNode, context, factory);
+    *needCustomEndCopy = LoadInplace(clonedTrunkNode, context, factory);
 
     return clonedTrunkNode;
 }
@@ -208,7 +226,7 @@ void TNontemplateCypressNodeTypeHandlerBase::EndCopyInplaceCore(
     LoadInplace(trunkNode, context, factory);
 }
 
-void TNontemplateCypressNodeTypeHandlerBase::LoadInplace(
+bool TNontemplateCypressNodeTypeHandlerBase::LoadInplace(
     TCypressNode* trunkNode,
     TEndCopyContext* context,
     ICypressNodeFactory* factory)
@@ -235,8 +253,9 @@ void TNontemplateCypressNodeTypeHandlerBase::LoadInplace(
 
     // Copy ACD, but not for portal exits.
     auto sourceAcd = Load<TAccessControlDescriptor>(*context);
-    if ((context->GetMode() == ENodeCloneMode::Move || factory->ShouldPreserveAcl())
-        && trunkNode->GetType() != EObjectType::PortalExit) {
+    if ((context->GetMode() == ENodeCloneMode::Move || factory->ShouldPreserveAcl()) &&
+        trunkNode->GetType() != EObjectType::PortalExit)
+    {
         trunkNode->Acd().SetInherit(sourceAcd.GetInherit());
         trunkNode->Acd().SetEntries(sourceAcd.Acl());
     }
@@ -283,6 +302,14 @@ void TNontemplateCypressNodeTypeHandlerBase::LoadInplace(
             YT_VERIFY(clonedAttributes->Attributes().insert(pair).second);
         }
     }
+
+    // COMPAT(gritukan)
+    if (static_cast<EMasterReign>(context->GetVersion()) >= EMasterReign::GranularCypressTreeCopy) {
+        auto opaqueChild = Load<bool>(*context);
+        return !opaqueChild;
+    }
+
+    return true;
 }
 
 void TNontemplateCypressNodeTypeHandlerBase::BranchCore(
@@ -725,8 +752,16 @@ void TMapNodeChildren::Load(NCellMaster::TLoadContext& context)
 
 /*static*/ void TMapNodeChildren::Clear(TMapNodeChildren* children)
 {
-    YT_VERIFY(children->GetRefCount() == 0);
     // NB: does not unref children! This is to be used during automaton clearing only!
+
+    YT_VERIFY(children->GetRefCount() == 0);
+
+    // It's okay to clear and forget. Recursive unref is not necessary here
+    // because, during automaton clearing, all nodes will be destroyed anyway -
+    // regardless of their refcounter.
+    children->KeyToChild.clear();
+    children->ChildToKey.clear();
+
     delete children;
 }
 
@@ -1048,15 +1083,16 @@ void TMapNodeTypeHandlerImpl<TImpl>::DoBeginCopy(
 
     using NYT::Save;
 
+    const auto& cypressManager = this->Bootstrap_->GetCypressManager();
+
     THashMap<TString, TCypressNode*> keyToChildMapStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
-        this->Bootstrap_->GetCypressManager(),
+        cypressManager,
         node->GetTrunkNode()->template As<TImpl>(),
         node->GetTransaction(),
         &keyToChildMapStorage);
 
     TSizeSerializer::Save(*context, keyToChildMap.size());
-    const auto& cypressManager = this->Bootstrap_->GetCypressManager();
     for (const auto& [key, child] : SortHashMapByKeys(keyToChildMap)) {
         Save(*context, key);
         const auto& typeHandler = cypressManager->GetHandler(child);

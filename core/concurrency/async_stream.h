@@ -73,6 +73,19 @@ struct IAsyncOutputStream
 
 DEFINE_REFCOUNTED_TYPE(IAsyncOutputStream)
 
+struct IFlushableAsyncOutputStream
+    : public IAsyncOutputStream
+{
+    //! Starts flushing the stream.
+    /*! Call #Flush to complete preceding writes.
+     *  #Flush shouldn't be called before previous #Write call is complete.
+     *  #Flush mustn't be called after #Close was called.
+     */
+    [[nodiscard]] virtual TFuture<void> Flush() = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IFlushableAsyncOutputStream)
+
 //! Creates a synchronous buffering adapter from a given asynchronous stream.
 /*!
  *  Not thread safe.
@@ -94,7 +107,7 @@ std::unique_ptr<ICheckpointableOutputStream> CreateBufferedCheckpointableSyncAda
  *  This way one can ensure that current thread will not block in calls
  *  to the adapter.
  */
-IAsyncOutputStreamPtr CreateAsyncAdapter(
+IFlushableAsyncOutputStreamPtr CreateAsyncAdapter(
     IOutputStream* underlyingStream,
     IInvokerPtr invoker = GetSyncInvoker());
 

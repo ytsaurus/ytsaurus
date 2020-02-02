@@ -44,6 +44,9 @@ public:
     //! Timeout for RPC requests to masters.
     TDuration RpcTimeout;
 
+    bool EnableMasterCacheDiscovery;
+    TDuration MasterCacheDiscoveryPeriod;
+
     TMasterConnectionConfig();
 };
 
@@ -109,7 +112,8 @@ public:
     TDuration DefaultListOperationsTimeout;
 
     bool UseTabletService;
-    bool EnableBuiltinTabletSystemUsers;
+
+    std::optional<int> CacheStickyGroupSizeOverride;
 
     TDuration IdleChannelTtl;
 

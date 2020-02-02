@@ -1,19 +1,9 @@
 #include "evaluation_helpers.h"
-#include "column_evaluator.h"
 #include "private.h"
-#include "helpers.h"
 #include "query.h"
 #include "query_helpers.h"
 
 #include <yt/client/query_client/query_statistics.h>
-
-#include <yt/client/table_client/schemaful_reader.h>
-
-#include <yt/ytlib/table_client/pipe.h>
-
-#include <yt/core/concurrency/scheduler.h>
-
-#include <yt/core/profiling/timing.h>
 
 namespace NYT::NQueryClient {
 
@@ -283,7 +273,7 @@ void* const* TCGVariables::GetOpaqueData() const
 void TCGVariables::Clear()
 {
     OpaquePointers_.clear();
-    OpaqueValues_.clear();
+    Holder_.Clear();
     OwningLiteralValues_.clear();
     LiteralValues_.reset();
 }
@@ -304,7 +294,6 @@ TValue* TCGVariables::GetLiteralValues() const
         for (const auto& value : OwningLiteralValues_) {
             LiteralValues_[index++] = TValue(value);
         }
-        return LiteralValues_.get();
     }
     return LiteralValues_.get();
 }

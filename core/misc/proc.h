@@ -132,6 +132,8 @@ void SendSignal(const std::vector<int>& pids, const TString& signalName);
 std::optional<int> FindSignalIdBySignalName(const TString& signalName);
 void ValidateSignalName(const TString& signalName);
 
+////////////////////////////////////////////////////////////////////////////////
+
 template <class F,  class... Args>
 auto HandleEintr(F f, Args&&... args) -> decltype(f(args...));
 

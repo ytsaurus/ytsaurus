@@ -1,6 +1,7 @@
 #pragma once
 
 #include "chunk_reader.h"
+#include "chunk_reader_memory_manager.h"
 
 #include <yt/client/chunk_client/data_statistics.h>
 
@@ -40,7 +41,7 @@ public:
     TBlockFetcher(
         TBlockFetcherConfigPtr config,
         std::vector<TBlockInfo> blockInfos,
-        NConcurrency::TAsyncSemaphorePtr asyncSemaphore,
+        TChunkReaderMemoryManagerPtr memoryManager,
         IChunkReaderPtr chunkReader,
         IBlockCachePtr blockCache,
         NCompression::ECodec codecId,
@@ -49,6 +50,9 @@ public:
 
     //! Returns |true| if there are requested blocks that were not fetched enough times.
     bool HasMoreBlocks() const;
+
+    //! Returns uncompressed size of block with given index.
+    i64 GetBlockSize(int blockIndex) const;
 
     //! Asynchronously fetches the block with given index.
     /*!
@@ -77,7 +81,7 @@ private:
     const IInvokerPtr CompressionInvoker_;
     const IInvokerPtr ReaderInvoker_;
     const double CompressionRatio_;
-    const NConcurrency::TAsyncSemaphorePtr AsyncSemaphore_;
+    const TChunkReaderMemoryManagerPtr MemoryManager_;
     NCompression::ICodec* const Codec_;
     const TClientBlockReadOptions BlockReadOptions_;
     NLogging::TLogger Logger;
@@ -88,6 +92,8 @@ private:
 
     THashMap<int, int> BlockIndexToWindowIndex_;
 
+    TFuture<TMemoryUsageGuardPtr> FetchNextGroupMemoryFuture_;
+
     struct TWindowSlot
     {
         // Created lazily in GetBlockPromise.
@@ -96,7 +102,7 @@ private:
 
         std::atomic<int> RemainingFetches = { 0 };
 
-        std::unique_ptr<NConcurrency::TAsyncSemaphoreGuard> AsyncSemaphoreGuard;
+        TMemoryUsageGuardPtr MemoryUsageGuard;
 
         std::atomic_flag FetchStarted = ATOMIC_FLAG_INIT;
     };
@@ -109,12 +115,17 @@ private:
     int FirstUnfetchedWindowIndex_ = 0;
     bool FetchingCompleted_ = false;
 
-    void FetchNextGroup(NConcurrency::TAsyncSemaphoreGuard AsyncSemaphoreGuard);
+    void FetchNextGroup(TErrorOr<TMemoryUsageGuardPtr> memoryUsageGuardOrError);
 
     void RequestBlocks(
         const std::vector<int>& windowIndexes,
         const std::vector<int>& blockIndexes,
         i64 uncompressedSize);
+
+    void OnGotBlocks(
+        const std::vector<int>& windowIndexes,
+        const std::vector<int>& blockIndexes,
+        const TErrorOr<std::vector<TBlock>>& blocksOrError);
 
     void DecompressBlocks(
         const std::vector<int>& windowIndexes,
@@ -126,7 +137,8 @@ private:
 
     void ReleaseBlock(int windowIndex);
 
-    static TPromise<TBlock>& GetBlockPromise(TWindowSlot& windowSlot);
+    static TPromise<TBlock> GetBlockPromise(TWindowSlot& windowSlot);
+    static void ResetBlockPromise(TWindowSlot& windowSlot);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlockFetcher)
@@ -141,7 +153,7 @@ public:
     TSequentialBlockFetcher(
         TBlockFetcherConfigPtr config,
         std::vector<TBlockInfo> blockInfos,
-        NConcurrency::TAsyncSemaphorePtr asyncSemaphore,
+        TChunkReaderMemoryManagerPtr memoryManager,
         IChunkReaderPtr chunkReader,
         IBlockCachePtr blockCache,
         NCompression::ECodec codecId,
@@ -149,6 +161,8 @@ public:
         const TClientBlockReadOptions& blockReadOptions);
 
     TFuture<TBlock> FetchNextBlock();
+
+    i64 GetNextBlockSize() const;
 
     using TBlockFetcher::HasMoreBlocks;
     using TBlockFetcher::IsFetchingCompleted;

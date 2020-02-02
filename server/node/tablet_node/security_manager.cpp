@@ -100,6 +100,9 @@ private:
         auto client = Bootstrap_->GetMasterClient();
         auto options = TGetNodeOptions();
         options.ReadFrom = EMasterChannelKind::Cache;
+        options.ExpireAfterSuccessfulUpdateTime = Config_->ExpireAfterSuccessfulUpdateTime;
+        options.ExpireAfterFailedUpdateTime = Config_->ExpireAfterFailedUpdateTime;
+
         return client->GetNode("//sys/accounts/" + ToYPathLiteral(key.Account) + "/@violated_resource_limits", options).Apply(
             BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TYsonString>& resultOrError) {
                 if (!resultOrError.IsOK()) {
@@ -112,7 +115,7 @@ private:
 
                 const auto& node = ConvertToNode(resultOrError.Value());
 
-                YT_LOG_DEBUG("Got resource limits violations for account %Qv: %Qv",
+                YT_LOG_DEBUG("Resource limits violation check completed (Key: %v, Result: %v)",
                     key.Account,
                     ConvertToYsonString(node, EYsonFormat::Text));
 

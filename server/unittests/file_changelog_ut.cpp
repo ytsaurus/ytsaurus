@@ -4,7 +4,7 @@
 #include <yt/server/lib/hydra/config.h>
 #include <yt/server/lib/hydra/local_changelog_store.h>
 
-#include <yt/ytlib/hydra/hydra_manager.pb.h>
+#include <yt/ytlib/hydra/proto/hydra_manager.pb.h>
 
 #include <yt/core/concurrency/action_queue.h>
 
@@ -49,7 +49,7 @@ protected:
             .Get()
             .ValueOrThrow();
 
-        auto changelogOrError = ChangelogStore->CreateChangelog(0, TChangelogMeta()).Get();
+        auto changelogOrError = ChangelogStore->CreateChangelog(0).Get();
         ASSERT_TRUE(changelogOrError.IsOK()) << ToString(changelogOrError);
         Changelog = changelogOrError.Value();
 

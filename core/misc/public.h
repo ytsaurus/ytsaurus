@@ -102,8 +102,27 @@ using TFingerprint = ui64;
 
 constexpr TChecksum NullChecksum = 0;
 
-template <class T, unsigned size>
+template <class T, unsigned Size>
 class SmallVector;
+
+namespace NDetail {
+
+template <typename KeyT, typename ValueT>
+struct DenseMapPair;
+
+} // namespace NDetail
+
+template <typename T>
+struct TDenseMapInfo;
+
+template <
+	typename KeyT,
+	typename ValueT,
+	unsigned InlineBuckets = 4,
+	typename KeyInfoT = TDenseMapInfo<KeyT>,
+	typename BucketT = NDetail::DenseMapPair<KeyT, ValueT>
+>
+class SmallDenseMap;
 
 template <class TProto, bool EnableWeak = false>
 class TRefCountedProto;
@@ -131,6 +150,7 @@ template <class T>
 class TInternedObject;
 
 DECLARE_REFCOUNTED_STRUCT(IMemoryChunkProvider)
+DECLARE_REFCOUNTED_STRUCT(IMemoryUsageTracker)
 
 class TStatistics;
 class TSummary;

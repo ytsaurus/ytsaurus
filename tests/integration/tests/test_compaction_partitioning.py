@@ -120,34 +120,37 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
 
     @authors("akozhikhov")
     def test_overlapping_store_count(self):
-        # This magic combination of parameters makes flushed insertion to be stored in eden stores
+        # Create 3 chunks [{2}, {3}], [{4}, {5}] and [{6}, {7}].
+        # Then create two chunks in eden [{3}, {4}] and [{5}, {6}], which don't overlap.
         sync_create_cells(1)
-        self._create_simple_table(
-            "//tmp/t",
-            max_partition_data_size=640,
-            desired_partition_data_size=512,
-            min_partition_data_size=256,
-            compression_codec="none",
-            chunk_writer={"block_size": 1},
-        )
+        self._create_simple_table("//tmp/t")
         sync_mount_table("//tmp/t")
 
-        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
-        address = get_tablet_leader_address(tablet_id)
-
         def _check(stores, overlaps):
-            orchid = self._find_tablet_orchid(address, tablet_id)
-            assert stores == len(orchid["eden"]["stores"])
+            sync_mount_table("//tmp/t")
+            tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+            address = get_tablet_leader_address(tablet_id)
+            wait(lambda: stores == len(self._find_tablet_orchid(address, tablet_id)["eden"]["stores"]))
             wait(lambda: overlaps == get("//tmp/t/@tablet_statistics/overlapping_store_count"))
+            sync_unmount_table("//tmp/t")
+
         _check(stores=1, overlaps=1)
 
-        insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in xrange(12)])
-        sync_flush_table("//tmp/t")
-        _check(stores=2, overlaps=2)
+        self._create_partitions(partition_count=3)
 
-        insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in xrange(12, 24)])
+        _check(stores=1, overlaps=2)
+
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": i} for i in xrange(3, 5)])
         sync_flush_table("//tmp/t")
-        _check(stores=3, overlaps=2)
+
+        _check(stores=2, overlaps=3)
+
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": i} for i in xrange(5, 7)])
+        sync_flush_table("//tmp/t")
+
+        _check(stores=3, overlaps=3)
 
     @authors("babenko")
     def test_store_rotation(self):
@@ -200,38 +203,11 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
 
     @authors("akozhikhov")
     def test_partitioning_with_chunk_views(self):
-        # Creating two chunks [{1}, {2}] and [{2}, {3}] and check whether they become partitioned.
+        # Creating two chunks [{0}, {1}, {2}] and [{2}, {3}] and check whether they become partitioned.
         sync_create_cells(1)
-
-        def _wait_not_in_eden(chunk_index):
-            chunk_id = get("//tmp/t/@chunk_ids/{0}".format(chunk_index))
-            sync_mount_table("//tmp/t", first_tablet_index=chunk_index, last_tablet_index=chunk_index)
-            wait(lambda: chunk_id != get("//tmp/t/@chunk_ids/{0}".format(chunk_index)))
-            print "\n\n\n", chunk_id, get("//tmp/t/@chunk_ids"), "\n\n"
-            assert not get("#{}/@eden".format(get("//tmp/t/@chunk_ids/{0}".format(chunk_index))))
-            sync_unmount_table("//tmp/t")
-
         self._create_simple_table("//tmp/t", )
-        set("//tmp/t/@min_partition_data_size", 1)
 
-        sync_mount_table("//tmp/t")
-        insert_rows("//tmp/t", [{"key": 1}, {"key": 2}])
-        sync_unmount_table("//tmp/t")
-        set("//tmp/t/@forced_compaction_revision", 1)
-
-        _wait_not_in_eden(chunk_index=0)
-
-        sync_reshard_table("//tmp/t", [[], [2]])
-
-        sync_mount_table("//tmp/t", first_tablet_index=1, last_tablet_index=1)
-        insert_rows("//tmp/t", [{"key": 2}, {"key": 3}])
-        sync_unmount_table("//tmp/t")
-        set("//tmp/t/@forced_compaction_revision", 1)
-
-        _wait_not_in_eden(chunk_index=1)
-
-        set("//tmp/t/@enable_compaction_and_partitioning", False)
-        sync_reshard_table("//tmp/t", [[]])
+        self._create_partitions(partition_count=2, do_overlap=True)
 
         sync_mount_table("//tmp/t")
         wait(lambda: get("//tmp/t/@tablet_statistics/partition_count") > 0)
@@ -241,7 +217,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         assert len(get("//tmp/t/@chunk_ids")) == 2
 
         expected = [
-            {"pivot_key": [], "min_key": [1], "upper_bound_key": [2]},
+            {"pivot_key": [], "min_key": [0], "upper_bound_key": [2]},
             {"pivot_key": [2], "min_key": [2], "upper_bound_key": [3, yson.YsonEntity()]},
         ]
 

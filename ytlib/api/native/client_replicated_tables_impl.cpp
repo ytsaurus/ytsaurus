@@ -89,7 +89,7 @@ std::vector<TTableReplicaId> TClient::DoGetInSyncReplicas(
             }
             auto tabletInfo = tableInfo->GetTabletForRow(capturedKey);
             if (tabletIds.insert(tabletInfo->TabletId).second) {
-                ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
+                ValidateTabletMountedOrFrozen(tabletInfo);
                 cellToTabletIds[tabletInfo->CellId].push_back(tabletInfo->TabletId);
             }
         }

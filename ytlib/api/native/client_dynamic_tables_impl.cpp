@@ -21,6 +21,7 @@
 #include <yt/ytlib/query_client/functions_cache.h>
 #include <yt/ytlib/query_client/executor.h>
 #include <yt/ytlib/query_client/helpers.h>
+#include <yt/ytlib/query_client/explain.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
@@ -217,7 +218,7 @@ public:
 
         InvokeProxy_ = std::make_unique<TQueryServiceProxy>(std::move(channel));
         InvokeProxy_->SetDefaultTimeout(Options_.Timeout.value_or(Config_->DefaultLookupRowsTimeout));
-        InvokeProxy_->SetDefaultRequestAck(false);
+        InvokeProxy_->SetDefaultAcknowledgementTimeout(std::nullopt);
 
         InvokeNextBatch();
         return InvokePromise_;
@@ -427,6 +428,18 @@ std::vector<TTabletInfo> TClient::DoGetTabletInfos(
             result.TotalRowCount = tabletInfo.total_row_count();
             result.TrimmedRowCount = tabletInfo.trimmed_row_count();
             result.BarrierTimestamp = tabletInfo.barrier_timestamp();
+            result.LastWriteTimestamp = tabletInfo.last_write_timestamp();
+            result.TableReplicaInfos = tabletInfo.replicas().empty()
+                ? std::nullopt
+                : std::make_optional(std::vector<TTabletInfo::TTableReplicaInfo>());
+
+            for (const auto& protoReplicaInfo : tabletInfo.replicas()) {
+                auto& currentReplica = result.TableReplicaInfos->emplace_back();
+                currentReplica.ReplicaId = FromProto<TGuid>(protoReplicaInfo.replica_id());
+                currentReplica.LastReplicationTimestamp = protoReplicaInfo.last_replication_timestamp();
+                currentReplica.Mode = CheckedEnumCast<ETableReplicaMode>(protoReplicaInfo.mode());
+                currentReplica.CurrentReplicationRowIndex = protoReplicaInfo.current_replication_row_index();
+            }
         }
     }
     return results;
@@ -678,7 +691,7 @@ TRowset TClient::DoLookupRowsOnce(
                         return CompareRows(item.first, pivot) < 0;
                     });
 
-                ValidateTabletMountedOrFrozen(tableInfo, startShard);
+                ValidateTabletMountedOrFrozen(startShard);
 
                 auto emplaced = cellIdToBatchIndex.emplace(startShard->CellId, batchesByCells.size());
                 if (emplaced.second) {
@@ -736,7 +749,7 @@ TRowset TClient::DoLookupRowsOnce(
 
             TQueryServiceProxy proxy(channel);
             proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultLookupRowsTimeout));
-            proxy.SetDefaultRequestAck(false);
+            proxy.SetDefaultAcknowledgementTimeout(std::nullopt);
 
             auto req = proxy.Multiread();
             req->SetMultiplexingBand(options.MultiplexingBand);
@@ -1007,6 +1020,47 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     return TSelectRowsResult{rowset, statistics};
 }
 
+NYson::TYsonString TClient::DoExplain(
+    const TString& queryString,
+    const TExplainOptions& options)
+{
+    auto parsedQuery = ParseSource(queryString, EParseMode::Query);
+
+    const auto& udfRegistryPath = options.UdfRegistryPath
+        ? *options.UdfRegistryPath
+        : GetNativeConnection()->GetConfig()->UdfRegistryPath;
+
+    auto externalCGInfo = New<TExternalCGInfo>();
+    auto fetchFunctions = [&] (const std::vector<TString>& names, const TTypeInferrerMapPtr& typeInferrers) {
+        MergeFrom(typeInferrers.Get(), *BuiltinTypeInferrersMap);
+
+        std::vector<TString> externalNames;
+        for (const auto& name : names) {
+            auto found = typeInferrers->find(name);
+            if (found == typeInferrers->end()) {
+                externalNames.push_back(name);
+            }
+        }
+
+        auto descriptors = WaitFor(GetFunctionRegistry()->FetchFunctions(udfRegistryPath, externalNames))
+            .ValueOrThrow();
+
+        AppendUdfDescriptors(typeInferrers, externalCGInfo, externalNames, descriptors);
+    };
+
+    auto queryPreparer = New<TQueryPreparer>(
+        GetNativeConnection()->GetTableMountCache(),
+        GetNativeConnection()->GetInvoker());
+
+    auto fragment = PreparePlanFragment(
+        queryPreparer.Get(),
+        *parsedQuery,
+        fetchFunctions,
+        options.Timestamp);
+
+    return BuildExplainYson(queryString, fragment, udfRegistryPath);
+}
+
 std::unique_ptr<IAttributeDictionary> TClient::ResolveExternalTable(
     const TYPath& path,
     TTableId* tableId,
@@ -1227,7 +1281,7 @@ void TClient::DoRemountTable(
             req.set_first_tablet_index(*options.FirstTabletIndex);
         }
         if (options.LastTabletIndex) {
-            req.set_first_tablet_index(*options.LastTabletIndex);
+            req.set_last_tablet_index(*options.LastTabletIndex);
         }
 
         ExecuteTabletServiceRequest(path, "Remounting", &req);
@@ -1238,7 +1292,7 @@ void TClient::DoRemountTable(
             req->set_first_tablet_index(*options.FirstTabletIndex);
         }
         if (options.LastTabletIndex) {
-            req->set_first_tablet_index(*options.LastTabletIndex);
+            req->set_last_tablet_index(*options.LastTabletIndex);
         }
 
         auto proxy = CreateWriteProxy<TObjectServiceProxy>();

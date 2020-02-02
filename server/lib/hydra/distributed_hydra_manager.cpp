@@ -15,8 +15,10 @@
 #include "snapshot_discovery.h"
 
 #include <yt/server/lib/election/election_manager.h>
+#include <yt/server/lib/election/config.h>
 
 #include <yt/ytlib/election/cell_manager.h>
+#include <yt/ytlib/election/config.h>
 
 #include <yt/ytlib/hydra/hydra_service_proxy.h>
 
@@ -95,6 +97,13 @@ public:
                 Owner_));
         }
 
+        virtual void OnStopVoting() override
+        {
+            CancelableControlInvoker_->Invoke(BIND(
+                &TDistributedHydraManager::OnElectionStopVoting,
+                Owner_));
+        }
+
         virtual TPeerPriority GetPriority() override
         {
             auto owner = Owner_.Lock();
@@ -139,7 +148,9 @@ public:
             controlInvoker,
             THydraServiceProxy::GetDescriptor(),
             NLogging::TLogger(HydraLogger)
-                .AddTag("CellId: %v", cellManager->GetCellId()),
+                .AddTag("CellId: %v, SelfPeerId: %v",
+                    cellManager->GetCellId(),
+                    cellManager->GetSelfPeerId()),
             cellManager->GetCellId())
         , Config_(config)
         , RpcServer_(rpcServer)
@@ -216,7 +227,7 @@ public:
 
         YT_LOG_INFO("Hydra instance is finalizing");
 
-        CancelableContext_->Cancel();
+        CancelableContext_->Cancel(TError("Hydra instance is finalizing"));
 
         ElectionManager_->Abandon();
 
@@ -224,9 +235,7 @@ public:
             RpcServer_->UnregisterService(this);
         }
 
-        if (ControlEpochContext_) {
-            StopEpoch();
-        }
+        StopEpoch();
 
         ControlState_ = EPeerState::Stopped;
 
@@ -322,6 +331,20 @@ public:
                 "Not an active leader"));
         }
 
+        auto loggedVersion = DecoratedAutomaton_->GetLoggedVersion();
+        if (GetReadOnly() && loggedVersion.RecordId == 0) {
+            auto lastSnapshotId = DecoratedAutomaton_->GetLastSuccessfulSnapshotId();
+            if (loggedVersion.SegmentId == lastSnapshotId) {
+                return MakeFuture<int>(TError(
+                    NHydra::EErrorCode::ReadOnlySnapshotBuilt,
+                    "The requested read-only snapshot is already built")
+                    << TErrorAttribute("snapshot_id", lastSnapshotId));
+            }
+            return MakeFuture<int>(TError(
+                NHydra::EErrorCode::ReadOnlySnapshotBuildFailed,
+                "Cannot build a snapshot in read-only mode"));
+        }
+
         if (!epochContext->Checkpointer->CanBuildSnapshot()) {
             return MakeFuture<int>(TError(
                 NRpc::EErrorCode::Unavailable,
@@ -356,12 +379,14 @@ public:
                     .Item("committed_version").Value(ToString(DecoratedAutomaton_->GetCommittedVersion()))
                     .Item("automaton_version").Value(ToString(DecoratedAutomaton_->GetAutomatonVersion()))
                     .Item("logged_version").Value(ToString(DecoratedAutomaton_->GetLoggedVersion()))
+                    .Item("random_seed").Value(DecoratedAutomaton_->GetRandomSeed())
+                    .Item("sequence_number").Value(DecoratedAutomaton_->GetSequenceNumber())
                     .Item("active_leader").Value(IsActiveLeader())
                     .Item("active_follower").Value(IsActiveFollower())
                     .Item("read_only").Value(GetReadOnly())
                     .Item("warming_up").Value(Options_.ResponseKeeper ? Options_.ResponseKeeper->IsWarmingUp() : false)
                     .Item("building_snapshot").Value(DecoratedAutomaton_->IsBuildingSnapshotNow())
-                    .Item("last_snapshot_id").Value(DecoratedAutomaton_->GetLastSuccessfulSnapshotId())
+                        .Item("last_snapshot_id").Value(DecoratedAutomaton_->GetLastSuccessfulSnapshotId())
                 .EndMap();
         });
     }
@@ -416,7 +441,7 @@ public:
                         "Leader lease is no longer valid");
                     // Ensure monotonicity: once Hydra rejected a mutation, no more mutations are accepted.
                     AutomatonEpochContext_->LeaderLeaseExpired = true;
-                    Restart(AutomatonEpochContext_, error);
+                    ScheduleRestart(AutomatonEpochContext_, error);
                     return MakeFuture<TMutationResponse>(error);
                 }
 
@@ -604,7 +629,7 @@ private:
                     } catch (const std::exception& ex) {
                         auto error = TError("Error logging mutations")
                             << ex;
-                        Restart(epochContext, error);
+                        ScheduleRestart(epochContext, error);
                         THROW_ERROR error;
                     }
                     break;
@@ -626,7 +651,7 @@ private:
                     } catch (const std::exception& ex) {
                         auto error = TError("Error postponing mutations during recovery")
                             << ex;
-                        Restart(epochContext, error);
+                        ScheduleRestart(epochContext, error);
                         THROW_ERROR error;
                     }
                     break;
@@ -728,7 +753,7 @@ private:
                 "Invalid logged version")
                 << TErrorAttribute("expected_version", ToString(version))
                 << TErrorAttribute("actual_version", ToString(DecoratedAutomaton_->GetLoggedVersion()));
-            Restart(epochContext, error);
+            ScheduleRestart(epochContext, error);
             context->Reply(error);
             return;
         }
@@ -822,7 +847,7 @@ private:
                     } catch (const std::exception& ex) {
                         auto error = TError("Error rotating changelog")
                             << ex;
-                        Restart(epochContext, error);
+                        ScheduleRestart(epochContext, error);
                         THROW_ERROR error;
                     }
 
@@ -847,7 +872,7 @@ private:
                     } catch (const std::exception& ex) {
                         auto error = TError("Error postponing changelog rotation during recovery")
                             << ex;
-                        Restart(epochContext, error);
+                        ScheduleRestart(epochContext, error);
                         THROW_ERROR error;
                     }
 
@@ -892,7 +917,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto mutationRequest = TMutationRequest(request->reign());
+        TMutationRequest mutationRequest;
+        mutationRequest.Reign =request->reign();
         mutationRequest.Type = request->type();
         if (request->has_mutation_id()) {
             mutationRequest.MutationId = FromProto<TMutationId>(request->mutation_id());
@@ -929,7 +955,7 @@ private:
 
         context->SetRequestInfo();
 
-        CommitMutation(TMutationRequest(GetCurrentReign()))
+        CommitMutation(TMutationRequest{.Reign = GetCurrentReign()})
             .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& result) {
                 context->Reply(result);
             }));
@@ -971,7 +997,7 @@ private:
             tagIds);
     }
 
-    void Restart(const TEpochContextPtr& epochContext, const TError& error)
+    void ScheduleRestart(const TEpochContextPtr& epochContext, const TError& error)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -988,12 +1014,12 @@ private:
             error));
     }
 
-    void Restart(const TWeakPtr<TEpochContext>& weakEpochContext, const TError& error)
+    void ScheduleRestart(const TWeakPtr<TEpochContext>& weakEpochContext, const TError& error)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         if (auto epochContext = weakEpochContext.Lock()) {
-            Restart(epochContext, error);
+            ScheduleRestart(epochContext, error);
         }
     }
 
@@ -1114,7 +1140,7 @@ private:
 
         auto wrappedError = TError("Error committing mutation")
             << error;
-        Restart(AutomatonEpochContext_, wrappedError);
+        ScheduleRestart(AutomatonEpochContext_, wrappedError);
     }
 
     void OnLoggingFailed(const TError& error)
@@ -1123,7 +1149,7 @@ private:
 
         auto wrappedError = TError("Error logging mutations")
             << error;
-        Restart(AutomatonEpochContext_, wrappedError);
+        ScheduleRestart(AutomatonEpochContext_, wrappedError);
     }
 
     void OnLeaderLeaseLost(const TWeakPtr<TEpochContext>& weakEpochContext, const TError& error)
@@ -1132,7 +1158,7 @@ private:
 
         auto wrappedError = TError("Leader lease is lost")
             << error;
-        Restart(weakEpochContext, wrappedError);
+        ScheduleRestart(weakEpochContext, wrappedError);
     }
 
 
@@ -1184,7 +1210,7 @@ private:
         if (!error.IsOK()) {
             auto wrappedError = TError("Distributed changelog rotation failed")
                 << error;
-            Restart(weakEpochContext, wrappedError);
+            ScheduleRestart(weakEpochContext, wrappedError);
             return;
         }
 
@@ -1246,11 +1272,11 @@ private:
 
         StartLeading_.Fire();
 
-        epochContext->LeaseTracker->SetAlivePeers(GetAllPeers());
-        epochContext->LeaseTracker->Start();
-
         SwitchTo(epochContext->EpochControlInvoker);
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        epochContext->LeaseTracker->SetAlivePeers(GetAllPeers());
+        epochContext->LeaseTracker->Start();
 
         RecoverLeader();
     }
@@ -1332,7 +1358,7 @@ private:
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Leader recovery failed, backing off");
             TDelayedExecutor::WaitForDuration(Config_->RestartBackoffTime);
-            Restart(epochContext, ex);
+            ScheduleRestart(epochContext, ex);
         }
     }
 
@@ -1447,7 +1473,7 @@ private:
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Follower recovery failed, backing off");
             TDelayedExecutor::WaitForDuration(Config_->RestartBackoffTime);
-            Restart(epochContext, ex);
+            ScheduleRestart(epochContext, ex);
         }
     }
 
@@ -1481,6 +1507,19 @@ private:
         SystemLockGuard_.Release();
     }
 
+    void OnElectionStopVoting()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        YT_LOG_INFO("Stopped voting");
+
+        StopEpoch();
+
+        YT_VERIFY(ControlState_ == EPeerState::Elections);
+
+        Participate();
+    }
+
     void ApplyFinalRecoveryAction(bool isLeader)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -1496,11 +1535,14 @@ private:
             case EFinalRecoveryAction::BuildSnapshotAndRestart:
                 SetReadOnly(true);
                 if (isLeader || Options_.WriteSnapshotsAtFollowers) {
+                    YT_LOG_INFO("Building compatibility snapshot");
+
                     DecoratedAutomaton_->RotateAutomatonVersionAfterRecovery();
-                    WaitFor(DecoratedAutomaton_->BuildSnapshot())
-                        .ThrowOnError();
-                    YT_LOG_INFO("Compatibility snapshot saved, stopping Hydra instance");
+                    auto resultOrError = WaitFor(DecoratedAutomaton_->BuildSnapshot());
+
+                    YT_LOG_INFO_IF(!resultOrError.IsOK(), resultOrError, "Error while compatibility snapshot construction");
                 }
+                YT_LOG_INFO("Stopping Hydra instance and wait for resurrection");
                 SwitchTo(ControlEpochContext_->EpochControlInvoker);
                 WaitFor(Finalize())
                     .ThrowOnError();
@@ -1631,7 +1673,8 @@ private:
             return;
         }
 
-        ControlEpochContext_->CancelableContext->Cancel();
+        auto error = TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped");
+        ControlEpochContext_->CancelableContext->Cancel(error);
 
         ControlEpochContext_.Reset();
     }
@@ -1818,13 +1861,13 @@ private:
 
         YT_LOG_DEBUG("Committing heartbeat mutation");
 
-        CommitMutation(TMutationRequest(GetCurrentReign()))
+        CommitMutation(TMutationRequest{.Reign = GetCurrentReign()})
             .WithTimeout(Config_->HeartbeatMutationTimeout)
             .Subscribe(BIND([=, this_ = MakeStrong(this), weakEpochContext = MakeWeak(AutomatonEpochContext_)] (const TErrorOr<TMutationResponse>& result){
                 if (result.IsOK()) {
                     YT_LOG_DEBUG("Heartbeat mutation commit succeeded");
                 } else if (!GetReadOnly()) {
-                    Restart(
+                    ScheduleRestart(
                         weakEpochContext,
                         TError("Heartbeat mutation commit failed") << result);
                 }

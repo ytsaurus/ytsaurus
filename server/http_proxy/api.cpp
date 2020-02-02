@@ -9,6 +9,8 @@
 
 #include <yt/core/profiling/profile_manager.h>
 
+#include <yt/core/misc/finally.h>
+
 namespace NYT::NHttpProxy {
 
 using namespace NConcurrency;
@@ -129,11 +131,13 @@ TApi::TProfilingCounters* TApi::GetProfilingCounters(const TUserCommandPair& key
         }
     }
 
+    auto userTag = TProfileManager::Get()->RegisterTag("user", key.first);
+    auto commandTag = TProfileManager::Get()->RegisterTag("command", key.second);
+
     auto counters = std::make_unique<TProfilingCounters>();
-    counters->Tags = {
-        TProfileManager::Get()->RegisterTag("user", key.first),
-        TProfileManager::Get()->RegisterTag("command", key.second),
-    };
+    counters->Tags = { userTag, commandTag };
+    counters->UserTag = { userTag };
+    counters->CommandTag = { commandTag };
 
     counters->ConcurrencySemaphore = { "/concurrency_semaphore", counters->Tags };
     counters->RequestCount = { "/request_count", counters->Tags };
@@ -189,7 +193,8 @@ void TApi::IncrementProfilingCounters(
 
     auto guard = Guard(counters->Lock);
     if (httpStatusCode) {
-        DoIncrementHttpCode(&counters->HttpCodes, *httpStatusCode, counters->Tags);
+        DoIncrementHttpCode(&counters->HttpCodes, *httpStatusCode, counters->CommandTag);
+        DoIncrementHttpCode(&counters->HttpCodes, *httpStatusCode, counters->UserTag);
     }
 
     if (apiErrorCode) {
@@ -234,6 +239,9 @@ void TApi::HandleRequest(
         YT_LOG_ERROR(ex, "Command failed");
     }
 
+    auto finally = Finally([&] {
+        context->LogAndProfile();
+    });
     context->Finalize();
 }
 

@@ -193,39 +193,48 @@ int GetSystemColumnCount(const TChunkReaderOptionsPtr& options)
         ++systemColumnCount;
     }
 
+    if (options->EnableTabletIndex) {
+        ++systemColumnCount;
+    }
+
     return systemColumnCount;
+}
+
+void ValidateKeyColumnCount(
+    int keyColumnCount,
+    int chunkKeyColumnCount,
+    bool requireUniqueKeys)
+{
+    if (requireUniqueKeys) {
+        if (chunkKeyColumnCount > keyColumnCount) {
+            THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleKeyColumns,
+                "Chunk has more key columns than requested: chunk has %v key columns, request has %v key columns",
+                chunkKeyColumnCount,
+                keyColumnCount);
+        }
+    } else {
+        if (chunkKeyColumnCount < keyColumnCount) {
+            THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleKeyColumns,
+                "Chunk has less key columns than requested: chunk has %v key columns, request has %v key columns",
+                chunkKeyColumnCount,
+                keyColumnCount);
+        }
+    }
 }
 
 void ValidateKeyColumns(
     const TKeyColumns& keyColumns,
     const TKeyColumns& chunkKeyColumns,
-    bool requireUniqueKeys,
-    bool validateColumnNames)
+    bool requireUniqueKeys)
 {
-    if (requireUniqueKeys) {
-        if (chunkKeyColumns.size() > keyColumns.size()) {
-            THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleKeyColumns,
-                "Chunk has more key columns than requested: actual %v, expected %v",
-                chunkKeyColumns,
-                keyColumns);
-        }
-    } else {
-        if (chunkKeyColumns.size() < keyColumns.size()) {
-            THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleKeyColumns,
-                "Chunk has less key columns than requested: actual %v, expected %v",
-                chunkKeyColumns,
-                keyColumns);
-        }
-    }
+    ValidateKeyColumnCount(keyColumns.size(), chunkKeyColumns.size(), requireUniqueKeys);
 
-    if (validateColumnNames) {
-        for (int i = 0; i < std::min(keyColumns.size(), chunkKeyColumns.size()); ++i) {
-            if (chunkKeyColumns[i] != keyColumns[i]) {
-                THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleKeyColumns,
-                    "Incompatible key columns: actual %v, expected %v",
-                    chunkKeyColumns,
-                    keyColumns);
-            }
+    for (int i = 0; i < std::min(keyColumns.size(), chunkKeyColumns.size()); ++i) {
+        if (chunkKeyColumns[i] != keyColumns[i]) {
+            THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleKeyColumns,
+                "Incompatible key columns: actual %v, expected %v",
+                chunkKeyColumns,
+                keyColumns);
         }
     }
 }
@@ -349,6 +358,9 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
     YT_LOG_INFO("Requesting table chunk count");
 
     int chunkCount;
+    // XXX(babenko): YT-11825
+    bool dynamic;
+    bool sorted;
     {
         auto channel = client->GetMasterChannelOrThrow(
             EMasterChannelKind::Follower,
@@ -359,7 +371,9 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
         AddCellTagToSyncWith(req, userObject.ObjectId);
         SetTransactionId(req, userObject.ExternalTransactionId);
         ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
-            "chunk_count"
+            "chunk_count",
+            "dynamic",
+            "sorted"
         });
 
         auto rspOrError = WaitFor(proxy.Execute(req));
@@ -370,6 +384,9 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
         auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
 
         chunkCount = attributes->Get<int>("chunk_count");
+        // XXX(babenko): YT-11825
+        dynamic = attributes->Get<bool>("dynamic");
+        sorted = attributes->Get<bool>("sorted");
     }
 
     YT_LOG_INFO("Fetching chunk specs (ChunkCount: %v)", chunkCount);
@@ -379,7 +396,8 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
         nodeDirectory,
         userObject,
         path.GetRanges(),
-        chunkCount,
+        // XXX(babenko): YT-11825
+        dynamic && !sorted ? -1 : chunkCount,
         config->MaxChunksPerFetch,
         config->MaxChunksPerLocateRequest,
         [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req) {
@@ -391,7 +409,7 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
 
     std::vector<TInputChunkPtr> inputChunks;
     for (const auto& chunkSpec : chunkSpecs) {
-        inputChunks.emplace_back(New<TInputChunk>(chunkSpec));
+        inputChunks.push_back(New<TInputChunk>(chunkSpec));
     }
 
     return inputChunks;

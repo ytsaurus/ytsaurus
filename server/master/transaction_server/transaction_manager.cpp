@@ -34,7 +34,7 @@
 
 #include <yt/client/object_client/helpers.h>
 
-#include <yt/ytlib/transaction_client/transaction_service.pb.h>
+#include <yt/ytlib/transaction_client/proto/transaction_service.pb.h>
 #include <yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
@@ -187,7 +187,7 @@ public:
         TTransaction* parent,
         std::vector<TTransaction*> prerequisiteTransactions,
         const TCellTagList& replicatedToCellTags,
-        const TCellTagList& replicateStartToCellTags,
+        bool replicateStart,
         std::optional<TDuration> timeout,
         std::optional<TInstant> deadline,
         const std::optional<TString>& title,
@@ -275,7 +275,7 @@ public:
 
         TransactionStarted_.Fire(transaction);
 
-        if (!replicateStartToCellTags.empty()) {
+        if (replicateStart && !replicatedToCellTags.empty()) {
             NTransactionServer::NProto::TReqStartTransaction startRequest;
             startRequest.set_dont_replicate(true);
             ToProto(startRequest.mutable_attributes(), attributes);
@@ -286,19 +286,18 @@ public:
             if (title) {
                 startRequest.set_title(*title);
             }
-            multicellManager->PostToMasters(startRequest, replicateStartToCellTags);
+            multicellManager->PostToMasters(startRequest, replicatedToCellTags);
         }
 
         auto time = timer.GetElapsedTime();
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, ParentId: %v, PrerequisiteTransactionIds: %v, "
-            "ReplicateStartToCellTags: %v, ReplicatedToCellTags: %v, Timeout: %v, Deadline: %v, User: %v, Title: %v, WallTime: %v)",
+            "ReplicatedToCellTags: %v, Timeout: %v, Deadline: %v, User: %v, Title: %v, WallTime: %v)",
             transactionId,
             GetObjectId(parent),
             MakeFormattableView(transaction->PrerequisiteTransactions(), [] (auto* builder, const auto* prerequisiteTransaction) {
                 FormatValue(builder, prerequisiteTransaction->GetId(), TStringBuf());
             }),
-            replicateStartToCellTags,
             replicatedToCellTags,
             transaction->GetTimeout(),
             transaction->GetDeadline(),
@@ -334,14 +333,22 @@ public:
             transaction->ThrowInvalidState();
         }
 
-        SetTimestampHolderTimestamp(transaction->GetId(), commitTimestamp);
+        bool temporaryRefTimestampHolder = false;
+        if (!transaction->LockedDynamicTables().empty()) {
+            // Usually ref is held by chunk views in branched tables. However, if
+            // all tables are empty no natural ref exist, so we have to take it here.
+            temporaryRefTimestampHolder = true;
+            CreateOrRefTimestampHolder(transactionId);
+
+            SetTimestampHolderTimestamp(transactionId, commitTimestamp);
+        }
 
         SmallVector<TTransaction*, 16> nestedTransactions(
             transaction->NestedTransactions().begin(),
             transaction->NestedTransactions().end());
         std::sort(nestedTransactions.begin(), nestedTransactions.end(), TObjectRefComparer::Compare);
         for (auto* nestedTransaction : nestedTransactions) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Aborting nested native transaction on parent commit (TransactionId: %v, ParentId: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Aborting nested transaction on parent commit (TransactionId: %v, ParentId: %v)",
                 nestedTransaction->GetId(),
                 transactionId);
             AbortTransaction(nestedTransaction, true);
@@ -371,6 +378,10 @@ public:
         transaction->SetState(ETransactionState::Committed);
 
         TransactionCommitted_.Fire(transaction);
+
+        if (temporaryRefTimestampHolder) {
+            UnrefTimestampHolder(transactionId);
+        }
 
         RunCommitTransactionActions(transaction);
 
@@ -921,7 +932,7 @@ private:
             parent,
             prerequisiteTransactions,
             replicateToCellTags,
-            replicateToCellTags,
+            /* replicateStart */ true,
             timeout,
             deadline,
             title,
@@ -1245,7 +1256,7 @@ TTransaction* TTransactionManager::StartTransaction(
     TTransaction* parent,
     std::vector<TTransaction*> prerequisiteTransactions,
     const TCellTagList& replicatedToCellTags,
-    const TCellTagList& replicateStartToCellTags,
+    bool replicateStart,
     std::optional<TDuration> timeout,
     std::optional<TInstant> deadline,
     const std::optional<TString>& title,
@@ -1256,7 +1267,7 @@ TTransaction* TTransactionManager::StartTransaction(
         parent,
         std::move(prerequisiteTransactions),
         replicatedToCellTags,
-        replicateStartToCellTags,
+        replicateStart,
         timeout,
         deadline,
         title,

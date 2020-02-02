@@ -137,10 +137,50 @@ void GuardedInvoke(
         onSuccess.Run();
     };
 
-    invoker->Invoke(BIND(
+    invoker->Invoke(BIND_DONT_CAPTURE_TRACE_CONTEXT(
         std::move(doInvoke),
         Passed(std::move(onSuccess)),
         Passed(TGuard(std::move(onCancel)))));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+thread_local IInvokerPtr CurrentInvoker;
+
+IInvokerPtr GetCurrentInvoker()
+{
+    return CurrentInvoker ? CurrentInvoker : GetSyncInvoker();
+}
+
+void SetCurrentInvoker(IInvokerPtr invoker)
+{
+    CurrentInvoker = std::move(invoker);
+}
+
+TCurrentInvokerGuard::TCurrentInvokerGuard(IInvokerPtr invoker)
+    : NConcurrency::TContextSwitchGuard(
+        [this] () noexcept {
+            Restore();
+        },
+        nullptr)
+    , Active_(true)
+    , SavedInvoker_(std::move(invoker))
+{
+    CurrentInvoker.Swap(SavedInvoker_);
+}
+
+void TCurrentInvokerGuard::Restore()
+{
+    if (!Active_) {
+        return;
+    }
+    Active_ = false;
+    CurrentInvoker = std::move(SavedInvoker_);
+}
+
+TCurrentInvokerGuard::~TCurrentInvokerGuard()
+{
+    Restore();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -88,7 +88,7 @@ TScheduleJobsProfilingCounters::TScheduleJobsProfilingCounters(
     , StrategyScheduleJobTime(prefix + "/strategy_schedule_job_time", treeIdProfilingTags)
     , PackingRecordHeartbeatTime(prefix + "/packing_record_heartbeat_time", treeIdProfilingTags)
     , PackingCheckTime(prefix + "/packing_check_time", treeIdProfilingTags)
-    , ScheduleJobCount(prefix + "/schedule_job_count", treeIdProfilingTags)
+    , ScheduleJobAttemptCount(prefix + "/schedule_job_attempt_count", treeIdProfilingTags)
     , ScheduleJobFailureCount(prefix + "/schedule_job_failure_count", treeIdProfilingTags)
 {
     for (auto reason : TEnumTraits<NControllerAgent::EScheduleJobFailReason>::GetDomainValues()) {
@@ -162,7 +162,7 @@ void TFairShareContext::ProfileStageTimingsAndLogStatistics()
 
     ProfileStageTimings();
 
-    if (StageState->ScheduleJobAttempts > 0 && EnableSchedulingInfoLogging) {
+    if (StageState->ScheduleJobAttemptCount > 0 && EnableSchedulingInfoLogging) {
         LogStageStatistics();
     }
 }
@@ -204,7 +204,7 @@ void TFairShareContext::ProfileStageTimings()
         profilingCounters->PackingCheckTime,
         StageState->PackingCheckDuration.MicroSeconds());
 
-    Profiler.Increment(profilingCounters->ScheduleJobCount, StageState->ScheduleJobAttempts);
+    Profiler.Increment(profilingCounters->ScheduleJobAttemptCount, StageState->ScheduleJobAttemptCount);
     Profiler.Increment(profilingCounters->ScheduleJobFailureCount, StageState->ScheduleJobFailureCount);
 
     for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
@@ -264,11 +264,20 @@ void TSchedulerElement::UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& 
     TreeConfig_ = config;
 }
 
+void TSchedulerElement::PreUpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
+{
+    YT_VERIFY(Mutable_);
+
+    TotalResourceLimits_ = context->TotalResourceLimits;
+    // NB: ResourceLimits must be computed after TotalResourceLimits.
+    ResourceLimits_ = ComputeResourceLimits();
+    ResourceTreeElement_->SetResourceLimits(GetSpecifiedResourceLimits());
+}
+
 void TSchedulerElement::UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
 {
     YT_VERIFY(Mutable_);
 
-    TotalResourceLimits_ = GetHost()->GetResourceLimits(TreeConfig_->NodesFilter);
     UpdateAttributes();
     (*dynamicAttributesList)[GetTreeIndex()].Active = true;
     UpdateDynamicAttributes(dynamicAttributesList);
@@ -433,14 +442,14 @@ ESchedulableStatus TSchedulerElement::GetStatus() const
 
 bool TSchedulerElement::GetStarving() const
 {
-    return Starving_;
+    return PersistentAttributes_.Starving;
 }
 
 void TSchedulerElement::SetStarving(bool starving)
 {
     YT_VERIFY(Mutable_);
 
-    Starving_ = starving;
+    PersistentAttributes_.Starving = starving;
 }
 
 TJobResources TSchedulerElement::GetLocalResourceUsage() const
@@ -497,7 +506,7 @@ TJobResources TSchedulerElement::GetLocalAvailableResourceDemand(const TFairShar
 TJobResources TSchedulerElement::GetLocalAvailableResourceLimits(const TFairShareContext& context) const
 {
     return ComputeAvailableResources(
-        ResourceLimits(),
+        ResourceLimits_,
         ResourceTreeElement_->GetResourceUsageWithPrecommit(),
         context.DynamicAttributesFor(this).ResourceUsageDiscount);
 }
@@ -631,15 +640,27 @@ void TSchedulerElement::SetOperationAlert(
 }
 
 
-TJobResources TSchedulerElement::ComputeResourceLimitsBase(const TResourceLimitsConfigPtr& resourceLimitsConfig) const
+TJobResources TSchedulerElement::ComputeResourceLimits() const
 {
+    return Min(GetSpecifiedResourceLimits(), ComputeTotalResourcesOnSuitableNodes());
+}
+
+TJobResources TSchedulerElement::ComputeTotalResourcesOnSuitableNodes() const
+{
+    // Shortcut: if the scheduling tag filter is empty then we just use the resource limits for
+    // the tree's nodes filter, which were computed earlier in PreUpdateBottomUp.
+    if (GetSchedulingTagFilter() == EmptySchedulingTagFilter) {
+        return TotalResourceLimits_ * GetMaxShareRatio();
+    }
+
     auto connectionTime = InstantToCpuInstant(Host_->GetConnectionTime());
     auto delay = DurationToCpuDuration(TreeConfig_->TotalResourceLimitsConsiderDelay);
-    auto maxShareLimits = connectionTime + delay < GetCpuInstant()
-        ? GetHost()->GetResourceLimits(TreeConfig_->NodesFilter & GetSchedulingTagFilter()) * GetMaxShareRatio()
-        : TJobResources::Infinite();
-    auto perTypeLimits = ToJobResources(resourceLimitsConfig, TJobResources::Infinite());
-    return Min(maxShareLimits, perTypeLimits);
+    if (GetCpuInstant() < connectionTime + delay) {
+        // Return infinity during the cluster startup.
+        return TJobResources::Infinite();
+    } else {
+        return GetHost()->GetResourceLimits(TreeConfig_->NodesFilter & GetSchedulingTagFilter()) * GetMaxShareRatio();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -731,15 +752,29 @@ void TCompositeSchedulerElement::UpdateTreeConfig(const TFairShareStrategyTreeCo
     updateChildrenConfig(DisabledChildren_);
 }
 
+void TCompositeSchedulerElement::PreUpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
+{
+    YT_VERIFY(Mutable_);
+
+    ResourceDemand_ = {};
+
+    for (const auto& child : EnabledChildren_) {
+        child->PreUpdateBottomUp(dynamicAttributesList, context);
+
+        ResourceDemand_ += child->ResourceDemand();
+    }
+
+    TSchedulerElement::PreUpdateBottomUp(dynamicAttributesList, context);
+}
+
 void TCompositeSchedulerElement::UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
 {
     YT_VERIFY(Mutable_);
 
     Attributes_.BestAllocationRatio = 0.0;
     PendingJobCount_ = 0;
-    ResourceDemand_ = {};
-    ResourceLimits_ = ComputeResourceLimits();
-    ResourceTreeElement_->SetResourceLimits(GetSpecifiedResourceLimits());
+
+    SchedulableChildren_.clear();
     TJobResources maxPossibleChildrenResourceUsage;
     for (const auto& child : EnabledChildren_) {
         child->UpdateBottomUp(dynamicAttributesList, context);
@@ -756,11 +791,15 @@ void TCompositeSchedulerElement::UpdateBottomUp(TDynamicAttributesList* dynamicA
         Attributes_.BestAllocationRatio = std::max(
             Attributes_.BestAllocationRatio,
             child->Attributes().BestAllocationRatio);
-
         PendingJobCount_ += child->GetPendingJobCount();
-        ResourceDemand_ += child->ResourceDemand();
+
         maxPossibleChildrenResourceUsage += child->MaxPossibleResourceUsage();
+
+        if (child->IsSchedulable()) {
+            SchedulableChildren_.push_back(child);
+        }
     }
+
     MaxPossibleResourceUsage_ = Min(maxPossibleChildrenResourceUsage, ResourceLimits_);
     TSchedulerElement::UpdateBottomUp(dynamicAttributesList, context);
 }
@@ -786,8 +825,13 @@ void TCompositeSchedulerElement::UpdateTopDown(TDynamicAttributesList* dynamicAt
 
     UpdatePreemptionSettingsLimits();
 
-    // Propagate updates to children.
     for (const auto& child : EnabledChildren_) {
+        // It is necessary to update satisfaction ratio in global attributes during update.
+        auto& dynamicAttributes = (*dynamicAttributesList)[child->GetTreeIndex()];
+        dynamicAttributes.Active = true;
+        child->UpdateDynamicAttributes(dynamicAttributesList);
+
+        // Propagate updates to children.
         UpdateChildPreemptionSettings(child);
         child->UpdateTopDown(dynamicAttributesList, context);
     }
@@ -952,14 +996,15 @@ void TCompositeSchedulerElement::PrescheduleJob(TFairShareContext* context, bool
 
     attributes.Active = true;
 
+    auto starving = PersistentAttributes_.Starving;
     aggressiveStarvationEnabled = aggressiveStarvationEnabled || IsAggressiveStarvationEnabled();
-    if (Starving_ && aggressiveStarvationEnabled) {
+    if (starving && aggressiveStarvationEnabled) {
         context->SchedulingStatistics.HasAggressivelyStarvingElements = true;
     }
 
     // If pool is starving, any child will do.
-    bool starvingOnlyForChildren = Starving_ ? false : starvingOnly;
-    for (const auto& child : EnabledChildren_) {
+    bool starvingOnlyForChildren = starving ? false : starvingOnly;
+    for (const auto& child : SchedulableChildren_) {
         child->PrescheduleJob(context, starvingOnlyForChildren, aggressiveStarvationEnabled);
     }
 
@@ -970,11 +1015,16 @@ void TCompositeSchedulerElement::PrescheduleJob(TFairShareContext* context, bool
     }
 }
 
+bool TCompositeSchedulerElement::IsSchedulable() const
+{
+    return !SchedulableChildren_.empty();
+}
+
 bool TCompositeSchedulerElement::HasAggressivelyStarvingElements(TFairShareContext* context, bool aggressiveStarvationEnabled) const
 {
     // TODO(ignat): eliminate copy/paste
     aggressiveStarvationEnabled = aggressiveStarvationEnabled || IsAggressiveStarvationEnabled();
-    if (Starving_ && aggressiveStarvationEnabled) {
+    if (PersistentAttributes_.Starving && aggressiveStarvationEnabled) {
         return true;
     }
 
@@ -1333,7 +1383,7 @@ TSchedulerElement* TCompositeSchedulerElement::GetBestActiveChild(const TDynamic
 TSchedulerElement* TCompositeSchedulerElement::GetBestActiveChildFifo(const TDynamicAttributesList& dynamicAttributesList) const
 {
     TSchedulerElement* bestChild = nullptr;
-    for (const auto& child : EnabledChildren_) {
+    for (const auto& child : SchedulableChildren_) {
         if (child->IsActive(dynamicAttributesList)) {
             if (bestChild && HasHigherPriorityInFifoMode(bestChild, child.Get())) {
                 continue;
@@ -1349,7 +1399,7 @@ TSchedulerElement* TCompositeSchedulerElement::GetBestActiveChildFairShare(const
 {
     TSchedulerElement* bestChild = nullptr;
     double bestChildSatisfactionRatio = std::numeric_limits<double>::max();
-    for (const auto& child : EnabledChildren_) {
+    for (const auto& child : SchedulableChildren_) {
         if (child->IsActive(dynamicAttributesList)) {
             double childSatisfactionRatio = dynamicAttributesList[child->GetTreeIndex()].SatisfactionRatio;
             if (!bestChild || childSatisfactionRatio < bestChildSatisfactionRatio) {
@@ -1622,13 +1672,6 @@ const TSchedulingTagFilter& TPool::GetSchedulingTagFilter() const
     return SchedulingTagFilter_;
 }
 
-void TPool::UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
-{
-    YT_VERIFY(Mutable_);
-
-    TCompositeSchedulerElement::UpdateBottomUp(dynamicAttributesList, context);
-}
-
 int TPool::GetMaxRunningOperationCount() const
 {
     return Config_->MaxRunningOperationCount.value_or(TreeConfig_->MaxRunningOperationCountPerPool);
@@ -1740,11 +1783,6 @@ TJobResources TPool::GetSpecifiedResourceLimits() const
     return ToJobResources(Config_->ResourceLimits, TJobResources::Infinite());
 }
 
-TJobResources TPool::ComputeResourceLimits() const
-{
-    return ComputeResourceLimitsBase(Config_->ResourceLimits);
-}
-
 void TPool::BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap, TDisabledOperationsSet* disabledOperations)
 {
     poolMap->emplace(GetId(), this);
@@ -1757,7 +1795,7 @@ TOperationElementFixedState::TOperationElementFixedState(
     IOperationStrategyHost* operation,
     TFairShareStrategyOperationControllerConfigPtr controllerConfig)
     : OperationId_(operation->GetId())
-    , Schedulable_(operation->IsSchedulable())
+    , UnschedulableReason_(operation->CheckUnschedulable())
     , SlotIndex_(std::nullopt)
     , UserName_(operation->GetAuthenticatedUser())
     , Operation_(operation)
@@ -2219,7 +2257,8 @@ std::optional<EDeactivationReason> TOperationElement::TryStartScheduleJob(
         return EDeactivationReason::ResourceLimitsExceeded;
     }
 
-    Controller_->IncreaseConcurrentScheduleJobCalls();
+    Controller_->IncreaseConcurrentScheduleJobCalls(context.SchedulingContext->GetNodeShardId());
+    Controller_->IncreaseScheduleJobCallsSinceLastUpdate(context.SchedulingContext->GetNodeShardId());
 
     *precommittedResourcesOutput = minNeededResources;
     *availableResourcesOutput = Min(availableResourceLimits, nodeFreeResources);
@@ -2227,16 +2266,15 @@ std::optional<EDeactivationReason> TOperationElement::TryStartScheduleJob(
 }
 
 void TOperationElement::FinishScheduleJob(
+    const ISchedulingContextPtr& schedulingContext,
     bool enableBackoff,
     NProfiling::TCpuInstant now)
 {
-    Controller_->DecreaseConcurrentScheduleJobCalls();
+    Controller_->DecreaseConcurrentScheduleJobCalls(schedulingContext->GetNodeShardId());
 
     if (enableBackoff) {
         Controller_->SetLastScheduleJobFailTime(now);
     }
-
-    LastScheduleJobSuccessTime_ = CpuInstantToInstant(now);
 }
 
 void TOperationElementSharedState::IncreaseJobResourceUsage(
@@ -2292,8 +2330,9 @@ TOperationElement::TOperationElement(
     , OperationElementSharedState_(New<TOperationElementSharedState>(spec->UpdatePreemptableJobsListLoggingPeriod, Logger))
     , Controller_(std::move(controller))
     , SchedulingTagFilter_(spec->SchedulingTagFilter)
-    , LastNonStarvingTime_(TInstant::Now())
-{ }
+{
+    PersistentAttributes_.LastNonStarvingTime = TInstant::Now();
+}
 
 TOperationElement::TOperationElement(
     const TOperationElement& other,
@@ -2305,7 +2344,6 @@ TOperationElement::TOperationElement(
     , OperationElementSharedState_(other.OperationElementSharedState_)
     , Controller_(other.Controller_)
     , SchedulingTagFilter_(other.SchedulingTagFilter_)
-    , LastNonStarvingTime_(other.LastNonStarvingTime_)
 { }
 
 double TOperationElement::GetFairShareStarvationTolerance() const
@@ -2326,18 +2364,24 @@ TDuration TOperationElement::GetFairSharePreemptionTimeout() const
 void TOperationElement::DisableNonAliveElements()
 { }
 
+void TOperationElement::PreUpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
+{
+    YT_VERIFY(Mutable_);
+
+    UnschedulableReason_ = ComputeUnschedulableReason();
+    SlotIndex_ = Operation_->FindSlotIndex(GetTreeId());
+    ResourceDemand_ = ComputeResourceDemand();
+    StartTime_ = Operation_->GetStartTime();
+
+    TSchedulerElement::PreUpdateBottomUp(dynamicAttributesList, context);
+}
+
 void TOperationElement::UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
 {
     YT_VERIFY(Mutable_);
 
-    Schedulable_ = Operation_->IsSchedulable();
-    SlotIndex_ = Operation_->FindSlotIndex(GetTreeId());
-    ResourceDemand_ = ComputeResourceDemand();
-    ResourceLimits_ = ComputeResourceLimits();
-    ResourceTreeElement_->SetResourceLimits(GetSpecifiedResourceLimits());
-    MaxPossibleResourceUsage_ = ComputeMaxPossibleResourceUsage();
     PendingJobCount_ = ComputePendingJobCount();
-    StartTime_ = Operation_->GetStartTime();
+    MaxPossibleResourceUsage_ = Min(ResourceLimits_, ResourceDemand_);
 
     // It should be called after update of ResourceDemand_ and MaxPossibleResourceUsage_ since
     // these fields are used to calculate dominant resource.
@@ -2347,12 +2391,15 @@ void TOperationElement::UpdateBottomUp(TDynamicAttributesList* dynamicAttributes
         ResourceDemand_,
         TotalResourceLimits_,
         GetHost()->GetExecNodeMemoryDistribution(SchedulingTagFilter_ & TreeConfig_->NodesFilter));
-
     auto dominantLimit = GetResource(TotalResourceLimits_, Attributes_.DominantResource);
     auto dominantAllocationLimit = GetResource(allocationLimits, Attributes_.DominantResource);
-
     Attributes_.BestAllocationRatio =
         dominantLimit == 0 ? 1.0 : dominantAllocationLimit / dominantLimit;
+
+    if (!IsSchedulable()) {
+        (*dynamicAttributesList)[GetTreeIndex()].Active = false;
+        ++context->UnschedulableReasons[*UnschedulableReason_];
+    }
 }
 
 void TOperationElement::UpdateTopDown(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
@@ -2430,6 +2477,11 @@ void TOperationElement::PrescheduleJob(TFairShareContext* context, bool starving
         return;
     }
 
+    if (auto blockedReason = CheckBlocked(context->SchedulingContext)) {
+        onOperationDeactivated(*blockedReason);
+        return;
+    }
+
     if (Spec_->PreemptionMode == EPreemptionMode::Graceful && GetStatus() == ESchedulableStatus::Normal) {
         onOperationDeactivated(EDeactivationReason::FairShareExceeded);
         return;
@@ -2443,15 +2495,11 @@ void TOperationElement::PrescheduleJob(TFairShareContext* context, bool starving
         return;
     }
 
-    if (starvingOnly && !Starving_) {
+    if (starvingOnly && !PersistentAttributes_.Starving) {
         onOperationDeactivated(EDeactivationReason::IsNotStarving);
         return;
     }
 
-    if (IsBlocked(context->SchedulingContext->GetNow())) {
-        onOperationDeactivated(EDeactivationReason::IsBlocked);
-        return;
-    }
     if (Controller_->IsSaturatedInTentativeTree(
         context->SchedulingContext->GetNow(),
         TreeId_,
@@ -2486,10 +2534,13 @@ TString TOperationElement::GetLoggingString(const TDynamicAttributes& dynamicAtt
         GetDeactivationReasons());
 }
 
-void TOperationElement::UpdateAncestorsAttributes(TFairShareContext* context)
+void TOperationElement::UpdateAncestorsDynamicAttributes(TFairShareContext* context, bool activateAncestors)
 {
     auto* parent = GetMutableParent();
     while (parent) {
+        if (activateAncestors) {
+            context->DynamicAttributesFor(parent).Active = true;
+        }
         parent->UpdateDynamicAttributes(&context->DynamicAttributesList);
         if (!parent->IsActive(context->DynamicAttributesList)) {
             ++context->StageState->DeactivationReasons[EDeactivationReason::NoBestLeafDescendant];
@@ -2508,7 +2559,10 @@ bool TOperationElement::CheckPacking(const TPackingHeartbeatSnapshot& heartbeatS
     auto detailedMinNeededResources = Controller_->GetDetailedMinNeededJobResources();
     // NB: We expect detailedMinNeededResources to be of size 1 most of the time.
     TJobResourcesWithQuota packingJobResourcesWithQuota;
-    if (detailedMinNeededResources.size() == 1) {
+    if (detailedMinNeededResources.empty()) {
+        // Refuse packing if no information about resource requirements is provided.
+        return false;
+    } else if (detailedMinNeededResources.size() == 1) {
         packingJobResourcesWithQuota = detailedMinNeededResources[0];
     } else {
         auto idx = RandomNumber<ui32>(static_cast<ui32>(detailedMinNeededResources.size()));
@@ -2527,6 +2581,12 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
 {
     YT_VERIFY(IsActive(context->DynamicAttributesList));
 
+    OPERATION_LOG_DETAILED(this,
+        "Trying to schedule job (SatisfactionRatio: %v, NodeId: %v, NodeResourceUsage: %v)",
+        context->DynamicAttributesFor(this).SatisfactionRatio,
+        context->SchedulingContext->GetNodeDescriptor().Id,
+        FormatResourceUsage(context->SchedulingContext->ResourceUsage(), context->SchedulingContext->ResourceLimits()));
+
     auto disableOperationElement = [&] (EDeactivationReason reason) {
         OPERATION_LOG_DETAILED(this,
             "Failed to schedule job, operation deactivated "
@@ -2536,7 +2596,7 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
         ++context->StageState->DeactivationReasons[reason];
         OnOperationDeactivated(*context, reason);
         context->DynamicAttributesFor(this).Active = false;
-        UpdateAncestorsAttributes(context);
+        UpdateAncestorsDynamicAttributes(context);
     };
 
     auto recordHeartbeatWithTimer = [&] (const auto& heartbeatSnapshot) {
@@ -2545,9 +2605,8 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
         context->StageState->PackingRecordHeartbeatDuration += timer.GetElapsedTime();
     };
 
-    auto now = context->SchedulingContext->GetNow();
-    if (IsBlocked(now)) {
-        disableOperationElement(EDeactivationReason::IsBlocked);
+    if (auto blockedReason = CheckBlocked(context->SchedulingContext)) {
+        disableOperationElement(*blockedReason);
         return TFairShareScheduleJobResult(/* finished */ true, /* scheduled */ false);
     }
 
@@ -2570,6 +2629,7 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
         return TFairShareScheduleJobResult(/* finished */ true, /* scheduled */ false);
     }
 
+    auto now = context->SchedulingContext->GetNow();
     std::optional<TPackingHeartbeatSnapshot> heartbeatSnapshot;
     if (GetPackingConfig()->Enable && !ignorePacking) {
         heartbeatSnapshot = CreateHeartbeatSnapshot(context->SchedulingContext);
@@ -2586,7 +2646,7 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
             TreeHost_->GetResourceTree()->IncreaseHierarchicalResourceUsagePrecommit(ResourceTreeElement_, -precommittedResources);
             disableOperationElement(EDeactivationReason::BadPacking);
             context->BadPackingOperations.emplace_back(this);
-            FinishScheduleJob(/* enableBackoff */ false, now);
+            FinishScheduleJob(context->SchedulingContext, /* enableBackoff */ false, now);
             return TFairShareScheduleJobResult(/* finished */ true, /* scheduled */ false);
         }
     }
@@ -2613,7 +2673,7 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
             scheduleJobResult->Failed);
 
         TreeHost_->GetResourceTree()->IncreaseHierarchicalResourceUsagePrecommit(ResourceTreeElement_, -precommittedResources);
-        FinishScheduleJob(/* enableBackoff */ enableBackoff, now);
+        FinishScheduleJob(context->SchedulingContext, /* enableBackoff */ enableBackoff, now);
         return TFairShareScheduleJobResult(/* finished */ true, /* scheduled */ false);
     }
 
@@ -2622,7 +2682,7 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
         Controller_->AbortJob(startDescriptor.Id, EAbortReason::SchedulingOperationDisabled);
         disableOperationElement(EDeactivationReason::OperationDisabled);
         TreeHost_->GetResourceTree()->IncreaseHierarchicalResourceUsagePrecommit(ResourceTreeElement_, -precommittedResources);
-        FinishScheduleJob(/* enableBackoff */ false, now);
+        FinishScheduleJob(context->SchedulingContext, /* enableBackoff */ false, now);
         return TFairShareScheduleJobResult(/* finished */ true, /* scheduled */ false);
     }
 
@@ -2634,16 +2694,17 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
         Spec_->PreemptionMode);
 
     UpdateDynamicAttributes(&context->DynamicAttributesList);
-    UpdateAncestorsAttributes(context);
+    UpdateAncestorsDynamicAttributes(context);
 
     if (heartbeatSnapshot) {
         recordHeartbeatWithTimer(*heartbeatSnapshot);
     }
 
-    FinishScheduleJob(/* enableBackoff */ false, now);
+    FinishScheduleJob(context->SchedulingContext, /* enableBackoff */ false, now);
 
     OPERATION_LOG_DETAILED(this,
-        "Scheduled a job (NodeId: %v, JobId: %v, JobResourceLimits: %v)",
+        "Scheduled a job (SatisfactionRatio: %v, NodeId: %v, JobId: %v, JobResourceLimits: %v)",
+        context->DynamicAttributesFor(this).SatisfactionRatio,
         context->SchedulingContext->GetNodeDescriptor().Id,
         startDescriptor.Id,
         FormatResources(startDescriptor.ResourceLimits));
@@ -2687,11 +2748,7 @@ const TSchedulingTagFilter& TOperationElement::GetSchedulingTagFilter() const
 
 ESchedulableStatus TOperationElement::GetStatus() const
 {
-    if (!Schedulable_) {
-        return ESchedulableStatus::Normal;
-    }
-
-    if (GetPendingJobCount() == 0) {
+    if (UnschedulableReason_) {
         return ESchedulableStatus::Normal;
     }
 
@@ -2703,7 +2760,7 @@ void TOperationElement::SetStarving(bool starving)
     YT_VERIFY(Mutable_);
 
     if (!starving) {
-        LastNonStarvingTime_ = TInstant::Now();
+        PersistentAttributes_.LastNonStarvingTime = TInstant::Now();
     }
 
     if (starving && !GetStarving()) {
@@ -2824,7 +2881,7 @@ TPreemptionStatusStatisticsVector TOperationElement::GetPreemptionStatusStatisti
 
 TInstant TOperationElement::GetLastNonStarvingTime() const
 {
-    return LastNonStarvingTime_;
+    return PersistentAttributes_.LastNonStarvingTime;
 }
 
 TInstant TOperationElement::GetLastScheduleJobSuccessTime() const
@@ -2887,20 +2944,53 @@ TSchedulerElementPtr TOperationElement::Clone(TCompositeSchedulerElement* cloned
 
 bool TOperationElement::IsSchedulable() const
 {
-    YT_VERIFY(Mutable_);
-
-    return Schedulable_;
+    return !UnschedulableReason_;
 }
 
-bool TOperationElement::IsBlocked(NProfiling::TCpuInstant now) const
+std::optional<EUnschedulableReason> TOperationElement::ComputeUnschedulableReason() const
 {
-    return
-        !Schedulable_ ||
-        GetPendingJobCount() == 0 ||
-        Controller_->IsBlocked(
-            now,
-            Spec_->MaxConcurrentControllerScheduleJobCalls.value_or(ControllerConfig_->MaxConcurrentControllerScheduleJobCalls),
-            ControllerConfig_->ScheduleJobFailBackoffTime);
+    auto result = Operation_->CheckUnschedulable();
+    if (!result && IsMaxScheduleJobCallsViolated()) {
+        result = EUnschedulableReason::MaxScheduleJobCallsViolated;
+    }
+    return result;
+}
+
+bool TOperationElement::IsMaxScheduleJobCallsViolated() const
+{
+    bool result = false;
+    Controller_->CheckMaxScheduleJobCallsOverdraft(
+        Spec_->MaxConcurrentControllerScheduleJobCalls.value_or(
+            ControllerConfig_->MaxConcurrentControllerScheduleJobCalls),
+        &result);
+    return result;
+}
+
+bool TOperationElement::IsMaxConcurrentScheduleJobCallsPerNodeShardViolated(
+    const ISchedulingContextPtr& schedulingContext) const
+{
+    return Controller_->IsMaxConcurrentScheduleJobCallsPerNodeShardViolated(
+        schedulingContext,
+        ControllerConfig_->MaxConcurrentControllerScheduleJobCallsPerNodeShard);
+}
+
+bool TOperationElement::HasRecentScheduleJobFailure(NYT::NProfiling::TCpuInstant now) const
+{
+    return Controller_->HasRecentScheduleJobFailure(now, ControllerConfig_->ScheduleJobFailBackoffTime);
+}
+
+std::optional<EDeactivationReason> TOperationElement::CheckBlocked(
+    const ISchedulingContextPtr& schedulingContext) const
+{
+    if (IsMaxConcurrentScheduleJobCallsPerNodeShardViolated(schedulingContext)) {
+        return EDeactivationReason::MaxConcurrentScheduleJobCallsPerNodeShardViolated;
+    }
+
+    if (HasRecentScheduleJobFailure(schedulingContext->GetNow())) {
+        return EDeactivationReason::RecentScheduleJobFailed;
+    }
+
+    return std::nullopt;
 }
 
 TJobResources TOperationElement::GetHierarchicalAvailableResources(const TFairShareContext& context) const
@@ -2970,7 +3060,8 @@ TControllerScheduleJobResultPtr TOperationElement::DoScheduleJob(
 
 TJobResources TOperationElement::ComputeResourceDemand() const
 {
-    if (!Operation_->IsSchedulable()) {
+    auto maybeUnschedulableReason = Operation_->CheckUnschedulable();
+    if (maybeUnschedulableReason == EUnschedulableReason::IsNotRunning || maybeUnschedulableReason == EUnschedulableReason::Suspended) {
         return {};
     }
     return GetLocalResourceUsage() + Controller_->GetNeededResources();
@@ -2979,16 +3070,6 @@ TJobResources TOperationElement::ComputeResourceDemand() const
 TJobResources TOperationElement::GetSpecifiedResourceLimits() const
 {
     return ToJobResources(RuntimeParameters_->ResourceLimits, TJobResources::Infinite());
-}
-
-TJobResources TOperationElement::ComputeResourceLimits() const
-{
-    return ComputeResourceLimitsBase(RuntimeParameters_->ResourceLimits);
-}
-
-TJobResources TOperationElement::ComputeMaxPossibleResourceUsage() const
-{
-    return Min(ResourceLimits(), ResourceDemand());
 }
 
 int TOperationElement::ComputePendingJobCount() const
@@ -3170,8 +3251,9 @@ void TRootElement::PreUpdate(TDynamicAttributesList* dynamicAttributesList, TUpd
     DisableNonAliveElements();
     TreeSize_ = TCompositeSchedulerElement::EnumerateElements(0, context);
     dynamicAttributesList->assign(TreeSize_, TDynamicAttributes());
+    context->TotalResourceLimits = GetHost()->GetResourceLimits(TreeConfig_->NodesFilter);
 
-    UpdateBottomUp(dynamicAttributesList, context);
+    PreUpdateBottomUp(dynamicAttributesList, context);
 }
 
 void TRootElement::Update(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
@@ -3181,6 +3263,7 @@ void TRootElement::Update(TDynamicAttributesList* dynamicAttributesList, TUpdate
     VERIFY_INVOKER_AFFINITY(Host_->GetFairShareUpdateInvoker());
     TForbidContextSwitchGuard contextSwitchGuard;
 
+    UpdateBottomUp(dynamicAttributesList, context);
     UpdateTopDown(dynamicAttributesList, context);
 }
 
@@ -3279,11 +3362,6 @@ TJobResources TRootElement::GetSpecifiedResourceLimits() const
     return TJobResources::Infinite();
 }
 
-TJobResources TRootElement::ComputeResourceLimits() const
-{
-    return ComputeResourceLimitsBase(New<TResourceLimitsConfig>());
-}
-
 THistoricUsageAggregationParameters TRootElement::GetHistoricUsageAggregationParameters() const
 {
     return THistoricUsageAggregationParameters(EHistoricUsageAggregationMode::None);
@@ -3297,6 +3375,11 @@ TSchedulerElementPtr TRootElement::Clone(TCompositeSchedulerElement* /*clonedPar
 TRootElementPtr TRootElement::Clone()
 {
     return New<TRootElement>(*this);
+}
+
+bool TRootElement::IsDefaultConfigured() const
+{
+    return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

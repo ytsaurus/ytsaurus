@@ -43,6 +43,13 @@ TFuture<void> TAsyncStreamPipe::Close()
     return VoidFuture;
 }
 
+TFuture<void> TAsyncStreamPipe::Abort(const TError& error)
+{
+    auto writeComplete = NewPromise<void>();
+    Queue_.Enqueue(error);
+    return writeComplete;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NConcurrency

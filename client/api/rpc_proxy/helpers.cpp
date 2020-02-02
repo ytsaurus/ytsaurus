@@ -553,10 +553,6 @@ void ToProto(NProto::TOperation* protoOperation, const NApi::TOperation& operati
         protoOperation->set_authenticated_user(*operation.AuthenticatedUser);
     }
 
-    if (operation.Pools) {
-        NYT::ToProto(protoOperation->mutable_pools()->mutable_data(), *operation.Pools);
-    }
-
     if (operation.BriefSpec) {
         protoOperation->set_brief_spec(operation.BriefSpec.GetData());
     }
@@ -633,12 +629,6 @@ void FromProto(NApi::TOperation* operation, const NProto::TOperation& protoOpera
         operation->AuthenticatedUser = protoOperation.authenticated_user();
     } else {
         operation->AuthenticatedUser.reset();
-    }
-
-    if (protoOperation.has_pools()) {
-        operation->Pools = NYT::FromProto<std::vector<TString>>(protoOperation.pools().data());
-    } else {
-        operation->Pools.reset();
     }
 
     if (protoOperation.has_brief_spec()) {
@@ -724,6 +714,12 @@ void ToProto(NProto::TJob* protoJob, const NApi::TJob& job)
     if (job.State) {
         protoJob->set_state(ConvertJobStateToProto(*job.State));
     }
+    if (job.ControllerAgentState) {
+        protoJob->set_controller_agent_state(ConvertJobStateToProto(*job.ControllerAgentState));
+    }
+    if (job.ArchiveState) {
+        protoJob->set_archive_state(ConvertJobStateToProto(*job.ArchiveState));
+    }
 
     if (job.StartTime) {
         protoJob->set_start_time(NYT::ToProto<i64>(*job.StartTime));
@@ -760,6 +756,9 @@ void ToProto(NProto::TJob* protoJob, const NApi::TJob& job)
     if (job.CoreInfos) {
         protoJob->set_core_infos(job.CoreInfos.GetData());
     }
+    if (job.JobCompetitionId) {
+        ToProto(protoJob->mutable_job_competition_id(), job.JobCompetitionId);
+    }
 }
 
 void FromProto(NApi::TJob* job, const NProto::TJob& protoJob)
@@ -783,6 +782,16 @@ void FromProto(NApi::TJob* job, const NProto::TJob& protoJob)
         job->State = ConvertJobStateFromProto(protoJob.state());
     } else {
         job->State.reset();
+    }
+    if (protoJob.has_controller_agent_state()) {
+        job->ControllerAgentState = ConvertJobStateFromProto(protoJob.controller_agent_state());
+    } else {
+        job->ControllerAgentState.reset();
+    }
+    if (protoJob.has_archive_state()) {
+        job->ArchiveState = ConvertJobStateFromProto(protoJob.archive_state());
+    } else {
+        job->ArchiveState.reset();
     }
     if (protoJob.has_start_time()) {
         job->StartTime = TInstant::FromValue(protoJob.start_time());
@@ -838,6 +847,11 @@ void FromProto(NApi::TJob* job, const NProto::TJob& protoJob)
         job->CoreInfos = NYson::TYsonString(protoJob.core_infos());
     } else {
         job->CoreInfos = NYson::TYsonString();
+    }
+    if (protoJob.has_job_competition_id()) {
+        FromProto(&job->JobCompetitionId, protoJob.job_competition_id());
+    } else {
+        job->JobCompetitionId = {};
     }
 }
 

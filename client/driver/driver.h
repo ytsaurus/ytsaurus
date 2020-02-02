@@ -41,7 +41,7 @@ struct TDriverRequest
 
     //! Stream where the command output is written.
     //! The stream must stay alive for the duration of #IDriver::Execute.
-    NConcurrency::IAsyncOutputStreamPtr OutputStream;
+    NConcurrency::IFlushableAsyncOutputStreamPtr OutputStream;
 
     //! A map containing command parameters.
     NYTree::IMapNodePtr Parameters;

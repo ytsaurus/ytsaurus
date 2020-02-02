@@ -504,6 +504,14 @@ void TSortedStoreManager::BulkAddStores(TRange<IStorePtr> stores, bool onMount)
     }
 }
 
+void TSortedStoreManager::DiscardAllStores()
+{
+    TStoreManagerBase::DiscardAllStores();
+
+    // TODO(ifsmirnov): Reset initial partition. It's non-trivial because partition balancer tasks
+    // expect partitions in some states to stay alive long enough, though do not hold references to them.
+}
+
 void TSortedStoreManager::RemoveStore(IStorePtr store)
 {
     // The range is likely to contain at most one element.
@@ -634,6 +642,8 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             tabletSnapshot->Config->MergeRowsOnFlush,
             ConvertTo<TRetentionConfigPtr>(tabletSnapshot->Config));
 
+        const auto& rowCache = tabletSnapshot->RowCache;
+
         while (true) {
             // NB: Memory store reader is always synchronous.
             reader->Read(&rows);
@@ -651,6 +661,34 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
                     }
                 }
                 rows.resize(std::distance(rows.begin(), outputIt));
+            }
+
+            if (rowCache) {
+                auto accessor = rowCache->Cache.GetLookupAccessor();
+
+                for (auto& row : rows) {
+                    // TODO(lukyan): Get here address of cell and use it in update. Or use Update with callback.
+                    auto found = accessor.Lookup(row);
+
+                    if (found) {
+                        rowMerger.AddPartialRow(found->GetVersionedRow());
+                        rowMerger.AddPartialRow(row);
+
+                        row = rowMerger.BuildMergedRow();
+
+                        auto cachedRow = CachedRowFromVersionedRow(
+                            &rowCache->Allocator,
+                            row);
+
+                        bool updated = accessor.Update(cachedRow);
+
+                        if (updated) {
+                            YT_LOG_TRACE("Cache updated (Row: %v)", cachedRow->GetVersionedRow());
+                        } else {
+                            YT_LOG_TRACE("Cache update failed (Row: %v)", cachedRow->GetVersionedRow());
+                        }
+                    }
+                }
             }
 
             if (!tableWriter->Write(rows)) {
@@ -829,6 +867,8 @@ void TSortedStoreManager::TrySplitPartitionByAddedStores(
 
     const auto& config = partition->GetTablet()->GetConfig();
 
+    int formerPartitionStoreCount = partition->Stores().size() - addedStores.size();
+
     std::vector<TOwningKey> proposedPivots{partition->GetPivotKey()};
     i64 cumulativeDataSize = 0;
     int cumulativeStoreCount = 0;
@@ -843,11 +883,12 @@ void TSortedStoreManager::TrySplitPartitionByAddedStores(
 
         i64 dataSize = store->GetCompressedDataSize();
 
-        if (cumulativeDataSize >= config->DesiredPartitionDataSize ||
-            (cumulativeDataSize + dataSize > config->MaxPartitionDataSize &&
-                cumulativeDataSize >= config->MinPartitionDataSize) ||
-            cumulativeStoreCount >= config->MaxOverlappingStoreCount)
-        {
+        bool strongEvidence = cumulativeDataSize >= config->DesiredPartitionDataSize ||
+            cumulativeStoreCount >= config->OverlappingStoreImmediateSplitThreshold;
+        bool weakEvidence = cumulativeDataSize + dataSize > config->MaxPartitionDataSize ||
+            cumulativeStoreCount + formerPartitionStoreCount >= config->OverlappingStoreImmediateSplitThreshold;
+
+        if (strongEvidence || (weakEvidence && cumulativeDataSize >= config->MinPartitionDataSize)) {
             proposedPivots.push_back(store->GetMinKey());
             cumulativeDataSize = 0;
             cumulativeStoreCount = 0;

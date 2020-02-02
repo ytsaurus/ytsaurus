@@ -2,6 +2,10 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import *
 from yt.test_helpers import wait
 
+import yt.environment.init_operation_archive as init_operation_archive
+
+from flaky import flaky
+
 def get_sorted_jobs(op):
     jobs = []
     for id, job in op.get_running_jobs().iteritems():
@@ -13,7 +17,7 @@ def get_sorted_jobs(op):
 
 class TestSpeculativeJobEngine(YTEnvSetup):
     NUM_MASTERS = 1
-    NUM_NODES = 2
+    NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
     @authors("renadeen")
@@ -156,7 +160,7 @@ class TestSpeculativeJobEngine(YTEnvSetup):
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={"testing": {"register_speculative_job_on_job_scheduled": True}},
-            dont_track=True)
+            track=False)
         wait_breakpoint(job_count=2)
         original, speculative = get_sorted_jobs(op)
 
@@ -237,6 +241,7 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
         op.track()
 
     @authors("renadeen")
+    @flaky(max_runs=3)
     def test_aborted_speculative_job_is_restarted(self):
         op = self.run_op_with_residual_speculative_job()
         regular, speculative = get_sorted_jobs(op)
@@ -254,7 +259,7 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
         create_test_tables(row_count=2*self.ROW_COUNT_TO_FILL_PIPE)
 
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t_in",
             out="//tmp/t_out",
             command=with_breakpoint("BREAKPOINT; cat"),
@@ -275,7 +280,7 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
         create_test_tables(row_count=2*self.ROW_COUNT_TO_FILL_PIPE)
 
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t_in",
             out="//tmp/t_out",
             command=with_breakpoint("BREAKPOINT; cat"),
@@ -299,7 +304,7 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
 
         # Job is unslplittable since min_total_data_size is very large
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t_in",
             out="//tmp/t_out",
             command=with_breakpoint(command),
@@ -328,3 +333,121 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
         job_counters = get(op.get_path() + "/@progress/jobs")
         assert job_counters["aborted"]["scheduled"]["speculative_run_lost"] > 0 or \
             job_counters["aborted"]["scheduled"]["speculative_run_won"] > 0
+
+
+class TestListSpeculativeJobs(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+    USE_DYNAMIC_TABLES = True
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "statistics_reporter": {
+                "enabled": True,
+                "reporting_period": 10,
+                "min_repeat_delay": 10,
+                "max_repeat_delay": 10,
+            },
+            "job_controller": {
+                "resource_limits": {
+                    "user_slots": 4,
+                    "cpu": 4.0
+                }
+            }
+        },
+        "scheduler_connector": {
+            "heartbeat_period": 100,
+        },
+        "job_proxy_heartbeat_period": 100,
+    }
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "watchers_update_period": 100,
+            "operations_update_period": 10,
+            "running_jobs_update_period": 10,
+            "enable_job_reporter": True,
+            "enable_job_spec_reporter": True,
+            "static_orchid_cache_update_period": 100,
+            "operations_cleaner": {
+                "enable": False,
+                "analysis_period": 100,
+                # Cleanup all operations
+                "hard_retained_operation_count": 0,
+                "clean_delay": 0,
+            },
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operations_update_period": 10,
+            "controller_static_orchid_update_period": 100,
+        }
+    }
+
+    SINGLE_SETUP_TEARDOWN = True
+
+    @classmethod
+    def setup_class(cls):
+        super(TestListSpeculativeJobs, cls).setup_class()
+        sync_create_cells(1)
+        init_operation_archive.create_tables_latest_version(cls.Env.create_native_client(), override_tablet_cell_bundle="default")
+
+    @authors("renadeen")
+    def test_list_speculative_jobs(self):
+        def assert_list_jobs(op_id, data_source):
+            all_jobs = list_jobs(op_id, data_source=data_source)["jobs"]
+            assert len(all_jobs) == 4
+            grouped_jobs = {}
+            for job in all_jobs:
+                job_competition_id = job["job_competition_id"]
+                if job_competition_id not in grouped_jobs:
+                    grouped_jobs[job_competition_id] = []
+                grouped_jobs[job_competition_id].append(job["id"])
+
+            assert len(grouped_jobs) == 2
+
+            for job_competition_id in grouped_jobs:
+                listed_jobs = list_jobs(op_id, data_source=data_source, job_competition_id=job_competition_id)["jobs"]
+                listed_jobs = [job["id"] for job in listed_jobs]
+
+                assert len(listed_jobs) == 2
+                assert sorted(listed_jobs) == sorted(grouped_jobs[job_competition_id])
+
+        spec = {
+            "job_speculation_timeout": 100,
+            "max_speculative_job_count_per_task": 2,
+        }
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec=spec, job_count=2)
+        wait_breakpoint(job_count=4)
+        assert_list_jobs(op.id, "archive")
+        assert_list_jobs(op.id, "runtime")
+
+        release_breakpoint()
+        op.track()
+        assert_list_jobs(op.id, "archive")
+
+    @authors("renadeen")
+    def test_list_speculative_jobs_with_get_job(self):
+        def assert_get_and_list_jobs(op_id, job_id):
+            job = get_job(op_id, job_id)
+            jobs = list_jobs(op_id, job_competition_id=job["job_competition_id"])["jobs"]
+            assert len(jobs) == 2
+            assert jobs[0]["job_competition_id"] == job["job_competition_id"]
+            assert jobs[1]["job_competition_id"] == job["job_competition_id"]
+            assert jobs[0]["id"] == job_id or jobs[1]["id"] == job_id
+
+        spec = {
+            "job_speculation_timeout": 100,
+            "max_speculative_job_count_per_task": 2,
+        }
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec=spec, job_count=2)
+        some_job_id = wait_breakpoint(job_count=4)[0]
+        assert_get_and_list_jobs(op.id, some_job_id)
+
+        release_breakpoint()
+        op.track()
+        assert_get_and_list_jobs(op.id, some_job_id)
+

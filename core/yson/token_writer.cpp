@@ -33,33 +33,31 @@ size_t FloatToStringWithNanInf(double value, char* buf, size_t size)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUncheckedYsonTokenWriter::TUncheckedYsonTokenWriter(IZeroCopyOutput* writer, EYsonType /*type*/)
-    : Stream_(writer)
-    , RemainingBytes_(0)
-    , Position_(nullptr)
+TUncheckedYsonTokenWriter::TUncheckedYsonTokenWriter(IZeroCopyOutput* output, EYsonType /*type*/)
+    : WriterHolder_(output)
+    , Writer_(&*WriterHolder_)
 { }
 
-TUncheckedYsonTokenWriter::~TUncheckedYsonTokenWriter()
-{
-    Flush();
-}
+TUncheckedYsonTokenWriter::TUncheckedYsonTokenWriter(TZeroCopyOutputStreamWriter* writer, EYsonType /*type*/)
+    : Writer_(writer)
+{ }
 
 void TUncheckedYsonTokenWriter::WriteTextBoolean(bool value)
 {
     auto res = value ? AsStringBuf("%true") : AsStringBuf("%false");
-    DoWrite(res.data(), res.size());
+    Writer_->Write(res.data(), res.size());
 }
 
 void TUncheckedYsonTokenWriter::WriteTextInt64(i64 value)
 {
     auto res = ::ToString(value);
-    DoWrite(res.data(), res.size());
+    Writer_->Write(res.data(), res.size());
 }
 
 void TUncheckedYsonTokenWriter::WriteTextUint64(ui64 value)
 {
     auto res = ::ToString(value);
-    DoWrite(res.data(), res.size());
+    Writer_->Write(res.data(), res.size());
     WriteSimple('u');
 }
 
@@ -67,7 +65,7 @@ void TUncheckedYsonTokenWriter::WriteTextDouble(double value)
 {
     char buf[256];
     auto str = TStringBuf(buf, FloatToStringWithNanInf(value, buf, sizeof(buf)));
-    DoWrite(str.data(), str.size());
+    Writer_->Write(str.data(), str.size());
     if (str.find('.') == TString::npos && str.find('e') == TString::npos && std::isfinite(value)) {
         WriteSimple('.');
     }
@@ -77,13 +75,23 @@ void TUncheckedYsonTokenWriter::WriteTextString(TStringBuf value)
 {
     WriteSimple('"');
     auto res = EscapeC(value.data(), value.length());
-    DoWrite(res.data(), res.length());
+    Writer_->Write(res.data(), res.length());
     WriteSimple('"');
+}
+
+void TUncheckedYsonTokenWriter::WriteRawNodeUnchecked(TStringBuf value)
+{
+    Writer_->Write(value.data(), value.size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TCheckedYsonTokenWriter::TCheckedYsonTokenWriter(IZeroCopyOutput* writer, EYsonType type)
+    : Checker_(type)
+    , UncheckedWriter_(writer, type)
+{ }
+
+TCheckedYsonTokenWriter::TCheckedYsonTokenWriter(TZeroCopyOutputStreamWriter* writer, EYsonType type)
     : Checker_(type)
     , UncheckedWriter_(writer, type)
 { }
@@ -216,6 +224,12 @@ void TCheckedYsonTokenWriter::Finish()
 {
     Checker_.OnFinish();
     UncheckedWriter_.Finish();
+}
+
+void TCheckedYsonTokenWriter::WriteRawNodeUnchecked(TStringBuf value)
+{
+    Checker_.OnSimpleNonstring(EYsonItemType::EntityValue);
+    UncheckedWriter_.WriteRawNodeUnchecked(value);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

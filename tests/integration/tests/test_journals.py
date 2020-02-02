@@ -16,6 +16,12 @@ class TestJournals(YTEnvSetup):
         write_journal(path, data)
         wait_until_sealed(path)
 
+    def _truncate_and_check(self, path, row_count, expected_row_count):
+        truncate_journal(path, row_count)
+
+        assert get(path + "/@sealed")
+        assert get(path + "/@quorum_row_count") == expected_row_count
+
     @authors("ignat")
     def test_create_success(self):
         create("journal", "//tmp/j")
@@ -24,7 +30,7 @@ class TestJournals(YTEnvSetup):
         assert get("//tmp/j/@write_quorum") == 2
         assert get_chunk_owner_disk_space("//tmp/j") == 0
         assert get("//tmp/j/@sealed")
-        assert get("//tmp/j/@row_count") == 0
+        assert get("//tmp/j/@quorum_row_count") == 0
         assert get("//tmp/j/@chunk_ids") == []
 
     @authors("babenko", "ignat")
@@ -40,7 +46,7 @@ class TestJournals(YTEnvSetup):
         self._write_and_wait_until_sealed("//tmp/j", self.DATA)
 
         assert get("//tmp/j/@sealed")
-        assert get("//tmp/j/@row_count") == 10
+        assert get("//tmp/j/@quorum_row_count") == 10
         assert get("//tmp/j/@chunk_count") == 1
 
         for i in xrange(0, len(self.DATA)):
@@ -53,7 +59,7 @@ class TestJournals(YTEnvSetup):
             self._write_and_wait_until_sealed("//tmp/j", self.DATA)
 
         assert get("//tmp/j/@sealed")
-        assert get("//tmp/j/@row_count") == 100
+        assert get("//tmp/j/@quorum_row_count") == 100
         assert get("//tmp/j/@chunk_count") == 10
 
         for i in xrange(0, 10):
@@ -63,6 +69,46 @@ class TestJournals(YTEnvSetup):
             assert read_journal("//tmp/j[#" + str(i * 10 + 5) + ":]") == (self.DATA * (10 - i))[5:]
 
         assert read_journal("//tmp/j[#200:]") == []
+
+    @authors("aleksandra-zh")
+    def test_truncate1(self):
+        create("journal", "//tmp/j")
+        self._write_and_wait_until_sealed("//tmp/j", self.DATA)
+
+        assert get("//tmp/j/@sealed")
+        assert get("//tmp/j/@quorum_row_count") == 10
+
+        self._truncate_and_check("//tmp/j", 3, 3)
+        self._truncate_and_check("//tmp/j", 10, 3)
+
+    @authors("aleksandra-zh")
+    def test_truncate2(self):
+        create("journal", "//tmp/j")
+        for i in xrange(0, 10):
+            self._write_and_wait_until_sealed("//tmp/j", self.DATA)
+
+        assert get("//tmp/j/@sealed")
+        assert get("//tmp/j/@quorum_row_count") == 100
+
+        self._truncate_and_check("//tmp/j", 73, 73)
+        self._truncate_and_check("//tmp/j", 2, 2)
+        self._truncate_and_check("//tmp/j", 0, 0)
+
+        for i in xrange(0, 10):
+            self._write_and_wait_until_sealed("//tmp/j", self.DATA)
+            truncate_journal("//tmp/j", (i + 1) * 3)
+
+        assert get("//tmp/j/@sealed")
+        assert get("//tmp/j/@quorum_row_count") == 30
+
+    @authors("aleksandra-zh")
+    def test_truncate_unsealed(self):
+        set("//sys/@config/chunk_manager/enable_chunk_sealer", False, recursive=True)
+
+        create("journal", "//tmp/j")
+        write_journal("//tmp/j", self.DATA, journal_writer={"ignore_closing": True})
+
+        with pytest.raises(YtError): truncate_journal("//tmp/j", 1)
 
     @authors("babenko")
     def test_resource_usage(self):
@@ -108,6 +154,23 @@ class TestJournals(YTEnvSetup):
         with pytest.raises(YtError): set("//tmp/j/@replication_factor", 6)
         with pytest.raises(YtError): set("//tmp/j/@vital", False)
         with pytest.raises(YtError): set("//tmp/j/@primary_medium", "default")
+
+    @authors("kiselyovp")
+    def test_write_future_semantics(self):
+        set("//sys/@config/chunk_manager/enable_chunk_sealer", False, recursive=True)
+
+        create("journal", "//tmp/j1")
+        write_journal("//tmp/j1", self.DATA, journal_writer={"ignore_closing": True})
+
+        assert(read_journal("//tmp/j1") == self.DATA)
+
+##################################################################
+
+class TestJournalsChangeMedia(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 5
+
+    DATA = [{"data" : "payload" + str(i)} for i in xrange(0, 10)]
 
     @authors("ilpauzner", "shakurov")
     def test_journal_replica_changes_medium_yt_8669(self):
@@ -172,16 +235,13 @@ class TestJournals(YTEnvSetup):
 
         wait(replicator_has_done_well)
 
-    @authors("kiselyovp")
-    def test_write_future_semantics(self):
-        create("journal", "//tmp/j1")
-        write_journal("//tmp/j1", self.DATA, journal_writer={"ignore_closing": True})
-        assert(read_journal("//tmp/j1") == self.DATA)
-
 ##################################################################
 
 class TestJournalsMulticell(TestJournals):
     NUM_SECONDARY_MASTER_CELLS = 2
+
+class TestJournalsPortal(TestJournalsMulticell):
+    ENABLE_TMP_PORTAL = True
 
 class TestJournalsRpcProxy(TestJournals):
     DRIVER_BACKEND = "rpc"

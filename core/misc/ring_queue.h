@@ -201,13 +201,13 @@ public:
     }
 
     template <class... TArgs>
-    T* emplace(TArgs&&... args)
+    T& emplace(TArgs&&... args)
     {
         BeforePush();
         auto* ptr = Tail_;
         new (ptr) T(std::forward<TArgs>(args)...);
         AfterPush();
-        return ptr;
+        return *ptr;
     }
 
     void pop()

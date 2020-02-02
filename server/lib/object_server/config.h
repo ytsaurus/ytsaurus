@@ -12,16 +12,34 @@ namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMasterCacheServiceConfig
+class TObjectServiceCacheConfig
     : public NRpc::TThrottlingChannelConfig
     , public TSlruCacheConfig
 {
 public:
-    TMasterCacheServiceConfig()
+    TObjectServiceCacheConfig()
     {
         RegisterPreprocessor([&] () {
-            Capacity = 256_MB;
+            Capacity = 1_GB;
         });
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TObjectServiceCacheConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMasterCacheServiceConfig
+    : public TObjectServiceCacheConfig
+{
+public:
+    double NodeCacheTtlRatio;
+
+    TMasterCacheServiceConfig()
+    {
+        RegisterParameter("node_cache_ttl_ratio", NodeCacheTtlRatio)
+            .InRange(0, 1)
+            .Default(0.5);
     }
 };
 

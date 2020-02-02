@@ -334,8 +334,9 @@ inline void InvokeForComposites(const Map<T...>* parameter, const F& func)
 } // namespace NDetail
 
 template <class T>
-TYsonSerializableLite::TParameter<T>::TParameter(T& parameter)
-    : Parameter(parameter)
+TYsonSerializableLite::TParameter<T>::TParameter(TString key, T& parameter)
+    : Key(std::move(key))
+    , Parameter(parameter)
     , MergeStrategy(EMergeStrategy::Default)
 { }
 
@@ -413,6 +414,12 @@ template <class T>
 const std::vector<TString>& TYsonSerializableLite::TParameter<T>::GetAliases() const
 {
     return Aliases;
+}
+
+template <class T>
+const TString& TYsonSerializableLite::TParameter<T>::GetKey() const
+{
+    return Key;
 }
 
 template <class T>
@@ -524,14 +531,14 @@ DEFINE_POSTPROCESSOR(
 
 template <class T>
 TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::RegisterParameter(
-    const TString& parameterName,
+    TString parameterName,
     T& value)
 {
-    auto parameter = New<TParameter<T>>(value);
+    auto parameter = New<TParameter<T>>(parameterName, value);
     if (UnrecognizedStrategy == EUnrecognizedStrategy::KeepRecursive) {
         parameter->SetKeepUnrecognizedRecursively();
     }
-    YT_VERIFY(Parameters.insert(std::make_pair(parameterName, parameter)).second);
+    YT_VERIFY(Parameters.emplace(std::move(parameterName), parameter).second);
     return *parameter;
 }
 

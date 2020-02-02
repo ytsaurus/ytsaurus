@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "query_common.h"
+#include "objects_holder.h"
 
 #include <yt/client/ypath/rich.h>
 
@@ -12,16 +13,23 @@ namespace NYT::NQueryClient::NAst {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(TExpression)
-DECLARE_REFCOUNTED_STRUCT(TReferenceExpression)
-DECLARE_REFCOUNTED_STRUCT(TAliasExpression)
-DECLARE_REFCOUNTED_STRUCT(TLiteralExpression)
-DECLARE_REFCOUNTED_STRUCT(TFunctionExpression)
-DECLARE_REFCOUNTED_STRUCT(TUnaryOpExpression)
-DECLARE_REFCOUNTED_STRUCT(TBinaryOpExpression)
-DECLARE_REFCOUNTED_STRUCT(TInExpression)
-DECLARE_REFCOUNTED_STRUCT(TBetweenExpression)
-DECLARE_REFCOUNTED_STRUCT(TTransformExpression)
+#define XX(name) \
+struct name; \
+using name ## Ptr = name*;
+
+XX(TExpression)
+XX(TReferenceExpression)
+XX(TAliasExpression)
+XX(TLiteralExpression)
+XX(TFunctionExpression)
+XX(TUnaryOpExpression)
+XX(TBinaryOpExpression)
+XX(TInExpression)
+XX(TBetweenExpression)
+XX(TTransformExpression)
+
+#undef XX
+
 
 using TIdentifierList = std::vector<TReferenceExpressionPtr>;
 using TExpressionList = std::vector<TExpressionPtr>;
@@ -70,7 +78,6 @@ bool operator != (const TReference& lhs, const TReference& rhs);
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TExpression
-    : public TIntrinsicRefCounted
 {
     explicit TExpression(const TSourceLocation& sourceLocation)
         : SourceLocation(sourceLocation)
@@ -91,14 +98,17 @@ struct TExpression
     TStringBuf GetSource(TStringBuf source) const;
 
     TSourceLocation SourceLocation;
+
+    virtual ~TExpression()
+    { }
 };
 
-DEFINE_REFCOUNTED_TYPE(TExpression)
+//using TExpressionPtr = TExpression*;
 
 template <class T, class... TArgs>
-TExpressionList MakeExpression(TArgs&& ... args)
+TExpressionList MakeExpression(TObjectsHolder* holder, TArgs&& ... args)
 {
-    return TExpressionList(1, New<T>(std::forward<TArgs>(args)...));
+    return TExpressionList(1, holder->Register(new T(std::forward<TArgs>(args)...)));
 }
 
 bool operator == (const TExpression& lhs, const TExpression& rhs);
@@ -118,8 +128,6 @@ struct TLiteralExpression
 
     TLiteralValue Value;
 };
-
-DEFINE_REFCOUNTED_TYPE(TLiteralExpression)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -151,8 +159,6 @@ struct TReferenceExpression
     TReference Reference;
 };
 
-DEFINE_REFCOUNTED_TYPE(TReferenceExpression)
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TAliasExpression
@@ -170,8 +176,6 @@ struct TAliasExpression
     TExpressionPtr Expression;
     TString Name;
 };
-
-DEFINE_REFCOUNTED_TYPE(TAliasExpression)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -191,8 +195,6 @@ struct TFunctionExpression
     TExpressionList Arguments;
 };
 
-DEFINE_REFCOUNTED_TYPE(TFunctionExpression)
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TUnaryOpExpression
@@ -210,8 +212,6 @@ struct TUnaryOpExpression
     EUnaryOp Opcode;
     TExpressionList Operand;
 };
-
-DEFINE_REFCOUNTED_TYPE(TUnaryOpExpression)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -234,8 +234,6 @@ struct TBinaryOpExpression
     TExpressionList Rhs;
 };
 
-DEFINE_REFCOUNTED_TYPE(TBinaryOpExpression)
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TInExpression
@@ -254,8 +252,6 @@ struct TInExpression
     TLiteralValueTupleList Values;
 };
 
-DEFINE_REFCOUNTED_TYPE(TInExpression)
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TBetweenExpression
@@ -273,8 +269,6 @@ struct TBetweenExpression
     TExpressionList Expr;
     TLiteralValueRangeList Values;
 };
-
-DEFINE_REFCOUNTED_TYPE(TBetweenExpression)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -299,8 +293,6 @@ struct TTransformExpression
     TLiteralValueTupleList To;
     TNullableExpressionList DefaultExpr;
 };
-
-DEFINE_REFCOUNTED_TYPE(TTransformExpression)
 
 ////////////////////////////////////////////////////////////////////////////////
 struct TTableDescriptor
@@ -389,19 +381,25 @@ bool operator != (const TQuery& lhs, const TQuery& rhs);
 using TAliasMap = THashMap<TString, TExpressionPtr>;
 
 struct TAstHead
+    : public TObjectsHolder
 {
     static TAstHead MakeQuery()
     {
-        return TAstHead{TQuery(), TAliasMap()};
+        TAstHead result;
+        result.Ast.emplace<TQuery>();
+        return result;
     }
 
     static TAstHead MakeExpression()
     {
-        return TAstHead{TExpressionPtr(), TAliasMap()};
+        TAstHead result;
+        result.Ast.emplace<TExpressionPtr>();
+        return result;
     }
 
     std::variant<TQuery, TExpressionPtr> Ast;
     TAliasMap AliasMap;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

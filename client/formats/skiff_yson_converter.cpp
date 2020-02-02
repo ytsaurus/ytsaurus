@@ -2,8 +2,8 @@
 
 #include <yt/client/table_client/logical_type.h>
 
-#include <yt/core/skiff/skiff.h>
-#include <yt/core/skiff/skiff_schema.h>
+#include <yt/library/skiff/skiff.h>
+#include <yt/library/skiff/skiff_schema.h>
 #include <yt/core/yson/pull_parser.h>
 #include <yt/core/yson/parser.h>
 #include <yt/core/yson/token_writer.h>
@@ -753,7 +753,7 @@ TYsonToSkiffConverter CreateOptionalYsonToSkiffConverter(
         skiffSchema,
         allowOmitOptional);
 
-    if (*match.InnerTypes.first.GetType() == *NullLogicalType) {
+    if (match.InnerTypes.first.GetType()->IsNullable()) {
         return TOptionalNullYsonToSkiffConverterImpl(
             descriptor,
             match.LogicalNesting,
@@ -1303,7 +1303,7 @@ TSkiffToYsonConverter CreateOptionalSkiffToYsonConverter(
         }
     }
 
-    if (*match.InnerTypes.first.GetType() == *NullLogicalType) {
+    if (match.InnerTypes.first.GetType()->IsNullable()) {
         return TOptionalNullSkiffToYsonConverterImpl(std::move(descriptor), match.LogicalNesting, match.SkiffNesting);
     } else {
         auto innerConverter = CreateSkiffToYsonConverterImpl(
