@@ -9,6 +9,7 @@ DEPENDS(
     ${YT_ROOT}/yt/server/tools/bin
     ${YT_ROOT}/yt/server/scheduler/bin
     ${YT_ROOT}/yt/server/controller_agent/bin
+    ${YT_ROOT}/yt/server/clock_server/bin
     ${YT_ROOT}/yt/server/all
     ${YT_ROOT}/yt/server/all/stripped
 )
