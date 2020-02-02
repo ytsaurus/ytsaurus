@@ -37,6 +37,7 @@ SET(YP_TEST_SRCS
     test_ip4_address_pool.py
     test_labels.py
     test_local_cli.py
+    test_migrations.py
     test_maintenance.py
     test_multi_cluster_replica_sets.py
     test_net.py
@@ -61,7 +62,7 @@ SET(YP_TEST_SRCS
     test_scheduler_node_score.py
     test_schemas.py
     test_scripts.py
-    # test_secrets.py # TEMPORARY DISABLE
+    test_secrets.py
     test_ssl.py
     test_stages.py
     test_sweep.py
@@ -104,5 +105,9 @@ SIZE(MEDIUM)
 
 FORK_TESTS()
 SPLIT_FACTOR(100)
+
+TAG(
+    ya:huge_logs
+)
 
 NO_LINT()

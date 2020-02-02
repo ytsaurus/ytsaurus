@@ -5,15 +5,18 @@ from .conftest import (
 )
 
 from yp.common import YtResponseError
-import yt.yson as yson
 
-import os
+import yt.yson as yson
 
 import pytest
 
+import os
+
+
 class ScriptWrapper(Cli):
     def __init__(self, name):
-        super(ScriptWrapper, self).__init__("scripts/" + name, "", "yp-" + name.replace("_", "-"))
+        binary_name = "yp-" + name.replace("_", "-")
+        super(ScriptWrapper, self).__init__("yp/scripts/{}/{}".format(name, binary_name))
         self.set_config(dict(enable_ssl=False))
 
     def set_config(self, config):
@@ -24,7 +27,6 @@ class ScriptWrapper(Cli):
 
 
 @pytest.mark.usefixtures("yp_env")
-@pytest.mark.skipif("True", reason="YP-1155")
 class TestScripts(object):
     def test_touch_pod_master_spec_timestamp(self, yp_env, tmpdir):
         yp_client = yp_env.yp_client

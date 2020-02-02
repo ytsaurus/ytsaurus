@@ -16,6 +16,8 @@ option java_package = "ru.yandex.yp.client.api";
 option java_outer_classname = "Deploy";
 option java_multiple_files = true;
 
+////////////////////////////////////////////////////////////////////////////////
+
 message TDeployProgress
 {
     // Number of pods synced to up-to-date spec.
@@ -56,3 +58,5 @@ message TPodTemplateSpec
     NYT.NYTree.NProto.TAttributeDictionary labels = 2;
     NYT.NYTree.NProto.TAttributeDictionary annotations = 3;
 }
+
+////////////////////////////////////////////////////////////////////////////////

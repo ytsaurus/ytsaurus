@@ -66,8 +66,13 @@ public:
             query);
 
         try {
+            NYT::TObjectsHolder holder;
+
             auto evaluationContext = NQueryHelpers::CreateQueryEvaluationContext(
-                NQueryHelpers::BuildFakeTableFilterExpression(filter.Query, ColumnNameByAttributePathFirstToken),
+                NQueryHelpers::BuildFakeTableFilterExpression(
+                    &holder,
+                    filter.Query,
+                    ColumnNameByAttributePathFirstToken),
                 GetFakeTableSchema());
 
             struct TRowBufferTag { };

@@ -39,14 +39,13 @@ import sys
 import time
 import uuid
 
+
 yatest_common = arcadia_interop.yatest_common
 
-
 if yatest_common is None:
-    sys.path.insert(0, os.path.abspath('../../python'))
-    pytest_plugins = "yt.test_runner.plugin"
+    sys.path.insert(0, os.path.abspath("../../python"))
 
-TESTS_LOCATION = os.path.dirname(os.path.abspath(__file__))
+TESTS_LOCATION = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TESTS_SANDBOX = os.environ.get("TESTS_SANDBOX", TESTS_LOCATION + ".sandbox")
 
 ZERO_RESOURCE_REQUESTS = {
@@ -163,10 +162,7 @@ def wait_pod_is_assigned_to(yp_client, pod_id, node_id):
 
 
 def create_pod_set(yp_client, transaction_id=None, spec=None):
-    spec = update(
-        DEFAULT_POD_SET_SPEC,
-        get_value(spec, dict()),
-    )
+    spec = update(DEFAULT_POD_SET_SPEC, spec)
     return yp_client.create_object(
         "pod_set",
         attributes=dict(spec=spec),
@@ -406,16 +402,11 @@ def attach_pod_set_to_disruption_budget(yp_client, pod_set_id, pod_disruption_bu
 
 
 class Cli(object):
-    def __init__(self, directory_path, yamake_subdirectory_name, binary_name):
-        if yatest_common is not None:
-            binary_path = os.path.join("yp", directory_path, yamake_subdirectory_name, binary_name)
-            self._cli_execute = [yatest_common.binary_path(binary_path)]
+    def __init__(self, binary_path):
+        if yatest_common is None:
+            self._cli_execute = [os.path.basename(binary_path)]
         else:
-            binary_path = os.path.join(TESTS_LOCATION, "..", directory_path, binary_name)
-            self._cli_execute = [
-                os.environ.get("PYTHON_BINARY", sys.executable),
-                os.path.normpath(binary_path),
-            ]
+            self._cli_execute = [yatest_common.binary_path(binary_path)]
         self._env_patch = None
 
     def _get_env(self):
@@ -488,7 +479,7 @@ def prepare_yp_sandbox(sandbox_base):
     if yatest_common is not None:
         destination = os.path.join(yatest_common.work_path(), "yt_build_" + generate_uuid())
         os.makedirs(destination)
-        path = arcadia_interop.prepare_yt_environment(destination)
+        path = arcadia_interop.prepare_yt_environment(destination, use_ytserver_all=True)
         ypserver_master_binary = yatest_common.binary_path("yp/server/master/bin/ypserver-master")
         os.symlink(ypserver_master_binary, os.path.join(path, "ypserver-master"))
         _insert_environ_path(path)

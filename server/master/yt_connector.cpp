@@ -310,7 +310,7 @@ private:
 
         InstanceLockTransaction_.Reset();
         if (CancelableContext_) {
-            CancelableContext_->Cancel();
+            CancelableContext_->Cancel(TError("YT disconnected"));
             CancelableContext_.Reset();
         }
         CancelableInvoker_.Reset();

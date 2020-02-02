@@ -157,10 +157,12 @@ def main(cluster,
     db_tables = sorted_db_tables
 
     big_db_tables = set([
-        "pods",
-        "resources",
+        "dns_record_sets",
+        "endpoints",
         "nodes",
         "parents",
+        "pods",
+        "resources",
     ])
     assert all(map(lambda db_table: db_table in db_tables, big_db_tables))
     print("Big DB tables:\n  {}\n".format("\n  ".join(big_db_tables)))

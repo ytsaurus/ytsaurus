@@ -113,6 +113,7 @@ NYT::NQueryClient::NAst::TExpressionPtr BuildFilterExpression(
     const TObjectFilter& filter);
 
 NYT::NQueryClient::NAst::TExpressionPtr BuildAndExpression(
+    TObjectsHolder* holder,
     NYT::NQueryClient::NAst::TExpressionPtr lhs,
     NYT::NQueryClient::NAst::TExpressionPtr rhs);
 

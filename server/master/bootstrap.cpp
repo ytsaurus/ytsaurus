@@ -354,6 +354,7 @@ private:
         Scheduler_ = New<TScheduler>(Bootstrap_, InitialConfig_->Scheduler);
 
         YTConnector_->Initialize();
+        TransactionManager_->Initialize();
         ObjectManager_->Initialize();
         WatchManager_->Initialize();
         AccessControlManager_->Initialize();

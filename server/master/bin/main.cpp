@@ -13,7 +13,7 @@
 
 #include <yt/core/ytalloc/bindings.h>
 
-#include <yt/core/phdr_cache/phdr_cache.h>
+#include <yt/library/phdr_cache/phdr_cache.h>
 
 #include <yt/core/misc/ref_counted_tracker_profiler.h>
 

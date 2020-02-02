@@ -127,14 +127,14 @@ TExpressionPtr BuildCompositeGetter(
     TExpressionList args;
     for (const auto& [key, childAttribute] : attribute->KeyToChild()) {
         if (!childAttribute->IsOpaque() && !childAttribute->IsControl()) {
-            args.push_back(New<TLiteralExpression>(TSourceLocation(), key));
+            args.push_back(context->New<TLiteralExpression>(TSourceLocation(), key));
             ValidateHasExpressionBuilder(childAttribute);
             args.push_back(BuildSelector(context, childAttribute, TYPath()));
         }
     }
 
     static const TString MakeMapName("make_map");
-    return New<TFunctionExpression>(
+    return context->New<TFunctionExpression>(
         TSourceLocation(),
         MakeMapName,
         std::move(args));
@@ -448,11 +448,13 @@ NQueryHelpers::TQueryRewriter MakeQueryRewriter(IQueryContext* context) {
 }
 
 TExpressionPtr RewriteExpression(
+    TObjectsHolder* holder,
     const TString& expression,
     NQueryHelpers::TQueryRewriter rewriter)
 {
     auto parsedQuery = NQueryClient::ParseSource(expression, NQueryClient::EParseMode::Expression);
-    const auto& queryExpr = std::get<TExpressionPtr>(parsedQuery->AstHead.Ast);
+    auto queryExpr = std::get<TExpressionPtr>(parsedQuery->AstHead.Ast);
+    holder->Merge(std::move(parsedQuery->AstHead));
     return rewriter.Run(queryExpr);
 }
 
@@ -461,7 +463,7 @@ TExpressionPtr RewriteExpression(
     const TString& expression)
 {
     NQueryHelpers::TQueryRewriter rewriter = MakeQueryRewriter(context);
-    return RewriteExpression(expression, rewriter);
+    return RewriteExpression(context, expression, rewriter);
 }
 
 TExpressionPtr BuildFilterExpression(
@@ -478,12 +480,13 @@ TExpressionList RewriteExpressions(
     NQueryHelpers::TQueryRewriter rewriter = MakeQueryRewriter(context);
     TExpressionList result;
     for (const auto& expression : expressions) {
-        result.push_back(RewriteExpression(expression, rewriter));
+        result.push_back(RewriteExpression(context, expression, rewriter));
     }
     return result;
 }
 
 TExpressionPtr BuildAndExpression(
+    TObjectsHolder* holder,
     TExpressionPtr lhs,
     TExpressionPtr rhs)
 {
@@ -494,9 +497,9 @@ TExpressionPtr BuildAndExpression(
         return rhs;
     }
     if (!lhs && !rhs) {
-        return New<TLiteralExpression>(TSourceLocation(), TLiteralValue(true));
+        return holder->New<TLiteralExpression>(TSourceLocation(), TLiteralValue(true));
     }
-    return New<TBinaryOpExpression>(
+    return holder->New<TBinaryOpExpression>(
         TSourceLocation(),
         NQueryClient::EBinaryOp::And,
         TExpressionList{ std::move(lhs) },

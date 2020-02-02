@@ -80,8 +80,11 @@ std::unique_ptr<NQueryHelpers::TQueryEvaluationContext> CreateQueryEvaluationCon
     if (!filter) {
         return nullptr;
     }
+
+    NYT::TObjectsHolder holder;
+
     return std::make_unique<NQueryHelpers::TQueryEvaluationContext>(NQueryHelpers::CreateQueryEvaluationContext(
-        NQueryHelpers::BuildFakeTableFilterExpression(filter->Query, ColumnNameByAttributePathFirstToken),
+        NQueryHelpers::BuildFakeTableFilterExpression(&holder, filter->Query, ColumnNameByAttributePathFirstToken),
         GetFakeTableSchema()));
 }
 

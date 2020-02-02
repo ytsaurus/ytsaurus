@@ -216,12 +216,12 @@ TAttributeSchema* TAttributeSchema::SetAnnotationsAttribute()
                 return attrExpr;
             }
 
-            return TExpressionPtr(New<TFunctionExpression>(
+            return TExpressionPtr(context->New<TFunctionExpression>(
                 TSourceLocation(),
                 "try_get_any",
                 TExpressionList{
                     std::move(attrExpr),
-                    New<TLiteralExpression>(
+                    context->New<TLiteralExpression>(
                         TSourceLocation(),
                         suffixPath)
                 }));
@@ -828,12 +828,12 @@ void TAttributeSchema::InitExpressionBuilder(const TDBField* field, TPathValidat
 
             auto expr = context->GetFieldExpression(field);
             if (!path.empty()) {
-                expr = New<TFunctionExpression>(
+                expr = context->New<TFunctionExpression>(
                     TSourceLocation(),
                     "try_get_any",
                     TExpressionList{
                         std::move(expr),
-                        New<TLiteralExpression>(
+                        context->New<TLiteralExpression>(
                             TSourceLocation(),
                             path)
                     });

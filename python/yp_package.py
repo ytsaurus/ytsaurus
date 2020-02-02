@@ -13,7 +13,7 @@ def setup_package(name, python_dependent_requires):
         return list(imap(lambda package: prefix + "." + package, find_packages(path))) + [prefix]
 
     requires = [
-        "yandex-yt >= 0.8.43",
+        "yandex-yt >= 0.9.26",
         "yandex-yt-proto",
         "protobuf >= 3.2.1",
         "grpcio == 1.16.0rc1"

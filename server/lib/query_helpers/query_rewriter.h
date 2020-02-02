@@ -27,6 +27,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 NYT::NQueryClient::NAst::TExpressionPtr BuildFakeTableFilterExpression(
+    NYT::TObjectsHolder* holder,
     const TString& filterQuery,
     const THashMap<NYT::NYPath::TYPath, TString>& columnNameByAttributePathFirstToken);
 

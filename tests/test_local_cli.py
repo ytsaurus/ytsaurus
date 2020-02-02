@@ -18,7 +18,7 @@ import sys
 
 class YpLocalCli(Cli):
     def __init__(self):
-        super(YpLocalCli, self).__init__("python/yp/bin", "yp_local_make", "yp-local")
+        super(YpLocalCli, self).__init__("yp/python/yp/bin/yp_local_make/yp-local")
 
 
 @contextlib.contextmanager

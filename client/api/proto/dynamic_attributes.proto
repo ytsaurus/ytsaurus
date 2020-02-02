@@ -19,3 +19,5 @@ message TDynamicAttributes
     // Contains annotations (if any) that are listed in /spec/dynamic_attributes/annotations.
     optional NYT.NYTree.NProto.TAttributeDictionary annotations = 2;
 }
+
+////////////////////////////////////////////////////////////////////////////////

@@ -1,9 +1,9 @@
 from __future__ import print_function
 
 from .conftest import (
-    create_pod_with_boilerplate,
     create_nodes,
-    DEFAULT_POD_SET_SPEC
+    create_pod_set,
+    create_pod_with_boilerplate,
 )
 
 from yp.local import DbManager
@@ -269,7 +269,7 @@ class TestWatches(object):
     def test_watches_after_scheduler_allocation(yp_client, yp_env):
         yp_client = yp_env.yp_client
 
-        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": DEFAULT_POD_SET_SPEC})
+        pod_set_id = create_pod_set(yp_client)
         create_nodes(yp_client, 1)
 
         start_timestamp = yp_client.generate_timestamp()

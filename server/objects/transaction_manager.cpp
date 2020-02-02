@@ -30,10 +30,18 @@ class TTransactionManager::TImpl
     : public TRefCounted
 {
 public:
-    TImpl(TBootstrap* bootstrap, TTransactionManagerConfigPtr config)
+    TImpl(
+        TBootstrap* bootstrap,
+        TTransactionManagerConfigPtr config)
         : Bootstrap_(bootstrap)
         , Config_(std::move(config))
     { }
+
+    void Initialize()
+    {
+        const auto& ytConnector = Bootstrap_->GetYTConnector();
+        ytConnector->SubscribeValidateConnection(BIND(&TImpl::OnValidateConnection, MakeWeak(this)));
+    }
 
     TFuture<TTimestamp> GenerateTimestamp()
     {
@@ -54,6 +62,8 @@ public:
     TFuture<TTransactionPtr> StartReadOnlyTransaction(TTimestamp startTimestamp)
     {
         auto onTimestampGenerated = [=, this_ = MakeStrong(this)] (TTimestamp startTimestamp) {
+            ValidateStartTimestamp(startTimestamp);
+
             const auto& ytConnector = Bootstrap_->GetYTConnector();
             auto id = MakeTransactionId(startTimestamp);
             auto transaction = New<TTransaction>(
@@ -63,9 +73,11 @@ public:
                 startTimestamp,
                 ytConnector->GetClient(),
                 nullptr);
+
             YT_LOG_DEBUG("Read-only transaction created (TransactionId: %v, StartTimestamp: %llx)",
                 id,
                 startTimestamp);
+
             return transaction;
         };
 
@@ -130,6 +142,39 @@ private:
     TReaderWriterSpinLock TransactionMapLock_;
     THashMap<TTransactionId, TTransactionEntry> TransactionMap_;
 
+    std::atomic<TTimestamp> DatabaseFinalizationTimestamp_ = {NullTimestamp};
+
+
+    void OnValidateConnection()
+    {
+        const auto& ytConnector = Bootstrap_->GetYTConnector();
+        const auto& client = ytConnector->GetClient();
+
+        try {
+            auto ysonTimestamp = WaitFor(client->GetNode(ytConnector->GetDBPath() + "/@finalization_timestamp"))
+                .ValueOrThrow();
+            auto timestamp = NYTree::ConvertTo<TTimestamp>(ysonTimestamp);
+            DatabaseFinalizationTimestamp_.store(timestamp);
+            YT_LOG_DEBUG("Got database finalization timestamp (FinalizationTimestamp: %llx)",
+                timestamp);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error getting database finalization timestamp")
+                << ex;
+        }
+    }
+
+    void ValidateStartTimestamp(TTimestamp startTimestamp) const
+    {
+        auto databaseFinalizationTimestamp = DatabaseFinalizationTimestamp_.load();
+
+        if (startTimestamp < databaseFinalizationTimestamp) {
+            THROW_ERROR_EXCEPTION(NClient::NApi::EErrorCode::TimestampOutOfRange,
+                "Timestamp %llx is less than database finalization timestamp %llx",
+                startTimestamp,
+                databaseFinalizationTimestamp);
+        }
+    }
+
 
     TTransactionId MakeTransactionId(TTimestamp timestamp)
     {
@@ -147,6 +192,8 @@ private:
 
         auto startTimestamp = underlyingTransaction->GetStartTimestamp();
         auto id = MakeTransactionId(startTimestamp);
+
+        ValidateStartTimestamp(startTimestamp);
 
         auto transaction = New<TTransaction>(
             Bootstrap_,
@@ -224,6 +271,11 @@ private:
 TTransactionManager::TTransactionManager(TBootstrap* bootstrap, TTransactionManagerConfigPtr config)
     : Impl_(New<TImpl>(bootstrap, std::move(config)))
 { }
+
+void TTransactionManager::Initialize()
+{
+    Impl_->Initialize();
+}
 
 TFuture<TTimestamp> TTransactionManager::GenerateTimestamp()
 {

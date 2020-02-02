@@ -12,6 +12,8 @@ option java_package = "ru.yandex.yp.client.api";
 option java_outer_classname = "HostInfrastructure";
 option java_multiple_files = true;
 
+////////////////////////////////////////////////////////////////////////////////
+
 // User workload with unistat endpoint.
 message TMonitoringUnistatEndpoint
 {
@@ -64,3 +66,5 @@ message THostInfraInfo
 {
     TMonitoringInfo monitoring = 1;
 }
+
+////////////////////////////////////////////////////////////////////////////////

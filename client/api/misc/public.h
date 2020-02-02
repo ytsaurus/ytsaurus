@@ -59,6 +59,7 @@ DEFINE_ENUM(EErrorCode,
     ((RowsAlreadyTrimmed)              (100016))
     ((InvalidObjectSpec)               (100017))
     ((ContinuationTokenVersionMismatch)(100018))
+    ((TimestampOutOfRange)             (100019))
 );
 
 DEFINE_STRING_SERIALIZABLE_ENUM(EHfsmState,

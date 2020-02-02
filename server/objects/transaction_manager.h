@@ -12,7 +12,11 @@ class TTransactionManager
     : public TRefCounted
 {
 public:
-    TTransactionManager(NServer::NMaster::TBootstrap* bootstrap, TTransactionManagerConfigPtr config);
+    TTransactionManager(
+        NServer::NMaster::TBootstrap* bootstrap,
+        TTransactionManagerConfigPtr config);
+
+    void Initialize();
 
     TFuture<TTimestamp> GenerateTimestamp();
 

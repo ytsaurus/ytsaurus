@@ -23,7 +23,7 @@ import time
 
 class YpAdminCli(Cli):
     def __init__(self):
-        super(YpAdminCli, self).__init__("python/yp/bin", "yp_admin_make", "yp-admin")
+        super(YpAdminCli, self).__init__("yp/python/yp/bin/yp_admin_make/yp-admin")
 
 
 def get_yt_proxy_address(yp_env):
@@ -164,6 +164,23 @@ class TestAdminCli(object):
         assert output == ""
 
         assert len(list(yt_client.select_rows("[object_id] from [//yp/db/pod_sets_watch_log]"))) == 0
+
+    def test_update_finalization_timestamp(self, yp_env_configurable):
+        yt_client = yp_env_configurable.yt_client
+
+        def get_timestamp():
+            return yt_client.get("//yp/db/@finalization_timestamp")
+
+        timestamp = get_timestamp()
+
+        cli = YpAdminCli()
+        output = cli.check_output([
+            "update-finalization-timestamp",
+            "--yt-proxy", get_yt_proxy_address(yp_env_configurable),
+            "--yp-path", "//yp",
+        ])
+
+        assert get_timestamp() > timestamp
 
 
 @pytest.mark.usefixtures("yp_env_unfreezenable")

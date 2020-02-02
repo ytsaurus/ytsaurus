@@ -63,14 +63,9 @@ class TestHeavyScheduler(object):
 
         def is_leading():
             try:
-                is_leading_repr = monitoring_client.get("/yt_connector/is_leading")
+                return json.loads(monitoring_client.get("/yt_connector/is_leading"))
             except Exception:
                 return False
-            if PY3:
-                expected = b"true"
-            else:
-                expected = "true"
-            return is_leading_repr == expected
 
         def not_is_leading():
             return not is_leading()

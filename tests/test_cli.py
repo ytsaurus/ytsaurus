@@ -1,6 +1,7 @@
 from .conftest import (
     Cli,
     create_nodes,
+    create_pod_set,
     create_pod_with_boilerplate,
     get_pod_scheduling_status,
     is_assigned_pod_scheduling_status,
@@ -23,7 +24,7 @@ import pytest
 
 class YpCli(Cli):
     def __init__(self, grpc_address):
-        super(YpCli, self).__init__("python/yp/bin", "yp_make", "yp")
+        super(YpCli, self).__init__("yp/python/yp/bin/yp_make/yp")
         self.set_env_patch(dict(YP_ADDRESS=grpc_address, YP_PROTOCOL="grpc"))
         self.set_config(dict(enable_ssl=False))
 
@@ -41,12 +42,12 @@ def create_cli(yp_env):
     return YpCli(yp_env.yp_instance.yp_client_grpc_address)
 
 
-def create_pod_set(cli):
+def create_pod_set_via_cli(cli):
     return cli.check_output(["create", "pod_set"])
 
-def create_pod(cli, pod_set_id=None):
+def create_pod_via_cli(cli, pod_set_id=None):
     if pod_set_id is None:
-        pod_set_id = create_pod_set(cli)
+        pod_set_id = create_pod_set_via_cli(cli)
 
     attributes = {"meta": {"pod_set_id": pod_set_id}}
     return cli.check_output([
@@ -55,7 +56,7 @@ def create_pod(cli, pod_set_id=None):
         "--attributes", yson.dumps(attributes)
     ])
 
-def create_user(cli):
+def create_user_via_cli(cli):
     return cli.check_output(["create", "user"])
 
 
@@ -64,7 +65,7 @@ class TestCli(object):
     def test_common(self, yp_env):
         cli = create_cli(yp_env)
 
-        pod_id = create_pod(cli)
+        pod_id = create_pod_via_cli(cli)
 
         result = cli.check_yson_output([
             "get",
@@ -85,7 +86,7 @@ class TestCli(object):
     def test_check_object_permission(self, yp_env):
         cli = create_cli(yp_env)
 
-        pod_id = create_pod(cli)
+        pod_id = create_pod_via_cli(cli)
 
         result = cli.check_yson_output([
             "check-object-permission",
@@ -103,7 +104,7 @@ class TestCli(object):
         ])
         assert result == dict(action="allow")
 
-        user_id = create_user(cli)
+        user_id = create_user_via_cli(cli)
         yp_env.sync_access_control()
 
         result = cli.check_yson_output([
@@ -117,11 +118,11 @@ class TestCli(object):
     def test_get_object_access_allowed_for(self, yp_env):
         cli = create_cli(yp_env)
 
-        pod_id = create_pod(cli)
+        pod_id = create_pod_via_cli(cli)
 
         all_user_ids = ["root"]
         for _ in xrange(10):
-            all_user_ids.append(create_user(cli))
+            all_user_ids.append(create_user_via_cli(cli))
 
         result = cli.check_yson_output([
             "get-object-access-allowed-for",
@@ -314,7 +315,7 @@ class TestCli(object):
         vlan_id = "backbone"
 
         create_nodes(yp_client, node_count, cpu_total_capacity=200, vlan_id=vlan_id)
-        pod_set_id = create_pod_set(cli)
+        pod_set_id = create_pod_set(yp_client)
         network_project_id = yp_client.create_object("network_project", {
             "meta": {"id": "somenet"},
             "spec": {"project_id": 42},
@@ -386,7 +387,7 @@ class TestCli(object):
     def test_aggregate(self, yp_env):
         cli = create_cli(yp_env)
 
-        pod_set_id = create_pod_set(cli)
+        pod_set_id = create_pod_set_via_cli(cli)
         pod_ids = []
         memory_limits = [i * 2**20 for i in range(1, 8)]
         for memory_limit in memory_limits:

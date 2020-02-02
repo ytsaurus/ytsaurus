@@ -60,10 +60,10 @@ public:
         if (field->Name != ObjectsTable.Fields.Labels.Name) {
             ThrowNotSupported();
         }
-        static const auto Expression = New<NAst::TReferenceExpression>(
+        static const auto Expression = std::make_unique<NAst::TReferenceExpression>(
             TSourceLocation(),
             ObjectsTable.Fields.Labels.Name);
-        return Expression;
+        return Expression.get();
     }
 
     virtual NAst::TExpressionPtr GetAnnotationExpression(const TString& /*name*/) override

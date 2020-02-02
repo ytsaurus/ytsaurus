@@ -6,7 +6,7 @@
 #include <yt/ytlib/program/program_config_mixin.h>
 #include <yt/ytlib/program/program_pdeathsig_mixin.h>
 
-#include <yt/core/phdr_cache/phdr_cache.h>
+#include <yt/library/phdr_cache/phdr_cache.h>
 
 #include <yt/core/misc/ref_counted_tracker_profiler.h>
 #include <yt/core/ytalloc/bindings.h>

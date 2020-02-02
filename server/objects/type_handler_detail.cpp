@@ -43,8 +43,10 @@ void TObjectTypeHandlerBase::Initialize()
 
                     MakeAttributeSchema("type")
                         ->SetExpressionBuilder(
-                            [type = Type_] (IQueryContext* /*context*/) {
-                                return New<TLiteralExpression>(NYT::NQueryClient::TSourceLocation(), FormatEnum(type));
+                            [type = Type_] (IQueryContext* context) {
+                                return context->New<NYT::NQueryClient::NAst::TLiteralExpression>(
+                                    NYT::NQueryClient::TSourceLocation(),
+                                    FormatEnum(type));
                             }),
 
                     MakeAttributeSchema("creation_time")

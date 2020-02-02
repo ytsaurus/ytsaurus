@@ -15,19 +15,23 @@ option go_package = "a.yandex-team.ru/yp/go/proto/api";
 option java_package = "ru.yandex.yp.client.api";
 option java_outer_classname = "DynamicResource";
 
+////////////////////////////////////////////////////////////////////////////////
+
 option (NYP.NClient.NApi.NProto.object_type) = {
     camel_case_name: "DynamicResource"
     snake_case_name: "dynamic_resource"
     type_value: 17
 };
 
-// for field descriptions see NYP.NClient.NApi.NProto.TSchemaMeta
-message TDynamicResourceMetaBase {
+// For field descriptions see NYP.NClient.NApi.NProto.TSchemaMeta.
+message TDynamicResourceMetaBase
+{
     // Id of pod_set where to deploy the resource.
     string pod_set_id = 4;
 }
 
-message TDynamicResourceSpec {
+message TDynamicResourceSpec
+{
     reserved 2, 3, 5;
     reserved "url", "urls", "storage_options";
 
@@ -63,8 +67,10 @@ message TDynamicResourceSpec {
     uint32 update_window = 4;
 }
 
-message TDynamicResourceStatus {
-    message TRevisionStatus {
+message TDynamicResourceStatus
+{
+    message TRevisionStatus
+    {
         // Revision id
         uint64 revision = 1;
         // Short label describing deploy group.
@@ -78,3 +84,5 @@ message TDynamicResourceStatus {
     }
     repeated TRevisionStatus revisions = 1;
 }
+
+////////////////////////////////////////////////////////////////////////////////

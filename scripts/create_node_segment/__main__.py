@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 from yp.client import YpClient, find_token
-from yp.cli_helpers import ParseStructuredArgument
 from yt.common import get_value, update
+from yt.wrapper.cli_helpers import ParseStructuredArgument
 
 import argparse
 

@@ -1,9 +1,9 @@
 from .conftest import (
-    DEFAULT_POD_SET_SPEC,
     are_pods_assigned,
     are_pods_touched_by_scheduler,
     assert_over_time,
     create_nodes,
+    create_pod_set,
     create_pod_with_boilerplate,
     get_pod_scheduling_status,
     is_error_pod_scheduling_status,
@@ -55,13 +55,9 @@ class TestAntiaffinity(object):
             self,
             yp_client,
             antiaffinity_constraints):
-        return yp_client.create_object(
-            "pod_set",
-            attributes=dict(
-                spec=update(DEFAULT_POD_SET_SPEC, dict(
-                    antiaffinity_constraints=antiaffinity_constraints,
-                )),
-            ),
+        return create_pod_set(
+            yp_client,
+            spec=dict(antiaffinity_constraints=antiaffinity_constraints),
         )
 
     def _prepare_pod_groups(

@@ -550,11 +550,19 @@ public:
         const auto* idField = typeHandler->GetIdField();
         const auto* parentIdField = typeHandler->GetParentIdField();
 
+        TObjectsHolder holder;
+
         TExpressionList keyColumnsExpr;
         if (parentIdField) {
-            keyColumnsExpr.emplace_back(New<TReferenceExpression>(TSourceLocation(), parentIdField->Name, PrimaryTableAlias));
+            keyColumnsExpr.emplace_back(holder.New<TReferenceExpression>(
+                TSourceLocation(),
+                parentIdField->Name,
+                PrimaryTableAlias));
         }
-        keyColumnsExpr.emplace_back(New<TReferenceExpression>(TSourceLocation(), idField->Name, PrimaryTableAlias));
+        keyColumnsExpr.emplace_back(holder.New<TReferenceExpression>(
+            TSourceLocation(),
+            idField->Name,
+            PrimaryTableAlias));
 
         TLiteralValueTupleList keyTupleList;
         for (auto* object : requestedObjects) {
@@ -572,7 +580,7 @@ public:
             return result;
         }
 
-        auto inExpression = New<TInExpression>(
+        auto inExpression = holder.New<TInExpression>(
             TSourceLocation(),
             std::move(keyColumnsExpr),
             std::move(keyTupleList));
@@ -709,10 +717,11 @@ public:
             resolveResults);
 
         auto filterExpression = BuildAndExpression(
+            &queryContext,
             filter
                 ? BuildFilterExpression(&queryContext, *filter)
                 : nullptr,
-            BuildObjectFilterByRemovalTime());
+            BuildObjectFilterByRemovalTime(&queryContext));
 
         if (continuationToken) {
             std::vector<TString> keyLowerBound;
@@ -728,10 +737,12 @@ public:
             keyLowerBound.push_back(continuationToken->object_id());
 
             auto continuationTokenExpression = BuildObjectFilterByKeyLowerBound(
+                &queryContext,
                 typeHandler,
                 std::move(keyLowerBound));
 
             filterExpression = BuildAndExpression(
+                &queryContext,
                 filterExpression,
                 std::move(continuationTokenExpression));
         }
@@ -912,18 +923,24 @@ public:
         query->SelectExprs = TExpressionList{};
         for (auto&& expr : RewriteExpressions(&queryContext, groupByExpressions.Expressions)) {
             const auto aliasName = Format("group_by_expr_%v", i++);
-            query->GroupExprs->first.push_back(New<TAliasExpression>(TSourceLocation{}, std::move(expr), aliasName));
-            query->SelectExprs->push_back(New<TReferenceExpression>(TSourceLocation{}, aliasName));
+            query->GroupExprs->first.push_back(queryContext.New<TAliasExpression>(
+                TSourceLocation{},
+                std::move(expr),
+                aliasName));
+            query->SelectExprs->push_back(queryContext.New<TReferenceExpression>(
+                TSourceLocation{},
+                aliasName));
         }
         for (auto&& expr : RewriteExpressions(&queryContext, aggregators.Expressions)) {
             query->SelectExprs->emplace_back(std::move(expr));
         }
 
         auto predicateExpr = BuildAndExpression(
+            &queryContext,
             filter
                 ? BuildFilterExpression(&queryContext, *filter)
                 : nullptr,
-            BuildObjectFilterByRemovalTime());
+            BuildObjectFilterByRemovalTime(&queryContext));
         query->WherePredicate = {std::move(predicateExpr)};
 
         const auto queryString = FormatQuery(*query);
@@ -963,9 +980,9 @@ public:
             query->SelectExprs->push_back(std::move(fieldExpression));
         }
 
-        EnsureNonEmptySelectExpressions(query.get());
+        EnsureNonEmptySelectExpressions(&queryContext, query.get());
 
-        query->WherePredicate = {BuildObjectFilterByRemovalTime()};
+        query->WherePredicate = {BuildObjectFilterByRemovalTime(&queryContext)};
 
         auto queryString = FormatQuery(*query);
 
@@ -3061,14 +3078,15 @@ private:
     }
 
 
-    static TReferenceExpressionPtr BuildPrimaryTableFieldReference(const TDBField* field)
+    static TReferenceExpressionPtr BuildPrimaryTableFieldReference(TObjectsHolder* holder, const TDBField* field)
     {
-        return New<TReferenceExpression>(
+        return holder->New<TReferenceExpression>(
             TSourceLocation(),
             TReference(field->Name, PrimaryTableAlias));
     }
 
     static TExpressionPtr BuildObjectFilterByKeyLowerBound(
+        TObjectsHolder* holder,
         IObjectTypeHandler* typeHandler,
         std::vector<TString> keyLowerBound)
     {
@@ -3082,34 +3100,34 @@ private:
         YT_VERIFY(keyFields.size() == keyLowerBound.size());
 
         for (size_t i = 0; i < keyLowerBound.size(); ++i) {
-            keyLowerBoundExpression.push_back(New<TLiteralExpression>(
+            keyLowerBoundExpression.push_back(holder->New<TLiteralExpression>(
                 TSourceLocation(),
                 TLiteralValue(std::move(keyLowerBound[i]))));
 
-            keyExpression.push_back(BuildPrimaryTableFieldReference(keyFields[i]));
+            keyExpression.push_back(BuildPrimaryTableFieldReference(holder, keyFields[i]));
         }
 
-        return New<TBinaryOpExpression>(
+        return holder->New<TBinaryOpExpression>(
             TSourceLocation(),
             EBinaryOp::Greater,
             std::move(keyExpression),
             std::move(keyLowerBoundExpression));
     }
 
-    static TExpressionPtr BuildObjectFilterByRemovalTime()
+    static TExpressionPtr BuildObjectFilterByRemovalTime(TObjectsHolder* holder)
     {
-        return New<TFunctionExpression>(
+        return holder->New<TFunctionExpression>(
             TSourceLocation(),
             "is_null",
             TExpressionList{
-                BuildPrimaryTableFieldReference(&ObjectsTable.Fields.Meta_RemovalTime)
+                BuildPrimaryTableFieldReference(holder, &ObjectsTable.Fields.Meta_RemovalTime)
             });
     }
 
-    static void EnsureNonEmptySelectExpressions(TQuery* query)
+    static void EnsureNonEmptySelectExpressions(TObjectsHolder* holder, TQuery* query)
     {
         if (query->SelectExprs->empty()) {
-            static const auto DummyExpr = New<TLiteralExpression>(
+            static const auto DummyExpr = holder->New<TLiteralExpression>(
                 TSourceLocation(),
                 TLiteralValue(false));
             query->SelectExprs->push_back(DummyExpr);
@@ -3153,7 +3171,7 @@ private:
         }
 
         query->SelectExprs = fetcherContext->GetSelectExpressions();
-        EnsureNonEmptySelectExpressions(query);
+        EnsureNonEmptySelectExpressions(queryContext, query);
 
         return fetchers;
     }

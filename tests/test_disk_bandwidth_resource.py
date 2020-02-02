@@ -1,7 +1,7 @@
 from .conftest import (
     DEFAULT_ACCOUNT_ID,
-    DEFAULT_POD_SET_SPEC,
     create_nodes,
+    create_pod_set,
     create_pod_with_boilerplate,
     get_pod_scheduling_status,
     is_assigned_pod_scheduling_status,
@@ -29,7 +29,7 @@ class TestDiskBandwidthResource(object):
 
         create_nodes(yp_client, 1)
 
-        pod_set_id = yp_client.create_object("pod_set", attributes={"spec": DEFAULT_POD_SET_SPEC})
+        pod_set_id = create_pod_set(yp_client)
 
         pod_capacity = 10 ** 9
         pod_bandwidth_guarantee = 10 ** 8
@@ -205,7 +205,7 @@ class TestDiskBandwidthResource(object):
             write_operation_rate_divisor=1.0,
         )])
 
-        pod_set_id = yp_client.create_object("pod_set", attributes=dict(spec=DEFAULT_POD_SET_SPEC))
+        pod_set_id = create_pod_set(yp_client)
 
         base_quota_policy = dict(capacity=10 ** 9)
         pod_spec = dict(

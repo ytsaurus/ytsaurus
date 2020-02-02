@@ -1,5 +1,4 @@
 from .conftest import (
-    DEFAULT_POD_SET_SPEC,
     are_pods_assigned,
     attach_pod_set_to_disruption_budget,
     create_nodes,

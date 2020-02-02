@@ -5,18 +5,21 @@ from .conftest import create_nodes
 from yp.common import YpNoSuchObjectError, wait
 
 import pytest
+from flaky import flaky
 
 
+# These tests are based on timeouts, do not forget to mark it as flaky.
 @pytest.mark.usefixtures("yp_env_configurable")
 class TestSweep(object):
     YP_MASTER_CONFIG = {
         "object_manager": {
-            "removed_objects_sweep_period": 1000,
-            "removed_objects_grace_timeout": 2000,
+            "removed_objects_sweep_period": 2000,
+            "removed_objects_grace_timeout": 4000,
             "removed_objects_drop_batch_size": 10,
         }
     }
 
+    @flaky(max_runs=3)
     def test_nodes(self, yp_env_configurable):
         yp_client = yp_env_configurable.yp_client
         yt_client = yp_env_configurable.yt_client
@@ -30,6 +33,7 @@ class TestSweep(object):
 
         wait(lambda: len(list(yt_client.select_rows("* from [//yp/db/nodes] where [meta.id] = \"{}\"".format(node_id)))) == 0)
 
+    @flaky(max_runs=3)
     def test_pods(self, yp_env_configurable):
         yp_client = yp_env_configurable.yp_client
         yt_client = yp_env_configurable.yt_client
@@ -44,6 +48,7 @@ class TestSweep(object):
 
         wait(lambda: len(list(yt_client.select_rows("* from [//yp/db/pods] where [meta.pod_set_id] = \"{}\" and [meta.id] = \"{}\"".format(pod_set_id, pod_id)))) == 0)
 
+    @flaky(max_runs=3)
     def test_batch(self, yp_env_configurable):
         yp_client = yp_env_configurable.yp_client
         yt_client = yp_env_configurable.yt_client

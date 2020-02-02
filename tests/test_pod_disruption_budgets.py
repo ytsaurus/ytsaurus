@@ -1,5 +1,4 @@
 from .conftest import (
-    DEFAULT_POD_SET_SPEC,
     are_pods_assigned,
     assert_over_time,
     attach_pod_set_to_disruption_budget,
@@ -319,7 +318,7 @@ def create_pods(yp_client, pod_counts, pod_disruption_budget_id):
     for pod_count in pod_counts:
         assert pod_count > 0
 
-        pod_set_id = yp_client.create_object("pod_set", attributes=dict(spec=DEFAULT_POD_SET_SPEC))
+        pod_set_id = create_pod_set(yp_client)
         attach_pod_set_to_disruption_budget(yp_client, pod_set_id, pod_disruption_budget_id)
 
         current_pod_ids = []
@@ -395,58 +394,6 @@ class TestPodDisruptionBudgetController(object):
         # At least 10 pods should be assigned.
         validate(2, 3)
 
-    def test_evicted_pods(self, yp_env):
-        yp_client = yp_env.yp_client
-
-        parameters = (
-            (3, 2, 5),
-            (5, 6, 4),
-        )
-        # i-th value of each list corresponds to the expected value of allowed_pod_disruptions after i requested evictions.
-        expected_value_per_eviction_per_case = (
-            (2, 2, 1, 0, 0, 0),
-            (5, 4, 3, 2, 1),
-        )
-        for case_index in xrange(len(parameters)):
-            max_pods_unavailable, max_pod_disruptions_between_syncs, pod_count = parameters[case_index]
-            expected_value_per_eviction = expected_value_per_eviction_per_case[case_index]
-
-            assert len(expected_value_per_eviction) == pod_count + 1
-
-            pod_disruption_budget_id = yp_client.create_object(
-                "pod_disruption_budget",
-                attributes=dict(spec=dict(
-                    max_pods_unavailable=max_pods_unavailable,
-                    max_pod_disruptions_between_syncs=max_pod_disruptions_between_syncs,
-                )),
-            )
-
-            assert pod_count >= 2
-            first_pod_set_pod_count = pod_count // 2
-            second_pod_set_pod_count = pod_count - first_pod_set_pod_count
-
-            pod_set_ids, pod_ids = create_pods(
-                yp_client,
-                pod_counts=(first_pod_set_pod_count, second_pod_set_pod_count),
-                pod_disruption_budget_id=pod_disruption_budget_id,
-            )
-            assert len(pod_ids) == pod_count
-
-            create_nodes(yp_client, 10)
-            wait(lambda: are_pods_assigned(yp_client, pod_ids))
-
-            def check(value):
-                return get_allowed_pod_disruptions(yp_client, pod_disruption_budget_id) == value
-
-            wait(lambda: check(expected_value_per_eviction[0]))
-
-            random.shuffle(pod_ids)
-            for eviction_index in xrange(len(pod_ids)):
-                request_pod_eviction_forcefully(yp_client, pod_ids[eviction_index])
-                value = expected_value_per_eviction[eviction_index + 1]
-                wait(lambda: check(value))
-                assert_over_time(lambda: check(value))
-
     def test_pod_disruption_budget_controller_profiling(self, yp_env):
         yp_client = yp_env.yp_client
         orchid = yp_env.create_orchid_client()
@@ -504,6 +451,61 @@ class TestPodDisruptionBudgetController(object):
 
         positive_update_lags = list(filter(lambda value: value > 0, update_lags))
         assert len(positive_update_lags) > 0
+
+    
+@pytest.mark.usefixtures("yp_env")
+class TestPodDisruptionBudgetEviction(object):
+    def test_evicted_pods(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        parameters = (
+            (3, 2, 5),
+            (5, 6, 4),
+        )
+        # i-th value of each list corresponds to the expected value of allowed_pod_disruptions after i requested evictions.
+        expected_value_per_eviction_per_case = (
+            (2, 2, 1, 0, 0, 0),
+            (5, 4, 3, 2, 1),
+        )
+        for case_index in xrange(len(parameters)):
+            max_pods_unavailable, max_pod_disruptions_between_syncs, pod_count = parameters[case_index]
+            expected_value_per_eviction = expected_value_per_eviction_per_case[case_index]
+
+            assert len(expected_value_per_eviction) == pod_count + 1
+
+            pod_disruption_budget_id = yp_client.create_object(
+                "pod_disruption_budget",
+                attributes=dict(spec=dict(
+                    max_pods_unavailable=max_pods_unavailable,
+                    max_pod_disruptions_between_syncs=max_pod_disruptions_between_syncs,
+                )),
+            )
+
+            assert pod_count >= 2
+            first_pod_set_pod_count = pod_count // 2
+            second_pod_set_pod_count = pod_count - first_pod_set_pod_count
+
+            pod_set_ids, pod_ids = create_pods(
+                yp_client,
+                pod_counts=(first_pod_set_pod_count, second_pod_set_pod_count),
+                pod_disruption_budget_id=pod_disruption_budget_id,
+            )
+            assert len(pod_ids) == pod_count
+
+            create_nodes(yp_client, 10)
+            wait(lambda: are_pods_assigned(yp_client, pod_ids))
+
+            def check(value):
+                return get_allowed_pod_disruptions(yp_client, pod_disruption_budget_id) == value
+
+            wait(lambda: check(expected_value_per_eviction[0]))
+
+            random.shuffle(pod_ids)
+            for eviction_index in xrange(len(pod_ids)):
+                request_pod_eviction_forcefully(yp_client, pod_ids[eviction_index])
+                value = expected_value_per_eviction[eviction_index + 1]
+                wait(lambda: check(value))
+                assert_over_time(lambda: check(value))
 
 
 def get_pod_eviction_state(yp_client, pod_id):

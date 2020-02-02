@@ -21,6 +21,7 @@ void ValidateAttributePath(const NYPath::TYPath& attributePath);
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IQueryContext
+    : public TObjectsHolder
 {
     virtual ~IQueryContext() = default;
 

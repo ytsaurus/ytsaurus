@@ -68,14 +68,15 @@ void TQueryRewriter::Visit(TExpressionList& list)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReferenceExpressionPtr GetFakeTableColumnReference(const TString& columnName)
+TReferenceExpressionPtr GetFakeTableColumnReference(NYT::TObjectsHolder* holder, const TString& columnName)
 {
-    return NYT::New<TReferenceExpression>(
+    return holder->New<TReferenceExpression>(
         NYT::NQueryClient::NullSourceLocation,
         columnName);
 }
 
 TExpressionPtr BuildFakeTableAttributeSelector(
+    NYT::TObjectsHolder* holder,
     const TYPath& attributePath,
     const THashMap<TYPath, TString>& columnNameByAttributePathFirstToken)
 {
@@ -96,15 +97,15 @@ TExpressionPtr BuildFakeTableAttributeSelector(
         tokenizer.Advance();
         auto attributePathSuffix = ToString(tokenizer.GetInput());
 
-        return TExpressionPtr(NYT::New<TFunctionExpression>(
+        return holder->New<TFunctionExpression>(
             NYT::NQueryClient::NullSourceLocation,
             "try_get_any",
             TExpressionList{
-                GetFakeTableColumnReference(it->second),
-                NYT::New<TLiteralExpression>(
+                GetFakeTableColumnReference(holder, it->second),
+                holder->New<TLiteralExpression>(
                     NYT::NQueryClient::NullSourceLocation,
                     std::move(attributePathSuffix))
-            }));
+            });
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error parsing attribute path %v",
             attributePath);
@@ -112,17 +113,20 @@ TExpressionPtr BuildFakeTableAttributeSelector(
 }
 
 TExpressionPtr BuildFakeTableFilterExpression(
+    NYT::TObjectsHolder* holder,
     const TString& filterQuery,
     const THashMap<TYPath, TString>& columnNameByAttributePathFirstToken)
 {
     auto parsedQuery = ParseSource(filterQuery, NYT::NQueryClient::EParseMode::Expression);
-    const auto& queryExpression = std::get<TExpressionPtr>(parsedQuery->AstHead.Ast);
+    auto queryExpression = std::get<TExpressionPtr>(parsedQuery->AstHead.Ast);
+
+    holder->Merge(std::move(parsedQuery->AstHead));
 
     auto referenceMapping = [&] (const TReference& reference) {
         if (reference.TableName) {
             THROW_ERROR_EXCEPTION("Table references are not supported");
         }
-        return BuildFakeTableAttributeSelector(reference.ColumnName, columnNameByAttributePathFirstToken);
+        return BuildFakeTableAttributeSelector(holder, reference.ColumnName, columnNameByAttributePathFirstToken);
     };
     TQueryRewriter rewriter(std::move(referenceMapping));
 

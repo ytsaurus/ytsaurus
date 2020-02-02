@@ -1,7 +1,7 @@
 from .conftest import (
-    DEFAULT_POD_SET_SPEC,
     YpOrchidClient,
     create_nodes,
+    create_pod_set,
     create_pod_with_boilerplate,
     get_pod_scheduling_status,
     is_assigned_pod_scheduling_status,
@@ -62,7 +62,7 @@ class TestConfig(object):
 
     def _prepare_scheduler_validation(self, yp_client):
         create_nodes(yp_client, 1)
-        pod_set_id = yp_client.create_object("pod_set", attributes=dict(spec=DEFAULT_POD_SET_SPEC))
+        pod_set_id = create_pod_set(yp_client)
         return create_pod_with_boilerplate(yp_client, pod_set_id, dict(
             resource_requests=dict(
                 vcpu_guarantee=100,
