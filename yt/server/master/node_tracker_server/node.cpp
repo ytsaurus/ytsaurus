@@ -358,7 +358,25 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, Rack_);
     Save(context, LeaseTransaction_);
     Save(context, DestroyedReplicas_);
-    Save(context, Replicas_);
+
+    // The is the replica statistics section; the format is as folows:
+    // (replicaCount, mediumIndex) for each medium with non-empty set of replicas
+    // 0
+    {
+        SmallVector<int, 8> mediumIndexes;
+        for (const auto& [mediumIndex, replicas] : Replicas_) {
+            if (!replicas.empty()) {
+                mediumIndexes.push_back(mediumIndex);
+            }
+        }
+        std::sort(mediumIndexes.begin(), mediumIndexes.end());
+        for (auto mediumIndex : mediumIndexes) {
+            const auto& replicas = GetOrCrash(Replicas_, mediumIndex);
+            TSizeSerializer::Save(context, replicas.size());
+            Save(context, mediumIndex);
+        }
+        TSizeSerializer::Save(context, 0);
+    }
 
     Save(context, UnapprovedReplicas_);
     Save(context, TabletSlots_);
@@ -410,19 +428,19 @@ void TNode::Load(NCellMaster::TLoadContext& context)
         Load(context, DestroyedReplicas_);
     }
 
-    // COMPAT(aleksandra-zh)
-    if (context.GetVersion() < EMasterReign::FixDenseMapSerialization) {
-        while (true) {
-            auto replicaCount = TSizeSerializer::Load(context);
-            if (replicaCount == 0) {
-                break;
-            }
-            auto mediumIndex = Load<int>(context);
-            ReserveReplicas(mediumIndex, replicaCount);
+    // NB: This code does not load the replicas per se; it just
+    // reserves the appropriate hashtables. Once the snapshot is fully loaded,
+    // per-node replica sets get reconstructed from the inverse chunk-to-node mapping.
+    // Cf. TNode::Load.
+    while (true) {
+        auto replicaCount = TSizeSerializer::Load(context);
+        if (replicaCount == 0) {
+            break;
         }
-    } else {
-        Load(context, Replicas_);
+        auto mediumIndex = Load<int>(context);
+        ReserveReplicas(mediumIndex, replicaCount);
     }
+
     Load(context, UnapprovedReplicas_);
     Load(context, TabletSlots_);
 
