@@ -56,6 +56,10 @@
 #include <yt/ytlib/job_proxy/helpers.h>
 #include <yt/ytlib/job_proxy/user_job_read_controller.h>
 
+#include <yt/ytlib/job_tracker_client/helpers.h>
+
+#include <yt/ytlib/job_prober_client/job_node_descriptor_cache.h>
+
 #include <yt/ytlib/node_tracker_client/channel.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
@@ -1187,23 +1191,17 @@ bool TClient::IsNoSuchJobOrOperationError(const TError& error)
 
 // Get job node descriptor from scheduler and check that user has |requiredPermissions|
 // for accessing the corresponding operation.
-TErrorOr<TNodeDescriptor> TClient::GetJobNodeDescriptor(
+TErrorOr<TNodeDescriptor> TClient::TryGetJobNodeDescriptor(
     TJobId jobId,
     EPermissionSet requiredPermissions)
 {
-    TNodeDescriptor jobNodeDescriptor;
-    auto req = JobProberProxy_->GetJobNode();
-    ToProto(req->mutable_job_id(), jobId);
-    req->set_required_permissions(static_cast<ui32>(requiredPermissions));
-    auto rspOrError = WaitFor(req->Invoke());
-    if (!rspOrError.IsOK()) {
-        return TError("Failed to get job node descriptor")
-            << std::move(rspOrError)
-            << TErrorAttribute("job_id", jobId);
-    }
-    auto rsp = rspOrError.Value();
-    FromProto(&jobNodeDescriptor, rsp->node_descriptor());
-    return jobNodeDescriptor;
+    const auto& cache = Connection_->GetJobNodeDescriptorCache();
+    NJobProberClient::TJobNodeDescriptorKey key{
+        .User = Options_.GetUser(),
+        .JobId = jobId,
+        .Permissions = requiredPermissions
+    };
+    return WaitFor(cache->Get(key));
 }
 
 IChannelPtr TClient::TryCreateChannelToJobNode(
@@ -1211,7 +1209,7 @@ IChannelPtr TClient::TryCreateChannelToJobNode(
     TJobId jobId,
     EPermissionSet requiredPermissions)
 {
-    auto jobNodeDescriptorOrError = GetJobNodeDescriptor(jobId, requiredPermissions);
+    auto jobNodeDescriptorOrError = TryGetJobNodeDescriptor(jobId, requiredPermissions);
     if (jobNodeDescriptorOrError.IsOK()) {
         return ChannelFactory_->CreateChannel(jobNodeDescriptorOrError.ValueOrThrow());
     }
@@ -1228,17 +1226,14 @@ IChannelPtr TClient::TryCreateChannelToJobNode(
         auto jobYsonString = WaitFor(GetJob(operationId, jobId, options))
             .ValueOrThrow();
         auto address = ConvertToNode(jobYsonString)->AsMap()->GetChild("address")->GetValue<TString>();
-        auto nodeChannel = ChannelFactory_->CreateChannel(address);
 
-        NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(nodeChannel);
-        auto jobSpecOrError = GetJobSpecFromJobNode(jobId, jobProberServiceProxy);
+        auto nodeChannel = ChannelFactory_->CreateChannel(address);
+        auto jobSpecOrError = TryGetJobSpecFromJobNode(jobId, nodeChannel);
         if (!jobSpecOrError.IsOK()) {
             return nullptr;
         }
 
-        auto jobSpec = jobSpecOrError
-            .ValueOrThrow();
-
+        const auto& jobSpec = jobSpecOrError.Value();
         ValidateJobSpecVersion(jobId, jobSpec);
         ValidateOperationAccess(jobId, jobSpec, requiredPermissions);
 
@@ -1249,36 +1244,42 @@ IChannelPtr TClient::TryCreateChannelToJobNode(
     }
 }
 
-TErrorOr<NJobTrackerClient::NProto::TJobSpec> TClient::GetJobSpecFromJobNode(
+TErrorOr<NJobTrackerClient::NProto::TJobSpec> TClient::TryGetJobSpecFromJobNode(
     TJobId jobId,
-    NJobProberClient::TJobProberServiceProxy& jobProberServiceProxy)
+    const NRpc::IChannelPtr& nodeChannel)
 {
+    NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(nodeChannel);
+
     auto req = jobProberServiceProxy.GetSpec();
     ToProto(req->mutable_job_id(), jobId);
+
     auto rspOrError = WaitFor(req->Invoke());
     if (!rspOrError.IsOK()) {
         return TError("Failed to get job spec from job node")
             << std::move(rspOrError)
             << TErrorAttribute("job_id", jobId);
     }
-    const auto& spec = rspOrError.Value()->spec();
+
+    const auto& rsp = rspOrError.Value();
+    const auto& spec = rsp->spec();
     ValidateJobSpecVersion(jobId, spec);
     return spec;
 }
 
 // Get job spec from node and check that user has |requiredPermissions|
 // for accessing the corresponding operation.
-TErrorOr<NJobTrackerClient::NProto::TJobSpec> TClient::GetJobSpecFromJobNode(
+TErrorOr<NJobTrackerClient::NProto::TJobSpec> TClient::TryGetJobSpecFromJobNode(
     TJobId jobId,
     EPermissionSet requiredPermissions)
 {
-    auto jobNodeDescriptorOrError = GetJobNodeDescriptor(jobId, requiredPermissions);
+    auto jobNodeDescriptorOrError = TryGetJobNodeDescriptor(jobId, requiredPermissions);
     if (!jobNodeDescriptorOrError.IsOK()) {
         return TError(std::move(jobNodeDescriptorOrError));
     }
-    auto nodeChannel = ChannelFactory_->CreateChannel(jobNodeDescriptorOrError.ValueOrThrow());
-    NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(nodeChannel);
-    return GetJobSpecFromJobNode(jobId, jobProberServiceProxy);
+
+    const auto& nodeDescriptor = jobNodeDescriptorOrError.Value();
+    auto nodeChannel = ChannelFactory_->CreateChannel(nodeDescriptor);
+    return TryGetJobSpecFromJobNode(jobId, nodeChannel);
 }
 
 // Get job spec from job archive and check that user has |requiredPermissions|
@@ -1343,11 +1344,12 @@ IAsyncZeroCopyInputStreamPtr TClient::DoGetJobInput(
     TJobId jobId,
     const TGetJobInputOptions& /*options*/)
 {
-    NJobTrackerClient::NProto::TJobSpec jobSpec;
-    auto jobSpecFromProxyOrError = GetJobSpecFromJobNode(jobId, EPermissionSet(EPermission::Read));
+    auto jobSpecFromProxyOrError = TryGetJobSpecFromJobNode(jobId, EPermissionSet(EPermission::Read));
     if (!jobSpecFromProxyOrError.IsOK() && !IsNoSuchJobOrOperationError(jobSpecFromProxyOrError)) {
         THROW_ERROR jobSpecFromProxyOrError;
     }
+
+    NJobTrackerClient::NProto::TJobSpec jobSpec;
     if (jobSpecFromProxyOrError.IsOK()) {
         jobSpec = std::move(jobSpecFromProxyOrError.Value());
     } else {
@@ -1416,7 +1418,7 @@ TYsonString TClient::DoGetJobInputPaths(
     const TGetJobInputPathsOptions& /*options*/)
 {
     NJobTrackerClient::NProto::TJobSpec jobSpec;
-    auto jobSpecFromProxyOrError = GetJobSpecFromJobNode(jobId, EPermissionSet(EPermission::Read));
+    auto jobSpecFromProxyOrError = TryGetJobSpecFromJobNode(jobId, EPermissionSet(EPermission::Read));
     if (!jobSpecFromProxyOrError.IsOK() && !IsNoSuchJobOrOperationError(jobSpecFromProxyOrError)) {
         THROW_ERROR jobSpecFromProxyOrError;
     }
@@ -1590,7 +1592,6 @@ TSharedRef TClient::DoGetJobStderrFromNode(
     TJobId jobId)
 {
     auto nodeChannel = TryCreateChannelToJobNode(operationId, jobId, EPermissionSet(EPermission::Read));
-
     if (!nodeChannel) {
         return TSharedRef();
     }

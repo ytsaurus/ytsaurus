@@ -12,6 +12,8 @@
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
+#include <yt/ytlib/job_prober_client/public.h>
+
 #include <yt/ytlib/hive/public.h>
 
 namespace NYT::NApi::NNative {
@@ -59,6 +61,8 @@ struct IConnection
 
     virtual const NTabletClient::ITableMountCachePtr& GetTableMountCache() = 0;
     virtual const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() = 0;
+
+    virtual const NJobProberClient::TJobNodeDescriptorCachePtr& GetJobNodeDescriptorCache() = 0;
 
     virtual IClientPtr CreateNativeClient(const TClientOptions& options = TClientOptions()) = 0;
 
