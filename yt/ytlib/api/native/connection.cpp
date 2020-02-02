@@ -28,6 +28,8 @@
 #include <yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 #include <yt/ytlib/node_tracker_client/master_cache_synchronizer.h>
 
+#include <yt/ytlib/job_prober_client/job_node_descriptor_cache.h>
+
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/ytlib/scheduler/scheduler_channel.h>
@@ -71,6 +73,7 @@ using namespace NObjectClient;
 using namespace NQueryClient;
 using namespace NHydra;
 using namespace NNodeTrackerClient;
+using namespace NJobProberClient;
 using namespace NScheduler;
 using namespace NProfiling;
 using namespace NYson;
@@ -147,6 +150,10 @@ public:
             GetMasterChannelOrThrow(EMasterChannelKind::Leader),
             GetNetworks());
 
+        JobNodeDescriptorCache_ = New<TJobNodeDescriptorCache>(
+            Config_->JobNodeDescriptorCache,
+            SchedulerChannel_);
+
         ClusterDirectory_ = New<TClusterDirectory>();
         ClusterDirectorySynchronizer_ = New<TClusterDirectorySynchronizer>(
             Config_->ClusterDirectorySynchronizer,
@@ -210,6 +217,11 @@ public:
     virtual const ITimestampProviderPtr& GetTimestampProvider() override
     {
         return TimestampProvider_;
+    }
+
+    virtual const TJobNodeDescriptorCachePtr& GetJobNodeDescriptorCache() override
+    {
+        return JobNodeDescriptorCache_;
     }
 
     virtual IInvokerPtr GetInvoker() override
@@ -448,6 +460,7 @@ private:
     IBlockCachePtr BlockCache_;
     ITableMountCachePtr TableMountCache_;
     ITimestampProviderPtr TimestampProvider_;
+    TJobNodeDescriptorCachePtr JobNodeDescriptorCache_;
     TEvaluatorPtr QueryEvaluator_;
     TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
 

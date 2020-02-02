@@ -15,6 +15,7 @@ namespace NYT::NJobProberClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_STRUCT(IJobProbe)
+DECLARE_REFCOUNTED_CLASS(TJobNodeDescriptorCache)
 
 DEFINE_ENUM(EErrorCode,
     ((JobIsNotRunning) (17000))
