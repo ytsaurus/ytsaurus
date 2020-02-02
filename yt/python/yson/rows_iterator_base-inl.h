@@ -73,8 +73,8 @@ void TRowsIteratorBase<TIteratorClass, TConsumer, TParser>::InitType(const TStri
 {
     Name_ = formatName + "Iterator";
     Doc_ = "Iterates over stream with " + formatName + " rows";
-    TString typeName = "yson_lib." + Name_;
-    TBase::behaviors().name(typeName.c_str());
+    TypeName_ = "yson_lib." + Name_;
+    TBase::behaviors().name(TypeName_.c_str());
     TBase::behaviors().doc(Doc_.c_str());
     TBase::behaviors().supportGetattro();
     TBase::behaviors().supportSetattro();

@@ -32,6 +32,7 @@ protected:
 
     static TString Name_;
     static TString Doc_;
+    static TString TypeName_;
 
     // These fields must be initialized in derived class.
     IInputStream* InputStream_;
