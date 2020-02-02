@@ -5,6 +5,9 @@
 #include "serialize.h"
 #endif
 
+#include <optional>
+#include <variant>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -512,7 +515,6 @@ struct TRangeSerializer
     template <class C>
     static void Save(C& context, TRef value)
     {
-        // XXX
         auto* output = context.GetOutput();
         output->Write(value.Begin(), value.Size());
     }
@@ -520,7 +522,6 @@ struct TRangeSerializer
     template <class C>
     static void Load(C& context, const TMutableRef& value)
     {
-        // XXX
         auto* input = context.GetInput();
         YT_VERIFY(input->Load(value.Begin(), value.Size()) == value.Size());
 
@@ -588,7 +589,6 @@ struct TSharedRefSerializer
     static void Save(C& context, const TSharedRef& value)
     {
         TSizeSerializer::Save(context, value.Size());
-        // XXX
         auto* output = context.GetOutput();
         output->Write(value.Begin(), value.Size());
     }
@@ -605,7 +605,6 @@ struct TSharedRefSerializer
         size_t size = TSizeSerializer::LoadSuspended(context);
         auto mutableValue = TSharedMutableRef::Allocate<TTag>(size, false);
 
-        // XXX
         auto* input = context.GetInput();
         YT_VERIFY(input->Load(mutableValue.Begin(), mutableValue.Size()) == mutableValue.Size());
         value = mutableValue;
