@@ -102,7 +102,7 @@ using TFingerprint = ui64;
 
 constexpr TChecksum NullChecksum = 0;
 
-template <class T, unsigned size>
+template <class T, unsigned Size>
 class SmallVector;
 
 template <class TProto, bool EnableWeak = false>
